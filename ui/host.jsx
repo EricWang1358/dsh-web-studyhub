@@ -3,6 +3,18 @@ import App from "./App.jsx";
 import css from "./style.css";
 import { createStudyCall } from "./transport.js";
 export const inject = ["slots", "locale"];
+// A run handed from the main view to the right sidebar (session id → run id).
+const handoff = new Map(),
+  handoffListeners = new Set();
+/** Read an optional host snapshot store; absent stores read as undefined. */
+function useHostStore(store) {
+  const subscribe = React.useCallback(
+      (fn) => (store ? store.subscribe(fn) : () => {}),
+      [store],
+    ),
+    read = React.useCallback(() => store?.getSnapshot(), [store]);
+  return React.useSyncExternalStore(subscribe, read);
+}
 export function apply(ctx) {
   ctx.effect(
     () =>
@@ -20,6 +32,7 @@ export function apply(ctx) {
     return () => el.remove();
   }, "study styles");
   function Seat(props) {
+    const placement = props.placement || "main";
     const call = React.useMemo(
       () =>
         createStudyCall(
@@ -36,7 +49,70 @@ export function apply(ctx) {
         ),
       [props.sessionId],
     );
-    return <App key={props.sessionId || "empty"} call={call} />;
+    const models = ctx.get("modelDirectories");
+    const catalog = useHostStore(models?.catalog?.store);
+    const directory = React.useMemo(() => {
+      try {
+        return props.sessionId
+          ? models?.directoryFor(props.sessionId)?.store
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    }, [models, props.sessionId]);
+    const current = useHostStore(directory);
+    React.useEffect(() => {
+      models?.catalog?.load?.().catch(() => {});
+    }, [models]);
+    const workspace = ctx.get("uiWorkspace");
+    const host = React.useMemo(
+      () => ({
+        pickDirectory: workspace?.pickDirectory
+          ? () => workspace.pickDirectory()
+          : undefined,
+        modelGroups: catalog?.value?.groups,
+        sessionModel: current?.current || catalog?.value?.default,
+        // Prefill (never auto-send) this session's composer.
+        askInChat: (text) => {
+          try {
+            const actx = ctx.get("sessions")?.scope?.(props.sessionId),
+              conversation = actx?.get("conversation");
+            if (!conversation) return false;
+            conversation.input.for(actx).setDraft(text);
+            // In the main area the study tab hides the chat; switch so the draft is visible.
+            props.openView?.("chat", "");
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        // Optional: keep the question in the right sidebar while the main area shows chat.
+        openInSidebar:
+          placement === "main" && ctx.get("sidebarRight")?.openTab
+            ? (runId) => {
+                if (runId) handoff.set(props.sessionId, runId);
+                handoffListeners.forEach((fn) => fn(props.sessionId));
+                ctx.get("sidebarRight").openTab("study-workspace");
+              }
+            : undefined,
+        takeHandoff:
+          placement === "sidebar"
+            ? (listener) => {
+                const take = () => {
+                  const runId = handoff.get(props.sessionId);
+                  handoff.delete(props.sessionId);
+                  if (runId) listener(runId);
+                };
+                take();
+                const fn = (sessionId) => sessionId === props.sessionId && setTimeout(take);
+                handoffListeners.add(fn);
+                return () => handoffListeners.delete(fn);
+              }
+            : undefined,
+      }),
+      [workspace, catalog, current, props.sessionId, props.openView, placement],
+    );
+    return <App key={props.sessionId || "empty"} call={call} host={host} />;
   }
   ctx.slots.inject("conversation.view", () =>
     ctx.slots.register(
@@ -50,6 +126,7 @@ export function apply(ctx) {
       Seat,
     ),
   );
+  const SidebarSeat = (props) => <Seat {...props} placement="sidebar" />;
   ctx.inject(["sidebarRightTabs"], (c) => {
     const dispose = c.sidebarRightTabs.register({
       id: "study-workspace",
@@ -66,7 +143,7 @@ export function apply(ctx) {
           key: "study-workspace",
           locale: "study-workspace",
         },
-        Seat,
+        SidebarSeat,
       ),
     );
     return () => {

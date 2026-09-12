@@ -16,11 +16,13 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
     throw e;
   }
   const tools = [],
+    commands = [],
     sections = [],
     routes = [],
     disposers = [];
   const ctx = {
     tools: { register: (x) => tools.push(x) },
+    commands: { register: (x) => commands.push(x) },
     llm: {},
     systemPrompt: { section: (x) => sections.push(x) },
     sessions: { get: () => undefined },
@@ -41,7 +43,52 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
   plugin.apply(ctx, {});
   assert.equal(plugin.name, "daily-flashcard");
   assert.equal(tools[0].name, "study_workspace");
+  assert.equal(commands[0].name, "study-spar");
+  assert.equal(
+    (await commands[0].handler({ agent: {}, rawInput: "  写成 MQ " })).kind,
+    "error",
+  );
   assert.equal(sections.length, 1);
+  // Every tool result must be lossless JSON (DSH rejects undefined, NaN, -0 and class instances).
+  const lossless = (value, path = "$") => {
+    if (value === null || typeof value === "string" || typeof value === "boolean") return;
+    if (typeof value === "number") {
+      assert.ok(Number.isFinite(value) && !Object.is(value, -0), `${path} is not a finite JSON number`);
+      return;
+    }
+    if (Array.isArray(value)) return value.forEach((v, i) => lossless(v, `${path}[${i}]`));
+    assert.ok(value && Object.getPrototypeOf(value) === Object.prototype, `${path} is not a plain JSON value`);
+    for (const [k, v] of Object.entries(value)) lossless(v, `${path}.${k}`);
+  };
+  const { mkdtemp } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const agent = { id: "a", session: { header: { cwd: await mkdtemp(join(tmpdir(), "study-tool-")) } } };
+  const tool = async (action, payload) => {
+    const value = await tools[0].execute(
+      { action, ...(payload ? { payload_json: JSON.stringify(payload) } : {}) },
+      { agent },
+    );
+    lossless(value, action);
+    return value;
+  };
+  const text = "Bridge separates an abstraction from its implementation so the two can vary independently.";
+  const src = await tool("source.add", { title: "notes", text });
+  const card = {
+    id: "c1", kind: "flashcard", topic: "Bridge", objective: "Explain Bridge",
+    prompt: "What does Bridge separate?", answer: "Abstraction and implementation.",
+    hint: "Two dimensions.", explanation: "They vary independently.", misconception: "It adapts interfaces.",
+    citations: [{ sourceId: src.id, quote: "separates an abstraction" }],
+  };
+  await tool("draft.save", { deck: { id: "d1", title: "Patterns", cards: [card] } });
+  await tool("draft.publish", { id: "d1" });
+  await tool("snapshot");
+  await tool("map");
+  const run = await tool("review.start", { deckId: "d1", mode: "flashcard" });
+  assert.equal("rubric" in run.card, false);
+  await tool("card.get", { deckId: "d1", cardId: "c1" });
+  await tool("card.current");
+  await tool("review.reveal", { runId: run.id, cardId: "c1" });
   assert.equal(routes[0].path, "/api/study-workspace/call");
   const invalid = await routes[0].fetch(
     new Request("http://localhost/api/study-workspace/call", {

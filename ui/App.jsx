@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import StudyMap from "./StudyMap.jsx";
+import Markdown from "./Markdown.jsx";
+import Guide from "./Guide.jsx";
+import Ingest from "./Ingest.jsx";
 
 const kinds = {
   quiz: "单选测验",
@@ -72,15 +76,31 @@ function parseDraft(raw) {
   return d;
 }
 
-export default function App({ call }) {
+export default function App({ call, host = {} }) {
   const rootRef = useRef(null),
     requestSequence = useRef(0),
     acting = useRef(false);
+  /* 'auto' follows the OS; explicit 'dark'/'light' wins. The CSS already
+     defaults to dark and reacts to prefers-color-scheme, so we only need to
+     stamp an attribute when the learner overrides it. */
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("study-theme") || "auto";
+    } catch {
+      return "auto";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("study-theme", theme);
+    } catch {}
+  }, [theme]);
   const [managedDeck, setManagedDeck] = useState(null),
-    [search, setSearch] = useState(""),
-    [showArchived, setShowArchived] = useState(false);
+    [folderDraft, setFolderDraft] = useState("");
   const [data, setData] = useState(null),
     [binding, setBinding] = useState({ root: "", provider: "", model: "" }),
+    [rootDraft, setRootDraft] = useState(null),
+    [modelDraft, setModelDraft] = useState(null),
     [page, setPage] = useState("library");
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -108,7 +128,22 @@ export default function App({ call }) {
     [hint, setHint] = useState(false),
     [explain, setExplain] = useState(false),
     [response, setResponse] = useState("");
-  const [settings, setSettings] = useState({}),
+  const [guide, setGuide] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("study-guide")) || {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("study-guide", JSON.stringify(guide));
+    } catch {}
+  }, [guide]);
+  const [genSource, setGenSource] = useState("files");
+  const [showBack, setShowBack] = useState(false),
+    [rawSource, setRawSource] = useState(false),
+    [settings, setSettings] = useState({}),
     [flag, setFlag] = useState(""),
     [teaching, setTeaching] = useState(null),
     [teachAnswer, setTeachAnswer] = useState("");
@@ -164,7 +199,34 @@ export default function App({ call }) {
       live = false;
     };
   }, [call, refresh]);
-  const running = data?.jobs?.some((j) => j.status === "running");
+  useEffect(
+    () => host.takeHandoff?.((runId) => act("review.get", { runId }, enterRun)),
+    [],
+  );
+  // Links and fixes made in the conversation reach the open question without a reload.
+  useEffect(() => {
+    if (page !== "review" || !run?.card) return;
+    const t = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const next = await call("review.get", { runId: run.id });
+        setRun((r) =>
+          // Merge only a response from the same answer state; a poll that started
+          // before the learner answered must not wipe the revealed solution.
+          r && r.id === next.id && r.index === next.index &&
+          r.revealed === next.revealed && !!r.feedback === !!next.feedback &&
+          JSON.stringify([r.prerequisites, r.card, r.solution, r.revision]) !==
+            JSON.stringify([next.prerequisites, next.card, next.solution, next.revision])
+            ? { ...r, prerequisites: next.prerequisites, card: next.card, solution: next.solution, revision: next.revision }
+            : r,
+        );
+      } catch {}
+    }, 4000);
+    return () => clearInterval(t);
+  }, [page, run?.id, run?.index, call]);
+  const running = data?.jobs?.some(
+    (j) => j.status === "running" || j.status === "queued",
+  );
   useEffect(() => {
     if (!binding.root) return;
     let stopped = false,
@@ -251,6 +313,20 @@ export default function App({ call }) {
     act(action, { runId: run.id, cardId: run.card?.id, ...args }, enterRun);
   const choice =
     run?.mode !== "flashcard" && ["quiz", "multi"].includes(run?.card?.kind);
+  // Each card mounts on the side matching its state; flipping after that is local.
+  useEffect(() => {
+    setShowBack(!!run?.revealed);
+  }, [run?.id, run?.card?.id]);
+  async function flipCard() {
+    if (!run?.card) return;
+    if (run.revealed) {
+      setShowBack((v) => !v);
+      return;
+    }
+    if (busy) return;
+    setShowBack(true);
+    if (!(await reviewAct("review.reveal"))) setShowBack(false);
+  }
   function choose(id) {
     if (busy || run.feedback) return;
     if (run.card.kind === "multi")
@@ -276,9 +352,9 @@ export default function App({ call }) {
       } else if (e.key === "ArrowLeft" && run.index) {
         e.preventDefault();
         reviewAct("review.move", { direction: -1 });
-      } else if (e.code === "Space" && !choice && !run.revealed) {
+      } else if (e.code === "Space" && !choice) {
         e.preventDefault();
-        reviewAct("review.reveal");
+        flipCard();
       } else if (choice && !run.feedback && /^[1-6]$/.test(e.key)) {
         const o = run.card.options[Number(e.key) - 1];
         if (o) choose(o.id);
@@ -287,6 +363,45 @@ export default function App({ call }) {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   });
+  // Hand the open question to the conversation; the reference tells the agent which card it is.
+  function cardBrief() {
+    const deck = data?.decks.find((d) => d.id === run.deckId);
+    const options = run.card.options?.length
+      ? "\n选项：\n" +
+        run.card.options.map((o, i) => String.fromCharCode(65 + i) + ". " + o.text).join("\n")
+      : "";
+    return (
+      "题组「" + (deck?.title || "") + "」· 主题「" + run.card.topic + "」\n" +
+      "题目：" + run.card.prompt + options + "\n" +
+      "题库定位：" + JSON.stringify({ deckId: run.deckId, cardId: run.card.id })
+    );
+  }
+  function askAboutCard() {
+    askInChat(
+      "我在做这道题时卡住了，想先把前置知识问清楚（先别直接告诉我答案）：\n" +
+        cardBrief() +
+        "\n\n请先用 study_workspace 的 card.get 读这道题和它引用的资料。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：",
+    );
+  }
+  function improveCard() {
+    askInChat(
+      "这道题的质量需要提升：\n" +
+        cardBrief() +
+        "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析、引用资料），按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：",
+    );
+  }
+  async function askInChat(text) {
+    if (host.askInChat?.(text)) {
+      setNotice("已填入对话输入框，确认后发送。");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice("已复制提示词，粘贴到对话中即可。");
+    } catch {
+      setNotice(text);
+    }
+  }
   function openDraft(d) {
     setDraft(structuredClone(d));
     setDraftText(JSON.stringify(d, null, 2));
@@ -313,23 +428,48 @@ export default function App({ call }) {
       cards: d.cards.map((c, i) => (i === index ? { ...c, [key]: value } : c)),
     }));
   }
-  async function saveBinding(e) {
-    e.preventDefault();
+  function customBinding(patch) {
+    return {
+      root: binding.rootSource === "custom" ? binding.root : "",
+      provider: binding.modelSource === "custom" ? binding.provider : "",
+      model: binding.modelSource === "custom" ? binding.model : "",
+      ...patch,
+    };
+  }
+  async function updateBinding(patch) {
     setBusy(true);
     setError("");
     try {
-      await call("binding.set", binding);
-      setSettings({});
-      setRun(null);
-      setDraft(null);
-      setSelectedSources([]);
+      const value = await call("binding.set", customBinding(patch));
+      const moved = value.root !== binding.root;
+      setBinding(value);
+      if (moved) {
+        setSettings({});
+        setRun(null);
+        setDraft(null);
+        setSelectedSources([]);
+      }
       await refresh();
-      setNotice("工作区已连接");
-      setPage("library");
+      setNotice(moved ? "已切换学习库" : "已更新生成模型");
+      return true;
     } catch (e) {
       setError(e.message);
+      return false;
     } finally {
       setBusy(false);
+    }
+  }
+  async function chooseRoot() {
+    if (!host.pickDirectory) {
+      setRootDraft(binding.root || "");
+      return;
+    }
+    try {
+      const picked = await host.pickDirectory();
+      if (picked) await updateBinding({ root: picked });
+    } catch {
+      setRootDraft(binding.root || "");
+      setNotice("无法打开目录选择器，请直接输入路径。");
     }
   }
   async function exportData() {
@@ -392,62 +532,205 @@ export default function App({ call }) {
           required
           rows={12}
           value={sourceText}
-          maxLength={120000}
+          maxLength={600000}
           onChange={(e) => setSourceText(e.target.value)}
           placeholder="粘贴讲义、笔记或材料。生成内容将引用这里的原文。"
         />
       </label>
       <div className="form-footer">
-        <small>{sourceText.length.toLocaleString()} / 120,000 字符</small>
+        <small>{sourceText.length.toLocaleString()} / 600,000 字符</small>
         <button className="primary" disabled={busy}>
           保存资料
         </button>
       </div>
     </form>
   );
-  const bindingForm = (
-    <form onSubmit={saveBinding}>
-      <label>
-        学习库绝对路径
-        <input
-          required
-          value={binding.root || ""}
-          onChange={(e) => setBinding({ ...binding, root: e.target.value })}
-          placeholder="D:\\Study\\my-library"
-        />
-        <small>选择你自己的学习资料目录，学习记录与题库保存在本地。</small>
-      </label>
-      <div className="two-col">
-        <label>
-          模型 Provider
+  const modelGroups = host.modelGroups || [],
+    followedModel =
+      host.sessionModel ||
+      (binding.modelSource === "session" ? binding.route : null);
+  function modelName(m) {
+    if (!m) return "";
+    const group = modelGroups.find((g) => g.id === m.provider),
+      model = group?.models.find((x) => x.id === m.model);
+    return `${group?.name || m.provider} · ${model?.name || m.model}`;
+  }
+  const customModelKey =
+    binding.modelSource === "custom"
+      ? JSON.stringify([binding.provider, binding.model])
+      : "";
+  const customListed = modelGroups.some(
+    (g) =>
+      g.id === binding.provider && g.models.some((m) => m.id === binding.model),
+  );
+  const workspacePanel = (
+    <div className="binding-panel">
+      <div className="binding-row">
+        <div className="binding-main">
+          <span className="binding-label">学习库</span>
+          <code className="binding-value" title={binding.root}>
+            {binding.root || "—"}
+          </code>
+          <small>
+            {binding.rootSource === "workspace"
+              ? "当前工作区"
+              : binding.rootSource === "config"
+                ? "插件配置指定"
+                : "自定义目录"}
+            {" · "}资料、题库与复习记录保存在这里
+          </small>
+        </div>
+        <div className="binding-actions">
+          <button type="button" onClick={chooseRoot} disabled={busy}>
+            更换目录…
+          </button>
+          {binding.rootSource === "custom" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => updateBinding({ root: "" })}
+            >
+              改回当前工作区
+            </button>
+          )}
+        </div>
+      </div>
+      {rootDraft !== null && (
+        <form
+          className="binding-inline"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (await updateBinding({ root: rootDraft })) setRootDraft(null);
+          }}
+        >
           <input
-            value={binding.provider || ""}
-            onChange={(e) =>
-              setBinding({ ...binding, provider: e.target.value })
-            }
-            placeholder="模型供应商 ID"
+            autoFocus
+            required
+            aria-label="学习库绝对路径"
+            value={rootDraft}
+            onChange={(e) => setRootDraft(e.target.value)}
           />
-        </label>
-        <label>
-          模型 ID
-          <input
-            value={binding.model || ""}
-            onChange={(e) => setBinding({ ...binding, model: e.target.value })}
-            placeholder="模型名称"
-          />
+          <button className="primary" disabled={busy}>
+            使用此目录
+          </button>
+          <button type="button" onClick={() => setRootDraft(null)}>
+            取消
+          </button>
+        </form>
+      )}
+      <div className="binding-row">
+        <label className="binding-main">
+          <span className="binding-label">生成模型</span>
+          <select
+            value={customModelKey}
+            disabled={busy}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "manual")
+                setModelDraft({
+                  provider: binding.provider,
+                  model: binding.model,
+                });
+              else if (!v) updateBinding({ provider: "", model: "" });
+              else {
+                const [provider, model] = JSON.parse(v);
+                updateBinding({ provider, model });
+              }
+            }}
+          >
+            <option value="">
+              跟随当前会话
+              {followedModel ? `（${modelName(followedModel)}）` : ""}
+            </option>
+            {modelGroups.map((g) => (
+              <optgroup key={g.id} label={g.name || g.id}>
+                {g.models.map((m) => (
+                  <option key={m.id} value={JSON.stringify([g.id, m.id])}>
+                    {m.name || m.id}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+            {customModelKey && !customListed && (
+              <option value={customModelKey}>{modelName(binding)}</option>
+            )}
+            <option value="manual">手动填写…</option>
+          </select>
+          <small>
+            {binding.modelSource === "session"
+              ? "与对话输入框选择的模型一致，切换后自动生效。"
+              : "只用于出题与讲解，不改变对话模型。"}
+            生成时所选资料会发送给该模型；复习不调用模型。
+          </small>
         </label>
       </div>
-      <p className="muted">
-        生成时，所选资料会发送给此模型；复习与历史记录无需调用模型。
-      </p>
-      <button className="primary" disabled={busy}>
-        连接学习工作区
-      </button>
-    </form>
+      {modelDraft && (
+        <form
+          className="binding-inline"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (await updateBinding(modelDraft)) setModelDraft(null);
+          }}
+        >
+          <input
+            autoFocus
+            required
+            aria-label="Provider"
+            placeholder="Provider"
+            value={modelDraft.provider}
+            onChange={(e) =>
+              setModelDraft({ ...modelDraft, provider: e.target.value })
+            }
+          />
+          <input
+            required
+            aria-label="模型 ID"
+            placeholder="模型 ID"
+            value={modelDraft.model}
+            onChange={(e) =>
+              setModelDraft({ ...modelDraft, model: e.target.value })
+            }
+          />
+          <button className="primary" disabled={busy}>
+            使用
+          </button>
+          <button type="button" onClick={() => setModelDraft(null)}>
+            取消
+          </button>
+        </form>
+      )}
+    </div>
   );
+  // Open by default until the core steps are done; an explicit toggle sticks.
+  const guideProps = data && {
+    data,
+    busy,
+    goal: guide.goal || "",
+    setGoal: (goal) => setGuide((g) => ({ ...g, goal })),
+    open: guide.open ?? !(data.decks.length && data.attempts.length),
+    setOpen: (open) => setGuide((g) => ({ ...g, open })),
+    addSource: () => setModal({ type: "add" }),
+    generate: () => {
+      setGenSource("files");
+      setPage("generate");
+    },
+    record: () => {
+      setGenSource("chat");
+      setPage("generate");
+    },
+    openDraft,
+    startToday: () => {
+      const today = data.runs.find((r) => r.mode === "path" && !r.scope?.length);
+      if (today) act("review.get", { runId: today.id }, enterRun);
+      else act("review.start", { mode: "path" }, enterRun);
+    },
+    askInChat,
+  };
   const shellTitle =
     page === "review"
-      ? data?.decks.find((d) => d.id === run?.deckId)?.title || "复习"
+      ? run?.title ||
+        data?.decks.find((d) => d.id === run?.deckId)?.title ||
+        "复习"
       : {
           library: "学习库",
           sources: "资料",
@@ -465,6 +748,7 @@ export default function App({ call }) {
   return (
     <div
       className="study-app"
+      data-theme={theme === "auto" ? undefined : theme}
       ref={rootRef}
       tabIndex={-1}
       onPointerDown={(e) => {
@@ -480,6 +764,43 @@ export default function App({ call }) {
           </div>
         </div>
         <nav>
+          <button
+            className={
+              "nav resume-nav" +
+              (page === "review" ? " active" : "") +
+              (data && !data.lastRun && !data.decks.length ? " muted-nav" : "")
+            }
+            disabled={!data || busy}
+            title={
+              !data
+                ? ""
+                : data.lastRun
+                  ? `回到「${data.lastRun.title}」第 ${data.lastRun.index + 1}/${data.lastRun.total} 题`
+                  : data.decks.length
+                    ? "没有进行中的练习，开始今日学习"
+                    : "还没有题目，先去创建题组"
+            }
+            onClick={() => {
+              setError("");
+              if (page === "review" && run && !run.complete) return;
+              if (data.lastRun) act("review.get", { runId: data.lastRun.id }, enterRun);
+              else if (data.decks.length) act("review.start", { mode: "path" }, enterRun);
+              else {
+                setGenSource("files");
+                setPage("generate");
+              }
+            }}
+          >
+            <Icon>↩</Icon>
+            <span className="nav-label">
+              回到题目
+              {data?.lastRun && (
+                <small>
+                  {data.lastRun.index + 1}/{data.lastRun.total} · {data.lastRun.title}
+                </small>
+              )}
+            </span>
+          </button>
           {[
             ["library", "▦", "学习库"],
             ["sources", "▤", "资料"],
@@ -502,10 +823,31 @@ export default function App({ call }) {
             </button>
           ))}
         </nav>
+        {guideProps && <Guide {...guideProps} variant="sidebar" />}
         <div className="sidebar-bottom">
           <div className="local-status">
             <span />
             本地学习工作区
+          </div>
+          {/* Theme switch. `auto` is dark; light is explicit opt-in. */}
+          <div className="theme-switch" role="group" aria-label="主题">
+            {[
+              ["auto", "◐", "跟随系统"],
+              ["dark", "☾", "深色"],
+              ["light", "☀", "浅色"],
+            ].map(([id, glyph, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={theme === id ? "seg active" : "seg"}
+                aria-pressed={theme === id}
+                title={label}
+                onClick={() => setTheme(id)}
+              >
+                <span aria-hidden="true">{glyph}</span>
+                <span className="sr-only">{label}</span>
+              </button>
+            ))}
           </div>
           <button
             className={page === "settings" ? "nav active" : "nav"}
@@ -517,10 +859,20 @@ export default function App({ call }) {
       </aside>
       <main>
         <header className="topbar">
-          <span>
-            Study <span className="breadcrumb">›</span> {shellTitle}
-          </span>
+          <nav className="crumbs" aria-label="位置">
+            <span className="crumb">Study</span>
+            <span className="breadcrumb" aria-hidden="true">
+              ›
+            </span>
+            <span className="crumb current" aria-current="page">
+              {shellTitle}
+            </span>
+          </nav>
           <span className="top-status">
+            <i
+              className={`dot ${busy || running ? "busy" : data ? "on" : ""}`}
+              aria-hidden="true"
+            />
             {busy
               ? "正在保存…"
               : running
@@ -530,6 +882,38 @@ export default function App({ call }) {
                   : "待连接"}
           </span>
         </header>
+        {page === "review" && run && !run.complete && run.total > 0 && (
+          <div
+            className="progress-bar"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={run.total}
+            aria-valuenow={run.index + 1}
+            aria-label="复习进度"
+          >
+            <span
+              style={{
+                width: `${Math.round(((run.index + 1) / run.total) * 100)}%`,
+              }}
+            />
+          </div>
+        )}
+        {data?.ingest && (
+          <div role="status" className="alert ingest-banner">
+            <span>
+              <strong>录题中</strong> · 题组「{data.ingest.deckTitle}」· 已录入 {data.ingest.added} 题
+              <small>在对话里直接贴题目或截图即可</small>
+            </span>
+            <button
+              disabled={busy}
+              onClick={() =>
+                act("ingest.stop", {}, (r) => setNotice(`已停止录题，本次录入 ${r.added} 题。`))
+              }
+            >
+              停止录题
+            </button>
+          </div>
+        )}
         {error && (
           <div role="alert" className="alert error">
             <span>{error}</span>
@@ -551,14 +935,53 @@ export default function App({ call }) {
             <div className="eyebrow">YOUR LEARNING SPACE</div>
             <h1>把资料变成真正会的知识。</h1>
             <p className="intro">
-              连接一个本地学习库，复用你的题目与复习历史。每一道新题，都能回到资料验证。
+              学习库默认在当前工作区，出题模型跟随当前会话。无法打开时，可以换一个目录后重试。
             </p>
-            {bindingForm}
+            {workspacePanel}
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() =>
+                refresh().then(
+                  () => setError(""),
+                  (e) => setError(e.message),
+                )
+              }
+            >
+              重试
+            </button>
           </section>
         ) : (
           <>
             {page === "library" && (
-              <section className="page library-page">
+              <StudyMap
+                data={data}
+                busy={busy}
+                start={(args) => act("review.start", args, enterRun)}
+                resume={(runId) => act("review.get", { runId }, enterRun)}
+                endRun={(runId) => act("review.end", { runId })}
+                manage={(id) =>
+                  act("deck.get", { id }, (deck) => {
+                    setManagedDeck(deck);
+                    setFolderDraft(deck.folder || "");
+                    setPage("manage");
+                  })
+                }
+                openDraft={openDraft}
+                addSource={() => setModal({ type: "add" })}
+                createManual={() =>
+                  openDraft({
+                    id: crypto.randomUUID(),
+                    title: "新建闪卡题组",
+                    cards: [blankCard()],
+                  })
+                }
+                importLibrary={() => setPage("settings")}
+                askInChat={askInChat}
+                theme={theme}
+                setTheme={setTheme}
+              >
+                <Guide {...guideProps} variant="inline" />
                 {recovery && (
                   <div className="alert notice">
                     <span>
@@ -577,284 +1000,7 @@ export default function App({ call }) {
                     <button onClick={clearRecovery}>丢弃暂存</button>
                   </div>
                 )}
-                <div className="page-heading">
-                  <div>
-                    <div className="eyebrow">LEARN WITH INTENTION</div>
-                    <h1>今天，学得更扎实一点。</h1>
-                    <p className="muted">
-                      理解、回忆、迁移。让每一次复习都有依据。
-                    </p>
-                  </div>
-                  <button
-                    className="primary"
-                    onClick={() => setPage("generate")}
-                  >
-                    ＋ 创建题组
-                  </button>
-                </div>
-                <div className="stats">
-                  <div>
-                    <strong>
-                      {data.decks
-                        .filter((d) => !d.archived)
-                        .reduce((n, d) => n + d.due, 0)}
-                    </strong>
-                    <span>待复习</span>
-                  </div>
-                  <div>
-                    <strong>
-                      {data.decks.reduce((n, d) => n + d.count, 0)}
-                    </strong>
-                    <span>学习卡片</span>
-                  </div>
-                  <div>
-                    <strong>{data.attempts.length}</strong>
-                    <span>近期作答记录</span>
-                  </div>
-                </div>
-                {data.runs.length > 0 && (
-                  <div className="resume-list">
-                    {data.runs.map((r) => (
-                      <div key={r.id}>
-                        <button
-                          className="resume"
-                          key={r.id}
-                          disabled={busy}
-                          onClick={() =>
-                            act("review.get", { runId: r.id }, enterRun)
-                          }
-                        >
-                          <span>
-                            <span className="eyebrow">继续上次学习</span>
-                            <strong>
-                              {data.decks.find((d) => d.id === r.deckId)
-                                ?.title || "题组"}
-                            </strong>
-                          </span>
-                          <span>
-                            {r.index + 1} / {r.total} <b>→</b>
-                          </span>
-                        </button>
-                        <button
-                          disabled={busy}
-                          onClick={() => act("review.end", { runId: r.id })}
-                        >
-                          结束此轮（保留已答记录）
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="section-heading">
-                  <h2>
-                    我的题组 <span>{data.decks.length}</span>
-                  </h2>
-                  <button
-                    disabled={!data.sources.length}
-                    onClick={() =>
-                      openDraft({
-                        id: crypto.randomUUID(),
-                        title: "新建闪卡题组",
-                        cards: [blankCard()],
-                      })
-                    }
-                  >
-                    手工创建闪卡
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPage("settings");
-                    }}
-                  >
-                    导入已有学习库
-                  </button>
-                </div>
-                <div className="two-col">
-                  <label>
-                    搜索题组或主题
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="输入关键词"
-                    />
-                  </label>
-                  <label>
-                    题组范围
-                    <select
-                      value={showArchived ? "archived" : "active"}
-                      onChange={(e) =>
-                        setShowArchived(e.target.value === "archived")
-                      }
-                    >
-                      <option value="active">学习中的题组</option>
-                      <option value="archived">已归档题组</option>
-                    </select>
-                  </label>
-                </div>
-                {data.decks.length ? (
-                  <div className="deck-grid">
-                    {data.decks
-                      .filter(
-                        (d) =>
-                          !!d.archived === showArchived &&
-                          `${d.title} ${d.topics.join(" ")}`
-                            .toLowerCase()
-                            .includes(search.toLowerCase()),
-                      )
-                      .map((d) => (
-                        <article className="deck" key={d.id}>
-                          <div className="deck-top">
-                            <span className="deck-icon">▧</span>
-                            <span className="tag">{d.due} 待复习</span>
-                          </div>
-                          <h3>{d.title}</h3>
-                          <p>{d.topics.slice(0, 3).join(" · ")}</p>
-                          <small>
-                            {d.count} 道题
-                            {d.flagged > 0 ? ` · ${d.flagged} 道已标记` : ""}
-                          </small>
-                          <div className="deck-actions">
-                            <button
-                              className="primary"
-                              disabled={busy || d.archived || !d.due}
-                              onClick={() =>
-                                act(
-                                  "review.start",
-                                  { deckId: d.id, mode: "due" },
-                                  enterRun,
-                                )
-                              }
-                            >
-                              复习
-                            </button>
-                            <button
-                              disabled={busy || d.archived || !d.available}
-                              onClick={() =>
-                                act(
-                                  "review.start",
-                                  { deckId: d.id, mode: "flashcard" },
-                                  enterRun,
-                                )
-                              }
-                            >
-                              闪卡
-                            </button>
-                            <button
-                              disabled={busy || d.archived || !d.quizCount}
-                              onClick={() =>
-                                act(
-                                  "review.start",
-                                  { deckId: d.id, mode: "quiz" },
-                                  enterRun,
-                                )
-                              }
-                            >
-                              测验
-                            </button>
-                            <button
-                              disabled={busy || d.archived || !d.wrong}
-                              onClick={() =>
-                                act(
-                                  "review.start",
-                                  { deckId: d.id, mode: "wrong" },
-                                  enterRun,
-                                )
-                              }
-                            >
-                              错题 {d.wrong || 0}
-                            </button>
-                            <button
-                              disabled={busy}
-                              onClick={() =>
-                                act("deck.get", { id: d.id }, (deck) => {
-                                  setManagedDeck(deck);
-                                  setPage("manage");
-                                })
-                              }
-                            >
-                              管理
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="empty">
-                    <span className="empty-icon">▧</span>
-                    <h2>你的第一组好题，从资料开始</h2>
-                    <p>添加讲义或笔记，再生成可审阅、可修改的闪卡与测验。</p>
-                    <button
-                      className="primary"
-                      onClick={() => setModal({ type: "add" })}
-                    >
-                      添加资料
-                    </button>
-                  </div>
-                )}
-                {data.drafts.length > 0 && (
-                  <>
-                    <div className="section-heading">
-                      <h2>
-                        待审阅 <span>{data.drafts.length}</span>
-                      </h2>
-                      <small>确认内容后再进入复习</small>
-                    </div>
-                    {data.drafts.map((d) => (
-                      <button
-                        key={d.id}
-                        className="draft-row"
-                        onClick={() => openDraft(d)}
-                      >
-                        <span>
-                          <strong>{d.title}</strong>
-                          <small>
-                            {d.cards.length} 道题 ·{" "}
-                            {d.quality?.warnings?.length || 0} 项质量提醒
-                          </small>
-                        </span>
-                        <span>审阅 →</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-                {data.jobs?.length > 0 && (
-                  <div className="jobs">
-                    {data.jobs.slice(-3).map((j) => (
-                      <div className={"job " + j.status} key={j.id}>
-                        <span>
-                          {j.status === "running"
-                            ? "◌"
-                            : j.status === "failed"
-                              ? "!"
-                              : "✓"}
-                        </span>
-                        <div>
-                          <strong>
-                            {j.status === "running"
-                              ? "正在生成题组"
-                              : j.status === "failed"
-                                ? "生成未完成"
-                                : "草稿已生成"}
-                          </strong>
-                          <small>{j.stage}</small>
-                        </div>
-                        {j.draftId &&
-                          data.drafts.some((d) => d.id === j.draftId) && (
-                            <button
-                              onClick={() =>
-                                openDraft(
-                                  data.drafts.find((d) => d.id === j.draftId),
-                                )
-                              }
-                            >
-                              打开
-                            </button>
-                          )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+              </StudyMap>
             )}
             {page === "manage" && managedDeck && (
               <section className="page">
@@ -888,13 +1034,38 @@ export default function App({ call }) {
                   </button>
                   <button onClick={() => setPage("library")}>返回学习库</button>
                 </div>
+                <form
+                  className="binding-inline folder-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    act(
+                      "deck.move",
+                      { id: managedDeck.id, folder: folderDraft },
+                      (moved) => {
+                        setManagedDeck({ ...managedDeck, folder: moved.folder });
+                        setFolderDraft(moved.folder);
+                        setNotice(moved.folder ? `已放入目录「${moved.folder}」` : "已移到目录顶层");
+                      },
+                    );
+                  }}
+                >
+                  <input
+                    aria-label="所在目录"
+                    value={folderDraft}
+                    onChange={(e) => setFolderDraft(e.target.value)}
+                    placeholder="所在目录，例如：设计模式 / 第 4 章（留空为顶层）"
+                  />
+                  <button disabled={busy || folderDraft === (managedDeck.folder || "")}>
+                    保存目录
+                  </button>
+                </form>
                 {managedDeck.cards.map((card) => (
                   <article className="deck" key={card.id}>
                     <small>
                       {card.topic} · {card.kind}
                       {card.suspended ? " · 已暂停" : ""}
                     </small>
-                    <h3>{card.prompt}</h3>
+                    <Markdown className="md-title" text={card.prompt} />
                     {card.flag && <p className="muted">标记：{card.flag}</p>}
                     <div className="deck-actions">
                       <button
@@ -997,6 +1168,57 @@ export default function App({ call }) {
               <section className="page narrow">
                 <div className="eyebrow">SOURCE → UNDERSTANDING</div>
                 <h1>创建一组值得练的题</h1>
+                <div className="source-mode" role="tablist" aria-label="题目来源">
+                  {[
+                    ["files", "从资料生成", "选已保存的讲义、笔记"],
+                    ["chat", "现场对话录题", "直接贴刷题软件、Canvas 错题或截图"],
+                  ].map(([id, label, note]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={genSource === id}
+                      className={genSource === id ? "source-tab active" : "source-tab"}
+                      onClick={() => setGenSource(id)}
+                    >
+                      <strong>{label}</strong>
+                      <small>{note}</small>
+                    </button>
+                  ))}
+                </div>
+                {genSource === "chat" ? (
+                  <Ingest
+                    data={data}
+                    busy={busy}
+                    start={(config) =>
+                      act("ingest.start", config, (mode) => {
+                        const kindText = {
+                          auto: "自动识别（有选项的保持单选/多选，没有选项的做成问答闪卡）",
+                          flashcard: "一律闪卡",
+                          quiz: "一律单选 MQ",
+                          multi: "一律多选",
+                          open: "一律开放问答",
+                        }[mode.kind];
+                        const mistakeText = {
+                          auto: "我标明自己选错的记为错题",
+                          all: "这批全部当错题",
+                          none: "都不记为错题",
+                        }[mode.mistakes];
+                        askInChat(
+                          "开始录题：接下来这段对话里我贴的题目（刷题软件、Canvas 错题记录、截图都可能），请都用 study_workspace 的 ingest 直接录入学习库，不用再问我确认。\n" +
+                            "- 题组：「" + mode.deckTitle + "」" + (mode.folder ? "（目录 " + mode.folder + "）" : "") + "\n" +
+                            "- 题型：" + kindText + "\n" +
+                            "- 错题：" + mistakeText + "\n" +
+                            "- 截图请先逐字转写题目、选项和答案再录入；一次贴很多题时可以分批。\n" +
+                            "- 每批录完简短告诉我：录入几道、哪些重复、哪些没录成功及原因、哪些答案是推断的需要我核对。\n" +
+                            "- 我说「停止录题」时调用 ingest.stop。\n" +
+                            "第一批题目：\n",
+                        );
+                      })
+                    }
+                  />
+                ) : (
+                <>
                 <p className="muted">
                   先选资料，再设定学习目标。生成结果会先进入草稿，经过你的审阅后发布。
                 </p>
@@ -1010,9 +1232,15 @@ export default function App({ call }) {
                         count: Number(gen.count),
                         sourceIds: selectedSources,
                       },
-                      () => {
+                      (job) => {
                         setPage("library");
-                        setNotice("已开始生成，完成后会出现在待审阅列表。");
+                        setNotice(
+                          (job.status === "queued"
+                            ? `已加入队列（前面还有 ${job.queuedBehind} 个）`
+                            : "已开始生成") +
+                            (job.parts > 1 ? `，资料较多，会分 ${job.parts} 段出题再合并` : "") +
+                            "。完成后出现在待审阅列表。",
+                        );
                       },
                     );
                   }}
@@ -1139,21 +1367,20 @@ export default function App({ call }) {
                   </div>
                   {!data.modelReady && (
                     <p className="warning">
-                      尚未配置生成模型。请在设置中选择 Provider 与模型。
+                      当前会话没有可用模型。请在对话输入框选择模型，或在设置中指定生成模型。
                     </p>
                   )}
                   <button
                     className="primary wide"
                     disabled={
-                      busy ||
-                      running ||
-                      !selectedSources.length ||
-                      !data.modelReady
+                      busy || !selectedSources.length || !data.modelReady
                     }
                   >
-                    {running ? "正在生成…" : "生成并检查题组 →"}
+                    {running ? "加入生成队列 →" : "生成并检查题组 →"}
                   </button>
                 </form>
+                </>
+                )}
               </section>
             )}
             {page === "draft" && draft && (
@@ -1494,7 +1721,7 @@ export default function App({ call }) {
                 <p className="muted">资料、题库、调度与模型，由你掌控。</p>
                 <fieldset>
                   <legend>学习库与模型</legend>
-                  {bindingForm}
+                  {workspacePanel}
                 </fieldset>
                 <fieldset>
                   <legend>导入 study-lib-spar</legend>
@@ -1594,7 +1821,18 @@ export default function App({ call }) {
                       查看 {run.sourceIds?.length || 0} 份资料
                     </button>
                   </div>
-                  <button onClick={() => setPage("library")}>返回学习库</button>
+                  <div className="review-heading-actions">
+                    {host.openInSidebar && !run.complete && (
+                      <button
+                        className="ghost-btn"
+                        title="题目放到右栏，主区域回到对话"
+                        onClick={() => host.openInSidebar(run.id)}
+                      >
+                        在右栏打开
+                      </button>
+                    )}
+                    <button onClick={() => setPage("library")}>返回学习库</button>
+                  </div>
                 </div>
                 {run.complete ? (
                   <div className="session-summary">
@@ -1622,12 +1860,34 @@ export default function App({ call }) {
                       )}
                     </div>
                     <p className="muted">每道题的下次复习时间已保存。</p>
-                    <button
-                      className="primary"
-                      onClick={() => setPage("library")}
-                    >
-                      回到学习库
-                    </button>
+                    <div className="summary-actions">
+                      {run.weakTopics?.length > 0 && (
+                        <button
+                          onClick={() =>
+                            askInChat(
+                              `我刚在「${shellTitle}」里这些主题答得不好：${run.weakTopics.join("、")}。请结合学习库资料逐个讲清楚，并各出一道小题检查我。`,
+                            )
+                          }
+                        >
+                          在对话中讲解薄弱点
+                        </button>
+                      )}
+                      <button
+                        className={run.returnTo ? "" : "primary"}
+                        onClick={() => setPage("library")}
+                      >
+                        回到学习目录
+                      </button>
+                      {run.returnTo && (
+                        <button
+                          className="primary"
+                          disabled={busy}
+                          onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}
+                        >
+                          回到原题 →
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -1653,9 +1913,50 @@ export default function App({ call }) {
                           </button>
                         </div>
                       </div>
+                      {run.prerequisites?.length > 0 && (
+                        <details className="prereq-strip">
+                          <summary>
+                            <span>
+                              前置题 {run.prerequisites.length} · 已掌握{" "}
+                              {run.prerequisites.filter((p) => !["new", "weak"].includes(p.level)).length}
+                            </span>
+                            {run.prerequisites.some((p) => ["new", "weak"].includes(p.level)) && (
+                              <button
+                                className="primary pill"
+                                disabled={busy}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  act(
+                                    "review.start",
+                                    {
+                                      mode: "path",
+                                      scope: run.prerequisites.map(({ deckId, cardId }) => ({ deckId, cardId })),
+                                      returnTo: run.id,
+                                      fresh: true,
+                                    },
+                                    enterRun,
+                                  );
+                                }}
+                              >
+                                先学前置 →
+                              </button>
+                            )}
+                          </summary>
+                          <ul>
+                            {run.prerequisites.map((p) => (
+                              <li key={p.deckId + p.cardId}>
+                                <span className={"map-dot lv-" + p.level} />
+                                <Markdown className="md-compact" links={false} text={p.prompt} />
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
                       {choice ? (
                         <>
-                          <h2 className="question">{run.card.prompt}</h2>
+                          <div className="question" role="heading" aria-level={2}>
+                            <Markdown text={run.card.prompt} />
+                          </div>
                           {run.card.multiple && (
                             <p className="muted small">
                               多选题 · 选出所有符合条件的选项
@@ -1691,7 +1992,7 @@ export default function App({ call }) {
                                     {String.fromCharCode(65 + i)}.
                                   </span>
                                   <div>
-                                    {o.text}
+                                    <Markdown text={o.text} links={false} className="md-compact" />
                                     {run.feedback && (
                                       <>
                                         <strong className="answer-state">
@@ -1701,7 +2002,11 @@ export default function App({ call }) {
                                               ? "× 还差一点"
                                               : ""}
                                         </strong>
-                                        <p>{solution?.explanation}</p>
+                                        <Markdown
+                                          text={solution?.explanation}
+                                          links={false}
+                                          className="md-compact option-explanation"
+                                        />
                                       </>
                                     )}
                                   </div>
@@ -1724,22 +2029,40 @@ export default function App({ call }) {
                       ) : (
                         <>
                           <button
-                            className={
-                              "flashcard " + (run.revealed ? "revealed" : "")
-                            }
-                            disabled={busy || run.revealed}
-                            onClick={() => reviewAct("review.reveal")}
+                            key={run.card.id}
+                            className={"flashcard" + (showBack ? " flipped" : "")}
+                            disabled={busy && !run.revealed}
+                            aria-pressed={showBack}
+                            aria-label={showBack ? "翻回题目" : "翻面查看答案"}
+                            onClick={flipCard}
                           >
-                            <span className="flash-prompt">
-                              {run.revealed
-                                ? run.solution?.answer
-                                : run.card.prompt}
-                            </span>
-                            <span className="flip-label">
-                              {run.revealed
-                                ? "参考答案"
-                                : "点击查看答案 · Space"}
-                            </span>
+                            <div className="flip-inner">
+                              <div className="flip-face flip-front" aria-hidden={showBack}>
+                                <Markdown
+                                  links={false}
+                                  className={"flash-prompt" + (run.card.prompt.length > 90 ? " long" : "")}
+                                  text={run.card.prompt}
+                                />
+                                <span className="flip-label">
+                                  {run.revealed ? "点击看答案 · Space" : "点击翻面 · Space"}
+                                </span>
+                              </div>
+                              <div className="flip-face flip-back" aria-hidden={!showBack}>
+                                <Markdown links={false} className="flip-question" text={run.card.prompt} />
+                                {run.solution ? (
+                                  <Markdown
+                                    links={false}
+                                    className={"flash-prompt" + ((run.solution.answer || "").length > 120 ? " long" : "")}
+                                    text={run.solution.answer}
+                                  />
+                                ) : (
+                                  <div className="flash-prompt">
+                                    <span className="flip-loading" aria-label="正在载入答案" />
+                                  </div>
+                                )}
+                                <span className="flip-label">参考答案 · 再点翻回题目</span>
+                              </div>
+                            </div>
                           </button>
                           {run.card.kind === "open" && !run.revealed && (
                             <label className="response-label">
@@ -1802,6 +2125,20 @@ export default function App({ call }) {
                                 ? "⌃"
                                 : "⌄"}
                           </button>
+                          <button
+                            className="pill"
+                            title="带着这道题去对话里问，弄懂的点会成为它的前置题"
+                            onClick={askAboutCard}
+                          >
+                            不会？问 AI
+                          </button>
+                          <button
+                            className="pill"
+                            title="带着这道题去对话里说哪里不好，AI 会直接改这张卡"
+                            onClick={improveCard}
+                          >
+                            提升质量
+                          </button>
                         </div>
                         <div>
                           <button
@@ -1827,7 +2164,7 @@ export default function App({ call }) {
                       {hint && !run.revealed && (
                         <div className="hint">
                           <Icon>♧</Icon>
-                          <p>{run.card.hint}</p>
+                          <Markdown text={run.card.hint} />
                         </div>
                       )}
                       {run.feedback && (
@@ -1839,13 +2176,13 @@ export default function App({ call }) {
                       {explain && run.solution && (
                         <div className="explanation">
                           <h3>理解这道题</h3>
-                          <p>{run.solution.explanation}</p>
+                          <Markdown text={run.solution.explanation} />
                           <h4>容易混淆的地方</h4>
-                          <p>{run.solution.misconception}</p>
+                          <Markdown text={run.solution.misconception} />
                           {run.solution.rubric && (
                             <>
                               <h4>评分依据</h4>
-                              <p>{run.solution.rubric}</p>
+                              <Markdown text={run.solution.rubric} />
                             </>
                           )}
                           <div className="citations">
@@ -1890,18 +2227,16 @@ export default function App({ call }) {
                               {teaching.total}
                             </div>
                             {teaching.feedback && (
-                              <p className="teaching-feedback">
-                                {teaching.feedback}
-                              </p>
+                              <Markdown className="teaching-feedback" text={teaching.feedback} />
                             )}
                             {teaching.complete ? (
                               <>
                                 <h3>把理解迁移到下一题</h3>
-                                <p>{teaching.transfer}</p>
+                                <Markdown text={teaching.transfer} />
                               </>
                             ) : (
                               <>
-                                <p>{teaching.lesson}</p>
+                                <Markdown text={teaching.lesson} />
                                 <form
                                   onSubmit={(e) => {
                                     e.preventDefault();
@@ -1916,7 +2251,7 @@ export default function App({ call }) {
                                   }}
                                 >
                                   <label>
-                                    {teaching.check}
+                                    <Markdown text={teaching.check} />
                                     <textarea
                                       required
                                       maxLength={10000}
@@ -2029,9 +2364,33 @@ export default function App({ call }) {
                     {modal.quote}
                   </blockquote>
                 )}
-                <pre className="source-text">
-                  {modal.source?.text || "无法找到此资料。"}
-                </pre>
+                {modal.source ? (
+                  <>
+                    <div className="source-view-toggle">
+                      <button
+                        className={rawSource ? "chip" : "chip active"}
+                        aria-pressed={!rawSource}
+                        onClick={() => setRawSource(false)}
+                      >
+                        排版
+                      </button>
+                      <button
+                        className={rawSource ? "chip active" : "chip"}
+                        aria-pressed={rawSource}
+                        onClick={() => setRawSource(true)}
+                      >
+                        原文
+                      </button>
+                    </div>
+                    {rawSource ? (
+                      <pre className="source-text">{modal.source.text}</pre>
+                    ) : (
+                      <Markdown className="source-text source-md" text={modal.source.text} />
+                    )}
+                  </>
+                ) : (
+                  <p className="muted">无法找到此资料。</p>
+                )}
               </>
             )}
           </section>

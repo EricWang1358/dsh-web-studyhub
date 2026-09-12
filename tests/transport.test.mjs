@@ -55,8 +55,11 @@ test("browser carrier reaches exact registered native Fetch path and round-trips
     },
     "session",
   );
-  assert.equal((await call("binding.get")).root, "");
-  await assert.rejects(() => call("snapshot"), /absolute study library/);
+  assert.equal((await call("binding.get")).root, join(cwd, ".dsh-study"));
+  await assert.rejects(
+    () => call("binding.set", { root: "relative" }),
+    /absolute library directory/,
+  );
 });
 test("legacy fallback only follows 404/405, never auth failure or unknown server exception", async () => {
   const calls = [];

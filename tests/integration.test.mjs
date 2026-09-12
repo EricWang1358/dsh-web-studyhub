@@ -311,8 +311,8 @@ test("authenticated host resolves workspace from session, explicit binding and i
         action: "snapshot",
         args: { root },
       })
-    ).ok,
-    false,
+    ).value.root,
+    join(cwd, ".dsh-study"),
   );
   assert.equal(
     (
@@ -329,6 +329,70 @@ test("authenticated host resolves workspace from session, explicit binding and i
       .root,
     root,
   );
+});
+test("binding defaults to the session workspace and follows the session model until overridden", async () => {
+  const cwd = await fresh(),
+    other = await fresh();
+  const events = [
+    {
+      type: "request/header",
+      data: { header: { config: { provider: "ds", model: "v4-flash" } } },
+    },
+    { type: "model/selection", data: { provider: "ds", model: "v4-pro" } },
+  ];
+  const session = {
+    header: { cwd },
+    get seq() {
+      return events.length;
+    },
+    eventAt: (seq) => events[seq],
+  };
+  const routes = [];
+  const handler = createHostHandler(
+    {
+      sessions: { get: (id) => (id === "s" ? session : undefined) },
+      get: (name) =>
+        name === "agentDefaultModel"
+          ? { currentSelection: () => ({ provider: "ds", model: "default" }) }
+          : undefined,
+    },
+    {},
+    (route) => async () => {
+      routes.push(route());
+      return "{}";
+    },
+  );
+  const run = async (action, args) =>
+    (await handler("call", { sessionId: "s", action, args })).value;
+  let b = await run("binding.get");
+  assert.equal(b.root, join(cwd, ".dsh-study"));
+  assert.equal(b.rootSource, "workspace");
+  assert.equal(b.modelSource, "session");
+  assert.deepEqual(b.route, { provider: "ds", model: "v4-pro" });
+  assert.equal((await run("snapshot")).modelReady, true);
+  events.length = 0;
+  assert.deepEqual((await run("binding.get")).route, {
+    provider: "ds",
+    model: "default",
+  });
+  b = await run("binding.set", { root: other, provider: "x", model: "y" });
+  assert.equal(b.rootSource, "custom");
+  assert.equal(b.modelSource, "custom");
+  assert.deepEqual(b.route, { provider: "x", model: "y" });
+  assert.equal((await run("snapshot")).root, other);
+  b = await run("binding.set", { root: "", provider: "", model: "" });
+  assert.equal(b.root, join(cwd, ".dsh-study"));
+  assert.equal(b.modelSource, "session");
+  assert.equal(
+    (await handler("call", {
+      sessionId: "s",
+      action: "binding.set",
+      args: { provider: "x" },
+    })).ok,
+    false,
+  );
+  await writeFile(join(cwd, "study-workspace.json"), "");
+  assert.equal((await run("binding.get")).root, cwd);
 });
 test("legacy import preserves original files and scheduling, repeated import is idempotent", async () => {
   const root = await fresh();
@@ -443,4 +507,457 @@ test("teaching stores conclusions only and cannot advance a failed check or add 
   const state = await service.call("export");
   assert.equal(state.attempts.length, 1);
   assert.equal(JSON.stringify(state).includes("SECRET_WRONG_ANSWER"), false);
+});
+test("learning path orders weak before new in syllabus order, resumes the same scope and tracks mastery across decks", async () => {
+  const service = new StudyService(await fresh());
+  await service.call("source.add", source);
+  const card = (id, topic) => ({
+    ...structuredClone(q),
+    id,
+    topic,
+    objective: `${q.objective} ${id}`,
+    prompt: `${q.prompt} ${id}`,
+  });
+  const publish = async (id, cards) => {
+    await service.call("draft.save", { deck: { id, title: id, cards } });
+    await service.call("draft.publish", { id });
+  };
+  await publish("a", [card("a1", "Intro"), card("a2", "Intro"), card("a3", "Advanced")]);
+  await publish("b", [card("b1", "Other")]);
+  let map = await service.call("map");
+  assert.deepEqual(map.today, { due: 0, weak: 0, new: 4, size: 4, ahead: false });
+  assert.deepEqual(map.next, { deckId: "a", deckTitle: "a", topic: "Intro", mastery: 0 });
+  const run = await service.call("review.start", { mode: "path" });
+  assert.equal(run.title, "今日学习");
+  assert.equal(run.card.id, "a1");
+  assert.equal((await service.call("review.start", { mode: "path" })).id, run.id);
+  await service.call("review.reveal", { runId: run.id, cardId: "a1" });
+  await service.call("review.answer", { runId: run.id, cardId: "a1", grade: 1 });
+  await service.call("review.move", { runId: run.id, direction: 1 });
+  await service.call("review.reveal", { runId: run.id, cardId: "a2" });
+  await service.call("review.answer", { runId: run.id, cardId: "a2", grade: 5 });
+  map = await service.call("map");
+  const a = map.decks.find((d) => d.id === "a");
+  assert.equal(a.counts.weak, 1);
+  assert.equal(a.counts.learning, 1);
+  assert.equal(a.topics[0].name, "Intro");
+  assert.equal(a.topics[0].status, "active");
+  assert.equal(map.today.weak, 1);
+  const again = await service.call("review.start", { mode: "path", fresh: true });
+  assert.notEqual(again.id, run.id);
+  assert.equal(again.card.id, "a1");
+  assert.equal((await service.call("snapshot")).runs.length, 1);
+  await service.call("review.end", { runId: again.id });
+  const topic = await service.call("review.start", {
+    mode: "path",
+    scope: [{ deckId: "b", topic: "Other" }],
+  });
+  assert.equal(topic.total, 1);
+  assert.equal(topic.title, "b › Other");
+  await service.call("review.reveal", { runId: topic.id, cardId: "b1" });
+  await service.call("review.answer", { runId: topic.id, cardId: "b1", grade: 4 });
+  assert.equal((await service.call("export")).attempts.at(-1).deckId, "b");
+  await assert.rejects(
+    service.call("review.start", { mode: "path", scope: [{ deckId: "missing" }] }),
+    /Deck not found/,
+  );
+  await service.call("deck.move", { id: "a", folder: " 设计模式 / 第 4 章 " });
+  assert.equal((await service.call("map")).decks[0].folder, "设计模式 / 第 4 章");
+});
+test("capture files a question into the matching topic, detects originals, and keeps editing drafts in step", async () => {
+  const service = await ready();
+  const replies = [];
+  service.complete = async () => JSON.stringify(replies.shift());
+  const card = (extra) => ({
+    objective: "Explain when to prefer Bridge over subclassing",
+    prompt: "When does Bridge beat subclassing?",
+    answer: "When abstraction and implementation vary independently.",
+    hint: "Count the reasons to change.",
+    explanation: "Independent dimensions would otherwise multiply subclasses.",
+    misconception: "Bridge is only about adapters.",
+    citations: [{ sourceId: "s", quote: "vary independently" }],
+    ...extra,
+  });
+  const editing = await service.call("deck.edit", { id: "d" });
+  replies.push(
+    { duplicateOf: null, deckId: "d", topic: "Bridge" },
+    { grounded: true, card: card() },
+  );
+  const added = await service.call("capture", {
+    input: "什么时候 Bridge 比继承更合适？",
+  });
+  assert.equal(added.status, "added");
+  assert.equal(added.kind, "flashcard");
+  assert.equal(added.topic, "Bridge");
+  assert.equal(added.grounded, true);
+  let state = await service.call("export");
+  assert.equal(state.decks[0].cards.length, 2);
+  assert.equal(state.decks[0].cards[1].review.repetitions, 0);
+  const draft = state.drafts.find((x) => x.id === editing.id);
+  assert.equal(draft.cards.length, 2);
+  assert.equal((await service.call("map")).decks[0].counts.new, 2);
+
+  assert.equal(
+    (await service.call("capture", { question: "Why use Bridge for reports and renderers?" })).status,
+    "duplicate",
+  );
+  replies.push({ duplicateOf: { deckId: "d", cardId: "q" }, deckId: "d", topic: "Bridge" });
+  const dup = await service.call("capture", { question: "报表和渲染器为什么适合 Bridge？" });
+  assert.equal(dup.status, "duplicate");
+  assert.equal(dup.cardId, "q");
+
+  replies.push(
+    { duplicateOf: null, deckId: null, newDeck: { title: "网络", folder: "计算机 / 基础" }, topic: "TCP" },
+    {
+      grounded: false,
+      note: "TCP needs a third handshake so both sides confirm the other can send and receive.",
+      card: card({
+        prompt: "Why does TCP use three handshakes?",
+        objective: "Explain the third handshake",
+        answer: "Both sides must confirm send and receive ability.",
+        options: [
+          { id: "a", text: "Both directions get confirmed", correct: true, explanation: "Matches the note." },
+          { id: "b", text: "It speeds up the transfer", correct: false, explanation: "Handshakes add latency." },
+          { id: "c", text: "It encrypts the session", correct: false, explanation: "TCP has no encryption." },
+        ],
+        citations: [{ sourceId: "NOTE", quote: "both sides confirm the other can send and receive" }],
+      }),
+    },
+  );
+  const quiz = await service.call("capture", { input: "TCP 为什么要三次握手，写成 MQ" });
+  assert.equal(quiz.kind, "quiz");
+  assert.equal(quiz.newDeck, true);
+  assert.equal(quiz.grounded, false);
+  assert.equal(quiz.folder, "计算机 / 基础");
+  state = await service.call("export");
+  assert.equal(state.sources.at(-1).origin, "capture");
+  assert.equal(state.decks.at(-1).cards[0].citations[0].sourceId, state.sources.at(-1).id);
+});
+test("large selections generate in parts, extra generations queue, and job.wait returns a compact draft summary", async () => {
+  const service = new StudyService(await fresh());
+  const paragraph = (i) => `Paragraph ${i} explains design smell number ${i} with its own distinct example sentence.`;
+  const text = Array.from({ length: 1700 }, (_, i) => paragraph(i)).join("\n\n");
+  assert.ok(text.length > 130000);
+  const big = await service.call("source.add", { title: "notes.md", text });
+  let counter = 0,
+    authorCalls = 0;
+  service.complete = async (system, prompt) => {
+    if (system.startsWith("Act as a strict assessment editor"))
+      return JSON.stringify({ issues: [], summary: "ok" });
+    authorCalls++;
+    const request = JSON.parse(prompt.slice(prompt.indexOf("REQUEST DATA:\n") + 14));
+    if (request.kind === "flashcard" && authorCalls === 5 && !prompt.includes("Repair this candidate"))
+      return JSON.stringify({ error: "insufficient evidence in this part" });
+    return JSON.stringify({
+      title: "Smells",
+      cards: Array.from({ length: request.count }, () => {
+        const n = ++counter,
+          quote = request.sources[0].text.trim().slice(0, 40);
+        return {
+          id: `card-${n}`,
+          kind: request.kind,
+          topic: `Topic ${n}`,
+          objective: `Objective ${n}`,
+          prompt: `Question ${n}?`,
+          answer: `Answer ${n}`,
+          hint: `Think about item ${n}`,
+          explanation: `Because ${n}`,
+          misconception: `Confusing ${n}`,
+          citations: [{ sourceId: request.sources[0].id, quote }],
+          ...(request.kind === "quiz"
+            ? {
+                options: ["a", "b", "c"].map((id) => ({
+                  id,
+                  text: `Option ${id} ${n}`,
+                  correct: id === "a",
+                  explanation: `Why ${id}`,
+                })),
+              }
+            : {}),
+        };
+      }),
+    });
+  };
+  const quiz = await service.call("generate", { sourceIds: [big.id], count: 6, kind: "quiz" });
+  const cards = await service.call("generate", { sourceIds: [big.id], count: 6, kind: "flashcard" });
+  assert.equal(quiz.parts, 3);
+  assert.equal(cards.status, "queued");
+  assert.equal(cards.queuedBehind, 1);
+  const first = await service.call("job.wait", { jobId: quiz.jobId });
+  assert.equal(first.status, "complete");
+  assert.equal(first.draft.cards, 6);
+  const second = await service.call("job.wait", { jobId: cards.jobId });
+  assert.equal(second.status, "complete");
+  assert.equal(second.draft.failures.length, 1);
+  assert.ok(second.draft.cards >= 3 && second.draft.cards < 6);
+  const compact = await service.call("snapshot", { compact: true });
+  assert.deepEqual(Object.keys(compact.sources[0]).sort(), ["chars", "id", "title"]);
+  assert.equal(compact.drafts.length, 2);
+  assert.ok(JSON.stringify(compact).length < 5000);
+  const page = await service.call("source.get", { id: big.id, offset: 100, limit: 50 });
+  assert.equal(page.text, text.slice(100, 150));
+});
+test("prerequisite links order the path, teach first with return, credit on success and survive deck edits", async () => {
+  const service = new StudyService(await fresh());
+  await service.call("source.add", source);
+  const card = (id, topic) => ({
+    ...structuredClone(q),
+    id,
+    topic,
+    objective: `${q.objective} ${id}`,
+    prompt: `${q.prompt} ${id}`,
+  });
+  await service.call("draft.save", {
+    deck: { id: "d", title: "Refactoring", cards: [card("hard", "Long Method"), card("case", "Movie Rental"), card("defn", "Techniques")] },
+  });
+  await service.call("draft.publish", { id: "d" });
+  // "case" was learned earlier and is due again; "defn" and "hard" are new.
+  await service.store.update((st) => {
+    st.decks[0].cards.find((c) => c.id === "case").review = {
+      repetitions: 2,
+      interval_days: 6,
+      ease_factor: 2.5,
+      due_at: new Date(Date.now() - 86400000).toISOString(),
+    };
+  });
+  await service.call("card.link", { deckId: "d", cardId: "hard", requires: { deckId: "d", cardId: "case" } });
+  await assert.rejects(
+    service.call("card.link", { deckId: "d", cardId: "case", requires: { deckId: "d", cardId: "hard" } }),
+    /depend on each other/,
+  );
+  service.complete = async (system) =>
+    JSON.stringify(
+      system.startsWith("You file")
+        ? { duplicateOf: { deckId: "d", cardId: "defn" }, deckId: "d", topic: "Techniques" }
+        : {},
+    );
+  const fresh1 = await service.call("review.start", { mode: "path", scope: [{ deckId: "d", cardId: "hard" }] });
+  assert.equal(fresh1.card.id, "hard");
+  const captured = await service.call("capture", { question: "什么是重构手法？", requiredBy: "current" });
+  assert.equal(captured.status, "duplicate");
+  assert.equal(captured.prerequisiteFor.cardId, "hard");
+  const view = await service.call("review.get", { runId: fresh1.id });
+  assert.deepEqual(view.prerequisites.map((p) => p.cardId), ["case", "defn"]);
+  assert.equal((await service.call("card.get", { deckId: "d", cardId: "defn" })).requiredBy[0].cardId, "hard");
+
+  // Studying prerequisites first, then returning to the original run.
+  const pre = await service.call("review.start", {
+    mode: "path",
+    scope: view.prerequisites.map(({ deckId, cardId }) => ({ deckId, cardId })),
+    returnTo: fresh1.id,
+    fresh: true,
+  });
+  assert.equal(pre.title, "前置题 · 2 道");
+  assert.equal(pre.returnTo, fresh1.id);
+  assert.equal(pre.total, 2);
+
+  // The learning path puts the unlearned prerequisite before the card that needs it.
+  const plan = await service.call("review.start", { mode: "path", scope: [{ deckId: "d", topic: "Long Method" }], fresh: true });
+  const order = [];
+  let cur = plan;
+  while (cur.card) {
+    order.push(cur.card.id);
+    await service.call("review.reveal", { runId: cur.id, cardId: cur.card.id });
+    const answered = await service.call("review.answer", { runId: cur.id, cardId: cur.card.id, grade: 4 });
+    if (cur.card.id === "hard") assert.equal(answered.feedback.credited, 1);
+    cur = await service.call("review.move", { runId: cur.id, direction: 1 });
+  }
+  assert.deepEqual(order, ["defn", "hard"]);
+  const state = await service.call("export");
+  const implicit = state.attempts.filter((x) => x.implicit);
+  assert.equal(implicit.length, 1);
+  assert.equal(implicit[0].quiz_id, "case");
+
+  // Editing the deck keeps links and does not reset scheduling because of them.
+  const before = state.decks[0].cards.find((c) => c.id === "hard").review;
+  const edit = await service.call("deck.edit", { id: "d" });
+  edit.cards.forEach((c) => delete c.requires);
+  await service.call("draft.save", { deck: edit });
+  for (const r of (await service.call("snapshot")).runs) await service.call("review.end", { runId: r.id });
+  await service.call("review.end", { runId: fresh1.id });
+  await service.call("review.end", { runId: pre.id });
+  await service.call("draft.publish", { id: edit.id });
+  const after = (await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === "hard");
+  assert.equal(after.requires.length, 2);
+  assert.deepEqual(after.review, before);
+});
+test("card.update improves one card in place, keeps its schedule for explanation fixes, refreshes open runs and reverts", async () => {
+  const service = await ready();
+  const quiz = {
+    ...structuredClone(q),
+    id: "mq",
+    kind: "quiz",
+    objective: "Spot the invented smell",
+    prompt: "Which is not one of the seven design smells?",
+    options: [
+      { id: "a", text: "Opacity smell", correct: false, explanation: "Wrong." },
+      { id: "b", text: "Viscosity smell", correct: false, explanation: "Wrong." },
+      { id: "c", text: "Redundancy smell", correct: true, explanation: "Right." },
+    ],
+  };
+  const edit = await service.call("deck.edit", { id: "d" });
+  edit.cards.push(quiz);
+  await service.call("draft.save", { deck: edit });
+  await service.call("draft.publish", { id: edit.id });
+  await service.store.update((st) => {
+    st.decks[0].cards.find((c) => c.id === "mq").review = { repetitions: 3, interval_days: 12, ease_factor: 2.5, due_at: new Date().toISOString() };
+  });
+  const run = await service.call("review.start", { mode: "path", scope: [{ deckId: "d", cardId: "mq" }] });
+  const better = await service.call("card.update", {
+    deckId: "d",
+    cardId: "mq",
+    reason: "Option explanations name the concept",
+    patch: { options: [{ id: "a", explanation: "Opacity is on the list: code that is hard to understand." }] },
+  });
+  assert.equal(better.scheduleReset, false);
+  assert.equal(better.refreshedInOpenRuns, 1);
+  let card = (await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === "mq");
+  assert.equal(card.review.repetitions, 3);
+  assert.equal(card.options[0].text, "Opacity smell");
+  assert.match(card.options[0].explanation, /hard to understand/);
+  const view = await service.call("review.get", { runId: run.id });
+  assert.equal(view.revision, 1);
+  await service.call("review.answer", { runId: run.id, cardId: "mq", selected: ["a"] });
+  assert.match((await service.call("review.get", { runId: run.id })).solution.options.find((o) => o.id === "a").explanation, /hard to understand/);
+  await assert.rejects(
+    service.call("card.update", { deckId: "d", cardId: "mq", patch: { citations: [{ sourceId: "s", quote: "not in the source at all" }] } }),
+    /quote must match/,
+  );
+  const changed = await service.call("card.update", { deckId: "d", cardId: "mq", patch: { prompt: "Which of these is not a design smell?" } });
+  assert.equal(changed.scheduleReset, true);
+  assert.equal(changed.refreshedInOpenRuns, 0);
+  const reverted = await service.call("card.revert", { deckId: "d", cardId: "mq" });
+  assert.equal(reverted.revisions, 1);
+  card = (await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === "mq");
+  assert.equal(card.prompt, quiz.prompt);
+  assert.equal((await service.call("card.get", { deckId: "d", cardId: "mq" })).revisions[0].reason, "Option explanations name the concept");
+});
+test("concurrent captures run in turn so the second one sees the first card", async () => {
+  const service = await ready();
+  service.complete = async (system, prompt) => {
+    if (system.startsWith("You file")) {
+      const { catalog } = JSON.parse(prompt);
+      const earlier = catalog[0].topics.flatMap((t) => t.cards).find((c) => c.prompt.startsWith("When does Bridge"));
+      return JSON.stringify(
+        earlier
+          ? { duplicateOf: { deckId: "d", cardId: earlier.cardId }, deckId: "d", topic: "Bridge" }
+          : { duplicateOf: null, deckId: "d", topic: "Bridge" },
+      );
+    }
+    await new Promise((r) => setTimeout(r, 30));
+    return JSON.stringify({
+      grounded: true,
+      card: {
+        objective: "Prefer Bridge over subclassing",
+        prompt: "When does Bridge beat subclassing?",
+        answer: "When two dimensions vary independently.",
+        hint: "Count reasons to change.",
+        explanation: "Otherwise subclasses multiply.",
+        misconception: "Bridge adapts interfaces.",
+        citations: [{ sourceId: "s", quote: "vary independently" }],
+      },
+    });
+  };
+  const [first, second] = await Promise.all([
+    service.call("capture", { question: "什么时候用 Bridge 比继承好？" }),
+    service.call("capture", { question: "Bridge 和子类化怎么选？" }),
+  ]);
+  assert.equal(first.status, "added");
+  assert.equal(second.status, "duplicate");
+  assert.equal((await service.call("deck.get", { id: "d" })).cards.length, 2);
+});
+test("recording mode ingests pasted mistakes into a deck, keeps answer keys, skips duplicates and marks mistakes weak", async () => {
+  const service = await ready();
+  const paste = [
+    "Q3. Which of the following is NOT one of the 7 design smells?",
+    "A) Opacity  B) Viscosity  C) Repetition  D) Redundancy",
+    "Your answer: A   Correct answer: D",
+    "Q4. What does Bridge separate? (no answer shown)",
+  ].join("\n");
+  let calls = 0;
+  service.complete = async (_system, prompt) => {
+    calls++;
+    if (prompt.includes("failed validation")) return JSON.stringify({ items: [] });
+    return JSON.stringify({
+      items: [
+        {
+          kind: "quiz",
+          topic: "Design smells",
+          objective: "Recognise the seven design smells",
+          prompt: "Which of the following is NOT one of the 7 design smells?",
+          options: [
+            { id: "a", text: "Opacity", correct: false, explanation: "Opacity is on the list: code that is hard to understand." },
+            { id: "b", text: "Viscosity", correct: false, explanation: "Viscosity is on the list: the right change is harder than a hack." },
+            { id: "c", text: "Repetition", correct: false, explanation: "Repetition is on the list: duplicated logic." },
+            { id: "d", text: "Redundancy", correct: true, explanation: "Redundancy is not one of the seven; duplication is covered by Repetition." },
+          ],
+          answer: "Redundancy",
+          answerFrom: "material",
+          hint: "One option only sounds like a smell.",
+          explanation: "The seven are rigidity, fragility, immobility, viscosity, complexity, repetition and opacity.",
+          misconception: "Treating every quality word as an official smell.",
+          quotes: ["Which of the following is NOT one of the 7 design smells?"],
+          learner: { selected: ["a"], wrong: true },
+        },
+        {
+          kind: "flashcard",
+          topic: "Bridge",
+          objective: "State what Bridge decouples",
+          prompt: "What does Bridge separate?",
+          answer: "An abstraction from its implementation.",
+          answerFrom: "inferred",
+          hint: "Two hierarchies.",
+          explanation: "Each side can vary independently.",
+          misconception: "Confusing Bridge with Adapter.",
+          quotes: ["What does Bridge separate? (no answer shown)"],
+          learner: { wrong: null },
+        },
+        {
+          kind: "flashcard",
+          topic: "Bridge",
+          objective: "Duplicate of an existing card",
+          prompt: "Why use Bridge for reports and renderers?",
+          answer: "x",
+          hint: "y",
+          explanation: "z",
+          misconception: "w",
+          quotes: ["missing quote that is not in the paste"],
+        },
+      ],
+      ignored: ["score banner"],
+    });
+  };
+  const mode = await service.call("ingest.start", { deckTitle: "Canvas 错题", folder: "SWE5006 / M3", mistakes: "auto" });
+  assert.equal(mode.deckId, null);
+  assert.equal((await service.call("snapshot")).ingest.deckTitle, "Canvas 错题");
+  const result = await service.call("ingest", { text: paste });
+  assert.equal(calls, 2); // one parse, one repair attempt for the invalid third item
+  assert.equal(result.newDeck, true);
+  assert.equal(result.folder, "SWE5006 / M3");
+  assert.equal(result.added.length, 2);
+  assert.equal(result.added[0].mistake, true);
+  assert.equal(result.added[1].answerInferred, true);
+  assert.equal(result.skipped.length, 1);
+  const state = await service.call("export");
+  const deck = state.decks.find((d) => d.id === result.deckId);
+  assert.equal(deck.cards[0].options.find((o) => o.correct).text, "Redundancy");
+  assert.equal(deck.cards[1].flag, "答案由模型推断，待核对");
+  assert.equal(state.sources.find((x) => x.id === result.sourceId).text, paste);
+  const map = await service.call("map");
+  assert.equal(map.decks.find((d) => d.id === result.deckId).counts.weak, 1);
+  assert.equal((await service.call("ingest.status")).added, 2);
+
+  // Pasting the same material again adds nothing.
+  const again = await service.call("ingest", { text: paste });
+  assert.equal(again.added.length, 0);
+  assert.equal(again.duplicates.length, 2);
+  assert.equal(again.sourceId, null);
+  assert.equal((await service.call("export")).sources.length, 2);
+  const stopped = await service.call("ingest.stop");
+  assert.equal(stopped.added, 2);
+  assert.equal((await service.call("snapshot")).ingest, null);
+
+  // lastRun points at the run the learner touched most recently.
+  const run = await service.call("review.start", { deckId: result.deckId, mode: "quiz" });
+  assert.equal((await service.call("snapshot")).lastRun.id, run.id);
 });

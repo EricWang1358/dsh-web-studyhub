@@ -9,10 +9,24 @@ const port = Number(process.env.PORT || 4178),
 const initialRoot = process.argv
   .find((a) => a.startsWith("--library="))
   ?.slice(10);
-let previewBinding = {
-  root: initialRoot ? resolve(initialRoot) : "",
-  provider: "",
-  model: "",
+// The preview stands in for a session workspace at --library (default output/preview-library).
+const workspaceRoot = resolve(initialRoot || "output/preview-library");
+let previewBinding = { root: "", provider: "", model: "" };
+const previewView = () => {
+  const custom = previewBinding.provider && previewBinding.model;
+  return {
+    root: previewBinding.root || workspaceRoot,
+    rootSource: previewBinding.root ? "custom" : "workspace",
+    workspaceRoot,
+    provider: previewBinding.provider,
+    model: previewBinding.model,
+    modelSource: custom ? "custom" : "session",
+    route: custom
+      ? { provider: previewBinding.provider, model: previewBinding.model }
+      : process.env.STUDY_API_KEY
+        ? { provider: "env", model: process.env.STUDY_MODEL || "deepseek-chat" }
+        : null,
+  };
 };
 const complete = process.env.STUDY_API_KEY
   ? async (system, prompt) => {
@@ -63,18 +77,19 @@ const server = createServer(async (req, res) => {
       }
       const { action, args = {} } = JSON.parse(body);
       let value;
-      if (action === "binding.get") value = previewBinding;
-      else if (action === "binding.set") {
-        if (typeof args.root !== "string" || !isAbsolute(args.root))
+      if (action === "binding.set") {
+        if (args.root && !isAbsolute(args.root))
           throw new Error("Choose an absolute library directory");
         previewBinding = {
-          root: args.root,
+          root: args.root || "",
           provider: String(args.provider || ""),
           model: String(args.model || ""),
         };
-        value = previewBinding;
-      } else
-        value = await new StudyService(previewBinding.root, { complete }).call(
+      }
+      if (action === "binding.get" || action === "binding.set")
+        value = previewView();
+      else
+        value = await new StudyService(previewView().root, { complete }).call(
           action,
           args,
         );
@@ -101,7 +116,7 @@ const server = createServer(async (req, res) => {
           "Cache-Control": "no-store",
         })
         .end(
-          `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Study · DSH</title><link rel="stylesheet" href="/app.css"><body style="margin:0;background:#22272b"><div id="root"></div><script>window.STUDY_TOKEN=${JSON.stringify(token)}</script><script src="/app.js"></script></body></html>`,
+          `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Study · DSH</title><link rel="stylesheet" href="/app.css"><body style="margin:0;background:#1d2126"><div id="root" style="height:100dvh"></div><script>window.STUDY_TOKEN=${JSON.stringify(token)}</script><script src="/app.js"></script></body></html>`,
         );
       return;
     }
