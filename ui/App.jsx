@@ -74,7 +74,11 @@ function parseDraft(raw) {
 
 export default function App({ call }) {
   const rootRef = useRef(null),
-    requestSequence = useRef(0);
+    requestSequence = useRef(0),
+    acting = useRef(false);
+  const [managedDeck, setManagedDeck] = useState(null),
+    [search, setSearch] = useState(""),
+    [showArchived, setShowArchived] = useState(false);
   const [data, setData] = useState(null),
     [binding, setBinding] = useState({ root: "", provider: "", model: "" }),
     [page, setPage] = useState("library");
@@ -95,6 +99,7 @@ export default function App({ call }) {
       role: "",
     });
   const [draft, setDraft] = useState(null),
+    [recovery, setRecovery] = useState(null),
     [draftText, setDraftText] = useState(""),
     [jsonMode, setJsonMode] = useState(false),
     [legacy, setLegacy] = useState("");
@@ -118,6 +123,30 @@ export default function App({ call }) {
     }
     return next;
   }, [call]);
+  useEffect(() => {
+    if (!data?.root) return;
+    try {
+      const saved = sessionStorage.getItem(`study-draft:${data.root}`);
+      setRecovery(saved ? JSON.parse(saved) : null);
+    } catch {
+      setRecovery(null);
+    }
+  }, [data?.root]);
+  useEffect(() => {
+    if (!data?.root || !draft) return;
+    try {
+      const saved = { draft, draftText, jsonMode };
+      sessionStorage.setItem(`study-draft:${data.root}`, JSON.stringify(saved));
+      setRecovery(saved);
+    } catch {
+      setNotice("浏览器暂存不可用，请及时保存草稿。");
+    }
+  }, [data?.root, draft, draftText, jsonMode]);
+  function clearRecovery() {
+    if (data?.root) sessionStorage.removeItem(`study-draft:${data.root}`);
+    setRecovery(null);
+    setDraft(null);
+  }
   useEffect(() => {
     let live = true;
     (async () => {
@@ -192,7 +221,8 @@ export default function App({ call }) {
     };
   }, [modal]);
   async function act(action, args = {}, after) {
-    if (busy) return;
+    if (acting.current) return;
+    acting.current = true;
     setBusy(true);
     setError("");
     try {
@@ -203,6 +233,7 @@ export default function App({ call }) {
     } catch (e) {
       setError(e.message || String(e));
     } finally {
+      acting.current = false;
       setBusy(false);
     }
   }
@@ -213,7 +244,7 @@ export default function App({ call }) {
     setHint(false);
     setExplain(false);
     setResponse("");
-    setTeaching(null);
+    setTeaching(r.teaching || null);
     setTeachAnswer("");
   }
   const reviewAct = (action, args = {}) =>
@@ -261,6 +292,20 @@ export default function App({ call }) {
     setDraftText(JSON.stringify(d, null, 2));
     setJsonMode(false);
     setPage("draft");
+  }
+  function blankCard() {
+    return {
+      id: crypto.randomUUID(),
+      kind: "flashcard",
+      topic: "",
+      objective: "",
+      prompt: "",
+      answer: "",
+      hint: "",
+      explanation: "",
+      misconception: "",
+      citations: [{ sourceId: data.sources[0]?.id || "", quote: "" }],
+    };
   }
   function patchCard(index, key, value) {
     setDraft((d) => ({
@@ -409,6 +454,7 @@ export default function App({ call }) {
           generate: "创建题组",
           draft: "审阅草稿",
           settings: "工作区设置",
+          manage: "维护题组",
         }[page];
   if (loading)
     return (
@@ -513,6 +559,24 @@ export default function App({ call }) {
           <>
             {page === "library" && (
               <section className="page library-page">
+                {recovery && (
+                  <div className="alert notice">
+                    <span>
+                      有本窗口暂存的编辑：{recovery.draft.title}（尚未发布）
+                    </span>
+                    <button
+                      onClick={() => {
+                        setDraft(recovery.draft);
+                        setDraftText(recovery.draftText);
+                        setJsonMode(recovery.jsonMode);
+                        setPage("draft");
+                      }}
+                    >
+                      继续编辑
+                    </button>
+                    <button onClick={clearRecovery}>丢弃暂存</button>
+                  </div>
+                )}
                 <div className="page-heading">
                   <div>
                     <div className="eyebrow">LEARN WITH INTENTION</div>
@@ -530,7 +594,11 @@ export default function App({ call }) {
                 </div>
                 <div className="stats">
                   <div>
-                    <strong>{data.decks.reduce((n, d) => n + d.due, 0)}</strong>
+                    <strong>
+                      {data.decks
+                        .filter((d) => !d.archived)
+                        .reduce((n, d) => n + d.due, 0)}
+                    </strong>
                     <span>待复习</span>
                   </div>
                   <div>
@@ -547,25 +615,33 @@ export default function App({ call }) {
                 {data.runs.length > 0 && (
                   <div className="resume-list">
                     {data.runs.map((r) => (
-                      <button
-                        className="resume"
-                        key={r.id}
-                        disabled={busy}
-                        onClick={() =>
-                          act("review.get", { runId: r.id }, enterRun)
-                        }
-                      >
-                        <span>
-                          <span className="eyebrow">继续上次学习</span>
-                          <strong>
-                            {data.decks.find((d) => d.id === r.deckId)?.title ||
-                              "题组"}
-                          </strong>
-                        </span>
-                        <span>
-                          {r.index + 1} / {r.total} <b>→</b>
-                        </span>
-                      </button>
+                      <div key={r.id}>
+                        <button
+                          className="resume"
+                          key={r.id}
+                          disabled={busy}
+                          onClick={() =>
+                            act("review.get", { runId: r.id }, enterRun)
+                          }
+                        >
+                          <span>
+                            <span className="eyebrow">继续上次学习</span>
+                            <strong>
+                              {data.decks.find((d) => d.id === r.deckId)
+                                ?.title || "题组"}
+                            </strong>
+                          </span>
+                          <span>
+                            {r.index + 1} / {r.total} <b>→</b>
+                          </span>
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() => act("review.end", { runId: r.id })}
+                        >
+                          结束此轮（保留已答记录）
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -574,6 +650,18 @@ export default function App({ call }) {
                     我的题组 <span>{data.decks.length}</span>
                   </h2>
                   <button
+                    disabled={!data.sources.length}
+                    onClick={() =>
+                      openDraft({
+                        id: crypto.randomUUID(),
+                        title: "新建闪卡题组",
+                        cards: [blankCard()],
+                      })
+                    }
+                  >
+                    手工创建闪卡
+                  </button>
+                  <button
                     onClick={() => {
                       setPage("settings");
                     }}
@@ -581,61 +669,114 @@ export default function App({ call }) {
                     导入已有学习库
                   </button>
                 </div>
+                <div className="two-col">
+                  <label>
+                    搜索题组或主题
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="输入关键词"
+                    />
+                  </label>
+                  <label>
+                    题组范围
+                    <select
+                      value={showArchived ? "archived" : "active"}
+                      onChange={(e) =>
+                        setShowArchived(e.target.value === "archived")
+                      }
+                    >
+                      <option value="active">学习中的题组</option>
+                      <option value="archived">已归档题组</option>
+                    </select>
+                  </label>
+                </div>
                 {data.decks.length ? (
                   <div className="deck-grid">
-                    {data.decks.map((d) => (
-                      <article className="deck" key={d.id}>
-                        <div className="deck-top">
-                          <span className="deck-icon">▧</span>
-                          <span className="tag">{d.due} 待复习</span>
-                        </div>
-                        <h3>{d.title}</h3>
-                        <p>{d.topics.slice(0, 3).join(" · ")}</p>
-                        <small>
-                          {d.count} 道题
-                          {d.flagged > 0 ? ` · ${d.flagged} 道已标记` : ""}
-                        </small>
-                        <div className="deck-actions">
-                          <button
-                            className="primary"
-                            disabled={busy || !d.due}
-                            onClick={() =>
-                              act(
-                                "review.start",
-                                { deckId: d.id, mode: "due" },
-                                enterRun,
-                              )
-                            }
-                          >
-                            复习
-                          </button>
-                          <button
-                            disabled={busy}
-                            onClick={() =>
-                              act(
-                                "review.start",
-                                { deckId: d.id, mode: "flashcard" },
-                                enterRun,
-                              )
-                            }
-                          >
-                            闪卡
-                          </button>
-                          <button
-                            disabled={busy}
-                            onClick={() =>
-                              act(
-                                "review.start",
-                                { deckId: d.id, mode: "quiz" },
-                                enterRun,
-                              )
-                            }
-                          >
-                            测验
-                          </button>
-                        </div>
-                      </article>
-                    ))}
+                    {data.decks
+                      .filter(
+                        (d) =>
+                          !!d.archived === showArchived &&
+                          `${d.title} ${d.topics.join(" ")}`
+                            .toLowerCase()
+                            .includes(search.toLowerCase()),
+                      )
+                      .map((d) => (
+                        <article className="deck" key={d.id}>
+                          <div className="deck-top">
+                            <span className="deck-icon">▧</span>
+                            <span className="tag">{d.due} 待复习</span>
+                          </div>
+                          <h3>{d.title}</h3>
+                          <p>{d.topics.slice(0, 3).join(" · ")}</p>
+                          <small>
+                            {d.count} 道题
+                            {d.flagged > 0 ? ` · ${d.flagged} 道已标记` : ""}
+                          </small>
+                          <div className="deck-actions">
+                            <button
+                              className="primary"
+                              disabled={busy || d.archived || !d.due}
+                              onClick={() =>
+                                act(
+                                  "review.start",
+                                  { deckId: d.id, mode: "due" },
+                                  enterRun,
+                                )
+                              }
+                            >
+                              复习
+                            </button>
+                            <button
+                              disabled={busy || d.archived || !d.available}
+                              onClick={() =>
+                                act(
+                                  "review.start",
+                                  { deckId: d.id, mode: "flashcard" },
+                                  enterRun,
+                                )
+                              }
+                            >
+                              闪卡
+                            </button>
+                            <button
+                              disabled={busy || d.archived || !d.quizCount}
+                              onClick={() =>
+                                act(
+                                  "review.start",
+                                  { deckId: d.id, mode: "quiz" },
+                                  enterRun,
+                                )
+                              }
+                            >
+                              测验
+                            </button>
+                            <button
+                              disabled={busy || d.archived || !d.wrong}
+                              onClick={() =>
+                                act(
+                                  "review.start",
+                                  { deckId: d.id, mode: "wrong" },
+                                  enterRun,
+                                )
+                              }
+                            >
+                              错题 {d.wrong || 0}
+                            </button>
+                            <button
+                              disabled={busy}
+                              onClick={() =>
+                                act("deck.get", { id: d.id }, (deck) => {
+                                  setManagedDeck(deck);
+                                  setPage("manage");
+                                })
+                              }
+                            >
+                              管理
+                            </button>
+                          </div>
+                        </article>
+                      ))}
                   </div>
                 ) : (
                   <div className="empty">
@@ -713,6 +854,94 @@ export default function App({ call }) {
                     ))}
                   </div>
                 )}
+              </section>
+            )}
+            {page === "manage" && managedDeck && (
+              <section className="page">
+                <h1>{managedDeck.title}</h1>
+                <p className="muted">
+                  编辑先进入草稿；重新发布时，未改动题目保留复习进度，内容变更的题目重新开始调度。历史作答始终保留。
+                </p>
+                <div className="deck-actions">
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      act("deck.edit", { id: managedDeck.id }, openDraft)
+                    }
+                  >
+                    编辑题组
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      act(
+                        "deck.archive",
+                        { id: managedDeck.id, archived: !managedDeck.archived },
+                        async () =>
+                          setManagedDeck(
+                            await call("deck.get", { id: managedDeck.id }),
+                          ),
+                      )
+                    }
+                  >
+                    {managedDeck.archived ? "恢复题组" : "归档题组并结束练习"}
+                  </button>
+                  <button onClick={() => setPage("library")}>返回学习库</button>
+                </div>
+                {managedDeck.cards.map((card) => (
+                  <article className="deck" key={card.id}>
+                    <small>
+                      {card.topic} · {card.kind}
+                      {card.suspended ? " · 已暂停" : ""}
+                    </small>
+                    <h3>{card.prompt}</h3>
+                    {card.flag && <p className="muted">标记：{card.flag}</p>}
+                    <div className="deck-actions">
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          act(
+                            "card.suspend",
+                            {
+                              deckId: managedDeck.id,
+                              cardId: card.id,
+                              suspended: !card.suspended,
+                            },
+                            async () =>
+                              setManagedDeck(
+                                await call("deck.get", { id: managedDeck.id }),
+                              ),
+                          )
+                        }
+                      >
+                        {card.suspended ? "恢复学习" : "暂停此题"}
+                      </button>
+                      {card.flag && (
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            act(
+                              "card.flag",
+                              {
+                                deckId: managedDeck.id,
+                                cardId: card.id,
+                                reason: "",
+                              },
+                              async () =>
+                                setManagedDeck(
+                                  await call("deck.get", {
+                                    id: managedDeck.id,
+                                  }),
+                                ),
+                            )
+                          }
+                        >
+                          清除标记
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                ))}
               </section>
             )}
             {page === "sources" && (
@@ -1101,29 +1330,102 @@ export default function App({ call }) {
                             />
                           </div>
                         ))}
+                        <button
+                          disabled={draft.cards.length <= 1}
+                          onClick={() =>
+                            setDraft({
+                              ...draft,
+                              cards: draft.cards.filter(
+                                (_, index) => index !== i,
+                              ),
+                            })
+                          }
+                        >
+                          从草稿移除此题
+                        </button>
                         <div className="citations">
                           {q.citations?.map((c, j) => (
-                            <button
-                              key={j}
-                              onClick={() =>
-                                setModal({
-                                  type: "source",
-                                  source: data.sources.find(
-                                    (s) => s.id === c.sourceId,
-                                  ),
-                                  quote: c.quote,
-                                })
-                              }
-                            >
-                              ↗{" "}
-                              {data.sources.find((s) => s.id === c.sourceId)
-                                ?.title || "原文"}
-                              <blockquote>{c.quote}</blockquote>
-                            </button>
+                            <div key={j}>
+                              <label>
+                                引用来源
+                                <select
+                                  value={c.sourceId}
+                                  onChange={(e) =>
+                                    patchCard(
+                                      i,
+                                      "citations",
+                                      q.citations.map((citation, index) =>
+                                        index === j
+                                          ? {
+                                              ...citation,
+                                              sourceId: e.target.value,
+                                              quote: "",
+                                            }
+                                          : citation,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  {data.sources.map((source) => (
+                                    <option key={source.id} value={source.id}>
+                                      {source.title}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                逐字原文引用
+                                <textarea
+                                  value={c.quote}
+                                  onChange={(e) =>
+                                    patchCard(
+                                      i,
+                                      "citations",
+                                      q.citations.map((citation, index) =>
+                                        index === j
+                                          ? {
+                                              ...citation,
+                                              quote: e.target.value,
+                                            }
+                                          : citation,
+                                      ),
+                                    )
+                                  }
+                                  placeholder="从原文复制能支持答案的段落"
+                                />
+                              </label>
+                              <button
+                                onClick={() =>
+                                  setModal({
+                                    type: "source",
+                                    source: data.sources.find(
+                                      (s) => s.id === c.sourceId,
+                                    ),
+                                    quote: c.quote,
+                                  })
+                                }
+                              >
+                                ↗{" "}
+                                {data.sources.find((s) => s.id === c.sourceId)
+                                  ?.title || "原文"}
+                                <blockquote>{c.quote}</blockquote>
+                              </button>
+                            </div>
                           ))}
                         </div>
                       </details>
                     ))}
+                    <button
+                      disabled={draft.cards.length >= 100}
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          cards: [...draft.cards, blankCard()],
+                        })
+                      }
+                    >
+                      ＋ 添加闪卡
+                    </button>
                   </>
                 )}
                 <div className="sticky-actions">
@@ -1154,7 +1456,12 @@ export default function App({ call }) {
                         return;
                       }
                       await act("draft.save", { deck: d }, async (saved) => {
-                        await call("draft.publish", { id: saved.id });
+                        openDraft(saved);
+                        await call("draft.publish", {
+                          id: saved.id,
+                          draftVersion: saved.draftVersion,
+                        });
+                        clearRecovery();
                         setPage("library");
                         setNotice("题组已发布，可以开始学习。");
                       });
@@ -1166,8 +1473,13 @@ export default function App({ call }) {
                     className="danger-text"
                     disabled={busy}
                     onClick={() =>
-                      act("draft.delete", { id: draft.id }, () =>
-                        setPage("library"),
+                      act(
+                        "draft.delete",
+                        { id: draft.id, draftVersion: draft.draftVersion },
+                        () => {
+                          clearRecovery();
+                          setPage("library");
+                        },
                       )
                     }
                   >
@@ -1248,6 +1560,12 @@ export default function App({ call }) {
                       ))}
                     </div>
                     <button disabled={busy}>保存复习设置</button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings(data.settings)}
+                    >
+                      撤销未保存修改
+                    </button>
                   </fieldset>
                 </form>
                 <fieldset>
@@ -1273,7 +1591,7 @@ export default function App({ call }) {
                       className="pill"
                       onClick={() => setModal({ type: "sources" })}
                     >
-                      查看 {data.sources.length} 份资料
+                      查看 {run.sourceIds?.length || 0} 份资料
                     </button>
                   </div>
                   <button onClick={() => setPage("library")}>返回学习库</button>
@@ -1282,27 +1600,22 @@ export default function App({ call }) {
                   <div className="session-summary">
                     <div className="summary-symbol">✓</div>
                     <div className="eyebrow">SESSION COMPLETE</div>
-                    <h1>这一轮，完成了。</h1>
+                    <h1>
+                      {run.closed ? "这一轮，已结束。" : "这一轮，完成了。"}
+                    </h1>
                     <p>
-                      {run.total} 道题 · 掌握 {run.correct} 道 · 需要巩固{" "}
-                      {run.answered - run.correct} 道
+                      已答 {run.answered} / {run.total} 道题 · 掌握{" "}
+                      {run.correct} 道 · 需要巩固 {run.answered - run.correct}{" "}
+                      道
                     </p>
                     <div className="summary-topics">
                       <h3>接下来重点复习</h3>
-                      {[
-                        ...new Set(
-                          data.attempts
-                            .filter((a) => a.runId === run.id && a.grade < 3)
-                            .map((a) => a.topic),
-                        ),
-                      ].map((t) => (
+                      {(run.weakTopics || []).map((t) => (
                         <span className="tag" key={t}>
                           {t}
                         </span>
                       ))}
-                      {!data.attempts.some(
-                        (a) => a.runId === run.id && a.grade < 3,
-                      ) && (
+                      {!run.weakTopics?.length && (
                         <p className="muted">
                           本轮没有低分记录，继续按间隔复习巩固。
                         </p>
@@ -1668,15 +1981,17 @@ export default function App({ call }) {
             {modal.type === "add" ? (
               sourceForm
             ) : modal.type === "sources" ? (
-              data.sources.map((s) => (
-                <button
-                  className="source-row"
-                  key={s.id}
-                  onClick={() => setModal({ type: "source", source: s })}
-                >
-                  {s.title} <span>→</span>
-                </button>
-              ))
+              data.sources
+                .filter((s) => run?.sourceIds?.includes(s.id))
+                .map((s) => (
+                  <button
+                    className="source-row"
+                    key={s.id}
+                    onClick={() => setModal({ type: "source", source: s })}
+                  >
+                    {s.title} <span>→</span>
+                  </button>
+                ))
             ) : modal.type === "flag" ? (
               <form
                 onSubmit={(e) => {

@@ -40,6 +40,141 @@ async function ready() {
   return service;
 }
 
+test("deck maintenance preserves unchanged scheduling, resets edited content, and fences concurrent drafts", async () => {
+  const service = await ready();
+  const run = await service.call("review.start", {
+    deckId: "d",
+    mode: "flashcard",
+  });
+  await service.call("review.reveal", { runId: run.id, cardId: "q" });
+  await service.call("review.answer", { runId: run.id, cardId: "q", grade: 4 });
+  const before = await service.call("deck.get", { id: "d" });
+  const draft = await service.call("deck.edit", { id: "d" });
+  assert.equal((await service.call("deck.edit", { id: "d" })).id, draft.id);
+  await assert.rejects(
+    service.call("draft.publish", { id: draft.id }),
+    /active reviews/,
+  );
+  await service.call("review.end", { runId: run.id });
+  draft.title = "Renamed";
+  const saved = await service.call("draft.save", { deck: draft });
+  await assert.rejects(
+    service.call("draft.save", { deck: draft }),
+    /another window/,
+  );
+  await assert.rejects(
+    service.call("draft.publish", {
+      id: saved.id,
+      draftVersion: draft.draftVersion,
+    }),
+    /another window/,
+  );
+  await assert.rejects(
+    service.call("draft.delete", {
+      id: saved.id,
+      draftVersion: draft.draftVersion,
+    }),
+    /another window/,
+  );
+  await service.call("draft.publish", { id: saved.id });
+  const unchanged = await service.call("deck.get", { id: "d" });
+  assert.equal(unchanged.id, "d");
+  assert.equal(unchanged.title, "Renamed");
+  assert.deepEqual(unchanged.cards[0].review, before.cards[0].review);
+  const edit = await service.call("deck.edit", { id: "d" });
+  edit.cards[0].prompt += " Explain both dimensions.";
+  await service.call("draft.save", { deck: edit });
+  await service.call("draft.publish", { id: edit.id });
+  assert.equal(
+    (await service.call("deck.get", { id: "d" })).cards[0].review.repetitions,
+    0,
+  );
+  assert.equal((await service.call("export")).attempts.length, 1);
+  const historical = await service.call("review.get", { runId: run.id });
+  assert.equal(historical.closed, true);
+  await assert.rejects(
+    service.call("review.answer", { runId: run.id, cardId: "q", grade: 4 }),
+    /ended/,
+  );
+});
+
+test("wrong queue uses latest outcome; archive and suspension have reversible lifecycle", async () => {
+  const service = await ready();
+  let run = await service.call("review.start", {
+    deckId: "d",
+    mode: "flashcard",
+  });
+  await service.call("review.reveal", { runId: run.id, cardId: "q" });
+  await service.call("review.answer", { runId: run.id, cardId: "q", grade: 1 });
+  await service.call("review.end", { runId: run.id });
+  assert.equal((await service.call("snapshot")).decks[0].wrong, 1);
+  run = await service.call("review.start", { deckId: "d", mode: "wrong" });
+  await service.call("deck.archive", { id: "d", archived: true });
+  assert.equal((await service.call("snapshot")).runs.length, 0);
+  await assert.rejects(
+    service.call("review.start", { deckId: "d", mode: "wrong" }),
+    /archived/,
+  );
+  await service.call("deck.archive", { id: "d", archived: false });
+  await service.call("card.suspend", {
+    deckId: "d",
+    cardId: "q",
+    suspended: true,
+  });
+  await assert.rejects(
+    service.call("review.start", { deckId: "d", mode: "wrong" }),
+    /No questions/,
+  );
+  await service.call("card.suspend", {
+    deckId: "d",
+    cardId: "q",
+    suspended: false,
+  });
+  run = await service.call("review.start", { deckId: "d", mode: "wrong" });
+  await service.call("review.reveal", { runId: run.id, cardId: "q" });
+  await service.call("review.answer", { runId: run.id, cardId: "q", grade: 5 });
+  assert.equal((await service.call("snapshot")).decks[0].wrong, 0);
+});
+
+test("review reads are side-effect free and teaching resumes without exposing scoring reference", async () => {
+  const service = await ready();
+  const run = await service.call("review.start", {
+    deckId: "d",
+    mode: "flashcard",
+  });
+  const before = await readFile(service.store.path, "utf8");
+  await service.call("review.get", { runId: run.id });
+  assert.equal(await readFile(service.store.path, "utf8"), before);
+  await service.call("review.reveal", { runId: run.id, cardId: "q" });
+  await service.call("review.answer", { runId: run.id, cardId: "q", grade: 1 });
+  let calls = 0;
+  service.complete = async () => {
+    calls++;
+    return JSON.stringify({
+      diagnosis: "gap",
+      transfer: "rule",
+      rungs: [1, 2].map(() => ({
+        lesson: "relationship",
+        check: "why?",
+        answer: "secret reference",
+      })),
+    });
+  };
+  const t = await service.call("teach.start", { runId: run.id });
+  assert.equal((await service.call("teach.start", { runId: run.id })).id, t.id);
+  assert.equal(calls, 1);
+  const restarted = new StudyService(service.store.root);
+  assert.equal(
+    (await restarted.call("review.get", { runId: run.id })).teaching.id,
+    t.id,
+  );
+  assert.ok(
+    !JSON.stringify(await restarted.call("teach.get", { id: t.id })).includes(
+      "secret reference",
+    ),
+  );
+});
+
 test("failed transaction leaves last committed state byte-for-byte unchanged", async () => {
   const store = new Store(await fresh());
   await store.update((s) => s.sources.push(source));
