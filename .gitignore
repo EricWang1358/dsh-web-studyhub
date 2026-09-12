@@ -8,3 +8,11 @@ output/
 test-results/
 playwright-report/
 .playwright-cli/
+
+# local AI/session tooling
+.mimosa/
+.workbuddy-ai/
+
+# scratch probe/snapshot scripts
+scripts/probe*.mjs
+scripts/snap-*.mjs

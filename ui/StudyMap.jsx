@@ -221,7 +221,7 @@ export default function StudyMap({
     return (
       <li
         key={d.id}
-        className="map-deck"
+        className={"map-deck" + (menu === d.id ? " menu-open" : "")}
         style={{ "--i": i }}
       >
         <div className={"map-row deck-row" + (whole ? " selected" : "")}>
@@ -539,7 +539,10 @@ export default function StudyMap({
         <ul className="map-tree">
           {folders.map(([folder, decks]) =>
             folder ? (
-              <li key={"folder:" + folder} className="map-folder">
+              <li
+                key={"folder:" + folder}
+                className={"map-folder" + (decks.some((d) => d.id === menu) ? " menu-open" : "")}
+              >
                 <div className="map-row folder-row">
                   <button
                     className="map-caret"

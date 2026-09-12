@@ -363,6 +363,19 @@ export default function App({ call, host = {} }) {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   });
+  // Practise the given prerequisites (learned ones included), then offer a way back to this question.
+  function studyPrerequisites(list) {
+    act(
+      "review.start",
+      {
+        mode: "path",
+        scope: list.map(({ deckId, cardId }) => ({ deckId, cardId })),
+        returnTo: run.id,
+        fresh: true,
+      },
+      enterRun,
+    );
+  }
   // Hand the open question to the conversation; the reference tells the agent which card it is.
   function cardBrief() {
     const deck = data?.decks.find((d) => d.id === run.deckId);
@@ -1920,33 +1933,36 @@ export default function App({ call, host = {} }) {
                               前置题 {run.prerequisites.length} · 已掌握{" "}
                               {run.prerequisites.filter((p) => !["new", "weak"].includes(p.level)).length}
                             </span>
-                            {run.prerequisites.some((p) => ["new", "weak"].includes(p.level)) && (
-                              <button
-                                className="primary pill"
-                                disabled={busy}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  act(
-                                    "review.start",
-                                    {
-                                      mode: "path",
-                                      scope: run.prerequisites.map(({ deckId, cardId }) => ({ deckId, cardId })),
-                                      returnTo: run.id,
-                                      fresh: true,
-                                    },
-                                    enterRun,
-                                  );
-                                }}
-                              >
-                                先学前置 →
-                              </button>
-                            )}
+                            {(() => {
+                              const unlearned = run.prerequisites.some((p) => ["new", "weak"].includes(p.level));
+                              return (
+                                <button
+                                  className={unlearned ? "primary pill" : "pill"}
+                                  disabled={busy}
+                                  title={unlearned ? "先学没掌握的前置题，学完回到这道题" : "把前置题再过一遍自查，做完回到这道题"}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    studyPrerequisites(run.prerequisites);
+                                  }}
+                                >
+                                  {unlearned ? "先学前置 →" : "自查前置 →"}
+                                </button>
+                              );
+                            })()}
                           </summary>
                           <ul>
                             {run.prerequisites.map((p) => (
                               <li key={p.deckId + p.cardId}>
-                                <span className={"map-dot lv-" + p.level} />
-                                <Markdown className="md-compact" links={false} text={p.prompt} />
+                                <button
+                                  className="prereq-item"
+                                  disabled={busy}
+                                  title="只练这一道，做完回到这道题"
+                                  onClick={() => studyPrerequisites([p])}
+                                >
+                                  <span className={"map-dot lv-" + p.level} />
+                                  <Markdown className="md-compact" links={false} text={p.prompt} />
+                                  <span className="prereq-go" aria-hidden="true">→</span>
+                                </button>
                               </li>
                             ))}
                           </ul>

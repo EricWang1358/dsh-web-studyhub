@@ -1471,6 +1471,33 @@
     position: relative;
     top: -1px;
   }
+  .prereq-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 8px;
+    text-align: left;
+    color: inherit;
+    background: transparent;
+  }
+  .prereq-item:hover:not(:disabled) {
+    background: #2e3048;
+  }
+  .prereq-item .md {
+    flex: 1;
+  }
+  .prereq-go {
+    color: #8e90c8;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .prereq-item:hover .prereq-go,
+  .prereq-item:focus-visible .prereq-go {
+    opacity: 1;
+  }
   .md details.md-details {
     margin: 0.5em 0 0.9em;
     border: 1px solid #3a3e44;
@@ -2084,6 +2111,13 @@
   .topic-row { min-height: 42px; padding: 7px 10px 7px 0; }
   .topic-row + .topic-row { border-top: 1px solid #30353a; border-radius: 0; }
   .map-menu-wrap { position: relative; flex-shrink: 0; }
+  /* Glass cards (backdrop-filter) each form a stacking context, so an open
+     menu's own z-index cannot rise above later cards; lift the whole card. */
+  .map-deck.menu-open,
+  .map-folder.menu-open {
+    position: relative;
+    z-index: 30;
+  }
   .map-menu {
     position: absolute;
     right: 0;

@@ -961,3 +961,21 @@ test("recording mode ingests pasted mistakes into a deck, keeps answer keys, ski
   const run = await service.call("review.start", { deckId: result.deckId, mode: "quiz" });
   assert.equal((await service.call("snapshot")).lastRun.id, run.id);
 });
+test("card references resolve by card id when deckId is empty or wrong, with clear errors", async () => {
+  const service = await ready();
+  const other = { ...structuredClone(q), id: "o1", objective: "Other objective", prompt: "Another deck question?" };
+  await service.call("draft.save", { deck: { id: "d2", title: "Other", cards: [other] } });
+  await service.call("draft.publish", { id: "d2" });
+  const linked = await service.call("card.link", { deckId: "d", cardId: "q", requires: { deckId: "", cardId: "o1" } });
+  assert.deepEqual(linked.requires, { deckId: "d2", cardId: "o1" });
+  const view = await service.call("card.get", { cardId: "q" });
+  assert.equal(view.deckId, "d");
+  assert.equal(view.prerequisites[0].deckTitle, "Other");
+  assert.equal((await service.call("card.get", { deckId: "d", cardId: "o1" })).deckId, "d2");
+  await assert.rejects(
+    service.call("card.link", { cardId: "q", requires: { cardId: "nope" } }),
+    /Prerequisite question not found \(cardId nope\)/,
+  );
+  const run = await service.call("review.start", { mode: "path", scope: [{ cardId: "o1" }] });
+  assert.equal(run.card.id, "o1");
+});
