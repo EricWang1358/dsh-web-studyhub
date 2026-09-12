@@ -1,0 +1,26 @@
+{
+  "reviewer": "adversarial",
+  "findings": [
+    {
+      "title": "Quiz generation accepts flashcards as a reviewed quiz",
+      "severity": "P2",
+      "file": "lib/generation.js",
+      "line": 20,
+      "why_it_matters": "When the author model returns otherwise valid flashcards for a quiz request, both quality gates can accept the result and save it as reviewed. Publishing that deck leaves the Quiz action with no eligible questions. The editor receives count and evidence but not the requested kind, so a deterministic kind check must enforce this explicit user choice before accepting a draft.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add every card.kind mismatch against request.kind (default quiz) to the repair issues and recheck it after repair; reject persistent mismatches. Include the requested kind in editorial input and add a fake-model test returning a structurally valid wrong-kind deck.",
+      "confidence": 100,
+      "evidence": [
+        "lib/generation.js:20: const issues=[...report.errors,...critique.issues];if(draft.cards?.length!==request.count)issues.push('Wrong question count');",
+        "lib/generation.js:25: if(report.errors.length||draft.cards.length!==request.count)throw new Error('Quality gate failed: '+[...report.errors,...(draft.cards.length!==request.count?['Wrong question count']:[])].join('; '));",
+        "Read-only reproduction invoked generateDeck with kind:'quiz', count:1, a valid cited flashcard response, then {issues:[]}. Observed {requested:'quiz',accepted:'flashcard',calls:2}.",
+        "StudyService review.start filters q.kind!=='flashcard' for mode quiz; a published all-flashcard result therefore produces No questions available for this mode."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

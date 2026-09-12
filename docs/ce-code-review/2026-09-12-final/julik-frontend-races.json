@@ -1,0 +1,25 @@
+{
+  "reviewer": "julik-frontend-races",
+  "findings": [
+    {
+      "title": "Scope keyboard review actions to the active Study pane",
+      "severity": "P2",
+      "file": "ui/App.jsx",
+      "line": 25,
+      "why_it_matters": "Opening Study in both the conversation view and the right sidebar installs two window keydown listeners. When both panes have a review open and focus is outside a form control, one numeric or arrow key executes review actions in both panes, potentially grading an unrelated question or advancing the same run twice. Each listener needs ownership of the focused pane rather than processing every global key.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Attach keyboard handling to a focusable App root, or gate the window listener on root containment of the active event target and active pane ownership. Add a two-App browser test proving one keystroke triggers exactly one review action.",
+      "confidence": 75,
+      "evidence": [
+        "ui/App.jsx:25 -- window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);",
+        "ui/host.jsx:17 -- ctx.slots.inject('conversation.view',()=>ctx.slots.register({name:'conversation.view',id:'study-workspace',order:26,locale:'study-workspace',label:()=>t('tab')},Seat));",
+        "ui/host.jsx:20 -- const body=c.slots.inject('sidebar.right.pane.tab',()=>c.slots.register({name:'sidebar.right.pane.tab',key:'study-workspace',locale:'study-workspace'},Seat));"
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

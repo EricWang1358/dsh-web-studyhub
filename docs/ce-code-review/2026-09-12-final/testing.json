@@ -1,0 +1,8 @@
+{
+  "reviewer": "testing",
+  "findings": [],
+  "residual_risks": [],
+  "testing_gaps": [
+    "tests/host.test.mjs exercises only route installation and invalid/missing sessions. Add a successful request from the native client RPC envelope to a bound session and persisted mutation, including both fetch and legacy RPC transport branches, to verify the native workspace contract end to end."
+  ]
+}

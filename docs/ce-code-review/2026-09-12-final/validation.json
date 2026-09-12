@@ -1,0 +1,39 @@
+{
+  "verdicts": [
+    {
+      "#": 1,
+      "validated": false,
+      "reason": "Resolved in current source: Native client now uses ui/transport.js modern /api route with guarded legacy fallback."
+    },
+    {
+      "#": 2,
+      "validated": false,
+      "reason": "Resolved in current source: Generation checks requested kind before repair and rejects persistent mismatch; editor receives requested kind."
+    },
+    {
+      "#": 3,
+      "validated": false,
+      "reason": "Resolved in current source: Host failure envelope now includes required code, message and details."
+    },
+    {
+      "#": 4,
+      "validated": false,
+      "reason": "Resolved in current source: Explicit CLI preview root uses isolated in-memory binding."
+    },
+    {
+      "#": 5,
+      "validated": false,
+      "reason": "Resolved in current source: parseDraft guards deck/card render shape before visual editor transition."
+    },
+    {
+      "#": 6,
+      "validated": false,
+      "reason": "Resolved in current source: Bound library polling observes idle external mutations, rejects stale/overlapping responses and preserves editor state."
+    },
+    {
+      "#": 7,
+      "validated": false,
+      "reason": "Resolved in current source: Keyboard handler requires focus inside its specific App root."
+    }
+  ]
+}

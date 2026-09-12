@@ -1,0 +1,24 @@
+{
+  "reviewer": "agent-native",
+  "findings": [
+    {
+      "title": "Observe agent changes when no generation is running",
+      "severity": "P2",
+      "file": "ui/App.jsx",
+      "line": 18,
+      "why_it_matters": "A source, draft, or published deck created by the agent does not appear in an already-open Study workspace. Its only periodic refresh starts after this UI already knows about a running generation, so agent work and updates from the other native pane stay stale until a local mutation or remount. Observe shared revisions even while idle, preserving unsaved form edits.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Subscribe to shared library revision events or poll snapshots whenever a library is bound, not only during known generation jobs. Guard stale responses and preserve dirty settings/draft fields.",
+      "confidence": 75,
+      "evidence": [
+        "ui/App.jsx:18 -- useEffect(()=>{if(!running)return;const t=setInterval(()=>refresh().catch(e=>setError(e.message)),1800);return()=>clearInterval(t);},[running,refresh]);",
+        "lib/index.js:33 -- const b=await binding(cwd,config);return new StudyService(b.root,{complete:b.provider&&b.model?modelCompletion(ctx,b,agent.id):undefined}).call(a.action,args);"
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

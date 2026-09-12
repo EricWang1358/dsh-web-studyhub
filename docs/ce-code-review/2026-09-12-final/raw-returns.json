@@ -1,0 +1,162 @@
+[
+  {
+    "reviewer": "correctness",
+    "findings": [
+      {
+        "title": "Validate JSON structure before switching to visual editor",
+        "severity": "P2",
+        "file": "ui/App.jsx",
+        "line": 39,
+        "confidence": 100,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Before setDraft, verify parsed data is an object with a cards array of non-null objects and array-shaped optional options/citations, or perform shared deck validation; retain JSON mode and draftText on error. Add a browser case switching an incomplete valid JSON object back to visual editing.",
+        "first_evidence": "ui/App.jsx:39 -- setDraft(JSON.parse(draftText));"
+      },
+      {
+        "title": "Honor explicit preview library over saved workspace binding",
+        "severity": "P2",
+        "file": "scripts/dev.mjs",
+        "line": 24,
+        "confidence": 100,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Resolve the preview binding once using an explicit --library override ahead of saved root, and route both binding.get and subsequent actions through that effective binding. Keep preview binding.set in preview-specific state or storage so testing does not repoint the native workspace. Test with a conflicting saved root and explicit demo root.",
+        "first_evidence": "scripts/dev.mjs:24 -- else {const b=await binding(process.cwd(),config);value=await new StudyService(b.root,{complete}).call(action,args);}"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "security",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": [
+      "tests/host.test.mjs invokes the registered fetch handler directly through a mock connection. An integration check through the real DSH connection should verify rejection of an unauthenticated request and an untrusted browser Origin for /api/study-workspace/call. Inspection confirms the installed SDK already supplies these protections: dsh-client-connection/lib/index.js:772 calls connection.requestRejection(req), whose implementation at lines 553–555 checks trusted Host/Origin and browser authentication before dispatch. This is a coverage gap, not a missing-auth finding."
+    ]
+  },
+  {
+    "reviewer": "testing",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": [
+      "tests/host.test.mjs exercises only route installation and invalid/missing sessions. Add a successful request from the native client RPC envelope to a bound session and persisted mutation, including both fetch and legacy RPC transport branches, to verify the native workspace contract end to end."
+    ]
+  },
+  {
+    "reviewer": "maintainability",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "agent-native",
+    "findings": [
+      {
+        "title": "Observe agent changes when no generation is running",
+        "severity": "P2",
+        "file": "ui/App.jsx",
+        "line": 18,
+        "confidence": 75,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Subscribe to shared library revision events or poll snapshots whenever a library is bound, not only during known generation jobs. Guard stale responses and preserve dirty settings/draft fields.",
+        "first_evidence": "ui/App.jsx:18 -- useEffect(()=>{if(!running)return;const t=setInterval(()=>refresh().catch(e=>setError(e.message)),1800);return()=>clearInterval(t);},[running,refresh]);"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "julik-frontend-races",
+    "findings": [
+      {
+        "title": "Scope keyboard review actions to the active Study pane",
+        "severity": "P2",
+        "file": "ui/App.jsx",
+        "line": 25,
+        "confidence": 75,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Attach keyboard handling to a focusable App root, or gate the window listener on root containment of the active event target and active pane ownership. Add a two-App browser test proving one keystroke triggers exactly one review action.",
+        "first_evidence": "ui/App.jsx:25 -- window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "api-contract",
+    "findings": [
+      {
+        "title": "Native client calls an unregistered transport route",
+        "severity": "P1",
+        "file": "ui/host.jsx",
+        "line": 12,
+        "confidence": 100,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Call c.rpc.call('/api','study-workspace/call',payload) for the modern transport. If old transport support is required, either register the legacy route alongside the modern route or use a host-capability-specific adapter. Test the client-generated URL and method against the installed host route, including first-open binding.get.",
+        "first_evidence": "ui/host.jsx:12: const r=await c.rpc.call('/study-workspace','call',{sessionId:props.sessionId,action,args});"
+      },
+      {
+        "title": "Native failures omit required RPC error fields",
+        "severity": "P2",
+        "file": "lib/host.js",
+        "line": 34,
+        "confidence": 100,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Return error:{code:'study/operation-failed',message:e.message,details:{}} from createHostHandler, with suitable stable codes if desired. Verify a rejected binding or review call through the real client response parser.",
+        "first_evidence": "lib/host.js:34: }catch(e){return {ok:false,error:{message:e.message}};}"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "adversarial",
+    "findings": [
+      {
+        "title": "Quiz generation accepts flashcards as a reviewed quiz",
+        "severity": "P2",
+        "file": "lib/generation.js",
+        "line": 20,
+        "confidence": 100,
+        "autofix_class": "manual",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Add every card.kind mismatch against request.kind (default quiz) to the repair issues and recheck it after repair; reject persistent mismatches. Include the requested kind in editorial input and add a fake-model test returning a structurally valid wrong-kind deck.",
+        "first_evidence": "lib/generation.js:20: const issues=[...report.errors,...critique.issues];if(draft.cards?.length!==request.count)issues.push('Wrong question count');"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "reliability",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "data-migration",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": []
+  }
+]

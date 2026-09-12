@@ -1,0 +1,8 @@
+{
+  "residual_risks": [
+    "This review did not execute the complete installed DSH app UI or a paid/live model-provider generation; native SDK source contracts and controlled generation were inspected."
+  ],
+  "testing_gaps": [
+    "Real-host unauthenticated and untrusted-Origin request rejection was not exercised; inspected SDK supplies these protections before route dispatch."
+  ]
+}

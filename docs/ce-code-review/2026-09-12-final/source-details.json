@@ -1,0 +1,194 @@
+[
+  {
+    "reviewer": "correctness",
+    "findings": [
+      {
+        "title": "Validate JSON structure before switching to visual editor",
+        "severity": "P2",
+        "file": "ui/App.jsx",
+        "line": 39,
+        "why_it_matters": "Entering valid JSON with an incomplete deck, such as {}, then clicking 逐题编辑 crashes the entire workspace when rendering draft.cards.map. JSON.parse succeeds and the catch cannot intercept the subsequent React render failure, losing the in-memory edits. Validate the required render shape before replacing draft state and leave the JSON editor open with an error when invalid.",
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "suggested_fix": "Before setDraft, verify parsed data is an object with a cards array of non-null objects and array-shaped optional options/citations, or perform shared deck validation; retain JSON mode and draftText on error. Add a browser case switching an incomplete valid JSON object back to visual editing.",
+        "confidence": 100,
+        "evidence": [
+          "ui/App.jsx:39 -- setDraft(JSON.parse(draftText));",
+          "ui/App.jsx:39 -- draft.cards.map((q,i)=>"
+        ],
+        "pre_existing": false
+      },
+      {
+        "title": "Honor explicit preview library over saved workspace binding",
+        "severity": "P2",
+        "file": "scripts/dev.mjs",
+        "line": 24,
+        "why_it_matters": "Starting the documented preview command with --library pointing to an isolated demo library still opens and writes the real library if this project already has a .dsh-study-binding.json. The explicit CLI value is passed only as a fallback config, while binding() prefers saved.root, so demo review actions can alter real learning records. Give the explicit preview argument precedence and isolate preview binding storage from the native workspace binding.",
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "suggested_fix": "Resolve the preview binding once using an explicit --library override ahead of saved root, and route both binding.get and subsequent actions through that effective binding. Keep preview binding.set in preview-specific state or storage so testing does not repoint the native workspace. Test with a conflicting saved root and explicit demo root.",
+        "confidence": 100,
+        "evidence": [
+          "scripts/dev.mjs:24 -- else {const b=await binding(process.cwd(),config);value=await new StudyService(b.root,{complete}).call(action,args);}",
+          "lib/host.js:9 -- return {root:saved.root||config.libraryRoot||'',provider:saved.provider||config.provider||'',model:saved.model||config.model||''};"
+        ],
+        "pre_existing": false
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "security",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": [
+      "tests/host.test.mjs invokes the registered fetch handler directly through a mock connection. An integration check through the real DSH connection should verify rejection of an unauthenticated request and an untrusted browser Origin for /api/study-workspace/call. Inspection confirms the installed SDK already supplies these protections: dsh-client-connection/lib/index.js:772 calls connection.requestRejection(req), whose implementation at lines 553–555 checks trusted Host/Origin and browser authentication before dispatch. This is a coverage gap, not a missing-auth finding."
+    ]
+  },
+  {
+    "reviewer": "testing",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": [
+      "tests/host.test.mjs exercises only route installation and invalid/missing sessions. Add a successful request from the native client RPC envelope to a bound session and persisted mutation, including both fetch and legacy RPC transport branches, to verify the native workspace contract end to end."
+    ]
+  },
+  {
+    "reviewer": "maintainability",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "agent-native",
+    "findings": [
+      {
+        "title": "Observe agent changes when no generation is running",
+        "severity": "P2",
+        "file": "ui/App.jsx",
+        "line": 18,
+        "why_it_matters": "A source, draft, or published deck created by the agent does not appear in an already-open Study workspace. Its only periodic refresh starts after this UI already knows about a running generation, so agent work and updates from the other native pane stay stale until a local mutation or remount. Observe shared revisions even while idle, preserving unsaved form edits.",
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "suggested_fix": "Subscribe to shared library revision events or poll snapshots whenever a library is bound, not only during known generation jobs. Guard stale responses and preserve dirty settings/draft fields.",
+        "confidence": 75,
+        "evidence": [
+          "ui/App.jsx:18 -- useEffect(()=>{if(!running)return;const t=setInterval(()=>refresh().catch(e=>setError(e.message)),1800);return()=>clearInterval(t);},[running,refresh]);",
+          "lib/index.js:33 -- const b=await binding(cwd,config);return new StudyService(b.root,{complete:b.provider&&b.model?modelCompletion(ctx,b,agent.id):undefined}).call(a.action,args);"
+        ],
+        "pre_existing": false
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "julik-frontend-races",
+    "findings": [
+      {
+        "title": "Scope keyboard review actions to the active Study pane",
+        "severity": "P2",
+        "file": "ui/App.jsx",
+        "line": 25,
+        "why_it_matters": "Opening Study in both the conversation view and the right sidebar installs two window keydown listeners. When both panes have a review open and focus is outside a form control, one numeric or arrow key executes review actions in both panes, potentially grading an unrelated question or advancing the same run twice. Each listener needs ownership of the focused pane rather than processing every global key.",
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "suggested_fix": "Attach keyboard handling to a focusable App root, or gate the window listener on root containment of the active event target and active pane ownership. Add a two-App browser test proving one keystroke triggers exactly one review action.",
+        "confidence": 75,
+        "evidence": [
+          "ui/App.jsx:25 -- window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);",
+          "ui/host.jsx:17 -- ctx.slots.inject('conversation.view',()=>ctx.slots.register({name:'conversation.view',id:'study-workspace',order:26,locale:'study-workspace',label:()=>t('tab')},Seat));",
+          "ui/host.jsx:20 -- const body=c.slots.inject('sidebar.right.pane.tab',()=>c.slots.register({name:'sidebar.right.pane.tab',key:'study-workspace',locale:'study-workspace'},Seat));"
+        ],
+        "pre_existing": false
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "api-contract",
+    "findings": [
+      {
+        "title": "Native client calls an unregistered transport route",
+        "severity": "P1",
+        "file": "ui/host.jsx",
+        "line": 12,
+        "why_it_matters": "Opening the native Study workspace fails before binding.get can load because the modern host registers /api/study-workspace/call while the client sends /study-workspace/call. The installed DSH RPC client constructs the URL from channel/endpoint and sends endpoint as the envelope method, so both path and method differ. Use the /api channel and study-workspace/call endpoint to match the modern host, retaining legacy compatibility deliberately if it remains supported.",
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "suggested_fix": "Call c.rpc.call('/api','study-workspace/call',payload) for the modern transport. If old transport support is required, either register the legacy route alongside the modern route or use a host-capability-specific adapter. Test the client-generated URL and method against the installed host route, including first-open binding.get.",
+        "confidence": 100,
+        "evidence": [
+          "ui/host.jsx:12: const r=await c.rpc.call('/study-workspace','call',{sessionId:props.sessionId,action,args});",
+          "lib/host.js:41 registers path:'/api/study-workspace/call'; line 45 requires body.method==='study-workspace/call'.",
+          "Installed dsh-client-connection/lib/client.js:6197–6213 constructs new URL(`${channel}/${endpoint}`, resolveBase()) and method:endpoint. The registered native fetch route and actual UI request cannot match."
+        ],
+        "pre_existing": false
+      },
+      {
+        "title": "Native failures omit required RPC error fields",
+        "severity": "P2",
+        "file": "lib/host.js",
+        "line": 34,
+        "why_it_matters": "Once transport routing works, ordinary validation failures such as a missing library path become 'connection: invalid server-response failure' instead of the actionable message. The installed DSH client validates code, message and details on every failure envelope. Returning all three fields preserves the service error and satisfies the SDK contract.",
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "suggested_fix": "Return error:{code:'study/operation-failed',message:e.message,details:{}} from createHostHandler, with suitable stable codes if desired. Verify a rejected binding or review call through the real client response parser.",
+        "confidence": 100,
+        "evidence": [
+          "lib/host.js:34: }catch(e){return {ok:false,error:{message:e.message}};}",
+          "Installed dsh-client-connection/lib/client.js parseConnectionResponse: if (typeof error.code !== \"string\" || typeof error.message !== \"string\" || !isRecord(error.details)) throw new TypeError(\"connection: invalid server-response failure\");"
+        ],
+        "pre_existing": false
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "adversarial",
+    "findings": [
+      {
+        "title": "Quiz generation accepts flashcards as a reviewed quiz",
+        "severity": "P2",
+        "file": "lib/generation.js",
+        "line": 20,
+        "why_it_matters": "When the author model returns otherwise valid flashcards for a quiz request, both quality gates can accept the result and save it as reviewed. Publishing that deck leaves the Quiz action with no eligible questions. The editor receives count and evidence but not the requested kind, so a deterministic kind check must enforce this explicit user choice before accepting a draft.",
+        "autofix_class": "manual",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "suggested_fix": "Add every card.kind mismatch against request.kind (default quiz) to the repair issues and recheck it after repair; reject persistent mismatches. Include the requested kind in editorial input and add a fake-model test returning a structurally valid wrong-kind deck.",
+        "confidence": 100,
+        "evidence": [
+          "lib/generation.js:20: const issues=[...report.errors,...critique.issues];if(draft.cards?.length!==request.count)issues.push('Wrong question count');",
+          "lib/generation.js:25: if(report.errors.length||draft.cards.length!==request.count)throw new Error('Quality gate failed: '+[...report.errors,...(draft.cards.length!==request.count?['Wrong question count']:[])].join('; '));",
+          "Read-only reproduction invoked generateDeck with kind:'quiz', count:1, a valid cited flashcard response, then {issues:[]}. Observed {requested:'quiz',accepted:'flashcard',calls:2}.",
+          "StudyService review.start filters q.kind!=='flashcard' for mode quiz; a published all-flashcard result therefore produces No questions available for this mode."
+        ],
+        "pre_existing": false
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "reliability",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "data-migration",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": []
+  }
+]

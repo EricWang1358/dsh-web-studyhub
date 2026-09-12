@@ -1,0 +1,42 @@
+{
+  "reviewer": "api-contract",
+  "findings": [
+    {
+      "title": "Native client calls an unregistered transport route",
+      "severity": "P1",
+      "file": "ui/host.jsx",
+      "line": 12,
+      "why_it_matters": "Opening the native Study workspace fails before binding.get can load because the modern host registers /api/study-workspace/call while the client sends /study-workspace/call. The installed DSH RPC client constructs the URL from channel/endpoint and sends endpoint as the envelope method, so both path and method differ. Use the /api channel and study-workspace/call endpoint to match the modern host, retaining legacy compatibility deliberately if it remains supported.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Call c.rpc.call('/api','study-workspace/call',payload) for the modern transport. If old transport support is required, either register the legacy route alongside the modern route or use a host-capability-specific adapter. Test the client-generated URL and method against the installed host route, including first-open binding.get.",
+      "confidence": 100,
+      "evidence": [
+        "ui/host.jsx:12: const r=await c.rpc.call('/study-workspace','call',{sessionId:props.sessionId,action,args});",
+        "lib/host.js:41 registers path:'/api/study-workspace/call'; line 45 requires body.method==='study-workspace/call'.",
+        "Installed dsh-client-connection/lib/client.js:6197–6213 constructs new URL(`${channel}/${endpoint}`, resolveBase()) and method:endpoint. The registered native fetch route and actual UI request cannot match."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Native failures omit required RPC error fields",
+      "severity": "P2",
+      "file": "lib/host.js",
+      "line": 34,
+      "why_it_matters": "Once transport routing works, ordinary validation failures such as a missing library path become 'connection: invalid server-response failure' instead of the actionable message. The installed DSH client validates code, message and details on every failure envelope. Returning all three fields preserves the service error and satisfies the SDK contract.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Return error:{code:'study/operation-failed',message:e.message,details:{}} from createHostHandler, with suitable stable codes if desired. Verify a rejected binding or review call through the real client response parser.",
+      "confidence": 100,
+      "evidence": [
+        "lib/host.js:34: }catch(e){return {ok:false,error:{message:e.message}};}",
+        "Installed dsh-client-connection/lib/client.js parseConnectionResponse: if (typeof error.code !== \"string\" || typeof error.message !== \"string\" || !isRecord(error.details)) throw new TypeError(\"connection: invalid server-response failure\");"
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

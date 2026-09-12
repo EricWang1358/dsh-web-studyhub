@@ -1,0 +1,35 @@
+{
+  "reviewer": "correctness",
+  "findings": [
+    {
+      "title": "Validate JSON structure before switching to visual editor",
+      "severity": "P2",
+      "file": "ui/App.jsx",
+      "line": 39,
+      "why_it_matters": "Entering valid JSON with an incomplete deck, such as {}, then clicking 逐题编辑 crashes the entire workspace when rendering draft.cards.map. JSON.parse succeeds and the catch cannot intercept the subsequent React render failure, losing the in-memory edits. Validate the required render shape before replacing draft state and leave the JSON editor open with an error when invalid.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Before setDraft, verify parsed data is an object with a cards array of non-null objects and array-shaped optional options/citations, or perform shared deck validation; retain JSON mode and draftText on error. Add a browser case switching an incomplete valid JSON object back to visual editing.",
+      "confidence": 100,
+      "evidence": ["ui/App.jsx:39 -- setDraft(JSON.parse(draftText));", "ui/App.jsx:39 -- draft.cards.map((q,i)=>"],
+      "pre_existing": false
+    },
+    {
+      "title": "Honor explicit preview library over saved workspace binding",
+      "severity": "P2",
+      "file": "scripts/dev.mjs",
+      "line": 24,
+      "why_it_matters": "Starting the documented preview command with --library pointing to an isolated demo library still opens and writes the real library if this project already has a .dsh-study-binding.json. The explicit CLI value is passed only as a fallback config, while binding() prefers saved.root, so demo review actions can alter real learning records. Give the explicit preview argument precedence and isolate preview binding storage from the native workspace binding.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Resolve the preview binding once using an explicit --library override ahead of saved root, and route both binding.get and subsequent actions through that effective binding. Keep preview binding.set in preview-specific state or storage so testing does not repoint the native workspace. Test with a conflicting saved root and explicit demo root.",
+      "confidence": 100,
+      "evidence": ["scripts/dev.mjs:24 -- else {const b=await binding(process.cwd(),config);value=await new StudyService(b.root,{complete}).call(action,args);}", "lib/host.js:9 -- return {root:saved.root||config.libraryRoot||'',provider:saved.provider||config.provider||'',model:saved.model||config.model||''};"],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

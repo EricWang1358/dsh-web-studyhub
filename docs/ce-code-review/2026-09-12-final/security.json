@@ -1,0 +1,8 @@
+{
+  "reviewer": "security",
+  "findings": [],
+  "residual_risks": [],
+  "testing_gaps": [
+    "tests/host.test.mjs invokes the registered fetch handler directly through a mock connection. An integration check through the real DSH connection should verify rejection of an unauthenticated request and an untrusted browser Origin for /api/study-workspace/call. Inspection confirms the installed SDK already supplies these protections: dsh-client-connection/lib/index.js:772 calls connection.requestRejection(req), whose implementation at lines 553–555 checks trusted Host/Origin and browser authentication before dispatch. This is a coverage gap, not a missing-auth finding."
+  ]
+}

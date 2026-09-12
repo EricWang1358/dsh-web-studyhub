@@ -7,3 +7,4 @@ output/
 .dsh-study-binding.json
 test-results/
 playwright-report/
+.playwright-cli/
