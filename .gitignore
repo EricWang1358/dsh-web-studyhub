@@ -1,0 +1,9 @@
+node_modules/
+lib/client.js
+dist/
+output/
+*.tgz
+.env*
+.dsh-study-binding.json
+test-results/
+playwright-report/

@@ -1,0 +1,4 @@
+- insert:
+    - id: daily-flashcard
+      name: '@ericwang1358/dsh-daily-flashcard'
+      config: {}

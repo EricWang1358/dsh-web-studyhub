@@ -1,0 +1,17 @@
+{
+  "name": "@ericwang1358/dsh-daily-flashcard",
+  "version": "0.1.0",
+  "description": "Source-grounded flashcards, quizzes and spaced review in a native DSH study workspace.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": { ".": "./lib/index.js", "./client": "./lib/client.js", "./package.json": "./package.json" },
+  "files": ["lib", "references", "cordis.patch.yml", "README.md", "LICENSE"],
+  "license": "MIT",
+  "engines": { "node": ">=22.19" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" }, "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-store"] } },
+  "scripts": { "build": "node scripts/build.mjs", "test": "node --test tests/*.test.mjs", "dev": "node scripts/dev.mjs", "verify": "npm test && npm run build", "prepack": "npm run build" },
+  "dependencies": { "proper-lockfile": "^4.1.2", "yaml": "^2.8.1", "schemastery": "^3.18.0" },
+  "devDependencies": { "esbuild": "^0.25.0", "react": "^19.0.0", "react-dom": "^19.0.0", "@playwright/test": "^1.55.0" },
+  "peerDependencies": { "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1 <2", "@deepseek-ai/dsh-llm": ">=0.0.1-rc.1 <2" },
+  "peerDependenciesMeta": { "@deepseek-ai/dsh-tools": { "optional": true }, "@deepseek-ai/dsh-llm": { "optional": true } }
+}
