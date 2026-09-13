@@ -24,6 +24,14 @@ export const LEVEL_LABEL = {
 };
 export const LEVELS = Object.keys(LEVEL_LABEL);
 
+export const kinds = {
+  quiz: "单选测验",
+  multi: "多选测验",
+  flashcard: "闪卡",
+  open: "开放问答",
+  cloze: "填空卡",
+};
+
 /* Cloze prompts store raw {{id}} markers; lists show a blank instead. */
 export const plainPrompt = (p) =>
   String(p ?? "").replace(/\{\{[^{}]+\}\}/g, "＿＿");
