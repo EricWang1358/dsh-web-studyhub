@@ -167,14 +167,34 @@ export default function App({ call, host = {} }) {
     [teaching, setTeaching] = useState(null),
     [teachAnswer, setTeachAnswer] = useState("");
   const [notebooks, setNotebooks] = useState(null);
+  const dataRef = useRef(null);
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
     const next = await call("snapshot");
     if (sequence === requestSequence.current) {
-      setData(next);
-      setSettings((current) =>
-        Object.keys(current).length ? current : next.settings,
-      );
+      // The poll runs every 2.5s; skip the whole-tree re-render when nothing
+      // changed. revision covers store writes, but job status/stage mutate in
+      // memory only, so those are compared as well before dropping a snapshot.
+      const cur = dataRef.current;
+      const jobsSame =
+        cur &&
+        cur.jobs?.length === next.jobs?.length &&
+        next.jobs.every((j, i) => {
+          const p = cur.jobs[i];
+          return (
+            p.id === j.id &&
+            p.status === j.status &&
+            p.stage === j.stage &&
+            p.draftId === j.draftId
+          );
+        });
+      if (!cur || cur.revision !== next.revision || !jobsSame) {
+        dataRef.current = next;
+        setData(next);
+        setSettings((current) =>
+          Object.keys(current).length ? current : next.settings,
+        );
+      }
     }
     return next;
   }, [call]);
@@ -399,6 +419,10 @@ export default function App({ call, host = {} }) {
       );
     else reviewAct("review.answer", { selected: [id] });
   }
+  // The handler reads fresh state on every render via a ref, while the window
+  // subscription stays installed for the component's lifetime — rebinding on
+  // each poll tick was pure churn.
+  const keyRef = useRef(null);
   useEffect(() => {
     function key(e) {
       if (!rootRef.current?.contains(document.activeElement)) return;
@@ -424,9 +448,13 @@ export default function App({ call, host = {} }) {
         if (o) choose(o.id);
       }
     }
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    keyRef.current = key;
   });
+  useEffect(() => {
+    const handler = (e) => keyRef.current?.(e);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
   // Practise the given prerequisites (learned ones included), then offer a way back to this question.
   function studyPrerequisites(list) {
     act(

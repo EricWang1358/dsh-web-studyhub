@@ -1,12 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { LEVEL_LABEL } from "./shared.js";
 
-const LEVEL_LABEL = {
-  mastered: "已掌握",
-  familiar: "熟悉",
-  learning: "学习中",
-  weak: "薄弱",
-  new: "未学",
-};
 const BAR_ORDER = ["mastered", "familiar", "learning", "weak", "new"];
 const topicKey = (deckId, topic) => JSON.stringify([deckId, topic || ""]);
 const scopeOf = (keys) =>

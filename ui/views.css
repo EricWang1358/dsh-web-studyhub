@@ -275,11 +275,10 @@
 .exam-decks > li {
   min-width: 0;
 }
-/* Two overridden properties need (0,2,0): style.css's `.study-app label`
-   (0,1,1) also matches this card and would impose flex-direction: column,
-   gap: 8px and margin: 19px 0, centring the nowrap title so it spills out
-   of both card edges onto the neighbouring cards. */
-.exam .exam-deck {
+/* The base layer in style.css is :where()-scoped, so single-class rules here
+   out-rank its bare element defaults (button, label, h1..p) without needing
+   extra parent prefixes. */
+.exam-deck {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -330,8 +329,7 @@
   gap: 12px;
   flex-wrap: wrap;
 }
-/* Same `.study-app label` override as .exam .exam-deck above. */
-.exam .exam-count {
+.exam-count {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
@@ -340,7 +338,7 @@
   color: var(--text-dim);
   font-size: 13px;
 }
-.exam .exam-count input {
+.exam-count input {
   width: 68px;
   padding: 7px 10px;
   background: var(--bg-sunken);
@@ -361,8 +359,6 @@
   flex-wrap: wrap;
 }
 .exam-head h2 {
-  /* (0,2,1): tie with `.study-app h1..p { margin-top: 0 }` must not depend on
-     injection order (style.css is re-appended after these tags on hot re-apply). */
   margin: 2px 0 0;
 }
 .exam-head-right {
@@ -429,9 +425,7 @@
   flex-direction: column;
   gap: 8px;
 }
-/* (0,2,0) for the same reason as .exam .exam-deck above: `.study-app button`
-   (0,1,1) would otherwise keep its 9px 14px padding and 9px radius. */
-.exam .exam-option {
+.exam-option {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -440,7 +434,7 @@
   padding: 11px 13px;
   border-radius: var(--radius-sm);
 }
-.exam .exam-option.picked {
+.exam-option.picked {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: var(--ring);
@@ -699,9 +693,7 @@
   color: var(--bad);
   font-size: 12px;
 }
-.wb .wb-row button {
-  /* (0,2,1): padding must not flip back to `.study-app button`'s 9px 14px
-     when injection order changes. */
+.wb-row button {
   flex: none;
   padding: 5px 12px;
 }

@@ -1,20 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import css from "./views.css";
+import { useInjectCss } from "./shared.js";
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
    用于展示当前到期概览（data.today）。热力图为 26 列 × 7 行 = 182 天的
-   CSS grid，趋势线为 SVG polyline。样式在 ui/views.css，注入方式与
-   Exam / WrongBook 相同：<style data-study-views> 按标记去重注入一次。 */
-
-function useInjectViewsCss() {
-  useEffect(() => {
-    if (document.querySelector("style[data-study-views]")) return;
-    const el = document.createElement("style");
-    el.setAttribute("data-study-views", "");
-    el.textContent = css;
-    document.head.appendChild(el);
-  }, []);
-}
+   CSS grid，趋势线为 SVG polyline。样式在 ui/views.css，与 Exam / WrongBook
+   共用：<style data-study-views> 按标记去重注入一次。 */
 
 /* 0 = 无作答；其余按 count 占峰值比例分 4 档强度（共 5 档）。 */
 function heatLevel(count, max) {
@@ -64,7 +55,7 @@ function Trend({ trend }) {
 }
 
 export default function Dashboard({ call, data, onStartScope }) {
-  useInjectViewsCss();
+  useInjectCss(css, "study-views");
   const [stats, setStats] = useState(null),
     [loading, setLoading] = useState(true),
     [err, setErr] = useState("");

@@ -1,26 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import css from "./views.css";
+import { useInjectCss, plainPrompt } from "./shared.js";
 
 /* 跨题库错题本（v0.4 契约 §4）。数据来自 call("wrongbook")，按题组分组
    展示；「练」与「重练全部错题」都通过 onPractice(scope) 交给主会话，
    由它用 review.start {mode:"path", scope} 开一轮练习。样式与 Dashboard /
    Exam 共用 ui/views.css，注入 <style data-study-views> 按标记去重。 */
 
-function useInjectViewsCss() {
-  useEffect(() => {
-    if (document.querySelector("style[data-study-views]")) return;
-    const el = document.createElement("style");
-    el.setAttribute("data-study-views", "");
-    el.textContent = css;
-    document.head.appendChild(el);
-  }, []);
-}
-
-/* Cloze prompts store raw {{id}} markers; lists show a blank instead. */
-const plainPrompt = (p) => String(p ?? "").replace(/\{\{[^{}]+\}\}/g, "＿＿");
-
 export default function WrongBook({ call, busy, onPractice }) {
-  useInjectViewsCss();
+  useInjectCss(css, "study-views");
   const [items, setItems] = useState(null),
     [loading, setLoading] = useState(true),
     [err, setErr] = useState("");

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./views.css";
+import { useInjectCss, plainPrompt } from "./shared.js";
 
 /* 模拟考试（v0.4 契约 §3）：setup → running → report 自管理状态机。
    选中状态存本地（picks，按 deckId:cardId 键控），每次选择通过
@@ -10,16 +11,6 @@ import css from "./views.css";
    30 分钟自动交卷；卸载不交卷，未交卷的考试保留在服务端可再次接回。 */
 
 const EXAM_LIMIT_MS = 30 * 60 * 1000;
-
-function useInjectViewsCss() {
-  useEffect(() => {
-    if (document.querySelector("style[data-study-views]")) return;
-    const el = document.createElement("style");
-    el.setAttribute("data-study-views", "");
-    el.textContent = css;
-    document.head.appendChild(el);
-  }, []);
-}
 
 const clampCount = (v) => {
   const n = Math.round(Number(v));
@@ -35,8 +26,6 @@ const fmtDuration = (ms) => {
   return m ? `${m} 分 ${s % 60} 秒` : `${s} 秒`;
 };
 const kindLabel = (card) => (card?.multiple ? "多选" : "单选");
-/* Cloze prompts carry raw {{id}} markers; the report shows a blank instead. */
-const plainPrompt = (p) => String(p ?? "").replace(/\{\{[^{}]+\}\}/g, "＿＿");
 /* 服务端 projection.picks 里已保存的选项（exam 运行专属），用于恢复与导航回填。 */
 const picksFromRun = (r) => {
   const map = {};
@@ -47,7 +36,7 @@ const picksFromRun = (r) => {
 };
 
 export default function Exam({ call, data, onExit, onCreate }) {
-  useInjectViewsCss();
+  useInjectCss(css, "study-views");
   const [phase, setPhase] = useState("setup"), // setup → running → report
     [run, setRun] = useState(null),
     [report, setReport] = useState(null),

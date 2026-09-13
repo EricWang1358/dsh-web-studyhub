@@ -23,20 +23,18 @@
   border-radius: var(--radius-sm);
   background: var(--bg-sunken);
 }
-/* (0,2,0)+ : `.study-app button` (0,1,1) — and its (0,3,1) hover rule — would
-   otherwise repaint this segmented control with the default button chrome. */
-.graph .graph-mode {
+.graph-mode {
   border: none;
   background: transparent;
   padding: 5px 12px;
   border-radius: 7px;
   font-size: 13px;
 }
-.graph .graph-mode:hover:not(:disabled) {
+.graph-mode:hover:not(:disabled) {
   background: var(--bg-hover);
   border-color: transparent;
 }
-.graph .graph-modes .graph-mode.active {
+.graph-modes .graph-mode.active {
   background: var(--accent);
   color: var(--accent-ink);
 }

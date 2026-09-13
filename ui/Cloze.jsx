@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import css from "./graph.css";
+import { useInjectCss } from "./shared.js";
 
 /* Fill-in-the-blank card, display only: grading lives on the server
    (review.answer → feedback.details, contract §5). `card.cloze` is the
@@ -15,18 +16,8 @@ const chLen = (s) => {
   return w;
 };
 
-function useInjectCss() {
-  useEffect(() => {
-    if (document.querySelector("style[data-study-graph]")) return;
-    const el = document.createElement("style");
-    el.setAttribute("data-study-graph", "");
-    el.textContent = css;
-    document.head.appendChild(el);
-  }, []);
-}
-
 export default function Cloze({ card, values, onChange, disabled, details }) {
-  useInjectCss();
+  useInjectCss(css, "study-graph");
   const cloze = card?.cloze;
   const text = typeof cloze?.text === "string" ? cloze.text : "";
 

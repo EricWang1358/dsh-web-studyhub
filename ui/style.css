@@ -88,7 +88,11 @@
 /* Dark is the product identity, so `auto` stays dark by default. Learners who
    want the light palette opt in explicitly via the theme toggle. */
 
-.study-app {
+/* Structural layer. :where() keeps every rule inside at the specificity of
+   what it writes — the bare element defaults below (button, label, h1..p)
+   must not out-rank the single-class view rules in views.css / graph.css,
+   which are injected separately and used to need (0,2,0)+ patches to win. */
+:where(.study-app) {
   & {
     font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
     color: var(--text);

@@ -1,32 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
+import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
 
 /* Knowledge graph / study path, rendered as a sideways fork: decks on the
    left, topics fanning right, each topic branching into its card leaves.
    Data comes from call("graph", {scope, mode}) per the v0.4 contract §1;
    layout is computed here (no graph library). CSS is injected once with a
    <style data-study-graph> marker. */
-
-const LEVEL_LABEL = {
-  mastered: "已掌握",
-  familiar: "熟悉",
-  learning: "学习中",
-  weak: "薄弱",
-  new: "未学",
-};
-const LEVELS = Object.keys(LEVEL_LABEL);
-
-/* Inject the stylesheet once per document, keyed by the data-study-graph
-   marker so repeated mounts (or both Graph and Cloze) never duplicate it. */
-function useInjectCss() {
-  useEffect(() => {
-    if (document.querySelector("style[data-study-graph]")) return;
-    const el = document.createElement("style");
-    el.setAttribute("data-study-graph", "");
-    el.textContent = css;
-    document.head.appendChild(el);
-  }, []);
-}
 
 /* ── shared helpers ───────────────────────────────────────────────────── */
 // Node ids look like "deck:<id>", "topic:<JSON [deckId,topic]>" and
@@ -265,7 +245,7 @@ function layoutPath(nodes, edges) {
 
 /* ── component ────────────────────────────────────────────────────────── */
 export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
-  useInjectCss();
+  useInjectCss(css, "study-graph");
   const [mode, setMode] = useState("structure");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
