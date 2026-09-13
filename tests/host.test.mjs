@@ -60,10 +60,17 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
     assert.ok(value && Object.getPrototypeOf(value) === Object.prototype, `${path} is not a plain JSON value`);
     for (const [k, v] of Object.entries(value)) lossless(v, `${path}.${k}`);
   };
-  const { mkdtemp } = await import("node:fs/promises");
+  const { mkdtemp, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   const agent = { id: "a", session: { header: { cwd: await mkdtemp(join(tmpdir(), "study-tool-")) } } };
+  // Notebook actions must touch an isolated registry, never the real ~/.dsh.
+  const nbHome = await mkdtemp(join(tmpdir(), "study-nb-home-"));
+  process.env.DSH_HOME = nbHome;
+  t.after(async () => {
+    delete process.env.DSH_HOME;
+    await rm(nbHome, { recursive: true, force: true });
+  });
   const tool = async (action, payload) => {
     const value = await tools[0].execute(
       { action, ...(payload ? { payload_json: JSON.stringify(payload) } : {}) },
@@ -89,6 +96,14 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
   await tool("card.get", { deckId: "d1", cardId: "c1" });
   await tool("card.current");
   await tool("review.reveal", { runId: run.id, cardId: "c1" });
+  // Cross-workspace notebook actions ride the same tool and transport.
+  const published = await tool("notebook.publish");
+  assert.equal(published.notebooks.filter((n) => n.current).length, 1);
+  const listed = await tool("notebook.list");
+  assert.equal(listed.notebooks.length, published.notebooks.length);
+  assert.ok(listed.notebooks.some((n) => n.current && n.exists));
+  await tool("notebook.unpublish");
+  assert.deepEqual((await tool("notebook.list")).notebooks, []);
   assert.equal(routes[0].path, "/api/study-workspace/call");
   const invalid = await routes[0].fetch(
     new Request("http://localhost/api/study-workspace/call", {

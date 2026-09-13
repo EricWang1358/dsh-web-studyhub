@@ -120,6 +120,13 @@ export default function StudyMap({
   askInChat,
   theme = "auto",
   setTheme,
+  notebooks,
+  onNotebookPublish,
+  onNotebookUnpublish,
+  onNotebookOpen,
+  refreshNotebooks,
+  onNotebookSearch,
+  onShowGraph,
   children,
 }) {
   const [search, setSearch] = useState(""),
@@ -505,6 +512,13 @@ export default function StudyMap({
             手工建卡
           </button>
           <button onClick={importLibrary}>导入</button>
+          <button
+            disabled={busy}
+            title="把整个学习库（或在目录中勾选的范围）生成横向分叉的知识结构图 / 学习路径图"
+            onClick={() => onShowGraph?.([])}
+          >
+            查看图谱
+          </button>
         </div>
       </div>
       {data.decks.length > 0 && (
@@ -590,12 +604,29 @@ export default function StudyMap({
         </div>
       )}
 
+      <NotebookDirectory
+        notebooks={notebooks}
+        busy={busy}
+        onPublish={onNotebookPublish}
+        onUnpublish={onNotebookUnpublish}
+        onOpen={onNotebookOpen}
+        refresh={refreshNotebooks}
+        onSearch={onNotebookSearch}
+      />
+
       {scope.length > 0 && (
         <div className="selection-bar" role="region" aria-label="已选内容">
           <span>
             已选 {scope.length} 项
           </span>
           <button onClick={() => setSelected(new Set())}>清除</button>
+          <button
+            disabled={busy}
+            title="把所选范围生成横向分叉的知识结构图或学习路径图"
+            onClick={() => onShowGraph?.(scopeOf(selected))}
+          >
+            查看图谱
+          </button>
           <button
             className="primary"
             disabled={busy}
@@ -659,6 +690,204 @@ export default function StudyMap({
             </div>
           ))}
         </div>
+      )}
+    </section>
+  );
+}
+
+/* Cross-workspace notebook directory. Entries are links, not copies: each
+   published notebook's study data stays in its own workspace, and clicking a
+   foreign entry opens a fresh conversation there. */
+function NotebookDirectory({ notebooks, busy, onPublish, onUnpublish, onOpen, refresh, onSearch }) {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem("study-nb-dir-open") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const [query, setQuery] = useState(""),
+    [searching, setSearching] = useState(false),
+    [results, setResults] = useState(null);
+  const list = notebooks?.notebooks || [];
+  /* Global due queue: every published notebook's due decks, due first. */
+  const dueRows = useMemo(() => {
+    const rows = [];
+    for (const n of list)
+      for (const d of n.decks || [])
+        if (!d.archived && d.due > 0) rows.push({ n, d });
+    return rows.sort((a, b) => b.d.due - a.d.due).slice(0, 8);
+  }, [list]);
+  if (!notebooks) return null;
+  const current = list.find((n) => n.current),
+    others = list.filter((n) => !n.current),
+    published = list.filter((n) => n.publishedAt).length;
+  const toggle = () =>
+    setOpen((v) => {
+      try {
+        localStorage.setItem("study-nb-dir-open", v ? "0" : "1");
+      } catch {}
+      return !v;
+    });
+  const stats = (n) =>
+    n.exists
+      ? `${n.deckCount} 个题组${n.dueToday ? ` · ${n.dueToday} 道到期` : ""}`
+      : "学习库目录已不可访问";
+  const topics = (n) =>
+    n.decks
+      .filter((d) => !d.archived)
+      .slice(0, 4)
+      .map((d) => d.title)
+      .join(" · ");
+  const runSearch = async (e) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q || !onSearch || searching) return;
+    setSearching(true);
+    try {
+      setResults(await onSearch(q));
+    } catch {
+      setResults({ items: [] });
+    } finally {
+      setSearching(false);
+    }
+  };
+  return (
+    <section className="nb-dir" aria-label="全局笔记本目录">
+      <div className="section-heading map-heading">
+        <h2>
+          <button className="map-caret" aria-expanded={open} onClick={toggle}>
+            {open ? "▾" : "▸"}
+          </button>{" "}
+          全局笔记本 <span>{published}</span>
+        </h2>
+        <div className="section-heading-actions">
+          <button onClick={refresh} disabled={busy} title="重新读取全局目录">
+            刷新
+          </button>
+          {current?.publishedAt ? (
+            <button onClick={onUnpublish} disabled={busy}>
+              取消发布
+            </button>
+          ) : (
+            <button
+              onClick={onPublish}
+              disabled={busy}
+              title="把本工作区的学习笔记本登记到 ~/.dsh 全局目录，其他工作区可一键跳转到这里"
+            >
+              发布到全局目录
+            </button>
+          )}
+        </div>
+      </div>
+      {open && (
+        <>
+          {dueRows.length > 0 && (
+            <div className="nb-due">
+              <div className="eyebrow">全局到期 · 跨工作区</div>
+              <ul className="nb-list">
+                {dueRows.map(({ n, d }) => (
+                  <li key={n.root + ":" + d.id}>
+                    <button
+                      className="nb-row due"
+                      disabled={busy || !n.exists}
+                      title={n.exists ? `在新对话中打开：${n.workspace}` : n.workspace}
+                      onClick={() => onOpen?.(n)}
+                    >
+                      <span className="nb-main">
+                        <strong>{n.title}</strong>
+                        <small className="nb-path">{d.title}</small>
+                      </span>
+                      <span className="nb-stats">{d.due} 道到期</span>
+                      <span className="nb-go" aria-hidden="true">
+                        →
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <form className="nb-search" onSubmit={runSearch}>
+            <input
+              type="search"
+              aria-label="跨笔记本搜索"
+              placeholder="跨笔记本搜索题组、主题或题目…"
+              value={query}
+              maxLength={100}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <button disabled={searching || !query.trim() || !onSearch}>
+              {searching ? "搜索中…" : "搜索"}
+            </button>
+          </form>
+          {results &&
+            (results.items?.length ? (
+              <ul className="nb-list nb-results">
+                {results.items.map((r, i) => (
+                  <li key={r.root + ":" + (r.cardId || r.deckId) + ":" + i}>
+                    <button
+                      className="nb-row"
+                      disabled={busy}
+                      title={r.workspace}
+                      onClick={() => onOpen?.({ workspace: r.workspace })}
+                    >
+                      <span className="nb-main">
+                        <strong>
+                          {r.deckTitle}
+                          {r.topic ? ` › ${r.topic}` : ""}
+                        </strong>
+                        <small className="nb-path">{r.prompt || r.cardId || ""}</small>
+                      </span>
+                      <span className="nb-stats">{r.title}</span>
+                      <span className="nb-go" aria-hidden="true">
+                        →
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              !searching && <p className="muted nb-empty">没有匹配的内容。</p>
+            ))}
+          {list.length ? (
+            <ul className="nb-list">
+              {current?.publishedAt && (
+                <li className="nb-row current" title={current.workspace}>
+                  <span className="nb-chip">本工作区</span>
+                  <span className="nb-main">
+                    <strong>{current.title}</strong>
+                    <small>{topics(current) || stats(current)}</small>
+                  </span>
+                  <span className="nb-stats">{stats(current)}</span>
+                </li>
+              )}
+              {others.map((n) => (
+                <li key={n.root}>
+                  <button
+                    className={"nb-row" + (n.exists ? "" : " missing")}
+                    disabled={busy || !n.exists || !onOpen}
+                    title={n.exists ? `在新对话中打开：${n.workspace}` : n.workspace}
+                    onClick={() => onOpen?.(n)}
+                  >
+                    <span className="nb-main">
+                      <strong>{n.title}</strong>
+                      <small className="nb-path">{n.workspace}</small>
+                    </span>
+                    <span className="nb-stats">{stats(n)}</span>
+                    <span className="nb-go" aria-hidden="true">
+                      →
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted nb-empty">
+              还没有发布的笔记本。在某个工作区的学习库点「发布到全局目录」后，可以在这里跨工作区跳转：点击会新建该工作区的对话。
+            </p>
+          )}
+        </>
       )}
     </section>
   );

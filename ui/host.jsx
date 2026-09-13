@@ -72,6 +72,17 @@ export function apply(ctx) {
           : undefined,
         modelGroups: catalog?.value?.groups,
         sessionModel: current?.current || catalog?.value?.default,
+        // Cross-workspace jump: create a new conversation in the notebook's
+        // own workspace and select it; the study tab there opens that library.
+        // Throws at call time when the host lacks the sessions create face.
+        openWorkspaceNotebook: async (cwd) => {
+          const sessions = ctx.get("sessions");
+          if (!sessions?.create || !sessions?.open)
+            throw new Error("当前 DSH 版本不支持跳转到其他工作区");
+          const id = await sessions.create({ cwd });
+          sessions.open(id);
+          return id;
+        },
         // Prefill (never auto-send) this session's composer.
         askInChat: (text) => {
           try {

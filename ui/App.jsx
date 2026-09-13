@@ -3,12 +3,18 @@ import StudyMap from "./StudyMap.jsx";
 import Markdown from "./Markdown.jsx";
 import Guide from "./Guide.jsx";
 import Ingest from "./Ingest.jsx";
+import Dashboard from "./Dashboard.jsx";
+import Exam from "./Exam.jsx";
+import WrongBook from "./WrongBook.jsx";
+import Graph from "./Graph.jsx";
+import Cloze from "./Cloze.jsx";
 
 const kinds = {
   quiz: "单选测验",
   multi: "多选测验",
   flashcard: "闪卡",
   open: "开放问答",
+  cloze: "填空卡",
 };
 const date = (v) =>
   v
@@ -51,6 +57,16 @@ function parseDraft(raw) {
         throw new Error("每道题需要文本字段：" + key);
     if (q.rubric !== undefined && typeof q.rubric !== "string")
       throw new Error("rubric 必须是文本");
+    if (q.cloze !== undefined) {
+      if (
+        !q.cloze ||
+        typeof q.cloze.text !== "string" ||
+        !Array.isArray(q.cloze.answers)
+      )
+        throw new Error("cloze 需要 text 和 answers 数组");
+      if (q.cloze.answers.some((a) => !a || typeof a.id !== "string" || typeof a.value !== "string"))
+        throw new Error("cloze answers 每项需要 id 和 value");
+    }
     if (
       !Array.isArray(q.citations) ||
       q.citations.some(
@@ -78,6 +94,7 @@ function parseDraft(raw) {
 
 export default function App({ call, host = {} }) {
   const rootRef = useRef(null),
+    markRef = useRef(null),
     requestSequence = useRef(0),
     acting = useRef(false);
   /* 'auto' follows the OS; explicit 'dark'/'light' wins. The CSS already
@@ -109,6 +126,8 @@ export default function App({ call, host = {} }) {
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
     [sourceText, setSourceText] = useState("");
+  const [graphScope, setGraphScope] = useState([]),
+    [clozeValues, setClozeValues] = useState({});
   const [selectedSources, setSelectedSources] = useState([]),
     [gen, setGen] = useState({
       kind: "quiz",
@@ -147,6 +166,7 @@ export default function App({ call, host = {} }) {
     [flag, setFlag] = useState(""),
     [teaching, setTeaching] = useState(null),
     [teachAnswer, setTeachAnswer] = useState("");
+  const [notebooks, setNotebooks] = useState(null);
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
     const next = await call("snapshot");
@@ -177,6 +197,18 @@ export default function App({ call, host = {} }) {
       setNotice("浏览器暂存不可用，请及时保存草稿。");
     }
   }, [data?.root, draft, draftText, jsonMode]);
+  // Cross-workspace directory: load once per library and refresh whenever the
+  // learner returns to the library view, so due counts stay honest.
+  const loadNotebooks = useCallback(async () => {
+    try {
+      setNotebooks(await call("notebook.list"));
+    } catch {
+      setNotebooks(null);
+    }
+  }, [call]);
+  useEffect(() => {
+    if (binding.root && page === "library") loadNotebooks();
+  }, [binding.root, page, loadNotebooks]);
   function clearRecovery() {
     if (data?.root) sessionStorage.removeItem(`study-draft:${data.root}`);
     setRecovery(null);
@@ -282,6 +314,15 @@ export default function App({ call, host = {} }) {
       previous?.focus?.();
     };
   }, [modal]);
+  // A citation lands on the quoted passage inside the source modal.
+  useEffect(() => {
+    if (modal?.type !== "source" || !modal.quote) return;
+    const t = setTimeout(
+      () => markRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }),
+      60,
+    );
+    return () => clearTimeout(t);
+  }, [modal, rawSource]);
   async function act(action, args = {}, after) {
     if (acting.current) return;
     acting.current = true;
@@ -309,13 +350,36 @@ export default function App({ call, host = {} }) {
     setTeaching(r.teaching || null);
     setTeachAnswer("");
   }
+  const toggleNotebook = (publish) =>
+    act(
+      publish ? "notebook.publish" : "notebook.unpublish",
+      {},
+      (result) => setNotebooks(result),
+    );
+  const openNotebook = async (nb) => {
+    setError("");
+    try {
+      await host.openWorkspaceNotebook?.(nb.workspace);
+    } catch (e) {
+      setError(e.message || String(e));
+    }
+  };
+  const searchNotebooks = useCallback(
+    async (query) => call("notebook.search", { query }),
+    [call],
+  );
   const reviewAct = (action, args = {}) =>
     act(action, { runId: run.id, cardId: run.card?.id, ...args }, enterRun);
   const choice =
     run?.mode !== "flashcard" && ["quiz", "multi"].includes(run?.card?.kind);
+  const isCloze = run?.card?.kind === "cloze";
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => {
     setShowBack(!!run?.revealed);
+  }, [run?.id, run?.card?.id]);
+  // A new card starts with empty blanks; feedback keeps them for the verdict.
+  useEffect(() => {
+    setClozeValues({});
   }, [run?.id, run?.card?.id]);
   async function flipCard() {
     if (!run?.card) return;
@@ -352,7 +416,7 @@ export default function App({ call, host = {} }) {
       } else if (e.key === "ArrowLeft" && run.index) {
         e.preventDefault();
         reviewAct("review.move", { direction: -1 });
-      } else if (e.code === "Space" && !choice) {
+      } else if (e.code === "Space" && !choice && !isCloze) {
         e.preventDefault();
         flipCard();
       } else if (choice && !run.feedback && /^[1-6]$/.test(e.key)) {
@@ -751,6 +815,10 @@ export default function App({ call, host = {} }) {
           draft: "审阅草稿",
           settings: "工作区设置",
           manage: "维护题组",
+          dashboard: "学习统计",
+          exam: "模拟考试",
+          wrongbook: "错题本",
+          graph: "知识图谱",
         }[page];
   if (loading)
     return (
@@ -818,6 +886,9 @@ export default function App({ call, host = {} }) {
             ["library", "▦", "学习库"],
             ["sources", "▤", "资料"],
             ["generate", "＋", "创建题组"],
+            ["dashboard", "◔", "统计"],
+            ["exam", "✎", "模拟考试"],
+            ["wrongbook", "✗", "错题本"],
           ].map(([id, icon, label]) => (
             <button
               key={id}
@@ -993,6 +1064,16 @@ export default function App({ call, host = {} }) {
                 askInChat={askInChat}
                 theme={theme}
                 setTheme={setTheme}
+                notebooks={notebooks}
+                onNotebookPublish={() => toggleNotebook(true)}
+                onNotebookUnpublish={() => toggleNotebook(false)}
+                onNotebookOpen={openNotebook}
+                refreshNotebooks={loadNotebooks}
+                onNotebookSearch={searchNotebooks}
+                onShowGraph={(scope) => {
+                  setGraphScope(scope || []);
+                  setPage("graph");
+                }}
               >
                 <Guide {...guideProps} variant="inline" />
                 {recovery && (
@@ -1014,6 +1095,46 @@ export default function App({ call, host = {} }) {
                   </div>
                 )}
               </StudyMap>
+            )}
+            {page === "dashboard" && (
+              <Dashboard
+                call={call}
+                data={data}
+                onStartScope={(scope) =>
+                  act("review.start", { mode: "path", scope }, enterRun)
+                }
+              />
+            )}
+            {page === "exam" && (
+              <Exam call={call} data={data} onExit={() => setPage("library")} />
+            )}
+            {page === "wrongbook" && (
+              <WrongBook
+                call={call}
+                busy={busy}
+                onPractice={(scope) =>
+                  act(
+                    "review.start",
+                    { mode: "path", scope, fresh: true },
+                    enterRun,
+                  )
+                }
+              />
+            )}
+            {page === "graph" && (
+              <Graph
+                call={call}
+                busy={busy}
+                scope={graphScope}
+                onClose={() => setPage("library")}
+                onStudyCard={({ deckId, cardId }) =>
+                  act(
+                    "review.start",
+                    { mode: "path", scope: [{ deckId, cardId }], fresh: true },
+                    enterRun,
+                  )
+                }
+              />
             )}
             {page === "manage" && managedDeck && (
               <section className="page">
@@ -1906,7 +2027,8 @@ export default function App({ call, host = {} }) {
                   <>
                     <div
                       className={
-                        "question-area " + (!choice ? "flash-area" : "")
+                        "question-area " +
+                        (!choice && !isCloze ? "flash-area" : "")
                       }
                     >
                       <div className="question-meta">
@@ -2042,6 +2164,51 @@ export default function App({ call, host = {} }) {
                             </button>
                           )}
                         </>
+                      ) : isCloze ? (
+                        <>
+                          <Cloze
+                            card={run.card}
+                            values={clozeValues}
+                            onChange={(id, value) =>
+                              setClozeValues((v) => ({ ...v, [id]: value }))
+                            }
+                            disabled={busy || !!run.feedback}
+                            details={run.feedback?.details || null}
+                          />
+                          {!run.feedback && (
+                            <button
+                              className="primary submit-answer"
+                              disabled={
+                                busy ||
+                                !Object.values(clozeValues).some((v) =>
+                                  String(v).trim(),
+                                )
+                              }
+                              onClick={() =>
+                                reviewAct("review.answer", { answers: clozeValues })
+                              }
+                            >
+                              提交答案
+                            </button>
+                          )}
+                          {run.feedback && (
+                            <div className="cloze-verdicts">
+                              {(run.feedback.details || []).map((d) => (
+                                <span
+                                  key={d.id}
+                                  className={d.correct ? "tag" : "tag bad"}
+                                  title={
+                                    d.correct
+                                      ? "这个空回答正确"
+                                      : `应为：${d.expected ?? "—"}`
+                                  }
+                                >
+                                  {d.correct ? "✓" : `✗ ${d.expected ?? ""}`}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <>
                           <button
@@ -2156,6 +2323,11 @@ export default function App({ call, host = {} }) {
                             提升质量
                           </button>
                         </div>
+                        {run.mode === "exam" && (
+                          <p className="muted small next-due">
+                            这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。
+                          </p>
+                        )}
                         <div>
                           <button
                             className="pill"
@@ -2168,7 +2340,7 @@ export default function App({ call, host = {} }) {
                           </button>
                           <button
                             className="primary pill"
-                            disabled={busy || !run.feedback}
+                            disabled={busy || (!run.feedback && run.mode !== "exam")}
                             onClick={() =>
                               reviewAct("review.move", { direction: 1 })
                             }
@@ -2398,11 +2570,42 @@ export default function App({ call, host = {} }) {
                         原文
                       </button>
                     </div>
-                    {rawSource ? (
-                      <pre className="source-text">{modal.source.text}</pre>
-                    ) : (
-                      <Markdown className="source-text source-md" text={modal.source.text} />
-                    )}
+                    {(() => {
+                      const text = modal.source.text,
+                        quote = modal.quote || "",
+                        at = quote ? text.indexOf(quote) : -1;
+                      if (at < 0)
+                        return rawSource ? (
+                          <pre className="source-text">{text}</pre>
+                        ) : (
+                          <Markdown
+                            className="source-text source-md"
+                            text={text}
+                          />
+                        );
+                      // The quote is verbatim-validated, so slicing the
+                      // source at it keeps the passage exactly once on screen.
+                      const hit = (
+                        <mark className="source-hit" ref={markRef}>
+                          {quote}
+                        </mark>
+                      );
+                      if (rawSource)
+                        return (
+                          <pre className="source-text">
+                            {text.slice(0, at)}
+                            {hit}
+                            {text.slice(at + quote.length)}
+                          </pre>
+                        );
+                      return (
+                        <div className="source-text source-md">
+                          <Markdown text={text.slice(0, at)} />
+                          {hit}
+                          <Markdown text={text.slice(at + quote.length)} />
+                        </div>
+                      );
+                    })()}
                   </>
                 ) : (
                   <p className="muted">无法找到此资料。</p>

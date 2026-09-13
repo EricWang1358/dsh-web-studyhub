@@ -235,8 +235,8 @@
   .sidebar {
     width: 230px;
     flex-shrink: 0;
-    border-right: 1px solid #32373c;
-    background: #1b2024;
+    border-right: 1px solid var(--line);
+    background: var(--bg-sunken);
     position: sticky;
     top: 0;
     align-self: flex-start;
@@ -261,7 +261,7 @@
     margin-top: 5px;
   }
   .brand-mark {
-    color: #aaaaff;
+    color: var(--accent-soft);
     font-size: 33px;
   }
   .nav {
@@ -273,11 +273,11 @@
     text-align: left;
     padding: 13px 15px;
     margin: 4px 0;
-    color: #adb3bb;
+    color: var(--text-dim);
   }
   .nav.active {
-    background: #30343f;
-    color: #e3e3ff;
+    background: var(--bg-selected);
+    color: var(--text);
   }
   .icon {
     font-size: 20px;
@@ -484,7 +484,7 @@
   }
   .stats span {
     font-size: 12px;
-    color: #a0a5ad;
+    color: var(--text-muted);
   }
   .section-heading {
     display: flex;
@@ -504,25 +504,25 @@
   }
   .section-heading h2 span {
     font-size: 12px;
-    color: #8d959d;
+    color: var(--text-muted);
     margin-left: 10px;
   }
   .section-heading button {
     font-size: 12px;
     border: 0;
     padding: 7px 12px;
-    color: #b3b6cd;
+    color: var(--text-dim);
     background: transparent;
   }
   .section-heading button:hover:not(:disabled) {
-    background: #2a2e34;
-    color: #d9dbfd;
+    background: var(--bg-hover);
+    color: var(--text);
     border-color: transparent;
   }
   .ghost-btn {
     border: 0;
     background: transparent;
-    color: #9aa1ad;
+    color: var(--text-muted);
     padding: 6px 10px;
     font-size: 12px;
     border-radius: 8px;
@@ -577,6 +577,10 @@
     font-size: 11px;
     display: inline-block;
   }
+  .tag.bad {
+    border-color: var(--bad);
+    color: var(--bad);
+  }
   .deck h3 {
     margin-bottom: 9px;
     line-height: 1.55;
@@ -611,8 +615,8 @@
     align-items: center;
     justify-content: space-between;
     text-align: left;
-    background: #2d2e3a;
-    border: 1px solid #464459;
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
     border-radius: 12px;
     width: 100%;
     padding: 20px;
@@ -622,8 +626,8 @@
       background 0.18s;
   }
   .resume:hover:not(:disabled) {
-    border-color: #6b6c87;
-    background: #34344a;
+    border-color: var(--accent-soft);
+    background: color-mix(in srgb, var(--accent) 18%, var(--bg-surface));
   }
   .resume .eyebrow {
     display: block;
@@ -636,7 +640,7 @@
   }
   .resume > span:last-child {
     font-size: 12px;
-    color: #bab5d7;
+    color: var(--accent-soft);
   }
   .resume b {
     margin-left: 20px;
@@ -1901,9 +1905,9 @@
     gap: 10px;
     padding: 12px 14px;
     margin-bottom: 14px;
-    border: 1px solid #343a41;
+    border: 1px solid var(--line-soft);
     border-radius: 12px;
-    background: #242930;
+    background: var(--bg-surface);
   }
   .map-tools {
     display: flex;
@@ -1916,21 +1920,22 @@
   .map-tools input {
     padding: 9px 12px;
     min-width: 0;
-    background: #1b1f23;
+    background: var(--bg-canvas);
+    color: var(--text);
   }
   .chip {
     border-radius: 20px;
     padding: 7px 13px;
     font-size: 12px;
     white-space: nowrap;
-    color: #a4abb5;
-    border-color: #3d434b;
+    color: var(--text-muted);
+    border-color: var(--line);
     flex-shrink: 0;
   }
   .chip.active {
-    background: #36374b;
-    border-color: #8b87d0;
-    color: #e3ddff;
+    background: var(--bg-selected);
+    border-color: var(--accent-soft);
+    color: var(--text);
   }
   .map-legend {
     display: flex;
@@ -2085,27 +2090,27 @@
     justify-content: center;
   }
   .map-play {
-    color: #cfd0ff;
-    border-color: #4a4c6a;
-    background: #2b2d3f;
+    color: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+    background: color-mix(in srgb, var(--accent) 14%, var(--bg-surface));
     min-width: 46px;
     font-weight: 500;
   }
   .map-play:hover:not(:disabled) {
-    background: #383b56;
-    border-color: #6c6fa0;
-    color: #e6e6ff;
+    background: color-mix(in srgb, var(--accent) 24%, var(--bg-surface));
+    border-color: var(--accent-soft);
+    color: var(--text);
   }
   .map-ask, .map-menu-toggle {
     border-color: transparent;
-    color: #9aa1ab;
+    color: var(--text-muted);
     min-width: 30px;
   }
   .map-ask:hover:not(:disabled),
   .map-menu-toggle:hover:not(:disabled) {
-    background: #333941;
+    background: var(--bg-hover);
     border-color: transparent;
-    color: #d6d9e0;
+    color: var(--text);
   }
   .map-topics { padding: 0 8px 8px 30px; }
   .topic-row { min-height: 42px; padding: 7px 10px 7px 0; }
@@ -2159,9 +2164,9 @@
     white-space: nowrap;
   }
   .guide {
-    border: 1px solid #353a40;
+    border: 1px solid var(--line-soft);
     border-radius: 12px;
-    background: #20252a;
+    background: var(--bg-surface);
   }
   .guide-sidebar {
     margin: 18px 0 8px;
@@ -2191,8 +2196,8 @@
     height: 22px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: #34365a;
-    color: #cfd0ff;
+    background: var(--bg-selected);
+    color: var(--text);
     font-size: 12px;
     font-weight: 700;
   }
@@ -2213,7 +2218,7 @@
     white-space: nowrap;
   }
   .guide-caret {
-    color: #8d949c;
+    color: var(--text-muted);
   }
   .guide-body {
     padding: 0 12px 12px;
@@ -2607,15 +2612,22 @@
   /* ── Ambient aurora backdrop ───────────────────────────────────────────
      Two blurred radial washes behind the content. Fixed + pointer-events:none
      so it never interferes with layout or hit-testing. */
-  .study-app::before {
+  /* `&::before`, not `.study-app::before`: nested inside `.study-app {}` the
+     latter compiles to a descendant selector that matches nothing, so the
+     canvas (and its light-theme colour) never painted. */
+  &::before {
     content: "";
     position: fixed;
     inset: 0;
     z-index: -1;
     pointer-events: none;
     /* Base canvas plus two accent washes. Painted on the pseudo-element so the
-       aurora is not hidden behind an opaque root background. */
-    background:
+       aurora is not hidden behind an opaque root background. The canvas colour
+       must ride on background-color: a bare var() as the last shorthand layer
+       parses as an (invalid) image and drops, leaving the host's dark page
+       visible through the app in light theme. */
+    background-color: var(--bg-canvas);
+    background-image:
       radial-gradient(
         58% 42% at 12% 0%,
         var(--accent-glow) 0%,
@@ -2625,8 +2637,7 @@
         46% 40% at 96% 8%,
         color-mix(in srgb, var(--info) 26%, transparent) 0%,
         transparent 60%
-      ),
-      var(--bg-canvas);
+      );
     animation: aurora-drift 24s var(--ease) infinite alternate;
   }
   @keyframes aurora-drift {
@@ -2782,7 +2793,7 @@
 
   /* Motion is decorative: honour the OS setting. */
   @media (prefers-reduced-motion: reduce) {
-    .study-app::before,
+    &::before,
     .deck,
     .map-deck,
     .draft-row,
@@ -2793,5 +2804,131 @@
     * {
       transition-duration: 0.01ms !important;
     }
+  }
+
+  /* Cross-workspace notebook directory. */
+  .nb-dir .map-caret {
+    margin-right: 2px;
+  }
+  .nb-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .nb-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text);
+    padding: 12px 16px;
+    cursor: pointer;
+    transition:
+      border-color var(--ease),
+      background var(--ease);
+  }
+  .nb-row:hover:not(:disabled) {
+    border-color: var(--line-strong);
+    background: var(--bg-hover);
+  }
+  .nb-row:disabled {
+    cursor: default;
+    color: var(--text-muted);
+  }
+  .nb-row.missing {
+    opacity: 0.55;
+  }
+  li.nb-row.current {
+    cursor: default;
+    background: var(--bg-sunken);
+  }
+  .nb-chip {
+    flex: none;
+    font-size: 11px;
+    color: var(--accent-soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 2px 9px;
+    white-space: nowrap;
+  }
+  .nb-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .nb-main strong {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .nb-main small {
+    display: block;
+    margin-top: 3px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .nb-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .nb-stats {
+    flex: none;
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .nb-go {
+    flex: none;
+    color: var(--accent-soft);
+  }
+  .nb-empty {
+    font-size: 13px;
+    margin: 4px 0 0;
+  }
+  .nb-due {
+    margin-bottom: 14px;
+  }
+  .nb-due .eyebrow {
+    margin-bottom: 8px;
+  }
+  .nb-row.due {
+    border-left: 3px solid var(--warn);
+  }
+  .nb-search {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 14px;
+  }
+  .nb-search input {
+    flex: 1;
+  }
+  .nb-results {
+    margin-bottom: 14px;
+  }
+  .nb-results .nb-row {
+    background: var(--bg-sunken);
+  }
+
+  /* Citation hit inside the source modal: one highlighted passage. */
+  .source-hit {
+    background: var(--accent-glow);
+    color: inherit;
+    border-radius: 3px;
+    padding: 1px 0;
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  /* Cloze per-blank verdicts under the submitted card. */
+  .cloze-verdicts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
   }
 }

@@ -1,0 +1,261 @@
+/* ui/graph.css — styles for the knowledge Graph and Cloze cards.
+   Colours come only from the .study-app token layer in ui/style.css, so both
+   themes work. Injected once per document as <style data-study-graph>. */
+
+/* ── Graph shell ──────────────────────────────────────────────────────── */
+.graph {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.graph-modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+.graph-mode {
+  border: none;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.graph-mode:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+}
+.graph-mode.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.graph-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.graph-swatch.gn-mastered { background: var(--ok); }
+.graph-swatch.gn-familiar { background: var(--info); }
+.graph-swatch.gn-learning { background: var(--warn); }
+.graph-swatch.gn-weak { background: var(--bad); }
+.graph-swatch.gn-new { background: var(--text-faint); }
+.graph-line-demo { flex: none; }
+
+.graph-scroll {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+.graph-svg {
+  display: block;
+}
+.graph-state {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.graph-error {
+  color: var(--bad);
+}
+.graph-error button {
+  margin-top: 10px;
+}
+.graph-truncated {
+  font-size: 12px;
+  color: var(--warn);
+}
+
+/* ── SVG nodes: soft level fill + solid level stroke ─────────────────── */
+.gn-node {
+  stroke-width: 1.2;
+  transition: stroke-width 0.12s var(--ease);
+}
+.gn-deck {
+  stroke-width: 1.5;
+}
+.gn-mastered {
+  fill: color-mix(in srgb, var(--ok) 22%, var(--bg-surface));
+  stroke: var(--ok);
+}
+.gn-familiar {
+  /* Same familiar green as the mastery bars (.lv-familiar), not --info. */
+  fill: color-mix(in srgb, var(--ok) 14%, var(--bg-surface));
+  stroke: color-mix(in srgb, var(--ok) 62%, var(--warn));
+}
+.gn-learning {
+  fill: color-mix(in srgb, var(--warn) 24%, var(--bg-surface));
+  stroke: var(--warn);
+}
+.gn-weak {
+  fill: color-mix(in srgb, var(--bad) 22%, var(--bg-surface));
+  stroke: var(--bad);
+}
+.gn-new {
+  fill: color-mix(in srgb, var(--text-faint) 16%, var(--bg-surface));
+  stroke: var(--text-faint);
+}
+.gn-ghost {
+  fill: transparent;
+  stroke: var(--line);
+  stroke-dasharray: 4 3;
+}
+.gn-label {
+  fill: var(--text);
+  font-size: 12px;
+}
+.gn-deck-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.gn-card-label {
+  font-size: 11.5px;
+}
+.gn-meta {
+  fill: var(--text-muted);
+  font-size: 10.5px;
+}
+.gn-ghost-label {
+  fill: var(--text-faint);
+}
+.gn-clickable {
+  cursor: pointer;
+}
+.gn-clickable:hover .gn-node {
+  stroke-width: 2.2;
+}
+.gn-clickable:focus {
+  outline: none;
+}
+.gn-clickable:focus-visible .gn-node {
+  stroke: var(--accent);
+  stroke-width: 2.2;
+}
+
+/* ── SVG edges ────────────────────────────────────────────────────────── */
+.gn-tree {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.4;
+}
+.gn-prereq {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 4;
+}
+.gn-order {
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 1.4;
+}
+.gn-arrow {
+  stroke: none;
+}
+.gn-arrow-prereq {
+  fill: var(--accent);
+}
+.gn-arrow-order {
+  fill: var(--text-faint);
+}
+
+/* ── Cloze (fill-in-the-blank) ────────────────────────────────────────── */
+.cloze {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cloze-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.cloze-text {
+  line-height: 2.15;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cloze-blank {
+  display: inline-block;
+  vertical-align: baseline;
+  box-sizing: border-box;
+  min-width: 6ch;
+}
+input.cloze-blank {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 1px 8px;
+  text-align: center;
+  transition:
+    border-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+input.cloze-blank:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+input.cloze-blank:disabled {
+  opacity: 0.65;
+}
+.cloze-right,
+.cloze-wrong {
+  border-radius: 8px;
+  padding: 1px 8px;
+  font-size: 13px;
+}
+.cloze-right {
+  color: var(--ok);
+  border: 1px solid var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+.cloze-wrong {
+  color: var(--bad);
+  border: 1px solid var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+.cloze-mark {
+  margin-left: 4px;
+}
+.cloze-yours {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.cloze-expected {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.cloze-missing {
+  margin: 0;
+  color: var(--text-muted);
+}

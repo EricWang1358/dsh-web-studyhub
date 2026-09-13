@@ -1,8 +1,16 @@
-# Verification — 2026-09-12
+# Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
 ## Automated evidence
 
-`npm test`: 19 tests passed, 0 failed, 0 skipped on this machine. Includes:
+`npm test`: 35 tests passed, 0 failed, 0 skipped on this machine. Includes the 0.2.0 list below plus:
+
+- Global notebook registry: publish/list/unpublish, missing libraries flagged, corrupt registry degrades to empty, `DSH_HOME` isolation.
+- Cross-workspace `notebook.search` across published libraries (read-only) and host-transport round-trip for the notebook actions.
+- Cloze cards: quality-gate validation (markers ↔ answers), public masking (no `value`/`accept` before answering), normalized per-blank grading with `accept` variants, SM-2 update, reveal-gate after the answer.
+- Mock exam: silent answer recording (no feedback/SM-2/attempts while open), changeable answers, `projection.picks` restore surface, withdraw-by-clearing (empty selection ⇒ unanswered), reveal refused until submit, submit grades once with report (score/duration/byTopic/byDeck/wrong/weakScope), resubmit rejected, weakScope re-practices through the normal path.
+- Wrongbook aggregation of latest wrong answers across decks.
+- Dashboard stats: streak, 182-day zero-filled heatmap, daily average trend, weak topics.
+- Graph: structure tree (deck › topic › card) with prerequisite edges, topic-scoped filtering, ordered path mode.
 
 - Upstream SM-2 formula and grade bounds.
 - Required source quotes, distractor explanations and distinct objectives.
@@ -38,6 +46,9 @@ Used Playwright CLI against the same React UI and StudyService exposed by the st
 - Created a flashcard manually through the UI, entered a source quote, validated and published it without a model. Flashcard-only decks correctly disable the quiz action.
 - Rechecked 390×844 layout for horizontal overflow and visually inspected the management page. Evidence: `output/study-completeness-mobile.png`, `output/study-management.png`.
 - During deliberate preview-server restart, the old page logged connection-refused and stale-token 403 errors; reload recovered the connection. No application exceptions occurred in the completed browser flows.
+- 0.3.0 cross-workspace pass: publish/unpublish in the notebook directory, jump targets, global due queue and cross-library search UI rendered in the standalone preview.
+- 0.4.0 pass (Chromium, 2026-09-13): graph page renders the horizontal fork (deck › topic › card) and the ordered path mode; dashboard renders totals, heatmap and trend; exam setup → 2-question run → submit produced a live report (score 50%, per-topic/deck bars, duration); wrongbook empty state rendered. A missing SVG `transform` on graph card nodes found in this pass was fixed and re-verified visually.
+- 0.4.0 narrow-viewport pass (390×844): dashboard, exam setup, exam running, wrongbook and the library with the notebook directory show no horizontal overflow; stat cards wrap and the heatmap scrolls horizontally. Resuming an open exam through 回到题目 renders in the review page with a pointer to submit from the exam page (next-question unlocked for exam runs); the exam itself is reached via its own nav entry.
 
 Screenshots (local generated evidence, not included in the npm package):
 

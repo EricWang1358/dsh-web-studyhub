@@ -3,6 +3,12 @@ import { readFile } from "node:fs/promises";
 import { resolve, isAbsolute } from "node:path";
 import { randomBytes } from "node:crypto";
 import { StudyService } from "../lib/service.js";
+import {
+  listNotebooks,
+  publishNotebook,
+  unpublishNotebook,
+  searchNotebooks,
+} from "../lib/notebooks.js";
 
 const port = Number(process.env.PORT || 4178),
   token = randomBytes(24).toString("hex");
@@ -88,7 +94,23 @@ const server = createServer(async (req, res) => {
       }
       if (action === "binding.get" || action === "binding.set")
         value = previewView();
-      else
+      else if (action.startsWith("notebook.")) {
+        // Mirror the host handler so the preview exercises the same actions.
+        const root = previewView().root;
+        if (action === "notebook.publish")
+          await publishNotebook(workspaceRoot, root);
+        else if (action === "notebook.unpublish") await unpublishNotebook(root);
+        else if (action === "notebook.search")
+          value = await searchNotebooks(args.query);
+        else if (action !== "notebook.list")
+          throw new Error(`Unknown study action: ${action}`);
+        if (
+          action === "notebook.list" ||
+          action === "notebook.publish" ||
+          action === "notebook.unpublish"
+        )
+          value = await listNotebooks(root);
+      } else
         value = await new StudyService(previewView().root, { complete }).call(
           action,
           args,
