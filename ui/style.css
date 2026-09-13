@@ -228,6 +228,8 @@
     min-height: 100%;
     display: flex;
     overflow: auto;
+    /* Reserve the scrollbar lane so short and long pages centre identically. */
+    scrollbar-gutter: stable;
     position: relative;
     container-type: inline-size;
     container-name: study;
@@ -430,20 +432,18 @@
       opacity: 0.55;
     }
   }
+  /* One width for every page so switching tabs never shifts the left edge. */
   .page {
-    max-width: 1120px;
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 48px 42px 70px;
-  }
-  .page.narrow {
-    max-width: 840px;
+    padding: 32px 36px 56px;
   }
   .page-heading {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 24px;
-    margin-bottom: 29px;
+    margin-bottom: 22px;
   }
   .page-heading p {
     margin-bottom: 0;
@@ -663,17 +663,17 @@
   .empty {
     padding: 60px 28px;
     text-align: center;
-    border: 1px dashed #454a51;
+    border: 1px dashed var(--line-strong);
     border-radius: 15px;
-    color: #a7adb5;
+    color: var(--text-dim);
   }
   .empty h2 {
-    color: #e0e2e7;
+    color: var(--text);
     margin: 17px 0 10px;
   }
   .empty-icon {
     font-size: 35px;
-    color: #a7a5cf;
+    color: var(--accent-soft);
   }
   .empty form {
     text-align: left;

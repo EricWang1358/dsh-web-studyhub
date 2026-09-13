@@ -1106,7 +1106,15 @@ export default function App({ call, host = {} }) {
               />
             )}
             {page === "exam" && (
-              <Exam call={call} data={data} onExit={() => setPage("library")} />
+              <Exam
+                call={call}
+                data={data}
+                onExit={() => setPage("library")}
+                onCreate={() => {
+                  setGenSource("files");
+                  setPage("generate");
+                }}
+              />
             )}
             {page === "wrongbook" && (
               <WrongBook
@@ -1299,7 +1307,7 @@ export default function App({ call, host = {} }) {
               </section>
             )}
             {page === "generate" && (
-              <section className="page narrow">
+              <section className="page">
                 <div className="eyebrow">SOURCE → UNDERSTANDING</div>
                 <h1>创建一组值得练的题</h1>
                 <div className="source-mode" role="tablist" aria-label="题目来源">
@@ -1518,7 +1526,7 @@ export default function App({ call, host = {} }) {
               </section>
             )}
             {page === "draft" && draft && (
-              <section className="page narrow">
+              <section className="page">
                 <div className="page-heading">
                   <div>
                     <div className="eyebrow">REVIEW BEFORE YOU LEARN</div>
@@ -1850,7 +1858,7 @@ export default function App({ call, host = {} }) {
               </section>
             )}
             {page === "settings" && (
-              <section className="page narrow">
+              <section className="page">
                 <h1>工作区设置</h1>
                 <p className="muted">资料、题库、调度与模型，由你掌控。</p>
                 <fieldset>

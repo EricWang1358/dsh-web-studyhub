@@ -12,6 +12,7 @@ playwright-report/
 # local AI/session tooling
 .mimosa/
 .workbuddy-ai/
+.zcode/
 
 # scratch probe/snapshot scripts
 scripts/probe*.mjs

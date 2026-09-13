@@ -46,7 +46,7 @@ const picksFromRun = (r) => {
   return map;
 };
 
-export default function Exam({ call, data, onExit }) {
+export default function Exam({ call, data, onExit, onCreate }) {
   useInjectViewsCss();
   const [phase, setPhase] = useState("setup"), // setup → running → report
     [run, setRun] = useState(null),
@@ -71,6 +71,15 @@ export default function Exam({ call, data, onExit }) {
     () =>
       (data?.decks || []).filter((d) => d && !d.archived && (d.quizCount || 0) > 0),
     [data],
+  );
+  const flashOnly = useMemo(
+    () => !decks.length && (data?.decks || []).some((d) => d && !d.archived && d.available > 0),
+    [data, decks],
+  );
+  const pickedQuizTotal = useMemo(
+    () =>
+      decks.reduce((sum, d) => sum + (pickedDecks.has(d.id) ? d.quizCount || 0 : 0), 0),
+    [decks, pickedDecks],
   );
 
   /* 挂载时恢复进行中的考试：快照 runs 里的 exam run 用 review.get 接回。 */
@@ -222,29 +231,48 @@ export default function Exam({ call, data, onExit }) {
   }
 
   return (
-    <section className="exam">
+    <section className="page exam">
       {phase === "setup" && (
         <div className="exam-setup">
-          <div className="eyebrow">模拟考试</div>
-          <h2>选择题组，生成一份试卷</h2>
-          <p className="muted">
-            从勾选的题组里随机抽选选择题；作答过程中不显示对错，交卷后统一判分并计入复习计划。
-          </p>
+          <div className="page-heading">
+            <div>
+              <h1>模拟考试</h1>
+              <p className="muted">
+                从勾选的题组里随机抽选择题组成一份限时试卷，交卷后统一判分。
+              </p>
+            </div>
+          </div>
+          <ul className="exam-rules" aria-label="考试规则">
+            <li>单选 / 多选</li>
+            <li>限时 30 分钟，到时自动交卷</li>
+            <li>作答中不显示对错，可反复修改</li>
+            <li>交卷后出成绩单，错题可排进学习路径</li>
+          </ul>
           {decks.length ? (
-            <>
-              <div className="exam-setup-tools">
-                <button
-                  disabled={pickedDecks.size === decks.length}
-                  onClick={() => setPickedDecks(new Set(decks.map((d) => d.id)))}
-                >
-                  全选
-                </button>
-                <button
-                  disabled={!pickedDecks.size}
-                  onClick={() => setPickedDecks(new Set())}
-                >
-                  清空
-                </button>
+            <div className="exam-panel">
+              <div className="exam-panel-head">
+                <div>
+                  <strong>选择题组</strong>
+                  <small className="muted">
+                    {pickedDecks.size
+                      ? `已选 ${pickedDecks.size} 个题组 · 共 ${pickedQuizTotal} 道选择题`
+                      : `${decks.length} 个题组可用于模考`}
+                  </small>
+                </div>
+                <div className="exam-setup-tools">
+                  <button
+                    disabled={pickedDecks.size === decks.length}
+                    onClick={() => setPickedDecks(new Set(decks.map((d) => d.id)))}
+                  >
+                    全选
+                  </button>
+                  <button
+                    disabled={!pickedDecks.size}
+                    onClick={() => setPickedDecks(new Set())}
+                  >
+                    清空
+                  </button>
+                </div>
               </div>
               <ul className="exam-decks">
                 {decks.map((d) => (
@@ -282,19 +310,41 @@ export default function Exam({ call, data, onExit }) {
                     onChange={(e) => setCountDraft(e.target.value)}
                     onBlur={() => setCountDraft(String(clampCount(countDraft)))}
                   />
-                  <small>1–50 · 默认 10</small>
+                  <small>
+                    {pickedDecks.size && pickedQuizTotal < count
+                      ? `题库只有 ${pickedQuizTotal} 道，将全部出题`
+                      : "1–50 · 默认 10"}
+                  </small>
                 </label>
                 <button
                   className="primary"
                   disabled={!pickedDecks.size || busy}
                   onClick={startExam}
                 >
-                  {busy ? "正在出卷…" : "开始考试"}
+                  {busy ? "正在出卷…" : pickedDecks.size ? "开始考试" : "先勾选题组"}
                 </button>
               </div>
-            </>
+            </div>
           ) : (
-            <p className="muted">当前没有含选择题的题组，先在学习库生成题目后再来模考。</p>
+            <div className="empty exam-empty">
+              <span className="empty-icon" aria-hidden="true">
+                ✎
+              </span>
+              <h2>还没有可以模考的选择题</h2>
+              <p className="muted">
+                {flashOnly
+                  ? "现有题组都是闪卡。模拟考试只抽单选 / 多选题，创建题组时勾选选择题题型即可。"
+                  : "模拟考试从题组里抽单选 / 多选题。先创建一个包含选择题的题组，再回来生成试卷。"}
+              </p>
+              <div className="exam-empty-actions">
+                {onCreate && (
+                  <button className="primary" onClick={onCreate}>
+                    ＋ 创建题组
+                  </button>
+                )}
+                {data?.decks?.length > 0 && <button onClick={onExit}>去学习库</button>}
+              </div>
+            </div>
           )}
           {err && <p className="exam-error">{err}</p>}
         </div>
@@ -394,7 +444,12 @@ export default function Exam({ call, data, onExit }) {
 
       {phase === "report" && report && (
         <div className="exam-report">
-          <div className="eyebrow">考试报告</div>
+          <div className="page-heading">
+            <div>
+              <h1>考试报告</h1>
+              <p className="muted">已判分并计入复习计划。</p>
+            </div>
+          </div>
           <div className="exam-score-row">
             <div className="exam-score">
               <strong>

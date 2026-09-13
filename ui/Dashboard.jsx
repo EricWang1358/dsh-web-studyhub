@@ -95,16 +95,15 @@ export default function Dashboard({ call, data, onStartScope }) {
   const today = data?.today;
 
   return (
-    <section className="dash">
-      <div className="section-heading">
-        <h2>
-          学习统计 {stats && <span>{totals.attempts ?? 0}</span>}
-        </h2>
-        <div className="section-heading-actions">
-          <button onClick={load} disabled={loading}>
-            {loading ? "统计中…" : "刷新"}
-          </button>
+    <section className="page dash">
+      <div className="page-heading">
+        <div>
+          <h1>学习统计</h1>
+          <p className="muted">连续学习、作答热力、分数趋势和薄弱主题。</p>
         </div>
+        <button onClick={load} disabled={loading}>
+          {loading ? "统计中…" : "刷新"}
+        </button>
       </div>
 
       {err && <p className="dash-error">{err}</p>}

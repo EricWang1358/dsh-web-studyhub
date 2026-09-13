@@ -1,7 +1,10 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App.jsx";
+// style.css first, then the views: the real host injects them in this order
+// (plugin styles on apply, view styles on first mount), and equal-specificity
+// ties must resolve the same way in the preview as they do in the host.
 import "./style.css";
+import App from "./App.jsx";
 const call = async (action, args = {}) => {
   const response = await fetch("/api/call", {
     method: "POST",

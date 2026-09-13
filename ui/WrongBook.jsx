@@ -59,16 +59,20 @@ export default function WrongBook({ call, busy, onPractice }) {
   const total = items?.length || 0;
 
   return (
-    <section className="wb">
-      <div className="section-heading">
-        <h2>
-          错题本 <span>{total}</span>
-        </h2>
+    <section className="page wb">
+      <div className="page-heading">
+        <div>
+          <h1>错题本</h1>
+          <p className="muted">
+            {total ? `跨题组收集的 ${total} 道错题，按题组分组。` : "答错的题会自动收进这里。"}
+          </p>
+        </div>
         <div className="section-heading-actions">
           <button onClick={load} disabled={busy || loading}>
             刷新
           </button>
           <button
+            className="primary"
             disabled={busy || !total}
             title="把这些错题按学习路径重新练一遍"
             onClick={() =>
