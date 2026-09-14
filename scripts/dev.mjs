@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve, isAbsolute } from "node:path";
 import { randomBytes } from "node:crypto";
 import { StudyService } from "../lib/service.js";
+import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import {
   listNotebooks,
   publishNotebook,
@@ -79,7 +80,7 @@ const server = createServer(async (req, res) => {
       let body = "";
       for await (const chunk of req) {
         body += chunk;
-        if (body.length > 2 * 1024 * 1024) throw new Error("Request too large");
+        if (body.length > MAX_REQUEST_BYTES) throw new Error("Request too large");
       }
       const { action, args = {} } = JSON.parse(body);
       let value;

@@ -1,6 +1,8 @@
 import React from "react";
 import Icon from "./Icon.jsx";
 import Ingest from "./Ingest.jsx";
+import PdfImport from "./PdfImport.jsx";
+import JsonImport from "./JsonImport.jsx";
 import { kinds } from "./shared.js";
 
 /* 创建题组视图：从已存资料生成（选资料 → 设定学习方式 → 入队后台任务），
@@ -27,8 +29,9 @@ export default function Generate({
       <h1>创建一组值得练的题</h1>
       <div className="source-mode" role="tablist" aria-label="题目来源">
         {[
-          ["files", "从资料生成", "选已保存的讲义、笔记"],
-          ["chat", "现场对话录题", "直接贴刷题软件、Canvas 错题或截图"],
+          ["files", "从资料生成新题", "导入 PDF、讲义、笔记"],
+          ["chat", "导入已有题目", "刷题软件、Canvas 错题或截图"],
+          ["json", "JSON 导入", "各题型提示词 · JSON / TXT 文件"],
         ].map(([id, label, note]) => (
           <button
             key={id}
@@ -43,7 +46,9 @@ export default function Generate({
           </button>
         ))}
       </div>
-      {genSource === "chat" ? (
+      {genSource === "json" ? (
+        <JsonImport busy={busy} act={act} setPage={setPage} setNotice={setNotice} />
+      ) : genSource === "chat" ? (
         <Ingest
           data={data}
           busy={busy}
@@ -67,6 +72,7 @@ export default function Generate({
                   "- 题型：" + kindText + "\n" +
                   "- 错题：" + mistakeText + "\n" +
                   "- 截图请先逐字转写题目、选项和答案再录入；一次贴很多题时可以分批。\n" +
+                  "- 如果我贴的是讲义 PDF 而不是现成题目，请用 source.import 按页导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n" +
                   "- 每批录完简短告诉我：录入几道、哪些重复、哪些没录成功及原因、哪些答案是推断的需要我核对。\n" +
                   "- 我说「停止录题」时调用 ingest.stop。\n" +
                   "第一批题目：\n",
@@ -79,6 +85,7 @@ export default function Generate({
           <p className="muted">
             先选资料，再设定学习目标。生成结果会先进入草稿，经过你的审阅后发布。
           </p>
+          <PdfImport busy={busy} act={act} onImported={(ids) => setSelectedSources(ids)} />
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -95,7 +102,7 @@ export default function Generate({
                     (job.status === "queued"
                       ? `已加入队列（前面还有 ${job.queuedBehind} 个）`
                       : "已开始生成") +
-                      (job.parts > 1 ? `，资料较多，会分 ${job.parts} 段出题再合并` : "") +
+                      (job.parts > 1 ? `，分 ${job.parts} 小批出题并审阅` : "") +
                       "。完成后出现在待审阅列表。",
                   );
                 },
@@ -104,6 +111,8 @@ export default function Generate({
           >
             <fieldset>
               <legend>01 / 选择资料</legend>
+              <p className="muted">已选择 {selectedSources.length} / {data.sources.length} 份资料</p>
+              <div className="source-selection">
               {data.sources.length ? (
                 data.sources.map((s) => (
                   <label className="source-choice" key={s.id}>
@@ -120,13 +129,18 @@ export default function Generate({
                     />
                     <span>
                       {s.title}
-                      <small>{s.text.length.toLocaleString()} 字符</small>
+                      <small>{s.text.length.toLocaleString()} 字符{s.document ? (s.document.extractionVersion === 2 ? " · 排版提取 v2" : " · 旧版提取，建议重新导入") : ""}</small>
                     </span>
                   </label>
                 ))
               ) : (
                 <p className="muted">先添加一份资料。</p>
               )}
+              </div>
+              {!!data.sources.length && <div>
+                <button type="button" onClick={() => setSelectedSources(data.sources.map((s) => s.id))}>全选</button>{" "}
+                <button type="button" onClick={() => setSelectedSources([])}>清空选择</button>
+              </div>}
               <button
                 type="button"
                 onClick={() => setModal({ type: "add" })}
@@ -137,10 +151,11 @@ export default function Generate({
             <fieldset>
               <legend>02 / 学习方式</legend>
               <div className="kind-grid">
-                {Object.entries(kinds).map(([id, label]) => (
+                {Object.entries({ mixed: "测验 + 闪卡", ...kinds }).map(([id, label]) => (
                   <button
                     type="button"
                     key={id}
+                    aria-pressed={gen.kind === id}
                     className={gen.kind === id ? "kind selected" : "kind"}
                     onClick={() => setGen({ ...gen, kind: id })}
                   >
@@ -148,6 +163,8 @@ export default function Generate({
                   </button>
                 ))}
               </div>
+              <p className="muted">“测验 + 闪卡”将总题数分配为一半单选、一半闪卡（奇数多一道单选），合并为一个待审题组。</p>
+              <label>题组名称（可选）<input value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder="例如 SWE5001 · Solution Architecture" /></label>
               <div className="three-col">
                 <label>
                   题数

@@ -3,6 +3,15 @@
    one-off literals elsewhere are intentionally left alone: rewriting 200+
    scattered values would risk regressions for no visible gain. New rules
    must reference tokens, not raw colours. */
+.study-seat {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  contain: layout paint;
+  isolation: isolate;
+  overflow: hidden;
+}
 .study-app {
   /* dark is the product default */
   --bg-canvas: #1d2126;
@@ -236,6 +245,7 @@
     scrollbar-gutter: stable;
     position: relative;
     container-type: inline-size;
+    isolation: isolate;
     container-name: study;
   }
   .sidebar {
@@ -268,7 +278,34 @@
   }
   .brand-mark {
     color: var(--accent-soft);
-    font-size: 33px;
+    font-size: 26px;
+    width: 28px;
+    line-height: 1;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .collapse-toggle {
+    margin-left: auto;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      background 0.18s var(--ease),
+      color 0.18s var(--ease);
+  }
+  .collapse-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--text);
   }
   .nav {
     display: flex;
@@ -291,9 +328,59 @@
     align-items: center;
     flex-shrink: 0;
   }
+  /* Sidebar glyphs share one fixed slot so labels line up; Unicode glyphs
+     differ in optical size, so the outliers get a nudge. */
+  .sidebar .icon {
+    font-size: 18px;
+    line-height: 1;
+    width: 22px;
+    justify-content: center;
+  }
+  .sidebar .icon.icon-sm {
+    font-size: 16px;
+  }
+  .sidebar .icon.icon-lg {
+    font-size: 21px;
+  }
   .nav-count {
     margin-left: auto;
     font-size: 11px;
+  }
+  /* ── Collapsed rail ─────────────────────────────────────────────────────
+     .is-narrow is set manually via the toggle, or automatically when the
+     workspace is ≤720px (ResizeObserver in App.jsx). */
+  .sidebar.is-narrow {
+    width: 62px;
+    padding: 20px 6px;
+  }
+  .sidebar.is-narrow .brand {
+    flex-direction: column;
+    margin: 0 auto 28px;
+  }
+  .sidebar.is-narrow .collapse-toggle {
+    margin: 4px auto 0;
+  }
+  .sidebar.is-narrow .brand > div,
+  .sidebar.is-narrow .nav-count,
+  .sidebar.is-narrow .local-status,
+  .sidebar.is-narrow .guide-sidebar,
+  .sidebar.is-narrow .resume-nav .nav-label small {
+    display: none;
+  }
+  .sidebar.is-narrow .guide-inline {
+    display: block;
+  }
+  .sidebar.is-narrow .nav {
+    font-size: 0;
+    gap: 0;
+    padding: 12px;
+    justify-content: center;
+  }
+  .sidebar.is-narrow .nav .icon {
+    font-size: 22px;
+  }
+  .sidebar.is-narrow .theme-switch {
+    margin: 0 6px 10px;
   }
   .sidebar-bottom {
     margin-top: auto;
@@ -868,6 +955,34 @@
     margin: 20px 0;
     color: #c4c2da;
   }
+  .pdf-import {
+    padding: 20px;
+    border: 1px solid var(--line, #444750);
+    border-radius: 12px;
+    margin: 20px 0;
+  }
+  .source-selection {
+    max-height: 360px;
+    overflow: auto;
+  }
+  .generation-trace { margin-top: 10px; overflow-wrap: anywhere; }
+  .generation-trace ol { padding-left: 20px; }
+  .generation-trace li { margin: 12px 0; }
+  .generation-trace small { display: block; }
+  .pdf-import details {
+    max-height: 240px;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    margin-top: 12px;
+  }
+  .pdf-extracted-text,
+  .source-text.pdf-extracted-text {
+    white-space: pre;
+    overflow: auto;
+    max-width: 100%;
+    font: 12px/1.6 ui-monospace, Consolas, monospace;
+    tab-size: 4;
+  }
   .quality-note p {
     margin: 0;
     font-size: 13px;
@@ -1412,7 +1527,7 @@
   }
   .source-mode {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
     gap: 10px;
     margin: 18px 0 8px;
   }
@@ -2408,39 +2523,6 @@
     .binding-actions {
       justify-content: flex-start;
     }
-    .sidebar {
-      width: 62px;
-      padding: 20px 6px;
-    }
-    .guide-sidebar,
-    .resume-nav .nav-label small {
-      display: none;
-    }
-    .guide-inline {
-      display: block;
-    }
-    .brand {
-      margin: 0 auto 28px;
-    }
-    .brand > div,
-    .nav-count,
-    .local-status {
-      display: none;
-    }
-    .brand-mark {
-      font-size: 28px;
-    }
-    .nav {
-      font-size: 0;
-      padding: 12px;
-      justify-content: center;
-    }
-    .nav .icon {
-      font-size: 22px;
-    }
-    .sidebar-bottom {
-      margin-top: auto;
-    }
     main {
       min-width: 0;
     }
@@ -2614,22 +2696,9 @@
   }
 
   /* ── Ambient aurora backdrop ───────────────────────────────────────────
-     Two blurred radial washes behind the content. Fixed + pointer-events:none
-     so it never interferes with layout or hit-testing. */
-  /* `&::before`, not `.study-app::before`: nested inside `.study-app {}` the
-     latter compiles to a descendant selector that matches nothing, so the
-     canvas (and its light-theme colour) never painted. */
-  &::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    /* Base canvas plus two accent washes. Painted on the pseudo-element so the
-       aurora is not hidden behind an opaque root background. The canvas colour
-       must ride on background-color: a bare var() as the last shorthand layer
-       parses as an (invalid) image and drops, leaving the host's dark page
-       visible through the app in light theme. */
+     Canvas painted on the panel itself, never on the host viewport. */
+  & {
+    /* Painting directly on this element cannot cover neighbouring host panes. */
     background-color: var(--bg-canvas);
     background-image:
       radial-gradient(
@@ -2642,7 +2711,6 @@
         color-mix(in srgb, var(--info) 26%, transparent) 0%,
         transparent 60%
       );
-    animation: aurora-drift 24s var(--ease) infinite alternate;
   }
   @keyframes aurora-drift {
     from {

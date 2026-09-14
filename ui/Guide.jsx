@@ -26,29 +26,29 @@ export default function Guide({
     {
       title: "准备资料",
       done: data.sources.length > 0,
-      body: "笔记、八股、题目解析都行。放进工作区让 AI 读取，或直接粘贴 / 导入 .md。",
+      body: "上传 PDF 讲义并选页，或粘贴 / 导入文字笔记。现成题目请使用对话录题。",
       actions: [
         [
           "让 AI 从工作区找",
           () =>
             askInChat(
-              `我今天想学「${t}」。请在工作区里找相关的笔记或资料文件，读取后用 study_workspace 的 source.add 加入学习库（标题用文件路径）。找不到的话告诉我还需要准备什么。`,
+              `我今天想学「${t}」。请在工作区里找相关资料：PDF 用 study_workspace 的 source.import 加绝对路径按页导入；其他文字资料读取后用 source.add 加入学习库。找不到的话告诉我还需要准备什么。`,
             ),
         ],
-        ["粘贴资料", addSource],
+        ["上传 PDF / 粘贴资料", addSource],
         ["对话里直接录题", record],
       ],
     },
     {
       title: "生成题组",
       done: data.decks.length > 0 || data.drafts.length > 0,
-      body: "笔试题适合单选 / 多选；八股概念适合闪卡或开放问答。可以各生成一组。",
+      body: "测验检验辨析和应用，闪卡训练主动回忆。可用「测验 + 闪卡」一次生成混合题组。",
       actions: [
         [
           "在对话里出题",
           () =>
             askInChat(
-              `请用 study_workspace 基于「${t}」相关资料生成题组草稿：笔试题出 10 道单选题（kind: quiz），八股概念出 10 张闪卡（kind: flashcard），难度 mixed，中文。生成后提醒我去「学习」面板审阅。`,
+              `请用 study_workspace 基于「${t}」相关资料调用一次 generate：kind: mixed、count: 20（10 道单选和 10 张闪卡）、难度 mixed、中文。PDF 先用 source.import 导入。任务开始后简短告诉我，后台完成后我去「学习」面板审阅，不需要反复等待。`,
             ),
         ],
         ["自己设置", generate],

@@ -18,12 +18,13 @@ export default function Manage({
   return (
     <section className="page">
       <h1>{managedDeck.title}</h1>
-      <p className="muted">
+      {managedDeck.systemKind === "slain" && <p className="muted">本工作区唯一的斩题组。这里的题不参与复习，作答历史和复习进度保留，可恢复到原题组。</p>}
+      {managedDeck.systemKind !== "slain" && <p className="muted">
         编辑先进入草稿；重新发布时，未改动题目保留复习进度，内容变更的题目重新开始调度。历史作答始终保留。
-      </p>
+      </p>}
       <div className="deck-actions">
         <button
-          disabled={busy}
+          disabled={busy || managedDeck.systemKind === "slain"}
           onClick={() =>
             act("deck.edit", { id: managedDeck.id }, openDraft)
           }
@@ -31,7 +32,7 @@ export default function Manage({
           编辑题组
         </button>
         <button
-          disabled={busy}
+          disabled={busy || managedDeck.systemKind === "slain"}
           onClick={() =>
             act(
               "deck.archive",
@@ -72,6 +73,7 @@ export default function Manage({
           保存目录
         </button>
       </form>
+      {!managedDeck.cards.length && <p className="muted">{managedDeck.systemKind === "slain" ? "斩题组为空。练习时点击“斩”，题目会收纳到这里。" : "当前题组没有题目。已斩的题可从斩题组恢复。"}</p>}
       {managedDeck.cards.map((card) => (
         <article className="deck" key={card.id}>
           <small>
@@ -80,9 +82,18 @@ export default function Manage({
           </small>
           <Markdown className="md-title" text={card.prompt} />
           {card.flag && <p className="muted">标记：{card.flag}</p>}
+          {card.slain && <p className="muted">原题组：{card.slain.deckTitle} · {new Date(card.slain.at).toLocaleDateString("zh-CN")}</p>}
           <div className="deck-actions">
+            <button disabled={busy} onClick={() => act(
+              managedDeck.systemKind === "slain" ? "card.restore" : "card.slay",
+              { deckId: managedDeck.id, cardId: card.id },
+              async (result) => {
+                setManagedDeck(await call("deck.get", { id: managedDeck.id }));
+                setNotice(managedDeck.systemKind === "slain" ? `已恢复到「${result.title}」` : "已移入斩题组，不再参与复习，可在斩题组恢复。");
+              },
+            )}>{managedDeck.systemKind === "slain" ? "恢复原题组" : "斩"}</button>
             <button
-              disabled={busy}
+              disabled={busy || managedDeck.systemKind === "slain"}
               onClick={() =>
                 act(
                   "card.suspend",

@@ -23,7 +23,7 @@ export default function Sources({ data, busy, act, setModal, sourceForm }) {
       {!data.sources.length ? (
         <div className="empty">
           <h2>还没有资料</h2>
-          <p>支持粘贴文本、Markdown 和 TXT 文件。</p>
+          <p>支持 PDF、粘贴文本、Markdown 和 TXT 文件。</p>
           {sourceForm}
         </div>
       ) : (
@@ -38,6 +38,7 @@ export default function Sources({ data, busy, act, setModal, sourceForm }) {
                 <strong>{s.title}</strong>
                 <small>
                   {s.text.length.toLocaleString()} 字符 ·{" "}
+                  {s.document ? (s.document.extractionVersion === 2 ? "排版提取 v2 · " : "旧版提取，建议重新导入 · ") : ""}
                   {s.text.slice(0, 80)}
                 </small>
               </span>

@@ -1,3 +1,4 @@
+import { withQualityStages } from "./helpers/assessment.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
@@ -39,6 +40,120 @@ async function ready() {
   await service.call("draft.publish", { id: "d" });
   return service;
 }
+
+test("generation messages report delivery honestly and survive into later model stages", async () => {
+  let release, started;
+  const gate = new Promise((resolve) => release = resolve);
+  const beginning = new Promise((resolve) => started = resolve);
+  const prompts = [], deliveries = [];
+  const complete = withQualityStages(async (system) => JSON.stringify(
+    system.startsWith("You author") ? deck() : { issues: [], summary: "Checked" }));
+  const service = new StudyService(await fresh(), { complete: async (system, prompt, execution) => {
+    prompts.push(prompt);
+    if (prompts.length === 1) {
+      execution.setMessenger(async (text) => { deliveries.push(text); return { childId: "test-child", messageId: "accepted" }; });
+      started(); await gate;
+    }
+    return complete(system, prompt.split("\n\nAdditional learner requirements")[0]);
+  } });
+  await service.call("source.add", source);
+  const job = await service.call("generate", { sourceIds: ["s"], count: 1, kind: "flashcard" });
+  await beginning;
+  try {
+    const receipt = await service.call("job.message", { jobId: job.jobId, message: "Use concise Chinese questions" });
+    assert.equal(receipt.delivery, "delivered");
+    assert.equal(receipt.childId, "test-child");
+    assert.deepEqual(deliveries, ["Use concise Chinese questions"]);
+  } finally { release(); }
+  const result = await service.call("job.wait", { jobId: job.jobId });
+  assert.equal(result.status, "complete");
+  assert.ok(prompts.slice(1).every((p) => p.includes("Use concise Chinese questions")));
+  await assert.rejects(service.call("job.message", { jobId: job.jobId, message: "Too late" }), /Active generation job/);
+});
+
+test("parallel jobs persist early drafts and broadcast to each active worker without losing other handles", { timeout: 10000 }, async () => {
+  const root = await fresh(), releases = [];
+  let started, checkpointed, counter = 0;
+  const readyWorkers = new Promise((resolve) => started = resolve);
+  const firstSave = new Promise((resolve) => checkpointed = resolve);
+  const fixture = withQualityStages(async (system, prompt) => {
+    if (system.includes("editor")) return JSON.stringify({ issues: [] });
+    const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    return JSON.stringify({ title: "Parallel", cards: Array.from({ length: req.count }, () => {
+      const n = ++counter;
+      return { ...structuredClone(q), id: `q${n}`, prompt: `Distinct question ${n}?`, objective: `Objective ${n}` };
+    }) });
+  });
+  const service = new StudyService(root, { complete: async (system, prompt, execution) => {
+    if (system.startsWith("You author")) {
+      const childId = `child-${releases.length}`;
+      execution.setMessenger(async () => ({ childId, messageId: `receipt-${childId}` }));
+      await new Promise((resolve) => { releases.push(resolve); if (releases.length === 3) started(); });
+    }
+    return fixture(system, prompt.split("\n\nAdditional learner requirements")[0]);
+  } });
+  const originalCall = service.call.bind(service);
+  service.call = async (action, args) => {
+    const result = await originalCall(action, args);
+    if (action === "draft.save") checkpointed(result);
+    return result;
+  };
+  await service.call("source.add", source);
+  const job = await service.call("generate", { sourceIds: ["s"], count: 11, kind: "flashcard" });
+  let early;
+  try {
+    await readyWorkers;
+    const sent = await service.call("job.message", { jobId: job.jobId, message: "Keep each question focused" });
+    assert.equal(sent.receipts.length, 3);
+    assert.ok(sent.receipts.every((receipt) => receipt.delivered));
+    releases[0](); early = await firstSave;
+    assert.ok(early.cards.length > 0 && early.cards.length < 11);
+    const persisted = await new StudyService(root).call("export");
+    assert.equal(persisted.drafts[0].id, early.id);
+    assert.equal(persisted.drafts[0].cards.length, early.cards.length);
+    const sentAgain = await service.call("job.message", { jobId: job.jobId, message: "Use neutral hints" });
+    assert.equal(sentAgain.receipts.length, 2);
+    await assert.rejects(service.call("draft.publish", { id: early.id }), /still updating/);
+  } finally { releases.forEach((release) => release()); }
+  const done = await service.call("job.wait", { jobId: job.jobId });
+  assert.equal(done.status, "complete");
+  assert.equal(done.draftId, early.id);
+  assert.equal(done.draft.cards, 11);
+});
+
+test("self-grades 0 and 1 append one hidden tail retry, persist on resume and preserve spacing", async () => {
+  for (const grade of [0, 1]) {
+    const service = await ready();
+    const editing = await service.call("deck.edit", { id: "d" });
+    editing.cards.push({ ...structuredClone(q), id: "q2", prompt: "What dimensions vary?", objective: "Name the dimensions" });
+    const saved = await service.call("draft.save", { deck: editing });
+    await service.call("draft.publish", { id: saved.id, draftVersion: saved.draftVersion });
+    let run = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+    const cardId = run.card.id, args = { runId: run.id, cardId };
+    await service.call("review.reveal", args);
+    run = await service.call("review.answer", { ...args, grade });
+    assert.equal(run.total, 3);
+    assert.equal(run.feedback.retryQueued, true);
+    assert.equal((await service.call("review.answer", { ...args, grade })).total, 3);
+    const due = run.feedback.nextDue;
+    run = await service.call("review.move", { runId: run.id, direction: 1 });
+    assert.notEqual(run.card.id, cardId);
+    await service.call("review.reveal", { runId: run.id, cardId: run.card.id });
+    await service.call("review.answer", { runId: run.id, cardId: run.card.id, grade: 4 });
+    run = await service.call("review.move", { runId: run.id, direction: 1 });
+    run = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+    assert.equal(run.card.id, cardId);
+    assert.equal(run.retry, true);
+    assert.equal(run.revealed, false);
+    assert.equal(run.feedback, null);
+    await service.call("review.reveal", args);
+    await assert.rejects(service.call("review.answer", { ...args, grade: 8 }), /Grade/);
+    run = await service.call("review.answer", { ...args, grade: grade === 0 ? 0 : 5 });
+    assert.equal(run.total, 3);
+    assert.equal(run.feedback.nextDue, due);
+    assert.equal((await service.call("review.move", { runId: run.id, direction: 1 })).complete, true);
+  }
+});
 
 test("deck maintenance preserves unchanged scheduling, resets edited content, and fences concurrent drafts", async () => {
   const service = await ready();
@@ -419,12 +534,10 @@ test("generation uses author and editor; broken citation is repaired before draf
   const bad = deck();
   bad.cards[0].citations[0].quote = "fabricated quote";
   const result = await generateDeck(
-    async () =>
+    withQualityStages(async () =>
       JSON.stringify(
-        [bad, { issues: ["unsupported quote"] }, deck(), { issues: [] }][
-          calls++
-        ],
-      ),
+        [bad, { issues: ["unsupported quote"] }, deck(), { issues: [] }][calls++],
+      )),
     { count: 1, kind: "flashcard", sources: [source] },
   );
   assert.equal(calls, 4);
@@ -436,15 +549,10 @@ test("generation refuses persistent editorial defects", async () => {
   await assert.rejects(
     () =>
       generateDeck(
-        async () =>
+        withQualityStages(async () =>
           JSON.stringify(
-            [
-              deck(),
-              { issues: ["ambiguous"] },
-              deck(),
-              { issues: ["still ambiguous"] },
-            ][calls++],
-          ),
+            [deck(), { issues: ["ambiguous"] }, deck(), { issues: ["still ambiguous"] }][calls++],
+          )),
         { count: 1, kind: "flashcard", sources: [source] },
       ),
     /still found issues/,
@@ -455,7 +563,7 @@ test("generation rejects wrong question kind even when model editor approves", a
   await assert.rejects(
     () =>
       generateDeck(
-        async () => JSON.stringify([deck(), { issues: [] }, deck()][calls++]),
+        withQualityStages(async () => JSON.stringify([deck(), { issues: [] }, deck()][calls++])),
         { count: 1, kind: "quiz", sources: [source] },
       ),
     /requested kind/,
@@ -564,6 +672,35 @@ test("learning path orders weak before new in syllabus order, resumes the same s
   await service.call("deck.move", { id: "a", folder: " 设计模式 / 第 4 章 " });
   assert.equal((await service.call("map")).decks[0].folder, "设计模式 / 第 4 章");
 });
+test("capture honors a selected deck and checks a supplied answer in one model call", async () => {
+  const service = await ready();
+  let calls = 0;
+  service.complete = async (system, prompt) => {
+    calls++;
+    assert.ok(!system.startsWith("You file"));
+    const data = JSON.parse(prompt.split("DATA:\n")[1]);
+    assert.equal(data.proposedAnswer, "An unverified draft answer");
+    assert.equal(data.existingQuestions[0].deckId, "d");
+    return JSON.stringify({ grounded: true, card: { ...structuredClone(q), topic: "Independent dimensions",
+      prompt: "When should independent dimensions be separated?", objective: "Explain the independent-dimensions trigger" } });
+  };
+  const added = await service.call("capture", { deckId: "d", question: "When should I separate dimensions?", answer: "An unverified draft answer" });
+  assert.equal(calls, 1);
+  assert.equal(added.deckId, "d");
+  assert.equal(added.topic, "Independent dimensions");
+  assert.notEqual(added.answer, "An unverified draft answer");
+  assert.equal(added.performance.modelCalls.length, 1);
+  assert.equal(added.performance.modelCalls[0].stage, "author");
+  await assert.rejects(service.call("capture", { deckId: "missing", question: "Another question" }), /Requested capture deck/);
+  assert.equal(calls, 1);
+  service.complete = async () => { calls++; return JSON.stringify({ duplicateOf: { deckId: "d", cardId: "q" } }); };
+  assert.equal((await service.call("capture", { deckId: "d", question: "Equivalent wording" })).status, "duplicate");
+  assert.equal(calls, 2);
+  assert.equal((await service.call("capture", { deckId: "d", question: q.prompt })).status, "duplicate");
+  assert.equal(calls, 2);
+  assert.equal((await service.call("deck.get", { id: "d" })).cards.length, 2);
+});
+
 test("capture files a question into the matching topic, detects originals, and keeps editing drafts in step", async () => {
   const service = await ready();
   const replies = [];
@@ -641,7 +778,7 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   const big = await service.call("source.add", { title: "notes.md", text });
   let counter = 0,
     authorCalls = 0;
-  service.complete = async (system, prompt) => {
+  service.complete = withQualityStages(async (system, prompt) => {
     if (system.startsWith("Act as a strict assessment editor"))
       return JSON.stringify({ issues: [], summary: "ok" });
     authorCalls++;
@@ -677,7 +814,7 @@ test("large selections generate in parts, extra generations queue, and job.wait 
         };
       }),
     });
-  };
+  });
   const quiz = await service.call("generate", { sourceIds: [big.id], count: 6, kind: "quiz" });
   const cards = await service.call("generate", { sourceIds: [big.id], count: 6, kind: "flashcard" });
   assert.equal(quiz.parts, 3);
@@ -686,6 +823,11 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   const first = await service.call("job.wait", { jobId: quiz.jobId });
   assert.equal(first.status, "complete");
   assert.equal(first.draft.cards, 6);
+  assert.equal(first.steps.length, 12);
+  assert.ok(first.steps.every((step) => step.status === "complete" && step.startedAt && step.finishedAt));
+  assert.match(first.steps[0].stage, /Planning evidence/);
+  assert.ok(first.steps.slice(0, 3).every((step) => step.stage.includes("Planning evidence")));
+  assert.match(first.steps[3].stage, /Writing source-grounded questions/);
   const second = await service.call("job.wait", { jobId: cards.jobId });
   assert.equal(second.status, "complete");
   assert.equal(second.draft.failures.length, 1);
@@ -693,7 +835,7 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   const compact = await service.call("snapshot", { compact: true });
   assert.deepEqual(Object.keys(compact.sources[0]).sort(), ["chars", "id", "title"]);
   assert.equal(compact.drafts.length, 2);
-  assert.ok(JSON.stringify(compact).length < 5000);
+  assert.ok(JSON.stringify(compact).length < 12000);
   const page = await service.call("source.get", { id: big.id, offset: 100, limit: 50 });
   assert.equal(page.text, text.slice(100, 150));
 });
@@ -978,4 +1120,101 @@ test("card references resolve by card id when deckId is empty or wrong, with cle
   );
   const run = await service.call("review.start", { mode: "path", scope: [{ cardId: "o1" }] });
   assert.equal(run.card.id, "o1");
+});
+
+
+test("Study cancellation stops the active phase and skips queued jobs, scoped to its library", async () => {
+  const service = await ready(), other = await ready();
+  let started, calls = 0;
+  const began = new Promise((resolve) => { started = resolve; });
+  service.complete = async (_system, _prompt, execution) => {
+    calls++;
+    started();
+    return new Promise((_resolve, reject) => {
+      execution.signal.addEventListener("abort", () => reject(execution.signal.reason), { once: true });
+    });
+  };
+  const first = await service.call("generate", { sourceIds: ["s"], count: 5 });
+  await began;
+  const second = await service.call("generate", { sourceIds: ["s"], count: 5 });
+  await assert.rejects(other.call("job.cancel", { jobId: first.jobId }), /not found/i);
+  await assert.rejects(service.call("job.cancel", {}), /Specify/);
+  const cancelled = await service.call("job.cancel", { all: true });
+  assert.equal(cancelled.jobs.find((j) => j.id === second.jobId).status, "cancelled");
+  const done = await service.call("job.wait", { jobId: first.jobId });
+  assert.equal(done.status, "cancelled");
+  assert.match(done.stage, /cancelled/);
+  assert.equal((await service.call("job.wait", { jobId: second.jobId })).status, "cancelled");
+  assert.equal(calls, 1, "no repair, replan or queued model call after cancellation");
+  assert.equal((await service.call("job.cancel", { jobId: first.jobId })).jobs[0].status, "cancelled");
+});
+
+test("cancelling parallel generation retains the approved checkpoint and permits its publication", { timeout: 10000 }, async () => {
+  const root = await fresh(), releases = [];
+  let started, checkpointed, counter = 0;
+  const readyWorkers = new Promise((resolve) => started = resolve);
+  const firstSave = new Promise((resolve) => checkpointed = resolve);
+  const fixture = withQualityStages(async (system, prompt) => {
+    if (system.includes("editor")) return JSON.stringify({ issues: [] });
+    const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    return JSON.stringify({ title: "Parallel", cards: Array.from({ length: req.count }, () => {
+      const n = ++counter;
+      return { ...structuredClone(q), id: `q${n}`, prompt: `Distinct question ${n}?`, objective: `Objective ${n}` };
+    }) });
+  });
+  const service = new StudyService(root, { complete: async (system, prompt, execution) => {
+    if (system.startsWith("You author")) {
+      const childId = `child-${releases.length}`;
+      execution.setMessenger(async () => ({ childId, messageId: `receipt-${childId}` }));
+      await new Promise((resolve) => { releases.push(resolve); if (releases.length === 3) started(); });
+    }
+    return fixture(system, prompt.split("\n\nAdditional learner requirements")[0]);
+  } });
+  const originalCall = service.call.bind(service);
+  service.call = async (action, args) => {
+    const result = await originalCall(action, args);
+    if (action === "draft.save") checkpointed(result);
+    return result;
+  };
+  await service.call("source.add", source);
+  const job = await service.call("generate", { sourceIds: ["s"], count: 11, kind: "flashcard" });
+  let early;
+  try {
+    await readyWorkers;
+    const sent = await service.call("job.message", { jobId: job.jobId, message: "Keep each question focused" });
+    assert.equal(sent.receipts.length, 3);
+    assert.ok(sent.receipts.every((receipt) => receipt.delivered));
+    releases[0](); early = await firstSave;
+    assert.ok(early.cards.length > 0 && early.cards.length < 11);
+    const persisted = await new StudyService(root).call("export");
+    assert.equal(persisted.drafts[0].id, early.id);
+    assert.equal(persisted.drafts[0].cards.length, early.cards.length);
+    const sentAgain = await service.call("job.message", { jobId: job.jobId, message: "Use neutral hints" });
+    assert.equal(sentAgain.receipts.length, 2);
+    await assert.rejects(service.call("draft.publish", { id: early.id }), /still updating/);
+  } finally { await service.call("job.cancel", { jobId: job.jobId }); releases.forEach((release) => release()); }
+  const done = await service.call("job.wait", { jobId: job.jobId });
+  assert.equal(done.status, "cancelled");
+  assert.equal(done.draftId, early.id);
+  assert.equal(done.draft.cards, early.cards.length);
+  await service.call("draft.publish", { id: early.id, draftVersion: (await service.call("export")).drafts[0].draftVersion });
+});
+
+
+test("the total execution budget aborts a phase without starting later work", async (t) => {
+  const service = await ready();
+  let started, calls = 0;
+  const began = new Promise((resolve) => { started = resolve; });
+  service.complete = async (_system, _prompt, execution) => {
+    calls++; started();
+    return new Promise((_resolve, reject) => execution.signal.addEventListener("abort", () => reject(execution.signal.reason), { once: true }));
+  };
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const job = await service.call("generate", { sourceIds: ["s"], count: 10 });
+  await began;
+  t.mock.timers.tick(20 * 60 * 1000);
+  const done = await service.call("job.wait", { jobId: job.jobId });
+  assert.equal(done.status, "failed");
+  assert.match(done.stage, /20-minute total budget/);
+  assert.equal(calls, 1);
 });

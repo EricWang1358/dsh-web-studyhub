@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { LEVEL_LABEL } from "./shared.js";
+import GenerationTrace, { generationStage } from "./GenerationTrace.jsx";
 
 const BAR_ORDER = ["mastered", "familiar", "learning", "weak", "new"];
 const topicKey = (deckId, topic) => JSON.stringify([deckId, topic || ""]);
@@ -108,6 +109,8 @@ export default function StudyMap({
   endRun,
   manage,
   openDraft,
+  openAgent,
+  cancelJob,
   addSource,
   createManual,
   importLibrary,
@@ -506,6 +509,9 @@ export default function StudyMap({
             手工建卡
           </button>
           <button onClick={importLibrary}>导入</button>
+          {data.decks.find((d) => d.systemKind === "slain") && <button disabled={busy} onClick={() => manage(data.decks.find((d) => d.systemKind === "slain").id)}>
+            斩题组（{data.decks.find((d) => d.systemKind === "slain").count}）
+          </button>}
           <button
             disabled={busy}
             title="把整个学习库（或在目录中勾选的范围）生成横向分叉的知识结构图 / 学习路径图"
@@ -658,6 +664,7 @@ export default function StudyMap({
       )}
       {data.jobs?.length > 0 && (
         <div className="jobs">
+          {cancelJob && data.jobs.some((j) => ["running", "queued"].includes(j.status)) && <button disabled={busy} onClick={() => cancelJob()}>停止全部生成与排队，保留草稿</button>}
           {data.jobs.slice(-3).map((j) => (
             <div className={"job " + j.status} key={j.id}>
               <span>
@@ -671,10 +678,12 @@ export default function StudyMap({
                       ? "排队中"
                       : j.status === "failed"
                         ? "生成未完成"
-                        : "草稿已生成"}
-                  {j.parts > 1 ? ` · 分 ${j.parts} 段` : ""}
+                        : j.status === "cancelling" ? "正在停止" : j.status === "cancelled" ? "已取消" : "草稿已生成"}
+                  {j.parts > 1 ? ` · 分 ${j.parts} 批` : ""}
                 </strong>
-                <small>{j.stage}</small>
+                <small>{generationStage(j.stage)}</small>
+                <GenerationTrace job={j} openAgent={openAgent} />
+                {cancelJob && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>停止生成，保留草稿</button>}
               </div>
               {j.draftId && data.drafts.some((d) => d.id === j.draftId) && (
                 <button onClick={() => openDraft(data.drafts.find((d) => d.id === j.draftId))}>

@@ -1,8 +1,8 @@
 import React from "react";
 
-export default function Icon({ children }) {
+export default function Icon({ children, className }) {
   return (
-    <span className="icon" aria-hidden="true">
+    <span className={"icon" + (className ? " " + className : "")} aria-hidden="true">
       {children}
     </span>
   );

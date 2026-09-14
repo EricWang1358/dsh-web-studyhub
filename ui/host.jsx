@@ -107,6 +107,7 @@ export function apply(ctx) {
           : undefined,
         modelGroups: catalog?.value?.groups,
         sessionModel: current?.current || catalog?.value?.default,
+        openAgent: (id) => ctx.get("sessions")?.open(id),
         // Cross-workspace jump: create a new conversation in the notebook's
         // own workspace and select it; the study tab there opens that library.
         // Throws at call time when the host lacks the sessions create face.
@@ -139,6 +140,7 @@ export function apply(ctx) {
                 if (runId) handoff.set(props.sessionId, runId);
                 handoffListeners.forEach((fn) => fn(props.sessionId));
                 ctx.get("sidebarRight").openTab("study-workspace");
+                props.openView?.("chat", "");
               }
             : undefined,
         takeHandoff:
@@ -159,9 +161,9 @@ export function apply(ctx) {
       [workspace, catalog, current, props.sessionId, props.openView, placement],
     );
     return (
-      <StudyBoundary>
+      <div className="study-seat"><StudyBoundary>
         <App key={props.sessionId || "empty"} call={call} host={host} />
-      </StudyBoundary>
+      </StudyBoundary></div>
     );
   }
   ctx.slots.inject("conversation.view", () =>

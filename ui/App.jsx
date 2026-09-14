@@ -11,6 +11,7 @@ import Sources from "./Sources.jsx";
 import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
 import Generate from "./Generate.jsx";
+import PdfImport from "./PdfImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
 
@@ -96,6 +97,38 @@ export default function App({ call, host = {} }) {
       localStorage.setItem("study-theme", theme);
     } catch {}
   }, [theme]);
+  /* Sidebar collapse. The manual choice is persisted; a narrow workspace
+     forces the icon rail regardless of the stored preference. */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("study-sidebar") === "collapsed";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("study-sidebar", sidebarCollapsed ? "collapsed" : "open");
+    } catch {}
+  }, [sidebarCollapsed]);
+  const [narrowWindow, setNarrowWindow] = useState(false);
+  /* The loading screen renders .study-app without rootRef, so attach the
+     observer through a callback ref instead of a mount-time effect. */
+  const narrowObserver = useRef(null);
+  const attachRoot = (node) => {
+    rootRef.current = node;
+    narrowObserver.current?.disconnect();
+    narrowObserver.current = null;
+    if (node && typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(([entry]) => {
+        setNarrowWindow(entry.contentRect.width <= 720);
+      });
+      ro.observe(node);
+      narrowObserver.current = ro;
+    }
+  };
+  useEffect(() => () => narrowObserver.current?.disconnect(), []);
+  const sidebarNarrow = sidebarCollapsed || narrowWindow;
   const [managedDeck, setManagedDeck] = useState(null),
     [folderDraft, setFolderDraft] = useState("");
   const [data, setData] = useState(null),
@@ -114,7 +147,7 @@ export default function App({ call, host = {} }) {
     [clozeValues, setClozeValues] = useState({});
   const [selectedSources, setSelectedSources] = useState([]),
     [gen, setGen] = useState({
-      kind: "quiz",
+      kind: "mixed",
       count: 10,
       language: "中文",
       difficulty: "mixed",
@@ -252,9 +285,11 @@ export default function App({ call, host = {} }) {
       try {
         const next = await call("review.get", { runId: run.id });
         setRun((r) =>
+          r && r.id === next.id && (next.queueVersion || 0) > (r.queueVersion || 0) ? next :
           // Merge only a response from the same answer state; a poll that started
           // before the learner answered must not wipe the revealed solution.
           r && r.id === next.id && r.index === next.index &&
+          (r.queueVersion || 0) === (next.queueVersion || 0) &&
           r.revealed === next.revealed && !!r.feedback === !!next.feedback &&
           JSON.stringify([r.prerequisites, r.card, r.solution, r.revision]) !==
             JSON.stringify([next.prerequisites, next.card, next.solution, next.revision])
@@ -266,8 +301,19 @@ export default function App({ call, host = {} }) {
     return () => clearInterval(t);
   }, [page, run?.id, run?.index, call]);
   const running = data?.jobs?.some(
-    (j) => j.status === "running" || j.status === "queued",
+    (j) => ["running", "queued", "cancelling"].includes(j.status),
   );
+  const reviewQueueVersion = run?.queueVersion || 0;
+  useEffect(() => {
+    if (!reviewQueueVersion) return;
+    setSelected([]);
+    setHint(false);
+    setExplain(false);
+    setResponse("");
+    setTeaching(null);
+    setTeachAnswer("");
+    setClozeValues({});
+  }, [reviewQueueVersion]);
   useEffect(() => {
     if (!binding.root) return;
     let stopped = false,
@@ -390,11 +436,11 @@ export default function App({ call, host = {} }) {
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => {
     setShowBack(!!run?.revealed);
-  }, [run?.id, run?.card?.id]);
+  }, [run?.id, run?.card?.id, run?.index]);
   // A new card starts with empty blanks; feedback keeps them for the verdict.
   useEffect(() => {
     setClozeValues({});
-  }, [run?.id, run?.card?.id]);
+  }, [run?.id, run?.card?.id, run?.index]);
   async function flipCard() {
     if (!run?.card) return;
     if (run.revealed) {
@@ -421,13 +467,22 @@ export default function App({ call, host = {} }) {
     function key(e) {
       if (!rootRef.current?.contains(document.activeElement)) return;
       if (
-        e.target.closest("input,textarea,select,button,[contenteditable]") ||
+        e.target.closest("input,textarea,select,[contenteditable]") ||
+        e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey ||
         page !== "review" ||
         !run?.card ||
         busy ||
         modal
       )
         return;
+      if (!choice && !isCloze && run.revealed && !run.feedback && /^[0-5]$/.test(e.key)) {
+        e.preventDefault();
+        reviewAct("review.answer", { grade: Number(e.key) });
+        return;
+      }
+      // Numeric self-grading also works after clicking the flip/grade buttons.
+      // Other keys keep native button activation behavior.
+      if (e.target.closest("button")) return;
       if (e.key === "ArrowRight" && run.feedback) {
         e.preventDefault();
         reviewAct("review.move", { direction: 1 });
@@ -588,6 +643,8 @@ export default function App({ call, host = {} }) {
     }
   }
   const sourceForm = (
+    <>
+    <PdfImport busy={busy} act={act} onImported={(ids) => setSelectedSources(ids)} />
     <form
       onSubmit={(e) => {
         e.preventDefault();
@@ -644,6 +701,7 @@ export default function App({ call, host = {} }) {
         </button>
       </div>
     </form>
+    </>
   );
   const modelGroups = host.modelGroups || [],
     followedModel =
@@ -853,19 +911,29 @@ export default function App({ call, host = {} }) {
     <div
       className="study-app"
       data-theme={theme === "auto" ? undefined : theme}
-      ref={rootRef}
+      ref={attachRoot}
       tabIndex={-1}
       onPointerDown={(e) => {
         if (!e.target.closest("button,input,textarea,select,a"))
           rootRef.current?.focus();
       }}
     >
-      <aside className="sidebar">
+      <aside className={sidebarNarrow ? "sidebar is-narrow" : "sidebar"}>
         <div className="brand">
           <span className="brand-mark">✳</span>
           <div>
             Daily Flashcard<small>自己的资料，扎实地学</small>
           </div>
+          <button
+            type="button"
+            className="collapse-toggle"
+            aria-label={sidebarNarrow ? "展开侧边栏" : "收起侧边栏"}
+            aria-expanded={!sidebarNarrow}
+            title={sidebarNarrow ? "展开侧边栏" : "收起侧边栏"}
+            onClick={() => setSidebarCollapsed((v) => !v)}
+          >
+            {sidebarNarrow ? "»" : "«"}
+          </button>
         </div>
         <nav>
           <button
@@ -895,7 +963,7 @@ export default function App({ call, host = {} }) {
               }
             }}
           >
-            <Icon>↩</Icon>
+            <Icon className="icon-sm">↩</Icon>
             <span className="nav-label">
               回到题目
               {data?.lastRun && (
@@ -906,16 +974,17 @@ export default function App({ call, host = {} }) {
             </span>
           </button>
           {[
-            ["library", "▦", "学习库"],
-            ["sources", "▤", "资料"],
-            ["generate", "＋", "创建题组"],
-            ["dashboard", "◔", "统计"],
-            ["exam", "✎", "模拟考试"],
-            ["wrongbook", "✗", "错题本"],
-          ].map(([id, icon, label]) => (
+            ["library", "▦", "学习库", ""],
+            ["sources", "▤", "资料", "icon-lg"],
+            ["generate", "＋", "创建题组", "icon-lg"],
+            ["dashboard", "◔", "统计", "icon-lg"],
+            ["exam", "✎", "模拟考试", "icon-lg"],
+            ["wrongbook", "✗", "错题本", "icon-sm"],
+          ].map(([id, icon, label, iconClass]) => (
             <button
               key={id}
               className={page === id ? "nav active" : "nav"}
+              title={label}
               onClick={() => {
                 if (id === "exam") setExamRunId(null);
                 setPage(id);
@@ -923,7 +992,7 @@ export default function App({ call, host = {} }) {
               }}
               disabled={!data}
             >
-              <Icon>{icon}</Icon>
+              <Icon className={iconClass}>{icon}</Icon>
               {label}
               {id === "sources" && data && (
                 <span className="nav-count">{data.sources.length}</span>
@@ -959,6 +1028,7 @@ export default function App({ call, host = {} }) {
           </div>
           <button
             className={page === "settings" ? "nav active" : "nav"}
+            title="设置"
             onClick={() => setPage("settings")}
           >
             <Icon>⚙</Icon>设置
@@ -1076,6 +1146,8 @@ export default function App({ call, host = {} }) {
                   })
                 }
                 openDraft={openDraft}
+                openAgent={host.openAgent}
+                cancelJob={(jobId) => act("job.cancel", jobId ? { jobId } : { all: true })}
                 addSource={() => setModal({ type: "add" })}
                 createManual={() =>
                   openDraft({
@@ -1368,7 +1440,7 @@ export default function App({ call, host = {} }) {
                 )}
                 {modal.source ? (
                   <>
-                    <div className="source-view-toggle">
+                    {!modal.source.document && <div className="source-view-toggle">
                       <button
                         className={rawSource ? "chip" : "chip active"}
                         aria-pressed={!rawSource}
@@ -1383,14 +1455,14 @@ export default function App({ call, host = {} }) {
                       >
                         原文
                       </button>
-                    </div>
+                    </div>}
                     {(() => {
                       const text = modal.source.text,
                         quote = modal.quote || "",
                         at = quote ? text.indexOf(quote) : -1;
                       if (at < 0)
-                        return rawSource ? (
-                          <pre className="source-text">{text}</pre>
+                        return rawSource || modal.source.document ? (
+                          <pre className={modal.source.document ? "source-text pdf-extracted-text" : "source-text"}>{text}</pre>
                         ) : (
                           <Markdown
                             className="source-text source-md"
@@ -1404,9 +1476,9 @@ export default function App({ call, host = {} }) {
                           {quote}
                         </mark>
                       );
-                      if (rawSource)
+                      if (rawSource || modal.source.document)
                         return (
-                          <pre className="source-text">
+                          <pre className={modal.source.document ? "source-text pdf-extracted-text" : "source-text"}>
                             {text.slice(0, at)}
                             {hit}
                             {text.slice(at + quote.length)}

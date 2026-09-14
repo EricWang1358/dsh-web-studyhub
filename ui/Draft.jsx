@@ -26,6 +26,9 @@ export default function Draft({
   patchCard,
   parseDraft,
 }) {
+  const rawAudits = draft.editorial?.audits ?? [draft.editorial?.audit];
+  const audits = (Array.isArray(rawAudits) ? rawAudits : []).filter((audit) =>
+    audit && Array.isArray(audit.targets) && Array.isArray(audit.changes) && Array.isArray(audit.checks));
   return (
     <section className="page">
       <div className="page-heading">
@@ -62,6 +65,24 @@ export default function Draft({
           </p>
         </div>
       )}
+      {draft.editorial?.requested && <p>
+        本次生成通过检查 {draft.editorial.generated ?? draft.cards.length} / {draft.editorial.requested} 题；当前草稿 {draft.cards.length} 题。
+      </p>}
+      {audits.map((audit, i) => <details key={i}>
+        <summary>质量自查记录 · 第 {audit.part || i + 1} 批 · 主动改写 {audit.changes.length} 项</summary>
+        <p className="muted">已规划 {audit.targets.length} 个考点；独立验收逐题检查自足性、泄题风险、选项质量、学习价值和证据支持。这是生成时的检查记录。</p>
+        <ul>{audit.changes.filter((change) => typeof change?.summary === "string").map((change, index) => <li key={index}>{change.summary}</li>)}</ul>
+        <ul>{audit.checks.filter((check) => typeof check?.explanation === "string").map((check, index) => <li key={index}>{check.explanation}</li>)}</ul>
+      </details>)}
+      {draft.editorial?.failures?.length > 0 && <details className="warning" open>
+        <summary>部分题目未生成成功，合格题目已保留</summary>
+        <ul>{draft.editorial.failures.map((failure, i) => <li key={i}>{failure}</li>)}</ul>
+      </details>}
+      {draft.editorial?.coverage && <details>
+        <summary>生成时引用了 {draft.editorial.coverage.cited} / {draft.editorial.coverage.selected} 份所选资料</summary>
+        <p className="muted">引用范围不等于知识点完整覆盖；未引用页面可能是目录、图表或本次尚未考察的内容。</p>
+        <ul>{draft.editorial.coverage.uncited.map((s) => <li key={s.id}>{s.title}</li>)}</ul>
+      </details>}
       {draft.quality?.warnings?.map((w, i) => (
         <p className="warning" key={i}>
           {w}

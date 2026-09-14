@@ -60,6 +60,7 @@ export default function Review({
           <h1>
             {shellTitle}
             {run.mode === "flashcard" ? " · 闪卡" : ""}
+            {run.retry && !run.complete ? " · 本轮重练" : ""}
           </h1>
           <button
             className="pill"
@@ -374,7 +375,8 @@ export default function Review({
                 )}
                 {run.revealed && !run.feedback && (
                   <div className="grading">
-                    <p>对照答案，你掌握到了哪一步？</p>
+                    <p>{run.retry ? "本轮重练 · " : ""}对照答案，你掌握到了哪一步？</p>
+                    <p className="muted">按数字键 0–5 评分</p>
                     <div>
                       {[
                         "完全忘记",
@@ -389,6 +391,8 @@ export default function Review({
                             grade < 3 ? "grade low" : "grade high"
                           }
                           key={grade}
+                          aria-keyshortcuts={String(grade)}
+                          title={`快捷键 ${grade}：${label}`}
                           disabled={busy}
                           onClick={() =>
                             reviewAct("review.answer", { grade })
@@ -436,6 +440,8 @@ export default function Review({
                 >
                   提升质量
                 </button>
+                <button className="pill" disabled={busy} title="过于基础或质量不佳：移入斩题组，不再复习，可恢复"
+                  onClick={() => reviewAct("card.slay", { deckId: run.deckId })}>斩</button>
               </div>
               {run.mode === "exam" && (
                 <p className="muted small next-due">
@@ -473,6 +479,7 @@ export default function Review({
               <p className="next-due">
                 {run.feedback.correct ? "✓ 已掌握" : "↻ 将继续巩固"} ·
                 下次复习 {date(run.feedback.nextDue)}
+                {run.feedback.retryQueued && <span> · 已追加到本轮队尾，稍后再练一次</span>}
               </p>
             )}
             {explain && run.solution && (
