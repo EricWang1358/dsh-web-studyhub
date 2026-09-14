@@ -15,6 +15,7 @@ import PdfImport from "./PdfImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
 import { mergeReviewPoll } from "./async.js";
+import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
@@ -271,17 +272,35 @@ export default function App({ call, host = {} }) {
     setRecovery(null);
     setDraft(null);
   }
+  const [connecting, setConnecting] = useState("");
   useEffect(() => {
     let live = true;
     (async () => {
-      try {
-        const b = await call("binding.get");
-        if (live) setBinding(b);
-        if (b.root) await refresh();
-      } catch (e) {
-        if (live) setError(e.message);
-      } finally {
-        if (live) setLoading(false);
+      // Right after a host restart the plugin route may not exist yet; keep
+      // retrying for a while instead of stranding the panel on an error.
+      for (let attempt = 0; live; attempt++) {
+        try {
+          // Both requests resolve the library on the server; firing them together
+          // saves a full round trip on first open.
+          const [b, snapshot] = await Promise.allSettled([call("binding.get"), refresh()]);
+          if (b.status === "rejected") throw b.reason;
+          if (live) setBinding(b.value);
+          if (b.value.root && snapshot.status === "rejected") throw snapshot.reason;
+          break;
+        } catch (e) {
+          if (!live) return;
+          if (isTransientStudyError(e) && attempt < 20) {
+            setConnecting(`正在连接学习插件…（第 ${attempt + 1} 次重试）`);
+            await new Promise((r) => setTimeout(r, Math.min(1000 * (attempt + 1), 5000)));
+            continue;
+          }
+          setError(e.message);
+          break;
+        }
+      }
+      if (live) {
+        setConnecting("");
+        setLoading(false);
       }
     })();
     return () => {
@@ -382,7 +401,7 @@ export default function App({ call, host = {} }) {
     );
     return () => clearTimeout(t);
   }, [modal, rawSource]);
-  async function act(action, args = {}, after) {
+  async function act(action, args = {}, after, { refreshAfter = true } = {}) {
     if (acting.current) return;
     acting.current = true;
     setBusy(true);
@@ -390,7 +409,10 @@ export default function App({ call, host = {} }) {
     try {
       const result = await call(action, args);
       if (after) await after(result);
-      await refresh();
+      // Practice steps return the run they changed; the library snapshot
+      // (about 1MB with sources) catches up on the next poll instead of
+      // blocking every answer and every 下一题.
+      if (refreshAfter) await refresh();
       return result;
     } catch (e) {
       setError(e.message || String(e));
@@ -433,7 +455,8 @@ export default function App({ call, host = {} }) {
     [call],
   );
   const reviewAct = (action, args = {}) =>
-    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, enterRun);
+    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, enterRun,
+      { refreshAfter: !["review.answer", "review.move", "review.reveal"].includes(action) });
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
   function resumeOrStart() {
@@ -668,14 +691,14 @@ export default function App({ call, host = {} }) {
     askInChat(
       "我在做这道题时卡住了，想先把前置知识问清楚（先别直接告诉我答案）：\n" +
         cardBrief() +
-        "\n\n请先用 study_workspace 的 card.get 读这道题和它引用的资料。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：",
+        "\n\n请先用 study_workspace 的 card.get 读这道题。需要资料依据时，用 source.search 一次查所有关键词，只读命中片段附近的原文，不要逐份翻资料；题库里已有的相关题用 card.search 找。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：",
     );
   }
   function improveCard() {
     askInChat(
       "这道题的质量需要提升：\n" +
         cardBrief() +
-        "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析、引用资料），按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：",
+        "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析），核对原文时用 source.search 查关键词、只读命中片段，按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：",
     );
   }
   // Slaying is one click next to other tools; offer an immediate undo instead
@@ -1072,7 +1095,7 @@ export default function App({ call, host = {} }) {
   if (loading)
     return (
       <div className="study-app">
-        <div className="loading">正在打开学习工作区…</div>
+        <div className="loading">{connecting || "正在打开学习工作区…"}</div>
       </div>
     );
   return (

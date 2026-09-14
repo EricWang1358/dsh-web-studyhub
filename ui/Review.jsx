@@ -211,6 +211,12 @@ export default function Review({
                 {run.index + 1} / {run.total}
               </span>
               <div>
+                {run.origin && (
+                  <span className="origin-tag" title={run.origin.prompt ? `源自：${run.origin.prompt}` : ""}>
+                    {run.origin.reason === "too-hard" ? "前置台阶" : "变式"}
+                    {run.origin.prompt ? ` · 源自「${run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt}」` : ""}
+                  </span>
+                )}
                 <span>{run.card.topic}</span>
                 <button
                   aria-label="标记题目"

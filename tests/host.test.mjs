@@ -142,7 +142,8 @@ test("light coach route picks thinking off, else low, and caps output only when 
   const { pickLightEffort, modelCompletion } = plugin;
   assert.deepEqual(pickLightEffort([{ id: "high", name: "High" }, { id: "low", name: "Low" }, { id: "none", name: "Off" }]), { id: "none", off: true });
   assert.deepEqual(pickLightEffort([{ id: "max", name: "Max" }, { id: "low", name: "Low" }]), { id: "low", off: false });
-  assert.equal(pickLightEffort([{ id: "high", name: "High" }]), null);
+  assert.deepEqual(pickLightEffort([{ id: "high", name: "High" }, { id: "max", name: "Max" }]), { id: "high", off: false });
+  assert.equal(pickLightEffort([]), null);
   const configs = [];
   const ctx = {
     llm: {
@@ -157,4 +158,27 @@ test("light coach route picks thinking off, else low, and caps output only when 
   await light("sys", "prompt", { maxTokens: 300 }).catch(() => {});
   assert.equal(String(configs[0].reasoningEffort), "off");
   assert.equal(configs[0].maxTokens, 300);
+});
+
+test("stored sessions resolve their workspace from the header once, never by replaying the log", async () => {
+  const { workspaceFor } = await import("../lib/host.js");
+  let stats = 0, observes = 0;
+  const ctx = {
+    sessions: { get: () => undefined },
+    get: (name) =>
+      name === "sessionPersistence"
+        ? { stat: async (id) => (stats++, id === "cold" ? { header: { cwd: "/work/cold" } } : undefined) }
+        : name === "sessionQuery"
+          ? { observeSession: async (id) => (observes++, id === "legacy" ? { header: { cwd: "/work/legacy" } } : undefined) }
+          : undefined,
+  };
+  const results = await Promise.all([workspaceFor(ctx, "cold"), workspaceFor(ctx, "cold"), workspaceFor(ctx, "cold")]);
+  assert.deepEqual(results, ["/work/cold", "/work/cold", "/work/cold"]);
+  assert.equal(await workspaceFor(ctx, "cold"), "/work/cold");
+  assert.equal(stats, 1, "concurrent and later requests share one header lookup");
+  assert.equal(observes, 0, "a header-only stat avoids the full-log observation");
+  assert.equal(await workspaceFor(ctx, "legacy"), "/work/legacy", "hosts without stat still fall back");
+  await assert.rejects(workspaceFor(ctx, "missing"), /unavailable/);
+  await assert.rejects(workspaceFor(ctx, "missing"), /unavailable/);
+  assert.equal(observes, 3, "an unknown session is not cached as a failure");
 });

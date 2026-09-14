@@ -130,6 +130,8 @@ test("thumbs-down tags rewrite the card in the background without wiping the ans
   assert.equal(tasks(log, "反馈标签"), 1);
   const view = await service.call("review.get", { runId: run.id });
   assert.ok(view.feedback, "the answered question keeps its feedback after the rewrite");
+  assert.ok(view.solution.options.some((o) => /已按反馈/.test(o.explanation)),
+    "same answer key: the improved explanations show in place on the answered question");
   assert.equal(view.vote.vote, "down");
   const update = view.coach.find((n) => n.type === "update");
   assert.ok(update?.revertable);
@@ -199,6 +201,10 @@ test("snapshot polling returns unchanged when nothing visible moved", async (t) 
   const first = await service.call("snapshot");
   assert.ok(first.fingerprint);
   assert.deepEqual(await service.call("snapshot", { since: first.fingerprint }), { unchanged: true, fingerprint: first.fingerprint });
+  const read = service.store.read;
+  service.store.read = () => assert.fail("an unchanged poll must not read the library");
+  assert.equal((await service.call("snapshot", { since: first.fingerprint })).unchanged, true);
+  service.store.read = read;
   await service.call("coach.goal", { goal: "exam" });
   const next = await service.call("snapshot", { since: first.fingerprint });
   assert.equal(next.unchanged, undefined);
@@ -217,4 +223,133 @@ test("the learner can inspect and clear what the coach remembers", async (t) => 
   const state = await service.call("export");
   assert.equal(state.learner.summary, "");
   assert.ok(state.decks[0].cards.length, "practice data is untouched");
+});
+
+test("a rewrite that changes the answer key keeps the answered snapshot until the next attempt", async (t) => {
+  const { root } = await setup(t, { coach: false });
+  const flip = async (system, prompt) => JSON.parse(prompt).task.includes("反馈标签")
+    ? JSON.stringify({ patch: { options: [{ id: "a", correct: false }, { id: "b", correct: true }], answer: "Memento" }, summary: "更正答案" })
+    : "{}";
+  const service = new StudyService(root, { complete: flip, completeLight: flip, coach: true });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options[0].id] });
+  await service.call("coach.feedback", { deckId: "d", cardId: run.card.id, vote: "down", tags: ["wrong-answer"] });
+  await service.call("coach.prepare");
+  const live = (await service.call("export")).decks[0].cards.find((c) => c.id === run.card.id);
+  assert.equal(live.options.find((o) => o.correct).id, "b", "the library card has the corrected key");
+  const view = await service.call("review.get", { runId: run.id });
+  assert.equal(view.solution.options.find((o) => o.correct).id, "a", "the answered entry still grades against what was answered");
+  assert.ok(view.feedback);
+});
+
+test("a 太难 scaffold becomes a prerequisite of its original and variants show where they came from", async (t) => {
+  const { service } = await setup(t);
+  await service.call("coach.consent", { prep: true });
+  const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  const origin = run.card.id;
+  await service.call("coach.feedback", { deckId: "d", cardId: origin, vote: "down", tags: ["too-hard"] });
+  await service.call("coach.prepare");
+  const practice = await service.call("coach.practice");
+  assert.equal(practice.origin.reason, "too-hard");
+  assert.equal(practice.origin.cardId, origin);
+  const state = await service.call("export");
+  const scaffold = state.decks.find((d) => d.systemKind === "coach").cards[0];
+  assert.equal(scaffold.kind, "flashcard");
+  assert.deepEqual(state.decks[0].cards.find((c) => c.id === origin).requires, [{ deckId: practice.deckId, cardId: scaffold.id }]);
+});
+
+test("an answered entry frozen by an older coach fix heals to the new wording when the key is unchanged", async (t) => {
+  const { service } = await setup(t, { coach: false });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options[0].id] });
+  // Simulate the old behaviour: library card reworded, open entry pinned to its snapshot.
+  const { Store } = await import("../lib/store.js");
+  await new Store(service.store.root).update((s) => {
+    const card = s.decks[0].cards.find((c) => c.id === run.card.id);
+    card.prompt = `${card.prompt}（按反馈补足了条件）`;
+    s.runs.find((r) => r.id === run.id).entries[run.index].keepSnapshot = true;
+  });
+  const view = await service.call("review.get", { runId: run.id });
+  assert.match(view.card.prompt, /补足了条件/);
+  assert.ok(view.feedback, "the learner's result stays");
+  assert.equal(view.contentUpdated, false);
+});
+
+test("source.search finds terms across every source in one call and returns only snippets", async (t) => {
+  const { service } = await setup(t, { coach: false });
+  const filler = "Architecture views describe a system from the viewpoint of its stakeholders. ".repeat(40);
+  await service.call("source.add", { id: "scrum", title: "Agile notes", text: `${filler}The Scrum Master facilitates the team, while the Product Owner owns the backlog. ${filler}` });
+  await service.call("source.add", { id: "ops", title: "Ops", text: `${filler}The system owner funds and accepts the system.` });
+  const found = await service.call("source.search", { query: "Scrum Master | Product Owner | system owner" });
+  assert.deepEqual(found.terms, ["scrum master", "product owner", "system owner"]);
+  assert.equal(found.searchedSources, 3);
+  assert.deepEqual(found.results.map((r) => r.sourceId), ["scrum", "ops"], "sources matching more terms rank first");
+  const snippet = found.results[0].snippets[0];
+  assert.ok(snippet.text.length < 400, "a snippet, not the document");
+  assert.ok(snippet.text.includes("Scrum Master"));
+  const page = await service.call("source.get", { id: "scrum", offset: snippet.offset, limit: 300 });
+  assert.ok(page.text.startsWith(snippet.text.slice(0, 50)), "offsets point back into source.get");
+  assert.equal((await service.call("source.search", { query: "Kubernetes" })).matchedSources, 0);
+  assert.deepEqual((await service.call("source.search", { query: "agile  scrum" })).terms, ["agile", "scrum"]);
+  await assert.rejects(service.call("source.search", { query: " " }), /at least one term/);
+  const list = await service.call("source.list", { query: "ops" });
+  assert.deepEqual(list.sources.map((x) => x.id), ["ops"]);
+  assert.equal(list.sources[0].text, undefined);
+  const cards = await service.call("card.search", { query: "Caretaker 区别" });
+  assert.ok(cards.results.length >= 1);
+  assert.ok(cards.results.every((c) => c.cardId && c.deckId && c.prompt.length <= 160));
+});
+
+test("a stem rewrite on a cloze card changes the text the learner sees, without a false 'answer again' warning", async (t) => {
+  const { root } = await setup(t, { coach: false });
+  const quote = "The Caretaker manages snapshot history without inspecting snapshot contents.";
+  const rewrite = async (system, prompt) => {
+    const data = JSON.parse(prompt);
+    if (!data.task.includes("反馈标签")) return "{}";
+    assert.equal(data.card.cloze.text, "谁管理快照历史？{{who}}", "the model sees the displayed cloze text");
+    return JSON.stringify({ patch: { prompt: "在 Memento 模式里，不读取快照内容却负责管理历史的角色是{{who}}。" }, summary: "补足条件" });
+  };
+  const service = new StudyService(root, { complete: rewrite, completeLight: rewrite, coach: true });
+  await service.call("draft.save", { deck: { id: "c", title: "Cloze", cards: [{
+    id: "z1", kind: "cloze", topic: "Memento", objective: "cloze objective", prompt: "谁管理快照历史？{{who}}", answer: "Caretaker",
+    hint: "不是快照本身", explanation: "Caretaker 管理历史。", misconception: "以为是 Memento。", citations: [{ sourceId: "src", quote }],
+    cloze: { text: "谁管理快照历史？{{who}}", answers: [{ id: "who", value: "Caretaker" }] },
+  }] } });
+  await service.call("draft.publish", { id: "c" });
+  const run = await service.call("review.start", { deckId: "c", mode: "quiz" });
+  await service.call("coach.feedback", { deckId: "c", cardId: "z1", vote: "down", tags: ["stem-vague"] });
+  await service.call("coach.prepare");
+  const view = await service.call("review.get", { runId: run.id });
+  assert.match(view.card.cloze.text, /不读取快照内容/, "the shown cloze text follows the reworded stem");
+  assert.equal(view.card.cloze.blanks.length, 1);
+  assert.equal(view.contentUpdated, false, "an unanswered question is not told to answer again");
+  // Agents can also patch the displayed text directly.
+  await service.call("card.update", { deckId: "c", cardId: "z1", patch: { cloze: { text: "管理历史而不读取快照的是{{who}}。" } }, reason: "wording" });
+  assert.equal((await service.call("export")).decks.find((d) => d.id === "c").cards[0].cloze.answers[0].value, "Caretaker", "answers stay when only the text is patched");
+});
+
+test("a nudge is written about the learner's actual wrong answer, for cloze and choice cards alike", async (t) => {
+  const { service, log } = await setup(t);
+  const quote = "The Caretaker manages snapshot history without inspecting snapshot contents.";
+  await service.call("draft.save", { deck: { id: "z", title: "Cloze", cards: [{
+    id: "z1", kind: "cloze", topic: "Styles", objective: "cloze objective", prompt: "请求方和服务方组成的结构风格称为{{style}}。", answer: "Client–Server",
+    hint: "两个角色", explanation: "Client–Server 是结构风格。", misconception: "与 Peer-to-Peer 混淆。", citations: [{ sourceId: "src", quote }],
+    cloze: { text: "请求方和服务方组成的结构风格称为{{style}}。", answers: [{ id: "style", value: "Client–Server" }] },
+  }] } });
+  await service.call("draft.publish", { id: "z" });
+  let run = await service.call("review.start", { deckId: "z", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: "z1", answers: { style: "Point-to-Point" } });
+  const { thread } = await service.call("coach.nudge", { runId: run.id });
+  const sent = JSON.parse(log.find((x) => x.prompt.includes("刚答错")).prompt);
+  assert.equal(sent.learnerAnswer, "Point-to-Point", "the model sees what was typed, not an empty selection");
+  assert.equal(sent.correctAnswer, "Client–Server");
+  assert.equal(thread[0].yourAnswer, "Point-to-Point");
+  assert.equal(thread[0].expected, "Client–Server");
+
+  let quiz = await service.call("review.start", { deckId: "d", mode: "quiz", fresh: true });
+  const wrong = quiz.card.options.find((o) => o.text !== "Caretaker");
+  quiz = await service.call("review.answer", { runId: quiz.id, cardId: quiz.card.id, selected: [wrong.id] });
+  const choice = (await service.call("coach.nudge", { runId: quiz.id })).thread.at(-1);
+  assert.equal(choice.yourAnswer, wrong.text);
+  assert.equal(choice.expected, "Caretaker");
 });

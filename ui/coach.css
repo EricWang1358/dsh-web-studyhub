@@ -303,3 +303,16 @@
 /* ── Settings ────────────────────────────────────────────────────────── */
 .inline-check { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 .inline-check input { width: auto; margin: 0; }
+.origin-tag {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.coach-answer { display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-dim); }
+.coach-answer b { color: var(--text); font-weight: 600; }

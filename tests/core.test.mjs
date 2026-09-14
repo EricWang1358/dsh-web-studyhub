@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { schedule, validateDeck, initialReview } from "../lib/domain.js";
 import { StudyService } from "../lib/service.js";
+import { Store } from "../lib/store.js";
 
 export const source = {
   id: "s1",
@@ -110,9 +111,7 @@ test("persistent review: no answer leak, exact grading, idempotent submissions a
     ),
   );
   assert.equal(responses[0].feedback.correct, false);
-  const state = JSON.parse(
-    await readFile(join(root, "study-workspace.json"), "utf8"),
-  );
+  const state = await new Store(root).read();
   assert.equal(state.attempts.length, 1);
   assert.equal(state.decks[0].cards[0].review.repetitions, 0);
   await assert.rejects(

@@ -53,7 +53,8 @@ test("Windows persistent sharing lock preserves committed bytes and releases the
     });
     assert.equal(mutations, 1);
     assert.equal(await readFile(store.path, "utf8"), before);
-    assert.deepEqual(await readdir(root), ["study-workspace.json"]);
+    assert.deepEqual((await readdir(root)).filter((name) => name !== "shards"), ["study-workspace.json"],
+      "only unreferenced shards may be left behind, never a temp manifest");
   } finally { await unlock(); }
   await store.update((s) => { s.settings.first_interval_days = 4; });
   assert.equal((await store.read()).settings.first_interval_days, 4);
@@ -75,7 +76,7 @@ test("normalizeState restores fields missing from older libraries", () => {
 });
 
 test("normalizeState accepts a missing version field and refuses newer ones", () => {
-  assert.equal(normalizeState({}).version, 1);
+  assert.equal(normalizeState({}).version, LATEST_VERSION, "a version 1 library migrates in memory");
   assert.throws(() => normalizeState({ version: LATEST_VERSION + 1 }), /newer/);
 });
 
@@ -117,4 +118,123 @@ test("malformed existing state is rejected without overwriting its bytes", async
       assert.equal(await readFile(store.path, "utf8"), raw);
     }
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+const shardFiles = async (root) => {
+  const out = [];
+  for (const dir of await readdir(join(root, "shards")).catch(() => []))
+    for (const name of await readdir(join(root, "shards", dir))) out.push(`${dir}/${name}`);
+  return out.sort();
+};
+const deckOf = (id, cards = 1) => ({ id, title: id, cards: Array.from({ length: cards }, (_, i) => ({ id: `${id}-${i}`, prompt: "p" })) });
+
+test("commits write only changed shards behind an atomic manifest and collect the old ones", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-shards-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = new Store(root);
+  await store.update((s) => {
+    s.decks.push(deckOf("a"), deckOf("b"));
+    s.sources.push({ id: "src", title: "S", text: "x".repeat(1000) });
+    s.attempts.push(...Array.from({ length: 2500 }, (_, i) => ({ id: `t${i}`, grade: 3 })));
+  });
+  const manifest = JSON.parse(await readFile(store.path, "utf8"));
+  assert.equal(manifest.format, "study-sharded");
+  assert.equal(manifest.version, LATEST_VERSION, "older builds refuse the manifest instead of reading an empty library");
+  assert.equal(manifest.shards.decks.length, 2);
+  assert.equal(manifest.shards.attempts.length, 3, "attempts are chunked");
+  assert.equal(manifest.decks, undefined, "collections live in shards, not the manifest");
+  const before = await shardFiles(root);
+
+  await store.update((s) => { s.decks[1].title = "renamed"; s.attempts.push({ id: "last", grade: 1 }); });
+  const after = await shardFiles(root);
+  const changed = after.filter((f) => !before.includes(f));
+  assert.equal(changed.length, 2, "only deck b and the last attempts chunk are rewritten");
+  assert.ok(changed.some((f) => f.startsWith("decks/b.")) && changed.some((f) => f.startsWith("attempts/2.")));
+  assert.equal(before.filter((f) => !after.includes(f)).length, 2, "their previous versions are collected");
+
+  const fresh = await new Store(root).read();
+  assert.equal(fresh.decks[1].title, "renamed");
+  assert.equal(fresh.attempts.length, 2501);
+  assert.equal(fresh.attempts.at(-1).id, "last", "chunk order is preserved");
+
+  await store.update((s) => { s.decks.splice(0, 1); });
+  assert.ok(!(await shardFiles(root)).some((f) => f.startsWith("decks/a.")), "a removed deck's shard is deleted");
+});
+
+test("a failed mutation writes nothing and leaves the cached library intact", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-shards-fail-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = new Store(root);
+  await store.update((s) => { s.decks.push(deckOf("a")); s.ingest = { active: true, added: 1 }; });
+  const manifest = await readFile(store.path, "utf8");
+  const files = await shardFiles(root);
+  await assert.rejects(store.update((s) => { s.decks[0].title = "half"; s.ingest.added = 99; throw new Error("boom"); }), /boom/);
+  assert.equal(await readFile(store.path, "utf8"), manifest);
+  assert.deepEqual(await shardFiles(root), files);
+  const s = await store.read();
+  assert.equal(s.decks[0].title, "a");
+  assert.equal(s.ingest.added, 1, "nested manifest fields are not shared with working copies");
+});
+
+test("a version 1 monolithic library opens, and its first commit keeps a backup and shards it", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-shards-migrate-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const legacy = { version: 1, revision: 7, settings: {}, decks: [deckOf("old", 3)], sources: [], drafts: [], attempts: [{ id: "a1", grade: 4 }], runs: [], teaching: [] };
+  const raw = JSON.stringify(legacy, null, 2);
+  await writeFile(join(root, "study-workspace.json"), raw);
+  const store = new Store(root);
+  const read = await store.read();
+  assert.equal(read.decks[0].cards.length, 3);
+  assert.equal(read.version, LATEST_VERSION);
+  await store.update((s) => { s.settings.first_interval_days = 2; });
+  const backups = await readdir(join(root, "backups"));
+  assert.equal(backups.length, 1);
+  assert.equal(await readFile(join(root, "backups", backups[0]), "utf8"), raw, "the original bytes are kept");
+  const manifest = JSON.parse(await readFile(store.path, "utf8"));
+  assert.equal(manifest.format, "study-sharded");
+  assert.equal(manifest.revision, 8);
+  const reopened = await new Store(root).read();
+  assert.deepEqual(reopened.decks, legacy.decks);
+  assert.deepEqual(reopened.attempts, legacy.attempts);
+  await store.update((s) => { s.settings.first_interval_days = 3; });
+  assert.equal((await readdir(join(root, "backups"))).length, 1, "only the first sharded commit backs up");
+});
+
+test("reads are cached per manifest stat and pick up another writer's commit", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-shards-cache-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = new Store(root);
+  await store.update((s) => { s.decks.push(deckOf("a")); });
+  assert.equal(await store.read(), await new Store(root).read(), "unchanged manifest: the same parsed library");
+  // Another process commits: new shard, new manifest.
+  const manifest = JSON.parse(await readFile(store.path, "utf8"));
+  await writeFile(join(root, "shards", "decks", "external.ext.json"), JSON.stringify(deckOf("external")));
+  manifest.shards.decks.push("decks/external.ext.json");
+  manifest.revision++;
+  await writeFile(store.path, JSON.stringify(manifest));
+  const s = await store.read();
+  assert.deepEqual(s.decks.map((d) => d.id), ["a", "external"]);
+});
+
+test("service flows never mutate the shared cached library", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-shards-frozen-"));
+  t.after(() => { delete process.env.STUDY_STORE_FREEZE; return rm(root, { recursive: true, force: true }); });
+  process.env.STUDY_STORE_FREEZE = "1";
+  const service = new StudyService(root, { complete });
+  const quote = "Bridge separates an abstraction from its implementation.";
+  await service.call("source.add", { id: "s", title: "Bridge", text: quote });
+  const card = (id, kind) => ({ id, kind, topic: "Bridge", objective: `o-${id}`, prompt: `Why ${id}?`, answer: "Separation", hint: "Two dimensions",
+    explanation: "They vary independently.", misconception: "Subclass everything.", citations: [{ sourceId: "s", quote }],
+    ...(kind === "quiz" ? { options: [{ id: "a", text: "Separate", correct: true, explanation: "yes" }, { id: "b", text: "Merge", correct: false, explanation: "no" }, { id: "c", text: "Copy", correct: false, explanation: "no" }] } : {}) });
+  await service.call("draft.save", { deck: { id: "d", title: "Patterns", cards: [card("q1", "quiz"), card("q2", "quiz")] } });
+  await service.call("draft.publish", { id: "d" });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: ["b"] });
+  run = await service.call("review.move", { runId: run.id, direction: 1 });
+  await service.call("review.get", { runId: run.id });
+  for (const action of ["snapshot", "map", "stats", "wrongbook", "coach.status", "coach.profile"]) await service.call(action);
+  await service.call("graph", { mode: "path" });
+  const edit = await service.call("deck.edit", { id: "d" });
+  edit.title = "Renamed";
+  assert.equal((await service.call("export")).drafts[0].title, "Patterns", "a caller's copy is its own");
 });
