@@ -258,7 +258,7 @@ export default function StudyMap({
           <button
             className="map-play"
             disabled={busy || d.archived || !d.available}
-            title={run ? `继续 ${run.index + 1}/${run.total}` : "按学习路径开始"}
+            title={run ? `继续 ${run.index + 1}/${run.total}` : `学习全部 ${d.available} 题`}
             aria-label={`开始学习 ${d.title}`}
             onClick={() =>
               run ? resume(run.id) : start({ mode: "path", scope: [{ deckId: d.id }] })
@@ -278,6 +278,7 @@ export default function StudyMap({
             {menu === d.id && (
               <div className="map-menu" role="menu">
                 {[
+                  ["从新题开始", () => start({ deckId: d.id, mode: "new", fresh: true }), !p?.counts?.new],
                   ["闪卡翻看", () => start({ deckId: d.id, mode: "flashcard" }), !d.available],
                   ["测验", () => start({ deckId: d.id, mode: "quiz" }), !d.quizCount],
                   [`错题重练 ${d.wrong || 0}`, () => start({ deckId: d.id, mode: "wrong" }), !d.wrong],
@@ -514,8 +515,8 @@ export default function StudyMap({
           </button>}
           <button
             disabled={busy}
-            title="把整个学习库（或在目录中勾选的范围）生成横向分叉的知识结构图 / 学习路径图"
-            onClick={() => onShowGraph?.([])}
+            title="用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）"
+            onClick={() => onShowGraph?.([], { canvas: true })}
           >
             查看图谱
           </button>
@@ -622,8 +623,8 @@ export default function StudyMap({
           <button onClick={() => setSelected(new Set())}>清除</button>
           <button
             disabled={busy}
-            title="把所选范围生成横向分叉的知识结构图或学习路径图"
-            onClick={() => onShowGraph?.(scopeOf(selected))}
+            title="用整块画布打开所选范围的知识结构图或学习路径图（可缩放、拖拽）"
+            onClick={() => onShowGraph?.(scopeOf(selected), { canvas: true })}
           >
             查看图谱
           </button>

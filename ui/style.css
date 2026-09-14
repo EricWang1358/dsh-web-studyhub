@@ -1161,7 +1161,7 @@
     align-items: flex-start;
     text-align: left;
     border: 2px solid transparent;
-    background: #191d21;
+    background: var(--bg-sunken);
     border-radius: 13px;
     padding: 18px;
     font-size: 16px;
@@ -1173,18 +1173,18 @@
     white-space: pre-wrap;
   }
   .option-letter {
-    color: #bec6d4;
+    color: var(--text-dim);
   }
   .option:disabled {
     opacity: 1;
   }
   .option:hover:not(:disabled) {
-    background: #2a2e36;
-    border-color: #57577f;
+    background: var(--bg-raised);
+    border-color: var(--line-strong);
   }
   .option.selected {
-    border-color: #8d8bff;
-    background: #2d2c40;
+    border-color: var(--accent-soft);
+    background: var(--bg-selected);
   }
   .option.correct {
     border-color: #11af47;
@@ -1193,23 +1193,36 @@
     border-color: #fa3530;
   }
   .option.dim {
-    color: #929395;
+    color: var(--text-muted);
   }
   .option.dim .option-letter {
-    color: #929395;
+    color: var(--text-muted);
   }
   .answer-state {
     display: block;
     font-size: 14px;
-    color: #61dd88;
+    color: var(--ok);
     margin: 9px 0 5px;
   }
   .option.incorrect .answer-state {
-    color: #ffa4a1;
+    color: var(--bad);
   }
   .answer-state:empty {
     display: none;
   }
+  .choice-feedback {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin: 16px 0;
+    padding: 12px 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  .choice-feedback > span { white-space: nowrap; }
+  .choice-feedback .choice-mismatch { color: var(--bad); }
   .option p {
     font-size: 14px;
     line-height: 1.7;
@@ -1217,6 +1230,7 @@
   }
   .question-toolbar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     margin: 24px 0;
@@ -1224,8 +1238,11 @@
   }
   .question-toolbar > div {
     display: flex;
+    flex-wrap: wrap;
     gap: 9px;
   }
+  .question-toolbar .pill { white-space: nowrap; flex-shrink: 0; }
+  .question-navigation { margin-left: auto; }
   .hint {
     background: #191d21;
     padding: 19px;
@@ -1889,6 +1906,16 @@
   .alert button {
     border: 0;
     padding: 0 5px;
+  }
+  .alert span {
+    flex: 1;
+  }
+  .alert .alert-action {
+    padding: 0 10px;
+    color: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .error {
     background: #492d2e;
@@ -2996,11 +3023,61 @@
     box-shadow: 0 0 0 2px var(--accent-glow);
   }
 
-  /* Cloze per-blank verdicts under the submitted card. */
-  .cloze-verdicts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 10px;
+  .review-body {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: start;
   }
+  .review-body > .question-area { grid-column: 2; grid-row: 1; min-width: 0; }
+  .review-navigator {
+    grid-column: 1;
+    grid-row: 1;
+    position: sticky;
+    top: 24px;
+    margin-top: 32px;
+    max-height: min(680px, calc(100dvh - 200px));
+    min-height: 80px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    padding: 8px 0;
+  }
+  .review-navigator::-webkit-scrollbar { display: none; }
+  .review-tick {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 16px;
+    min-height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    box-shadow: none;
+  }
+  .review-tick-line {
+    width: 9px;
+    height: 2px;
+    border-radius: 2px;
+    transition: width 180ms ease, background-color 250ms ease;
+  }
+  .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
+  .review-tick:hover .review-tick-line { width: 17px; }
+  .review-tick[aria-current="step"] .review-tick-line {
+    width: 24px;
+    height: 3px;
+    box-shadow: 0 0 0 1px var(--text);
+  }
+  .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+  @container study (max-width: 600px) {
+    .review-body { grid-template-columns: 28px minmax(0, 1fr); column-gap: 4px; }
+    .review-tick { width: 28px; height: 24px; }
+    .review-body > .question-area { width: 100%; min-width: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .review-tick-line { transition: none; }
+  }
+
 }

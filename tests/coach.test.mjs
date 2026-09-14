@@ -1,0 +1,220 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { StudyService } from "../lib/service.js";
+import { cognitiveLevel, debriefRules, evidenceWindows, runMetrics } from "../lib/coach.js";
+import { createFakeModel } from "../scripts/fake-model.mjs";
+
+const source = {
+  id: "src",
+  title: "Memento notes",
+  text: "The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state. The Originator creates and restores its own snapshots.",
+};
+const quiz = (n, prompt, topic = "Memento") => ({
+  id: `q${n}`,
+  kind: "quiz",
+  topic,
+  objective: `objective ${n}`,
+  prompt,
+  answer: "Caretaker",
+  hint: "Who keeps the history?",
+  explanation: "The Caretaker keeps history; the Originator restores state.",
+  misconception: "Treating the Memento as the history manager.",
+  citations: [{ sourceId: "src", quote: "The Caretaker manages snapshot history without inspecting snapshot contents." }],
+  options: [
+    { id: "a", text: "Caretaker", correct: true, explanation: "It manages history without reading snapshots." },
+    { id: "b", text: "Memento", correct: false, explanation: "It is the snapshot, not its manager." },
+    { id: "c", text: "Originator", correct: false, explanation: "It creates and restores snapshots." },
+  ],
+});
+const prompts = [
+  "Memento 模式中哪个角色管理历史？",
+  "Caretaker 和 Memento 的区别是什么？",
+  "为什么 Caretaker 不读取快照内容？",
+  "Originator 负责哪一步？",
+  "谁创建快照？",
+];
+
+async function setup(t, { coach = true, latencyMs = 0 } = {}) {
+  const root = await mkdtemp(join(tmpdir(), "study-coach-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const log = [];
+  const light = createFakeModel({ latencyMs, log });
+  const service = new StudyService(root, { complete: light, completeLight: light, coach });
+  await service.call("source.add", source);
+  await service.call("draft.save", { deck: { id: "d", title: "Patterns", cards: prompts.map((p, i) => quiz(i + 1, p)) } });
+  await service.call("draft.publish", { id: "d" });
+  return { root, service, log, light };
+}
+const tasks = (log, word) => log.filter((x) => x.prompt.includes(word)).length;
+const settle = (ms = 30) => new Promise((r) => setTimeout(r, ms));
+
+test("cognitive level is decided by wording without a model", () => {
+  assert.equal(cognitiveLevel({ prompt: "Memento 是什么？" }), "recall");
+  assert.equal(cognitiveLevel({ prompt: "Caretaker 和 Memento 的区别？" }), "concept");
+  assert.equal(cognitiveLevel({ prompt: "Caretaker 和 Memento 的区别是什么？" }), "concept", "contrast beats 是什么");
+  assert.equal(cognitiveLevel({ prompt: "某团队在设计撤销功能时应该怎么划分职责？" }), "apply");
+  assert.equal(cognitiveLevel({ prompt: "Given a payment service, which would you choose?" }), "apply");
+  assert.equal(cognitiveLevel({ prompt: "区别？" }, "apply"), "apply", "a stored level overrides the heuristic");
+});
+
+test("evidence windows are exact source slices around cited quotes within budget", () => {
+  const long = { id: "L", title: "Long", text: "x".repeat(5000) + source.text + "y".repeat(5000) };
+  const windows = evidenceWindows([long], [quiz(1, "p")].map((c) => ({ ...c, citations: [{ sourceId: "L", quote: c.citations[0].quote }] })), { radius: 100 });
+  assert.equal(windows.length, 1);
+  assert.ok(long.text.includes(windows[0].text));
+  assert.ok(windows[0].text.includes(source.text.slice(0, 60)));
+  assert.ok(windows[0].text.length < 500);
+});
+
+test("a wrong answer prefetches one nudge; the panel reuses it and correct answers cost nothing", async (t) => {
+  const { service, log } = await setup(t, { latencyMs: 20 });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  const wrongId = run.card.options.find((o) => o.text !== "Caretaker").id;
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [wrongId] });
+  const [a, b] = await Promise.all([service.call("coach.nudge", { runId: run.id }), service.call("coach.nudge", { runId: run.id })]);
+  assert.equal(tasks(log, "刚答错"), 1, "prefetch and two panel requests share one model call");
+  assert.equal(a.thread.length, 1);
+  assert.deepEqual(a.thread, b.thread);
+  const note = a.thread[0];
+  assert.ok(note.point && note.explain);
+  assert.equal(note.check.answer, undefined, "the check key stays hidden until tapped");
+  const view = await service.call("review.get", { runId: run.id });
+  assert.equal(view.coach[0].id, note.id, "the review projection carries the thread");
+  assert.equal(view.level, cognitiveLevel(run.card));
+
+  const checked = await service.call("coach.reply", { noteId: note.id, reply: "check", choice: 1 });
+  assert.deepEqual(checked.thread[0].checked, { choice: 1, correct: true });
+  assert.equal(checked.thread[0].check.answer, 1);
+  const confused = await service.call("coach.reply", { noteId: note.id, reply: "confused" });
+  assert.equal(confused.thread[0].followups.length, 1);
+  await service.call("coach.reply", { noteId: note.id, reply: "confused" });
+  await service.call("coach.reply", { noteId: note.id, reply: "confused" });
+  assert.equal(tasks(log, "仍然不懂"), 2, "at most two extra explanations per point");
+
+  run = await service.call("review.move", { runId: run.id, direction: 1 });
+  const before = log.length;
+  await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text === "Caretaker").id] });
+  await settle();
+  assert.equal(log.length, before, "a correct answer makes no model call");
+  const learner = (await service.call("export")).learner;
+  assert.equal(learner.signals.got, 1);
+  assert.equal(learner.signals.confused, 3);
+});
+
+test("without the coach flag answering never calls the model", async (t) => {
+  const { service, log } = await setup(t, { coach: false });
+  const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text !== "Caretaker").id] });
+  await settle();
+  assert.equal(log.length, 0);
+});
+
+test("thumbs-down tags rewrite the card in the background without wiping the answered question", async (t) => {
+  const { service, log } = await setup(t);
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options[0].id] });
+  const ref = { deckId: "d", cardId: run.card.id };
+  const result = await service.call("coach.feedback", { ...ref, vote: "down", tags: ["bad-options", "nonsense"] });
+  assert.deepEqual(result.tags, ["bad-options"]);
+  assert.deepEqual(result.scheduled, ["rewrite"]);
+  const again = await service.call("coach.feedback", { ...ref, vote: "down", tags: ["bad-options"] });
+  assert.deepEqual(again.scheduled, [], "repeating a tag does not rewrite twice");
+  await service.call("coach.prepare"); // drains the background coach queue
+  const state = await service.call("export");
+  const card = state.decks[0].cards.find((c) => c.id === ref.cardId);
+  assert.match(card.options[0].explanation, /已按反馈/);
+  assert.equal(state.feedback.length, 1);
+  assert.equal(tasks(log, "反馈标签"), 1);
+  const view = await service.call("review.get", { runId: run.id });
+  assert.ok(view.feedback, "the answered question keeps its feedback after the rewrite");
+  assert.equal(view.vote.vote, "down");
+  const update = view.coach.find((n) => n.type === "update");
+  assert.ok(update?.revertable);
+  await service.call("coach.revert", ref);
+  const reverted = (await service.call("export")).decks[0].cards.find((c) => c.id === ref.cardId);
+  assert.doesNotMatch(reverted.options[0].explanation, /已按反馈/);
+  assert.ok((await service.call("review.get", { runId: run.id })).feedback);
+});
+
+test("with consent, misses become validated variants that one tap turns into a practice run", async (t) => {
+  const { service, log } = await setup(t);
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text !== "Caretaker").id] });
+  await service.call("coach.prepare");
+  assert.equal(tasks(log, "为每个 target"), 0, "no variants without consent");
+  const status = await service.call("coach.consent", { prep: true });
+  assert.equal(status.consent, true);
+  const prepared = await service.call("coach.prepare");
+  assert.equal(prepared.ready, 1);
+  assert.equal(tasks(log, "为每个 target"), 1, "the recent miss is prepared in one batch");
+  const practice = await service.call("coach.practice");
+  assert.equal(practice.mode, "path");
+  assert.equal(practice.total, 1);
+  const state = await service.call("export");
+  const deck = state.decks.find((d) => d.systemKind === "coach");
+  assert.equal(deck.title, "为你定制");
+  assert.equal(deck.cards[0].origin.cardId, run.card.id);
+  assert.equal(state.learner.levels[deck.cards[0].id], "apply");
+  assert.equal((await service.call("coach.status")).ready, 0);
+  await assert.rejects(service.call("coach.practice"), /还没有备好/);
+});
+
+test("debrief turns a concept-only session into an application offer and updates the profile once", async (t) => {
+  const { service, log } = await setup(t);
+  await service.call("coach.consent", { prep: true });
+  await service.call("coach.goal", { goal: "work" });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  while (!run.complete) {
+    run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text === "Caretaker").id] });
+    run = await service.call("review.move", { runId: run.id, direction: 1 });
+  }
+  const [debrief, twin] = await Promise.all([service.call("coach.debrief", { runId: run.id }), service.call("coach.debrief", { runId: run.id })]);
+  assert.equal(twin.at, debrief.at, "prefetch and summary requests share one debrief");
+  assert.equal(debrief.insights[0].code, "concept-only");
+  assert.equal(debrief.headline, "概念会了，别停在纸上谈兵");
+  assert.equal(debrief.preparing, true);
+  await service.call("coach.prepare");
+  assert.ok((await service.call("coach.status")).ready >= 1);
+  const again = await service.call("coach.debrief", { runId: run.id });
+  assert.equal(again.at, debrief.at, "a finished run's debrief is cached");
+  assert.equal(tasks(log, "本轮指标"), 1);
+  const learner = (await service.call("export")).learner;
+  assert.match(learner.summary, /工作中落地/);
+});
+
+test("debrief rules need no model", () => {
+  const metrics = { answered: 6, correct: 6, accuracy: 100, lowShare: 100, levels: { recall: { n: 2, correct: 2 }, concept: { n: 4, correct: 4 }, apply: { n: 0, correct: 0 } }, weakTopics: [], tags: {} };
+  const rules = debriefRules(metrics, { consent: true, modelReady: true });
+  assert.equal(rules.insights[0].code, "concept-only");
+  assert.equal(rules.wantsPrep, true);
+  assert.equal(debriefRules(metrics, { ready: 3 }).next, "practice_prepared");
+  assert.equal(runMetrics({ feedback: [], learner: null }, { entries: [] }).answered, 0);
+});
+
+test("snapshot polling returns unchanged when nothing visible moved", async (t) => {
+  const { service } = await setup(t, { coach: false });
+  const first = await service.call("snapshot");
+  assert.ok(first.fingerprint);
+  assert.deepEqual(await service.call("snapshot", { since: first.fingerprint }), { unchanged: true, fingerprint: first.fingerprint });
+  await service.call("coach.goal", { goal: "exam" });
+  const next = await service.call("snapshot", { since: first.fingerprint });
+  assert.equal(next.unchanged, undefined);
+  assert.equal(next.coach.goal, "exam");
+});
+
+test("the learner can inspect and clear what the coach remembers", async (t) => {
+  const { service } = await setup(t, { coach: false });
+  await service.call("coach.consent", { prep: true });
+  await service.call("coach.goal", { goal: "interview" });
+  assert.deepEqual((({ consent, goal }) => ({ consent, goal }))(await service.call("coach.profile")), { consent: true, goal: "interview" });
+  await assert.rejects(service.call("coach.goal", { goal: "hack" }), /Unknown goal/);
+  const cleared = await service.call("coach.forget");
+  assert.equal(cleared.goal, "");
+  assert.equal(cleared.consent, null);
+  const state = await service.call("export");
+  assert.equal(state.learner.summary, "");
+  assert.ok(state.decks[0].cards.length, "practice data is untouched");
+});

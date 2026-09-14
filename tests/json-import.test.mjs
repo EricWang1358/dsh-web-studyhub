@@ -52,3 +52,23 @@ test("import is atomic, strips external lifecycle fields, and publishes through 
   assert.equal(state.decks.length, 1);
   assert.equal(state.decks[0].cards[0].review.repetitions, 0);
 });
+
+test("decks above 100 cards can be imported, published, and extended through capture", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "large-deck-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  const input = JSON.parse(importExample("flashcard"));
+  input.cards = Array.from({ length: 101 }, (_, i) => ({ ...input.cards[0],
+    prompt: `Question ${i}: when is this algorithm useful?`, objective: `Explain case ${i}` }));
+  const draft = await service.call("draft.import", { text: JSON.stringify(input) });
+  await service.call("draft.publish", { id: draft.id, draftVersion: draft.draftVersion });
+  const deck = await service.call("deck.get", { id: draft.id });
+  assert.equal(deck.cards.length, 101);
+  service.complete = async () => JSON.stringify({ grounded: true, card: {
+    ...deck.cards[0], prompt: "Why does sorted order matter for binary search?", objective: "Explain the sorted-order prerequisite",
+  } });
+  await service.call("capture", { deckId: deck.id, question: "Why does sorted order matter for binary search?", answer: "It allows discarding half the search interval." });
+  const expanded = await service.call("deck.get", { id: deck.id });
+  assert.equal(expanded.cards.length, 102);
+  await service.call("card.update", { deckId: deck.id, cardId: expanded.cards[0].id, patch: { explanation: "Updated explanation." } });
+});

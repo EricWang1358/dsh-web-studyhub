@@ -127,3 +127,34 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
   );
   assert.equal((await response.json()).result.ok, false);
 });
+
+test("light coach route picks thinking off, else low, and caps output only when thinking is off", async (t) => {
+  let plugin;
+  try {
+    plugin = await import("../lib/index.js");
+  } catch (e) {
+    if (e.code === "ERR_MODULE_NOT_FOUND" && e.message.includes("@deepseek-ai")) {
+      t.skip("Host SDK absent; install DSH peers to run native check");
+      return;
+    }
+    throw e;
+  }
+  const { pickLightEffort, modelCompletion } = plugin;
+  assert.deepEqual(pickLightEffort([{ id: "high", name: "High" }, { id: "low", name: "Low" }, { id: "none", name: "Off" }]), { id: "none", off: true });
+  assert.deepEqual(pickLightEffort([{ id: "max", name: "Max" }, { id: "low", name: "Low" }]), { id: "low", off: false });
+  assert.equal(pickLightEffort([{ id: "high", name: "High" }]), null);
+  const configs = [];
+  const ctx = {
+    llm: {
+      resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: "high", name: "High" }, { id: "off", name: "Off" }] } }),
+      resolveCallConfig: async (config) => (configs.push(config), config),
+      async *stream() {
+        yield { type: "text-delta", text: "{}" };
+      },
+    },
+  };
+  const light = modelCompletion(ctx, () => ({ provider: "p", model: "m", reasoningEffort: "high" }), "s", { light: true });
+  await light("sys", "prompt", { maxTokens: 300 }).catch(() => {});
+  assert.equal(String(configs[0].reasoningEffort), "off");
+  assert.equal(configs[0].maxTokens, 300);
+});

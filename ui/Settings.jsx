@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+
+const GOALS = [["", "未设定"], ["exam", "应付考试"], ["interview", "面试求职"], ["work", "工作中落地"], ["explore", "兴趣拓展"]];
 
 /* 设置视图：学习库绑定与模型（workspacePanel JSX 由 App 传入）、旧库导入、
    SM-2 调度参数与 JSON 导出。 */
@@ -14,6 +16,11 @@ export default function Settings({
   workspacePanel,
   exportData,
 }) {
+  const [profile, setProfile] = useState(null);
+  useEffect(() => {
+    act("coach.profile", {}, setProfile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <section className="page">
       <h1>工作区设置</h1>
@@ -22,6 +29,40 @@ export default function Settings({
         <legend>学习库与模型</legend>
         {workspacePanel}
       </fieldset>
+      {profile && (
+        <fieldset>
+          <legend>陪学</legend>
+          <p className="muted">
+            陪学记住的学习目标和画像只保存在这个学习库文件里，用来让变式题和建议更贴近你。模型调用使用最低思考档位。
+          </p>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={profile.consent === true}
+              onChange={(e) => act("coach.consent", { prep: e.target.checked }, () => act("coach.profile", {}, setProfile))}
+            />
+            做题时在后台准备变式题和应用场景题
+          </label>
+          <label>
+            学习目标
+            <select value={profile.goal} onChange={(e) => act("coach.goal", { goal: e.target.value }, () => act("coach.profile", {}, setProfile))}>
+              {GOALS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
+          <p className="muted">
+            {profile.summary ? `画像：${profile.summary}` : "还没有画像：做完一轮后，陪学会根据表现写一段简短摘要。"}
+            {` · 懂了 ${profile.signals.got} · 还是不懂 ${profile.signals.confused} · 👍 ${profile.signals.up} · 👎 ${profile.signals.down}`}
+            {profile.ready ? ` · 已备 ${profile.ready} 道定制题` : ""}
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => act("coach.forget", {}, (p) => { setProfile(p); setNotice("已清空陪学画像和未使用的定制题；练习记录不受影响。"); })}
+          >
+            清空画像
+          </button>
+        </fieldset>
+      )}
       <fieldset>
         <legend>导入 study-lib-spar</legend>
         <p className="muted">

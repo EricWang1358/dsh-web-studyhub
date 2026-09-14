@@ -4,6 +4,7 @@ import { resolve, isAbsolute } from "node:path";
 import { randomBytes } from "node:crypto";
 import { StudyService } from "../lib/service.js";
 import { MAX_REQUEST_BYTES } from "../lib/documents.js";
+import { createFakeModel } from "./fake-model.mjs";
 import {
   listNotebooks,
   publishNotebook,
@@ -63,6 +64,8 @@ const complete = process.env.STUDY_API_KEY
       return (await res.json()).choices?.[0]?.message?.content || "";
     }
   : undefined;
+// STUDY_FAKE_MODEL=1 previews the coach with canned, validated responses.
+const fake = process.env.STUDY_FAKE_MODEL ? createFakeModel({ latencyMs: 900 }) : null;
 const server = createServer(async (req, res) => {
   try {
     if (
@@ -112,7 +115,7 @@ const server = createServer(async (req, res) => {
         )
           value = await listNotebooks(root);
       } else
-        value = await new StudyService(previewView().root, { complete }).call(
+        value = await new StudyService(previewView().root, { complete: complete || fake, completeLight: fake || undefined, coach: true }).call(
           action,
           args,
         );
