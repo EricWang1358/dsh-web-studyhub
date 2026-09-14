@@ -125,6 +125,12 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
           ) : (
             <React.Fragment key={n.id}>
               <div className="coach-bubble">
+                {n.yourAnswer && (
+                  <span className="coach-answer">
+                    你的答案：<b>{n.yourAnswer}</b>
+                    {n.expected ? <> · 应为：<b>{n.expected}</b></> : null}
+                  </span>
+                )}
                 <span className="coach-point">{n.point}</span>
                 <p>{n.explain}</p>
                 {n.check && (

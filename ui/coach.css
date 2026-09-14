@@ -313,3 +313,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.coach-answer { display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-dim); }
+.coach-answer b { color: var(--text); font-weight: 600; }

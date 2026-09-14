@@ -327,3 +327,29 @@ test("a stem rewrite on a cloze card changes the text the learner sees, without 
   await service.call("card.update", { deckId: "c", cardId: "z1", patch: { cloze: { text: "管理历史而不读取快照的是{{who}}。" } }, reason: "wording" });
   assert.equal((await service.call("export")).decks.find((d) => d.id === "c").cards[0].cloze.answers[0].value, "Caretaker", "answers stay when only the text is patched");
 });
+
+test("a nudge is written about the learner's actual wrong answer, for cloze and choice cards alike", async (t) => {
+  const { service, log } = await setup(t);
+  const quote = "The Caretaker manages snapshot history without inspecting snapshot contents.";
+  await service.call("draft.save", { deck: { id: "z", title: "Cloze", cards: [{
+    id: "z1", kind: "cloze", topic: "Styles", objective: "cloze objective", prompt: "请求方和服务方组成的结构风格称为{{style}}。", answer: "Client–Server",
+    hint: "两个角色", explanation: "Client–Server 是结构风格。", misconception: "与 Peer-to-Peer 混淆。", citations: [{ sourceId: "src", quote }],
+    cloze: { text: "请求方和服务方组成的结构风格称为{{style}}。", answers: [{ id: "style", value: "Client–Server" }] },
+  }] } });
+  await service.call("draft.publish", { id: "z" });
+  let run = await service.call("review.start", { deckId: "z", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: "z1", answers: { style: "Point-to-Point" } });
+  const { thread } = await service.call("coach.nudge", { runId: run.id });
+  const sent = JSON.parse(log.find((x) => x.prompt.includes("刚答错")).prompt);
+  assert.equal(sent.learnerAnswer, "Point-to-Point", "the model sees what was typed, not an empty selection");
+  assert.equal(sent.correctAnswer, "Client–Server");
+  assert.equal(thread[0].yourAnswer, "Point-to-Point");
+  assert.equal(thread[0].expected, "Client–Server");
+
+  let quiz = await service.call("review.start", { deckId: "d", mode: "quiz", fresh: true });
+  const wrong = quiz.card.options.find((o) => o.text !== "Caretaker");
+  quiz = await service.call("review.answer", { runId: quiz.id, cardId: quiz.card.id, selected: [wrong.id] });
+  const choice = (await service.call("coach.nudge", { runId: quiz.id })).thread.at(-1);
+  assert.equal(choice.yourAnswer, wrong.text);
+  assert.equal(choice.expected, "Caretaker");
+});
