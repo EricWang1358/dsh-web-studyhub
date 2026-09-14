@@ -257,3 +257,20 @@ test("a 太难 scaffold becomes a prerequisite of its original and variants show
   assert.equal(scaffold.kind, "flashcard");
   assert.deepEqual(state.decks[0].cards.find((c) => c.id === origin).requires, [{ deckId: practice.deckId, cardId: scaffold.id }]);
 });
+
+test("an answered entry frozen by an older coach fix heals to the new wording when the key is unchanged", async (t) => {
+  const { service } = await setup(t, { coach: false });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options[0].id] });
+  // Simulate the old behaviour: library card reworded, open entry pinned to its snapshot.
+  const { Store } = await import("../lib/store.js");
+  await new Store(service.store.root).update((s) => {
+    const card = s.decks[0].cards.find((c) => c.id === run.card.id);
+    card.prompt = `${card.prompt}（按反馈补足了条件）`;
+    s.runs.find((r) => r.id === run.id).entries[run.index].keepSnapshot = true;
+  });
+  const view = await service.call("review.get", { runId: run.id });
+  assert.match(view.card.prompt, /补足了条件/);
+  assert.ok(view.feedback, "the learner's result stays");
+  assert.equal(view.contentUpdated, false);
+});

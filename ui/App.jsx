@@ -385,7 +385,7 @@ export default function App({ call, host = {} }) {
     );
     return () => clearTimeout(t);
   }, [modal, rawSource]);
-  async function act(action, args = {}, after) {
+  async function act(action, args = {}, after, { refreshAfter = true } = {}) {
     if (acting.current) return;
     acting.current = true;
     setBusy(true);
@@ -393,7 +393,10 @@ export default function App({ call, host = {} }) {
     try {
       const result = await call(action, args);
       if (after) await after(result);
-      await refresh();
+      // Practice steps return the run they changed; the library snapshot
+      // (about 1MB with sources) catches up on the next poll instead of
+      // blocking every answer and every 下一题.
+      if (refreshAfter) await refresh();
       return result;
     } catch (e) {
       setError(e.message || String(e));
@@ -436,7 +439,8 @@ export default function App({ call, host = {} }) {
     [call],
   );
   const reviewAct = (action, args = {}) =>
-    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, enterRun);
+    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, enterRun,
+      { refreshAfter: !["review.answer", "review.move", "review.reveal"].includes(action) });
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
   function resumeOrStart() {
