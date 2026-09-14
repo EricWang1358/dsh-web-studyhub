@@ -15,6 +15,7 @@ import PdfImport from "./PdfImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
 import { mergeReviewPoll } from "./async.js";
+import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
@@ -271,20 +272,35 @@ export default function App({ call, host = {} }) {
     setRecovery(null);
     setDraft(null);
   }
+  const [connecting, setConnecting] = useState("");
   useEffect(() => {
     let live = true;
     (async () => {
-      try {
-        // Both requests resolve the library on the server; firing them together
-        // saves a full round trip on first open.
-        const [b, snapshot] = await Promise.allSettled([call("binding.get"), refresh()]);
-        if (b.status === "rejected") throw b.reason;
-        if (live) setBinding(b.value);
-        if (b.value.root && snapshot.status === "rejected") throw snapshot.reason;
-      } catch (e) {
-        if (live) setError(e.message);
-      } finally {
-        if (live) setLoading(false);
+      // Right after a host restart the plugin route may not exist yet; keep
+      // retrying for a while instead of stranding the panel on an error.
+      for (let attempt = 0; live; attempt++) {
+        try {
+          // Both requests resolve the library on the server; firing them together
+          // saves a full round trip on first open.
+          const [b, snapshot] = await Promise.allSettled([call("binding.get"), refresh()]);
+          if (b.status === "rejected") throw b.reason;
+          if (live) setBinding(b.value);
+          if (b.value.root && snapshot.status === "rejected") throw snapshot.reason;
+          break;
+        } catch (e) {
+          if (!live) return;
+          if (isTransientStudyError(e) && attempt < 20) {
+            setConnecting(`正在连接学习插件…（第 ${attempt + 1} 次重试）`);
+            await new Promise((r) => setTimeout(r, Math.min(1000 * (attempt + 1), 5000)));
+            continue;
+          }
+          setError(e.message);
+          break;
+        }
+      }
+      if (live) {
+        setConnecting("");
+        setLoading(false);
       }
     })();
     return () => {
@@ -1079,7 +1095,7 @@ export default function App({ call, host = {} }) {
   if (loading)
     return (
       <div className="study-app">
-        <div className="loading">正在打开学习工作区…</div>
+        <div className="loading">{connecting || "正在打开学习工作区…"}</div>
       </div>
     );
   return (

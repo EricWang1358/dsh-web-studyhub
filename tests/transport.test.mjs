@@ -82,6 +82,25 @@ test("legacy fallback only follows 404/405, never auth failure or unknown server
     ["/study-workspace", "call"],
     ["/study-workspace", "call"],
   ]);
+  // While the host restarts neither route exists: never latch onto legacy.
+  const seen = [];
+  let up = false;
+  const restarting = createStudyCall(
+    {
+      rpc: {
+        call: async (channel) => {
+          seen.push(channel);
+          if (channel === "/api" && up) return { ok: true, value: "native" };
+          throw new Error("transport failure for " + channel + ": HTTP 405");
+        },
+      },
+    },
+    "s",
+  );
+  await assert.rejects(() => restarting("snapshot"), (e) => e.code === "STUDY_UNAVAILABLE");
+  up = true;
+  assert.equal(await restarting("snapshot"), "native", "the next call tries the native route again");
+  assert.deepEqual(seen, ["/api", "/study-workspace", "/api"]);
   let count = 0;
   const denied = createStudyCall(
     {
