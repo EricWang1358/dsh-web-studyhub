@@ -287,6 +287,7 @@ export default function Review({
                   }
                   disabled={busy || !!run.feedback}
                   details={run.feedback?.details || null}
+                  solution={run.solution}
                 />
                 {!run.feedback && (
                   <button

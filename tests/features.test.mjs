@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateDeck } from "../lib/domain.js";
 import { StudyService } from "../lib/service.js";
+import { createWriteQueue } from "../ui/async.js";
 import {
   publishNotebook,
   searchNotebooks,
@@ -69,6 +70,59 @@ async function library() {
   return { root, service };
 }
 const close = async (root) => rm(root, { recursive: true, force: true });
+
+test("queued exam selections finish in order before grading and failed saves block submission", async () => {
+  const { root, service } = await library();
+  try {
+    const run = await service.call("review.start", { mode: "exam", count: 1 });
+    const queue = createWriteQueue();
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const first = queue.enqueue(async () => {
+      await gate;
+      return service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: ["b"] });
+    });
+    const last = queue.enqueue(() => service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: ["a"] }));
+    release();
+    await Promise.all([first, last, queue.flush()]);
+    await assert.rejects(queue.enqueue(() => Promise.reject(new Error("offline"))), /offline/);
+    await assert.rejects(queue.flush(), /offline/);
+    await queue.enqueue(() => service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: ["a"] }));
+    await queue.flush();
+    assert.equal((await service.call("exam.submit", { runId: run.id })).correct, 1);
+  } finally { await close(root); }
+});
+
+test("exam projections keep the start time and card-scoped exams exclude other cards", async () => {
+  const { root, service } = await library();
+  try {
+    const run = await service.call("review.start", { mode: "exam", scope: [{ deckId: "d1", cardId: "q1" }], count: 10 });
+    assert.equal(run.total, 1);
+    assert.equal(run.card.id, "q1");
+    assert.ok(Number.isFinite(Date.parse(run.startedAt)));
+    assert.equal((await service.call("review.get", { runId: run.id })).startedAt, run.startedAt);
+  } finally { await close(root); }
+});
+
+test("substantive card updates cannot change an exam answer key mid-attempt", async () => {
+  const { root, service } = await library();
+  try {
+    const run = await service.call("review.start", { mode: "exam", count: 1 });
+    await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: ["a"] });
+    await assert.rejects(service.call("card.update", { deckId: "d1", cardId: run.card.id, patch: { options: [{ id: "a", correct: false }, { id: "b", correct: true }] } }), /exam/i);
+    assert.equal((await service.call("exam.submit", { runId: run.id })).correct, 1);
+  } finally { await close(root); }
+});
+
+test("action registry refuses inherited object properties without writing state", async () => {
+  const { root, service } = await library();
+  try {
+    const before = await service.call("export");
+    for (const action of ["toString", "constructor", "__proto__", "hasOwnProperty"])
+      await assert.rejects(service.call(action), /Unknown study action/);
+    assert.deepEqual(await service.call("export"), before);
+  } finally { await close(root); }
+});
 
 test("cloze passes quality gates and grades blanks with accepted variants", async () => {
   const d = {

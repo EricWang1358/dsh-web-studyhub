@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./views.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
+import { createWriteQueue } from "./async.js";
 
 /* 模拟考试（v0.4 契约 §3）：setup → running → report 自管理状态机。
    选中状态存本地（picks，按 deckId:cardId 键控），每次选择通过
@@ -35,7 +36,7 @@ const picksFromRun = (r) => {
   return map;
 };
 
-export default function Exam({ call, data, onExit, onCreate }) {
+export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
   useInjectCss(css, "study-views");
   const [phase, setPhase] = useState("setup"), // setup → running → report
     [run, setRun] = useState(null),
@@ -48,7 +49,9 @@ export default function Exam({ call, data, onExit, onCreate }) {
     [busy, setBusy] = useState(false),
     [pathNote, setPathNote] = useState("");
   const picksRef = useRef({}),
-    autoSent = useRef(false);
+    autoSent = useRef(false),
+    writes = useRef(createWriteQueue()),
+    acting = useRef(false);
   const count = clampCount(countDraft);
 
   function applyPicks(next) {
@@ -58,7 +61,7 @@ export default function Exam({ call, data, onExit, onCreate }) {
 
   const decks = useMemo(
     () =>
-      (data?.decks || []).filter((d) => d && !d.archived && (d.quizCount || 0) > 0),
+      (data?.decks || []).filter((d) => d && !d.archived && (d.examCount || 0) > 0),
     [data],
   );
   const flashOnly = useMemo(
@@ -67,7 +70,7 @@ export default function Exam({ call, data, onExit, onCreate }) {
   );
   const pickedQuizTotal = useMemo(
     () =>
-      decks.reduce((sum, d) => sum + (pickedDecks.has(d.id) ? d.quizCount || 0 : 0), 0),
+      decks.reduce((sum, d) => sum + (pickedDecks.has(d.id) ? d.examCount || 0 : 0), 0),
     [decks, pickedDecks],
   );
 
@@ -75,11 +78,11 @@ export default function Exam({ call, data, onExit, onCreate }) {
   useEffect(() => {
     let live = true;
     (async () => {
-      const open = (data?.runs || []).find((r) => r && r.mode === "exam");
+      const open = initialRunId ? { id: initialRunId } : (data?.runs || []).find((r) => r && r.mode === "exam");
       if (!open) return;
       try {
         const r = await call("review.get", { runId: open.id });
-        if (!live || !r || r.closedAt || r.complete || !r.card) return;
+        if (!live || !r || r.mode !== "exam" || r.closed || r.complete || !r.card) return;
         autoSent.current = false;
         setRun(r);
         applyPicks(picksFromRun(r));
@@ -109,7 +112,8 @@ export default function Exam({ call, data, onExit, onCreate }) {
   const elapsedMs = startMs ? Math.max(0, now - startMs) : 0;
 
   async function startExam() {
-    if (busy || !pickedDecks.size) return;
+    if (acting.current || !pickedDecks.size) return;
+    acting.current = true;
     setBusy(true);
     setErr("");
     try {
@@ -120,12 +124,14 @@ export default function Exam({ call, data, onExit, onCreate }) {
         fresh: true,
       });
       autoSent.current = false;
+      writes.current = createWriteQueue();
       setRun(r);
       applyPicks(picksFromRun(r));
       setPhase("running");
     } catch (e) {
       setErr(e.message || String(e));
     } finally {
+      acting.current = false;
       setBusy(false);
     }
   }
@@ -134,7 +140,7 @@ export default function Exam({ call, data, onExit, onCreate }) {
     run?.deckId != null && run?.card?.id ? run.deckId + ":" + run.card.id : null;
   const curPicks = (curKey && picks[curKey]) || [];
   function pick(optionId) {
-    if (!run?.card || !curKey) return;
+    if (acting.current || !run?.card || !curKey) return;
     const multi = !!run.card.multiple || run.card.kind === "multi";
     const cur = picksRef.current[curKey] || [];
     const next = multi
@@ -144,54 +150,60 @@ export default function Exam({ call, data, onExit, onCreate }) {
       : [optionId];
     applyPicks({ ...picksRef.current, [curKey]: next });
     // exam 模式的 review.answer 只保存选项、可反复修改，不判分。
-    call("review.answer", {
+    writes.current.enqueue(() => call("review.answer", {
       runId: run.id,
       cardId: run.card.id,
       selected: next,
-    }).catch((e) => setErr(e.message || String(e)));
+    })).then(() => setErr(""), (e) => setErr("选择尚未保存，请重新选择后继续：" + (e.message || String(e))));
   }
 
   async function move(direction) {
-    if (busy || !run) return;
+    if (acting.current || !run) return;
+    acting.current = true;
     setBusy(true);
     setErr("");
     try {
+      await writes.current.flush();
       const next = await call("review.move", { runId: run.id, direction });
       const r = next && next.card ? next : await call("review.get", { runId: run.id });
       setRun(r);
-      // 服务端已保存的选项打底；本地尚未落库的选择优先展示，避免闪烁丢失。
-      applyPicks({ ...picksFromRun(r), ...picksRef.current });
+      // All writes finished before navigation; the server is authoritative.
+      applyPicks(picksFromRun(r));
     } catch (e) {
       setErr(e.message || String(e));
     } finally {
+      acting.current = false;
       setBusy(false);
     }
   }
 
-  async function submit() {
-    if (busy || !run) return;
+  const submit = useCallback(async () => {
+    if (acting.current || !run) return;
+    acting.current = true;
     setBusy(true);
     setErr("");
     setConfirming(false);
     try {
+      await writes.current.flush();
       const rep = await call("exam.submit", { runId: run.id });
       setReport(rep);
       setPhase("report");
     } catch (e) {
       setErr(e.message || String(e));
     } finally {
+      acting.current = false;
       setBusy(false);
     }
-  }
+  }, [call, run]);
 
   /* 计时满 30 分钟自动交卷（只触发一次）。 */
   useEffect(() => {
-    if (phase !== "running" || !startMs || autoSent.current) return;
+    if (phase !== "running" || !startMs || autoSent.current || busy) return;
     if (elapsedMs >= EXAM_LIMIT_MS) {
       autoSent.current = true;
       submit();
     }
-  }, [elapsedMs, phase, startMs]);
+  }, [elapsedMs, phase, startMs, busy, submit]);
 
   const answeredCount = useMemo(
     () => Object.values(picks).filter((a) => Array.isArray(a) && a.length).length,
@@ -282,7 +294,7 @@ export default function Exam({ call, data, onExit, onCreate }) {
                       />
                       <span className="exam-deck-name">
                         <strong>{d.title}</strong>
-                        <small>{d.quizCount} 道选择题</small>
+                        <small>{d.examCount} 道选择题</small>
                       </span>
                     </label>
                   </li>
@@ -374,6 +386,7 @@ export default function Exam({ call, data, onExit, onCreate }) {
                     key={o.id}
                     className={"exam-option" + (picked ? " picked" : "")}
                     aria-pressed={picked}
+                    disabled={busy}
                     onClick={() => pick(o.id)}
                   >
                     <span className="exam-option-letter">

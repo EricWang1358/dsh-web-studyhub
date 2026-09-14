@@ -127,6 +127,7 @@ export default function App({ call, host = {} }) {
     [jsonMode, setJsonMode] = useState(false),
     [legacy, setLegacy] = useState("");
   const [run, setRun] = useState(null),
+    [examRunId, setExamRunId] = useState(null),
     [selected, setSelected] = useState([]),
     [hint, setHint] = useState(false),
     [explain, setExplain] = useState(false),
@@ -151,29 +152,33 @@ export default function App({ call, host = {} }) {
     [teaching, setTeaching] = useState(null),
     [teachAnswer, setTeachAnswer] = useState("");
   const [notebooks, setNotebooks] = useState(null);
-  const dataRef = useRef(null);
+  const dataRef = useRef(null),
+    snapshotKey = useRef("");
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
     const next = await call("snapshot");
     if (sequence === requestSequence.current) {
-      // The poll runs every 2.5s; skip the whole-tree re-render when nothing
-      // changed. revision covers store writes, but job status/stage mutate in
-      // memory only, so those are compared as well before dropping a snapshot.
+      // Root, model availability and due counts can change without a store write.
+      // Compare the full public snapshot before skipping a render.
       const cur = dataRef.current;
-      const jobsSame =
-        cur &&
-        cur.jobs?.length === next.jobs?.length &&
-        next.jobs.every((j, i) => {
-          const p = cur.jobs[i];
-          return (
-            p.id === j.id &&
-            p.status === j.status &&
-            p.stage === j.stage &&
-            p.draftId === j.draftId
-          );
-        });
-      if (!cur || cur.revision !== next.revision || !jobsSame) {
+      const nextKey = JSON.stringify(next);
+      if (!cur || snapshotKey.current !== nextKey) {
+        if (cur && cur.root !== next.root) {
+          setRun(null);
+          setExamRunId(null);
+          setDraft(null);
+          setRecovery(null);
+          setManagedDeck(null);
+          setGraphScope([]);
+          setSelectedSources([]);
+          setTeaching(null);
+          setModal(null);
+          setPage("library");
+          setSettings(next.settings);
+          setBinding((b) => ({ ...b, root: next.root }));
+        }
         dataRef.current = next;
+        snapshotKey.current = nextKey;
         setData(next);
         setSettings((current) =>
           Object.keys(current).length ? current : next.settings,
@@ -345,6 +350,11 @@ export default function App({ call, host = {} }) {
     }
   }
   function enterRun(r) {
+    if (r.mode === "exam") {
+      setExamRunId(r.id);
+      setPage("exam");
+      return;
+    }
     setRun(r);
     setPage("review");
     setSelected(r.feedback?.selected || []);
@@ -376,7 +386,7 @@ export default function App({ call, host = {} }) {
     act(action, { runId: run.id, cardId: run.card?.id, ...args }, enterRun);
   const choice =
     run?.mode !== "flashcard" && ["quiz", "multi"].includes(run?.card?.kind);
-  const isCloze = run?.card?.kind === "cloze";
+  const isCloze = run?.mode !== "flashcard" && run?.card?.kind === "cloze";
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => {
     setShowBack(!!run?.revealed);
@@ -526,6 +536,7 @@ export default function App({ call, host = {} }) {
     };
   }
   async function updateBinding(patch) {
+    ++requestSequence.current;
     setBusy(true);
     setError("");
     try {
@@ -906,6 +917,7 @@ export default function App({ call, host = {} }) {
               key={id}
               className={page === id ? "nav active" : "nav"}
               onClick={() => {
+                if (id === "exam") setExamRunId(null);
                 setPage(id);
                 setError("");
               }}
@@ -1119,6 +1131,8 @@ export default function App({ call, host = {} }) {
             )}
             {page === "exam" && (
               <Exam
+                initialRunId={examRunId}
+                key={`${data.root}:${examRunId || "latest"}`}
                 call={call}
                 data={data}
                 onExit={() => setPage("library")}

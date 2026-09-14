@@ -16,7 +16,7 @@ const chLen = (s) => {
   return w;
 };
 
-export default function Cloze({ card, values, onChange, disabled, details }) {
+export default function Cloze({ card, values, onChange, disabled, details, solution }) {
   useInjectCss(css, "study-graph");
   const cloze = card?.cloze;
   const text = typeof cloze?.text === "string" ? cloze.text : "";
@@ -66,7 +66,7 @@ export default function Cloze({ card, values, onChange, disabled, details }) {
           if (detail)
             return detail.correct ? (
               <span key={i} className="cloze-blank cloze-right" title="回答正确">
-                {val || "空"}
+                {val || solution?.cloze?.answers?.find((answer) => answer.id === id)?.value || "回答正确"}
                 <span className="cloze-mark">✓</span>
               </span>
             ) : (

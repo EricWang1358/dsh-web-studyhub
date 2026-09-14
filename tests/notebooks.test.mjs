@@ -7,6 +7,24 @@ import { publishNotebook, unpublishNotebook, listNotebooks } from "../lib/notebo
 import { workspaceLibrary } from "../lib/host.js";
 import { Store } from "../lib/store.js";
 
+test("concurrent registry transactions retain independent publishes and removals", async () => {
+  const home = await mkdtemp(join(tmpdir(), "study-registry-race-"));
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = home;
+  try {
+    const roots = Array.from({ length: 8 }, (_, i) => join(home, `library-${i}`));
+    await Promise.all(roots.map((root) => publishNotebook(root, root)));
+    assert.equal((await listNotebooks(roots[0])).notebooks.length, roots.length);
+    await Promise.all([unpublishNotebook(roots[0]), publishNotebook(home, join(home, "extra"))]);
+    const list = await listNotebooks(roots[1]);
+    assert.equal(list.notebooks.length, roots.length);
+    assert.ok(!list.notebooks.some((entry) => entry.root === roots[0]));
+  } finally {
+    if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("global notebook registry publishes, lists and unpublishes workspaces", async () => {
   const home = await mkdtemp(join(tmpdir(), "study-nb-home-"));
   const wsA = await mkdtemp(join(tmpdir(), "study-nb-a-"));

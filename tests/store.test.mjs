@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store, emptyState, normalizeState, LATEST_VERSION } from "../lib/store.js";
@@ -50,4 +50,17 @@ test("emptyState matches the latest version shape", () => {
   const s = emptyState();
   assert.equal(s.version, LATEST_VERSION);
   assert.ok(Array.isArray(s.teaching) && Array.isArray(s.runs));
+});
+
+test("malformed existing state is rejected without overwriting its bytes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "study-invalid-"));
+  const store = new Store(root);
+  try {
+    for (const invalid of [null, [], "bad", { decks: { saved: "data" } }, { sources: null }, { version: "1" }, { revision: -1 }, { settings: [] }]) {
+      const raw = JSON.stringify(invalid);
+      await writeFile(store.path, raw);
+      await assert.rejects(store.update((s) => { s.settings.first_interval_days = 2; }), /Invalid library/);
+      assert.equal(await readFile(store.path, "utf8"), raw);
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
