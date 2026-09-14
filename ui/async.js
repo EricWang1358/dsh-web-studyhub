@@ -19,7 +19,7 @@ export function mergeReviewPoll(current, next) {
   const before = current.queueVersion || 0, after = next.queueVersion || 0;
   if (after > before) return next;
   if (after !== before || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return current;
-  const fields = ["prerequisites", "card", "solution", "revision", "sourceIds", "navigation", "coach", "vote", "level"];
+  const fields = ["prerequisites", "card", "solution", "revision", "sourceIds", "navigation", "coach", "vote", "level", "origin"];
   if (fields.every((key) => JSON.stringify(current[key]) === JSON.stringify(next[key]))) return current;
   return { ...current, ...Object.fromEntries(fields.map((key) => [key, next[key]])) };
 }

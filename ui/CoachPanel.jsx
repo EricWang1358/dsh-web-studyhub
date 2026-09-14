@@ -28,6 +28,9 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
   const current = thread.find((n) => n.type === "nudge" && n.runId === run.id && n.entryIndex === run.index);
   const wrong = isWrong(run.feedback);
   const rewriting = status?.tasks?.some((t) => t.kind === "rewrite" && t.status === "running" && t.cardId === run.card?.id);
+  const rewriteFailed = status?.tasks?.findLast((t) => t.kind === "rewrite" && t.cardId === run.card?.id)?.status === "failed"
+    ? status.tasks.findLast((t) => t.kind === "rewrite" && t.cardId === run.card?.id)
+    : null;
 
   // Ask for the point once per wrong answer; the server has usually started it already.
   const requested = useRef(""),
@@ -166,6 +169,11 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
         {pending === "nudge" && <Typing label="正在找你可能没弄懂的点…" />}
         {pending === "confused" && <Typing label="换个角度讲…" />}
         {rewriting && <Typing label="正在按你的反馈改这道题…" />}
+        {rewriteFailed && (
+          <div className="coach-bubble system" role="status">
+            <p>没能按反馈改好这道题：{rewriteFailed.message || "模型没有返回可用的修改"}。可以点「提升质量」在对话里改。</p>
+          </div>
+        )}
         {consentAsk && (
           <div className="coach-card">
             <p>要我在你做题时，悄悄把错题的变式题、应用场景题备好吗？只在答错、反馈或一轮结束时少量调用模型。</p>

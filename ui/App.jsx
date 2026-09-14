@@ -275,9 +275,12 @@ export default function App({ call, host = {} }) {
     let live = true;
     (async () => {
       try {
-        const b = await call("binding.get");
-        if (live) setBinding(b);
-        if (b.root) await refresh();
+        // Both requests resolve the library on the server; firing them together
+        // saves a full round trip on first open.
+        const [b, snapshot] = await Promise.allSettled([call("binding.get"), refresh()]);
+        if (b.status === "rejected") throw b.reason;
+        if (live) setBinding(b.value);
+        if (b.value.root && snapshot.status === "rejected") throw snapshot.reason;
       } catch (e) {
         if (live) setError(e.message);
       } finally {

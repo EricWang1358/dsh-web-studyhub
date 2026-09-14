@@ -130,6 +130,8 @@ test("thumbs-down tags rewrite the card in the background without wiping the ans
   assert.equal(tasks(log, "反馈标签"), 1);
   const view = await service.call("review.get", { runId: run.id });
   assert.ok(view.feedback, "the answered question keeps its feedback after the rewrite");
+  assert.ok(view.solution.options.some((o) => /已按反馈/.test(o.explanation)),
+    "same answer key: the improved explanations show in place on the answered question");
   assert.equal(view.vote.vote, "down");
   const update = view.coach.find((n) => n.type === "update");
   assert.ok(update?.revertable);
@@ -199,6 +201,10 @@ test("snapshot polling returns unchanged when nothing visible moved", async (t) 
   const first = await service.call("snapshot");
   assert.ok(first.fingerprint);
   assert.deepEqual(await service.call("snapshot", { since: first.fingerprint }), { unchanged: true, fingerprint: first.fingerprint });
+  const read = service.store.read;
+  service.store.read = () => assert.fail("an unchanged poll must not read the library");
+  assert.equal((await service.call("snapshot", { since: first.fingerprint })).unchanged, true);
+  service.store.read = read;
   await service.call("coach.goal", { goal: "exam" });
   const next = await service.call("snapshot", { since: first.fingerprint });
   assert.equal(next.unchanged, undefined);
@@ -217,4 +223,37 @@ test("the learner can inspect and clear what the coach remembers", async (t) => 
   const state = await service.call("export");
   assert.equal(state.learner.summary, "");
   assert.ok(state.decks[0].cards.length, "practice data is untouched");
+});
+
+test("a rewrite that changes the answer key keeps the answered snapshot until the next attempt", async (t) => {
+  const { root } = await setup(t, { coach: false });
+  const flip = async (system, prompt) => JSON.parse(prompt).task.includes("反馈标签")
+    ? JSON.stringify({ patch: { options: [{ id: "a", correct: false }, { id: "b", correct: true }], answer: "Memento" }, summary: "更正答案" })
+    : "{}";
+  const service = new StudyService(root, { complete: flip, completeLight: flip, coach: true });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options[0].id] });
+  await service.call("coach.feedback", { deckId: "d", cardId: run.card.id, vote: "down", tags: ["wrong-answer"] });
+  await service.call("coach.prepare");
+  const live = (await service.call("export")).decks[0].cards.find((c) => c.id === run.card.id);
+  assert.equal(live.options.find((o) => o.correct).id, "b", "the library card has the corrected key");
+  const view = await service.call("review.get", { runId: run.id });
+  assert.equal(view.solution.options.find((o) => o.correct).id, "a", "the answered entry still grades against what was answered");
+  assert.ok(view.feedback);
+});
+
+test("a 太难 scaffold becomes a prerequisite of its original and variants show where they came from", async (t) => {
+  const { service } = await setup(t);
+  await service.call("coach.consent", { prep: true });
+  const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  const origin = run.card.id;
+  await service.call("coach.feedback", { deckId: "d", cardId: origin, vote: "down", tags: ["too-hard"] });
+  await service.call("coach.prepare");
+  const practice = await service.call("coach.practice");
+  assert.equal(practice.origin.reason, "too-hard");
+  assert.equal(practice.origin.cardId, origin);
+  const state = await service.call("export");
+  const scaffold = state.decks.find((d) => d.systemKind === "coach").cards[0];
+  assert.equal(scaffold.kind, "flashcard");
+  assert.deepEqual(state.decks[0].cards.find((c) => c.id === origin).requires, [{ deckId: practice.deckId, cardId: scaffold.id }]);
 });
