@@ -299,3 +299,31 @@ test("source.search finds terms across every source in one call and returns only
   assert.ok(cards.results.length >= 1);
   assert.ok(cards.results.every((c) => c.cardId && c.deckId && c.prompt.length <= 160));
 });
+
+test("a stem rewrite on a cloze card changes the text the learner sees, without a false 'answer again' warning", async (t) => {
+  const { root } = await setup(t, { coach: false });
+  const quote = "The Caretaker manages snapshot history without inspecting snapshot contents.";
+  const rewrite = async (system, prompt) => {
+    const data = JSON.parse(prompt);
+    if (!data.task.includes("反馈标签")) return "{}";
+    assert.equal(data.card.cloze.text, "谁管理快照历史？{{who}}", "the model sees the displayed cloze text");
+    return JSON.stringify({ patch: { prompt: "在 Memento 模式里，不读取快照内容却负责管理历史的角色是{{who}}。" }, summary: "补足条件" });
+  };
+  const service = new StudyService(root, { complete: rewrite, completeLight: rewrite, coach: true });
+  await service.call("draft.save", { deck: { id: "c", title: "Cloze", cards: [{
+    id: "z1", kind: "cloze", topic: "Memento", objective: "cloze objective", prompt: "谁管理快照历史？{{who}}", answer: "Caretaker",
+    hint: "不是快照本身", explanation: "Caretaker 管理历史。", misconception: "以为是 Memento。", citations: [{ sourceId: "src", quote }],
+    cloze: { text: "谁管理快照历史？{{who}}", answers: [{ id: "who", value: "Caretaker" }] },
+  }] } });
+  await service.call("draft.publish", { id: "c" });
+  const run = await service.call("review.start", { deckId: "c", mode: "quiz" });
+  await service.call("coach.feedback", { deckId: "c", cardId: "z1", vote: "down", tags: ["stem-vague"] });
+  await service.call("coach.prepare");
+  const view = await service.call("review.get", { runId: run.id });
+  assert.match(view.card.cloze.text, /不读取快照内容/, "the shown cloze text follows the reworded stem");
+  assert.equal(view.card.cloze.blanks.length, 1);
+  assert.equal(view.contentUpdated, false, "an unanswered question is not told to answer again");
+  // Agents can also patch the displayed text directly.
+  await service.call("card.update", { deckId: "c", cardId: "z1", patch: { cloze: { text: "管理历史而不读取快照的是{{who}}。" } }, reason: "wording" });
+  assert.equal((await service.call("export")).decks.find((d) => d.id === "c").cards[0].cloze.answers[0].value, "Caretaker", "answers stay when only the text is patched");
+});
