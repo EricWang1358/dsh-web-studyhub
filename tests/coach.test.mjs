@@ -274,3 +274,28 @@ test("an answered entry frozen by an older coach fix heals to the new wording wh
   assert.ok(view.feedback, "the learner's result stays");
   assert.equal(view.contentUpdated, false);
 });
+
+test("source.search finds terms across every source in one call and returns only snippets", async (t) => {
+  const { service } = await setup(t, { coach: false });
+  const filler = "Architecture views describe a system from the viewpoint of its stakeholders. ".repeat(40);
+  await service.call("source.add", { id: "scrum", title: "Agile notes", text: `${filler}The Scrum Master facilitates the team, while the Product Owner owns the backlog. ${filler}` });
+  await service.call("source.add", { id: "ops", title: "Ops", text: `${filler}The system owner funds and accepts the system.` });
+  const found = await service.call("source.search", { query: "Scrum Master | Product Owner | system owner" });
+  assert.deepEqual(found.terms, ["scrum master", "product owner", "system owner"]);
+  assert.equal(found.searchedSources, 3);
+  assert.deepEqual(found.results.map((r) => r.sourceId), ["scrum", "ops"], "sources matching more terms rank first");
+  const snippet = found.results[0].snippets[0];
+  assert.ok(snippet.text.length < 400, "a snippet, not the document");
+  assert.ok(snippet.text.includes("Scrum Master"));
+  const page = await service.call("source.get", { id: "scrum", offset: snippet.offset, limit: 300 });
+  assert.ok(page.text.startsWith(snippet.text.slice(0, 50)), "offsets point back into source.get");
+  assert.equal((await service.call("source.search", { query: "Kubernetes" })).matchedSources, 0);
+  assert.deepEqual((await service.call("source.search", { query: "agile  scrum" })).terms, ["agile", "scrum"]);
+  await assert.rejects(service.call("source.search", { query: " " }), /at least one term/);
+  const list = await service.call("source.list", { query: "ops" });
+  assert.deepEqual(list.sources.map((x) => x.id), ["ops"]);
+  assert.equal(list.sources[0].text, undefined);
+  const cards = await service.call("card.search", { query: "Caretaker 区别" });
+  assert.ok(cards.results.length >= 1);
+  assert.ok(cards.results.every((c) => c.cardId && c.deckId && c.prompt.length <= 160));
+});

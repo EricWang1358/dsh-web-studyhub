@@ -675,14 +675,14 @@ export default function App({ call, host = {} }) {
     askInChat(
       "我在做这道题时卡住了，想先把前置知识问清楚（先别直接告诉我答案）：\n" +
         cardBrief() +
-        "\n\n请先用 study_workspace 的 card.get 读这道题和它引用的资料。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：",
+        "\n\n请先用 study_workspace 的 card.get 读这道题。需要资料依据时，用 source.search 一次查所有关键词，只读命中片段附近的原文，不要逐份翻资料；题库里已有的相关题用 card.search 找。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：",
     );
   }
   function improveCard() {
     askInChat(
       "这道题的质量需要提升：\n" +
         cardBrief() +
-        "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析、引用资料），按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：",
+        "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析），核对原文时用 source.search 查关键词、只读命中片段，按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：",
     );
   }
   // Slaying is one click next to other tools; offer an immediate undo instead
