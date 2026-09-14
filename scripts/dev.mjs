@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve, isAbsolute } from "node:path";
 import { randomBytes } from "node:crypto";
 import { StudyService } from "../lib/service.js";
+import { boardAction } from "../lib/board.js";
 import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import { createFakeModel } from "./fake-model.mjs";
 import {
@@ -98,6 +99,8 @@ const server = createServer(async (req, res) => {
       }
       if (action === "binding.get" || action === "binding.set")
         value = previewView();
+      else if (action.startsWith("board."))
+        value = await boardAction(action, args, workspaceRoot);
       else if (action.startsWith("notebook.")) {
         // Mirror the host handler so the preview exercises the same actions.
         const root = previewView().root;

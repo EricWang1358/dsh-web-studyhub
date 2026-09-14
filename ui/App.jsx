@@ -5,6 +5,7 @@ import Guide from "./Guide.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
+import Board, { useBoard } from "./Board.jsx";
 import Graph from "./Graph.jsx";
 import Icon from "./Icon.jsx";
 import Sources from "./Sources.jsx";
@@ -197,6 +198,8 @@ export default function App({ call, host = {} }) {
     [teaching, setTeaching] = useState(null),
     [teachAnswer, setTeachAnswer] = useState("");
   const [notebooks, setNotebooks] = useState(null);
+  const boardState = useBoard(call, page === "board");
+  const boardCount = boardState.board?.columns.reduce((n, column) => n + (column.done ? 0 : column.cardIds.length), 0);
   const dataRef = useRef(null),
     snapshotKey = useRef("");
   const refresh = useCallback(async () => {
@@ -583,7 +586,7 @@ export default function App({ call, host = {} }) {
     const active = document.activeElement;
     const inside = rootRef.current?.contains(active) ||
       ((!active || active === document.body) && engagedRef.current);
-    return !!inside && !e.target.closest?.("input,textarea,select,[contenteditable]") &&
+    return !!inside && !e.target.closest?.("input,textarea,select,[contenteditable],dialog") &&
       !e.ctrlKey && !e.metaKey && !e.altKey && !modal;
   }
   const canShortcut = (e) =>
@@ -1074,6 +1077,7 @@ export default function App({ call, host = {} }) {
           dashboard: "学习统计",
           exam: "模拟考试",
           wrongbook: "错题本",
+          board: "待办看板",
           graph: "知识图谱",
         }[page];
   const coachProps = data && {
@@ -1163,6 +1167,7 @@ export default function App({ call, host = {} }) {
             ["dashboard", "◔", "统计", "icon-lg"],
             ["exam", "✎", "模拟考试", "icon-lg"],
             ["wrongbook", "✗", "错题本", "icon-sm"],
+            ["board", "▥", "待办", "icon-lg"],
           ].map(([id, icon, label, iconClass]) => (
             <button
               key={id}
@@ -1173,10 +1178,13 @@ export default function App({ call, host = {} }) {
                 setPage(id);
                 setError("");
               }}
-              disabled={!data}
+              disabled={!data && id !== "board"}
             >
               <Icon className={iconClass}>{icon}</Icon>
               {label}
+              {id === "board" && boardCount !== undefined && (
+                <span className="nav-count">{boardCount}</span>
+              )}
               {id === "sources" && data && (
                 <span className="nav-count">{data.sources.length}</span>
               )}
@@ -1300,7 +1308,9 @@ export default function App({ call, host = {} }) {
             </button>
           </div>
         )}
-        {!data ? (
+        {page === "board" ? (
+          <Board state={boardState} onOrigin={host.openWorkspaceNotebook} />
+        ) : !data ? (
           <section className="onboarding">
             <div className="eyebrow">YOUR LEARNING SPACE</div>
             <h1>把资料变成真正会的知识。</h1>

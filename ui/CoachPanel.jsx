@@ -127,8 +127,8 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
               <div className="coach-bubble">
                 {n.yourAnswer && (
                   <span className="coach-answer">
-                    你的答案：<b>{n.yourAnswer}</b>
-                    {n.expected ? <> · 应为：<b>{n.expected}</b></> : null}
+                    {n.answerKind === "self-assessment" ? "掌握程度：" : "你的答案："}<b>{n.yourAnswer}</b>
+                    {n.expected && n.answerKind !== "self-assessment" ? <> · 应为：<b>{n.expected}</b></> : null}
                   </span>
                 )}
                 <span className="coach-point">{n.point}</span>

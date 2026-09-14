@@ -14,7 +14,7 @@ export function createFakeModel({ latencyMs = 0, log = [] } = {}) {
       data = {};
     }
     const task = String(data.task || "");
-    if (task.includes("刚答错")) {
+    if (task.includes("刚答错") || task.includes("掌握程度自评")) {
       const topic = data.card?.topic || "这个概念";
       return JSON.stringify({
         point: `「${topic}」里谁负责什么${data.earlier?.length ? "（换个角度）" : ""}`,
