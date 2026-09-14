@@ -41,6 +41,6 @@
 
 ## 数据与隐私
 
-陪学相关数据保存在学习库 `study-workspace.json` 中：`learner`（是否同意备题、目标、≤400 字画像摘要、懂了/不懂/👍/👎 计数）、`coach`（陪学线程，最多保留 400 条）、`feedback`（反馈记录）、`prepared`（未使用的定制题）。在 **设置 › 陪学** 可以查看、关闭备题、修改目标或「清空画像」，练习记录不受影响。
+陪学相关数据保存在学习库中（画像在清单 `study-workspace.json`，其余在 `shards/misc/`）：`learner`（是否同意备题、目标、≤400 字画像摘要、懂了/不懂/👍/👎 计数）、`coach`（陪学线程，最多保留 400 条）、`feedback`（反馈记录）、`prepared`（未使用的定制题）。在 **设置 › 陪学** 可以查看、关闭备题、修改目标或「清空画像」，练习记录不受影响。
 
 接口（面板内部使用）：`coach.nudge` `coach.reply` `coach.feedback` `coach.consent` `coach.goal` `coach.debrief` `coach.practice` `coach.revert` `coach.status` `coach.profile` `coach.forget` `coach.prepare`。
