@@ -2,6 +2,12 @@ import React from "react";
 import Markdown from "./Markdown.jsx";
 import Cloze from "./Cloze.jsx";
 import Icon from "./Icon.jsx";
+import ReviewNavigator from "./ReviewNavigator.jsx";
+import ReviewToolbar from "./ReviewToolbar.jsx";
+import ChoiceFeedback from "./ChoiceFeedback.jsx";
+import CoachPanel from "./CoachPanel.jsx";
+import CoachDebrief from "./CoachDebrief.jsx";
+import ThumbFeedback from "./ThumbFeedback.jsx";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -47,12 +53,45 @@ export default function Review({
   studyPrerequisites,
   askAboutCard,
   improveCard,
+  slayCard,
+  coachProps,
   askInChat,
   act,
   enterRun,
 }) {
+  const pageRef = React.useRef(null);
+  const multiple = run.card?.multiple || run.card?.kind === "multi";
+  // "下一题" sits below long explanations; bring the next question's top back
+  // into view instead of opening it at the previous scroll offset.
+  React.useEffect(() => {
+    const page = pageRef.current;
+    let scroller = page?.parentElement;
+    while (scroller && !(scroller.scrollHeight > scroller.clientHeight &&
+      /(auto|scroll)/.test(getComputedStyle(scroller).overflowY)))
+      scroller = scroller.parentElement;
+    if (!page || !scroller) return;
+    const bar = page.closest("main")?.querySelector(":scope > .topbar")?.offsetHeight || 0;
+    const offset = page.getBoundingClientRect().top - scroller.getBoundingClientRect().top - bar;
+    if (offset < 0) scroller.scrollTop = Math.max(0, scroller.scrollTop + offset);
+  }, [run.id, run.index, run.complete]);
+  const coachPanel = coachProps && run.mode !== "exam" && !run.complete && (
+    <CoachPanel
+      run={run}
+      call={coachProps.call}
+      status={coachProps.status}
+      autopilot={coachProps.autopilot}
+      inline={!coachProps.side}
+      onAutopilot={coachProps.onAutopilot}
+      onThread={coachProps.onThread}
+      onStatus={coachProps.onStatus}
+      onPractice={coachProps.onPractice}
+      onRefreshRun={coachProps.onRefreshRun}
+      askInChat={coachProps.askInChat}
+    />
+  );
   return (
     <section
+      ref={pageRef}
       className={"review-page " + (!choice ? "flash-mode" : "")}
     >
       <div className="review-heading">
@@ -90,9 +129,9 @@ export default function Review({
             {run.closed ? "这一轮，已结束。" : "这一轮，完成了。"}
           </h1>
           <p>
-            已答 {run.answered} / {run.total} 道题 · 掌握{" "}
-            {run.correct} 道 · 需要巩固 {run.answered - run.correct}{" "}
-            道
+            已答 {run.answered} / {run.questions ?? run.total} 道题 · 掌握{" "}
+            {run.correct} 道 · 需要巩固 {run.answered - run.correct} 道
+            {run.retries > 0 ? ` · 队尾重练 ${run.retries} 次` : ""}
           </p>
           <div className="summary-topics">
             <h3>接下来重点复习</h3>
@@ -108,7 +147,27 @@ export default function Review({
             )}
           </div>
           <p className="muted">每道题的下次复习时间已保存。</p>
+          {coachProps && run.mode !== "exam" && run.answered > 0 && (
+            <CoachDebrief
+              run={run}
+              call={coachProps.call}
+              initial={coachProps.debrief}
+              autopilot={coachProps.autopilot}
+              busy={busy}
+              onPractice={coachProps.onPractice}
+              onContinue={coachProps.onContinue}
+            />
+          )}
           <div className="summary-actions">
+            {run.mode === "path" && !run.returnTo && (
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() => act("review.start", { mode: "path", scope: run.scope || [], fresh: true }, enterRun)}
+              >
+                {run.scope?.length ? "再练此范围" : "继续学习"}
+              </button>
+            )}
             {run.weakTopics?.length > 0 && (
               <button
                 onClick={() =>
@@ -138,13 +197,15 @@ export default function Review({
           </div>
         </div>
       ) : (
-        <>
+        <div className={"review-body" + (coachPanel && coachProps.side ? " with-coach" : "")}>
+          <ReviewNavigator run={run} busy={busy} onJump={(index) => reviewAct("review.move", { index })} />
           <div
             className={
               "question-area " +
               (!choice && !isCloze ? "flash-area" : "")
             }
           >
+            {run.contentUpdated && <p className="warning" role="status">题目已更新，请按新版重新作答。之前的作答历史已保留。</p>}
             <div className="question-meta">
               <span>
                 {run.index + 1} / {run.total}
@@ -214,6 +275,7 @@ export default function Review({
                     多选题 · 选出所有符合条件的选项
                   </p>
                 )}
+                <ChoiceFeedback options={run.card.options} feedback={run.feedback} solution={run.solution} multiple={multiple} />
                 <div className="options">
                   {run.card.options.map((o, i) => {
                     const solution = run.solution?.options?.find(
@@ -249,9 +311,9 @@ export default function Review({
                             <>
                               <strong className="answer-state">
                                 {solution?.correct
-                                  ? "✓ 正确答案"
+                                  ? picked ? "✓ 已选 · 正确" : multiple ? "漏选 · 正确答案" : "正确答案"
                                   : picked
-                                    ? "× 还差一点"
+                                    ? multiple ? "× 已选 · 错选" : "× 你的选择"
                                     : ""}
                               </strong>
                               <Markdown
@@ -282,7 +344,7 @@ export default function Review({
               <>
                 <Cloze
                   card={run.card}
-                  values={clozeValues}
+                  values={run.feedback?.answers || clozeValues}
                   onChange={(id, value) =>
                     setClozeValues((v) => ({ ...v, [id]: value }))
                   }
@@ -305,23 +367,6 @@ export default function Review({
                   >
                     提交答案
                   </button>
-                )}
-                {run.feedback && (
-                  <div className="cloze-verdicts">
-                    {(run.feedback.details || []).map((d) => (
-                      <span
-                        key={d.id}
-                        className={d.correct ? "tag" : "tag bad"}
-                        title={
-                          d.correct
-                            ? "这个空回答正确"
-                            : `应为：${d.expected ?? "—"}`
-                        }
-                      >
-                        {d.correct ? "✓" : `✗ ${d.expected ?? ""}`}
-                      </span>
-                    ))}
-                  </div>
                 )}
               </>
             ) : (
@@ -407,68 +452,20 @@ export default function Review({
                 )}
               </>
             )}
-            <div className="question-toolbar">
-              <div>
-                <button
-                  className="pill"
-                  onClick={() =>
-                    run.revealed
-                      ? setExplain(!explain)
-                      : setHint(!hint)
-                  }
-                >
-                  {run.revealed ? "✧ 讲解" : "提示"}{" "}
-                  {run.revealed
-                    ? explain
-                      ? "⌃"
-                      : "⌄"
-                    : hint
-                      ? "⌃"
-                      : "⌄"}
-                </button>
-                <button
-                  className="pill"
-                  title="带着这道题去对话里问，弄懂的点会成为它的前置题"
-                  onClick={askAboutCard}
-                >
-                  不会？问 AI
-                </button>
-                <button
-                  className="pill"
-                  title="带着这道题去对话里说哪里不好，AI 会直接改这张卡"
-                  onClick={improveCard}
-                >
-                  提升质量
-                </button>
-                <button className="pill" disabled={busy} title="过于基础或质量不佳：移入斩题组，不再复习，可恢复"
-                  onClick={() => reviewAct("card.slay", { deckId: run.deckId })}>斩</button>
-              </div>
-              {run.mode === "exam" && (
-                <p className="muted small next-due">
-                  这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。
-                </p>
+            <ReviewToolbar
+              run={run} busy={busy} expanded={run.revealed ? explain : hint}
+              onToggleHelp={() => run.revealed ? setExplain(!explain) : setHint(!hint)}
+              onAsk={askAboutCard} onImprove={improveCard} onSlay={slayCard} onReviewAction={reviewAct}
+              thumbs={coachProps && run.mode !== "exam" && (
+                <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()} />
               )}
-              <div>
-                <button
-                  className="pill"
-                  disabled={busy || run.index === 0}
-                  onClick={() =>
-                    reviewAct("review.move", { direction: -1 })
-                  }
-                >
-                  上一题
-                </button>
-                <button
-                  className="primary pill"
-                  disabled={busy || (!run.feedback && run.mode !== "exam")}
-                  onClick={() =>
-                    reviewAct("review.move", { direction: 1 })
-                  }
-                >
-                  {run.index === run.total - 1 ? "完成" : "下一题"} →
-                </button>
-              </div>
-            </div>
+            />
+            {coachProps?.autoAdvance > 0 && (
+              <>
+                <div className="autopilot-bar" key={run.index} style={{ "--autopilot-ms": coachProps.autoAdvance + "ms" }} />
+                <small className="autopilot-note">自动驾驶：马上进入下一题，点任意处或按键可停下</small>
+              </>
+            )}
             {hint && !run.revealed && (
               <div className="hint">
                 <Icon>♧</Icon>
@@ -482,6 +479,7 @@ export default function Review({
                 {run.feedback.retryQueued && <span> · 已追加到本轮队尾，稍后再练一次</span>}
               </p>
             )}
+            {coachPanel && !coachProps.side && coachPanel}
             {explain && run.solution && (
               <div className="explanation">
                 <h3>理解这道题</h3>
@@ -584,11 +582,12 @@ export default function Review({
               )}
             </div>
             <p className="keyboard-note">
-              {choice ? "1–6 选择选项 · " : ""}← → 切换题目
-              {!choice ? " · 空格翻卡" : ""}
+              {choice ? "1–6 选择 · " : ""}Enter 下一题 · ← → 切换
+              {!choice && !isCloze ? " · 空格翻卡" : ""} · H 提示 · G/B 反馈 · A 自动驾驶 · ? 全部快捷键
             </p>
           </div>
-        </>
+          {coachPanel && coachProps.side && coachPanel}
+        </div>
       )}
     </section>
   );

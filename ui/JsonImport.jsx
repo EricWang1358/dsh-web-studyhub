@@ -25,7 +25,7 @@ export default function JsonImport({ busy, act, setPage, setNotice }) {
     finally { if (request === fileRead.current) setReading(false); }
   }
   return <div>
-    <p className="muted">粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入，每组 1–100 题。导入无需模型，保存为草稿后审阅发布。</p>
+    <p className="muted">粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入，每组至少 1 题，不限制题目总数。导入无需模型，保存为草稿后审阅发布。</p>
     <fieldset>
       <legend>01 / 各题型 JSON 提示词</legend>
       <label>题型<select value={kind} onChange={(e) => { setKind(e.target.value); setMessage(""); }}>{Object.entries({ mixed: "混合题型（一次复制全部）", ...kinds }).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>

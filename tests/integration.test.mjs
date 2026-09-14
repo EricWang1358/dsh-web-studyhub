@@ -1,13 +1,14 @@
 import { withQualityStages } from "./helpers/assessment.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { StudyService } from "../lib/service.js";
 import { Store } from "../lib/store.js";
 import { createHostHandler } from "../lib/host.js";
 import { generateDeck } from "../lib/generation.js";
+import { importExample } from "../ui/json-prompts.js";
 
 const fresh = () => mkdtemp(join(tmpdir(), "study-integration-"));
 const source = {
@@ -153,6 +154,138 @@ test("self-grades 0 and 1 append one hidden tail retry, persist on resume and pr
     assert.equal(run.feedback.nextDue, due);
     assert.equal((await service.call("review.move", { runId: run.id, direction: 1 })).complete, true);
   }
+});
+
+for (const kind of ["quiz", "multi", "cloze"]) for (const retryCorrect of [false, true]) {
+  test(`${kind} wrong answer appends one hidden tail retry; retry correct=${retryCorrect} preserves spacing`, async (t) => {
+    const root = await fresh();
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const service = new StudyService(root);
+    const card = JSON.parse(importExample(kind)).cards[0];
+    await service.call("source.add", source);
+    await service.call("draft.save", { deck: { id: "d", title: "Retry test", cards: [
+      { ...q, ...card, id: "q" },
+      { ...q, ...card, id: "q2", prompt: `${card.prompt}（第二题）`, objective: `${card.objective}（第二目标）` },
+    ] } });
+    await service.call("draft.publish", { id: "d" });
+    const wrong = kind === "cloze" ? { answers: { order: "乱序" } } : { selected: kind === "multi" ? ["a"] : ["b"] };
+    const right = kind === "cloze" ? { answers: { order: "有序" } } : { selected: kind === "multi" ? ["a", "b"] : ["a"] };
+    let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+    const cardId = run.card.id, args = { runId: run.id, cardId };
+    run = await service.call("review.answer", { ...args, ...wrong });
+    assert.equal(run.feedback.correct, false);
+    assert.equal(run.feedback.retryQueued, true);
+    assert.equal(run.total, 3);
+    assert.equal((await service.call("review.answer", { ...args, ...wrong })).total, 3, "duplicate submission cannot append twice");
+    const scheduled = (await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === cardId).review;
+    run = await service.call("review.move", { runId: run.id, direction: 1 });
+    assert.notEqual(run.card.id, cardId, "other original questions precede the retry");
+    run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, ...right });
+    assert.equal(run.total, 3, "correct first answers do not queue retries");
+    run = await service.call("review.move", { runId: run.id, direction: 1 });
+    run = await new StudyService(root).call("review.start", { deckId: "d", mode: "quiz" });
+    assert.equal(run.card.id, cardId);
+    assert.equal(run.retry, true);
+    assert.equal(run.revealed, false);
+    assert.equal(run.feedback, null);
+    assert.equal(run.solution, undefined);
+    if (kind === "cloze") assert.equal(run.card.cloze.answers, undefined);
+    else assert.ok(run.card.options.every((o) => o.correct === undefined));
+    run = await service.call("review.answer", { ...args, ...(retryCorrect ? right : wrong) });
+    assert.equal(run.feedback.correct, retryCorrect);
+    assert.equal(run.total, 3, "a failed retry does not grow an endless queue");
+    assert.deepEqual([run.questions, run.answered, run.correct, run.retries], [2, 2, 1, 1],
+      "the summary counts each question once and reports retries separately");
+    assert.deepEqual((await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === cardId).review, scheduled);
+    const attempts = (await service.call("export")).attempts.filter((a) => a.quiz_id === cardId);
+    assert.equal(attempts.length, 2);
+    assert.equal(attempts[1].retry, true);
+    assert.equal((await service.call("review.move", { runId: run.id, direction: 1 })).complete, true);
+  });
+}
+
+test("improving an answered question refreshes its open view, retains history and rejects stale answers", async (t) => {
+  const root = await fresh();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  const d = await service.call("draft.import", { text: importExample("quiz") });
+  await service.call("draft.publish", { id: d.id });
+  let run = await service.call("review.start", { deckId: d.id, mode: "quiz" });
+  const args = { runId: run.id, cardId: run.card.id };
+  run = await service.call("review.answer", { ...args, selected: ["a"] });
+  const before = await service.call("export");
+  const feedback = run.feedback, oldPrompt = run.card.prompt;
+  await service.call("card.update", { deckId: d.id, cardId: run.card.id, patch: { explanation: "Improved explanation only." } });
+  assert.deepEqual((await service.call("review.get", args)).feedback, feedback);
+  const evidence = await service.call("source.add", { title: "New evidence", text: "Binary search repeatedly halves a sorted search interval." });
+  const changed = await service.call("card.update", { deckId: d.id, cardId: run.card.id, patch: {
+    prompt: "What operation reduces the search interval?", answer: "Halving",
+    options: [
+      { id: "x", text: "Halving", correct: true, explanation: "The search interval is halved." },
+      { id: "y", text: "Doubling", correct: false, explanation: "This expands the interval." },
+      { id: "z", text: "Keeping it unchanged", correct: false, explanation: "This makes no progress." },
+    ], citations: [{ sourceId: evidence.id, quote: evidence.text }],
+  } });
+  assert.equal(changed.refreshedInOpenRuns, 1);
+  const updated = await service.call("review.get", args);
+  assert.equal(updated.card.prompt, "What operation reduces the search interval?");
+  assert.equal(updated.feedback, null);
+  assert.equal(updated.revealed, false);
+  assert.equal(updated.solution, undefined);
+  assert.equal(updated.contentUpdated, true);
+  assert.ok(updated.queueVersion > run.queueVersion);
+  assert.deepEqual(updated.sourceIds, [evidence.id]);
+  const after = await service.call("export");
+  assert.deepEqual(after.attempts, before.attempts);
+  const history = after.runs[0].entries[0].previousVersions[0];
+  assert.equal(history.card.prompt, oldPrompt);
+  assert.deepEqual(history.feedback, feedback);
+  await assert.rejects(service.call("source.remove", { id: before.sources[0].id }), /referenced/);
+  await assert.rejects(service.call("review.answer", { ...args, selected: ["x"], queueVersion: run.queueVersion }), /changed/);
+  const answered = await service.call("review.answer", { ...args, selected: ["x"], queueVersion: updated.queueVersion });
+  assert.equal(answered.feedback.correct, true);
+  assert.equal(answered.contentUpdated, false);
+});
+
+test("opening a legacy answered snapshot repairs it once without adding card revisions or attempts", async (t) => {
+  const service = await ready();
+  t.after(() => rm(service.store.root, { recursive: true, force: true }));
+  const run = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+  await service.call("review.reveal", { runId: run.id, cardId: "q" });
+  await service.call("review.answer", { runId: run.id, cardId: "q", grade: 4 });
+  const legacy = (await service.call("export")).runs[0];
+  await service.call("card.update", { deckId: "d", cardId: "q", patch: { prompt: "New question from the published card?" } });
+  await service.store.update((s) => { s.runs[0] = legacy; });
+  const before = await service.call("export");
+  const opened = await service.call("review.get", { runId: run.id });
+  assert.equal(opened.card.prompt, "New question from the published card?");
+  assert.equal(opened.feedback, null);
+  assert.equal(opened.contentUpdated, true);
+  const repaired = await service.call("export");
+  assert.deepEqual(repaired.decks, before.decks);
+  assert.deepEqual(repaired.attempts, before.attempts);
+  assert.equal(repaired.runs[0].entries[0].previousVersions.length, 1);
+  await service.call("review.get", { runId: run.id });
+  assert.equal((await service.call("export")).revision, repaired.revision, "normal polling remains read-only");
+});
+
+test("quality edits hide a revealed flashcard while keeping ended sessions unchanged", async (t) => {
+  const service = await ready();
+  t.after(() => rm(service.store.root, { recursive: true, force: true }));
+  const closed = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+  await service.call("review.reveal", { runId: closed.id, cardId: "q" });
+  await service.call("review.answer", { runId: closed.id, cardId: "q", grade: 4 });
+  await service.call("review.end", { runId: closed.id });
+  const before = (await service.call("export")).runs.find((r) => r.id === closed.id);
+  const active = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+  await service.call("review.reveal", { runId: active.id, cardId: "q" });
+  await service.call("card.update", { deckId: "d", cardId: "q", patch: { prompt: "How does Bridge separate two independent dimensions?" } });
+  const view = await service.call("review.get", { runId: active.id });
+  assert.equal(view.revealed, false);
+  assert.equal(view.solution, undefined);
+  assert.ok(view.queueVersion > active.queueVersion);
+  await assert.rejects(service.call("review.reveal", { runId: active.id, cardId: "q", queueVersion: active.queueVersion }), /changed/);
+  assert.deepEqual((await service.call("export")).runs.find((r) => r.id === closed.id), before);
 });
 
 test("deck maintenance preserves unchanged scheduling, resets edited content, and fences concurrent drafts", async () => {
@@ -616,6 +749,55 @@ test("teaching stores conclusions only and cannot advance a failed check or add 
   assert.equal(state.attempts.length, 1);
   assert.equal(JSON.stringify(state).includes("SECRET_WRONG_ANSWER"), false);
 });
+test("deck start includes all 80 questions while daily batches can continue with unseen questions", async () => {
+  const service = await ready();
+  await service.store.update((s) => {
+    s.decks[0].cards = Array.from({ length: 80 }, (_, i) => ({ ...structuredClone(q), id: `q${i}`, topic: i < 40 ? "First" : "Second" }));
+  });
+  const scoped = await service.call("review.start", { mode: "path", scope: [{ deckId: "d" }] });
+  assert.equal(scoped.total, 80);
+  const topic = await service.call("review.start", { mode: "path", scope: [{ deckId: "d", topic: "First" }] });
+  assert.equal(topic.total, 40);
+  let daily = await service.call("review.start", { mode: "path" });
+  assert.equal(daily.total, 10);
+  const seen = new Set();
+  while (!daily.complete) {
+    seen.add(daily.card.id);
+    await service.call("review.reveal", { runId: daily.id, cardId: daily.card.id });
+    await service.call("review.answer", { runId: daily.id, cardId: daily.card.id, grade: 5 });
+    daily = await service.call("review.move", { runId: daily.id, direction: 1 });
+  }
+  assert.deepEqual(daily.scope, []);
+  const next = await service.call("review.start", { mode: "path", scope: daily.scope, fresh: true });
+  assert.equal(next.total, 10);
+  assert.ok(!seen.has(next.card.id));
+  const freshRun = await service.call("review.start", { mode: "new", deckId: "d" });
+  assert.equal(freshRun.total, 70);
+  const state = await service.call("export");
+  assert.ok(state.runs.find((r) => r.id === freshRun.id).entries.every((e) => !seen.has(e.card.id)));
+});
+
+test("new-only practice excludes wrong, learned and suspended cards and rejects an empty pool", async () => {
+  const service = await ready();
+  await service.store.update((s) => {
+    s.decks[0].cards = [
+      { ...structuredClone(q), id: "unseen" },
+      { ...structuredClone(q), id: "wrong" },
+      { ...structuredClone(q), id: "learned", review: { repetitions: 1 } },
+      { ...structuredClone(q), id: "suspended", suspended: true },
+    ];
+    s.attempts.push({ deckId: "d", quiz_id: "wrong", grade: 1 });
+  });
+  let run = await service.call("review.start", { mode: "new", deckId: "d", fresh: true });
+  assert.equal(run.total, 1);
+  assert.equal(run.card.id, "unseen");
+  await service.call("review.reveal", { runId: run.id, cardId: run.card.id });
+  await service.call("review.answer", { runId: run.id, cardId: run.card.id, grade: 5 });
+  run = await service.call("review.move", { runId: run.id, direction: 1 });
+  assert.equal(run.complete, true);
+  await assert.rejects(service.call("review.start", { mode: "new", deckId: "d", fresh: true }), /No questions/);
+});
+
 test("learning path orders weak before new in syllabus order, resumes the same scope and tracks mastery across decks", async () => {
   const service = new StudyService(await fresh());
   await service.call("source.add", source);
@@ -967,7 +1149,12 @@ test("card.update improves one card in place, keeps its schedule for explanation
   );
   const changed = await service.call("card.update", { deckId: "d", cardId: "mq", patch: { prompt: "Which of these is not a design smell?" } });
   assert.equal(changed.scheduleReset, true);
-  assert.equal(changed.refreshedInOpenRuns, 0);
+  assert.equal(changed.refreshedInOpenRuns, 2, "the current question and its tail retry both pick up the new question");
+  const entries = (await service.call("export")).runs.find((r) => r.id === run.id).entries;
+  assert.equal(entries[0].previousVersions[0].card.prompt, quiz.prompt, "the graded original keeps its historical question snapshot");
+  assert.equal(entries[0].feedback, null);
+  assert.equal(entries[1].retry, true);
+  assert.equal(entries[1].card.prompt, "Which of these is not a design smell?");
   const reverted = await service.call("card.revert", { deckId: "d", cardId: "mq" });
   assert.equal(reverted.revisions, 1);
   card = (await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === "mq");
@@ -1102,6 +1289,17 @@ test("recording mode ingests pasted mistakes into a deck, keeps answer keys, ski
   // lastRun points at the run the learner touched most recently.
   const run = await service.call("review.start", { deckId: result.deckId, mode: "quiz" });
   assert.equal((await service.call("snapshot")).lastRun.id, run.id);
+});
+test("lastRun follows the latest run even when an older open run sits on the same question", async () => {
+  const service = await ready();
+  const older = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+  await new Promise((r) => setTimeout(r, 5));
+  const newer = await service.call("review.start", { mode: "path", scope: [{ deckId: "d" }], fresh: true });
+  assert.notEqual(newer.id, older.id);
+  assert.equal(newer.card.id, older.card.id);
+  const lastRun = (await service.call("snapshot")).lastRun;
+  assert.equal(lastRun.id, newer.id);
+  assert.equal(lastRun.total, newer.total);
 });
 test("card references resolve by card id when deckId is empty or wrong, with clear errors", async () => {
   const service = await ready();

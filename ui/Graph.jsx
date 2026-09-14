@@ -1,28 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
+import {
+  layoutStructure,
+  layoutPath,
+  pathColumns,
+  fitScale,
+  clampScale,
+  bez,
+  idTail,
+  ZOOM_MIN,
+  ZOOM_MAX,
+} from "./graph-layout.js";
 
 /* Knowledge graph / study path, rendered as a sideways fork: decks on the
    left, topics fanning right, each topic branching into its card leaves.
-   Data comes from call("graph", {scope, mode}) per the v0.4 contract §1;
-   layout is computed here (no graph library). CSS is injected once with a
-   <style data-study-graph> marker. */
+   Data comes from call("graph", {scope, mode}); layout lives in
+   ui/graph-layout.js (column-packed, so the sheet grows sideways instead of
+   becoming a ribbon). The panel view scrolls the whole drawing; 「大画布」
+   promotes the section to a real browser fullscreen canvas with zoom, pan and
+   fit, which is the only way to see a library's whole structure at once.
+   CSS is injected once with a <style data-study-graph> marker. */
 
-/* ── shared helpers ───────────────────────────────────────────────────── */
-// Node ids look like "deck:<id>", "topic:<JSON [deckId,topic]>" and
-// "card:<JSON [deckId,cardId]>"; parse the tail without trusting extra fields.
-const idTail = (id) => {
-  const s = String(id ?? "");
-  const i = s.indexOf(":");
-  if (i < 0) return null;
-  try {
-    const v = JSON.parse(s.slice(i + 1));
-    return Array.isArray(v) ? v : null;
-  } catch {
-    return null;
-  }
-};
-const kindOf = (node) => String(node?.id ?? "").split(":")[0];
 const levelOf = (node) => {
   if (node && LEVELS.includes(node.level)) return node.level;
   // Deck/topic nodes carry mastery instead of a level: derive the bucket.
@@ -37,220 +36,40 @@ const metaOf = (node) => {
   if (!bits.length && node?.total != null) bits.push(`${node.total} 题`);
   return bits.join(" · ");
 };
-const fit = (t, max) => {
+const fitLabel = (t, max) => {
   const s = String(t ?? "");
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 };
-// Horizontal bezier: leaves the parent on its right edge, enters the child on
-// its left edge, with symmetric control points for the fork look.
-const bez = (x1, y1, x2, y2) => {
-  const dx = Math.max(26, Math.abs(x2 - x1) * 0.45);
-  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-};
-// Vertical bezier for serpentine row wraps (bottom of one node to the top of
-// the next row's node).
-const bezV = (x1, y1, x2, y2) => {
-  const dy = Math.max(20, Math.abs(y2 - y1) * 0.5);
-  return `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
-};
-
-/* ── layout constants ─────────────────────────────────────────────────── */
-const CARD = { w: 236, h: 26 };
-const TOPIC = { w: 200, h: 34 };
-const DECK = { w: 224, h: 48 };
-const COL = { deck: 12, topic: 296, card: 560 };
-const STAGGER = 40; // cards alternate slightly rightwards inside a topic
-const PAD = 14;
-const ROW_GAP = 8;
-const TOPIC_GAP = 14;
-const DECK_GAP = 26;
-const MAX_H = 1200;
-
-/* structure mode: three columns, uniform spacing within each column, parent
-   y = mean of its children. Cards without a tree edge (or hanging directly
-   off a deck) fall into a "未分组" ghost group under their deck. */
-function layoutStructure(nodes, edges) {
-  const parentOf = new Map(),
-    seqOf = new Map(),
-    topicsByDeck = new Map(),
-    cardsByParent = new Map();
-  const indexed = nodes.map((n, i) => ({ ...n, __i: i }));
-  for (const e of edges || []) {
-    if (e.type === "prereq" || e.type === "order") continue;
-    parentOf.set(e.to, e.from);
-    if (e.seq != null) seqOf.set(e.to, e.seq);
-  }
-  for (const n of indexed) {
-    if (kindOf(n) === "topic") {
-      const deckId = (idTail(n.id) || [])[0];
-      const key = "deck:" + deckId;
-      if (!topicsByDeck.has(key)) topicsByDeck.set(key, []);
-      topicsByDeck.get(key).push(n);
-    } else if (kindOf(n) === "card") {
-      const tail = idTail(n.id) || [];
-      const key = parentOf.get(n.id) || "orphan:" + tail[0];
-      if (!cardsByParent.has(key)) cardsByParent.set(key, []);
-      cardsByParent.get(key).push(n);
-    }
-  }
-  const bySeq = (a, b) => (seqOf.get(a.id) ?? a.__i ?? 0) - (seqOf.get(b.id) ?? b.__i ?? 0);
-
-  const placed = [],
-    treeEdges = [],
-    prereqEdges = [],
-    posOf = new Map();
-  let cy = PAD,
-    maxBottom = 0;
-  for (const d of indexed.filter((n) => kindOf(n) === "deck")) {
-    const tail = idTail(d.id) || [];
-    const topics = (topicsByDeck.get(d.id) || [])
-      .slice()
-      .sort((a, b) => (a.seq ?? a.__i ?? 0) - (b.seq ?? b.__i ?? 0));
-    const loose = [
-      ...(cardsByParent.get(d.id) || []), // deck→card edges without a topic
-      ...(cardsByParent.get("orphan:" + tail[0]) || []),
-    ];
-    const groups = topics.map((t) => ({ topic: t, cards: (cardsByParent.get(t.id) || []).slice().sort(bySeq) }));
-    if (loose.length) groups.push({ topic: null, cards: loose.sort(bySeq) });
-    const centers = [];
-    for (const g of groups) {
-      if (g.cards.length) {
-        let i = 0;
-        for (const c of g.cards) {
-          const p = {
-            key: c.id,
-            node: c,
-            kind: "card",
-            x: COL.card + (i % 2) * STAGGER,
-            y: cy + CARD.h / 2,
-            w: CARD.w,
-            h: CARD.h,
-          };
-          i += 1;
-          cy += CARD.h + ROW_GAP;
-          posOf.set(c.id, p);
-          placed.push(p);
-        }
-        cy += TOPIC_GAP - ROW_GAP; // widen the gap between topic groups
-        const avg = g.cards.reduce((s, c) => s + posOf.get(c.id).y, 0) / g.cards.length;
-        centers.push(avg);
-        const tp = {
-          key: g.topic ? g.topic.id : `ghost:${d.id}:${g.cards[0].id}`,
-          node: g.topic || { label: "未分组", ghost: true },
-          kind: g.topic ? "topic" : "ghost",
-          x: COL.topic,
-          y: avg,
-          w: TOPIC.w,
-          h: TOPIC.h,
-        };
-        if (g.topic) posOf.set(g.topic.id, tp);
-        placed.push(tp);
-        maxBottom = Math.max(
-          maxBottom,
-          avg + TOPIC.h / 2,
-          ...g.cards.map((c) => posOf.get(c.id).y + CARD.h / 2),
-        );
-      } else {
-        const y = cy + CARD.h / 2;
-        centers.push(y);
-        const tp = {
-          key: g.topic.id,
-          node: g.topic,
-          kind: "topic",
-          x: COL.topic,
-          y,
-          w: TOPIC.w,
-          h: TOPIC.h,
-        };
-        posOf.set(g.topic.id, tp);
-        placed.push(tp);
-        cy += CARD.h + TOPIC_GAP;
-        maxBottom = Math.max(maxBottom, y + TOPIC.h / 2);
-      }
-    }
-    const dy = centers.length
-      ? centers.reduce((s, y) => s + y, 0) / centers.length
-      : cy + DECK.h / 2;
-    if (!centers.length) cy += DECK.h;
-    const dp = { key: d.id, node: d, kind: "deck", x: COL.deck, y: dy, w: DECK.w, h: DECK.h };
-    posOf.set(d.id, dp);
-    placed.push(dp);
-    maxBottom = Math.max(maxBottom, dy + DECK.h / 2);
-    cy += DECK_GAP;
-  }
-  for (const e of edges || []) {
-    if (e.type === "order") continue;
-    if (posOf.has(e.from) && posOf.has(e.to)) (e.type === "prereq" ? prereqEdges : treeEdges).push(e);
-  }
-  return {
-    placed,
-    treeEdges,
-    prereqEdges,
-    posOf,
-    width: COL.card + STAGGER + CARD.w + PAD,
-    height: maxBottom + PAD,
-  };
-}
-
-/* path mode: planPath order as a horizontal chain, six nodes per row,
-   serpentine wrapping (rows alternate right-to-left so the wrap edge is a
-   short vertical drop). */
-function layoutPath(nodes, edges) {
-  const PER = 6,
-    W = 172,
-    H = 46,
-    GX = 52,
-    GY = 70;
-  const placed = nodes.map((n, i) => {
-    const row = Math.floor(i / PER),
-      col = row % 2 ? PER - 1 - (i % PER) : i % PER;
-    return {
-      key: n.id || `#${i}`,
-      node: n,
-      kind: "pcard",
-      x: PAD + col * (W + GX),
-      y: PAD + row * (H + GY) + H / 2,
-      w: W,
-      h: H,
-      step: i + 1,
-    };
-  });
-  const posOf = new Map(placed.map((p) => [p.node.id, p]));
-  const orderPaths = [];
-  for (let i = 0; i + 1 < placed.length; i += 1) {
-    const a = placed[i],
-      b = placed[i + 1];
-    orderPaths.push(
-      a.x === b.x
-        ? bezV(a.x + a.w / 2, a.y + a.h / 2, b.x + b.w / 2, b.y - b.h / 2)
-        : b.x > a.x
-          ? bez(a.x + a.w, a.y, b.x, b.y)
-          : bez(a.x, a.y, b.x + b.w, b.y),
-    );
-  }
-  const prereqEdges = (edges || []).filter(
-    (e) => e.type === "prereq" && posOf.has(e.from) && posOf.has(e.to),
-  );
-  const rows = Math.max(1, Math.ceil(nodes.length / PER));
-  const cols = Math.min(PER, nodes.length) || 1;
-  return {
-    placed,
-    orderPaths,
-    prereqEdges,
-    posOf,
-    width: PAD * 2 + cols * W + (cols - 1) * GX,
-    height: PAD * 2 + rows * H + (rows - 1) * GY,
-  };
-}
+const ZOOM_STEP = 1.25;
 
 /* ── component ────────────────────────────────────────────────────────── */
-export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
+export default function Graph({
+  call,
+  busy,
+  scope,
+  onClose,
+  onStudyCard,
+  canvasWanted,
+  onCanvasHandled,
+}) {
   useInjectCss(css, "study-graph");
   const [mode, setMode] = useState("structure");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [full, setFull] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const seq = useRef(0);
+  const canvasRef = useRef(null);
+  const viewRef = useRef(null);
+  const scaleRef = useRef(1);
+  const dragRef = useRef(null);
+  const suppressClick = useRef(false);
+  const autoTried = useRef(false);
+  const lastFit = useRef("");
+  const fittedScale = useRef(1);
   const scopeKey = JSON.stringify(scope || []);
 
   const load = useCallback(async () => {
@@ -274,14 +93,204 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
     load();
   }, [load]);
 
+  /* The drawing is measured, not guessed: the viewport size drives both the
+     path row length and the fit scale. */
+  useEffect(() => {
+    const el = viewRef.current;
+    if (!el) return;
+    const measure = () => setViewport({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setFull(document.fullscreenElement === canvasRef.current);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  useEffect(() => {
+    canvasRef.current?.focus?.({ preventScroll: true });
+  }, []);
+
   const layout = useMemo(() => {
     if (!data || !Array.isArray(data.nodes)) return null;
     return (data.mode || mode) === "path"
-      ? layoutPath(data.nodes, data.edges || [])
-      : layoutStructure(data.nodes, data.edges || []);
-  }, [data, mode]);
-  const clipped = !!layout && layout.height > MAX_H + 0.5;
-  const truncated = !!data && (data.truncated || clipped);
+      ? layoutPath(data.nodes, data.edges || [], pathColumns(viewport.w))
+      : layoutStructure(data.nodes, data.edges || [], {
+          viewportW: viewport.w,
+          viewportH: viewport.h,
+        });
+  }, [data, mode, viewport.w, viewport.h]);
+
+  const fitView = useCallback(() => {
+    const el = viewRef.current;
+    if (!el || !layout) return;
+    const next = fitScale(layout.width, layout.height, el.clientWidth, el.clientHeight, 28);
+    scaleRef.current = next;
+    fittedScale.current = next;
+    setScale(next);
+    // Content that still overflows (a clamped minimum scale) starts centred.
+    requestAnimationFrame(() => {
+      el.scrollLeft = Math.max(0, (layout.width * next - el.clientWidth) / 2);
+      el.scrollTop = Math.max(0, (layout.height * next - el.clientHeight) / 2);
+    });
+  }, [layout]);
+
+  /* Fit once per drawing, mode and fullscreen transition, and again when the
+     viewport settles after a resize — but never after the reader zoomed in
+     themselves, so their scale and place survive. */
+  useEffect(() => {
+    if (!layout || !viewport.w || !viewport.h) return;
+    const key = `${full ? "canvas" : "panel"}:${data?.mode || mode}:${layout.width}x${layout.height}`;
+    const untouched = Math.abs(scale - fittedScale.current) < 1e-6;
+    if (lastFit.current === key && !untouched) return;
+    lastFit.current = key;
+    fitView();
+  }, [layout, viewport.w, viewport.h, full, mode, data, scale, fitView]);
+
+  const applyZoom = useCallback((value, focus) => {
+    const el = viewRef.current;
+    const next = clampScale(value);
+    if (!el || next === scaleRef.current) return;
+    const rect = el.getBoundingClientRect();
+    const cx = focus ? focus.x - rect.left : el.clientWidth / 2;
+    const cy = focus ? focus.y - rect.top : el.clientHeight / 2;
+    const anchorX = el.scrollLeft + cx;
+    const anchorY = el.scrollTop + cy;
+    const k = next / scaleRef.current;
+    scaleRef.current = next;
+    setScale(next);
+    requestAnimationFrame(() => {
+      el.scrollLeft = anchorX * k - cx;
+      el.scrollTop = anchorY * k - cy;
+    });
+  }, []);
+
+  /* Ctrl/⌘+wheel zooms around the pointer; a plain wheel keeps scrolling, so
+     the canvas behaves like the rest of the page until asked to scale. */
+  useEffect(() => {
+    const el = viewRef.current;
+    if (!el) return;
+    const onWheel = (ev) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      ev.preventDefault();
+      applyZoom(scaleRef.current * (ev.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP), {
+        x: ev.clientX,
+        y: ev.clientY,
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [applyZoom]);
+
+  const enterCanvas = useCallback(async () => {
+    const el = canvasRef.current;
+    if (!el) return false;
+    setNotice("");
+    if (document.fullscreenElement === el) return true;
+    if (!el.requestFullscreen) {
+      setNotice("当前浏览器不支持全屏画布，用 Ctrl/⌘+滚轮缩放查看。");
+      return false;
+    }
+    try {
+      await el.requestFullscreen();
+      return true;
+    } catch {
+      setNotice("浏览器没有进入全屏，可继续在面板中查看，或再次点「大画布」。");
+      return false;
+    }
+  }, []);
+
+  const toggleCanvas = useCallback(async () => {
+    if (document.fullscreenElement === canvasRef.current) {
+      await document.exitFullscreen?.();
+      return;
+    }
+    await enterCanvas();
+  }, [enterCanvas]);
+
+  /* Opened from the study map: the click that navigated here is the user
+     gesture that lets the canvas take the screen, so try it once on mount and
+     hand the intent back either way. A refusal degrades to the panel view. */
+  useEffect(() => {
+    if (!canvasWanted || autoTried.current) return;
+    autoTried.current = true;
+    enterCanvas().finally(() => onCanvasHandled?.());
+  }, [canvasWanted, enterCanvas, onCanvasHandled]);
+
+  const onKeyDown = (ev) => {
+    if (ev.key === "Escape") {
+      // In fullscreen the browser owns Escape and leaves the canvas itself.
+      if (document.fullscreenElement === canvasRef.current) return;
+      ev.stopPropagation();
+      onClose?.();
+      return;
+    }
+    if (ev.target !== ev.currentTarget && ev.target?.closest?.("button")) return;
+    if (ev.key === "+" || ev.key === "=") {
+      ev.preventDefault();
+      applyZoom(scaleRef.current * ZOOM_STEP);
+    } else if (ev.key === "-" || ev.key === "_") {
+      ev.preventDefault();
+      applyZoom(scaleRef.current / ZOOM_STEP);
+    } else if (ev.key === "0") {
+      ev.preventDefault();
+      fitView();
+    }
+  };
+
+  /* Drag anywhere (including over a node) pans the sheet; a press that never
+     moves stays a click, so opening a card is unaffected. */
+  const onPointerDown = (ev) => {
+    if (ev.button !== 0) return;
+    const el = viewRef.current;
+    if (!el) return;
+    dragRef.current = {
+      id: ev.pointerId,
+      x: ev.clientX,
+      y: ev.clientY,
+      left: el.scrollLeft,
+      top: el.scrollTop,
+      moved: false,
+    };
+  };
+  const onPointerMove = (ev) => {
+    const d = dragRef.current;
+    const el = viewRef.current;
+    if (!d || !el) return;
+    const dx = ev.clientX - d.x;
+    const dy = ev.clientY - d.y;
+    if (!d.moved && Math.hypot(dx, dy) < 4) return;
+    if (!d.moved) {
+      d.moved = true;
+      el.classList.add("is-panning");
+      el.setPointerCapture?.(d.id);
+    }
+    el.scrollLeft = d.left - dx;
+    el.scrollTop = d.top - dy;
+  };
+  const endDrag = () => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    const el = viewRef.current;
+    if (el) {
+      el.classList.remove("is-panning");
+      try {
+        if (d) el.releasePointerCapture?.(d.id);
+      } catch {}
+    }
+    if (d?.moved) suppressClick.current = true;
+  };
+  const onClickCapture = (ev) => {
+    if (!suppressClick.current) return;
+    suppressClick.current = false;
+    ev.preventDefault();
+    ev.stopPropagation();
+  };
 
   const study = useCallback(
     (node) => {
@@ -300,10 +309,10 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
         <g key={p.key} transform={`translate(${p.x} ${p.y - p.h / 2})`}>
           <rect className={`gn-node gn-deck gn-${levelOf(n)}`} width={p.w} height={p.h} rx={12} />
           <text className="gn-label gn-deck-label" x={12} y={20}>
-            {fit(n.label, 15)}
+            {fitLabel(n.label, 15)}
           </text>
           <text className="gn-meta" x={12} y={37}>
-            {fit(meta, 22)}
+            {fitLabel(meta, 22)}
           </text>
           <title>{[n.label, meta].filter(Boolean).join(" · ")}</title>
         </g>
@@ -322,10 +331,10 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
             rx={9}
           />
           <text className={`gn-label${n.ghost ? " gn-ghost-label" : ""}`} x={10} y={14}>
-            {fit(label, 14)}
+            {fitLabel(label, 14)}
           </text>
           <text className="gn-meta" x={10} y={28}>
-            {fit(meta, 18)}
+            {fitLabel(meta, 18)}
           </text>
           <title>{[label, meta].filter(Boolean).join(" · ")}</title>
         </g>
@@ -333,10 +342,11 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
     }
     // card (structure) / pcard (path): clickable leaf
     const lvl = `gn-${levelOf(n)}`;
-    const full = n.objective || n.prompt || n.label || "";
+    const fullText = n.objective || n.prompt || n.label || "";
     const cap =
       p.kind === "pcard"
-        ? fit([n.deckTitle, n.topic].filter(Boolean).join(" › "), 15) || LEVEL_LABEL[levelOf(n)]
+        ? fitLabel([n.deckTitle, n.topic].filter(Boolean).join(" › "), 15) ||
+          LEVEL_LABEL[levelOf(n)]
         : null;
     return (
       <g
@@ -345,13 +355,14 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
         className={clickable ? "gn-clickable" : undefined}
         role={clickable ? "button" : undefined}
         tabIndex={clickable ? 0 : undefined}
-        aria-label={full}
+        aria-label={fullText}
         onClick={clickable ? () => study(n) : undefined}
         onKeyDown={
           clickable
             ? (ev) => {
                 if (ev.key === "Enter" || ev.key === " ") {
                   ev.preventDefault();
+                  ev.stopPropagation();
                   study(n);
                 }
               }
@@ -367,7 +378,7 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
         {p.kind === "pcard" ? (
           <>
             <text className="gn-label" x={12} y={20}>
-              {fit(`${p.step}. ${n.label || ""}`, 14)}
+              {fitLabel(`${p.step}. ${n.label || ""}`, 14)}
             </text>
             <text className="gn-meta" x={12} y={36}>
               {cap}
@@ -375,16 +386,33 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
           </>
         ) : (
           <text className="gn-label gn-card-label" x={12} y={p.h / 2 + 4}>
-            {fit(n.label, 19)}
+            {fitLabel(n.label, 19)}
           </text>
         )}
-        <title>{p.kind === "pcard" ? [`${p.step}. ${full}`, cap].filter(Boolean).join("\n") : full}</title>
+        <title>
+          {p.kind === "pcard"
+            ? [`${p.step}. ${fullText}`, cap].filter(Boolean).join("\n")
+            : fullText}
+        </title>
       </g>
     );
   };
 
+  const scopeCount = (data?.scope || scope || []).length;
+  const scopeLabel = scopeCount
+    ? `已选 ${scopeCount} 项范围`
+    : "全部题组（未归档）";
+  const nodeCount = layout?.placed.length || 0;
+
   return (
-    <section className="graph" aria-busy={busy || loading}>
+    <section
+      className={"graph" + (full ? " graph-canvas" : "")}
+      ref={canvasRef}
+      tabIndex={-1}
+      aria-busy={busy || loading}
+      aria-label="知识图谱画布"
+      onKeyDown={onKeyDown}
+    >
       <div className="graph-toolbar">
         <div className="graph-modes" role="group" aria-label="视图模式">
           <button
@@ -404,6 +432,61 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
             学习路径
           </button>
         </div>
+        <div className="graph-zoom" role="group" aria-label="缩放">
+          <button
+            type="button"
+            disabled={!layout}
+            title="缩小（-）"
+            aria-label="缩小"
+            onClick={() => applyZoom(scaleRef.current / ZOOM_STEP)}
+          >
+            −
+          </button>
+          <span className="graph-zoom-value">{Math.round(scale * 100)}%</span>
+          <button
+            type="button"
+            disabled={!layout}
+            title="放大（+）"
+            aria-label="放大"
+            onClick={() => applyZoom(scaleRef.current * ZOOM_STEP)}
+          >
+            ＋
+          </button>
+          <button
+            type="button"
+            className="graph-fit"
+            disabled={!layout}
+            title="缩放到刚好看到整张图（0）"
+            onClick={fitView}
+          >
+            适应窗口
+          </button>
+        </div>
+        <div className="graph-actions">
+          <button
+            type="button"
+            className={full ? "" : "primary"}
+            title={
+              full
+                ? "回到面板中查看（Esc）"
+                : "用整个屏幕看这张图，可缩放、拖拽"
+            }
+            onClick={toggleCanvas}
+          >
+            {full ? "退出大画布" : "大画布"}
+          </button>
+          <button type="button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+      </div>
+
+      <div className="graph-toolbar graph-toolbar-sub">
+        <span className="graph-scope">
+          {scopeLabel}
+          {nodeCount ? ` · ${nodeCount} 个节点` : ""}
+          {layout?.columns ? ` · ${layout.columns} 列` : ""}
+        </span>
         <div className="graph-legend" aria-label="图例">
           {LEVELS.map((l) => (
             <span key={l} className="graph-legend-item">
@@ -418,87 +501,129 @@ export default function Graph({ call, busy, scope, onClose, onStudyCard }) {
             前置（虚线箭头）
           </span>
         </div>
-        <button onClick={onClose}>关闭</button>
       </div>
 
-      {truncated && <div className="graph-truncated">已截断，缩小范围可看全</div>}
-
-      {loading ? (
-        <div className="graph-state graph-scroll">正在生成图谱…</div>
-      ) : error ? (
-        <div className="graph-state graph-error graph-scroll">
-          <div>图谱加载失败：{error}</div>
-          <button onClick={load}>重试</button>
-        </div>
-      ) : !layout || !layout.placed.length ? (
-        <div className="graph-state graph-scroll">当前范围内没有可展示的题目。</div>
-      ) : (
-        <div className="graph-scroll">
-          <svg
-            className="graph-svg"
-            width={layout.width}
-            height={Math.min(layout.height, MAX_H)}
-            viewBox={`0 0 ${layout.width} ${Math.min(layout.height, MAX_H)}`}
-            role="img"
-            aria-label={mode === "path" ? "学习路径图" : "知识结构图"}
-          >
-            <defs>
-              <marker id="gn-arrow-prereq" viewBox="0 0 8 8" refX="7" refY="3" markerWidth="8" markerHeight="8" orient="auto">
-                <path d="M0,0 L7,3 L0,6 Z" className="gn-arrow gn-arrow-prereq" />
-              </marker>
-              <marker id="gn-arrow-order" viewBox="0 0 8 8" refX="7" refY="3" markerWidth="8" markerHeight="8" orient="auto">
-                <path d="M0,0 L7,3 L0,6 Z" className="gn-arrow gn-arrow-order" />
-              </marker>
-            </defs>
-
-            {(data.mode || mode) === "path" ? (
-              <>
-                {layout.orderPaths.map((d, i) => (
-                  <path key={`o${i}`} className="gn-order" markerEnd="url(#gn-arrow-order)" d={d} />
-                ))}
-                {layout.prereqEdges.map((e, i) => {
-                  const a = layout.posOf.get(e.from),
-                    b = layout.posOf.get(e.to);
-                  return (
-                    <path
-                      key={`p${i}`}
-                      className="gn-prereq"
-                      markerEnd="url(#gn-arrow-prereq)"
-                      d={bez(a.x + a.w, a.y, b.x, b.y)}
-                    >
-                      <title>前置关系</title>
-                    </path>
-                  );
-                })}
-              </>
-            ) : (
-              <>
-                {layout.treeEdges.map((e, i) => {
-                  const a = layout.posOf.get(e.from),
-                    b = layout.posOf.get(e.to);
-                  return <path key={`t${i}`} className="gn-tree" d={bez(a.x + a.w, a.y, b.x, b.y)} />;
-                })}
-                {layout.prereqEdges.map((e, i) => {
-                  const a = layout.posOf.get(e.from),
-                    b = layout.posOf.get(e.to);
-                  return (
-                    <path
-                      key={`p${i}`}
-                      className="gn-prereq"
-                      markerEnd="url(#gn-arrow-prereq)"
-                      d={bez(a.x + a.w, a.y, b.x, b.y)}
-                    >
-                      <title>前置关系</title>
-                    </path>
-                  );
-                })}
-              </>
-            )}
-
-            {layout.placed.map(renderNode)}
-          </svg>
+      {notice && <div className="graph-notice">{notice}</div>}
+      {!!data?.truncated && (
+        <div className="graph-truncated">
+          题目超过 400 张，画布只画前 400 张；在目录里选定范围可查看全部。
         </div>
       )}
+
+      <div
+        className="graph-viewport"
+        ref={viewRef}
+        data-full={full ? "1" : undefined}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
+        onClickCapture={onClickCapture}
+      >
+        {loading ? (
+          <div className="graph-state">正在生成图谱…</div>
+        ) : error ? (
+          <div className="graph-state graph-error">
+            <div>图谱加载失败：{error}</div>
+            <button onClick={load}>重试</button>
+          </div>
+        ) : !layout || !layout.placed.length ? (
+          <div className="graph-state">当前范围内没有可展示的题目。</div>
+        ) : (
+          <div
+            className="graph-plane"
+            style={{ width: layout.width * scale, height: layout.height * scale }}
+          >
+            <svg
+              className="graph-svg"
+              width={layout.width}
+              height={layout.height}
+              viewBox={`0 0 ${layout.width} ${layout.height}`}
+              style={{ transform: `scale(${scale})` }}
+              role="img"
+              aria-label={mode === "path" ? "学习路径图" : "知识结构图"}
+            >
+              <defs>
+                <marker
+                  id="gn-arrow-prereq"
+                  viewBox="0 0 8 8"
+                  refX="7"
+                  refY="3"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path d="M0,0 L7,3 L0,6 Z" className="gn-arrow gn-arrow-prereq" />
+                </marker>
+                <marker
+                  id="gn-arrow-order"
+                  viewBox="0 0 8 8"
+                  refX="7"
+                  refY="3"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path d="M0,0 L7,3 L0,6 Z" className="gn-arrow gn-arrow-order" />
+                </marker>
+              </defs>
+
+              {(data.mode || mode) === "path" ? (
+                <>
+                  {layout.orderPaths.map((d, i) => (
+                    <path key={`o${i}`} className="gn-order" markerEnd="url(#gn-arrow-order)" d={d} />
+                  ))}
+                  {layout.prereqEdges.map((e, i) => {
+                    const a = layout.posOf.get(e.from);
+                    const b = layout.posOf.get(e.to);
+                    return (
+                      <path
+                        key={`p${i}`}
+                        className="gn-prereq"
+                        markerEnd="url(#gn-arrow-prereq)"
+                        d={bez(a.x + a.w, a.y, b.x, b.y)}
+                      >
+                        <title>前置关系</title>
+                      </path>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  {layout.treeEdges.map((e, i) => {
+                    const a = layout.posOf.get(e.from);
+                    const b = layout.posOf.get(e.to);
+                    return <path key={`t${i}`} className="gn-tree" d={bez(a.x + a.w, a.y, b.x, b.y)} />;
+                  })}
+                  {layout.prereqEdges.map((e, i) => {
+                    const a = layout.posOf.get(e.from);
+                    const b = layout.posOf.get(e.to);
+                    return (
+                      <path
+                        key={`p${i}`}
+                        className="gn-prereq"
+                        markerEnd="url(#gn-arrow-prereq)"
+                        d={bez(a.x + a.w, a.y, b.x, b.y)}
+                      >
+                        <title>前置关系</title>
+                      </path>
+                    );
+                  })}
+                </>
+              )}
+
+              {layout.placed.map(renderNode)}
+            </svg>
+          </div>
+        )}
+      </div>
+
+      <div className="graph-hint">
+        {full
+          ? "滚轮滚动 · Ctrl/⌘+滚轮缩放 · 拖拽平移 · Esc 退出大画布"
+          : `拖拽或滚动查看 · Ctrl/⌘+滚轮缩放 · 缩放范围 ${Math.round(ZOOM_MIN * 100)}–${Math.round(ZOOM_MAX * 100)}%`}
+      </div>
     </section>
   );
 }

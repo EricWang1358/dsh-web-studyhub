@@ -23,6 +23,12 @@ export default function Generate({
   setModal,
   askInChat,
 }) {
+  // With a single source there is nothing to choose; don't make the learner tick it.
+  React.useEffect(() => {
+    if (data.sources.length === 1 && !selectedSources.length)
+      setSelectedSources([data.sources[0].id]);
+    // Only on entering the page, so 清空选择 still sticks.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <section className="page">
       <div className="eyebrow">SOURCE → UNDERSTANDING</div>
@@ -242,6 +248,11 @@ export default function Generate({
             {!data.modelReady && (
               <p className="warning">
                 当前会话没有可用模型。请在对话输入框选择模型，或在设置中指定生成模型。
+              </p>
+            )}
+            {data.modelReady && !selectedSources.length && (
+              <p className="muted">
+                {data.sources.length ? "在「01 / 选择资料」勾选至少一份资料后即可生成。" : "先点「＋ 添加资料」或导入 PDF，再生成。"}
               </p>
             )}
             <button

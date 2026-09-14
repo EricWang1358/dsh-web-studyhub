@@ -9,6 +9,20 @@
   gap: 10px;
   min-width: 0;
 }
+/* 「大画布」 promotes the section to the browser's fullscreen element. That
+   escapes the study panel's paint containment, so the section really does own
+   the whole screen instead of being clipped to the sidebar's width. */
+.graph:fullscreen {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  padding: 10px 14px 8px;
+  overflow: hidden;
+  background: var(--bg-canvas);
+  color: var(--text);
+}
 .graph-toolbar {
   display: flex;
   align-items: center;
@@ -66,15 +80,92 @@
 .graph-swatch.gn-new { background: var(--text-faint); }
 .graph-line-demo { flex: none; }
 
-.graph-scroll {
+.graph-toolbar-sub {
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.graph-scope {
+  white-space: nowrap;
+}
+.graph-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+.graph-zoom button {
+  border: none;
+  background: transparent;
+  padding: 4px 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  min-width: 30px;
+}
+.graph-zoom button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.graph-zoom-value {
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.graph-zoom .graph-fit {
+  min-width: 0;
+}
+.graph-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.graph-notice {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.graph-truncated {
+  font-size: 12px;
+  color: var(--warn);
+}
+
+/* The viewport scrolls the WHOLE drawing — nothing is clipped the way the old
+   fixed-height SVG was. In the panel it is bounded so the page stays
+   navigable; in the canvas it takes every remaining pixel. */
+.graph-viewport {
+  position: relative;
   overflow: auto;
   max-width: 100%;
+  /* A fixed height, not max-height: a content-sized box would feed its own
+     scaled content back into the fit calculation and collapse to the minimum
+     zoom. */
+  height: min(1200px, 68vh);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
   background: var(--bg-surface);
+  cursor: grab;
+  overscroll-behavior: contain;
+}
+.graph.graph-canvas .graph-viewport {
+  flex: 1 1 auto;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+}
+.graph-viewport.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+.graph-plane {
+  position: relative;
 }
 .graph-svg {
   display: block;
+  transform-origin: 0 0;
 }
 .graph-state {
   padding: 32px 16px;
@@ -87,9 +178,9 @@
 .graph-error button {
   margin-top: 10px;
 }
-.graph-truncated {
-  font-size: 12px;
-  color: var(--warn);
+.graph-hint {
+  font-size: 11.5px;
+  color: var(--text-faint);
 }
 
 /* ── SVG nodes: soft level fill + solid level stroke ─────────────────── */
@@ -246,14 +337,13 @@ input.cloze-blank:disabled {
   margin-left: 4px;
 }
 .cloze-yours {
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
 }
 .cloze-expected {
-  margin-left: 6px;
-  font-size: 12px;
-  color: var(--text-dim);
-  text-decoration: none;
+  color: var(--text);
 }
 .cloze-missing {
   margin: 0;

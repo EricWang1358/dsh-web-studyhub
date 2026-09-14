@@ -14,6 +14,12 @@ import Generate from "./Generate.jsx";
 import PdfImport from "./PdfImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
+import { mergeReviewPoll } from "./async.js";
+import ShortcutHelp from "./ShortcutHelp.jsx";
+import css from "./coach.css";
+import { useInjectCss } from "./shared.js";
+
+const AUTO_ADVANCE_MS = 1500;
 
 function parseDraft(raw) {
   const d = JSON.parse(raw);
@@ -78,6 +84,7 @@ function parseDraft(raw) {
 }
 
 export default function App({ call, host = {} }) {
+  useInjectCss(css, "study-coach");
   const rootRef = useRef(null),
     markRef = useRef(null),
     requestSequence = useRef(0),
@@ -111,7 +118,8 @@ export default function App({ call, host = {} }) {
       localStorage.setItem("study-sidebar", sidebarCollapsed ? "collapsed" : "open");
     } catch {}
   }, [sidebarCollapsed]);
-  const [narrowWindow, setNarrowWindow] = useState(false);
+  const [narrowWindow, setNarrowWindow] = useState(false),
+    [coachSide, setCoachSide] = useState(false);
   /* The loading screen renders .study-app without rootRef, so attach the
      observer through a callback ref instead of a mount-time effect. */
   const narrowObserver = useRef(null);
@@ -122,6 +130,8 @@ export default function App({ call, host = {} }) {
     if (node && typeof ResizeObserver !== "undefined") {
       const ro = new ResizeObserver(([entry]) => {
         setNarrowWindow(entry.contentRect.width <= 720);
+        // Room for a 陪学 column beside the question; otherwise it goes inline.
+        setCoachSide(entry.contentRect.width >= 1240);
       });
       ro.observe(node);
       narrowObserver.current = ro;
@@ -144,6 +154,7 @@ export default function App({ call, host = {} }) {
     [sourceTitle, setSourceTitle] = useState(""),
     [sourceText, setSourceText] = useState("");
   const [graphScope, setGraphScope] = useState([]),
+    [graphCanvas, setGraphCanvas] = useState(false),
     [clozeValues, setClozeValues] = useState({});
   const [selectedSources, setSelectedSources] = useState([]),
     [gen, setGen] = useState({
@@ -189,8 +200,11 @@ export default function App({ call, host = {} }) {
     snapshotKey = useRef("");
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
-    const next = await call("snapshot");
-    if (sequence === requestSequence.current) {
+    const since = dataRef.current?.fingerprint;
+    const next = await call("snapshot", since ? { since } : {});
+    // Nothing visible changed: skip transferring, diffing and re-rendering.
+    if (next.unchanged && dataRef.current) return dataRef.current;
+    if (sequence === requestSequence.current && !next.unchanged) {
       // Root, model availability and due counts can change without a store write.
       // Compare the full public snapshot before skipping a render.
       const cur = dataRef.current;
@@ -203,6 +217,7 @@ export default function App({ call, host = {} }) {
           setRecovery(null);
           setManagedDeck(null);
           setGraphScope([]);
+          setGraphCanvas(false);
           setSelectedSources([]);
           setTeaching(null);
           setModal(null);
@@ -284,18 +299,7 @@ export default function App({ call, host = {} }) {
       if (document.hidden) return;
       try {
         const next = await call("review.get", { runId: run.id });
-        setRun((r) =>
-          r && r.id === next.id && (next.queueVersion || 0) > (r.queueVersion || 0) ? next :
-          // Merge only a response from the same answer state; a poll that started
-          // before the learner answered must not wipe the revealed solution.
-          r && r.id === next.id && r.index === next.index &&
-          (r.queueVersion || 0) === (next.queueVersion || 0) &&
-          r.revealed === next.revealed && !!r.feedback === !!next.feedback &&
-          JSON.stringify([r.prerequisites, r.card, r.solution, r.revision]) !==
-            JSON.stringify([next.prerequisites, next.card, next.solution, next.revision])
-            ? { ...r, prerequisites: next.prerequisites, card: next.card, solution: next.solution, revision: next.revision }
-            : r,
-        );
+        setRun((r) => mergeReviewPoll(r, next));
       } catch {}
     }, 4000);
     return () => clearInterval(t);
@@ -429,14 +433,100 @@ export default function App({ call, host = {} }) {
     [call],
   );
   const reviewAct = (action, args = {}) =>
-    act(action, { runId: run.id, cardId: run.card?.id, ...args }, enterRun);
+    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, enterRun);
+  const reviewActRef = useRef(reviewAct);
+  reviewActRef.current = reviewAct;
+  function resumeOrStart() {
+    setError("");
+    if (page === "review" && run && !run.complete) return;
+    if (data?.lastRun) act("review.get", { runId: data.lastRun.id }, enterRun);
+    else if (data?.decks.length) act("review.start", { mode: "path" }, enterRun);
+    else {
+      setGenSource("files");
+      setPage("generate");
+    }
+  }
+  /* 自动驾驶 (a local preference): after a correct answer move on by itself,
+     unless the learner touches anything during the short countdown. */
+  const [autopilot, setAutopilot] = useState(() => {
+    try {
+      return localStorage.getItem("study-autopilot") === "on";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("study-autopilot", autopilot ? "on" : "off");
+    } catch {}
+  }, [autopilot]);
+  const [autoAdvance, setAutoAdvance] = useState(""),
+    [shortcutHelp, setShortcutHelp] = useState(false);
+  const autoTimer = useRef(null),
+    autoSkipped = useRef(""),
+    cancelRef = useRef(null);
+  function cancelAutoAdvance() {
+    if (!autoTimer.current) return;
+    clearTimeout(autoTimer.current);
+    autoTimer.current = null;
+    setAutoAdvance((key) => {
+      autoSkipped.current = key;
+      return "";
+    });
+  }
+  cancelRef.current = cancelAutoAdvance;
+  const passed = !!run?.feedback && (run.feedback.grade !== undefined ? run.feedback.grade >= 3 : run.feedback.correct);
+  const advanceKey = run ? `${run.id}:${run.index}:${run.queueVersion || 0}` : "";
+  useEffect(() => {
+    clearTimeout(autoTimer.current);
+    autoTimer.current = null;
+    if (!autopilot || page !== "review" || !passed || run?.complete || teaching || autoSkipped.current === advanceKey) {
+      setAutoAdvance("");
+      return;
+    }
+    setAutoAdvance(advanceKey);
+    autoTimer.current = setTimeout(() => {
+      autoTimer.current = null;
+      setAutoAdvance("");
+      reviewActRef.current("review.move", { direction: 1 });
+    }, AUTO_ADVANCE_MS);
+    return () => clearTimeout(autoTimer.current);
+  }, [autopilot, page, passed, advanceKey, run?.complete, !!teaching]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Coach plumbing: stable callbacks so the memoized panel does not re-render per poll.
+  const onCoachThread = useCallback((thread) => setRun((r) => (r ? { ...r, coach: thread } : r)), []);
+  const onCoachStatus = useCallback(() => refresh().catch(() => {}), [refresh]);
+  const onCoachRefreshRun = useCallback(async () => {
+    const current = runRef.current;
+    if (!current) return;
+    try {
+      const next = await call("review.get", { runId: current.id });
+      setRun((r) => (r && r.id === next.id ? { ...r, coach: next.coach, card: next.card, solution: next.solution, revision: next.revision } : r));
+    } catch {}
+  }, [call]);
+  const runRef = useRef(run);
+  runRef.current = run;
+  // Latest-closure refs keep the memoized 陪学 panel's props stable across renders.
+  const latest = useRef({});
+  latest.current = { act, enterRun, askInChat };
+  const onCoachPractice = useCallback(() => latest.current.act("coach.practice", {}, latest.current.enterRun), []);
+  const onCoachAsk = useCallback((text) => latest.current.askInChat(text), []);
+  // The last answer of a round prefetches its debrief, so 完成 opens instantly.
+  const [debriefs, setDebriefs] = useState({});
+  const allAnswered = !!run && !run.complete && run.mode !== "exam" && !!run.navigation?.length && run.navigation.every((x) => x.answered);
+  useEffect(() => {
+    if (!allAnswered || debriefs[run.id]) return;
+    const runId = run.id;
+    call("coach.debrief", { runId })
+      .then((d) => setDebriefs((all) => ({ ...all, [runId]: d })))
+      .catch(() => {});
+  }, [allAnswered, run?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const choice =
     run?.mode !== "flashcard" && ["quiz", "multi"].includes(run?.card?.kind);
   const isCloze = run?.mode !== "flashcard" && run?.card?.kind === "cloze";
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => {
     setShowBack(!!run?.revealed);
-  }, [run?.id, run?.card?.id, run?.index]);
+  }, [run?.id, run?.card?.id, run?.index, run?.queueVersion]);
   // A new card starts with empty blanks; feedback keeps them for the verdict.
   useEffect(() => {
     setClozeValues({});
@@ -462,28 +552,62 @@ export default function App({ call, host = {} }) {
   // The handler reads fresh state on every render via a ref, while the window
   // subscription stays installed for the component's lifetime — rebinding on
   // each poll tick was pure churn.
-  const keyRef = useRef(null);
+  const keyRef = useRef(null),
+    engagedRef = useRef(false);
+  // Clicking an option or grade disables it, which drops focus to <body>.
+  // Keep shortcuts alive when the learner's last interaction was in the panel.
+  function shortcutTarget(e) {
+    const active = document.activeElement;
+    const inside = rootRef.current?.contains(active) ||
+      ((!active || active === document.body) && engagedRef.current);
+    return !!inside && !e.target.closest?.("input,textarea,select,[contenteditable]") &&
+      !e.ctrlKey && !e.metaKey && !e.altKey && !modal;
+  }
+  const canShortcut = (e) =>
+    shortcutTarget(e) && !e.defaultPrevented && !e.repeat && !e.shiftKey && page === "review" && !!run?.card;
   useEffect(() => {
     function key(e) {
-      if (!rootRef.current?.contains(document.activeElement)) return;
-      if (
-        e.target.closest("input,textarea,select,[contenteditable]") ||
-        e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey ||
-        page !== "review" ||
-        !run?.card ||
-        busy ||
-        modal
-      )
+      if (!shortcutTarget(e) || e.defaultPrevented || e.repeat) return;
+      cancelAutoAdvance();
+      if (e.key === "?" || (e.shiftKey && e.code === "Slash")) {
+        e.preventDefault();
+        setShortcutHelp((v) => !v);
         return;
+      }
+      if (e.key === "Escape" && shortcutHelp) {
+        setShortcutHelp(false);
+        return;
+      }
+      if (e.shiftKey || (e.target.closest("button") && (e.key === "Enter" || e.code === "Space"))) return;
+      const letter = e.key.length === 1 ? e.key.toLowerCase() : "";
+      if (letter === "a") {
+        e.preventDefault();
+        setAutopilot((v) => !v);
+        return;
+      }
+      // S from anywhere: resume the last round or start today's path.
+      if (letter === "s" && !busy && (page !== "review" || !run || run.complete)) {
+        e.preventDefault();
+        resumeOrStart();
+        return;
+      }
+      if (page !== "review" || !run?.card || busy) return;
       if (!choice && !isCloze && run.revealed && !run.feedback && /^[0-5]$/.test(e.key)) {
         e.preventDefault();
         reviewAct("review.answer", { grade: Number(e.key) });
         return;
       }
-      // Numeric self-grading also works after clicking the flip/grade buttons.
-      // Other keys keep native button activation behavior.
-      if (e.target.closest("button")) return;
-      if (e.key === "ArrowRight" && run.feedback) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (run.feedback) reviewAct("review.move", { direction: 1 });
+        else if (choice && run.card.multiple && selected.length) reviewAct("review.answer", { selected });
+        else if (isCloze && Object.values(clozeValues).some((v) => String(v).trim())) reviewAct("review.answer", { answers: clozeValues });
+        else if (!choice && !isCloze) flipCard();
+      } else if (letter === "h") {
+        e.preventDefault();
+        if (run.revealed) setExplain((v) => !v);
+        else setHint((v) => !v);
+      } else if (e.key === "ArrowRight" && run.feedback) {
         e.preventDefault();
         reviewAct("review.move", { direction: 1 });
       } else if (e.key === "ArrowLeft" && run.index) {
@@ -501,8 +625,18 @@ export default function App({ call, host = {} }) {
   });
   useEffect(() => {
     const handler = (e) => keyRef.current?.(e);
+    const engage = (e) => {
+      engagedRef.current = !!rootRef.current?.contains(e.target);
+      if (e.type === "pointerdown") cancelRef.current?.();
+    };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    document.addEventListener("pointerdown", engage, true);
+    document.addEventListener("focusin", engage, true);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      document.removeEventListener("pointerdown", engage, true);
+      document.removeEventListener("focusin", engage, true);
+    };
   }, []);
   // Practise the given prerequisites (learned ones included), then offer a way back to this question.
   function studyPrerequisites(list) {
@@ -543,6 +677,22 @@ export default function App({ call, host = {} }) {
         cardBrief() +
         "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析、引用资料），按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：",
     );
+  }
+  // Slaying is one click next to other tools; offer an immediate undo instead
+  // of sending the learner to the slay deck in 管理题组.
+  async function slayCard() {
+    const ref = { deckId: run.deckId, cardId: run.card.id };
+    if (!(await reviewAct("card.slay", { deckId: ref.deckId }))) return;
+    setNotice({
+      text: "已斩这道题：移入斩题组，不再复习。",
+      action: {
+        label: "撤销",
+        run: () =>
+          act("card.restore", ref, () =>
+            setNotice("已恢复到原题组，复习进度不变；本轮练习不再出现这道题。"),
+          ),
+      },
+    });
   }
   async function askInChat(text) {
     if (host.askInChat?.(text)) {
@@ -648,11 +798,13 @@ export default function App({ call, host = {} }) {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        act("source.add", { title: sourceTitle, text: sourceText }, () => {
+        act("source.add", { title: sourceTitle, text: sourceText }, (source) => {
           setModal(null);
           setSourceTitle("");
           setSourceText("");
-          setNotice("资料已保存，可用于生成题组");
+          // A source added while creating a deck is almost always the one to use.
+          setSelectedSources((v) => [...v, source.id]);
+          setNotice(page === "generate" ? "资料已保存并勾选，可以直接生成题组" : "资料已保存，可用于生成题组");
         });
       }}
     >
@@ -901,6 +1053,22 @@ export default function App({ call, host = {} }) {
           wrongbook: "错题本",
           graph: "知识图谱",
         }[page];
+  const coachProps = data && {
+    call,
+    status: data.coach,
+    autopilot,
+    side: coachSide,
+    onAutopilot: setAutopilot,
+    onThread: onCoachThread,
+    onStatus: onCoachStatus,
+    onRefreshRun: onCoachRefreshRun,
+    onPractice: onCoachPractice,
+    askInChat: onCoachAsk,
+    onContinue: () => act("review.start", { mode: "path", scope: run?.returnTo ? [] : run?.scope || [], fresh: true }, enterRun),
+    canShortcut,
+    autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0,
+    debrief: run ? debriefs[run.id] : null,
+  };
   if (loading)
     return (
       <div className="study-app">
@@ -952,16 +1120,8 @@ export default function App({ call, host = {} }) {
                     ? "没有进行中的练习，开始今日学习"
                     : "还没有题目，先去创建题组"
             }
-            onClick={() => {
-              setError("");
-              if (page === "review" && run && !run.complete) return;
-              if (data.lastRun) act("review.get", { runId: data.lastRun.id }, enterRun);
-              else if (data.decks.length) act("review.start", { mode: "path" }, enterRun);
-              else {
-                setGenSource("files");
-                setPage("generate");
-              }
-            }}
+            aria-keyshortcuts="S"
+            onClick={resumeOrStart}
           >
             <Icon className="icon-sm">↩</Icon>
             <span className="nav-label">
@@ -1102,7 +1262,16 @@ export default function App({ call, host = {} }) {
         )}
         {notice && (
           <div role="status" className="alert notice">
-            <span>{notice}</span>
+            <span>{notice.text ?? notice}</span>
+            {notice.action && (
+              <button
+                className="alert-action"
+                disabled={busy}
+                onClick={notice.action.run}
+              >
+                {notice.action.label}
+              </button>
+            )}
             <button aria-label="关闭提示" onClick={() => setNotice("")}>
               ×
             </button>
@@ -1131,6 +1300,19 @@ export default function App({ call, host = {} }) {
           </section>
         ) : (
           <>
+            {page === "library" && data.coach?.ready > 0 && (
+              <div className="coach-offer" role="status">
+                <div>
+                  <strong>
+                    {data.today?.ahead ? "今天的任务完成了。" : ""}为你定制的 {data.coach.ready} 道题已备好
+                  </strong>
+                  <small>从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。</small>
+                </div>
+                <button className="primary" disabled={busy} onClick={() => act("coach.practice", {}, enterRun)}>
+                  开刷 →
+                </button>
+              </div>
+            )}
             {page === "library" && (
               <StudyMap
                 data={data}
@@ -1166,8 +1348,9 @@ export default function App({ call, host = {} }) {
                 onNotebookOpen={openNotebook}
                 refreshNotebooks={loadNotebooks}
                 onNotebookSearch={searchNotebooks}
-                onShowGraph={(scope) => {
+                onShowGraph={(scope, opts) => {
                   setGraphScope(scope || []);
+                  setGraphCanvas(opts?.canvas !== false);
                   setPage("graph");
                 }}
               >
@@ -1232,6 +1415,8 @@ export default function App({ call, host = {} }) {
                 call={call}
                 busy={busy}
                 scope={graphScope}
+                canvasWanted={graphCanvas}
+                onCanvasHandled={() => setGraphCanvas(false)}
                 onClose={() => setPage("library")}
                 onStudyCard={({ deckId, cardId }) =>
                   act(
@@ -1352,6 +1537,8 @@ export default function App({ call, host = {} }) {
                 studyPrerequisites={studyPrerequisites}
                 askAboutCard={askAboutCard}
                 improveCard={improveCard}
+                slayCard={slayCard}
+                coachProps={coachProps}
                 askInChat={askInChat}
                 act={act}
                 enterRun={enterRun}
@@ -1360,6 +1547,7 @@ export default function App({ call, host = {} }) {
           </>
         )}
       </main>
+      {shortcutHelp && <ShortcutHelp page={page} onClose={() => setShortcutHelp(false)} />}
       {modal && (
         <div
           className="modal-backdrop"

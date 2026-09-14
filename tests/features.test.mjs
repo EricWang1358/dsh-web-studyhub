@@ -5,7 +5,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateDeck } from "../lib/domain.js";
 import { StudyService } from "../lib/service.js";
-import { createWriteQueue } from "../ui/async.js";
+import { createWriteQueue, mergeReviewPoll } from "../ui/async.js";
+
+test("review polling accepts revised questions and sources without restoring stale answers", () => {
+  const answered = { id: "r", index: 0, queueVersion: 0, revealed: true, feedback: { correct: true }, card: { id: "q", prompt: "old" }, sourceIds: ["old"] };
+  const updated = { ...answered, queueVersion: 1, revealed: false, feedback: null, card: { id: "q", prompt: "new" }, sourceIds: ["new"] };
+  assert.equal(mergeReviewPoll(answered, updated), updated);
+  assert.equal(mergeReviewPoll(updated, answered), updated);
+  const reanswered = { ...updated, revealed: true, feedback: { correct: false } };
+  assert.equal(mergeReviewPoll(reanswered, updated), reanswered);
+  const recited = { ...answered, sourceIds: ["new-source"] };
+  assert.deepEqual(mergeReviewPoll(answered, recited).sourceIds, ["new-source"]);
+  assert.equal(mergeReviewPoll(answered, { ...updated, id: "other" }), answered);
+});
 import {
   publishNotebook,
   searchNotebooks,

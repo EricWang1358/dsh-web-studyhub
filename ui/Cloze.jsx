@@ -53,7 +53,7 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
   let nth = 0;
   return (
     <div className="cloze">
-      <div className="cloze-hint">把空格补全</div>
+      {!details && <div className="cloze-hint">把空格补全</div>}
       <div className="cloze-text">
         {parts.map((p, i) => {
           if (p.t === "text") return <span key={i}>{p.v}</span>;
@@ -71,8 +71,9 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
               </span>
             ) : (
               <span key={i} className="cloze-blank cloze-wrong" title="回答错误">
-                <span className="cloze-yours">{val || "空"}</span>
-                <span className="cloze-expected">应为：{detail.expected ?? "—"}</span>
+                <span className="cloze-expected">{detail.expected ?? "—"}</span>
+                <span className="cloze-mark" aria-label="回答错误">✗</span>
+                {Object.hasOwn(values || {}, id) && <span className="cloze-yours">你的答案：{val || "未填写"}</span>}
               </span>
             );
           return (
