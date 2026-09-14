@@ -214,6 +214,36 @@ test("with consent, misses become validated variants that one tap turns into a p
   await assert.rejects(service.call("coach.practice"), /还没有备好/);
 });
 
+test("pending wrong-answer coaching and variant generation do not block navigation", async (t) => {
+  const { service, light } = await setup(t);
+  await service.call("coach.consent", { prep: true });
+  const started = [Promise.withResolvers(), Promise.withResolvers()];
+  const release = Promise.withResolvers();
+  let calls = 0;
+  service.light = async (...args) => {
+    started[calls++]?.resolve();
+    await release.promise;
+    return light(...args);
+  };
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text !== "Caretaker").id] });
+  const nudge = service.call("coach.nudge", { runId: run.id });
+  const prep = service.call("coach.prepare");
+  await Promise.all(started.map((p) => p.promise));
+  try {
+    const moved = await service.call("review.move", { runId: run.id, direction: 1 });
+    assert.equal(moved.index, 1);
+    assert.notEqual(moved.card.id, run.card.id);
+  } finally {
+    release.resolve();
+    await Promise.all([nudge, prep]);
+  }
+  const current = await service.call("review.get", { runId: run.id });
+  assert.equal(current.index, 1);
+  assert.equal(current.coach.length, 0);
+  assert.equal((await service.call("coach.status")).ready, 1);
+});
+
 test("debrief turns a concept-only session into an application offer and updates the profile once", async (t) => {
   const { service, log } = await setup(t);
   await service.call("coach.consent", { prep: true });

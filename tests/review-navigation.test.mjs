@@ -5,7 +5,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 import { importExample } from "../ui/json-prompts.js";
-import { mergeReviewPoll } from "../ui/async.js";
+import { mergeReviewPoll, reviewEntryKey } from "../ui/async.js";
+
+test("background review results belong to an entry and revision, not just a run", () => {
+  const run = { id: "r", index: 0, card: { id: "q" }, queueVersion: 0, revision: 0 };
+  assert.equal(reviewEntryKey(run), reviewEntryKey({ ...run, coach: [] }));
+  for (const patch of [{ id: "other" }, { index: 1 }, { card: { id: "other" } }, { queueVersion: 1 }, { revision: 1 }])
+    assert.notEqual(reviewEntryKey(run), reviewEntryKey({ ...run, ...patch }));
+  assert.equal(reviewEntryKey(null), "");
+});
 
 test("review navigator tracks mastery, jumps without grading, and returns to skipped questions", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-navigation-"));
@@ -39,3 +47,8 @@ test("review polling refreshes navigation even when the current card is unchange
   assert.deepEqual(mergeReviewPoll(current, next).navigation, next.navigation);
 });
 
+test("a closed run poll preserves completion together with its empty card", () => {
+  const current = { id: "r", index: 0, card: { id: "q" }, complete: false };
+  const next = { ...current, card: null, closed: true, complete: true };
+  assert.equal(mergeReviewPoll(current, next), next);
+});
