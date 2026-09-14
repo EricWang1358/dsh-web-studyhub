@@ -80,7 +80,27 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
     return value;
   };
   const text = "Bridge separates an abstraction from its implementation so the two can vary independently.";
+  // Global board works through both entry points, even without a study library.
+  const initialBoard = await tool("board.get");
+  const createdBoard = await tool("board.card.add", { revision: initialBoard.revision, title: "Read iframe notes" });
+  const { createHostHandler } = await import("../lib/host.js");
+  const secondWorkspace = { header: { cwd: join(nbHome, "second-workspace") } };
+  const boardHandler = createHostHandler({ sessions: { get: () => secondWorkspace } });
+  const shared = await boardHandler("call", { sessionId: "board-test", action: "board.get" });
+  assert.equal(shared.ok, true);
+  assert.deepEqual(shared.value, createdBoard);
+  const boardCard = Object.values(createdBoard.cards)[0];
+  assert.equal(boardCard.origin.workspace, agent.session.header.cwd);
+  const moved = await boardHandler("call", { sessionId: "board-test", action: "board.card.move", args: { revision: createdBoard.revision, id: boardCard.id, column: "done" } });
+  assert.equal(moved.ok, true);
+  assert.deepEqual((await tool("board.get")).columns.find((c) => c.done).cardIds, [boardCard.id]);
+  const conflict = await boardHandler("call", { sessionId: "board-test", action: "board.card.edit", args: { revision: createdBoard.revision, id: boardCard.id, title: "Stale" } });
+  assert.equal(conflict.ok, false);
+  assert.match(conflict.error.message, /revision conflict/);
   const src = await tool("source.add", { title: "notes", text });
+  for (const payload of [{ q: "Bridge" }, { keywords: ["Bridge"] }])
+    assert.equal((await tool("source.search", payload)).results[0].sourceId, src.id);
+  assert.equal((await tool("source.find", { query: "Bridge" })).results[0].sourceId, src.id);
   const card = {
     id: "c1", kind: "flashcard", topic: "Bridge", objective: "Explain Bridge",
     prompt: "What does Bridge separate?", answer: "Abstraction and implementation.",
@@ -89,6 +109,7 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
   };
   await tool("draft.save", { deck: { id: "d1", title: "Patterns", cards: [card] } });
   await tool("draft.publish", { id: "d1" });
+  assert.equal((await tool("card.search", { keywords: ["Bridge"] })).results[0].cardId, "c1");
   await tool("snapshot");
   await tool("map");
   const run = await tool("review.start", { deckId: "d1", mode: "flashcard" });

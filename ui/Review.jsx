@@ -8,6 +8,7 @@ import ChoiceFeedback from "./ChoiceFeedback.jsx";
 import CoachPanel from "./CoachPanel.jsx";
 import CoachDebrief from "./CoachDebrief.jsx";
 import ThumbFeedback from "./ThumbFeedback.jsx";
+import { reviewEntryKey } from "./async.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -36,6 +37,8 @@ export default function Review({
   explain,
   response,
   teaching,
+  teachingBusy,
+  teachingAct,
   teachAnswer,
   clozeValues,
   setModal,
@@ -44,7 +47,6 @@ export default function Review({
   setExplain,
   setHint,
   setResponse,
-  setTeaching,
   setTeachAnswer,
   setClozeValues,
   choose,
@@ -76,6 +78,7 @@ export default function Review({
   }, [run.id, run.index, run.complete]);
   const coachPanel = coachProps && run.mode !== "exam" && !run.complete && (
     <CoachPanel
+      key={reviewEntryKey(run)}
       run={run}
       call={coachProps.call}
       status={coachProps.status}
@@ -524,14 +527,16 @@ export default function Review({
             <div className="teaching-panel">
               {run.feedback && data.modelReady && !teaching && (
                 <button
-                  disabled={busy}
+                  disabled={teachingBusy}
+                  onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })}
                   onClick={() =>
-                    act("teach.start", { runId: run.id }, setTeaching)
+                    teachingAct("teach.start")
                   }
                 >
-                  逐步讲解 · 检查理解
+                  {teachingBusy ? "正在准备讲解…" : "逐步讲解 · 检查理解"}
                 </button>
               )}
+              {teachingBusy && <p role="status" className="muted">正在后台处理，可以继续下一题，返回本题查看结果。</p>}
               {teaching && (
                 <section className="explanation">
                   <div className="eyebrow">
@@ -553,13 +558,9 @@ export default function Review({
                       <form
                         onSubmit={(e) => {
                           e.preventDefault();
-                          act(
+                          teachingAct(
                             "teach.answer",
                             { id: teaching.id, answer: teachAnswer },
-                            (next) => {
-                              setTeaching(next);
-                              setTeachAnswer("");
-                            },
                           );
                         }}
                       >
@@ -577,7 +578,8 @@ export default function Review({
                         </label>
                         <button
                           className="primary"
-                          disabled={busy || !teachAnswer.trim()}
+                          disabled={teachingBusy || !teachAnswer.trim()}
+                          onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })}
                         >
                           检查理解 →
                         </button>

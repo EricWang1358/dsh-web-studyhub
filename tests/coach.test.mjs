@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { StudyService } from "../lib/service.js";
-import { cognitiveLevel, debriefRules, evidenceWindows, runMetrics } from "../lib/coach.js";
+import { cognitiveLevel, debriefRules, evidenceWindows, runMetrics, learnerAnswer, writeNudge } from "../lib/coach.js";
 import { createFakeModel } from "../scripts/fake-model.mjs";
 
 const source = {
@@ -50,6 +50,56 @@ async function setup(t, { coach = true, latencyMs = 0 } = {}) {
 }
 const tasks = (log, word) => log.filter((x) => x.prompt.includes(word)).length;
 const settle = (ms = 30) => new Promise((r) => setTimeout(r, ms));
+
+test("self-assessment is confidence metadata, never a fabricated learner answer", async () => {
+  for (const kind of ["flashcard", "open", "quiz"]) {
+    const card = { ...quiz(1, "列出三类迁移约束"), kind };
+    const answer = learnerAnswer(card, { grade: 2, selected: [] }, { selfGraded: true });
+    assert.equal(answer.kind, "self-assessment");
+    assert.equal(answer.grade, 2);
+    let sent;
+    await writeNudge(async (_system, prompt) => {
+      sent = JSON.parse(prompt);
+      return JSON.stringify({ point: "理解迁移约束", explain: "数据驻留会约束数据存储的地域。" });
+    }, { card, answer });
+    assert.equal(sent.learnerAnswer, undefined);
+    assert.deepEqual(sent.selfAssessment, { grade: 2, maxGrade: 5 });
+    assert.match(sent.task, /没有提交.*答案/);
+    assert.match(sent.task, /不要.*自评.*作答/);
+    assert.equal(sent.referenceAnswer, card.answer);
+  }
+});
+
+test("flashcard self-ratings generate knowledge help and replace legacy answer-based nudges once", async (t) => {
+  const { service, log } = await setup(t);
+  let run = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+  await service.call("review.reveal", { runId: run.id, cardId: run.card.id });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, grade: 2 });
+  const first = (await service.call("coach.nudge", { runId: run.id })).thread[0];
+  assert.equal(first.answerKind, "self-assessment");
+  assert.equal(first.selfGrade, 2);
+  assert.equal(first.expected, undefined, "a confidence rating is not compared with the reference answer");
+  const sent = JSON.parse(log.find((x) => x.prompt.includes("掌握程度自评")).prompt);
+  assert.equal(sent.learnerAnswer, undefined);
+  assert.equal(sent.selfAssessment.grade, 2);
+  await service.store.update((s) => {
+    const old = s.coach.find((n) => n.id === first.id);
+    delete old.answerKind;
+    delete old.selfGrade;
+    old.explain = "你写自评2分是答非所问";
+    old.expected = "Caretaker";
+  });
+  assert.equal((await service.call("review.get", { runId: run.id })).coach.length, 0, "bad cached coaching is hidden before regeneration");
+  const [a, b] = await Promise.all([
+    service.call("coach.nudge", { runId: run.id }), service.call("coach.nudge", { runId: run.id }),
+  ]);
+  assert.equal(a.thread.length, 1);
+  assert.equal(a.thread[0].answerKind, "self-assessment");
+  assert.notEqual(a.thread[0].id, first.id);
+  assert.deepEqual(a.thread, b.thread);
+  await service.call("coach.nudge", { runId: run.id });
+  assert.equal(tasks(log, "掌握程度自评"), 2, "one original nudge and one shared cache repair");
+});
 
 test("cognitive level is decided by wording without a model", () => {
   assert.equal(cognitiveLevel({ prompt: "Memento 是什么？" }), "recall");
@@ -162,6 +212,36 @@ test("with consent, misses become validated variants that one tap turns into a p
   assert.equal(state.learner.levels[deck.cards[0].id], "apply");
   assert.equal((await service.call("coach.status")).ready, 0);
   await assert.rejects(service.call("coach.practice"), /还没有备好/);
+});
+
+test("pending wrong-answer coaching and variant generation do not block navigation", async (t) => {
+  const { service, light } = await setup(t);
+  await service.call("coach.consent", { prep: true });
+  const started = [Promise.withResolvers(), Promise.withResolvers()];
+  const release = Promise.withResolvers();
+  let calls = 0;
+  service.light = async (...args) => {
+    started[calls++]?.resolve();
+    await release.promise;
+    return light(...args);
+  };
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text !== "Caretaker").id] });
+  const nudge = service.call("coach.nudge", { runId: run.id });
+  const prep = service.call("coach.prepare");
+  await Promise.all(started.map((p) => p.promise));
+  try {
+    const moved = await service.call("review.move", { runId: run.id, direction: 1 });
+    assert.equal(moved.index, 1);
+    assert.notEqual(moved.card.id, run.card.id);
+  } finally {
+    release.resolve();
+    await Promise.all([nudge, prep]);
+  }
+  const current = await service.call("review.get", { runId: run.id });
+  assert.equal(current.index, 1);
+  assert.equal(current.coach.length, 0);
+  assert.equal((await service.call("coach.status")).ready, 1);
 });
 
 test("debrief turns a concept-only session into an application offer and updates the profile once", async (t) => {

@@ -31,7 +31,6 @@
     margin-top: 43px;
     max-height: calc(100dvh - 140px);
   }
-}
 @container study (max-width: 1239px) {
   .review-body.with-coach > .coach-panel {
     grid-column: 2;

@@ -423,6 +423,46 @@ test("review reads are side-effect free and teaching resumes without exposing sc
   );
 });
 
+test("guided teaching stays attached to the requested card after navigation", async (t) => {
+  const service = await ready();
+  t.after(() => rm(service.store.root, { recursive: true, force: true }));
+  await service.store.update((s) => s.decks[0].cards.push({ ...structuredClone(q), id: "q2", prompt: "Next question?" }));
+  const run = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+  const originId = run.card.id, otherId = run.navigation[1].cardId;
+  await service.call("review.reveal", { runId: run.id, cardId: originId });
+  await service.call("review.answer", { runId: run.id, cardId: originId, grade: 2 });
+  await service.call("review.move", { runId: run.id, index: 1 });
+  let question;
+  service.complete = async (_system, prompt) => {
+    question = JSON.parse(prompt).question.id;
+    return JSON.stringify({ diagnosis: "gap", transfer: "rule", rungs: [1, 2].map(() => ({ lesson: "Relationship", check: "Why?", answer: "Reference" })) });
+  };
+  const teaching = await service.call("teach.start", { runId: run.id, cardId: originId, index: 0 });
+  assert.equal(question, originId);
+  assert.equal((await service.call("review.get", { runId: run.id })).teaching, null);
+  const original = await service.call("review.move", { runId: run.id, index: 0 });
+  assert.equal(original.teaching.id, teaching.id);
+  await assert.rejects(service.call("teach.start", { runId: run.id, cardId: otherId, index: 0 }), /changed|match/i);
+  const started = Promise.withResolvers(), release = Promise.withResolvers();
+  service.complete = async () => {
+    started.resolve();
+    await release.promise;
+    return JSON.stringify({ passed: true, feedback: "Correct" });
+  };
+  const checking = service.call("teach.answer", { id: teaching.id, answer: "My explanation" });
+  await started.promise;
+  try {
+    const moved = await service.call("review.move", { runId: run.id, index: 1 });
+    assert.equal(moved.index, 1);
+    assert.equal(moved.teaching, null);
+  } finally {
+    release.resolve();
+    await checking;
+  }
+  const resumed = await service.call("review.move", { runId: run.id, index: 0 });
+  assert.equal(resumed.teaching.index, 1);
+});
+
 test("failed transaction leaves last committed state byte-for-byte unchanged", async () => {
   const store = new Store(await fresh());
   await store.update((s) => s.sources.push(source));

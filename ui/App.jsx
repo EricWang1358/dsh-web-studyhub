@@ -5,6 +5,7 @@ import Guide from "./Guide.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
+import Board, { useBoard } from "./Board.jsx";
 import Graph from "./Graph.jsx";
 import Icon from "./Icon.jsx";
 import Sources from "./Sources.jsx";
@@ -14,7 +15,7 @@ import Generate from "./Generate.jsx";
 import PdfImport from "./PdfImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
-import { mergeReviewPoll } from "./async.js";
+import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import css from "./coach.css";
@@ -197,6 +198,8 @@ export default function App({ call, host = {} }) {
     [teaching, setTeaching] = useState(null),
     [teachAnswer, setTeachAnswer] = useState("");
   const [notebooks, setNotebooks] = useState(null);
+  const boardState = useBoard(call, page === "board");
+  const boardCount = boardState.board?.columns.reduce((n, column) => n + (column.done ? 0 : column.cardIds.length), 0);
   const dataRef = useRef(null),
     snapshotKey = useRef("");
   const refresh = useCallback(async () => {
@@ -422,6 +425,7 @@ export default function App({ call, host = {} }) {
     }
   }
   function enterRun(r) {
+    runRef.current = r;
     if (r.mode === "exam") {
       setExamRunId(r.id);
       setPage("exam");
@@ -516,21 +520,47 @@ export default function App({ call, host = {} }) {
     return () => clearTimeout(autoTimer.current);
   }, [autopilot, page, passed, advanceKey, run?.complete, !!teaching]); // eslint-disable-line react-hooks/exhaustive-deps
   // Coach plumbing: stable callbacks so the memoized panel does not re-render per poll.
-  const onCoachThread = useCallback((thread) => setRun((r) => (r ? { ...r, coach: thread } : r)), []);
+  const onCoachThread = useCallback((thread, originKey) => setRun((r) => (r && reviewEntryKey(r) === originKey ? { ...r, coach: thread } : r)), []);
   const onCoachStatus = useCallback(() => refresh().catch(() => {}), [refresh]);
   const onCoachRefreshRun = useCallback(async () => {
     const current = runRef.current;
     if (!current) return;
     try {
       const next = await call("review.get", { runId: current.id });
-      setRun((r) => (r && r.id === next.id ? { ...r, coach: next.coach, card: next.card, solution: next.solution, revision: next.revision } : r));
+      setRun((r) => (reviewEntryKey(r) === reviewEntryKey(current) ? mergeReviewPoll(r, next) : r));
     } catch {}
   }, [call]);
   const runRef = useRef(run);
   runRef.current = run;
   // Latest-closure refs keep the memoized 陪学 panel's props stable across renders.
   const latest = useRef({});
-  latest.current = { act, enterRun, askInChat };
+  latest.current = { act, enterRun, askInChat, page };
+  const teachingInFlight = useRef(new Set());
+  const [teachingPending, setTeachingPending] = useState({});
+  async function teachingAct(action, args = {}) {
+    const origin = runRef.current;
+    const key = reviewEntryKey(origin);
+    if (!key || teachingInFlight.current.has(key)) return;
+    teachingInFlight.current.add(key);
+    setTeachingPending((all) => ({ ...all, [key]: true }));
+    const isCurrent = () => latest.current.page === "review" && reviewEntryKey(runRef.current) === key;
+    try {
+      const next = await call(action, { runId: origin.id, cardId: origin.card.id, index: origin.index, queueVersion: origin.queueVersion || 0, ...args });
+      if (isCurrent()) {
+        setTeaching(next);
+        if (action === "teach.answer") setTeachAnswer((value) => value === args.answer ? "" : value);
+      }
+    } catch (e) {
+      if (isCurrent()) setError(e.message || String(e));
+    } finally {
+      teachingInFlight.current.delete(key);
+      setTeachingPending((all) => {
+        const next = { ...all };
+        delete next[key];
+        return next;
+      });
+    }
+  }
   const onCoachPractice = useCallback(() => latest.current.act("coach.practice", {}, latest.current.enterRun), []);
   const onCoachAsk = useCallback((text) => latest.current.askInChat(text), []);
   // The last answer of a round prefetches its debrief, so 完成 opens instantly.
@@ -583,7 +613,7 @@ export default function App({ call, host = {} }) {
     const active = document.activeElement;
     const inside = rootRef.current?.contains(active) ||
       ((!active || active === document.body) && engagedRef.current);
-    return !!inside && !e.target.closest?.("input,textarea,select,[contenteditable]") &&
+    return !!inside && !e.target.closest?.("input,textarea,select,[contenteditable],dialog") &&
       !e.ctrlKey && !e.metaKey && !e.altKey && !modal;
   }
   const canShortcut = (e) =>
@@ -1074,6 +1104,7 @@ export default function App({ call, host = {} }) {
           dashboard: "学习统计",
           exam: "模拟考试",
           wrongbook: "错题本",
+          board: "待办看板",
           graph: "知识图谱",
         }[page];
   const coachProps = data && {
@@ -1163,6 +1194,7 @@ export default function App({ call, host = {} }) {
             ["dashboard", "◔", "统计", "icon-lg"],
             ["exam", "✎", "模拟考试", "icon-lg"],
             ["wrongbook", "✗", "错题本", "icon-sm"],
+            ["board", "▥", "待办", "icon-lg"],
           ].map(([id, icon, label, iconClass]) => (
             <button
               key={id}
@@ -1173,10 +1205,13 @@ export default function App({ call, host = {} }) {
                 setPage(id);
                 setError("");
               }}
-              disabled={!data}
+              disabled={!data && id !== "board"}
             >
               <Icon className={iconClass}>{icon}</Icon>
               {label}
+              {id === "board" && boardCount !== undefined && (
+                <span className="nav-count">{boardCount}</span>
+              )}
               {id === "sources" && data && (
                 <span className="nav-count">{data.sources.length}</span>
               )}
@@ -1300,7 +1335,9 @@ export default function App({ call, host = {} }) {
             </button>
           </div>
         )}
-        {!data ? (
+        {page === "board" ? (
+          <Board state={boardState} onOrigin={host.openWorkspaceNotebook} />
+        ) : !data ? (
           <section className="onboarding">
             <div className="eyebrow">YOUR LEARNING SPACE</div>
             <h1>把资料变成真正会的知识。</h1>
@@ -1543,6 +1580,8 @@ export default function App({ call, host = {} }) {
                 explain={explain}
                 response={response}
                 teaching={teaching}
+                teachingBusy={!!teachingPending[reviewEntryKey(run)]}
+                teachingAct={teachingAct}
                 teachAnswer={teachAnswer}
                 clozeValues={clozeValues}
                 setModal={setModal}
@@ -1551,7 +1590,6 @@ export default function App({ call, host = {} }) {
                 setExplain={setExplain}
                 setHint={setHint}
                 setResponse={setResponse}
-                setTeaching={setTeaching}
                 setTeachAnswer={setTeachAnswer}
                 setClozeValues={setClozeValues}
                 choose={choose}

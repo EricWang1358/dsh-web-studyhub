@@ -103,7 +103,11 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
   }, []);
 
   return (
-    <span className="thumbs">
+    <span className="thumbs" onPointerUp={(e) => {
+      // Pointer feedback should leave Enter available for the next question.
+      // Keyboard activation retains normal button focus and accessibility.
+      e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
+    }}>
       <button className="pill" aria-pressed={vote === "up"} aria-keyshortcuts="G" title="这题不错（G）" onClick={() => thumb("up")}>👍</button>
       <button className="pill" aria-pressed={vote === "down"} aria-expanded={open} aria-keyshortcuts="B" title="这题有问题（B），选标签后自动优化" onClick={() => (open ? setOpen(false) : thumb("down"))}>👎</button>
       {open && (

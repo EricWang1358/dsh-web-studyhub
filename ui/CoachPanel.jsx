@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useRef, useState } from "react";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
+import { reviewEntryKey } from "./async.js";
 
 /* 陪学栏：答错后给一个可能没弄懂的点 + 两选一小检查，回复全靠点按。
    调用直接走 call()，不占全局 busy，题目区域不会因为陪学而被锁住。
@@ -25,6 +26,7 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
   const threadRef = useRef(null);
   const enabled = !!status?.enabled;
   const thread = run.coach || [];
+  const originKey = reviewEntryKey(run);
   const current = thread.find((n) => n.type === "nudge" && n.runId === run.id && n.entryIndex === run.index);
   const wrong = isWrong(run.feedback);
   const rewriting = status?.tasks?.some((t) => t.kind === "rewrite" && t.status === "running" && t.cardId === run.card?.id);
@@ -35,9 +37,9 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
   // Ask for the point once per wrong answer; the server has usually started it already.
   const requested = useRef(""),
     shown = useRef("");
-  shown.current = `${run.id}:${run.index}`;
+  shown.current = originKey;
   useEffect(() => {
-    const key = `${run.id}:${run.index}`;
+    const key = originKey;
     if (!enabled || !wrong || current || requested.current === key) return;
     requested.current = key;
     setPending("nudge");
@@ -45,10 +47,10 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
     // Not cancelled on re-render: a late result is still this card's thread,
     // and only the question it was asked for may apply it.
     call("coach.nudge", { runId: run.id, index: run.index })
-      .then((r) => shown.current === key && onThread(r.thread))
+      .then((r) => shown.current === key && onThread(r.thread, originKey))
       .catch((e) => shown.current === key && setError(e.message))
       .finally(() => setPending((p) => (p === "nudge" ? "" : p)));
-  }, [enabled, wrong, current, run.id, run.index, call, onThread]);
+  }, [enabled, wrong, current, run.id, run.index, call, onThread, originKey]);
 
   useEffect(() => {
     const el = threadRef.current;
@@ -60,7 +62,7 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
     setError("");
     try {
       const r = await call(action, args);
-      if (r?.thread) onThread(r.thread);
+      if (r?.thread) onThread(r.thread, originKey);
       return r;
     } catch (e) {
       setError(e.message);
@@ -127,8 +129,8 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
               <div className="coach-bubble">
                 {n.yourAnswer && (
                   <span className="coach-answer">
-                    你的答案：<b>{n.yourAnswer}</b>
-                    {n.expected ? <> · 应为：<b>{n.expected}</b></> : null}
+                    {n.answerKind === "self-assessment" ? "掌握程度：" : "你的答案："}<b>{n.yourAnswer}</b>
+                    {n.expected && n.answerKind !== "self-assessment" ? <> · 应为：<b>{n.expected}</b></> : null}
                   </span>
                 )}
                 <span className="coach-point">{n.point}</span>
