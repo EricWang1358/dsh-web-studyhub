@@ -6,9 +6,16 @@ import { studyToolMode } from "../lib/study-tool-mode.js";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
-test("installed DSH code-mode transport is removed only for the Study child's scope", async () => {
+test("installed DSH code-mode transport is removed only for the Study child's scope", async (t) => {
   const require = createRequire(import.meta.url);
-  const fromTools = createRequire(require.resolve("@deepseek-ai/dsh-tools"));
+  let toolsPath;
+  try { toolsPath = require.resolve("@deepseek-ai/dsh-tools"); }
+  catch (error) {
+    if (error.code !== "MODULE_NOT_FOUND") throw error;
+    t.skip("Optional DSH host SDK is not installed");
+    return;
+  }
+  const fromTools = createRequire(toolsPath);
   const load = (name) => import(pathToFileURL(fromTools.resolve(name)).href);
   const [{ Context }, { createScope }, { default: ToolRuntime }] = await Promise.all([
     load("@deepseek-ai/cordis"), load("@deepseek-ai/dsh-scope"), load("@deepseek-ai/dsh-tools"),
