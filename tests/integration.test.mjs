@@ -42,6 +42,28 @@ async function ready() {
   return service;
 }
 
+test("sources record createdAt; undated legacy sources borrow the earliest citing deck's date", async () => {
+  const root = await fresh();
+  const service = await ready();
+  const added = (await service.call("export")).sources.find((x) => x.id === "s");
+  assert.ok(Number.isFinite(Date.parse(added.createdAt)), "source.add stamps createdAt");
+
+  const legacy = new StudyService(root);
+  await legacy.store.update((s) => {
+    s.sources.push({ id: "s", title: "Bridge", text: source.text });
+    s.sources.push({ id: "orphan", title: "Unused", text: "Nothing cites this legacy note at all." });
+    s.decks.push({ ...deck(), createdAt: "2026-09-01T08:00:00.000Z" });
+    s.drafts.push({ ...deck(), id: "later", createdAt: "2026-09-10T08:00:00.000Z" });
+  });
+  const snap = await legacy.call("snapshot");
+  const cited = snap.sources.find((x) => x.id === "s"),
+    orphan = snap.sources.find((x) => x.id === "orphan");
+  assert.equal(cited.createdAt, "2026-09-01T08:00:00.000Z");
+  assert.equal(cited.createdAtInferred, true);
+  assert.equal(orphan.createdAt, undefined);
+  assert.equal((await legacy.call("export")).sources.find((x) => x.id === "s").createdAt, undefined, "inference is view-only");
+});
+
 test("generation messages report delivery honestly and survive into later model stages", async () => {
   let release, started;
   const gate = new Promise((resolve) => release = resolve);
@@ -1325,6 +1347,7 @@ test("recording mode ingests pasted mistakes into a deck, keeps answer keys, ski
   const stopped = await service.call("ingest.stop");
   assert.equal(stopped.added, 2);
   assert.equal((await service.call("snapshot")).ingest, null);
+  assert.deepEqual(await service.call("ingest.status"), { active: false });
 
   // lastRun points at the run the learner touched most recently.
   const run = await service.call("review.start", { deckId: result.deckId, mode: "quiz" });

@@ -41,6 +41,12 @@
 
 ## 数据与隐私
 
+### 讲解追问与定制题
+
+「讲解」末尾的「追问？」支持推荐问题和自定义问题，Q&A 保存在卡片中。开启备题时，新追问会进入原有备题队列，结合具体疑问生成「追问巩固」题目；仍须通过来源引用与题目校验。关闭备题不会阻止保存问答。并发「还是不懂」请求合并，同一次点击不会消耗两次解释机会。详见 [讲解追问](followup.md)。
+
+卡片上的 Q&A、推荐缓存和 EN 翻译不属于陪学画像，「清空画像」不会删除它们。
+
 陪学相关数据保存在学习库中（画像在清单 `study-workspace.json`，其余在 `shards/misc/`）：`learner`（是否同意备题、目标、≤400 字画像摘要、懂了/不懂/👍/👎 计数）、`coach`（陪学线程，最多保留 400 条）、`feedback`（反馈记录）、`prepared`（未使用的定制题）。在 **设置 › 陪学** 可以查看、关闭备题、修改目标或「清空画像」，练习记录不受影响。
 
 接口（面板内部使用）：`coach.nudge` `coach.reply` `coach.feedback` `coach.consent` `coach.goal` `coach.debrief` `coach.practice` `coach.revert` `coach.status` `coach.profile` `coach.forget` `coach.prepare`。

@@ -77,8 +77,11 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
       { agent },
     );
     lossless(value, action);
+    // The tool's output schema is `type: "object"`; DSH rejects anything else.
+    assert.ok(value && Object.getPrototypeOf(value) === Object.prototype, `${action} must return a JSON object`);
     return value;
   };
+  assert.deepEqual(await tool("ingest.status"), { active: false });
   const text = "Bridge separates an abstraction from its implementation so the two can vary independently.";
   // Global board works through both entry points, even without a study library.
   const initialBoard = await tool("board.get");
