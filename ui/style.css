@@ -379,8 +379,9 @@
   .sidebar.is-narrow .nav .icon {
     font-size: 22px;
   }
-  .sidebar.is-narrow .theme-switch {
-    margin: 0 6px 10px;
+  /* Three segments don't fit a 62px rail; it gets one cycling button instead. */
+  .sidebar.is-narrow .theme-cycle .icon {
+    font-size: 18px;
   }
   .sidebar-bottom {
     margin-top: auto;
@@ -851,6 +852,65 @@
   .source-main .icon {
     color: var(--accent-soft);
   }
+  /* Raw attachment paths have no spaces; let them wrap instead of overflowing. */
+  .source-main strong {
+    overflow-wrap: anywhere;
+  }
+  /* Sources grouped by creation day, collapsed by default. */
+  .source-group {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg-surface);
+    margin: 10px 0;
+  }
+  .source-group.open {
+    padding-bottom: 4px;
+  }
+  .source-group .source-row {
+    margin: 0 10px 8px;
+    width: auto;
+    padding: 10px 12px;
+    border-color: var(--line-soft);
+    background: var(--bg-sunken);
+  }
+  .source-group .source-main {
+    background: transparent;
+  }
+  button.source-group-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 13px 16px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    text-align: left;
+  }
+  button.source-group-head:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+  .source-group-head small {
+    margin-left: auto;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .source-group-caret {
+    display: inline-block;
+    width: 12px;
+    color: var(--text-muted);
+    transition: transform 0.18s var(--ease);
+  }
+  .source-group.open .source-group-caret {
+    transform: rotate(90deg);
+  }
+  .source-group-tag {
+    padding: 1px 7px;
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
   fieldset {
     min-width: 0;
     border: 0;
@@ -1243,6 +1303,41 @@
   }
   .question-toolbar .pill { white-space: nowrap; flex-shrink: 0; }
   .question-navigation { margin-left: auto; }
+  /* EN 附文：始终紧跟其中文原文之后，弱一级、左侧一道色杠。 */
+  .en-block {
+    margin-top: 10px;
+    padding: 9px 13px;
+    border-left: 3px solid var(--accent-glow);
+    border-radius: 0 10px 10px 0;
+    background: var(--bg-sunken);
+    color: var(--text-dim);
+    font-size: 13.5px;
+  }
+  .en-block p { margin: 0; }
+  .en-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent-soft);
+    border: 1px solid var(--accent-glow);
+    border-radius: 6px;
+    padding: 0 5px;
+    margin-right: 8px;
+    vertical-align: 2px;
+  }
+  .option .option-en {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  .option-explanation.en-line { opacity: 0.88; margin-top: 4px; }
+  p.en-block.en-inline-line { margin-top: 8px; }
+  .pill-on {
+    border-color: var(--accent);
+    color: var(--accent-soft);
+    background: var(--bg-selected);
+  }
   .hint {
     background: #191d21;
     padding: 19px;
@@ -1343,10 +1438,39 @@
   .flashcard:focus-visible {
     outline-offset: 6px;
   }
+  /* FlipCard sets an explicit height from the face that is up, so a longer
+     answer grows the card in step with the flip instead of in one frame. */
   .flip-inner {
     display: grid;
     transform-style: preserve-3d;
-    transition: transform 0.6s cubic-bezier(0.3, 0.75, 0.2, 1);
+    transition:
+      transform 0.6s cubic-bezier(0.3, 0.75, 0.2, 1),
+      height 0.5s cubic-bezier(0.3, 0.75, 0.2, 1);
+  }
+  .flip-inner > .flip-face {
+    align-self: start;
+  }
+  .flip-face[aria-hidden="true"] {
+    pointer-events: none;
+  }
+  /* Area under the card: response box → grading → nothing, eased not snapped. */
+  .smooth-height {
+    transition: height 0.32s var(--ease);
+    overflow: clip;
+    overflow-clip-margin: 12px;
+  }
+  .smooth-height-inner {
+    display: flow-root;
+  }
+  .flash-follow .grading,
+  .flash-follow .response-label {
+    animation: follow-in 0.3s var(--ease) both;
+  }
+  @keyframes follow-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
   }
   .flashcard.flipped .flip-inner {
     transform: rotateY(180deg);
@@ -1723,9 +1847,14 @@
     }
     .flip-inner,
     .flashcard.flipped .flip-inner,
-    .flip-back {
+    .flip-back,
+    .smooth-height {
       transform: none;
       transition: none;
+    }
+    .flash-follow .grading,
+    .flash-follow .response-label {
+      animation: none;
     }
     .flip-face {
       transition: opacity 0.2s;
@@ -2747,10 +2876,15 @@
       transform: translate3d(2%, 1.5%, 0) scale(1.08);
     }
   }
+  /* Lift both above the aurora. The sidebar keeps its own `position: sticky`
+     (sticky already creates a stacking context); resetting it to relative
+     here made the rail scroll away on long pages, leaving a bare strip. */
   .sidebar,
   main {
-    position: relative;
     z-index: 1;
+  }
+  main {
+    position: relative;
   }
 
   /* ── Entrance choreography ─────────────────────────────────────────────
@@ -3081,3 +3215,11 @@
   }
 
 }
+.explanation-followup { margin-top: 20px; }
+.followup-item { border-top: 1px solid var(--line, #e5e7eb); padding: 18px 0; overflow-wrap: anywhere; }
+.followup-item h4 { margin-top: 8px; }
+.followup-picker { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 12px; }
+.followup-picker > button { max-width: 100%; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.followup-picker form, .followup-picker label { display: grid; gap: 8px; width: 100%; min-width: 0; }
+.followup-picker textarea { width: 100%; box-sizing: border-box; }
+.followup-picker form > button { justify-self: start; }

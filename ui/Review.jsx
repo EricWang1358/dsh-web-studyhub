@@ -3,7 +3,10 @@ import Markdown from "./Markdown.jsx";
 import Cloze from "./Cloze.jsx";
 import Icon from "./Icon.jsx";
 import ReviewNavigator from "./ReviewNavigator.jsx";
+import FlipCard from "./FlipCard.jsx";
+import SmoothHeight from "./SmoothHeight.jsx";
 import ReviewToolbar from "./ReviewToolbar.jsx";
+import ExplanationFollowup from "./ExplanationFollowup.jsx";
 import ChoiceFeedback from "./ChoiceFeedback.jsx";
 import CoachPanel from "./CoachPanel.jsx";
 import CoachDebrief from "./CoachDebrief.jsx";
@@ -60,21 +63,50 @@ export default function Review({
   askInChat,
   act,
   enterRun,
+  showEn,
+  enBusyKey,
+  toggleEn,
+  call,
 }) {
   const pageRef = React.useRef(null);
   const multiple = run.card?.multiple || run.card?.kind === "multi";
-  // "下一题" sits below long explanations; bring the next question's top back
-  // into view instead of opening it at the previous scroll offset.
-  React.useEffect(() => {
+  // EN button: show the cached English after each Chinese stem and answer.
+  const enOn = !!showEn && run.mode !== "exam" && !run.complete;
+  const enStem = enOn ? run.card?.translation : null;
+  const enAnswer = enOn && run.solution ? run.solution.translation : null;
+  // Switching questions pins the question header ("21 / 54 · topic") just
+  // under the sticky top bar, so every question opens at the same spot instead
+  // of wherever the previous one's length left the scroll offset. The first
+  // question keeps the natural layout; the summary only scrolls back if its top
+  // is out of view. Runs before paint, so there is no visible jump.
+  const openedRef = React.useRef(false);
+  React.useLayoutEffect(() => {
     const page = pageRef.current;
     let scroller = page?.parentElement;
-    while (scroller && !(scroller.scrollHeight > scroller.clientHeight &&
-      /(auto|scroll)/.test(getComputedStyle(scroller).overflowY)))
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY))
       scroller = scroller.parentElement;
     if (!page || !scroller) return;
     const bar = page.closest("main")?.querySelector(":scope > .topbar")?.offsetHeight || 0;
+    // Block body on purpose: newer Chromium's scrollTo returns a Promise, and an
+    // effect must never return one (React calls it as the cleanup and throws).
+    const scrollBy = (delta) => {
+      scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + delta), behavior: "instant" });
+    };
+    const meta = !run.complete && page.querySelector(".question-meta");
+    const first = !openedRef.current;
+    openedRef.current = true;
+    if (meta) {
+      const gap = 16;
+      // Leave a viewport of room below the header so even a short last card
+      // can scroll up to the pinned position.
+      meta.closest(".question-area").style.minHeight = `${Math.max(0, scroller.clientHeight - bar - gap)}px`;
+      if (!first) {
+        scrollBy(meta.getBoundingClientRect().top - scroller.getBoundingClientRect().top - bar - gap);
+        return;
+      }
+    }
     const offset = page.getBoundingClientRect().top - scroller.getBoundingClientRect().top - bar;
-    if (offset < 0) scroller.scrollTop = Math.max(0, scroller.scrollTop + offset);
+    if (offset < 0) scrollBy(offset);
   }, [run.id, run.index, run.complete]);
   const coachPanel = coachProps && run.mode !== "exam" && !run.complete && (
     <CoachPanel
@@ -216,7 +248,7 @@ export default function Review({
               <div>
                 {run.origin && (
                   <span className="origin-tag" title={run.origin.prompt ? `源自：${run.origin.prompt}` : ""}>
-                    {run.origin.reason === "too-hard" ? "前置台阶" : "变式"}
+                    {run.origin.reason === "too-hard" ? "前置台阶" : run.origin.reason === "followup" ? "追问巩固" : "变式"}
                     {run.origin.prompt ? ` · 源自「${run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt}」` : ""}
                   </span>
                 )}
@@ -278,6 +310,12 @@ export default function Review({
               <>
                 <div className="question" role="heading" aria-level={2}>
                   <Markdown text={run.card.prompt} />
+                  {enOn && enStem?.prompt && (
+                    <div className="en-block">
+                      <span className="en-tag">EN</span>
+                      <Markdown links={false} className="md-compact" text={enStem.prompt} />
+                    </div>
+                  )}
                 </div>
                 {run.card.multiple && (
                   <p className="muted small">
@@ -293,6 +331,8 @@ export default function Review({
                     const picked = run.feedback?.selected?.includes(
                       o.id,
                     );
+                    const enOption = enStem?.options?.find((x) => x.id === o.id);
+                    const enOptionExplain = enAnswer?.options?.find((x) => x.id === o.id);
                     return (
                       <button
                         key={o.id}
@@ -316,6 +356,7 @@ export default function Review({
                         </span>
                         <div>
                           <Markdown text={o.text} links={false} className="md-compact" />
+                          {enOption?.text && <p className="option-en">{enOption.text}</p>}
                           {run.feedback && (
                             <>
                               <strong className="answer-state">
@@ -330,6 +371,13 @@ export default function Review({
                                 links={false}
                                 className="md-compact option-explanation"
                               />
+                              {enOptionExplain?.explanation && (
+                                <Markdown
+                                  text={enOptionExplain.explanation}
+                                  links={false}
+                                  className="md-compact option-explanation en-line"
+                                />
+                              )}
                             </>
                           )}
                         </div>
@@ -361,6 +409,22 @@ export default function Review({
                   details={run.feedback?.details || null}
                   solution={run.solution}
                 />
+                {enOn && (enStem?.clozeText || enStem?.prompt) && (
+                  <div className="en-block">
+                    <span className="en-tag">EN</span>
+                    <Markdown
+                      links={false}
+                      className="md-compact"
+                      text={String(enStem.clozeText || enStem.prompt).replace(/\{\{[^{}]+\}\}/g, "＿＿")}
+                    />
+                  </div>
+                )}
+                {enOn && run.feedback && enAnswer?.blanks?.length > 0 && (
+                  <p className="en-block en-inline-line">
+                    <span className="en-tag">EN</span>
+                    {enAnswer.blanks.map((b) => b.value).join(" · ")}
+                  </p>
+                )}
                 {!run.feedback && (
                   <button
                     className="primary submit-answer"
@@ -380,42 +444,15 @@ export default function Review({
               </>
             ) : (
               <>
-                <button
+                <FlipCard
                   key={run.card.id}
-                  className={"flashcard" + (showBack ? " flipped" : "")}
-                  disabled={busy && !run.revealed}
-                  aria-pressed={showBack}
-                  aria-label={showBack ? "翻回题目" : "翻面查看答案"}
-                  onClick={flipCard}
-                >
-                  <div className="flip-inner">
-                    <div className="flip-face flip-front" aria-hidden={showBack}>
-                      <Markdown
-                        links={false}
-                        className={"flash-prompt" + (run.card.prompt.length > 90 ? " long" : "")}
-                        text={run.card.prompt}
-                      />
-                      <span className="flip-label">
-                        {run.revealed ? "点击看答案 · Space" : "点击翻面 · Space"}
-                      </span>
-                    </div>
-                    <div className="flip-face flip-back" aria-hidden={!showBack}>
-                      <Markdown links={false} className="flip-question" text={run.card.prompt} />
-                      {run.solution ? (
-                        <Markdown
-                          links={false}
-                          className={"flash-prompt" + ((run.solution.answer || "").length > 120 ? " long" : "")}
-                          text={run.solution.answer}
-                        />
-                      ) : (
-                        <div className="flash-prompt">
-                          <span className="flip-loading" aria-label="正在载入答案" />
-                        </div>
-                      )}
-                      <span className="flip-label">参考答案 · 再点翻回题目</span>
-                    </div>
-                  </div>
-                </button>
+                  run={run}
+                  busy={busy}
+                  showBack={showBack}
+                  flipCard={flipCard}
+                  enOn={enOn}
+                />
+                <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
                 {run.card.kind === "open" && !run.revealed && (
                   <label className="response-label">
                     先组织你的回答
@@ -459,12 +496,16 @@ export default function Review({
                     </div>
                   </div>
                 )}
+                </SmoothHeight>
               </>
             )}
             <ReviewToolbar
               run={run} busy={busy} expanded={run.revealed ? explain : hint}
               onToggleHelp={() => run.revealed ? setExplain(!explain) : setHint(!hint)}
               onAsk={askAboutCard} onImprove={improveCard} onSlay={slayCard} onReviewAction={reviewAct}
+              enOn={enOn}
+              enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
+              onToggleEn={toggleEn}
               thumbs={coachProps && run.mode !== "exam" && (
                 <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()} />
               )}
@@ -493,6 +534,12 @@ export default function Review({
               <div className="explanation">
                 <h3>理解这道题</h3>
                 <Markdown text={run.solution.explanation} />
+                {enOn && enAnswer?.explanation && (
+                  <div className="en-block">
+                    <span className="en-tag">EN</span>
+                    <Markdown links={false} className="md-compact" text={enAnswer.explanation} />
+                  </div>
+                )}
                 <h4>容易混淆的地方</h4>
                 <Markdown text={run.solution.misconception} />
                 {run.solution.rubric && (
@@ -522,6 +569,7 @@ export default function Review({
                     </button>
                   ))}
                 </div>
+                {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} call={call} />}
               </div>
             )}
             <div className="teaching-panel">

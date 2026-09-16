@@ -51,6 +51,23 @@ async function setup(t, { coach = true, latencyMs = 0 } = {}) {
 const tasks = (log, word) => log.filter((x) => x.prompt.includes(word)).length;
 const settle = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 
+test("concurrent confused replies share one explanation without consuming both followup slots", async (t) => {
+  const { service, log } = await setup(t, { latencyMs: 20 });
+  const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: ["b"] });
+  const nudge = await service.call("coach.nudge", { runId: run.id, index: run.index });
+  const note = nudge.thread.find((item) => item.type === "nudge");
+  const args = { noteId: note.id, reply: "confused" };
+  const results = await Promise.all([service.call("coach.reply", args), service.call("coach.reply", args)]);
+  assert.equal(tasks(log, "仍然不懂"), 1);
+  assert.deepEqual(results[0], results[1]);
+  const state = await service.store.read();
+  assert.equal(state.coach.find((item) => item.id === note.id).followups.length, 1);
+  assert.equal(state.learner.signals.confused, 1);
+  await service.call("coach.reply", args);
+  assert.equal(tasks(log, "仍然不懂"), 2, "a later intentional followup still asks for a new angle");
+});
+
 test("self-assessment is confidence metadata, never a fabricated learner answer", async () => {
   for (const kind of ["flashcard", "open", "quiz"]) {
     const card = { ...quiz(1, "列出三类迁移约束"), kind };

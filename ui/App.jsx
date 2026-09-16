@@ -22,6 +22,11 @@ import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
 
 const AUTO_ADVANCE_MS = 1500;
+const THEMES = [
+  ["auto", "◐", "跟随系统"],
+  ["dark", "☾", "深色"],
+  ["light", "☀", "浅色"],
+];
 
 function parseDraft(raw) {
   const d = JSON.parse(raw);
@@ -190,6 +195,20 @@ export default function App({ call, host = {} }) {
       localStorage.setItem("study-guide", JSON.stringify(guide));
     } catch {}
   }, [guide]);
+  // EN 开关：开启后每张卡在其英文翻译就绪时展示「中文题干/答案 + 英文」。
+  const [showEn, setShowEn] = useState(() => {
+    try {
+      return localStorage.getItem("study-en") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [enBusyKey, setEnBusyKey] = useState("");
+  useEffect(() => {
+    try {
+      localStorage.setItem("study-en", showEn ? "1" : "0");
+    } catch {}
+  }, [showEn]);
   const [genSource, setGenSource] = useState("files");
   const [showBack, setShowBack] = useState(false),
     [rawSource, setRawSource] = useState(false),
@@ -532,6 +551,37 @@ export default function App({ call, host = {} }) {
   }, [call]);
   const runRef = useRef(run);
   runRef.current = run;
+  // One translate per card entry; a second click joins the in-flight call.
+  const enFlight = useRef(new Set());
+  const translateEn = useCallback(async (r) => {
+    if (!r?.card || r.complete || r.mode === "exam") return;
+    const key = reviewEntryKey(r);
+    if (!key || enFlight.current.has(key)) return;
+    enFlight.current.add(key);
+    setEnBusyKey(key);
+    try {
+      await call("card.translate", { deckId: r.deckId, cardId: r.card.id });
+      const next = await call("review.get", { runId: r.id });
+      setRun((cur) => (reviewEntryKey(cur) === key ? mergeReviewPoll(cur, next) : cur));
+    } catch (e) {
+      if (reviewEntryKey(runRef.current) === key) setError(e.message || String(e));
+    } finally {
+      enFlight.current.delete(key);
+      setEnBusyKey((k) => (k === key ? "" : k));
+    }
+  }, [call]);
+  // With EN on, each newly opened card gets translated once (server caches it).
+  useEffect(() => {
+    if (page !== "review" || !showEn || !run?.card || run.complete || run.mode === "exam") return;
+    if (run.card.translation) return;
+    translateEn(run);
+    // The listed run fields identify the open entry; the full object is not a dep.
+  }, [page, showEn, run?.id, run?.index, run?.card?.id, run?.card?.translation, translateEn]); // eslint-disable-line react-hooks/exhaustive-deps
+  function toggleEn() {
+    const next = !showEn;
+    setShowEn(next);
+    if (next && run && !run.card?.translation) translateEn(run);
+  }
   // Latest-closure refs keep the memoized 陪学 panel's props stable across renders.
   const latest = useRef({});
   latest.current = { act, enterRun, askInChat, page };
@@ -1224,26 +1274,42 @@ export default function App({ call, host = {} }) {
             <span />
             本地学习工作区
           </div>
-          {/* Theme switch. `auto` is dark; light is explicit opt-in. */}
-          <div className="theme-switch" role="group" aria-label="主题">
-            {[
-              ["auto", "◐", "跟随系统"],
-              ["dark", "☾", "深色"],
-              ["light", "☀", "浅色"],
-            ].map(([id, glyph, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={theme === id ? "seg active" : "seg"}
-                aria-pressed={theme === id}
-                title={label}
-                onClick={() => setTheme(id)}
-              >
-                <span aria-hidden="true">{glyph}</span>
-                <span className="sr-only">{label}</span>
-              </button>
-            ))}
-          </div>
+          {/* Theme switch. `auto` is dark; light is explicit opt-in. The
+              collapsed rail is too narrow for three segments, so it cycles. */}
+          {sidebarNarrow ? (
+            (() => {
+              const i = Math.max(0, THEMES.findIndex(([id]) => id === theme)),
+                [, glyph, label] = THEMES[i],
+                [nextId, , nextLabel] = THEMES[(i + 1) % THEMES.length];
+              return (
+                <button
+                  type="button"
+                  className="nav theme-cycle"
+                  title={`主题：${label}（点击切换为${nextLabel}）`}
+                  aria-label={`主题：${label}，切换为${nextLabel}`}
+                  onClick={() => setTheme(nextId)}
+                >
+                  <Icon>{glyph}</Icon>
+                </button>
+              );
+            })()
+          ) : (
+            <div className="theme-switch" role="group" aria-label="主题">
+              {THEMES.map(([id, glyph, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={theme === id ? "seg active" : "seg"}
+                  aria-pressed={theme === id}
+                  title={label}
+                  onClick={() => setTheme(id)}
+                >
+                  <span aria-hidden="true">{glyph}</span>
+                  <span className="sr-only">{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <button
             className={page === "settings" ? "nav active" : "nav"}
             title="设置"
@@ -1603,6 +1669,10 @@ export default function App({ call, host = {} }) {
                 askInChat={askInChat}
                 act={act}
                 enterRun={enterRun}
+                showEn={showEn}
+                enBusyKey={enBusyKey}
+                toggleEn={toggleEn}
+                call={call}
               />
             )}
           </>

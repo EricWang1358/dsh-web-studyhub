@@ -14,6 +14,11 @@ export function createFakeModel({ latencyMs = 0, log = [] } = {}) {
       data = {};
     }
     const task = String(data.task || "");
+    if (system.includes("学习卡片的追问老师")) {
+      return JSON.stringify(data.question
+        ? { question: `关于${data.card.topic}：${data.question}`, answer: `结合本题：${data.card.explanation}\n\n补充说明：可以用一个具体场景检查自己是否理解。` }
+        : { questions: [`${data.card.topic}可以用一个例子说明吗？`, "这个概念最容易和什么混淆？", "换一个场景时，应该怎样运用这个规则？"] });
+    }
     if (task.includes("刚答错") || task.includes("掌握程度自评")) {
       const topic = data.card?.topic || "这个概念";
       return JSON.stringify({
