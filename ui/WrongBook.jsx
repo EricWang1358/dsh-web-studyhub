@@ -1,25 +1,39 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import css from "./views.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
+import EmptyStudyActions from "./EmptyStudyActions.jsx";
 
-/* 跨题库错题本（v0.4 契约 §4）。数据来自 call("wrongbook")，按题组分组
-   展示；「练」与「重练全部错题」都通过 onPractice(scope) 交给主会话，
+const PAGE_SIZE = 100;
+
+/* 跨题库待巩固题。数据来自 call("wrongbook")，按题组分组
+   展示；客观答错与自评未掌握分开标记，练习都通过 onPractice(scope) 交给主会话，
    由它用 review.start {mode:"path", scope} 开一轮练习。样式与 Dashboard /
    Exam 共用 ui/views.css，注入 <style data-study-views> 按标记去重。 */
 
-export default function WrongBook({ call, busy, onPractice }) {
+export default function WrongBook({ call, data, busy, onPractice, onStart, onLibrary, onCreate, onSources }) {
   useInjectCss(css, "study-views");
+  const [page, setPage] = useState(0);
   const [items, setItems] = useState(null),
+    [counts, setCounts] = useState({ total: 0, graded: 0, self: 0 }),
     [loading, setLoading] = useState(true),
     [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (requestedPage = 0) => {
     setLoading(true);
     setErr("");
     try {
-      const res = await call("wrongbook");
-      // suspended 的卡进不了练习池，直接从列表里滤掉，避免给出无效的「练」。
+      let targetPage = requestedPage;
+      let res = await call("wrongbook", { offset: targetPage * PAGE_SIZE, limit: PAGE_SIZE });
+      if (targetPage > 0 && !res?.items?.length) {
+        targetPage = Math.max(0, Math.ceil((res?.total || 0) / PAGE_SIZE) - 1);
+        res = await call("wrongbook", { offset: targetPage * PAGE_SIZE, limit: PAGE_SIZE });
+      }
+      setCounts({ total: res?.total ?? res?.items?.length ?? 0,
+        graded: res?.gradedTotal ?? res?.items?.filter((item) => item.assessment === "graded").length ?? 0,
+        self: res?.selfTotal ?? res?.items?.filter((item) => item.assessment === "self").length ?? 0 });
+      // Keep this guard for older service versions that still return suspended cards.
       setItems((res?.items || []).filter((it) => it && it.deckId && it.cardId && !it.suspended));
+      setPage(targetPage);
     } catch (e) {
       setErr(e.message || String(e));
     } finally {
@@ -27,7 +41,7 @@ export default function WrongBook({ call, busy, onPractice }) {
     }
   }, [call]);
   useEffect(() => {
-    load();
+    load(0);
   }, [load]);
 
   /* 服务端已按 lastAt 降序；这里只做按题组的稳定分组，保持组内顺序。 */
@@ -45,41 +59,46 @@ export default function WrongBook({ call, busy, onPractice }) {
     return [...map.values()];
   }, [items]);
   const total = items?.length || 0;
+  const hasMore = counts.total > PAGE_SIZE;
 
   return (
     <section className="page wb">
       <div className="page-heading">
         <div>
-          <h1>错题本</h1>
+          <h1>错题与待巩固</h1>
           <p className="muted">
-            {total ? `跨题组收集的 ${total} 道错题，按题组分组。` : "答错的题会自动收进这里。"}
+            {counts.total ? `客观答错 ${counts.graded} 题 · 自评未掌握 ${counts.self} 题，按题组分组。` : "客观答错或自评未掌握的题会收在这里。"}
           </p>
         </div>
         <div className="section-heading-actions">
-          <button onClick={load} disabled={busy || loading}>
+          <button onClick={() => load(page)} disabled={busy || loading}>
             刷新
           </button>
           <button
             className="primary"
-            disabled={busy || !total}
-            title="把这些错题按学习路径重新练一遍"
+            disabled={busy || loading || !total}
+            title={hasMore ? "把本页的待巩固题按学习路径重新练一遍" : "把这些待巩固题按学习路径重新练一遍"}
             onClick={() =>
               onPractice(items.map((i) => ({ deckId: i.deckId, cardId: i.cardId })))
             }
           >
-            重练全部错题 ({total})
+            {hasMore ? "重练本页" : "重练全部"} ({total})
           </button>
         </div>
       </div>
 
-      {err && <p className="wb-error">{err}</p>}
-      {loading && !items && <p className="muted">正在读取错题本…</p>}
+      {err && <p className="wb-error">{items ? `读取失败，仍显示上次结果：${err}` : err}</p>}
+      {loading && !items && <p className="muted">正在读取待巩固题…</p>}
 
-      {items && !total && (
+      {items && !counts.total && (
         <div className="empty wb-empty">
           <span className="empty-icon">✓</span>
-          <h2>最近没有错题，保持这个节奏</h2>
-          <p className="muted">答错的题会自动收进这里，方便集中重练。</p>
+          <h2>{data?.attempts?.length ? "目前没有待巩固的题" : "还没有练习记录"}</h2>
+          <p className="muted">{data?.attempts?.length
+            ? "客观答错或自评未掌握的题会出现在这里，方便集中重练。"
+            : "完成一次学习后，答错或自评未掌握的题会收在这里。"}</p>
+          <EmptyStudyActions data={data} busy={busy} onStart={onStart} onLibrary={onLibrary}
+            onCreate={onCreate} onSources={onSources} />
         </div>
       )}
 
@@ -98,8 +117,9 @@ export default function WrongBook({ call, busy, onPractice }) {
                 <span className="wb-prompt" title={plainPrompt(it.prompt)}>
                   {plainPrompt(it.prompt)}
                 </span>
-                <span className="wb-grade" title={`最近一次作答 ${it.lastGrade} 分`}>
-                  错
+                <span className={"wb-grade" + (it.assessment === "graded" ? "" : " self")}
+                  title={`最近一次${it.assessment === "graded" ? "客观判分" : "自评"} ${it.lastGrade} 分`}>
+                  {it.assessment === "graded" ? "答错" : "未掌握"}
                 </span>
                 <button
                   disabled={busy}
@@ -113,6 +133,12 @@ export default function WrongBook({ call, busy, onPractice }) {
           </ul>
         </div>
       ))}
+      {items && hasMore && <nav className="wb-pages" aria-label="待巩固题分页">
+        <span>第 {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + total} 题 / 共 {counts.total} 题</span>
+        <button type="button" disabled={busy || loading || page === 0} onClick={() => load(page - 1)}>上一页</button>
+        <button type="button" disabled={busy || loading || (page + 1) * PAGE_SIZE >= counts.total}
+          onClick={() => load(page + 1)}>下一页</button>
+      </nav>}
     </section>
   );
 }

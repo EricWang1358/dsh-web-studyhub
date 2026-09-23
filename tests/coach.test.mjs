@@ -29,6 +29,8 @@ const quiz = (n, prompt, topic = "Memento") => ({
     { id: "c", text: "Originator", correct: false, explanation: "It creates and restores snapshots." },
   ],
 });
+const publishFixture = (service, id) => new StudyService(service.store.root).call("draft.publish", { id });
+
 const prompts = [
   "Memento 模式中哪个角色管理历史？",
   "Caretaker 和 Memento 的区别是什么？",
@@ -45,7 +47,7 @@ async function setup(t, { coach = true, latencyMs = 0 } = {}) {
   const service = new StudyService(root, { complete: light, completeLight: light, coach });
   await service.call("source.add", source);
   await service.call("draft.save", { deck: { id: "d", title: "Patterns", cards: prompts.map((p, i) => quiz(i + 1, p)) } });
-  await service.call("draft.publish", { id: "d" });
+  await publishFixture(service, "d");
   return { root, service, log, light };
 }
 const tasks = (log, word) => log.filter((x) => x.prompt.includes(word)).length;
@@ -285,12 +287,85 @@ test("debrief turns a concept-only session into an application offer and updates
 });
 
 test("debrief rules need no model", () => {
-  const metrics = { answered: 6, correct: 6, accuracy: 100, lowShare: 100, levels: { recall: { n: 2, correct: 2 }, concept: { n: 4, correct: 4 }, apply: { n: 0, correct: 0 } }, weakTopics: [], tags: {} };
+  const metrics = { answered: 6, met: 6, metRate: 100, gradedAnswered: 6, gradedCorrect: 6,
+    accuracy: 100, selfAnswered: 0, selfMet: 0, selfRate: null, lowShare: 100,
+    levels: { recall: { n: 2, met: 2 }, concept: { n: 4, met: 4 },
+      apply: { n: 0, met: 0, gradedN: 0, gradedCorrect: 0, selfN: 0, selfMet: 0 } },
+    weakTopics: [], tags: {} };
   const rules = debriefRules(metrics, { consent: true, modelReady: true });
   assert.equal(rules.insights[0].code, "concept-only");
   assert.equal(rules.wantsPrep, true);
   assert.equal(debriefRules(metrics, { ready: 3 }).next, "practice_prepared");
   assert.equal(runMetrics({ feedback: [], learner: null }, { entries: [] }).answered, 0);
+});
+
+test("coach debrief separates objective correctness from self-rated recall", () => {
+  const graded = quiz(1, "Who manages snapshot history?");
+  const self = { ...quiz(2, "Recall the history manager"), kind: "flashcard" };
+  delete self.options;
+  const state = { learner: null, feedback: [] };
+  const run = { mode: "path", entries: [
+    { card: graded, feedback: { grade: 4, correct: true } },
+    { card: self, feedback: { grade: 1, correct: false } },
+  ] };
+  const metrics = runMetrics(state, run);
+  assert.deepEqual({ accuracy: metrics.accuracy, gradedAnswered: metrics.gradedAnswered,
+    selfRate: metrics.selfRate, selfAnswered: metrics.selfAnswered, metRate: metrics.metRate },
+  { accuracy: 100, gradedAnswered: 1, selfRate: 0, selfAnswered: 1, metRate: 50 });
+  const rules = debriefRules(metrics);
+  assert.ok(rules.insights.some((item) => item.code === "self-low"));
+  assert.ok(!rules.why.includes("正确率 50%"));
+  const selfOnly = runMetrics(state, { mode: "flashcard", entries: [{ card: graded,
+    feedback: { grade: 1, correct: false } }] });
+  assert.equal(selfOnly.accuracy, null);
+  assert.equal(selfOnly.selfRate, 0);
+  assert.ok(!debriefRules(selfOnly).why.includes("正确率"));
+  const mixed = runMetrics(state, { mode: "path", entries: [
+    ...[1, 2, 3].map((n) => ({ card: quiz(n, `Who manages history ${n}?`), feedback: { grade: 4 } })),
+    { card: self, feedback: { grade: 1 } },
+  ] });
+  const mixedRules = debriefRules(mixed, { consent: true, modelReady: true });
+  assert.equal(mixed.metRate, 75);
+  assert.equal(mixedRules.insights[0].code, "concept-only");
+  assert.match(mixedRules.insights[0].text, /概念还没稳/);
+  assert.equal(mixedRules.wantsPrep, false, "a low self-rating should not be hidden by three correct choice answers");
+});
+
+test("a conflicting model suggestion cannot send a weak session to rest", async (t) => {
+  const { service } = await setup(t, { coach: false });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  for (let index = 0; index < 3; index++) {
+    const option = run.card.options.find((item) => item.text === (index ? "Caretaker" : "Memento"));
+    run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [option.id] });
+    if (index < 2) run = await service.call("review.move", { runId: run.id, direction: 1 });
+  }
+  service.coach = true;
+  service.light = async () => JSON.stringify({ headline: "今天休息吧", why: "不必再练", next: "rest", summary: "不用复习" });
+  const debrief = await service.call("coach.debrief", { runId: run.id });
+  assert.equal(debrief.next, "review_weak");
+  assert.match(debrief.headline, /先把/);
+  assert.notEqual(debrief.why, "不必再练");
+  assert.notEqual((await service.call("export")).learner.summary, "不用复习");
+});
+
+test("reviewing weak results starts only low-scored cards from that round", async (t) => {
+  const { service } = await setup(t, { coach: false });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  const wrongId = run.card.id;
+  await service.call("review.answer", { runId: run.id, cardId: wrongId,
+    selected: [run.card.options.find((item) => item.text === "Memento").id] });
+  run = await service.call("review.move", { runId: run.id, direction: 1 });
+  await service.call("review.answer", { runId: run.id, cardId: run.card.id,
+    selected: [run.card.options.find((item) => item.text === "Caretaker").id] });
+  const weak = await service.call("review.weak.start", { runId: run.id });
+  assert.equal(weak.total, 1);
+  assert.equal(weak.card.id, wrongId);
+  assert.deepEqual(weak.scope, [{ deckId: "d", cardId: wrongId }]);
+  const self = await service.call("review.start", { deckId: "d", mode: "flashcard", fresh: true });
+  await service.call("review.reveal", { runId: self.id, cardId: self.card.id });
+  await service.call("review.answer", { runId: self.id, cardId: self.card.id, grade: 1 });
+  const selfWeak = await service.call("review.weak.start", { runId: self.id });
+  assert.deepEqual(selfWeak.scope, [{ deckId: "d", cardId: self.card.id }]);
 });
 
 test("snapshot polling returns unchanged when nothing visible moved", async (t) => {
@@ -412,7 +487,7 @@ test("a stem rewrite on a cloze card changes the text the learner sees, without 
     hint: "不是快照本身", explanation: "Caretaker 管理历史。", misconception: "以为是 Memento。", citations: [{ sourceId: "src", quote }],
     cloze: { text: "谁管理快照历史？{{who}}", answers: [{ id: "who", value: "Caretaker" }] },
   }] } });
-  await service.call("draft.publish", { id: "c" });
+  await publishFixture(service, "c");
   const run = await service.call("review.start", { deckId: "c", mode: "quiz" });
   await service.call("coach.feedback", { deckId: "c", cardId: "z1", vote: "down", tags: ["stem-vague"] });
   await service.call("coach.prepare");
@@ -433,7 +508,7 @@ test("a nudge is written about the learner's actual wrong answer, for cloze and 
     hint: "两个角色", explanation: "Client–Server 是结构风格。", misconception: "与 Peer-to-Peer 混淆。", citations: [{ sourceId: "src", quote }],
     cloze: { text: "请求方和服务方组成的结构风格称为{{style}}。", answers: [{ id: "style", value: "Client–Server" }] },
   }] } });
-  await service.call("draft.publish", { id: "z" });
+  await publishFixture(service, "z");
   let run = await service.call("review.start", { deckId: "z", mode: "quiz" });
   run = await service.call("review.answer", { runId: run.id, cardId: "z1", answers: { style: "Point-to-Point" } });
   const { thread } = await service.call("coach.nudge", { runId: run.id });
@@ -449,4 +524,76 @@ test("a nudge is written about the learner's actual wrong answer, for cloze and 
   const choice = (await service.call("coach.nudge", { runId: quiz.id })).thread.at(-1);
   assert.equal(choice.yourAnswer, wrong.text);
   assert.equal(choice.expected, "Caretaker");
+});
+
+async function flakySetup(t, wrap) {
+  const root = await mkdtemp(join(tmpdir(), "study-coach-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const log = [];
+  const base = createFakeModel({ log });
+  const light = wrap(base);
+  const service = new StudyService(root, { complete: light, completeLight: light, coach: true });
+  await service.call("source.add", source);
+  await service.call("draft.save", { deck: { id: "d", title: "Patterns", cards: prompts.map((p, i) => quiz(i + 1, p)) } });
+  await publishFixture(service, "d");
+  return { service, log };
+}
+const isRewrite = (prompt) => prompt.includes("反馈标签");
+
+test("an empty model reply during a feedback rewrite is retried instead of failing the task", async (t) => {
+  let empties = 1;
+  const { service } = await flakySetup(t, (base) => async (system, prompt, options) => {
+    if (isRewrite(prompt) && empties-- > 0) throw new Error("Model returned no text");
+    return base(system, prompt, options);
+  });
+  await service.call("coach.feedback", { deckId: "d", cardId: "q1", vote: "down", tags: ["bad-options"] });
+  const status = await service.call("coach.prepare");
+  const task = status.tasks.findLast((x) => x.kind === "rewrite");
+  assert.equal(task.status, "done");
+  assert.match((await service.call("export")).decks[0].cards[0].options[0].explanation, /已按反馈/);
+});
+
+test("a rewrite that keeps failing explains why in plain words and can be retried with the same tags", async (t) => {
+  let broken = true;
+  const { service } = await flakySetup(t, (base) => async (system, prompt, options) => {
+    if (isRewrite(prompt) && broken) throw new Error("Model returned no text");
+    return base(system, prompt, options);
+  });
+  await service.call("coach.feedback", { deckId: "d", cardId: "q2", vote: "down", tags: ["bad-options"] });
+  let status = await service.call("coach.prepare");
+  const failed = status.tasks.findLast((x) => x.kind === "rewrite");
+  assert.equal(failed.status, "failed");
+  assert.match(failed.message, /模型这次没有返回内容，已自动重试 2 次/);
+
+  broken = false;
+  await service.call("coach.rewrite.retry", { deckId: "d", cardId: "q2" });
+  status = await service.call("coach.prepare");
+  assert.equal(status.tasks.findLast((x) => x.kind === "rewrite").status, "done");
+  const card = (await service.call("export")).decks[0].cards.find((c) => c.id === "q2");
+  assert.match(card.options[0].explanation, /已按反馈/);
+});
+
+test("feedback rewrites for different cards run in parallel, capped at three", async (t) => {
+  let active = 0, peak = 0;
+  let release, thirdStarted;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const threeRunning = new Promise((resolve) => { thirdStarted = resolve; });
+  const { service } = await flakySetup(t, (base) => async (system, prompt, options) => {
+    if (!isRewrite(prompt)) return base(system, prompt, options);
+    peak = Math.max(peak, ++active);
+    if (peak === 3) thirdStarted();
+    await gate;
+    active--;
+    return base(system, prompt, options);
+  });
+  for (const cardId of ["q1", "q2", "q3", "q4", "q5"])
+    await service.call("coach.feedback", { deckId: "d", cardId, vote: "down", tags: ["bad-options"] });
+  try {
+    await Promise.race([threeRunning, settle(2000).then(() => { throw new Error("Three parallel rewrites did not start"); })]);
+  } finally { release(); }
+  const status = await service.call("coach.prepare");
+  assert.equal(peak, 3);
+  const cards = (await service.call("export")).decks[0].cards;
+  assert.ok(cards.every((c) => /已按反馈/.test(c.options[0].explanation)));
+  assert.ok(status.tasks.filter((x) => x.kind === "rewrite").every((x) => x.status === "done"));
 });

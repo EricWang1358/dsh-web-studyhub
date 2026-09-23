@@ -323,7 +323,7 @@ test("deck maintenance preserves unchanged scheduling, resets edited content, an
   assert.equal((await service.call("deck.edit", { id: "d" })).id, draft.id);
   await assert.rejects(
     service.call("draft.publish", { id: draft.id }),
-    /active reviews/,
+    /请先完成或结束练习/,
   );
   await service.call("review.end", { runId: run.id });
   draft.title = "Renamed";
@@ -735,22 +735,27 @@ test("generation uses author and editor; broken citation is repaired before draf
       )),
     { count: 1, kind: "flashcard", sources: [source] },
   );
-  assert.equal(calls, 4);
+  assert.equal(calls, 4, "author, review, repair, independent acceptance");
   assert.equal(result.editorial.repaired, true);
   assert.notEqual(result.id, "d");
 });
-test("generation refuses persistent editorial defects", async () => {
+test("an editorial complaint buys one repair round, then the repaired deck is accepted", async () => {
   let calls = 0;
+  const result = await generateDeck(
+    withQualityStages(async () => JSON.stringify([deck(), { issues: ["ambiguous"] }, deck(), { issues: [] }][calls++])),
+    { count: 1, kind: "flashcard", sources: [source] },
+  );
+  assert.equal(calls, 4, "one repair followed by independent acceptance");
+  assert.equal(result.cards.length, 1);
+  assert.equal(result.editorial.repaired, true);
+});
+
+test("a defect the local gate can prove still costs the card, however the editor votes", async () => {
+  const broken = deck();
+  broken.cards[0].citations[0].quote = "fabricated quote";
   await assert.rejects(
-    () =>
-      generateDeck(
-        withQualityStages(async () =>
-          JSON.stringify(
-            [deck(), { issues: ["ambiguous"] }, deck(), { issues: ["still ambiguous"] }][calls++],
-          )),
-        { count: 1, kind: "flashcard", sources: [source] },
-      ),
-    /still found issues/,
+    generateDeck(withQualityStages(async () => JSON.stringify(broken)), { count: 1, kind: "flashcard", sources: [source] }),
+    /Quality gate failed/,
   );
 });
 test("generation rejects wrong question kind even when model editor approves", async () => {
@@ -758,12 +763,12 @@ test("generation rejects wrong question kind even when model editor approves", a
   await assert.rejects(
     () =>
       generateDeck(
-        withQualityStages(async () => JSON.stringify([deck(), { issues: [] }, deck()][calls++])),
+        withQualityStages(async () => JSON.stringify([deck(), { issues: [] }, deck(), { issues: [] }][calls++])),
         { count: 1, kind: "quiz", sources: [source] },
       ),
     /requested kind/,
   );
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
 });
 test("teaching stores conclusions only and cannot advance a failed check or add SM2 attempts", async () => {
   const service = await ready();
@@ -1067,11 +1072,13 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   const first = await service.call("job.wait", { jobId: quiz.jobId });
   assert.equal(first.status, "complete");
   assert.equal(first.draft.cards, 6);
-  assert.equal(first.steps.length, 12);
+  // Three parts x three phases: plan, author+self-check, independent review.
+  // Every extra phase used to mean another child and another cold start.
+  assert.equal(first.steps.length, 9);
   assert.ok(first.steps.every((step) => step.status === "complete" && step.startedAt && step.finishedAt));
   assert.match(first.steps[0].stage, /Planning evidence/);
   assert.ok(first.steps.slice(0, 3).every((step) => step.stage.includes("Planning evidence")));
-  assert.match(first.steps[3].stage, /Writing source-grounded questions/);
+  assert.match(first.steps[3].stage, /Writing and self-checking questions/);
   const second = await service.call("job.wait", { jobId: cards.jobId });
   assert.equal(second.status, "complete");
   assert.equal(second.draft.failures.length, 1);
@@ -1162,7 +1169,7 @@ test("prerequisite links order the path, teach first with return, credit on succ
   for (const r of (await service.call("snapshot")).runs) await service.call("review.end", { runId: r.id });
   await service.call("review.end", { runId: fresh1.id });
   await service.call("review.end", { runId: pre.id });
-  await service.call("draft.publish", { id: edit.id });
+  await new StudyService(service.store.root).call("draft.publish", { id: edit.id });
   const after = (await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === "hard");
   assert.equal(after.requires.length, 2);
   assert.deepEqual(after.review, before);

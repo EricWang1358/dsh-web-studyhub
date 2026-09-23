@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { kinds } from "./shared.js";
 import { importExample, importPrompt } from "./json-prompts.js";
 
-export default function JsonImport({ busy, act, setPage, setNotice }) {
+export default function JsonImport({ busy, act, openDraft, setNotice }) {
   const [text, setText] = useState("");
   const [kind, setKind] = useState("mixed");
   const [reading, setReading] = useState(false);
@@ -25,7 +25,7 @@ export default function JsonImport({ busy, act, setPage, setNotice }) {
     finally { if (request === fileRead.current) setReading(false); }
   }
   return <div>
-    <p className="muted">粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入，每组至少 1 题，不限制题目总数。导入无需模型，保存为草稿后审阅发布。</p>
+    <p className="muted">粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入，每组至少 1 题，不限制题目总数。导入无需模型；发布时自动逐题检查。</p>
     <fieldset>
       <legend>01 / 各题型 JSON 提示词</legend>
       <label>题型<select value={kind} onChange={(e) => { setKind(e.target.value); setMessage(""); }}>{Object.entries({ mixed: "混合题型（一次复制全部）", ...kinds }).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
@@ -39,14 +39,14 @@ export default function JsonImport({ busy, act, setPage, setNotice }) {
     <form onSubmit={(e) => {
       e.preventDefault();
       act("draft.import", { text }, (deck) => {
-        setNotice(`已导入「${deck.title}」共 ${deck.cards.length} 题，请在待审阅列表核对答案并发布。`);
-        setPage("library");
+        setNotice(`已导入「${deck.title}」共 ${deck.cards.length} 题。发布时会逐题检查，通过的题先进入学习目录。`);
+        openDraft(deck);
       });
     }}>
       <fieldset><legend>02 / 导入题组</legend>
         <label>读取 JSON / TXT 文件<input type="file" accept=".json,.txt,application/json,text/plain" disabled={busy || reading} onChange={readFile} /></label>
         <label>JSON 内容<textarea rows={14} required value={text} disabled={busy || reading} onChange={(e) => setText(e.target.value)} placeholder={'{"title":"题组名称","cards":[...]}'} /></label>
-        <p className="muted">外部导入不会执行模型质量审阅。引用保存的是导入内容，请自行核对答案与解析。</p>
+        <p className="muted">导入后发布时会自动逐题检查。通过的题先发布，有问题的题留在草稿。若 JSON 引文与学习库原始资料唯一匹配，会直接关联；其他题只保留自身引用，无法据此独立证明答案正确。</p>
         <button className="primary" disabled={busy || reading || !text.trim()}>{reading ? "正在读取文件…" : "校验并导入草稿 →"}</button>
       </fieldset>
     </form>

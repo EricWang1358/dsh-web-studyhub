@@ -193,6 +193,32 @@
 .dash-trend-dot {
   fill: var(--accent);
 }
+.dash-trend-line.self {
+  stroke: var(--info);
+}
+.dash-trend-dot.self {
+  fill: var(--info);
+}
+.dash-trend-legend {
+  display: flex;
+  gap: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.dash-trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dash-trend-legend i {
+  width: 14px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.dash-trend-legend i.self {
+  background: var(--info);
+}
 
 .dash-weak {
   list-style: none;
@@ -291,6 +317,11 @@
   padding: 6px 12px;
   font-size: 12px;
 }
+.exam-history ul { list-style: none; margin: 0; padding: 0; }
+.exam-history li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.exam-history li > span { min-width: 0; }
+.exam-history li small { display: block; margin-top: 3px; color: var(--text-muted); overflow-wrap: anywhere; }
+.exam-history li button { flex: none; }
 .exam-empty {
   display: flex;
   flex-direction: column;
@@ -373,6 +404,12 @@
   color: var(--text-muted);
   font-size: 12px;
 }
+.exam-type-settings { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.exam-type-settings > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.exam-type-settings button { padding: 7px 12px; font-size: 12px; }
+.exam-type-settings button.picked { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
+.exam-type-settings small { font-size: 12px; }
+.exam-type-settings .warning { margin: 0; }
 .exam-setup-foot {
   padding-top: 14px;
   border-top: 1px solid var(--line-soft);
@@ -746,10 +783,22 @@
   color: var(--bad);
   font-size: 12px;
 }
+.wb-grade.self {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+.wb-pages { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: 12px; }
 .wb-row button {
   flex: none;
   padding: 5px 12px;
 }
 .wb-empty h2 {
   margin: 0;
+}
+.study-empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 20px;
 }

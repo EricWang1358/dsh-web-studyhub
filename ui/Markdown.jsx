@@ -1,4 +1,5 @@
 import React from "react";
+import { unescapeModelText } from "../lib/model-text.js";
 
 /**
  * Safe Markdown for study text: builds React elements only (no HTML is ever
@@ -282,6 +283,7 @@ function list(items, links, key) {
 
 /** Renders study text as Markdown; `links={false}` inside clickable surfaces such as cards and options. */
 export default function Markdown({ text, links = true, className = "" }) {
-  const value = typeof text === "string" ? text : "";
+  // Repairs answers already saved with double-escaped newlines, wherever shown.
+  const value = typeof text === "string" ? unescapeModelText(text) : "";
   return <div className={("md " + className).trim()}>{blocks(prepare(value), links)}</div>;
 }

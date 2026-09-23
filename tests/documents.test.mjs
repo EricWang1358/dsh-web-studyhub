@@ -97,16 +97,27 @@ test("PDF import keeps exact page text, skips empty pages, and reuses duplicate 
   await writeFile(path, bytes);
   const first = await service.call("source.import", { path });
   assert.equal(first.added, 2);
+  assert.deepEqual(first.selectedPages, [1, 2, 3]);
   assert.deepEqual(first.skippedPages, [2]);
+  assert.deepEqual(first.sparsePages, [1, 3]);
+  assert.equal(first.sources[0].document.sparseText, true);
   assert.equal(first.sources[1].document.page, 3);
+  await service.store.update((state) => { delete state.sources[0].document.sparseText; });
   const again = await service.call("source.import", { dataBase64: bytes.toString("base64"), filename: "lecture.pdf", pages: [3, 1, 3] });
   assert.equal(again.added, 0);
+  assert.deepEqual(again.selectedPages, [1, 3]);
   assert.deepEqual(again.sourceIds, first.sourceIds);
+  assert.equal((await service.call("export")).sources.find((item) => item.id === first.sourceIds[0]).document.sparseText, true);
   assert.equal((await service.call("source.get", { id: first.sourceIds[0] })).text, "Architecture connects business goals to technical decisions.");
-  await assert.rejects(service.call("source.import", { dataBase64: pdfFixture([""]).toString("base64") }), /OCR/);
+  const dense = await extractPdf({ dataBase64: pdfFixture([[
+    { text: "Architecture links stakeholder goals, system context, and quality attributes to measurable design decisions.", x: 40, y: 700 },
+    { text: "The design also addresses constraints, responsibilities, and trade-offs across the solution lifecycle.", x: 40, y: 680 },
+  ]]).toString("base64") });
+  assert.deepEqual(dense.sparsePages, []);
+  await assert.rejects(service.call("source.import", { dataBase64: pdfFixture([""]).toString("base64") }), /所选 1 页.*OCR.*没有保存资料/);
   assert.equal((await service.call("export")).sources.length, 2);
-  await assert.rejects(extractPdf({ path, pages: [4] }), /page numbers/);
-  await assert.rejects(extractPdf({ dataBase64: "not a pdf" }), /Invalid PDF/);
+  await assert.rejects(extractPdf({ path, pages: [4] }), /共 3 页/);
+  await assert.rejects(extractPdf({ dataBase64: "not a pdf" }), /PDF 文件无效/);
 });
 
 const source = { id: "page1", title: "Lecture p.1", text: "Architecture connects business goals to technical decisions." };
@@ -115,7 +126,7 @@ function card(n, kind = "flashcard") {
     ...(kind === "quiz" ? { options: ["a", "b", "c"].map((id) => ({ id, text: `${id} option ${n}`, correct: id === "a", explanation: `Reason ${id}` })) } : {}) };
 }
 
-test("partial repair retains sound cards only after another editorial review", async () => {
+test("a fabricated citation costs its own card, and the sound ones are kept", async () => {
   const bad = card(2); bad.citations[0].quote = "A fabricated passage not present in this source.";
   let calls = 0;
   const complete = async (system) => {
@@ -123,9 +134,16 @@ test("partial repair retains sound cards only after another editorial review", a
     return JSON.stringify(system.includes("editor") ? { issues: [] } : { title: "Lecture", cards: [card(1), bad] });
   };
   const result = await generateDeck(withQualityStages(complete), { count: 2, kind: "flashcard", sources: [source], allowPartial: true });
-  assert.equal(result.cards.length, 1);
-  assert.equal(calls, 4);
-  await assert.rejects(generateDeck(withQualityStages(async (system) => JSON.stringify(system.startsWith("Strict assessment") ? { issues: ["Unsupported answer"] } : system.includes("editor") ? { issues: [] } : { title: "Lecture", cards: [card(1), bad] })), { count: 2, kind: "flashcard", sources: [source], allowPartial: true }), /Editorial review/);
+  assert.equal(result.cards.length, 1, "the card whose quote is not in the source is dropped");
+  assert.equal(result.editorial.dropped, 1);
+  assert.equal(calls, 5, "author, review, repair, independent review and retained subset review");
+
+  // Unresolved deck-level defects must survive the repairer's self approval.
+  await assert.rejects(generateDeck(
+    withQualityStages(async (system) => JSON.stringify(
+      system.includes("editor") ? { issues: ["Unsupported answer"] } : { title: "Lecture", cards: [card(1), bad] })),
+    { count: 2, kind: "flashcard", sources: [source], allowPartial: true },
+  ), /Editorial review still found issues.*Unsupported answer/);
 });
 
 test("mixed generation uses small batches, one draft, requested title, and reports failed parts", async () => {
@@ -143,6 +161,7 @@ test("mixed generation uses small batches, one draft, requested title, and repor
   assert.equal(result.cards.length, 11);
   assert.equal(result.editorial.failures.length, 1);
   assert.equal(result.editorial.requested, 13);
+  assert.deepEqual(planGeneration({ sources: [source], count: 1, kind: "mixed", kindCounts: { quiz: 0, flashcard: 1 } }).map((p) => p.kind), ["flashcard"]);
 });
 
 test("three batch workers overlap after shared planning and checkpoint before a slow batch finishes", { timeout: 5000 }, async () => {
@@ -196,9 +215,14 @@ test("workers receive complete assigned sources without unrelated planning pages
     return JSON.stringify({ title: "Scoped sources", cards: Array.from({ length: req.count }, () => card(++n, req.kind)) });
   }), { count: 6, kind: "flashcard", sources: [source, { id: "unassigned", title: "Unrelated page", text: "A different page with no assigned learning targets." }] });
   assert.equal(result.cards.length, 6);
+  assert.equal(Object.keys(result.editorial.reviewedCards).length, result.cards.length);
   assert.ok(seen.every((sources) => sources.length === 1 && sources[0].text === source.text));
   assert.equal(result.editorial.coverage.selected, 2);
   assert.equal(result.editorial.coverage.cited, 1);
+  assert.deepEqual(result.editorial.coverage.sources.map(({ id, planned, accepted }) => ({ id, planned, accepted })), [
+    { id: source.id, planned: 6, accepted: 6 },
+    { id: "unassigned", planned: 0, accepted: 0 },
+  ]);
 });
 
 test("transport failures do not trigger a misleading JSON correction retry", async () => {
@@ -229,6 +253,126 @@ test("PDF sources feed a single mixed background job without changing recording 
   assert.deepEqual(state.drafts[0].cards.map((c) => c.kind), ["quiz", "quiz", "flashcard"]);
   assert.equal((await service.call("ingest.status")).active, true);
   assert.equal(state.drafts[0].editorial.coverage.cited, 1);
+  assert.deepEqual(state.drafts[0].editorial.generation.sourceIds, imported.sourceIds);
+  assert.equal(state.drafts[0].editorial.generation.kind, "mixed");
+});
+
+test("an interrupted generation can fill its original draft without replacing approved cards", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-resume-generation-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", source);
+  const saved = await service.call("draft.save", { deck: {
+    id: "partial", title: "Architecture", cards: [card(1)],
+    editorial: { requested: 2, generated: 1, parts: 2, completedParts: 1, failures: [],
+      generation: { sourceIds: [source.id], kind: "flashcard", language: "中文", difficulty: "mixed" } },
+  } });
+  const summary = (await service.call("snapshot", { compact: true })).drafts[0];
+  assert.equal(summary.missing, 1);
+  assert.equal(summary.canContinue, true);
+  let next = 2;
+  service.complete = withQualityStages(async (system, prompt) => {
+    if (system.includes("editor")) return JSON.stringify({ issues: [] });
+    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    return JSON.stringify({ title: "Continuation", cards: Array.from({ length: request.count }, () => card(next++, request.kind)) });
+  });
+  const started = await service.call("generate", { resumeDraftId: saved.id, draftVersion: saved.draftVersion });
+  assert.equal(started.draftId, saved.id);
+  assert.equal(started.missing, 1);
+  const done = await service.call("job.wait", { jobId: started.jobId });
+  assert.equal(done.status, "complete", done.stage);
+  const draft = (await new StudyService(root).call("export")).drafts;
+  assert.equal(draft.length, 1);
+  assert.equal(draft[0].id, saved.id);
+  assert.equal(draft[0].cards.length, 2);
+  assert.equal(draft[0].cards[0].id, "q1");
+  assert.notEqual(draft[0].cards[1].id, "q1");
+  assert.equal(draft[0].editorial.requested, 2);
+  assert.equal(draft[0].editorial.completedParts, draft[0].editorial.parts);
+  await assert.rejects(service.call("generate", { resumeDraftId: saved.id, draftVersion: saved.draftVersion }), /刷新|无需补题/);
+});
+
+test("continuing a mixed draft fills the missing question kind", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-resume-mixed-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", source);
+  const saved = await service.call("draft.save", { deck: {
+    id: "mixed-partial", title: "Mixed", cards: [card(1, "quiz"), card(2, "quiz")],
+    editorial: { requested: 3, generated: 2, parts: 2, completedParts: 1,
+      coverage: { sources: [{ id: source.id, title: source.title, planned: 2, accepted: 2 }] },
+      generation: { sourceIds: [source.id], kind: "mixed" } },
+  } });
+  const generatedKinds = [];
+  service.complete = withQualityStages(async (system, prompt) => {
+    if (system.includes("editor")) return JSON.stringify({ issues: [] });
+    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    generatedKinds.push(request.kind);
+    return JSON.stringify({ title: "Mixed", cards: [card(3, request.kind)] });
+  });
+  const started = await service.call("generate", { resumeDraftId: saved.id, draftVersion: saved.draftVersion });
+  assert.equal((await service.call("job.wait", { jobId: started.jobId })).status, "complete");
+  assert.deepEqual(generatedKinds, ["flashcard"]);
+  assert.deepEqual((await service.call("export")).drafts[0].cards.map((c) => c.kind), ["quiz", "quiz", "flashcard"]);
+  assert.deepEqual((await service.call("export")).drafts[0].editorial.coverage.sources.map(({ planned, accepted }) => [planned, accepted]), [[3, 3]]);
+});
+
+test("continuation refuses to overwrite a draft edited while the model is working", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-resume-conflict-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", source);
+  const saved = await service.call("draft.save", { deck: {
+    id: "partial", title: "Original title", cards: [card(1)],
+    editorial: { requested: 2, generated: 1, parts: 2, completedParts: 1,
+      generation: { sourceIds: [source.id], kind: "flashcard" } },
+  } });
+  let release, entered;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const startedModel = new Promise((resolve) => { entered = resolve; });
+  const fixture = withQualityStages(async (system, prompt) => {
+    if (system.includes("editor")) return JSON.stringify({ issues: [] });
+    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    return JSON.stringify({ title: "Continuation", cards: [card(2, request.kind)] });
+  });
+  service.complete = async (...args) => {
+    entered();
+    await gate;
+    return fixture(...args);
+  };
+  const started = await service.call("generate", { resumeDraftId: saved.id, draftVersion: saved.draftVersion });
+  await startedModel;
+  const edited = await service.call("draft.save", { deck: { ...saved, title: "Human edit" } });
+  release();
+  const done = await service.call("job.wait", { jobId: started.jobId });
+  assert.equal(done.status, "failed");
+  assert.equal((await service.call("export")).drafts[0].title, edited.title);
+  assert.equal((await service.call("export")).drafts[0].cards.length, 1);
+});
+
+test("source removal waits until a generation using it has finished", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-active-source-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", source);
+  let release, entered;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const startedModel = new Promise((resolve) => { entered = resolve; });
+  const fixture = withQualityStages(async (system, prompt) => {
+    if (system.includes("editor")) return JSON.stringify({ issues: [] });
+    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    return JSON.stringify({ title: "Generated", cards: [card(1, request.kind)] });
+  });
+  service.complete = async (...args) => {
+    entered();
+    await gate;
+    return fixture(...args);
+  };
+  const started = await service.call("generate", { sourceIds: [source.id], count: 1, kind: "flashcard" });
+  await startedModel;
+  await assert.rejects(service.call("source.remove", { id: source.id }), /正在用于出题/);
+  release();
+  assert.equal((await service.call("job.wait", { jobId: started.jobId })).status, "complete");
 });
 
 test("PDF workflow guidance does not instruct repeated waits or external extraction", async () => {

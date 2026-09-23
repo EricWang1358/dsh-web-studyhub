@@ -13,6 +13,17 @@ export function createFakeModel({ latencyMs = 0, log = [] } = {}) {
     } catch {
       data = {};
     }
+    if (system.startsWith("Repair one draft card"))
+      return JSON.stringify({ card: { ...data.card,
+        prompt: "What do architectural principles guide during design and later evolution?",
+        explanation: "The cited notes say these principles guide design and later evolution." } });
+    if (system.startsWith("Act as a strict assessment editor"))
+      return JSON.stringify({ issues: [], summary: "Preview fixture review", checks: (data.candidate?.cards || []).map((card) => ({
+        cardId: card.id, selfContained: "pass", answerLeak: "pass",
+        optionQuality: ["quiz", "multi"].includes(card.kind) ? "pass" : "na",
+        learningValue: "pass", sourceSupport: "pass", explanationQuality: "pass",
+        explanation: "Preview fixture accepted this card; no real model judgment was made.",
+      })) });
     const task = String(data.task || "");
     if (system.includes("学习卡片的追问老师")) {
       return JSON.stringify(data.question

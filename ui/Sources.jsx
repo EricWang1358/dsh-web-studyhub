@@ -133,6 +133,7 @@ export default function Sources({ data, busy, act, setModal, sourceForm }) {
                         <small>
                           {s.text.length.toLocaleString()} 字符 ·{" "}
                           {s.document ? (s.document.extractionVersion === 2 ? "排版提取 v2 · " : "旧版提取，建议重新导入 · ") : ""}
+                          {s.document?.warnings?.length ? "排版待核对 · " : ""}
                           {s.text.slice(0, 80)}
                         </small>
                       </span>

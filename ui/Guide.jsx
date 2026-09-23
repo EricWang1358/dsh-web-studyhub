@@ -22,6 +22,9 @@ export default function Guide({
   askInChat,
 }) {
   const t = topicOf(goal);
+  const draftWithIssues = data.drafts.find((draft) => draft.cards.some((card) =>
+    draft.editorial?.rejectedIssues?.[card.id]));
+  const nextDraft = draftWithIssues || data.drafts[0];
   const steps = [
     {
       title: "准备资料",
@@ -48,19 +51,25 @@ export default function Guide({
           "在对话里出题",
           () =>
             askInChat(
-              `请用 study_workspace 基于「${t}」相关资料调用一次 generate：kind: mixed、count: 20（10 道单选和 10 张闪卡）、难度 mixed、中文。PDF 先用 source.import 导入。任务开始后简短告诉我，后台完成后我去「学习」面板审阅，不需要反复等待。`,
+              `请用 study_workspace 基于「${t}」相关资料调用一次 generate：kind: mixed、count: 20（10 道单选和 10 张闪卡）、难度 mixed、中文。PDF 先用 source.import 导入。任务开始后简短告诉我，后台完成后我去「学习」面板发布草稿；通过的题先入库，问题题留待处理。不需要反复等待。`,
             ),
         ],
         ["自己设置", generate],
       ],
     },
     {
-      title: "审阅并发布",
+      title: "发布题组",
       done: data.decks.length > 0,
       body: data.drafts.length
-        ? `有 ${data.drafts.length} 份草稿待审阅。检查答案和引用，没问题就发布进目录。`
-        : "生成结果先进入草稿，确认后发布才会进入学习目录和复习计划。",
-      actions: data.drafts.length ? [["审阅草稿", () => openDraft(data.drafts[0])]] : [],
+        ? data.decks.length
+          ? `已有 ${data.decks.length} 个题组发布；还有 ${data.drafts.length} 份草稿。${draftWithIssues
+            ? "问题题可自行修改或选择后台修题，修好后再发布。"
+            : "打开草稿可继续检查并发布。"}`
+          : `有 ${data.drafts.length} 份草稿待发布。发布时自动逐题检查，通过的题先进入学习目录。`
+        : data.decks.length
+          ? `已有 ${data.decks.length} 个题组发布，可以开始学习。`
+          : "生成结果先进入草稿，发布后进入学习目录和复习计划。",
+      actions: nextDraft ? [[draftWithIssues ? "打开待处理草稿" : "打开草稿", () => openDraft(nextDraft)]] : [],
     },
     {
       title: "开始学习",

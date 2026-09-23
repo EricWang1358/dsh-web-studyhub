@@ -67,6 +67,7 @@ export function apply(ctx) {
     return () => el.remove();
   }, "study styles");
   function Seat(props) {
+    const { sessionId, openView } = props;
     const placement = props.placement || "main";
     const call = React.useMemo(
       () =>
@@ -80,21 +81,21 @@ export function apply(ctx) {
               },
             },
           },
-          props.sessionId,
+          sessionId,
         ),
-      [props.sessionId],
+      [sessionId],
     );
     const models = ctx.get("modelDirectories");
     const catalog = useHostStore(models?.catalog?.store);
     const directory = React.useMemo(() => {
       try {
-        return props.sessionId
-          ? models?.directoryFor(props.sessionId)?.store
+        return sessionId
+          ? models?.directoryFor(sessionId)?.store
           : undefined;
       } catch {
         return undefined;
       }
-    }, [models, props.sessionId]);
+    }, [models, sessionId]);
     const current = useHostStore(directory);
     React.useEffect(() => {
       models?.catalog?.load?.().catch(() => {});
@@ -122,12 +123,12 @@ export function apply(ctx) {
         // Prefill (never auto-send) this session's composer.
         askInChat: (text) => {
           try {
-            const actx = ctx.get("sessions")?.scope?.(props.sessionId),
+            const actx = ctx.get("sessions")?.scope?.(sessionId),
               conversation = actx?.get("conversation");
             if (!conversation) return false;
             conversation.input.for(actx).setDraft(text);
             // In the main area the study tab hides the chat; switch so the draft is visible.
-            props.openView?.("chat", "");
+            openView?.("chat", "");
             return true;
           } catch {
             return false;
@@ -137,32 +138,32 @@ export function apply(ctx) {
         openInSidebar:
           placement === "main" && ctx.get("sidebarRight")?.openTab
             ? (runId) => {
-                if (runId) handoff.set(props.sessionId, runId);
-                handoffListeners.forEach((fn) => fn(props.sessionId));
+                if (runId) handoff.set(sessionId, runId);
+                handoffListeners.forEach((fn) => fn(sessionId));
                 ctx.get("sidebarRight").openTab("study-workspace");
-                props.openView?.("chat", "");
+                openView?.("chat", "");
               }
             : undefined,
         takeHandoff:
           placement === "sidebar"
             ? (listener) => {
                 const take = () => {
-                  const runId = handoff.get(props.sessionId);
-                  handoff.delete(props.sessionId);
+                  const runId = handoff.get(sessionId);
+                  handoff.delete(sessionId);
                   if (runId) listener(runId);
                 };
                 take();
-                const fn = (sessionId) => sessionId === props.sessionId && setTimeout(take);
+                const fn = (targetSessionId) => targetSessionId === sessionId && setTimeout(take);
                 handoffListeners.add(fn);
                 return () => handoffListeners.delete(fn);
               }
             : undefined,
       }),
-      [workspace, catalog, current, props.sessionId, props.openView, placement],
+      [workspace, catalog, current, sessionId, openView, placement],
     );
     return (
       <div className="study-seat"><StudyBoundary>
-        <App key={props.sessionId || "empty"} call={call} host={host} />
+        <App key={sessionId || "empty"} call={call} host={host} />
       </StudyBoundary></div>
     );
   }

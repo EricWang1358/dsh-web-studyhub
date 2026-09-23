@@ -17,11 +17,16 @@ const IDLE_MS = 1200;
 export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
   const [vote, setVote] = useState(run.vote?.vote || null),
     [tags, setTags] = useState(run.vote?.tags || []),
-    [open, setOpen] = useState(false);
+    [open, setOpen] = useState(false),
+    [error, setError] = useState("");
   const sent = useRef(new Set(run.vote?.tags || [])),
+    submitting = useRef(new Set()),
+    saved = useRef({ vote: run.vote?.vote || null, tags: run.vote?.tags || [] }),
+    pending = useRef(Promise.resolve()),
     timer = useRef(null),
     flushRef = useRef(null),
     cardKey = `${run.id}:${run.card?.id}`;
+  const activeKey = useRef(cardKey);
   // Each card starts from its own recorded vote.
   useEffect(() => {
     // Leaving a card mid-selection still submits what was picked for it.
@@ -29,7 +34,11 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
     setVote(run.vote?.vote || null);
     setTags(run.vote?.tags || []);
     sent.current = new Set(run.vote?.tags || []);
+    submitting.current = new Set();
+    saved.current = { vote: run.vote?.vote || null, tags: run.vote?.tags || [] };
     setOpen(false);
+    setError("");
+    activeKey.current = cardKey;
     clearTimeout(timer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardKey]);
@@ -38,22 +47,50 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
     flushRef.current?.();
   }, []);
 
-  const post = (args) =>
-    call("coach.feedback", { deckId: run.deckId, cardId: run.card.id, ...args })
-      .then((r) => onSent?.(r))
-      .catch(() => {});
+  const post = (args, key = cardKey) => {
+    pending.current = pending.current.catch(() => {}).then(() =>
+      call("coach.feedback", { deckId: run.deckId, cardId: run.card.id, ...args }));
+    return pending.current
+      .then((r) => {
+        if (activeKey.current === key) {
+          args.tags?.forEach((tag) => submitting.current.delete(tag));
+          saved.current = {
+            vote: args.vote,
+            tags: args.vote === "up" ? [] : [...new Set([...(saved.current.vote === "down" ? saved.current.tags : []), ...(args.tags || [])])],
+          };
+          sent.current = new Set(saved.current.tags);
+          setVote(saved.current.vote);
+          setTags((current) => args.vote === "up" ? [] : [...new Set([...current, ...saved.current.tags])]);
+          setError("");
+        }
+        onSent?.(r);
+      })
+      .catch((failure) => {
+        if (activeKey.current === key) {
+          args.tags?.forEach((tag) => submitting.current.delete(tag));
+          setError(`反馈未保存：${failure.message || String(failure)}。请重试。`);
+          setVote(saved.current.vote);
+          setTags(saved.current.tags);
+          sent.current = new Set(saved.current.tags);
+          setOpen(false);
+        }
+      });
+  };
   function thumb(next) {
     setVote(next);
+    setError("");
     if (next === "up") {
+      clearTimeout(timer.current);
+      flushRef.current = null;
       setOpen(false);
       setTags([]);
-      sent.current = new Set();
     } else setOpen(true);
     post({ vote: next, tags: [] });
   }
   const tagsRef = useRef(tags);
   tagsRef.current = tags;
   function toggle(tag) {
+    if (sent.current.has(tag) || submitting.current.has(tag)) return;
     const list = tagsRef.current;
     const nextList = list.includes(tag) ? list.filter((t) => t !== tag) : [...list, tag];
     tagsRef.current = nextList;
@@ -63,7 +100,7 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
     const flush = () => {
       flushRef.current = null;
       const fresh = nextList.filter((t) => !sent.current.has(t));
-      fresh.forEach((t) => sent.current.add(t));
+      fresh.forEach((tag) => submitting.current.add(tag));
       if (fresh.length) post({ vote: "down", tags: fresh });
     };
     flushRef.current = flush;
@@ -110,14 +147,15 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
     }}>
       <button className="pill" aria-pressed={vote === "up"} aria-keyshortcuts="G" title="这题不错（G）" onClick={() => thumb("up")}>👍</button>
       <button className="pill" aria-pressed={vote === "down"} aria-expanded={open} aria-keyshortcuts="B" title="这题有问题（B），选标签后自动优化" onClick={() => (open ? setOpen(false) : thumb("down"))}>👎</button>
+      {error && <small className="warning" role="alert">{error}</small>}
       {open && (
         <span className="thumb-tray" role="group" aria-label="哪里不好">
           {TAGS.map(([id, label], i) => (
-            <button key={id} className={"coach-chip" + (tags.includes(id) ? " on" : "")} aria-pressed={tags.includes(id)} onClick={() => toggle(id)}>
+            <button key={id} className={"coach-chip" + (tags.includes(id) ? " on" : "")} aria-pressed={tags.includes(id)} disabled={sent.current.has(id) || submitting.current.has(id)} onClick={() => toggle(id)}>
               <kbd>{i + 1}</kbd>{label}
             </button>
           ))}
-          <small>选好停一下就自动提交；改题在后台进行，不打断你。</small>
+          <small>选好停一下就自动提交；已提交的标签不能撤销，改题在后台进行。</small>
         </span>
       )}
     </span>
