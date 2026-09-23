@@ -3,9 +3,9 @@ import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
 import { reviewEntryKey } from "./async.js";
 
-/* 陪学栏：答错后给一个可能没弄懂的点 + 两选一小检查，回复全靠点按。
+/* 陪学栏：客观题答错或自评未掌握后给一个巩固点 + 两选一小检查，回复全靠点按。
    调用直接走 call()，不占全局 busy，题目区域不会因为陪学而被锁住。
-   线程随 review 投影下发（run.coach），这里只在答错且还没有要点时请求。 */
+   线程随 review 投影下发（run.coach），这里只在低分且还没有要点时请求。 */
 
 const GOALS = [["exam", "应付考试"], ["interview", "面试求职"], ["work", "工作中落地"], ["explore", "兴趣拓展"]];
 const isWrong = (feedback) => !!feedback && (feedback.grade !== undefined ? feedback.grade < 3 : feedback.correct === false);
@@ -97,10 +97,10 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
         </button>
       </div>
       <div className="coach-thread" ref={threadRef}>
-        {!enabled && !inline && <p className="coach-empty">连接模型后，答错时这里会指出你可能没弄懂的点。自动驾驶和 👍/👎 反馈现在就能用。</p>}
+        {!enabled && !inline && <p className="coach-empty">连接模型后，客观题答错或自评没掌握时，这里会帮你巩固要点。自动驾驶和 👍/👎 反馈现在就能用。</p>}
         {enabled && !inline && !thread.length && !pending && !consentAsk && (
           <p className="coach-empty">
-            {run.feedback ? (wrong ? "" : "答对了，继续。答错时我会在这里指出可能没弄懂的点。") : "先作答。答错时我会指出可能没弄懂的点，不用打字。"}
+            {run.feedback ? (wrong ? "" : "这题已达标，继续。遇到薄弱题时我会帮你巩固要点。") : "先作答或自评。遇到薄弱题时我会帮你巩固要点，不用打字。"}
           </p>
         )}
         {thread.map((n) =>
@@ -179,12 +179,23 @@ function CoachPanel({ run, call, status, autopilot, inline, onAutopilot, onThrea
         {rewriting && <Typing label="正在按你的反馈改这道题…" />}
         {rewriteFailed && (
           <div className="coach-bubble system" role="status">
-            <p>没能按反馈改好这道题：{rewriteFailed.message || "模型没有返回可用的修改"}。可以点「提升质量」在对话里改。</p>
+            <p>没能按反馈改好这道题：{rewriteFailed.message || "模型没有返回可用的修改"}。可以再试一次，或点「提升质量」在对话里改。</p>
+            <div className="coach-options">
+              <button
+                className="coach-chip on"
+                disabled={!!pending}
+                onClick={async () => {
+                  if (await send("coach.rewrite.retry", { deckId: run.deckId, cardId: run.card.id }, "retry")) onStatus();
+                }}
+              >
+                重试
+              </button>
+            </div>
           </div>
         )}
         {consentAsk && (
           <div className="coach-card">
-            <p>要我在你做题时，悄悄把错题的变式题、应用场景题备好吗？只在答错、反馈或一轮结束时少量调用模型。</p>
+            <p>要我在你做题时，悄悄为薄弱题准备变式题和应用场景题吗？只在客观题答错、自评未掌握、反馈或一轮结束时少量调用模型。</p>
             <div className="coach-options">
               <button className="coach-chip on" disabled={!!pending} onClick={async () => { if (await send("coach.consent", { prep: true }, "consent")) onStatus(); }}>好，帮我备题</button>
               <button className="coach-chip" disabled={!!pending} onClick={async () => { if (await send("coach.consent", { prep: false }, "consent")) onStatus(); }}>先不用</button>

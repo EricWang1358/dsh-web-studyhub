@@ -1,8 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LEVEL_LABEL } from "./shared.js";
 import GenerationTrace, { generationStage } from "./GenerationTrace.jsx";
+import { reviewedCardStatus } from "../lib/review-integrity.js";
+import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 
 const BAR_ORDER = ["mastered", "familiar", "learning", "weak", "new"];
+const EMPTY_PROGRESS = {};
+const EMPTY_NOTEBOOKS = [];
 const topicKey = (deckId, topic) => JSON.stringify([deckId, topic || ""]);
 const scopeOf = (keys) =>
   [...keys].map((k) => {
@@ -109,6 +113,8 @@ export default function StudyMap({
   endRun,
   manage,
   openDraft,
+  continueDraft,
+  retryGeneration,
   openAgent,
   cancelJob,
   addSource,
@@ -118,6 +124,7 @@ export default function StudyMap({
   theme = "auto",
   setTheme,
   notebooks,
+  notebookError,
   onNotebookPublish,
   onNotebookUnpublish,
   onNotebookOpen,
@@ -155,9 +162,12 @@ export default function StudyMap({
     return () => document.removeEventListener("pointerdown", close);
   }, [menu]);
 
-  const progress = data.progress || {},
+  const progress = data.progress || EMPTY_PROGRESS,
     today = data.today || { due: 0, weak: 0, new: 0, size: 0 },
     runs = data.runs || [];
+  const jobs = data.jobs || [];
+  const activeJobs = jobs.filter(isActiveJob);
+  const visibleJobs = visibleGenerationJobs(jobs);
   /* Weighted mastery across active decks. Deck rows carry no mastery of their
      own in the snapshot; the per-deck figures live on `progress`. */
   const overall = useMemo(() => {
@@ -250,7 +260,9 @@ export default function StudyMap({
             <small>
               {d.available} 题
               {p?.due ? ` · ${p.due} 待复习` : ""}
-              {d.wrong ? ` · ${d.wrong} 错题` : ""}
+              {d.wrong ? ` · ${d.wrong} 题待巩固` : ""}
+              {d.uncheckedAtPublish ? ` · ${d.uncheckedAtPublish} 题未自动审阅` : ""}
+              {d.selfCited ? ` · ${d.selfCited} 题仅有导入题目引用` : ""}
               {d.archived ? " · 已归档" : ""}
             </small>
           </button>
@@ -281,7 +293,7 @@ export default function StudyMap({
                   ["从新题开始", () => start({ deckId: d.id, mode: "new", fresh: true }), !p?.counts?.new],
                   ["闪卡翻看", () => start({ deckId: d.id, mode: "flashcard" }), !d.available],
                   ["测验", () => start({ deckId: d.id, mode: "quiz" }), !d.quizCount],
-                  [`错题重练 ${d.wrong || 0}`, () => start({ deckId: d.id, mode: "wrong" }), !d.wrong],
+                  [`待巩固重练 ${d.wrong || 0}`, () => start({ deckId: d.id, mode: "wrong" }), !d.wrong],
                   [
                     "在对话中分析",
                     () =>
@@ -353,7 +365,7 @@ export default function StudyMap({
                     aria-label={`在对话中讲解 ${t.name}`}
                     onClick={() =>
                       askInChat(
-                        `请结合学习库里的资料，给我讲解「${t.name}」（题组「${d.title}」）。我目前掌握度 ${t.mastery}%${t.counts.weak ? `，有 ${t.counts.weak} 道题答错过` : ""}。先讲核心概念，再用一两道小问题检查我是否理解。`,
+                        `请结合学习库里的资料，给我讲解「${t.name}」（题组「${d.title}」）。我目前掌握度 ${t.mastery}%${t.counts.weak ? `，有 ${t.counts.weak} 道题当前薄弱` : ""}。先讲核心概念，再用一两道小问题检查我是否理解。`,
                       )
                     }
                   >
@@ -607,6 +619,7 @@ export default function StudyMap({
 
       <NotebookDirectory
         notebooks={notebooks}
+        error={notebookError}
         busy={busy}
         onPublish={onNotebookPublish}
         onUnpublish={onNotebookUnpublish}
@@ -646,34 +659,61 @@ export default function StudyMap({
         <>
           <div className="section-heading">
             <h2>
-              待审阅 <span>{data.drafts.length}</span>
+              待发布 <span>{data.drafts.length}</span>
             </h2>
-            <small>确认内容后进入目录</small>
+            <small>发布时逐题检查；问题题留在草稿</small>
           </div>
-          {data.drafts.map((d) => (
-            <button key={d.id} className="draft-row" onClick={() => openDraft(d)}>
-              <span>
-                <strong>{d.title}</strong>
-                <small>
-                  {d.cards.length} 道题 · {d.quality?.warnings?.length || 0} 项质量提醒
-                </small>
-              </span>
-              <span>审阅 →</span>
-            </button>
-          ))}
+          {data.drafts.map((d) => {
+            const missing = (d.editorial?.requested || 0) - d.cards.length;
+            const qualityCount = (d.quality?.warnings?.length || 0) + (d.quality?.errors?.length || 0);
+            const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
+            const reviewed = reviewedCardStatus(d);
+            const continuing = data.jobs?.some((j) => j.draftId === d.id && ["queued", "running", "cancelling"].includes(j.status));
+            const canContinue = missing > 0 && d.editorial?.generation?.sourceIds?.length &&
+              !d.editingDeckId && !rejectedCount && !d.editorial?.repairOfDeckId;
+            return <div key={d.id} className="draft-row">
+              <button type="button" className="draft-open" onClick={() => openDraft(d)}>
+                <span>
+                  <strong>{d.title}</strong>
+                  <small>
+                    {d.cards.length} 道题
+                    {qualityCount ? ` · ${qualityCount} 项质量提醒` : ""}
+                    {rejectedCount ? ` · ${rejectedCount} 题待处理`
+                      : ` · ${reviewed?.unchanged === d.cards.length ? "已复审，待发布" : "待发布检查"}`}
+                    {Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
+                      ? ` · 生成未完成 ${d.editorial.completedParts}/${d.editorial.parts} 批` : ""}
+                  </small>
+                </span>
+                <span>打开 →</span>
+              </button>
+              {canContinue && <button type="button" disabled={busy || continuing || !data.modelReady}
+                title={!data.modelReady ? "先在对话输入框或设置中选择生成模型" : "用原资料补齐题目，保留已有草稿"}
+                onClick={() => continueDraft(d)}>{continuing ? "补题中…" : `继续补齐 ${missing} 题`}</button>}
+            </div>;
+          })}
         </>
       )}
-      {data.jobs?.length > 0 && (
+      {jobs.length > 0 && (
         <div className="jobs">
-          {cancelJob && data.jobs.some((j) => ["running", "queued"].includes(j.status)) && <button disabled={busy} onClick={() => cancelJob()}>停止全部生成与排队，保留草稿</button>}
-          {data.jobs.slice(-3).map((j) => (
+          {cancelJob && activeJobs.some((j) => ["running", "queued"].includes(j.status)) && <button disabled={busy} onClick={() => cancelJob()}>停止后台任务，保留草稿</button>}
+          {visibleJobs.map((j) => (
             <div className={"job " + j.status} key={j.id}>
               <span>
-                {j.status === "running" ? "◌" : j.status === "queued" ? "…" : j.status === "failed" ? "!" : "✓"}
+                {j.status === "running" || j.status === "cancelling" ? "◌"
+                  : j.status === "queued" ? "…"
+                    : j.status === "failed" ? "!"
+                      : j.status === "partial" ? "◐"
+                        : j.status === "cancelled" ? "×" : "✓"}
               </span>
               <div>
                 <strong>
-                  {j.status === "running"
+                  {j.type === "draft-repair"
+                    ? j.status === "running" ? "后台修题中" : j.status === "queued" ? "修题排队中"
+                      : j.status === "failed" ? j.savedCount ? `修题中断 · ${j.savedCount}/${j.count} 题已修好` : "未修好题目"
+                        : j.status === "partial" ? `部分修好 · ${j.savedCount}/${j.count} 题`
+                        : j.status === "cancelling" ? "正在停止修题"
+                          : j.status === "cancelled" ? "修题已取消" : `全部修好 · ${j.savedCount}/${j.count} 题`
+                    : j.status === "running"
                     ? "正在生成题组"
                     : j.status === "queued"
                       ? "排队中"
@@ -684,7 +724,11 @@ export default function StudyMap({
                 </strong>
                 <small>{generationStage(j.stage)}</small>
                 <GenerationTrace job={j} openAgent={openAgent} />
-                {cancelJob && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>停止生成，保留草稿</button>}
+                {cancelJob && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>停止任务，保留草稿</button>}
+                {retryGeneration && j.type !== "draft-repair" && ["failed", "cancelled"].includes(j.status) &&
+                  !j.draftId && <button type="button" disabled={busy} onClick={() => retryGeneration(j)}>
+                    按原资料重新设置
+                  </button>}
               </div>
               {j.draftId && data.drafts.some((d) => d.id === j.draftId) && (
                 <button onClick={() => openDraft(data.drafts.find((d) => d.id === j.draftId))}>
@@ -702,7 +746,7 @@ export default function StudyMap({
 /* Cross-workspace notebook directory. Entries are links, not copies: each
    published notebook's study data stays in its own workspace, and clicking a
    foreign entry opens a fresh conversation there. */
-function NotebookDirectory({ notebooks, busy, onPublish, onUnpublish, onOpen, refresh, onSearch }) {
+function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onOpen, refresh, onSearch }) {
   const [open, setOpen] = useState(() => {
     try {
       return localStorage.getItem("study-nb-dir-open") !== "0";
@@ -712,8 +756,16 @@ function NotebookDirectory({ notebooks, busy, onPublish, onUnpublish, onOpen, re
   });
   const [query, setQuery] = useState(""),
     [searching, setSearching] = useState(false),
-    [results, setResults] = useState(null);
-  const list = notebooks?.notebooks || [];
+    [results, setResults] = useState(null),
+    [searchError, setSearchError] = useState("");
+  const searchRequest = useRef(0);
+  useEffect(() => {
+    searchRequest.current++;
+    setResults(null);
+    setSearchError("");
+    setSearching(false);
+  }, [notebooks]);
+  const list = notebooks?.notebooks || EMPTY_NOTEBOOKS;
   /* Global due queue: every published notebook's due decks, due first. */
   const dueRows = useMemo(() => {
     const rows = [];
@@ -722,7 +774,15 @@ function NotebookDirectory({ notebooks, busy, onPublish, onUnpublish, onOpen, re
         if (!d.archived && d.due > 0) rows.push({ n, d });
     return rows.sort((a, b) => b.d.due - a.d.due).slice(0, 8);
   }, [list]);
-  if (!notebooks) return null;
+  if (!notebooks) return <section className="nb-dir" aria-label="全局笔记本目录">
+    <div className="section-heading map-heading">
+      <h2>全局笔记本</h2>
+      <button type="button" onClick={refresh} disabled={busy}>刷新</button>
+    </div>
+    <p className={error ? "warning" : "muted"} role="status">
+      {error ? `目录读取失败：${error}` : "正在读取全局笔记本目录…"}
+    </p>
+  </section>;
   const current = list.find((n) => n.current),
     others = list.filter((n) => !n.current),
     published = list.filter((n) => n.publishedAt).length;
@@ -747,13 +807,17 @@ function NotebookDirectory({ notebooks, busy, onPublish, onUnpublish, onOpen, re
     e.preventDefault();
     const q = query.trim();
     if (!q || !onSearch || searching) return;
+    const request = ++searchRequest.current;
     setSearching(true);
+    setSearchError("");
+    setResults(null);
     try {
-      setResults(await onSearch(q));
-    } catch {
-      setResults({ items: [] });
+      const found = await onSearch(q);
+      if (request === searchRequest.current) setResults(found);
+    } catch (error) {
+      if (request === searchRequest.current) setSearchError(error.message || String(error));
     } finally {
-      setSearching(false);
+      if (request === searchRequest.current) setSearching(false);
     }
   };
   return (
@@ -769,7 +833,7 @@ function NotebookDirectory({ notebooks, busy, onPublish, onUnpublish, onOpen, re
           <button onClick={refresh} disabled={busy} title="重新读取全局目录">
             刷新
           </button>
-          {current?.publishedAt ? (
+          {!error && (current?.publishedAt ? (
             <button onClick={onUnpublish} disabled={busy}>
               取消发布
             </button>
@@ -781,9 +845,10 @@ function NotebookDirectory({ notebooks, busy, onPublish, onUnpublish, onOpen, re
             >
               发布到全局目录
             </button>
-          )}
+          ))}
         </div>
       </div>
+      {error && <p className="warning" role="status">目录读取失败，仍显示上次结果：{error}</p>}
       {open && (
         <>
           {dueRows.length > 0 && (
@@ -825,6 +890,7 @@ function NotebookDirectory({ notebooks, busy, onPublish, onUnpublish, onOpen, re
               {searching ? "搜索中…" : "搜索"}
             </button>
           </form>
+          {searchError && <p className="warning" role="status">搜索失败：{searchError}</p>}
           {results &&
             (results.items?.length ? (
               <ul className="nb-list nb-results">

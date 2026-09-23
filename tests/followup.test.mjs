@@ -159,3 +159,51 @@ test("malformed recommendation JSON has only one corrective retry and failures n
   await assert.rejects(service.call("card.followup.suggest", ref));
   assert.equal(calls, 4);
 });
+
+test("double-escaped model answers are saved with real line breaks; ordinary backslashes survive", async (t) => {
+  const { unescapeModelText } = await import("../lib/model-text.js");
+  // String.raw keeps the backslashes literal, exactly as a double-escaped model reply stores them.
+  const escaped = String.raw`简单说：异步队列。\n\n## 对应本题\n\n1. 生成消息\n2. 放入队列\n- 选项 \"e\" 是误解`;
+  assert.equal(
+    unescapeModelText(escaped),
+    '简单说：异步队列。\n\n## 对应本题\n\n1. 生成消息\n2. 放入队列\n- 选项 "e" 是误解',
+  );
+  for (const untouched of [
+    String.raw`用 printf("\n") 输出换行`,
+    String.raw`路径 C:\new\test`,
+    "第一行\n第二行 " + String.raw`\n\n 保留`,
+    "",
+  ])
+    assert.equal(unescapeModelText(untouched), untouched);
+  assert.equal(unescapeModelText(undefined), undefined);
+
+  const service = await setup(t, async () => JSON.stringify({ question: reply.question, answer: escaped }));
+  const saved = await service.call("card.followup", { ...ref, question: "什么意思？" });
+  assert.match(saved.item.answer, /^简单说：异步队列。\n\n## 对应本题\n/);
+});
+
+test("improving a card keeps the learner's earlier Q&A, flagged when the question itself changed", async (t) => {
+  const service = await setup(t, async () => JSON.stringify(reply));
+  const saved = await service.call("card.followup", { ...ref, question: "offer 为什么返回特殊值？" });
+  assert.equal((await service.call("card.get", ref)).card.followups.length, 1);
+
+  // Wording-only fix: the Q&A stays, unflagged, and still shows on the card.
+  await service.call("card.update", { ...ref, patch: { explanation: "方法成对出现：前者失败抛异常，后者返回特殊值，便于调用方选择。" }, reason: "讲解更清楚" });
+  let card = (await service.call("card.get", ref)).card;
+  assert.equal(card.followups.length, 1, "the follow-up survives the edit");
+  assert.equal(card.followups[0].id, saved.item.id);
+  assert.equal(card.followups[0].staleFrom, undefined);
+
+  // The stem changed: the Q&A is kept but marked as asked about the old version.
+  await service.call("card.update", { ...ref, patch: { prompt: "add 与 offer 在队列满时分别怎么表现？" }, reason: "题干更具体" });
+  card = (await service.call("card.get", ref)).card;
+  assert.equal(card.followups.length, 1);
+  assert.ok(card.followups[0].staleFrom, "carried over from the previous version");
+  assert.equal(card.followupSuggestions, undefined, "stale suggestions are dropped");
+
+  // Reverting keeps them too, and asking again still works on the new content.
+  await service.call("card.revert", ref);
+  assert.equal((await service.call("card.get", ref)).card.followups.length, 1);
+  await service.call("card.followup", { ...ref, question: "那 add 呢" });
+  assert.equal((await service.call("card.get", ref)).card.followups.length, 2);
+});

@@ -3,6 +3,7 @@ import Markdown from "./Markdown.jsx";
 import css from "./views.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import { createWriteQueue } from "./async.js";
+import { EXAM_LIMIT_MS } from "../lib/exam-timing.js";
 
 /* 模拟考试（v0.4 契约 §3）：setup → running → report 自管理状态机。
    选中状态存本地（picks，按 deckId:cardId 键控），每次选择通过
@@ -10,8 +11,6 @@ import { createWriteQueue } from "./async.js";
    不给反馈）；上一题/下一题走 review.move 自由导航，允许未作答移动。
    挂载时从快照 runs 里找回进行中的 exam run 并 review.get 恢复；计时满
    30 分钟自动交卷；卸载不交卷，未交卷的考试保留在服务端可再次接回。 */
-
-const EXAM_LIMIT_MS = 30 * 60 * 1000;
 
 const clampCount = (v) => {
   const n = Math.round(Number(v));
@@ -26,7 +25,13 @@ const fmtDuration = (ms) => {
   const m = Math.floor(s / 60);
   return m ? `${m} 分 ${s % 60} 秒` : `${s} 秒`;
 };
+const scoreChange = (comparison) => comparison.deltaPct > 0
+  ? `比上次高 ${comparison.deltaPct} 个百分点`
+  : comparison.deltaPct < 0
+    ? `比上次低 ${-comparison.deltaPct} 个百分点`
+    : "与上次相同";
 const kindLabel = (card) => (card?.multiple ? "多选" : "单选");
+const examKindLabel = { all: "不限题型", quiz: "只单选", multi: "只多选", balanced: "单双均衡" };
 /* 服务端 projection.picks 里已保存的选项（exam 运行专属），用于恢复与导航回填。 */
 const picksFromRun = (r) => {
   const map = {};
@@ -44,12 +49,13 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
     [picks, setPicks] = useState({}),
     [err, setErr] = useState(""),
     [countDraft, setCountDraft] = useState("10"),
+    [typeMode, setTypeMode] = useState("all"),
     [pickedDecks, setPickedDecks] = useState(() => new Set()),
     [confirming, setConfirming] = useState(false),
     [busy, setBusy] = useState(false),
     [pathNote, setPathNote] = useState("");
   const picksRef = useRef({}),
-    autoSent = useRef(false),
+    retryAt = useRef(0),
     writes = useRef(createWriteQueue()),
     acting = useRef(false);
   const count = clampCount(countDraft);
@@ -68,22 +74,30 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
     () => !decks.length && (data?.decks || []).some((d) => d && !d.archived && d.available > 0),
     [data, decks],
   );
-  const pickedQuizTotal = useMemo(
-    () =>
-      decks.reduce((sum, d) => sum + (pickedDecks.has(d.id) ? d.examCount || 0 : 0), 0),
+  const pickedKinds = useMemo(
+    () => decks.reduce((counts, deck) => pickedDecks.has(deck.id)
+      ? { quiz: counts.quiz + (deck.examQuizCount || 0), multi: counts.multi + (deck.examMultiCount || 0) }
+      : counts, { quiz: 0, multi: 0 }),
     [decks, pickedDecks],
   );
+  const pickedQuizTotal = pickedKinds.quiz + pickedKinds.multi;
+  const typeAvailable = typeMode === "quiz" ? pickedKinds.quiz : typeMode === "multi" ? pickedKinds.multi : pickedQuizTotal;
 
   /* 挂载时恢复进行中的考试：快照 runs 里的 exam run 用 review.get 接回。 */
   useEffect(() => {
     let live = true;
     (async () => {
-      const open = initialRunId ? { id: initialRunId } : (data?.runs || []).find((r) => r && r.mode === "exam");
+      const open = initialRunId ? { id: initialRunId }
+        : data?.lastRun?.mode === "exam" ? data.lastRun
+          : (data?.runs || []).filter((r) => r?.mode === "exam")
+            .reduce((latest, candidate) => !latest ||
+              (Date.parse(candidate.startedAt) || 0) >= (Date.parse(latest.startedAt) || 0)
+              ? candidate : latest, null);
       if (!open) return;
       try {
         const r = await call("review.get", { runId: open.id });
         if (!live || !r || r.mode !== "exam" || r.closed || r.complete || !r.card) return;
-        autoSent.current = false;
+        retryAt.current = 0;
         setRun(r);
         applyPicks(picksFromRun(r));
         setPhase("running");
@@ -110,9 +124,10 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
     return Number.isFinite(v) ? v : null;
   }, [run?.startedAt]);
   const elapsedMs = startMs ? Math.max(0, now - startMs) : 0;
+  const expired = elapsedMs >= EXAM_LIMIT_MS;
 
   async function startExam() {
-    if (acting.current || !pickedDecks.size) return;
+    if (acting.current || !pickedDecks.size || !typeAvailable) return;
     acting.current = true;
     setBusy(true);
     setErr("");
@@ -121,9 +136,10 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
         mode: "exam",
         scope: [...pickedDecks].map((deckId) => ({ deckId })),
         count,
+        examKinds: typeMode,
         fresh: true,
       });
-      autoSent.current = false;
+      retryAt.current = 0;
       writes.current = createWriteQueue();
       setRun(r);
       applyPicks(picksFromRun(r));
@@ -140,7 +156,7 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
     run?.deckId != null && run?.card?.id ? run.deckId + ":" + run.card.id : null;
   const curPicks = (curKey && picks[curKey]) || [];
   function pick(optionId) {
-    if (acting.current || !run?.card || !curKey) return;
+    if (acting.current || expired || !run?.card || !curKey) return;
     const multi = !!run.card.multiple || run.card.kind === "multi";
     const cur = picksRef.current[curKey] || [];
     const next = multi
@@ -154,11 +170,13 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
       runId: run.id,
       cardId: run.card.id,
       selected: next,
-    })).then(() => setErr(""), (e) => setErr("选择尚未保存，请重新选择后继续：" + (e.message || String(e))));
+    })).then(() => setErr(""), (e) => setErr(startMs && Date.now() - startMs >= EXAM_LIMIT_MS
+      ? "考试时间已到，未确认保存的选择可能不会计入成绩。"
+      : "选择尚未保存，请重新选择后继续：" + (e.message || String(e))));
   }
 
   async function move(direction) {
-    if (acting.current || !run) return;
+    if (acting.current || expired || !run) return;
     acting.current = true;
     setBusy(true);
     setErr("");
@@ -184,26 +202,41 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
     setErr("");
     setConfirming(false);
     try {
-      await writes.current.flush();
+      let unsavedChoice = false;
+      try {
+        await writes.current.flush();
+      } catch (writeError) {
+        if (startMs && Date.now() - startMs >= EXAM_LIMIT_MS) {
+          unsavedChoice = true;
+        } else {
+          // A failed last pick can still be retried before the time limit.
+          if (!curKey || !Object.hasOwn(picksRef.current, curKey)) throw writeError;
+          await writes.current.enqueue(() => call("review.answer", {
+            runId: run.id, cardId: run.card.id, selected: picksRef.current[curKey],
+          }));
+        }
+      }
       const rep = await call("exam.submit", { runId: run.id });
+      retryAt.current = 0;
       setReport(rep);
       setPhase("report");
+      if (unsavedChoice) setErr("最后一次选择未确认保存，成绩按服务端已保存的答案计算。");
     } catch (e) {
-      setErr(e.message || String(e));
+      retryAt.current = Date.now() + 5000;
+      const message = e.message || String(e);
+      setErr(startMs && Date.now() - startMs >= EXAM_LIMIT_MS
+        ? `交卷失败，正在自动重试：${message}` : message);
     } finally {
       acting.current = false;
       setBusy(false);
     }
-  }, [call, run]);
+  }, [call, run, curKey, startMs]);
 
-  /* 计时满 30 分钟自动交卷（只触发一次）。 */
+  /* 计时满 30 分钟自动交卷；失败后每 5 秒重试。 */
   useEffect(() => {
-    if (phase !== "running" || !startMs || autoSent.current || busy) return;
-    if (elapsedMs >= EXAM_LIMIT_MS) {
-      autoSent.current = true;
-      submit();
-    }
-  }, [elapsedMs, phase, startMs, busy, submit]);
+    if (phase !== "running" || !startMs || busy || !expired || Date.now() < retryAt.current) return;
+    submit();
+  }, [elapsedMs, phase, startMs, busy, expired, submit]);
 
   const answeredCount = useMemo(
     () => Object.values(picks).filter((a) => Array.isArray(a) && a.length).length,
@@ -222,8 +255,24 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
         fresh: true,
       });
       setPathNote(
-        `已把 ${report.weakScope.length} 道错题排进学习路径，回到学习库即可开始练习。`,
+        `已把 ${report.weakScope.length} 道答错或未答题排进学习路径，回到学习库即可开始练习。`,
       );
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openReport(runId) {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const saved = await call("exam.report", { runId });
+      setReport(saved);
+      setPathNote("");
+      setPhase("report");
     } catch (e) {
       setErr(e.message || String(e));
     } finally {
@@ -239,7 +288,7 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
             <div>
               <h1>模拟考试</h1>
               <p className="muted">
-                从勾选的题组里随机抽选择题组成一份限时试卷，交卷后统一判分。
+                从勾选的题组里抽选择题，先覆盖不同主题，同主题优先抽较少考过的题；交卷后统一判分。
               </p>
             </div>
           </div>
@@ -247,7 +296,8 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
             <li>单选 / 多选</li>
             <li>限时 30 分钟，到时自动交卷</li>
             <li>作答中不显示对错，可反复修改</li>
-            <li>交卷后出成绩单，错题可排进学习路径</li>
+            <li>重考优先抽未考过的题，题库不够时会重复</li>
+            <li>交卷后可回看报告，答错与未答题可排进学习路径</li>
           </ul>
           {decks.length ? (
             <div className="exam-panel">
@@ -294,12 +344,22 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
                       />
                       <span className="exam-deck-name">
                         <strong>{d.title}</strong>
-                        <small>{d.examCount} 道选择题</small>
+                        <small>单选 {d.examQuizCount || 0} · 多选 {d.examMultiCount || 0}</small>
                       </span>
                     </label>
                   </li>
                 ))}
               </ul>
+              <div className="exam-type-settings">
+                <strong>题型</strong>
+                <div role="group" aria-label="考试题型">
+                  {Object.entries(examKindLabel).map(([kind, label]) => <button key={kind} type="button"
+                    aria-pressed={typeMode === kind} className={typeMode === kind ? "picked" : ""}
+                    onClick={() => setTypeMode(kind)}>{label}</button>)}
+                </div>
+                <small className="muted">已选题组：单选 {pickedKinds.quiz} 道，多选 {pickedKinds.multi} 道。均衡模式尽量各占一半，不足时由另一类补齐。</small>
+                {pickedDecks.size > 0 && !typeAvailable && <p className="warning">所选题组没有这种题型，请换题型或题组。</p>}
+              </div>
               <div className="exam-setup-foot">
                 <label className="exam-count">
                   题数
@@ -312,17 +372,19 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
                     onBlur={() => setCountDraft(String(clampCount(countDraft)))}
                   />
                   <small>
-                    {pickedDecks.size && pickedQuizTotal < count
-                      ? `题库只有 ${pickedQuizTotal} 道，将全部出题`
+                    {pickedDecks.size && !typeAvailable
+                      ? "当前题型可选 0 道"
+                      : pickedDecks.size && typeAvailable < count
+                      ? `符合题型的题只有 ${typeAvailable} 道，将全部出题`
                       : "1–50 · 默认 10"}
                   </small>
                 </label>
                 <button
                   className="primary"
-                  disabled={!pickedDecks.size || busy}
+                  disabled={!pickedDecks.size || !typeAvailable || busy}
                   onClick={startExam}
                 >
-                  {busy ? "正在出卷…" : pickedDecks.size ? "开始考试" : "先勾选题组"}
+                  {busy ? "正在出卷…" : !pickedDecks.size ? "先勾选题组" : !typeAvailable ? "没有符合题型的题" : "开始考试"}
                 </button>
               </div>
             </div>
@@ -347,6 +409,15 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
               </div>
             </div>
           )}
+          {data?.exams?.length > 0 && <div className="exam-panel exam-history">
+            <div className="exam-panel-head"><strong>最近考试</strong><small className="muted">可重新查看成绩与待练题</small></div>
+            <ul>{data.exams.map((past) => <li key={past.runId}>
+              <span><strong>{past.scorePct}%</strong> · {past.correct}/{past.total} 题 · {new Date(past.submittedAt).toLocaleString("zh-CN")}
+                <small>{past.decks.join("、")} · {examKindLabel[past.examKinds] || examKindLabel.all}</small>
+                {past.comparison && <small>同范围、题数及题型构成：上次 {past.comparison.scorePct}% · {scoreChange(past.comparison)}</small>}</span>
+              <button type="button" disabled={busy} onClick={() => openReport(past.runId)}>查看报告</button>
+            </li>)}</ul>
+          </div>}
           {err && <p className="exam-error">{err}</p>}
         </div>
       )}
@@ -386,7 +457,7 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
                     key={o.id}
                     className={"exam-option" + (picked ? " picked" : "")}
                     aria-pressed={picked}
-                    disabled={busy}
+                    disabled={busy || expired}
                     onClick={() => pick(o.id)}
                   >
                     <span className="exam-option-letter">
@@ -401,12 +472,12 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
             </div>
           </div>
           <div className="exam-toolbar">
-            <button disabled={busy || !run.index} onClick={() => move(-1)}>
+            <button disabled={busy || expired || !run.index} onClick={() => move(-1)}>
               ← 上一题
             </button>
             <button
               className="primary"
-              disabled={busy || run.index >= run.total - 1}
+              disabled={busy || expired || run.index >= run.total - 1}
               onClick={() => move(1)}
             >
               下一题 →
@@ -428,11 +499,12 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
             </div>
           ) : (
             <div className="exam-foot">
-              <button disabled={busy} onClick={() => setConfirming(true)}>
-                交卷
+              <button disabled={busy} onClick={expired ? submit : () => setConfirming(true)}>
+                {expired ? "重试交卷" : "交卷"}
               </button>
               <p className="muted small">
-                未交卷的考试会保留在回到题目里 · 计时满 30 分钟自动交卷
+                {expired ? "时间已到，已停止作答；交卷失败时会自动重试。"
+                  : "未交卷的考试会保留在回到题目里 · 计时满 30 分钟自动交卷"}
               </p>
             </div>
           )}
@@ -479,13 +551,14 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
               </li>
             </ul>
           </div>
+          {report.comparison && <p className="muted">同范围、题数及题型构成的上次考试为 {report.comparison.scorePct}%；这次{scoreChange(report.comparison)}。两次抽到的题目可能不同，仅供参考。</p>}
 
           <div className="exam-bars">
             <div className="eyebrow">按主题分布</div>
             {report.byTopic?.length ? (
               report.byTopic.map((t) => (
-                <div key={t.topic} className="exam-bar-row">
-                  <span className="exam-bar-label">{t.topic || "未分类"}</span>
+                <div key={`${t.deckId}:${t.topic}`} className="exam-bar-row">
+                  <span className="exam-bar-label">{report.byTopic.filter((row) => row.topic === t.topic).length > 1 ? `${t.deckTitle} · ` : ""}{t.topic || "未分类"}</span>
                   <span className="exam-bar-track">
                     <span
                       className="exam-bar-fill"
@@ -526,8 +599,18 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
             </div>
           )}
 
+          {report.byKind?.length > 0 && <div className="exam-bars">
+            <div className="eyebrow">按题型分布</div>
+            {report.byKind.map((row) => <div key={row.kind} className="exam-bar-row">
+              <span className="exam-bar-label">{row.kind === "multi" ? "多选" : "单选"}</span>
+              <span className="exam-bar-track"><span className="exam-bar-fill soft"
+                style={{ width: `${row.total ? Math.round((row.correct / row.total) * 100) : 0}%` }} /></span>
+              <span className="exam-bar-value">{row.correct}/{row.total}</span>
+            </div>)}
+          </div>}
+
           <div className="exam-wrong">
-            <div className="eyebrow">错题 · {report.wrong?.length || 0}</div>
+            <div className="eyebrow">答错 · {report.wrong?.length || 0}</div>
             {report.wrong?.length ? (
               <ul>
                 {report.wrong.map((w) => (
@@ -541,9 +624,18 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
                 ))}
               </ul>
             ) : (
-              <p className="muted">全部答对，没有错题。</p>
+              <p className="muted">已答的题目没有答错。</p>
             )}
           </div>
+
+          {report.skipped?.length > 0 && <div className="exam-wrong">
+            <div className="eyebrow">未答 · {report.skipped.length}</div>
+            <ul>{report.skipped.map((item) => <li key={item.deckId + ":" + item.cardId} className="exam-wrong-row">
+              <span className="exam-chip">{item.topic || "未分类"}</span>
+              <span className="exam-wrong-prompt" title={plainPrompt(item.prompt)}>{plainPrompt(item.prompt)}</span>
+              <span className="exam-chip dim">{item.kind === "multi" ? "多选" : "单选"}</span>
+            </li>)}</ul>
+          </div>}
 
           <div className="exam-report-actions">
             <button className="primary" onClick={onExit}>
@@ -551,9 +643,10 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
             </button>
             {report.weakScope?.length > 0 && (
               <button disabled={busy || !!pathNote} onClick={queueWeak}>
-                把错题排进学习路径
+                练习答错与未答的 {report.weakScope.length} 道
               </button>
             )}
+            <button type="button" onClick={() => setPhase("setup")}>再考一次</button>
             {pathNote && <p className="muted exam-path-note">{pathNote}</p>}
           </div>
           {err && <p className="exam-error">{err}</p>}

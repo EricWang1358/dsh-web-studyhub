@@ -30,7 +30,7 @@ export default function PdfImport({ busy, act, onImported }) {
       });
       await act("source.import", { filename: file.name, dataBase64, ...(selected.length ? { pages: selected } : {}) }, (value) => {
         setResult(value); onImported(value.sourceIds);
-      });
+      }, { rethrow: true });
     } catch (e) { setError(e.message); }
     finally { setReading(false); }
   }
@@ -43,14 +43,18 @@ export default function PdfImport({ busy, act, onImported }) {
     </label>
     {error && <p role="alert" className="warning">{error}</p>}
     {result && <div role="status">
-      <p>已选择 {result.sources.length} 页资料（新保存 {result.added} 页，重复页自动复用）。请核对下方提取预览。</p>
+      <p>所选 {result.selectedPages?.length ?? result.sources.length + result.skippedPages.length} 页中，{result.sources.length} 页提取到可出题文字，{result.skippedPages.length} 页文字不足；新保存 {result.added} 页，重复页自动复用。</p>
+      <p className="muted">出题只会使用已提取的文字。图片、图表和公式未被理解；生成前请对照原 PDF 核对下方预览。</p>
       {result.legacyPages > 0 && <p className="warning">其中 {result.legacyPages} 页已使用新版排版提取。旧版来源保留以保护已有题目的引用，本次选择的是新版。</p>}
       {result.skippedPages.length > 0 && <p className="warning">第 {result.skippedPages.join("、")} 页没有足够文字，已跳过。若是扫描页，请先 OCR 后重新导入。</p>}
+      {result.sparsePages?.length > 0 && <p className="warning">第 {result.sparsePages.join("、")} 页提取到的文字很少，可能只有页眉、页脚或标题；请核对正文是否为图片。需要时先 OCR 再重新导入。</p>}
+      {result.sources.some((s) => s.document?.warnings?.length) && <p className="warning">部分页面存在分栏、旋转或分散文字，提取顺序需要对照原 PDF 核对。</p>}
       <details><summary>查看逐页提取预览</summary>{result.sources.map((s) => {
         const shown = fullText[s.id] ?? s.preview;
         return <div key={s.id}>
           <strong>{s.title}</strong>
           {s.document?.warnings?.length > 0 && <p className="warning">本页含分散文字区域或旋转文字，请对照原 PDF 核对；提取顺序不能代表箭头、表格或分栏的语义关系。</p>}
+          {s.document?.sparseText && <p className="warning">本页文字偏少；预览可能遗漏图片中的正文。</p>}
           <pre className="pdf-extracted-text">{shown}</pre>
           {shown.length < s.chars && <>
             <small>当前显示 {shown.length} / {s.chars} 字符，后文尚未显示。</small>{" "}

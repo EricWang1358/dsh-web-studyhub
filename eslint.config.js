@@ -32,6 +32,11 @@ export default [
     },
   },
   {
+    // These Playwright scripts include callbacks evaluated in the browser page.
+    files: ["scripts/site-crop.mjs", "scripts/site-qa.mjs", "scripts/site-shots.mjs"],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
     files: ["ui/**/*.jsx", "ui/**/*.js"],
     languageOptions: {
       ecmaVersion: 2024,

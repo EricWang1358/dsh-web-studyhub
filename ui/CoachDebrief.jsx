@@ -9,7 +9,7 @@ import { useInjectCss } from "./shared.js";
 const LEVELS = [["recall", "记忆"], ["concept", "概念辨析"], ["apply", "应用分析"]];
 const COUNTDOWN = 5;
 
-export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, busy }) {
+export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, busy }) {
   useInjectCss(css, "study-coach");
   const [debrief, setDebrief] = useState(initial || null),
     [status, setStatus] = useState(initial?.status || null),
@@ -38,7 +38,8 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
 
   const ready = status?.ready || 0;
   const next = ready ? "practice_prepared" : debrief?.next === "practice_prepared" ? (waiting ? "wait" : "continue_path") : debrief?.next;
-  const action = next === "practice_prepared" ? onPractice : next === "continue_path" || next === "review_weak" ? onContinue : null;
+  const action = next === "practice_prepared" ? onPractice
+    : next === "review_weak" ? onReviewWeak : next === "continue_path" ? onContinue : null;
   const label = next === "practice_prepared" ? `刷 ${ready} 道为你定制的题 →` : next === "review_weak" ? "先补薄弱点 →" : "继续学习 →";
 
   // Autopilot: count down, then take the suggested step; any click cancels.
@@ -83,6 +84,10 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       <div className="eyebrow">陪学 · 本轮建议</div>
       <h2>{debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
+      {(m.gradedAnswered > 0 || m.selfAnswered > 0) && <div className="coach-score-split">
+        {m.gradedAnswered > 0 && <span>客观题答对 <strong>{m.gradedCorrect}/{m.gradedAnswered}</strong></span>}
+        {m.selfAnswered > 0 && <span>自评达标 <strong>{m.selfMet}/{m.selfAnswered}</strong></span>}
+      </div>}
       {m.answered > 0 && (
         <>
           <div className="coach-levels" aria-hidden="true">
@@ -94,7 +99,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
             {LEVELS.map(([id, name]) => (
               <span key={id}>
                 <i className={"coach-levels-dot " + id} style={{ background: `var(--${id === "recall" ? "text-faint" : id === "concept" ? "info" : "ok"})` }} />
-                {name} {m.levels?.[id]?.correct || 0}/{m.levels?.[id]?.n || 0}
+                {name}达标 {m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0}/{m.levels?.[id]?.n || 0}
               </span>
             ))}
           </div>

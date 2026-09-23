@@ -1,5 +1,7 @@
 import React from "react";
 import Markdown from "./Markdown.jsx";
+import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
+import { selfCitedCardCount } from "../lib/source-provenance.js";
 
 /* 题组管理视图：编辑先进入草稿（deck.edit → openDraft），归档/暂停/标记
    与目录移动就地生效。managedDeck 由 App 在进入本视图时 deck.get 取得。 */
@@ -11,10 +13,15 @@ export default function Manage({
   setPage,
   setNotice,
   managedDeck,
+  sources,
+  modelReady,
   setManagedDeck,
   folderDraft,
   setFolderDraft,
 }) {
+  const unreviewed = reviewedCardStatus(managedDeck)?.changed ?? managedDeck.editorial?.uncheckedAtPublish ?? 0;
+  const selfCited = selfCitedCardCount(managedDeck.cards, sources);
+  const marks = managedDeck.editorial?.reviewedCards;
   return (
     <section className="page">
       <h1>{managedDeck.title}</h1>
@@ -22,6 +29,12 @@ export default function Manage({
       {managedDeck.systemKind !== "slain" && <p className="muted">
         编辑先进入草稿；重新发布时，未改动题目保留复习进度，内容变更的题目重新开始调度。历史作答始终保留。
       </p>}
+      {managedDeck.systemKind !== "slain" && (unreviewed > 0 || selfCited > 0) && (
+        <p className="quality-note warning" role="status">
+          {unreviewed > 0 && `${unreviewed} 题未自动审阅。${modelReady ? "进入草稿后保存并发布，即可按当前内容重新审阅。" : "连接模型后，进入草稿并重新发布可完成审阅。"}`}
+          {selfCited > 0 && ` ${selfCited} 题只引用导入题目自身；请先在草稿中换成原始资料引用。`}
+        </p>
+      )}
       <div className="deck-actions">
         <button
           disabled={busy || managedDeck.systemKind === "slain"}
@@ -79,6 +92,8 @@ export default function Manage({
           <small>
             {card.topic} · {card.kind}
             {card.suspended ? " · 已暂停" : ""}
+            {marks && marks[card.id] !== reviewedCardFingerprint(card) ? " · 未自动审阅" : ""}
+            {selfCitedCardCount([card], sources) ? " · 仅有导入题目引用" : ""}
           </small>
           <Markdown className="md-title" text={card.prompt} />
           {card.flag && <p className="muted">标记：{card.flag}</p>}

@@ -12,6 +12,7 @@ export default function Generate({
   busy,
   running,
   act,
+  openDraft,
   setPage,
   setNotice,
   genSource,
@@ -23,6 +24,8 @@ export default function Generate({
   setModal,
   askInChat,
 }) {
+  const selectedPdfPages = new Set(data.sources.filter((source) => source.document && selectedSources.includes(source.id))
+    .map((source) => `${source.document.id || source.id}:${source.document.page || source.id}`)).size;
   // With a single source there is nothing to choose; don't make the learner tick it.
   React.useEffect(() => {
     if (data.sources.length === 1 && !selectedSources.length)
@@ -53,7 +56,7 @@ export default function Generate({
         ))}
       </div>
       {genSource === "json" ? (
-        <JsonImport busy={busy} act={act} setPage={setPage} setNotice={setNotice} />
+        <JsonImport busy={busy} act={act} openDraft={openDraft} setNotice={setNotice} />
       ) : genSource === "chat" ? (
         <Ingest
           data={data}
@@ -89,7 +92,7 @@ export default function Generate({
       ) : (
         <>
           <p className="muted">
-            先选资料，再设定学习目标。生成结果会先进入草稿，经过你的审阅后发布。
+            先选资料，再设定学习目标。生成结果会先进入草稿；发布时逐题检查，通过的题先进入学习库。
           </p>
           <PdfImport busy={busy} act={act} onImported={(ids) => setSelectedSources(ids)} />
           <form
@@ -109,7 +112,7 @@ export default function Generate({
                       ? `已加入队列（前面还有 ${job.queuedBehind} 个）`
                       : "已开始生成") +
                       (job.parts > 1 ? `，分 ${job.parts} 小批出题并审阅` : "") +
-                      "。完成后出现在待审阅列表。",
+                      "。完成后出现在待发布列表。",
                   );
                 },
               );
@@ -135,7 +138,7 @@ export default function Generate({
                     />
                     <span>
                       {s.title}
-                      <small>{s.text.length.toLocaleString()} 字符{s.document ? (s.document.extractionVersion === 2 ? " · 排版提取 v2" : " · 旧版提取，建议重新导入") : ""}</small>
+                      <small>{s.text.length.toLocaleString()} 字符{s.document ? (s.document.extractionVersion === 2 ? " · 排版提取 v2" : " · 旧版提取，建议重新导入") : ""}{s.document?.sparseText ? " · 文字偏少，核对正文" : ""}{s.document?.warnings?.length ? " · 排版待核对" : ""}</small>
                     </span>
                   </label>
                 ))
@@ -213,6 +216,9 @@ export default function Generate({
                   </select>
                 </label>
               </div>
+              {selectedPdfPages > Number(gen.count) && <p className="warning" role="status">
+                已选 {selectedPdfPages} 页 PDF，计划生成 {gen.count} 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。
+              </p>}
               <label>
                 这次想练什么？
                 <textarea
@@ -241,7 +247,7 @@ export default function Generate({
                 原文引用核验 · 独立质量审阅 · 干扰项逐项解释
                 <br />
                 <small>
-                  质量检查帮助发现问题；发布前仍可逐题检查与修改。
+                  发布时会再次逐题检查；合格题先发布，未通过的题可选择交给后台修复。
                 </small>
               </p>
             </div>

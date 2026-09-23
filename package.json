@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Source-grounded flashcards, quizzes and spaced review in a native DSH study workspace.",
   "type": "module",
   "main": "lib/index.js",

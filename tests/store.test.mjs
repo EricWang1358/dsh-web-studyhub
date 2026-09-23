@@ -8,6 +8,24 @@ import { StudyService } from "../lib/service.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 
+test("a full export restores the library and preserves the replaced state", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-restore-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", { title: "Original", text: "Original study material" });
+  const exported = await service.call("export");
+  await service.call("source.add", { title: "Later", text: "Later study material" });
+  const before = await service.call("export");
+  await assert.rejects(service.call("restore", { state: { format: "study-sharded", shards: {} } }), /完整 JSON 备份/);
+  assert.deepEqual(await service.call("export"), before, "invalid input cannot replace the library");
+  const result = await service.call("restore", { state: exported });
+  assert.equal(result.sources, 1);
+  assert.equal((await new StudyService(root).call("export")).sources[0].title, "Original");
+  const savedPrevious = JSON.parse(await readFile(result.backupPath, "utf8"));
+  assert.equal(savedPrevious.sources.length, 2);
+  assert.equal(savedPrevious.sources[1].title, "Later");
+});
+
 async function holdWindowsFile(path) {
   const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
     '$f = [System.IO.File]::Open($env:STUDY_TEST_LOCK_PATH, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite); try { [Console]::Out.WriteLine("locked"); [Console]::Out.Flush(); [Console]::ReadLine() | Out-Null } finally { $f.Dispose() }',
@@ -220,7 +238,7 @@ test("service flows never mutate the shared cached library", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-shards-frozen-"));
   t.after(() => { delete process.env.STUDY_STORE_FREEZE; return rm(root, { recursive: true, force: true }); });
   process.env.STUDY_STORE_FREEZE = "1";
-  const service = new StudyService(root, { complete });
+  const service = new StudyService(root);
   const quote = "Bridge separates an abstraction from its implementation.";
   await service.call("source.add", { id: "s", title: "Bridge", text: quote });
   const card = (id, kind) => ({ id, kind, topic: "Bridge", objective: `o-${id}`, prompt: `Why ${id}?`, answer: "Separation", hint: "Two dimensions",

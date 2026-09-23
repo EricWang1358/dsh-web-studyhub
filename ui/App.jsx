@@ -18,8 +18,11 @@ import Review from "./Review.jsx";
 import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
+import Inbox from "./Inbox.jsx";
+import Skeleton from "./Skeleton.jsx";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
+import { fillMissingDraftText } from "../lib/draft-fields.js";
 
 const AUTO_ADVANCE_MS = 1500;
 const THEMES = [
@@ -27,6 +30,13 @@ const THEMES = [
   ["dark", "☾", "深色"],
   ["light", "☀", "浅色"],
 ];
+
+function hasUnsavedDraft({ draft, draftText, jsonMode, draftLoaded } = {}) {
+  if (!draft) return false;
+  if (!draft.draftVersion || !draftLoaded) return true;
+  return JSON.stringify(draft) !== draftLoaded ||
+    (jsonMode && draftText !== JSON.stringify(draft, null, 2));
+}
 
 function parseDraft(raw) {
   const d = JSON.parse(raw);
@@ -38,6 +48,7 @@ function parseDraft(raw) {
     !d.cards.length
   )
     throw new Error("题组需要 title 和非空 cards 数组");
+  d.cards = d.cards.map(fillMissingDraftText);
   for (const q of d.cards) {
     if (!q || typeof q !== "object") throw new Error("每道题必须是一个对象");
     for (const key of [
@@ -156,7 +167,8 @@ export default function App({ call, host = {} }) {
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(true),
+    [syncIssue, setSyncIssue] = useState("");
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
     [sourceText, setSourceText] = useState("");
@@ -173,12 +185,14 @@ export default function App({ call, host = {} }) {
       role: "",
     });
   const [draft, setDraft] = useState(null),
+    [draftLoaded, setDraftLoaded] = useState(""),
     [recovery, setRecovery] = useState(null),
     [draftText, setDraftText] = useState(""),
     [jsonMode, setJsonMode] = useState(false),
     [legacy, setLegacy] = useState("");
   const [run, setRun] = useState(null),
     [examRunId, setExamRunId] = useState(null),
+    [skeletonFocus, setSkeletonFocus] = useState(null),
     [selected, setSelected] = useState([]),
     [hint, setHint] = useState(false),
     [explain, setExplain] = useState(false),
@@ -216,11 +230,13 @@ export default function App({ call, host = {} }) {
     [flag, setFlag] = useState(""),
     [teaching, setTeaching] = useState(null),
     [teachAnswer, setTeachAnswer] = useState("");
-  const [notebooks, setNotebooks] = useState(null);
+  const [notebooks, setNotebooks] = useState(null),
+    [notebookError, setNotebookError] = useState("");
   const boardState = useBoard(call, page === "board");
   const boardCount = boardState.board?.columns.reduce((n, column) => n + (column.done ? 0 : column.cardIds.length), 0);
   const dataRef = useRef(null),
-    snapshotKey = useRef("");
+    snapshotKey = useRef(""),
+    notebookRequest = useRef(0);
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
     const since = dataRef.current?.fingerprint;
@@ -245,6 +261,9 @@ export default function App({ call, host = {} }) {
           setTeaching(null);
           setModal(null);
           setPage("library");
+          notebookRequest.current++;
+          setNotebooks(null);
+          setNotebookError("");
           setSettings(next.settings);
           setBinding((b) => ({ ...b, root: next.root }));
         }
@@ -261,8 +280,11 @@ export default function App({ call, host = {} }) {
   useEffect(() => {
     if (!data?.root) return;
     try {
-      const saved = sessionStorage.getItem(`study-draft:${data.root}`);
-      setRecovery(saved ? JSON.parse(saved) : null);
+      const key = `study-draft:${data.root}`;
+      const raw = sessionStorage.getItem(key);
+      const saved = raw ? JSON.parse(raw) : null;
+      if (!hasUnsavedDraft(saved)) sessionStorage.removeItem(key);
+      setRecovery(hasUnsavedDraft(saved) ? saved : null);
     } catch {
       setRecovery(null);
     }
@@ -270,20 +292,31 @@ export default function App({ call, host = {} }) {
   useEffect(() => {
     if (!data?.root || !draft) return;
     try {
-      const saved = { draft, draftText, jsonMode };
-      sessionStorage.setItem(`study-draft:${data.root}`, JSON.stringify(saved));
-      setRecovery(saved);
+      const key = `study-draft:${data.root}`;
+      const saved = { draft, draftText, jsonMode, draftLoaded };
+      if (hasUnsavedDraft(saved)) {
+        sessionStorage.setItem(key, JSON.stringify(saved));
+        setRecovery(saved);
+      } else {
+        sessionStorage.removeItem(key);
+        setRecovery(null);
+      }
     } catch {
       setNotice("浏览器暂存不可用，请及时保存草稿。");
     }
-  }, [data?.root, draft, draftText, jsonMode]);
+  }, [data?.root, draft, draftText, jsonMode, draftLoaded]);
   // Cross-workspace directory: load once per library and refresh whenever the
   // learner returns to the library view, so due counts stay honest.
   const loadNotebooks = useCallback(async () => {
+    const request = ++notebookRequest.current;
     try {
-      setNotebooks(await call("notebook.list"));
-    } catch {
-      setNotebooks(null);
+      const next = await call("notebook.list");
+      if (request !== notebookRequest.current) return;
+      setNotebooks(next);
+      setNotebookError("");
+    } catch (error) {
+      if (request !== notebookRequest.current) return;
+      setNotebookError(error.message || String(error));
     }
   }, [call]);
   useEffect(() => {
@@ -329,13 +362,16 @@ export default function App({ call, host = {} }) {
       live = false;
     };
   }, [call, refresh]);
+  const handoffAction = useRef(null);
+  handoffAction.current = (runId) => act("review.get", { runId }, enterRun);
+  const takeHandoff = host.takeHandoff;
   useEffect(
-    () => host.takeHandoff?.((runId) => act("review.get", { runId }, enterRun)),
-    [],
+    () => takeHandoff?.((runId) => handoffAction.current?.(runId)),
+    [takeHandoff],
   );
   // Links and fixes made in the conversation reach the open question without a reload.
   useEffect(() => {
-    if (page !== "review" || !run?.card) return;
+    if (page !== "review" || !run?.card?.id) return;
     const t = setInterval(async () => {
       if (document.hidden) return;
       try {
@@ -344,7 +380,20 @@ export default function App({ call, host = {} }) {
       } catch {}
     }, 4000);
     return () => clearInterval(t);
-  }, [page, run?.id, run?.index, call]);
+  }, [page, run?.id, run?.card?.id, run?.index, call]);
+  // Letters about the question already on screen are read by looking at it.
+  // 定制题 letters stay: the variants themselves are not on this card.
+  const onScreenCardId = page === "review" && run?.card ? run.card.id : null;
+  const unreadHere = !!onScreenCardId && !!data?.inbox?.items.some(
+    (m) => !m.read && m.cardId === onScreenCardId && m.kind !== "variant",
+  );
+  useEffect(() => {
+    if (!unreadHere) return;
+    const ids = data.inbox.items
+      .filter((m) => !m.read && m.cardId === onScreenCardId && m.kind !== "variant")
+      .map((m) => m.id);
+    call("inbox.read", { ids }).then(() => refresh()).catch(() => {});
+  }, [unreadHere, onScreenCardId]); // eslint-disable-line react-hooks/exhaustive-deps
   const running = data?.jobs?.some(
     (j) => ["running", "queued", "cancelling"].includes(j.status),
   );
@@ -368,8 +417,9 @@ export default function App({ call, host = {} }) {
       pending = true;
       try {
         await refresh();
+        if (!stopped) setSyncIssue("");
       } catch (e) {
-        if (!stopped) setError(e.message);
+        if (!stopped) setSyncIssue(e.message || String(e));
       } finally {
         pending = false;
       }
@@ -423,7 +473,7 @@ export default function App({ call, host = {} }) {
     );
     return () => clearTimeout(t);
   }, [modal, rawSource]);
-  async function act(action, args = {}, after, { refreshAfter = true } = {}) {
+  async function act(action, args = {}, after, { refreshAfter = true, rethrow = false } = {}) {
     if (acting.current) return;
     acting.current = true;
     setBusy(true);
@@ -437,11 +487,25 @@ export default function App({ call, host = {} }) {
       if (refreshAfter) await refresh();
       return result;
     } catch (e) {
+      if (rethrow) throw e;
       setError(e.message || String(e));
     } finally {
       acting.current = false;
       setBusy(false);
     }
+  }
+  // A letter jumps to its card: the spot in an open run when there is one,
+  // otherwise a one-card run that can return to the current question.
+  function openInboxItem(item) {
+    act(
+      "inbox.open",
+      { id: item.id, ...(run && !run.complete ? { runId: run.id } : {}) },
+      (r) => {
+        enterRun(r);
+        // Show what arrived: the Q&A and revised explanation live in 讲解.
+        if (["followup", "improve", "rewrite"].includes(item.kind) && r.revealed) setExplain(true);
+      },
+    );
   }
   function enterRun(r) {
     runRef.current = r;
@@ -463,7 +527,11 @@ export default function App({ call, host = {} }) {
     act(
       publish ? "notebook.publish" : "notebook.unpublish",
       {},
-      (result) => setNotebooks(result),
+      (result) => {
+        notebookRequest.current++;
+        setNotebooks(result);
+        setNotebookError("");
+      },
     );
   const openNotebook = async (nb) => {
     setError("");
@@ -629,7 +697,7 @@ export default function App({ call, host = {} }) {
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => {
     setShowBack(!!run?.revealed);
-  }, [run?.id, run?.card?.id, run?.index, run?.queueVersion]);
+  }, [run?.id, run?.card?.id, run?.index, run?.queueVersion, run?.revealed]);
   // A new card starts with empty blanks; feedback keeps them for the verdict.
   useEffect(() => {
     setClozeValues({});
@@ -767,18 +835,38 @@ export default function App({ call, host = {} }) {
       "题库定位：" + JSON.stringify({ deckId: run.deckId, cardId: run.card.id })
     );
   }
-  function askAboutCard() {
+  /* 「不会？问 AI」和「提升质量」交给后台子代理，主会话不被占用：解答追加成
+     这道题的问答（旧追问保留），改题走 card.update（可撤销），完成后进信箱。
+     宿主没有子代理能力时退回原来的「填进对话框」。 */
+  async function assistCard(mode, text) {
+    if (!run?.card || !text.trim()) return false;
+    try {
+      await call("assist.start", { deckId: run.deckId, cardId: run.card.id, mode, text: text.trim() });
+      setNotice(
+        mode === "ask"
+          ? "后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。"
+          : "后台助教正在改这道题，改完会进信箱，可一步撤销。",
+      );
+      refresh().catch(() => {});
+      return true;
+    } catch (e) {
+      setError(`${e.message} 已改为填进对话框。`);
+      (mode === "ask" ? askAboutCard : improveCard)(text.trim());
+      return false;
+    }
+  }
+  function askAboutCard(extra = "") {
     askInChat(
       "我在做这道题时卡住了，想先把前置知识问清楚（先别直接告诉我答案）：\n" +
         cardBrief() +
-        "\n\n请先用 study_workspace 的 card.get 读这道题。需要资料依据时，用 source.search 一次查所有关键词，只读命中片段附近的原文，不要逐份翻资料；题库里已有的相关题用 card.search 找。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：",
+        "\n\n请先用 study_workspace 的 card.get 读这道题。需要资料依据时，用 source.search 一次查所有关键词，只读命中片段附近的原文，不要逐份翻资料；题库里已有的相关题用 card.search 找。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：" + extra,
     );
   }
-  function improveCard() {
+  function improveCard(extra = "") {
     askInChat(
       "这道题的质量需要提升：\n" +
         cardBrief() +
-        "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析），核对原文时用 source.search 查关键词、只读命中片段，按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：",
+        "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析），核对原文时用 source.search 查关键词、只读命中片段，按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：" + extra,
     );
   }
   // Slaying is one click next to other tools; offer an immediate undo instead
@@ -811,6 +899,7 @@ export default function App({ call, host = {} }) {
   }
   function openDraft(d) {
     setDraft(structuredClone(d));
+    setDraftLoaded(JSON.stringify(d));
     setDraftText(JSON.stringify(d, null, 2));
     setJsonMode(false);
     setPage("draft");
@@ -1148,14 +1237,15 @@ export default function App({ call, host = {} }) {
           library: "学习库",
           sources: "资料",
           generate: "创建题组",
-          draft: "审阅草稿",
+          draft: "草稿与发布",
           settings: "工作区设置",
           manage: "维护题组",
           dashboard: "学习统计",
           exam: "模拟考试",
-          wrongbook: "错题本",
+          wrongbook: "错题与待巩固",
           board: "待办看板",
           graph: "知识图谱",
+          skeleton: "知识骨架",
         }[page];
   const coachProps = data && {
     call,
@@ -1169,6 +1259,7 @@ export default function App({ call, host = {} }) {
     onPractice: onCoachPractice,
     askInChat: onCoachAsk,
     onContinue: () => act("review.start", { mode: "path", scope: run?.returnTo ? [] : run?.scope || [], fresh: true }, enterRun),
+    onReviewWeak: () => act("review.weak.start", { runId: run.id }, enterRun),
     canShortcut,
     autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0,
     debrief: run ? debriefs[run.id] : null,
@@ -1241,9 +1332,10 @@ export default function App({ call, host = {} }) {
             ["library", "▦", "学习库", ""],
             ["sources", "▤", "资料", "icon-lg"],
             ["generate", "＋", "创建题组", "icon-lg"],
+            ["skeleton", "◈", "知识骨架", ""],
             ["dashboard", "◔", "统计", "icon-lg"],
             ["exam", "✎", "模拟考试", "icon-lg"],
-            ["wrongbook", "✗", "错题本", "icon-sm"],
+            ["wrongbook", "✗", "错题与待巩固", "icon-sm"],
             ["board", "▥", "待办", "icon-lg"],
           ].map(([id, icon, label, iconClass]) => (
             <button
@@ -1330,19 +1422,31 @@ export default function App({ call, host = {} }) {
               {shellTitle}
             </span>
           </nav>
-          <span className="top-status">
-            <i
-              className={`dot ${busy || running ? "busy" : data ? "on" : ""}`}
-              aria-hidden="true"
-            />
-            {busy
-              ? "正在保存…"
-              : running
-                ? "正在生成…"
-                : data
-                  ? "已连接"
-                  : "待连接"}
-          </span>
+          <div className="top-right">
+            <span className="top-status" role="status" title={syncIssue || undefined}>
+              <i
+                className={`dot ${busy || running ? "busy" : data && !syncIssue ? "on" : ""}`}
+                aria-hidden="true"
+              />
+              {busy
+                ? "正在保存…"
+                : running
+                  ? "正在生成…"
+                  : syncIssue
+                    ? "连接中断，正在重试…"
+                  : data
+                    ? "已连接"
+                    : "待连接"}
+            </span>
+            {data && (
+              <Inbox
+                inbox={data.inbox}
+                busy={busy}
+                onOpen={openInboxItem}
+                onReadAll={() => act("inbox.read", { all: true })}
+              />
+            )}
+          </div>
         </header>
         {page === "review" && run && !run.complete && run.total > 0 && (
           <div
@@ -1454,6 +1558,17 @@ export default function App({ call, host = {} }) {
                   })
                 }
                 openDraft={openDraft}
+                continueDraft={(draft) => act("generate", { resumeDraftId: draft.id, draftVersion: draft.draftVersion }, (job) =>
+                  setNotice(`已开始补齐「${draft.title}」剩余 ${job.missing} 题；通过检查后会保存到同一份草稿。`))}
+                retryGeneration={(job) => {
+                  const available = new Set(data.sources.map((source) => source.id));
+                  setSelectedSources((job.sourceIds || []).filter((id) => available.has(id)));
+                  setGen((current) => ({ ...current, kind: job.kind || current.kind,
+                    count: job.requestedTotal || job.count || current.count }));
+                  setGenSource("files");
+                  setPage("generate");
+                  setNotice("已带回可用资料、题型和题数；请核对学习目标后再生成。");
+                }}
                 openAgent={host.openAgent}
                 cancelJob={(jobId) => act("job.cancel", jobId ? { jobId } : { all: true })}
                 addSource={() => setModal({ type: "add" })}
@@ -1469,6 +1584,7 @@ export default function App({ call, host = {} }) {
                 theme={theme}
                 setTheme={setTheme}
                 notebooks={notebooks}
+                notebookError={notebookError}
                 onNotebookPublish={() => toggleNotebook(true)}
                 onNotebookUnpublish={() => toggleNotebook(false)}
                 onNotebookOpen={openNotebook}
@@ -1489,6 +1605,8 @@ export default function App({ call, host = {} }) {
                     <button
                       onClick={() => {
                         setDraft(recovery.draft);
+                        setDraftLoaded(recovery.draftLoaded || JSON.stringify(
+                          data.drafts.find((item) => item.id === recovery.draft.id) || recovery.draft));
                         setDraftText(recovery.draftText);
                         setJsonMode(recovery.jsonMode);
                         setPage("draft");
@@ -1501,13 +1619,39 @@ export default function App({ call, host = {} }) {
                 )}
               </StudyMap>
             )}
+            {page === "skeleton" && (
+              <Skeleton
+                call={call}
+                data={data}
+                busy={busy}
+                askInChat={askInChat}
+                focusId={skeletonFocus}
+                onFocus={setSkeletonFocus}
+                onPractice={(cards) =>
+                  act(
+                    "review.start",
+                    {
+                      mode: "path",
+                      scope: [...new Map(cards.map((c) => [c.cardId, { deckId: c.deckId, cardId: c.cardId }])).values()],
+                      fresh: true,
+                      ...(run && !run.complete ? { returnTo: run.id } : {}),
+                    },
+                    enterRun,
+                  )
+                }
+              />
+            )}
             {page === "dashboard" && (
               <Dashboard
                 call={call}
                 data={data}
+                busy={busy}
                 onStartScope={(scope) =>
                   act("review.start", { mode: "path", scope }, enterRun)
                 }
+                onLibrary={() => setPage("library")}
+                onCreate={() => { setGenSource("files"); setPage("generate"); }}
+                onSources={() => setPage("sources")}
               />
             )}
             {page === "exam" && (
@@ -1526,6 +1670,7 @@ export default function App({ call, host = {} }) {
             {page === "wrongbook" && (
               <WrongBook
                 call={call}
+                data={data}
                 busy={busy}
                 onPractice={(scope) =>
                   act(
@@ -1534,6 +1679,10 @@ export default function App({ call, host = {} }) {
                     enterRun,
                   )
                 }
+                onStart={() => act("review.start", { mode: "path" }, enterRun)}
+                onLibrary={() => setPage("library")}
+                onCreate={() => { setGenSource("files"); setPage("generate"); }}
+                onSources={() => setPage("sources")}
               />
             )}
             {page === "graph" && (
@@ -1562,6 +1711,8 @@ export default function App({ call, host = {} }) {
                 setPage={setPage}
                 setNotice={setNotice}
                 managedDeck={managedDeck}
+                sources={data.sources}
+                modelReady={data.modelReady}
                 setManagedDeck={setManagedDeck}
                 folderDraft={folderDraft}
                 setFolderDraft={setFolderDraft}
@@ -1584,6 +1735,7 @@ export default function App({ call, host = {} }) {
                 act={act}
                 setPage={setPage}
                 setNotice={setNotice}
+                openDraft={openDraft}
                 genSource={genSource}
                 setGenSource={setGenSource}
                 gen={gen}
@@ -1601,17 +1753,25 @@ export default function App({ call, host = {} }) {
                 act={act}
                 call={call}
                 draft={draft}
+                draftLoaded={draftLoaded}
                 setDraft={setDraft}
                 draftText={draftText}
                 setDraftText={setDraftText}
                 jsonMode={jsonMode}
                 setJsonMode={setJsonMode}
                 openDraft={openDraft}
+                onOpenPublished={(id) => act("deck.get", { id }, (deck) => {
+                  setManagedDeck(deck);
+                  setFolderDraft(deck.folder || "");
+                  setPage("manage");
+                })}
                 clearRecovery={clearRecovery}
                 setPage={setPage}
                 setNotice={setNotice}
                 setError={setError}
                 setModal={setModal}
+                setSelectedSources={setSelectedSources}
+                setGenSource={setGenSource}
                 blankCard={blankCard}
                 patchCard={patchCard}
                 parseDraft={parseDraft}
@@ -1629,10 +1789,25 @@ export default function App({ call, host = {} }) {
                 setLegacy={setLegacy}
                 workspacePanel={workspacePanel}
                 exportData={exportData}
+                onRestored={() => {
+                  setRun(null);
+                  setExamRunId(null);
+                  setDraft(null);
+                  setManagedDeck(null);
+                  setTeaching(null);
+                  setSelectedSources([]);
+                  setSettings({});
+                  setPage("library");
+                  setNotice("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。");
+                }}
               />
             )}
             {page === "review" && run && (
               <Review
+                openSkeleton={(id) => {
+                  setSkeletonFocus(id);
+                  setPage("skeleton");
+                }}
                 run={run}
                 data={data}
                 busy={busy}
@@ -1664,6 +1839,8 @@ export default function App({ call, host = {} }) {
                 studyPrerequisites={studyPrerequisites}
                 askAboutCard={askAboutCard}
                 improveCard={improveCard}
+                assistCard={assistCard}
+                assistTasks={data?.assist}
                 slayCard={slayCard}
                 coachProps={coachProps}
                 askInChat={askInChat}

@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import css from "./views.css";
 import { useInjectCss } from "./shared.js";
+import EmptyStudyActions from "./EmptyStudyActions.jsx";
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
    用于展示当前到期概览（data.today）。热力图为 26 列 × 7 行 = 182 天的
@@ -13,7 +14,7 @@ function heatLevel(count, max) {
   return Math.min(4, 1 + Math.floor(((count - 1) / Math.max(1, max)) * 4));
 }
 
-/* 每日平均分趋势：横轴为有作答的日子，纵轴 0–5 分，附整分网格线。 */
+/* 客观判分与自评分开画，横轴为有作答的日子，纵轴 0–5 分。 */
 function Trend({ trend }) {
   const W = 600,
     H = 170,
@@ -26,15 +27,15 @@ function Trend({ trend }) {
   const n = trend.length;
   const x = (i) => (n <= 1 ? L + plotW / 2 : L + (i * plotW) / (n - 1));
   const y = (avg) => T + (1 - avg / 5) * plotH;
-  const points = trend
-    .map((d, i) => `${x(i).toFixed(1)},${y(d.avg).toFixed(1)}`)
-    .join(" ");
+  const points = (key) => trend
+    .map((d, i) => d[key] == null ? null : `${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`)
+    .filter(Boolean).join(" ");
   return (
     <svg
       className="dash-trend"
       viewBox={`0 0 ${W} ${H}`}
       role="img"
-      aria-label="每日平均分趋势（0 到 5 分）"
+      aria-label="客观判分与自评的每日平均分趋势（0 到 5 分）"
     >
       {[0, 1, 2, 3, 4, 5].map((s) => (
         <g key={s}>
@@ -44,17 +45,25 @@ function Trend({ trend }) {
           </text>
         </g>
       ))}
-      {n > 1 && <polyline className="dash-trend-line" points={points} />}
+      {trend.filter((d) => d.gradedAvg != null).length > 1 &&
+        <polyline className="dash-trend-line" points={points("gradedAvg")} />}
+      {trend.filter((d) => d.selfAvg != null).length > 1 &&
+        <polyline className="dash-trend-line self" points={points("selfAvg")} />}
       {trend.map((d, i) => (
-        <circle key={d.date} className="dash-trend-dot" cx={x(i)} cy={y(d.avg)} r={3}>
-          <title>{`${d.date} · 平均 ${d.avg} 分 · 作答 ${d.count} 次`}</title>
-        </circle>
+        <React.Fragment key={d.date}>
+          {d.gradedAvg != null && <circle className="dash-trend-dot" cx={x(i)} cy={y(d.gradedAvg)} r={3}>
+            <title>{`${d.date} · 客观判分平均 ${d.gradedAvg} 分 · ${d.gradedCount} 次`}</title>
+          </circle>}
+          {d.selfAvg != null && <circle className="dash-trend-dot self" cx={x(i)} cy={y(d.selfAvg)} r={3}>
+            <title>{`${d.date} · 自评平均 ${d.selfAvg} 分 · ${d.selfCount} 次`}</title>
+          </circle>}
+        </React.Fragment>
       ))}
     </svg>
   );
 }
 
-export default function Dashboard({ call, data, onStartScope }) {
+export default function Dashboard({ call, data, busy, onStartScope, onLibrary, onCreate, onSources }) {
   useInjectCss(css, "study-views");
   const [stats, setStats] = useState(null),
     [loading, setLoading] = useState(true),
@@ -79,10 +88,7 @@ export default function Dashboard({ call, data, onStartScope }) {
     heat = stats?.heatmap || [],
     trend = stats?.trend || [],
     weak = stats?.weakTopics || [];
-  const maxCount = useMemo(
-    () => heat.reduce((m, d) => Math.max(m, d.count || 0), 0),
-    [heat],
-  );
+  const maxCount = heat.reduce((m, d) => Math.max(m, d.count || 0), 0);
   const today = data?.today;
 
   return (
@@ -102,6 +108,13 @@ export default function Dashboard({ call, data, onStartScope }) {
 
       {stats && (
         <>
+          {!totals.attempts && <div className="empty dash-empty">
+            <span className="empty-icon">◔</span>
+            <h2>还没有作答记录</h2>
+            <p className="muted">开始学习后，这里会显示作答热力、分数趋势和薄弱主题。</p>
+            <EmptyStudyActions data={data} busy={busy} onStart={() => onStartScope([])} onLibrary={onLibrary}
+              onCreate={onCreate} onSources={onSources} />
+          </div>}
           <div className="dash-totals">
             <div className="dash-total">
               <strong>{totals.streak ?? 0}</strong>
@@ -116,8 +129,12 @@ export default function Dashboard({ call, data, onStartScope }) {
               <small>累计作答</small>
             </div>
             <div className="dash-total">
-              <strong>{totals.correctRate ?? 0}%</strong>
-              <small>正确率</small>
+              <strong>{totals.gradedRate == null ? "—" : `${totals.gradedRate}%`}</strong>
+              <small title="近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练">客观题通过率 · {totals.gradedAttempts ?? 0} 次</small>
+            </div>
+            <div className="dash-total">
+              <strong>{totals.selfRate == null ? "—" : `${totals.selfRate}%`}</strong>
+              <small title="近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标">自评达标率 · {totals.selfAttempts ?? 0} 次</small>
             </div>
             <div className="dash-total">
               <strong>{totals.due ?? 0}</strong>
@@ -160,19 +177,22 @@ export default function Dashboard({ call, data, onStartScope }) {
           </div>
 
           <div className="dash-card">
-            <div className="eyebrow">每日平均分 · 0–5</div>
+            <div className="eyebrow">每日平均分 · 客观判分与自评分别统计</div>
             {trend.length ? (
-              <Trend trend={trend} />
+              <>
+                <Trend trend={trend} />
+                <div className="dash-trend-legend"><span><i />客观判分</span><span><i className="self" />自评</span></div>
+              </>
             ) : (
               <p className="muted">
-                还没有作答记录，完成第一次学习后这里会出现趋势线。
+                完成第一次学习后，这里会出现趋势线。
               </p>
             )}
           </div>
 
           <div className="dash-card">
             <div className="eyebrow">
-              薄弱主题{weak.length ? ` · 前 ${weak.length}` : ""}
+              当前薄弱主题{weak.length ? ` · 前 ${weak.length}` : ""}
             </div>
             {weak.length ? (
               <ul className="dash-weak">
@@ -183,7 +203,7 @@ export default function Dashboard({ call, data, onStartScope }) {
                       <small>{w.deckTitle}</small>
                     </span>
                     <span className="dash-weak-meta">
-                      错 {w.wrong} / 答 {w.attempts}
+                      当前薄弱 {w.wrong} 题
                     </span>
                     <button
                       onClick={() =>
@@ -198,7 +218,9 @@ export default function Dashboard({ call, data, onStartScope }) {
                 ))}
               </ul>
             ) : (
-              <p className="muted">最近没有明显薄弱的主题，继续保持。</p>
+              <p className="muted">{totals.attempts
+                ? "最近没有明显薄弱的主题，继续保持。"
+                : "开始练习后，这里会显示需要补强的主题。"}</p>
             )}
           </div>
         </>

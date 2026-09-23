@@ -35,9 +35,16 @@ After drafting, check and improve every card before independent review:
   all facts needed for them. Do not turn an invented teaching interpretation
   into a sourced claim merely by adding a disclaimer. Narrow or skip questions
   whose decisive distinction is not supported.
+- Teachable explanation: connect the actual stem conditions to a rule and its
+  result. Explain unfamiliar terms, show decisive intermediate steps, and clarify
+  the most tempting misconception and a reusable boundary. Check intermediate
+  results for correctness; repeating the answer or labelling options true/false
+  is not teaching. Keep simple recall concise instead of adding generic padding.
 
 Record brief concrete changes and require independent per-card checks on all
-five dimensions. An empty list of issues alone is not an adequate review.
+six dimensions. An empty list of issues alone is not an adequate review.
+Repairs require a fresh independent review of the repaired text; the repairer's
+own pass markers cannot approve the result.
 
 A quiz must have a clear answer, useful hint, direct explanation, common
 misconception, and linked source material. A numerical or reasoning answer

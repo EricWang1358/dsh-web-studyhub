@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 
 const GOALS = [["", "未设定"], ["exam", "应付考试"], ["interview", "面试求职"], ["work", "工作中落地"], ["explore", "兴趣拓展"]];
 
-/* 设置视图：学习库绑定与模型（workspacePanel JSX 由 App 传入）、旧库导入、
-   SM-2 调度参数与 JSON 导出。 */
+/* 设置视图：学习库绑定与模型、旧库导入、调度参数与完整备份。 */
 export default function Settings({
   data,
   busy,
@@ -15,8 +14,26 @@ export default function Settings({
   setLegacy,
   workspacePanel,
   exportData,
+  onRestored,
 }) {
   const [profile, setProfile] = useState(null);
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [restoreError, setRestoreError] = useState("");
+  async function readBackup(file) {
+    setRestoreFile(null);
+    setRestoreError("");
+    if (!file) return;
+    try {
+      const state = JSON.parse(await file.text());
+      if (!state || !Number.isInteger(state.version) || !Array.isArray(state.sources) ||
+          !Array.isArray(state.decks) || !Array.isArray(state.drafts) ||
+          !Array.isArray(state.runs) || !Array.isArray(state.attempts))
+        throw new Error("这不是完整学习库备份");
+      setRestoreFile({ name: file.name, state });
+    } catch (e) {
+      setRestoreError(`无法读取备份：${e.message || String(e)}`);
+    }
+  }
   useEffect(() => {
     act("coach.profile", {}, setProfile);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -136,11 +153,24 @@ export default function Settings({
         </fieldset>
       </form>
       <fieldset>
-        <legend>数据导出</legend>
+        <legend>数据备份与恢复</legend>
         <p className="muted">
           下载完整 JSON 备份，包含资料、题组和学习记录。
         </p>
         <button onClick={exportData}>导出学习库 ↓</button>
+        <p className="muted">恢复会替换当前学习库。替换前会在当前学习库的 backups 目录保存一份原数据。</p>
+        <label>选择完整备份 JSON
+          <input type="file" accept=".json,application/json" disabled={busy}
+            onChange={(e) => readBackup(e.target.files?.[0])} />
+        </label>
+        {restoreError && <p role="alert">{restoreError}</p>}
+        {restoreFile && <div role="status">
+          <p>已读取「{restoreFile.name}」：{restoreFile.state.sources.length} 份资料、{restoreFile.state.decks.length} 个题组、{restoreFile.state.attempts.length} 条作答记录。</p>
+          <button type="button" disabled={busy} onClick={async () => {
+            const result = await act("restore", { state: restoreFile.state }, onRestored);
+            if (result) setRestoreFile(null);
+          }}>确认恢复并替换当前学习库</button>
+        </div>}
       </fieldset>
     </section>
   );

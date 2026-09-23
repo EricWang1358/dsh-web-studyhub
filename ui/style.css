@@ -513,6 +513,195 @@
     background: var(--warn);
     animation: dot-pulse 1.4s var(--ease) infinite;
   }
+  /* ── Top-bar mailbox ────────────────────────────────────────────────── */
+  .top-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .inbox {
+    position: relative;
+  }
+  button.inbox-toggle {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+  }
+  button.inbox-toggle:hover:not(:disabled),
+  button.inbox-toggle[aria-expanded="true"] {
+    background: var(--bg-hover);
+    border-color: var(--line-soft);
+    color: var(--text);
+  }
+  button.inbox-toggle.has-unread {
+    color: var(--text);
+  }
+  .inbox-badge {
+    position: absolute;
+    top: -3px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--bg-canvas);
+    animation: badge-in 0.28s var(--ease);
+  }
+  @keyframes badge-in {
+    from {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+  }
+  .inbox-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: -6px;
+    z-index: 30;
+    width: min(380px, calc(100vw - 32px));
+    max-height: min(70vh, 520px);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow-lg);
+    animation: rise-in 0.2s var(--ease);
+  }
+  .inbox-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .inbox-head strong {
+    font-size: 13.5px;
+  }
+  .inbox-head small {
+    font-size: 11.5px;
+  }
+  button.inbox-read-all {
+    margin-left: auto;
+    padding: 4px 9px;
+    border: 0;
+    background: transparent;
+    color: var(--accent-soft);
+    font-size: 12px;
+  }
+  .inbox-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  button.inbox-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 9px 12px 10px 20px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    text-align: left;
+    color: var(--text-dim);
+  }
+  button.inbox-item.unread {
+    color: var(--text);
+  }
+  button.inbox-item.unread::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 15px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  button.inbox-item:disabled {
+    opacity: 0.5;
+  }
+  .inbox-item-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+  .inbox-item-top small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11.5px;
+  }
+  .inbox-time {
+    flex: none;
+    margin-left: auto;
+  }
+  .inbox-kind {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent-soft);
+    font-size: 11px;
+  }
+  .inbox-kind.k-coach,
+  .inbox-kind.k-followup {
+    background: color-mix(in srgb, var(--info) 16%, transparent);
+    color: var(--info);
+  }
+  .inbox-kind.k-link,
+  .inbox-kind.k-variant {
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    color: var(--ok);
+  }
+  .inbox-count {
+    flex: none;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .inbox-prompt {
+    font-size: 13px;
+    font-weight: 550;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .inbox-detail {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+  .inbox-empty {
+    margin: 0;
+    padding: 18px 16px 20px;
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
   @keyframes dot-pulse {
     0%,
     100% {
@@ -774,20 +963,35 @@
   }
   .draft-row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     width: 100%;
     border: 0;
     border-bottom: 1px solid #3b3f44;
     border-radius: 0;
-    padding: 18px 4px;
+    padding: 10px 4px;
     text-align: left;
   }
+  .draft-open {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 0;
+    background: transparent;
+    padding: 8px 0;
+    text-align: left;
+  }
+  .draft-open > span:first-child { min-width: 0; overflow-wrap: anywhere; }
   .draft-row small {
     display: block;
     margin-top: 5px;
   }
-  .draft-row > span:last-child {
+  .draft-open > span:last-child {
     font-size: 12px;
     color: #b5b4dd;
   }
@@ -815,6 +1019,9 @@
   }
   .job.failed > span {
     color: #ef9b8a;
+  }
+  .job.partial > span {
+    color: var(--warn);
   }
   .source-row {
     display: flex;
@@ -3157,19 +3364,29 @@
     box-shadow: 0 0 0 2px var(--accent-glow);
   }
 
-  .review-body {
+  /* Rail column spans the whole review page; everything else sits beside it. */
+  .review-page.has-rail {
     display: grid;
     grid-template-columns: 36px minmax(0, 1fr);
     column-gap: 12px;
+    padding-left: 14px;
     align-items: start;
   }
-  .review-body > .question-area { grid-column: 2; grid-row: 1; min-width: 0; }
+  .review-page.has-rail > :not(.review-navigator) { grid-column: 2; }
+  .review-page.has-rail > .review-heading { padding-left: 0; }
+  .review-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .review-body > .question-area { grid-column: 1; grid-row: 1; min-width: 0; }
+  /* Sticky applies at scroll 0 too: a top below the natural position pushes the
+     rail there immediately (just under the 51px top bar), so it never moves. */
   .review-navigator {
     grid-column: 1;
-    grid-row: 1;
+    grid-row: 1 / span 20;
     position: sticky;
-    top: 24px;
-    margin-top: 32px;
+    top: 72px;
     max-height: min(680px, calc(100dvh - 200px));
     min-height: 80px;
     overflow-y: auto;
@@ -3206,7 +3423,7 @@
   }
   .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
   @container study (max-width: 600px) {
-    .review-body { grid-template-columns: 28px minmax(0, 1fr); column-gap: 4px; }
+    .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: 4px; padding-left: 6px; }
     .review-tick { width: 28px; height: 24px; }
     .review-body > .question-area { width: 100%; min-width: 0; }
   }

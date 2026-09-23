@@ -12,6 +12,7 @@ import CoachPanel from "./CoachPanel.jsx";
 import CoachDebrief from "./CoachDebrief.jsx";
 import ThumbFeedback from "./ThumbFeedback.jsx";
 import { reviewEntryKey } from "./async.js";
+import { selfCitedCardCount } from "../lib/source-provenance.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -58,6 +59,8 @@ export default function Review({
   studyPrerequisites,
   askAboutCard,
   improveCard,
+  assistCard,
+  assistTasks,
   slayCard,
   coachProps,
   askInChat,
@@ -67,6 +70,7 @@ export default function Review({
   enBusyKey,
   toggleEn,
   call,
+  openSkeleton,
 }) {
   const pageRef = React.useRef(null);
   const multiple = run.card?.multiple || run.card?.kind === "multi";
@@ -108,6 +112,17 @@ export default function Review({
     const offset = page.getBoundingClientRect().top - scroller.getBoundingClientRect().top - bar;
     if (offset < 0) scrollBy(offset);
   }, [run.id, run.index, run.complete]);
+  const rail = !run.complete && run.navigation?.length > 0;
+  const [assistMode, setAssistMode] = React.useState("");
+  const [assistText, setAssistText] = React.useState("");
+  React.useEffect(() => {
+    setAssistMode("");
+    setAssistText("");
+  }, [run.card?.id]);
+  const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
+  const runningTask = cardTasks.find((task) => task.status === "running");
+  const lastTask = cardTasks.at(-1);
+  const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
   const coachPanel = coachProps && run.mode !== "exam" && !run.complete && (
     <CoachPanel
       key={reviewEntryKey(run)}
@@ -127,8 +142,11 @@ export default function Review({
   return (
     <section
       ref={pageRef}
-      className={"review-page " + (!choice ? "flash-mode" : "")}
+      className={"review-page " + (!choice ? "flash-mode" : "") + (rail ? " has-rail" : "")}
     >
+      {/* The rail is a full-height column of the page, not of the question body,
+          so it is pinned from the first frame instead of sliding up to stick. */}
+      {rail && <ReviewNavigator run={run} busy={busy} onJump={(index) => reviewAct("review.move", { index })} />}
       <div className="review-heading">
         <div>
           <h1>
@@ -142,6 +160,11 @@ export default function Review({
           >
             查看 {run.sourceIds?.length || 0} 份资料
           </button>
+          {skeletonHere && openSkeleton && (
+            <button className="pill" title={`这道题在知识骨架「${skeletonHere.title}」里`} onClick={() => openSkeleton(skeletonHere.id)}>
+              ◈ 知识骨架
+            </button>
+          )}
         </div>
         <div className="review-heading-actions">
           {host.openInSidebar && !run.complete && (
@@ -157,7 +180,10 @@ export default function Review({
         </div>
       </div>
       {run.complete ? (
-        <div className="session-summary">
+        // Distinct keys: without them React reuses the question body's DOM nodes
+        // for the summary, and the ✓ badge inherited .question-area's inline
+        // min-height (set by the pinning effect above), stretching into an oval.
+        <div key="summary" className="session-summary">
           <div className="summary-symbol">✓</div>
           <div className="eyebrow">SESSION COMPLETE</div>
           <h1>
@@ -191,6 +217,7 @@ export default function Review({
               busy={busy}
               onPractice={coachProps.onPractice}
               onContinue={coachProps.onContinue}
+              onReviewWeak={coachProps.onReviewWeak}
             />
           )}
           <div className="summary-actions">
@@ -207,7 +234,7 @@ export default function Review({
               <button
                 onClick={() =>
                   askInChat(
-                    `我刚在「${shellTitle}」里这些主题答得不好：${run.weakTopics.join("、")}。请结合学习库资料逐个讲清楚，并各出一道小题检查我。`,
+                    `我刚在「${shellTitle}」里这些主题还没掌握稳：${run.weakTopics.join("、")}。请结合学习库资料逐个讲清楚，并各出一道小题检查我。`,
                   )
                 }
               >
@@ -232,8 +259,7 @@ export default function Review({
           </div>
         </div>
       ) : (
-        <div className={"review-body" + (coachPanel && coachProps.side ? " with-coach" : "")}>
-          <ReviewNavigator run={run} busy={busy} onJump={(index) => reviewAct("review.move", { index })} />
+        <div key="body" className={"review-body" + (coachPanel && coachProps.side ? " with-coach" : "")}>
           <div
             className={
               "question-area " +
@@ -471,8 +497,8 @@ export default function Review({
                     <div>
                       {[
                         "完全忘记",
-                        "答错",
-                        "似曾相识",
+                        "记得一点",
+                        "有印象",
                         "勉强答对",
                         "熟练",
                         "轻松掌握",
@@ -500,9 +526,12 @@ export default function Review({
               </>
             )}
             <ReviewToolbar
+              assistMode={assistMode}
               run={run} busy={busy} expanded={run.revealed ? explain : hint}
               onToggleHelp={() => run.revealed ? setExplain(!explain) : setHint(!hint)}
-              onAsk={askAboutCard} onImprove={improveCard} onSlay={slayCard} onReviewAction={reviewAct}
+              onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
+              onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
+              onSlay={slayCard} onReviewAction={reviewAct}
               enOn={enOn}
               enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
               onToggleEn={toggleEn}
@@ -510,6 +539,63 @@ export default function Review({
                 <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()} />
               )}
             />
+            <SmoothHeight className="assist-area">
+              {assistMode && (
+                <form
+                  className="assist-form"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    const mode = assistMode;
+                    if (await assistCard(mode, assistText)) {
+                      setAssistMode("");
+                      setAssistText("");
+                    }
+                  }}
+                >
+                  <label>
+                    {assistMode === "ask" ? "卡在哪里？后台助教会查资料解答，并把解答存到这道题的问答里" : "这道题哪里不好？后台助教会直接改这张卡，可一步撤销"}
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      value={assistText}
+                      maxLength={1000}
+                      placeholder={assistMode === "ask" ? "例如：不懂为什么重试会放大负载" : "例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错"}
+                      onChange={(event) => setAssistText(event.target.value)}
+                    />
+                  </label>
+                  <div className="assist-actions">
+                    <button type="submit" className="primary pill" disabled={!assistText.trim()}>
+                      交给后台助教
+                    </button>
+                    <button
+                      type="button"
+                      className="pill"
+                      onClick={() => {
+                        (assistMode === "ask" ? askAboutCard : improveCard)(assistText.trim());
+                        setAssistMode("");
+                        setAssistText("");
+                      }}
+                    >
+                      改在对话里说
+                    </button>
+                    <button type="button" className="pill" onClick={() => setAssistMode("")}>
+                      取消
+                    </button>
+                  </div>
+                </form>
+              )}
+              {runningTask && (
+                <p className="assist-status" role="status">
+                  <i className="assist-spin" aria-hidden="true" />
+                  后台助教正在{runningTask.mode === "ask" ? "解答" : "改题"}：{runningTask.text}
+                </p>
+              )}
+              {!runningTask && lastTask?.status === "failed" && (
+                <p className="assist-status failed" role="status">
+                  后台助教没能完成：{lastTask.message || "任务失败"}。可以再试一次，或点「改在对话里说」。
+                </p>
+              )}
+            </SmoothHeight>
             {coachProps?.autoAdvance > 0 && (
               <>
                 <div className="autopilot-bar" key={run.index} style={{ "--autopilot-ms": coachProps.autoAdvance + "ms" }} />
@@ -569,6 +655,11 @@ export default function Review({
                     </button>
                   ))}
                 </div>
+                {selfCitedCardCount([run.solution], data.sources || []) > 0 && (
+                  <p className="warning" role="note">
+                    这些引用来自导入的题目自身，不能独立核实答案。请对照原始资料判断。
+                  </p>
+                )}
                 {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} call={call} />}
               </div>
             )}
