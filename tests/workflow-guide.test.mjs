@@ -156,3 +156,17 @@ test("a large scope is sampled evenly for the background skeleton and failures r
   assert.equal(after.skeletonJob.status, "failed");
   assert.match(after.skeletonJob.message, /^模型整理的骨架没有通过检查/);
 });
+
+test("a guided session remembers how its material was picked and names it for the learner", async (t) => {
+  const service = await setup(t);
+  const { session, resources } = await service.call("workflow.quickstart", { goal: "TCP 握手", requestId: "go" });
+  assert.equal(session.pickedBy, "match");
+  assert.deepEqual(resources.scopeTopics, ["TCP 握手"]);
+  assert.equal(resources.scopeTopicCount, 1);
+  const { sessions } = await service.call("workflow.list");
+  assert.deepEqual(sessions.map(({ stepIndex, stepCount, stepTitle }) => ({ stepIndex, stepCount, stepTitle })),
+    [{ stepIndex: 1, stepCount: session.template.steps.length, stepTitle: session.template.steps[1].title }], "the home can say where to resume");
+  const fallback = await service.call("workflow.quickstart", { goal: "完全无关的东西", requestId: "none" });
+  assert.equal(fallback.session.pickedBy, "course");
+  assert.deepEqual(fallback.resources.scopeTopics, ["缓存设计"], "the current course's decks, named by their titles");
+});

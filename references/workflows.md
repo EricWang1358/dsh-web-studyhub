@@ -1,6 +1,6 @@
 # 可选学习流与 Portal
 
-**默认入口是 AI 带学：** 在「学习流」首页写一句想学什么，点「开始学」。`workflow.quickstart {goal,requestId}` 选材料与骨架并建立本次学习；讲解与练习到达即开始；复述后 `workflow.feedback {id,version,stepId}` 给出讲到了/还缺/引导问题与建议，只写入该步的 `records[stepId].feedback`，不推进、不判分。范围没有现成骨架时，`quickstart` 传 `skeleton:true` 或之后调用 `workflow.skeleton.generate {id}` 会在后台按本次范围起草骨架，状态记在 `session.skeletonJob`（running / done / failed），`resources.skeletonActive` 表示本进程是否仍在生成；完成后保存为普通骨架并写入 `session.skeletonId`，不改变已开始的步骤路线。以下自定义模板说明适用于「高级」入口。
+**默认入口是 AI 带学：** 在「学习流」首页写一句想学什么，点「开始学」。`workflow.quickstart {goal,requestId}` 选材料与骨架并建立本次学习；讲解与练习到达即开始；复述后 `workflow.feedback {id,version,stepId}` 给出讲到了/还缺/引导问题与建议，只写入该步的 `records[stepId].feedback`，不推进、不判分。范围没有现成骨架时，`quickstart` 传 `skeleton:true` 或之后调用 `workflow.skeleton.generate {id}` 会在后台按本次范围起草骨架，状态记在 `session.skeletonJob`（running / done / failed），`resources.skeletonActive` 表示本进程是否仍在生成；完成后保存为普通骨架并写入 `session.skeletonId`，不改变已开始的步骤路线。带学会话记录选材方式 `session.pickedBy`（ai / match / course / none）；`resources.scopeTopics` / `scopeTopicCount` 用文字列出本次范围（主题名，整组时为题组名）；`workflow.list` 的会话带 `stepIndex` / `stepCount`，供首页「上次学到一半」使用。以下自定义模板说明适用于「高级」入口。
 
 独立闪卡、主题、知识骨架继续可用，不要求用户采用流程。学习流只是组件的一种组合方式。
 
@@ -26,7 +26,7 @@ Portal 中的回答先暂存在当前设备，点保存、暂停或返回工作�
 
 ## 后台讲解接口
 
-后台教学接口：workflow.teaching.start {id,version,stepId,mode,request?}，mode 为 lesson / example / steps / prerequisite / improve，request 为可选的具体疑问（最多 1000 字）。仅用于当前 lesson 步骤。返回 {session,resources}；workflow.session.get 返回同样结构，records[stepId].teaching 记录 running / done / failed。resources.modelReady 表示模型是否可用，teachingActive 表示当前步骤的任务在本进程是否仍运行。持久化的 running 配合 false 表示上次已中断，可显式重试。workflow.teaching.undo {id,version,stepId} 恢复上次改写前的正文。后台任务只写回原步骤，用户离开后不改变当前步骤或学习者输出；若正文已被其他地方改动，会保留新正文。
+后台教学接口：workflow.teaching.start {id,version,stepId,mode,request?}，mode 为 lesson / example / steps / prerequisite / improve / remedy，request 为可选的具体疑问（最多 1000 字）；remedy 用于复述后「回到讲解补一补」，request 是复述里缺的点，结果作为补充讲解保存（`help[].kind = "remedy"`，并保留 `request`），不改写原讲解。仅用于当前 lesson 步骤。返回 {session,resources}；workflow.session.get 返回同样结构，records[stepId].teaching 记录 running / done / failed。resources.modelReady 表示模型是否可用，teachingActive 表示当前步骤的任务在本进程是否仍运行。持久化的 running 配合 false 表示上次已中断，可显式重试。workflow.teaching.undo {id,version,stepId} 恢复上次改写前的正文。后台任务只写回原步骤，用户离开后不改变当前步骤或学习者输出；若正文已被其他地方改动，会保留新正文。
 
 ## 存储
 

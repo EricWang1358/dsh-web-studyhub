@@ -302,8 +302,23 @@
 .wf-spine-peek[open] > summary { margin-bottom: 12px; }
 .wf-spine-peek[open] > summary .muted { display: none; }
 .wf-spine-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 22px; font-size: 15px; }
-.wf-spine-status .wf-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: wf-pulse 1.4s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .wf-spine-status .wf-pulse { animation: none; } }
+.wf-pulse { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 10px; vertical-align: middle; border-radius: 50%; background: var(--accent); animation: wf-pulse 1.4s ease-in-out infinite; }
+.wf-spine-status .wf-pulse { margin-right: 0; }
+@media (prefers-reduced-motion: reduce) { .wf-pulse { animation: none; } }
+.wf-quick-hint { max-width: 680px; margin: 14px 0 0; padding: 10px 14px; border-left: 3px solid var(--warn); background: var(--bg-surface); font-size: 15px; line-height: 1.7; }
+.wf-quick-resume { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 16px 0 0; font-size: 15px; }
+.wf-quick-resume .link-btn { font-weight: 600; text-align: left; }
+.wf-quick-status { display: flex; align-items: center; margin: 14px 0 0; font-size: 15px; color: var(--text-dim); }
+.wf-scope-line { margin: 6px 0 0; font-size: 15px; color: var(--text-dim); overflow-wrap: anywhere; }
+.wf-scope-line > span:first-child { color: var(--text-muted); }
+.wf-scope-line.is-fallback > span:first-child { color: var(--warn); }
+.wf-remedy { margin: 4px 0 30px; padding: 16px 0 6px 20px; border-left: 3px solid var(--accent); }
+.wf-remedy .wf-eyebrow { margin: 0 0 8px; color: var(--accent); }
+.wf-remedy-gaps { margin: 0 0 14px; padding-left: 1.2em; font-size: 15px; line-height: 1.7; color: var(--text); }
+.wf-remedy-status { display: flex; align-items: center; margin: 6px 0 12px; font-size: 15px; color: var(--text-dim); }
+.wf-retell.is-stale { opacity: .78; border-style: dashed; }
+.wf-retell.is-stale .wf-eyebrow { color: var(--text-faint); }
+.wf-heading { scroll-margin-top: 72px; }
 .wf-advanced { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
 .wf-advanced > summary { cursor: pointer; color: var(--text-muted); }
 .wf-advanced > summary:hover { color: var(--text); }
