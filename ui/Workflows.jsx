@@ -78,7 +78,7 @@ function FlowEditor({ initial, components, latest, storageKey, draftName, call, 
       setBaseline(JSON.stringify(saved));
       writeDraft(keyFor(draft), null);
       writeDraft(keyFor(saved), null);
-      onSaved(saved);
+      onSaved(saved, forChat);
       setMessage("学习流已保存；正在进行的学习保持原来的步骤。");
       if (forChat) {
         await askInChat(designPrompt(saved, wish.trim()));
@@ -242,7 +242,7 @@ export default function Workflows({ call, askInChat, data }) {
   const edit = (template, key = template.id) => setScreen({ kind: "edit", template: clone(template), key });
   if (screen.kind === "portal") return <WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} call={call} askInChat={askInChat} onBack={back} revision={data?.revision} />;
   if (!listing) return <section className="page workflow-page"><h1>学习流</h1>{error ? <><p className="wf-error" role="alert">{error}</p><button type="button" onClick={refresh}>重新读取</button></> : <p className="muted" role="status">正在读取学习流…</p>}</section>;
-  if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template) => { setScreen((prev) => ({ ...prev, template })); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
+  if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
   if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
   return <section className="page workflow-page">
     <header className="wf-heading"><div><p className="wf-eyebrow">STUDYHUB · 按自己的方式学</p><h1>学习流</h1><p className="muted">组合学习步骤，再选一个主题开始。也可以继续使用独立的闪卡与知识骨架。</p></div><button type="button" onClick={refresh} disabled={!!pending}>刷新</button></header>
