@@ -24,6 +24,50 @@ export function createFakeModel({ latencyMs = 0, log = [] } = {}) {
         learningValue: "pass", sourceSupport: "pass", explanationQuality: "pass",
         explanation: "Preview fixture accepted this card; no real model judgment was made.",
       })) });
+    // Guided workflow (AI 带学): choose material, write a lesson, review it, read a retelling.
+    if (system.startsWith("You choose study material"))
+      return JSON.stringify({ keys: (data.topics || []).slice(0, 6).map((t) => t.key), title: String(data.goal || "").slice(0, 20) });
+    if (system.startsWith("You are a careful Chinese tutor writing")) {
+      const source = (data.evidence || [])[0];
+      const quote = source ? String(source.text).slice(0, 36).trim() : "";
+      const points = (data.cards || []).slice(0, 4).map((c) => `- **${c.topic || "要点"}**：${String(c.answer || c.explanation || "").slice(0, 80)}`).join("\n");
+      const body = `## 从一个具体场景开始
+
+预览用的演示讲解（未调用真实模型）。围绕「${data.topic}」，先想象一个团队要做决定的场景，再看每个概念解决什么问题。${"我们先说清它要解决的矛盾，再看它如何运作，最后检查适用条件和容易混淆的地方。".repeat(4)}
+
+## 关键要点
+
+${points}
+
+## 一步一步推演
+
+${"这是为说明机制构造的例子：先确认前提是否成立，再看中间每一步如何得到结果，最后对照结论检查是否遗漏条件。".repeat(4)}
+
+## 边界与易错点
+
+${"条件不满足时结论不成立；常见误区是只记结论不记前提。".repeat(3)}`;
+      return JSON.stringify({ markdown: body, citations: quote.length >= 8 ? [{ sourceId: source.sourceId, quote }] : [] });
+    }
+    if (system.startsWith("Independently review this Chinese learning article"))
+      return JSON.stringify({ grounded: true, coherent: true, explained: true, example: true, boundaries: true, issues: [] });
+    if (system.includes("reading a learner's retelling")) {
+      const short = String(data.retelling || "").length < 40;
+      return JSON.stringify({ covered: ["说出了核心概念的作用"], missing: short ? ["没有说明它在什么条件下成立", "缺少一个具体例子"] : [],
+        question: "如果前提不成立，结论还会一样吗？", suggestion: short ? "revisit" : "continue",
+        note: short ? "方向是对的，再把条件和例子补上会更完整。" : "讲得很完整，可以继续。" });
+    }
+    if (system.startsWith("You design a knowledge skeleton")) {
+      // One station per topic, its cards hanging below: enough to draw a spine.
+      const topics = [...new Set((data.cards || []).map((c) => c.topic || "未分类"))].slice(0, 6);
+      const nodes = topics.flatMap((topic, i) => {
+        const cards = data.cards.filter((c) => (c.topic || "未分类") === topic).slice(0, 4);
+        return [{ id: `t${i}`, term: topic, meaning: `预览用的演示骨架（未调用真实模型）：「${topic}」这一站。`, cards: cards.map((c) => c.cardId) },
+          ...cards.map((c, j) => ({ id: `t${i}c${j}`, parent: `t${i}`, term: String(c.answer || c.prompt).slice(0, 30) || `要点 ${j + 1}`,
+            meaning: String(c.explanation || c.answer || "").slice(0, 120) || "演示要点。", cards: [c.cardId] }))];
+      });
+      const relations = topics.slice(1).map((_, i) => ({ from: `t${i}`, to: `t${i + 1}`, type: "prerequisite" }));
+      return JSON.stringify({ title: `${topics[0] || "本次范围"}的脉络`, overview: "预览用的演示骨架：按主题从基础到应用排成一条主线。", nodes, relations });
+    }
     const task = String(data.task || "");
     if (system.includes("学习卡片的追问老师")) {
       return JSON.stringify(data.question

@@ -1,8 +1,8 @@
-.show-other-courses { margin: 14px 0 18px; padding: 6px 0; border: 0; background: transparent; color: var(--text-muted); font-size: 13px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.show-other-courses { margin: 14px 0 18px; padding: 6px 0; border: 0; background: transparent; color: var(--text-muted); font-size: 15px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
 .show-other-courses:hover:not(:disabled) { background: transparent; color: var(--text); text-decoration-color: var(--accent-soft); }
 .role-prep { margin: -8px 0 18px; }
 .role-prep details { max-width: 640px; }
-.role-prep summary { cursor: pointer; color: var(--text-muted); font-size: 13px; }
+.role-prep summary { cursor: pointer; color: var(--text-muted); font-size: 15px; }
 .role-prep textarea { display: block; width: 100%; margin: 10px 0; }
 .role-proposal { margin: 10px 0; }
 .role-weak { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 12px; }

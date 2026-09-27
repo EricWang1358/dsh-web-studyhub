@@ -210,6 +210,7 @@ export default function StudyMap({
   const shownFolders = query || showArchived || showOtherCourses
     ? folders : folders.filter(([course]) => course === data.focus?.course);
   const otherCourseCount = folders.length - shownFolders.length;
+  const singleCourse = shownFolders.length === 1 && shownFolders[0][0] === data.focus?.course;
 
   const toggleOpen = (id) =>
     setExpanded((v) => {
@@ -693,9 +694,15 @@ export default function StudyMap({
         </div>
       )}
       {visible.length ? (
-        <ul className={"map-tree" + (shownFolders.length === 1 && shownFolders[0][0] === data.focus?.course ? " single-course" : "")}>
-          {shownFolders.map(([folder, decks]) =>
-            folder ? (
+        <ul className={"map-tree" + (singleCourse ? " single-course" : "")}>
+          {shownFolders.map(([folder, decks]) => {
+            if (!folder) return decks.map((d) => deckRow(d));
+            // The arrow alone opens and closes a course. When the course is the
+            // only one on screen its header is hidden, so it is always open.
+            const open = singleCourse || isOpen("folder:" + folder),
+              truncated = folder === data.focus?.course && !query && decks.length > 3,
+              shown = truncated && !showAllCurrent ? decks.slice(0, 3) : decks;
+            return (
               <li
                 key={"folder:" + folder}
                 className={"map-folder" + (decks.some((d) => d.id === menu) ? " menu-open" : "")}
@@ -703,10 +710,10 @@ export default function StudyMap({
                 <div className="map-row folder-row">
                   <button
                     className="map-caret"
-                    aria-expanded={isOpen("folder:" + folder)}
+                    aria-expanded={open}
                     onClick={() => toggleOpen("folder:" + folder)}
                   >
-                    {isOpen("folder:" + folder) ? "▾" : "▸"}
+                    {open ? "▾" : "▸"}
                   </button>
                   <input
                     type="checkbox"
@@ -728,21 +735,22 @@ export default function StudyMap({
                     node={mergeProgress(decks.map((d) => progress[d.id]).filter(Boolean))}
                   />
                 </div>
-                {isOpen("folder:" + folder) && (
+                {open && (
                   <ul className="map-children">
-                    {(folder === data.focus?.course && !showAllCurrent && !query
-                      ? decks.slice(0, 3) : decks).map((d) => deckRow(d))}
+                    {shown.map((d) => deckRow(d))}
+                    {truncated && (
+                      <li className="map-more">
+                        <button className="show-other-courses" aria-expanded={showAllCurrent}
+                          onClick={() => setShowAllCurrent((value) => !value)}>
+                          {showAllCurrent ? "收起，只看最近 3 个题组" : `查看全部题组 · ${decks.length}`}
+                        </button>
+                      </li>
+                    )}
                   </ul>
                 )}
-                {folder === data.focus?.course && decks.length > 3 && !query &&
-                  <button className="show-other-courses" onClick={() => setShowAllCurrent((value) => !value)}>
-                    {showAllCurrent ? "收起题组" : `查看全部题组 · ${decks.length}`}
-                  </button>}
               </li>
-            ) : (
-              decks.map((d) => deckRow(d))
-            ),
-          )}
+            );
+          })}
         </ul>
       ) : data.decks.length ? (
         <p className="muted map-empty">没有符合条件的题组。</p>

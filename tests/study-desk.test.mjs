@@ -61,3 +61,22 @@ test("other open runs fold into one line under the desk", () => {
   ] });
   assert.match(html, /<details class="resume-list"><summary>另有 2 组练习未完成<\/summary>/);
 });
+
+test("show-all lives inside an open course, and a lone course can never be stuck closed", () => {
+  const five = Array.from({ length: 5 }, (_, i) => ({ ...deck, id: "d" + i, title: "题组 " + i,
+    createdAt: `2026-09-0${i + 1}T00:00:00Z` }));
+  const patch = { decks: five, progress: Object.fromEntries(five.map((d) => [d.id, progress.d1])) };
+  const open = render(patch);
+  assert.equal((open.match(/class="map-deck/g) || []).length, 3, "the current course shows its three newest decks");
+  assert.match(open, /<ul class="map-children">(?:(?!<\/ul>).)*<li class="map-more"><button class="show-other-courses" aria-expanded="false">查看全部题组 · 5/s);
+  // A saved "collapsed" state used to hide the decks behind a header that is not shown.
+  globalThis.localStorage = { getItem: () => "[]", setItem() {} };
+  try {
+    const closed = render(patch);
+    assert.equal((closed.match(/class="map-deck/g) || []).length, 3);
+    assert.match(closed, /class="map-tree single-course"/);
+    assert.equal((closed.match(/查看全部题组/g) || []).length, 1);
+  } finally {
+    delete globalThis.localStorage;
+  }
+});
