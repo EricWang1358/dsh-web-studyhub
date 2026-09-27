@@ -179,6 +179,48 @@ test("commits write only changed shards behind an atomic manifest and collect th
   assert.ok(!(await shardFiles(root)).some((f) => f.startsWith("decks/a.")), "a removed deck's shard is deleted");
 });
 
+test("practice steps preserve unrelated historical shards while saving progress", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-practice-shards-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  const card = (id) => ({ id, kind: "quiz", topic: "Paths", objective: `Locate ${id}`,
+    prompt: `Which path for ${id}?`, answer: "/items", hint: "Use a noun",
+    explanation: "The path names the resource.", misconception: "Actions do not name collections.",
+    citations: [], options: [
+      { id: "a", text: "/items", correct: true, explanation: "Resource" },
+      { id: "b", text: "/getItems", correct: false, explanation: "Action" },
+      { id: "c", text: "/findItems", correct: false, explanation: "Action" },
+    ] });
+  await service.store.update((s) => {
+    s.sources.push({ id: "source", title: "Source", text: "Resource paths use nouns." });
+    s.decks.push({ id: "deck", title: "Paths", cards: [card("q1"), card("q2")] });
+  });
+  const oldRun = await service.call("review.start", { mode: "new", deckId: "deck", count: 2 });
+  const run = await service.call("review.start", { mode: "new", deckId: "deck", count: 2, fresh: true });
+  const manifest = async () => (JSON.parse(await readFile(join(root, "study-workspace.json"), "utf8"))).shards;
+  const before = await manifest();
+  const oldIndex = (await service.store.read()).runs.findIndex((item) => item.id === oldRun.id);
+  const currentIndex = (await service.store.read()).runs.findIndex((item) => item.id === run.id);
+  const answered = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: ["a"] });
+  const afterAnswer = await manifest();
+  assert.equal(afterAnswer.runs[oldIndex], before.runs[oldIndex]);
+  assert.notEqual(afterAnswer.runs[currentIndex], before.runs[currentIndex]);
+  assert.notEqual(afterAnswer.decks[0], before.decks[0]);
+  assert.equal(afterAnswer.sources[0], before.sources[0]);
+  assert.notDeepEqual(afterAnswer.attempts, before.attempts);
+  assert.equal(answered.answered, 1);
+
+  await service.call("review.move", { runId: run.id, direction: 1 });
+  const afterMove = await manifest();
+  assert.notEqual(afterMove.runs[currentIndex], afterAnswer.runs[currentIndex]);
+  assert.equal(afterMove.runs[oldIndex], afterAnswer.runs[oldIndex]);
+  assert.equal(afterMove.decks[0], afterAnswer.decks[0]);
+  assert.deepEqual(afterMove.attempts, afterAnswer.attempts);
+  const reopened = await new Store(root).read();
+  assert.equal(reopened.runs[currentIndex].index, 1);
+  assert.equal(reopened.decks[0].cards.find((item) => item.id === run.card.id).review.repetitions, 1);
+});
+
 test("a failed mutation writes nothing and leaves the cached library intact", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-shards-fail-"));
   t.after(() => rm(root, { recursive: true, force: true }));

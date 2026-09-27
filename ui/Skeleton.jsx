@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonCanvas from "./SkeletonCanvas.jsx";
+import SkeletonSpine from "./SkeletonSpine.jsx";
 import css from "./skeleton.css";
 import { useInjectCss } from "./shared.js";
 
@@ -80,6 +81,7 @@ function chatPrompt({ scope, lint, topics, update }) {
     "2. 设计一份骨架，会画成可交互的 UML 类图 + 时序图，并配文字阐述：\n" +
     "   · 类图（nodes + relations）：每个名词是一个类，写一句含义 meaning 和 2–5 条关键特征 attributes；「是一种」用 parent（泛化），「是…的组成部分」用 part-of，「导致」用 causes，「学它之前要懂」用 prerequisite，「是…的例子」用 example-of，容易混的用 contrasts。不同题组里的同一个名词合并成一个节点，节点挂上对应题目的 {deckId, cardId}。classNote 用文字讲清这张结构图怎么读。\n" +
     "   · 时序图（sequences，最多 4 条）：把动态过程画出来，比如故障如何一步步传导、请求如何流转、机制如何生效。participants 是参与者（能对应节点就填 node），steps 按时间顺序写 from→to 的 message，kind 取 call / return / async；每条写 explanation 讲清因果。纯静态的概念可以不画时序图。\n" +
+    "   · 学习脉络：nodes 的顺序就是学习顺序。没有 parent 的顶层概念按先学后学排列，会画成一条从左到右的主线；每个顶层概念下用 parent 挂 3–6 个要点，要点下可以再挂细节。题多时（例如一个题组 90 题）先抓 6–12 个顶层概念，不要把所有名词平铺在顶层。\n" +
     "   · overview 写一段总览和一条好记的主线，把两张图串起来。\n" +
     `3. 用 skeleton.save 保存（payload 为 {"skeleton": {${update ? `"id": "${update.id}", ` : ""}title, scope, overview, classNote, nodes, relations, sequences}}）。\n` +
     "4. 按检测结果修题：只重复选项文字的解析改成「是什么 + 和谁有关、为什么对/错」；考课件页码或列表归属的题干改成考含义或关系；用 card.update 保存并写清 reason。有因果或前置关系的题用 card.link 关联。不要改动原文不支持的答案。\n" +
@@ -130,6 +132,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
     [viewing, setViewing] = useState(null),
     [confirmDelete, setConfirmDelete] = useState(false),
     [extendText, setExtendText] = useState(""),
+    [skView, setSkView] = useState("spine"),
     [error, setError] = useState("");
 
   useEffect(() => {
@@ -584,11 +587,22 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                   ✦ 发到对话
                 </button>
               </form>
-              <SkeletonCanvas
-                skeleton={viewing}
-                onPractice={onPractice}
-                onAsk={(ask) => askInChat(extendPrompt({ skeleton: viewing, ...ask }))}
-              />
+              {/* 脉络 reads in learning order; 结构图 keeps every relation. */}
+              <div className="sk-seg sk-view-switch" role="group" aria-label="骨架视图">
+                <button type="button" className={skView === "spine" ? "on" : ""} aria-pressed={skView === "spine"}
+                  onClick={() => setSkView("spine")}>脉络</button>
+                <button type="button" className={skView === "canvas" ? "on" : ""} aria-pressed={skView === "canvas"}
+                  onClick={() => setSkView("canvas")}>结构图</button>
+              </div>
+              {skView === "spine" ? (
+                <SkeletonSpine skeleton={viewing} onPractice={onPractice} />
+              ) : (
+                <SkeletonCanvas
+                  skeleton={viewing}
+                  onPractice={onPractice}
+                  onAsk={(ask) => askInChat(extendPrompt({ skeleton: viewing, ...ask }))}
+                />
+              )}
               <details className="sk-text">
                 <summary>文字版：概念释义与关系</summary>
                 <NodeTree skeleton={viewing} onPractice={onPractice} />

@@ -23,6 +23,7 @@ export default function Draft({
   setJsonMode,
   openDraft,
   onOpenPublished,
+  onStartPublished,
   clearRecovery,
   setPage,
   setNotice,
@@ -46,6 +47,11 @@ export default function Draft({
   const availableSources = new Set(data.sources.map((source) => source.id));
   const untestedSourceIds = (draft.editorial?.coverage?.uncited || [])
     .map((source) => source.id).filter((id) => availableSources.has(id));
+  const coverageSources = draft.editorial?.coverage?.sources || [];
+  const coveredSources = coverageSources.filter((source) => source.accepted > 0);
+  const uncoveredSources = coverageSources.length
+    ? coverageSources.filter((source) => !source.accepted)
+    : draft.editorial?.coverage?.uncited || [];
   const reviewStatus = Object.keys(draft.editorial?.reviewedCards || {}).length
     ? reviewedCardStatus(draft) : null;
   const needsReview = reviewStatus ? reviewStatus.changed : draft.cards.length;
@@ -66,10 +72,12 @@ export default function Draft({
   const repairJob = data.jobs?.find((job) => job.draftId === draft.id &&
     job.type === "draft-repair" && ["queued", "running", "cancelling"].includes(job.status));
   const repairRunning = !!repairJob;
+  const publishJob = data.jobs?.find((job) => job.draftId === draft.id &&
+    job.type === "draft-publish" && ["queued", "running"].includes(job.status));
   const latestDraft = data.drafts.find((item) => item.id === draft.id);
   const missingDraft = draft.draftVersion > 0 && !latestDraft;
   const staleDraft = latestDraft && latestDraft.draftVersion !== draft.draftVersion;
-  const updatingDraft = generating || repairRunning;
+  const updatingDraft = generating || repairRunning || !!publishJob;
   const unsavedDraft = JSON.stringify(draft) !== draftLoaded ||
     (jsonMode && draftText !== JSON.stringify(draft, null, 2));
   React.useEffect(() => {
@@ -93,29 +101,104 @@ export default function Draft({
     if (copy.editorial) copy.editorial = { summary: "由旧草稿另存；发布前会重新检查" };
     act("draft.save", { deck: copy }, openDraft);
   }
+  function toggleJsonMode() {
+    if (!jsonMode) setDraftText(JSON.stringify(draft, null, 2));
+    else {
+      try {
+        setDraft(parseDraft(draftText));
+      } catch (error) {
+        setError("JSON 格式不正确：" + error.message);
+        return;
+      }
+    }
+    setJsonMode(!jsonMode);
+  }
   return (
-    <section className="page">
-      <div className="page-heading">
+    <section className="page draft-page">
+      <div className="page-heading draft-heading">
         <div>
           <div className="eyebrow">PUBLISH YOUR DRAFT</div>
           <h1>草稿与发布</h1>
         </div>
+        {jsonMode && <button type="button" onClick={toggleJsonMode}>返回逐题编辑</button>}
+      </div>
+      {!jsonMode && <label className="draft-title-field">
+        题组标题
+        <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+      </label>}
+      <p className="draft-count">当前草稿 <strong>{draft.cards.length}</strong> 题{unsavedDraft && <span> · 有未保存修改</span>}</p>
+      <div className="sticky-actions">
         <button
+          disabled={busy || updatingDraft || staleDraft || missingDraft}
           onClick={() => {
-            if (!jsonMode)
-              setDraftText(JSON.stringify(draft, null, 2));
-            else {
-              try {
-                setDraft(parseDraft(draftText));
-              } catch (e) {
-                setError("JSON 格式不正确：" + e.message);
-                return;
-              }
+            let d;
+            try {
+              d = jsonMode ? parseDraft(draftText) : draft;
+            } catch (e) {
+              setError("JSON 格式不正确：" + e.message);
+              return;
             }
-            setJsonMode(!jsonMode);
+            act("draft.save", { deck: d }, openDraft);
           }}
         >
-          {jsonMode ? "逐题编辑" : "JSON 编辑"}
+          保存并校验
+        </button>
+        <button
+          className="primary"
+          disabled={busy || updatingDraft || staleDraft || missingDraft || activeReview}
+          title={activeReview ? "先完成或结束原题组的学习" : undefined}
+          onClick={async () => {
+            let d;
+            try {
+              d = jsonMode ? parseDraft(draftText) : draft;
+            } catch (e) {
+              setError("JSON 格式不正确：" + e.message);
+              return;
+            }
+            await act("draft.save", { deck: d }, async (saved) => {
+              openDraft(saved);
+              const published = await call("draft.publish.quick", {
+                id: saved.id,
+                draftVersion: saved.draftVersion,
+              });
+              clearRecovery();
+              try {
+                const run = await call("review.start", { deckId: published.id,
+                  mode: "new", count: 10, ordered: true, fresh: true });
+                onStartPublished(run);
+                setNotice(`已发布，开始学习本轮 ${run.total} 道新题。`);
+              } catch {
+                setPage("library");
+                setNotice("题组已发布；当前没有可开始的新题。");
+              }
+            });
+          }}
+        >
+          {publicationLabel}
+        </button>
+        <button
+          className="danger-text"
+          disabled={busy || missingDraft}
+          onBlur={() => setDeleteArmedId(null)}
+          onClick={() => {
+            if (!deleteArmed) {
+              setDeleteArmedId(draft.id);
+              return;
+            }
+            setDeleteArmedId(null);
+            act(
+              "draft.delete",
+              { id: draft.id, draftVersion: draft.draftVersion },
+              () => {
+                clearRecovery();
+                setPage("library");
+              },
+            );
+          }}
+        >
+          {deleteArmed
+            ? updatingDraft ? "确认删除并停止任务（无法撤销）" : "确认删除草稿（无法撤销）"
+            : updatingDraft ? "删除草稿并停止任务" : "删除草稿"}
         </button>
       </div>
       {staleDraft && unsavedDraft && <div className="quality-note warning" role="status">
@@ -132,7 +215,7 @@ export default function Draft({
         {updatingDraft ? "后台修题正在更新草稿，完成后会自动载入。" : "正在载入后台修好的题目…"}
       </p>}
       {updatingDraft && !staleDraft && <p className="quality-note" role="status">
-        后台任务正在更新这份草稿，完成后可继续保存或发布。
+        {publishJob ? publishJob.stage : "后台任务正在更新这份草稿，完成后可继续保存或发布。"}
       </p>}
       {activeReview && <p className="quality-note warning" role="status">
         原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。
@@ -140,26 +223,26 @@ export default function Draft({
       {rejectedCount > 0 && unsavedDraft && !staleDraft && <p className="quality-note warning" role="status">
         当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。
       </p>}
+      <details className="draft-generation-details">
+        <summary>生成详情{draft.editorial?.failures?.length ? ` · ${draft.editorial.failures.length} 条生成记录` : ""}</summary>
       {draft.editorial && (
-        <div className="quality-note">
-          <p>
-            {draft.editorial.summary}
-            <br />
-            <small>
+        <>
+          {draft.editorial.summary && <details className="quality-note editorial-summary">
+            <summary>生成审阅摘要 · 点击展开</summary>
+            <p>{draft.editorial.summary}</p>
+          </details>}
+          <p className="quality-note"><small>
               {reviewStatus
                 ? `${reviewStatus.unchanged} / ${reviewStatus.total} 题与上次模型审阅时一致。`
                 : "这份草稿没有可核对的逐题审阅版本。"}
               {needsReview > 0
-                ? data.modelReady
-                  ? ` ${needsReview} 题将在发布前自动审阅。`
-                  : ` ${needsReview} 题尚未审阅；当前没有可用模型。`
-                : " 模型审阅仍不能保证事实完全正确。"}
-            </small>
-          </p>
-        </div>
+                ? ` ${needsReview} 题未经过模型审阅。`
+                : ""}
+          </small></p>
+        </>
       )}
       {!draft.editorial && <p className="quality-note" role="status">
-        这份草稿尚未经过模型审阅。{data.modelReady ? "发布前会自动审阅。" : "当前没有可用模型，发布后仍属于未审阅题目。"}
+        这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。
       </p>}
       {selfCited > 0 && <p className="quality-note warning" role="status">
         {selfCited} 道题只引用了导入的题目自身。模型可以检查题目是否自洽，但无法据此独立核实答案；如需事实依据，请把引用换成原始资料。
@@ -178,7 +261,7 @@ export default function Draft({
         <ul>{audit.changes.filter((change) => typeof change?.summary === "string").map((change, index) => <li key={index}>{change.summary}</li>)}</ul>
         <ul>{audit.checks.filter((check) => typeof check?.explanation === "string").map((check, index) => <li key={index}>{check.explanation}</li>)}</ul>
       </details>)}
-      {draft.editorial?.failures?.length > 0 && <details className="warning" open>
+      {draft.editorial?.failures?.length > 0 && <details className="warning">
         <summary>部分题目未生成成功，合格题目已保留</summary>
         <ul>{draft.editorial.failures.map((failure, i) => <li key={i}>{failure}</li>)}</ul>
       </details>}
@@ -225,28 +308,39 @@ export default function Draft({
       {draft.editorial?.coverage && <details>
         <summary>逐份资料出题记录 · 已引用 {draft.editorial.coverage.cited} / {draft.editorial.coverage.selected} 份</summary>
         <p className="muted">“规划”是模型选出的考点次数，“通过”是最终引用该资料的合格题数；即使有题，也不代表整页或全部知识点都已覆盖。</p>
-        {draft.editorial.coverage.sources?.length ?
-          <ul>{draft.editorial.coverage.sources.map((source) => <li key={source.id}>
-            {source.title}：规划 {source.planned} 个考点，通过 {source.accepted} 题
-            {source.accepted === 0 ? " · 本次没有合格题" : ""}
-          </li>)}</ul> :
-          <ul>{draft.editorial.coverage.uncited.map((source) => <li key={source.id}>{source.title}：本次没有合格题</li>)}</ul>}
+        {coveredSources.length > 0 && <ul>{coveredSources.map((source) => <li key={source.id}>
+          {source.title}：规划 {source.planned} 个考点，通过 {source.accepted} 题
+        </li>)}</ul>}
         {untestedSourceIds.length > 0 && !generating && <button type="button" disabled={busy}
           onClick={() => {
             setSelectedSources(untestedSourceIds);
             setGenSource("files");
             setPage("generate");
-          }}>只选这 {untestedSourceIds.length} 份资料，另建补充草稿</button>}
+          }}>用未覆盖的 {untestedSourceIds.length} 份资料补题 →</button>}
+        {uncoveredSources.length > 0 && <details>
+          <summary>{uncoveredSources.length} 份资料本次没有合格题 · 查看清单</summary>
+          <ul>{uncoveredSources.map((source) => <li key={source.id}>
+            {source.title}{source.planned ? `：规划 ${source.planned} 个考点` : ""}
+          </li>)}</ul>
+        </details>}
       </details>}
       {draft.quality?.warnings?.map((w, i) => (
         <p className="warning" key={i}>
           {w}
         </p>
       ))}
-      {draft.quality?.errors?.length > 0 && <details className="quality-note warning" open>
-        <summary>{draft.quality.errors.length} 项待修复问题；发布时会跳过未通过的题目</summary>
+      {draft.quality?.errors?.length > 0 && <details className="quality-note warning">
+        <summary>{draft.quality.errors.length} 项题目问题 · 查看详情</summary>
         <ul>{draft.quality.errors.map((issue, index) => <li key={index}>{readableQualityIssue(issue)}</li>)}</ul>
       </details>}
+      </details>
+      {!jsonMode && <div className="draft-edit-heading">
+        <div><h2>题目</h2><span>{draft.cards.length} 题 · 按需展开编辑</span></div>
+        <details className="draft-advanced">
+          <summary>高级编辑</summary>
+          <button type="button" onClick={toggleJsonMode}>JSON 编辑</button>
+        </details>
+      </div>}
       {jsonMode ? (
         <textarea
           className="json-editor"
@@ -256,17 +350,8 @@ export default function Draft({
         />
       ) : (
         <>
-          <label>
-            题组标题
-            <input
-              value={draft.title}
-              onChange={(e) =>
-                setDraft({ ...draft, title: e.target.value })
-              }
-            />
-          </label>
           {draft.cards.map((q, i) => (
-            <details className="draft-card" key={q.id} open={i === 0}>
+            <details className="draft-card" key={q.id}>
               <summary>
                 <span>{String(i + 1).padStart(2, "0")}</span>
                 {q.prompt}
@@ -500,89 +585,6 @@ export default function Draft({
           </button>
         </>
       )}
-      <div className="sticky-actions">
-        <button
-          disabled={busy || updatingDraft || staleDraft || missingDraft}
-          onClick={() => {
-            let d;
-            try {
-              d = jsonMode ? parseDraft(draftText) : draft;
-            } catch (e) {
-              setError("JSON 格式不正确：" + e.message);
-              return;
-            }
-            act("draft.save", { deck: d }, openDraft);
-          }}
-        >
-          保存并校验
-        </button>
-        <button
-          className="primary"
-          disabled={busy || updatingDraft || staleDraft || missingDraft || activeReview}
-          title={activeReview ? "先完成或结束原题组的学习" : undefined}
-          onClick={async () => {
-            let d;
-            try {
-              d = jsonMode ? parseDraft(draftText) : draft;
-            } catch (e) {
-              setError("JSON 格式不正确：" + e.message);
-              return;
-            }
-            await act("draft.save", { deck: d }, async (saved) => {
-              openDraft(saved);
-              const published = await call("draft.publish", {
-                id: saved.id,
-                draftVersion: saved.draftVersion,
-              });
-              clearRecovery();
-              if (published.rejectedDraft) openDraft(published.rejectedDraft);
-              else setPage("library");
-              const editingPublished = !!saved.editingDeckId;
-              const acceptedNotice = editingPublished
-                ? `${published.accepted} 题已写入原题组`
-                : `${published.accepted} 题已发布`;
-              const rejectedNotice = editingPublished
-                ? `${published.rejected} 题的修改留在草稿，原题组中已有的题不会被覆盖。可选择让后台修题。`
-                : `${published.rejected} 题留待处理。可选择让后台修题。`;
-              setNotice(published.rejected
-                ? published.accepted
-                  ? `${acceptedNotice}${published.unchecked ? `，其中 ${published.unchecked} 题未自动审阅` : ""}；${rejectedNotice}`
-                  : editingPublished
-                    ? `${published.rejected} 题的修改暂未通过检查，原题组中已有的题不会被覆盖；修改已留在草稿。可选择让后台修题。`
-                    : `${published.rejected} 题暂未通过发布检查，已留在草稿。可选择让后台修题。`
-                : published.unchecked
-                  ? `${editingPublished ? "题组已更新" : "题组已发布"}，其中 ${published.unchecked} 题未经过模型审阅。`
-                  : editingPublished ? "题组已更新，可以继续学习。" : "题组已发布，可以开始学习。");
-            });
-          }}
-        >
-          {publicationLabel}
-        </button>
-        <button
-          className="danger-text"
-          disabled={busy || missingDraft}
-          onBlur={() => setDeleteArmedId(null)}
-          onClick={() => {
-            if (!deleteArmed) {
-              setDeleteArmedId(draft.id);
-              return;
-            }
-            setDeleteArmedId(null);
-            act(
-              "draft.delete",
-              { id: draft.id, draftVersion: draft.draftVersion },
-              () => {
-                clearRecovery();
-                setPage("library");
-              },
-            );
-          }}
-        >
-          {deleteArmed
-            ? updatingDraft ? "确认删除并停止任务（无法撤销）" : "确认删除草稿（无法撤销）"
-            : updatingDraft ? "删除草稿并停止任务" : "删除草稿"}
-        </button>
-      </div>
     </section>
   );
 }

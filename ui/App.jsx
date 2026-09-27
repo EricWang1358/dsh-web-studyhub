@@ -8,6 +8,7 @@ import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
 import Graph from "./Graph.jsx";
 import Icon from "./Icon.jsx";
+import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
 import Sources from "./Sources.jsx";
 import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
@@ -15,6 +16,7 @@ import Generate from "./Generate.jsx";
 import PdfImport from "./PdfImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
+import BlogNotes from "./BlogNotes.jsx";
 import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
@@ -26,9 +28,9 @@ import { fillMissingDraftText } from "../lib/draft-fields.js";
 
 const AUTO_ADVANCE_MS = 1500;
 const THEMES = [
-  ["auto", "◐", "跟随系统"],
-  ["dark", "☾", "深色"],
-  ["light", "☀", "浅色"],
+  ["auto", "跟随系统"],
+  ["dark", "深色"],
+  ["light", "浅色"],
 ];
 
 function hasUnsavedDraft({ draft, draftText, jsonMode, draftLoaded } = {}) {
@@ -107,9 +109,9 @@ export default function App({ call, host = {} }) {
     markRef = useRef(null),
     requestSequence = useRef(0),
     acting = useRef(false);
-  /* 'auto' follows the OS; explicit 'dark'/'light' wins. The CSS already
-     defaults to dark and reacts to prefers-color-scheme, so we only need to
-     stamp an attribute when the learner overrides it. */
+  /* 'auto' follows the OS (inside DSH, the host's appearance); explicit
+     'dark'/'light' wins. The resolved theme is always stamped on the root,
+     so every view, and the editors, switch together. */
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("study-theme") || "auto";
@@ -122,6 +124,16 @@ export default function App({ call, host = {} }) {
       localStorage.setItem("study-theme", theme);
     } catch {}
   }, [theme]);
+  const [systemLight, setSystemLight] = useState(() =>
+    typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const query = matchMedia("(prefers-color-scheme: light)"),
+      sync = (event) => setSystemLight(event.matches);
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, []);
+  const resolvedTheme = theme === "auto" ? (systemLight ? "light" : "dark") : theme;
   /* Sidebar collapse. The manual choice is persisted; a narrow workspace
      forces the icon rail regardless of the stored preference. */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -159,6 +171,7 @@ export default function App({ call, host = {} }) {
   const sidebarNarrow = sidebarCollapsed || narrowWindow;
   const [managedDeck, setManagedDeck] = useState(null),
     [folderDraft, setFolderDraft] = useState("");
+  const [noteInitialId, setNoteInitialId] = useState("");
   const [data, setData] = useState(null),
     [binding, setBinding] = useState({ root: "", provider: "", model: "" }),
     [rootDraft, setRootDraft] = useState(null),
@@ -197,6 +210,11 @@ export default function App({ call, host = {} }) {
     [hint, setHint] = useState(false),
     [explain, setExplain] = useState(false),
     [response, setResponse] = useState("");
+  const onReviewState = host.onReviewState;
+  useEffect(() => {
+    onReviewState?.(page === "review" ? run : null);
+    return () => onReviewState?.(null);
+  }, [onReviewState, page, run]);
   const [guide, setGuide] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("study-guide")) || {};
@@ -223,7 +241,7 @@ export default function App({ call, host = {} }) {
       localStorage.setItem("study-en", showEn ? "1" : "0");
     } catch {}
   }, [showEn]);
-  const [genSource, setGenSource] = useState("files");
+  const [genSource, setGenSource] = useState("json");
   const [showBack, setShowBack] = useState(false),
     [rawSource, setRawSource] = useState(false),
     [settings, setSettings] = useState({}),
@@ -397,6 +415,8 @@ export default function App({ call, host = {} }) {
   const running = data?.jobs?.some(
     (j) => ["running", "queued", "cancelling"].includes(j.status),
   );
+  const publishing = data?.jobs?.some((job) => job.type === "draft-publish" &&
+    ["running", "queued"].includes(job.status));
   const reviewQueueVersion = run?.queueVersion || 0;
   useEffect(() => {
     if (!reviewQueueVersion) return;
@@ -501,6 +521,11 @@ export default function App({ call, host = {} }) {
       "inbox.open",
       { id: item.id, ...(run && !run.complete ? { runId: run.id } : {}) },
       (r) => {
+        if (r.kind === "note" && r.noteId) {
+          setNoteInitialId(r.noteId);
+          setPage("notes");
+          return;
+        }
         enterRun(r);
         // Show what arrived: the Q&A and revised explanation live in 讲解.
         if (["followup", "improve", "rewrite"].includes(item.kind) && r.revealed) setExplain(true);
@@ -546,7 +571,10 @@ export default function App({ call, host = {} }) {
     [call],
   );
   const reviewAct = (action, args = {}) =>
-    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, enterRun,
+    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, async (result) => {
+      enterRun(result);
+      if (action === "review.move" && result.complete) await refresh();
+    },
       { refreshAfter: !["review.answer", "review.move", "review.reveal"].includes(action) });
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
@@ -681,16 +709,6 @@ export default function App({ call, host = {} }) {
   }
   const onCoachPractice = useCallback(() => latest.current.act("coach.practice", {}, latest.current.enterRun), []);
   const onCoachAsk = useCallback((text) => latest.current.askInChat(text), []);
-  // The last answer of a round prefetches its debrief, so 完成 opens instantly.
-  const [debriefs, setDebriefs] = useState({});
-  const allAnswered = !!run && !run.complete && run.mode !== "exam" && !!run.navigation?.length && run.navigation.every((x) => x.answered);
-  useEffect(() => {
-    if (!allAnswered || debriefs[run.id]) return;
-    const runId = run.id;
-    call("coach.debrief", { runId })
-      .then((d) => setDebriefs((all) => ({ ...all, [runId]: d })))
-      .catch(() => {});
-  }, [allAnswered, run?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const choice =
     run?.mode !== "flashcard" && ["quiz", "multi"].includes(run?.card?.kind);
   const isCloze = run?.mode !== "flashcard" && run?.card?.kind === "cloze";
@@ -835,13 +853,12 @@ export default function App({ call, host = {} }) {
       "题库定位：" + JSON.stringify({ deckId: run.deckId, cardId: run.card.id })
     );
   }
-  /* 「不会？问 AI」和「提升质量」交给后台子代理，主会话不被占用：解答追加成
-     这道题的问答（旧追问保留），改题走 card.update（可撤销），完成后进信箱。
-     宿主没有子代理能力时退回原来的「填进对话框」。 */
-  async function assistCard(mode, text) {
-    if (!run?.card || !text.trim()) return false;
+  /* 学习帮助交给后台，完成后由信箱交付；宿主暂不支持时直接提示。 */
+  async function assistCard(mode, text, helpChoices = []) {
+    if (!run?.card || (!text.trim() && !(mode === "ask" && helpChoices.length))) return false;
     try {
-      await call("assist.start", { deckId: run.deckId, cardId: run.card.id, mode, text: text.trim() });
+      await call("assist.start", { deckId: run.deckId, cardId: run.card.id, runId: run.id,
+        mode, text: text.trim(), helpChoices });
       setNotice(
         mode === "ask"
           ? "后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。"
@@ -850,8 +867,7 @@ export default function App({ call, host = {} }) {
       refresh().catch(() => {});
       return true;
     } catch (e) {
-      setError(`${e.message} 已改为填进对话框。`);
-      (mode === "ask" ? askAboutCard : improveCard)(text.trim());
+      setError(e.message || "后台帮助暂不可用，请稍后再试。");
       return false;
     }
   }
@@ -1213,7 +1229,7 @@ export default function App({ call, host = {} }) {
     setOpen: (open) => setGuide((g) => ({ ...g, open })),
     addSource: () => setModal({ type: "add" }),
     generate: () => {
-      setGenSource("files");
+      setGenSource("json");
       setPage("generate");
     },
     record: () => {
@@ -1222,6 +1238,10 @@ export default function App({ call, host = {} }) {
     },
     openDraft,
     startToday: () => {
+      if (data.focus?.fresh?.length) {
+        act("review.start", { mode: "new", currentCourse: true, count: 10, fresh: true }, enterRun);
+        return;
+      }
       const today = data.runs.find((r) => r.mode === "path" && !r.scope?.length);
       if (today) act("review.get", { runId: today.id }, enterRun);
       else act("review.start", { mode: "path" }, enterRun);
@@ -1246,6 +1266,7 @@ export default function App({ call, host = {} }) {
           board: "待办看板",
           graph: "知识图谱",
           skeleton: "知识骨架",
+          notes: "学习笔记",
         }[page];
   const coachProps = data && {
     call,
@@ -1262,7 +1283,7 @@ export default function App({ call, host = {} }) {
     onReviewWeak: () => act("review.weak.start", { runId: run.id }, enterRun),
     canShortcut,
     autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0,
-    debrief: run ? debriefs[run.id] : null,
+    debrief: null,
   };
   if (loading)
     return (
@@ -1270,10 +1291,13 @@ export default function App({ call, host = {} }) {
         <div className="loading">{connecting || "正在打开学习工作区…"}</div>
       </div>
     );
+  const lastRun = data?.lastRun && page === "review" && run?.id === data.lastRun.id
+    ? { ...data.lastRun, index: run.index, total: run.total }
+    : data?.lastRun;
   return (
     <div
       className="study-app"
-      data-theme={theme === "auto" ? undefined : theme}
+      data-theme={resolvedTheme}
       ref={attachRoot}
       tabIndex={-1}
       onPointerDown={(e) => {
@@ -1283,7 +1307,7 @@ export default function App({ call, host = {} }) {
     >
       <aside className={sidebarNarrow ? "sidebar is-narrow" : "sidebar"}>
         <div className="brand">
-          <span className="brand-mark">✳</span>
+          <span className="brand-mark" aria-hidden="true"><BrandMark /></span>
           <div>
             Daily Flashcard<small>自己的资料，扎实地学</small>
           </div>
@@ -1303,14 +1327,14 @@ export default function App({ call, host = {} }) {
             className={
               "nav resume-nav" +
               (page === "review" ? " active" : "") +
-              (data && !data.lastRun && !data.decks.length ? " muted-nav" : "")
+              (data && !lastRun && !data.decks.length ? " muted-nav" : "")
             }
             disabled={!data || busy}
             title={
               !data
                 ? ""
-                : data.lastRun
-                  ? `回到「${data.lastRun.title}」第 ${data.lastRun.index + 1}/${data.lastRun.total} 题`
+                : lastRun
+                  ? `回到「${lastRun.title}」第 ${lastRun.index + 1}/${lastRun.total} 题`
                   : data.decks.length
                     ? "没有进行中的练习，开始今日学习"
                     : "还没有题目，先去创建题组"
@@ -1318,38 +1342,40 @@ export default function App({ call, host = {} }) {
             aria-keyshortcuts="S"
             onClick={resumeOrStart}
           >
-            <Icon className="icon-sm">↩</Icon>
+            <Icon><NavGlyph name="resume" /></Icon>
             <span className="nav-label">
               回到题目
-              {data?.lastRun && (
+              {lastRun && page !== "library" && (
                 <small>
-                  {data.lastRun.index + 1}/{data.lastRun.total} · {data.lastRun.title}
+                  {lastRun.index + 1}/{lastRun.total} · {lastRun.title}
                 </small>
               )}
             </span>
           </button>
           {[
-            ["library", "▦", "学习库", ""],
-            ["sources", "▤", "资料", "icon-lg"],
-            ["generate", "＋", "创建题组", "icon-lg"],
-            ["skeleton", "◈", "知识骨架", ""],
-            ["dashboard", "◔", "统计", "icon-lg"],
-            ["exam", "✎", "模拟考试", "icon-lg"],
-            ["wrongbook", "✗", "错题与待巩固", "icon-sm"],
-            ["board", "▥", "待办", "icon-lg"],
-          ].map(([id, icon, label, iconClass]) => (
+            ["library", "学习库"],
+            ["wrongbook", "错题与待巩固"],
+            ["exam", "模拟考试"],
+            ["dashboard", "统计"],
+            ["sources", "资料", "upkeep"],
+            ["generate", "创建题组", "upkeep"],
+            ["skeleton", "知识骨架", "upkeep"],
+            ["notes", "学习笔记", "upkeep"],
+            ["board", "待办", "upkeep"],
+          ].map(([id, label, group]) => (
             <button
               key={id}
-              className={page === id ? "nav active" : "nav"}
+              className={"nav" + (group ? " nav-upkeep" : "") + (page === id ? " active" : "")}
               title={label}
               onClick={() => {
                 if (id === "exam") setExamRunId(null);
+                if (id === "notes") setNoteInitialId("");
                 setPage(id);
                 setError("");
               }}
               disabled={!data && id !== "board"}
             >
-              <Icon className={iconClass}>{icon}</Icon>
+              <Icon><NavGlyph name={id} /></Icon>
               {label}
               {id === "board" && boardCount !== undefined && (
                 <span className="nav-count">{boardCount}</span>
@@ -1360,54 +1386,35 @@ export default function App({ call, host = {} }) {
             </button>
           ))}
         </nav>
-        {guideProps && <Guide {...guideProps} variant="sidebar" />}
         <div className="sidebar-bottom">
+          {guideProps && <Guide {...guideProps} variant="sidebar" />}
           <div className="local-status">
             <span />
             本地学习工作区
           </div>
-          {/* Theme switch. `auto` is dark; light is explicit opt-in. The
-              collapsed rail is too narrow for three segments, so it cycles. */}
-          {sidebarNarrow ? (
-            (() => {
-              const i = Math.max(0, THEMES.findIndex(([id]) => id === theme)),
-                [, glyph, label] = THEMES[i],
-                [nextId, , nextLabel] = THEMES[(i + 1) % THEMES.length];
-              return (
-                <button
-                  type="button"
-                  className="nav theme-cycle"
-                  title={`主题：${label}（点击切换为${nextLabel}）`}
-                  aria-label={`主题：${label}，切换为${nextLabel}`}
-                  onClick={() => setTheme(nextId)}
-                >
-                  <Icon>{glyph}</Icon>
-                </button>
-              );
-            })()
-          ) : (
-            <div className="theme-switch" role="group" aria-label="主题">
-              {THEMES.map(([id, glyph, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={theme === id ? "seg active" : "seg"}
-                  aria-pressed={theme === id}
-                  title={label}
-                  onClick={() => setTheme(id)}
-                >
-                  <span aria-hidden="true">{glyph}</span>
-                  <span className="sr-only">{label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
+          {(() => {
+            const i = Math.max(0, THEMES.findIndex(([id]) => id === theme)),
+              [current, label] = THEMES[i],
+              [nextId, nextLabel] = THEMES[(i + 1) % THEMES.length];
+            return (
+              <button
+                type="button"
+                className="nav theme-cycle"
+                title={`主题：${label}（点击切换为${nextLabel}）`}
+                aria-label={`主题：${label}，切换为${nextLabel}`}
+                onClick={() => setTheme(nextId)}
+              >
+                <Icon><NavGlyph name={current} /></Icon>外观 · {label}
+              </button>
+            );
+          })()}
           <button
             className={page === "settings" ? "nav active" : "nav"}
             title="设置"
             onClick={() => setPage("settings")}
           >
-            <Icon>⚙</Icon>设置
+            <Icon><NavGlyph name="settings" /></Icon>设置
           </button>
         </div>
       </aside>
@@ -1431,7 +1438,7 @@ export default function App({ call, host = {} }) {
               {busy
                 ? "正在保存…"
                 : running
-                  ? "正在生成…"
+                  ? publishing ? "正在发布…" : "正在生成…"
                   : syncIssue
                     ? "连接中断，正在重试…"
                   : data
@@ -1444,26 +1451,12 @@ export default function App({ call, host = {} }) {
                 busy={busy}
                 onOpen={openInboxItem}
                 onReadAll={() => act("inbox.read", { all: true })}
+                onUndo={(m) => act(m.kind === "rewrite" ? "coach.revert" : "card.revert",
+                  { deckId: m.deckId, cardId: m.cardId })}
               />
             )}
           </div>
         </header>
-        {page === "review" && run && !run.complete && run.total > 0 && (
-          <div
-            className="progress-bar"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={run.total}
-            aria-valuenow={run.index + 1}
-            aria-label="复习进度"
-          >
-            <span
-              style={{
-                width: `${Math.round(((run.index + 1) / run.total) * 100)}%`,
-              }}
-            />
-          </div>
-        )}
         {data?.ingest && (
           <div role="status" className="alert ingest-banner">
             <span>
@@ -1579,7 +1572,7 @@ export default function App({ call, host = {} }) {
                     cards: [blankCard()],
                   })
                 }
-                importLibrary={() => setPage("settings")}
+                importLibrary={() => { setGenSource("json"); setPage("generate"); }}
                 askInChat={askInChat}
                 theme={theme}
                 setTheme={setTheme}
@@ -1595,6 +1588,10 @@ export default function App({ call, host = {} }) {
                   setGraphCanvas(opts?.canvas !== false);
                   setPage("graph");
                 }}
+                onFocus={(next) => act("focus.set", next)}
+                suggestRole={(args) => call("focus.suggest", args)}
+                suggestMerges={(args) => call("deck.merge.suggest", args)}
+                mergeDecks={(args) => act("deck.merge", args, null, { rethrow: true })}
               >
                 <Guide {...guideProps} variant="inline" />
                 {recovery && (
@@ -1660,6 +1657,7 @@ export default function App({ call, host = {} }) {
                 key={`${data.root}:${examRunId || "latest"}`}
                 call={call}
                 data={data}
+                onStartRun={enterRun}
                 onExit={() => setPage("library")}
                 onCreate={() => {
                   setGenSource("files");
@@ -1711,6 +1709,7 @@ export default function App({ call, host = {} }) {
                 setPage={setPage}
                 setNotice={setNotice}
                 managedDeck={managedDeck}
+                decks={data.decks}
                 sources={data.sources}
                 modelReady={data.modelReady}
                 setManagedDeck={setManagedDeck}
@@ -1733,6 +1732,7 @@ export default function App({ call, host = {} }) {
                 busy={busy}
                 running={running}
                 act={act}
+                call={call}
                 setPage={setPage}
                 setNotice={setNotice}
                 openDraft={openDraft}
@@ -1765,6 +1765,7 @@ export default function App({ call, host = {} }) {
                   setFolderDraft(deck.folder || "");
                   setPage("manage");
                 })}
+                onStartPublished={enterRun}
                 clearRecovery={clearRecovery}
                 setPage={setPage}
                 setNotice={setNotice}
@@ -1804,6 +1805,11 @@ export default function App({ call, host = {} }) {
             )}
             {page === "review" && run && (
               <Review
+                onOpenNote={(noteId) => { setNoteInitialId(noteId); setPage("notes"); }}
+                onMakeNote={() => act("note.create", {
+                  title: `学习笔记 · ${new Date().toLocaleDateString("zh-CN")}`,
+                  cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }],
+                }, (note) => { setNoteInitialId(note.id); setPage("notes"); })}
                 openSkeleton={(id) => {
                   setSkeletonFocus(id);
                   setPage("skeleton");
@@ -1852,6 +1858,8 @@ export default function App({ call, host = {} }) {
                 call={call}
               />
             )}
+            {page === "notes" && <BlogNotes data={data} call={call} act={act} theme={resolvedTheme}
+              initialId={noteInitialId} onBack={() => { setNoteInitialId(""); setPage("library"); }} />}
           </>
         )}
       </main>

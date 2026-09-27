@@ -74,7 +74,7 @@
   flex: none;
 }
 .graph-swatch.gn-mastered { background: var(--ok); }
-.graph-swatch.gn-familiar { background: var(--info); }
+.graph-swatch.gn-familiar { background: color-mix(in srgb, var(--ok) 42%, transparent); }
 .graph-swatch.gn-learning { background: var(--warn); }
 .graph-swatch.gn-weak { background: var(--bad); }
 .graph-swatch.gn-new { background: var(--text-faint); }
@@ -198,7 +198,7 @@
 .gn-familiar {
   /* Same familiar green as the mastery bars (.lv-familiar), not --info. */
   fill: color-mix(in srgb, var(--ok) 14%, var(--bg-surface));
-  stroke: color-mix(in srgb, var(--ok) 62%, var(--warn));
+  stroke: color-mix(in srgb, var(--ok) 55%, var(--bg-surface));
 }
 .gn-learning {
   fill: color-mix(in srgb, var(--warn) 24%, var(--bg-surface));

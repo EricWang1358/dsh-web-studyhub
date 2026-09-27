@@ -14,6 +14,61 @@ const card = () => ({ id: "q", kind: "flashcard", topic: "Architecture", objecti
   explanation: "The notes say principles guide design and change.", misconception: "Only components matter.",
   citations: [{ sourceId: "s", quote: source.text }] });
 
+test("quick publish keeps every card, skips model review, and starts ten new questions", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-quick-publish-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root, { complete: async () => { throw new Error("No model review at publish"); } });
+  await service.call("source.add", source);
+  const cards = Array.from({ length: 12 }, (_, index) => ({ ...card(), id: `q${index}`,
+    objective: `Objective ${index}`, prompt: `Question ${index}?` }));
+  cards[1].citations = [];
+  cards[2].answer = "";
+  const saved = await service.call("draft.save", { deck: { id: "quick", title: "Quick", cards } });
+  const published = await service.call("draft.publish.quick", { id: saved.id, draftVersion: saved.draftVersion });
+  assert.deepEqual({ accepted: published.accepted, rejected: published.rejected, autoReviewed: published.autoReviewed },
+    { accepted: 12, rejected: 0, autoReviewed: 0 });
+  const deck = await service.call("deck.get", { id: "quick" });
+  assert.equal(deck.cards.length, 12);
+  assert.match(deck.cards[1].publicationIssues.join(), /source citations required/);
+  assert.equal(deck.cards[1].publicationUngrable, false);
+  assert.equal(deck.cards[2].publicationUngrable, true);
+  let run = await service.call("review.start", { deckId: "quick", mode: "new", count: 10, ordered: true, fresh: true });
+  assert.equal(run.total, 10);
+  assert.equal(run.card.id, "q0");
+  run = await service.call("review.move", { runId: run.id, index: 2 });
+  assert.equal(run.card.publicationUngrable, true);
+  assert.match(run.card.publicationIssues.join(), /answer is required/);
+  await assert.rejects(service.call("review.answer", { runId: run.id, cardId: "q2", grade: 4 }), /缺少可判分内容/);
+  run = await service.call("review.skip", { runId: run.id, cardId: "q2", queueVersion: run.queueVersion || 0 });
+  assert.equal(run.card.id, "q3");
+  assert.equal((await service.call("export")).attempts.length, 0);
+  assert.equal((await service.call("deck.get", { id: "quick" })).cards[2].review.repetitions, 0);
+});
+
+test("publishing starts in the background and reports its result without holding the panel request", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-publish-background-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  let releaseReview;
+  const gate = new Promise((resolve) => { releaseReview = resolve; });
+  const service = new StudyService(root, { complete: async (_system, prompt) => {
+    await gate;
+    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+  } });
+  await service.call("source.add", source);
+  const saved = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card()] } });
+  const started = await service.call("draft.publish.start", { id: saved.id, draftVersion: saved.draftVersion });
+  assert.equal(started.status, "running");
+  assert.equal((await service.call("snapshot")).jobs.find((job) => job.id === started.jobId).status, "running");
+  await assert.rejects(service.call("draft.publish.start", { id: saved.id, draftVersion: saved.draftVersion }), /后台任务/);
+  await assert.rejects(service.call("draft.save", { deck: saved }), /后台发布检查/);
+  await assert.rejects(service.call("source.remove", { id: source.id }), /正在用于出题/);
+  releaseReview();
+  const finished = await service.call("job.wait", { jobId: started.jobId, timeoutSeconds: 5 });
+  assert.equal(finished.status, "complete");
+  assert.equal(finished.publishedId, "d");
+  assert.equal((await service.call("export")).decks[0].cards.length, 1);
+});
+
 test("background repair identifies cards without a reliable source before starting", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-repair-no-evidence-"));
   t.after(() => rm(root, { recursive: true, force: true }));

@@ -12,6 +12,7 @@ export default function Generate({
   busy,
   running,
   act,
+  call,
   openDraft,
   setPage,
   setNotice,
@@ -34,13 +35,13 @@ export default function Generate({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <section className="page">
-      <div className="eyebrow">SOURCE → UNDERSTANDING</div>
-      <h1>创建一组值得练的题</h1>
+      <div className="eyebrow">IMPORT → STUDY</div>
+      <h1>导入或补充题目</h1>
       <div className="source-mode" role="tablist" aria-label="题目来源">
         {[
-          ["files", "从资料生成新题", "导入 PDF、讲义、笔记"],
-          ["chat", "导入已有题目", "刷题软件、Canvas 错题或截图"],
-          ["json", "JSON 导入", "各题型提示词 · JSON / TXT 文件"],
+          ["json", "导入 JSON 题组", "外部生成的题目 · 推荐"],
+          ["chat", "录入已有题目", "刷题软件、错题或截图"],
+          ["files", "从资料补题", "按需生成少量缺的题"],
         ].map(([id, label, note]) => (
           <button
             key={id}
@@ -56,7 +57,7 @@ export default function Generate({
         ))}
       </div>
       {genSource === "json" ? (
-        <JsonImport busy={busy} act={act} openDraft={openDraft} setNotice={setNotice} />
+        <JsonImport busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
       ) : genSource === "chat" ? (
         <Ingest
           data={data}

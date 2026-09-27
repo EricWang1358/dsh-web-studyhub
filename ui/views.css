@@ -86,87 +86,168 @@
 }
 
 /* ── Dashboard ───────────────────────────────────────────────────────── */
-.dash-totals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+/* One statement (the streak) beside one picture (half a year of stamps);
+   everything else is a sentence or a quiet column below. */
+.dash-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 28px 56px;
+  padding: 8px 0 44px;
+  border-bottom: 1px solid var(--line-soft);
 }
-.dash-total {
-  flex: 1 1 118px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 12px 14px;
-  background: var(--bg-surface);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-}
-.dash-total strong {
-  font-size: 22px;
-  line-height: 1.15;
+.dash-streak strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 156px;
+  font-weight: 250;
+  line-height: 0.8;
+  letter-spacing: -0.06em;
   font-variant-numeric: tabular-nums;
 }
-.dash-total small {
-  color: var(--text-muted);
-  font-size: 12px;
+.dash-streak > span {
+  display: block;
+  margin-top: 14px;
+  font-size: 15px;
+  font-weight: 600;
 }
-.dash-today {
-  margin: 0;
-  font-size: 12.5px;
-}
-.dash-card {
+.dash-summary {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  background: var(--bg-surface);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-muted);
 }
+.dash-summary b {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dash-heat-wrap { min-width: 0; }
 
 /* Heatmap: 26 week-columns × 7 weekday-rows, column-major flow so the
-   oldest day sits top-left and today bottom-right, GitHub style. */
+   oldest day sits top-left and today bottom-right. Cells stretch to fill
+   the width: each studied day reads as a cinnabar stamp. */
 .dash-heat {
   display: grid;
-  grid-template-rows: repeat(7, 12px);
+  grid-template-rows: repeat(7, 22px);
   grid-auto-flow: column;
-  grid-auto-columns: 12px;
-  gap: 3px;
-  padding: 10px;
+  grid-auto-columns: 22px;
+  gap: 4px;
+  max-width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
-  background: var(--bg-canvas);
 }
 .dash-heat-cell {
-  border-radius: 3px;
-  background: var(--bg-sunken);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.dash-heat > .dash-heat-cell:last-child {
+  box-shadow: 0 0 0 1.5px var(--text-dim);
 }
 .dash-heat-cell.l1 {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .dash-heat-cell.l2 {
-  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 52%, transparent);
 }
 .dash-heat-cell.l3 {
-  background: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 76%, transparent);
 }
 .dash-heat-cell.l4 {
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 .dash-heat-legend {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 4px;
-  color: var(--text-muted);
+  margin: 12px 0 0;
+  color: var(--text-faint);
   font-size: 11px;
 }
-.dash-heat-legend span {
-  margin: 0 4px;
+.dash-heat-scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .dash-heat-legend .dash-heat-cell {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
+}
+
+.dash-split {
+  display: grid;
+  gap: 48px;
+  padding-top: 18px;
+}
+/* The actionable list gets the full band; accuracy reads beside its chart. */
+.dash-weak {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  column-gap: 56px;
+}
+.dash-accuracy {
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+  align-items: start;
+  column-gap: 56px;
+}
+.dash-accuracy > h2 { grid-column: 1 / -1; }
+.dash-accuracy .dash-rates { flex-direction: column; gap: 22px; }
+.dash-trend-figure { margin: 0; }
+.dash-trend-figure figcaption {
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.dash-section h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+}
+.dash-section h2 small {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.dash-rates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 40px;
+  margin-bottom: 18px;
+}
+.dash-rates strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.dash-rates strong small {
+  margin-left: 2px;
+  font-size: 0.42em;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+.dash-rates span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.dash-rates i {
+  width: 14px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--text-dim);
+}
+.dash-rates i.self {
+  background: repeating-linear-gradient(90deg, var(--text-muted) 0 3px, transparent 3px 6px);
 }
 
 /* Trend line: plain SVG, grid lines at whole scores 0–5. */
@@ -185,39 +266,24 @@
 }
 .dash-trend-line {
   fill: none;
-  stroke: var(--accent);
-  stroke-width: 2;
+  stroke: var(--text-dim);
+  stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Dots are hover targets for the per-day tooltip, not marks. */
 .dash-trend-dot {
-  fill: var(--accent);
+  fill: transparent;
+}
+.dash-trend-dot:hover {
+  fill: var(--text-dim);
 }
 .dash-trend-line.self {
-  stroke: var(--info);
+  stroke: var(--text-muted);
+  stroke-dasharray: 3 4;
 }
-.dash-trend-dot.self {
-  fill: var(--info);
-}
-.dash-trend-legend {
-  display: flex;
-  gap: 16px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-.dash-trend-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.dash-trend-legend i {
-  width: 14px;
-  height: 3px;
-  border-radius: 3px;
-  background: var(--accent);
-}
-.dash-trend-legend i.self {
-  background: var(--info);
+.dash-trend-dot.self:hover {
+  fill: var(--text-muted);
 }
 
 .dash-weak {
@@ -228,20 +294,21 @@
 .dash-weak-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 9px 2px;
+  gap: 16px;
+  padding: 13px 0;
   border-bottom: 1px solid var(--line-soft);
 }
-.dash-weak-row:last-child {
-  border-bottom: none;
-}
+
 .dash-weak-name {
   display: flex;
   flex-direction: column;
+  gap: 3px;
   min-width: 0;
+  flex: 1;
 }
 .dash-weak-name strong {
-  font-size: 13.5px;
+  font-size: 14.5px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -250,14 +317,16 @@
   color: var(--text-muted);
   font-size: 12px;
 }
-.dash-weak-meta {
-  margin-left: auto;
-  color: var(--text-muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
 .dash-weak-row button {
   flex: none;
+}
+@container study (max-width: 860px) {
+  .dash-hero,
+  .dash-accuracy {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dash-accuracy .dash-rates { flex-direction: row; margin-bottom: 18px; }
+  .dash-streak strong { font-size: 104px; }
 }
 
 /* ── Exam: setup ─────────────────────────────────────────────────────── */
@@ -273,17 +342,15 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  gap: 2px 28px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.7;
 }
-.exam-rules li {
-  padding: 3px 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  background: var(--bg-sunken);
-  color: var(--text-dim);
-  font-size: 12px;
+.exam-rules li::before {
+  content: "— ";
 }
 .exam-panel {
   display: flex;
@@ -293,6 +360,34 @@
   background: var(--bg-surface);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
+}
+/* The setup is the exam paper itself: the same card stock and cinnabar head
+   rule as a question, so "the thing you are about to sit" is one object. */
+.exam-sheet {
+  gap: 20px;
+  max-width: 860px;
+  padding: 22px 30px 20px;
+  background: var(--bg-raised);
+  border-color: var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+.exam-sheet > .exam-panel-head {
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--accent);
+}
+.exam-sheet > .exam-panel-head strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+.exam-sheet .exam-setup-tools button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+.exam-sheet .exam-setup-tools button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 .exam-panel-head {
   display: flex;
@@ -350,9 +445,9 @@
   margin: 0;
   padding: 0;
   display: grid;
-  /* min(230px, 100%) keeps a single column from overflowing a narrow host pane. */
-  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
-  gap: 8px;
+  /* min(260px, 100%) keeps a single column from overflowing a narrow host pane. */
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 0 28px;
 }
 /* Grid item: without min-width: 0 a nowrap title would push the card out of
    its track and over the neighbouring card. */
@@ -366,12 +461,13 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
   transition:
     border-color 0.15s var(--ease),
@@ -381,8 +477,7 @@
   background: var(--bg-hover);
 }
 .exam-deck.picked {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 .exam-deck input {
   accent-color: var(--accent);
@@ -404,10 +499,11 @@
   color: var(--text-muted);
   font-size: 12px;
 }
-.exam-type-settings { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
-.exam-type-settings > div { display: flex; flex-wrap: wrap; gap: 7px; }
-.exam-type-settings button { padding: 7px 12px; font-size: 12px; }
-.exam-type-settings button.picked { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
+.exam-type-settings { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.exam-type-settings > div { display: flex; flex-wrap: wrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.exam-type-settings button { padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; font-size: 12px; color: var(--text-muted); }
+.exam-type-settings button:hover:not(:disabled) { background: transparent; color: var(--text); }
+.exam-type-settings button.picked { background: var(--bg-raised); color: var(--text); box-shadow: 0 1px 3px #20160c26; }
 .exam-type-settings small { font-size: 12px; }
 .exam-type-settings .warning { margin: 0; }
 .exam-setup-foot {
@@ -433,8 +529,13 @@
   padding: 7px 10px;
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.exam-sheet .exam-setup-foot .primary {
+  padding: 12px 26px;
+  font-size: 15px;
 }
 .exam-count small {
   color: var(--text-muted);
@@ -720,21 +821,23 @@
 }
 
 /* ── WrongBook ───────────────────────────────────────────────────────── */
+/* A marked exercise book, not a stack of cards: each deck is a heading over
+   ruled lines, the mark sits in the margin, practice waits for the pointer. */
 .wb-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  background: var(--bg-surface);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
+  margin-top: 14px;
 }
 .wb-group-head {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--line-soft);
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.wb-group-head strong {
+  font-family: var(--font-display);
+  font-size: 16px;
 }
 .wb-group-head small {
   font-size: 12px;
@@ -747,24 +850,20 @@
 .wb-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 0;
+  gap: 14px;
+  padding: 12px 8px;
   border-bottom: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  transition: background 0.15s var(--ease);
 }
-.wb-row:last-child {
-  border-bottom: none;
-}
+.wb-row:hover { background: var(--bg-hover); }
 .wb-topic {
   flex: none;
-  max-width: 140px;
+  width: 108px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 2px 9px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  background: var(--bg-sunken);
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-size: 12px;
 }
 .wb-prompt {
@@ -773,24 +872,38 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 .wb-grade {
   flex: none;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bad) 16%, transparent);
   color: var(--bad);
   font-size: 12px;
 }
+.wb-grade::before {
+  content: "× ";
+}
 .wb-grade.self {
-  background: color-mix(in srgb, var(--warn) 16%, transparent);
   color: var(--warn);
+}
+.wb-grade.self::before {
+  content: "○ ";
 }
 .wb-pages { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: 12px; }
 .wb-row button {
   flex: none;
-  padding: 5px 12px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border-color: var(--line);
+  background: transparent;
+}
+.wb-row button:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+@media (hover: hover) {
+  .wb-row button { opacity: 0; transition: opacity 0.15s var(--ease), background 0.15s var(--ease); }
+  .wb-row:hover button, .wb-row:focus-within button { opacity: 1; }
 }
 .wb-empty h2 {
   margin: 0;

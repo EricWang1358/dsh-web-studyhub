@@ -27,34 +27,21 @@ export default function Guide({
   const nextDraft = draftWithIssues || data.drafts[0];
   const steps = [
     {
-      title: "准备资料",
-      done: data.sources.length > 0,
-      body: "上传 PDF 讲义并选页，或粘贴 / 导入文字笔记。现成题目请使用对话录题。",
+      title: "准备题目",
+      done: data.sources.length > 0 || data.decks.length > 0 || data.drafts.length > 0,
+      body: "已有 JSON 题组可以直接导入；需要补题时再添加资料。",
       actions: [
-        [
-          "让 AI 从工作区找",
-          () =>
-            askInChat(
-              `我今天想学「${t}」。请在工作区里找相关资料：PDF 用 study_workspace 的 source.import 加绝对路径按页导入；其他文字资料读取后用 source.add 加入学习库。找不到的话告诉我还需要准备什么。`,
-            ),
-        ],
-        ["上传 PDF / 粘贴资料", addSource],
-        ["对话里直接录题", record],
+        ["导入 JSON 题组", generate],
+        ["添加资料补题", addSource],
+        ["录入现成题目", record],
       ],
     },
     {
-      title: "生成题组",
+      title: "导入题组",
       done: data.decks.length > 0 || data.drafts.length > 0,
-      body: "测验检验辨析和应用，闪卡训练主动回忆。可用「测验 + 闪卡」一次生成混合题组。",
+      body: "外部生成题目后导入 JSON。系统建议短标题和课程，你确认后保存草稿；内置 AI 可按需补题。",
       actions: [
-        [
-          "在对话里出题",
-          () =>
-            askInChat(
-              `请用 study_workspace 基于「${t}」相关资料调用一次 generate：kind: mixed、count: 20（10 道单选和 10 张闪卡）、难度 mixed、中文。PDF 先用 source.import 导入。任务开始后简短告诉我，后台完成后我去「学习」面板发布草稿；通过的题先入库，问题题留待处理。不需要反复等待。`,
-            ),
-        ],
-        ["自己设置", generate],
+        ["导入 JSON", generate],
       ],
     },
     {
@@ -65,17 +52,17 @@ export default function Guide({
           ? `已有 ${data.decks.length} 个题组发布；还有 ${data.drafts.length} 份草稿。${draftWithIssues
             ? "问题题可自行修改或选择后台修题，修好后再发布。"
             : "打开草稿可继续检查并发布。"}`
-          : `有 ${data.drafts.length} 份草稿待发布。发布时自动逐题检查，通过的题先进入学习目录。`
+          : `有 ${data.drafts.length} 份草稿待发布。发布时快速检查结构，随后直接学习新题。`
         : data.decks.length
           ? `已有 ${data.decks.length} 个题组发布，可以开始学习。`
-          : "生成结果先进入草稿，发布后进入学习目录和复习计划。",
+          : "导入结果先进入草稿，发布后直接开始 10 道新题。",
       actions: nextDraft ? [[draftWithIssues ? "打开待处理草稿" : "打开草稿", () => openDraft(nextDraft)]] : [],
     },
     {
       title: "开始学习",
       done: data.attempts.length > 0,
-      body: "点「开始学习」按路径出题：先复习到期、再补薄弱、最后按目录学新题。也可以在目录里勾选某个主题单独练。",
-      actions: data.decks.length ? [["开始今日学习", startToday]] : [],
+      body: "当前课程先学最近导入的新题，每轮 10 道；到期复习在单独入口。",
+      actions: data.decks.length ? [[data.focus?.fresh?.length ? "学当前课程新题" : "到期复习", startToday]] : [],
     },
     {
       title: "卡住了就问",

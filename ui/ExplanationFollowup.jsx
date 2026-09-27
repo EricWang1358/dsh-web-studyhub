@@ -1,7 +1,7 @@
 import React from "react";
 import Markdown from "./Markdown.jsx";
 
-export default function ExplanationFollowup({ run, call }) {
+export default function ExplanationFollowup({ run, call, readOnly = false }) {
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);
@@ -12,6 +12,7 @@ export default function ExplanationFollowup({ run, call }) {
   const lock = React.useRef(false);
   const ref = { deckId: run.deckId, cardId: run.card.id };
   const items = [...new Map([...(run.solution.followups || []), ...added].map((item) => [item.id, item])).values()];
+  if (readOnly && !items.length) return null;
 
   async function suggest() {
     setOpen(true);
@@ -51,7 +52,7 @@ export default function ExplanationFollowup({ run, call }) {
           <Markdown text={item.answer} />
         </article>
       ))}
-      <button type="button" className="pill" aria-expanded={open} disabled={!call || !!pending}
+      {!readOnly && <><button type="button" className="pill" aria-expanded={open} disabled={!call || !!pending}
         onClick={() => open ? setOpen(false) : suggest()}>追问？</button>
       {" "}
       <button type="button" className="pill" disabled={!call || !!pending}
@@ -77,7 +78,7 @@ export default function ExplanationFollowup({ run, call }) {
           {error && !questions.length && !pending && <button type="button" className="pill" onClick={suggest}>重新推荐问题</button>}
         </div>
       )}
-      {pending && <p className="muted small" role="status">{pending === "suggest" ? "正在准备 3 个追问…" : "正在解答，完成后会保存到本题，可继续下一题。"}</p>}
+      {pending && <p className="muted small" role="status">{pending === "suggest" ? "正在准备 3 个追问…" : "正在解答，完成后会保存到本题，可继续下一题。"}</p>}</>}
     </section>
   );
 }

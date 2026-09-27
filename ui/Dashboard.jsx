@@ -51,10 +51,10 @@ function Trend({ trend }) {
         <polyline className="dash-trend-line self" points={points("selfAvg")} />}
       {trend.map((d, i) => (
         <React.Fragment key={d.date}>
-          {d.gradedAvg != null && <circle className="dash-trend-dot" cx={x(i)} cy={y(d.gradedAvg)} r={3}>
+          {d.gradedAvg != null && <circle className="dash-trend-dot" cx={x(i)} cy={y(d.gradedAvg)} r={6}>
             <title>{`${d.date} · 客观判分平均 ${d.gradedAvg} 分 · ${d.gradedCount} 次`}</title>
           </circle>}
-          {d.selfAvg != null && <circle className="dash-trend-dot self" cx={x(i)} cy={y(d.selfAvg)} r={3}>
+          {d.selfAvg != null && <circle className="dash-trend-dot self" cx={x(i)} cy={y(d.selfAvg)} r={6}>
             <title>{`${d.date} · 自评平均 ${d.selfAvg} 分 · ${d.selfCount} 次`}</title>
           </circle>}
         </React.Fragment>
@@ -89,6 +89,13 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
     trend = stats?.trend || [],
     weak = stats?.weakTopics || [];
   const maxCount = heat.reduce((m, d) => Math.max(m, d.count || 0), 0);
+  /* Show the weeks since the learner started (at least 12), not half a year
+     of empty squares. Slicing on whole weeks keeps weekday rows aligned. */
+  const firstActive = heat.findIndex((d) => d.count),
+    minDays = 12 * 7,
+    heatStart = Math.max(0, Math.min(firstActive < 0 ? heat.length : Math.floor(firstActive / 7) * 7,
+      heat.length - minDays)),
+    shownHeat = heat.slice(heatStart);
   const today = data?.today;
 
   return (
@@ -96,9 +103,8 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
       <div className="page-heading">
         <div>
           <h1>学习统计</h1>
-          <p className="muted">连续学习、作答热力、分数趋势和薄弱主题。</p>
         </div>
-        <button onClick={load} disabled={loading}>
+        <button className="ghost-btn" onClick={load} disabled={loading}>
           {loading ? "统计中…" : "刷新"}
         </button>
       </div>
@@ -115,113 +121,100 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
             <EmptyStudyActions data={data} busy={busy} onStart={() => onStartScope([])} onLibrary={onLibrary}
               onCreate={onCreate} onSources={onSources} />
           </div>}
-          <div className="dash-totals">
-            <div className="dash-total">
+          <div className="dash-hero">
+            <div className="dash-streak">
               <strong>{totals.streak ?? 0}</strong>
-              <small>连续学习 · 天</small>
-            </div>
-            <div className="dash-total">
-              <strong>{totals.activeDays ?? 0}</strong>
-              <small>活跃天数</small>
-            </div>
-            <div className="dash-total">
-              <strong>{totals.attempts ?? 0}</strong>
-              <small>累计作答</small>
-            </div>
-            <div className="dash-total">
-              <strong>{totals.gradedRate == null ? "—" : `${totals.gradedRate}%`}</strong>
-              <small title="近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练">客观题通过率 · {totals.gradedAttempts ?? 0} 次</small>
-            </div>
-            <div className="dash-total">
-              <strong>{totals.selfRate == null ? "—" : `${totals.selfRate}%`}</strong>
-              <small title="近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标">自评达标率 · {totals.selfAttempts ?? 0} 次</small>
-            </div>
-            <div className="dash-total">
-              <strong>{totals.due ?? 0}</strong>
-              <small>到期待复习</small>
-            </div>
-          </div>
-
-          {today && (
-            <p className="muted dash-today">
-              当前队列概览：到期 {today.due ?? 0} · 薄弱 {today.weak ?? 0} · 新题{" "}
-              {today.new ?? 0}
-              {today.size != null ? ` · 共 ${today.size} 题` : ""}
-            </p>
-          )}
-
-          <div className="dash-card">
-            <div className="eyebrow">作答热力 · 近 182 天</div>
-            <div
-              className="dash-heat"
-              role="img"
-              aria-label="近 182 天的每日作答次数热力图"
-            >
-              {heat.map((d) => (
-                <span
-                  key={d.date}
-                  className={"dash-heat-cell l" + heatLevel(d.count, maxCount)}
-                  title={
-                    d.count ? `${d.date} · 作答 ${d.count} 次` : `${d.date} · 无作答`
-                  }
-                />
-              ))}
-            </div>
-            <div className="dash-heat-legend" aria-hidden="true">
-              <span>少</span>
-              {[0, 1, 2, 3, 4].map((l) => (
-                <i key={l} className={"dash-heat-cell l" + l} />
-              ))}
-              <span>多</span>
-            </div>
-          </div>
-
-          <div className="dash-card">
-            <div className="eyebrow">每日平均分 · 客观判分与自评分别统计</div>
-            {trend.length ? (
-              <>
-                <Trend trend={trend} />
-                <div className="dash-trend-legend"><span><i />客观判分</span><span><i className="self" />自评</span></div>
-              </>
-            ) : (
-              <p className="muted">
-                完成第一次学习后，这里会出现趋势线。
+              <span>天连续学习</span>
+              <p className="dash-summary">
+                <span><b>{totals.activeDays ?? 0}</b> 个活跃日 · 累计作答 <b>{totals.attempts ?? 0}</b> 次</span>
+                {today
+                  ? <span>今天 <b>{today.size ?? 0}</b> 题：到期 {today.due ?? 0} · 薄弱 {today.weak ?? 0} · 新题 {today.new ?? 0}</span>
+                  : <span>到期待复习 <b>{totals.due ?? 0}</b> 题</span>}
               </p>
-            )}
+            </div>
+            <div className="dash-heat-wrap">
+              <div
+                className="dash-heat"
+                role="img"
+                aria-label={`近 ${Math.round(shownHeat.length / 7)} 周的每日作答次数热力图`}
+              >
+                {shownHeat.map((d) => (
+                  <span
+                    key={d.date}
+                    className={"dash-heat-cell l" + heatLevel(d.count, maxCount)}
+                    title={
+                      d.count ? `${d.date} · 作答 ${d.count} 次` : `${d.date} · 无作答`
+                    }
+                  />
+                ))}
+              </div>
+              <div className="dash-heat-legend" aria-hidden="true">
+                <span>近 {Math.round(shownHeat.length / 7)} 周</span>
+                <span className="dash-heat-scale">
+                  少
+                  {[0, 1, 2, 3, 4].map((l) => (
+                    <i key={l} className={"dash-heat-cell l" + l} />
+                  ))}
+                  多
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="dash-card">
-            <div className="eyebrow">
-              当前薄弱主题{weak.length ? ` · 前 ${weak.length}` : ""}
-            </div>
-            {weak.length ? (
-              <ul className="dash-weak">
-                {weak.map((w) => (
-                  <li key={w.deckId + ":" + w.topic} className="dash-weak-row">
-                    <span className="dash-weak-name">
-                      <strong>{w.topic || "未分类"}</strong>
-                      <small>{w.deckTitle}</small>
-                    </span>
-                    <span className="dash-weak-meta">
-                      当前薄弱 {w.wrong} 题
-                    </span>
-                    <button
-                      onClick={() =>
-                        onStartScope([
-                          w.topic ? { deckId: w.deckId, topic: w.topic } : { deckId: w.deckId },
-                        ])
-                      }
-                    >
-                      练这个主题
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="muted">{totals.attempts
-                ? "最近没有明显薄弱的主题，继续保持。"
-                : "开始练习后，这里会显示需要补强的主题。"}</p>
-            )}
+          <div className="dash-split">
+            <section className="dash-section">
+              <h2>需要补强{weak.length ? <small> · 前 {weak.length}</small> : null}</h2>
+              {weak.length ? (
+                <ul className="dash-weak">
+                  {weak.map((w) => (
+                    <li key={w.deckId + ":" + w.topic} className="dash-weak-row">
+                      <span className="dash-weak-name">
+                        <strong>{w.topic || "未分类"}</strong>
+                        <small>{w.deckTitle} · 当前薄弱 {w.wrong} 题</small>
+                      </span>
+                      <button
+                        className="link-btn"
+                        onClick={() =>
+                          onStartScope([
+                            w.topic ? { deckId: w.deckId, topic: w.topic } : { deckId: w.deckId },
+                          ])
+                        }
+                      >
+                        练这个主题 →
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">{totals.attempts
+                  ? "最近没有明显薄弱的主题，继续保持。"
+                  : "开始练习后，这里会显示需要补强的主题。"}</p>
+              )}
+            </section>
+
+            <section className="dash-section dash-accuracy">
+              <h2>判分与自评<small> · 近 30 天</small></h2>
+              <div className="dash-rates">
+                <div title="近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练">
+                  <strong>{totals.gradedRate == null ? "—" : totals.gradedRate}<small>{totals.gradedRate == null ? "" : "%"}</small></strong>
+                  <span><i />客观题通过率 · {totals.gradedAttempts ?? 0} 次</span>
+                </div>
+                <div title="近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标">
+                  <strong>{totals.selfRate == null ? "—" : totals.selfRate}<small>{totals.selfRate == null ? "" : "%"}</small></strong>
+                  <span><i className="self" />自评达标率 · {totals.selfAttempts ?? 0} 次</span>
+                </div>
+              </div>
+              {trend.length ? (
+                <figure className="dash-trend-figure">
+                  <figcaption>每日平均分 · 0–5 分</figcaption>
+                  <Trend trend={trend} />
+                </figure>
+              ) : (
+                <p className="muted">
+                  完成第一次学习后，这里会出现每日平均分的趋势线。
+                </p>
+              )}
+            </section>
           </div>
         </>
       )}

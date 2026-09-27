@@ -9,13 +9,14 @@ import { StudyService } from "../lib/service.js";
 import { JSON_CARD_SOURCE, selfCitedCardCount } from "../lib/source-provenance.js";
 
 for (const kind of ["quiz", "multi", "flashcard", "open", "cloze"]) {
-  test(`JSON ${kind} example imports with matching citations`, () => {
+  test(`JSON ${kind} example imports without fabricated citations`, () => {
     const raw = JSON.stringify(JSON.parse(importExample(kind)));
     const { source, deck } = prepareJsonImport(`\uFEFF\n\`\`\`json\n${raw}\n\`\`\``);
     assert.equal(deck.cards[0].kind, kind);
     assert.equal(source.provenance, JSON_CARD_SOURCE);
-    assert.equal(selfCitedCardCount(deck.cards, [source]), 1);
-    assert.ok(source.text.includes(deck.cards[0].citations[0].quote));
+    assert.equal(selfCitedCardCount(deck.cards, [source]), 0);
+    assert.equal(deck.cards[0].importedFromJson, true);
+    assert.deepEqual(deck.cards[0].citations, []);
     assert.deepEqual(deck.quality.errors, []);
   });
 }
@@ -56,14 +57,14 @@ test("invalid JSON and malformed card shapes are rejected; content defects stay 
   assert.match(prepared.deck.quality.errors.join(), /explanation is required/);
 });
 
-test("imported answers remain visibly self-cited until an independent source replaces that citation", async (t) => {
+test("imported answers keep an external import marker without requiring citations", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "json-import-provenance-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root);
   const imported = await service.call("draft.import", { text: importExample("flashcard") });
-  assert.equal(selfCitedCardCount(imported.cards, (await service.call("snapshot")).sources), 1);
+  assert.equal(selfCitedCardCount(imported.cards, (await service.call("snapshot")).sources), 0);
   await service.call("draft.publish", { id: imported.id, draftVersion: imported.draftVersion });
-  assert.equal((await service.call("snapshot")).decks[0].selfCited, 1);
+  assert.equal((await service.call("snapshot")).decks[0].selfCited, 0);
   const evidence = await service.call("source.add", { id: "independent", title: "Original notes",
     text: "Binary search halves a sorted interval after comparing its midpoint." });
   const edit = await service.call("deck.edit", { id: imported.id });
@@ -71,6 +72,30 @@ test("imported answers remain visibly self-cited until an independent source rep
     citations: [{ sourceId: evidence.id, quote: evidence.text }] })) } });
   await service.call("draft.publish", { id: saved.id, draftVersion: saved.draftVersion });
   assert.equal((await service.call("snapshot")).decks[0].selfCited, 0);
+});
+
+test("confirmed import filing preserves original title and merges all new cards", async () => {
+  const root = await mkdtemp(join(tmpdir(), "json-import-filing-"));
+  const service = new StudyService(root);
+  const first = await service.call("draft.import", { text: importExample("flashcard"),
+    title: "Short first", course: "Platform Engineering" });
+  await service.call("draft.publish.quick", { id: first.id, draftVersion: first.draftVersion });
+  const proposal = await service.call("draft.import.propose", { text: importExample("flashcard") });
+  assert.equal(proposal.course, "Platform Engineering");
+  const secondInput = JSON.parse(importExample("flashcard"));
+  secondInput.cards[0].prompt = "A different prompt";
+  const second = await service.call("draft.import", { text: JSON.stringify(secondInput),
+    title: "Short second", course: "Platform Engineering", mergeTargetId: first.id });
+  const published = await service.call("draft.publish.quick", { id: second.id, draftVersion: second.draftVersion });
+  assert.equal(published.id, first.id);
+  assert.equal(published.merged, true);
+  const state = await service.call("export");
+  assert.equal(state.decks.length, 1);
+  assert.equal(state.decks[0].cards.length, 2);
+  assert.equal(state.decks[0].originalTitle, first.originalTitle);
+  await service.call("focus.set", { course: "Platform Engineering" });
+  const fresh = await service.call("review.start", { mode: "new", currentCourse: true, count: 2, fresh: true });
+  assert.equal(fresh.card.prompt, "A different prompt", "recent imported cards lead even after merging into an older deck");
 });
 
 test("older JSON-import sources without provenance still show the self-citation warning", () => {
@@ -91,21 +116,22 @@ test("JSON citations match existing source passages in bulk without trusting unm
   const imported = await service.call("draft.import", { text: JSON.stringify(input) });
   const sources = (await service.call("snapshot")).sources;
   assert.deepEqual(imported.cards[0].citations, [{ sourceId: "notes", quote: passage }]);
-  assert.equal(selfCitedCardCount(imported.cards, sources), 1);
+  assert.equal(selfCitedCardCount(imported.cards, sources), 0);
   assert.match(imported.quality.warnings.join(), /1 条外部引用未能唯一匹配/);
   const published = await service.call("draft.publish", { id: imported.id, draftVersion: imported.draftVersion });
   assert.deepEqual({ accepted: published.accepted, rejected: published.rejected }, { accepted: 2, rejected: 0 });
-  assert.equal((await service.call("snapshot")).decks[0].selfCited, 1);
+  assert.equal((await service.call("snapshot")).decks[0].selfCited, 0);
 });
 
-test("ambiguous quotes need a source title or ID before replacing the import self-citation", () => {
+test("ambiguous quotes need a source title or ID before attaching evidence", () => {
   const passage = "Binary search discards half the remaining sorted interval after comparing its midpoint.";
   const sources = [{ id: "a", title: "Chapter A", text: passage },
     { id: "b", title: "Chapter B", text: passage }];
   const input = JSON.parse(importExample("flashcard"));
   input.cards[0].citations = [{ quote: passage }];
   const ambiguous = prepareJsonImport(JSON.stringify(input), sources);
-  assert.equal(selfCitedCardCount(ambiguous.deck.cards, [ambiguous.source, ...sources]), 1);
+  assert.equal(selfCitedCardCount(ambiguous.deck.cards, [ambiguous.source, ...sources]), 0);
+  assert.deepEqual(ambiguous.deck.cards[0].citations, []);
   input.cards[0].citations[0].sourceTitle = "Chapter B";
   const resolved = prepareJsonImport(JSON.stringify(input), sources);
   assert.deepEqual(resolved.deck.cards[0].citations, [{ sourceId: "b", quote: passage }]);
@@ -119,7 +145,7 @@ test("a previous JSON import is never treated as independent original evidence",
   const previous = { id: "prior-json", title: "JSON 导入：旧题组", text: passage,
     provenance: JSON_CARD_SOURCE };
   const imported = prepareJsonImport(JSON.stringify(input), [previous]);
-  assert.equal(selfCitedCardCount(imported.deck.cards, [previous, imported.source]), 1);
+  assert.equal(selfCitedCardCount(imported.deck.cards, [previous, imported.source]), 0);
   assert.match(imported.deck.quality.warnings.join(), /1 条外部引用未能唯一匹配/);
 });
 

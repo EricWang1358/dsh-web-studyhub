@@ -4,6 +4,8 @@ import css from "./views.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import { createWriteQueue } from "./async.js";
 import { EXAM_LIMIT_MS } from "../lib/exam-timing.js";
+import ResultBreakdown from "./ResultBreakdown.jsx";
+import OralExam from "./OralExam.jsx";
 
 /* 模拟考试（v0.4 契约 §3）：setup → running → report 自管理状态机。
    选中状态存本地（picks，按 deckId:cardId 键控），每次选择通过
@@ -41,8 +43,9 @@ const picksFromRun = (r) => {
   return map;
 };
 
-export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
+export default function Exam({ call, data, onExit, onCreate, onStartRun, initialRunId }) {
   useInjectCss(css, "study-views");
+  const [examMode, setExamMode] = useState("written");
   const [phase, setPhase] = useState("setup"), // setup → running → report
     [run, setRun] = useState(null),
     [report, setReport] = useState(null),
@@ -81,6 +84,14 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
     [decks, pickedDecks],
   );
   const pickedQuizTotal = pickedKinds.quiz + pickedKinds.multi;
+  /* Arrive with the current course picked so the paper can start at once. */
+  const autoPicked = useRef(false);
+  useEffect(() => {
+    if (autoPicked.current || !decks.length) return;
+    autoPicked.current = true;
+    const inCourse = decks.filter((d) => (d.course || d.folder) === data?.focus?.course);
+    setPickedDecks(new Set((inCourse.length ? inCourse : decks).map((d) => d.id)));
+  }, [decks, data?.focus?.course]);
   const typeAvailable = typeMode === "quiz" ? pickedKinds.quiz : typeMode === "multi" ? pickedKinds.multi : pickedQuizTotal;
 
   /* 挂载时恢复进行中的考试：快照 runs 里的 exam run 用 review.get 接回。 */
@@ -243,18 +254,23 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
     [picks],
   );
   const unanswered = Math.max(0, (run?.total || 0) - answeredCount);
+  const weakTopicRows = (report?.byTopic || [])
+    .filter((topic) => topic.total > topic.correct)
+    .sort((a, b) => (b.total - b.correct) - (a.total - a.correct))
+    .slice(0, 3);
 
   async function queueWeak() {
     if (busy || pathNote || !report?.weakScope?.length) return;
     setBusy(true);
     setErr("");
     try {
-      await call("review.start", {
+      const nextRun = await call("review.start", {
         mode: "path",
         scope: report.weakScope,
         fresh: true,
       });
-      setPathNote(
+      if (onStartRun) onStartRun(nextRun);
+      else setPathNote(
         `已把 ${report.weakScope.length} 道答错或未答题排进学习路径，回到学习库即可开始练习。`,
       );
     } catch (e) {
@@ -280,6 +296,9 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
     }
   }
 
+  if (examMode === "oral") return <OralExam call={call} data={data} onExit={onExit}
+    onStartRun={onStartRun} onWritten={() => setExamMode("written")} />;
+
   return (
     <section className="page exam">
       {phase === "setup" && (
@@ -290,20 +309,17 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
               <p className="muted">
                 从勾选的题组里抽选择题，先覆盖不同主题，同主题优先抽较少考过的题；交卷后统一判分。
               </p>
+              {data?.focus?.mode === "interview" && data.focus.role && <p className="muted">
+                目标岗位：{data.focus.role}。按已选的岗位知识点覆盖主要主题，并适度加入薄弱题。
+              </p>}
             </div>
+            <button type="button" className="ghost-btn" onClick={() => setExamMode("oral")}>切换到口头面试 →</button>
           </div>
-          <ul className="exam-rules" aria-label="考试规则">
-            <li>单选 / 多选</li>
-            <li>限时 30 分钟，到时自动交卷</li>
-            <li>作答中不显示对错，可反复修改</li>
-            <li>重考优先抽未考过的题，题库不够时会重复</li>
-            <li>交卷后可回看报告，答错与未答题可排进学习路径</li>
-          </ul>
           {decks.length ? (
-            <div className="exam-panel">
+            <div className="exam-panel exam-sheet">
               <div className="exam-panel-head">
                 <div>
-                  <strong>选择题组</strong>
+                  <strong>试卷 · {count} 题 · 限时 30 分钟</strong>
                   <small className="muted">
                     {pickedDecks.size
                       ? `已选 ${pickedDecks.size} 个题组 · 共 ${pickedQuizTotal} 道选择题`
@@ -387,6 +403,14 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
                   {busy ? "正在出卷…" : !pickedDecks.size ? "先勾选题组" : !typeAvailable ? "没有符合题型的题" : "开始考试"}
                 </button>
               </div>
+              {/* House rules read as the fine print at the foot of the paper. */}
+              <ul className="exam-rules" aria-label="考试规则">
+                <li>单选 / 多选</li>
+                <li>限时 30 分钟，到时自动交卷</li>
+                <li>作答中不显示对错，可反复修改</li>
+                <li>重考优先抽未考过的题，题库不够时会重复</li>
+                <li>交卷后可回看报告，答错与未答题可排进学习路径</li>
+              </ul>
             </div>
           ) : (
             <div className="empty exam-empty">
@@ -521,37 +545,37 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
           <div className="page-heading">
             <div>
               <h1>考试报告</h1>
-              <p className="muted">已判分并计入复习计划。</p>
+              <p className="muted">{report.examRole ? `${report.examRole} · ` : ""}已判分并计入复习计划。</p>
             </div>
           </div>
-          <div className="exam-score-row">
-            <div className="exam-score">
-              <strong>
-                {Math.round(report.scorePct ?? 0)}
-                <i>%</i>
-              </strong>
-              <small>得分</small>
+          <div className="result-hero">
+            <div className="result-headline">
+              <strong>{Math.round(report.scorePct ?? 0)}%</strong>
+              <span>本次笔试得分 · {report.correct ?? 0}/{report.total ?? 0} 题</span>
+              <small>用时 {fmtDuration(report.durationMs)}</small>
             </div>
-            <ul className="exam-stats">
-              <li>
-                <strong>{report.correct ?? 0}</strong>
-                <small>答对</small>
-              </li>
-              <li>
-                <strong>{report.answered ?? 0}</strong>
-                <small>已答</small>
-              </li>
-              <li>
-                <strong>{report.unanswered ?? 0}</strong>
-                <small>未答</small>
-              </li>
-              <li>
-                <strong>{fmtDuration(report.durationMs)}</strong>
-                <small>用时</small>
-              </li>
-            </ul>
+            <ResultBreakdown total={report.total ?? 0} answered={report.answered ?? 0}
+              correct={report.correct ?? 0} correctLabel="答对" />
           </div>
           {report.comparison && <p className="muted">同范围、题数及题型构成的上次考试为 {report.comparison.scorePct}%；这次{scoreChange(report.comparison)}。两次抽到的题目可能不同，仅供参考。</p>}
+
+          <div className="result-weak">
+            <h2>下次先练这些主题</h2>
+            {weakTopicRows.length ? <ol>{weakTopicRows.map((t) => <li key={`${t.deckId}:${t.topic}`}>
+              {t.topic || "未分类"} <span className="muted">· {t.total - t.correct}/{t.total} 题答错或未答</span>
+            </li>)}</ol> : <p className="muted">本次已答题全部答对。</p>}
+            {report.weakScope?.length > 0 && <button type="button" disabled={busy || !!pathNote} onClick={queueWeak}>
+              练习答错与未答的 {report.weakScope.length} 道 →
+            </button>}
+            {pathNote && <p className="muted exam-path-note">{pathNote}</p>}
+          </div>
+
+          <div className="exam-report-actions">
+            <button className="primary" onClick={onExit}>回学习库</button>
+            <button type="button" onClick={() => setPhase("setup")}>再考一次</button>
+          </div>
+
+          <details className="result-details"><summary>查看详细成绩与错题</summary>
 
           <div className="exam-bars">
             <div className="eyebrow">按主题分布</div>
@@ -637,18 +661,7 @@ export default function Exam({ call, data, onExit, onCreate, initialRunId }) {
             </li>)}</ul>
           </div>}
 
-          <div className="exam-report-actions">
-            <button className="primary" onClick={onExit}>
-              回学习库
-            </button>
-            {report.weakScope?.length > 0 && (
-              <button disabled={busy || !!pathNote} onClick={queueWeak}>
-                练习答错与未答的 {report.weakScope.length} 道
-              </button>
-            )}
-            <button type="button" onClick={() => setPhase("setup")}>再考一次</button>
-            {pathNote && <p className="muted exam-path-note">{pathNote}</p>}
-          </div>
+          </details>
           {err && <p className="exam-error">{err}</p>}
         </div>
       )}

@@ -6,13 +6,16 @@ import ReviewNavigator from "./ReviewNavigator.jsx";
 import FlipCard from "./FlipCard.jsx";
 import SmoothHeight from "./SmoothHeight.jsx";
 import ReviewToolbar from "./ReviewToolbar.jsx";
+import CitationDisclosure from "./CitationDisclosure.jsx";
 import ExplanationFollowup from "./ExplanationFollowup.jsx";
 import ChoiceFeedback from "./ChoiceFeedback.jsx";
-import CoachPanel from "./CoachPanel.jsx";
 import CoachDebrief from "./CoachDebrief.jsx";
 import ThumbFeedback from "./ThumbFeedback.jsx";
 import { reviewEntryKey } from "./async.js";
-import { selfCitedCardCount } from "../lib/source-provenance.js";
+import { readableQualityIssue } from "./quality.js";
+import ResultBreakdown from "./ResultBreakdown.jsx";
+import resultCss from "./review-results.css";
+import { useInjectCss } from "./shared.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -26,6 +29,13 @@ const date = (v) =>
         minute: "2-digit",
       })
     : "现在";
+const HELP_CHOICES = [
+  { id: "angle", label: "换个角度讲" },
+  { id: "example", label: "举个具体例子" },
+  { id: "steps", label: "逐步推理" },
+  { id: "prerequisite", label: "补前置知识" },
+  { id: "mistake", label: "分析我错在哪" },
+];
 
 export default function Review({
   run,
@@ -57,8 +67,6 @@ export default function Review({
   flipCard,
   reviewAct,
   studyPrerequisites,
-  askAboutCard,
-  improveCard,
   assistCard,
   assistTasks,
   slayCard,
@@ -71,9 +79,14 @@ export default function Review({
   toggleEn,
   call,
   openSkeleton,
+  onMakeNote,
+  onOpenNote,
 }) {
+  useInjectCss(resultCss, "review-results");
   const pageRef = React.useRef(null);
   const multiple = run.card?.multiple || run.card?.kind === "multi";
+  const publicationIssues = (run.card?.publicationIssues || []).map((issue) =>
+    readableQualityIssue(`Card 1: ${issue}`).replace(/^第 1 题：/, ""));
   // EN button: show the cached English after each Chinese stem and answer.
   const enOn = !!showEn && run.mode !== "exam" && !run.complete;
   const enStem = enOn ? run.card?.translation : null;
@@ -101,11 +114,17 @@ export default function Review({
     openedRef.current = true;
     if (meta) {
       const gap = 16;
-      // Leave a viewport of room below the header so even a short last card
-      // can scroll up to the pinned position.
-      meta.closest(".question-area").style.minHeight = `${Math.max(0, scroller.clientHeight - bar - gap)}px`;
+      // The pin is the question card's top edge, so its header rule is never
+      // tucked under the bar. Leave a viewport of room below it so even a
+      // short last card can scroll up to the pinned position; the room goes
+      // on the body, not the card, so the card itself hugs its content.
+      const card = meta.closest(".question-card") || meta.closest(".question-area"),
+        area = card.closest(".review-body") || card;
+      const lead = card.getBoundingClientRect().top - area.getBoundingClientRect().top;
+      const minHeight = `${Math.max(0, scroller.clientHeight - bar - gap + lead)}px`;
+      if (area.style.minHeight !== minHeight) area.style.minHeight = minHeight;
       if (!first) {
-        scrollBy(meta.getBoundingClientRect().top - scroller.getBoundingClientRect().top - bar - gap);
+        scrollBy(card.getBoundingClientRect().top - scroller.getBoundingClientRect().top - bar - gap);
         return;
       }
     }
@@ -115,30 +134,20 @@ export default function Review({
   const rail = !run.complete && run.navigation?.length > 0;
   const [assistMode, setAssistMode] = React.useState("");
   const [assistText, setAssistText] = React.useState("");
+  const [helpChoices, setHelpChoices] = React.useState([]);
+  const [detailsRun, setDetailsRun] = React.useState(null);
   React.useEffect(() => {
     setAssistMode("");
     setAssistText("");
-  }, [run.card?.id]);
+    setHelpChoices([]);
+  }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running");
   const lastTask = cardTasks.at(-1);
   const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
-  const coachPanel = coachProps && run.mode !== "exam" && !run.complete && (
-    <CoachPanel
-      key={reviewEntryKey(run)}
-      run={run}
-      call={coachProps.call}
-      status={coachProps.status}
-      autopilot={coachProps.autopilot}
-      inline={!coachProps.side}
-      onAutopilot={coachProps.onAutopilot}
-      onThread={coachProps.onThread}
-      onStatus={coachProps.onStatus}
-      onPractice={coachProps.onPractice}
-      onRefreshRun={coachProps.onRefreshRun}
-      askInChat={coachProps.askInChat}
-    />
-  );
+  const cardNotes = data?.noteBadges?.[run.card?.id] || [];
+  const nextFreshCount = [...new Set((run.scope || []).map((scope) => scope.deckId))]
+    .reduce((count, deckId) => count + (data?.progress?.[deckId]?.counts?.new || 0), 0);
   return (
     <section
       ref={pageRef}
@@ -176,27 +185,31 @@ export default function Review({
               在右栏打开
             </button>
           )}
-          <button onClick={() => setPage("library")}>返回学习库</button>
+          <button className="review-return" aria-label="返回学习库" onClick={() => setPage("library")}>
+            <span className="review-return-full">返回学习库</span>
+            <span className="review-return-short" aria-hidden="true">返回</span>
+          </button>
         </div>
       </div>
       {run.complete ? (
         // Distinct keys: without them React reuses the question body's DOM nodes
         // for the summary, and the ✓ badge inherited .question-area's inline
         // min-height (set by the pinning effect above), stretching into an oval.
-        <div key="summary" className="session-summary">
-          <div className="summary-symbol">✓</div>
-          <div className="eyebrow">SESSION COMPLETE</div>
-          <h1>
-            {run.closed ? "这一轮，已结束。" : "这一轮，完成了。"}
-          </h1>
-          <p>
-            已答 {run.answered} / {run.questions ?? run.total} 道题 · 掌握{" "}
-            {run.correct} 道 · 需要巩固 {run.answered - run.correct} 道
-            {run.retries > 0 ? ` · 队尾重练 ${run.retries} 次` : ""}
-          </p>
+        <div key="summary" className="session-summary result-page">
+          <div className="result-kicker">本轮学习结果</div>
+          <h1 className="result-title">{run.closed ? "这一轮，已结束。" : "这一轮，完成了。"}</h1>
+          <p className="result-subtitle">{shellTitle} · {run.questions ?? run.total} 道题</p>
+          <div className="result-hero">
+            <div className="result-headline">
+              <strong>{run.correct}</strong>
+              <span>道题已掌握 / {run.questions ?? run.total} 道</span>
+              {run.retries > 0 && <small>另有 {run.retries} 次队尾重练</small>}
+            </div>
+            <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct} />
+          </div>
           <div className="summary-topics">
-            <h3>接下来重点复习</h3>
-            {(run.weakTopics || []).map((t) => (
+            <h3>接下来重点复习 · 最多 3 个主题</h3>
+            {(run.weakTopics || []).slice(0, 3).map((t) => (
               <span className="tag" key={t}>
                 {t}
               </span>
@@ -207,8 +220,23 @@ export default function Review({
               </p>
             )}
           </div>
-          <p className="muted">每道题的下次复习时间已保存。</p>
-          {coachProps && run.mode !== "exam" && run.answered > 0 && (
+          <div className="summary-actions">
+            {run.mode === "new" && nextFreshCount > 0 && (
+              <button className="primary" disabled={busy} onClick={() => act("review.start", run.scope?.length > 1
+                ? { mode: "new", currentCourse: true, count: 10, fresh: true }
+                : { mode: "new", deckId: run.scope?.[0]?.deckId || run.deckId, count: 10, ordered: true, fresh: true }, enterRun)}>
+                继续下一批新题 →
+              </button>
+            )}
+            {run.returnTo && <button className="primary" disabled={busy}
+              onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>回到原题 →</button>}
+            <button onClick={() => setPage("library")}>回到学习目录</button>
+          </div>
+          <details key={run.id} className="result-details"
+            onToggle={(event) => setDetailsRun(event.currentTarget.open ? run.id : null)}>
+            <summary>更多结果与练习</summary>
+            <p className="muted">每道题的下次复习时间已保存。</p>
+            {detailsRun === run.id && coachProps && run.mode !== "exam" && run.answered > 0 && (
             <CoachDebrief
               run={run}
               call={coachProps.call}
@@ -219,8 +247,8 @@ export default function Review({
               onContinue={coachProps.onContinue}
               onReviewWeak={coachProps.onReviewWeak}
             />
-          )}
-          <div className="summary-actions">
+            )}
+            <div className="summary-actions">
             {run.mode === "path" && !run.returnTo && (
               <button
                 className="primary"
@@ -241,25 +269,11 @@ export default function Review({
                 在对话中讲解薄弱点
               </button>
             )}
-            <button
-              className={run.returnTo ? "" : "primary"}
-              onClick={() => setPage("library")}
-            >
-              回到学习目录
-            </button>
-            {run.returnTo && (
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}
-              >
-                回到原题 →
-              </button>
-            )}
-          </div>
+            </div>
+          </details>
         </div>
       ) : (
-        <div key="body" className={"review-body" + (coachPanel && coachProps.side ? " with-coach" : "")}>
+        <div key="body" className="review-body">
           <div
             className={
               "question-area " +
@@ -267,271 +281,315 @@ export default function Review({
             }
           >
             {run.contentUpdated && <p className="warning" role="status">题目已更新，请按新版重新作答。之前的作答历史已保留。</p>}
-            <div className="question-meta">
-              <span>
-                {run.index + 1} / {run.total}
-              </span>
-              <div>
-                {run.origin && (
-                  <span className="origin-tag" title={run.origin.prompt ? `源自：${run.origin.prompt}` : ""}>
-                    {run.origin.reason === "too-hard" ? "前置台阶" : run.origin.reason === "followup" ? "追问巩固" : "变式"}
-                    {run.origin.prompt ? ` · 源自「${run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt}」` : ""}
-                  </span>
-                )}
-                <span>{run.card.topic}</span>
-                <button
-                  aria-label="标记题目"
-                  onClick={() => {
-                    setFlag("");
-                    setModal({ type: "flag" });
-                  }}
-                >
-                  ⚑
-                </button>
+            {/* The card: header, stem and answers on paper stock. Toolbar,
+                status and explanation sit below it on the desk. */}
+            <div className="question-card"
+              style={{ "--progress": `${Math.round(((run.index + 1) / Math.max(1, run.total)) * 100)}%` }}>
+              <div className="question-meta">
+                <span>
+                  {run.index + 1} / {run.total}
+                </span>
+                <div>
+                  {cardNotes.map((note) => note.status === "published" && note.url
+                    ? <a key={note.noteId} className="pill result-note-badge" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}>已发布笔记 ↗</a>
+                    : <button key={note.noteId} className="pill result-note-badge" type="button" disabled={!onOpenNote}
+                      title={note.title} onClick={() => onOpenNote?.(note.noteId)}>笔记草稿</button>)}
+                  {run.origin && (
+                    <span className="origin-tag" title={run.origin.prompt ? `源自：${run.origin.prompt}` : ""}>
+                      {run.origin.reason === "too-hard" ? "前置台阶" : run.origin.reason === "followup" ? "追问巩固" : "变式"}
+                      {run.origin.prompt ? ` · 源自「${run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt}」` : ""}
+                    </span>
+                  )}
+                  {run.card.importedFromJson && <span className="origin-tag">外部导入</span>}
+                  <span>{run.card.topic}</span>
+                  {!!publicationIssues.length && !run.card.publicationUngrable &&
+                    <details className="publication-mark">
+                      <summary>待核对</summary>
+                      <div className="publication-mark-popover">
+                        <p>{publicationIssues.join("；")}</p>
+                        <button type="button" className="pill" onClick={() =>
+                          assistCard("improve", `发布检查发现：${publicationIssues.join("；")}`)}>
+                          交给后台修题
+                        </button>
+                      </div>
+                    </details>}
+                  <button
+                    aria-label="标记题目"
+                    onClick={() => {
+                      setFlag("");
+                      setModal({ type: "flag" });
+                    }}
+                  >
+                    ⚑
+                  </button>
+                </div>
               </div>
-            </div>
-            {run.prerequisites?.length > 0 && (
-              <details className="prereq-strip">
-                <summary>
-                  <span>
-                    前置题 {run.prerequisites.length} · 已掌握{" "}
-                    {run.prerequisites.filter((p) => !["new", "weak"].includes(p.level)).length}
-                  </span>
-                  {(() => {
-                    const unlearned = run.prerequisites.some((p) => ["new", "weak"].includes(p.level));
-                    return (
-                      <button
-                        className={unlearned ? "primary pill" : "pill"}
-                        disabled={busy}
-                        title={unlearned ? "先学没掌握的前置题，学完回到这道题" : "把前置题再过一遍自查，做完回到这道题"}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          studyPrerequisites(run.prerequisites);
-                        }}
-                      >
-                        {unlearned ? "先学前置 →" : "自查前置 →"}
-                      </button>
-                    );
-                  })()}
-                </summary>
-                <ul>
-                  {run.prerequisites.map((p) => (
-                    <li key={p.deckId + p.cardId}>
-                      <button
-                        className="prereq-item"
-                        disabled={busy}
-                        title="只练这一道，做完回到这道题"
-                        onClick={() => studyPrerequisites([p])}
-                      >
-                        <span className={"map-dot lv-" + p.level} />
-                        <Markdown className="md-compact" links={false} text={p.prompt} />
-                        <span className="prereq-go" aria-hidden="true">→</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-            {choice ? (
-              <>
-                <div className="question" role="heading" aria-level={2}>
-                  <Markdown text={run.card.prompt} />
-                  {enOn && enStem?.prompt && (
+              <div
+                className="card-progress"
+                role="progressbar"
+                aria-label="复习进度"
+                aria-valuemin={0}
+                aria-valuemax={run.total}
+                aria-valuenow={run.index + 1}
+              />
+              {run.prerequisites?.length > 0 && (
+                <details className="prereq-strip">
+                  <summary>
+                    <span>
+                      前置题 {run.prerequisites.length} · 已掌握{" "}
+                      {run.prerequisites.filter((p) => !["new", "weak"].includes(p.level)).length}
+                    </span>
+                    {(() => {
+                      const unlearned = run.prerequisites.some((p) => ["new", "weak"].includes(p.level));
+                      return (
+                        <button
+                          className={unlearned ? "primary pill" : "pill"}
+                          disabled={busy}
+                          title={unlearned ? "先学没掌握的前置题，学完回到这道题" : "把前置题再过一遍自查，做完回到这道题"}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            studyPrerequisites(run.prerequisites);
+                          }}
+                        >
+                          {unlearned ? "先学前置 →" : "自查前置 →"}
+                        </button>
+                      );
+                    })()}
+                  </summary>
+                  <ul>
+                    {run.prerequisites.map((p) => (
+                      <li key={p.deckId + p.cardId}>
+                        <button
+                          className="prereq-item"
+                          disabled={busy}
+                          title="只练这一道，做完回到这道题"
+                          onClick={() => studyPrerequisites([p])}
+                        >
+                          <span className={"map-dot lv-" + p.level} />
+                          <Markdown className="md-compact" links={false} text={p.prompt} />
+                          <span className="prereq-go" aria-hidden="true">→</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {run.card.publicationUngrable ? (
+                <div className="quality-note warning" role="status">
+                  <div className="question"><Markdown text={run.card.prompt || "题干尚未填写"} /></div>
+                  <p>这道题缺少可判分内容。你可以交给助教修改，或跳过；跳过不会记录成绩或改变复习进度。</p>
+                  {!!publicationIssues.length && <p>{publicationIssues.join("；")}</p>}
+                  <button type="button" disabled={busy} onClick={() =>
+                    assistCard("improve", `发布检查发现：${publicationIssues.join("；")}`)}>交给后台修题</button>
+                  <button className="primary" disabled={busy} onClick={() => reviewAct("review.skip")}>跳过此题，不计成绩 →</button>
+                </div>
+              ) : choice ? (
+                <>
+                  <div className="question" role="heading" aria-level={2} key={"stem:" + reviewEntryKey(run)}>
+                    <Markdown text={run.card.prompt} />
+                    {enOn && enStem?.prompt && (
+                      <div className="en-block">
+                        <span className="en-tag">EN</span>
+                        <Markdown links={false} className="md-compact" text={enStem.prompt} />
+                      </div>
+                    )}
+                  </div>
+                  {run.card.multiple && (
+                    <p className="muted small">
+                      多选题 · 选出所有符合条件的选项
+                    </p>
+                  )}
+                  <ChoiceFeedback options={run.card.options} feedback={run.feedback} solution={run.solution} multiple={multiple} />
+                  <div className="options" key={"options:" + reviewEntryKey(run)}>
+                    {run.card.options.map((o, i) => {
+                      const solution = run.solution?.options?.find(
+                        (x) => x.id === o.id,
+                      );
+                      const picked = run.feedback?.selected?.includes(
+                        o.id,
+                      );
+                      const enOption = enStem?.options?.find((x) => x.id === o.id);
+                      const enOptionExplain = enAnswer?.options?.find((x) => x.id === o.id);
+                      return (
+                        <button
+                          key={o.id}
+                          disabled={busy || !!run.feedback}
+                          className={
+                            "option " +
+                            (run.feedback
+                              ? solution?.correct
+                                ? "correct"
+                                : picked
+                                  ? "incorrect"
+                                  : "dim"
+                              : selected.includes(o.id)
+                                ? "selected"
+                                : "")
+                          }
+                          onClick={() => choose(o.id)}
+                        >
+                          <span className="option-letter">
+                            {String.fromCharCode(65 + i)}.
+                          </span>
+                          <div>
+                            <Markdown text={o.text} links={false} className="md-compact" />
+                            {enOption?.text && <p className="option-en">{enOption.text}</p>}
+                            {run.feedback && (
+                              <>
+                                <strong className="answer-state">
+                                  {solution?.correct
+                                    ? picked ? "✓ 已选 · 正确" : multiple ? "漏选 · 正确答案" : "正确答案"
+                                    : picked
+                                      ? multiple ? "× 已选 · 错选" : "× 你的选择"
+                                      : ""}
+                                </strong>
+                                <Markdown
+                                  text={solution?.explanation}
+                                  links={false}
+                                  className="md-compact option-explanation"
+                                />
+                                {enOptionExplain?.explanation && (
+                                  <Markdown
+                                    text={enOptionExplain.explanation}
+                                    links={false}
+                                    className="md-compact option-explanation en-line"
+                                  />
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {run.card.multiple && !run.feedback && (
+                    <button
+                      className="primary submit-answer"
+                      disabled={busy || !selected.length}
+                      onClick={() =>
+                        reviewAct("review.answer", { selected })
+                      }
+                    >
+                      提交答案
+                    </button>
+                  )}
+                </>
+              ) : isCloze ? (
+                <>
+                  <Cloze
+                    key={"cloze:" + reviewEntryKey(run)}
+                    card={run.card}
+                    values={run.feedback?.answers || clozeValues}
+                    onChange={(id, value) =>
+                      setClozeValues((v) => ({ ...v, [id]: value }))
+                    }
+                    disabled={busy || !!run.feedback}
+                    details={run.feedback?.details || null}
+                    solution={run.solution}
+                  />
+                  {enOn && (enStem?.clozeText || enStem?.prompt) && (
                     <div className="en-block">
                       <span className="en-tag">EN</span>
-                      <Markdown links={false} className="md-compact" text={enStem.prompt} />
+                      <Markdown
+                        links={false}
+                        className="md-compact"
+                        text={String(enStem.clozeText || enStem.prompt).replace(/\{\{[^{}]+\}\}/g, "＿＿")}
+                      />
                     </div>
                   )}
-                </div>
-                {run.card.multiple && (
-                  <p className="muted small">
-                    多选题 · 选出所有符合条件的选项
-                  </p>
-                )}
-                <ChoiceFeedback options={run.card.options} feedback={run.feedback} solution={run.solution} multiple={multiple} />
-                <div className="options">
-                  {run.card.options.map((o, i) => {
-                    const solution = run.solution?.options?.find(
-                      (x) => x.id === o.id,
-                    );
-                    const picked = run.feedback?.selected?.includes(
-                      o.id,
-                    );
-                    const enOption = enStem?.options?.find((x) => x.id === o.id);
-                    const enOptionExplain = enAnswer?.options?.find((x) => x.id === o.id);
-                    return (
-                      <button
-                        key={o.id}
-                        disabled={busy || !!run.feedback}
-                        className={
-                          "option " +
-                          (run.feedback
-                            ? solution?.correct
-                              ? "correct"
-                              : picked
-                                ? "incorrect"
-                                : "dim"
-                            : selected.includes(o.id)
-                              ? "selected"
-                              : "")
-                        }
-                        onClick={() => choose(o.id)}
-                      >
-                        <span className="option-letter">
-                          {String.fromCharCode(65 + i)}.
-                        </span>
-                        <div>
-                          <Markdown text={o.text} links={false} className="md-compact" />
-                          {enOption?.text && <p className="option-en">{enOption.text}</p>}
-                          {run.feedback && (
-                            <>
-                              <strong className="answer-state">
-                                {solution?.correct
-                                  ? picked ? "✓ 已选 · 正确" : multiple ? "漏选 · 正确答案" : "正确答案"
-                                  : picked
-                                    ? multiple ? "× 已选 · 错选" : "× 你的选择"
-                                    : ""}
-                              </strong>
-                              <Markdown
-                                text={solution?.explanation}
-                                links={false}
-                                className="md-compact option-explanation"
-                              />
-                              {enOptionExplain?.explanation && (
-                                <Markdown
-                                  text={enOptionExplain.explanation}
-                                  links={false}
-                                  className="md-compact option-explanation en-line"
-                                />
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                {run.card.multiple && !run.feedback && (
-                  <button
-                    className="primary submit-answer"
-                    disabled={busy || !selected.length}
-                    onClick={() =>
-                      reviewAct("review.answer", { selected })
-                    }
-                  >
-                    提交答案
-                  </button>
-                )}
-              </>
-            ) : isCloze ? (
-              <>
-                <Cloze
-                  card={run.card}
-                  values={run.feedback?.answers || clozeValues}
-                  onChange={(id, value) =>
-                    setClozeValues((v) => ({ ...v, [id]: value }))
-                  }
-                  disabled={busy || !!run.feedback}
-                  details={run.feedback?.details || null}
-                  solution={run.solution}
-                />
-                {enOn && (enStem?.clozeText || enStem?.prompt) && (
-                  <div className="en-block">
-                    <span className="en-tag">EN</span>
-                    <Markdown
-                      links={false}
-                      className="md-compact"
-                      text={String(enStem.clozeText || enStem.prompt).replace(/\{\{[^{}]+\}\}/g, "＿＿")}
-                    />
-                  </div>
-                )}
-                {enOn && run.feedback && enAnswer?.blanks?.length > 0 && (
-                  <p className="en-block en-inline-line">
-                    <span className="en-tag">EN</span>
-                    {enAnswer.blanks.map((b) => b.value).join(" · ")}
-                  </p>
-                )}
-                {!run.feedback && (
-                  <button
-                    className="primary submit-answer"
-                    disabled={
-                      busy ||
-                      !Object.values(clozeValues).some((v) =>
-                        String(v).trim(),
-                      )
-                    }
-                    onClick={() =>
-                      reviewAct("review.answer", { answers: clozeValues })
-                    }
-                  >
-                    提交答案
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <FlipCard
-                  key={run.card.id}
-                  run={run}
-                  busy={busy}
-                  showBack={showBack}
-                  flipCard={flipCard}
-                  enOn={enOn}
-                />
-                <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
-                {run.card.kind === "open" && !run.revealed && (
-                  <label className="response-label">
-                    先组织你的回答
-                    <textarea
-                      rows={3}
-                      value={response}
-                      onChange={(e) => setResponse(e.target.value)}
-                      placeholder="在脑中作答，或在这里写下思路（仅本轮临时草稿）"
-                    />
-                  </label>
-                )}
-                {run.revealed && !run.feedback && (
-                  <div className="grading">
-                    <p>{run.retry ? "本轮重练 · " : ""}对照答案，你掌握到了哪一步？</p>
-                    <p className="muted">按数字键 0–5 评分</p>
-                    <div>
-                      {[
-                        "完全忘记",
-                        "记得一点",
-                        "有印象",
-                        "勉强答对",
-                        "熟练",
-                        "轻松掌握",
-                      ].map((label, grade) => (
-                        <button
-                          className={
-                            grade < 3 ? "grade low" : "grade high"
-                          }
-                          key={grade}
-                          aria-keyshortcuts={String(grade)}
-                          title={`快捷键 ${grade}：${label}`}
-                          disabled={busy}
-                          onClick={() =>
-                            reviewAct("review.answer", { grade })
-                          }
-                        >
-                          <strong>{grade}</strong>
-                          <span>{label}</span>
-                        </button>
-                      ))}
+                  {enOn && run.feedback && enAnswer?.blanks?.length > 0 && (
+                    <p className="en-block en-inline-line">
+                      <span className="en-tag">EN</span>
+                      {enAnswer.blanks.map((b) => b.value).join(" · ")}
+                    </p>
+                  )}
+                  {!run.feedback && (
+                    <button
+                      className="primary submit-answer"
+                      disabled={
+                        busy ||
+                        !Object.values(clozeValues).some((v) =>
+                          String(v).trim(),
+                        )
+                      }
+                      onClick={() =>
+                        reviewAct("review.answer", { answers: clozeValues })
+                      }
+                    >
+                      提交答案
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <FlipCard
+                    key={run.card.id}
+                    run={run}
+                    busy={busy}
+                    showBack={showBack}
+                    flipCard={flipCard}
+                    enOn={enOn}
+                  />
+                  <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
+                  {run.card.kind === "open" && !run.revealed && (
+                    <label className="response-label">
+                      先组织你的回答
+                      <textarea
+                        rows={3}
+                        value={response}
+                        onChange={(e) => setResponse(e.target.value)}
+                        placeholder="在脑中作答，或在这里写下思路（仅本轮临时草稿）"
+                      />
+                    </label>
+                  )}
+                  {run.revealed && !run.feedback && (
+                    <div className="grading">
+                      <div className="grading-head">
+                        <span>{run.retry ? "本轮重练 · " : ""}掌握程度</span>
+                        <small>按 0–5 评分</small>
+                      </div>
+                      <div className="grade-scale" role="group" aria-label="掌握程度评分">
+                        {[
+                          "完全忘记",
+                          "记得一点",
+                          "有印象",
+                          "勉强答对",
+                          "熟练",
+                          "轻松掌握",
+                        ].map((label, grade) => (
+                          <button
+                            className={
+                              grade < 3 ? "grade low" : "grade high"
+                            }
+                            key={grade}
+                            aria-label={`${grade} 分：${label}`}
+                            aria-keyshortcuts={String(grade)}
+                            title={`快捷键 ${grade}：${label}`}
+                            disabled={busy}
+                            onClick={() =>
+                              reviewAct("review.answer", { grade })
+                            }
+                          >
+                            <strong>{grade}</strong>
+                            <span>{label}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-                </SmoothHeight>
-              </>
-            )}
+                  )}
+                  </SmoothHeight>
+                </>
+              )}
+            </div>
             <ReviewToolbar
+              key={reviewEntryKey(run)}
               assistMode={assistMode}
               run={run} busy={busy} expanded={run.revealed ? explain : hint}
               onToggleHelp={() => run.revealed ? setExplain(!explain) : setHint(!hint)}
               onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
               onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
               onSlay={slayCard} onReviewAction={reviewAct}
+              onNote={onMakeNote}
               enOn={enOn}
               enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
               onToggleEn={toggleEn}
@@ -546,14 +604,31 @@ export default function Review({
                   onSubmit={async (event) => {
                     event.preventDefault();
                     const mode = assistMode;
-                    if (await assistCard(mode, assistText)) {
+                    if (!assistText.trim() && !(mode === "ask" && helpChoices.length)) return;
+                    if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [])) {
+                      if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length)
+                        studyPrerequisites(run.prerequisites);
                       setAssistMode("");
                       setAssistText("");
+                      setHelpChoices([]);
                     }
                   }}
                 >
+                  {assistMode === "ask" && <>
+                    <strong>想从哪里弄懂？可多选</strong>
+                    <div className="assist-quick-choices" role="group" aria-label="帮助方式">
+                      {HELP_CHOICES.filter((choice) => choice.id !== "mistake" || run.feedback).map((choice) =>
+                        <button type="button" key={choice.id}
+                          className={"pill" + (helpChoices.includes(choice.id) ? " pill-on" : "")}
+                          aria-pressed={helpChoices.includes(choice.id)}
+                          onClick={() => setHelpChoices((items) => items.includes(choice.id)
+                            ? items.filter((item) => item !== choice.id) : [...items, choice.id])}>
+                          {choice.label}
+                        </button>)}
+                    </div>
+                  </>}
                   <label>
-                    {assistMode === "ask" ? "卡在哪里？后台助教会查资料解答，并把解答存到这道题的问答里" : "这道题哪里不好？后台助教会直接改这张卡，可一步撤销"}
+                    {assistMode === "ask" ? "补充你自己的疑问（可选）" : "这道题哪里不好？后台助教会直接改这张卡，可一步撤销"}
                     <textarea
                       autoFocus
                       rows={2}
@@ -564,24 +639,15 @@ export default function Review({
                     />
                   </label>
                   <div className="assist-actions">
-                    <button type="submit" className="primary pill" disabled={!assistText.trim()}>
-                      交给后台助教
-                    </button>
-                    <button
-                      type="button"
-                      className="pill"
-                      onClick={() => {
-                        (assistMode === "ask" ? askAboutCard : improveCard)(assistText.trim());
-                        setAssistMode("");
-                        setAssistText("");
-                      }}
-                    >
-                      改在对话里说
+                    <button type="submit" className="primary pill"
+                      disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>
+                      提交到后台
                     </button>
                     <button type="button" className="pill" onClick={() => setAssistMode("")}>
                       取消
                     </button>
                   </div>
+                  {assistMode === "ask" && <p className="muted small">提交后才启动后台助教；完成结果进信箱，做题和主对话可继续。</p>}
                 </form>
               )}
               {runningTask && (
@@ -592,7 +658,7 @@ export default function Review({
               )}
               {!runningTask && lastTask?.status === "failed" && (
                 <p className="assist-status failed" role="status">
-                  后台助教没能完成：{lastTask.message || "任务失败"}。可以再试一次，或点「改在对话里说」。
+                  后台助教没能完成：{lastTask.message || "任务失败"}。可以重新提交。
                 </p>
               )}
             </SmoothHeight>
@@ -609,14 +675,13 @@ export default function Review({
               </div>
             )}
             {run.feedback && (
-              <p className="next-due">
+              <p className={"next-due" + (run.feedback.correct ? "" : " retry")}>
                 {run.feedback.correct ? "✓ 已掌握" : "↻ 将继续巩固"} ·
                 下次复习 {date(run.feedback.nextDue)}
                 {run.feedback.retryQueued && <span> · 已追加到本轮队尾，稍后再练一次</span>}
               </p>
             )}
-            {coachPanel && !coachProps.side && coachPanel}
-            {explain && run.solution && (
+            {run.solution && (explain || !!run.feedback) && (
               <div className="explanation">
                 <h3>理解这道题</h3>
                 <Markdown text={run.solution.explanation} />
@@ -634,48 +699,12 @@ export default function Review({
                     <Markdown text={run.solution.rubric} />
                   </>
                 )}
-                <div className="citations">
-                  {run.solution.citations?.map((c, i) => (
-                    <button
-                      key={i}
-                      onClick={() =>
-                        setModal({
-                          type: "source",
-                          source: data.sources.find(
-                            (s) => s.id === c.sourceId,
-                          ),
-                          quote: c.quote,
-                        })
-                      }
-                    >
-                      ↗{" "}
-                      {data.sources.find((s) => s.id === c.sourceId)
-                        ?.title || "资料"}
-                      <blockquote>{c.quote}</blockquote>
-                    </button>
-                  ))}
-                </div>
-                {selfCitedCardCount([run.solution], data.sources || []) > 0 && (
-                  <p className="warning" role="note">
-                    这些引用来自导入的题目自身，不能独立核实答案。请对照原始资料判断。
-                  </p>
-                )}
-                {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} call={call} />}
+                <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
+                  onOpenSource={(source, quote) => setModal({ type: "source", source, quote })} />
+                {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} call={call} readOnly />}
               </div>
             )}
-            <div className="teaching-panel">
-              {run.feedback && data.modelReady && !teaching && (
-                <button
-                  disabled={teachingBusy}
-                  onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })}
-                  onClick={() =>
-                    teachingAct("teach.start")
-                  }
-                >
-                  {teachingBusy ? "正在准备讲解…" : "逐步讲解 · 检查理解"}
-                </button>
-              )}
-              {teachingBusy && <p role="status" className="muted">正在后台处理，可以继续下一题，返回本题查看结果。</p>}
+            {teaching && <div className="teaching-panel">
               {teaching && (
                 <section className="explanation">
                   <div className="eyebrow">
@@ -727,13 +756,8 @@ export default function Review({
                   )}
                 </section>
               )}
-            </div>
-            <p className="keyboard-note">
-              {choice ? "1–6 选择 · " : ""}Enter 下一题 · ← → 切换
-              {!choice && !isCloze ? " · 空格翻卡" : ""} · H 提示 · G/B 反馈 · A 自动驾驶 · ? 全部快捷键
-            </p>
+            </div>}
           </div>
-          {coachPanel && coachProps.side && coachPanel}
         </div>
       )}
     </section>

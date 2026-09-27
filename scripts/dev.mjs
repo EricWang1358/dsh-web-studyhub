@@ -145,7 +145,7 @@ const server = createServer(async (req, res) => {
           "Cache-Control": "no-store",
         })
         .end(
-          `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Study · DSH</title><link rel="stylesheet" href="/app.css"><body style="margin:0;background:#1d2126"><div id="root" style="height:100dvh"></div><script>window.STUDY_TOKEN=${JSON.stringify(token)}</script><script src="/app.js"></script></body></html>`,
+          `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Study · DSH</title><link rel="stylesheet" href="/app.css"><body style="margin:0;background:#161412"><div id="root" style="height:100dvh"></div><script>window.STUDY_TOKEN=${JSON.stringify(token)}</script><script src="/app.js"></script></body></html>`,
         );
       return;
     }

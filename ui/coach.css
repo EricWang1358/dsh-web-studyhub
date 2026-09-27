@@ -344,6 +344,22 @@
   box-sizing: border-box;
   font-size: 13px;
 }
+.assist-form > strong {
+  color: var(--text);
+  font-size: 13px;
+}
+.assist-quick-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.assist-quick-choices .pill {
+  font-size: 12px;
+  padding: 7px 11px;
+}
+.assist-form > p {
+  margin: 0;
+}
 .assist-actions {
   display: flex;
   flex-wrap: wrap;
