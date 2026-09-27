@@ -133,3 +133,26 @@ test("background skeleton failures are recorded and can be retried; it is off un
   assert.equal(after.skeletonJob.status, "done");
   assert.ok(after.skeletonId);
 });
+
+test("a large scope is sampled evenly for the background skeleton and failures read in Chinese", async (t) => {
+  let seen;
+  const service = await setup(t, async (system, prompt) => {
+    if (/choose study material/.test(system)) return JSON.stringify({ keys: [], title: "" });
+    seen = JSON.parse(prompt);
+    return JSON.stringify({ nodes: [] });
+  });
+  await service.store.update((s) => {
+    const topics = ["甲", "乙", "丙", "丁", "戊"];
+    s.decks.push({ id: "big", title: "大题组", folder: "大课", cards: Array.from({ length: 150 }, (_, i) => ({ id: `b${i}`, topic: topics[i % 5],
+      kind: "flashcard", prompt: "很长的题干".repeat(80), answer: "答".repeat(400), explanation: "解".repeat(400) })) });
+  });
+  const { session } = await service.call("workflow.quickstart", { goal: "大题组", requestId: "big", skeleton: true });
+  const after = await settle(service, session.id);
+  assert.equal(after.skeletonJob.cards, 150, "the status reports the whole scope");
+  assert.equal(seen.cards.length, 80);
+  assert.deepEqual(seen.topics.map((x) => x.count), [30, 30, 30, 30, 30], "every topic is listed with its full count");
+  assert.deepEqual([...new Set(seen.cards.map((c) => c.topic))].sort(), ["丁", "丙", "乙", "戊", "甲"]);
+  assert.ok(JSON.stringify(seen).length < 40000, "the background prompt stays compact");
+  assert.equal(after.skeletonJob.status, "failed");
+  assert.match(after.skeletonJob.message, /^模型整理的骨架没有通过检查/);
+});

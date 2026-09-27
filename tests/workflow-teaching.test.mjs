@@ -178,3 +178,12 @@ test("a timed-out model call cannot trigger review or repair after it eventually
   assert.equal(calls, 1);
   assert.equal((await service.call("workflow.session.get", { id: session.id })).session.records.lesson.content, undefined);
 });
+
+test("a first article has nothing to undo, so undo never blanks the lesson", async t => {
+  const { service, session } = await setup(t, async (system) => system.startsWith("Independently") ? approved : generated());
+  await service.call("workflow.teaching.start", { id: session.id, version: session.version, stepId: "lesson", mode: "lesson" });
+  const { session: done } = await settled(service, session.id);
+  assert.equal(done.records.lesson.content, article);
+  assert.equal("previousContent" in done.records.lesson, false);
+  await assert.rejects(service.call("workflow.teaching.undo", { id: session.id, version: done.version, stepId: "lesson" }), /没有可撤销/);
+});
