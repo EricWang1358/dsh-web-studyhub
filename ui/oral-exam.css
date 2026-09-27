@@ -10,7 +10,7 @@
 .oral-history button { text-align: left; }
 .oral-progress { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .oral-question { display: grid; gap: 18px; }
-.oral-prompt { font-size: 20px; line-height: 1.5; }
+.oral-prompt { font-size: 21px; line-height: 1.5; }
 .oral-question details { padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: 12px; }
 .oral-question details summary, .oral-report details summary { cursor: pointer; }
 .oral-question details ul { margin-bottom: 0; }
@@ -26,7 +26,7 @@
 .oral-band-bar .strong { background: var(--ok); }
 .oral-band-bar .developing { background: var(--warn); }
 .oral-band-bar .weak { background: var(--bad); }
-.oral-band-legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--text-dim); font-size: 13px; }
+.oral-band-legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--text-dim); font-size: 14px; }
 .oral-report .result-weak { padding: 18px; border: 1px solid var(--line); border-radius: 14px; }
 .oral-report .result-weak h3 { margin: 0 0 10px; }
 .oral-report .result-weak ol { margin-top: 0; }

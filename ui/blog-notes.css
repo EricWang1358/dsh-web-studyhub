@@ -8,7 +8,7 @@
 .note-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 18px; }
 .note-edit-pane, .note-preview-pane { min-width: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg-surface); }
 .note-edit-pane > strong, .note-preview-pane > strong { display: block; padding: 10px 14px; border-bottom: 1px solid var(--line); }
-.note-edit-pane .cm-editor { font-size: 14px; }
+.note-edit-pane .cm-editor { font-size: 15px; }
 .note-preview { height: 560px; overflow: auto; padding: 16px 22px; line-height: 1.65; overflow-wrap: anywhere; }
 .note-preview h1, .note-preview h2, .note-preview h3 { margin: 1.2em 0 .45em; }
 .note-preview h1:first-child { margin-top: 0; }
