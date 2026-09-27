@@ -48,7 +48,7 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
     (await commands[0].handler({ agent: {}, rawInput: "  写成 MQ " })).kind,
     "error",
   );
-  assert.equal(sections.length, 1);
+  assert.equal(sections.length, 2);
   // Every tool result must be lossless JSON (DSH rejects undefined, NaN, -0 and class instances).
   const lossless = (value, path = "$") => {
     if (value === null || typeof value === "string" || typeof value === "boolean") return;
@@ -113,6 +113,12 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
   await tool("draft.save", { deck: { id: "d1", title: "Patterns", cards: [card] } });
   await tool("draft.publish", { id: "d1" });
   assert.equal((await tool("card.search", { keywords: ["Bridge"] })).results[0].cardId, "c1");
+  const opened = await tool("panel.open", { cardId: "c1" });
+  assert.equal(opened.status, "queued_for_sidebar");
+  const panelHandler = createHostHandler({ sessions: { get: () => agent.session } });
+  const pending = await panelHandler("call", { sessionId: agent.id, action: "panel.intent.next" });
+  assert.equal(pending.value.intent.runId, opened.runId);
+  assert.equal((await panelHandler("call", { sessionId: agent.id, action: "panel.intent.next" })).value.intent, null);
   await tool("snapshot");
   await tool("map");
   const run = await tool("review.start", { deckId: "d1", mode: "flashcard" });

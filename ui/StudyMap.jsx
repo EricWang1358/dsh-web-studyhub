@@ -3,6 +3,8 @@ import { LEVEL_LABEL } from "./shared.js";
 import GenerationTrace, { generationStage } from "./GenerationTrace.jsx";
 import { reviewedCardStatus } from "../lib/review-integrity.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
+import focusCss from "./focus.css";
+import { useInjectCss } from "./shared.js";
 
 const BAR_ORDER = ["mastered", "familiar", "learning", "weak", "new"];
 const EMPTY_PROGRESS = {};
@@ -42,21 +44,6 @@ function mergeProgress(list) {
     status: !total || counts.new === total ? "todo" : "active",
   };
 }
-/* Donut showing mastery 0–100. Pure CSS conic-gradient driven by --p. */
-function MasteryRing({ value, title }) {
-  return (
-    <span
-      className="ring"
-      style={{ "--p": Math.max(0, Math.min(100, value || 0)) }}
-      title={title}
-      role="img"
-      aria-label={title || `掌握度 ${value || 0}%`}
-    >
-      <span>{value || 0}</span>
-    </span>
-  );
-}
-
 function MasteryBar({ node }) {
   const total = BAR_ORDER.reduce((n, l) => n + node.counts[l], 0);
   const label = BAR_ORDER.filter((l) => node.counts[l])
@@ -121,8 +108,6 @@ export default function StudyMap({
   createManual,
   importLibrary,
   askInChat,
-  theme = "auto",
-  setTheme,
   notebooks,
   notebookError,
   onNotebookPublish,
@@ -131,9 +116,24 @@ export default function StudyMap({
   refreshNotebooks,
   onNotebookSearch,
   onShowGraph,
+  onFocus,
+  suggestRole,
+  suggestMerges,
+  mergeDecks,
   children,
 }) {
+  useInjectCss(focusCss, "study-focus");
   const [search, setSearch] = useState(""),
+    [showOtherCourses, setShowOtherCourses] = useState(false),
+    [showAllCurrent, setShowAllCurrent] = useState(false),
+    [roleDraft, setRoleDraft] = useState(data.focus?.role || ""),
+    [jdDraft, setJdDraft] = useState(data.focus?.jd || ""),
+    [roleProposal, setRoleProposal] = useState(null),
+    [suggestBusy, setSuggestBusy] = useState(false),
+    [suggestError, setSuggestError] = useState(""),
+    [mergeSuggestions, setMergeSuggestions] = useState(null),
+    [mergeBusy, setMergeBusy] = useState(false),
+    [mergeError, setMergeError] = useState(""),
     [showArchived, setShowArchived] = useState(false),
     [selected, setSelected] = useState(() => new Set()),
     [menu, setMenu] = useState(null),
@@ -145,6 +145,8 @@ export default function StudyMap({
           ...(data.decks.length <= 3 ? data.decks.map((d) => d.id) : []),
         ]),
     );
+  useEffect(() => { setRoleDraft(data.focus?.role || ""); }, [data.focus?.role]);
+  useEffect(() => { setJdDraft(data.focus?.jd || ""); }, [data.focus?.jd]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -166,7 +168,7 @@ export default function StudyMap({
     today = data.today || { due: 0, weak: 0, new: 0, size: 0 },
     runs = data.runs || [];
   const jobs = data.jobs || [];
-  const activeJobs = jobs.filter(isActiveJob);
+  const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
   const visibleJobs = visibleGenerationJobs(jobs);
   /* Weighted mastery across active decks. Deck rows carry no mastery of their
      own in the snapshot; the per-deck figures live on `progress`. */
@@ -195,11 +197,19 @@ export default function StudyMap({
   const folders = useMemo(() => {
     const groups = new Map();
     for (const d of visible) {
-      if (!groups.has(d.folder)) groups.set(d.folder, []);
-      groups.get(d.folder).push(d);
+      const course = d.course || d.folder;
+      if (!groups.has(course)) groups.set(course, []);
+      groups.get(course).push(d);
     }
-    return [...groups];
-  }, [visible]);
+    const current = groups.get(data.focus?.course);
+    current?.sort((a, b) => Date.parse(b.publishedAt || b.createdAt || 0) -
+      Date.parse(a.publishedAt || a.createdAt || 0));
+    return [...groups].sort(([left], [right]) =>
+      Number(right === data.focus?.course) - Number(left === data.focus?.course));
+  }, [visible, data.focus?.course]);
+  const shownFolders = query || showArchived || showOtherCourses
+    ? folders : folders.filter(([course]) => course === data.focus?.course);
+  const otherCourseCount = folders.length - shownFolders.length;
 
   const toggleOpen = (id) =>
     setExpanded((v) => {
@@ -226,7 +236,7 @@ export default function StudyMap({
   const scope = scopeOf(selected);
   const selectedRun = scope.length ? runFor(scope) : null;
 
-  function deckRow(d, i = 0) {
+  function deckRow(d) {
     const p = progress[d.id],
       key = topicKey(d.id),
       whole = selected.has(key),
@@ -236,7 +246,6 @@ export default function StudyMap({
       <li
         key={d.id}
         className={"map-deck" + (menu === d.id ? " menu-open" : "")}
-        style={{ "--i": i }}
       >
         <div className={"map-row deck-row" + (whole ? " selected" : "")}>
           <button
@@ -268,7 +277,7 @@ export default function StudyMap({
           </button>
           {p && <MasteryBar node={p} />}
           <button
-            className="map-play"
+            className={"map-play" + (run ? " is-run" : "")}
             disabled={busy || d.archived || !d.available}
             title={run ? `继续 ${run.index + 1}/${run.total}` : `学习全部 ${d.available} 题`}
             aria-label={`开始学习 ${d.title}`}
@@ -347,7 +356,7 @@ export default function StudyMap({
                   </span>
                   <MasteryBar node={t} />
                   <button
-                    className="map-play"
+                    className={"map-play" + (topicRun ? " is-run" : "")}
                     disabled={busy || d.archived}
                     aria-label={`学习主题 ${t.name}`}
                     title={topicRun ? `继续 ${topicRun.index + 1}/${topicRun.total}` : "学习这个主题"}
@@ -392,139 +401,196 @@ export default function StudyMap({
           .filter(Boolean)
           .join(" · ") || "暂无可学习的题目";
 
+  const slain = data.decks.find((d) => d.systemKind === "slain");
+  const interview = data.focus?.mode === "interview",
+    freshAll = data.focus?.fresh?.length || 0,
+    freshCount = Math.min(10, freshAll),
+    todayLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" })
+      .format(new Date()),
+    breakdown = [
+      today.due && `到期 ${today.due}`,
+      today.weak && `薄弱 ${today.weak}`,
+      today.new && `新题 ${today.new}`,
+    ].filter(Boolean).join(" · "),
+    startFresh = () => start({ mode: "new", currentCourse: true, count: 10, fresh: true }),
+    startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: "path" }));
+  /* The card offers exactly one action. An open run wins, then the current
+     course's new questions (class mode), then today's review path. Every
+     other start stays reachable as a quiet link beside it. */
+  const plan = !data.decks.length
+    ? { kind: "empty", eyebrow: "开始",
+        action: { label: "导入 JSON 题组", run: importLibrary },
+        also: [["添加资料补题", addSource], ["在对话中用工作区文件出题", () => askInChat(
+          "请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。")]] }
+    : todayRun
+      ? { kind: "resume", eyebrow: "继续今日", count: todayRun.total - todayRun.index, unit: "题未完成",
+          detail: `已做到第 ${todayRun.index + 1} / ${todayRun.total} 题`,
+          action: { label: "继续学习", run: startPath },
+          also: !interview && freshCount ? [[`学当前课程新题 · ${freshCount} 题`, startFresh]] : [] }
+      : !interview && freshCount
+        ? { kind: "fresh", eyebrow: "当前课程", count: freshCount, unit: "道新题",
+            detail: freshAll > freshCount
+              ? `本轮先学 ${freshCount} 道，课程还有 ${freshAll - freshCount} 道未学` : "当前课程的全部新题",
+            action: { label: "开始学新题", run: startFresh },
+            also: today.size ? [[`到期复习与巩固 · ${today.size} 题`, startPath]] : [] }
+        : { kind: today.size ? "path" : "clear", eyebrow: today.ahead ? "提前巩固" : "今日学习",
+            count: today.size, unit: today.size ? "题待学" : "题待学",
+            detail: today.ahead ? "今天的任务都完成了" : today.size ? breakdown : "今天已经清空",
+            action: { label: today.ahead ? "提前巩固" : "开始今日学习", run: startPath, disabled: !today.size },
+            also: [] };
+  // Cards visible behind the top one: the stack is as thick as the day.
+  plan.depth = plan.kind === "empty" ? 0 : Math.min(2, Math.max(0, (plan.count || 0) - 1));
+
   return (
     <section className="page library-page map-page">
       {children}
-      <div className="today">
-        <div className="today-main">
-          <div className="eyebrow">今日学习</div>
-          <h1>{headline}</h1>
-          <p className="muted">
-            {data.next
-              ? `推荐下一步：${data.next.deckTitle} › ${data.next.topic}（掌握 ${data.next.mastery}%）`
-              : data.decks.length
-                ? "所有主题都已掌握，可以提前巩固。"
-                : "添加讲义或笔记，生成题组后这里会给出学习路径。"}
-          </p>
-          <p className="path-hint">
-            <span>
-              复习到期 → 补薄弱 → 按目录学新题，不会的题用{" "}
-              <code>/study-spar 问题</code> 自动归类
-            </span>
-          </p>
-        </div>
-        {overall != null && (
-          <MasteryRing value={overall} title={`整体掌握度 ${overall}%`} />
-        )}
-        <div className="today-actions">
-          {setTheme && (
-            <button
-              className="icon-btn"
-              aria-label="切换主题"
-              title={
-                theme === "auto"
-                  ? "主题：跟随系统"
-                  : theme === "dark"
-                    ? "主题：暗色"
-                    : "主题：亮色"
-              }
-              onClick={() =>
-                setTheme(
-                  theme === "auto" ? "dark" : theme === "dark" ? "light" : "auto",
-                )
-              }
-            >
-              {theme === "auto" ? "◐" : theme === "dark" ? "☾" : "☀"}
-            </button>
-          )}
-          {data.decks.length ? (
-            <>
-              <button
-                className="primary start"
-                disabled={busy || (!todayRun && !today.size)}
-                onClick={() =>
-                  todayRun ? resume(todayRun.id) : start({ mode: "path" })
-                }
-              >
-                {todayRun
-                  ? `▶ 继续学习 ${todayRun.index + 1}/${todayRun.total}`
-                  : today.ahead
-                    ? `▶ 提前巩固 · ${today.size} 题`
-                    : `▶ 开始学习 · ${today.size} 题`}
-              </button>
-              {data.next && (
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    start({
-                      mode: "path",
-                      scope: [{ deckId: data.next.deckId, topic: data.next.topic }],
-                    })
-                  }
-                >
-                  只学推荐主题
-                </button>
-              )}            </>
+      <div className={"desk" + (plan.kind === "empty" ? " is-empty" : "")}>
+        <div className="desk-intro">
+          <div className="focus-switch" role="group" aria-label="学习模式">
+            <button className={!interview ? "active" : ""} aria-pressed={!interview}
+              onClick={() => onFocus?.({ mode: "class" })}>课堂跟学</button>
+            <button className={interview ? "active" : ""} aria-pressed={interview}
+              onClick={() => onFocus?.({ mode: "interview" })}>笔试 / 面试</button>
+          </div>
+          {interview ? (
+            <input className="course-heading-input" aria-label="岗位方向" placeholder="输入岗位方向"
+              value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} onBlur={() => {
+                const role = roleDraft.trim();
+                if (role !== (data.focus?.role || "")) onFocus?.({ role });
+              }} />
+          ) : (data.focus?.courses || []).length ? (
+            <h1 className="course-heading">
+              <span>{data.focus?.course || headline}</span>
+              <span className="course-caret" aria-hidden="true">▾</span>
+              {/* The heading is the course switcher: a transparent native select
+                  keeps keyboard and screen-reader behaviour intact. */}
+              <select aria-label="切换当前课程" value={data.focus?.course || ""}
+                onChange={(event) => onFocus?.({ course: event.target.value })}>
+                {(data.focus?.courses || []).map((course) =>
+                  <option key={course.name} value={course.name}>{course.name}</option>)}
+              </select>
+            </h1>
           ) : (
-            <>
-              <button className="primary start" onClick={addSource}>
-                ＋ 添加资料
-              </button>
-              <button
-                onClick={() =>
-                  askInChat(
-                    "请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。",
-                  )
-                }
-              >
-                在对话中用工作区文件出题
-              </button>
-            </>
+            <h1 className="course-heading">{headline}</h1>
           )}
+          {interview && <div className="role-prep">
+            <details><summary>用岗位描述细化练习范围</summary>
+              <textarea rows={4} value={jdDraft} placeholder="需要时粘贴 JD；不贴也可按岗位方向匹配"
+                onChange={(event) => setJdDraft(event.target.value)} />
+              <button disabled={suggestBusy || !roleDraft.trim()} onClick={async () => {
+                setSuggestBusy(true);
+                setSuggestError("");
+                try { setRoleProposal(await suggestRole?.({ role: roleDraft.trim(), jd: jdDraft })); }
+                catch (error) { setSuggestError(error.message); }
+                finally { setSuggestBusy(false); }
+              }}>{suggestBusy ? "匹配中…" : "AI 匹配知识点"}</button>
+              {suggestError && <p role="alert">{suggestError}</p>}
+              {roleProposal && <div className="role-proposal">
+                <p>建议练习：{roleProposal.targetTopics.length
+                  ? roleProposal.targetTopics.join("、") : "暂无匹配的现有知识点，可先用全库薄弱题练习"}</p>
+                <button className="primary" onClick={() => {
+                  onFocus?.({ mode: "interview", role: roleProposal.role, jd: roleProposal.jd,
+                    targetTopics: roleProposal.targetTopics });
+                  setRoleProposal(null);
+                }}>确认岗位范围</button>
+              </div>}
+            </details>
+            {!!data.focus?.roleWeak?.length && <div className="role-weak">
+              <strong>优先练这些薄弱点</strong>
+              {data.focus.roleWeak.slice(0, 3).map((item) => <button key={`${item.deckId}:${item.topic}`}
+                onClick={() => start({ mode: "path", scope: [{ deckId: item.deckId, topic: item.topic }] })}>
+                {item.topic} · {item.weak} 道薄弱题 →</button>)}
+            </div>}
+          </div>}
+          {overall != null && (
+            <div className="desk-mastery" title={`整体掌握度 ${overall}%`}>
+              <span className="desk-mastery-value">{overall}<small>%</small></span>
+              <span className="desk-mastery-label">整体掌握</span>
+              <MasteryBar node={mergeProgress(data.decks.filter((d) => !d.archived)
+                .map((d) => progress[d.id]).filter(Boolean))} />
+            </div>
+          )}
+          <p className="desk-next">
+            {data.next ? (
+              <>
+                <span className="desk-next-label">推荐下一步</span>
+                <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>
+                  <small> · 掌握 {data.next.mastery}%</small></span>
+                <button className="link-btn" disabled={busy} onClick={() =>
+                  start({ mode: "path", scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>
+                  只学这个主题 →
+                </button>
+              </>
+            ) : data.decks.length
+              ? "所有主题都已掌握，可以提前巩固。"
+              : "添加讲义或笔记，生成题组后这里会给出学习路径。"}
+          </p>
+          {plan.also.length > 0 && (
+            <p className="desk-also">
+              {plan.also.map(([label, run]) => (
+                <button key={label} className="link-btn" disabled={busy} onClick={run}>{label}</button>
+              ))}
+            </p>
+          )}
+          {runs.filter((r) => r !== todayRun).length > 0 && (
+            <details className="resume-list">
+              <summary>另有 {runs.filter((r) => r !== todayRun).length} 组练习未完成</summary>
+              {runs
+                .filter((r) => r !== todayRun)
+                .map((r) => (
+                  <div className="resume-row" key={r.id}>
+                    <button className="resume" disabled={busy} onClick={() => resume(r.id)}>
+                      <span>
+                        <span className="eyebrow">继续上次学习</span>
+                        <strong>{r.title}</strong>
+                      </span>
+                      <span>
+                        {r.index + 1} / {r.total} <b>→</b>
+                      </span>
+                    </button>
+                    <button
+                      className="ghost-btn"
+                      disabled={busy}
+                      onClick={() => endRun(r.id)}
+                      title="结束此轮，保留已答记录"
+                    >
+                      结束
+                    </button>
+                  </div>
+                ))}
+            </details>
+          )}
+        </div>
+        <div className="today-stack" data-depth={plan.depth}>
+          <div className="today-card">
+            <div className="today-card-head">
+              <span>{plan.eyebrow}</span>
+              <time>{todayLabel}</time>
+            </div>
+            {plan.kind === "empty" ? (
+              <p className="today-card-empty">还没有卡片。<br />从一份资料或一组题开始。</p>
+            ) : (
+              <div className="today-count">
+                <strong>{plan.count}</strong>
+                <span>{plan.unit}</span>
+              </div>
+            )}
+            {plan.detail && <p className="today-detail">{plan.detail}</p>}
+            {plan.action && (
+              <button className="primary today-go" disabled={busy || plan.action.disabled}
+                onClick={plan.action.run}>
+                {plan.action.label}<span aria-hidden="true">→</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
-
-      {runs.filter((r) => r !== todayRun).length > 0 && (
-        <div className="resume-list">
-          {runs
-            .filter((r) => r !== todayRun)
-            .map((r) => (
-              <div className="resume-row" key={r.id}>
-                <button className="resume" disabled={busy} onClick={() => resume(r.id)}>
-                  <span>
-                    <span className="eyebrow">继续上次学习</span>
-                    <strong>{r.title}</strong>
-                  </span>
-                  <span>
-                    {r.index + 1} / {r.total} <b>→</b>
-                  </span>
-                </button>
-                <button
-                  className="ghost-btn"
-                  disabled={busy}
-                  onClick={() => endRun(r.id)}
-                  title="结束此轮，保留已答记录"
-                >
-                  结束
-                </button>
-              </div>
-            ))}
-        </div>
-      )}
 
       <div className="section-heading map-heading">
         <h2>
           学习目录 <span>{data.decks.filter((d) => !d.archived).length}</span>
         </h2>
         <div className="section-heading-actions">
-          <button onClick={addSource}>＋ 资料</button>
-          <button disabled={!data.sources.length} onClick={createManual}>
-            手工建卡
-          </button>
-          <button onClick={importLibrary}>导入</button>
-          {data.decks.find((d) => d.systemKind === "slain") && <button disabled={busy} onClick={() => manage(data.decks.find((d) => d.systemKind === "slain").id)}>
-            斩题组（{data.decks.find((d) => d.systemKind === "slain").count}）
-          </button>}
           <button
             disabled={busy}
             title="用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）"
@@ -532,8 +598,72 @@ export default function StudyMap({
           >
             查看图谱
           </button>
+          {/* Housekeeping lives behind one menu so the heading stays quiet. */}
+          <span className="map-menu-wrap">
+            <button
+              className="map-menu-toggle catalog-menu-toggle"
+              aria-haspopup="menu"
+              aria-expanded={menu === "catalog"}
+              onClick={() => setMenu(menu === "catalog" ? null : "catalog")}
+            >
+              {mergeBusy ? "整理中…" : "整理与添加"}
+            </button>
+            {menu === "catalog" && (
+              <div className="map-menu" role="menu">
+                {[
+                  data.focus?.course && ["整理题组", async () => {
+                    setMergeBusy(true);
+                    setMergeError("");
+                    try { setMergeSuggestions(await suggestMerges?.({ course: data.focus.course })); }
+                    catch (error) { setMergeError(error.message); }
+                    finally { setMergeBusy(false); }
+                  }, busy || mergeBusy],
+                  ["＋ 添加资料", addSource, false],
+                  ["手工建卡", createManual, !data.sources.length],
+                  ["导入 JSON 题组", importLibrary, false],
+                  slain && [`斩题组（${slain.count}）`, () => manage(slain.id), busy],
+                ].filter(Boolean).map(([label, run, disabled]) => (
+                  <button
+                    key={label}
+                    role="menuitem"
+                    disabled={disabled}
+                    onClick={() => {
+                      setMenu(null);
+                      run();
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </span>
         </div>
       </div>
+      {mergeError && <p role="alert">{mergeError}</p>}
+      {mergeSuggestions && <div className="merge-suggestions">
+        <div className="merge-suggestions-head">
+          <strong>{mergeSuggestions.course} · 合并建议</strong>
+          <button onClick={() => setMergeSuggestions(null)}>关闭</button>
+        </div>
+        {!mergeSuggestions.proposals.length && <p className="muted">
+          {mergeSuggestions.method === "unavailable" ? "当前没有可用模型；可以在题组管理中手动合并。" : "没有发现值得合并的题组。"}
+        </p>}
+        {mergeSuggestions.proposals.map((item) => <div className="merge-suggestion" key={item.targetId}>
+          <div><strong>{item.sourceTitles.join("、")} → {item.targetTitle}</strong>
+            <p>{item.reason} · 合并后共 {item.count} 题，全部题目保留。</p></div>
+          <button disabled={busy || mergeBusy} onClick={async () => {
+            setMergeBusy(true);
+            setMergeError("");
+            try {
+              await mergeDecks?.({ targetId: item.targetId, sourceIds: item.sourceIds });
+              setMergeSuggestions((current) => ({ ...current,
+                proposals: current.proposals.filter((proposal) => proposal.targetId !== item.targetId) }));
+            } catch (error) { setMergeError(error.message); }
+            finally { setMergeBusy(false); }
+          }}>确认合并</button>
+        </div>)}
+      </div>}
       {data.decks.length > 0 && (
         <div className="map-toolbar">
           <div className="map-tools">
@@ -563,8 +693,8 @@ export default function StudyMap({
         </div>
       )}
       {visible.length ? (
-        <ul className="map-tree">
-          {folders.map(([folder, decks]) =>
+        <ul className={"map-tree" + (shownFolders.length === 1 && shownFolders[0][0] === data.focus?.course ? " single-course" : "")}>
+          {shownFolders.map(([folder, decks]) =>
             folder ? (
               <li
                 key={"folder:" + folder}
@@ -599,11 +729,18 @@ export default function StudyMap({
                   />
                 </div>
                 {isOpen("folder:" + folder) && (
-                  <ul className="map-children">{decks.map((d, i) => deckRow(d, i))}</ul>
+                  <ul className="map-children">
+                    {(folder === data.focus?.course && !showAllCurrent && !query
+                      ? decks.slice(0, 3) : decks).map((d) => deckRow(d))}
+                  </ul>
                 )}
+                {folder === data.focus?.course && decks.length > 3 && !query &&
+                  <button className="show-other-courses" onClick={() => setShowAllCurrent((value) => !value)}>
+                    {showAllCurrent ? "收起题组" : `查看全部题组 · ${decks.length}`}
+                  </button>}
               </li>
             ) : (
-              decks.map((d, i) => deckRow(d, i))
+              decks.map((d) => deckRow(d))
             ),
           )}
         </ul>
@@ -616,6 +753,8 @@ export default function StudyMap({
           <p>添加讲义或笔记，生成题组后会在这里形成带掌握度的学习目录。</p>
         </div>
       )}
+      {otherCourseCount > 0 && <button className="show-other-courses"
+        onClick={() => setShowOtherCourses(true)}>查看其他课程 · {otherCourseCount}</button>}
 
       <NotebookDirectory
         notebooks={notebooks}
@@ -707,7 +846,11 @@ export default function StudyMap({
               </span>
               <div>
                 <strong>
-                  {j.type === "draft-repair"
+                  {j.type === "draft-publish"
+                    ? j.status === "queued" ? "发布检查排队中" : j.status === "running" ? "正在检查并发布题组"
+                      : j.status === "failed" ? "发布未完成" : j.rejected
+                        ? j.accepted ? "已发布部分题目" : "题目未通过发布检查" : "题组已发布"
+                    : j.type === "draft-repair"
                     ? j.status === "running" ? "后台修题中" : j.status === "queued" ? "修题排队中"
                       : j.status === "failed" ? j.savedCount ? `修题中断 · ${j.savedCount}/${j.count} 题已修好` : "未修好题目"
                         : j.status === "partial" ? `部分修好 · ${j.savedCount}/${j.count} 题`
@@ -723,9 +866,9 @@ export default function StudyMap({
                   {j.parts > 1 ? ` · 分 ${j.parts} 批` : ""}
                 </strong>
                 <small>{generationStage(j.stage)}</small>
-                <GenerationTrace job={j} openAgent={openAgent} />
-                {cancelJob && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>停止任务，保留草稿</button>}
-                {retryGeneration && j.type !== "draft-repair" && ["failed", "cancelled"].includes(j.status) &&
+                {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
+                {cancelJob && j.type !== "draft-publish" && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>停止任务，保留草稿</button>}
+                {retryGeneration && !["draft-repair", "draft-publish"].includes(j.type) && ["failed", "cancelled"].includes(j.status) &&
                   !j.draftId && <button type="button" disabled={busy} onClick={() => retryGeneration(j)}>
                     按原资料重新设置
                   </button>}

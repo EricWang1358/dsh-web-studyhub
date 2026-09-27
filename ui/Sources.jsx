@@ -121,8 +121,8 @@ export default function Sources({ data, busy, act, setModal, sourceForm }) {
                 </small>
               </button>
               {expanded &&
-                g.rows.map((s, i) => (
-                  <article className="source-row" key={s.id} style={{ "--i": Math.min(i, 12) }}>
+                g.rows.map((s) => (
+                  <article className="source-row" key={s.id}>
                     <button
                       className="source-main"
                       onClick={() => setModal({ type: "source", source: s })}

@@ -10,7 +10,7 @@ export default function ReviewNavigator({ run, busy, onJump }) {
     if (!current) return;
     container.scrollTo({
       top: current.offsetTop - container.clientHeight / 2 + current.clientHeight / 2,
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+      behavior: "instant",
     });
   }, [run.id, run.index, run.navigation?.length]);
   if (!run.navigation?.length) return null;

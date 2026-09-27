@@ -1,0 +1,39 @@
+.study-panel-candidates {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  overflow: auto;
+  padding: 18px;
+  background: var(--bg-canvas);
+  color: var(--text);
+}
+.study-panel-candidates-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.study-panel-candidates > button {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.study-panel-candidates > button:hover {
+  border-color: var(--accent);
+}
+.study-panel-candidates > button small,
+.study-panel-candidates > button span {
+  display: block;
+}
+.study-panel-candidates > button small {
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}

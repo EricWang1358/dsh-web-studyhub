@@ -138,13 +138,14 @@ test("evidence windows are exact source slices around cited quotes within budget
   assert.ok(windows[0].text.length < 500);
 });
 
-test("a wrong answer prefetches one nudge; the panel reuses it and correct answers cost nothing", async (t) => {
+test("a wrong answer stays silent until help is requested; repeat requests share one nudge", async (t) => {
   const { service, log } = await setup(t, { latencyMs: 20 });
   let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
   const wrongId = run.card.options.find((o) => o.text !== "Caretaker").id;
   run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [wrongId] });
+  assert.equal(log.length, 0, "answering alone must not call the model");
   const [a, b] = await Promise.all([service.call("coach.nudge", { runId: run.id }), service.call("coach.nudge", { runId: run.id })]);
-  assert.equal(tasks(log, "刚答错"), 1, "prefetch and two panel requests share one model call");
+  assert.equal(tasks(log, "刚答错"), 1, "two help requests share one model call");
   assert.equal(a.thread.length, 1);
   assert.deepEqual(a.thread, b.thread);
   const note = a.thread[0];
@@ -233,7 +234,7 @@ test("with consent, misses become validated variants that one tap turns into a p
   await assert.rejects(service.call("coach.practice"), /还没有备好/);
 });
 
-test("pending wrong-answer coaching and variant generation do not block navigation", async (t) => {
+test("explicit help and variant generation do not block navigation", async (t) => {
   const { service, light } = await setup(t);
   await service.call("coach.consent", { prep: true });
   const started = [Promise.withResolvers(), Promise.withResolvers()];
@@ -246,6 +247,7 @@ test("pending wrong-answer coaching and variant generation do not block navigati
   };
   let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
   run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text !== "Caretaker").id] });
+  service.queuePrep({ deckId: "d", cardId: run.card.id, reason: "wrong" });
   const nudge = service.call("coach.nudge", { runId: run.id });
   const prep = service.call("coach.prepare");
   await Promise.all(started.map((p) => p.promise));
@@ -414,6 +416,36 @@ test("a rewrite that changes the answer key keeps the answered snapshot until th
   assert.ok(view.feedback);
 });
 
+test("a background rewrite leaves the current unanswered question stable", async (t) => {
+  const { root } = await setup(t, { coach: false });
+  const flip = async (system, prompt) => JSON.parse(prompt).task.includes("反馈标签")
+    ? JSON.stringify({ patch: { options: [{ id: "a", correct: false }, { id: "b", correct: true }], answer: "Memento" }, summary: "更正答案" })
+    : "{}";
+  const service = new StudyService(root, { complete: flip, completeLight: flip, coach: true });
+  const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  const oldPrompt = run.card.prompt;
+  const oldAnswer = (await service.call("export")).decks[0].cards
+    .find((card) => card.id === run.card.id).options.find((option) => option.correct).id;
+  await service.call("coach.feedback", { deckId: "d", cardId: run.card.id, vote: "down", tags: ["wrong-answer"] });
+  await service.call("coach.prepare");
+  const stillOpen = await service.call("review.get", { runId: run.id });
+  assert.equal(stillOpen.card.prompt, oldPrompt);
+  const rewritten = await service.call("export");
+  const snapshot = rewritten.runs.find((item) => item.id === run.id).entries[run.index].card;
+  assert.equal(snapshot.options.find((option) => option.correct).id, oldAnswer);
+  const liveBefore = rewritten.decks[0].cards.find((card) => card.id === run.card.id);
+  assert.notEqual(liveBefore.options.find((option) => option.correct).id, oldAnswer);
+  const answered = await service.call("review.answer", {
+    runId: run.id, cardId: run.card.id, selected: [oldAnswer], queueVersion: stillOpen.queueVersion,
+  });
+  assert.equal(answered.feedback.correct, true, "the visible version is graded");
+  assert.equal(answered.feedback.updatedAfterOpening, true);
+  const state = await service.call("export");
+  assert.deepEqual(state.decks[0].cards.find((card) => card.id === run.card.id).review, liveBefore.review,
+    "an answer to the old version does not advance the rewritten card");
+  assert.equal(state.attempts.at(-1).updatedAfterOpening, true);
+});
+
 test("a 太难 scaffold becomes a prerequisite of its original and variants show where they came from", async (t) => {
   const { service } = await setup(t);
   await service.call("coach.consent", { prep: true });
@@ -472,7 +504,7 @@ test("source.search finds terms across every source in one call and returns only
   assert.ok(cards.results.every((c) => c.cardId && c.deckId && c.prompt.length <= 160));
 });
 
-test("a stem rewrite on a cloze card changes the text the learner sees, without a false 'answer again' warning", async (t) => {
+test("a stem rewrite on a cloze card waits until the learner leaves the current question", async (t) => {
   const { root } = await setup(t, { coach: false });
   const quote = "The Caretaker manages snapshot history without inspecting snapshot contents.";
   const rewrite = async (system, prompt) => {
@@ -492,9 +524,11 @@ test("a stem rewrite on a cloze card changes the text the learner sees, without 
   await service.call("coach.feedback", { deckId: "c", cardId: "z1", vote: "down", tags: ["stem-vague"] });
   await service.call("coach.prepare");
   const view = await service.call("review.get", { runId: run.id });
-  assert.match(view.card.cloze.text, /不读取快照内容/, "the shown cloze text follows the reworded stem");
+  assert.equal(view.card.cloze.text, "谁管理快照历史？{{who}}", "the current visible question stays stable");
   assert.equal(view.card.cloze.blanks.length, 1);
   assert.equal(view.contentUpdated, false, "an unanswered question is not told to answer again");
+  assert.match((await service.call("export")).decks.find((d) => d.id === "c").cards[0].cloze.text,
+    /不读取快照内容/, "the library receives the revised wording");
   // Agents can also patch the displayed text directly.
   await service.call("card.update", { deckId: "c", cardId: "z1", patch: { cloze: { text: "管理历史而不读取快照的是{{who}}。" } }, reason: "wording" });
   assert.equal((await service.call("export")).decks.find((d) => d.id === "c").cards[0].cloze.answers[0].value, "Caretaker", "answers stay when only the text is patched");

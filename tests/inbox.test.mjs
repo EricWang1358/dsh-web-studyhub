@@ -45,6 +45,11 @@ test("conversation edits and links post letters that persist, fold per card and 
   assert.equal(improve.detail, "再改提示");
   assert.equal(improve.prompt, "Why use Bridge for reports and renderers?");
   assert.equal(improve.deckTitle, "Patterns");
+  assert.equal(improve.canRevert, true);
+
+  await service.call("card.revert", { deckId: "d1", cardId: "c1" });
+  assert.equal((await service.call("inbox")).items.find((item) => item.kind === "improve").canRevert, false,
+    "the inbox offers undo only for the latest matching edit");
 
   const reopened = new StudyService(service.store.root);
   assert.equal((await reopened.call("inbox")).unread, 2, "letters survive reopening the library");
@@ -98,4 +103,20 @@ test("a background followup answer posts a letter", async (t) => {
   assert.equal(letter.kind, "followup");
   assert.equal(letter.cardId, "c2");
   assert.equal(letter.detail, "为什么要拆成两个维度？");
+});
+
+test("note letters point to the draft and fold by note rather than card", async (t) => {
+  const service = await setup(t);
+  const created = await service.call("note.create", { title: "Bridge 笔记", cards: [{ deckId: "d1", cardId: "c1" }] });
+  await service.store.update((s) => {
+    notify(s, { kind: "note", deckId: "d1", cardId: "c1", noteId: created.id, detail: "文章初稿已准备好" });
+    notify(s, { kind: "note", deckId: "d1", cardId: "c1", noteId: created.id, detail: "文章初稿已更新" });
+  });
+  const [letter] = (await service.call("inbox")).items;
+  assert.equal(letter.kind, "note");
+  assert.equal(letter.noteId, created.id);
+  assert.equal(letter.prompt, "Bridge 笔记");
+  assert.equal(letter.count, 2);
+  assert.deepEqual(await service.call("inbox.open", { id: letter.id }), { kind: "note", noteId: created.id });
+  assert.equal((await service.call("inbox")).unread, 0);
 });

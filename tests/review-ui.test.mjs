@@ -11,24 +11,43 @@ const compiled = await build({ entryPoints: ["ui/Review.jsx"], bundle: true,
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const Review = module.exports.default;
-function render(kind, revealed, runPatch = {}) {
+function render(kind, revealed, runPatch = {}, dataPatch = {}) {
   const card = { id: "q", kind, topic: "Context", prompt: "Who processes payments?",
     options: [{ id: "a", text: "Payment System" }],
     cloze: { text: "付款由 {{actor}} 处理。", blanks: [{ id: "actor" }] } };
   return renderToStaticMarkup(React.createElement(Review, {
     run: { id: "r", index: 0, total: 2, card, revealed,
       feedback: revealed ? { correct: false, details: [{ id: "actor", correct: false, expected: "Payment System" }] } : null,
-      solution: revealed ? { answer: "Payment System", cloze: { answers: [{ id: "actor", value: "Payment System" }] } } : null, ...runPatch },
-    data: { sources: [] }, host: {}, choice: ["quiz", "multi"].includes(kind), isCloze: kind === "cloze",
+      solution: revealed ? { answer: "Payment System", explanation: "Payment System handles payments.",
+        cloze: { answers: [{ id: "actor", value: "Payment System" }] } } : null, ...runPatch },
+    data: { sources: [], ...dataPatch }, host: {}, choice: ["quiz", "multi"].includes(kind), isCloze: kind === "cloze",
     selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
   }));
 }
+test("imported question citations and verification warning start collapsed", () => {
+  const source = { id: "import", title: "JSON 导入：90题", provenance: "json-card-self-reference" };
+  const html = render("quiz", true, {
+    solution: { answer: "Payment System", explanation: "Explanation", citations: [
+      { sourceId: source.id, quote: "A long imported question body" },
+    ] },
+  }, { sources: [source] });
+  assert.match(html, /<details class="citation-disclosure"/);
+  assert.match(html, /引用与来源核对/);
+  assert.doesNotMatch(html, /A long imported question body|这些引用来自导入的题目自身/);
+});
 for (const kind of ["quiz", "multi", "cloze", "flashcard", "open"]) {
-  test(`${kind} uses the shared plain hint/explanation controls`, () => {
+  test(`${kind} keeps hint before answering and shows explanation directly afterwards`, () => {
     for (const revealed of [false, true]) {
       const html = render(kind, revealed);
       assert.equal((html.match(/class="question-toolbar"/g) || []).length, 1);
-      assert.match(html, new RegExp(`>${revealed ? "讲解" : "提示"}</button>`));
+      if (revealed) {
+        assert.doesNotMatch(html, />讲解<\/button>/);
+        assert.match(html, /理解这道题/);
+        assert.match(html, /Payment System handles payments/);
+      } else {
+        assert.match(html, />提示<\/button>/);
+        assert.doesNotMatch(html, /理解这道题/);
+      }
       assert.doesNotMatch(html, /✧ 讲解|⌃|⌄/);
     }
   });

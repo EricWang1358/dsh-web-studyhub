@@ -29,7 +29,7 @@ function MailboxIcon() {
   );
 }
 
-export default function Inbox({ inbox, busy, onOpen, onReadAll }) {
+export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo }) {
   const [open, setOpen] = React.useState(false);
   const root = React.useRef(null),
     list = React.useRef(null);
@@ -101,7 +101,8 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll }) {
                     type="button"
                     className={"inbox-item" + (m.read ? "" : " unread")}
                     disabled={busy || m.missing}
-                    title={m.missing ? "这道题已经不在题库里了" : "跳到这道题"}
+                    title={m.missing ? (m.kind === "note" ? "笔记已不存在" : "这道题已经不在题库里了")
+                      : m.kind === "note" ? "打开笔记草稿" : "跳到这道题"}
                     onClick={() => {
                       setOpen(false);
                       onOpen(m);
@@ -113,9 +114,11 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll }) {
                       <small>{m.deckTitle}</small>
                       <small className="inbox-time">{ago(m.at)}</small>
                     </span>
-                    <span className="inbox-prompt">{m.missing ? "（题目已删除）" : m.prompt}</span>
+                    <span className="inbox-prompt">{m.missing ? (m.kind === "note" ? "（笔记已删除）" : "（题目已删除）") : m.prompt}</span>
                     {m.detail && <span className="inbox-detail">{m.detail}</span>}
                   </button>
+                  {m.canRevert && onUndo && <button type="button" className="inbox-undo"
+                    disabled={busy} onClick={() => onUndo(m)}>回退这次改题</button>}
                 </li>
               ))}
             </ul>

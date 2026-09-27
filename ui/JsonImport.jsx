@@ -2,11 +2,14 @@ import React, { useRef, useState } from "react";
 import { kinds } from "./shared.js";
 import { importExample, importPrompt } from "./json-prompts.js";
 
-export default function JsonImport({ busy, act, openDraft, setNotice }) {
+export default function JsonImport({ busy, act, call, openDraft, setNotice }) {
   const [text, setText] = useState("");
   const [kind, setKind] = useState("mixed");
   const [reading, setReading] = useState(false);
   const [message, setMessage] = useState("");
+  const [proposal, setProposal] = useState(null);
+  const [proposing, setProposing] = useState(false);
+  const [merge, setMerge] = useState(false);
   const fileRead = useRef(0);
   async function readFile(event) {
     const file = event.target.files?.[0];
@@ -20,12 +23,12 @@ export default function JsonImport({ busy, act, openDraft, setNotice }) {
       if (file.size > 2_000_000) throw new Error("文件不能超过 2 MB");
       const value = await file.text();
       if (value.length > 500_000) throw new Error("导入内容不能超过 500,000 字符");
-      if (request === fileRead.current) setText(value);
+      if (request === fileRead.current) { setText(value); setProposal(null); }
     } catch (error) { if (request === fileRead.current) setMessage(error.message); }
     finally { if (request === fileRead.current) setReading(false); }
   }
   return <div>
-    <p className="muted">粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入，每组至少 1 题，不限制题目总数。导入无需模型；发布时自动逐题检查。</p>
+    <p className="muted">粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入。导入时建议标题和课程，确认后保存草稿；发布时快速校验并直接开始学习。</p>
     <fieldset>
       <legend>01 / 各题型 JSON 提示词</legend>
       <label>题型<select value={kind} onChange={(e) => { setKind(e.target.value); setMessage(""); }}>{Object.entries({ mixed: "混合题型（一次复制全部）", ...kinds }).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
@@ -36,18 +39,29 @@ export default function JsonImport({ busy, act, openDraft, setNotice }) {
       }}>复制提示词</button>
       <details><summary>查看 JSON 格式示例</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{importExample(kind)}</pre></details>
     </fieldset>
-    <form onSubmit={(e) => {
+    <form onSubmit={async (e) => {
       e.preventDefault();
-      act("draft.import", { text }, (deck) => {
-        setNotice(`已导入「${deck.title}」共 ${deck.cards.length} 题。发布时会逐题检查，通过的题先进入学习目录。`);
-        openDraft(deck);
-      });
+      if (!proposal) {
+        setProposing(true);
+        try { setProposal(await call("draft.import.propose", { text })); }
+        catch (error) { setMessage(error.message); }
+        finally { setProposing(false); }
+      } else act("draft.import", { text, title: proposal.title, course: proposal.course,
+        ...(merge && proposal.mergeTargetId ? { mergeTargetId: proposal.mergeTargetId } : {}) }, (deck) => {
+          setNotice(`已导入「${deck.title}」共 ${deck.cards.length} 题。可检查后直接发布。`);
+          openDraft(deck);
+        });
     }}>
       <fieldset><legend>02 / 导入题组</legend>
         <label>读取 JSON / TXT 文件<input type="file" accept=".json,.txt,application/json,text/plain" disabled={busy || reading} onChange={readFile} /></label>
-        <label>JSON 内容<textarea rows={14} required value={text} disabled={busy || reading} onChange={(e) => setText(e.target.value)} placeholder={'{"title":"题组名称","cards":[...]}'} /></label>
-        <p className="muted">导入后发布时会自动逐题检查。通过的题先发布，有问题的题留在草稿。若 JSON 引文与学习库原始资料唯一匹配，会直接关联；其他题只保留自身引用，无法据此独立证明答案正确。</p>
-        <button className="primary" disabled={busy || reading || !text.trim()}>{reading ? "正在读取文件…" : "校验并导入草稿 →"}</button>
+        <label>JSON 内容<textarea rows={14} required value={text} disabled={busy || reading} onChange={(e) => { setText(e.target.value); setProposal(null); }} placeholder={'{"title":"题组名称","cards":[...]}'} /></label>
+        {proposal && <div className="import-proposal">
+          <p className="muted">{proposal.method === "ai" ? "AI 建议，请确认或修改" : "初步整理建议，请确认或修改"} · 原标题：{proposal.originalTitle}</p>
+          <label>短标题<input value={proposal.title} onChange={(e) => setProposal({ ...proposal, title: e.target.value })} /></label>
+          <label>所属课程<input value={proposal.course} onChange={(e) => setProposal({ ...proposal, course: e.target.value, mergeTargetId: null })} /></label>
+          {proposal.mergeTargetId && <label><input type="checkbox" checked={merge} onChange={(e) => setMerge(e.target.checked)} />发布时并入建议的同知识点题组（保留全部题和记录）</label>}
+        </div>}
+        <button className="primary" disabled={busy || reading || proposing || !text.trim()}>{reading ? "正在读取文件…" : proposing ? "正在整理建议…" : proposal ? "确认并导入草稿 →" : "检查并建议归类 →"}</button>
       </fieldset>
     </form>
     {message && <p role="status">{message}</p>}

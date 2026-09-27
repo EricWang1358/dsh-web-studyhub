@@ -890,8 +890,9 @@
   font-size: 12px;
 }
 .study-app .sk-seg button.on {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--bg-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
 }
 .study-app button.sk-ai {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
@@ -1086,3 +1087,207 @@
 .skc-edge path { fill: none; stroke: var(--text-muted); stroke-width: 1.4; }
 .skc-edge.k-dependency path, .skc-edge.k-realization path { stroke-dasharray: 6 4; }
 .skc-edge.lit path { stroke: var(--accent-soft); stroke-width: 2; }
+
+/* ── 脉络: one learning axis, vertical branches, side branches ───────── */
+.sk-view-switch { align-self: flex-start; margin: 4px 0 6px; }
+.spine { min-width: 0; }
+.spine-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.spine-steps { display: inline-flex; gap: 4px; }
+.study-app .spine-steps button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 999px;
+  border-color: var(--line);
+  background: transparent;
+  color: var(--text-dim);
+}
+.spine-scroll {
+  /* Fade the far edge so a line running off-screen reads as "more stations". */
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-left: 4px;
+  padding: 6px 4px 22px;
+  scrollbar-width: thin;
+}
+.spine-scroll:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-radius: 8px; }
+.spine-track {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(230px, 270px);
+  gap: 0 40px;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The axis runs through every station marker, first to last. */
+.spine-track::before {
+  content: "";
+  position: absolute;
+  top: 19px;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: var(--line-strong);
+}
+.spine-station {
+  position: relative;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.spine-stop {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.spine-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-canvas);
+  box-shadow: inset 0 0 0 2px var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.spine-station:first-child .spine-marker {
+  background: var(--text);
+  box-shadow: none;
+  color: var(--bg-canvas);
+}
+.spine-stop-text { min-width: 0; padding-top: 8px; }
+/* Station names sit on the axis like stop names on a line map: the title
+   knocks the axis out behind itself. */
+.spine-stop-text h4 {
+  display: inline-block;
+  margin: 0 0 6px -6px;
+  padding: 0 10px 0 6px;
+  background: var(--bg-surface);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+.spine-stop-text p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+/* A branch drops from the station marker; each point ticks off it, and a
+   point's own details branch again, one step to the right. */
+.spine-branch {
+  margin: 12px 0 0 19px;
+  padding: 0 0 0 20px;
+  border-left: 2px solid var(--line);
+  list-style: none;
+}
+.spine-branch .spine-branch {
+  margin: 4px 0 2px 2px;
+  padding-left: 16px;
+  border-left-width: 1px;
+}
+.spine-point {
+  position: relative;
+  padding: 7px 0;
+}
+.spine-point::before {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: -20px;
+  width: 12px;
+  height: 2px;
+  background: var(--line);
+}
+.spine-branch .spine-branch > .spine-point::before {
+  left: -16px;
+  width: 10px;
+  height: 1px;
+}
+.spine-point-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.spine-point-body strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.spine-point.d2 .spine-point-body strong,
+.spine-point.d3 .spine-point-body strong {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-dim);
+}
+.spine-meaning {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+.spine-contrast {
+  font-size: 11.5px;
+  color: var(--warn);
+}
+.study-app .spine-practice {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+/* A point's own practice link waits for the pointer; the station's stays. */
+@media (hover: hover) {
+  .spine-point-body .spine-practice { opacity: 0; transition: opacity 0.15s var(--ease); }
+  .spine-point-body:hover .spine-practice,
+  .spine-point-body:focus-within .spine-practice { opacity: 1; }
+}
+/* Narrow panes turn the axis upright: stations stack, branches still hang
+   to the right, and the reading order stays top to bottom. */
+@container study (max-width: 640px) {
+  .spine-track {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    gap: 22px;
+    width: auto;
+  }
+  .spine-track::before {
+    top: 20px;
+    bottom: 20px;
+    left: 19px;
+    right: auto;
+    width: 2px;
+    height: auto;
+  }
+  .spine-steps { display: none; }
+  .spine-scroll { mask-image: none; }
+  .spine-branch { margin-left: 19px; }
+}

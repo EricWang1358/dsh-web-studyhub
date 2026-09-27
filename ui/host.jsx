@@ -1,11 +1,23 @@
 import React from "react";
 import App from "./App.jsx";
 import css from "./style.css";
+import bridgeCss from "./panel-bridge.css";
 import { createStudyCall } from "./transport.js";
 export const inject = ["slots", "locale"];
 // A run handed from the main view to the right sidebar (session id → run id).
 const handoff = new Map(),
   handoffListeners = new Set();
+const knownSessions = new Map(),
+  candidates = new Map(),
+  candidateListeners = new Set();
+function deliverRun(sessionId, runId) {
+  handoff.set(sessionId, runId);
+  handoffListeners.forEach((fn) => fn(sessionId));
+}
+function deliverCandidates(sessionId, intent) {
+  candidates.set(sessionId, intent);
+  candidateListeners.forEach((fn) => fn(sessionId));
+}
 /** Read an optional host snapshot store; absent stores read as undefined. */
 function useHostStore(store) {
   const subscribe = React.useCallback(
@@ -62,10 +74,32 @@ export function apply(ctx) {
   const t = ctx.locale.bind("study-workspace");
   ctx.effect(() => {
     const el = document.createElement("style");
-    el.textContent = css;
+    el.textContent = css + "\n" + bridgeCss;
     document.head.appendChild(el);
     return () => el.remove();
   }, "study styles");
+  // A Study seat may unmount when the learner returns to chat. Remember its
+  // session transport so a later conversation command can open the sidebar.
+  ctx.effect(() => {
+    let polling = false;
+    const poll = async () => {
+      if (polling || !ctx.get("sidebarRight")?.openTab) return;
+      polling = true;
+      try {
+        for (const [sessionId, call] of knownSessions) {
+          let pending;
+          try { pending = await call("panel.intent.next"); } catch { continue; }
+          const intent = pending?.intent;
+          if (!intent) continue;
+          if (intent.type === "run") deliverRun(sessionId, intent.runId);
+          if (intent.type === "candidates") deliverCandidates(sessionId, intent);
+          ctx.get("sidebarRight")?.openTab("study-workspace");
+        }
+      } finally { polling = false; }
+    };
+    const timer = setInterval(poll, 1800);
+    return () => clearInterval(timer);
+  }, "study conversation panel bridge");
   function Seat(props) {
     const { sessionId, openView } = props;
     const placement = props.placement || "main";
@@ -85,6 +119,30 @@ export function apply(ctx) {
         ),
       [sessionId],
     );
+    const visibleSequence = React.useRef(0);
+    React.useEffect(() => {
+      if (!sessionId) return;
+      knownSessions.set(sessionId, call);
+      if (knownSessions.size > 8) knownSessions.delete(knownSessions.keys().next().value);
+    }, [sessionId, call]);
+    const [candidateIntent, setCandidateIntent] = React.useState(() => candidates.get(sessionId) || null);
+    const [candidateError, setCandidateError] = React.useState("");
+    React.useEffect(() => {
+      const update = (target) => { if (target === sessionId) setCandidateIntent(candidates.get(sessionId) || null); };
+      candidateListeners.add(update);
+      update(sessionId);
+      return () => candidateListeners.delete(update);
+    }, [sessionId]);
+    const chooseCandidate = async (item) => {
+      try {
+        const run = await call("review.start", { mode: "path", fresh: true,
+          scope: [{ deckId: item.deckId, cardId: item.cardId }],
+          ...(candidateIntent.returnTo ? { returnTo: candidateIntent.returnTo } : {}) });
+        setCandidateError("");
+        deliverCandidates(sessionId, null);
+        deliverRun(sessionId, run.id);
+      } catch (error) { setCandidateError(error.message); }
+    };
     const models = ctx.get("modelDirectories");
     const catalog = useHostStore(models?.catalog?.store);
     const directory = React.useMemo(() => {
@@ -134,12 +192,16 @@ export function apply(ctx) {
             return false;
           }
         },
+        onReviewState: (run) => call("panel.visible", { placement,
+          sequence: ++visibleSequence.current,
+          run: run ? { id: run.id, deckId: run.deckId, card: run.card && { id: run.card.id },
+            index: run.index, total: run.total, mode: run.mode, feedback: run.feedback,
+            picks: run.picks, revealed: run.revealed, complete: run.complete } : null }).catch(() => {}),
         // Optional: keep the question in the right sidebar while the main area shows chat.
         openInSidebar:
           placement === "main" && ctx.get("sidebarRight")?.openTab
             ? (runId) => {
-                if (runId) handoff.set(sessionId, runId);
-                handoffListeners.forEach((fn) => fn(sessionId));
+                if (runId) deliverRun(sessionId, runId);
                 ctx.get("sidebarRight").openTab("study-workspace");
                 openView?.("chat", "");
               }
@@ -159,10 +221,23 @@ export function apply(ctx) {
               }
             : undefined,
       }),
-      [workspace, catalog, current, sessionId, openView, placement],
+      [workspace, catalog, current, sessionId, openView, placement, call],
     );
     return (
       <div className="study-seat"><StudyBoundary>
+        {placement === "sidebar" && candidateIntent?.candidates?.length > 0 &&
+          <div className="study-panel-candidates" role="dialog" aria-label="选择题目">
+            <div className="study-panel-candidates-head">
+              <strong>选择要打开的题目</strong>
+              <button type="button" onClick={() => deliverCandidates(sessionId, null)}>取消</button>
+            </div>
+            {candidateError && <p role="alert">{candidateError}</p>}
+            {candidateIntent.candidates.map((item) =>
+              <button type="button" key={`${item.deckId}:${item.cardId}`} onClick={() => chooseCandidate(item)}>
+                <small>{item.deckTitle} · {item.topic || "未分类"}</small>
+                <span>{item.prompt}</span>
+              </button>)}
+          </div>}
         <App key={sessionId || "empty"} call={call} host={host} />
       </StudyBoundary></div>
     );

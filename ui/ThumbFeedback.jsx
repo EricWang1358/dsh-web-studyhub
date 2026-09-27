@@ -13,6 +13,13 @@ const TAGS = [
   ["unclear-explanation", "解析不清"],
 ];
 const IDLE_MS = 1200;
+function ThumbGlyph({ down = false }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path transform={down ? "rotate(180 12 12)" : undefined}
+      d="M8 10v10H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 0 4.4-7a1.5 1.5 0 0 1 2.7 1.2L14 9h5a2 2 0 0 1 1.95 2.45l-1.6 7A2 2 0 0 1 17.4 20H8" />
+  </svg>;
+}
 
 export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
   const [vote, setVote] = useState(run.vote?.vote || null),
@@ -84,7 +91,18 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
       flushRef.current = null;
       setOpen(false);
       setTags([]);
-    } else setOpen(true);
+    } else {
+      setOpen(true);
+      clearTimeout(timer.current);
+      const fallback = () => {
+        if (flushRef.current !== fallback) return;
+        flushRef.current = null;
+        if (!tagsRef.current.length) post({ vote: "down", tags: ["general-quality"] });
+        setOpen(false);
+      };
+      flushRef.current = fallback;
+      timer.current = setTimeout(fallback, IDLE_MS);
+    }
     post({ vote: next, tags: [] });
   }
   const tagsRef = useRef(tags);
@@ -145,8 +163,8 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
       // Keyboard activation retains normal button focus and accessibility.
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
     }}>
-      <button className="pill" aria-pressed={vote === "up"} aria-keyshortcuts="G" title="这题不错（G）" onClick={() => thumb("up")}>👍</button>
-      <button className="pill" aria-pressed={vote === "down"} aria-expanded={open} aria-keyshortcuts="B" title="这题有问题（B），选标签后自动优化" onClick={() => (open ? setOpen(false) : thumb("down"))}>👎</button>
+      <button className="tool-icon" aria-label="这题不错" aria-pressed={vote === "up"} aria-keyshortcuts="G" title="这题不错（G）" onClick={() => thumb("up")}><ThumbGlyph /></button>
+      <button className="tool-icon" aria-label="这题有问题" aria-pressed={vote === "down"} aria-expanded={open} aria-keyshortcuts="B" title="这题有问题（B），选标签后自动优化" onClick={() => (open ? setOpen(false) : thumb("down"))}><ThumbGlyph down /></button>
       {error && <small className="warning" role="alert">{error}</small>}
       {open && (
         <span className="thumb-tray" role="group" aria-label="哪里不好">
