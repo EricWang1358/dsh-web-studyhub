@@ -16,7 +16,7 @@ function Branch({ items, onPractice }) {
             {item.contrasts.length > 0 && (
               <span className="spine-contrast">对比 · {item.contrasts.join("、")}</span>
             )}
-            {item.subtreeCards.length > 0 && (
+            {onPractice && item.subtreeCards.length > 0 && (
               <button type="button" className="link-btn spine-practice" onClick={() => onPractice(item.subtreeCards)}>
                 练 {item.subtreeCards.length} 题
               </button>
@@ -74,7 +74,7 @@ export default function SkeletonSpine({ skeleton, onPractice }) {
                 <div className="spine-stop-text">
                   <h4>{station.term}</h4>
                   {station.meaning && <p>{station.meaning}</p>}
-                  {station.subtreeCards.length > 0 && (
+                  {onPractice && station.subtreeCards.length > 0 && (
                     <button type="button" className="link-btn spine-practice" onClick={() => onPractice(station.subtreeCards)}>
                       学这一站 · {station.subtreeCards.length} 题 →
                     </button>

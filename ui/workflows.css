@@ -279,3 +279,31 @@
   .wf-history time { flex-basis: 100%; margin-left: 0; }
   .wf-confirm button, .wf-notice .wf-actions button { flex: 1; }
 }
+
+/* ── AI 带学: one sentence to start ─────────────────────────────────── */
+.wf-quick { padding: 18px 0 36px; margin-bottom: 30px; border-bottom: 1px solid var(--line-soft); }
+.wf-quick h1 { margin: 6px 0 8px; font-size: clamp(28px, 3.4cqi, 38px); letter-spacing: -0.02em; }
+.wf-quick > p.muted { max-width: 620px; margin: 0; }
+.wf-quick-row { display: flex; gap: 10px; max-width: 780px; margin-top: 20px; }
+.wf-quick-row input { flex: 1; min-width: 0; padding: 14px 16px; font-size: 16px; }
+.wf-quick-row .primary { flex: none; padding: 0 22px; white-space: nowrap; }
+.wf-quick-suggest { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 14px; }
+.wf-advanced { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.wf-advanced > summary { cursor: pointer; color: var(--text-muted); }
+.wf-advanced > summary:hover { color: var(--text); }
+.wf-advanced[open] > summary { margin-bottom: 18px; }
+
+/* AI's reading of a retelling: what landed, what is missing, one question. */
+.wf-feedback { margin: 18px 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); animation: page-in 0.35s var(--ease-out) backwards; }
+.wf-feedback-note { margin: 6px 0 12px; }
+.wf-feedback-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px 28px; }
+.wf-feedback h4 { margin: 0 0 6px; color: var(--ok); }
+.wf-feedback .is-missing h4 { color: var(--warn); }
+.wf-feedback ul { margin: 0; padding-left: 1.2em; }
+.wf-feedback li { margin: 4px 0; line-height: 1.6; }
+.wf-feedback-question { margin: 14px 0 8px; font-weight: 600; }
+.wf-primary-pair { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 20px; }
+@container study (max-width: 640px) {
+  .wf-quick-row { flex-direction: column; }
+  .wf-quick-row .primary { padding: 12px 20px; }
+}

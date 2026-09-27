@@ -222,6 +222,7 @@ export default function Workflows({ call, askInChat, data }) {
   const [listing, setListing] = useState(null), [screen, setScreen] = useState({ kind: "list" });
   const [error, setError] = useState(""), [pending, setPending] = useState("");
   const [confirm, setConfirm] = useState(""), [wish, setWish] = useState(""), [message, setMessage] = useState("");
+  const [goal, setGoal] = useState(""), quickRequest = useRef(null);
   const lock = useRef(false), request = useRef(0), reading = useRef(null), live = useRef(true);
   const root = data?.root || "local";
   const invalidateReads = useCallback(() => { ++request.current; reading.current = null; }, []);
@@ -261,13 +262,43 @@ export default function Workflows({ call, askInChat, data }) {
     finally { lock.current = false; setPending(""); }
   }
   const edit = (template, key = template.id) => setScreen({ kind: "edit", template: clone(template), key });
+  // One sentence in, a running session out: AI picks the material and order.
+  async function quickStart(event) {
+    event.preventDefault();
+    const text = goal.trim();
+    if (!text || lock.current) return;
+    lock.current = true; setPending("quick"); setError("");
+    if (quickRequest.current?.goal !== text) quickRequest.current = { goal: text, id: crypto.randomUUID() };
+    try {
+      const result = await call("workflow.quickstart", { goal: text, requestId: quickRequest.current.id });
+      quickRequest.current = null; setGoal("");
+      setScreen({ kind: "portal", id: result.session.id });
+    } catch (err) { setError(err.message); }
+    finally { lock.current = false; setPending(""); }
+  }
+  const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && `${data.focus.course} 的核心概念`].filter(Boolean);
   if (screen.kind === "portal") return <WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} call={call} askInChat={askInChat} onBack={back} revision={data?.revision} />;
   if (!listing) return <section className="page workflow-page"><h1>学习流</h1>{error ? <><p className="wf-error" role="alert">{error}</p><button type="button" onClick={refresh}>重新读取</button></> : <p className="muted" role="status">正在读取学习流…</p>}</section>;
   if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
   if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} askInChat={askInChat} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
   return <section className="page workflow-page">
-    <header className="wf-heading"><div><p className="wf-eyebrow">STUDYHUB · 按自己的方式学</p><h1>学习流</h1><p className="muted">组合学习步骤，再选一个主题开始。也可以继续使用独立的闪卡与知识骨架。</p></div><button type="button" onClick={refresh} disabled={!!pending}>刷新</button></header>
+    <form className="wf-quick" onSubmit={quickStart}>
+      <p className="wf-eyebrow">AI 带学</p>
+      <h1>今天想学什么？</h1>
+      <p className="muted">说一句就行。AI 从你的学习库里挑材料、排顺序、讲给你听，再看你的复述；你只管往下走。</p>
+      <div className="wf-quick-row">
+        <input value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={500} disabled={!!pending}
+          aria-label="想学什么" placeholder="例如：弄懂 Platform Engineering 里的平台团队职责" />
+        <button type="submit" className="primary" disabled={!!pending || !goal.trim()}>{pending === "quick" ? "AI 正在准备…" : "开始学 →"}</button>
+      </div>
+      {suggestions.length > 0 && <div className="wf-quick-suggest">{suggestions.map((text) =>
+        <button type="button" key={text} className="link-btn" disabled={!!pending} onClick={() => setGoal(text)}>{text}</button>)}</div>}
+    </form>
     {error && <p className="wf-error" role="alert">{error}</p>}
+    <div className="wf-section-head"><h2>学习记录</h2><span className="muted small">进度与流程模板分别保存</span></div>
+    {!listing.sessions.length ? <p className="muted wf-empty">选择一条学习流，开始后可以从这里接着学。</p> : <ul className="wf-session-list">{[...listing.sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? "本次学习已结束" : s.stepTitle}</p><small className="muted">{STATUS[s.status]} · {when(s.updatedAt)}</small></div><div className="wf-actions"><button type="button" disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? "查看记录" : "继续学习"}</button><button type="button" disabled={!!pending} aria-label={`删除学习记录 ${s.topic}`} onClick={() => setConfirm(`session:${s.id}`)}>删除</button></div>{confirm === `session:${s.id}` && <div className="wf-confirm"><span>删除这次学习的笔记和进度？闪卡练习历史会保留。</span><button type="button" className="wf-danger" disabled={!!pending} onClick={() => remove("session", s)}>确认删除</button><button type="button" disabled={!!pending} onClick={() => setConfirm("")}>取消</button></div>}</li>)}</ul>}
+    <details className="wf-advanced"><summary>高级：自定义学习步骤</summary>
+      <p className="muted small">想按自己的顺序学时再用。自定义的学习流用「使用」开始，需要自己选主题与范围。</p>
     <div className="wf-section-head"><h2>我的学习流 <span className="muted">{listing.templates.length} / {listing.limit}</span></h2><button type="button" disabled={!!pending || listing.templates.length >= listing.limit} onClick={() => edit({ title: "", description: "", steps: [newStep(listing.components[0])] }, "new")}>＋ 自己拼一条</button></div>
     {listing.templates.length >= listing.limit && <p className="muted small">已保存五条。可以修改现有流程，或删除一条后再创建。</p>}
     <div className="wf-template-list">{listing.templates.map((template, index) => <article className="wf-template-row" key={template.id}>
@@ -277,7 +308,6 @@ export default function Workflows({ call, askInChat, data }) {
     </article>)}</div>
     <article className="wf-suggested"><div><p className="wf-eyebrow">从一条建议开始</p><h3>{listing.suggested.title}</h3><p className="muted">{listing.suggested.description}</p><div className="wf-route-preview">{listing.suggested.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div><button type="button" disabled={!!pending || listing.templates.length >= listing.limit} onClick={() => edit(listing.suggested, "suggested")}>编辑并保存这条流程</button></article>
     <details className="wf-chat"><summary>和主对话一起拼</summary><label>告诉它你的学习习惯<textarea rows={3} value={wish} onChange={(e) => setWish(e.target.value)} maxLength={2000} placeholder="例如：我只想轻松刷卡，最后记一下容易忘的点；或先讲例子，再让我口述。" /></label><button type="button" disabled={!!pending || listing.templates.length >= listing.limit} onClick={ask}>在主对话中设计</button><p className="muted small" role="status">{message || "主对话与这里编辑同一份流程；你可以随时再手动调整。"}</p></details>
-    <div className="wf-section-head"><h2>学习记录</h2><span className="muted small">进度与流程模板分别保存</span></div>
-    {!listing.sessions.length ? <p className="muted wf-empty">选择一条学习流，开始后可以从这里接着学。</p> : <ul className="wf-session-list">{[...listing.sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? "本次学习已结束" : s.stepTitle}</p><small className="muted">{STATUS[s.status]} · {when(s.updatedAt)}</small></div><div className="wf-actions"><button type="button" disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? "查看记录" : "继续学习"}</button><button type="button" disabled={!!pending} aria-label={`删除学习记录 ${s.topic}`} onClick={() => setConfirm(`session:${s.id}`)}>删除</button></div>{confirm === `session:${s.id}` && <div className="wf-confirm"><span>删除这次学习的笔记和进度？闪卡练习历史会保留。</span><button type="button" className="wf-danger" disabled={!!pending} onClick={() => remove("session", s)}>确认删除</button><button type="button" disabled={!!pending} onClick={() => setConfirm("")}>取消</button></div>}</li>)}</ul>}
+    </details>
   </section>;
 }
