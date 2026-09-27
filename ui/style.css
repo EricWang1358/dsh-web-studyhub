@@ -3131,7 +3131,7 @@
     transition: background 0.15s var(--ease);
   }
   .folder-row {
-    padding: 0 10px 12px 0;
+    padding: 0 10px 12px;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
   }
@@ -3142,6 +3142,7 @@
     letter-spacing: -0.01em;
   }
   .map-folder-icon { display: none; }
+  .folder-row > .mastery { margin-right: calc(56px + 34px + 24px); }
   .deck-row { padding: 14px 10px; min-height: 60px; }
   .map-deck { border-bottom: 1px solid var(--line-soft); }
   .map-deck > .map-row:hover,
@@ -3263,8 +3264,11 @@
     align-items: center;
     justify-content: center;
   }
+  /* Fixed width: "▶" and "继续" occupy the same slot, so bars line up. */
   .map-play {
-    min-width: 34px;
+    width: 56px;
+    min-width: 56px;
+    padding: 0;
     height: 32px;
     color: var(--text-dim);
     border: 1px solid var(--line);
@@ -3299,8 +3303,9 @@
     border-color: transparent;
     background: transparent;
     color: var(--text-muted);
-    min-width: 30px;
+    min-width: 34px;
   }
+  .map-row .map-menu-toggle { width: 34px; padding-inline: 0; }
   .map-ask:hover:not(:disabled),
   .map-menu-toggle:hover:not(:disabled) {
     background: var(--bg-hover);
@@ -3586,6 +3591,7 @@
     }
     .map-row .map-play { order: 2; }
     .map-row .map-menu-wrap { order: 3; }
+    .folder-row > .mastery { margin-right: 0; }
     .map-row .mastery {
       order: 10;
       flex: 1 0 100%;
@@ -3599,7 +3605,7 @@
     .map-row > .map-dot { order: 1; }
     .map-folder-icon, .map-ask { display: none; }
     .map-play, .map-menu-toggle { padding: 5px 10px; }
-    .map-play { min-width: 42px; }
+    .map-play { width: 56px; min-width: 56px; }
     .map-menu { min-width: 180px; }
     .binding-row,
     .binding-inline {
@@ -3884,8 +3890,20 @@
   }
 
   /* Cross-workspace notebook directory. */
+  /* Sections below the catalog start on the same left edge as its heading. */
+  .nb-dir {
+    margin-top: 48px;
+  }
+  .nb-dir .map-heading h2 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
   .nb-dir .map-caret {
-    margin-right: 2px;
+    width: auto;
+    margin: 0;
+    padding: 0 2px 0 0;
+    font-size: 13px;
   }
   .nb-list {
     list-style: none;
