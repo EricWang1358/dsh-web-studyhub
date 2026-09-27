@@ -7,7 +7,7 @@
 .result-page .result-kicker,
 .exam-report .result-kicker {
   color: var(--accent-soft);
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: .17em;
   text-transform: uppercase;
@@ -34,7 +34,7 @@
 .result-segment-practice { background: var(--warn); }
 .result-segment-remaining { background: var(--text-faint); }
 .result-breakdown-legend { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 18px; }
-.result-legend-item { display: inline-flex; gap: 7px; align-items: center; font-size: 14px; color: var(--text-muted, #aeb8c5); }
+.result-legend-item { display: inline-flex; gap: 7px; align-items: center; font-size: 15px; color: var(--text-muted, #aeb8c5); }
 .result-legend-item strong { color: var(--text, #f3f5fa); font-variant-numeric: tabular-nums; }
 .result-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
 .result-page .summary-topics { margin: 20px 0; padding: 22px 24px; border: 1px solid var(--line); border-radius: 20px; background: var(--bg-surface); }
@@ -52,7 +52,7 @@
 .exam-report .result-weak li { padding: 4px 0; }
 .exam-report .result-weak .muted { margin: 0; }
 .exam-report .result-weak button { margin-top: 16px; }
-.result-note-badge { font-size: 13px; text-decoration: none; }
+.result-note-badge { font-size: 15px; text-decoration: none; }
 @media (max-width: 640px) {
   .session-summary.result-page { margin-top: 28px; padding: 0 14px; }
   .result-hero { grid-template-columns: 1fr; padding: 22px; gap: 24px; }

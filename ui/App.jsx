@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import StudyMap from "./StudyMap.jsx";
 import Markdown from "./Markdown.jsx";
 import Guide from "./Guide.jsx";
@@ -177,6 +177,50 @@ export default function App({ call, host = {} }) {
     [rootDraft, setRootDraft] = useState(null),
     [modelDraft, setModelDraft] = useState(null),
     [page, setPage] = useState("library");
+  /* Sidebar page switches: the current page lifts away briefly, then the new
+     one settles in (its entrance lives in CSS). The highlight moves on click. */
+  const [pageTarget, setPageTarget] = useState(null),
+    leaveTimer = useRef(0);
+  const switchPage = useCallback((id, prepare) => {
+    clearTimeout(leaveTimer.current);
+    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (id === page || reduce) {
+      prepare?.();
+      setPageTarget(null);
+      setPage(id);
+      return;
+    }
+    setPageTarget(id);
+    leaveTimer.current = setTimeout(() => {
+      prepare?.();
+      setPage(id);
+      setPageTarget(null);
+    }, 140);
+  }, [page]);
+  useEffect(() => () => clearTimeout(leaveTimer.current), []);
+  const navPage = pageTarget || page;
+  /* One highlight glides to the active nav item instead of each item
+     switching its own background, so a page change reads as movement. */
+  const navRef = useRef(null),
+    [navMark, setNavMark] = useState(null),
+    loaded = !!data,
+    lastRunId = data?.lastRun?.id,
+    lastRunIndex = data?.lastRun?.index;
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const active = nav.querySelector(".nav.active");
+      setNavMark((mark) => {
+        const next = active ? { top: active.offsetTop, height: active.offsetHeight } : null;
+        return mark?.top === next?.top && mark?.height === next?.height ? mark : next;
+      });
+    };
+    measure();
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    observer?.observe(nav);
+    return () => observer?.disconnect();
+  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex]);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -1322,11 +1366,18 @@ export default function App({ call, host = {} }) {
             {sidebarNarrow ? "»" : "«"}
           </button>
         </div>
-        <nav>
+        <nav ref={navRef} className="side-nav">
+          {navMark && (
+            <span
+              className="nav-mark"
+              aria-hidden="true"
+              style={{ transform: `translateY(${navMark.top}px)`, height: navMark.height }}
+            />
+          )}
           <button
             className={
               "nav resume-nav" +
-              (page === "review" ? " active" : "") +
+              (navPage === "review" ? " active" : "") +
               (data && !lastRun && !data.decks.length ? " muted-nav" : "")
             }
             disabled={!data || busy}
@@ -1365,14 +1416,13 @@ export default function App({ call, host = {} }) {
           ].map(([id, label, group]) => (
             <button
               key={id}
-              className={"nav" + (group ? " nav-upkeep" : "") + (page === id ? " active" : "")}
+              className={"nav" + (group ? " nav-upkeep" : "") + (navPage === id ? " active" : "")}
               title={label}
-              onClick={() => {
+              onClick={() => switchPage(id, () => {
                 if (id === "exam") setExamRunId(null);
                 if (id === "notes") setNoteInitialId("");
-                setPage(id);
                 setError("");
-              }}
+              })}
               disabled={!data && id !== "board"}
             >
               <Icon><NavGlyph name={id} /></Icon>
@@ -1410,15 +1460,15 @@ export default function App({ call, host = {} }) {
             );
           })()}
           <button
-            className={page === "settings" ? "nav active" : "nav"}
+            className={navPage === "settings" ? "nav active" : "nav"}
             title="设置"
-            onClick={() => setPage("settings")}
+            onClick={() => switchPage("settings")}
           >
             <Icon><NavGlyph name="settings" /></Icon>设置
           </button>
         </div>
       </aside>
-      <main>
+      <main className={pageTarget ? "is-leaving" : undefined}>
         <header className="topbar">
           <nav className="crumbs" aria-label="位置">
             <span className="crumb">Study</span>
