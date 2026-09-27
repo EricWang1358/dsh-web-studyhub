@@ -135,6 +135,7 @@
 .wf-history { margin-top: 28px; }
 .wf-history > ol { list-style: none; padding: 0; }
 .wf-history li { padding: 16px 0; border-bottom: 1px solid var(--line-soft); font-size: 15px; line-height: 1.8; }
+.wf-history li:last-child { border-bottom: 0; padding-bottom: 4px; }
 .wf-history li > div:first-child { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .wf-history time { margin-left: auto; color: var(--text-muted); font-size: 15px; }
 .wf-outcome { color: var(--text-muted); font-size: 15px; }
@@ -234,11 +235,12 @@
 .wf-continue-heading p { margin: 7px 0 0; line-height: 1.7; }
 .wf-other-path { margin-top: 15px; }
 /* Ruled rows that follow one another share a single rule instead of stacking two. */
+:is(.wf-chat, .wf-readings, .wf-history, .wf-notes, .wf-learner-choices, .wf-recall-invitation):has(+ :is(.wf-chat, .wf-readings, .wf-history, .wf-notes, .wf-teaching-tools, .wf-advance)) { margin-bottom: 0; }
 :is(.wf-chat, .wf-readings, .wf-history, .wf-notes, .wf-learner-choices, .wf-recall-invitation) + :is(.wf-chat, .wf-readings, .wf-history, .wf-notes, .wf-teaching-tools, .wf-advance) { margin-top: -1px; }
 .wf-other-path > summary { cursor: pointer; color: var(--text-muted); font-size: 15px; line-height: 1.8; }
 .wf-other-path .wf-actions { margin-top: 15px; }
 .wf-other-path p { line-height: 1.75; }
-.wf-saved-teaching { max-width: 920px; margin-block: 30px; }
+.wf-saved-teaching { margin-block: 30px; }
 .wf-saved-teaching > h2 { font-size: 19px; margin-bottom: 18px; }
 .wf-saved-teaching > details { border-top: 1px solid var(--line); padding-block: 18px; }
 .wf-saved-teaching summary { cursor: pointer; font-size: 15px; font-weight: 600; }
