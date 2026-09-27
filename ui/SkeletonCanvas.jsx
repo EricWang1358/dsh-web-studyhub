@@ -620,7 +620,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
               </>
             )}
             {onAsk && <ExtendBox node={node} onAsk={onAsk} />}
-            {node.cards.length > 0 && (
+            {onPractice && node.cards.length > 0 && (
               <button type="button" className="primary skc-practice" onClick={() => onPractice(node.cards)}>
                 练关联的 {node.cards.length} 题
               </button>

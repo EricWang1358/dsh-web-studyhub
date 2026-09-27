@@ -14,6 +14,14 @@
 - 步骤完成仅表示本次活动完成；闪卡调度、题目判分与能力认定不由流程自评替代。
 - 主 session 可读取组件规范、修改流程、补充当前步骤讲解；不代替用户回答或评定自己掌握。
 
+## Portal 教学体验补充（实看后的用户修正）
+
+- 保留六步导航；下方以完整讲解和可推演的例子为主，不能把题解摘录和输入框当成课程内容。
+- 复用学习笔记的后台起草，以及「帮我弄懂／提升质量」的快捷帮助。进入页面不自动调用模型；一键生成、换例子、拆步骤、补前置、改进讲解，无需先写提示词。
+- 原文引用、可选笔记和流程记录置于辅助区域，减少同屏说明和重复状态文案。
+- 目标与总结可用学习者主动选择的选项表达；复述保留文字方式，也支持明确标记的口头复述自报。均不自动认定能力掌握。
+- 后台结果只写入发起的步骤，不覆盖新笔记、其他地方更新的材料或流程进度。改写可撤销，失败可重试。
+
 ## 实现接口
 
 组件目录：lib/workflow-contract.js。领域：lib/workflows.js。通过 StudyService 与主 session 共用。
@@ -22,12 +30,14 @@
 | --- | --- |
 | workflow.list | 返回 limit, components, suggested, templates, sessions, topics, groups, skeletons |
 | workflow.context | {sessionId?}；返回编排规范及可用流程/材料 |
-| workflow.save | 完整模板 {id?,version?,title,description,steps} → 模板；更新需要当前 version |
+| workflow.save | 完整模板 {id?,version?,requestId?,title,description,steps} → 模板；更新需要当前 version；新建可带 requestId 防止重试重复保存 |
 | workflow.delete | {id,version}；保留已开始的学习副本 |
 | workflow.session.start | {templateId,topic,scope?:[{deckId,topic?,cardId?}],skeletonId?,requestId} → session |
-| workflow.session.get | {id} → {session,resources:{skeleton,cardCount,readings,sources}} |
+| workflow.session.get | {id} → {session,resources:{skeleton,cardCount,readings,sources,modelReady,teachingActive}} |
 | workflow.session.record | {id,version,output} → session；只保存当前步骤笔记 |
 | workflow.session.material | {id,version,stepId,content} → session；主 session 补讲解 |
+| workflow.teaching.start | {id,version,stepId,mode:lesson\|example\|steps\|prerequisite\|improve,request?} → {session,resources}；为当前 lesson 步骤后台生成讲解 |
+| workflow.teaching.undo | {id,version,stepId} → {session,resources}；恢复上次改写前的正文 |
 | workflow.session.advance | {id,version,requestId,outcome:done\|needs_work\|skipped,output?} → session |
 | workflow.session.status | {id,version,status:active\|paused} → session |
 | workflow.session.delete | {id,version}；删除学习副本，保留练习历史 |

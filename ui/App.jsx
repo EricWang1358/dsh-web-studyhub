@@ -22,6 +22,7 @@ import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import Inbox from "./Inbox.jsx";
 import Skeleton from "./Skeleton.jsx";
+import Workflows from "./Workflows.jsx";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
 import { fillMissingDraftText } from "../lib/draft-fields.js";
@@ -1310,6 +1311,7 @@ export default function App({ call, host = {} }) {
           board: "待办看板",
           graph: "知识图谱",
           skeleton: "知识骨架",
+          workflows: "学习流",
           notes: "学习笔记",
         }[page];
   const coachProps = data && {
@@ -1405,6 +1407,7 @@ export default function App({ call, host = {} }) {
           </button>
           {[
             ["library", "学习库"],
+            ["workflows", "学习流"],
             ["wrongbook", "错题与待巩固"],
             ["exam", "模拟考试"],
             ["dashboard", "统计"],
@@ -1666,6 +1669,7 @@ export default function App({ call, host = {} }) {
                 )}
               </StudyMap>
             )}
+            {page === "workflows" && <Workflows call={call} askInChat={askInChat} data={data} />}
             {page === "skeleton" && (
               <Skeleton
                 call={call}

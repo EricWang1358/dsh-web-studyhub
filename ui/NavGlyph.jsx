@@ -3,6 +3,7 @@ import React from "react";
 /* One drawn icon family for the rail: 24px grid, 1.6 stroke, round joins.
    Every destination gets its own mark so the collapsed rail stays legible. */
 const PATHS = {
+  workflows: <><rect x="3" y="3" width="6" height="5" rx="1" /><rect x="15" y="16" width="6" height="5" rx="1" /><path d="M6 8v6h12v2M18 5v7M15 8l3 4 3-4" /></>,
   resume: <><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>,
   library: <><rect x="4" y="8" width="12" height="12" rx="2" /><path d="M8 4h10a2 2 0 0 1 2 2v10" /></>,
   sources: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>,
