@@ -148,12 +148,13 @@ function FlowEditor({ initial, components, latest, storageKey, draftName, call, 
   </section>;
 }
 
-function StartFlow({ template, listing, call, onStarted, onBack }) {
+function StartFlow({ template, listing, call, askInChat, onRefresh, onStarted, onBack }) {
   const [topic, setTopic] = useState("");
   const [selected, setSelected] = useState(new Set());
   const [skeletonId, setSkeletonId] = useState("");
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState(false), [error, setError] = useState("");
+  const [skeletonPending, setSkeletonPending] = useState(false), [skeletonNotice, setSkeletonNotice] = useState("");
   const requestId = useRef(crypto.randomUUID()), lock = useRef(false);
   const topicMap = new Map(listing.topics.map((item) => [item.key, item]));
   const scope = [...selected].flatMap((key) => topicMap.get(key)?.decks.map((deck) => ({ deckId: deck.deckId, topic: deck.topic })) || []);
@@ -167,6 +168,22 @@ function StartFlow({ template, listing, call, onStarted, onBack }) {
     requestId.current = crypto.randomUUID();
   };
   const matched = listing.topics.filter((t) => !query.trim() || `${t.topic} ${t.decks.map((d) => d.deckTitle).join(" ")}`.toLowerCase().includes(query.toLowerCase()));
+  async function generateSkeleton() {
+    if (lock.current || !scope.length) return;
+    lock.current = true; setSkeletonPending(true); setError(""); setSkeletonNotice("");
+    try {
+      await askInChat(
+        "请为我即将开始的学习生成一份知识骨架。\n学习主题：" + (topic.trim() || [...selected].map(key => topicMap.get(key)?.topic).filter(Boolean).join("、")) +
+        "\n学习流：" + template.title + "\n已选题目范围 scope：" + JSON.stringify(scope) + "\n" +
+        "使用给定 scope，先调用 study_workspace 的 skeleton.context 获取题目与引用证据，需要更多依据时用 source.search。\n" +
+        "依据资料组织概念、关键特征、层级与关系；同一概念合并，线性过程与分支讲清楚，不相关的连通分量保持分开。补充知识要明确标注。\n" +
+        "调用 skeleton.save 保存一份新骨架，payload 为 {skeleton:{title,scope,overview,classNote,nodes:[{id,term,meaning,attributes,parent?,cards:[{deckId,cardId}]}],relations:[{from,to,type,note?}],sequences:[]}}。type 使用 part-of/causes/contrasts/prerequisite/example-of/related；动态过程需要时补充 sequences。\n" +
+        "仅生成骨架，不修改题目、学习流或已有骨架，不代替我进入学习。保存后告诉我骨架名称，我会在当前页面关联它。"
+      );
+      setSkeletonNotice("请求已准备好，请在主对话发送。骨架保存后会出现在列表，选中后即可开始学习。");
+    } catch (err) { setError(err.message); }
+    finally { lock.current = false; setSkeletonPending(false); }
+  }
   async function start(event) {
     event.preventDefault();
     if (lock.current) return;
@@ -178,21 +195,25 @@ function StartFlow({ template, listing, call, onStarted, onBack }) {
     } catch (err) { setError(err.message); }
     finally { lock.current = false; setPending(false); }
   }
-  return <section className="wf-start"><button type="button" onClick={onBack} disabled={pending}>← 学习流工作台</button>
+  return <section className="wf-start"><button type="button" onClick={onBack} disabled={pending || skeletonPending}>← 学习流工作台</button>
     <header className="wf-heading"><div><p className="wf-eyebrow">开始一次学习</p><h1>{template.title}</h1><p className="muted">{template.description || "选定主题，从第一步开始。"}</p></div></header>
     {error && <p className="wf-error" role="alert">{error}</p>}
-    <form onSubmit={start}><fieldset disabled={pending} className="wf-fields">
-      <label>这次学什么<input required maxLength={120} value={topic} placeholder="写一个主题；没有题目也可以开始" onChange={(e) => { setTopic(e.target.value); requestId.current = crypto.randomUUID(); }} /></label>
-      <label>关联知识骨架<select value={skeletonId} onChange={(e) => { setSkeletonId(e.target.value); requestId.current = crypto.randomUUID(); if (!topic.trim()) setTopic(listing.skeletons.find((s) => s.id === e.target.value)?.title || ""); }}><option value="">暂不关联</option>{listing.skeletons.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
+    <form onSubmit={start}><fieldset disabled={pending || skeletonPending} className="wf-fields">
       <details className="wf-scope" open={listing.topics.length > 0}>
         <summary>选择已有主题与题目范围 <span className="muted">{selected.size ? `· 已选 ${selected.size} 个主题 / ${selectedCount} 题` : "· 可选"}</span></summary>
         <p className="muted small">未选题目时，使用关联骨架的题目范围；都不选则从阅读、讲解和复述开始。</p>
         {listing.topics.length ? <><input type="search" aria-label="搜索学习主题" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索主题或题组" />
           {(listing.groups?.groups || []).length > 0 && <div className="wf-topic-groups" aria-label="按主题组选择">{listing.groups.groups.map((g) => <label key={g.id}><input type="checkbox" checked={g.topics.length > 0 && g.topics.every((key) => selected.has(key))} ref={(el) => { if (el) el.indeterminate = g.topics.some((key) => selected.has(key)) && !g.topics.every((key) => selected.has(key)); }} onChange={(e) => toggle(g.topics, e.target.checked, g.title)} /><span>{g.title}</span><small>{g.topics.length} 个主题</small></label>)}</div>}
-          <div className="wf-topic-list">{matched.map((t) => <label key={t.key}><input type="checkbox" checked={selected.has(t.key)} onChange={(e) => toggle([t.key], e.target.checked, t.topic)} /><span>{t.topic}<small>{t.decks.map((d) => d.deckTitle).join(" · ")}</small></span><small>{t.count} 题</small></label>)}{!matched.length && <p className="muted">没有匹配的主题。</p>}</div>
+          <div className="wf-topic-list">{matched.map((t) => <label key={t.key}><input type="checkbox" checked={selected.has(t.key)} onChange={(e) => toggle([t.key], e.target.checked, t.topic)} /><span>{t.topic}<small title={t.decks.map((d) => d.deckTitle).join(" · ")}>{t.decks.slice(0, 2).map((d) => d.deckTitle).join(" · ")}{t.decks.length > 2 ? ` 等 ${t.decks.length} 个题组` : ""}</small></span><small>{t.count} 题</small></label>)}{!matched.length && <p className="muted">没有匹配的主题。</p>}</div>
         </> : <p className="muted small">学习库还没有题目主题。填写上方主题即可开始。</p>}
       </details>
-    </fieldset><div className="wf-route-preview" aria-label="本次学习步骤">{template.steps.map((s, index) => <span key={s.id}>{index + 1}. {s.title}</span>)}</div><button type="submit" className="primary" disabled={pending || !topic.trim()}>{pending ? "进入中…" : "进入学习 Portal"}</button></form>
+      <label>这次学什么<input required maxLength={120} value={topic} placeholder="写一个主题；没有题目也可以开始" onChange={(e) => { setTopic(e.target.value); requestId.current = crypto.randomUUID(); }} /></label>
+      <label>关联知识骨架<select value={skeletonId} onChange={(e) => { setSkeletonId(e.target.value); requestId.current = crypto.randomUUID(); if (!topic.trim()) setTopic(listing.skeletons.find((s) => s.id === e.target.value)?.title || ""); }}><option value="">暂不关联</option>{listing.skeletons.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
+      <div className="wf-skeleton-shortcut">
+        <div className="wf-actions"><button type="button" onClick={generateSkeleton} disabled={!scope.length}>{skeletonPending ? "准备请求…" : "生成知识骨架"}</button><button type="button" onClick={() => void onRefresh()}>刷新骨架</button></div>
+        <p className="muted small" role="status">{skeletonNotice || (scope.length ? "根据上方已选题目，交给主对话生成；保存后可在这里关联。" : "先选择上方题目范围，即可生成对应骨架；也可以直接关联已有骨架。")}</p>
+      </div>
+    </fieldset><div className="wf-route-preview" aria-label="本次学习步骤">{template.steps.map((s, index) => <span key={s.id}>{index + 1}. {s.title}</span>)}</div><button type="submit" className="primary" disabled={pending || skeletonPending || !topic.trim()}>{pending ? "进入中…" : "进入学习 Portal"}</button></form>
   </section>;
 }
 
@@ -243,7 +264,7 @@ export default function Workflows({ call, askInChat, data }) {
   if (screen.kind === "portal") return <WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} call={call} askInChat={askInChat} onBack={back} revision={data?.revision} />;
   if (!listing) return <section className="page workflow-page"><h1>学习流</h1>{error ? <><p className="wf-error" role="alert">{error}</p><button type="button" onClick={refresh}>重新读取</button></> : <p className="muted" role="status">正在读取学习流…</p>}</section>;
   if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
-  if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
+  if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} askInChat={askInChat} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
   return <section className="page workflow-page">
     <header className="wf-heading"><div><p className="wf-eyebrow">STUDYHUB · 按自己的方式学</p><h1>学习流</h1><p className="muted">组合学习步骤，再选一个主题开始。也可以继续使用独立的闪卡与知识骨架。</p></div><button type="button" onClick={refresh} disabled={!!pending}>刷新</button></header>
     {error && <p className="wf-error" role="alert">{error}</p>}
