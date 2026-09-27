@@ -1,5 +1,6 @@
 import { build } from "esbuild";
 import { mkdir, writeFile } from "node:fs/promises";
+import { hostReact, shimJsxRuntime } from "./host-react.mjs";
 await mkdir("dist", { recursive: true });
 const result = await build({
   entryPoints: ["ui/host.jsx"],
@@ -7,10 +8,13 @@ const result = await build({
   write: false,
   format: "cjs",
   platform: "browser",
-  external: ["react"],
+  plugins: [hostReact],
   loader: { ".css": "text" },
   jsx: "transform",
-  minify: false,
+  // Minified for load and parse time inside DSH; names kept for readable
+  // stack traces. The standalone preview below stays unminified.
+  minify: true,
+  keepNames: true,
 });
 // DSH supplies React via its classic-module loader; do not bundle a second copy.
 await writeFile(
@@ -19,6 +23,7 @@ await writeFile(
 );
 await build({
   entryPoints: ["ui/dev.jsx"],
+  plugins: [shimJsxRuntime],
   bundle: true,
   outdir: "dist",
   entryNames: "app",

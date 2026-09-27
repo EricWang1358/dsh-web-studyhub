@@ -22,3 +22,10 @@
 .note-card-search input { flex: 1; min-width: 0; }
 .note-search-result { display: block; width: 100%; margin: 5px 0; text-align: left; }
 @media (max-width: 800px) { .note-editor { grid-template-columns: 1fr; } .note-preview { height: 380px; } }
+/* The editor keeps its syntax colours but sits on the panel's own surfaces. */
+.note-edit-pane .cm-editor,
+.note-edit-pane .cm-gutters { background: var(--bg-sunken) !important; }
+.note-edit-pane .cm-gutters { border-right: 1px solid var(--line-soft) !important; color: var(--text-faint) !important; }
+.note-edit-pane .cm-activeLine,
+.note-edit-pane .cm-activeLineGutter { background: var(--bg-hover) !important; }
+.note-edit-pane .cm-editor.cm-focused { outline: none; }
