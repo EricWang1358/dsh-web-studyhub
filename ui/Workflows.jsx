@@ -223,6 +223,8 @@ export default function Workflows({ call, askInChat, data }) {
   const [error, setError] = useState(""), [pending, setPending] = useState("");
   const [confirm, setConfirm] = useState(""), [wish, setWish] = useState(""), [message, setMessage] = useState("");
   const [goal, setGoal] = useState(""), quickRequest = useRef(null);
+  const [autoSkeleton, setAutoSkeleton] = useState(() => { try { return localStorage.getItem("study-workflow-auto-skeleton") !== "0"; } catch { return true; } });
+  const toggleSkeleton = (value) => { setAutoSkeleton(value); try { localStorage.setItem("study-workflow-auto-skeleton", value ? "1" : "0"); } catch {} };
   const lock = useRef(false), request = useRef(0), reading = useRef(null), live = useRef(true);
   const root = data?.root || "local";
   const invalidateReads = useCallback(() => { ++request.current; reading.current = null; }, []);
@@ -270,7 +272,7 @@ export default function Workflows({ call, askInChat, data }) {
     lock.current = true; setPending("quick"); setError("");
     if (quickRequest.current?.goal !== text) quickRequest.current = { goal: text, id: crypto.randomUUID() };
     try {
-      const result = await call("workflow.quickstart", { goal: text, requestId: quickRequest.current.id });
+      const result = await call("workflow.quickstart", { goal: text, requestId: quickRequest.current.id, skeleton: autoSkeleton });
       quickRequest.current = null; setGoal("");
       setScreen({ kind: "portal", id: result.session.id });
     } catch (err) { setError(err.message); }
@@ -293,6 +295,7 @@ export default function Workflows({ call, askInChat, data }) {
       </div>
       {suggestions.length > 0 && <div className="wf-quick-suggest">{suggestions.map((text) =>
         <button type="button" key={text} className="link-btn" disabled={!!pending} onClick={() => setGoal(text)}>{text}</button>)}</div>}
+      <label className="wf-quick-option"><input type="checkbox" checked={autoSkeleton} disabled={!!pending} onChange={(e) => toggleSkeleton(e.target.checked)} />没有现成的知识骨架时，在后台按本次范围生成一份<span className="muted">不用等它，学习照常开始</span></label>
     </form>
     {error && <p className="wf-error" role="alert">{error}</p>}
     <div className="wf-section-head"><h2>学习记录</h2><span className="muted small">进度与流程模板分别保存</span></div>

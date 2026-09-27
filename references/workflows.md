@@ -1,6 +1,6 @@
 # 可选学习流与 Portal
 
-**默认入口是 AI 带学：** 在「学习流」首页写一句想学什么，点「开始学」。`workflow.quickstart {goal,requestId}` 选材料与骨架并建立本次学习；讲解与练习到达即开始；复述后 `workflow.feedback {id,version,stepId}` 给出讲到了/还缺/引导问题与建议，只写入该步的 `records[stepId].feedback`，不推进、不判分。以下自定义模板说明适用于「高级」入口。
+**默认入口是 AI 带学：** 在「学习流」首页写一句想学什么，点「开始学」。`workflow.quickstart {goal,requestId}` 选材料与骨架并建立本次学习；讲解与练习到达即开始；复述后 `workflow.feedback {id,version,stepId}` 给出讲到了/还缺/引导问题与建议，只写入该步的 `records[stepId].feedback`，不推进、不判分。范围没有现成骨架时，`quickstart` 传 `skeleton:true` 或之后调用 `workflow.skeleton.generate {id}` 会在后台按本次范围起草骨架，状态记在 `session.skeletonJob`（running / done / failed），`resources.skeletonActive` 表示本进程是否仍在生成；完成后保存为普通骨架并写入 `session.skeletonId`，不改变已开始的步骤路线。以下自定义模板说明适用于「高级」入口。
 
 独立闪卡、主题、知识骨架继续可用，不要求用户采用流程。学习流只是组件的一种组合方式。
 

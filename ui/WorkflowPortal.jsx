@@ -58,6 +58,21 @@ const History = React.memo(function History({ session }) {
   </details>;
 });
 
+/* The skeleton for a guided session that started without one: it can be
+   drafted in the background and appears here, folded, once it is ready. */
+function SpinePeek({ session, resources, disabled, onGenerate }) {
+  const job = session.skeletonJob;
+  if (resources.skeleton) return <details className="wf-spine-peek"><summary>本次脉络 · {resources.skeleton.title}<span className="muted small">{job?.status === "done" ? "后台刚整理好，展开看看主线" : "展开看看主线"}</span></summary>
+    {resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} /></details>;
+  if (session.status === "completed" || !resources.cardCount) return null;
+  if (job?.status === "running" && resources.skeletonActive)
+    return <p className="wf-spine-status" role="status"><span className="wf-pulse" aria-hidden="true" />AI 正在后台整理本次的知识骨架（{job.cards} 题），好了会出现在这里，学习不用等它。</p>;
+  if (!resources.modelReady) return null;
+  const interrupted = job?.status === "running" || job?.status === "failed";
+  return <p className="wf-spine-status muted">{interrupted ? `上次后台整理骨架没有完成${job.message ? `：${job.message}` : "。"}` : "本次范围还没有知识骨架。"}
+    <button type="button" className="link-btn" disabled={disabled} onClick={onGenerate}>{interrupted ? "重新在后台生成" : "在后台生成一份"}</button></p>;
+}
+
 export default function WorkflowPortal({ id, libraryKey, call, askInChat, onBack, revision }) {
   useInjectCss(css, "study-workflows");
   useInjectCss(skeletonCss, "study-skeleton");
@@ -200,6 +215,18 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onBack
     setError(""); setNotice(keepLocal ? "已载入最新内容，本地草稿已保留。" : "已使用学习库中的最新记录。");
   };
 
+  const generateSkeleton = () => act("skeleton", async () => {
+    await call("workflow.skeleton.generate", { id });
+    const latest = await call("workflow.session.get", { id });
+    if (live.current) adopt(latest.session, { resources: latest.resources, keepOutput: true });
+  });
+  // While a background skeleton is being drafted, check back sooner than the idle poll.
+  const drafting = session?.skeletonJob?.status === "running" && resources.skeletonActive;
+  useEffect(() => {
+    if (!drafting) return;
+    const timer = setInterval(() => void refresh({ automatic: true }), 3000);
+    return () => clearInterval(timer);
+  }, [drafting, refresh]);
   const askFeedback = () => act("feedback", async () => {
     const saved = await persist();
     const result = await call("workflow.feedback", { id, version: saved.version, stepId: saved.currentStepId });
@@ -260,6 +287,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onBack
     </div>}
     {notice && <p className="wf-status" role="status">{notice}</p>}
     <ol className="wf-portal-route" aria-label="学习步骤">{session.template.steps.map((item, stepIndex) => <li key={item.id} aria-current={!completed && item.id === step.id ? "step" : undefined} className={item.id === step.id && !completed ? "is-current" : ""}><span>{String(stepIndex + 1).padStart(2, "0")}</span><strong>{item.title}</strong>{session.records[item.id]?.outcome && <small>{OUTCOME[session.records[item.id].outcome]}</small>}</li>)}</ol>
+    {!session.template.steps.some((item) => item.kind === "skeleton") && <SpinePeek session={session} resources={resources} disabled={busy || !!remote} onGenerate={generateSkeleton} />}
     {!completed && <article className="wf-activity">
       <div className="wf-section-head"><h2>{step.title}</h2></div>
       {step.instructions && <Markdown text={step.instructions} className="wf-instructions" />}

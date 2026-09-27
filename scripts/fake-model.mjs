@@ -56,6 +56,18 @@ ${"条件不满足时结论不成立；常见误区是只记结论不记前提�
         question: "如果前提不成立，结论还会一样吗？", suggestion: short ? "revisit" : "continue",
         note: short ? "方向是对的，再把条件和例子补上会更完整。" : "讲得很完整，可以继续。" });
     }
+    if (system.startsWith("You design a knowledge skeleton")) {
+      // One station per topic, its cards hanging below: enough to draw a spine.
+      const topics = [...new Set((data.cards || []).map((c) => c.topic || "未分类"))].slice(0, 6);
+      const nodes = topics.flatMap((topic, i) => {
+        const cards = data.cards.filter((c) => (c.topic || "未分类") === topic).slice(0, 4);
+        return [{ id: `t${i}`, term: topic, meaning: `预览用的演示骨架（未调用真实模型）：「${topic}」这一站。`, cards: cards.map((c) => c.cardId) },
+          ...cards.map((c, j) => ({ id: `t${i}c${j}`, parent: `t${i}`, term: String(c.answer || c.prompt).slice(0, 30) || `要点 ${j + 1}`,
+            meaning: String(c.explanation || c.answer || "").slice(0, 120) || "演示要点。", cards: [c.cardId] }))];
+      });
+      const relations = topics.slice(1).map((_, i) => ({ from: `t${i}`, to: `t${i + 1}`, type: "prerequisite" }));
+      return JSON.stringify({ title: `${topics[0] || "本次范围"}的脉络`, overview: "预览用的演示骨架：按主题从基础到应用排成一条主线。", nodes, relations });
+    }
     const task = String(data.task || "");
     if (system.includes("学习卡片的追问老师")) {
       return JSON.stringify(data.question
