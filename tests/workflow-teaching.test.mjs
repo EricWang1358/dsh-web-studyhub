@@ -187,3 +187,22 @@ test("a first article has nothing to undo, so undo never blanks the lesson", asy
   assert.equal("previousContent" in done.records.lesson, false);
   await assert.rejects(service.call("workflow.teaching.undo", { id: session.id, version: done.version, stepId: "lesson" }), /没有可撤销/);
 });
+
+test("a remedy re-teaches the retelling's gaps as a help section that keeps the request", async t => {
+  const requests = [];
+  const { service, session } = await setup(t, async (system, prompt) => {
+    if (system.startsWith("Independently")) return approved;
+    const input = JSON.parse(prompt); requests.push([input.mode, input.request]);
+    return generated(input.mode === "remedy" ? article + "\n\n针对缺口的补讲。" : article);
+  });
+  let current = await service.call("workflow.session.material", { id: session.id, version: session.version, stepId: "lesson", content: "原有讲解" });
+  await service.call("workflow.teaching.start", { id: session.id, version: current.version, stepId: "lesson", mode: "remedy", request: "没有说明过期条件；缺少例子" });
+  current = (await settled(service, session.id)).session;
+  assert.deepEqual(requests, [["remedy", "没有说明过期条件；缺少例子"]]);
+  assert.equal(current.records.lesson.content, "原有讲解", "the article itself is kept");
+  const [help] = current.records.lesson.help;
+  assert.equal(help.kind, "remedy");
+  assert.equal(help.title, "针对复述补讲");
+  assert.equal(help.request, "没有说明过期条件；缺少例子");
+  assert.match(help.content, /针对缺口的补讲/);
+});

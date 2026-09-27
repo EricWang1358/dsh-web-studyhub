@@ -14,6 +14,22 @@ const readDraft = (session, libraryKey) => { try { return JSON.parse(localStorag
 const clearDraft = (session, libraryKey) => { try { localStorage.removeItem(draftKey(session, libraryKey)); } catch {} };
 const keepDraft = (session, output, libraryKey) => { try { localStorage.setItem(draftKey(session, libraryKey), JSON.stringify({ output, base: savedOutput(session), version: session.version })); } catch {} };
 const ORAL_REPORT = "我已口头复述（自我记录，未经过判分或掌握验证）。";
+const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘" : "Ctrl";
+const PICKED = { ai: "AI 选的范围", match: "按名称匹配的范围", course: "没找到直接相关的主题，先学当前课程", none: "学习库里还没有相关的题目" };
+const prefersReducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+const coarsePointer = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+
+/* What this session covers, so the learner can see what AI picked. */
+function ScopeLine({ session, resources }) {
+  const topics = resources.scopeTopics || [];
+  if (!topics.length && !session.pickedBy) return null;
+  const total = resources.scopeTopicCount || topics.length;
+  const shown = topics.slice(0, 4).join("、");
+  return <p className={`wf-scope-line${["course", "none"].includes(session.pickedBy) ? " is-fallback" : ""}`} title={topics.join("、")}>
+    <span>{PICKED[session.pickedBy] || "本次范围"}{shown ? "：" : ""}</span>{shown && <>{shown}{total > 4 ? ` 等 ${total} 个主题` : ""}</>}{resources.cardCount > 0 && <> · {resources.cardCount} 题</>}
+  </p>;
+}
+
 const GOALS = ["先建立整体框架", "弄懂关键机制", "通过例子学会应用", "查漏补缺"];
 const REFLECTIONS = ["已理清主线", "还需要例子", "需要补前置", "下次先练习"];
 
@@ -84,10 +100,12 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onBack
   const [showRecallMaterial, setShowRecallMaterial] = useState(false), [wish, setWish] = useState("");
   const current = useRef(null), outputRef = useRef(""), lock = useRef(false), live = useRef(true), pollToken = useRef(0);
   const transition = useRef(null), reading = useRef(null);
+  const arrive = useRef(false), wantFocus = useRef(false), headingRef = useRef(null), outputField = useRef(null);
   const invalidateReads = useCallback(() => { ++pollToken.current; reading.current = null; }, []);
 
   const adopt = useCallback((next, options = {}) => {
     const changedStep = current.current?.currentStepId !== next.currentStepId;
+    if (changedStep && current.current) arrive.current = true;
     const cached = options.restore ? readDraft(next, libraryKey) : null;
     const value = options.keepOutput && !changedStep ? outputRef.current : cached && typeof cached.output === "string" ? cached.output : savedOutput(next);
     current.current = next; outputRef.current = value;
@@ -236,6 +254,20 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onBack
   // AI in the loop: arriving at a lesson prepares it, arriving at practice
   // starts it, and "revisit" after a retelling re-explains exactly the gaps.
   // Each happens once per visit to a step, so a failure never loops.
+  // A new step starts at its top; arriving at a retelling puts the cursor in it.
+  useEffect(() => {
+    if (!arrive.current) return;
+    arrive.current = false;
+    headingRef.current?.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    const here = current.current?.template.steps.find((item) => item.id === current.current.currentStepId);
+    wantFocus.current = here?.kind === "recall" && !coarsePointer();
+  }, [session?.currentStepId]);
+  useEffect(() => {
+    // The field is disabled until the move that brought us here settles.
+    if (!wantFocus.current || pending || !outputField.current || outputField.current.disabled) return;
+    wantFocus.current = false;
+    outputField.current.focus({ preventScroll: true });
+  });
   const autoRan = useRef(new Set()), remedy = useRef(null);
   useEffect(() => {
     if (!session || session.status !== "active" || pending || practiceBusy || remote) return;
@@ -264,10 +296,14 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onBack
   const priorLesson = session.template.steps.slice(0, index).findLast(item => item.kind === "lesson");
   const recallContent = content || (priorLesson && (session.records[priorLesson.id]?.content ?? priorLesson.content));
   const oralReported = output.split("\n").includes(ORAL_REPORT);
-  const feedback = step.kind === "recall" && record.feedback && record.feedback.forOutput === output.trim() ? record.feedback : null;
+  // The last reading of the retelling stays visible while the learner revises it,
+  // marked as being about the earlier version, so the gaps are still in view.
+  const lastFeedback = step.kind === "recall" ? record.feedback || null : null;
+  const feedback = lastFeedback && lastFeedback.forOutput === output.trim() ? lastFeedback : null;
+  const stale = !!lastFeedback && !feedback;
   const askable = step.kind === "recall" && resources.modelReady && !!output.trim() && !feedback;
   const revisit = () => {
-    remedy.current = { mode: "steps", request: [...(feedback?.missing || []), feedback?.question].filter(Boolean).join("；").slice(0, 1000)
+    remedy.current = { mode: "remedy", request: [...(lastFeedback?.missing || []), lastFeedback?.question].filter(Boolean).join("；").slice(0, 1000)
       || "请针对我复述时遗漏的条件和机制重新讲清楚" };
     advance("needs_work");
   };
@@ -280,7 +316,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onBack
   };
   return <section className="page workflow-page wf-portal">
     <div className="wf-topline"><button type="button" disabled={busy || !!remote} onClick={leave}>← 保存并返回工作台</button><span className="muted small">{completed ? "本次学习已结束" : active ? "学习中" : "已暂停"}</span></div>
-    <header className="wf-heading"><div><p className="wf-eyebrow">{session.template.title}</p><h1>{session.topic}</h1><p className="muted">{completed ? "保留这次学习的记录，下一次可以换一种学习方式。" : `第 ${index + 1} / ${session.template.steps.length} 步 · ${step.title}`}</p></div>{!completed && <button type="button" disabled={busy || !!remote} onClick={() => changeStatus(active ? "paused" : "active")}>{active ? "保存并暂停" : "继续学习"}</button>}</header>
+    <header className="wf-heading" ref={headingRef}><div><p className="wf-eyebrow">{session.template.title}</p><h1>{session.topic}</h1><p className="muted">{completed ? "保留这次学习的记录，下一次可以换一种学习方式。" : `第 ${index + 1} / ${session.template.steps.length} 步 · ${step.title}`}</p><ScopeLine session={session} resources={resources} /></div>{!completed && <button type="button" disabled={busy || !!remote} onClick={() => changeStatus(active ? "paused" : "active")}>{active ? "保存并暂停" : "继续学习"}</button>}</header>
     {error && <div className="wf-error" role="alert"><p>{error} 你的输入仍保留在此设备。</p><button type="button" disabled={busy} onClick={refresh}>核对最新进度</button></div>}
     {remote && <div className="wf-notice" role="status"><p>这次学习在其他地方有了更新。你的文字已保留，请选择怎样继续。</p>
       {savedOutput(remote.session) && <details><summary>查看学习库中的最新回答</summary><Markdown text={savedOutput(remote.session)} /></details>}
@@ -302,23 +338,24 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onBack
       {step.kind === "practice" && (record.runId ? <WorkflowPractice key={record.runId} runId={record.runId} libraryKey={libraryKey} call={call} disabled={!active || !!pending || !!remote} onBusy={setPracticeBusy} onComplete={setPracticeComplete} /> : <div className="wf-practice-intro"><p>{resources.cardCount ? `本次范围有 ${resources.cardCount} 道题，本步最多练 ${step.count} 道。` : "本次范围还没有可练习的题目，可以在主对话补充内容，或跳过本步。"}</p><p className="muted small">作答沿用原有判分和闪卡调度；流程活动另行记录。</p><button type="button" className="primary" disabled={!active || busy || !!remote || !resources.cardCount} onClick={startPractice}>{pending === "practice" ? "准备练习…" : "开始本步练习"}</button></div>)}
       <details key={`notes:${step.id}`} className="wf-notes" open={step.kind === "recall" && !oralReported}><summary>{step.kind === "recall" ? "写下我的复述" : step.kind === "reflection" ? "补充我的收获与下一步" : step.kind === "overview" ? "写下自己的学习目标" : "随手记：笔记与疑问"}<span>{dirty ? "有未保存的记录" : output ? "已保存" : "可选"}</span></summary>
       <label className="wf-output-label">{step.kind === "recall" ? "我的复述" : step.kind === "reflection" ? "我的总结与下一步" : step.kind === "overview" ? "我想解决的问题" : "我的笔记与疑问"}
-        <textarea rows={step.kind === "recall" || step.kind === "reflection" ? 7 : 4} maxLength={20000} value={output} disabled={!active || busy} onChange={(e) => changeOutput(e.target.value)} placeholder={step.kind === "recall" ? "不用追求标准措辞。写清核心机制、一个例子，以及什么时候不适用。" : step.kind === "reflection" ? "写下收获、还卡住的地方，以及下次准备做什么。" : "写下思路、观察到的关系，或想继续追问的问题。"} />
+        <textarea ref={outputField} rows={step.kind === "recall" || step.kind === "reflection" ? 7 : 4} maxLength={20000} value={output} disabled={!active || busy} onChange={(e) => changeOutput(e.target.value)}
+          onKeyDown={(e) => { if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey)) return; e.preventDefault(); if (askable) askFeedback(); else if (dirty && !remote) save(); }} placeholder={step.kind === "recall" ? "不用追求标准措辞。写清核心机制、一个例子，以及什么时候不适用。" : step.kind === "reflection" ? "写下收获、还卡住的地方，以及下次准备做什么。" : "写下思路、观察到的关系，或想继续追问的问题。"} />
       </label>
-      <div className="wf-output-save"><button type="button" disabled={!active || busy || !!remote || !dirty} onClick={save}>{pending === "save" ? "保存中…" : "保存回答与笔记"}</button><small className="muted">{dirty ? "继续下一步时也会一起保存。" : "已保存在本次学习中。"}</small></div>
+      <div className="wf-output-save"><button type="button" disabled={!active || busy || !!remote || !dirty} onClick={save}>{pending === "save" ? "保存中…" : "保存回答与笔记"}</button><small className="muted">{dirty ? "继续下一步时也会一起保存" : "已保存在本次学习中"}{step.kind === "recall" && resources.modelReady ? ` · ${MOD_KEY} + Enter 请 AI 查看` : ` · ${MOD_KEY} + Enter 保存`}</small></div>
       </details>
-      {feedback && <section className="wf-retell" aria-label="AI 对复述的反馈">
-        <p className="wf-eyebrow">AI 看了你的复述</p>
-        {feedback.note && <p className="wf-retell-note">{feedback.note}</p>}
+      {lastFeedback && <section className={`wf-retell${stale ? " is-stale" : ""}`} aria-label="AI 对复述的反馈">
+        <p className="wf-eyebrow">{stale ? "AI 对上一版复述的反馈" : "AI 看了你的复述"}</p>
+        {lastFeedback.note && <p className="wf-retell-note">{lastFeedback.note}</p>}
         <div className="wf-retell-cols">
-          {feedback.covered.length > 0 && <div><h4>讲到了</h4><ul>{feedback.covered.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-          {feedback.missing.length > 0 && <div className="is-missing"><h4>还缺</h4><ul>{feedback.missing.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+          {lastFeedback.covered.length > 0 && <div><h4>讲到了</h4><ul>{lastFeedback.covered.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+          {lastFeedback.missing.length > 0 && <div className="is-missing"><h4>还缺</h4><ul>{lastFeedback.missing.map((item) => <li key={item}>{item}</li>)}</ul></div>}
         </div>
-        {feedback.question && <p className="wf-retell-question">想一想：{feedback.question}</p>}
-        <p className="muted small">这是对这一次复述的建议，不是判分，也不代表是否已经掌握。</p>
+        {lastFeedback.question && <p className="wf-retell-question">想一想：{lastFeedback.question}</p>}
+        <p className="muted small">{stale ? "你改过复述了。按上面的缺口补好后，可以请 AI 再看一遍。" : "这是对这一次复述的建议，不是判分，也不代表是否已经掌握。"}</p>
       </section>}
       {step.kind === "recall" && <div className="wf-recall-reference"><button type="button" aria-expanded={showRecallMaterial} onClick={() => setShowRecallMaterial((value) => !value)}>{showRecallMaterial ? "收起参考内容" : "我已尝试，查看参考与讲解"}</button>{showRecallMaterial && <div>{recallContent && <TeachingArticle content={recallContent} />}<Readings resources={resources} /></div>}</div>}
       <details className="wf-chat"><summary>{step.kind === "recall" ? "请主对话通过追问帮我补全" : "请主对话帮我讲清楚"}</summary><label>我需要什么帮助<textarea rows={2} value={wish} maxLength={2000} onChange={(e) => setWish(e.target.value)} placeholder="例如：用一个具体例子解释这里的因果关系。" disabled={!active || busy} /></label><button type="button" disabled={!active || busy || !!remote} onClick={ask}>{pending === "chat" ? "交接中…" : "保存笔记并交给主对话"}</button><p className="muted small">补充的讲解会回到这一步，你的回答与学习判断由你自己完成。</p></details>
-      <footer className="wf-advance"><div className="wf-continue-heading"><div><strong>按自己的节奏继续</strong><p className="muted small">下一站：{branchText(step.next)}</p></div>{askable ? <div className="wf-primary-pair"><button type="button" className="link-btn" disabled={cannotComplete} onClick={() => advance("done")}>直接继续</button><button type="button" className="primary" disabled={!active || busy || !!remote} onClick={askFeedback}>{pending === "feedback" ? "AI 正在看…" : "请 AI 看看我的复述 →"}</button></div>
+      <footer className="wf-advance"><div className="wf-continue-heading"><div><strong>按自己的节奏继续</strong><p className="muted small">下一站：{branchText(step.next)}</p></div>{askable ? <div className="wf-primary-pair"><button type="button" className="link-btn" disabled={cannotComplete} onClick={() => advance("done")}>直接继续</button><button type="button" className="primary" disabled={!active || busy || !!remote} onClick={askFeedback}>{pending === "feedback" ? "AI 正在看…" : lastFeedback ? "请 AI 再看一遍 →" : "请 AI 看看我的复述 →"}</button></div>
         : feedback ? <div className="wf-primary-pair">{feedback.suggestion === "revisit"
           ? <><button type="button" className="link-btn" disabled={cannotComplete} onClick={() => advance("done")}>先继续</button><button type="button" className="primary" disabled={!active || busy || !!remote} onClick={revisit}>回到讲解补一补 →</button></>
           : <><button type="button" className="link-btn" disabled={!active || busy || !!remote} onClick={revisit}>回到讲解补一补</button><button type="button" className="primary" disabled={cannotComplete} onClick={() => advance("done")}>{pending === "done" ? "保存中…" : "继续 →"}</button></>}</div>

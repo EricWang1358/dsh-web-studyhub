@@ -23,7 +23,20 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
   const unavailable = resources.modelReady === false;
   const blocked = disabled || running || unavailable;
   const help = record.help || [];
+  // The learner came back for the gaps in their retelling: that re-explanation
+  // leads the lesson instead of waiting below the whole article.
+  const remedyRunning = running && teaching.mode === "remedy";
+  const lastRemedy = help.findLast((item) => item.kind === "remedy");
+  const remedy = remedyRunning ? { request: teaching.request } : lastRemedy;
+  const others = remedy === lastRemedy ? help.filter((item) => item !== lastRemedy) : help;
+  const gaps = (remedy?.request || "").split("；").map((gap) => gap.trim()).filter(Boolean);
   return <section className="wf-teaching" aria-label="学习讲解">
+    {remedy && <aside className="wf-remedy" aria-label="针对复述补讲">
+      <p className="wf-eyebrow">针对你复述里漏掉的地方</p>
+      {gaps.length > 0 && <ul className="wf-remedy-gaps">{gaps.map((gap) => <li key={gap}>{/[？?]$/.test(gap) ? `想一想：${gap}` : gap}</li>)}</ul>}
+      {remedyRunning ? <p className="wf-remedy-status" role="status"><span className="wf-pulse" aria-hidden="true" />AI 正在针对这些点补讲，下面的讲解可以先看着。</p>
+        : <><TeachingArticle content={remedy.content} /><TeachingCitations citations={remedy.citations} sources={resources.sources} /></>}
+    </aside>}
     <header className="wf-teaching-heading"><div><span className="wf-eyebrow">围绕主题，连起来学</span><h3>{content ? "本步讲解" : "从一篇完整讲解开始"}</h3></div>{content && <span className="wf-reading-label">阅读 · 理解 · 应用</span>}</header>
     {content ? <TeachingArticle content={content} /> : <div className="wf-teaching-empty">
       <p>把「{topic}」的概念、原理和例子连成一条线，再看看它适用于什么情境。</p>
@@ -31,7 +44,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
       {!running && <button type="button" className="primary" disabled={blocked} onClick={() => onTeach("lesson")}>生成完整讲解</button>}
     </div>}
     <TeachingCitations citations={record.citations} sources={resources.sources} />
-    {running && <div className="wf-teaching-progress" role="status"><span className="wf-progress-mark" aria-hidden="true" /><div><strong>{teaching.mode === "improve" ? "正在改进这篇讲解" : content ? "正在补充讲解" : "正在组织概念与例子"}</strong><p>完成后会显示在这里。你可以继续阅读，也可以稍后回来。</p></div></div>}
+    {running && !remedyRunning && <div className="wf-teaching-progress" role="status"><span className="wf-progress-mark" aria-hidden="true" /><div><strong>{teaching.mode === "improve" ? "正在改进这篇讲解" : content ? "正在补充讲解" : "正在组织概念与例子"}</strong><p>完成后会显示在这里。你可以继续阅读，也可以稍后回来。</p></div></div>}
     {failed && <div className="wf-notice" role="status"><p>{interrupted ? "上次生成已中断，可以重新开始。" : teaching.message || "这次讲解没有生成成功，请重试。"}</p><button type="button" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>重新生成</button></div>}
     {unavailable && <p className="wf-model-hint">连接模型后即可生成讲解；也可以在下方请主对话补充材料。</p>}
     {content && <div className="wf-teaching-tools">
@@ -39,7 +52,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
       <details className="wf-improve"><summary>提升讲解质量</summary><p className="muted small">选一个最需要改进的地方，会重写本步讲解。</p><div className="wf-quick-choices" role="group" aria-label="改进方向">{IMPROVE.map((item) => <button type="button" key={item} disabled={blocked} onClick={() => onTeach("improve", item)}>{item}</button>)}<button type="button" disabled={blocked} onClick={() => onTeach("improve")}>整体改进</button></div></details>
       {record.previousContent && <button type="button" className="wf-undo" disabled={disabled || running} onClick={onUndo}>撤销上次改写</button>}
     </div>}
-    {help.length > 0 && <section className="wf-teaching-help" aria-label="补充讲解"><h4>再换一种方式理解</h4>{help.map((item, index) => <details key={item.id} open={index === help.length - 1}><summary>{item.title || HELP.find((entry) => entry.mode === item.kind)?.label || "补充讲解"}</summary><TeachingArticle content={item.content} /><TeachingCitations citations={item.citations} sources={resources.sources} /></details>)}</section>}
+    {others.length > 0 && <section className="wf-teaching-help" aria-label="补充讲解"><h4>再换一种方式理解</h4>{others.map((item, index) => <details key={item.id} open={index === others.length - 1}><summary>{item.title || HELP.find((entry) => entry.mode === item.kind)?.label || "补充讲解"}</summary><TeachingArticle content={item.content} /><TeachingCitations citations={item.citations} sources={resources.sources} /></details>)}</section>}
     <details className="wf-teaching-custom"><summary>补充我的具体疑问</summary><form onSubmit={(event) => { event.preventDefault(); if (request.trim()) onTeach(content ? "steps" : "lesson", request.trim()); }}><label>想弄懂哪一点？<textarea rows={2} maxLength={1000} value={request} disabled={blocked} onChange={(event) => setRequest(event.target.value)} placeholder="例如：用一个日常例子解释这两个概念的区别。" /></label><button type="submit" disabled={blocked || !request.trim()}>按我的问题讲解</button></form></details>
   </section>;
 }

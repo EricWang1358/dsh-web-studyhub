@@ -278,6 +278,9 @@ export default function Workflows({ call, askInChat, data }) {
     } catch (err) { setError(err.message); }
     finally { lock.current = false; setPending(""); }
   }
+  const modelReady = data?.modelReady !== false;
+  // The most recent unfinished session, so coming back is one click.
+  const unfinished = listing?.sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && `${data.focus.course} 的核心概念`].filter(Boolean);
   if (screen.kind === "portal") return <WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} call={call} askInChat={askInChat} onBack={back} revision={data?.revision} />;
   if (!listing) return <section className="page workflow-page"><h1>学习流</h1>{error ? <><p className="wf-error" role="alert">{error}</p><button type="button" onClick={refresh}>重新读取</button></> : <p className="muted" role="status">正在读取学习流…</p>}</section>;
@@ -288,6 +291,8 @@ export default function Workflows({ call, askInChat, data }) {
       <p className="wf-eyebrow">AI 带学</p>
       <h1>今天想学什么？</h1>
       <p className="muted">说一句就行。AI 从你的学习库里挑材料、排顺序、讲给你听，再看你的复述；你只管往下走。</p>
+      {!modelReady && <p className="wf-quick-hint">还没有连接模型：会按主题和题组名匹配材料；讲解、复述反馈和后台骨架要连接模型后才会出现。</p>}
+      {unfinished && <p className="wf-quick-resume"><span className="muted">上次学到一半</span><button type="button" className="link-btn" disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: unfinished.id })}>{unfinished.topic}{unfinished.stepIndex >= 0 ? ` · 第 ${unfinished.stepIndex + 1}/${unfinished.stepCount} 步 ${unfinished.stepTitle}` : ""} · 接着学 →</button></p>}
       <div className="wf-quick-row">
         <input value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={500} disabled={!!pending}
           aria-label="想学什么" placeholder="例如：弄懂 Platform Engineering 里的平台团队职责" />
@@ -295,7 +300,8 @@ export default function Workflows({ call, askInChat, data }) {
       </div>
       {suggestions.length > 0 && <div className="wf-quick-suggest">{suggestions.map((text) =>
         <button type="button" key={text} className="link-btn" disabled={!!pending} onClick={() => setGoal(text)}>{text}</button>)}</div>}
-      <label className="wf-quick-option"><input type="checkbox" checked={autoSkeleton} disabled={!!pending} onChange={(e) => toggleSkeleton(e.target.checked)} />没有现成的知识骨架时，在后台按本次范围生成一份<span className="muted">不用等它，学习照常开始</span></label>
+      {pending === "quick" && <p className="wf-quick-status" role="status"><span className="wf-pulse" aria-hidden="true" />{modelReady ? "AI 正在从你的学习库里挑选相关主题、排好顺序…" : "正在按名称匹配学习库里的主题…"}</p>}
+      {modelReady && <label className="wf-quick-option"><input type="checkbox" checked={autoSkeleton} disabled={!!pending} onChange={(e) => toggleSkeleton(e.target.checked)} />没有现成的知识骨架时，在后台按本次范围生成一份<span className="muted">不用等它，学习照常开始</span></label>}
     </form>
     {error && <p className="wf-error" role="alert">{error}</p>}
     <div className="wf-section-head"><h2>学习记录</h2></div>
