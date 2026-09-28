@@ -319,6 +319,20 @@
 .wf-retell.is-stale { opacity: .78; border-style: dashed; }
 .wf-retell.is-stale .wf-eyebrow { color: var(--text-faint); }
 .wf-heading { scroll-margin-top: 72px; }
+.wf-material { margin-block: 6px 18px; }
+.wf-material-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 0 4px; }
+.wf-material-head .wf-eyebrow { margin: 0; }
+.wf-material-head time { font-size: 15px; color: var(--text-faint); }
+.wf-material-history { margin: 8px 0 18px; font-size: 15px; }
+.wf-material-history > summary { cursor: pointer; color: var(--text-muted); line-height: 1.8; }
+.wf-material-history ol { margin: 10px 0 6px; padding: 0; list-style: none; }
+.wf-material-history li { padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.wf-material-history-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 14px; color: var(--text-muted); }
+.wf-material-history li details > summary { cursor: pointer; margin-top: 4px; color: var(--text-dim); overflow-wrap: anywhere; }
+.wf-skeleton-maker { padding: 18px 0 8px; }
+.wf-skeleton-maker h3 { margin: 0 0 6px; font-size: 19px; }
+.wf-skeleton-maker > p { margin: 0 0 14px; }
+.wf-skeleton-maker .wf-error { margin-bottom: 12px; }
 .wf-advanced { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
 .wf-advanced > summary { cursor: pointer; color: var(--text-muted); }
 .wf-advanced > summary:hover { color: var(--text); }

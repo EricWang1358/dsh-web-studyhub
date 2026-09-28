@@ -20,7 +20,7 @@ Portal 中的回答先暂存在当前设备，点保存、暂停或返回工作�
 
 宿主中的按钮把请求填入主对话输入框，用户发送后再由模型执行；独立浏览器预览会复制请求文本。创建新模板可带稳定的 `requestId`，避免网络重试重复占用名额。
 
-用户交接某次学习时调用 `workflow.context {sessionId}`。只针对当前步骤提供指导；用 `workflow.session.material {id,version,stepId,content}` 保存材料供 Portal 阅读。引用现有证据，补充例子/知识要标明；证据不足时明确指出。不得通过 record/advance 代替学习者回答、自评或宣布掌握。
+用户交接某次学习时调用 `workflow.context {sessionId}`，先看当前步骤已有的材料。只针对当前步骤提供指导；用 `workflow.session.material {id,version,stepId,mode?,content?|edits?}` 保存材料供 Portal 阅读：`mode` 默认 `append`（追加在已有材料之后，不要重复已有内容）；修改已有段落用 `mode:"edit"` 与 `edits:[{find,replace}]`（`find` 必须在原文中唯一）；只有学习者要求重写时才用 `mode:"replace"`。每次变更前的版本都保存在 `records[stepId].materialHistory`（最多 10 版，含 `by: chat|ai` 与时间），学习者可在 Portal 用 `workflow.session.material.restore {id,version,stepId,index}` 恢复。称呼步骤用标题，不要用内部 ID。引用现有证据，补充例子/知识要标明；证据不足时明确指出。不得通过 record/advance 代替学习者回答、自评或宣布掌握。
 
 数据与步骤完成不自动证明能力掌握。流程推进是活动记录，题目作答仍由原复习引擎判分和调度。练习轮次属于该 Portal，暂停或离开后能继续；不会占用普通闪卡的“继续练习”入口。
 
