@@ -897,7 +897,8 @@ test("learning path orders weak before new in syllabus order, resumes the same s
   map = await service.call("map");
   const a = map.decks.find((d) => d.id === "a");
   assert.equal(a.counts.weak, 1);
-  assert.equal(a.counts.learning, 1);
+  assert.equal(a.counts.mastered, 1, "轻松掌握 (a self-graded 5) shows as mastered at once");
+  assert.equal(a.counts.learning, 0);
   assert.equal(a.topics[0].name, "Intro");
   assert.equal(a.topics[0].status, "active");
   assert.equal(map.today.weak, 1);
