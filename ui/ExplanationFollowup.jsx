@@ -12,6 +12,26 @@ export default function ExplanationFollowup({ run, call, readOnly = false }) {
   const lock = React.useRef(false);
   const ref = { deckId: run.deckId, cardId: run.card.id };
   const items = [...new Map([...(run.solution.followups || []), ...added].map((item) => [item.id, item])).values()];
+  // Each Q&A folds. The newest starts open and the rest closed, so a card with
+  // many follow-ups stays short; an answer that arrives later opens by itself.
+  const [openIds, setOpenIds] = React.useState(() => new Set(items.length ? [items.at(-1).id] : []));
+  const seen = React.useRef(null);
+  seen.current ||= new Set(items.map((item) => item.id));
+  const itemKey = items.map((item) => item.id).join("|");
+  React.useEffect(() => {
+    const fresh = items.filter((item) => !seen.current.has(item.id));
+    if (!fresh.length) return;
+    fresh.forEach((item) => seen.current.add(item.id));
+    setOpenIds(new Set([fresh.at(-1).id]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids
+  }, [itemKey]);
+  const toggle = (id, open) => setOpenIds((previous) => {
+    if (previous.has(id) === open) return previous;
+    const next = new Set(previous);
+    if (open) next.add(id); else next.delete(id);
+    return next;
+  });
+  const allOpen = items.length > 0 && items.every((item) => openIds.has(item.id));
   if (readOnly && !items.length) return null;
 
   async function suggest() {
@@ -45,12 +65,26 @@ export default function ExplanationFollowup({ run, call, readOnly = false }) {
 
   return (
     <section className="explanation-followup" aria-label="讲解追问">
+      {items.length > 1 && (
+        <div className="followup-head">
+          <span>{items.length} 条问答</span>
+          <button type="button" className="link-btn" onClick={() => setOpenIds(allOpen ? new Set() : new Set(items.map((item) => item.id)))}>
+            {allOpen ? "全部收起" : "全部展开"}
+          </button>
+        </div>
+      )}
       {items.map((item) => (
-        <article className="followup-item" key={item.id}>
-          <div className="en-tag">Q&amp;A</div>
-          <h4>{item.question}</h4>
+        <details className="followup-item" key={item.id} open={openIds.has(item.id)}
+          onToggle={(event) => toggle(item.id, event.currentTarget.open)}>
+          <summary><span className="en-tag">Q&amp;A</span><h4>{item.question}</h4></summary>
           <Markdown text={item.answer} />
-        </article>
+          {/* A long answer can be folded from its end, landing back on its question. */}
+          <button type="button" className="link-btn followup-fold" onClick={(event) => {
+            const summary = event.currentTarget.closest("details")?.querySelector("summary");
+            toggle(item.id, false);
+            requestAnimationFrame(() => summary?.scrollIntoView({ block: "nearest" }));
+          }}>收起 ↑</button>
+        </details>
       ))}
       {!readOnly && <><button type="button" className="pill" aria-expanded={open} disabled={!call || !!pending}
         onClick={() => open ? setOpen(false) : suggest()}>追问？</button>

@@ -79,3 +79,27 @@ test("choice feedback maps stored IDs to shuffled display letters and separates 
   assert.match(single, /正确答案：<strong>C<\/strong>/);
   assert.doesNotMatch(single, /漏选|错选/, "a single-choice question has nothing to miss or over-select");
 });
+test("a flashcard's prerequisite strip sits below the card, clear of its floating header", () => {
+  const prerequisites = [{ deckId: "d", cardId: "p", prompt: "CAP 是什么？", level: "familiar" }];
+  const flash = render("flashcard", false, { prerequisites });
+  const strip = flash.indexOf('class="prereq-strip"');
+  assert.ok(strip > 0, "the strip is shown");
+  assert.ok(strip > flash.lastIndexOf('class="flip-face'), "below both card faces, not under the absolute header");
+  const quiz = render("quiz", false, { prerequisites });
+  assert.ok(quiz.indexOf('class="prereq-strip"') < quiz.indexOf('class="options"'), "a choice card keeps it above the options");
+  assert.equal((flash.match(/class="prereq-strip"/g) || []).length, 1, "rendered once");
+});
+test("each Q&A folds: the newest starts open, the rest closed, with one control for all", () => {
+  const followups = ["一", "二", "三"].map((n, i) => ({ id: `f${i}`, question: `第${n}个问题？`, answer: `第${n}个回答` }));
+  const solution = { answer: "Payment System", explanation: "Explanation", followups };
+  const html = render("quiz", true, { solution });
+  const items = html.match(/<details class="followup-item"[^>]*>/g) || [];
+  assert.equal(items.length, 3);
+  assert.deepEqual(items.map((tag) => / open=""/.test(tag)), [false, false, true], "only the newest is open");
+  assert.match(html, /3 条问答/);
+  assert.match(html, />全部展开</);
+  assert.match(html, /<summary><span class="en-tag">Q&amp;A<\/span><h4>第一个问题？<\/h4><\/summary>/, "the question is the fold's title");
+  const single = render("quiz", true, { solution: { ...solution, followups: followups.slice(0, 1) } });
+  assert.match(single, /<details class="followup-item" open="">/);
+  assert.doesNotMatch(single, /条问答/, "no bulk control for a single Q&A");
+});

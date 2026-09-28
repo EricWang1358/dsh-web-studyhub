@@ -26,6 +26,10 @@ test("a full export restores the library and preserves the replaced state", asyn
   assert.equal(savedPrevious.sources[1].title, "Later");
 });
 
+// These tests start PowerShell to hold the lock; a cold start on a CI runner can take
+// several seconds, so their timeout guards against a hang rather than measuring speed.
+const LOCK_TEST_TIMEOUT = 60000;
+
 async function holdWindowsFile(path) {
   const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
     '$f = [System.IO.File]::Open($env:STUDY_TEST_LOCK_PATH, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite); try { [Console]::Out.WriteLine("locked"); [Console]::Out.Flush(); [Console]::ReadLine() | Out-Null } finally { $f.Dispose() }',
@@ -39,7 +43,7 @@ async function holdWindowsFile(path) {
   return async () => { if (!released && child.exitCode === null) { released = true; child.stdin.end("release\n"); } await exited; };
 }
 
-test("Windows temporary file sharing lock does not discard a study update", { skip: process.platform !== "win32", timeout: 15000 }, async (t) => {
+test("Windows temporary file sharing lock does not discard a study update", { skip: process.platform !== "win32", timeout: LOCK_TEST_TIMEOUT }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-sharing-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const store = new Store(root);
@@ -55,7 +59,7 @@ test("Windows temporary file sharing lock does not discard a study update", { sk
   } finally { clearTimeout(timer); await unlock(); }
 });
 
-test("Windows persistent sharing lock preserves committed bytes and releases the store lock", { skip: process.platform !== "win32", timeout: 15000 }, async (t) => {
+test("Windows persistent sharing lock preserves committed bytes and releases the store lock", { skip: process.platform !== "win32", timeout: LOCK_TEST_TIMEOUT }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-sharing-persistent-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const store = new Store(root);

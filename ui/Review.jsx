@@ -151,6 +151,48 @@ export default function Review({
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
   const nextFreshCount = [...new Set((run.scope || []).map((scope) => scope.deckId))]
     .reduce((count, deckId) => count + (data?.progress?.[deckId]?.counts?.new || 0), 0);
+  const prereqStrip = run.prerequisites?.length > 0 && !run.complete && (
+    <details className="prereq-strip">
+      <summary>
+        <span>
+          前置题 {run.prerequisites.length} · 已掌握{" "}
+          {run.prerequisites.filter((p) => !["new", "weak"].includes(p.level)).length}
+        </span>
+        {(() => {
+          const unlearned = run.prerequisites.some((p) => ["new", "weak"].includes(p.level));
+          return (
+            <button
+              className={unlearned ? "primary pill" : "pill"}
+              disabled={busy}
+              title={unlearned ? "先学没掌握的前置题，学完回到这道题" : "把前置题再过一遍自查，做完回到这道题"}
+              onClick={(e) => {
+                e.preventDefault();
+                studyPrerequisites(run.prerequisites);
+              }}
+            >
+              {unlearned ? "先学前置 →" : "自查前置 →"}
+            </button>
+          );
+        })()}
+      </summary>
+      <ul>
+        {run.prerequisites.map((p) => (
+          <li key={p.deckId + p.cardId}>
+            <button
+              className="prereq-item"
+              disabled={busy}
+              title="只练这一道，做完回到这道题"
+              onClick={() => studyPrerequisites([p])}
+            >
+              <span className={"map-dot lv-" + p.level} />
+              <Markdown className="md-compact" links={false} text={p.prompt} />
+              <span className="prereq-go" aria-hidden="true">→</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
   return (
     <section
       ref={pageRef}
@@ -338,48 +380,7 @@ export default function Review({
                 aria-valuemax={run.total}
                 aria-valuenow={run.index + 1}
               />
-              {run.prerequisites?.length > 0 && (
-                <details className="prereq-strip">
-                  <summary>
-                    <span>
-                      前置题 {run.prerequisites.length} · 已掌握{" "}
-                      {run.prerequisites.filter((p) => !["new", "weak"].includes(p.level)).length}
-                    </span>
-                    {(() => {
-                      const unlearned = run.prerequisites.some((p) => ["new", "weak"].includes(p.level));
-                      return (
-                        <button
-                          className={unlearned ? "primary pill" : "pill"}
-                          disabled={busy}
-                          title={unlearned ? "先学没掌握的前置题，学完回到这道题" : "把前置题再过一遍自查，做完回到这道题"}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            studyPrerequisites(run.prerequisites);
-                          }}
-                        >
-                          {unlearned ? "先学前置 →" : "自查前置 →"}
-                        </button>
-                      );
-                    })()}
-                  </summary>
-                  <ul>
-                    {run.prerequisites.map((p) => (
-                      <li key={p.deckId + p.cardId}>
-                        <button
-                          className="prereq-item"
-                          disabled={busy}
-                          title="只练这一道，做完回到这道题"
-                          onClick={() => studyPrerequisites([p])}
-                        >
-                          <span className={"map-dot lv-" + p.level} />
-                          <Markdown className="md-compact" links={false} text={p.prompt} />
-                          <span className="prereq-go" aria-hidden="true">→</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
+              {(choice || isCloze || run.card.publicationUngrable) && prereqStrip}
               {run.card.publicationUngrable ? (
                 <div className="quality-note warning" role="status">
                   <div className="question"><Markdown text={run.card.prompt || "题干尚未填写"} /></div>
@@ -584,6 +585,8 @@ export default function Review({
                     </div>
                   )}
                   </SmoothHeight>
+                  {/* A flashcard's header floats over the card faces, so the strip goes below the card. */}
+                  {prereqStrip}
                 </>
               )}
             </div>
