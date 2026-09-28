@@ -39,6 +39,7 @@ const HELP_CHOICES = [
 
 export default function Review({
   run,
+  onBackToWorkflow,
   data,
   busy,
   host,
@@ -84,6 +85,8 @@ export default function Review({
 }) {
   useInjectCss(resultCss, "review-results");
   const pageRef = React.useRef(null);
+  // A learning-flow practice round: the page is the same, only the way back differs.
+  const flow = run.workflow && onBackToWorkflow ? run.workflow : null;
   const multiple = run.card?.multiple || run.card?.kind === "multi";
   const publicationIssues = (run.card?.publicationIssues || []).map((issue) =>
     readableQualityIssue(`Card 1: ${issue}`).replace(/^第 1 题：/, ""));
@@ -158,6 +161,7 @@ export default function Review({
       {rail && <ReviewNavigator run={run} busy={busy} onJump={(index) => reviewAct("review.move", { index })} />}
       <div className="review-heading">
         <div>
+          {flow && <p className="review-flow-origin">学习流{flow.stepIndex >= 0 ? ` · 第 ${flow.stepIndex + 1}/${flow.stepCount} 步` : ""} · {flow.stepTitle}</p>}
           <h1>
             {shellTitle}
             {run.mode === "flashcard" ? " · 闪卡" : ""}
@@ -185,8 +189,8 @@ export default function Review({
               在右栏打开
             </button>
           )}
-          <button className="review-return" aria-label="返回学习库" onClick={() => setPage("library")}>
-            <span className="review-return-full">返回学习库</span>
+          <button className="review-return" aria-label={flow ? "回到学习流" : "返回学习库"} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : setPage("library")}>
+            <span className="review-return-full">{flow ? "回到学习流" : "返回学习库"}</span>
             <span className="review-return-short" aria-hidden="true">返回</span>
           </button>
         </div>
@@ -228,6 +232,8 @@ export default function Review({
                 继续下一批新题 →
               </button>
             )}
+            {flow && <button className="primary" disabled={busy} onClick={() => onBackToWorkflow(flow.sessionId)}>
+              {flow.current ? "回到学习流，继续下一步 →" : "回到学习流 →"}</button>}
             {run.returnTo && <button className="primary" disabled={busy}
               onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>回到原题 →</button>}
             <button onClick={() => setPage("library")}>回到学习目录</button>
@@ -249,7 +255,7 @@ export default function Review({
             />
             )}
             <div className="summary-actions">
-            {run.mode === "path" && !run.returnTo && (
+            {run.mode === "path" && !run.returnTo && !flow && (
               <button
                 className="primary"
                 disabled={busy}

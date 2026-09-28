@@ -170,3 +170,23 @@ test("a guided session remembers how its material was picked and names it for th
   assert.equal(fallback.session.pickedBy, "course");
   assert.deepEqual(fallback.resources.scopeTopics, ["缓存设计"], "the current course's decks, named by their titles");
 });
+
+test("the background skeleton input keeps English text intact and blanks cloze answers", async (t) => {
+  let seen;
+  const service = await setup(t, async (system, prompt) => {
+    if (/choose study material/.test(system)) return JSON.stringify({ keys: [], title: "" });
+    seen = JSON.parse(prompt);
+    return JSON.stringify({ nodes: [] });
+  });
+  await service.store.update((s) => {
+    s.decks.push({ id: "en", title: "Patterns", folder: "系统设计", cards: [
+      { id: "e1", topic: "Memento", kind: "flashcard", prompt: "Who  saves\nsnapshots?", answer: "The Caretaker stores snapshots.", explanation: "It keeps states opaque." },
+      { id: "e2", topic: "Memento", kind: "cloze", prompt: "cloze", cloze: { text: "The {{c1::Originator}} restores its state." }, answer: "Originator" }] });
+  });
+  const { session } = await service.call("workflow.quickstart", { goal: "Patterns", requestId: "en", skeleton: true });
+  await settle(service, session.id);
+  const byId = new Map(seen.cards.map((c) => [c.cardId, c]));
+  assert.equal(byId.get("e1").prompt, "Who saves snapshots?", "whitespace collapses, letters survive");
+  assert.equal(byId.get("e1").answer, "The Caretaker stores snapshots.");
+  assert.equal(byId.get("e2").prompt, "The ＿＿ restores its state.", "cloze answers are not leaked");
+});

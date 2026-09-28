@@ -5,6 +5,29 @@ import { reviewedCardStatus } from "../lib/review-integrity.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import focusCss from "./focus.css";
 import { useInjectCss } from "./shared.js";
+import { groupPrompt } from "./topic-group-prompt.js";
+
+/* After an import the new topics sit outside the topic groups until someone
+   remembers to fold them in. Say so in the library until it is done; "稍后"
+   holds until the next import changes what is ungrouped. */
+function TopicGroupReminder({ grouping, root, askInChat }) {
+  const key = `study-topic-group-later:${root || "local"}`;
+  const [later, setLater] = useState(() => { try { return localStorage.getItem(key) || ""; } catch { return ""; } });
+  if (!grouping?.ungrouped || !askInChat) return null;
+  // A handful of topics needs no grouping; once groups exist, new topics should join them.
+  if (!grouping.groups && grouping.topics < 12) return null;
+  const signature = `${grouping.groups}:${grouping.ungrouped}`;
+  if (later === signature) return null;
+  const first = !grouping.groups;
+  const hold = () => { setLater(signature); try { localStorage.setItem(key, signature); } catch { /* per-device only */ } };
+  return <div className="group-reminder" role="status">
+    <span>{first ? `学习库有 ${grouping.topics} 个主题，还没按知识域归并成主题组` : `有 ${grouping.ungrouped} 个主题还没归入主题组（通常来自新导入的题组）`}</span>
+    <span className="group-reminder-actions">
+      <button type="button" className="link-btn" onClick={() => askInChat(groupPrompt(first ? { mode: "replace", topicCount: grouping.topics } : { mode: "merge", ungrouped: grouping.ungrouped }))}>{first ? "让对话归并主题" : "让对话归入主题组"} →</button>
+      <button type="button" className="ghost-btn" onClick={hold}>稍后</button>
+    </span>
+  </div>;
+}
 
 const BAR_ORDER = ["mastered", "familiar", "learning", "weak", "new"];
 const EMPTY_PROGRESS = {};
@@ -641,6 +664,7 @@ export default function StudyMap({
           </span>
         </div>
       </div>
+      <TopicGroupReminder grouping={data.topicGrouping} root={data.root} askInChat={askInChat} />
       {mergeError && <p role="alert">{mergeError}</p>}
       {mergeSuggestions && <div className="merge-suggestions">
         <div className="merge-suggestions-head">

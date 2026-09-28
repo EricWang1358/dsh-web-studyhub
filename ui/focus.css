@@ -7,6 +7,9 @@
 .role-proposal { margin: 10px 0; }
 .role-weak { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .role-weak strong { margin-right: 4px; }
+.group-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; margin: 0 0 18px; padding: 10px 0 10px 14px; border-left: 3px solid var(--accent); font-size: 15px; line-height: 1.6; color: var(--text-dim); }
+.group-reminder-actions { display: inline-flex; align-items: center; gap: 14px; }
+.group-reminder .link-btn { font-weight: 600; }
 .merge-suggestions { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
 .merge-suggestions-head, .merge-suggestion { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .merge-suggestion { padding: 12px 0; border-top: 1px solid var(--line-soft); }
