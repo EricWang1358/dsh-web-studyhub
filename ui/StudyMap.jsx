@@ -193,19 +193,25 @@ export default function StudyMap({
   const jobs = data.jobs || [];
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
   const visibleJobs = visibleGenerationJobs(jobs);
-  /* Weighted mastery across active decks. Deck rows carry no mastery of their
-     own in the snapshot; the per-deck figures live on `progress`. */
-  const overall = useMemo(() => {
-    const rows = data.decks
-      .filter((d) => !d.archived)
-      .map((d) => progress[d.id])
-      .filter((p) => p && p.total);
-    const total = rows.reduce((n, p) => n + p.total, 0);
-    if (!total) return null;
-    return Math.round(
-      rows.reduce((n, p) => n + (p.mastery || 0) * p.total, 0) / total,
-    );
-  }, [data.decks, progress]);
+  /* Mastery weighted by card count. Deck rows carry no mastery of their own in
+     the snapshot; the per-deck figures live on `progress`. The current course
+     leads; the whole library follows as context when it holds other courses. */
+  const mastery = useMemo(() => {
+    const measure = (decks) => {
+      const rows = decks.map((d) => progress[d.id]).filter((p) => p && p.total);
+      const total = rows.reduce((n, p) => n + p.total, 0);
+      return total ? { value: Math.round(rows.reduce((n, p) => n + (p.mastery || 0) * p.total, 0) / total),
+        cards: total, node: mergeProgress(rows) } : null;
+    };
+    const live = data.decks.filter((d) => !d.archived);
+    const name = data.focus?.mode === "interview" ? null : data.focus?.course;
+    const inCourse = name ? live.filter((d) => !d.systemKind && d.course === name) : [];
+    const course = inCourse.length ? measure(inCourse) : null;
+    const whole = measure(live);
+    const others = course && live.some((d) => !inCourse.includes(d) && progress[d.id]?.total);
+    return { course, whole, name, others };
+  }, [data.decks, data.focus?.course, data.focus?.mode, progress]);
+  const primary = mastery.course || mastery.whole;
   const runFor = (scope) =>
     runs.find((r) => r.mode === "path" && sameScope(r.scope, scope));
   const todayRun = runFor([]);
@@ -526,12 +532,16 @@ export default function StudyMap({
                 {item.topic} · {item.weak} 道薄弱题 →</button>)}
             </div>}
           </div>}
-          {overall != null && (
-            <div className="desk-mastery" title={`整体掌握度 ${overall}%`}>
-              <span className="desk-mastery-value">{overall}<small>%</small></span>
-              <span className="desk-mastery-label">整体掌握</span>
-              <MasteryBar node={mergeProgress(data.decks.filter((d) => !d.archived)
-                .map((d) => progress[d.id]).filter(Boolean))} />
+          {primary && (
+            <div className="desk-mastery" title={mastery.course ? `「${mastery.name}」课程掌握度 ${mastery.course.value}%（${mastery.course.cards} 题）` : `全学习区掌握度 ${primary.value}%`}>
+              <span className="desk-mastery-value">{primary.value}<small>%</small></span>
+              <span className="desk-mastery-label">{mastery.course ? "本课程掌握" : "整体掌握"}</span>
+              <MasteryBar node={primary.node} />
+              {mastery.others && mastery.whole && (
+                <span className="desk-mastery-all" title={`全部课程合计 ${mastery.whole.cards} 题`}>
+                  全学习区 <strong>{mastery.whole.value}%</strong>
+                </span>
+              )}
             </div>
           )}
           <p className="desk-next">
