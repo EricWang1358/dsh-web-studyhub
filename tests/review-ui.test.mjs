@@ -103,3 +103,11 @@ test("each Q&A folds: the newest starts open, the rest closed, with one control 
   assert.match(single, /<details class="followup-item" open="">/);
   assert.doesNotMatch(single, /条问答/, "no bulk control for a single Q&A");
 });
+test("a question reached from the inbox offers the way back to where the learner was", () => {
+  const html = renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "letter", index: 0, total: 1, card: { id: "q", kind: "flashcard", topic: "T", prompt: "Q?" }, revealed: false, feedback: null },
+    detour: { runId: "course", index: 4, title: "课程 · Cloud Native" }, onReturnFromDetour: () => {},
+    data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "信箱", busy: false,
+  }));
+  assert.match(html, /class="review-detour"[^>]*>← 回到「课程 · Cloud Native」第 5 题</);
+});

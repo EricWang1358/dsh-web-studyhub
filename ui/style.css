@@ -1102,6 +1102,16 @@
     border-radius: 10px;
     margin: 10px 0;
   }
+  .job-dismiss {
+    align-self: flex-start;
+    flex: none;
+    padding: 4px 12px;
+    font-size: 15px;
+  }
+  .jobs-dismiss-all {
+    align-self: flex-end;
+    font-size: 15px;
+  }
   .job > span {
     color: var(--accent-soft);
     font-size: 23px;
@@ -1578,6 +1588,23 @@
     padding: 22px 28px 0;
     gap: 20px;
   }
+  .review-detour {
+    display: block;
+    max-width: 100%;
+    margin: 14px auto 0;
+    padding: 4px 12px;
+    border: 1px solid var(--accent-soft);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+    color: var(--text);
+    font-size: 15px;
+    text-align: left;
+    overflow-wrap: anywhere;
+    animation: follow-in 0.3s var(--ease-out) both;
+  }
+  .review-detour:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
   .review-flow-origin {
     margin: 0 0 4px;
     font-size: 15px;
@@ -1761,6 +1788,8 @@
     white-space: pre-wrap;
   }
   .option-letter {
+    transition: background-color 0.3s var(--ease), box-shadow 0.3s var(--ease), color 0.3s var(--ease);
+    transition-delay: calc(var(--reveal-index, 0) * 50ms);
     display: inline-grid;
     place-items: center;
     flex-shrink: 0;
@@ -1797,9 +1826,42 @@
   .option.selected {
     background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
+  .option > div > .md:first-child {
+    transition: color 0.3s var(--ease);
+    transition-delay: calc(var(--reveal-index, 0) * 50ms);
+  }
   .option.correct > div > .md:first-child {
     color: var(--ok);
     font-weight: 600;
+  }
+  /* After answering, each option's verdict and explanation grow open from zero
+     height, staggered down the list, so the card lengthens smoothly. */
+  .option-reveal {
+    display: grid;
+    grid-template-rows: 1fr;
+    animation: option-reveal 0.46s var(--ease-out) both;
+    animation-delay: calc(var(--reveal-index, 0) * 50ms);
+  }
+  .option-reveal > div {
+    min-height: 0;
+    overflow: hidden;
+    animation: option-ink 0.46s var(--ease-out) both;
+    animation-delay: calc(var(--reveal-index, 0) * 50ms + 40ms);
+  }
+  .choice-feedback-wrap {
+    display: grid;
+    grid-template-rows: 1fr;
+    margin: -12px 0 14px;
+    animation: option-reveal 0.36s var(--ease-out) both;
+  }
+  .choice-feedback-wrap > .choice-feedback {
+    min-height: 0;
+    overflow: hidden;
+    margin: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .option-reveal, .option-reveal > div, .choice-feedback-wrap { animation: none; }
+    .option-letter, .option > div > .md:first-child { transition: none; }
   }
   .option.incorrect > div > .md:first-child {
     color: var(--bad);
@@ -2844,6 +2906,17 @@
   }
   .desk-mastery .mastery-value { display: none; }
   .desk-mastery .mastery-bar { height: 5px; }
+  .desk-mastery-all {
+    grid-column: 1 / -1;
+    margin-top: -4px;
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+  .desk-mastery-all strong {
+    font-weight: 600;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
   .desk-next {
     display: flex;
     flex-wrap: wrap;
@@ -4038,19 +4111,26 @@
     background: transparent;
     box-shadow: none;
   }
-  .review-tick-line {
+  /* Each tick is a 2px top border, not a rounded fill: border widths snap to
+     whole device pixels, so at 125%, 150% or any panel zoom every tick is
+     equally thick and crisp instead of a blur whose weight varies by row.
+     The current question is longer, not thicker. */
+  .review-tick .review-tick-line {
     width: 9px;
-    height: 2px;
-    border-radius: 2px;
-    transition: width 180ms ease, background-color 250ms ease;
+    height: 0;
+    border-top: 2px solid var(--tick, var(--line-strong));
+    border-radius: 0;
+    background: none;
+    transition: width 180ms ease, border-color 250ms ease;
   }
+  .review-tick .lv-new { --tick: color-mix(in srgb, var(--text) 34%, transparent); }
+  .review-tick .lv-weak { --tick: var(--bad); }
+  .review-tick .lv-learning { --tick: var(--warn); }
+  .review-tick .lv-familiar { --tick: color-mix(in srgb, var(--ok) 62%, transparent); }
+  .review-tick .lv-mastered { --tick: var(--ok); }
   .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
-  .review-tick:hover .review-tick-line { width: 17px; }
-  .review-tick[aria-current="step"] .review-tick-line {
-    width: 24px;
-    height: 3px;
-    box-shadow: 0 0 0 1px var(--text);
-  }
+  .review-tick:hover .review-tick-line { width: 15px; }
+  .review-tick[aria-current="step"] .review-tick-line { width: 22px; }
   .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
   @container study (max-width: 600px) {
     .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: 4px; padding-left: 6px; padding-right: 12px; }
@@ -4163,6 +4243,15 @@
 }
 @keyframes bar-in {
   from { transform: scaleX(0.04); opacity: 0; }
+}
+@keyframes option-reveal {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+@keyframes option-ink {
+  from { transform: translateY(-6px); }
 }
 @keyframes rise-in {
   from {

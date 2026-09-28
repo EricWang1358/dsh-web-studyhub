@@ -33,3 +33,13 @@ test("card content is framed as data in the background assistant request", async
   assert.deepEqual(dispatched.toolFilter, { allow: ["study_workspace"] });
   clearAssist(root);
 });
+
+test("通俗详解 asks for an analogy mapped back to the question, with its limits", () => {
+  const request = normalizeAssistRequest("ask", "", ["plain"]);
+  assert.deepEqual(request.choices, ["plain"]);
+  assert.match(request.requests[0], /比喻/);
+  assert.match(request.requests[0], /对应回题目/);
+  assert.match(request.requests[0], /不成立/);
+  // Every quick choice at once is still one valid request.
+  assert.equal(normalizeAssistRequest("ask", "", ["plain", "angle", "example", "steps", "prerequisite", "mistake"]).choices.length, 6);
+});

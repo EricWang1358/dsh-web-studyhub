@@ -253,6 +253,8 @@ export default function App({ call, host = {} }) {
     [skeletonFocus, setSkeletonFocus] = useState(null),
     // A learning-flow session to reopen when coming back from its practice round.
     [workflowReturn, setWorkflowReturn] = useState(null),
+    // Where the learner was when a letter took them to another question.
+    [detour, setDetour] = useState(null),
     [selected, setSelected] = useState([]),
     [hint, setHint] = useState(false),
     [explain, setExplain] = useState(false),
@@ -564,9 +566,10 @@ export default function App({ call, host = {} }) {
   // A letter jumps to its card: the spot in an open run when there is one,
   // otherwise a one-card run that can return to the current question.
   function openInboxItem(item) {
+    const from = run && !run.complete ? { runId: run.id, index: run.index, title: run.title || shellTitle } : null;
     act(
       "inbox.open",
-      { id: item.id, ...(run && !run.complete ? { runId: run.id } : {}) },
+      { id: item.id, ...(from ? { runId: from.runId } : {}) },
       (r) => {
         if (r.kind === "note" && r.noteId) {
           setNoteInitialId(r.noteId);
@@ -574,10 +577,24 @@ export default function App({ call, host = {} }) {
           return;
         }
         enterRun(r);
+        // Keep the way back to where the learner was, until they use it.
+        if (from && (r.id !== from.runId || r.index !== from.index)) setDetour(from);
         // Show what arrived: the Q&A and revised explanation live in 讲解.
         if (["followup", "improve", "rewrite"].includes(item.kind) && r.revealed) setExplain(true);
       },
     );
+  }
+  // 先讲后练: a guided learning flow on the course route's next batch.
+  const startCourseFlow = (extra = {}) => act("workflow.quickstart", { course: true, requestId: crypto.randomUUID(), ...extra }, (result) => {
+    setWorkflowReturn({ sessionId: result.session.id, nonce: Date.now() });
+    setPage("workflows");
+  });
+  async function returnFromDetour() {
+    const back = detour;
+    setDetour(null);
+    if (!back) return;
+    try { enterRun(await call("review.move", { runId: back.runId, index: back.index })); }
+    catch { act("review.get", { runId: back.runId }, enterRun); }
   }
   function enterRun(r) {
     runRef.current = r;
@@ -843,6 +860,10 @@ export default function App({ call, host = {} }) {
         e.preventDefault();
         if (run.revealed) setExplain((v) => !v);
         else setHint((v) => !v);
+      } else if (letter === "t" && run.mode !== "exam") {
+        // 通俗详解 in one key: the background assistant explains with an analogy.
+        e.preventDefault();
+        assistCard("ask", "", ["plain"]);
       } else if (e.key === "ArrowRight" && run.feedback) {
         e.preventDefault();
         reviewAct("review.move", { direction: 1 });
@@ -1619,6 +1640,7 @@ export default function App({ call, host = {} }) {
                 }}
                 openAgent={host.openAgent}
                 cancelJob={(jobId) => act("job.cancel", jobId ? { jobId } : { all: true })}
+                dismissJob={(jobId) => act("job.dismiss", jobId ? { jobId } : { all: true })}
                 addSource={() => setModal({ type: "add" })}
                 createManual={() =>
                   openDraft({
@@ -1644,6 +1666,7 @@ export default function App({ call, host = {} }) {
                   setPage("graph");
                 }}
                 onFocus={(next) => act("focus.set", next)}
+                startCourseFlow={startCourseFlow}
                 suggestRole={(args) => call("focus.suggest", args)}
                 suggestMerges={(args) => call("deck.merge.suggest", args)}
                 mergeDecks={(args) => act("deck.merge", args, null, { rethrow: true })}
@@ -1862,6 +1885,9 @@ export default function App({ call, host = {} }) {
             )}
             {page === "review" && run && (
               <Review
+                detour={detour && !(detour.runId === run.id && detour.index === run.index) ? detour : null}
+                onReturnFromDetour={returnFromDetour}
+                onCourseFlow={startCourseFlow}
                 onBackToWorkflow={(sessionId) => { setWorkflowReturn({ sessionId, nonce: Date.now() }); setPage("workflows"); }}
                 onOpenNote={(noteId) => { setNoteInitialId(noteId); setPage("notes"); }}
                 onMakeNote={() => act("note.create", {

@@ -6,6 +6,7 @@ import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import focusCss from "./focus.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
+import CourseRoute from "./CourseRoute.jsx";
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
@@ -127,6 +128,7 @@ export default function StudyMap({
   retryGeneration,
   openAgent,
   cancelJob,
+  dismissJob,
   addSource,
   createManual,
   importLibrary,
@@ -143,6 +145,7 @@ export default function StudyMap({
   suggestRole,
   suggestMerges,
   mergeDecks,
+  startCourseFlow,
   children,
 }) {
   useInjectCss(focusCss, "study-focus");
@@ -193,19 +196,25 @@ export default function StudyMap({
   const jobs = data.jobs || [];
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
   const visibleJobs = visibleGenerationJobs(jobs);
-  /* Weighted mastery across active decks. Deck rows carry no mastery of their
-     own in the snapshot; the per-deck figures live on `progress`. */
-  const overall = useMemo(() => {
-    const rows = data.decks
-      .filter((d) => !d.archived)
-      .map((d) => progress[d.id])
-      .filter((p) => p && p.total);
-    const total = rows.reduce((n, p) => n + p.total, 0);
-    if (!total) return null;
-    return Math.round(
-      rows.reduce((n, p) => n + (p.mastery || 0) * p.total, 0) / total,
-    );
-  }, [data.decks, progress]);
+  /* Mastery weighted by card count. Deck rows carry no mastery of their own in
+     the snapshot; the per-deck figures live on `progress`. The current course
+     leads; the whole library follows as context when it holds other courses. */
+  const mastery = useMemo(() => {
+    const measure = (decks) => {
+      const rows = decks.map((d) => progress[d.id]).filter((p) => p && p.total);
+      const total = rows.reduce((n, p) => n + p.total, 0);
+      return total ? { value: Math.round(rows.reduce((n, p) => n + (p.mastery || 0) * p.total, 0) / total),
+        cards: total, node: mergeProgress(rows) } : null;
+    };
+    const live = data.decks.filter((d) => !d.archived);
+    const name = data.focus?.mode === "interview" ? null : data.focus?.course;
+    const inCourse = name ? live.filter((d) => !d.systemKind && d.course === name) : [];
+    const course = inCourse.length ? measure(inCourse) : null;
+    const whole = measure(live);
+    const others = course && live.some((d) => !inCourse.includes(d) && progress[d.id]?.total);
+    return { course, whole, name, others };
+  }, [data.decks, data.focus?.course, data.focus?.mode, progress]);
+  const primary = mastery.course || mastery.whole;
   const runFor = (scope) =>
     runs.find((r) => r.mode === "path" && sameScope(r.scope, scope));
   const todayRun = runFor([]);
@@ -437,7 +446,12 @@ export default function StudyMap({
       today.new && `新题 ${today.new}`,
     ].filter(Boolean).join(" · "),
     startFresh = () => start({ mode: "new", currentCourse: true, count: 10, fresh: true }),
-    startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: "path" }));
+    startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: "path" })),
+    // 课程路线 (class mode): an unfinished batch first, else the next batch in chapter order.
+    route = !interview ? data.focus?.route : null,
+    courseRun = route && runs.find((r) => r.purpose === "course" && r.course === route.course),
+    startCourse = () => (courseRun ? resume(courseRun.id) : start({ mode: "course" })),
+    flowLink = startCourseFlow && route?.next?.fresh ? [["先讲后练 · 学习流", () => startCourseFlow()]] : [];
   /* The card offers exactly one action. An open run wins, then the current
      course's new questions (class mode), then today's review path. Every
      other start stays reachable as a quiet link beside it. */
@@ -446,11 +460,21 @@ export default function StudyMap({
         action: { label: "导入 JSON 题组", run: importLibrary },
         also: [["添加资料补题", addSource], ["在对话中用工作区文件出题", () => askInChat(
           "请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。")]] }
+    : courseRun
+      ? { kind: "resume", eyebrow: "继续课程", count: courseRun.total - courseRun.index, unit: "题未完成",
+          detail: `这一批已做到第 ${courseRun.index + 1} / ${courseRun.total} 题`,
+          action: { label: "接着学", run: startCourse }, also: today.size ? [[`到期复习与巩固 · ${today.size} 题`, startPath]] : [] }
     : todayRun
       ? { kind: "resume", eyebrow: "继续今日", count: todayRun.total - todayRun.index, unit: "题未完成",
           detail: `已做到第 ${todayRun.index + 1} / ${todayRun.total} 题`,
           action: { label: "继续学习", run: startPath },
           also: !interview && freshCount ? [[`学当前课程新题 · ${freshCount} 题`, startFresh]] : [] }
+      : route?.next
+        ? { kind: "course", eyebrow: route.current === null ? "课程巩固" : `第 ${route.current + 1} / ${route.chapters.length} 章`,
+            count: route.next.fresh + route.next.reviews, unit: "题 · 这一批",
+            detail: `${route.next.label}${route.next.reviews ? ` · 先巩固 ${route.next.reviews} 道` : ""}`,
+            action: { label: "继续课程", run: startCourse },
+            also: [...flowLink, ...(today.size ? [[`到期复习与巩固 · ${today.size} 题`, startPath]] : [])] }
       : !interview && freshCount
         ? { kind: "fresh", eyebrow: "当前课程", count: freshCount, unit: "道新题",
             detail: freshAll > freshCount
@@ -526,12 +550,17 @@ export default function StudyMap({
                 {item.topic} · {item.weak} 道薄弱题 →</button>)}
             </div>}
           </div>}
-          {overall != null && (
-            <div className="desk-mastery" title={`整体掌握度 ${overall}%`}>
-              <span className="desk-mastery-value">{overall}<small>%</small></span>
-              <span className="desk-mastery-label">整体掌握</span>
-              <MasteryBar node={mergeProgress(data.decks.filter((d) => !d.archived)
-                .map((d) => progress[d.id]).filter(Boolean))} />
+          {route && <CourseRoute route={route} busy={busy} onStartChapter={(deckId) => start({ mode: "course", deckId, fresh: true })} />}
+          {primary && (
+            <div className="desk-mastery" title={mastery.course ? `「${mastery.name}」课程掌握度 ${mastery.course.value}%（${mastery.course.cards} 题）` : `全学习区掌握度 ${primary.value}%`}>
+              <span className="desk-mastery-value">{primary.value}<small>%</small></span>
+              <span className="desk-mastery-label">{mastery.course ? "本课程掌握" : "整体掌握"}</span>
+              <MasteryBar node={primary.node} />
+              {mastery.others && mastery.whole && (
+                <span className="desk-mastery-all" title={`全部课程合计 ${mastery.whole.cards} 题`}>
+                  全学习区 <strong>{mastery.whole.value}%</strong>
+                </span>
+              )}
             </div>
           )}
           <p className="desk-next">
@@ -866,6 +895,7 @@ export default function StudyMap({
       )}
       {jobs.length > 0 && (
         <div className="jobs">
+          {dismissJob && visibleJobs.filter((j) => !isActiveJob(j)).length > 1 && <button type="button" className="link-btn jobs-dismiss-all" disabled={busy} onClick={() => dismissJob()}>全部知道了</button>}
           {cancelJob && activeJobs.some((j) => ["running", "queued"].includes(j.status)) && <button disabled={busy} onClick={() => cancelJob()}>停止后台任务，保留草稿</button>}
           {visibleJobs.map((j) => (
             <div className={"job " + j.status} key={j.id}>
@@ -910,6 +940,9 @@ export default function StudyMap({
                   打开
                 </button>
               )}
+              {/* 已知与删除: done with this card; the draft and approved questions stay. */}
+              {dismissJob && !isActiveJob(j) && <button type="button" className="job-dismiss" disabled={busy}
+                title={"删除这条任务记录；草稿和已通过的题目会保留"} onClick={() => dismissJob(j.id)}>知道了</button>}
             </div>
           ))}
         </div>
