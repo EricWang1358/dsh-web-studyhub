@@ -1578,6 +1578,12 @@
     padding: 22px 28px 0;
     gap: 20px;
   }
+  .review-flow-origin {
+    margin: 0 0 4px;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
   .review-heading h1 {
     font-size: 18px;
     font-weight: 650;

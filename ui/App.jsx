@@ -251,6 +251,8 @@ export default function App({ call, host = {} }) {
   const [run, setRun] = useState(null),
     [examRunId, setExamRunId] = useState(null),
     [skeletonFocus, setSkeletonFocus] = useState(null),
+    // A learning-flow session to reopen when coming back from its practice round.
+    [workflowReturn, setWorkflowReturn] = useState(null),
     [selected, setSelected] = useState([]),
     [hint, setHint] = useState(false),
     [explain, setExplain] = useState(false),
@@ -1669,7 +1671,8 @@ export default function App({ call, host = {} }) {
                 )}
               </StudyMap>
             )}
-            {page === "workflows" && <Workflows call={call} askInChat={askInChat} data={data} />}
+            {page === "workflows" && <Workflows key={workflowReturn?.nonce || "workflows"} call={call} askInChat={askInChat} data={data}
+              openSession={workflowReturn?.sessionId} openRun={(runId) => act("review.get", { runId }, enterRun)} />}
             {page === "skeleton" && (
               <Skeleton
                 call={call}
@@ -1859,6 +1862,7 @@ export default function App({ call, host = {} }) {
             )}
             {page === "review" && run && (
               <Review
+                onBackToWorkflow={(sessionId) => { setWorkflowReturn({ sessionId, nonce: Date.now() }); setPage("workflows"); }}
                 onOpenNote={(noteId) => { setNoteInitialId(noteId); setPage("notes"); }}
                 onMakeNote={() => act("note.create", {
                   title: `学习笔记 · ${new Date().toLocaleDateString("zh-CN")}`,

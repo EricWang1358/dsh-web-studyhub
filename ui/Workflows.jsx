@@ -217,9 +217,9 @@ function StartFlow({ template, listing, call, askInChat, onRefresh, onStarted, o
   </section>;
 }
 
-export default function Workflows({ call, askInChat, data }) {
+export default function Workflows({ call, askInChat, data, openSession, openRun }) {
   useInjectCss(css, "study-workflows");
-  const [listing, setListing] = useState(null), [screen, setScreen] = useState({ kind: "list" });
+  const [listing, setListing] = useState(null), [screen, setScreen] = useState(() => openSession ? { kind: "portal", id: openSession } : { kind: "list" });
   const [error, setError] = useState(""), [pending, setPending] = useState("");
   const [confirm, setConfirm] = useState(""), [wish, setWish] = useState(""), [message, setMessage] = useState("");
   const [goal, setGoal] = useState(""), quickRequest = useRef(null);
@@ -282,7 +282,7 @@ export default function Workflows({ call, askInChat, data }) {
   // The most recent unfinished session, so coming back is one click.
   const unfinished = listing?.sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && `${data.focus.course} 的核心概念`].filter(Boolean);
-  if (screen.kind === "portal") return <WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} call={call} askInChat={askInChat} onBack={back} revision={data?.revision} />;
+  if (screen.kind === "portal") return <WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} call={call} askInChat={askInChat} onOpenRun={openRun} onBack={back} revision={data?.revision} />;
   if (!listing) return <section className="page workflow-page"><h1>学习流</h1>{error ? <><p className="wf-error" role="alert">{error}</p><button type="button" onClick={refresh}>重新读取</button></> : <p className="muted" role="status">正在读取学习流…</p>}</section>;
   if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
   if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} askInChat={askInChat} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
