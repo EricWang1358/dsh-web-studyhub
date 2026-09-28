@@ -2322,6 +2322,9 @@
     background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
     font-size: 15px;
   }
+  .flash-area .prereq-strip {
+    margin: 16px 12px 0;
+  }
   .prereq-strip > summary {
     display: flex;
     align-items: center;
@@ -2332,8 +2335,10 @@
     color: var(--text-dim);
   }
   .prereq-strip > summary .pill {
+    flex: none;
     padding: 5px 12px;
     font-size: 15px;
+    white-space: nowrap;
   }
   .prereq-strip ul {
     list-style: none;

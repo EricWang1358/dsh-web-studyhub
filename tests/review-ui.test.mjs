@@ -79,3 +79,13 @@ test("choice feedback maps stored IDs to shuffled display letters and separates 
   assert.match(single, /正确答案：<strong>C<\/strong>/);
   assert.doesNotMatch(single, /漏选|错选/, "a single-choice question has nothing to miss or over-select");
 });
+test("a flashcard's prerequisite strip sits below the card, clear of its floating header", () => {
+  const prerequisites = [{ deckId: "d", cardId: "p", prompt: "CAP 是什么？", level: "familiar" }];
+  const flash = render("flashcard", false, { prerequisites });
+  const strip = flash.indexOf('class="prereq-strip"');
+  assert.ok(strip > 0, "the strip is shown");
+  assert.ok(strip > flash.lastIndexOf('class="flip-face'), "below both card faces, not under the absolute header");
+  const quiz = render("quiz", false, { prerequisites });
+  assert.ok(quiz.indexOf('class="prereq-strip"') < quiz.indexOf('class="options"'), "a choice card keeps it above the options");
+  assert.equal((flash.match(/class="prereq-strip"/g) || []).length, 1, "rendered once");
+});
