@@ -4063,8 +4063,17 @@
 
 }
 .explanation-followup { margin-top: 20px; }
-.followup-item { border-top: 1px solid var(--line); padding: 18px 0; overflow-wrap: anywhere; }
-.followup-item h4 { margin-top: 8px; }
+.followup-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 8px; font-size: 15px; color: var(--text-muted); }
+.followup-item { border-top: 1px solid var(--line); padding: 14px 0; overflow-wrap: anywhere; }
+.followup-item > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none; }
+.followup-item > summary::-webkit-details-marker { display: none; }
+.followup-item > summary::after { content: "展开"; flex: none; margin-left: auto; font-size: 15px; color: var(--text-faint); }
+.followup-item[open] > summary::after { content: "收起"; }
+.followup-item > summary h4 { flex: 1; min-width: 0; margin: 0; font-size: 16px; font-weight: 600; line-height: 1.6; color: var(--text); }
+.followup-item .followup-fold { display: block; margin: 6px 0 0 auto; font-size: 15px; color: var(--text-muted); }
+.followup-item:not([open]) > summary h4 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.followup-item > summary:hover h4 { text-decoration: underline; text-decoration-color: var(--accent-soft); text-underline-offset: 4px; }
+.followup-item[open] > summary { margin-bottom: 10px; }
 .followup-picker { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 12px; }
 .followup-picker > button { max-width: 100%; white-space: normal; text-align: left; overflow-wrap: anywhere; }
 .followup-picker form, .followup-picker label { display: grid; gap: 8px; width: 100%; min-width: 0; }
