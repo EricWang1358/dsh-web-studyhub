@@ -4101,19 +4101,26 @@
     background: transparent;
     box-shadow: none;
   }
-  .review-tick-line {
+  /* Each tick is a 2px top border, not a rounded fill: border widths snap to
+     whole device pixels, so at 125%, 150% or any panel zoom every tick is
+     equally thick and crisp instead of a blur whose weight varies by row.
+     The current question is longer, not thicker. */
+  .review-tick .review-tick-line {
     width: 9px;
-    height: 2px;
-    border-radius: 2px;
-    transition: width 180ms ease, background-color 250ms ease;
+    height: 0;
+    border-top: 2px solid var(--tick, var(--line-strong));
+    border-radius: 0;
+    background: none;
+    transition: width 180ms ease, border-color 250ms ease;
   }
+  .review-tick .lv-new { --tick: color-mix(in srgb, var(--text) 34%, transparent); }
+  .review-tick .lv-weak { --tick: var(--bad); }
+  .review-tick .lv-learning { --tick: var(--warn); }
+  .review-tick .lv-familiar { --tick: color-mix(in srgb, var(--ok) 62%, transparent); }
+  .review-tick .lv-mastered { --tick: var(--ok); }
   .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
-  .review-tick:hover .review-tick-line { width: 17px; }
-  .review-tick[aria-current="step"] .review-tick-line {
-    width: 24px;
-    height: 3px;
-    box-shadow: 0 0 0 1px var(--text);
-  }
+  .review-tick:hover .review-tick-line { width: 15px; }
+  .review-tick[aria-current="step"] .review-tick-line { width: 22px; }
   .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
   @container study (max-width: 600px) {
     .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: 4px; padding-left: 6px; padding-right: 12px; }
