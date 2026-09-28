@@ -1578,6 +1578,23 @@
     padding: 22px 28px 0;
     gap: 20px;
   }
+  .review-detour {
+    display: block;
+    max-width: 100%;
+    margin: 14px auto 0;
+    padding: 4px 12px;
+    border: 1px solid var(--accent-soft);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+    color: var(--text);
+    font-size: 15px;
+    text-align: left;
+    overflow-wrap: anywhere;
+    animation: follow-in 0.3s var(--ease-out) both;
+  }
+  .review-detour:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
   .review-flow-origin {
     margin: 0 0 4px;
     font-size: 15px;

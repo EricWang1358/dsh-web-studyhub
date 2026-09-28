@@ -6,6 +6,7 @@ import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import focusCss from "./focus.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
+import CourseRoute from "./CourseRoute.jsx";
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
@@ -143,6 +144,7 @@ export default function StudyMap({
   suggestRole,
   suggestMerges,
   mergeDecks,
+  startCourseFlow,
   children,
 }) {
   useInjectCss(focusCss, "study-focus");
@@ -443,7 +445,12 @@ export default function StudyMap({
       today.new && `新题 ${today.new}`,
     ].filter(Boolean).join(" · "),
     startFresh = () => start({ mode: "new", currentCourse: true, count: 10, fresh: true }),
-    startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: "path" }));
+    startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: "path" })),
+    // 课程路线 (class mode): an unfinished batch first, else the next batch in chapter order.
+    route = !interview ? data.focus?.route : null,
+    courseRun = route && runs.find((r) => r.purpose === "course" && r.course === route.course),
+    startCourse = () => (courseRun ? resume(courseRun.id) : start({ mode: "course" })),
+    flowLink = startCourseFlow && route?.next?.fresh ? [["先讲后练 · 学习流", () => startCourseFlow()]] : [];
   /* The card offers exactly one action. An open run wins, then the current
      course's new questions (class mode), then today's review path. Every
      other start stays reachable as a quiet link beside it. */
@@ -452,11 +459,21 @@ export default function StudyMap({
         action: { label: "导入 JSON 题组", run: importLibrary },
         also: [["添加资料补题", addSource], ["在对话中用工作区文件出题", () => askInChat(
           "请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。")]] }
+    : courseRun
+      ? { kind: "resume", eyebrow: "继续课程", count: courseRun.total - courseRun.index, unit: "题未完成",
+          detail: `这一批已做到第 ${courseRun.index + 1} / ${courseRun.total} 题`,
+          action: { label: "接着学", run: startCourse }, also: today.size ? [[`到期复习与巩固 · ${today.size} 题`, startPath]] : [] }
     : todayRun
       ? { kind: "resume", eyebrow: "继续今日", count: todayRun.total - todayRun.index, unit: "题未完成",
           detail: `已做到第 ${todayRun.index + 1} / ${todayRun.total} 题`,
           action: { label: "继续学习", run: startPath },
           also: !interview && freshCount ? [[`学当前课程新题 · ${freshCount} 题`, startFresh]] : [] }
+      : route?.next
+        ? { kind: "course", eyebrow: route.current === null ? "课程巩固" : `第 ${route.current + 1} / ${route.chapters.length} 章`,
+            count: route.next.fresh + route.next.reviews, unit: "题 · 这一批",
+            detail: `${route.next.label}${route.next.reviews ? ` · 先巩固 ${route.next.reviews} 道` : ""}`,
+            action: { label: "继续课程", run: startCourse },
+            also: [...flowLink, ...(today.size ? [[`到期复习与巩固 · ${today.size} 题`, startPath]] : [])] }
       : !interview && freshCount
         ? { kind: "fresh", eyebrow: "当前课程", count: freshCount, unit: "道新题",
             detail: freshAll > freshCount
@@ -532,6 +549,7 @@ export default function StudyMap({
                 {item.topic} · {item.weak} 道薄弱题 →</button>)}
             </div>}
           </div>}
+          {route && <CourseRoute route={route} busy={busy} onStartChapter={(deckId) => start({ mode: "course", deckId, fresh: true })} />}
           {primary && (
             <div className="desk-mastery" title={mastery.course ? `「${mastery.name}」课程掌握度 ${mastery.course.value}%（${mastery.course.cards} 题）` : `全学习区掌握度 ${primary.value}%`}>
               <span className="desk-mastery-value">{primary.value}<small>%</small></span>

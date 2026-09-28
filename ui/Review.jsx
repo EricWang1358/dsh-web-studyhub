@@ -30,6 +30,7 @@ const date = (v) =>
       })
     : "现在";
 const HELP_CHOICES = [
+  { id: "plain", label: "通俗详解" },
   { id: "angle", label: "换个角度讲" },
   { id: "example", label: "举个具体例子" },
   { id: "steps", label: "逐步推理" },
@@ -39,7 +40,10 @@ const HELP_CHOICES = [
 
 export default function Review({
   run,
+  detour,
+  onReturnFromDetour,
   onBackToWorkflow,
+  onCourseFlow,
   data,
   busy,
   host,
@@ -266,7 +270,17 @@ export default function Review({
               </p>
             )}
           </div>
+          {run.course && (
+            <p className="summary-course">
+              课程进度 · 已学 <strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong> 题
+              {run.course.chapter ? ` · 第 ${run.course.chapter.index + 1} / ${run.course.chapters} 章「${run.course.chapter.title}」${run.course.chapter.learned}/${run.course.chapter.total}` : " · 全部章节都学过了"}
+              {run.course.next?.label ? <span> · 下一批：{run.course.next.label}</span> : null}
+            </p>
+          )}
           <div className="summary-actions">
+            {run.course?.next && <button className="primary" disabled={busy}
+              onClick={() => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun)}>继续课程下一批 →</button>}
+            {run.course?.next?.fresh > 0 && onCourseFlow && <button disabled={busy} onClick={() => onCourseFlow()}>先讲后练下一批</button>}
             {run.mode === "new" && nextFreshCount > 0 && (
               <button className="primary" disabled={busy} onClick={() => act("review.start", run.scope?.length > 1
                 ? { mode: "new", currentCourse: true, count: 10, fresh: true }
@@ -276,7 +290,8 @@ export default function Review({
             )}
             {flow && <button className="primary" disabled={busy} onClick={() => onBackToWorkflow(flow.sessionId)}>
               {flow.current ? "回到学习流，继续下一步 →" : "回到学习流 →"}</button>}
-            {run.returnTo && <button className="primary" disabled={busy}
+            {detour && <button className="primary" disabled={busy} onClick={onReturnFromDetour}>回到「{detour.title}」第 {detour.index + 1} 题 →</button>}
+            {run.returnTo && !detour && <button className="primary" disabled={busy}
               onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>回到原题 →</button>}
             <button onClick={() => setPage("library")}>回到学习目录</button>
           </div>
@@ -593,6 +608,9 @@ export default function Review({
                 </>
               )}
             </div>
+            {/* Under the card, which stays in view when a question switch pins it to the top. */}
+            {detour && <button type="button" className="review-detour" disabled={busy} onClick={onReturnFromDetour}
+              title="回到从信箱跳过来之前正在做的题">← 回到「{detour.title}」第 {detour.index + 1} 题</button>}
             <ReviewToolbar
               key={reviewEntryKey(run)}
               assistMode={assistMode}
