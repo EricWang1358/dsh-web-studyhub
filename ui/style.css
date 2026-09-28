@@ -1761,6 +1761,8 @@
     white-space: pre-wrap;
   }
   .option-letter {
+    transition: background-color 0.3s var(--ease), box-shadow 0.3s var(--ease), color 0.3s var(--ease);
+    transition-delay: calc(var(--reveal-index, 0) * 50ms);
     display: inline-grid;
     place-items: center;
     flex-shrink: 0;
@@ -1797,9 +1799,42 @@
   .option.selected {
     background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
+  .option > div > .md:first-child {
+    transition: color 0.3s var(--ease);
+    transition-delay: calc(var(--reveal-index, 0) * 50ms);
+  }
   .option.correct > div > .md:first-child {
     color: var(--ok);
     font-weight: 600;
+  }
+  /* After answering, each option's verdict and explanation grow open from zero
+     height, staggered down the list, so the card lengthens smoothly. */
+  .option-reveal {
+    display: grid;
+    grid-template-rows: 1fr;
+    animation: option-reveal 0.46s var(--ease-out) both;
+    animation-delay: calc(var(--reveal-index, 0) * 50ms);
+  }
+  .option-reveal > div {
+    min-height: 0;
+    overflow: hidden;
+    animation: option-ink 0.46s var(--ease-out) both;
+    animation-delay: calc(var(--reveal-index, 0) * 50ms + 40ms);
+  }
+  .choice-feedback-wrap {
+    display: grid;
+    grid-template-rows: 1fr;
+    margin: -12px 0 14px;
+    animation: option-reveal 0.36s var(--ease-out) both;
+  }
+  .choice-feedback-wrap > .choice-feedback {
+    min-height: 0;
+    overflow: hidden;
+    margin: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .option-reveal, .option-reveal > div, .choice-feedback-wrap { animation: none; }
+    .option-letter, .option > div > .md:first-child { transition: none; }
   }
   .option.incorrect > div > .md:first-child {
     color: var(--bad);
@@ -4174,6 +4209,15 @@
 }
 @keyframes bar-in {
   from { transform: scaleX(0.04); opacity: 0; }
+}
+@keyframes option-reveal {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+@keyframes option-ink {
+  from { transform: translateY(-6px); }
 }
 @keyframes rise-in {
   from {

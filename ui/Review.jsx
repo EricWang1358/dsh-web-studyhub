@@ -420,6 +420,7 @@ export default function Review({
                       return (
                         <button
                           key={o.id}
+                          style={{ "--reveal-index": i }}
                           disabled={busy || !!run.feedback}
                           className={
                             "option " +
@@ -442,7 +443,9 @@ export default function Review({
                             <Markdown text={o.text} links={false} className="md-compact" />
                             {enOption?.text && <p className="option-en">{enOption.text}</p>}
                             {run.feedback && (
-                              <>
+                              // Grows open from zero height, one option after another,
+                              // instead of every explanation landing in the same frame.
+                              <div className="option-reveal"><div>
                                 <strong className="answer-state">
                                   {solution?.correct
                                     ? picked ? "✓ 已选 · 正确" : multiple ? "漏选 · 正确答案" : "正确答案"
@@ -462,7 +465,7 @@ export default function Review({
                                     className="md-compact option-explanation en-line"
                                   />
                                 )}
-                              </>
+                              </div></div>
                             )}
                           </div>
                         </button>
