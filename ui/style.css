@@ -1102,6 +1102,16 @@
     border-radius: 10px;
     margin: 10px 0;
   }
+  .job-dismiss {
+    align-self: flex-start;
+    flex: none;
+    padding: 4px 12px;
+    font-size: 15px;
+  }
+  .jobs-dismiss-all {
+    align-self: flex-end;
+    font-size: 15px;
+  }
   .job > span {
     color: var(--accent-soft);
     font-size: 23px;

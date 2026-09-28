@@ -128,6 +128,7 @@ export default function StudyMap({
   retryGeneration,
   openAgent,
   cancelJob,
+  dismissJob,
   addSource,
   createManual,
   importLibrary,
@@ -894,6 +895,7 @@ export default function StudyMap({
       )}
       {jobs.length > 0 && (
         <div className="jobs">
+          {dismissJob && visibleJobs.filter((j) => !isActiveJob(j)).length > 1 && <button type="button" className="link-btn jobs-dismiss-all" disabled={busy} onClick={() => dismissJob()}>全部知道了</button>}
           {cancelJob && activeJobs.some((j) => ["running", "queued"].includes(j.status)) && <button disabled={busy} onClick={() => cancelJob()}>停止后台任务，保留草稿</button>}
           {visibleJobs.map((j) => (
             <div className={"job " + j.status} key={j.id}>
@@ -938,6 +940,9 @@ export default function StudyMap({
                   打开
                 </button>
               )}
+              {/* 已知与删除: done with this card; the draft and approved questions stay. */}
+              {dismissJob && !isActiveJob(j) && <button type="button" className="job-dismiss" disabled={busy}
+                title={"删除这条任务记录；草稿和已通过的题目会保留"} onClick={() => dismissJob(j.id)}>知道了</button>}
             </div>
           ))}
         </div>

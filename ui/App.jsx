@@ -1640,6 +1640,7 @@ export default function App({ call, host = {} }) {
                 }}
                 openAgent={host.openAgent}
                 cancelJob={(jobId) => act("job.cancel", jobId ? { jobId } : { all: true })}
+                dismissJob={(jobId) => act("job.dismiss", jobId ? { jobId } : { all: true })}
                 addSource={() => setModal({ type: "add" })}
                 createManual={() =>
                   openDraft({
