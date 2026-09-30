@@ -6,10 +6,24 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
-import { batchDocuments } from '../lib/audio-batch.js';
+import { batchDocuments, readAudioBatch } from '../lib/audio-batch.js';
+import { checkpoints } from '../lib/audio-import.js';
 import { storeDocuments } from '../lib/audio-job.js';
 
 const KEY = 'AIzaAudioBatchTest_00000000000001';
+test('BOM-prefixed audio manifests and checkpoints remain readable without rewriting text', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'audio-bom-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const batchId = 'audio-record-001', directory = join(root, 'audio-batches', batchId);
+  await mkdir(directory, { recursive: true });
+  const value = { id: batchId, text: 'Keep embedded \uFEFF and ordinary text.' };
+  const raw = '\uFEFF' + JSON.stringify(value);
+  await writeFile(join(directory, 'manifest.json'), raw, 'utf8');
+  assert.deepEqual(await readAudioBatch(root, batchId), value);
+  await writeFile(join(directory, 'checkpoint.json'), raw, 'utf8');
+  assert.deepEqual(await checkpoints(directory).get('checkpoint.json'), value);
+  assert.equal(await readFile(join(directory, 'manifest.json'), 'utf8'), raw);
+});
 const reply = text => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: {} }));
 export function wav(fill) {
   const data = Buffer.alloc(16000, fill), header = Buffer.alloc(44);

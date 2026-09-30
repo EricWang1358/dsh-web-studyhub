@@ -1,12 +1,64 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readFile, rm, readdir } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, readdir, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store, emptyState, normalizeState, LATEST_VERSION } from "../lib/store.js";
 import { StudyService } from "../lib/service.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+
+test('BOM-prefixed library manifests, shards and legacy files preserve their data', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-bom-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const source = { id: 'audio-source', title: 'Recording', text: 'Embedded \uFEFF remains.' };
+  await mkdir(join(root, 'shards', 'sources'), { recursive: true });
+  await writeFile(join(root, 'shards', 'sources', 'audio.json'), '\uFEFF' + JSON.stringify(source));
+  const manifest = { ...emptyState(), format: 'study-sharded', shards: { sources: ['sources/audio.json'] } };
+  await writeFile(join(root, 'study-workspace.json'), '\uFEFF' + JSON.stringify(manifest));
+  assert.deepEqual((await new Store(root).read()).sources[0], source);
+  const legacyRoot = join(root, 'legacy');
+  await mkdir(legacyRoot);
+  const raw = '\uFEFF' + JSON.stringify({ ...emptyState(), sources: [source] });
+  await writeFile(join(legacyRoot, 'study-workspace.json'), raw);
+  const legacy = new Store(legacyRoot);
+  assert.equal((await legacy.read()).sources[0].text, source.text);
+  await legacy.update(state => { state.sources[0].title = 'Updated recording'; });
+  assert.equal((await legacy.read()).sources[0].title, 'Updated recording');
+});
+
+test('one damaged shard leaves healthy content readable and blocks destructive partial writes', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-isolation-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call('source.add', { title: 'Healthy', text: 'Healthy recording.' });
+  await service.call('source.add', { title: 'Damaged', text: 'Recoverable recording.' });
+  const manifest = JSON.parse(await readFile(service.store.path, 'utf8'));
+  const original = await readFile(join(root, 'shards', manifest.shards.sources[1]), 'utf8');
+  manifest.shards.sources[1] = 'sources/damaged.json';
+  const brokenPath = join(root, 'shards', manifest.shards.sources[1]);
+  await writeFile(brokenPath, '{"id":"audio",');
+  // A fresh manifest stat invalidates the previous healthy cache.
+  await writeFile(service.store.path, JSON.stringify(manifest) + '\n');
+  const snapshot = await service.call('snapshot');
+  assert.deepEqual(snapshot.sources.map(source => source.title), ['Healthy']);
+  assert.equal(snapshot.storageIssues.length, 1);
+  assert.equal(snapshot.storageIssues[0].file, `shards/${manifest.shards.sources[1]}`);
+  assert.ok((await service.call('map')).decks);
+  assert.ok((await service.call('settings')).first_interval_days);
+  await assert.rejects(service.call('export'), /损坏文件/);
+  await assert.rejects(service.call('source.add', { title: 'Unsafe', text: 'Must not erase the damaged entry.' }), /损坏文件/);
+  assert.equal(await readFile(brokenPath, 'utf8'), '{"id":"audio",');
+  assert.equal(await readFile(service.store.path, 'utf8'), JSON.stringify(manifest) + '\n');
+  // Repairing only the shard must recover on the next poll, without a restart.
+  await writeFile(brokenPath, original);
+  const recovered = await service.call('snapshot', { since: snapshot.fingerprint });
+  assert.equal(recovered.unchanged, undefined);
+  assert.equal(recovered.sources.length, 2);
+  assert.deepEqual(recovered.storageIssues, []);
+  await service.call('source.add', { title: 'After repair', text: 'Writes work again.' });
+  assert.equal((await service.call('snapshot')).sources.length, 3);
+});
 
 test("a full export restores the library and preserves the replaced state", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-restore-"));

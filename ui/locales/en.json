@@ -2092,5 +2092,7 @@
   "使用这份资料的题组": "Decks using this source",
   "学习库已切换，请在当前学习库重试": "The library changed. Try again in the current library.",
   "找不到这场笔试": "This written exam could not be found",
-  "已保存版本有更新，展开核对；你的输入已保留": "The saved version has changed. Expand to compare; your writing is preserved."
+  "已保存版本有更新，展开核对；你的输入已保留": "The saved version has changed. Expand to compare; your writing is preserved.",
+  "学习库读取失败": "Library could not be read",
+  "部分文件无法读取，其他内容仍可查看。修复前暂停保存，原文件保留。": "Some files could not be read. Other content is available to view. Saving is paused until repair; original files are retained."
 }

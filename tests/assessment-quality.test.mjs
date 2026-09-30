@@ -1,18 +1,50 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateDeck, salvageAuthoredCards } from "../lib/generation.js";
+import { generateDeck, salvageAuthoredCards, parseJson } from "../lib/generation.js";
 import { generateBatched } from "../lib/batch.js";
 import { publicCard } from "../lib/domain.js";
 import { authored, qualityPlan, qualityReview } from "./helpers/assessment.mjs";
-import { reviewIssues, explanationIssues, answerLeakIssues, planIssues } from "../lib/assessment-quality.js";
+import { reviewIssues, explanationIssues, answerLeakIssues, planIssues, learnerContextIssues } from "../lib/assessment-quality.js";
 import { reviewedCardFingerprint } from "../lib/review-integrity.js";
 
 const source = { id: "s", title: "Course notes", text: "Architecture includes the principles guiding a system's design and evolution." };
+test('model JSON control-character repair preserves strings and rejects unrelated corruption', () => {
+  const controls = Array.from({ length: 32 }, (_, n) => String.fromCharCode(n)).join('');
+  const value = { answer: 'Quoted "[text]" and path C:\\notes\\n', detail: controls };
+  const valid = JSON.stringify(value);
+  assert.deepEqual(parseJson(valid), value);
+  const malformed = valid.replace(JSON.stringify(controls), '"' + controls + '"');
+  assert.deepEqual(parseJson(malformed), value);
+  assert.deepEqual(parseJson('Result:\n```json\n' + malformed + '\n```\nEnd.'), value);
+  assert.deepEqual(parseJson('{\n"answer":"A\r\nB\tC"\n}'), { answer: 'A\r\nB\tC' });
+  for (const broken of ['{"answer":"Unclosed\n', '{"answer":"A\\qB\n"}', '{"answer":"A\\\nB"}', '{"answer":"A\nB",}'])
+    assert.throws(() => parseJson(broken), SyntaxError);
+});
 const request = { count: 1, kind: "flashcard", sources: [source] };
 const card = { id: "q", kind: "flashcard", topic: "Architecture decisions", objective: "Recognize the role of architectural constraints",
   prompt: "Why does architecture contain principles guiding design and evolution?", answer: "Principles guide subsequent design choices and changes.",
   hint: "Compare a current-state description with a constraint on permitted changes.", explanation: "The quoted definition explicitly includes principles governing design and evolution.", misconception: "Architecture only describes current components.", citations: [{ sourceId: "s", quote: source.text }] };
 const candidate = () => ({ title: "Architecture", cards: [structuredClone(card)] });
+
+test('questions cannot depend on remembering unseen lecture notes', () => {
+  for (const prompt of [
+    '这份口述笔记把建筑的电气图、管道图对应到 IT 的哪些视角？「蓝图」被界定为什么样的表达？',
+    '根据课堂笔记，老师列举了哪三项？',
+    'What does this lecture transcript call a blueprint?',
+  ]) assert.match(learnerContextIssues({ cards: [{ ...card, prompt }] }).join(), /unavailable.*(?:notes|source)/);
+  for (const prompt of ['IT 架构蓝图有什么作用？', '为什么同一个系统需要多个架构视角？', 'What is the role of an architectural blueprint?'])
+    assert.deepEqual(learnerContextIssues({ cards: [{ ...card, prompt }] }), []);
+});
+
+test('an empty notes-dependent stem is rejected even when the model reviewer marks it passed', async () => {
+  const bad = candidate();
+  bad.cards[0].prompt = '这份口述笔记把建筑的电气图、管道图对应到 IT 的哪些视角？';
+  await assert.rejects(generateDeck(async (system, prompt) => {
+    if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(request));
+    if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(authored(bad));
+  }, request), /Quality gate failed.*unavailable lecture notes/);
+});
 
 test('approved cards are checkpointed before a repair times out, with stable identities', async () => {
   const deck = candidate();

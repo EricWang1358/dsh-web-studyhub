@@ -139,6 +139,22 @@ test('cold desktop cancellation drains a late admitted child before disposing it
   assert.deepEqual(calls.disposed, ['child', 'coordinator']);
 });
 
+test('background assist accepts unescaped line breaks in model JSON without another request', async t => {
+  const answer = 'First explain the abstraction.\n\nThen explain the implementation.\tBoth vary independently.';
+  const raw = '{"answer":"' + answer + '","summary":"已追加解答。"}';
+  let count = 0;
+  const f = await fixture(t, async () => { count++; return raw; });
+  const schedule = { repetitions: 1, interval_days: 1, ease_factor: 2.5, due_at: '2026-10-01T05:52:00.000Z' };
+  await f.service.store.update(state => { state.decks[0].cards[0].review = schedule; });
+  await f.start();
+  await until(() => f.task().status !== 'running');
+  assert.equal(f.task().status, 'done', f.task().message);
+  assert.equal(count, 1);
+  const state = await f.service.store.read();
+  assert.equal(state.decks[0].cards[0].followups[0].answer, answer);
+  assert.deepEqual(state.decks[0].cards[0].review, schedule);
+});
+
 test('desktop without a running parent saves help in the background and sends the normal inbox letter', async t => {
   const release = gate(); let options;
   const f = await fixture(t, async (_s, prompt, opts) => { options = opts; assert.match(prompt, /Both vary independently/); await release.promise; return JSON.stringify({ answer: 'Think of two independent dimensions.', summary: '已追加解答。' }); });

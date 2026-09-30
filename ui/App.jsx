@@ -1730,7 +1730,7 @@ export default function App({ call: transportCall, host = {} }) {
                 : running
                   ? publishing ? ui("正在发布…") : ui("正在生成…")
                   : syncIssue
-                    ? ui("连接中断，正在重试…")
+                    ? isTransientStudyError({ message: syncIssue }) ? ui("连接中断，正在重试…") : ui("学习库读取失败")
                   : data
                     ? ui("已连接")
                     : ui("待连接")}</span>
@@ -1761,6 +1761,10 @@ export default function App({ call: transportCall, host = {} }) {
           </div>
         )}
         {!(page === "review" && run && !run.complete) && feedback}
+        {!!data?.storageIssues?.length && <div role="alert" className="alert">
+          <strong>{ui("部分文件无法读取，其他内容仍可查看。修复前暂停保存，原文件保留。")}</strong>
+          <ul>{data.storageIssues.map(issue => <li key={issue.file}>{issue.file}</li>)}</ul>
+        </div>}
         {contextTrail.length > 0 && !['review', 'notes'].includes(page) && <div className="context-return">
           <button type="button" disabled={busy} onClick={returnFromContext}>← {contextLabel(contextTrail.at(-1))}</button>
         </div>}
