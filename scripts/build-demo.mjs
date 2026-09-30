@@ -15,6 +15,7 @@ const browserService = {
     b.onResolve({ filter: /^node:(fs|http|https|child_process)$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onResolve({ filter: /^node:path$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onResolve({ filter: /^(node:os|proper-lockfile)$/ }, () => ({path:resolve(root,'web-demo/files.js')}));
+    b.onResolve({ filter: /^@deepseek-ai\/dsh-llm$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onResolve({ filter: /(^|\/)(documents|legacy)\.js$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onLoad({ filter: /[\\/]lib[\\/]generation\.js$/ }, async args => {
       const [code,protocol,recruitment] = await Promise.all([readFile(args.path,'utf8'),readFile(resolve(root,'references/content-quality.md'),'utf8'),readFile(resolve(root,'references/recruitment-prep.md'),'utf8')]);
@@ -27,7 +28,7 @@ await build({ absWorkingDir:root, entryPoints:['web-demo/main.jsx'], bundle:true
   define:{'process.env.NODE_ENV':'"production"','process.env.DSH_HOME':'"/demo"'}, loader:{'.woff': 'file','.woff2':'file','.ttf':'file'}, metafile:true,
 }).then(async result => {
   const inputs=Object.keys(result.metafile.inputs);
-  if (inputs.some(p=>/lib\/store\.js|proper-lockfile|pdfjs-dist/.test(p))) throw new Error('Server-only dependency leaked into demo bundle');
+  if (inputs.some(p=>/lib\/store\.js|proper-lockfile|pdfjs-dist|@deepseek-ai\/dsh-llm/.test(p))) throw new Error('Server-only dependency leaked into demo bundle');
   await writeFile(resolve(root,'output/demo-build-meta.json'),JSON.stringify(result.metafile,null,2));
 });
 await writeFile(resolve(target,'dist/index.html'),`<!doctype html>

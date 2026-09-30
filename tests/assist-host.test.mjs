@@ -11,11 +11,12 @@ import { LiveSession, register, unregister } from '../lib/live.js';
 import { GeminiTiers } from '../lib/gemini.js';
 import { runGenerationAgent } from '../lib/generation-agent.js';
 import { backgroundCapability, startBoundedChild } from '../lib/host-capabilities.js';
+import { disposeAssistChildren } from '../lib/assist-child.js';
 
 const evidence = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
 const card = { id: 'c', kind: 'flashcard', topic: 'Bridge', objective: 'Explain Bridge', prompt: 'What does Bridge separate?', answer: 'Abstraction and implementation.', hint: 'Two dimensions.', explanation: 'Both vary independently.', misconception: 'It adapts interfaces.', citations: [{ sourceId: 's', quote: evidence }] };
 const gate = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
-const until = async predicate => { for (let i = 0; i < 200; i++) { if (predicate()) return; await new Promise(r => setTimeout(r, 5)); } throw new Error('Task did not settle'); };
+const until = async predicate => { for (let i = 0; i < 200; i++) { if (await predicate()) return; await new Promise(r => setTimeout(r, 5)); } throw new Error('Task did not settle'); };
 function desktopHost(cwd, output, { failure, delayedCreation } = {}) {
   const calls = { created: [], started: [], disposed: [] };
   const coordinator = { id: 'coordinator' };
@@ -36,6 +37,30 @@ function desktopHost(cwd, output, { failure, delayedCreation } = {}) {
     } };
   const ctx = { sessions: { get: () => ({ header: { cwd } }) },
     get: key => key === 'agents' ? agents : key === 'subagents' ? subagents : undefined };
+  return { ctx, calls };
+}
+
+function reusableHost(cwd) {
+  const calls = { created: [], started: [], disposed: [], followups: [], children: [] };
+  const agents = { get: () => undefined, create: async spec => {
+    calls.created.push(spec);
+    return { agent: { id: 'coordinator' }, dispose: async () => calls.disposed.push('coordinator') };
+  } };
+  const subagents = { getProvider: () => ({ capabilities: { toolFilter: true, agentOptions: true } }), start: async (_, request) => {
+    const childId = `child-${calls.started.length + 1}`, events = [];
+    calls.started.push(request);
+    const session = { get seq() { return events.length; }, eventAt: at => events[at], snapshotEvents: from => events.slice(from) };
+    const child = { status: 'idle', session, cancel: () => {},
+      followup: message => {
+        calls.followups.push({ childId, message });
+        events.push({ type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '{"answer":"The same teacher explains the follow-up."}' }] } } },
+          { type: 'turn/end', data: { reason: { kind: 'completed' } } });
+      }, whenIdle: async () => {} };
+    calls.children.push(child);
+    return { id: childId, localAgent: child, result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: '{"answer":"First explanation."}' }] }),
+      dispose: async () => calls.disposed.push(childId) };
+  } };
+  const ctx = { sessions: { get: () => ({ header: { cwd } }) }, get: key => key === 'agents' ? agents : key === 'subagents' ? subagents : undefined };
   return { ctx, calls };
 }
 async function fixture(t, complete) {
@@ -66,6 +91,150 @@ test('cold desktop help and improvement use real children and release their own 
     assert.deepEqual(calls.started[0].toolFilter, { allow: [] });
     assert.deepEqual(calls.disposed, ['child', 'coordinator']);
   }
+});
+
+test('same-question help reuses the existing idle native child and keeps replies out of the parent', async t => {
+  const f = await fixture(t, async () => { throw new Error('unexpected direct call'); });
+  const { ctx, calls } = reusableHost(f.root);
+  await f.start(ctx, { text: 'Explain the separation' });
+  await until(() => f.task().status === 'done');
+  const first = f.task();
+  assert.deepEqual(calls.disposed, [], 'the idle teacher should remain available briefly');
+  await f.start(ctx, { text: 'Use another example' });
+  await until(() => f.task().status === 'done');
+  assert.equal(calls.started.length, 1, 'same question must not spawn another child');
+  assert.equal(calls.created.length, 1);
+  assert.equal(f.task().childId, first.childId);
+  assert.equal(f.task().reused, true);
+  assert.equal(calls.followups.length, 1);
+  assert.match(calls.followups[0].message.content[0].text, /Use another example/);
+  assert.ok(!calls.followups[0].message.content[0].text.includes(evidence), 'stable evidence should not be resent');
+  assert.deepEqual(calls.started[0].toolFilter, { allow: [] });
+  assert.equal((await f.service.store.read()).decks[0].cards[0].followups.length, 2);
+  clearAssist(f.root);
+  await until(() => calls.disposed.length === 2);
+});
+
+test('simultaneous same-question requests serialize through one child and save distinct answers', async t => {
+  const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
+  await Promise.all([f.start(ctx, { text: 'First question' }), f.start(ctx, { text: 'Second question' })]);
+  await until(() => assistView(f.root).tasks.every(task => task.status === 'done'));
+  assert.equal(calls.started.length, 1);
+  assert.equal(calls.followups.length, 1);
+  assert.equal((await f.service.store.read()).decks[0].cards[0].followups.length, 2);
+});
+
+test('changed content, evidence, model, language or card starts a fresh teacher', async t => {
+  const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
+  const finish = async extra => { await f.start(ctx, extra); await until(() => f.task().status !== 'running'); assert.equal(f.task().status, 'done', f.task().message); };
+  await finish();
+  await f.service.call('card.update', { deckId: 'd', cardId: 'c', patch: { explanation: 'Updated interpretation.' } });
+  await finish();
+  await f.service.store.update(state => { state.sources[0].text += ' Extra source context.'; });
+  await finish();
+  await finish({ route: { provider: 'p', model: 'another' } });
+  await finish({ route: { provider: 'p', model: 'another' }, language: 'en' });
+  await f.service.store.update(state => state.decks[0].cards.push({ ...card, id: 'other' }));
+  await finish({ ref: { deckId: 'd', cardId: 'other' }, card: { ...card, id: 'other' } });
+  assert.equal(calls.started.length, 6);
+  assert.equal(calls.followups.length, 0);
+  assert.equal(calls.disposed.filter(value => value.startsWith('child')).length, 5);
+});
+
+test('teacher reuse expires after two idle minutes and rotates after eight turns', async t => {
+  const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
+  const finish = async () => { await f.start(ctx); await until(() => f.task().status === 'done'); };
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await f.start(ctx);
+  // Let filesystem work settle before advancing only the idle timer.
+  while (f.task().status === 'running') await new Promise(resolve => setImmediate(resolve));
+  t.mock.timers.tick(120001);
+  t.mock.timers.reset();
+  await until(() => calls.disposed.length === 2);
+  for (let turn = 0; turn < 8; turn++) await finish();
+  assert.equal(calls.started.length, 2);
+  assert.equal(calls.followups.length, 7);
+  assert.equal(calls.disposed.filter(value => value.startsWith('child')).length, 2);
+  await finish();
+  assert.equal(calls.started.length, 3);
+});
+
+test('only four idle teachers remain and plugin disposal releases their handles', async t => {
+  const f = await fixture(t, async () => {}), hosts = Array.from({ length: 5 }, () => reusableHost(f.root));
+  for (const { ctx } of hosts) { await f.start(ctx); await until(() => f.task().status === 'done'); }
+  await until(() => hosts[0].calls.disposed.length === 2);
+  for (const host of hosts.slice(1)) { assert.equal(host.calls.disposed.length, 0); disposeAssistChildren(host.ctx); }
+  await until(() => hosts.every(host => host.calls.disposed.length === 2));
+});
+
+test('fresh teachers and direct fallback receive bounded durable question-answer history', async t => {
+  let payload;
+  const f = await fixture(t, async (system, input) => { payload = JSON.parse(input); return '{"answer":"Direct continuation."}'; });
+  for (let i = 0; i < 5; i++) await f.service.call('card.followup.add', { deckId: 'd', cardId: 'c', question: `Earlier question ${i}`, answer: `Earlier answer ${i}` });
+  await f.start();
+  await until(() => f.task().status === 'done');
+  assert.deepEqual(payload.history.map(item => item.question), ['Earlier question 2', 'Earlier question 3', 'Earlier question 4']);
+});
+
+test('a follow-up with no new completed output never saves the previous answer again', async t => {
+  const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
+  await f.start(ctx); await until(() => f.task().status === 'done');
+  calls.children[0].followup = () => {};
+  await f.start(ctx, { text: 'A second question' });
+  await until(() => f.task().status === 'failed');
+  assert.equal((await f.service.store.read()).decks[0].cards[0].followups.length, 1);
+  await until(() => calls.disposed.length === 2);
+  await f.start(ctx); await until(() => f.task().status === 'done');
+  assert.equal(calls.started.length, 2);
+});
+
+test('timed-out reused children discard late output, release handles and are not reused again', async t => {
+  const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
+  await f.start(ctx); await until(() => f.task().status === 'done');
+  const release = gate(); let cancelled = 0;
+  calls.children[0].whenIdle = () => release.promise;
+  calls.children[0].cancel = () => { cancelled++; };
+  await f.start(ctx, { text: 'Slow follow-up', timeoutMs: 15 });
+  await until(() => f.task().status === 'failed');
+  release.resolve();
+  await until(() => calls.disposed.length === 2);
+  assert.equal(cancelled, 1);
+  assert.equal((await f.service.store.read()).decks[0].cards[0].followups.length, 1);
+  await f.start(ctx); await until(() => f.task().status === 'done');
+  assert.equal(calls.started.length, 2);
+});
+
+test('one-shot fallback completion awaits actual asynchronous handle disposal', async t => {
+  const f = await fixture(t, async () => {}), release = gate();
+  const ctx = { get: key => key === 'agents' ? { get: () => ({ id: 'parent' }) } : {
+    getProvider: () => ({ capabilities: { toolFilter: true, agentOptions: true } }),
+    start: async () => ({ id: 'child', result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: '{"answer":"An answer."}' }] }), dispose: () => release.promise }),
+  } };
+  await f.start(ctx);
+  await until(async () => (await f.service.store.read()).decks[0].cards[0].followups?.length === 1);
+  assert.equal(f.task().status, 'running');
+  release.resolve();
+  await until(() => f.task().status === 'done');
+});
+
+test('plugin shutdown cancels a retired active teacher and prevents late result saving', async t => {
+  const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
+  let cleanup;
+  ctx.effect = setup => { cleanup = setup(); };
+  createHostHandler(ctx);
+  const release = gate(), save = f.service.saveAssistResult.bind(f.service);
+  let waiting = false;
+  f.service.saveAssistResult = async args => { waiting = true; await release.promise; return save(args); };
+  await f.start(ctx);
+  await until(() => waiting);
+  await f.service.store.update(state => state.decks[0].cards.push({ ...card, id: 'other' }));
+  await f.start(ctx, { ref: { deckId: 'd', cardId: 'other' }, card: { ...card, id: 'other' } });
+  await until(() => calls.started.length === 2);
+  cleanup();
+  release.resolve();
+  await until(() => assistView(f.root).tasks.every(task => task.status === 'failed'));
+  await until(() => calls.disposed.length === 4);
+  assert.ok((await f.service.store.read()).decks[0].cards.every(item => !item.followups?.length));
 });
 
 test('cold desktop generation and historical correction use the selected model through child agents', async () => {

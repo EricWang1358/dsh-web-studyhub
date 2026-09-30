@@ -1,5 +1,6 @@
 export function unavailable() { throw new Error('此功能需要本地插件。网页体验版请使用内置资料和示例题组。'); }
 export const extractPdf = unavailable, importLegacy = unavailable;
+export const createUserMessage = unavailable;
 // Match fs/promises: callers can handle absent desktop files with .catch().
 const unavailableAsync = async () => unavailable();
 export const open = unavailableAsync, readdir = unavailableAsync, stat = unavailableAsync, readFile = unavailableAsync, realpath = unavailableAsync;
