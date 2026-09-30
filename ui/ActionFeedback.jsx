@@ -3,15 +3,23 @@ import { ui } from './i18n.js';
 
 // Keep the existing string/action-object protocol. Each submission gets its
 // own lifetime, including a repeated confirmation with identical text.
-export function useNotice() {
+export const reviewNoticeScope = (root, page, run) =>
+  JSON.stringify([root, page, run?.id || '', run?.card?.id || '', !!run?.complete]);
+
+export function useNotice(scope) {
   const [entry, setEntry] = useState(null);
   const setNotice = useCallback(value => setEntry(value ? { value } : null), []);
+  useEffect(() => {
+    if (entry && entry.value.scope !== undefined && entry.value.scope !== scope)
+      setEntry(current => current === entry ? null : current);
+  }, [entry, scope]);
   useEffect(() => {
     if (!entry || entry.value.action || entry.value.persistent) return;
     const timer = setTimeout(() => setEntry(current => current === entry ? null : current), 5000);
     return () => clearTimeout(timer);
   }, [entry]);
-  return [entry?.value || '', setNotice];
+  const visible = entry && (entry.value.scope === undefined || entry.value.scope === scope);
+  return [visible ? entry.value : '', setNotice];
 }
 
 export default function ActionFeedback({ error, notice, busy, onCloseError, onCloseNotice }) {

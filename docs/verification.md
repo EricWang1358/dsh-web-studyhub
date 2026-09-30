@@ -1,5 +1,12 @@
 # Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
+## 2026-09-30 — 1.4.3 scoped slay feedback
+
+- Fixed a permanently retained action notice: slay/restore confirmations now own the returned review card, run, page and library. A new card/page/library hides the notice immediately and removes its retained callback. Returning to the old card does not revive it; revision-only polls keep the immediate undo opportunity.
+- Browser fixture with the actual React notice hook passed immediate undo, same-card poll, next card, return, restoration notice, page/library changes, unrelated notice preservation and expiry after navigation. The final expiry check used Playwright's clock. Evidence: `output/playwright/slay-notice/check-final.js` and `check-final.log`. The owned browser and fixture server were closed.
+- 24 focused app/render/review/navigation/slay/client checks passed with zero skips/failures; lint and build passed. The extracted runtime passed 92 package checks. Evidence: `output/slay-notice-focused.log` and `output/release-1.4.3-package-smoke.log`. The 651-test full-suite result below belongs to 1.4.2; it was not rerun for this UI-only fix.
+- Desktop installation reports 1.4.3. The installed client matches the packaged artifact; no host processes were restarted and no learner cards or review records were changed by validation. Reload after active tasks finish to activate the update.
+
 ## 2026-09-30 — 1.4.2 release checks
 
 - Final suite: 651 passed, zero failures/skips, concurrency 4; lint, native/standalone build and static demo build passed. Evidence: `output/release-1.4.2-final-verify.log` and `output/release-1.4.2-demo-build.log`.

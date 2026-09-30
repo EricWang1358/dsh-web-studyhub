@@ -27,7 +27,7 @@ import AudioDashboard from './AudioDashboard.jsx';
 import LiveClass from "./LiveClass.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
-import ActionFeedback, { useNotice } from './ActionFeedback.jsx';
+import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
 import BlogNotes from "./BlogNotes.jsx";
 import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
@@ -259,7 +259,6 @@ export default function App({ call: transportCall, host = {} }) {
     observer?.observe(nav);
     return () => observer?.disconnect();
   }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex, navOrder.order]);
-  const [notice, setNotice] = useNotice();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
@@ -297,6 +296,7 @@ export default function App({ call: transportCall, host = {} }) {
     [hint, setHint] = useState(false),
     [explain, setExplain] = useState(false),
     [response, setResponse] = useState("");
+  const [notice, setNotice] = useNotice(reviewNoticeScope(binding.root, page, run));
   const onReviewState = host.onReviewState;
   useEffect(() => {
     onReviewState?.(page === "review" ? run : null);
@@ -1165,14 +1165,17 @@ export default function App({ call: transportCall, host = {} }) {
   // of sending the learner to the slay deck in 管理题组.
   async function slayCard() {
     const ref = { deckId: run.deckId, cardId: run.card.id };
-    if (!(await reviewAct("card.slay", { deckId: ref.deckId }))) return;
+    const next = await reviewAct("card.slay", { deckId: ref.deckId });
+    if (!next) return;
+    const scope = reviewNoticeScope(binding.root, 'review', next);
     setNotice({
       text: ui("已斩这道题：移入斩题组，不再复习。"),
+      scope,
       action: {
         label: ui("撤销"),
         run: () =>
           act("card.restore", ref, () =>
-            setNotice(ui("已恢复到原题组，复习进度不变；本轮练习不再出现这道题。")),
+            setNotice({ text: ui("已恢复到原题组，复习进度不变；本轮练习不再出现这道题。"), scope }),
           ),
       },
     });
