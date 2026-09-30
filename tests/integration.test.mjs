@@ -729,30 +729,26 @@ test("legacy import preserves original files and scheduling, repeated import is 
     true,
   );
 });
-test("generation uses author and editor; broken citation is repaired before draft acceptance", async () => {
+test("generation rejects a broken citation without starting a repair loop", async () => {
   let calls = 0;
   const bad = deck();
   bad.cards[0].citations[0].quote = "fabricated quote";
-  const result = await generateDeck(
+  await assert.rejects(generateDeck(
     withQualityStages(async () =>
       JSON.stringify(
         [bad, { issues: ["unsupported quote"] }, deck(), { issues: [] }][calls++],
       )),
     { count: 1, kind: "flashcard", sources: [source] },
-  );
-  assert.equal(calls, 4, "author, review, repair, independent acceptance");
-  assert.equal(result.editorial.repaired, true);
-  assert.notEqual(result.id, "d");
+  ), /unsupported quote/);
+  assert.equal(calls, 2, "author and one independent review");
 });
-test("an editorial complaint buys one repair round, then the repaired deck is accepted", async () => {
+test("an unattributed editorial complaint stops the batch after one review", async () => {
   let calls = 0;
-  const result = await generateDeck(
+  await assert.rejects(generateDeck(
     withQualityStages(async () => JSON.stringify([deck(), { issues: ["ambiguous"] }, deck(), { issues: [] }][calls++])),
     { count: 1, kind: "flashcard", sources: [source] },
-  );
-  assert.equal(calls, 4, "one repair followed by independent acceptance");
-  assert.equal(result.cards.length, 1);
-  assert.equal(result.editorial.repaired, true);
+  ), /ambiguous/);
+  assert.equal(calls, 2, "no repair or second independent review");
 });
 
 test("a defect the local gate can prove still costs the card, however the editor votes", async () => {
@@ -773,7 +769,7 @@ test("generation rejects wrong question kind even when model editor approves", a
       ),
     /requested kind/,
   );
-  assert.equal(calls, 4);
+  assert.equal(calls, 2);
 });
 test("teaching stores conclusions only and cannot advance a failed check or add SM2 attempts", async () => {
   const service = await ready();

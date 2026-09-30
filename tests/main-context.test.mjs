@@ -205,6 +205,105 @@ test('supplement requires an exact active target before any model call', async t
   assert.equal(calls, 0);
 });
 
+test('supplement total-budget expiry publishes the approved checkpoint without extra model calls', async t => {
+  let ready;
+  const checkpoint = new Promise(resolve => { ready = resolve; });
+  const model = withQualityStages(async (system, prompt) => system.startsWith('You author')
+    ? JSON.stringify({ title: 'Supplement', cards: Array.from({ length: JSON.parse(prompt.split('REQUEST DATA:\n')[1]).count }, (_, n) => card(`new-${n}`, 'p1')) })
+    : JSON.stringify({ issues: [], summary: 'Checked' }));
+  let authorCalls = 0, afterBudget = 0, expired = false;
+  const service = await fixture(t, async (system, prompt, execution) => {
+    if (expired) afterBudget++;
+    if (system.startsWith('You author') && ++authorCalls === 2)
+      return new Promise((resolve, reject) => execution.signal.addEventListener('abort', () => reject(execution.signal.reason), { once: true }));
+    return model(system, prompt);
+  });
+  const call = service.call.bind(service);
+  service.call = async (action, args) => { const result = await call(action, args); if (action === 'draft.save') ready(); return result; };
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 6, kind: 'flashcard' });
+  await checkpoint;
+  expired = true;
+  t.mock.timers.tick(20 * 60 * 1000);
+  const done = await service.call('job.wait', { jobId: job.jobId });
+  assert.equal(done.status, 'complete', done.stage);
+  assert.equal(done.publication.added, 5);
+  assert.equal(done.publication.total, 6);
+  assert.match(done.stage, /budget|预算/);
+  assert.equal(afterBudget, 0);
+  assert.equal(done.draftId, undefined);
+  const state = await service.call('export');
+  assert.equal(state.decks.find(deck => deck.id === 'target').cards.length, 6);
+  assert.deepEqual(state.drafts.map(draft => draft.id), ['draft']);
+});
+
+test('budget finalization respects cancellation, target archival and stale review receipts', async t => {
+  for (const scenario of ['cancel', 'cancel-stopping', 'archive', 'stale']) await t.test(scenario, async sub => {
+    let saved, publishing, release;
+    const checkpoint = new Promise(resolve => { saved = resolve; });
+    const publication = new Promise(resolve => { publishing = resolve; });
+    const held = new Promise(resolve => { release = resolve; });
+    let authors = 0, extraCalls = 0, expired = false;
+    const model = withQualityStages(async (system, prompt) => system.startsWith('You author')
+      ? JSON.stringify({ title: 'Supplement', cards: Array.from({ length: JSON.parse(prompt.split('REQUEST DATA:\n')[1]).count }, (_, n) => card(`new-${n}`, 'p1')) })
+      : JSON.stringify({ issues: [], summary: 'Checked' }));
+    const service = await fixture(sub, async (system, prompt, execution) => {
+      if (expired) extraCalls++;
+      if (system.startsWith('You author') && ++authors === 2)
+        return new Promise((resolve, reject) => execution.signal.addEventListener('abort', () => reject(execution.signal.reason), { once: true }));
+      return model(system, prompt);
+    });
+    const call = service.call.bind(service);
+    service.call = async (action, args) => {
+      if (action === 'draft.publish') { publishing(); await held; }
+      const result = await call(action, args);
+      if (action === 'draft.save') saved();
+      return result;
+    };
+    sub.mock.timers.enable({ apis: ['setTimeout'] });
+    const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 6, kind: 'flashcard' });
+    await checkpoint;
+    expired = true;
+    sub.mock.timers.tick(20 * 60 * 1000);
+    if (scenario === 'cancel-stopping') {
+      await service.call('job.cancel', { jobId: job.jobId });
+      release();
+    } else await publication;
+    if (scenario === 'cancel') await service.call('job.cancel', { jobId: job.jobId });
+    if (scenario === 'archive') await service.call('deck.archive', { id: 'target', archived: true });
+    if (scenario === 'stale') await service.store.update(state => {
+      const draft = state.drafts.find(item => item.id !== 'draft');
+      draft.cards[0].explanation += ' Changed after review.';
+    });
+    release();
+    const done = await service.call('job.wait', { jobId: job.jobId });
+    const state = await service.call('export');
+    assert.equal(extraCalls, 0, 'deadline recovery must never start a publication model review');
+    assert.equal(state.decks.find(deck => deck.id === 'target').cards.length, scenario === 'stale' ? 5 : 1);
+    if (scenario === 'stale') {
+      assert.equal(done.publication.added, 4);
+      assert.equal(done.publication.rejected, 1);
+      assert.ok(state.drafts.some(draft => draft.id === done.publication.remainingDraftId));
+    } else assert.equal(done.status, scenario.startsWith('cancel') ? 'cancelled' : 'failed');
+  });
+});
+
+test('original generation collects all phase output in the plugin and sends only its final notice', async t => {
+  const executions = [], notices = [];
+  const model = withQualityStages(async system => system.startsWith('You author')
+    ? JSON.stringify({ title: 'Original', cards: [card('new', 'p1')] }) : JSON.stringify({ issues: [] }));
+  const service = await fixture(t, (system, prompt, execution) => {
+    executions.push(execution); return model(system, prompt);
+  });
+  service.notify = notice => notices.push(notice);
+  const job = await service.call('generate', { sourceIds: ['p1'], count: 1, kind: 'flashcard' });
+  const done = await service.call('job.wait', { jobId: job.jobId });
+  assert.equal(done.status, 'complete');
+  assert.ok(executions.every(execution => execution.resultOwner === 'plugin'));
+  assert.equal(notices.length, 1);
+  assert.ok(done.draftId, 'explicit draft generation still creates a draft');
+});
+
 test('supplement retains a checkpoint and reports failure when the target is archived during generation', async t => {
   let service;
   const model = withQualityStages(async system => {

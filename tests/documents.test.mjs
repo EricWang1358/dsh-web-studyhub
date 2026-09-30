@@ -137,9 +137,9 @@ test("a fabricated citation costs its own card, and the sound ones are kept", as
   const result = await generateDeck(withQualityStages(complete), { count: 2, kind: "flashcard", sources: [source], allowPartial: true });
   assert.equal(result.cards.length, 1, "the card whose quote is not in the source is dropped");
   assert.equal(result.editorial.dropped, 1);
-  assert.equal(calls, 4, "author, review, repair and independent review of changed cards; unchanged receipts are retained");
+  assert.equal(calls, 2, "author and one independent review; passing cards finish immediately");
 
-  // Unresolved deck-level defects must survive the repairer's self approval.
+  // Unattributed defects cannot be safely assigned to a passing card.
   await assert.rejects(generateDeck(
     withQualityStages(async (system) => JSON.stringify(
       system.includes("editor") ? { issues: ["Unsupported answer"] } : { title: "Lecture", cards: [card(1), bad] })),
