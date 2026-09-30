@@ -46,7 +46,19 @@ function persist(state) {
   memory = structuredClone(state);
 }
 export class Store {
-  constructor(root = '/demo') { this.root = root; }
+  constructor(root = '/demo') { this.root = root; this.collections = new Set(fields); }
+  registerCollection(name) { this.collections.add(name); return () => {}; }
+  scoped(names) {
+    const own = state => Object.fromEntries(names.map(name => [name, structuredClone(state[name] ?? (this.collections.has(name) ? [] : undefined))]));
+    return Object.freeze({
+      read: async () => { const state = await this.read(); return { revision: state.revision, ...own(state) }; },
+      update: fn => this.update(async state => {
+        const subset = own(state), result = await fn(subset);
+        for (const name of names) state[name] = subset[name];
+        return result;
+      }),
+    });
+  }
   async read() { return readState(); }
   async stamp() { return String(readState().revision); }
   async update(fn) {

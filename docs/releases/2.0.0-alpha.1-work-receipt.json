@@ -1,0 +1,507 @@
+{
+  "status": "complete",
+  "plan_path": "docs/plans/2026-10-01-studyhub-v2-alpha-plan.md",
+  "changed_files": [
+    "CHANGELOG.md",
+    "docs/architecture.md",
+    "docs/releases/2.0.0-alpha.1-validation.md",
+    "docs/releases/2.0.0-alpha.1-work-receipt.json",
+    "lib/audio-batch.js",
+    "lib/audio-job.js",
+    "lib/contexts/audio/api.js",
+    "lib/contexts/audio/index.js",
+    "lib/contexts/audio/operations.js",
+    "lib/contexts/bank/api.js",
+    "lib/contexts/bank/index.js",
+    "lib/contexts/bank/operations.js",
+    "lib/contexts/bank/publication.js",
+    "lib/contexts/generation/contracts.js",
+    "lib/contexts/generation/index.js",
+    "lib/contexts/generation/jobs.js",
+    "lib/contexts/generation/operations.js",
+    "lib/contexts/generation/selection.js",
+    "lib/contexts/legacy-materials/index.js",
+    "lib/contexts/legacy-materials/operations.js",
+    "lib/contexts/materials/contracts.js",
+    "lib/contexts/materials/files.js",
+    "lib/contexts/materials/operations.js",
+    "lib/contexts/materials/positions.js",
+    "lib/contexts/study/index.js",
+    "lib/contexts/study/operations.js",
+    "lib/contexts/system/index.js",
+    "lib/contexts/system/operations.js",
+    "lib/contexts/transition/index.js",
+    "lib/contexts/transition/operations.js",
+    "lib/generation.js",
+    "lib/host.js",
+    "lib/index.js",
+    "lib/legacy-kernel.js",
+    "lib/live-job.js",
+    "lib/plugins/audio.js",
+    "lib/plugins/bank.js",
+    "lib/plugins/composition.js",
+    "lib/plugins/generation.js",
+    "lib/plugins/materials.js",
+    "lib/plugins/runtime.js",
+    "lib/plugins/study.js",
+    "lib/plugins/workbench.js",
+    "lib/runtime.js",
+    "lib/runtime/builtins.js",
+    "lib/runtime/legacy-registration.js",
+    "lib/runtime/lifecycle.js",
+    "lib/runtime/tools.js",
+    "lib/runtime/work-ownership.js",
+    "lib/service.js",
+    "lib/store.js",
+    "package-lock.json",
+    "package.json",
+    "README.md",
+    "scripts/build-demo.mjs",
+    "scripts/fake-model.mjs",
+    "scripts/release-alpha.mjs",
+    "tests/audio-batch.test.mjs",
+    "tests/audio-v2.test.mjs",
+    "tests/bank-v2.test.mjs",
+    "tests/document-preview.test.mjs",
+    "tests/generation-lifecycle.test.mjs",
+    "tests/host.test.mjs",
+    "tests/materials-v2.test.mjs",
+    "tests/plugin-composition.test.mjs",
+    "tests/portable-materials-backup.test.mjs",
+    "tests/runtime-contracts.test.mjs",
+    "tests/selection-learning.test.mjs",
+    "tests/selection-runtime.test.mjs",
+    "tests/store-extensions.test.mjs",
+    "ui/App.jsx",
+    "ui/CitationDisclosure.jsx",
+    "ui/document-preview/document-preview.css",
+    "ui/document-preview/DocumentImport.jsx",
+    "ui/document-preview/DocumentLearning.jsx",
+    "ui/document-preview/DocumentViewer.jsx",
+    "ui/document-preview/native.jsx",
+    "ui/document-preview/selection.js",
+    "ui/host.jsx",
+    "ui/Sources.jsx",
+    "ui/transport.js",
+    "web-demo/store.js",
+    "web-demo/unavailable.js"
+  ],
+  "u_ids_attempted": [
+    "U1",
+    "U2",
+    "U3",
+    "U4",
+    "U5",
+    "U6",
+    "U7",
+    "U8",
+    "U9"
+  ],
+  "u_ids_completed": [
+    "U1",
+    "U2",
+    "U3",
+    "U4",
+    "U5",
+    "U6",
+    "U7",
+    "U8"
+  ],
+  "verification_results": {
+    "full": {
+      "passed": 742,
+      "failed": 0,
+      "skipped": 0,
+      "lint": "passed",
+      "build": "passed",
+      "scope": "before final narrow failure cleanup"
+    },
+    "final_audio_cleanup": {
+      "tests": 21,
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0,
+      "lint": "passed",
+      "additional_regressions": 2
+    },
+    "packaging": {
+      "status": "passed",
+      "archives": 7,
+      "physical_copy_composition": "passed"
+    },
+    "browser_report": "docs/releases/2.0.0-alpha.1-validation.md"
+  },
+  "verification_evidence": [
+    {
+      "unit": "U1",
+      "task": "Runtime and owned persistence",
+      "behavior_changed": true,
+      "existing_tests_inspected": [
+        "tests/store.test.mjs",
+        "tests/host.test.mjs"
+      ],
+      "tests_added_or_changed": [
+        "tests/runtime-contracts.test.mjs",
+        "tests/store-extensions.test.mjs"
+      ],
+      "tests_used_unchanged": [
+        "tests/store.test.mjs",
+        "tests/host.test.mjs"
+      ],
+      "red_failure_or_characterization": "Reported regressions cover unknown legacy collections, invalid persisted descriptors and rollback after collection/scoped-port failure. Root also reproduced invalid acquisition and registration failure before repairing lifecycle cleanup.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        }
+      ],
+      "exception_reason": null
+    },
+    {
+      "unit": "U2",
+      "task": "Bank publication and compatibility",
+      "behavior_changed": true,
+      "existing_tests_inspected": [
+        "tests/core.test.mjs",
+        "tests/publication-context.test.mjs"
+      ],
+      "tests_added_or_changed": [
+        "tests/bank-v2.test.mjs"
+      ],
+      "tests_used_unchanged": [
+        "tests/core.test.mjs",
+        "tests/publication-context.test.mjs"
+      ],
+      "red_failure_or_characterization": "Existing-deck append, version conflict, operation replay and participant cancellation were characterized against persisted state; original cards and review records remain unchanged. Historical worker red-before observations beyond the returned summary are unverified.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        }
+      ],
+      "exception_reason": null
+    },
+    {
+      "unit": "U3",
+      "task": "Study context extraction",
+      "behavior_changed": true,
+      "existing_tests_inspected": [
+        "tests/main-context.test.mjs",
+        "tests/assist-host.test.mjs",
+        "tests/core.test.mjs"
+      ],
+      "tests_added_or_changed": [],
+      "tests_used_unchanged": [
+        "tests/main-context.test.mjs",
+        "tests/assist-host.test.mjs",
+        "tests/core.test.mjs"
+      ],
+      "red_failure_or_characterization": "Existing practice, grading, scheduling and same-question assistance tests were used unchanged as behavior characterization for physical extraction. No new scheduling policy was introduced.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        }
+      ],
+      "exception_reason": null
+    },
+    {
+      "unit": "U4",
+      "task": "Materials and portable originals",
+      "behavior_changed": true,
+      "existing_tests_inspected": [
+        "tests/documents.test.mjs",
+        "tests/store.test.mjs"
+      ],
+      "tests_added_or_changed": [
+        "tests/materials-v2.test.mjs",
+        "tests/portable-materials-backup.test.mjs"
+      ],
+      "tests_used_unchanged": [
+        "tests/documents.test.mjs",
+        "tests/store.test.mjs"
+      ],
+      "red_failure_or_characterization": "Worker-reported original/revision/selection regressions and root HTML resource/format-identity checks validate four formats, ambiguity, stale positions and backup originals. Root reproduced materials-only links failure before repairing optional bank discovery.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        }
+      ],
+      "exception_reason": null
+    },
+    {
+      "unit": "U5",
+      "task": "Selection generation and atomic append",
+      "behavior_changed": true,
+      "existing_tests_inspected": [
+        "tests/generation-agent.test.mjs",
+        "tests/agent-batch.test.mjs"
+      ],
+      "tests_added_or_changed": [
+        "tests/selection-learning.test.mjs",
+        "tests/selection-runtime.test.mjs",
+        "tests/generation-lifecycle.test.mjs"
+      ],
+      "tests_used_unchanged": [
+        "tests/generation-agent.test.mjs",
+        "tests/agent-batch.test.mjs"
+      ],
+      "red_failure_or_characterization": "Root reproduced committed-receipt replay failure after model removal and then verified no extra completion calls. Request-runtime unload cancellation was repaired and checked against actual queued publication with a surviving sibling owner.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        }
+      ],
+      "exception_reason": null
+    },
+    {
+      "unit": "U6",
+      "task": "Independent audio and checkpoint recovery",
+      "behavior_changed": true,
+      "existing_tests_inspected": [
+        "tests/audio-batch.test.mjs",
+        "tests/audio.test.mjs"
+      ],
+      "tests_added_or_changed": [
+        "tests/audio-v2.test.mjs",
+        "tests/audio-batch.test.mjs"
+      ],
+      "tests_used_unchanged": [
+        "tests/audio-batch.test.mjs",
+        "tests/audio.test.mjs"
+      ],
+      "red_failure_or_characterization": "Actual Windows pressure reproduced 4/48 EPERM checkpoint failures; bounded retry then passed 48/48 including three actual recoveries. Deterministic regression exhausts manifest replacements after result persistence, clears ordinary cache, restarts and proves the completed member is reused. Dynamic materials availability was red then green without losing audioResults.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        },
+        {
+          "command": "node --test tests/audio-batch.test.mjs",
+          "result": "21/21 passed after two final failure-cleanup regressions; changed-file lint passed"
+        }
+      ],
+      "exception_reason": null
+    },
+    {
+      "unit": "U7",
+      "task": "Native and workbench document learning",
+      "behavior_changed": true,
+      "existing_tests_inspected": [
+        "tests/app-render.test.mjs",
+        "tests/review-ui.test.mjs"
+      ],
+      "tests_added_or_changed": [
+        "tests/document-preview.test.mjs"
+      ],
+      "tests_used_unchanged": [
+        "tests/app-render.test.mjs",
+        "tests/review-ui.test.mjs"
+      ],
+      "red_failure_or_characterization": "The sole native CUA driver exercised four formats, actual pointer selection, fake grounded ask/review/append, current explanations and persisted backlink roundtrip. Native PDF to TXT navigation clears the old capture. Exact deferred destination-read navigation timing and live external providers are explicitly unverified.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        }
+      ],
+      "exception_reason": "Live credentials unavailable; exact asynchronous browser race not exercised. See browser report."
+    },
+    {
+      "unit": "U8",
+      "task": "Plugin composition and disposal",
+      "behavior_changed": true,
+      "existing_tests_inspected": [
+        "tests/host.test.mjs"
+      ],
+      "tests_added_or_changed": [
+        "tests/plugin-composition.test.mjs",
+        "tests/host.test.mjs"
+      ],
+      "tests_used_unchanged": [
+        "tests/host.test.mjs"
+      ],
+      "red_failure_or_characterization": "Actual Cordis and physical copies verify deduplication, reference ownership, partial acquisition rollback and final disposal. Root reproduced first-owner configuration capture before verifying the surviving workbench uses its own library root.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        }
+      ],
+      "exception_reason": null
+    },
+    {
+      "unit": "U9",
+      "task": "Release packaging and documentation",
+      "behavior_changed": true,
+      "existing_tests_inspected": [],
+      "tests_added_or_changed": [],
+      "tests_used_unchanged": [],
+      "red_failure_or_characterization": "Seven freshly installed archives expose their declared contexts without development dependencies or a model. The first materials-only archive smoke failed; the narrow wrapper fix was repacked and all seven installers passed. Final artifacts are checked again after the last recovery changes.",
+      "verification": [
+        {
+          "command": "npm run verify",
+          "result": "742 passed, 0 failed, 0 skipped; lint and build passed before final narrow audio cleanup"
+        }
+      ],
+      "exception_reason": "Installer and file-identity checks verify packaging; no implementation-mirroring unit test was added."
+    }
+  ],
+  "implementation_engine_binding": null,
+  "requested_route": {
+    "target": "codex",
+    "harness": "native collaboration tools",
+    "intermediaries": []
+  },
+  "actual_route": {
+    "target": "codex",
+    "harness": "native collaboration tools",
+    "intermediaries": []
+  },
+  "requested_model": "inherited",
+  "actual_model": "unverified",
+  "requested_effort": null,
+  "fallback_reason": null,
+  "run_id": null,
+  "source_kind": "plan",
+  "source_digest": "654bdb43a22f26aa86bcffea990c3db5ad921e8cfec30de70cd30bab23d972bc",
+  "unit_receipts": [
+    {
+      "unit": "U1",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "authoritative full verification passed; final audio cleanup separately verified",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    },
+    {
+      "unit": "U2",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "authoritative full verification passed; final audio cleanup separately verified",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    },
+    {
+      "unit": "U3",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "authoritative full verification passed; final audio cleanup separately verified",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    },
+    {
+      "unit": "U4",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "authoritative full verification passed; final audio cleanup separately verified",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    },
+    {
+      "unit": "U5",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "authoritative full verification passed; final audio cleanup separately verified",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    },
+    {
+      "unit": "U6",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "authoritative full verification passed; final audio cleanup separately verified",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    },
+    {
+      "unit": "U7",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "authoritative full verification passed; final audio cleanup separately verified",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    },
+    {
+      "unit": "U8",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "authoritative full verification passed; final audio cleanup separately verified",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    },
+    {
+      "unit": "U9",
+      "route": {
+        "target": "codex",
+        "harness": "native collaboration tools",
+        "intermediaries": []
+      },
+      "model": "unverified",
+      "detached_process": false,
+      "integration": "canonical workspace integrated",
+      "verification": "packaging verified; exact-commit CI and publication remain caller-owned",
+      "canonical_commit": null,
+      "cleanup": "no unit worktree; worker implementation ended; outer caller owns final commit and QA server cleanup"
+    }
+  ],
+  "caller_owned_tail": [
+    "U9: exact-commit Ubuntu/Windows CI, GitHub prerelease publication and remote artifact verification"
+  ],
+  "plan_checkpoint": "04c1f255130f86cfee3c0507c057768f96f7f9a7",
+  "blockers": [],
+  "recovery_path": null,
+  "settled_decision_conflicts": [],
+  "behavior_change": true,
+  "standalone_shipping_skipped": true
+}

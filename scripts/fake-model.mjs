@@ -13,6 +13,28 @@ export function createFakeModel({ latencyMs = 0, log = [] } = {}) {
     } catch {
       data = {};
     }
+    if (system.startsWith('Plan a source-grounded assessment')) {
+      const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      return JSON.stringify({ targets: Array.from({ length: request.count }, (_, index) => ({
+        objective: `Preview architecture target ${index + 1}`, answerBoundary: 'Only the selected evidence',
+        comparisonAxis: 'Role of design constraints', misconception: 'Architecture only describes current components',
+        contextNeeded: 'The named architectural principle', answerability: { mode: 'recall', requiredContextAvailable: true,
+          answerOnlyInSourceList: false, criteriaWouldRevealAnswer: false },
+        citations: [{ sourceId: request.sources[0].id, quote: request.sources[0].text.slice(0, 70) }],
+      })) });
+    }
+    if (system.startsWith('You author rigorous study material')) {
+      const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      return JSON.stringify({ deck: { title: 'Selected passage · preview fixture', cards: Array.from({ length: request.count }, (_, index) => ({
+        id: `preview-selection-${index + 1}`, kind: request.kind, topic: 'Architectural decisions', objective: `Preview principle target ${index + 1}`,
+        prompt: `How do architectural principles constrain design and later evolution? (Preview ${index + 1})`,
+        answer: 'They guide design decisions and subsequent changes.', hint: 'Compare a description with a constraint on permitted changes.',
+        explanation: 'The selected statement places principles in architecture and connects them with design and evolution, so they constrain both initial choices and later changes. Preview fixture; no real model judgment.',
+        misconception: 'Architecture only names existing components.', citations: [{ sourceId: request.sources[0].id, quote: request.sources[0].text.slice(0, 70) }],
+      })) }, changes: [], checks: [] });
+    }
+    if (system.startsWith('Answer the learner question using only the selected source evidence'))
+      return `预览示例回答（未调用真实模型）：选段「${data.selection?.quote || ''}」提供了依据。可结合相邻文字检查设计原则如何约束后续变化。`;
     if (system.startsWith("Repair one draft card"))
       return JSON.stringify({ card: { ...data.card,
         prompt: "What do architectural principles guide during design and later evolution?",

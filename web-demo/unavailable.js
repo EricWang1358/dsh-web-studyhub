@@ -10,8 +10,9 @@ export const rename = unavailable, copyFile = unavailable, mkdtemp = unavailable
 export const MAX_PDF_BYTES = 8 * 1024 * 1024, MAX_REQUEST_BYTES = 12 * 1024 * 1024;
 export const join = (...parts) => parts.join('/');
 export const basename = p => p.split(/[\\/]/).pop();
+export const dirname = p => String(p).replace(/[\\/][^\\/]*$/, '') || '.';
 export const extname = p => /\.[^./\\]+$/.exec(p)?.[0] || '';
 export const isAbsolute = p => p.startsWith('/') || /^[A-Z]:/i.test(p);
 export const relative = (a,b) => b;
 export const win32 = { basename };
-export default { join, basename, extname, isAbsolute, relative, win32, request: unavailable };
+export default { join, basename, dirname, extname, isAbsolute, relative, win32, request: unavailable };

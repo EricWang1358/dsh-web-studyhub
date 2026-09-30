@@ -30,7 +30,10 @@ test('Study chat tools and commands resolve sessions under real Cordis injection
     ctx.provide('connection', { fetch: { register: route => { routes.push(route); return () => {}; } } });
   });
   await root.plugin(plugin);
-  assert.equal(tools.length, 1);
+  assert.equal(tools.filter(tool => tool.name === 'study_workspace').length, 1);
+  for (const name of ['study_capabilities', 'study_bank', 'study_materials', 'study_generate_selection', 'study_practice', 'study_audio'])
+    assert.ok(tools.some(tool => tool.name === name), `${name} must expose its bounded domain`);
+  assert.equal(tools[0].name, 'study_workspace');
   for (const action of ['settings', 'map', 'source.list']) {
     const result = await tools[0].execute({ action, payload_json: '{}' }, { agent });
     assert.ok(result && typeof result === 'object', `${action} must resolve its session`);

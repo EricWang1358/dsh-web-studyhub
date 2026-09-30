@@ -137,7 +137,7 @@ export default function Sources({ data, busy, act, setModal, sourceForm, openAge
       {!data.sources.length ? (
         <div className="empty">
           <h2>{ui("还没有资料")}</h2>
-          <p>{ui("支持 PDF、粘贴文本、Markdown 和 TXT 文件。")}</p>
+          <p>{ui("支持 PDF、Markdown、HTML、TXT 与粘贴文本。")}</p>
           {sourceForm}
         </div>
       ) : (
@@ -181,7 +181,7 @@ export default function Sources({ data, busy, act, setModal, sourceForm, openAge
                           {s.usedBy?.length ? uiFormat(' · 用于 {0}', [s.usedBy.map(deck => deck.title).join(' · ')]) : ''}</small>
                         <small>
                           {s.text.length.toLocaleString()}{ui(" 字符 ·")}{" "}
-                          {s.document ? (s.document.extractionVersion === 2 ? ui("排版提取 v2 · ") : ui("旧版提取，建议重新导入 · ")) : ""}
+                          {s.document?.format && s.document.format !== 'pdf' ? `${s.document.format.toUpperCase()} · ` : s.document ? (s.document.extractionVersion === 2 ? ui("排版提取 v2 · ") : ui("旧版提取，建议重新导入 · ")) : ""}
                           {s.document?.warnings?.length ? ui("排版待核对 · ") : ""}
                           {s.audio ? uiFormat("音频转写 · 校对 {0} 处 · ", [s.audio.corrections?.appliedCount ?? 0]) : ""}
                           {s.text.slice(0, 80)}

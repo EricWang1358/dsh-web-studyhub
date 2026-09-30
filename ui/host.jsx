@@ -5,6 +5,8 @@ import css from "./style.css";
 import bridgeCss from "./panel-bridge.css";
 import audioDashboardCss from './audio-dashboard.css';
 import { createStudyCall } from "./transport.js";
+import { registerDocumentLearning } from './document-preview/native.jsx';
+import { sessionFileAddress } from './document-preview/selection.js';
 export const inject = ["slots", "locale"];
 // A run handed from the main view to the right sidebar (session id → run id).
 const handoff = new Map(),
@@ -63,6 +65,16 @@ class StudyBoundary extends React.Component {
 }
 
 export function apply(ctx) {
+  const makeCall = sessionId => createStudyCall({ rpc: { call: (...args) => {
+    const connection = ctx.get('connection');
+    if (!connection?.rpc) throw new Error('Study connection is unavailable');
+    return connection.rpc.call(...args);
+  } } }, sessionId);
+  registerDocumentLearning(ctx, makeCall, async (sessionId, link) => {
+    const run = await makeCall(sessionId)('review.start', { mode: 'path', fresh: true,
+      scope: [{ deckId: link.deckId, cardId: link.cardId }] });
+    deliverRun(sessionId, run.id); ctx.get('sidebarRight')?.openTab('study-workspace');
+  });
   ctx.effect(
     () =>
       ctx.locale.register("study-workspace", {
@@ -167,6 +179,7 @@ export function apply(ctx) {
         modelGroups: catalog?.value?.groups,
         sessionModel: current?.current || catalog?.value?.default,
         openAgent: (id) => ctx.get("sessions")?.open(id),
+        openDocument: path => ctx.get('sidebarRight')?.openResource(sessionFileAddress(sessionId, path)),
         // Cross-workspace jump: create a new conversation in the notebook's
         // own workspace and select it; the study tab there opens that library.
         // Throws at call time when the host lacks the sessions create face.

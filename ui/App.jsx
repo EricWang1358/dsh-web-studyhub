@@ -4,7 +4,6 @@ import { submitAssist } from "./assist-request.js";
 import { uiLocale } from "./i18n.js";
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import StudyMap from "./StudyMap.jsx";
-import Markdown from "./Markdown.jsx";
 import Guide from "./Guide.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
@@ -19,10 +18,11 @@ import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
 import Generate from "./Generate.jsx";
-import PdfImport from "./PdfImport.jsx";
+import DocumentImport from './document-preview/DocumentImport.jsx';
+import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
-import AudioImport, { AudioCorrections } from "./AudioImport.jsx";
+import AudioImport from "./AudioImport.jsx";
 import AudioDashboard from './AudioDashboard.jsx';
 import LiveClass from "./LiveClass.jsx";
 import Draft from "./Draft.jsx";
@@ -134,7 +134,6 @@ export default function App({ call: transportCall, host = {} }) {
   useInjectCss(localeCss, 'study-language');
   useInjectCss(css, "study-coach");
   const rootRef = useRef(null),
-    markRef = useRef(null),
     requestSequence = useRef(0),
     acting = useRef(false),
     libraryEpoch = useRef(0),
@@ -330,7 +329,6 @@ export default function App({ call: transportCall, host = {} }) {
   }, [showEn]);
   const [genSource, setGenSource] = useState("json");
   const [showBack, setShowBack] = useState(false),
-    [rawSource, setRawSource] = useState(false),
     [settings, setSettings] = useState({}),
     [flag, setFlag] = useState(""),
     [teaching, setTeaching] = useState(null),
@@ -610,15 +608,6 @@ export default function App({ call: transportCall, host = {} }) {
       previous?.focus?.();
     };
   }, [modal]);
-  // A citation lands on the quoted passage inside the source modal.
-  useEffect(() => {
-    if (modal?.type !== "source" || !modal.quote) return;
-    const t = setTimeout(
-      () => markRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }),
-      60,
-    );
-    return () => clearTimeout(t);
-  }, [modal, rawSource]);
   async function act(action, args = {}, after, { refreshAfter = true, rethrow = false } = {}) {
     if (acting.current) return;
     const operation = {}, epoch = libraryEpoch.current;
@@ -1296,7 +1285,7 @@ export default function App({ call: transportCall, host = {} }) {
     ? setModal(current => ({ ...current, course })) : setSourceCourses(course);
   const sourceForm = (
     <>
-    <PdfImport key={data?.root} data={data} courseText={sourceFormCourse} onCourseTextChange={changeSourceFormCourse} busy={busy} act={act} onImported={(ids) => setSelectedSources(ids)} />
+    <DocumentImport key={data?.root} busy={busy} act={act} courses={parseCourses(sourceFormCourse)} onImported={ids => setSelectedSources(ids)} />
     <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} />
     <form
       onSubmit={(e) => {
@@ -2216,7 +2205,7 @@ export default function App({ call: transportCall, host = {} }) {
               </form>
             ) : (
               <>
-                {modal.quote && (
+                {modal.quote && !modal.source && (
                   <blockquote className="highlight-quote">
                     {modal.quote}
                   </blockquote>
@@ -2232,58 +2221,8 @@ export default function App({ call: transportCall, host = {} }) {
                       rememberContext(); setSelectedSources([modal.source.id]); setGen(current => ({ ...current, course: undefined }));
                       setGenSource('files'); setModal(null); setPage('generate');
                     }}>{ui('从这份资料补题')}</button>
-                    <AudioCorrections audio={modal.source.audio} />
-                    {!modal.source.document && !modal.source.audio && <div className="source-view-toggle">
-                      <button
-                        className={rawSource ? "chip" : "chip active"}
-                        aria-pressed={!rawSource}
-                        onClick={() => setRawSource(false)}
-                      >{ui("排版")}</button>
-                      <button
-                        className={rawSource ? "chip active" : "chip"}
-                        aria-pressed={rawSource}
-                        onClick={() => setRawSource(true)}
-                      >{ui("原文")}</button>
-                    </div>}
-                    {(() => {
-                      const text = modal.source.text,
-                        quote = modal.quote || "",
-                        at = quote ? text.indexOf(quote) : -1,
-                        // Transcripts wrap like prose; extracted PDF text keeps its layout.
-                        plainClass = modal.source.audio ? "source-text transcript-text"
-                          : modal.source.document ? "source-text pdf-extracted-text" : "source-text";
-                      if (at < 0)
-                        return rawSource || modal.source.document || modal.source.audio ? (
-                          <pre className={plainClass}>{text}</pre>
-                        ) : (
-                          <Markdown
-                            className="source-text source-md"
-                            text={text}
-                          />
-                        );
-                      // The quote is verbatim-validated, so slicing the
-                      // source at it keeps the passage exactly once on screen.
-                      const hit = (
-                        <mark className="source-hit" ref={markRef}>
-                          {quote}
-                        </mark>
-                      );
-                      if (rawSource || modal.source.document || modal.source.audio)
-                        return (
-                          <pre className={plainClass}>
-                            {text.slice(0, at)}
-                            {hit}
-                            {text.slice(at + quote.length)}
-                          </pre>
-                        );
-                      return (
-                        <div className="source-text source-md">
-                          <Markdown text={text.slice(0, at)} />
-                          {hit}
-                          <Markdown text={text.slice(at + quote.length)} />
-                        </div>
-                      );
-                    })()}
+                    <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
+                      onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }} />
                   </>
                 ) : (
                   <p className="muted">{ui("无法找到此资料。")}</p>

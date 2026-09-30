@@ -4,7 +4,13 @@ import { selfCitedCardCount } from "../lib/source-provenance.js";
 
 export default function CitationDisclosure({ card, sources = [], onOpenSource }) {
   const [open, setOpen] = React.useState(false);
-  const citations = card?.citations || [];
+  const selections = card?.selections || [];
+  const selectionKey = s => JSON.stringify([s?.documentId, s?.revision, s?.sourceId, s?.start, s?.end, s?.quote]);
+  const citations = (card?.citations || []).map(citation => ({ ...citation,
+    selection: citation.selection || selections.find(selection => selection.sourceId === citation.sourceId && selection.quote === citation.quote) }));
+  for (const selection of selections) {
+    if (!citations.some(citation => citation.selection && selectionKey(citation.selection) === selectionKey(selection))) citations.push({ sourceId: selection.sourceId, quote: selection.quote, selection });
+  }
   if (!citations.length) return null;
   const sourceById = new Map(sources.map((source) => [source.id, source]));
   const selfCited = selfCitedCardCount([card], sources) > 0;
@@ -16,7 +22,7 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource })
           {citations.map((citation, index) => {
             const source = sourceById.get(citation.sourceId);
             return <button type="button" key={index}
-              onClick={() => onOpenSource(source, citation.quote)}>
+              onClick={() => onOpenSource(source && citation.selection ? { ...source, selection: citation.selection } : source, citation.quote)}>
               ↗ {source?.title || ui("资料")}
               <blockquote>{citation.quote}</blockquote>
             </button>;

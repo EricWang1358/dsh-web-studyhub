@@ -8,7 +8,7 @@ await mkdir(resolve(target, 'dist'), {recursive:true});
 const browserService = {
   name: 'browser-study-service',
   setup(b) {
-    b.onResolve({ filter: /(^|\/)store\.js$/ }, args => args.importer.endsWith('lib/service.js') || args.importer.endsWith('lib\\service.js')
+    b.onResolve({ filter: /(^|\/)store\.js$/ }, args => /[\\/]lib[\\/](?:service|runtime|legacy-kernel)\.js$/.test(args.importer)
       ? {path:resolve(root,'web-demo/store.js')} : null);
     b.onResolve({ filter: /^node:crypto$/ }, () => ({path:resolve(root,'web-demo/crypto.js')}));
     b.onResolve({ filter: /^node:fs\/promises$/ }, args => ({path:resolve(root,/[\\/]board\.js$/.test(args.importer)?'web-demo/files.js':'web-demo/unavailable.js')}));

@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
-import { batchDocuments, readAudioBatch } from '../lib/audio-batch.js';
+import { batchDocuments, readAudioBatch, saveAudioBatch } from '../lib/audio-batch.js';
 import { checkpoints } from '../lib/audio-import.js';
 import { storeDocuments } from '../lib/audio-job.js';
 
@@ -23,6 +26,42 @@ test('BOM-prefixed audio manifests and checkpoints remain readable without rewri
   await writeFile(join(directory, 'checkpoint.json'), raw, 'utf8');
   assert.deepEqual(await checkpoints(directory).get('checkpoint.json'), value);
   assert.equal(await readFile(join(directory, 'manifest.json'), 'utf8'), raw);
+});
+
+for (const failure of ['exhausted replacement', 'partial write']) test(`a normal ${failure} failure cleans its temporary file and preserves the committed audio manifest`, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'audio-manifest-cleanup-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const batch = { id: 'audio-cleanup-001', status: 'queued', members: [] };
+  const directory = join(root, 'audio-batches', batch.id), file = join(directory, 'manifest.json');
+  await mkdir(directory, { recursive: true });
+  await saveAudioBatch(root, batch);
+  const committed = await readFile(file, 'utf8'), originalRename = fs.promises.rename, originalWrite = fs.promises.writeFile;
+  const fault = Object.assign(new Error(failure), { code: failure === 'partial write' ? 'ENOSPC' : 'EPERM' });
+  let remaining = Infinity, attempts = 0;
+  fs.promises.rename = async (from, to) => {
+    if (failure === 'exhausted replacement' && to === file && remaining > 0) { remaining--; attempts++; throw fault; }
+    return originalRename(from, to);
+  };
+  fs.promises.writeFile = async (path, value, options) => {
+    if (failure === 'partial write' && String(path).startsWith(`${file}.`) && remaining > 0) {
+      remaining--; attempts++; await originalWrite(path, value.slice(0, 8), options); throw fault;
+    }
+    return originalWrite(path, value, options);
+  };
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(saveAudioBatch(root, { ...batch, status: 'complete' }), error => error === fault);
+    assert.equal(attempts, failure === 'exhausted replacement' ? 8 : 1);
+    assert.equal(await readFile(file, 'utf8'), committed);
+    assert.deepEqual(await readdir(directory), ['manifest.json'], 'the rejected write must leave no temporary file');
+    remaining = failure === 'exhausted replacement' ? 2 : 0;
+    await saveAudioBatch(root, { ...batch, status: 'complete' });
+    assert.equal((await readAudioBatch(root, batch.id)).status, 'complete');
+    assert.deepEqual(await readdir(directory), ['manifest.json']);
+    assert.equal(attempts, failure === 'exhausted replacement' ? 10 : 1);
+  } finally {
+    fs.promises.rename = originalRename; fs.promises.writeFile = originalWrite; syncBuiltinESMExports();
+  }
 });
 const reply = text => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: {} }));
 export function wav(fill) {
@@ -180,6 +219,11 @@ test('a fresh process recovers an interrupted uploaded batch without automatic m
     proc.on('error', reject); proc.on('close', code => code ? reject(new Error(err || out)) : resolve(JSON.parse(out.trim())));
   });
   const first = await child('interrupt');
+  // Completed members written before the checkpoint envelope remain reusable.
+  const legacyPath = join(root, 'audio-batches', first.batchId, 'result-0.json');
+  const legacyResult = JSON.parse(await readFile(legacyPath, 'utf8'));
+  delete legacyResult.checkpoint;
+  await writeFile(legacyPath, JSON.stringify(legacyResult), 'utf8');
   const second = await child('resume');
   assert.equal(second.before.status, 'failed');
   assert.equal(second.before.id, first.jobId);
@@ -191,6 +235,127 @@ test('a fresh process recovers an interrupted uploaded batch without automatic m
   assert.deepEqual(second.sources[0].audio.batch.members.map(m => m.filename), ['A.wav', 'B.wav']);
   assert.deepEqual(second.sources[0].courses, ['Frozen A']);
   assert.equal(second.oldFailureLetters, 0);
+});
+
+test('transient Windows manifest replacement failures preserve the finished member before process interruption', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'audio-batch-replacement-')), root = join(dir, 'library');
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const preload = `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
+    const rename = fs.promises.rename; let denied = 0;
+    fs.promises.rename = async (from, to) => {
+      if (String(to).endsWith('manifest.json') && denied < 2) {
+        const value = JSON.parse(await fs.promises.readFile(from, 'utf8'));
+        if (value.members?.[0]?.status === 'complete') {
+          denied++; throw Object.assign(new Error('Transient Windows sharing violation'), { code: 'EPERM' });
+        }
+      }
+      return rename(from, to);
+    }; syncBuiltinESMExports();`;
+  const child = mode => new Promise((resolve, reject) => {
+    const proc = spawn(process.execPath, [
+      ...(mode === 'interrupt' ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : []),
+      fileURLToPath(new URL('./fixtures/audio-batch-process.mjs', import.meta.url)), root, mode,
+    ], { env: { ...process.env, DSH_HOME: join(dir, 'home') }, windowsHide: true });
+    let out = '', err = '';
+    proc.stdout.on('data', data => { out += data; }); proc.stderr.on('data', data => { err += data; });
+    proc.on('error', reject); proc.on('close', code => code ? reject(new Error(err || out)) : resolve(JSON.parse(out.trim())));
+  });
+  await child('interrupt');
+  const recovered = await child('resume');
+  assert.equal(recovered.before.retryable, true);
+  assert.equal(recovered.callsBeforeRetry, 0);
+  assert.equal(recovered.done.status, 'complete', recovered.done.stage);
+  assert.deepEqual(recovered.transcribed, ['B'], 'the persisted first member must not be transcribed again');
+  assert.equal(recovered.sources.length, 1);
+});
+
+async function orphanedBatch(t) {
+  const dir = await mkdtemp(join(tmpdir(), 'audio-batch-orphan-')), root = join(dir, 'library');
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const preload = `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
+    const rename = fs.promises.rename; let denied = 0;
+    fs.promises.rename = async (from, to) => {
+      if (String(to).endsWith('manifest.json')) {
+        const value = JSON.parse(await fs.promises.readFile(from, 'utf8'));
+        if (value.members?.[0]?.status === 'complete') {
+          if (++denied === 8) setImmediate(() => {
+            process.stdout.write(JSON.stringify({ jobId: value.job.id, batchId: value.id, denied }));
+            process.exit(0);
+          });
+          throw Object.assign(new Error('Persistent Windows sharing violation'), { code: 'EPERM' });
+        }
+      }
+      return rename(from, to);
+    }; syncBuiltinESMExports();`;
+  const child = mode => new Promise((resolve, reject) => {
+    const proc = spawn(process.execPath, [
+      ...(mode === 'interrupt' ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : []),
+      fileURLToPath(new URL('./fixtures/audio-batch-process.mjs', import.meta.url)), root, mode,
+    ], { env: { ...process.env, DSH_HOME: join(dir, 'home') }, windowsHide: true });
+    let out = '', err = '';
+    proc.stdout.on('data', data => { out += data; }); proc.stderr.on('data', data => { err += data; });
+    proc.on('error', reject); proc.on('close', code => code ? reject(new Error(err || out)) : resolve(JSON.parse(out.trim())));
+  });
+  const first = await child('interrupt'), batchDir = join(root, 'audio-batches', first.batchId);
+  assert.equal(first.denied, 8, 'the completed-result write succeeded but every manifest replacement failed');
+  const manifest = JSON.parse(await readFile(join(batchDir, 'manifest.json'), 'utf8'));
+  assert.equal(manifest.members[0].status, 'queued');
+  const resultPath = join(batchDir, 'result-0.json'), result = JSON.parse(await readFile(resultPath, 'utf8'));
+  assert.ok(result.documents.length);
+  // Reuse must come from the fully completed member result, even without the ordinary transcript cache.
+  await rm(join(root, 'audio-cache'), { recursive: true, force: true });
+  return { root, child, manifest, result, resultPath };
+}
+
+test('a restart recovers the completed member result after exhausted manifest replacement without new model cost', async t => {
+  const { root, child, manifest, result } = await orphanedBatch(t);
+  const recovered = await child('resume');
+  assert.equal(recovered.callsBeforeRetry, 0);
+  assert.equal(recovered.done.status, 'complete', recovered.done.stage);
+  assert.deepEqual(recovered.transcribed, ['B'], 'a durable complete orphan result must not transcribe A again');
+  const first = recovered.done.members[0], second = recovered.done.members[1];
+  assert.equal(first.reused, true);
+  assert.equal(first.status, 'complete');
+  assert.deepEqual(first.usage, result.meta.usage);
+  assert.ok(first.usage.paid.requests > 0, 'the completed attempt retains its original cost');
+  assert.equal(recovered.done.usage.paid.requests, first.usage.paid.requests + second.usage.paid.requests);
+  assert.equal(recovered.done.usageRun.paid.requests, second.usageRun.paid.requests, 'the resumed run pays only for B');
+  assert.equal(recovered.sources.length, 1);
+  assert.deepEqual(recovered.sources[0].audio.usage, recovered.done.usage);
+  const persisted = await readAudioBatch(root, manifest.id);
+  assert.equal(persisted.members[0].status, 'complete');
+  assert.deepEqual(persisted.members[0].progress.usage, first.usage);
+});
+
+for (const invalid of ['corrupt JSON', 'changed transcript', 'wrong member identity', 'empty documents']) test(`an orphan result with ${invalid} is reprocessed instead of published`, async t => {
+  const { child, result, resultPath } = await orphanedBatch(t);
+  if (invalid === 'corrupt JSON') await writeFile(resultPath, '{', 'utf8');
+  else if (invalid === 'changed transcript') {
+    result.documents[0] = 'An unrelated transcript with an invalid integrity digest.';
+    await writeFile(resultPath, JSON.stringify(result), 'utf8');
+  }
+  else {
+    if (invalid === 'wrong member identity') result.checkpoint.index = 1;
+    else result.documents = [];
+    const { checkpoint, ...payload } = result, { digest: _digest, ...metadata } = checkpoint;
+    checkpoint.digest = createHash('sha256').update(JSON.stringify({ result: payload, checkpoint: metadata })).digest('hex');
+    await writeFile(resultPath, JSON.stringify(result), 'utf8');
+  }
+  const recovered = await child('resume');
+  assert.equal(recovered.done.status, 'complete', recovered.done.stage);
+  assert.deepEqual(recovered.transcribed, ['A', 'B']);
+  assert.equal(recovered.sources.length, 1);
+  assert.ok(recovered.sources[0].text.includes('A.wav'));
+});
+
+test('orphan result recovery still rejects a changed original recording before any model call or publication', async t => {
+  const { child, manifest } = await orphanedBatch(t);
+  await writeFile(manifest.members[0].path, wav(3));
+  const recovered = await child('resume');
+  assert.equal(recovered.done.status, 'failed');
+  assert.match(recovered.done.stage, /文件已改变/);
+  assert.deepEqual(recovered.transcribed, []);
+  assert.equal(recovered.sources.length, 0);
 });
 
 test('failed second member retries without transcribing or translating the first again', async t => {
