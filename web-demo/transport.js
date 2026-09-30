@@ -4,11 +4,22 @@ import { normalizeAssistRequest } from '../lib/assist.js';
 import { demoModel } from './model.js';
 import { sampleCards } from './content.js';
 import { getUiLanguage } from '../ui/i18n.js';
+import { summarizeAudioUsage } from '../lib/audio-dashboard.js';
+import { AUDIO_DEFAULTS, publicAudioSettings } from '../lib/audio-settings.js';
 const service=new StudyService('/demo',{complete:demoModel,coach:true});
 const jobs=[];
 const assist=[];
 const message=()=>getUiLanguage()==='en'?'This feature needs the installed plugin. Use the built-in sample material in this static demo.':'此功能需要安装插件，静态体验版请使用内置示例资料。';
 export async function call(action,args={}) {
+  if (['audio.usage', 'audio.settings.get', 'audio.settings.set'].includes(action)) {
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem('daily-flashcard-demo-audio-settings') || '{}'); } catch { /* defaults */ }
+    if (action === 'audio.settings.set') {
+      for (const field of ['proofreadReasoning', 'translateReasoning', 'dailyLimits']) if (args[field] !== undefined) saved[field] = args[field];
+      localStorage.setItem('daily-flashcard-demo-audio-settings', JSON.stringify(saved));
+    }
+    const settings = { ...AUDIO_DEFAULTS, ...saved };
+    return action === 'audio.usage' ? summarizeAudioUsage([], settings) : publicAudioSettings(settings);
+  }
   if(action.startsWith('audio.')||action.startsWith('live.'))throw new Error(message());
   if(action==='binding.get')return {root:'/demo',rootSource:'workspace',workspaceRoot:'/demo',provider:'demo',model:'preset',modelSource:'session',route:{provider:'demo',model:'preset'}};
   if(action==='binding.set')throw new Error(message());

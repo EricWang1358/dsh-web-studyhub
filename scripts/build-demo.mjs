@@ -11,7 +11,7 @@ const browserService = {
     b.onResolve({ filter: /(^|\/)store\.js$/ }, args => args.importer.endsWith('lib/service.js') || args.importer.endsWith('lib\\service.js')
       ? {path:resolve(root,'web-demo/store.js')} : null);
     b.onResolve({ filter: /^node:crypto$/ }, () => ({path:resolve(root,'web-demo/crypto.js')}));
-    b.onResolve({ filter: /^node:fs\/promises$/ }, args => ({path:resolve(root,args.importer.endsWith('board.js')?'web-demo/files.js':'web-demo/unavailable.js')}));
+    b.onResolve({ filter: /^node:fs\/promises$/ }, args => ({path:resolve(root,/[\\/]board\.js$/.test(args.importer)?'web-demo/files.js':'web-demo/unavailable.js')}));
     b.onResolve({ filter: /^node:(fs|http|https|child_process)$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onResolve({ filter: /^node:path$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onResolve({ filter: /^(node:os|proper-lockfile)$/ }, () => ({path:resolve(root,'web-demo/files.js')}));

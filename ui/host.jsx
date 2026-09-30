@@ -3,6 +3,7 @@ import React from "react";
 import App from "./App.jsx";
 import css from "./style.css";
 import bridgeCss from "./panel-bridge.css";
+import audioDashboardCss from './audio-dashboard.css';
 import { createStudyCall } from "./transport.js";
 export const inject = ["slots", "locale"];
 // A run handed from the main view to the right sidebar (session id → run id).
@@ -73,7 +74,7 @@ export function apply(ctx) {
   const t = ctx.locale.bind("study-workspace");
   ctx.effect(() => {
     const el = document.createElement("style");
-    el.textContent = css + "\n" + bridgeCss;
+    el.textContent = css + "\n" + bridgeCss + '\n' + audioDashboardCss;
     document.head.appendChild(el);
     return () => el.remove();
   }, "study styles");

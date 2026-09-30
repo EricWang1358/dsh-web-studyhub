@@ -24,7 +24,7 @@ test('fast correction reasoning uses low when supported and reports actual cache
   assert.equal(configs[0].maxOutputTokens, 4096);
   assert.equal(tiers.summary().free.cachedInputTokens, 80);
   await tiers.complete('gemini-2.5-flash', 's', 'p', { thinkingLevel: 'low' });
-  assert.equal(configs[1].thinkingConfig, undefined);
+  assert.deepEqual(configs[1].thinkingConfig, { thinkingBudget: 1024 });
   await tiers.complete('gemini-3.5-flash-lite', 's', 'p', { thinkingLevel: 'default' });
   assert.equal(configs[2].thinkingConfig, undefined);
   let calls = 0;

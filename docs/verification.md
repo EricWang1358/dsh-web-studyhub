@@ -1,5 +1,14 @@
 # Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
+## 2026-09-30 — 1.4.1 audio usage and resource management
+
+- `npm run verify`: lint, 636 tests (0 failures, 0 skips), and native client/standalone build passed. `npm run build:demo` passed separately.
+- The packed 1.4.1 artifact passed 31 tests against its extracted runtime: real Cordis injection, publication semantics, provider usage accounting, reasoning fallback, privacy, and bounded streaming aggregation. A 10,000-request ledger plus oversized and incomplete records was checked without retaining individual requests.
+- Browser checks covered 1440 px and 320 px layouts, no horizontal overflow, independent reasoning grid/select synchronization, settings persistence after reload, empty quota state, and both light and dark themes. Visual fixture data was synthetic; the interactive demo exposes no account usage or keys.
+- Desktop installation reports 1.4.1. Installed client, dashboard, entry point, and service hashes match the release artifact. Reloading the desktop host remains necessary to activate it; no active host tasks were interrupted.
+- Usage refresh pauses while hidden and removes its timer/listener on unmount. Ledger retention is 31 days, request-body copying is avoided, and failed recoverable audio tasks retain their manifest while releasing model/service closures.
+- No paid API requests, real audio transcription, microphone session, or learner-library mutations were performed for this release. Gemini quota is a local estimate against a user-entered model limit; Groq remaining quota is displayed only while response headers are valid. Live audio and host-token usage are excluded.
+
 ## 2026-09-27 learning-workflow design
 
 This change writes the [system-learning plan](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md), the [before/after workflow](study-workflows.md#proposed-system-learning), related documentation boundaries and a [handoff](handoffs/2026-09-27-learning-workflow-redesign.md). It does not implement the planned feature.

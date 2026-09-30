@@ -23,6 +23,7 @@ import PdfImport from "./PdfImport.jsx";
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
 import AudioImport, { AudioCorrections } from "./AudioImport.jsx";
+import AudioDashboard from './AudioDashboard.jsx';
 import LiveClass from "./LiveClass.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
@@ -2005,6 +2006,7 @@ export default function App({ call: transportCall, host = {} }) {
                   <button onClick={() => setPage("sources")}>{language === "en" ? "View sources" : "查看资料"}</button></div></div>
               <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources}
                 recoveryJobId={legacyAudioJobId} onRecoveryChange={setLegacyAudioJobId} />
+              <AudioDashboard call={call} />
             </section>}
             {page === "generate" && (
               <Generate

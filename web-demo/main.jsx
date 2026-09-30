@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../ui/style.css';
+import '../ui/audio-dashboard.css';
 import App from '../ui/App.jsx';
 import { setUiLanguage, useUiLanguage } from '../ui/i18n.js';
 import { call } from './transport.js';

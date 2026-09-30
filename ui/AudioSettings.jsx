@@ -1,5 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useState } from "react";
+import AudioReasoning from './AudioReasoning.jsx';
 
 /* 音频转写设置：Gemini 免费密钥 → Groq（可选）→ Gemini 付费密钥，按这个顺序用。
    密钥只写入用户目录下的 audio.json，不进学习库、备份或快照；这里只能看到
@@ -50,6 +51,7 @@ export default function AudioSettings({ busy, act, call, setNotice }) {
           onClick={() => act("audio.test", {}, setReport, { refreshAfter: false })}>{ui("验证密钥")}</button>
         {report && <p role="status">{ui("免费密钥：")}{REPORT(report.free)}{ui(" · Groq 密钥：")}{REPORT(report.groq)}{ui(" · 付费密钥：")}{REPORT(report.paid)}</p>}
       </form>
+      <AudioReasoning settings={view} busy={busy} onSave={save} />
       <details>
         <summary>{ui("高级")}</summary>
         {modelField('liveModel', '课堂实时转写模型')}

@@ -183,6 +183,8 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
             <small>{ui(TASK_STATUS[task.status] || task.status)}{ui(RUNTIME[task.runtime] || "")}
               {task.finishedAt ? uiFormat(" · {0}", [spent(Date.parse(task.finishedAt) - Date.parse(task.startedAt))]) : uiFormat(" · 已等待 {0}", [spent(now - Date.parse(task.startedAt))])}</small>
             {task.note && <small className="warning">{task.note}</small>}
+            {task.reasoning && <small>{getUiLanguage() === 'en' ? 'Reasoning: ' : '推理：'}{task.reasoning}
+              {task.reasoningEffort && task.reasoningEffort !== task.reasoning ? ` → ${task.reasoningEffort}` : ''}</small>}
             <OpenAgent task={task} openAgent={openAgent} />
           </li>)}</ol>
         </details>}

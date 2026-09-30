@@ -56,3 +56,23 @@ Open questions: none blocking; validate against mixed graphs and narrow viewport
 ## Final interaction choices
 
 The default canvas stays on the shared graph. A compact node mode is automatic above 12 concepts; attributes are a reader-controlled option, never removed from details. Pane width determines orientation independently of browser width. Focus on narrow panes uses a vertical neighbourhood with side-routed long links. Small maps locate parts of the whole; search and the named component selector provide the textual navigation.
+
+# Audio usage console
+
+DIRECTED: extend the existing warm ink study workspace.
+
+LIKES: the user wants a striking dashboard, visible free quota and independent time/quality choices.
+NON-NEGOTIABLES: real API data, clearly labelled estimates, compact memory use, narrow desktop panes.
+
+INTENT: see daily quota and control processing depth within five seconds.
+CORE IDEA: a compact instrument console, with a quota dial and precise counters.
+COMPOSITION: daily free quota first; provider rails, seven-day trend, then independent processing controls.
+TYPE: existing UI font; tabular numbers, one large metric and quiet factual labels.
+DENSITY: grouped details with generous separation between usage and controls.
+SHAPE: one outer panel; unboxed provider rails and small square depth controls.
+COLOR: jade for Gemini free, blue for Groq, cinnabar for paid requests and selected controls.
+MATERIAL: existing flat ink surfaces, with matching light theme tokens.
+IMAGERY: none; the data is the visual subject.
+MOTION: no idle animation; keyboard and pointer interactions remain immediate.
+INTERACTION: inspect quota, enter a known Gemini RPD, choose independent proofreading/translation depth.
+RESTRAINT: no made-up balances, quality scores, chart libraries or decorative chart motion.
