@@ -166,6 +166,127 @@ test('authorized supplementation generates and resumes into exact active target 
     await assert.rejects(service.call('generate', { sourceIds: ['p1'], count: 1, mergeTargetId }), /不存在|not found|归档|普通题组/);
 });
 
+test('supplement finishes in the exact deck without a leftover draft or phase output in the parent session', async t => {
+  const executions = [], notices = [];
+  const model = withQualityStages(async system => system.startsWith('You author')
+    ? JSON.stringify({ title: 'Supplement', cards: [card('added', 'p1')] })
+    : JSON.stringify({ issues: [], summary: 'Checked' }));
+  const service = await fixture(t, (system, prompt, execution) => {
+    if (execution) executions.push(execution);
+    return model(system, prompt);
+  });
+  service.notify = notice => notices.push(notice);
+  const before = await service.call('export');
+  const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 1, kind: 'flashcard' });
+  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  assert.equal(done.status, 'complete');
+  assert.equal(done.publication.deckId, 'target');
+  assert.equal(done.publication.added, 1);
+  assert.equal(done.publication.total, 2);
+  assert.equal(done.publication.remainingDraftId, null);
+  assert.equal(done.draftId, undefined, 'published jobs must not point to a removed checkpoint');
+  const after = await service.call('export');
+  assert.deepEqual(after.drafts.map(d => d.id), before.drafts.map(d => d.id));
+  assert.equal(after.decks.length, before.decks.length);
+  assert.deepEqual(after.decks.find(d => d.id === 'target').cards[0], before.decks.find(d => d.id === 'target').cards[0]);
+  assert.deepEqual(after.attempts, before.attempts);
+  assert.ok(executions.length);
+  assert.ok(executions.every(e => e.resultOwner === 'plugin'));
+  assert.equal(notices.length, 1);
+  assert.match(notices[0].text, /target/);
+  assert.doesNotMatch(notices[0].text, /草稿里审阅或发布/);
+});
+
+test('supplement requires an exact active target before any model call', async t => {
+  let calls = 0;
+  const service = await fixture(t, async () => { calls++; return '{}'; });
+  for (const deckId of [undefined, '', 'missing', 'archive'])
+    await assert.rejects(service.call('supplement', { sourceIds: ['p1'], count: 1, deckId }));
+  assert.equal(calls, 0);
+});
+
+test('supplement retains a checkpoint and reports failure when the target is archived during generation', async t => {
+  let service;
+  const model = withQualityStages(async system => {
+    if (system.startsWith('You author')) {
+      await service.call('deck.archive', { id: 'target', archived: true });
+      return JSON.stringify({ title: 'Supplement', cards: [card('added', 'p1')] });
+    }
+    return JSON.stringify({ issues: [], summary: 'Checked' });
+  });
+  service = await fixture(t, model);
+  const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 1, kind: 'flashcard' });
+  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  assert.equal(done.status, 'failed');
+  assert.equal(done.publication, undefined);
+  const state = await service.call('export');
+  assert.equal(state.decks.find(d => d.id === 'target').cards.length, 1);
+  assert.ok(state.drafts.some(d => d.id === done.draftId));
+});
+
+test('supplement refuses duplicate questions already in the target instead of reporting them as added', async t => {
+  const model = withQualityStages(async system => system.startsWith('You author')
+    ? JSON.stringify({ title: 'Supplement', cards: [{ ...card('original', 'p1'), id: 'copy' }] })
+    : JSON.stringify({ issues: [], summary: 'Checked' }));
+  const service = await fixture(t, model);
+  const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 1, kind: 'flashcard' });
+  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  assert.equal(done.status, 'failed');
+  assert.equal(done.publication.added, 0);
+  assert.equal(done.publication.deckId, null);
+  assert.equal((await service.call('export')).decks.find(d => d.id === 'target').cards.length, 1);
+});
+
+test('supplement cancellation stops publication and reports no additions', async t => {
+  let started, release;
+  const entered = new Promise(resolve => { started = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const model = withQualityStages(async system => {
+    if (system.startsWith('You author')) {
+      started(); await gate;
+      return JSON.stringify({ title: 'Supplement', cards: [card('added', 'p1')] });
+    }
+    return JSON.stringify({ issues: [], summary: 'Checked' });
+  });
+  const service = await fixture(t, model);
+  const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 1, kind: 'flashcard' });
+  await entered;
+  await service.call('job.cancel', { jobId: job.jobId });
+  release();
+  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  assert.equal(done.status, 'cancelled');
+  assert.equal(done.publication, undefined);
+  assert.equal((await service.call('export')).decks.find(d => d.id === 'target').cards.length, 1);
+});
+
+test('partial supplementation returns the remaining checkpoint instead of the removed original draft', async t => {
+  const model = withQualityStages(async system => system.startsWith('You author')
+    ? JSON.stringify({ title: 'Supplement', cards: [card('added', 'p1'), { ...card('original', 'p1'), id: 'copy' }] })
+    : JSON.stringify({ issues: [], summary: 'Checked' }));
+  const service = await fixture(t, model);
+  const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 2, kind: 'flashcard' });
+  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  assert.equal(done.status, 'complete');
+  assert.equal(done.publication.added, 1);
+  assert.equal(done.publication.rejected, 1);
+  assert.equal(done.publication.total, 2);
+  assert.equal(done.draftId, done.publication.remainingDraftId);
+  assert.equal(done.draft.cards, 1);
+  const state = await service.call('export');
+  assert.ok(state.drafts.some(d => d.id === done.draftId));
+  assert.equal(state.decks.length, 4);
+});
+
+test('strict publication keeps unreviewed questions out of the target when review fails', async t => {
+  const service = await fixture(t, async () => { throw new Error('model unavailable'); });
+  const draft = await service.call('draft.get', { id: 'draft' });
+  const result = await service.call('draft.publish', { id: draft.id, draftVersion: draft.draftVersion,
+    mergeTargetId: 'target', requireReviewed: true });
+  assert.equal(result.id, null);
+  assert.equal(result.accepted, 0);
+  assert.equal((await service.call('export')).decks.find(d => d.id === 'target').cards.length, 1);
+});
+
 test('large catalogs stay paged, audio volumes remain grouped, and recorded/inferred/unknown timestamps stay distinct', async t => {
   const service = await fixture(t);
   await service.store.update(s => {

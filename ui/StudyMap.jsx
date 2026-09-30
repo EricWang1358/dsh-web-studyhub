@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LEVEL_LABEL } from "./shared.js";
 import GenerationTrace, { generationStage } from "./GenerationTrace.jsx";
 import { reviewedCardStatus } from "../lib/review-integrity.js";
-import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
+import { isActiveJob, visibleGenerationJobs, supplementJobLabel } from "./job-visibility.js";
 import focusCss from "./focus.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
@@ -910,6 +910,7 @@ export default function StudyMap({
           </div>
           {visibleJobs.map((j) => {
             const incomplete = !['draft-repair', 'draft-publish'].includes(j.type) && j.status === 'complete' && j.requestedTotal > 0 && (j.savedCount ?? 0) < j.requestedTotal;
+            const supplement = j.type === 'supplement' ? supplementJobLabel(j) : null;
             return <div className={"job " + (incomplete ? 'partial' : j.status)} key={j.id}>
               <span>
                 {j.status === "running" || j.status === "cancelling" ? "◌"
@@ -920,7 +921,7 @@ export default function StudyMap({
               </span>
               <div className="job-content">
                 <strong>
-                  {j.type === "draft-publish"
+                  {supplement ? uiFormat(supplement.text, supplement.args || []) : j.type === "draft-publish"
                     ? j.status === "queued" ? ui("发布检查排队中") : j.status === "running" ? ui("正在检查并发布题组")
                       : j.status === "failed" ? ui("发布未完成") : j.rejected
                         ? j.accepted ? ui("已发布部分题目") : ui("题目未通过发布检查") : ui("题组已发布")
@@ -942,7 +943,7 @@ export default function StudyMap({
                 <small>{generationStage(j.stage)}</small>
                 {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
                 {cancelJob && j.type !== "draft-publish" && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>{ui("停止任务，保留草稿")}</button>}
-                {retryGeneration && !["draft-repair", "draft-publish"].includes(j.type) && ["failed", "cancelled"].includes(j.status) &&
+                {retryGeneration && !["draft-repair", "draft-publish", "supplement"].includes(j.type) && ["failed", "cancelled"].includes(j.status) &&
                   !j.draftId && <button type="button" disabled={busy} onClick={() => retryGeneration(j)}>{ui("按原资料重新设置")}</button>}
               </div>
               <div className="job-actions">

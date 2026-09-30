@@ -1,5 +1,13 @@
 # Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
+## 2026-09-30 — authorized supplementation (not yet released)
+
+- Added `supplement`: reviewed generation and publication into one exact active deck, with plugin-owned phase results and a final persisted added/total receipt. Ordinary `generate` still creates a draft.
+- Full suite passed 643 tests, no failures/skips, with test concurrency 4; lint and native/standalone builds passed. The earlier default-concurrency run hit an existing audio recovery fixture time limit; the focused audio recovery rerun passed without changing its timeout or assertions.
+- After that run, the completed job's stale checkpoint pointer was removed, partial publication was checked against its new remaining checkpoint ID, and task labels were verified. All 14 final main-context/job-visibility tests passed; lint/build passed again. The final added partial-publication case was not included in the 643-test run.
+- Regression coverage includes exact target validation before model work, no leftover draft after full success, unchanged original cards/history, archival during generation, duplicates, cancellation, failed independent review, and partial publication receipts. Review/simplification was limited to the fix's files; unrelated untracked files remain untouched.
+- Only isolated fixture libraries and fake model responses were used. No learner library was changed, no model API requests were sent, and the already published/installed 1.4.1 artifact was not replaced. Activation requires a later package update.
+
 ## 2026-09-30 — 1.4.1 audio usage and resource management
 
 - `npm run verify`: lint, 636 tests (0 failures, 0 skips), and native client/standalone build passed. `npm run build:demo` passed separately.

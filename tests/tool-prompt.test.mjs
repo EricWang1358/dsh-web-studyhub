@@ -12,6 +12,9 @@ test('actual registered Study prompts are short, discoverable and retain authori
   assert.ok(studyToolDescription.length < 21715 / 2, 'Full evaluated description is less than half the prior 21715 characters');
   assert.ok(studyToolDescription.length + studyUsagePrompt.length < 6000);
   assert.match(studyToolDescription, /library.context/);
+  assert.match(studyToolDescription, /supplement/);
+  assert.match(libraryContracts.generation, /authorizes local generation and publication/);
+  assert.match(libraryContracts.generation, /zero direct citations is not a gap/);
   for (const area of Object.keys(libraryContracts)) {
     assert.ok(studyToolDescription.includes(area), `${area} is discoverable`);
     assert.ok(libraryContracts[area].length < 6000, `${area} can be read as bounded detail`);
