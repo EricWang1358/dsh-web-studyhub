@@ -1,12 +1,22 @@
 # Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
-## 2026-09-30 — authorized supplementation (not yet released)
+## 2026-09-30 — 1.4.2 release checks
+
+- Final suite: 651 passed, zero failures/skips, concurrency 4; lint, native/standalone build and static demo build passed. Evidence: `output/release-1.4.2-final-verify.log` and `output/release-1.4.2-demo-build.log`.
+- Extracted release runtime: 92 checks passed, zero failures/skips, including real Cordis injection, target publication, supplementation, malformed model JSON, self-contained stems, BOM-prefixed files, damaged-shard isolation and recovery. Evidence: `output/release-1.4.2-package-smoke.log`.
+- Desktop reports 1.4.2. Eleven installed files match the extracted artifact, including the client, service, generation, assessment, storage and audio readers. Profile configuration was backed up; active host processes were not restarted. Reloading after active tasks finish activates the update.
+- Invalid model string control characters are repaired locally without another model call. Stored JSON only permits a leading UTF-8 BOM; unrelated corruption is reported. Damaged shard content remains on disk; healthy records can be viewed, writes and full export are blocked, and repairing the shard recovers on the next snapshot without changing the manifest. Normal polling keeps its cached path, including the in-memory demo store.
+- The supplied note-dependent stem is rejected by deterministic validation even if a model declares it acceptable. These rules cover future generation and publication, not automatic rewriting of existing learner questions.
+- A BOM-prefixed audio checkpoint was backed up under the library's `backups/` directory and normalized by removing only its three-byte UTF-8 file header. A previously observed BOM-prefixed source shard had already been replaced by another writer before repair. The installed 1.4.1 reader subsequently read the current library successfully: 588 sources, 55 decks, one draft. This repair did not edit card or source content.
+- No paid model API calls were made. Model behaviors use controlled responses; real audio/model quality and in-process activation still require an actual host reload.
+
+## 2026-09-30 — authorized supplementation before packaging
 
 - Added `supplement`: reviewed generation and publication into one exact active deck, with plugin-owned phase results and a final persisted added/total receipt. Ordinary `generate` still creates a draft.
 - Full suite passed 643 tests, no failures/skips, with test concurrency 4; lint and native/standalone builds passed. The earlier default-concurrency run hit an existing audio recovery fixture time limit; the focused audio recovery rerun passed without changing its timeout or assertions.
 - After that run, the completed job's stale checkpoint pointer was removed, partial publication was checked against its new remaining checkpoint ID, and task labels were verified. All 14 final main-context/job-visibility tests passed; lint/build passed again. The final added partial-publication case was not included in the 643-test run.
 - Regression coverage includes exact target validation before model work, no leftover draft after full success, unchanged original cards/history, archival during generation, duplicates, cancellation, failed independent review, and partial publication receipts. Review/simplification was limited to the fix's files; unrelated untracked files remain untouched.
-- Only isolated fixture libraries and fake model responses were used. No learner library was changed, no model API requests were sent, and the already published/installed 1.4.1 artifact was not replaced. Activation requires a later package update.
+- At this earlier implementation stage, only isolated fixture libraries and fake model responses were used. No learner library was changed, no model API requests were sent, and the published/installed 1.4.1 artifact had not yet been replaced. The subsequent 1.4.2 installation and file-header repair are recorded above.
 
 ## 2026-09-30 — 1.4.1 audio usage and resource management
 
