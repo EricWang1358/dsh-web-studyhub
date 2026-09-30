@@ -14,6 +14,25 @@ import { applyCorrections } from '../lib/transcript.js';
 const settings = { ...AUDIO_DEFAULTS, freeKey: 'AIza_test_free_00000000000000', paidKey: 'AIza_test_paid_00000000000000', groqKey: 'gsk_test_00000000000000000000' };
 const request = (tier, at, extra = {}) => ({ type: 'request', tier, keyId: keyId(settings[`${tier}Key`]), at, model: settings.transcribeModel, status: 200, ...extra });
 const now = Date.parse('2026-09-30T12:00:00Z');
+
+test('concurrent Gemini replies report their own reasoning after independent fallback', async () => {
+  const reasoning = {}, held = [];
+  const tiers = new GeminiTiers({ keys: { paid: settings.paidKey }, fetch: async (url, init) => {
+    const body = JSON.parse(init.body), prompt = body.contents[0].parts[0].text;
+    if (prompt === 'fallback' && body.generationConfig?.thinkingConfig)
+      return new Response(JSON.stringify({ error: { message: 'unsupported thinking' } }), { status: 400 });
+    await new Promise(resolve => held.push({ prompt, resolve }));
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: prompt }] } }] }));
+  } });
+  const one = tiers.complete('gemini-3-flash', 'system', 'fallback', { thinkingLevel: 'high', onReasoning: value => { reasoning.fallback = value; } });
+  const two = tiers.complete('gemini-3-flash', 'system', 'accepted', { thinkingLevel: 'high', onReasoning: value => { reasoning.accepted = value; } });
+  for (let i = 0; i < 100 && held.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(held.length, 2);
+  held.find(item => item.prompt === 'accepted').resolve();
+  held.find(item => item.prompt === 'fallback').resolve();
+  assert.deepEqual(await Promise.all([one, two]), ['fallback', 'accepted']);
+  assert.deepEqual(reasoning, { accepted: 'high', fallback: 'default' });
+});
 async function home(t) {
   const root = await mkdtemp(join(tmpdir(), 'audio-dashboard-')), previous = process.env.DSH_HOME;
   process.env.DSH_HOME = root;

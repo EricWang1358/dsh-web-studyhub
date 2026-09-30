@@ -76,14 +76,17 @@ async function upload(service, name, bytes) {
   return { uploadId };
 }
 
-test('ordered batch publishes B then A even when A finishes first, with frozen courses and no partial sources', async t => {
-  const { service, a, b, held, wait } = await fixture(t, { hold: true });
+test('batch recordings run in submitted order, with frozen courses and no partial sources', async t => {
+  const { service, a, b, held, wait, calls } = await fixture(t, { hold: true });
   const started = await service.call('audio.import', { files: [{ path: b }, { path: a }], title: 'Week 3', courses: ['Course A'] });
-  await until(() => held.size === 2);
-  held.get('A')();
-  await until(async () => (await service.call('snapshot')).jobs.find(j => j.id === started.jobId)?.members?.[1].status === 'complete');
-  assert.equal((await service.call('snapshot')).sources.length, 0);
+  await until(() => held.has('B'));
+  assert.deepEqual(calls, ['transcribe:B']);
+  assert.ok(!held.has('A'));
   held.get('B')();
+  await until(() => held.has('A'));
+  assert.equal((await service.call('snapshot')).jobs.find(j => j.id === started.jobId).members[0].status, 'complete');
+  assert.equal((await service.call('snapshot')).sources.length, 0);
+  held.get('A')();
   const job = await wait(started);
   assert.equal(job.status, 'complete', job.stage);
   const state = await service.store.read(), source = state.sources[0];
@@ -95,7 +98,7 @@ test('ordered batch publishes B then A even when A finishes first, with frozen c
   assert.deepEqual(job.sourceIds, [source.id]);
 });
 
-test('batch members and single imports share the configured cap; cancelled work can resume', async t => {
+test('batch members and single imports share one slot; cancelled work can resume', async t => {
   const { service, a, b, calls, held, wait } = await fixture(t, { hold: true, limit: 1 });
   const batch = await service.call('audio.import', { files: [{ path: a }, { path: b }] });
   const single = await service.call('audio.import', { path: b });

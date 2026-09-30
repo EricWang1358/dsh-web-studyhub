@@ -1,5 +1,14 @@
 # Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
+## 2026-09-30 — 1.4.4 serial recordings and concurrent text windows
+
+- One process-owned FIFO recording slot is shared across libraries, single imports, batch members and live proofreading saves. Legacy recording concurrency is normalized to 1; text concurrency defaults to 3 and accepts only 2 or 3. There is no retained gate map per library.
+- Text windows run in bounded waves with stable prior-wave context. Successful windows checkpoint immediately, even when they finish out of order; results collect in source order, with a full proofreading barrier before translation. Fatal failures abort and settle sibling calls; cancellation starts no later wave and saved siblings remain reusable. Normal processing keeps the same number of model requests and reuses existing content checkpoints.
+- Focused fixtures exercised queue order, cross-library exclusion, service-level concurrent host child metadata/plugin ownership, 2/3 caps, reverse completion, monotonic progress, corrected text and prior terminology/title context, cancellation, fatal error recovery and legacy settings. Independent Gemini fallback records each concurrent request's actual reasoning.
+- Final suite: 660 passed, zero failures/skips, concurrency 4; lint, native/standalone build and static demo build passed. Evidence: `output/release-1.4.4-final-verify.log` and `output/release-1.4.4-demo-build.log`. Extracted runtime passed 116 checks, zero failures/skips, including the new concurrency and reasoning coverage: `output/release-1.4.4-package-smoke.log`.
+- Actual React settings browser fixture verified default 3, only 2/3 options, correct `textConcurrency` payload, persistence after reload and return to 3. Evidence: `output/playwright/audio-parallel/check.js` and `check.log`. The owned browser and fixture server were closed.
+- Desktop installation reports 1.4.4; 11 critical installed files match the package. Configuration was backed up; no host processes were restarted, no learner cards were changed and no paid model requests were made. Activation requires reloading DSH after active work completes. Model responses were controlled, so actual provider throughput and model quality were not benchmarked.
+
 ## 2026-09-30 — 1.4.3 scoped slay feedback
 
 - Fixed a permanently retained action notice: slay/restore confirmations now own the returned review card, run, page and library. A new card/page/library hides the notice immediately and removes its retained callback. Returning to the old card does not revive it; revision-only polls keep the immediate undo opportunity.

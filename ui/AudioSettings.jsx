@@ -71,11 +71,11 @@ export default function AudioSettings({ busy, act, call, setNotice }) {
         {view.textProvider !== 'host' && modelField('textModel', 'Gemini 文本模型')}
         {modelField('groqTranscribeModel', 'Groq 转写模型')}
         {view.textProvider !== 'host' && modelField('groqTextModel', 'Groq 文本模型')}
-        <label>{ui("同时处理几个录音")}
-          <select value={view.audioConcurrency ?? 2} disabled={busy} onChange={(e) => save({ audioConcurrency: Number(e.target.value) })}>
-            {[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count === 2 ? uiFormat("{0} 个（默认）", [count]) : uiFormat("{0} 个", [count])}</option>)}
+        <label>{ui("单条录音的校对与翻译并发数")}
+          <select value={view.textConcurrency ?? 3} disabled={busy} onChange={(e) => save({ textConcurrency: Number(e.target.value) })}>
+            {[2, 3].map((count) => <option key={count} value={count}>{count === 3 ? uiFormat("{0} 个（默认）", [count]) : uiFormat("{0} 个", [count])}</option>)}
           </select>
-          <small className="muted">{ui("多余的录音排队等候。同时处理的越多，越容易碰到免费密钥的每分钟限流（会自动等待或改用付费密钥）；同一个录音不会被同时转写两次。")}</small>
+          <small className="muted">{ui("录音逐个处理；单条录音内同时处理 2 或 3 个校对或翻译窗口，按原顺序合并，已完成的部分可以复用。并发越高，越容易触发每分钟限流。")}</small>
         </label>
         <label>{ui("每次请求最长")}
           <select value={view.partMinutes ?? 59} disabled={busy} onChange={(e) => save({ partMinutes: Number(e.target.value) })}>

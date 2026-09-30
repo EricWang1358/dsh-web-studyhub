@@ -215,7 +215,7 @@ test("the same failure twice in a row stops proofreading instead of spending on 
   const complete = async () => { calls++; throw new Error("upstream said no"); };
   await assert.rejects(finishTranscript({ paragraphs, filename: "a.mp3", complete, settings: {}, saved: checkpoints(), keys: { raw: "r", text: "t" } }),
     /校对第 2\/4 段失败：连续 2 段用同样的错误失败（upstream said no）.*接着做/);
-  assert.equal(calls, 4, "two windows, each asked twice, and no more");
+  assert.equal(calls, 6, "only the three already-started windows retry; no later wave starts");
 
   let toggle = 0;
   const varied = async () => { throw new Error(`failure ${toggle++}`); };
