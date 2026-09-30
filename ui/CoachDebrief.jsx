@@ -1,3 +1,4 @@
+import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
@@ -14,7 +15,8 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   const [debrief, setDebrief] = useState(initial || null),
     [status, setStatus] = useState(initial?.status || null),
     [error, setError] = useState(""),
-    [left, setLeft] = useState(null);
+    [left, setLeft] = useState(null),
+    [consent, setConsent] = useState({ busy: false, answer: null, error: "" });
   useEffect(() => {
     let live = true;
     call("coach.debrief", { runId: run.id })
@@ -40,7 +42,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   const next = ready ? "practice_prepared" : debrief?.next === "practice_prepared" ? (waiting ? "wait" : "continue_path") : debrief?.next;
   const action = next === "practice_prepared" ? onPractice
     : next === "review_weak" ? onReviewWeak : next === "continue_path" ? onContinue : null;
-  const label = next === "practice_prepared" ? `刷 ${ready} 道为你定制的题 →` : next === "review_weak" ? "先补薄弱点 →" : "继续学习 →";
+  const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题 →", [ready]) : next === "review_weak" ? ui("先补薄弱点 →") : ui("继续学习 →");
 
   // Autopilot: count down, then take the suggested step; any click cancels.
   const cancelled = useRef(false);
@@ -68,11 +70,26 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
     return () => window.removeEventListener("pointerdown", stop);
   }, []);
 
+  /* 定制题 need the learner's yes. The 陪学 column that used to ask is gone, so
+     the round's debrief asks once; the answer is kept and editable in 设置. */
+  async function answerConsent(prep) {
+    cancelled.current = true;
+    setLeft(null);
+    setConsent({ busy: true, answer: null, error: "" });
+    try {
+      setStatus(await call("coach.consent", { prep, runId: run.id }));
+      setConsent({ busy: false, answer: prep, error: "" });
+    } catch (e) {
+      setConsent({ busy: false, answer: null, error: e.message });
+    }
+  }
+  const askConsent = !!status?.enabled && status.consent === null && consent.answer === null;
+
   if (error && !debrief) return null;
   if (!debrief)
     return (
-      <div className="coach-debrief" aria-busy="true" aria-label="正在分析这一轮">
-        <div className="eyebrow">陪学 · 本轮分析</div>
+      <div className="coach-debrief" aria-busy="true" aria-label={ui("正在分析这一轮")}>
+        <div className="eyebrow">{ui("陪学 · 本轮分析")}</div>
         <div className="skeleton h" />
         <div className="skeleton l" />
         <div className="skeleton s" />
@@ -80,13 +97,13 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
     );
   const m = debrief.metrics || {};
   return (
-    <div className="coach-debrief" role="region" aria-label="本轮建议">
-      <div className="eyebrow">陪学 · 本轮建议</div>
+    <div className="coach-debrief" data-next={next} role="region" aria-label={ui("本轮建议")}>
+      <div className="eyebrow">{ui("陪学 · 本轮建议")}</div>
       <h2>{debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
       {(m.gradedAnswered > 0 || m.selfAnswered > 0) && <div className="coach-score-split">
-        {m.gradedAnswered > 0 && <span>客观题答对 <strong>{m.gradedCorrect}/{m.gradedAnswered}</strong></span>}
-        {m.selfAnswered > 0 && <span>自评达标 <strong>{m.selfMet}/{m.selfAnswered}</strong></span>}
+        {m.gradedAnswered > 0 && <span>{ui("客观题答对 ")}<strong>{m.gradedCorrect}/{m.gradedAnswered}</strong></span>}
+        {m.selfAnswered > 0 && <span>{ui("自评达标 ")}<strong>{m.selfMet}/{m.selfAnswered}</strong></span>}
       </div>}
       {m.answered > 0 && (
         <>
@@ -99,7 +116,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
             {LEVELS.map(([id, name]) => (
               <span key={id}>
                 <i className={"coach-levels-dot " + id} style={{ background: `var(--${id === "recall" ? "text-faint" : id === "concept" ? "info" : "ok"})` }} />
-                {name}达标 {m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0}/{m.levels?.[id]?.n || 0}
+                {ui(name)}{ui("达标 ")}{m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0}/{m.levels?.[id]?.n || 0}
               </span>
             ))}
           </div>
@@ -112,9 +129,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       )}
       <div className="coach-actions">
         {next === "wait" && (
-          <button className="primary" disabled>
-            正在为你备应用题…
-          </button>
+          <button className="primary" disabled>{ui("正在为你备应用题…")}</button>
         )}
         {action && (
           <button
@@ -125,17 +140,38 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
               action();
             }}
           >
-            {label}
+            {ui(label)}
           </button>
         )}
         {left !== null && left > 0 && (
-          <span className="coach-countdown" role="status">
-            自动驾驶：{left} 秒后执行 ·{" "}
-            <button className="coach-chip" onClick={() => { cancelled.current = true; setLeft(null); }}>取消</button>
+          <span className="coach-countdown" role="status">{ui("自动驾驶：")}{left}{ui(" 秒后执行 ·")}{" "}
+            <button className="coach-chip" onClick={() => { cancelled.current = true; setLeft(null); }}>{ui("取消")}</button>
           </span>
         )}
-        {next === "rest" && <span className="coach-countdown">今天到这儿就很好，明天按间隔回来复习。</span>}
+        {next === "rest" && <span className="coach-countdown">{ui("今天到这儿就很好，明天按间隔回来复习。")}</span>}
       </div>
+      {askConsent && (
+        <div className="coach-card coach-consent">
+          <p>{ui("要按这一轮给你备几道变式题和应用场景题吗？开启后，答错、自评没掌握或一轮结束时，后台会少量调用模型备题。")}</p>
+          <div className="coach-options">
+            <button className="coach-chip coach-yes" disabled={consent.busy} onClick={() => answerConsent(true)}>{ui("好，帮我备题")}</button>
+            <button className="coach-chip" disabled={consent.busy} onClick={() => answerConsent(false)}>{ui("先不用")}</button>
+          </div>
+          {consent.error && <p className="coach-consent-error" role="alert">{consent.error}</p>}
+        </div>
+      )}
+      {consent.answer === true && !ready && (
+        <p className="coach-consent-note" role="status">
+          {status?.preparing
+            ? ui("正在按这一轮备题，备好后这里会出现开刷按钮。")
+            : status?.tasks?.findLast((t) => t.kind === "prep")?.status === "failed"
+              ? ui("这次备题没成功，之后答错或一轮结束时会再试。")
+              : ui("这一轮没有要变式的题。之后答错、自评没掌握或标记太简单/太难时，会在后台备好。")}
+        </p>
+      )}
+      {consent.answer === false && (
+        <p className="coach-consent-note" role="status">{ui("好的，不备题。想开启时去 设置 › 陪学。")}</p>
+      )}
     </div>
   );
 }

@@ -4,7 +4,28 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
-import { notify } from "../lib/inbox.js";
+import { notify, inboxView, markRead } from "../lib/inbox.js";
+
+test("every counted unread letter stays visible beyond the recent history window", () => {
+  const state = { decks: [], inbox: Array.from({ length: 120 }, (_, i) => ({
+    id: `mail-${i}`, kind: "followup", cardId: `c-${i}`, read: i >= 60,
+  })) };
+  let view = inboxView(state);
+  assert.equal(view.unread, 60);
+  assert.equal(view.items.filter((item) => !item.read).length, view.unread);
+  assert.equal(view.items[0].id, "mail-59", "unread letters appear first, newest first");
+  markRead(state, { ids: state.inbox.slice(1, 60).map((item) => item.id) });
+  view = inboxView(state);
+  assert.equal(view.unread, 1);
+  assert.equal(view.items[0].id, "mail-0", "the oldest unread letter remains reachable");
+  assert.equal(view.items.length, 50, "recent read history uses the remaining slots");
+  markRead(state, { all: true });
+  view = inboxView(state);
+  assert.equal(view.unread, 0);
+  assert.equal(view.items.length, 50);
+  assert.ok(view.items.every((item) => item.read));
+  assert.equal(state.inbox.length, 120, "viewing and reading never removes history");
+});
 
 const quote = "Bridge separates an abstraction from its implementation so the two can vary independently.";
 const card = (id, prompt) => ({

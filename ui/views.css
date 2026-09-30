@@ -32,6 +32,9 @@
 .board-empty { color: var(--text-muted); text-align: center; padding: 12px 0; font-size: 15px; line-height: 1.9; }
 .board-empty small { font-size: 15px; }
 .board-add, .board-new-column { display: flex; gap: 8px; margin-top: 12px; }
+.board-add { flex-wrap: wrap; }
+.board-add small { flex-basis: 100%; overflow-wrap: anywhere; }
+.board-add small button { margin-left: 8px; }
 .board-add input, .board-new-column input { width: 100%; min-width: 0; }
 .board-new-column { max-width: 350px; }
 .board-add button, .board-new-column button { flex-shrink: 0; }
@@ -51,8 +54,8 @@
 .board-dialog footer { justify-content: flex-end; }
 .board-conflict { padding: 12px; border: 1px solid var(--warn); border-radius: var(--radius-sm); font-size: 15px; }
 .board-conflict button { margin-top: 8px; white-space: normal; }
-@media (max-width: 600px) {
-  .board-column { flex-basis: 260px; }
+@container study (max-width: 600px) {
+  .board-column { flex: 0 0 min(260px, 100%); }
   .board-dialog { padding: 16px; }
 }
 
@@ -857,6 +860,13 @@
   transition: background 0.15s var(--ease);
 }
 .wb-row:hover { background: var(--bg-hover); }
+@container study (max-width: 640px) {
+  .wb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .wb-row .wb-topic { width: auto; }
+  .wb-row .wb-prompt { grid-column: 1 / -1; grid-row: 2; white-space: normal; overflow-wrap: anywhere; }
+  .wb-row .wb-grade { grid-column: 2; grid-row: 1; }
+  .study-app .wb-row button { grid-column: 2; grid-row: 3; opacity: 1; }
+}
 .wb-topic {
   flex: none;
   width: 108px;

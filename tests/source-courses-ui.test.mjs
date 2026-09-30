@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+
+const compiled = await build({ stdin: { contents: `export {default as Sources} from './ui/Sources.jsx';
+  export {default as Generate} from './ui/Generate.jsx'; export {default as PdfImport} from './ui/PdfImport.jsx';
+  export {usePageScope} from './ui/PageScope.jsx'; export {setUiLanguage} from './ui/i18n.js';`, resolveDir: process.cwd() },
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
+const module = { exports: {} };
+new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
+const { Sources, Generate, PdfImport, usePageScope, setUiLanguage } = module.exports;
+const data = { root: 'library-A', decks: [], drafts: [], sources: [{ id: 'a', title: 'Database notes', text: 'Transactions keep changes consistent.', courses: ['Databases'], createdAt: '2026-09-30' }],
+  focus: { course: 'Systems', courses: [{ name: 'Databases' }, { name: 'Systems' }] }, jobs: [], modelReady: true };
+const noop = () => {};
+
+test('source organization and import forms expose local course choices in English', () => {
+  try {
+    setUiLanguage('en');
+    const sources = renderToStaticMarkup(React.createElement(Sources, { data, act: noop, setModal: noop }));
+    assert.match(sources, /Organize courses/);
+    assert.match(sources, /All courses/);
+    assert.match(sources, /Uncategorised/);
+    assert.doesNotMatch(sources, /Apply suggestions/);
+    assert.match(sources, /Suggest with AI/);
+    assert.doesNotMatch(sources, /[㐀-鿿]/);
+  } finally { setUiLanguage('zh'); }
+});
+
+test('generation displays the source course ahead of global focus and sends an editable destination', () => {
+  try {
+    setUiLanguage('en');
+    const html = renderToStaticMarkup(React.createElement(Generate, { data, genSource: 'files', gen: { kind: 'flashcard', count: 5, difficulty: 'mixed', language: 'English', focus: '', role: '' },
+      selectedSources: ['a'], setSelectedSources: noop, setGen: noop, act: noop, setModal: noop }));
+    assert.match(html, /value="Databases"/);
+    assert.match(html, /Your selection includes sources from other scopes/);
+    assert.doesNotMatch(html.replace(/<[^>]+>/g, ''), /[㐀-鿿]/);
+    const pdf = renderToStaticMarkup(React.createElement(PdfImport, { data, act: noop, onImported: noop }));
+    assert.match(pdf, /value="Systems"/);
+    assert.doesNotMatch(pdf, /[㐀-鿿]/);
+    const local = renderToStaticMarkup(React.createElement(PdfImport, { data, courseText: 'Databases', onCourseTextChange: noop, act: noop, onImported: noop }));
+    assert.match(local, /placeholder="Leave blank for unassigned" value="Databases"/);
+    const all = renderToStaticMarkup(React.createElement(PdfImport, { data, courseText: '', onCourseTextChange: noop, act: noop, onImported: noop }));
+    assert.match(all, /placeholder="Leave blank for unassigned" value=""/);
+  } finally { setUiLanguage('zh'); }
+});
+
+test('page scope remembers explicit all and unassigned per library while unset pages follow their visible default', () => {
+  const storage = new Map();
+  globalThis.sessionStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
+  function Probe({ root, choice, fallback }) {
+    const [value, setValue] = usePageScope(root, 'sources', fallback);
+    if (choice !== undefined && value !== choice) setValue(choice);
+    return React.createElement('span', null, JSON.stringify(value));
+  }
+  const render = props => renderToStaticMarkup(React.createElement(Probe, props));
+  try {
+    assert.match(render({ root: 'A', fallback: 'Course A', choice: '*' }), /&quot;\*&quot;/);
+    assert.match(render({ root: 'A', fallback: 'Course B' }), /&quot;\*&quot;/);
+    assert.match(render({ root: 'A', fallback: 'Course B', choice: '' }), /&quot;&quot;/);
+    assert.match(render({ root: 'B', fallback: 'Course B' }), /Course B/);
+    assert.match(render({ root: 'A', fallback: 'Course A' }), /&quot;&quot;/);
+  } finally { delete globalThis.sessionStorage; }
+});

@@ -1,5 +1,7 @@
+import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
+import PageScope, { usePageScope } from './PageScope.jsx';
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
 import {
   layoutStructure,
@@ -31,9 +33,9 @@ const levelOf = (node) => {
 };
 const metaOf = (node) => {
   const bits = [];
-  if (node?.mastery != null) bits.push(`掌握 ${node.mastery}%`);
-  if (node?.due) bits.push(`${node.due} 待复习`);
-  if (!bits.length && node?.total != null) bits.push(`${node.total} 题`);
+  if (node?.mastery != null) bits.push(uiFormat("掌握 {0}%", [node.mastery]));
+  if (node?.due) bits.push(uiFormat("{0} 待复习", [node.due]));
+  if (!bits.length && node?.total != null) bits.push(uiFormat("{0} 题", [node.total]));
   return bits.join(" · ");
 };
 const fitLabel = (t, max) => {
@@ -47,12 +49,16 @@ export default function Graph({
   call,
   busy,
   scope,
+  library,
   onClose,
   onStudyCard,
   canvasWanted,
   onCanvasHandled,
 }) {
   useInjectCss(css, "study-graph");
+  const [course, setCourse] = usePageScope(library?.root, 'graph', library?.focus?.course ?? '*');
+  const [browse, setBrowse] = useState(false);
+  const objectScope = scope != null && !browse;
   const [mode, setMode] = useState("structure");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -70,14 +76,14 @@ export default function Graph({
   const autoTried = useRef(false);
   const lastFit = useRef("");
   const fittedScale = useRef(1);
-  const scopeKey = JSON.stringify(scope || []);
+  const scopeKey = JSON.stringify(objectScope ? { scope } : { course });
 
   const load = useCallback(async () => {
     const n = ++seq.current;
     setLoading(true);
     setError("");
     try {
-      const d = await call("graph", { scope: scope || [], mode });
+      const d = await call("graph", { ...JSON.parse(scopeKey), mode });
       if (seq.current !== n) return; // a newer request superseded this one
       setData(d);
     } catch (e) {
@@ -87,7 +93,7 @@ export default function Graph({
     } finally {
       if (seq.current === n) setLoading(false);
     }
-  }, [call, mode, scopeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [call, mode, scopeKey]);
 
   useEffect(() => {
     load();
@@ -193,14 +199,14 @@ export default function Graph({
     setNotice("");
     if (document.fullscreenElement === el) return true;
     if (!el.requestFullscreen) {
-      setNotice("当前浏览器不支持全屏画布，用 Ctrl/⌘+滚轮缩放查看。");
+      setNotice(ui("当前浏览器不支持全屏画布，用 Ctrl/⌘+滚轮缩放查看。"));
       return false;
     }
     try {
       await el.requestFullscreen();
       return true;
     } catch {
-      setNotice("浏览器没有进入全屏，可继续在面板中查看，或再次点「大画布」。");
+      setNotice(ui("浏览器没有进入全屏，可继续在面板中查看，或再次点「大画布」。"));
       return false;
     }
   }, []);
@@ -320,7 +326,7 @@ export default function Graph({
     }
     if (p.kind === "topic" || p.kind === "ghost") {
       const tail = idTail(n.id);
-      const label = n.ghost ? n.label : n.label || tail?.[1] || "未命名主题";
+      const label = n.ghost ? n.label : n.label || tail?.[1] || ui("未命名主题");
       const meta = n.ghost ? "" : metaOf(n);
       return (
         <g key={p.key} transform={`translate(${p.x} ${p.y - p.h / 2})`}>
@@ -399,9 +405,9 @@ export default function Graph({
   };
 
   const scopeCount = (data?.scope || scope || []).length;
-  const scopeLabel = scopeCount
-    ? `已选 ${scopeCount} 项范围`
-    : "全部题组（未归档）";
+  const scopeLabel = objectScope && scopeCount
+    ? uiFormat("已选 {0} 项范围", [scopeCount])
+    : objectScope || course === '*' ? ui("全部题组（未归档）") : course || ui('未分类');
   const nodeCount = layout?.placed.length || 0;
 
   return (
@@ -410,34 +416,30 @@ export default function Graph({
       ref={canvasRef}
       tabIndex={-1}
       aria-busy={busy || loading}
-      aria-label="知识图谱画布"
+      aria-label={ui("知识图谱画布")}
       onKeyDown={onKeyDown}
     >
       <div className="graph-toolbar">
-        <div className="graph-modes" role="group" aria-label="视图模式">
+        <div className="graph-modes" role="group" aria-label={ui("视图模式")}>
           <button
             className={"graph-mode" + (mode === "structure" ? " active" : "")}
             aria-pressed={mode === "structure"}
             disabled={busy}
             onClick={() => setMode("structure")}
-          >
-            知识结构
-          </button>
+          >{ui("知识结构")}</button>
           <button
             className={"graph-mode" + (mode === "path" ? " active" : "")}
             aria-pressed={mode === "path"}
             disabled={busy}
             onClick={() => setMode("path")}
-          >
-            学习路径
-          </button>
+          >{ui("学习路径")}</button>
         </div>
-        <div className="graph-zoom" role="group" aria-label="缩放">
+        <div className="graph-zoom" role="group" aria-label={ui("缩放")}>
           <button
             type="button"
             disabled={!layout}
-            title="缩小（-）"
-            aria-label="缩小"
+            title={ui("缩小（-）")}
+            aria-label={ui("缩小")}
             onClick={() => applyZoom(scaleRef.current / ZOOM_STEP)}
           >
             −
@@ -446,8 +448,8 @@ export default function Graph({
           <button
             type="button"
             disabled={!layout}
-            title="放大（+）"
-            aria-label="放大"
+            title={ui("放大（+）")}
+            aria-label={ui("放大")}
             onClick={() => applyZoom(scaleRef.current * ZOOM_STEP)}
           >
             ＋
@@ -456,11 +458,9 @@ export default function Graph({
             type="button"
             className="graph-fit"
             disabled={!layout}
-            title="缩放到刚好看到整张图（0）"
+            title={ui("缩放到刚好看到整张图（0）")}
             onClick={fitView}
-          >
-            适应窗口
-          </button>
+          >{ui("适应窗口")}</button>
         </div>
         <div className="graph-actions">
           <button
@@ -468,26 +468,27 @@ export default function Graph({
             className={full ? "" : "primary"}
             title={
               full
-                ? "回到面板中查看（Esc）"
-                : "用整个屏幕看这张图，可缩放、拖拽"
+                ? ui("回到面板中查看（Esc）")
+                : ui("用整个屏幕看这张图，可缩放、拖拽")
             }
             onClick={toggleCanvas}
           >
-            {full ? "退出大画布" : "大画布"}
+            {full ? ui("退出大画布") : ui("大画布")}
           </button>
-          <button type="button" onClick={onClose}>
-            关闭
-          </button>
+          <button type="button" onClick={onClose}>{ui("关闭")}</button>
         </div>
       </div>
 
       <div className="graph-toolbar graph-toolbar-sub">
+        <PageScope courses={library?.focus?.courses} value={objectScope ? scope.length ? '@selected' : '*' : course}
+          selectedLabel={objectScope && scope.length ? uiFormat('已选 {0} 项范围', [scope.length]) : undefined}
+          onChange={value => { if (value !== '@selected') { setBrowse(true); setCourse(value); } }} />
         <span className="graph-scope">
           {scopeLabel}
-          {nodeCount ? ` · ${nodeCount} 个节点` : ""}
-          {layout?.columns ? ` · ${layout.columns} 列` : ""}
+          {nodeCount ? uiFormat(" · {0} 个节点", [nodeCount]) : ""}
+          {layout?.columns ? uiFormat(" · {0} 列", [layout.columns]) : ""}
         </span>
-        <div className="graph-legend" aria-label="图例">
+        <div className="graph-legend" aria-label={ui("图例")}>
           {LEVELS.map((l) => (
             <span key={l} className="graph-legend-item">
               <i className={`graph-swatch gn-${l}`} />
@@ -497,17 +498,13 @@ export default function Graph({
           <span className="graph-legend-item">
             <svg className="graph-line-demo" width="26" height="8" aria-hidden="true">
               <line x1="1" y1="4" x2="25" y2="4" className="gn-prereq" />
-            </svg>
-            前置（虚线箭头）
-          </span>
+            </svg>{ui("前置（虚线箭头）")}</span>
         </div>
       </div>
 
       {notice && <div className="graph-notice">{notice}</div>}
       {!!data?.truncated && (
-        <div className="graph-truncated">
-          题目超过 400 张，画布只画前 400 张；在目录里选定范围可查看全部。
-        </div>
+        <div className="graph-truncated">{ui("题目超过 400 张，画布只画前 400 张；在目录里选定范围可查看全部。")}</div>
       )}
 
       <div
@@ -522,14 +519,14 @@ export default function Graph({
         onClickCapture={onClickCapture}
       >
         {loading ? (
-          <div className="graph-state">正在生成图谱…</div>
+          <div className="graph-state">{ui("正在生成图谱…")}</div>
         ) : error ? (
           <div className="graph-state graph-error">
-            <div>图谱加载失败：{error}</div>
-            <button onClick={load}>重试</button>
+            <div>{ui("图谱加载失败：")}{error}</div>
+            <button onClick={load}>{ui("重试")}</button>
           </div>
         ) : !layout || !layout.placed.length ? (
-          <div className="graph-state">当前范围内没有可展示的题目。</div>
+          <div className="graph-state">{ui("当前范围内没有可展示的题目。")}</div>
         ) : (
           <div
             className="graph-plane"
@@ -542,7 +539,7 @@ export default function Graph({
               viewBox={`0 0 ${layout.width} ${layout.height}`}
               style={{ transform: `scale(${scale})` }}
               role="img"
-              aria-label={mode === "path" ? "学习路径图" : "知识结构图"}
+              aria-label={mode === "path" ? ui("学习路径图") : ui("知识结构图")}
             >
               <defs>
                 <marker
@@ -584,7 +581,7 @@ export default function Graph({
                         markerEnd="url(#gn-arrow-prereq)"
                         d={bez(a.x + a.w, a.y, b.x, b.y)}
                       >
-                        <title>前置关系</title>
+                        <title>{ui("前置关系")}</title>
                       </path>
                     );
                   })}
@@ -606,7 +603,7 @@ export default function Graph({
                         markerEnd="url(#gn-arrow-prereq)"
                         d={bez(a.x + a.w, a.y, b.x, b.y)}
                       >
-                        <title>前置关系</title>
+                        <title>{ui("前置关系")}</title>
                       </path>
                     );
                   })}
@@ -621,8 +618,8 @@ export default function Graph({
 
       <div className="graph-hint">
         {full
-          ? "滚轮滚动 · Ctrl/⌘+滚轮缩放 · 拖拽平移 · Esc 退出大画布"
-          : `拖拽或滚动查看 · Ctrl/⌘+滚轮缩放 · 缩放范围 ${Math.round(ZOOM_MIN * 100)}–${Math.round(ZOOM_MAX * 100)}%`}
+          ? ui("滚轮滚动 · Ctrl/⌘+滚轮缩放 · 拖拽平移 · Esc 退出大画布")
+          : uiFormat("拖拽或滚动查看 · Ctrl/⌘+滚轮缩放 · 缩放范围 {0}–{1}%", [Math.round(ZOOM_MIN * 100), Math.round(ZOOM_MAX * 100)])}
       </div>
     </section>
   );

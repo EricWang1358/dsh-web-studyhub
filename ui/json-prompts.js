@@ -1,4 +1,5 @@
-export function importExample(kind) {
+export function importExample(kind, language = "zh") {
+  if (language === "en") return JSON.stringify(englishExample(JSON.parse(importExample(kind))), null, 2);
   if (kind === "mixed") {
     const cards = ["quiz", "multi", "flashcard", "open", "cloze"].map((type) => JSON.parse(importExample(type)).cards[0]);
     const objectives = ["识别可直接二分查找的序列", "辨别二分查找支持的排序方向", "回忆二分查找的输入条件", "解释无序输入为何不能排除半区", "补全二分查找的前提条件"];
@@ -45,9 +46,47 @@ const qualityInstructions = `出题质量要求（所有题型都必须遵守）
 逐题重新检查证据支持、自足性、泄题风险、答案正确性、选项质量、解析与评分标准、学习价值；发现问题先改写，再复核，仍无法修复则移除。复查整组考点重复、题型比例与难度覆盖，不能只修改 objective 字面措辞来伪装不同考点。
 最后检查 JSON 可解析、必填字段非空、题干与目标不重复、选项 id 唯一、correct 为布尔值、正确项数量合法、填空标记匹配。只输出修订后的最终 JSON，不输出自检过程或额外审阅字段，也不要声称已通过独立审阅或保证绝对正确。`;
 
-export function importPrompt(kind, label) {
+export function importPrompt(kind, label, language = "zh") {
+  if (language === "en") return englishImportPrompt(kind, label);
   const typeInstruction = kind === "mixed"
     ? "在同一 cards 数组中混合 quiz（单选）、multi（多选）、flashcard（闪卡）、open（开放问答）、cloze（填空）。按我指定的题型及数量分配；未指定时默认共 10 题、每种 2 题。每题 kind 必须使用上述具体题型，不能写 mixed。只输出一个题组 JSON。"
     : `每题 kind 为 ${kind}。`;
   return `请根据我随后提供的资料生成${kind === "mixed" ? "混合题型" : label}题组，只输出合法 JSON，不加说明或 Markdown 围栏。\n顶层包含 title、可选 folder、cards（至少 1 道，无总数上限）；${typeInstruction}\n每题必须包含非空字符串 topic、objective、prompt、answer、hint、explanation、misconception；题干和学习目标不得重复，hint 不得直接给出答案。不要编造资料中没有的事实。\n单选 quiz 和多选 multi 必须有 3–6 个 options，每项包含唯一 id、text、布尔值 correct、逐项 explanation；单选恰好一个正确项，多选至少一个正确项且不能全选。开放问答 open 必须有 rubric 评分标准；填空 cloze 使用 {{空位id}} 并在 cloze.answers 中给出 id、value 和可选 accept 数组。flashcard 为问答闪卡。\n\n${qualityInstructions}\n\n格式示例（仅说明字段结构，正式出题应按上述质量要求重新规划内容，不照搬示例考点）：\n${importExample(kind)}\n\n我的资料和出题要求：\n`;
+}
+
+// These are application-owned examples, never imported learner content.
+const exampleCopy = {
+  '二分查找混合练习':'Binary search: mixed practice','算法':'Algorithms','二分查找练习':'Binary search practice','二分查找':'Binary search',
+  '识别可直接二分查找的序列':'Identify sequences suitable for binary search','辨别二分查找支持的排序方向':'Distinguish supported sort directions','回忆二分查找的输入条件':'Recall the input requirement','解释无序输入为何不能排除半区':'Explain why unordered input prevents eliminating half','补全二分查找的前提条件':'Complete the prerequisite for binary search',
+  '为什么不能直接对无序序列进行二分查找？请解释原因。':'Why does binary search not work directly on an unordered sequence? Explain.',
+  '无序序列中，中间值与目标的大小关系无法确定目标位于哪一半，因此不能安全排除半区。':'Without ordering, comparing the middle value with the target cannot determine which half contains the target, so neither half can safely be discarded.',
+  '解释二分查找的输入条件':'Explain the input requirement for binary search','二分查找对输入序列有什么要求？':'What does binary search require of the input sequence?','序列需要有序。':'The sequence must be sorted.',
+  '考虑每次排除一半范围的依据。':'Consider what justifies eliminating half of the search range.','只有有序序列才能通过比较中间值排除一半搜索范围。':'Ordering allows comparison with the middle value to eliminate half of the search range.','误以为任意序列都能直接二分查找。':'Assuming binary search works directly on any sequence.',
+  '哪种序列可以直接用于二分查找？':'Which sequence can be used directly for binary search?','哪些序列可以直接用于二分查找？':'Which sequences support binary search?','升序序列':'An ascending sequence','升序序列、降序序列（比较方向需相应调整）':'Ascending and descending sequences (with the comparison direction adjusted)',
+  '升序关系允许排除一半搜索范围。':'Ascending order allows half of the search range to be discarded.','随机乱序序列':'A randomly shuffled sequence','降序序列':'A descending sequence','乱序无法根据中间值排除半区。':'Shuffled data cannot eliminate half based on the middle value.','调整比较方向后，降序关系同样允许排除半区。':'With the comparison reversed, descending order also allows eliminating half.',
+  '没有顺序保证的序列':'A sequence with no ordering guarantee','没有顺序保证就不能确定目标所在半区。':'Without ordering, the correct half cannot be determined.','指出有序得 1 分；解释根据中间值排除半区得 1 分。':'1 point for identifying ordering; 1 point for explaining elimination based on the middle value.',
+  '二分查找要求序列{{order}}。':'Binary search requires a {{order}} sequence.','有序':'sorted','已排序':'ordered',
+};
+function englishExample(value) {
+  if (typeof value === 'string') return exampleCopy[value] || value;
+  if (Array.isArray(value)) return value.map(englishExample);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key,item]) => [key,englishExample(item)]));
+  return value;
+}
+function englishImportPrompt(kind, label) {
+  const types = kind === 'mixed' ? 'Mix quiz, multi, flashcard, open and cloze cards in one cards array. Follow my requested types and counts; otherwise create ten cards, two per type. Every card must use a concrete kind, never mixed.' : 'Every card must have kind: ' + kind + '.';
+  return 'Create a ' + (kind === 'mixed' ? 'mixed question' : label) + ' deck from the sources I provide below. Return valid JSON only, without commentary or Markdown fences. Write new questions in English unless I explicitly request another content language. Preserve verbatim source quotations.\n' +
+    'Top-level fields: title, optional folder, and cards (at least one, no overall count limit). ' + types + '\n' +
+    'Every card needs nonempty topic, objective, prompt, answer, hint, explanation and misconception strings. Do not duplicate prompts or learning objectives. Do not invent unsupported facts.\n' +
+    'quiz and multi require 3–6 options with unique id, text, boolean correct, and an explanation for each option. A quiz has exactly one correct option. A multi has at least one correct and one incorrect option. open needs a scoring rubric. cloze uses {{id}} markers and matching cloze.answers entries with id, value and optional accept arrays. flashcard is a short question and answer.\n\n' +
+    'Quality requirements for every question type:\n' +
+    '1. Plan evidence and learning targets before writing. Test one meaningful target per question; locate the supporting passage and its limits. Prioritise core concepts, likely confusions and application conditions. Do not pad the deck by testing the same objective with different question types. Follow the requested mix, count and difficulty.\n' +
+    '2. Ground answers and distinctions in the sources. In explanation, identify the real section or a brief quotation and explain how it supports the answer. Do not invent citations, page numbers or precise distinctions. Clearly label constructed teaching scenarios and state their assumptions. Narrow or omit unsupported questions rather than inventing content to fill a quota. If no questions are supported, return {"title":"Insufficient source material","cards":[]} for import validation to reject. Optional citations are [{"quote":"at least 12 characters copied verbatim","sourceTitle":"optional source title"}]. Local citations link only when they uniquely match source text; otherwise the question keeps its own references.\n' +
+    '3. Make each question self-contained. Supply context, conditions, units and assumptions; never depend on hidden images, arrows, slides or earlier text. prompt, topic and hint must not reveal the tested conclusion or answer keywords. Avoid ambiguous wording, double negatives and irrelevant details.\n' +
+    '4. Compare options along the same dimension, at similar abstraction, length and grammatical form. Use plausible misconceptions as distractors. Avoid absurd alternatives, all/none of the above, a consistently longest correct answer, fixed correct positions or a fixed number of correct multi options. Express answer using option content rather than letters and keep it consistent with correct flags.\n' +
+    '5. Explain why the answer holds and under which conditions. Explain each option’s specific correctness or error rather than restating its label. For calculations, show formulas, units and necessary intermediate steps. Name a concrete misconception.\n' +
+    '6. Flashcards ask one focused question with a short retrievable answer, not a page summary. Open responses specify task and scope; answer lists key points, while rubric gives points, partial credit and acceptable alternatives consistent with the answer.\n' +
+    '7. Cloze cards remove meaningful concepts while keeping sufficient context. Match every marker to one answer; accept contains only semantically equivalent valid answers. Do not leak the fill through prompts or hints, or make it guessable solely from grammar.\n\n' +
+    'Before output, review and revise every question for source support, self-containment, leakage, correctness, option quality, explanations, rubrics and learning value. Remove anything still invalid after repair. Recheck duplicate objectives, type ratios and difficulty coverage; changing objective wording does not create a new target. Check JSON syntax, required fields, option IDs, booleans, correct-option counts and cloze markers. Return only the revised final JSON; do not include self-review fields or claim independent approval or guaranteed correctness.\n\n' +
+    'Structure example only: plan original questions rather than copying its learning targets.\n' + importExample(kind,'en') + '\n\nMy sources and question requirements:\n';
 }

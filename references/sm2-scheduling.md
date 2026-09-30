@@ -1,5 +1,13 @@
 # SM-2 Scheduling
 
+## Scheduling versus verified learning
+
+SM-2 chooses a card's next review time. Its interval is not a certificate of understanding, transfer, practical skill or whole-course coverage. The current native plugin derives an estimated mastery view from intervals and recent attempts; the [planned evidence policy](../docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) separates that estimate from per-knowledge-point verification. Self-ratings, implicit prerequisite credits and retries retain their provenance and cannot silently become independent evidence.
+
+The formula below remains the scheduling reference. The Markdown/JSONL file-write procedure and temporary-question description later in this file belong to the legacy library contract; native plugin writes use the transactional Store and persistent review runs. The planned v3 extension preserves existing schedules and logs, and adds evidence in the same store rather than changing this formula.
+
+## Algorithm
+
 The scheduling configuration uses `minimum_ease_factor`, `initial_ease_factor`,
 `first_interval_days`, and `second_interval_days`. A grade is an integer from
 0 through 5.

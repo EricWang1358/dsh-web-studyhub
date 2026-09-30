@@ -142,6 +142,10 @@ test("parallel jobs persist early drafts and broadcast to each active worker wit
   assert.equal(done.status, "complete");
   assert.equal(done.draftId, early.id);
   assert.equal(done.draft.cards, 11);
+  const readableDraft = await service.call('draft.get', { id: done.draftId });
+  assert.equal(readableDraft.draftVersion, done.draft.draftVersion);
+  assert.equal(readableDraft.cards.length, done.draft.cards);
+  assert.equal(done.draft.draftVersion, (await service.store.read()).drafts.find((draft) => draft.id === done.draftId).draftVersion);
 });
 
 test("self-grades 0 and 1 append one hidden tail retry, persist on resume and preserve spacing", async () => {
@@ -1086,7 +1090,13 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   assert.equal(second.draft.failures.length, 1);
   assert.ok(second.draft.cards >= 3 && second.draft.cards < 6);
   const compact = await service.call("snapshot", { compact: true });
-  assert.deepEqual(Object.keys(compact.sources[0]).sort(), ["chars", "id", "title"]);
+  const compactSource = compact.sources.find(source => source.id === big.id);
+  assert.deepEqual({ id: compactSource.id, title: compactSource.title, chars: compactSource.chars },
+    { id: big.id, title: big.title, chars: text.length });
+  assert.equal('text' in compactSource, false, 'compact reads never include the full source body');
+  assert.ok(Array.isArray(compactSource.courses));
+  assert.equal(typeof compactSource.coursesInferred, 'boolean');
+  assert.ok(Array.isArray(compactSource.usedBy));
   assert.equal(compact.drafts.length, 2);
   assert.ok(JSON.stringify(compact).length < 12000);
   const page = await service.call("source.get", { id: big.id, offset: 100, limit: 50 });

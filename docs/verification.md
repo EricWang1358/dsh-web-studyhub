@@ -1,5 +1,25 @@
 # Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
+## 2026-09-27 learning-workflow design
+
+This change writes the [system-learning plan](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md), the [before/after workflow](study-workflows.md#proposed-system-learning), related documentation boundaries and a [handoff](handoffs/2026-09-27-learning-workflow-redesign.md). It does not implement the planned feature.
+
+Verification for this documentation change is limited to current-code grounding, plan review, Markdown links/references, requirement-to-unit coverage and whitespace/diff checks. No production tests, build, real-model evaluation or learner trial were run in this planning turn. Earlier test counts below are historical results, not evidence for U1–U9 or AE1–AE16.
+
+The prior assessment turn reproduced the existing 4-mastered/1-new → 80%/done calculation; that is evidence of the current rule, not a passing test of the new policy. Actual five-PDF/JSON coverage and zero-beginner teaching effectiveness remain unverified. The plan's Verification Contract specifies the implementation and pilot gates.
+
+Plan review covered coherence, feasibility, product, scope, design and adversarial lenses in separate contexts. Three findings were applied within the user's requested design scope:
+
+- Coherence: practical review now requires all mandatory criteria for each individual target, consistent with partial success in a multi-target experiment.
+- Adversarial: delayed recall measures the interval since the target's latest relevant learning event, including teaching or practice on a different question.
+- Adversarial: confirmed substantive false passes block the affected assessment path from issuing verified evidence until corrected and checked against the failure and independent samples.
+
+The lead also aligned post-publish navigation with the selected learning mode and clarified that a new curriculum version preserves an active old session without awarding evidence to the new version. The other four review lenses reported no actionable findings. No unresolved review decisions remain. The optional cross-model pass was unavailable: the installed Claude launcher points to a missing executable; no review document was sent externally and no provider review is claimed.
+
+Documentation checks cover all 12 changed/new Markdown files: local link targets and section anchors, balanced code fences, conflict markers, unique R1–R16 / AE1–AE16 / U1–U9 / KTD1–KTD8 definitions, requirement/example coverage and acyclic implementation dependencies. `git diff --check` passed. These are document integrity checks, not implementation or educational validation.
+
+## Historical evidence follows
+
 ## Automated evidence
 
 `npm test`: 35 tests passed, 0 failed, 0 skipped on this machine. Includes the 0.2.0 list below plus:
@@ -38,6 +58,24 @@
 `npm run build` creates the DSH classic-module client plus standalone browser preview. `npm pack` includes runtime modules, client, bundle patch, source protocols and README, excluding learner/demo data, tests and dev dependencies.
 
 ## Browser verification
+
+### Audio input diagnostics, import entry and inbox — 2026-09-29 (unpublished)
+
+- `npm run verify`: 440 tests, 435 passed, 0 failed, 5 optional host SDK checks skipped; lint and builds passed.
+- Input diagnostics measure the same PCM frames uploaded by LiveClient. Tests distinguish silent frames from absent frames, capture from backend acknowledgment, and muted, suspended, paused and stopped states.
+- Audio import integration tests verify all three stage notifications and the final saved-result message, persistence across service reopen, and opening the source from the inbox. Partial proofreading failures generate a warning milestone rather than a success milestone.
+- Chromium with synthetic audio and mocked live endpoints verifies changing input level, silence at zero, capture-context interruption, pause/resume, continued recording while opening the new Audio transcription page, track cleanup and no terminal polling. A separate mocked inbox verifies opening the source modal from a completion message. The stage/persistence behavior is separately exercised through the real StudyService with a fake provider.
+- Inspected the meter at 320px and the import page and inbox at 420px. Evidence: `output/playwright/audio-monitor-check.log`, `audio-meter-silent-320.png`, `audio-transcription-page-420.png`, `audio-inbox-check.log`, `audio-inbox-420.png`.
+- The user's physical microphone and live provider recognition quality were not tested; the new diagnostics make these observable without claiming a cause for sparse transcription.
+
+### Classroom live transcription and panel width follow-up — 2026-09-29 (unpublished)
+
+- `npm run verify`: lint and both builds passed; 437 tests, 432 passed, 0 failed, 5 skipped because the optional DSH SDK is unavailable.
+- Real Chromium in the isolated port 4182 preview, fixed 1440px window: 108 page/language/panel-width combinations passed the horizontal-overflow check. Chinese panels: 320, 360, 420, 640, 900 and 1440px; English panels: 320, 420 and 900px. Intentional kanban scrolling is checked by column width. Visually inspected the classroom, wrongbook and result card. The rendered Review result card uses one column at 320/420px and two at 900px without overflow.
+- The real browser AudioWorklet ran against synthetic audio and mocked live endpoints: 100ms PCM frames, pause/resume, selected-sentence generation, continued capture during navigation, ending releases tracks, ended sessions stop polling, and save confirmation. Provider/service behavior is tested separately with fake WebSockets and controlled translation responses.
+- Regression coverage includes late polls before/during stop, cancellation while connecting, delayed final text during connection handover and immediate stop, restored translation retries, serial persistence, failed-disk handoff rejection, and preventing retired writers from overwriting resumed or deleted sessions.
+- Independent scoped review and reuse/quality/efficiency checks completed; reported issues were fixed and covered by regressions. This bounded mixed-working-tree review is not a formal `ce-code-review` whole-diff receipt and does not replace earlier release receipts.
+- Evidence is local under `output/playwright/`: `layout-check.log`, `live-class-420.png`, `layout-3-320.png`, `result-420.png`, and `verify.log`. Live provider credentials and native DSH capture permissions remain unverified. These features are local changes and have not been published.
 
 Used Playwright CLI against the same React UI and StudyService exposed by the standalone server. Preview library was explicitly created at `output/preview-library` using the demo seed script.
 
@@ -82,3 +120,20 @@ The user's daily DSH profile was not changed. Full interaction inside an existin
 Initial 0.1.0 `ce-code-review`: completed, seven findings fixed and independently validated, no remaining actionable findings. Receipt: `docs/ce-code-review/2026-09-12-final/review.json`. The 0.2.0 completeness changes received an inline code review and the additional tests/browser checks above; that earlier independent receipt does not cover the new diff.
 
 Real model-provider generation was not run with user credentials. The generation protocol and repair/error paths are tested with controlled responses; the model's factual and teaching quality still requires checking against real source material. No claim is made that automated editorial review proves correctness. No lint or TypeScript checker is configured; files were formatted with Prettier and verified by build/tests.
+# 2026-09-29：实时上下文校正、课堂笔记与归档
+
+- `npm run verify`：449 项，444 通过，5 项缺少可选 DSH SDK 的检查跳过，0 失败；lint 与构建通过。记录：`output/playwright/correction-verify.log`。
+- 新增验证：35 句突发完整覆盖、8 新句加 2 句重叠、检查中新增句子留给下一轮、结束补齐尾部、失败/超时保留游标、识别原稿保留、旧翻译不覆盖新校正、笔记落盘、子代理不阻塞主流程、跨范围版本冲突拒绝合并、缺少子代理时可见重试、low/default 路由与实际缓存计数。
+- 归档状态经过落盘和重新加载验证，恢复可用，归档中删除不影响已另存的逐字稿与笔记资料。
+- 浏览器使用模拟模型结果验证历史句子原位更新、勾选保留、笔记引用跳转、中英文入口、保存调用，以及归档/恢复/取消删除/确认删除。320、420、900 px 面板均无相关区域横向溢出。脚本：`output/playwright/live-notes-check.js`、`output/playwright/live-archive-check.js`；截图：`live-notes-420.png`、`live-archive-420.png`。
+- 原生 DSH 子代理协议用模拟宿主验证；没有有效密钥或完整宿主 SDK，未声称验证真实识别/纠错质量、实际速度或节省费用。
+
+
+## 1.4.0 发布检查 — 2026-09-30
+
+- 完整 `npm run verify`：627 项通过、0 失败、0 跳过；使用本机 DSH SDK 执行真实 Cordis 依赖注入回归，静态检查和客户端构建通过。证据：`output/release-1.4.0-final-verify.log`。
+- `settings`、`map`、`source.list` 与命令/侧栏的会话依赖覆盖；普通模拟宿主不检查依赖的盲点已补足。
+- 八步系统学习路径仍未实现；真实付费音频、麦克风权限及运行中桌面模型交互的端到端验证仍未完成。SWE5001 的宿主 ACL 权限问题没有通过插件修改。
+- 本次交付通过 GitHub Release 分发；磁盘安装和运行中激活分开确认，不强制重启尚有内存任务的宿主。
+
+- 资料全屏预览：浏览器验证 1440×900 / 390×844，模拟宿主标题栏 40px 时关闭按钮顶部分别为 55px / 51px；按钮可命中，无窄窗口横向溢出，关闭及 Esc 返回原入口。受限侧栏中仍覆盖整个视口；实际窗口全屏时取消标题栏留白。截图 output/fullscreen-preview-windows.png。未声称已重启运行中的桌面宿主。

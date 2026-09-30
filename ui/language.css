@@ -1,0 +1,16 @@
+.study-app .study-language-switch{display:flex;gap:4px;padding:5px 8px;margin:4px 0 8px}
+.study-app .study-language-switch button{flex:1;font-size:13px;padding:6px 8px;min-width:0}
+.study-app .study-language-switch button[aria-pressed=true]{color:var(--accent);border-color:currentColor}
+.study-app .sidebar.is-narrow .study-language-switch{flex-direction:column;padding:3px}
+.study-app .sidebar.is-narrow .study-language-switch button{padding-inline:2px;white-space:nowrap}
+.study-app[lang=en] .nav{white-space:normal;line-height:1.35}
+.study-app[lang=en] .brand>div{min-width:0}
+.study-app[lang=en] .brand small{white-space:normal;overflow-wrap:anywhere;line-height:1.4}
+.study-app[lang=en] .collapse-toggle{flex-shrink:0}
+@container study (max-width:1050px){.study-app[lang=en] .brand small{display:none}}
+.study-app[lang=en] :is(.pill,.review-detour,.review-flow-origin,.grading-head,.study-mode-switch,.source-mode){white-space:normal;overflow-wrap:anywhere}
+.study-app[lang=en] .grade{min-width:0;white-space:normal}
+.study-app[lang=en] .grade span{display:block;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
+.study-app[lang=en] :is(.grading-head,.question-toolbar,.section-head,.page-head){flex-wrap:wrap}
+.study-app[lang=en] .question-navigation{min-width:0;flex-wrap:wrap}
+.study-app[lang=en] .review-detour{line-height:1.5;max-width:100%}

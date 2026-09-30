@@ -3,7 +3,10 @@ import React from "react";
 /* One drawn icon family for the rail: 24px grid, 1.6 stroke, round joins.
    Every destination gets its own mark so the collapsed rail stays legible. */
 const PATHS = {
+  audio: <><path d="M14 3H6v18h12V7zM14 3v5h4M9 12v4M12 10v8M15 12v4" /></>,
+  live: <><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></>,
   workflows: <><rect x="3" y="3" width="6" height="5" rx="1" /><rect x="15" y="16" width="6" height="5" rx="1" /><path d="M6 8v6h12v2M18 5v7M15 8l3 4 3-4" /></>,
+  coach: <><path d="M11 3.5 13 9l5.5 2-5.5 2-2 5.5L9 13l-5.5-2L9 9z" /><path d="M18.5 3.5v3M17 5h3M18.5 16.5v3M17 18h3" /></>,
   resume: <><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>,
   library: <><rect x="4" y="8" width="12" height="12" rx="2" /><path d="M8 4h10a2 2 0 0 1 2 2v10" /></>,
   sources: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>,

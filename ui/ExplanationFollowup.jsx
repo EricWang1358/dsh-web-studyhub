@@ -1,3 +1,4 @@
+import { ui } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 
@@ -64,12 +65,12 @@ export default function ExplanationFollowup({ run, call, readOnly = false }) {
   }
 
   return (
-    <section className="explanation-followup" aria-label="讲解追问">
+    <section className="explanation-followup" aria-label={ui("讲解追问")}>
       {items.length > 1 && (
         <div className="followup-head">
-          <span>{items.length} 条问答</span>
+          <span>{items.length}{ui(" 条问答")}</span>
           <button type="button" className="link-btn" onClick={() => setOpenIds(allOpen ? new Set() : new Set(items.map((item) => item.id)))}>
-            {allOpen ? "全部收起" : "全部展开"}
+            {allOpen ? ui("全部收起") : ui("全部展开")}
           </button>
         </div>
       )}
@@ -83,14 +84,14 @@ export default function ExplanationFollowup({ run, call, readOnly = false }) {
             const summary = event.currentTarget.closest("details")?.querySelector("summary");
             toggle(item.id, false);
             requestAnimationFrame(() => summary?.scrollIntoView({ block: "nearest" }));
-          }}>收起 ↑</button>
+          }}>{ui("收起 ↑")}</button>
         </details>
       ))}
       {!readOnly && <><button type="button" className="pill" aria-expanded={open} disabled={!call || !!pending}
-        onClick={() => open ? setOpen(false) : suggest()}>追问？</button>
+        onClick={() => open ? setOpen(false) : suggest()}>{ui("追问？")}</button>
       {" "}
       <button type="button" className="pill" disabled={!call || !!pending}
-        onClick={() => ask("请重新讲清楚这道题：先解释必要概念，再从题目条件一步步推到答案，用最小例子说明最容易混淆的地方，最后告诉我下次遇到类似题该怎么判断。若原题解有错或依据不足，请明确指出。")}>重新讲清楚</button>
+        onClick={() => ask("请重新讲清楚这道题：先解释必要概念，再从题目条件一步步推到答案，用最小例子说明最容易混淆的地方，最后告诉我下次遇到类似题该怎么判断。若原题解有错或依据不足，请明确指出。")}>{ui("重新讲清楚")}</button>
       {error && <p role="alert" className="warning">{error}</p>}
       {open && (
         <div className="followup-picker">
@@ -98,21 +99,20 @@ export default function ExplanationFollowup({ run, call, readOnly = false }) {
             <button type="button" key={text} disabled={!!pending} onClick={() => ask(text)}>{text}</button>
           ))}
           <button type="button" className="pill" disabled={pending === "answer"} aria-expanded={custom}
-            onClick={() => setCustom(!custom)}>你的疑问</button>
+            onClick={() => setCustom(!custom)}>{ui("你的疑问")}</button>
           {custom && (
             <form onSubmit={(event) => { event.preventDefault(); ask(question); }}>
-              <label>你的疑问
-                <textarea autoFocus value={question} maxLength={1000} rows={3} disabled={pending === "answer"}
-                  placeholder="写下你想弄清楚的地方，也可以接着上面的回答问…"
+              <label>{ui("你的疑问")}<textarea autoFocus value={question} maxLength={1000} rows={3} disabled={pending === "answer"}
+                  placeholder={ui("写下你想弄清楚的地方，也可以接着上面的回答问…")}
                   onChange={(event) => setQuestion(event.target.value)} />
               </label>
-              <button type="submit" className="primary pill" disabled={!!pending || !question.trim()}>解答并添加</button>
+              <button type="submit" className="primary pill" disabled={!!pending || !question.trim()}>{ui("解答并添加")}</button>
             </form>
           )}
-          {error && !questions.length && !pending && <button type="button" className="pill" onClick={suggest}>重新推荐问题</button>}
+          {error && !questions.length && !pending && <button type="button" className="pill" onClick={suggest}>{ui("重新推荐问题")}</button>}
         </div>
       )}
-      {pending && <p className="muted small" role="status">{pending === "suggest" ? "正在准备 3 个追问…" : "正在解答，完成后会保存到本题，可继续下一题。"}</p>}</>}
+      {pending && <p className="muted small" role="status">{pending === "suggest" ? ui("正在准备 3 个追问…") : ui("正在解答，完成后会保存到本题，可继续下一题。")}</p>}</>}
     </section>
   );
 }

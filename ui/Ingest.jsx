@@ -1,4 +1,6 @@
+import { ui } from "./i18n.js";
 import React, { useState } from "react";
+import CourseField from './CourseField.jsx';
 
 const KINDS = [
   ["auto", "自动识别", "有选项保持单选/多选，没有选项做成问答闪卡"],
@@ -15,12 +17,15 @@ const MISTAKES = [
 
 /** Setup for recording questions straight from the conversation. */
 export default function Ingest({ data, busy, start }) {
-  const [target, setTarget] = useState(data.decks.find((d) => !d.archived)?.id || "new"),
+  const decks = data.decks.filter(d => !d.archived && !d.systemKind);
+  const currentCourse = data.focus?.course ?? '';
+  const [target, setTarget] = useState(() => decks.find(d => (d.course ?? d.folder ?? '') === currentCourse)?.id || 'new'),
     [title, setTitle] = useState(""),
     [folder, setFolder] = useState(""),
+    [course, setCourse] = useState(currentCourse),
     [kind, setKind] = useState("auto"),
     [mistakes, setMistakes] = useState("auto");
-  const decks = data.decks.filter((d) => !d.archived);
+  const selectedDeck = decks.find(deck => deck.id === target);
   const newDeck = target === "new";
   return (
     <form
@@ -28,53 +33,47 @@ export default function Ingest({ data, busy, start }) {
       onSubmit={(e) => {
         e.preventDefault();
         start({
-          ...(newDeck ? { deckTitle: title.trim(), folder } : { deckId: target }),
+          ...(newDeck ? { deckTitle: title.trim(), folder, course } : { deckId: target }),
           kind,
           mistakes,
         });
       }}
     >
-      <p className="muted">
-        刷题软件、Canvas 错题记录、截图都可以直接贴进对话。开启后这段对话里贴的题会自动录入，不需要先整理成文档；贴的原文会作为这些题的资料保存。
-      </p>
+      <p className="muted">{ui("刷题软件、Canvas 错题记录、截图都可以直接贴进对话。开启后这段对话里贴的题会自动录入，不需要先整理成文档；贴的原文会作为这些题的资料保存。")}</p>
       <fieldset>
-        <legend>01 / 放进哪个题组</legend>
-        <label>
-          题组
-          <select value={target} onChange={(e) => setTarget(e.target.value)}>
-            <option value="new">＋ 新建题组</option>
+        <legend>{ui("01 / 放进哪个题组")}</legend>
+        <label>{ui("题组")}<select value={target} onChange={(e) => setTarget(e.target.value)}>
+            <option value="new">{ui("＋ 新建题组")}</option>
             {decks.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.folder ? `${d.folder} › ` : ""}
+                {(d.course ?? d.folder) ? `${d.course ?? d.folder} › ` : ''}
                 {d.title}
               </option>
             ))}
           </select>
         </label>
+        {!newDeck && selectedDeck && <p className="muted">{ui('课程归属')} · {(selectedDeck.course ?? selectedDeck.folder) || ui('未分类')}</p>}
+        {newDeck && <CourseField value={course} onChange={setCourse} courses={data.focus?.courses || []} />}
         {newDeck && (
           <div className="two-col">
-            <label>
-              题组名称
-              <input
+            <label>{ui("题组名称")}<input
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="例如：SWE5006 Canvas 错题"
+                placeholder={ui("例如：SWE5006 Canvas 错题")}
               />
             </label>
-            <label>
-              所在目录（可选）
-              <input
+            <label>{ui("所在目录（可选）")}<input
                 value={folder}
                 onChange={(e) => setFolder(e.target.value)}
-                placeholder="例如：SWE5006 / Module 3"
+                placeholder={ui("例如：SWE5006 / Module 3")}
               />
             </label>
           </div>
         )}
       </fieldset>
       <fieldset>
-        <legend>02 / 题型</legend>
+        <legend>{ui("02 / 题型")}</legend>
         <div className="choice-grid">
           {KINDS.map(([id, label, note]) => (
             <button
@@ -82,17 +81,17 @@ export default function Ingest({ data, busy, start }) {
               key={id}
               className={kind === id ? "kind selected" : "kind"}
               aria-pressed={kind === id}
-              title={note}
+              title={ui(note)}
               onClick={() => setKind(id)}
             >
-              {label}
+              {ui(label)}
             </button>
           ))}
         </div>
-        <small>{KINDS.find(([id]) => id === kind)[2]}</small>
+        <small>{ui(KINDS.find(([id]) => id === kind)[2])}</small>
       </fieldset>
       <fieldset>
-        <legend>03 / 错题怎么记</legend>
+        <legend>{ui("03 / 错题怎么记")}</legend>
         <div className="choice-grid three">
           {MISTAKES.map(([id, label, note]) => (
             <button
@@ -100,21 +99,19 @@ export default function Ingest({ data, busy, start }) {
               key={id}
               className={mistakes === id ? "kind selected" : "kind"}
               aria-pressed={mistakes === id}
-              title={note}
+              title={ui(note)}
               onClick={() => setMistakes(id)}
             >
-              {label}
+              {ui(label)}
             </button>
           ))}
         </div>
-        <small>{MISTAKES.find(([id]) => id === mistakes)[2]}。错题会记为「薄弱」，学习路径优先出。</small>
+        <small>{ui(MISTAKES.find(([id]) => id === mistakes)[2])}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
       </fieldset>
       {!data.modelReady && (
-        <p className="warning">当前会话没有可用模型，录题需要模型整理题目。</p>
+        <p className="warning">{ui("当前会话没有可用模型，录题需要模型整理题目。")}</p>
       )}
-      <button className="primary wide" disabled={busy || !data.modelReady || (newDeck && !title.trim())}>
-        开始录题 → 去对话里粘贴
-      </button>
+      <button className="primary wide" disabled={busy || !data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题 → 去对话里粘贴")}</button>
     </form>
   );
 }

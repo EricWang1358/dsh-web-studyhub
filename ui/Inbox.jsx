@@ -1,3 +1,4 @@
+import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 
 /* 顶栏信箱：会话或后台替某道题做完的事（提升质量、前置题、按反馈改题、
@@ -7,10 +8,10 @@ import React from "react";
 const ago = (at) => {
   const s = Math.max(0, (Date.now() - Date.parse(at)) / 1000);
   if (!Number.isFinite(s)) return "";
-  if (s < 60) return "刚刚";
-  if (s < 3600) return `${Math.floor(s / 60)} 分钟前`;
-  if (s < 86400) return `${Math.floor(s / 3600)} 小时前`;
-  return `${Math.floor(s / 86400)} 天前`;
+  if (s < 60) return ui("刚刚");
+  if (s < 3600) return uiFormat("{0} 分钟前", [Math.floor(s / 60)]);
+  if (s < 86400) return uiFormat("{0} 小时前", [Math.floor(s / 3600)]);
+  return uiFormat("{0} 天前", [Math.floor(s / 86400)]);
 };
 
 const NO_ITEMS = [];
@@ -77,21 +78,19 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo }) {
         className={"inbox-toggle" + (unread ? " has-unread" : "")}
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={unread ? `信箱，${unread} 条未读` : "信箱"}
-        title={unread ? `${unread} 条后台结果待查看` : "信箱"}
+        aria-label={unread ? uiFormat("信箱，{0} 条未读", [unread]) : ui("信箱")}
+        title={unread ? uiFormat("{0} 条后台结果待查看", [unread]) : ui("信箱")}
         onClick={() => setOpen((v) => !v)}
       >
         <MailboxIcon />
         {unread > 0 && <span className="inbox-badge">{unread > 99 ? "99+" : unread}</span>}
       </button>
       {open && (
-        <div className="inbox-panel" role="dialog" aria-label="信箱">
+        <div className="inbox-panel" role="dialog" aria-label={ui("信箱")}>
           <div className="inbox-head">
-            <strong>信箱</strong>
-            <small className="muted">{unread ? `${unread} 条未读` : "都看过了"}</small>
-            <button type="button" className="inbox-read-all" disabled={!unread || busy} onClick={onReadAll}>
-              全部已读
-            </button>
+            <strong>{ui("信箱")}</strong>
+            <small className="muted">{unread ? uiFormat("{0} 条未读", [unread]) : ui("都看过了")}</small>
+            <button type="button" className="inbox-read-all" disabled={!unread || busy} onClick={onReadAll}>{ui("全部已读")}</button>
           </div>
           {items.length ? (
             <ul className="inbox-list" ref={list}>
@@ -101,31 +100,29 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo }) {
                     type="button"
                     className={"inbox-item" + (m.read ? "" : " unread")}
                     disabled={busy || m.missing}
-                    title={m.missing ? (m.kind === "note" ? "笔记已不存在" : "这道题已经不在题库里了")
-                      : m.kind === "note" ? "打开笔记草稿" : "跳到这道题"}
+                    title={m.missing ? (m.kind === "note" ? ui("笔记已不存在") : ui("这道题已经不在题库里了"))
+                      : m.kind.startsWith('audio-') ? ui("打开音频转录结果") : m.kind === "note" ? ui("打开笔记草稿") : ui("跳到这道题")}
                     onClick={() => {
                       setOpen(false);
                       onOpen(m);
                     }}
                   >
                     <span className="inbox-item-top">
-                      <span className={"inbox-kind k-" + m.kind}>{m.label}</span>
+                      <span className={"inbox-kind k-" + m.kind}>{ui(m.label)}</span>
                       {m.count > 1 && <span className="inbox-count">×{m.count}</span>}
                       <small>{m.deckTitle}</small>
                       <small className="inbox-time">{ago(m.at)}</small>
                     </span>
-                    <span className="inbox-prompt">{m.missing ? (m.kind === "note" ? "（笔记已删除）" : "（题目已删除）") : m.prompt}</span>
+                    <span className="inbox-prompt">{m.missing ? (m.kind === "note" ? ui("（笔记已删除）") : ui("（题目已删除）")) : m.prompt}</span>
                     {m.detail && <span className="inbox-detail">{m.detail}</span>}
                   </button>
                   {m.canRevert && onUndo && <button type="button" className="inbox-undo"
-                    disabled={busy} onClick={() => onUndo(m)}>回退这次改题</button>}
+                    disabled={busy} onClick={() => onUndo(m)}>{ui("回退这次改题")}</button>}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="inbox-empty muted">
-              暂无消息。你去做下一题时，会话和后台做完的改题、前置题、陪学回复和讲解追问会投递到这里，点一下就能跳回那道题。
-            </p>
+            <p className="inbox-empty muted">{ui("暂无消息。你去做下一题时，会话和后台做完的改题、前置题、陪学回复和讲解追问会投递到这里，点一下就能跳回那道题。")}</p>
           )}
         </div>
       )}

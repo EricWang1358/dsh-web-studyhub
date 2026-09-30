@@ -53,11 +53,17 @@ test("split by topic and reorder keep card references and history", async () => 
 });
 
 test("AI merge suggestions stay read-only until confirmation and reject invented IDs", async () => {
+  let submitted;
   const service = new StudyService(await mkdtemp(join(tmpdir(), "study-merge-suggest-")), {
-    completeLight: async () => JSON.stringify({ proposals: [
+    completeLight: async (_system, prompt) => {
+      submitted = JSON.parse(prompt);
+      return JSON.stringify({ proposals: submitted.course === '' ? [
+        { targetId: 'u', sourceIds: ['v'], reason: 'Same unassigned topic' },
+      ] : [
       { targetId: "a", sourceIds: ["b"], reason: "同一主题的补充练习" },
       { targetId: "a", sourceIds: ["invented"], reason: "不应采纳" },
-    ] }),
+      ] });
+    },
   });
   const card = (id) => ({ id, kind: "flashcard", prompt: id, answer: id, topic: "Architecture" });
   await service.store.update((state) => {
@@ -72,4 +78,14 @@ test("AI merge suggestions stay read-only until confirmation and reject invented
   await service.call("deck.merge", { targetId: suggestion.proposals[0].targetId,
     sourceIds: suggestion.proposals[0].sourceIds });
   assert.deepEqual((await service.call("export")).decks.map((deck) => deck.id), ["a", "c"]);
+  await service.store.update(state => {
+    state.decks.push({ id: 'u', title: 'Unassigned 1', course: '', folder: 'course', cards: [card('u')] },
+      { id: 'v', title: 'Unassigned 2', course: '', folder: 'course', cards: [card('v')] });
+  });
+  await service.call('focus.set', { course: 'course' });
+  const unassigned = await service.call('deck.merge.suggest', { course: '' });
+  assert.equal(unassigned.course, '');
+  assert.deepEqual(submitted.decks.map(deck => deck.id), ['u', 'v']);
+  assert.deepEqual(unassigned.proposals[0].sourceIds, ['v']);
+  assert.equal((await service.call('snapshot')).focus.course, 'course');
 });

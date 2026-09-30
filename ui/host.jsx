@@ -1,3 +1,4 @@
+import { ui } from "./i18n.js";
 import React from "react";
 import App from "./App.jsx";
 import css from "./style.css";
@@ -47,15 +48,13 @@ class StudyBoundary extends React.Component {
       <div className="study-app">
         <div className="empty">
           <span className="empty-icon">⚠️</span>
-          <h2>学习工作台渲染出错</h2>
+          <h2>{ui("学习工作台渲染出错")}</h2>
           <p>{String(error?.message || error)}</p>
           <button
             className="ghost-btn"
             type="button"
             onClick={() => this.setState((s) => ({ error: null, nonce: s.nonce + 1 }))}
-          >
-            重新加载
-          </button>
+          >{ui("重新加载")}</button>
         </div>
       </div>
     );
@@ -173,7 +172,7 @@ export function apply(ctx) {
         openWorkspaceNotebook: async (cwd) => {
           const sessions = ctx.get("sessions");
           if (!sessions?.create || !sessions?.open)
-            throw new Error("当前 DSH 版本不支持跳转到其他工作区");
+            throw new Error(ui("当前 DSH 版本不支持跳转到其他工作区"));
           const id = await sessions.create({ cwd });
           sessions.open(id);
           return id;
@@ -226,15 +225,15 @@ export function apply(ctx) {
     return (
       <div className="study-seat"><StudyBoundary>
         {placement === "sidebar" && candidateIntent?.candidates?.length > 0 &&
-          <div className="study-panel-candidates" role="dialog" aria-label="选择题目">
+          <div className="study-panel-candidates" role="dialog" aria-label={ui("选择题目")}>
             <div className="study-panel-candidates-head">
-              <strong>选择要打开的题目</strong>
-              <button type="button" onClick={() => deliverCandidates(sessionId, null)}>取消</button>
+              <strong>{ui("选择要打开的题目")}</strong>
+              <button type="button" onClick={() => deliverCandidates(sessionId, null)}>{ui("取消")}</button>
             </div>
             {candidateError && <p role="alert">{candidateError}</p>}
             {candidateIntent.candidates.map((item) =>
               <button type="button" key={`${item.deckId}:${item.cardId}`} onClick={() => chooseCandidate(item)}>
-                <small>{item.deckTitle} · {item.topic || "未分类"}</small>
+                <small>{item.deckTitle} · {item.topic || ui("未分类")}</small>
                 <span>{item.prompt}</span>
               </button>)}
           </div>}

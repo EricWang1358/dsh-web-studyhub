@@ -1,3 +1,4 @@
+import { ui, uiFormat, uiLocale } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import Cloze from "./Cloze.jsx";
@@ -22,13 +23,13 @@ import { useInjectCss } from "./shared.js";
    状态都由 App 持有，本组件只负责渲染与交互转发。 */
 const date = (v) =>
   v
-    ? new Date(v).toLocaleString("zh-CN", {
+    ? new Date(v).toLocaleString(uiLocale(), {
         month: "short",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
       })
-    : "现在";
+    : ui("现在");
 const HELP_CHOICES = [
   { id: "plain", label: "通俗详解" },
   { id: "angle", label: "换个角度讲" },
@@ -85,7 +86,11 @@ export default function Review({
   call,
   openSkeleton,
   onMakeNote,
+  onMakeTask,
   onOpenNote,
+  feedback,
+  contextReturnLabel,
+  onReturnContext,
 }) {
   useInjectCss(resultCss, "review-results");
   const pageRef = React.useRef(null);
@@ -142,7 +147,6 @@ export default function Review({
   const [assistMode, setAssistMode] = React.useState("");
   const [assistText, setAssistText] = React.useState("");
   const [helpChoices, setHelpChoices] = React.useState([]);
-  const [detailsRun, setDetailsRun] = React.useState(null);
   React.useEffect(() => {
     setAssistMode("");
     setAssistText("");
@@ -153,13 +157,12 @@ export default function Review({
   const lastTask = cardTasks.at(-1);
   const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
-  const nextFreshCount = [...new Set((run.scope || []).map((scope) => scope.deckId))]
+  const nextFreshCount = run.freshRemaining ?? [...new Set((run.scope || []).map((scope) => scope.deckId))]
     .reduce((count, deckId) => count + (data?.progress?.[deckId]?.counts?.new || 0), 0);
   const prereqStrip = run.prerequisites?.length > 0 && !run.complete && (
     <details className="prereq-strip">
       <summary>
-        <span>
-          前置题 {run.prerequisites.length} · 已掌握{" "}
+        <span>{ui("前置题 ")}{run.prerequisites.length}{ui(" · 已掌握")}{" "}
           {run.prerequisites.filter((p) => !["new", "weak"].includes(p.level)).length}
         </span>
         {(() => {
@@ -168,13 +171,13 @@ export default function Review({
             <button
               className={unlearned ? "primary pill" : "pill"}
               disabled={busy}
-              title={unlearned ? "先学没掌握的前置题，学完回到这道题" : "把前置题再过一遍自查，做完回到这道题"}
+              title={unlearned ? ui("先学没掌握的前置题，学完回到这道题") : ui("把前置题再过一遍自查，做完回到这道题")}
               onClick={(e) => {
                 e.preventDefault();
                 studyPrerequisites(run.prerequisites);
               }}
             >
-              {unlearned ? "先学前置 →" : "自查前置 →"}
+              {unlearned ? ui("先学前置 →") : ui("自查前置 →")}
             </button>
           );
         })()}
@@ -185,7 +188,7 @@ export default function Review({
             <button
               className="prereq-item"
               disabled={busy}
-              title="只练这一道，做完回到这道题"
+              title={ui("只练这一道，做完回到这道题")}
               onClick={() => studyPrerequisites([p])}
             >
               <span className={"map-dot lv-" + p.level} />
@@ -207,37 +210,31 @@ export default function Review({
       {rail && <ReviewNavigator run={run} busy={busy} onJump={(index) => reviewAct("review.move", { index })} />}
       <div className="review-heading">
         <div>
-          {flow && <p className="review-flow-origin">学习流{flow.stepIndex >= 0 ? ` · 第 ${flow.stepIndex + 1}/${flow.stepCount} 步` : ""} · {flow.stepTitle}</p>}
+          {flow && <p className="review-flow-origin">{ui("学习流")}{flow.stepIndex >= 0 ? uiFormat(" · 第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]) : ""} · {flow.stepTitle}</p>}
           <h1>
             {shellTitle}
-            {run.mode === "flashcard" ? " · 闪卡" : ""}
-            {run.retry && !run.complete ? " · 本轮重练" : ""}
+            {run.mode === "flashcard" ? ui(" · 闪卡") : ""}
+            {run.retry && !run.complete ? ui(" · 本轮重练") : ""}
           </h1>
           <button
             className="pill"
             onClick={() => setModal({ type: "sources" })}
-          >
-            查看 {run.sourceIds?.length || 0} 份资料
-          </button>
+          >{ui("查看 ")}{run.sourceIds?.length || 0}{ui(" 份资料")}</button>
           {skeletonHere && openSkeleton && (
-            <button className="pill" title={`这道题在知识骨架「${skeletonHere.title}」里`} onClick={() => openSkeleton(skeletonHere.id)}>
-              ◈ 知识骨架
-            </button>
+            <button className="pill" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("◈ 知识骨架")}</button>
           )}
         </div>
         <div className="review-heading-actions">
           {host.openInSidebar && !run.complete && (
             <button
               className="ghost-btn"
-              title="题目放到右栏，主区域回到对话"
+              title={ui("题目放到右栏，主区域回到对话")}
               onClick={() => host.openInSidebar(run.id)}
-            >
-              在右栏打开
-            </button>
+            >{ui("在右栏打开")}</button>
           )}
-          <button className="review-return" aria-label={flow ? "回到学习流" : "返回学习库"} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : setPage("library")}>
-            <span className="review-return-full">{flow ? "回到学习流" : "返回学习库"}</span>
-            <span className="review-return-short" aria-hidden="true">返回</span>
+          <button className="review-return" aria-label={flow ? ui("回到学习流") : ui("返回学习库")} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : setPage("library")}>
+            <span className="review-return-full">{flow ? ui("回到学习流") : ui("返回学习库")}</span>
+            <span className="review-return-short" aria-hidden="true">{ui("返回")}</span>
           </button>
         </div>
       </div>
@@ -246,71 +243,68 @@ export default function Review({
         // for the summary, and the ✓ badge inherited .question-area's inline
         // min-height (set by the pinning effect above), stretching into an oval.
         <div key="summary" className="session-summary result-page">
-          <div className="result-kicker">本轮学习结果</div>
-          <h1 className="result-title">{run.closed ? "这一轮，已结束。" : "这一轮，完成了。"}</h1>
-          <p className="result-subtitle">{shellTitle} · {run.questions ?? run.total} 道题</p>
+          <div className="result-kicker">{ui("本轮学习结果")}</div>
+          <h1 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h1>
+          <p className="result-subtitle">{shellTitle} · {run.questions ?? run.total}{ui(" 道题")}</p>
           <div className="result-hero">
             <div className="result-headline">
               <strong>{run.correct}</strong>
-              <span>道题已掌握 / {run.questions ?? run.total} 道</span>
-              {run.retries > 0 && <small>另有 {run.retries} 次队尾重练</small>}
+              <span>{ui("道题已掌握 / ")}{run.questions ?? run.total}{ui(" 道")}</span>
+              {run.retries > 0 && <small>{ui("另有 ")}{run.retries}{ui(" 次队尾重练")}</small>}
             </div>
             <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct} />
           </div>
+          {/* The 雷霆建议 sits right under the score: it carries the one-click
+              「刷 N 道为你定制的题」, so it must not hide inside the fold. */}
+          {coachProps && run.mode !== "exam" && run.answered > 0 && (
+            <CoachDebrief
+              key={"debrief-" + run.id}
+              run={run}
+              call={coachProps.call}
+              initial={coachProps.debrief}
+              // Autopilot must not pull a learner out of a workflow or a detour.
+              autopilot={coachProps.autopilot && !flow && !detour && !run.returnTo}
+              busy={busy}
+              onPractice={coachProps.onPractice}
+              onContinue={coachProps.onContinue}
+              onReviewWeak={coachProps.onReviewWeak}
+            />
+          )}
           <div className="summary-topics">
-            <h3>接下来重点复习 · 最多 3 个主题</h3>
+            <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
             {(run.weakTopics || []).slice(0, 3).map((t) => (
               <span className="tag" key={t}>
                 {t}
               </span>
             ))}
             {!run.weakTopics?.length && (
-              <p className="muted">
-                本轮没有低分记录，继续按间隔复习巩固。
-              </p>
+              <p className="muted">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
             )}
           </div>
           {run.course && (
-            <p className="summary-course">
-              课程进度 · 已学 <strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong> 题
-              {run.course.chapter ? ` · 第 ${run.course.chapter.index + 1} / ${run.course.chapters} 章「${run.course.chapter.title}」${run.course.chapter.learned}/${run.course.chapter.total}` : " · 全部章节都学过了"}
-              {run.course.next?.label ? <span> · 下一批：{run.course.next.label}</span> : null}
+            <p className="summary-course">{ui("课程进度 · 已学 ")}<strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong>{ui(" 题")}{run.course.chapter ? uiFormat(" · 第 {0} / {1} 章「{2}」{3}/{4}", [run.course.chapter.index + 1, run.course.chapters, run.course.chapter.title, run.course.chapter.learned, run.course.chapter.total]) : ui(" · 全部章节都学过了")}
+              {run.course.next?.label ? <span>{ui(" · 下一批：")}{run.course.next.label}</span> : null}
             </p>
           )}
           <div className="summary-actions">
             {run.course?.next && <button className="primary" disabled={busy}
-              onClick={() => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun)}>继续课程下一批 →</button>}
-            {run.course?.next?.fresh > 0 && onCourseFlow && <button disabled={busy} onClick={() => onCourseFlow()}>先讲后练下一批</button>}
+              onClick={() => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun)}>{ui("继续课程下一批 →")}</button>}
+            {run.course?.next?.fresh > 0 && onCourseFlow && <button disabled={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</button>}
             {run.mode === "new" && nextFreshCount > 0 && (
-              <button className="primary" disabled={busy} onClick={() => act("review.start", run.scope?.length > 1
-                ? { mode: "new", currentCourse: true, count: 10, fresh: true }
-                : { mode: "new", deckId: run.scope?.[0]?.deckId || run.deckId, count: 10, ordered: true, fresh: true }, enterRun)}>
-                继续下一批新题 →
-              </button>
+              <button className="primary" disabled={busy} onClick={() => act("review.start",
+                { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: 10, ordered: true, fresh: true }, enterRun)}>{ui("继续下一批新题 →")}</button>
             )}
             {flow && <button className="primary" disabled={busy} onClick={() => onBackToWorkflow(flow.sessionId)}>
-              {flow.current ? "回到学习流，继续下一步 →" : "回到学习流 →"}</button>}
-            {detour && <button className="primary" disabled={busy} onClick={onReturnFromDetour}>回到「{detour.title}」第 {detour.index + 1} 题 →</button>}
+              {flow.current ? ui("回到学习流，继续下一步 →") : ui("回到学习流 →")}</button>}
+            {contextReturnLabel && <button disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</button>}
+            {detour && <button className="primary" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题 →", [detour.index + 1])}</button>}
             {run.returnTo && !detour && <button className="primary" disabled={busy}
-              onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>回到原题 →</button>}
-            <button onClick={() => setPage("library")}>回到学习目录</button>
+              onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>{ui("回到原题 →")}</button>}
+            <button onClick={() => setPage("library")}>{ui("回到学习目录")}</button>
           </div>
-          <details key={run.id} className="result-details"
-            onToggle={(event) => setDetailsRun(event.currentTarget.open ? run.id : null)}>
-            <summary>更多结果与练习</summary>
-            <p className="muted">每道题的下次复习时间已保存。</p>
-            {detailsRun === run.id && coachProps && run.mode !== "exam" && run.answered > 0 && (
-            <CoachDebrief
-              run={run}
-              call={coachProps.call}
-              initial={coachProps.debrief}
-              autopilot={coachProps.autopilot}
-              busy={busy}
-              onPractice={coachProps.onPractice}
-              onContinue={coachProps.onContinue}
-              onReviewWeak={coachProps.onReviewWeak}
-            />
-            )}
+          <details key={run.id} className="result-details">
+            <summary>{ui("更多结果与练习")}</summary>
+            <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
             <div className="summary-actions">
             {run.mode === "path" && !run.returnTo && !flow && (
               <button
@@ -318,7 +312,7 @@ export default function Review({
                 disabled={busy}
                 onClick={() => act("review.start", { mode: "path", scope: run.scope || [], fresh: true }, enterRun)}
               >
-                {run.scope?.length ? "再练此范围" : "继续学习"}
+                {run.scope?.length ? ui("再练此范围") : ui("继续学习")}
               </button>
             )}
             {run.weakTopics?.length > 0 && (
@@ -328,9 +322,7 @@ export default function Review({
                     `我刚在「${shellTitle}」里这些主题还没掌握稳：${run.weakTopics.join("、")}。请结合学习库资料逐个讲清楚，并各出一道小题检查我。`,
                   )
                 }
-              >
-                在对话中讲解薄弱点
-              </button>
+              >{ui("在对话中讲解薄弱点")}</button>
             )}
             </div>
           </details>
@@ -343,7 +335,7 @@ export default function Review({
               (!choice && !isCloze ? "flash-area" : "")
             }
           >
-            {run.contentUpdated && <p className="warning" role="status">题目已更新，请按新版重新作答。之前的作答历史已保留。</p>}
+            {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}
             {/* The card: header, stem and answers on paper stock. Toolbar,
                 status and explanation sit below it on the desk. */}
             <div className="question-card"
@@ -354,30 +346,28 @@ export default function Review({
                 </span>
                 <div>
                   {cardNotes.map((note) => note.status === "published" && note.url
-                    ? <a key={note.noteId} className="pill result-note-badge" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}>已发布笔记 ↗</a>
+                    ? <a key={note.noteId} className="pill result-note-badge" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}>{ui("已发布笔记 ↗")}</a>
                     : <button key={note.noteId} className="pill result-note-badge" type="button" disabled={!onOpenNote}
-                      title={note.title} onClick={() => onOpenNote?.(note.noteId)}>笔记草稿</button>)}
+                      title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</button>)}
                   {run.origin && (
-                    <span className="origin-tag" title={run.origin.prompt ? `源自：${run.origin.prompt}` : ""}>
-                      {run.origin.reason === "too-hard" ? "前置台阶" : run.origin.reason === "followup" ? "追问巩固" : "变式"}
-                      {run.origin.prompt ? ` · 源自「${run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt}」` : ""}
+                    <span className="origin-tag" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
+                      {run.origin.reason === "too-hard" ? ui("前置台阶") : run.origin.reason === "followup" ? ui("追问巩固") : ui("变式")}
+                      {run.origin.prompt ? uiFormat(" · 源自「{0}」", [run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt]) : ""}
                     </span>
                   )}
-                  {run.card.importedFromJson && <span className="origin-tag">外部导入</span>}
+                  {run.card.importedFromJson && <span className="origin-tag">{ui("外部导入")}</span>}
                   <span>{run.card.topic}</span>
                   {!!publicationIssues.length && !run.card.publicationUngrable &&
                     <details className="publication-mark">
-                      <summary>待核对</summary>
+                      <summary>{ui("待核对")}</summary>
                       <div className="publication-mark-popover">
                         <p>{publicationIssues.join("；")}</p>
                         <button type="button" className="pill" onClick={() =>
-                          assistCard("improve", `发布检查发现：${publicationIssues.join("；")}`)}>
-                          交给后台修题
-                        </button>
+                          assistCard("improve", `发布检查发现：${publicationIssues.join("；")}`)}>{ui("交给后台修题")}</button>
                       </div>
                     </details>}
                   <button
-                    aria-label="标记题目"
+                    aria-label={ui("标记题目")}
                     onClick={() => {
                       setFlag("");
                       setModal({ type: "flag" });
@@ -390,7 +380,7 @@ export default function Review({
               <div
                 className="card-progress"
                 role="progressbar"
-                aria-label="复习进度"
+                aria-label={ui("复习进度")}
                 aria-valuemin={0}
                 aria-valuemax={run.total}
                 aria-valuenow={run.index + 1}
@@ -399,11 +389,11 @@ export default function Review({
               {run.card.publicationUngrable ? (
                 <div className="quality-note warning" role="status">
                   <div className="question"><Markdown text={run.card.prompt || "题干尚未填写"} /></div>
-                  <p>这道题缺少可判分内容。你可以交给助教修改，或跳过；跳过不会记录成绩或改变复习进度。</p>
+                  <p>{ui("这道题缺少可判分内容。你可以交给助教修改，或跳过；跳过不会记录成绩或改变复习进度。")}</p>
                   {!!publicationIssues.length && <p>{publicationIssues.join("；")}</p>}
                   <button type="button" disabled={busy} onClick={() =>
-                    assistCard("improve", `发布检查发现：${publicationIssues.join("；")}`)}>交给后台修题</button>
-                  <button className="primary" disabled={busy} onClick={() => reviewAct("review.skip")}>跳过此题，不计成绩 →</button>
+                    assistCard("improve", `发布检查发现：${publicationIssues.join("；")}`)}>{ui("交给后台修题")}</button>
+                  <button className="primary" disabled={busy} onClick={() => reviewAct("review.skip")}>{ui("跳过此题，不计成绩 →")}</button>
                 </div>
               ) : choice ? (
                 <>
@@ -417,9 +407,7 @@ export default function Review({
                     )}
                   </div>
                   {run.card.multiple && (
-                    <p className="muted small">
-                      多选题 · 选出所有符合条件的选项
-                    </p>
+                    <p className="muted small">{ui("多选题 · 选出所有符合条件的选项")}</p>
                   )}
                   <ChoiceFeedback options={run.card.options} feedback={run.feedback} solution={run.solution} multiple={multiple} />
                   <div className="options" key={"options:" + reviewEntryKey(run)}>
@@ -463,9 +451,9 @@ export default function Review({
                               <div className="option-reveal"><div>
                                 <strong className="answer-state">
                                   {solution?.correct
-                                    ? picked ? "✓ 已选 · 正确" : multiple ? "漏选 · 正确答案" : "正确答案"
+                                    ? picked ? ui("✓ 已选 · 正确") : multiple ? ui("漏选 · 正确答案") : ui("正确答案")
                                     : picked
-                                      ? multiple ? "× 已选 · 错选" : "× 你的选择"
+                                      ? multiple ? ui("× 已选 · 错选") : ui("× 你的选择")
                                       : ""}
                                 </strong>
                                 <Markdown
@@ -494,9 +482,7 @@ export default function Review({
                       onClick={() =>
                         reviewAct("review.answer", { selected })
                       }
-                    >
-                      提交答案
-                    </button>
+                    >{ui("提交答案")}</button>
                   )}
                 </>
               ) : isCloze ? (
@@ -540,9 +526,7 @@ export default function Review({
                       onClick={() =>
                         reviewAct("review.answer", { answers: clozeValues })
                       }
-                    >
-                      提交答案
-                    </button>
+                    >{ui("提交答案")}</button>
                   )}
                 </>
               ) : (
@@ -557,39 +541,37 @@ export default function Review({
                   />
                   <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
                   {run.card.kind === "open" && !run.revealed && (
-                    <label className="response-label">
-                      先组织你的回答
-                      <textarea
+                    <label className="response-label">{ui("先组织你的回答")}<textarea
                         rows={3}
                         value={response}
                         onChange={(e) => setResponse(e.target.value)}
-                        placeholder="在脑中作答，或在这里写下思路（仅本轮临时草稿）"
+                        placeholder={ui("在脑中作答，或在这里写下思路（仅本轮临时草稿）")}
                       />
                     </label>
                   )}
                   {run.revealed && !run.feedback && (
                     <div className="grading">
                       <div className="grading-head">
-                        <span>{run.retry ? "本轮重练 · " : ""}掌握程度</span>
-                        <small>按 0–5 评分</small>
+                        <span>{run.retry ? ui("本轮重练 · ") : ""}{ui("掌握程度")}</span>
+                        <small>{ui("按 0–5 评分")}</small>
                       </div>
-                      <div className="grade-scale" role="group" aria-label="掌握程度评分">
+                      <div className="grade-scale" role="group" aria-label={ui("掌握程度评分")}>
                         {[
-                          "完全忘记",
-                          "记得一点",
-                          "有印象",
-                          "勉强答对",
-                          "熟练",
-                          "轻松掌握",
+                          ui("完全忘记"),
+                          ui("记得一点"),
+                          ui("有印象"),
+                          ui("勉强答对"),
+                          ui("熟练"),
+                          ui("轻松掌握"),
                         ].map((label, grade) => (
                           <button
                             className={
                               grade < 3 ? "grade low" : "grade high"
                             }
                             key={grade}
-                            aria-label={`${grade} 分：${label}`}
+                            aria-label={uiFormat("{0} 分：{1}", [grade, label])}
                             aria-keyshortcuts={String(grade)}
-                            title={`快捷键 ${grade}：${label}`}
+                            title={uiFormat("快捷键 {0}：{1}", [grade, label])}
                             disabled={busy}
                             onClick={() =>
                               reviewAct("review.answer", { grade })
@@ -609,8 +591,9 @@ export default function Review({
               )}
             </div>
             {/* Under the card, which stays in view when a question switch pins it to the top. */}
-            {detour && <button type="button" className="review-detour" disabled={busy} onClick={onReturnFromDetour}
-              title="回到从信箱跳过来之前正在做的题">← 回到「{detour.title}」第 {detour.index + 1} 题</button>}
+            {contextReturnLabel && <button type="button" className="review-detour" disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</button>}
+            {detour && !contextReturnLabel && <button type="button" className="review-detour" disabled={busy} onClick={onReturnFromDetour}
+              title={ui("回到从信箱跳过来之前正在做的题")}>{uiFormat("← 回到之前的第 {0} 题", [detour.index + 1])}</button>}
             <ReviewToolbar
               key={reviewEntryKey(run)}
               assistMode={assistMode}
@@ -620,6 +603,7 @@ export default function Review({
               onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
               onSlay={slayCard} onReviewAction={reviewAct}
               onNote={onMakeNote}
+              onTask={onMakeTask}
               enOn={enOn}
               enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
               onToggleEn={toggleEn}
@@ -627,6 +611,7 @@ export default function Review({
                 <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()} />
               )}
             />
+            {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
             <SmoothHeight className="assist-area">
               {assistMode && (
                 <form
@@ -645,57 +630,51 @@ export default function Review({
                   }}
                 >
                   {assistMode === "ask" && <>
-                    <strong>想从哪里弄懂？可多选</strong>
-                    <div className="assist-quick-choices" role="group" aria-label="帮助方式">
+                    <strong>{ui("想从哪里弄懂？可多选")}</strong>
+                    <div className="assist-quick-choices" role="group" aria-label={ui("帮助方式")}>
                       {HELP_CHOICES.filter((choice) => choice.id !== "mistake" || run.feedback).map((choice) =>
                         <button type="button" key={choice.id}
                           className={"pill" + (helpChoices.includes(choice.id) ? " pill-on" : "")}
                           aria-pressed={helpChoices.includes(choice.id)}
                           onClick={() => setHelpChoices((items) => items.includes(choice.id)
                             ? items.filter((item) => item !== choice.id) : [...items, choice.id])}>
-                          {choice.label}
+                          {ui(choice.label)}
                         </button>)}
                     </div>
                   </>}
                   <label>
-                    {assistMode === "ask" ? "补充你自己的疑问（可选）" : "这道题哪里不好？后台助教会直接改这张卡，可一步撤销"}
+                    {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
                     <textarea
                       autoFocus
                       rows={2}
                       value={assistText}
                       maxLength={1000}
-                      placeholder={assistMode === "ask" ? "例如：不懂为什么重试会放大负载" : "例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错"}
+                      placeholder={assistMode === "ask" ? ui("例如：不懂为什么重试会放大负载") : ui("例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错")}
                       onChange={(event) => setAssistText(event.target.value)}
                     />
                   </label>
+                  <div className="action-feedback-slot">{feedback}</div>
                   <div className="assist-actions">
                     <button type="submit" className="primary pill"
-                      disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>
-                      提交到后台
-                    </button>
-                    <button type="button" className="pill" onClick={() => setAssistMode("")}>
-                      取消
-                    </button>
+                      disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</button>
+                    <button type="button" className="pill" onClick={() => setAssistMode("")}>{ui("取消")}</button>
                   </div>
-                  {assistMode === "ask" && <p className="muted small">提交后才启动后台助教；完成结果进信箱，做题和主对话可继续。</p>}
+                  {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教；完成结果进信箱，做题和主对话可继续。")}</p>}
                 </form>
               )}
               {runningTask && (
                 <p className="assist-status" role="status">
-                  <i className="assist-spin" aria-hidden="true" />
-                  后台助教正在{runningTask.mode === "ask" ? "解答" : "改题"}：{runningTask.text}
+                  <i className="assist-spin" aria-hidden="true" />{ui("后台助教正在")}{runningTask.mode === "ask" ? ui("解答") : ui("改题")}：{runningTask.text}
                 </p>
               )}
               {!runningTask && lastTask?.status === "failed" && (
-                <p className="assist-status failed" role="status">
-                  后台助教没能完成：{lastTask.message || "任务失败"}。可以重新提交。
-                </p>
+                <p className="assist-status failed" role="status">{ui("后台助教没能完成：")}{lastTask.message || ui("任务失败")}{ui("。可以重新提交。")}</p>
               )}
             </SmoothHeight>
             {coachProps?.autoAdvance > 0 && (
               <>
                 <div className="autopilot-bar" key={run.index} style={{ "--autopilot-ms": coachProps.autoAdvance + "ms" }} />
-                <small className="autopilot-note">自动驾驶：马上进入下一题，点任意处或按键可停下</small>
+                <small className="autopilot-note">{ui("自动驾驶：马上进入下一题，点任意处或按键可停下")}</small>
               </>
             )}
             {hint && !run.revealed && (
@@ -706,14 +685,13 @@ export default function Review({
             )}
             {run.feedback && (
               <p className={"next-due" + (run.feedback.correct ? "" : " retry")}>
-                {run.feedback.correct ? "✓ 已掌握" : "↻ 将继续巩固"} ·
-                下次复习 {date(run.feedback.nextDue)}
-                {run.feedback.retryQueued && <span> · 已追加到本轮队尾，稍后再练一次</span>}
+                {run.feedback.correct ? ui("✓ 已掌握") : ui("↻ 将继续巩固")}{ui(" · 下次复习 ")}{date(run.feedback.nextDue)}
+                {run.feedback.retryQueued && <span>{ui(" · 已追加到本轮队尾，稍后再练一次")}</span>}
               </p>
             )}
             {run.solution && (explain || !!run.feedback) && (
               <div className="explanation">
-                <h3>理解这道题</h3>
+                <h3>{ui("理解这道题")}</h3>
                 <Markdown text={run.solution.explanation} />
                 {enOn && enAnswer?.explanation && (
                   <div className="en-block">
@@ -721,11 +699,11 @@ export default function Review({
                     <Markdown links={false} className="md-compact" text={enAnswer.explanation} />
                   </div>
                 )}
-                <h4>容易混淆的地方</h4>
+                <h4>{ui("容易混淆的地方")}</h4>
                 <Markdown text={run.solution.misconception} />
                 {run.solution.rubric && (
                   <>
-                    <h4>评分依据</h4>
+                    <h4>{ui("评分依据")}</h4>
                     <Markdown text={run.solution.rubric} />
                   </>
                 )}
@@ -747,7 +725,7 @@ export default function Review({
                   )}
                   {teaching.complete ? (
                     <>
-                      <h3>把理解迁移到下一题</h3>
+                      <h3>{ui("把理解迁移到下一题")}</h3>
                       <Markdown text={teaching.transfer} />
                     </>
                   ) : (
@@ -778,9 +756,7 @@ export default function Review({
                           className="primary"
                           disabled={teachingBusy || !teachAnswer.trim()}
                           onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })}
-                        >
-                          检查理解 →
-                        </button>
+                        >{ui("检查理解 →")}</button>
                       </form>
                     </>
                   )}

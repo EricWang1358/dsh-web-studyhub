@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateDeck } from "../lib/generation.js";
+import { generateDeck, salvageAuthoredCards } from "../lib/generation.js";
+import { generateBatched } from "../lib/batch.js";
 import { publicCard } from "../lib/domain.js";
 import { authored, qualityPlan, qualityReview } from "./helpers/assessment.mjs";
-import { reviewIssues, explanationIssues } from "../lib/assessment-quality.js";
+import { reviewIssues, explanationIssues, answerLeakIssues, planIssues } from "../lib/assessment-quality.js";
 import { reviewedCardFingerprint } from "../lib/review-integrity.js";
 
 const source = { id: "s", title: "Course notes", text: "Architecture includes the principles guiding a system's design and evolution." };
@@ -13,6 +14,82 @@ const card = { id: "q", kind: "flashcard", topic: "Architecture decisions", obje
   hint: "Compare a current-state description with a constraint on permitted changes.", explanation: "The quoted definition explicitly includes principles governing design and evolution.", misconception: "Architecture only describes current components.", citations: [{ sourceId: "s", quote: source.text }] };
 const candidate = () => ({ title: "Architecture", cards: [structuredClone(card)] });
 
+test('approved cards are checkpointed before a repair times out, with stable identities', async () => {
+  const deck = candidate();
+  deck.cards.push({ ...structuredClone(card), id: 'bad', prompt: 'Another question?', objective: 'Another target' });
+  const req = { ...request, count: 2, title: 'One requested deck' };
+  const failed = qualityReview(deck); failed.checks[1].answerLeak = 'fail';
+  const responses = [qualityPlan(req), authored(deck), failed];
+  const saved = [];
+  const result = await generateBatched(async () => {
+    if (!responses.length) { assert.equal(saved.at(-1).cards.length, 1); throw new Error('repair timed out'); }
+    return JSON.stringify(responses.shift());
+  }, req, () => {}, async value => saved.push(structuredClone(value)));
+  assert.equal(result.cards.length, 1);
+  assert.equal(result.cards[0].id, saved[0].cards[0].id);
+  assert.equal(result.title, req.title);
+  assert.match(result.editorial.failures.join(), /repair timed out/);
+  assert.equal(result.editorial.reviewedCards[result.cards[0].id], reviewedCardFingerprint(result.cards[0]));
+});
+
+test('malformed author arrays salvage only complete objects and still require independent review', async () => {
+  const good = JSON.stringify(card);
+  const malformed = `{"deck":{"cards":[${good},{"kind":"flashcard","prompt":"broken" "answer":"bad"},{"kind":`;
+  assert.deepEqual(salvageAuthoredCards(malformed).deck.cards, [card]);
+  assert.equal(salvageAuthoredCards('{"checks":[{"cardId":"q"}]}'), null);
+  const req = { ...request, count: 2 };
+  const responses = [JSON.stringify(qualityPlan(req)), malformed, JSON.stringify(qualityReview(candidate()))];
+  const result = await generateDeck(async () => responses.shift(), req);
+  assert.equal(result.cards.length, 1);
+  assert.equal(responses.length, 0);
+  assert.equal(result.editorial.audit.checks.length, 1);
+});
+
+test('local leakage checks normalise punctuation without claiming synonym detection', () => {
+  const deck = { cards: [{ ...card, answer: '技术用例与业务用例', topic: '选择依据：技术用例 / 与业务用例', hint: '想想系统的边界' }] };
+  assert.match(answerLeakIssues(deck).join(), /answerLeak in topic/);
+  deck.cards[0].topic = '参考架构选择'; deck.cards[0].hint = '技术用例与业务用例';
+  assert.match(answerLeakIssues(deck).join(), /answerLeak in hint/);
+  deck.cards[0].hint = '想想系统的边界';
+  assert.deepEqual(answerLeakIssues(deck), []);
+});
+
+test('planning rejects impossible list discrimination but permits scoped foundational recall', () => {
+  const plan = qualityPlan(request);
+  plan.targets[0].answerability = { mode: 'discrimination', requiredContextAvailable: true, answerOnlyInSourceList: true, criteriaWouldRevealAnswer: true };
+  assert.match(planIssues(plan, request).join(), /infeasible/);
+  plan.targets[0].answerability.mode = 'recall';
+  assert.deepEqual(planIssues(plan, request), []);
+  delete plan.targets[0].answerability;
+  assert.match(planIssues(plan, request).join(), /infeasible/);
+});
+
+test('total-budget cancellation retains the saved approved subset', async () => {
+  const deck = candidate();
+  deck.cards.push({ ...structuredClone(card), id: 'bad', prompt: 'Another question?', objective: 'Another target' });
+  const req = { ...request, count: 2 };
+  const failed = qualityReview(deck); failed.checks[1].sourceSupport = 'fail';
+  const responses = [qualityPlan(req), authored(deck), failed], controller = new AbortController(), saved = [];
+  await assert.rejects(generateBatched(async () => {
+    if (!responses.length) { controller.abort(new Error('total budget reached')); throw controller.signal.reason; }
+    return JSON.stringify(responses.shift());
+  }, { ...req, signal: controller.signal }, () => {}, async value => saved.push(structuredClone(value))), /total budget reached/);
+  assert.equal(saved.at(-1).cards.length, 1);
+  assert.equal(saved.at(-1).cards[0].id, saved[0].cards[0].id);
+});
+
+test('repair-relative card numbers cannot reject an unchanged approved card', async () => {
+  const deck = candidate();
+  deck.cards.push({ ...structuredClone(card), id: 'q2', prompt: 'Another question?', objective: 'Another target' });
+  const req = { ...request, count: 2 }, failed = qualityReview(deck);
+  failed.checks[1].answerLeak = 'fail';
+  const reviewedRepair = qualityReview({ cards: [deck.cards[1]] }, ['Card 1: still leaks the answer']);
+  const responses = [qualityPlan(req), authored(deck), failed, authored({ cards: [deck.cards[1]] }), reviewedRepair];
+  const result = await generateDeck(async () => JSON.stringify(responses.shift()), req);
+  assert.equal(result.cards.length, 1);
+  assert.equal(result.cards[0].prompt, card.prompt);
+});
+
 test("a card that still fails after one repair round is dropped, and the rest is kept", async () => {
   const draft = candidate();
   draft.cards.push({ ...structuredClone(card), id: "q2", prompt: "What governs later system changes?", objective: "Identify constraints on evolution" });
@@ -20,11 +97,10 @@ test("a card that still fails after one repair round is dropped, and the rest is
   const failed = qualityReview(draft, []);
   failed.checks[1].answerLeak = "fail";
   failed.checks[1].explanation = "q2 leaks its requested answer.";
-  // The repair and the retained subset both receive independent reviews.
-  const responses = [qualityPlan(req), authored(draft), failed, { deck: { cards: [draft.cards[1]] }, checks: [failed.checks[1]] }, failed, qualityReview({ cards: [draft.cards[0]] })];
+  const responses = [qualityPlan(req), authored(draft), failed, { deck: { cards: [draft.cards[1]] }, checks: [failed.checks[1]] }, { ...failed, checks: [failed.checks[1]] }];
   const phases = [];
   const result = await generateDeck(async () => JSON.stringify(responses.shift()), req, (stage) => phases.push(stage));
-  assert.equal(responses.length, 0, "repair and retained-subset reviews were consumed");
+  assert.equal(responses.length, 0, "only changed cards need another independent review");
   assert.equal(result.cards.length, 1, "only the sound card survives");
   assert.equal(result.cards[0].prompt, card.prompt);
   assert.equal(result.editorial.dropped, 1);
@@ -43,7 +119,7 @@ test("only the flagged card is re-sent for repair, so a round cannot grow the pa
   const repairedCard = { ...structuredClone(draft.cards[1]), prompt: "Which recorded rule constrains later changes?" };
   const prompts = [];
   const responses = [qualityPlan(req), authored(draft), failed,
-    { deck: { cards: [repairedCard] }, checks: [{ ...failed.checks[1], answerLeak: "pass", explanation: "The stem no longer names the answer." }] }, qualityReview({ cards: [draft.cards[0], repairedCard] })];
+    { deck: { cards: [repairedCard] }, checks: [{ ...failed.checks[1], answerLeak: "pass", explanation: "The stem no longer names the answer." }] }, qualityReview({ cards: [repairedCard] })];
   const result = await generateDeck(async (_system, prompt) => { prompts.push(prompt); return JSON.stringify(responses.shift()); }, req);
   const repairPrompt = prompts.at(-2);
   assert.match(repairPrompt, /Repair ONLY the questions in repair\[\]/);
@@ -151,15 +227,18 @@ test("an independent explanation-quality failure cannot be ignored", () => {
   assert.match(reviewIssues(review, candidate()).join(), /explanationQuality/);
 });
 
-test("a retained subset cannot bypass its independent review", async () => {
+test("unchanged approved cards keep their receipt when the repaired subset fails review", async () => {
   const deck = candidate();
   deck.cards.push({ ...structuredClone(card), id: "q2", prompt: "What governs later changes?", objective: "Identify constraints" });
   const req = { ...request, count: 2 };
   const failed = qualityReview(deck);
   failed.checks[1].explanationQuality = "fail";
-  const retained = qualityReview({ cards: [deck.cards[0]] }, ["Remaining answer is unsupported"]);
-  const responses = [qualityPlan(req), authored(deck), failed, authored(deck), failed, retained];
-  await assert.rejects(generateDeck(async () => JSON.stringify(responses.shift()), req), /Quality gate failed for retained questions.*unsupported/);
+  const retained = qualityReview({ cards: [deck.cards[1]] }, ["Remaining answer is unsupported"]);
+  const responses = [qualityPlan(req), authored(deck), failed, authored(deck), retained];
+  const result = await generateDeck(async () => JSON.stringify(responses.shift()), req);
+  assert.equal(result.cards.length, 1);
+  assert.equal(result.cards[0].prompt, card.prompt);
+  assert.equal(result.editorial.reviewedCards[result.cards[0].id], reviewedCardFingerprint(result.cards[0]));
   assert.equal(responses.length, 0);
 });
 

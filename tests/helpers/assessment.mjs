@@ -1,5 +1,5 @@
 // Fixture adapter for plan, author and independent editorial review calls.
-// Repairs and retained subsets each require a fresh review.
+// Changed cards require a fresh review; unchanged cards retain their receipt.
 export function qualityReview(deck, issues = []) {
   return { issues, summary: "Reviewed fixture", checks: (deck?.cards || []).map((card) => ({ cardId: card.id,
     selfContained: "pass", answerLeak: "pass", optionQuality: ["quiz", "multi"].includes(card.kind) ? "pass" : "na",
@@ -8,6 +8,7 @@ export function qualityReview(deck, issues = []) {
 export function qualityPlan(request) {
   return { targets: Array.from({ length: request.count }, (_, i) => ({ objective: `Planned target ${i} ${request.kind} ${request.sources[0].text.slice(0, 24)}`,
     answerBoundary: "Only the source statement", comparisonAxis: "One scope distinction", misconception: "Swapping scopes", contextNeeded: "All relevant conditions in the stem",
+    answerability: { mode: 'recall', requiredContextAvailable: true, answerOnlyInSourceList: false, criteriaWouldRevealAnswer: false },
     citations: [{ sourceId: request.sources[0].id, quote: request.sources[0].text.trim().slice(0, 40) }] })) };
 }
 /** An authored reply: the deck plus its self-check, as one call now returns. */

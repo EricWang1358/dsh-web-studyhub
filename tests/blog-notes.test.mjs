@@ -85,3 +85,43 @@ test("AI note draft is generated in the background and keeps review links", asyn
   assert.ok(!ready.markdown.includes("Private course"));
   assert.equal(ready.cards[0].cardId, "card");
 });
+
+test("note revisions reject stale saves and reading resolves exact card labels and raw courses", async () => {
+  const service = new StudyService(await mkdtemp(join(tmpdir(), "study-note-revision-")));
+  await service.store.update(state => {
+    state.decks.push({ id: "d", title: "Readable deck", course: "", folder: "Old folder", cards: [{ id: "q", prompt: "Readable question" }] });
+  });
+  const note = await service.call("note.create", { title: "A note", cards: [{ deckId: "d", cardId: "q" }] });
+  const saved = await service.call("note.save", { id: note.id, expectedRevision: note.revision, markdown: "Newer writing" });
+  assert.ok(saved.revision > note.revision);
+  await assert.rejects(service.call("note.save", { id: note.id, expectedRevision: note.revision, markdown: "Old tab" }), /更新|修订/);
+  const read = await service.call("note.get", { id: note.id });
+  assert.equal(read.markdown, "Newer writing");
+  assert.equal(read.cards[0].prompt, "Readable question");
+  assert.equal(read.cards[0].deckTitle, "Readable deck");
+  assert.deepEqual(read.courses, [], "explicit unassigned never inherits the old folder");
+  await service.store.update(state => { state.decks[0].cards = []; });
+  assert.equal((await service.call("note.get", { id: note.id })).cards[0].missing, true);
+});
+
+test("late AI drafting cannot overwrite a subsequently saved note", async () => {
+  let finish;
+  const service = new StudyService(await mkdtemp(join(tmpdir(), "study-note-late-")), {
+    complete: () => new Promise(resolve => { finish = resolve; }),
+  });
+  await service.store.update(state => { state.decks.push({ id: "d", title: "D", cards: [{ id: "q", prompt: "Q", answer: "A" }] }); });
+  const note = await service.call("note.create", { title: "Writing", cards: [{ deckId: "d", cardId: "q" }] });
+  await service.call("note.generate", { id: note.id });
+  while (!finish) await new Promise(resolve => setTimeout(resolve, 5));
+  await service.call("note.save", { id: note.id, markdown: "My writing after generation started" });
+  finish("# Writing\n\n" + "A clear explanation with examples and supporting reasoning. ".repeat(8));
+  await new Promise(resolve => setTimeout(resolve, 60));
+  let ready;
+  for (let i = 0; i < 40; i++) {
+    ready = await service.call("note.get", { id: note.id });
+    if (ready.generation?.status !== "running") break;
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  assert.equal(ready.markdown, "My writing after generation started");
+  assert.equal(ready.generation.status, "superseded");
+});

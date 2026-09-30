@@ -43,6 +43,7 @@ test("a rejected plan is corrected once, and names the quote that failed", async
   const target = {
     objective: "识别缩短处理时间的动作", answerBoundary: "只用资料里写到的优化建议", comparisonAxis: "扫描 vs 优化",
     misconception: "以为扫描本身缩短时间", contextNeeded: "已用 SAST 扫出低效区域",
+    answerability: { mode: 'discrimination', requiredContextAvailable: true, answerOnlyInSourceList: false, criteriaWouldRevealAnswer: false },
   };
   const replies = [
     { targets: [{ ...target, citations: [{ sourceId: "s1", quote: "缓存命中率提升，减少服务时间" }] }] },

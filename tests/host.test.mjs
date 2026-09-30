@@ -1,5 +1,103 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { sessionModel, createHostHandler, serviceFor } from '../lib/host.js';
+
+test('Study chat tools and commands resolve sessions under real Cordis injection rules', async t => {
+  let plugin, Context;
+  try {
+    plugin = await import('../lib/index.js');
+    ({ Context } = await import('@deepseek-ai/cordis'));
+  } catch (error) {
+    if (error.code === 'ERR_MODULE_NOT_FOUND' && error.message.includes('@deepseek-ai')) {
+      t.skip('Host SDK absent; install DSH peers and Cordis to run injection check'); return;
+    }
+    throw error;
+  }
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const cwd = await mkdtemp(join(tmpdir(), 'study-injection-'));
+  const root = new Context(), tools = [], commands = [], routes = [];
+  t.after(async () => { await root.fiber.dispose(); await rm(cwd, { recursive: true, force: true }); });
+  const agent = { id: 'study-injection', session: { header: { cwd },
+    requestHeader: () => ({ config: { provider: 'test', model: 'test' } }) } };
+  await root.plugin(ctx => {
+    ctx.provide('tools', { register: tool => { tools.push(tool); } });
+    ctx.provide('commands', { register: command => { commands.push(command); } });
+    ctx.provide('llm', {});
+    ctx.provide('systemPrompt', { section() {} });
+    ctx.provide('sessions', { get: id => id === agent.id ? agent.session : undefined });
+    ctx.provide('connection', { fetch: { register: route => { routes.push(route); return () => {}; } } });
+  });
+  await root.plugin(plugin);
+  assert.equal(tools.length, 1);
+  for (const action of ['settings', 'map', 'source.list']) {
+    const result = await tools[0].execute({ action, payload_json: '{}' }, { agent });
+    assert.ok(result && typeof result === 'object', `${action} must resolve its session`);
+  }
+  const command = await commands[0].handler({ agent, rawInput: 'Explain dependency injection' });
+  assert.doesNotMatch(command.text, /without inject|inactive context/);
+  const response = await routes[0].fetch(new Request('http://localhost/api/study-workspace/call', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'client-request', rpcId: 'injection', method: 'study-workspace/call',
+      payload: { sessionId: agent.id, action: 'settings' } }),
+  }));
+  assert.equal((await response.json()).result.ok, true);
+});
+
+test('a pending composer selection survives a later request using a different model', () => {
+  const selected = { provider: 'p', model: 'next', reasoningEffort: 'low' };
+  const events = [
+    { type: 'model/selection', data: selected },
+    { type: 'request/header', data: { header: { config: { provider: 'p', model: 'old' } } } },
+  ];
+  const session = { get seq() { return events.length; }, eventAt: index => events[index] };
+  assert.deepEqual(sessionModel({}, session), selected);
+  events.push({ type: 'request/header', data: { header: { config: selected } } });
+  events.push({ type: 'request/header', data: { header: { config: { provider: 'p', model: 'later' } } } });
+  assert.deepEqual(sessionModel({}, session), { provider: 'p', model: 'later' });
+});
+
+test('cold desktop sessions follow the composer projection, reuse unchanged revisions and dispose observations', async t => {
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const cwd = await mkdtemp(join(tmpdir(), 'study-cold-model-'));
+  t.after(() => rm(cwd, { recursive: true, force: true }));
+  let revision = 'v1', observed = 0, disposed = 0;
+  let selected = { provider: 'saved-provider', model: 'composer-model', reasoningEffort: 'low' };
+  const persistence = { stat: async () => ({ header: { cwd }, revision }) };
+  const query = { observeSession: async (_id, options) => {
+    observed++; assert.equal(options.projectionMode, 'all');
+    return { revision, projections: { values: { modelSelection: { next: selected } } },
+      get events() { throw new Error('Model selection must not replay the full projected log'); },
+      [Symbol.dispose]() { disposed++; } };
+  } };
+  const ctx = { sessions: { get: () => undefined }, get: name => name === 'sessionPersistence' ? persistence
+    : name === 'sessionQuery' ? query : name === 'agentDefaultModel' ? { currentSelection: () => ({ provider: 'global', model: 'default' }) } : undefined };
+  const handler = createHostHandler(ctx);
+  for (let i = 0; i < 3; i++) {
+    const response = await handler('call', { sessionId: 'cold', action: 'binding.get' });
+    assert.equal(response.ok, true); assert.deepEqual(response.value.route, selected);
+  }
+  assert.equal(observed, 1); assert.equal(disposed, 1);
+  revision = 'v2'; selected = { provider: 'saved-provider', model: 'changed' };
+  let route;
+  await serviceFor(ctx, {}, cwd, undefined, resolver => { route = resolver(); return async () => '{}'; }, 'cold');
+  assert.deepEqual(route, selected); assert.equal(observed, 2); assert.equal(disposed, 2);
+  await serviceFor(ctx, { provider: 'pinned', model: 'fixed' }, cwd, undefined, resolver => { route = resolver(); return async () => '{}'; }, 'cold');
+  assert.deepEqual(route, { provider: 'pinned', model: 'fixed' }); assert.equal(observed, 2);
+});
+
+test('live composer projections take precedence without reading event history', () => {
+  const expected = { provider: 'p', model: 'projected' };
+  const session = { get seq() { throw new Error('Do not replay a projected session'); } };
+  const ctx = { get: name => name === 'sessionProjections' ? { snapshot: (target, keys) => {
+    assert.equal(target, session); assert.deepEqual(keys, ['modelSelection']);
+    return { values: { modelSelection: { next: expected } } };
+  } } : undefined };
+  assert.deepEqual(sessionModel(ctx, session), expected);
+});
 
 test("real DSH SDK entry imports, tool is defined and native HTTP route installs", async (t) => {
   let plugin;
@@ -48,7 +146,10 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
     (await commands[0].handler({ agent: {}, rawInput: "  写成 MQ " })).kind,
     "error",
   );
-  assert.equal(sections.length, 2);
+  // Usage and panel guidance share the current consolidated prompt section.
+  assert.equal(sections.length, 1);
+  assert.equal(sections[0].name, 'daily-flashcard:usage');
+  assert.match(sections[0].text, /panel\.open/);
   // Every tool result must be lossless JSON (DSH rejects undefined, NaN, -0 and class instances).
   const lossless = (value, path = "$") => {
     if (value === null || typeof value === "string" || typeof value === "boolean") return;
@@ -211,4 +312,27 @@ test("stored sessions resolve their workspace from the header once, never by rep
   await assert.rejects(workspaceFor(ctx, "missing"), /unavailable/);
   await assert.rejects(workspaceFor(ctx, "missing"), /unavailable/);
   assert.equal(observes, 3, "an unknown session is not cached as a failure");
+});
+
+test('direct assist honours its captured model route and correction works without a live parent', async t => {
+  let modelCompletion;
+  try { ({ modelCompletion } = await import('../lib/index.js')); }
+  catch (error) {
+    if (error.code === 'ERR_MODULE_NOT_FOUND' && error.message.includes('@deepseek-ai')) {
+      t.skip('Host SDK absent; install DSH peers to run native check'); return;
+    }
+    throw error;
+  }
+  const configs = [];
+  const ctx = { get: () => undefined, llm: {
+    resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: 'low' }] } }),
+    resolveCallConfig: async config => { configs.push(config); return config; },
+    async *stream() { yield { type: 'text-delta', text: '{"answer":"help"}' }; },
+  } };
+  const complete = modelCompletion(ctx, () => ({ provider: 'followed', model: 'new-selection' }), 'saved-session');
+  assert.equal(await complete('system', 'question', { task: 'assist', signal: new AbortController().signal,
+    maxTokens: 1000, route: { provider: 'selected-at-submit', model: 'original' } }), '{"answer":"help"}');
+  assert.equal(configs[0].provider, 'selected-at-submit'); assert.equal(configs[0].model, 'original'); assert.equal(configs[0].maxTokens, 1000);
+  await complete.spawnCorrection('system', 'sentences', { signal: new AbortController().signal, reasoningEffort: 'low' });
+  assert.equal(configs[1].provider, 'followed'); assert.equal(String(configs[1].reasoningEffort), 'low');
 });
