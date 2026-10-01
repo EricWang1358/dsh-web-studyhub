@@ -13,9 +13,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export { ScrollWindow, filterItems } from './ui/components/index.js';
-  export { default as CourseField, courseQuery } from './ui/CourseField.jsx';
+  export { default as CourseField, courseQuery, pickCourse } from './ui/CourseField.jsx';
   export { CourseList, default as CourseSettings } from './ui/CourseSettings.jsx';
-  export { groupCourseNames, findDuplicateCourses, courseNameKey, splitCourseName } from './ui/course-names.js';
+  export { groupCourseNames, findDuplicateCourses, courseNameKey, splitCourseName, rankCourses } from './ui/course-names.js';
   export { default as SourcePicker } from './ui/SourcePicker.jsx';
   export { default as DocumentViewer, sourceTextClass } from './ui/document-preview/DocumentViewer.jsx';
   export { default as LanguageSwitch } from './ui/LanguageSwitch.jsx';
@@ -23,7 +23,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { ScrollWindow, filterItems, CourseField, courseQuery, CourseList, CourseSettings, groupCourseNames, findDuplicateCourses, courseNameKey,
+const { ScrollWindow, filterItems, CourseField, courseQuery, pickCourse, rankCourses, CourseList, CourseSettings, groupCourseNames, findDuplicateCourses, courseNameKey,
   splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, LanguageSwitch, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -120,21 +120,98 @@ test('an exact course name does not attach the native datalist', () => {
   assert.match(partial, / list="/);
 });
 
-test('many courses: the quick picks live in a small scroll window filtered by the typed text', () => {
-  const all = render(h(CourseField, { courses: names, value: '', onChange() {} }));
-  assert.match(all, /class="sh-scroll[ "]/);
-  assert.match(all, /role="region"[^>]*aria-label="已有课程"|aria-label="已有课程"[^>]*role="region"/);
-  assert.equal((all.match(/class="course-field__pick"/g) || []).length, 18, 'every course is reachable, not just the first 8');
-  const typed = render(h(CourseField, { courses: names, value: 'kubernetes', onChange() {} }));
-  assert.equal((typed.match(/class="course-field__pick"/g) || []).length, 1);
-  assert.match(typed, /共 18 项 \/ 显示 1 项/);
-  const chosen = render(h(CourseField, { courses: names, value: 'Databases', onChange() {} }));
-  assert.equal((chosen.match(/class="course-field__pick"/g) || []).length, 18, 'an exact match shows everything so switching is one click');
-  assert.match(chosen, /aria-pressed="true"[^>]*>Databases</);
+/* 60 courses: 6 parents × 8 chapters with long names, 11 ordinary courses and one near-duplicate. */
+const PARENTS = ['Cloud Native Solution Design', 'Distributed Systems Engineering', 'Machine Learning Systems', '软件架构与设计模式', 'Information Security Management', '数据密集型应用设计'];
+const sixty = [
+  ...PARENTS.flatMap((parent, p) => Array.from({ length: 8 }, (_, c) => ({ name: `${parent} / 0${c + 1} 第 ${c + 1} 章：一个相当长的章节标题，用来测试截断与分组`,
+    count: (p + c) % 3, sourceCount: c === 4 ? 180 : 2, lastUsedAt: `2026-0${(c % 9) + 1}-1${p}T08:00:00.000Z` }))),
+  ...['Databases', 'Operating Systems', '数据结构', '计算机网络', 'Compilers', '软件工程', 'Algorithms', 'TCP/IP Basics', 'HCI', 'Statistics', 'Ethics']
+    .map((name, index) => ({ name, count: index, sourceCount: 0 })),
+  { name: `${PARENTS[0]}/01 第 1 章：一个相当长的章节标题，用来测试截断与分组`, count: 0, sourceCount: 1 },
+];
+const picks = html => [...html.matchAll(/<button type="button" class="course-field__pick([^"]*)"[^>]*>([\s\S]*?)<\/button>/g)].map(match => ({ cls: match[1], html: match[0] }));
+
+test('rankCourses: the current course first, then recently used, then the busiest', () => {
+  const list = [{ name: 'A', count: 1 }, { name: 'B', count: 9 }, { name: 'C', count: 0, lastUsedAt: '2026-09-01T00:00:00Z' },
+    { name: 'D', count: 0, lastUsedAt: '2026-09-20T00:00:00Z' }, { name: 'E', sourceCount: 4 }];
+  assert.deepEqual(rankCourses({ courses: list }).map(item => item.name), ['D', 'C', 'B', 'E', 'A']);
+  assert.deepEqual(rankCourses({ courses: list, current: 'A' }).map(item => item.name), ['A', 'D', 'C', 'B', 'E']);
+  assert.deepEqual(rankCourses({ courses: list, recent: { A: '2026-10-01T00:00:00Z' } }).map(item => item.name), ['A', 'D', 'C', 'B', 'E']);
+  assert.deepEqual(rankCourses({ courses: ['x', 'y'] }).map(item => item.name), ['x', 'y'], 'plain names keep their order');
+  assert.deepEqual(rankCourses({ courses: [{ name: 'S', sources: 3, decks: 1 }, { name: 'T', sources: 1 }] }).map(item => item.name), ['S', 'T'], 'course records count too');
+});
+
+test('many courses: at most six chips in one row, chapters folded into one parent chip, then 全部课程 (N)', () => {
+  const html = render(h(CourseField, { courses: sixty, value: '', onChange() {} }));
+  const chips = picks(html);
+  const more = chips.filter(chip => /course-field__more/.test(chip.cls));
+  assert.equal(more.length, 1);
+  assert.match(more[0].html, /全部课程 \(60\)/);
+  assert.match(more[0].html, /aria-expanded="false"/);
+  assert.ok(chips.length - more.length <= 6, `at most 6 quick picks, got ${chips.length - more.length}`);
+  const parent = chips.find(chip => /course-field__pick--group/.test(chip.cls));
+  assert.ok(parent, 'a parent chip stands for its chapters');
+  assert.match(parent.html, /· 8 章/);
+  assert.match(parent.html, /aria-expanded="false"/);
+  assert.equal((html.match(/第 3 章/g) || []).length, 0, 'chapters stay folded until the parent chip is opened');
+  assert.doesNotMatch(html, /<datalist/, 'the course list replaces the native datalist');
+  assert.match(html, /role="combobox"/);
+  const en = render(h(CourseField, { courses: sixty, value: '', onChange() {} }), 'en');
+  assert.match(en, /All courses \(60\)/);
+  assert.match(en, /· 8 ch\./);
+});
+
+test('a chapter as the value opens its parent chip with short chapter names; long names keep their full title', () => {
+  const value = sixty[12].name; // Distributed Systems Engineering / 05 …
+  const html = render(h(CourseField, { courses: sixty, value, onChange() {} }));
+  const chips = picks(html);
+  assert.match(chips[0].html, /Distributed Systems Engineering/, 'the current course comes first');
+  assert.match(chips[0].html, /aria-expanded="true"/);
+  const row = html.match(/<div class="course-field__chapters"[\s\S]*?<\/div>/)?.[0] || '';
+  assert.match(row, /aria-label="「Distributed Systems Engineering」的章节"/);
+  assert.equal((row.match(/<button/g) || []).length, 8);
+  assert.match(row, new RegExp(`aria-pressed="true"[^>]*title="${value}"|title="${value}"[^>]*aria-pressed="true"`));
+  assert.match(row, />05 第 5 章：一个相当长的章节标题，用来测试截断与分组</, 'only the chapter part is shown');
+  assert.match(row, new RegExp(`aria-label="${value}"`), 'the full name is the accessible name');
+});
+
+test('the 全部课程 panel lists every course grouped and filtered by the typed text, as a listbox', () => {
+  const html = render(h(CourseField, { courses: sixty, value: 'statis', onChange() {}, initialOpen: true }));
+  const panel = html.match(/<div class="course-field__panel"[\s\S]*$/)?.[0] || '';
+  assert.match(panel, /role="listbox"/);
+  assert.equal((panel.match(/role="option"/g) || []).length, 1);
+  assert.match(panel, />Statistics</);
+  assert.match(html, /显示 1 \/ 共 60 门/);
+  const all = render(h(CourseField, { courses: sixty, value: '', onChange() {}, initialOpen: true }));
+  const list = all.match(/<div class="course-field__panel"[\s\S]*$/)?.[0] || '';
+  assert.equal((list.match(/course-field__option--group/g) || []).length, 6, 'six collapsible parents');
+  assert.match(list, /aria-expanded="false"/);
+  const chapter = render(h(CourseField, { courses: sixty, value: '第 7 章', onChange() {}, initialOpen: true }));
+  const hits = chapter.match(/<div class="course-field__panel"[\s\S]*$/)?.[0] || '';
+  assert.equal((hits.match(/course-field__option--chapter/g) || []).length, 6, 'a chapter hit opens its parent');
+  assert.match(hits, /aria-expanded="true"/);
+  assert.match(html, /aria-activedescendant="[^"]+"/, 'the first result is active for Enter');
+});
+
+test('small lists keep plain chips, and multiple mode replaces the typed part when a course is picked', () => {
   const few = render(h(CourseField, { courses: names.slice(0, 5), value: '', onChange() {} }));
-  assert.doesNotMatch(few, /sh-scroll/, 'a handful of chips need no window');
+  assert.doesNotMatch(few, /course-field__more|role="combobox"/, 'a handful of courses need no list');
+  assert.equal(picks(few).length, 5);
+  assert.equal(pickCourse('Databases; Stat', 'Statistics', true, ['Databases', 'Statistics']), 'Databases; Statistics');
+  assert.equal(pickCourse('Databases; Statistics', 'Databases', true, ['Databases', 'Statistics']), 'Statistics');
+  assert.equal(pickCourse('Data', 'Databases', false, ['Databases']), 'Databases');
   assert.equal(courseQuery('Databases; Oper', true), 'Oper');
   assert.equal(courseQuery('  Data ', false), 'Data');
+});
+
+test('focusView reports when each course was last used', async () => {
+  const { focusView } = await import('../lib/focus.js');
+  const state = { decks: [{ id: 'd1', title: 'D', course: 'Databases', cards: [], createdAt: '2026-01-01T00:00:00.000Z' }], drafts: [],
+    sources: [{ id: 's1', title: 'x', text: 'x', courses: ['Systems'], createdAt: '2026-03-01T00:00:00.000Z' }],
+    attempts: [{ id: 'a', deckId: 'd1', quiz_id: 'q', timestamp: '2026-05-01T00:00:00.000Z', grade: 3 }], runs: [], courses: [], focus: {} };
+  const courses = Object.fromEntries(focusView(state).courses.map(course => [course.name, course.lastUsedAt]));
+  assert.equal(courses.Databases, '2026-05-01T00:00:00.000Z', 'practice counts as use');
+  assert.equal(courses.Systems, '2026-03-01T00:00:00.000Z', 'an import counts as use');
 });
 
 /* ---------- 3 · ScrollWindow ---------- */

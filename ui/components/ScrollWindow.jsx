@@ -29,11 +29,13 @@ export const scrollWindowCount = (total, shown, filtering) => filtering
  *   match(item) → searchable text, filterable, filterLabel, filterPlaceholder,
  *   query + onQueryChange (controlled) or defaultQuery, showCount (default = filterable),
  *   activeKey, maxHeight (px, default 380), as ('ul' | 'div'), listClassName,
- *   itemClassName, empty (node when the filter matches nothing), toolbar (node beside the filter).
+ *   itemClassName, empty (node when the filter matches nothing), toolbar (node beside the filter),
+ *   focusable (default true; false when another control drives it, e.g. a combobox),
+ *   listProps (extra props for the list, e.g. role="listbox"), itemProps(item) (extra props per item).
  */
 export default function ScrollWindow({ label, items = [], itemKey = (item, index) => index, renderItem = item => textOf(item), match = textOf,
   filterable = false, filterLabel, filterPlaceholder, query, onQueryChange, defaultQuery = '', showCount, activeKey, maxHeight = 380,
-  as = 'ul', listClassName, itemClassName, empty, toolbar, className, style, ...rest }) {
+  as = 'ul', listClassName, itemClassName, empty, toolbar, focusable = true, listProps, itemProps, className, style, ...rest }) {
   useComponentCss(css, 'study-scroll-window');
   const [ownQuery, setOwnQuery] = useState(defaultQuery);
   const value = query ?? ownQuery;
@@ -80,11 +82,12 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
         {counted && <small className="sh-scroll__count" aria-live="polite">{scrollWindowCount(items.length, shown.length, filtering)}</small>}
       </div>}
       <div className="sh-scroll__frame" data-fade-top={edges.top || undefined} data-fade-bottom={edges.bottom || undefined}>
-        <div ref={viewport} id={id} className="sh-scroll__viewport" role="region" aria-label={label} tabIndex={0} onScroll={measure}>
-          {shown.length ? <List className={cx('sh-scroll__list', listClassName)}>
+        <div ref={viewport} id={id} className="sh-scroll__viewport" role="region" aria-label={label} tabIndex={focusable ? 0 : undefined} onScroll={measure}>
+          {shown.length ? <List {...listProps} className={cx('sh-scroll__list', listClassName)}>
             {shown.map((item, index) => {
               const key = itemKey(item, index);
-              return <Item key={key} className={cx('sh-scroll__item', itemClassName)} data-scroll-key={key}
+              const extra = itemProps?.(item, index) || {};
+              return <Item key={key} {...extra} className={cx('sh-scroll__item', itemClassName, extra.className)} data-scroll-key={key}
                 data-active={activeKey !== undefined && activeKey !== null && key === activeKey ? 'true' : undefined}>
                 {renderItem(item, { query: value })}
               </Item>;

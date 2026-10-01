@@ -106,7 +106,7 @@ test('course pickers show existing courses first and free text still works', () 
   assert.equal(toggleCourse('Databases; Systems', 'Databases', true), 'Systems');
   const html = render(React.createElement(CourseField, { courses: data.focus.courses, value: 'Architecture', multiple: true, onChange() {} }));
   assert.match(html, /<input/, 'free text stays');
-  assert.match(html, /aria-pressed="true"[^>]*>Architecture|>Architecture<\/button>/);
+  assert.match(html, /aria-pressed="true"[^>]*>(?:<span[^>]*>)?Architecture/); // WP14: the chip label sits in an ellipsis span
   // WP14 adds a × clear button next to the input, so count the quick picks themselves.
   assert.equal(html.match(/class="course-field__pick"/g)?.length, 2, 'one quick pick per existing course');
   const scope = render(React.createElement(PageScope, { courses: data.focus.courses, value: '*', onChange() {} }));
