@@ -2037,6 +2037,8 @@ export default function App({ call: transportCall, host = {} }) {
                 call={call}
                 data={data}
                 busy={busy}
+                onPracticePrepared={(args) => act("coach.practice", args || {}, enterRun)}
+                onOpenSettings={openModelSettings}
                 onPractice={(scope) =>
                   act(
                     "review.start",
