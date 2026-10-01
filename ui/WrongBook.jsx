@@ -100,7 +100,7 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
       {loading && !items && <p className="muted">{ui("正在读取待巩固题…")}</p>}
 
       {items && !counts.total && (
-        <div className="empty wb-empty">
+        <div className="empty wb-empty" data-tour="wrongbook-list">
           <span className="empty-icon">✓</span>
           <h2>{data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录")}</h2>
           <p className="muted">{data?.attempts?.length
@@ -111,8 +111,8 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
         </div>
       )}
 
-      {groups.map((g) => (
-        <div key={g.deckId} className="wb-group">
+      {groups.map((g, index) => (
+        <div key={g.deckId} className="wb-group" {...(index === 0 ? { "data-tour": "wrongbook-list" } : {})}>
           <div className="wb-group-head">
             <strong>{g.deckTitle}</strong>
             <small className="muted">{g.rows.length}{ui(" 题")}</small>

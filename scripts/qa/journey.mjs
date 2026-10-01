@@ -217,6 +217,57 @@ export const JOURNEY_STEPS = [
   } },
 ];
 
+/* The onboarding set (WP5), run with `--steps tour`: the welcome page of an
+   empty library, one click to load the sample course and start the feature
+   tour, a screenshot of every tour step, then the home banner, the settings
+   section and removing the sample again. */
+export const TOUR_STEPS = [
+  { name: "tour-welcome", run: async (j) => {
+    await j.nav("library");
+    await j.page.locator(".welcome").waitFor({ timeout: 15000 });
+    await j.settle();
+    await j.shot();
+  } },
+  { name: "tour-walk", run: async (j) => {
+    await j.page.getByRole("button", { name: j.t("载入示例并开始导览") }).click();
+    for (let guard = 0; guard < 40; guard++) {
+      const card = j.page.locator(".tour-layer:not(.is-measuring) .tour-pop");
+      await card.waitFor({ timeout: 30000 });
+      await j.settle(900);
+      const [at] = (await j.page.locator(".tour-pop__count").first().textContent()).split("/").map((part) => part.trim());
+      await j.shot(`step-${at.padStart(2, "0")}`);
+      const finish = j.page.getByRole("button", { name: j.t("完成导览"), exact: true });
+      if (await finish.count()) {
+        await finish.click();
+        break;
+      }
+      await j.page.locator(".tour-pop").getByRole("button", { name: j.t("下一步"), exact: true }).click();
+      await j.until(async () => (await j.page.locator(".tour-pop__count").first().textContent().catch(() => "")).split("/")[0].trim() !== at,
+        `the tour leaves step ${at}`);
+    }
+    await j.page.locator(".tour-layer").waitFor({ state: "detached", timeout: 15000 });
+  } },
+  { name: "tour-after", run: async (j) => {
+    await j.nav("library");
+    await j.page.locator(".sample-banner").waitFor({ timeout: 15000 });
+    await j.settle();
+    await j.shot("home-banner");
+    await j.nav("settings");
+    await j.anchor("settings-sample").scrollIntoViewIfNeeded();
+    await j.settle();
+    await j.shot("settings");
+    await j.anchor("settings-sample").getByRole("button", { name: j.t("移除示例数据") }).click();
+    await j.dialog().waitFor({ timeout: 10000 });
+    await j.settle(400);
+    await j.shot("remove-confirm");
+    await j.dialog().getByRole("button", { name: j.t("移除示例数据") }).click();
+    await j.until(async () => !(await j.snapshot()).sample?.loaded, "the sample is removed");
+    await j.nav("library");
+    await j.settle();
+    await j.shot("removed");
+  } },
+];
+
 /* ---------- state a step can require, created through the API ---------- */
 
 const SEED = {
@@ -266,7 +317,7 @@ const SEED = {
 /* ---------- options ---------- */
 
 export function parseJourneyArgs(argv = []) {
-  const names = JOURNEY_STEPS.map((step) => step.name);
+  const names = JOURNEY_STEPS.map((step) => step.name), tour = TOUR_STEPS.map((step) => step.name);
   const values = {};
   for (let i = 0; i < argv.length; i++) {
     const match = /^--([a-z-]+)(?:=(.*))?$/.exec(argv[i]);
@@ -279,8 +330,11 @@ export function parseJourneyArgs(argv = []) {
   if (!["zh", "en"].includes(lang)) throw new Error("--lang must be zh or en");
   if (!["dark", "light"].includes(theme)) throw new Error("--theme must be dark or light");
   if (!Number.isInteger(width) || width < 320 || width > 3840) throw new Error("--width must be a pixel width such as 1440 or 420");
-  const steps = values.steps ? values.steps.split(",").map((name) => name.trim()).filter(Boolean) : names;
-  for (const name of steps) if (!names.includes(name)) throw new Error(`Unknown step "${name}". Steps: ${names.join(", ")}`);
+  // `tour` expands to the onboarding set; its steps can also be named one by one.
+  const steps = values.steps ? values.steps.split(",").map((name) => name.trim()).filter(Boolean)
+    .flatMap((name) => name === "tour" ? tour : [name]) : names;
+  for (const name of steps) if (!names.includes(name) && !tour.includes(name))
+    throw new Error(`Unknown step "${name}". Steps: ${names.join(", ")}; onboarding: tour (${tour.join(", ")})`);
   const port = Number(values.port ?? 0);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("--port must be a port number (0 picks a free one)");
   return { lang, theme, width, height: Number(values.height ?? 900), steps,
@@ -346,7 +400,7 @@ export async function runJourney(options) {
     j.cleanups = cleanups;
     await page.goto(server.url);
     await j.ready();
-    for (const step of JOURNEY_STEPS.filter((item) => options.steps.includes(item.name))) {
+    for (const step of [...JOURNEY_STEPS, ...TOUR_STEPS].filter((item) => options.steps.includes(item.name))) {
       current = step.name;
       const started = Date.now(), record = { name: step.name, status: "ok", shots: [] };
       j.record = record;
@@ -378,7 +432,7 @@ export async function runJourney(options) {
 }
 
 function journeyContext({ page, server, options, english, fixtures, step }) {
-  const index = () => String(JOURNEY_STEPS.findIndex((item) => item.name === step()) + 1).padStart(2, "0");
+  const index = () => String([...JOURNEY_STEPS, ...TOUR_STEPS].findIndex((item) => item.name === step()) + 1).padStart(2, "0");
   const t = (zh) => options.lang === "en" && Object.hasOwn(english, zh) ? english[zh] : zh;
   const NAV = { library: "学习库", sources: "资料", generate: "创建题组", wrongbook: "错题与待巩固", exam: "模拟考试",
     dashboard: "统计", skeleton: "知识骨架", workflows: "学习流", settings: "设置", audio: "音频转录", live: "课堂实录" };

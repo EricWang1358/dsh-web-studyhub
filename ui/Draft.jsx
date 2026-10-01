@@ -126,7 +126,7 @@ export default function Draft({
       {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
       </label>}
       <p className="draft-count">{ui("当前草稿 ")}<strong>{draft.cards.length}</strong>{ui(" 题")}{unsavedDraft && <span>{ui(" · 有未保存修改")}</span>}</p>
-      <div className="sticky-actions">
+      <div className="sticky-actions" data-tour="draft-publish">
         <button
           disabled={busy || updatingDraft || staleDraft || missingDraft}
           onClick={() => {

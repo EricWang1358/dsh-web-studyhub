@@ -129,7 +129,7 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
             <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onStartScope(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
               onCreate={onCreate} onSources={onSources} />
           </div>}
-          <div className="dash-hero">
+          <div className="dash-hero" data-tour="dashboard-summary">
             <div className="dash-streak">
               <strong>{totals.streak ?? 0}</strong>
               <span>{ui("天连续学习")}</span>

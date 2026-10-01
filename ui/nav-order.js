@@ -7,6 +7,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
    that no longer exist are forgotten. Alt+Up / Alt+Down move the focused item for keyboard users. */
 
 const KEY = "study-nav-order";
+/** The sidebar's default order (P11): the daily study loop first, upkeep tools after it. */
+export const NAV_DEFAULTS = Object.freeze({
+  main: ["library", "sources", "generate", "wrongbook", "exam", "dashboard"],
+  upkeep: ["workflows", "skeleton", "notes", "audio", "live", "board"],
+});
 const HOLD_MS = 350; // the item lifts only after this long, so an ordinary click or a slip never reorders
 const SLOP = 6; // moving further than this before the hold ends means the press was something else
 

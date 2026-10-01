@@ -338,7 +338,7 @@ export default function Review({
             {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}
             {/* The card: header, stem and answers on paper stock. Toolbar,
                 status and explanation sit below it on the desk. */}
-            <div className="question-card"
+            <div className="question-card" data-tour="review-question"
               style={{ "--progress": `${Math.round(((run.index + 1) / Math.max(1, run.total)) * 100)}%` }}>
               <div className="question-meta">
                 <span>
