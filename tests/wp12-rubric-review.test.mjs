@@ -123,6 +123,8 @@ test("a case paper is an exam run with its own time limit, typed answers, highli
   assert.deepEqual({ ...run.paper, limitMs: undefined }, { deckId: "orchard", minutesPerMark: 3, readingMinutes: 5, writingMinutes: 30, totalMarks: 10,
     handwriting: false, limitMs: undefined });
   assert.equal(run.paper.limitMs, (5 + 30 + 2) * 60000, "reading + writing + a short grace");
+  assert.deepEqual(run.paperCards.map((item) => [item.id, item.marks]), [["q1", 6], ["q2", 4]], "the whole paper is on one page");
+  assert.doesNotMatch(JSON.stringify(run.paperCards), /keyPoints|alerting on missing readings/);
   await service.call("review.answer", { runId: run.id, cardId: "q1", response: answer });
   const highlights = await service.call("review.highlights", { runId: run.id, highlights: [
     { id: "h1", paragraph: 3, start: 3, end: 20, color: "yellow", note: "power loss" }, { id: "h2", paragraph: 9, start: 0, end: 4, color: "green" }] });

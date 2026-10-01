@@ -140,6 +140,15 @@ test("a case draft publishes through draft.publish into a case deck the library 
   assert.equal(summary.caseMarks, 20);
   assert.equal(summary.caseSourceId, deck.case.sourceId);
   assert.equal(summary.caseBest, null);
+  // 再来一个同类案例: the same materials and paper shape, a new scenario.
+  const again = await service.call("generate", { kind: "case", fromDeckId: deck.id });
+  const next = await wait(service, again.jobId);
+  assert.equal(next.status, "complete", next.stage);
+  const sibling = (await service.store.read()).drafts.find((item) => item.id === next.draftId);
+  assert.equal(sibling.case.totalMarks, 20);
+  assert.equal(sibling.course, "Cloud Native");
+  assert.deepEqual(sibling.editorial.generation.sourceIds, draft.editorial.generation.sourceIds);
+  assert.notEqual(sibling.case.sourceId, deck.case.sourceId, "a fresh scenario material");
 });
 
 const pasted = {
