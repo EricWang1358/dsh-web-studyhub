@@ -163,6 +163,9 @@ export default function Review({
   const caseSource = caseDeck ? data?.sources?.find((source) => source.id === caseDeck.caseSourceId) : null;
   const [caseHighlights, setCaseHighlights] = React.useState(run.highlights || []);
   React.useEffect(() => { setCaseHighlights(run.highlights || []); }, [run.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A finished round on a case set (WP12): its weak criteria become drills, or another case like it.
+  const summaryCase = run.complete ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
+  const [caseNote, setCaseNote] = React.useState("");
   const saveHighlights = (next) => {
     setCaseHighlights(next);
     Promise.resolve(call?.("review.highlights", { runId: run.id, highlights: next })).catch(() => {});
@@ -312,8 +315,16 @@ export default function Review({
             {detour && <button className="primary" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题 →", [detour.index + 1])}</button>}
             {run.returnTo && !detour && <button className="primary" disabled={busy}
               onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>{ui("回到原题 →")}</button>}
+            {summaryCase && <>
+              <button disabled={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
+                setCaseNote(uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count])))}>
+                {ui("把薄弱项变成练习")}</button>
+              <button disabled={busy} onClick={() => act("generate", { kind: "case", fromDeckId: summaryCase.id },
+                () => setCaseNote(ui("已开始出一套同类案例，完成后草稿会出现在学习库。")))}>{ui("再来一个同类案例")}</button>
+            </>}
             <button onClick={() => setPage("library")}>{ui("回到学习目录")}</button>
           </div>
+          {caseNote && <p className="muted" role="status">{caseNote}</p>}
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>

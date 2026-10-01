@@ -193,6 +193,20 @@ test("review shows the scenario above a case question and the rubric answer inst
   assert.doesNotMatch(html, /掌握程度评分/, "no self-rating for a rubric question");
 });
 
+test("a finished round on a case set offers its weak points as drills and another case like it", () => {
+  const acted = [];
+  const run = { id: "run", deckId: "orchard", mode: "path", complete: true, total: 2, questions: 2, answered: 2, correct: 1, weakTopics: [], navigation: [] };
+  const caseData = { ...data, decks: [{ id: "orchard", format: "case-study", caseSourceId: "case", title: "Orchard" }], assist: [] };
+  const props = { run, data: caseData, busy: false, host: {}, choice: false, isCloze: false, shellTitle: "Orchard", selected: [], response: "",
+    setResponse: noop, setModal: noop, setPage: noop, setFlag: noop, setExplain: noop, setHint: noop, setTeachAnswer: noop, setClozeValues: noop,
+    choose: noop, flipCard: noop, reviewAct: noop, studyPrerequisites: noop, assistCard: noop, assistTasks: [], slayCard: noop, askInChat: noop,
+    act: (...args) => acted.push(args), enterRun: noop, call: noop, feedback: null };
+  const html = render(Review, props);
+  assert.match(html, /把薄弱项变成练习/);
+  assert.match(html, /再来一个同类案例/);
+  assert.doesNotMatch(render(Review, { ...props, data: { ...caseData, decks: [{ id: "orchard", title: "Orchard" }] } }), /再来一个同类案例/);
+});
+
 test("创建题组 offers 案例分析题, and its form starts with the course, materials and optional examiner guidance", () => {
   const sources = [{ id: "a", title: "Cloud persistence", text: "Polyglot persistence chooses a store per workload.", courses: ["Cloud Native"] }];
   const props = { data: { ...data, sources, focus: { course: "Cloud Native", courses: [{ name: "Cloud Native" }] } }, busy: false, running: false, act: noop, call: async () => { throw new Error("Capability unavailable"); },
