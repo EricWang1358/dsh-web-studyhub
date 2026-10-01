@@ -1,40 +1,73 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ui, uiMessage } from './i18n.js';
+import { ToastRegion } from './components/Feedback.jsx';
 
 // Keep the existing string/action-object protocol. Each submission gets its
 // own lifetime, including a repeated confirmation with identical text.
+// A notice may also carry { tone: 'info'|'success'|'warning' }.
 export const reviewNoticeScope = (root, page, run) =>
   JSON.stringify([root, page, run?.id || '', run?.card?.id || '', !!run?.complete]);
 
-export function useNotice(scope) {
-  const [entry, setEntry] = useState(null);
-  const setNotice = useCallback(value => setEntry(value ? { value } : null), []);
-  useEffect(() => {
-    if (entry && entry.value.scope !== undefined && entry.value.scope !== scope)
-      setEntry(current => current === entry ? null : current);
-  }, [entry, scope]);
-  useEffect(() => {
-    if (!entry || entry.value.action || entry.value.persistent) return;
-    const timer = setTimeout(() => setEntry(current => current === entry ? null : current), 5000);
-    return () => clearTimeout(timer);
-  }, [entry]);
-  const visible = entry && (entry.value.scope === undefined || entry.value.scope === scope);
-  return [visible ? entry.value : '', setNotice];
+/** The page part of a notice scope: library root + page name. */
+export function pageOfScope(scope) {
+  try {
+    const parsed = JSON.parse(scope);
+    if (Array.isArray(parsed)) return JSON.stringify(parsed.slice(0, 2));
+  } catch {}
+  return String(scope ?? '');
 }
 
-export default function ActionFeedback({ error, notice, busy, onCloseError, onCloseNotice }) {
-  if (!error && !notice) return null;
-  return <div className="action-feedback">
-    {error && <div role="alert" className="alert error">
-      <span>{uiMessage(error)}</span>
-      <button type="button" aria-label={ui('关闭错误')} onClick={onCloseError}>×</button>
-    </div>}
-    {notice && <div role="status" className="alert notice">
-      <span>{uiMessage(notice.text ?? notice)}</span>
-      {notice.action && <button type="button" className="alert-action" disabled={busy} onClick={notice.action.run}>
-        {notice.action.label}
-      </button>}
-      <button type="button" aria-label={ui('关闭提示')} onClick={onCloseNotice}>×</button>
-    </div>}
-  </div>;
+/** Pin an unbound notice to the page that renders it first. */
+export const bindNotice = (entry, scope) => !entry || entry.page !== undefined ? entry : { ...entry, page: pageOfScope(scope) };
+
+/** A notice with an explicit scope shows only there; any other stays on its page. */
+export function noticeVisible(entry, scope) {
+  if (!entry) return false;
+  const explicit = entry.value && typeof entry.value === 'object' ? entry.value.scope : undefined;
+  if (explicit !== undefined) return explicit === scope;
+  return entry.page === undefined || entry.page === pageOfScope(scope);
+}
+
+let sequence = 0;
+export function useNotice(scope) {
+  const [entry, setEntry] = useState(null);
+  const setNotice = useCallback(value => setEntry(value ? { id: ++sequence, value } : null), []);
+  // Bind during render, so a notice set together with a page change belongs
+  // to the new page rather than to the one being left.
+  if (entry && entry.page === undefined) setEntry(bindNotice(entry, scope));
+  useEffect(() => {
+    if (entry && !noticeVisible(entry, scope)) setEntry(current => current === entry ? null : current);
+  }, [entry, scope]);
+  const visible = noticeVisible(entry, scope);
+  const notice = useMemo(() => {
+    if (!visible) return '';
+    const value = typeof entry.value === 'string' ? { text: entry.value } : entry.value;
+    return { ...value, key: entry.id };
+  }, [visible, entry]);
+  return [notice, setNotice];
+}
+
+const toObject = value => typeof value === 'string' ? { text: value } : value || {};
+
+/**
+ * App-level feedback, now shown as toasts in the visible Study viewport (or in
+ * the open dialog). Props are unchanged; `error` / `notice` may be a string or
+ * { text, action: { label, run }, persistent, tone }. placement: 'auto' |
+ * 'page' | 'inline' (see ToastRegion).
+ */
+export default function ActionFeedback({ error, notice, busy, onCloseError, onCloseNotice, placement = 'auto' }) {
+  const toasts = [];
+  if (notice) {
+    const value = toObject(notice);
+    toasts.push({ id: 'notice', key: `notice:${value.key ?? value.text}`, tone: value.tone || 'info',
+      message: uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
+      action: value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, disabled: !!busy || value.action.disabled } });
+  }
+  if (error) {
+    const value = toObject(error);
+    toasts.push({ id: 'error', key: `error:${value.text}`, tone: 'error', message: uiMessage(value.text ?? ''), dismissLabel: ui('关闭错误'),
+      action: value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, disabled: !!busy || value.action.disabled } });
+  }
+  return <ToastRegion toasts={toasts} placement={placement}
+    onDismiss={id => (id === 'error' ? onCloseError : onCloseNotice)?.()} />;
 }

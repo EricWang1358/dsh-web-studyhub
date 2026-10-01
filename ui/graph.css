@@ -77,7 +77,7 @@
 .graph-swatch.gn-familiar { background: color-mix(in srgb, var(--ok) 42%, transparent); }
 .graph-swatch.gn-learning { background: var(--warn); }
 .graph-swatch.gn-weak { background: var(--bad); }
-.graph-swatch.gn-new { background: var(--text-faint); }
+.graph-swatch.gn-new { background: var(--decor-faint); }
 .graph-line-demo { flex: none; }
 
 .graph-toolbar-sub {
@@ -209,8 +209,8 @@
   stroke: var(--bad);
 }
 .gn-new {
-  fill: color-mix(in srgb, var(--text-faint) 16%, var(--bg-surface));
-  stroke: var(--text-faint);
+  fill: color-mix(in srgb, var(--decor-faint) 16%, var(--bg-surface));
+  stroke: var(--decor-faint);
 }
 .gn-ghost {
   fill: transparent;
@@ -263,7 +263,7 @@
 }
 .gn-order {
   fill: none;
-  stroke: var(--text-faint);
+  stroke: var(--decor-faint);
   stroke-width: 1.4;
 }
 .gn-arrow {
@@ -273,7 +273,7 @@
   fill: var(--accent);
 }
 .gn-arrow-order {
-  fill: var(--text-faint);
+  fill: var(--decor-faint);
 }
 
 /* ── Cloze (fill-in-the-blank) ────────────────────────────────────────── */

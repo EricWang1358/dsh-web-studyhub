@@ -32,7 +32,7 @@
 .result-segment { min-width: 0; }
 .result-segment-correct { background: var(--ok); }
 .result-segment-practice { background: var(--warn); }
-.result-segment-remaining { background: var(--text-faint); }
+.result-segment-remaining { background: var(--decor-faint); }
 .result-breakdown-legend { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 18px; }
 .result-legend-item { display: inline-flex; gap: 7px; align-items: center; font-size: 15px; color: var(--text-muted, #aeb8c5); }
 .result-legend-item strong { color: var(--text, #f3f5fa); font-variant-numeric: tabular-nums; }

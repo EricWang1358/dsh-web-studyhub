@@ -34,17 +34,24 @@
 
   --text: #efe9df;
   --text-dim: #c5bdb1;
-  --text-muted: #999184;
-  --text-faint: #6f685e;
+  /* Every --text-* token reaches WCAG AA (4.5:1) on canvas, sunken, surface,
+     raised and selected (tests/wp1-tokens). Hierarchy below --text-dim comes
+     from size and weight, not from fading words out. */
+  --text-muted: #a59d91;
+  --text-faint: #958e84;
+  /* Non-text decoration only: status dots, dotted rules, empty rings. */
+  --decor-faint: #6f685e;
 
   --accent: #c93d22;
   --accent-soft: #ec6a4a;
   --accent-ink: #fff8f2;
   --accent-glow: #c93d2247;
+  /* Accent-coloured words and links (AA on every surface). */
+  --accent-text: #ec6a4a;
 
   --ok: #5fb58a;
   --warn: #d9a441;
-  --bad: #d4608a;
+  --bad: #d76c93;
   --info: #86a9c6;
 
   /* The card is the one physical object: paper on the desk. */
@@ -69,6 +76,31 @@
 
   --radius: 12px;
   --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  /* Type scale. 15px is the reading size; 12px is the floor for badges,
+     counters and keys, never for sentences. */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 19px;
+  --fs-2xl: 23px;
+  --fs-3xl: 28px;
+  --lh-tight: 1.3;
+  --lh-snug: 1.45;
+  --lh-body: 1.65;
+
+  /* Spacing on a 4px grid. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   color-scheme: dark;
@@ -92,18 +124,20 @@
 
   --text: #1e1a15;
   --text-dim: #453e35;
-  --text-muted: #6e665b;
-  --text-faint: #9c9488;
+  --text-muted: #635b51;
+  --text-faint: #6a635a;
+  --decor-faint: #9c9488;
 
   --accent: #c03a1f;
   --accent-soft: #d44f2e;
   --accent-ink: #fffaf5;
   --accent-glow: #c03a1f33;
+  --accent-text: #ad4025;
 
-  --ok: #23845a;
-  --warn: #a66a12;
-  --bad: #b03a68;
-  --info: #3b6f9c;
+  --ok: #1e724d;
+  --warn: #8b590f;
+  --bad: #ad3966;
+  --info: #376893;
 
   --paper: #fffdf8;
   --paper-ink: #1e1a15;
@@ -125,7 +159,8 @@
   --text: var(--paper-ink);
   --text-dim: #463e34;
   --text-muted: var(--paper-dim);
-  --text-faint: #867d70;
+  --text-faint: #6c6459;
+  --decor-faint: #867d70;
   --line: #20160c26;
   --line-soft: #20160c14;
   --line-strong: #20160c40;
@@ -599,7 +634,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--text-faint);
+    background: var(--decor-faint);
     flex-shrink: 0;
   }
   .top-status .dot.on {
@@ -1873,7 +1908,7 @@
     cursor: pointer;
     white-space: nowrap;
     list-style: none;
-    border-bottom: 1px dotted var(--text-faint);
+    border-bottom: 1px dotted var(--decor-faint);
   }
   .publication-mark > summary::-webkit-details-marker { display: none; }
   .publication-mark-popover {
@@ -2214,7 +2249,7 @@
   }
   .teaching-panel > button:hover:not(:disabled) {
     background: var(--bg-hover);
-    border-color: var(--text-faint);
+    border-color: var(--decor-faint);
   }
   .teaching-panel .explanation {
     margin-top: 0;
@@ -2792,100 +2827,6 @@
   .summary-topics .tag {
     margin: 0 6px 6px 0;
   }
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: #0009;
-    backdrop-filter: blur(5px);
-    z-index: 30;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    animation: backdrop-in 0.18s ease;
-  }
-  .modal {
-    max-width: 700px;
-    width: 100%;
-    max-height: 90vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    color: var(--text);
-    border: 1px solid var(--line-strong);
-    background: var(--bg-raised);
-    box-shadow: 0 25px 90px #0008;
-    border-radius: 18px;
-    padding: 26px;
-    animation: modal-in 0.2s ease;
-  }
-  .modal-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    margin-bottom: 20px;
-    flex-shrink: 0;
-    min-width: 0;
-  }
-  .modal-heading h2 {
-    margin: 0;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .modal-heading button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    -webkit-app-region: no-drag;
-    font-size: 22px;
-    padding: 3px 10px;
-    border: 0;
-    flex-shrink: 0;
-    min-width: 44px;
-    min-height: 44px;
-  }
-  .modal-body {
-    min-height: 0;
-    overflow: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-  }
-  dialog.source-preview {
-    --preview-titlebar-inset: var(--dsh-windows-titlebar-height, env(titlebar-area-height, 0px));
-    position: fixed;
-    inset: 0;
-    margin: 0;
-    width: 100%;
-    height: 100dvh;
-    max-width: none;
-    max-height: none;
-    padding: 0;
-    border-radius: 0;
-    animation: none;
-  }
-  .source-preview .modal-heading {
-    /* Electron's native window controls occupy the top of this viewport. */
-    padding: calc(14px + var(--preview-titlebar-inset)) 24px 14px;
-    margin: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .source-preview .modal-heading h2 {
-    font-size: 18px;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-  }
-  .source-preview .modal-body { flex: 1; padding: 24px; }
-  .source-preview .modal-content { max-width: 1040px; margin-inline: auto; }
-  @media (max-width: 600px) {
-    .source-preview .modal-heading { padding: calc(10px + var(--preview-titlebar-inset)) 12px 10px; gap: 12px; }
-    .source-preview .modal-heading h2 { font-size: 16px; }
-    .source-preview .modal-body { padding: 16px; }
-  }
   .source-text {
     font-family: inherit;
     font-size: 15px;
@@ -2927,18 +2868,9 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
-  /* Feedback occupies its own space, beside the action on a question. */
-  .action-feedback .alert {
-    align-items: baseline;
-    gap: 10px;
-    padding: 8px 12px;
-    font-size: 13px;
-    overflow-wrap: anywhere;
-  }
-  .action-feedback .alert span { min-width: 0; }
-  .action-feedback button { flex-shrink: 0; }
+  /* Feedback occupies its own space, beside the action on a question
+     (ActionFeedback renders inline toasts here; see components.css). */
   .action-feedback-slot { min-height: 44px; }
-  .question-area .action-feedback .alert { margin: 6px 0; }
   .error {
     background: color-mix(in srgb, var(--bad) 14%, var(--bg-surface));
     color: var(--bad);
@@ -2980,7 +2912,7 @@
     background-clip: padding-box;
   }
   &::-webkit-scrollbar-thumb:hover {
-    background: var(--text-faint);
+    background: var(--decor-faint);
   }
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
@@ -3455,7 +3387,7 @@
   }
   .map-dot.lv-new {
     background: transparent;
-    border: 1.5px solid var(--text-faint);
+    border: 1.5px solid var(--decor-faint);
   }
   .map-name {
     display: flex;
@@ -4008,12 +3940,6 @@
       padding: 7px 11px;
       font-size: 15px;
     }
-    .modal-backdrop {
-      padding: 12px;
-    }
-    .modal {
-      padding: 20px;
-    }
     .alert {
       margin: 12px 15px 0;
     }
@@ -4053,13 +3979,9 @@
      Flat, opaque desk surfaces. Depth is reserved for the card itself, so
      panels get a hairline and no shadow. */
   .glass,
-  .deck,
-  .modal {
+  .deck {
     background: var(--bg-surface);
     border: 1px solid var(--line);
-  }
-  .modal {
-    box-shadow: var(--shadow-lg);
   }
 
   /* ── Desk ───────────────────────────────────────────────────────────────
@@ -4432,26 +4354,6 @@
     background-position: -200% 0;
   }
 }
-@keyframes backdrop-in {
-  from {
-    background: #0000;
-    backdrop-filter: blur(0);
-  }
-  to {
-    background: #0009;
-    backdrop-filter: blur(5px);
-  }
-}
-@keyframes modal-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
 @keyframes card-deal {
   from {
     opacity: 0;
@@ -4472,10 +4374,6 @@
 }
 @keyframes option-ink {
   from { transform: translateY(-6px); }
-}
-/* Native window buttons disappear in the host's actual fullscreen mode. */
-html[data-fullscreen] .study-app dialog.source-preview {
-  --preview-titlebar-inset: 0px;
 }
 @keyframes rise-in {
   from {
