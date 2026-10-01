@@ -20,6 +20,7 @@ import flow from './locales/en.flow.json';
 import skeletonCopy from './locales/en.skeleton.json';
 import snappy from './locales/en.snappy.json';
 import board from './locales/en.board.json';
+import update from './locales/en.update.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -41,6 +42,7 @@ export const ENGLISH_SOURCES = {
   'en.skeleton.json': skeletonCopy,
   'en.snappy.json': snappy,
   'en.board.json': board,
+  'en.update.json': update,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

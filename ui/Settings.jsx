@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useState } from "react";
 import AudioSettings from "./AudioSettings.jsx";
 import { hasContext } from './capabilities.js';
+import { UpdateSettingsPanel } from './UpdateCenter.jsx';
 
 const GOALS = [["", "未设定"], ["exam", "应付考试"], ["interview", "面试求职"], ["work", "工作中落地"], ["explore", "兴趣拓展"]];
 
@@ -11,6 +12,7 @@ export default function Settings({
   busy,
   act,
   call,
+  host,
   setNotice,
   settings,
   setSettings,
@@ -162,6 +164,7 @@ export default function Settings({
           }}>{ui("确认恢复并替换当前学习库")}</button>
         </div>}
       </fieldset>
+      <UpdateSettingsPanel call={call} host={host} notify={setNotice} />
     </section>
   );
 }

@@ -30,7 +30,9 @@ Want the chat assistant to use only what you stored in StudyHub? Pick the **学�
 https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.0/ericwang1358-dsh-daily-flashcard-2.1.0.tgz
 ```
 
-Confirm version **2.1.0** and enable it. StudyHub opens by itself; afterwards use **StudyHub** in DSH’s left sidebar (the session tab and right sidebar also work). Existing web users only install the plugin; keep your current server, profile, model settings and workspace. For an update, finish or cancel background tasks and restart the existing DSH process. Refreshing the browser alone does not load updated plugin code.
+Confirm version **2.1.0** and enable it. StudyHub opens by itself; afterwards use **StudyHub** in DSH’s left sidebar (the session tab and right sidebar also work). Existing web users only install the plugin; keep your current server, profile, model settings and workspace.
+
+**Updating.** DSH plugins do not update themselves, and restarting DSH alone keeps the installed version. From 2.1.1, StudyHub asks GitHub for a newer release (at most every 12 hours; switch it off in **Settings › About & updates**) and shows a chip in its sidebar. **Upgrade** downloads the release package, checks its SHA-256 against the release's `SHA256SUMS` file and installs it through DSH's plugin manager. On older versions, or a host without in-app installs, open **Plugins**, uninstall StudyHub, then **Add plugin** with the new release's package address. Either way, finish or cancel background tasks first and restart DSH afterwards: quit desktop DSH fully and reopen it, or restart your web service with its original profile. A browser refresh alone does not load new plugin code. Your library and settings are kept.
 
 **New to DSH?** Use the official [Windows x64 installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) or [macOS Apple silicon installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg). On Linux, or if you prefer a browser on any platform, install Node.js **22.19 or later** and run `npx @deepseek-ai/dsh web`. Desktop installers include their runtime.
 

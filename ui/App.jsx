@@ -23,6 +23,7 @@ import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
+import UpdateCenter from "./UpdateCenter.jsx";
 import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS } from "./generation-status.js";
 import ImportHub, { importOutcome } from './ImportHub.jsx';
@@ -1767,6 +1768,7 @@ export default function App({ call: transportCall, host = {} }) {
               </button>
             );
           })()}
+          <UpdateCenter call={call} host={host} compact={sidebarNarrow} notify={setNotice} />
           <button
             className={navPage === "settings" ? "nav active" : "nav"}
             title={ui("设置")}
@@ -2174,6 +2176,7 @@ export default function App({ call: transportCall, host = {} }) {
                 busy={busy}
                 act={act}
                 call={call}
+                host={host}
                 setNotice={setNotice}
                 settings={settings}
                 setSettings={setSettings}
