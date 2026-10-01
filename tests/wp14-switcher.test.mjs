@@ -1,5 +1,6 @@
-/* WP14 · the library course switcher groups "Course / Chapter" names under
-   their course (an <optgroup>), without renaming anything. */
+/* WP14 · the library course switcher ranks courses like every course picker
+   and groups "Course / Chapter" names under their course (an <optgroup>),
+   without renaming anything. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -29,5 +30,5 @@ test('the course switcher puts chapters in an optgroup under their course', () =
   assert.match(group, new RegExp(`value="${CNSD} / 02 容器与镜像" selected="">02 容器与镜像<`));
   assert.match(select, /<option value="Databases">Databases<\/option>/);
   assert.match(select, /<option value="TCP\/IP Basics">TCP\/IP Basics<\/option>/);
-  assert.ok(select.indexOf('Databases') < select.indexOf('<optgroup'), 'library order is kept');
+  assert.ok(select.indexOf('<optgroup') < select.indexOf('Databases'), 'ranked like the other pickers: the current course (and its group) first');
 });

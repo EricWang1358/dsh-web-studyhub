@@ -32,15 +32,35 @@
 :is(.study-app, .study-seat) .course-settings__merge input { width: auto; flex: none; margin-top: 3px; }
 :is(.study-app, .study-seat) .course-settings__merge span { display: grid; gap: 2px; min-width: 0; }
 :is(.study-app, .study-seat) .course-settings__merge small { font-size: var(--fs-xs); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .course-settings__merge-window .course-settings__merge { padding: var(--space-1); gap: 0; }
 :is(.study-app, .study-seat) .course-settings__error { margin-right: auto; flex: 1 1 240px; }
 
-/* Settings: the course list. */
-:is(.study-app, .study-seat) .course-list__items { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+/* Settings: the course list (WP14) — compact rows in a ScrollWindow, chapters folded under their course. */
+:is(.study-app, .study-seat) .course-list__window { margin-top: var(--space-3); }
+:is(.study-app, .study-seat) .course-list__items { display: grid; }
+:is(.study-app, .study-seat) .course-list__entry + .course-list__entry { border-top: 1px solid var(--line-soft); }
 :is(.study-app, .study-seat) .course-list__item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-  padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
-:is(.study-app, .study-seat) .course-list__text { display: grid; gap: 2px; min-width: 0; }
-:is(.study-app, .study-seat) .course-list__text strong { color: var(--text); overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .course-list__text small { font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+  min-height: 52px; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); }
+:is(.study-app, .study-seat) .course-list__item.is-current { box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+:is(.study-app, .study-seat) .course-list__item > .sh-btn { flex: none; }
+:is(.study-app, .study-seat) .course-list__text { display: grid; gap: 2px; min-width: 0; text-align: left; }
+:is(.study-app, .study-seat) .course-list__text strong { color: var(--text); font-weight: 600; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .course-list__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .course-list__duplicate { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-2); margin-top: 2px;
+  color: color-mix(in srgb, var(--warn) 72%, var(--text)); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .course-list__duplicate .sh-btn--link { min-height: 0; padding: 0; font-size: var(--fs-sm); }
+:is(.study-app, .study-seat) .course-list__flag { color: color-mix(in srgb, var(--warn) 72%, var(--text)); }
+:is(.study-app, .study-seat) .course-list__group-head { display: flex; align-items: center; gap: var(--space-3); padding-right: var(--space-3); }
+:is(.study-app, .study-seat) .course-list__toggle { display: flex; flex: 1; align-items: center; gap: var(--space-2); min-width: 0; min-height: 52px; margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-3); border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+:is(.study-app, .study-seat) .course-list__toggle:hover:not(:disabled) { background: var(--bg-hover); }
+:is(.study-app, .study-seat) .course-list__toggle:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-soft); }
+:is(.study-app, .study-seat) .course-list__toggle > .sh-icon { flex: none; color: var(--text-muted); transition: transform 0.18s var(--ease); }
+:is(.study-app, .study-seat) .course-list__toggle[aria-expanded="true"] > .sh-icon { transform: rotate(90deg); }
+:is(.study-app, .study-seat) .course-list__chapters { list-style: none; margin: 0; padding: 0 0 var(--space-1); border-top: 1px dashed var(--line-soft);
+  background: color-mix(in srgb, var(--bg-sunken) 55%, transparent); }
+:is(.study-app, .study-seat) .course-list__chapters .course-list__item { min-height: 44px; padding-left: calc(var(--space-3) + 24px); }
+:is(.study-app, .study-seat) .course-list__chapters li + li .course-list__item { border-top: 1px solid var(--line-soft); }
 
 /* Library heading: the countdown sits beside the course name. */
 :is(.study-app, .study-seat) .course-heading .course-heading-exam { flex: none; align-self: center; padding: 3px var(--space-2); border-radius: var(--radius-pill);
@@ -51,4 +71,6 @@
   :is(.study-app, .study-seat) .course-settings__rename { flex-direction: column; align-items: stretch; }
   :is(.study-app, .study-seat) .course-settings__grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   :is(.study-app, .study-seat) .course-heading { flex-wrap: wrap; row-gap: var(--space-1); }
+  :is(.study-app, .study-seat) .course-list__item { padding-left: var(--space-3); }
+  :is(.study-app, .study-seat) .course-list__chapters .course-list__item { padding-left: calc(var(--space-2) + 20px); }
 }

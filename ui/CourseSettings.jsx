@@ -4,7 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Button, Dialog, Disclosure, EmptyState, Icon, IconButton, InlineMessage, ScrollWindow, SegmentedControl } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import { daysUntilExam, examProfile } from '../lib/courses.js';
-import { courseNameKey, findDuplicateCourses, groupCourseNames } from './course-names.js';
+import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses } from './course-names.js';
 import css from './course-settings.css';
 
 /* Course settings (WP13): one panel per course record — name and aliases,
@@ -97,11 +97,13 @@ const entryText = entry => entry.type === 'group'
  * filterable window of compact rows (WP14). "Course / Chapter" names are
  * grouped under the course, collapsed; near-duplicate names get a hint and
  * 合并到这里, which opens the merge confirmation. Props: courses, onOpen(id),
- * onMerge(intoId, fromIds), busy, currentId, defaultOpenGroups, defaultQuery.
+ * onMerge(intoId, fromIds), busy, currentId, recent (name → last used, for the
+ * shared ranking: current, recently used, busiest), defaultOpenGroups, defaultQuery.
  */
-export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, defaultOpenGroups = [], defaultQuery = '' }) {
+export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, recent, defaultOpenGroups = [], defaultQuery = '' }) {
   useInjectCss(css, 'study-course-settings');
-  const entries = useMemo(() => groupCourseNames(courses), [courses]);
+  const currentName = courses.find(course => course.id === currentId)?.name;
+  const entries = useMemo(() => groupCourseNames(rankCourses({ courses, current: currentName, recent })), [courses, currentName, recent]);
   const duplicates = useMemo(() => findDuplicateCourses(courses), [courses]);
   const [open, setOpen] = useState(() => new Set(defaultOpenGroups));
   const [query, setQuery] = useState(defaultQuery);
@@ -207,6 +209,8 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
   const disabled = busy || working;
   const defaults = examProfile(payloadFromDraft(course, draft).exam);
   const others = courses.filter(item => item.id !== course.id);
+  const likely = new Set([...(findDuplicateCourses(courses).get(course.id) || []).map(item => item.id), ...mergeFrom]);
+  const mergeCandidates = [...others.filter(item => likely.has(item.id)), ...others.filter(item => !likely.has(item.id))];
   const change = patch => setDraft(current => ({ ...current, ...patch }));
   const run = async (action, args, done) => {
     setWorking(true); setError('');
@@ -302,13 +306,14 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
 
       {others.length > 0 && <Disclosure className="course-settings__disclosure" summary={ui('把其他课程合并到这里')}
         meta={mergeIds.length ? uiFormat('已选 {0} 门', [mergeIds.length]) : ''} defaultOpen={mergeFrom.length > 0}>
-        <ul className="course-settings__merge">
-          {others.map(item => <li key={item.id}><label>
+        {/* A long course list scrolls in a window; likely duplicates of this course come first (WP14). */}
+        <ScrollWindow className="course-settings__merge-window" label={ui('可以合并的课程')} items={mergeCandidates} itemKey={item => item.id}
+          match={item => [item.name, ...(item.aliases || [])].join(' ')} filterable={mergeCandidates.length > 6} filterPlaceholder={ui('筛选课程…')}
+          maxHeight={260} listClassName="course-settings__merge" renderItem={item => <label>
             <input type="checkbox" checked={mergeIds.includes(item.id)} disabled={disabled}
               onChange={event => { setConfirm(null); setMergeIds(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />
-            <span><strong>{item.name}</strong>{countLine(item) && <small>{countLine(item)}</small>}</span>
-          </label></li>)}
-        </ul>
+            <span><strong>{item.name}</strong>{(countLine(item) || likely.has(item.id)) && <small>{[likely.has(item.id) ? ui('名称几乎相同') : '', countLine(item)].filter(Boolean).join(' · ')}</small>}</span>
+          </label>} />
         <Button variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
         {confirm === 'merge' && mergeIds.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat('把 {0} 门课程并入「{1}」？', [mergeNames.length, course.name])}>
           <p><strong>{mergeNames.join(' · ')}</strong></p>

@@ -2161,6 +2161,7 @@ export default function App({ call: transportCall, host = {} }) {
                 setLegacy={setLegacy}
                 workspacePanel={workspacePanel}
                 coursePanel={<CourseList courses={data.courses || []} busy={busy} onOpen={setCourseSettings} currentId={data.focus?.courseId}
+                  recent={Object.fromEntries((data.focus?.courses || []).map(course => [course.name, course.lastUsedAt]))}
                   onMerge={(id, mergeFrom) => setCourseSettings({ id, mergeFrom })} />}
                 onboardingPanel={<OnboardingPanel sample={data.sample} progress={tourResume} busy={busy || sampleBusy}
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
