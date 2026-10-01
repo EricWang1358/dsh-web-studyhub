@@ -3,7 +3,7 @@
    Generate (useInjectCss 'study-generate-form'). Tokens only; narrow panes
    follow the `study` container. */
 :is(.study-app, .study-seat) .generate-form { padding-top: var(--space-5); }
-:is(.study-app, .study-seat) .generate-rows { display: grid; gap: var(--space-5); margin: var(--space-4) 0 0; }
+:is(.study-app, .study-seat) .generate-rows { display: grid; gap: var(--space-5); margin: var(--space-5) 0 0; }
 :is(.study-app, .study-seat) .generate-row {
   display: grid;
   grid-template-columns: 8em minmax(0, 1fr);
