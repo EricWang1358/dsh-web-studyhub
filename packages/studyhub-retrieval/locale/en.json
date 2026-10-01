@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "StudyHub search extension",
+    "description": "A local document-search tool for StudyHub, run by DSH itself. Lets large textbooks be searched by topic; nothing leaves your computer after the first model download."
+  }
+}
