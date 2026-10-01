@@ -81,5 +81,6 @@
   "已删除：{0}": "Deleted: {0}",
   "已恢复：{0}": "Restored: {0}",
   "已撤销": "Undone",
-  "看板已在其他位置更新，已载入最新内容，请再试一次。": "The board was updated somewhere else. The latest version is loaded; please try again."
+  "看板已在其他位置更新，已载入最新内容，请再试一次。": "The board was updated somewhere else. The latest version is loaded; please try again.",
+  "{0} 项已逾期 · {1} 项今天截止": "{0} overdue · {1} due today"
 }

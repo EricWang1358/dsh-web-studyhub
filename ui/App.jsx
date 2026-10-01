@@ -16,6 +16,7 @@ import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
+import { dueSummary } from "../lib/board-model.js";
 import Icon from "./Icon.jsx";
 import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
@@ -285,6 +286,8 @@ export default function App({ call: transportCall, host = {} }) {
   const [boardStudyRef, setBoardStudyRef] = useState(null);
   const [legacyAudioJobId, setLegacyAudioJobId] = useState('');
   const boardCount = boardState.board?.columns.reduce((n, column) => n + (column.done ? 0 : column.cardIds.length), 0);
+  // Cards due today or overdue light the badge, so a deadline shows from any page.
+  const boardDue = boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 };
   const dataRef = useRef(null),
     snapshotKey = useRef(""),
     notebookRequest = useRef(0);
@@ -1722,7 +1725,8 @@ export default function App({ call: transportCall, host = {} }) {
                 <Icon><NavGlyph name={id} /></Icon>
                 {ui(label)}
                 {id === "board" && boardCount !== undefined && (
-                  <span className="nav-count">{boardCount}</span>
+                  <span className={boardDue.overdue + boardDue.today ? "nav-count is-due" : "nav-count"}
+                    title={boardDue.overdue + boardDue.today ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}>{boardCount}</span>
                 )}
                 {id === "sources" && data && (
                   <span className="nav-count">{countDocuments(data.sources)}</span>
