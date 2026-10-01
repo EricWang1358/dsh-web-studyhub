@@ -4,6 +4,7 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **A refreshed feature tour.** The tour is now 21 steps and shows the generate form (source picker with chapters, the type and count switches with the Suggest-a-focus assist, the estimated token line), mistakes grouped by topic with recommendations and variants, the three exam formats behind one switch, the statistics charts and model usage, and Settings for big textbooks and updates. The sources step now names Word and PowerPoint. The case-paper step is folded into the exam step.
 - **Large textbooks.** A PDF over 8 MB or 200 pages, a selection over 600,000 characters, or a book over 300 pages now gets a calm *Large textbooks* card with recommended converters (MinerU, Docling), search tools (mcp-local-rag, RAGFlow), download channels including mainland-China ones, and the steps. Converter output (MinerU `content_list.json`, Docling JSON, Marker or generic Markdown with page markers) imports as one paged document, split into chapters you can choose instead of hundreds of pages. A search tool DSH exposes (an MCP tool, or a plugin's `studyRetrieval` service) can be chosen in Settings; generation and the learning flow then use only the pages it finds. See [large textbooks](docs/large-documents.md).
 
 ## 2.1.1 — 2026-10-02

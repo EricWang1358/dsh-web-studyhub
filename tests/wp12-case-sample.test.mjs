@@ -87,12 +87,13 @@ test("the sample case set is published, pre-graded without a model, visible in t
   assert.equal(after.inbox.length, 0);
 });
 
-test("the tour stops at 案例分析卷 right after the exam step", async () => {
+test("the tour shows the exam format switch, which is how 案例分析卷 is reached", async () => {
   const ids = TOUR_STEPS.map((step) => step.id);
-  assert.equal(ids[ids.indexOf("exam") + 1], "case");
-  const step = TOUR_STEPS.find((item) => item.id === "case");
+  assert.equal(ids.includes("case"), false, "案例分析卷 is no longer a step of its own: the exam step carries the format switch");
+  const step = TOUR_STEPS.find((item) => item.id === "exam");
   assert.equal(step.page, "exam");
   assert.equal(step.anchor, "exam-case");
+  assert.match(step.body, /案例分析卷/);
   const source = await readFile(join(repo, "ui/ExamShell.jsx"), "utf8");
   assert.match(source, /data-tour="exam-case"/);
   const catalogue = Object.assign({}, ...await Promise.all((await readdir(join(repo, "ui/locales"))).filter((name) => /^en(\..+)?\.json$/.test(name))

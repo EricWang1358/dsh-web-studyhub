@@ -144,7 +144,7 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
           )}
         </section>
 
-        <div className="dash-charts">
+        <div className="dash-charts" data-tour="dashboard-charts">
           <TrendPanel trend={trend} today={stats?.today} />
           <ForecastPanel forecast={stats?.forecast} onStart={onStartScope} />
           <MasteryPanel mastery={stats?.mastery} />

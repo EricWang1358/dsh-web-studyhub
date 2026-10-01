@@ -16,7 +16,7 @@ Turn your course materials, recordings and live classes into questions linked to
 
 1. **Install DSH** (skip if you have it): use the official Windows / macOS installers below, or install Node.js 22.19+ and run `npx @deepseek-ai/dsh web`.
 2. **Install StudyHub**: in DSH open **Plugins → Add plugin**, paste the package address from *Install or update* below, then click DSH's enable button. StudyHub opens by itself; afterwards use **StudyHub** in DSH's left sidebar — no chat message needed.
-3. **Take the tour (optional, about 3 minutes)**: on the welcome page choose **Load the sample and start the tour**. The 17-step tour switches between sources, generation, practice, mistakes, exams and statistics and points at the real controls. The sample makes no model calls and can be removed with one click.
+3. **Take the tour (optional, about 3 minutes)**: on the welcome page choose **Load the sample and start the tour**. The 21-step tour switches between sources, generation, practice, mistakes, exams and statistics and points at the real controls. The sample makes no model calls and can be removed with one click.
 4. **Add an AI model**: paste a key in DSH **Settings → Models**. Until then StudyHub tells you right where a model is needed instead of letting a request fail later.
 5. **Start with your own material**: click **Add source**, drop several PDFs, slides or notes at once (each PDF is kept as one document), then **Generate from sources** → review the draft → publish → practise.
 
