@@ -17,7 +17,7 @@ const MAX_LISTED_PAGES = 12;
  */
 export function retrievalSummary(retrieval) {
   if (!retrieval) return null;
-  if (retrieval.error) return { error: true, text: uiFormat('检索没有用上：{0}。已使用你选的全部资料。', [retrieval.error]) };
+  if (retrieval.error) return { error: true, text: uiFormat('检索没有用上：{0}。已使用你选的全部资料。', [ui(retrieval.error)]) };
   const used = retrieval.used || [];
   const listed = used.slice(0, MAX_LISTED_PAGES).map(page => page.page ?? page.title).join(ui('、')) + (used.length > MAX_LISTED_PAGES ? '…' : '');
   return { error: false, text: uiFormat('用检索挑出了相关页面：第 {0} 页（所选 {1} 份，实际发给 AI {2} 份）。', [listed, retrieval.selected ?? used.length, used.length])

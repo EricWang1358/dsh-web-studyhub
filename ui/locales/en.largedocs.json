@@ -79,6 +79,7 @@
   "从这一章出题": "Generate from this chapter",
   "这份资料有 {0} 页，建议按章节使用": "This material has {0} pages: use it by chapter",
   "PDF 太大或有几百页？先用转换工具处理，再把转换结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。": "PDF too large, or hundreds of pages? Convert it first, then drop the result here (a .json from MinerU / Docling, or Markdown with page markers).",
+  "没有检索到相关页面": "No relevant pages were found",
   "用检索挑选页面": "Pick pages by search",
   "所选资料太大。先在「这次想练什么？」写下主题，StudyHub 才能用检索挑出相关页面。": "The selected material is too large. Write a topic under “What do you want to practise?” first, so StudyHub can pick the relevant pages by search.",
   "检索已启用：出题时会先挑出和主题相关的页面，只把这些页面发给 AI（所选资料约 {0} 个字符）。": "Search is on: when generating, StudyHub first picks the pages that match your topic and sends only those to the AI (the selection is about {0} characters).",
