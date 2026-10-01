@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ui } from '../i18n.js';
+import { ui, uiFormat, uiMessage, useUiLanguage } from '../i18n.js';
 import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
 import { safeDocumentHtml } from './DocumentViewer.jsx';
 import { annotatePassages, captureSelection, groupPassageLinks } from './selection.js';
@@ -74,7 +74,7 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
         onCancel={event => { event.preventDefault(); setOpen(false); }}>
         <header><strong>{ui('资料选段学习')}</strong><button type="button" onClick={() => setOpen(false)} aria-label={ui('关闭')}>×</button></header>
         {busy && <p role="status">{ui('正在连接资料与原文位置…')}</p>}
-        {error && <p role="alert">{error}</p>}
+        {error && <p role="alert">{uiMessage(error)}</p>}
         {!capture && <p>{ui(/\.html?$/i.test(absolutePath) ? '选中一段文字后点击此按钮。HTML 请切换到「学习 HTML」预览。' : '选中预览中的一段文字后，再点击「选段学习」。')}</p>}
         {document && <DocumentLearning call={call} document={document} capture={capture} onPublished={published} isCurrent={current}
           onOpenCard={navigate} />}
@@ -87,6 +87,7 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
   }, DocumentActions)), 'study document toolbar');
 
   function StudyHtml({ content, scrollportRef, resourceAddress, sessionId }) {
+    const language = useUiLanguage();
     const ref = useRef(null), call = useMemo(() => makeCall(sessionId), [sessionId]);
     const [links, setLinks] = useState([]), [group, setGroup] = useState(null), [error, setError] = useState('');
     const html = useMemo(() => safeDocumentHtml(content.kind === 'text' ? content.text : ''), [content]);
@@ -105,10 +106,10 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
       return () => { current = false; if (reload) window.removeEventListener('study-material-links-updated', reload); };
     }, [call, resourceAddress, sessionId]);
     const groups = useMemo(() => groupPassageLinks(links), [links]);
-    useEffect(() => annotatePassages(ref.current, groups, setGroup), [groups, html]);
+    useEffect(() => annotatePassages(ref.current, groups, setGroup, count => uiFormat('{0} 道相关题目与解析', [count])), [groups, html, language]);
     return <div className="study-html-document" ref={scrollportRef}>
       <div ref={ref} dangerouslySetInnerHTML={{ __html: html }} />
-      {error && <p role="alert">{error}</p>}
+      {error && <p role="alert">{uiMessage(error)}</p>}
       {group && <PassageLinks groups={[group]} onOpenCard={async link => {
         try { await openCard(sessionId, link); } catch (e) { setError(e.message); }
       }} />}

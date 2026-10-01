@@ -1,17 +1,25 @@
-# JSON 题组导入
+# Importing JSON question decks
 
-在「创建题组 → JSON 导入」选择题型，复制提示词并追加资料，让外部 AI 输出 JSON。也可展开格式示例自行编写。将结果粘贴到内容框，或选择 UTF-8 `.json` / `.txt` 文件，再点击「校验并导入草稿」。TXT 内必须是 JSON，普通题目文本使用「导入已有题目」的对话录题。
+[中文](json-import.zh-CN.md)
 
-支持 `quiz` 单选、`multi` 多选、`flashcard` 闪卡、`open` 开放问答和 `cloze` 填空，同一题组可以混合题型。顶层为 `{ "title": "题组名称", "folder": "可选目录", "cards": [...] }`。每组至少 1 题，不限制题目总数，最多 500,000 字符，文件最多 2 MB。允许 UTF-8 BOM 和包裹整个 JSON 的 Markdown 代码围栏。
+In **Create deck → JSON import**, select the question type, copy the prompt, and add your material before asking an external AI to produce JSON. You can also expand the format examples and write JSON yourself. Paste the result or select a UTF-8 `.json` or `.txt` file, then choose **Validate and import draft**. TXT files must contain JSON; use the conversational **Import existing questions** flow for ordinary question text.
 
-各题型完整示例由 `ui/json-prompts.js` 提供，界面可查看。每题需要 `kind`、`topic`、`objective`、`prompt`、`answer`、`hint`、`explanation`、`misconception`。单选与多选需要 3–6 个选项，每项含 `id`、`text`、`correct`、`explanation`；开放问答需要 `rubric`；填空需要 `cloze.text` 和 `cloze.answers`。
+Supported types are single-choice `quiz`, multiple-choice `multi`, `flashcard`, open-response `open`, and fill-in-the-blank `cloze`. One deck may mix types. The top-level structure is `{"title":"Deck name","folder":"Optional folder","cards":[...]}`. A deck needs at least one question; this import has no question-count limit. Text is limited to 500,000 characters and files to 2 MB. A UTF-8 BOM and a Markdown code fence around the entire JSON are accepted.
 
-服务接口 `draft.import { text }` 在同一事务内保存导入内容资料和新草稿。JSON 语法或题目结构无法安全读取时不会导入；缺少普通文本字段或选项结构损坏的题会作为待修复题留在草稿中，原始内容保存在导入来源中。当前界面默认使用 `draft.publish.quick` 快速发布全部题，不等待模型复审，随后开始最多十道新题。问题题保留标记；无法判分时允许跳过且不修改复习进度。原有逐题审阅发布路径仍是独立能力，不是当前默认入口。选择题可在逐题编辑器里增删选项；单选题改选正确项时会自动取消其他选项。外部 ID、复习进度、暂停状态和前置关联不被继承。
+Complete examples are available in the interface and `ui/json-prompts.js`. Each question needs `kind`, `topic`, `objective`, `prompt`, `answer`, `hint`, `explanation`, and `misconception`. Choice questions need 3–6 options, each containing `id`, `text`, `correct`, and `explanation`. Open-response questions need `rubric`; cloze questions need `cloze.text` and `cloze.answers`.
 
-如果原始资料已导入学习库，每题可带 `citations: [{"quote":"资料中的逐字原文（至少12字）"}]`，有重名或重复引文时可补 `sourceTitle` 或本地 `sourceId`。导入器只在本地资料中找到唯一匹配时关联该资料；无法匹配的引用会跳过，并在导入草稿中显示数量。当前实现保留外部导入来源标记，不把题目自身伪装成独立事实引用。引用匹配仅证明原文存在，不等于答案已被独立核实。导入和默认快速发布不调用模型复审；发布成功也不证明资料覆盖完整。
+The `draft.import {text}` service saves the imported source and new draft in one transaction. JSON syntax or structures that cannot be read safely are rejected. Questions with missing ordinary text fields or damaged option structures remain in the draft for repair; original content stays in the import source.
 
-## 系统学习的导入边界（规划，尚未实现）
+The interface defaults to `draft.publish.quick`: publish all questions without waiting for model review, then start up to ten new questions. Flagged questions retain warnings. An ungradable question can be skipped without changing review progress. The individually reviewed publication route remains separate. The per-question editor can add or remove options; selecting a correct single-choice option clears the other correct flags. External IDs, review progress, suspended status, and prerequisite links are not inherited.
 
-五个 JSON 只证明五组题已保存，不能证明五份 PDF 的核心内容全部进入题库。拟新增的课程台账会在显式关联原始资料后，核对资料片段、必学知识点和任务之间的映射；缺原资料时仍可学习，范围显示待核对。
-后台审计不阻塞快速发布，不要求逐题人工审查，不自动合并题组。现有导入白名单不会保留 knowledgePointId、范围版本等任意扩展字段，后续实现须使用明确兼容协议或独立映射，不能假设加进 JSON 即已生效。
-详见 [计划 R1–R4、U2/U3](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) 和 [八步学习流程](study-workflows.md#proposed-system-learning)。
+If original material is already in the library, questions may include `citations: [{"quote":"An exact source passage of at least 12 characters"}]`. Add `sourceTitle` or a local `sourceId` when names or quotes are ambiguous. Citations link only on a unique local match. Unmatched citations are skipped and counted in the draft. External-import markers remain: imported questions themselves are not independent factual evidence.
+
+Matching a quote proves that the passage exists, not that an answer was independently verified. Import and default quick publication do not invoke model review. Successful publication does not establish complete source coverage.
+
+## Planned system-learning import boundary
+
+This is proposed work, not a delivered feature. Five JSON files prove that five decks were saved, not that every core concept in five PDFs is covered. A proposed curriculum ledger would audit mappings between explicitly linked passages, required concepts, and learning tasks. Learning would remain possible without original sources, with coverage marked unverified.
+
+The proposed audit would not block quick publication, require individual manual review, or merge decks automatically. The current import allowlist does not retain arbitrary fields such as `knowledgePointId` or scope versions; future support needs an explicit compatibility protocol or separate mapping.
+
+See [R1–R4 and U2/U3 in the plan](https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.0.3/docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) and the [proposed learning workflow](study-workflows.md#proposed-system-learning).

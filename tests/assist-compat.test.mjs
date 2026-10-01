@@ -63,8 +63,21 @@ test("legacy compatibility never bypasses invalid choices or truncates a learner
   }, { mode: "ask", text: "", helpChoices: ["plain", "unknown"] }), /帮助方式不正确/);
   let attempts = 0;
   const request = { mode: "ask", text: "疑".repeat(1000), helpChoices: ["plain"] };
-  await assert.rejects(submitAssist(async () => { attempts++; throw new Error("帮助方式不正确"); }, request), /1000/);
+  await assert.rejects(submitAssist(async () => { attempts++; throw new Error("帮助方式不正确"); }, request),
+    { message: "请把疑问控制在 1000 字以内" });
   assert.equal(attempts, 1);
   assert.equal(request.text.length, 1000);
+  assert.deepEqual(request.helpChoices, ["plain"]);
+});
+
+test("English legacy fallback reports an oversized question in English without retrying", async () => {
+  let attempts = 0;
+  const request = { mode: "ask", text: "x".repeat(1000), helpChoices: ["plain"], uiLanguage: "en" };
+  await assert.rejects(submitAssist(async () => {
+    attempts++;
+    throw new Error("Invalid help mode");
+  }, request), { message: "Keep your question within 1,000 characters" });
+  assert.equal(attempts, 1);
+  assert.equal(request.text, "x".repeat(1000));
   assert.deepEqual(request.helpChoices, ["plain"]);
 });

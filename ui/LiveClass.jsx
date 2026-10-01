@@ -3,7 +3,7 @@ import { LiveClient } from './live-client.js';
 import LiveAudioMonitor from './LiveAudioMonitor.jsx';
 import LiveNotes from './LiveNotes.jsx';
 import LiveHistory from './LiveHistory.jsx';
-import { getUiLanguage, useUiLanguage } from './i18n.js';
+import { getUiLanguage, useUiLanguage, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
 import CourseField from './CourseField.jsx';
@@ -121,7 +121,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
     <header className={`live-heading${session ? ' compact' : ''}`}><div><p className="eyebrow">{t('听课 · 理解 · 练习', 'LISTEN · UNDERSTAND · PRACTISE')}</p>
       <h1>{t('课堂实录', 'Live class')}</h1><p className="muted">{t('边听边看简体中文，选中重点就能出题。', 'Follow along in Simplified Chinese and turn key passages into questions.')}</p></div>
       <button className="ghost-btn" onClick={onSettings}>{t('音频设置', 'Audio settings')}</button></header>
-    {error && <p className="alert error" role="alert">{error}</p>}
+    {error && <p className="alert error" role="alert">{uiMessage(error)}</p>}
     {notice && <p className="alert" role="status">{notice}</p>}
     {!active(session) && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); void perform(async () => { setSelected(new Set()); await client.start(kind, { title, course, subject, terms, paidOnly }); await refresh(); });
@@ -201,7 +201,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
               <button type="button" aria-label={t('增加题数', 'More questions')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))}>+</button></div>
             <button className="primary" disabled={!canGenerate} title={selectedChars < MIN_CHARS ? t(`至少约 ${MIN_CHARS} 个原文字符，目前 ${selectedChars}`, `At least about ${MIN_CHARS} original characters; now ${selectedChars}`) : undefined}
               onClick={() => void perform(async () => {
-                const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: '中文' });
+                const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: language === 'en' ? 'English' : '中文' });
                 setNotice(t('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。', 'Question generation queued; recording continues. Open the draft from the inbox when it is ready.'));
                 setSelected(new Set()); await client.poll(); onJobs?.(result);
               })}>{t('选中内容出题', 'Create questions from selection')}</button></div></div>

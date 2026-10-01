@@ -42,9 +42,14 @@ async function fixture(t) {
     answer: 'Original', review: { repetitions: 5, ease_factor: 2.6, due_at: '2030-01-01' }, custom: 'preserved' };
   await new Store(root).update(state => { state.decks.push({ id: 'd', title: 'Old JSON deck', cards: [old] }); });
   let calls = 0;
+  const requestedLanguages = [];
   const complete = async (system, prompt) => {
     calls++;
-    if (system.startsWith('Plan a source-grounded')) return JSON.stringify(qualityPlan(JSON.parse(prompt.split('REQUEST DATA:\n')[1])));
+    if (system.startsWith('Plan a source-grounded')) {
+      const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      requestedLanguages.push(data.language);
+      return JSON.stringify(qualityPlan(data));
+    }
     if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
     const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
     return JSON.stringify(authored({ title: 'Selection', cards: [{ id: 'q', kind: 'flashcard', topic: 'Architecture decisions',
@@ -57,8 +62,19 @@ async function fixture(t) {
   t.after(() => runtime.dispose());
   const imported = await runtime.call('materials.document.import', { filename: 'notes.md', dataBase64: Buffer.from(`# Notes\n\n${passage}`).toString('base64') });
   const selection = (await runtime.call('materials.selection.resolve', { documentId: imported.documentId, revision: imported.revision, quote: passage })).selection;
-  return { root, runtime, old, imported, selection, calls: () => calls };
+  return { root, runtime, old, imported, selection, requestedLanguages, calls: () => calls };
 }
+
+test('selected-passage generation follows English requests while explicit and legacy Chinese remain supported', async t => {
+  for (const [languageArgs, expected] of [[{ uiLanguage: 'en' }, 'English'], [{ uiLanguage: 'en', language: '中文' }, '中文'], [{}, '中文']]) {
+    const f = await fixture(t);
+    const result = await f.runtime.call('generation.selection.supplement', { selection: f.selection, deckId: 'd',
+      operationId: 'language-default', expectedVersion: 0, count: 1, kind: 'flashcard', ...languageArgs });
+    assert.equal(result.status, 'complete');
+    assert.deepEqual(f.requestedLanguages, [expected]);
+    assert.deepEqual((await f.runtime.call('bank.get', { deckId: 'd' })).deck.cards[0], f.old);
+  }
+});
 
 test('the real versioned APIs append to an old version-zero deck and return a valid replayable receipt', async t => {
   const f = await fixture(t);

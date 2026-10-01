@@ -106,7 +106,7 @@ export default function Manage({
         </div>
         <form className="binding-inline folder-form" onSubmit={(e) => {
           e.preventDefault();
-          if (!targetId || !window.confirm(`将「${managedDeck.title}」的 ${managedDeck.cards.length} 道题全部并入目标题组？来源题组会移除。`)) return;
+          if (!targetId || !window.confirm(uiFormat('将「{0}」的 {1} 道题全部并入目标题组？来源题组会移除。', [managedDeck.title, managedDeck.cards.length]))) return;
           act("deck.merge", { sourceIds: [managedDeck.id], targetId }, (result) => {
             setPage("library"); setNotice(uiFormat("已合并 {0} 道题，全部保留",[result.moved]));
           });

@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -28,20 +28,20 @@ async function pack(cwd) {
 
 // Build and verification are deliberately owned by the release coordinator.
 const archives = [await pack(root)];
+await mkdir(join(target, 'packages'), { recursive: true });
 for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'audio']) {
-  const staging = join(target, 'packages', domain);
-  await mkdir(staging, { recursive: true });
-  for (const path of ['lib', 'references', 'LICENSE', 'README.md'])
+  const staging = await mkdtemp(join(target, 'packages', `${domain}-`));
+  for (const path of ['lib', 'references', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md'])
     await cp(join(root, path), join(staging, path), { recursive: true });
   await mkdir(join(staging, 'docs'), { recursive: true });
-  for (const file of ['architecture.md', 'install.md', 'install.html'])
-    await cp(join(root, 'docs', file), join(staging, 'docs', file));
+  for (const path of manifest.files.filter(path => path.startsWith('docs/')))
+    await cp(join(root, path), join(staging, path));
   const name = `@ericwang1358/dsh-study-${domain}`;
   const entry = `./lib/plugins/${domain}.js`;
   await writeFile(join(staging, 'package.json'), JSON.stringify({
     name, version: manifest.version, description: `StudyHub ${domain} capability plugin for DSH`,
     type: 'module', main: entry, exports: { '.': entry, './runtime': './lib/runtime.js', './package.json': './package.json' },
-    files: ['lib', 'references', 'docs/architecture.md', 'docs/install.md', 'docs/install.html', 'cordis.patch.yml', 'README.md', 'LICENSE'],
+    files: manifest.files,
     license: manifest.license, engines: manifest.engines, dependencies: manifest.dependencies,
     peerDependencies: manifest.peerDependencies, peerDependenciesMeta: manifest.peerDependenciesMeta,
     dsh: { bundle: { patch: './cordis.patch.yml' } },
@@ -53,6 +53,10 @@ const setupFilename = `StudyHub-${manifest.version}-Setup.html`;
 await cp(join(root, 'docs/install.html'), join(target, setupFilename));
 const setup = { filename: setupFilename,
   sha256: createHash('sha256').update(await readFile(join(target, setupFilename))).digest('hex') };
-await writeFile(join(target, `SHA256SUMS-${manifest.version}.txt`), [...archives, setup].map(artifact => `${artifact.sha256}  ${artifact.filename}`).join('\n') + '\n');
-await writeFile(join(target, 'artifacts.json'), JSON.stringify({ version: manifest.version, archives, setup }, null, 2) + '\n');
-console.log(JSON.stringify({ directory: target, archives, setup }, null, 2));
+const setupZhFilename = `StudyHub-${manifest.version}-Setup.zh-CN.html`;
+await cp(join(root, 'docs/install.zh-CN.html'), join(target, setupZhFilename));
+const setupZh = { filename: setupZhFilename,
+  sha256: createHash('sha256').update(await readFile(join(target, setupZhFilename))).digest('hex') };
+await writeFile(join(target, `SHA256SUMS-${manifest.version}.txt`), [...archives, setup, setupZh].map(artifact => `${artifact.sha256}  ${artifact.filename}`).join('\n') + '\n');
+await writeFile(join(target, 'artifacts.json'), JSON.stringify({ version: manifest.version, archives, setup, setupZh }, null, 2) + '\n');
+console.log(JSON.stringify({ directory: target, archives, setup, setupZh }, null, 2));

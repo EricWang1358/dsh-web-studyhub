@@ -1,11 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark light">
-  <title>安装 StudyHub · 桌面版或网页版</title>
-  <style>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark light"><title>Install StudyHub 2.0.3 · Desktop or web</title><style>
     :root { color-scheme: dark; --bg: #171a21; --panel: #20242d; --text: #edf0f5; --muted: #afb7c5; --line: #3c4452; --accent: #bcc2ff; }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.75 system-ui, sans-serif; }
@@ -27,77 +21,33 @@
     .note { padding: 14px 18px; border-left: 3px solid var(--accent); background: var(--panel); }
     footer { margin-top: 36px; color: var(--muted); font-size: 14px; }
     @media (max-width: 580px) { main { padding: 28px 18px; } .platforms { grid-template-columns: 1fr; } .card { padding: 18px; } }
-  </style>
-</head>
-<body>
-<main>
-  <p class="muted">STUDYHUB · 学习插件 2.0.2</p>
-  <h1>从安装开始，到自己的学习库</h1>
-  <p>已有 DeepSeek Harness（DSH）桌面版或网页版，可直接安装全套学习插件。首次使用再选择桌面安装器或网页版，配置模型后开始学习。</p>
-  <p class="note"><strong>已在使用 DSH 网页版？</strong>保留当前网页版和配置，<a href="#plugin">仅安装学习插件 ↓</a>，无需下载客户端。</p>
-  <p><a href="#plugin">已有桌面版：仅安装插件</a> · <a href="#web">首次使用：只用网页版</a></p>
-  <div class="platforms" aria-label="选择电脑平台">
-    <article class="card" id="windows">
-      <h2>Windows</h2>
-      <p>64 位 Windows · 官方 .exe 安装器</p>
-      <a class="download" href="https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe">下载 Windows 安装器</a>
-      <p><small>打开下载的安装器，按提示安装并启动 DSH。桌面版自带运行时。</small></p>
-    </article>
-    <article class="card" id="linux">
-      <h2>Linux</h2>
-      <p>官方 npm 网页版 · 无需客户端</p>
-      <a class="download" href="#web">使用 Linux 网页版</a>
-      <p><small>安装 Node.js 22.19 或以上，启动 DSH 后在浏览器中添加学习插件。</small></p>
-    </article>
-    <article class="card" id="macos">
-      <h2>macOS</h2>
-      <p>Apple silicon（M 系列）· 官方 .dmg 安装器</p>
-      <a class="download" href="https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg">下载 macOS 安装器</a>
-      <p><small>打开磁盘映像，按提示把 DSH 放入「应用程序」，然后启动。无需单独安装 Node.js。</small></p>
-    </article>
-  </div>
-  <p class="muted">以上链接来自 <a href="https://www.deepseek.com/en/harness/">DSH 官网</a>，下载的是 DSH 官方宿主，学习插件在下一步安装。Intel Mac 或 Windows ARM 请查看官方支持情况，或使用 <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md#run">npm 启动方式</a>。</p>
-  <section id="plugin">
-    <h2>已有 DSH：仅安装全套插件</h2>
-    <p>以下步骤适用于正在使用的桌面版和网页版。在现有 DSH 的插件管理器安装，继续使用原来的模型与工作区。</p>
-    <ol>
-      <li>打开 DSH「插件 → 添加插件」。</li>
-      <li>复制下方地址到安装输入框，安装完成后确认包名 <code>@ericwang1358/dsh-daily-flashcard</code>、版本 <code>2.0.2</code>，启用工作台和所需组件。</li>
-      <li>如提示重新加载，先等后台任务完成或取消；重新加载后选择存放课程资料的工作区，新建会话，进入「学习」页。</li>
-    </ol>
-    <p>更新已有插件后，先结束后台任务，再重启 DSH：桌面版退出后重新打开，网页版重启原来的服务并保留原配置。仅刷新浏览器不够。</p>
-    <code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.2/ericwang1358-dsh-daily-flashcard-2.0.2.tgz</code>
-    <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.2">查看 2.0.2 安装包与校验值</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.2/ericwang1358-dsh-daily-flashcard-2.0.2.tgz">直接下载学习插件</a></p>
-    <p class="muted">无法直接安装时，可先下载 .tgz，再填写文件绝对路径。访问远程网页版时，文件须在 DSH 服务器上；自己电脑的路径不等于服务器路径，可优先使用上方 HTTPS 地址。</p>
-    <details>
-      <summary>高级自定义：按需安装、启用或停用组件</summary>
-      <p>全套包含工作台、运行时、资料、题库、学习、生成和音频。在 DSH 自带插件管理器展开安装包，选择所需组件；以后仍在这里启停。发布页也提供独立子插件安装包。</p>
-      <p>生题需要资料、题库和生成；答题与考试需要题库和学习。停用所需组件后，对应入口隐藏或提示功能已停用。停用前先结束相关任务，已保存的资料、题组和进度会保留。</p>
-      <p>删除资料前须启用题库和学习，以检查已保存题目、草稿与学习记录的引用。</p>
-      <p>若同一能力由多个安装包提供，需停用所有来源才能完全关闭。旧完整工作台仍提供整套能力，升级后再自定义。</p>
-    </details>
-  </section>
-  <section id="web">
-    <h2>首次使用：只用 DSH 网页版</h2>
-    <p>适用于 Linux，也适用于不希望安装客户端的 Windows、Mac 用户。安装 Node.js 22.19 或以上，然后在终端运行：</p>
-    <code class="address">npx @deepseek-ai/dsh web</code>
-    <p>保持进程运行，默认打开 <code>http://127.0.0.1:3080</code>。随后在网页中<a href="#plugin">安装学习插件</a>。已有网页版可直接跳过这一步。</p>
-    <p><a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md#run">DSH 官方网页版启动说明</a> · Linux 当前使用官方 npm 路径。</p>
-  </section>
-  <section id="provider">
-    <h2>首次使用：配置模型 Provider</h2>
-    <p class="note">在 DSH「设置 → 模型」保存 API Key，然后在会话中选择模型。生成、讲解、校对与翻译需要模型；安装插件、查看资料和复习已有题组可以先开始。</p>
-    <h3>日常使用：DeepSeek 官方 API</h3>
-    <p>在 <a href="https://platform.deepseek.com/">DeepSeek 开放平台</a>创建 API Key，确认账户可调用模型；在 DSH 模型设置的 DeepSeek 卡片输入并保存。内置配置无需手工填写 API 地址。</p>
-    <h3>用量较大：考虑兼容的 Coding Plan</h3>
-    <p>选择提供 API Key、且允许 DSH 与学习用途的套餐。购买前确认适用工具、用途、专用 API 地址、模型、并发限制和额度规则。有 Key 不等于允许任意应用使用；<a href="https://docs.bigmodel.cn/cn/coding-plan/faq">有些套餐仅限指定工具</a>。</p>
-    <p>获准的第三方套餐可在「添加模型提供商」配置；自定义端点需填写地址、协议、Key 和模型 ID。参见 <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/providers.zh.md">DSH 模型配置指南</a>。</p>
-    <h3>Claude／Codex 订阅不能直接当作 API Key</h3>
-    <p>DSH 当前不支持 Codex 等 OAuth 订阅接入。Claude Pro／Max、ChatGPT／Codex 的订阅额度不能直接填入这里；Anthropic 和 OpenAI 的独立付费 API 可以作为第三方 Provider，费用与订阅分开。</p>
-    <p><a href="https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console">Claude 计费说明</a> · <a href="https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform">OpenAI 计费说明</a></p>
-    <p class="muted">本页不收集密钥，请只在 DSH 模型设置中保存。音频原始转写还需在学习插件「设置 → 音频转写」配置 Gemini 或 Groq，后续校对和翻译使用上述 Provider。</p>
-  </section>
-  <footer>下载入口核实于 2026-10-01 · DSH 宿主与学习插件版本独立 · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.0.2/docs/install.md">详细安装说明</a></footer>
-</main>
-</body>
-</html>
+  </style></head>
+<body><main>
+<p>English · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/StudyHub-2.0.3-Setup.zh-CN.html" lang="zh-CN">简体中文</a></p>
+<p class="muted">STUDYHUB · LEARNING PLUGINS 2.0.3</p>
+<h1>Set up your own study library</h1>
+<p>Already using DeepSeek Harness (DSH) on desktop or in a browser? Add the complete StudyHub plugin to your current installation. New users can choose an official desktop installer or the web version below.</p>
+<p class="note"><strong>Already using DSH web?</strong> Keep your current server and profile. <a href="#plugin">Install only the plugins ↓</a>; no desktop client is needed.</p>
+<p><a href="#plugin">Existing desktop: plugins only</a> · <a href="#web">New user: browser only</a></p>
+<div class="platforms" aria-label="Choose your platform">
+<article class="card"><h2>Windows</h2><p>Windows x64 · Official .exe installer</p><a class="download" href="https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe">Download for Windows</a><p><small>Run the installer and open DSH. Its runtime is included.</small></p></article>
+<article class="card"><h2>Linux</h2><p>Official npm web version · No client</p><a class="download" href="#web">Use the web version</a><p><small>Install Node.js 22.19 or later, start DSH and add StudyHub in your browser.</small></p></article>
+<article class="card"><h2>macOS</h2><p>Apple silicon · Official .dmg installer</p><a class="download" href="https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg">Download for Mac</a><p><small>Open the disk image, copy DSH to Applications and launch it.</small></p></article>
+</div>
+<p class="muted">These installers come from the <a href="https://www.deepseek.com/en/harness/">official DSH site</a>. Install the StudyHub plugin afterward. For Intel Macs and Windows ARM, check current official support or use the web route.</p>
+<section id="plugin"><h2>Existing DSH: install only the plugins</h2><p>Use your current desktop or web plugin manager. Your model settings and workspace stay in place.</p>
+<ol><li>Open <strong>Plugins → Add plugin</strong> in DSH.</li><li>Paste the address below. Confirm <code>@ericwang1358/dsh-daily-flashcard</code>, version <strong>2.0.3</strong>, then enable the workbench and desired components.</li><li>Finish or cancel background tasks before a requested reload. Select your course workspace, create a session and open <strong>Study</strong>.</li></ol>
+<code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/ericwang1358-dsh-daily-flashcard-2.0.3.tgz</code>
+<p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.3">Packages and checksums</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/ericwang1358-dsh-daily-flashcard-2.0.3.tgz">Download the complete plugin</a></p>
+<p>After an update, finish tasks and <strong>restart the existing DSH process</strong>: quit and reopen desktop DSH, or restart the original web service with its existing profile. Refreshing the browser alone is insufficient.</p>
+<p class="muted">If URL installation fails, download the .tgz and use its absolute path on the computer or server running DSH. A laptop download path is not a remote server path; prefer the HTTPS address above.</p>
+<details><summary>Advanced: customize and enable/disable components</summary><p>The complete package contains the workbench, runtime, materials, bank, learning, generation and audio. Expand the package in <strong>DSH’s plugin manager</strong> to toggle components. Standalone component archives are also available on the release page.</p><p>Generation needs materials, bank and generation; practice and exams need bank and learning. Missing capabilities hide their entries or show a disabled notice. End related tasks before disabling. Saved materials, decks and progress remain.</p><p>Enable bank and learning before deleting sources, so references can be checked. If multiple installations supply a capability, disable every provider to turn it off. Update an old complete workbench before customizing.</p></details></section>
+<section id="web"><h2>New user: DSH in your browser</h2><p>For Linux, or browser-only use on Windows or Mac, install Node.js <strong>22.19 or later</strong> and run:</p><code class="address">npx @deepseek-ai/dsh web</code><p>Keep the process running. DSH opens at <code>http://127.0.0.1:3080</code> by default; then <a href="#plugin">add StudyHub</a>. Existing web users skip this startup step. Linux uses the official npm route.</p></section>
+<section id="provider"><h2>Configure a model provider</h2><p class="note">Save an API key in <strong>DSH Settings → Models</strong>, then choose a model in your session. Generation, explanations, proofreading and translation need a provider; material browsing and existing-deck review work without one.</p>
+<h3>Everyday use: official DeepSeek API</h3><p>Create an API key at the <a href="https://platform.deepseek.com/">DeepSeek platform</a> and save it on DSH’s DeepSeek model card. Built-in configuration needs no manually entered API endpoint.</p>
+<h3>Higher usage: check Coding Plan compatibility</h3><p>Choose a plan only if it provides an API key and permits DSH and your actual study use. Check supported tools, uses, dedicated endpoint, model IDs, concurrency and quota rules before buying. Some plans are restricted to coding tools; having a key does not permit arbitrary applications.</p><p>For an eligible third-party plan, use <strong>Add model provider</strong>. A custom endpoint needs its actual protocol, address, key and model ID. Dedicated and standard API endpoints may bill different quotas.</p>
+<h3>Claude/Codex subscriptions are not general API keys</h3><p>DSH’s current model settings do not accept Codex-style OAuth subscriptions. Claude Pro/Max and ChatGPT/Codex allowances cannot be pasted here. Separately paid Anthropic and OpenAI APIs can be configured; billing is separate from subscriptions.</p><p><a href="https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console">Claude billing explanation</a> · <a href="https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform">OpenAI billing explanation</a></p>
+<p class="muted">This guide collects no credentials. Save keys only in DSH settings. Original audio transcription separately needs Gemini or Groq under <strong>Study Settings → Audio transcription</strong>; your model provider handles later proofreading, translation and learning help.</p></section>
+<section><h2>Choose English or Chinese</h2><p>New users get the browser’s preferred interface language; non-Chinese browsers start in English. The workbench language switch remembers your choice. Saved sources, questions and notes remain in their original language.</p></section>
+<footer>Official routes checked 2026-10-01 · DSH and StudyHub versions are independent · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.0.3/docs/install.md">Detailed English guide</a></footer>
+</main></body></html>

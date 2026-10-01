@@ -1,11 +1,15 @@
-# EN 双语附文
+# Optional English translations of questions
 
-练习页工具条在「提示 / 讲解」旁新增 **EN** 按钮：打开后，每张卡在其**中文题干和答案之后**附上英文——题干下方一段英文题干，每个选项下英文选项，揭示答案后参考答案、每选项解析和「理解这道题」的解析都跟着英文版。再点一次关闭。这个开关是面板显示偏好，跨会话记住，不写进题目内容。模拟考试页不提供该按钮，避免译文在交卷前暴露答案。
+[中文](translate-en.zh-CN.md)
 
-首次翻译调用模型（最低思考档），格式或字段校验失败时最多纠错重试一次。结果存在卡片的 `translation` 字段里，按被翻译内容（题干、答案、解析、选项文本与解析、填空答案）的摘要缓存：再次点击不调用模型；之后用 `card.update` 改了任何被翻译的字段，摘要失配，下一次点击重新翻译。相同版本的并发请求合并，生成期间修改题目不会保存过期译文。
+The practice toolbar's **EN** button beside **Hint / Explanation** adds English beneath the original Chinese prompt and options. After reveal, it adds an English reference answer, option explanations, and main explanation. Select EN again to hide additions.
 
-`translation` 不是题目内容：不进修订历史、不重置 SM-2、不触发「题目已更新，请按新版重新作答」。正在作答的题会以普通修复同步上英文，已提交的答案和选项乱序都不受影响。
+The preference persists across sessions without changing original questions. Mock exams omit it to avoid exposing answers before submission. It is separate from interface language: switching the UI to English does not translate saved content.
 
-答案侧英文（参考答案、解析、每选项为何对错）只在揭示或提交后随 solution 下发；作答前公开投影里只有英文题干与英文选项文本。填空题的英文必须原样保留全部 `{{id}}` 空位标记、按原 id 给出每空英文，校验不过会带着错误信息让模型重试一次，仍不过则明确报错、不落库。
+Initial translation uses the lowest reasoning level and at most one format-correction retry. The card's `translation` field caches output by a digest of prompt, answer, explanation, option text/explanations, and cloze answers. Reopening uses the cache; `card.update` changes invalidate it. Same-version concurrent requests coalesce; edits during generation reject stale output.
 
-接口：`card.translate {deckId,cardId}` → `{deckId,cardId,cached,translation}`。面板之外，agent 也可以在对话里调用它来讲解双语题或给卡片补英文。
+Translation does not enter revision history, reset SM-2, or require a new answer. Active cards synchronize additions without altering submitted answers or option order.
+
+Before answering, only the translated prompt and option text are public. Answers and explanations arrive with the solution after reveal/submission. Cloze translations must preserve all `{{id}}` markers and use original IDs for answers. Failed validation receives one retry, then an explicit error without saving invalid output.
+
+API: `card.translate {deckId,cardId}` → `{deckId,cardId,cached,translation}`. Agents can also call it for bilingual teaching or English additions to a card.

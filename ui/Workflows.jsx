@@ -13,7 +13,7 @@ const newStep = (component) => ({ id: `step-${crypto.randomUUID()}`, kind: compo
   instructions: component.prompt, content: "", next: "$next", retry: "$stay", count: 10 });
 
 function designPrompt(template, wish) {
-  return uiFormat("请帮我{0}。{1}\n", [template ? `调整学习流「${template.title}」` : "设计一条个性化学习流", wish ? `我的要求：${wish}` : "先了解我想怎样学习，再组合合适的组件。"]) +
+  return uiFormat("请帮我{0}。{1}\n", [template ? uiFormat('调整学习流「{0}」', [template.title]) : ui("设计一条个性化学习流"), wish ? uiFormat('我的要求：{0}', [wish]) : ui("先了解我想怎样学习，再组合合适的组件。")]) +
     ui("先用 study_workspace 的 workflow.context 读取组件规范、已有学习流和主题。最多保存五条，保持闪卡、知识骨架等独立功能可用。\n") +
     (template ? uiFormat("目标流程 id: {0}，我当前看到的 version: {1}。先重新读取最新版本；若已有新的修改，先向我说明差异，避免覆盖。\n", [template.id, template.version]) : ui("默认模板只是参考；在明确我的需求后创建。\n")) +
     ui("用 workflow.save 保存完整流程，更新已有流程需带最新 id/version。流程可包含目标、骨架、讲解、复述、练习、总结，设置有意义的 next/retry 分支。不要代替我作答或评定掌握。不要修改已经开始的学习副本。保存后说明调整了哪些步骤。");
@@ -178,7 +178,7 @@ function StartFlow({ template, listing, call, askInChat, onRefresh, onStarted, o
         ui("\n学习流：") + template.title + ui("\n已选题目范围 scope：") + JSON.stringify(scope) + "\n" +
         ui("使用给定 scope，先调用 study_workspace 的 skeleton.context 获取题目与引用证据，需要更多依据时用 source.search。\n") +
         ui("依据资料组织概念、关键特征、层级与关系；同一概念合并，线性过程与分支讲清楚，不相关的连通分量保持分开。补充知识要明确标注。\n") +
-        "调用 skeleton.save 保存一份新骨架，payload 为 {skeleton:{title,scope,overview,classNote,nodes:[{id,term,meaning,attributes,parent?,cards:[{deckId,cardId}]}],relations:[{from,to,type,note?}],sequences:[]}}。type 使用 part-of/causes/contrasts/prerequisite/example-of/related；动态过程需要时补充 sequences。\n" +
+        ui("调用 skeleton.save 保存一份新骨架，payload 为 {skeleton:{title,scope,overview,classNote,nodes:[{id,term,meaning,attributes,parent?,cards:[{deckId,cardId}]}],relations:[{from,to,type,note?}],sequences:[]}}。type 使用 part-of/causes/contrasts/prerequisite/example-of/related；动态过程需要时补充 sequences。\n") +
         ui("仅生成骨架，不修改题目、学习流或已有骨架，不代替我进入学习。保存后告诉我骨架名称，我会在当前页面关联它。")
       );
       setSkeletonNotice(ui("请求已准备好，请在主对话发送。骨架保存后会出现在列表，选中后即可开始学习。"));

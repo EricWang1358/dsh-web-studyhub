@@ -1,16 +1,18 @@
-# 讲解追问
+# Asking follow-up questions about explanations
 
-答题后打开「讲解」，末尾的「追问？」按需推荐三个问题，也可以选择「你的疑问」输入最多 1000 字的自定义问题。点击推荐问题或「解答并添加」后，模型润色问题并回答，结果以 Q&A 追加到讲解末尾。可反复追问；已有问答保存在卡片上，切题、刷新及以后复习均可回看。
+[中文](followup.zh-CN.md)
 
-模型收到本题内容、引用原文及最近 12 条当前版本问答。超出原文的解释必须标注补充说明。问答不会修改题干、答案、修订历史或复习计划；答案揭示前不向复习视图投影问答。题目内容修改后，旧版问答仍保存在卡片数据中，但不展示在新版讲解内；生成期间改题会拒绝保存过期回答。
+After answering, open **Explanation**. **Follow-up?** suggests three questions, or **Your question** accepts up to 1,000 characters. Selecting a suggestion or **Answer and add** asks the model to refine and answer it. Q&A appends to the explanation and stays on the card after switching questions, refreshing, and future reviews.
 
-已开启陪学自动备题时，每个新追问会加入原有备题队列，针对具体疑问生成一道来源可验证的巩固题，通过校验后进入「为你定制」，来源标为「追问巩固」。遵循现有备题容量和批处理设置，不自动改变用户的备题开关。仅把追问视为学习线索，不记为答错；AI 回答不能充当出题的源证据。
+The model receives the question, cited text, and the last 12 Q&A entries for its current version. Beyond-source explanations must be labeled supplementary. Follow-ups do not alter the prompt, answer, revision history, or schedule, and remain hidden until answer reveal.
 
-推荐问题按题目版本和已有问答缓存到卡片，重开面板或重启服务可以复用。新增问答或修改题目后，下次请求重新推荐；并发推荐合并为一次模型调用。格式不合格时最多纠错重试一次。
+After a question is edited, old Q&A remains stored but is not displayed in the new version. Editing during generation prevents outdated answers from being saved.
 
-接口：
+With automatic preparation enabled, new follow-ups enter its existing queue and can produce source-verifiable reinforcement questions under **For you**, labeled as follow-up reinforcement. Capacity and batching settings still apply. Follow-ups do not enable preparation, count as wrong answers, or let AI answers become source evidence.
 
-- `card.followup.suggest {deckId?, cardId}`：返回 `{questions: string[3]}`。
-- `card.followup {deckId?, cardId, question}`：返回 `{deckId, cardId, item}`，`item` 包含润色问题、原问题和答案。同版本、同问题的重试复用已保存回答，并发请求合并；不同问题各自追加。
+Suggestions are cached by question version and existing Q&A across restarts. New Q&A or edits invalidate the next request. Concurrent requests share one call. Invalid output receives at most one correction retry.
 
-验证：`tests/followup.test.mjs` 覆盖持久化、隐藏答案、连续上下文、重复与并发请求、模型错误、改题冲突和陪学备题。浏览器使用 `scripts/fake-model.mjs` 的模拟模型验证交互；真实模型的内容质量不由模拟结果证明。
+- `card.followup.suggest {deckId?, cardId}` returns `{questions: string[3]}`.
+- `card.followup {deckId?, cardId, question}` returns `{deckId, cardId, item}`, with refined question, original question, and answer. Same-version identical retries reuse saved answers; concurrent requests coalesce; different questions append separately.
+
+Tests cover persistence, answer hiding, context, duplicates, concurrency, model errors, edit conflicts, and preparation. Browser checks use `scripts/fake-model.mjs`; simulated output does not prove real teaching quality.

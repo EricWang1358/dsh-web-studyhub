@@ -33,7 +33,7 @@ import Inbox from "./Inbox.jsx";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
-import { ui, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
+import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
 import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
@@ -52,7 +52,9 @@ export default function App({ call: transportCall, host = {} }) {
   const language = useUiLanguage();
   const call = useCallback(async (action, args = {}) => {
     const epoch = libraryEpoch.current;
-    const result = await transportCall(action, { ...args, uiLanguage: getUiLanguage() });
+    let result;
+    try { result = await transportCall(action, { ...args, uiLanguage: getUiLanguage() }); }
+    catch (error) { error.message = uiMessage(error.message); throw error; }
     if (epoch !== libraryEpoch.current) throw new Error(ui('学习库已切换，请在当前学习库重试'));
     return localizeRunResponse(result);
   }, [transportCall]);
@@ -197,7 +199,7 @@ export default function App({ call: transportCall, host = {} }) {
     [gen, setGen] = useState({
       kind: "mixed",
       count: 10,
-      language: host.defaultContentLanguage || "中文",
+      language: host.defaultContentLanguage || (language === 'en' ? 'English' : '中文'),
       difficulty: "mixed",
       focus: "",
       role: "",
@@ -1048,7 +1050,7 @@ export default function App({ call: transportCall, host = {} }) {
     if (!run?.card || (!text.trim() && !(mode === "ask" && helpChoices.length))) return false;
     try {
       await submitAssist(call, { deckId: run.deckId, cardId: run.card.id, runId: run.id,
-        mode, text: text.trim(), helpChoices });
+        mode, text: text.trim(), helpChoices, uiLanguage: getUiLanguage() });
       setNotice(
         mode === "ask"
           ? ui("后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。")
@@ -1242,7 +1244,7 @@ export default function App({ call: transportCall, host = {} }) {
             const f = e.target.files?.[0];
             if (f) {
               if (f.size > 600000) {
-                setError("文件过大，请选取相关段落");
+                setError(ui("文件过大，请选取相关段落"));
                 return;
               }
               setSourceText(await f.text());
@@ -1763,7 +1765,7 @@ export default function App({ call: transportCall, host = {} }) {
                 createManual={() =>
                   openDraft({
                     id: crypto.randomUUID(),
-                    title: "新建闪卡题组",
+                    title: ui("新建闪卡题组"),
                     cards: [blankCard()],
                   })
                 }
@@ -2030,7 +2032,7 @@ export default function App({ call: transportCall, host = {} }) {
                 onBackToWorkflow={(sessionId) => { setWorkflowReturn({ sessionId, nonce: Date.now() }); setPage("workflows"); }}
                 onOpenNote={(noteId) => openLearningTarget({ kind: 'note', id: noteId })}
                 onMakeNote={() => { const origin = captureContext(); return act("note.create", {
-                  title: `学习笔记 · ${new Date().toLocaleDateString(uiLocale())}`,
+                  title: uiFormat('学习笔记 · {0}', [new Date().toLocaleDateString(uiLocale())]),
                   cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }],
                 }, (note) => { rememberContext(origin); setNoteInitialId(note.id); setPage("notes"); }); }}
                 onMakeTask={openBoardWithContext}

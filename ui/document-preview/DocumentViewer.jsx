@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { renderNoteMarkdown } from '../note-markdown.js';
 import { AudioCorrections } from '../AudioImport.jsx';
-import { ui } from '../i18n.js';
+import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
 import { annotatePassages, captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
@@ -23,6 +23,7 @@ function QuotedText({ text, quote, anchor }) {
 }
 
 export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onPublished }) {
+  const language = useUiLanguage();
   useInjectCss(css, 'study-document-preview');
   const [document, setDocument] = useState(null), [content, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
   const [error, setError] = useState(''), [loading, setLoading] = useState(true), [mode, setMode] = useState('layout');
@@ -58,7 +59,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
   const html = useMemo(() => (format === 'md' && mode === 'layout') ? safeDocumentHtml(renderNoteMarkdown(content))
     : format === 'html' && mode === 'layout' ? safeDocumentHtml(content) : '', [content, format, mode]);
-  useEffect(() => annotatePassages(body.current, groups, setFocusedGroup), [groups, html, content, mode, document]);
+  useEffect(() => annotatePassages(body.current, groups, setFocusedGroup, count => uiFormat('{0} 道相关题目与解析', [count])), [groups, html, content, mode, document, language]);
   const select = () => { const value = captureSelection(body.current); if (value) setCapture(value); };
   const refreshLinks = async value => {
     if (document) {

@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale } from "./i18n.js";
+import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
@@ -13,7 +13,7 @@ const savedOutput = (session) => session.records[session.currentStepId]?.output 
 const readDraft = (session, libraryKey) => { try { return JSON.parse(localStorage.getItem(draftKey(session, libraryKey))); } catch { return null; } };
 const clearDraft = (session, libraryKey) => { try { localStorage.removeItem(draftKey(session, libraryKey)); } catch {} };
 const keepDraft = (session, output, libraryKey) => { try { localStorage.setItem(draftKey(session, libraryKey), JSON.stringify({ output, base: savedOutput(session), version: session.version })); } catch {} };
-const ORAL_REPORT = "我已口头复述（自我记录，未经过判分或掌握验证）。";
+const ORAL_REPORTS = { zh: "我已口头复述（自我记录，未经过判分或掌握验证）。", en: 'I retold it aloud (self-recorded; not graded or verified for mastery).' };
 const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 const PICKED = { ai: "AI 选的范围", match: "按名称匹配的范围", course: "没找到直接相关的主题，先学当前课程", route: "课程路线的这一批", none: "学习库里还没有相关的题目" };
 const prefersReducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -302,9 +302,9 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
   });
   const ask = () => act("chat", async () => {
     const saved = await persist(), step = saved.template.steps.find((item) => item.id === saved.currentStepId);
-    await askInChat(uiFormat("请帮助我学习「{0}」的「{1}」这一步。{2}\n", [saved.topic, step.title, wish.trim() ? `我的要求：${wish.trim()}` : ui((HANDOFF[step.kind] || HANDOFF.lesson).ask)]) +
+    await askInChat(uiFormat("请帮助我学习「{0}」的「{1}」这一步。{2}\n", [saved.topic, step.title, wish.trim() ? uiFormat('我的要求：{0}', [wish.trim()]) : ui((HANDOFF[step.kind] || HANDOFF.lesson).ask)]) +
       uiFormat("先用 study_workspace 的 workflow.context，payload 为 {0}，读取本次学习、当前步骤、这一步已有的材料、我的笔记和可用资料。当前看到的 version 是 {1}，保存前以重新读取的最新版本为准。\n", [JSON.stringify({ sessionId: saved.id }), saved.version]) +
-      "必要时用 source.search 查证，区分已有资料与补充知识。用 workflow.session.material 保存到这一步：默认 mode 为 append，追加在已有材料之后，不要重复已有内容；要改已有段落用 mode \"edit\" 和 edits:[{find,replace}]（find 是原文中唯一的一段）；除非我明确要求重写，不要用 replace。旧版本都会保留。不能写我的回答、代我完成步骤或评定我是否掌握。称呼步骤用标题，不要用 step-2 这类内部 ID。\n" +
+      ui("必要时用 source.search 查证，区分已有资料与补充知识。用 workflow.session.material 保存到这一步：默认 mode 为 append，追加在已有材料之后，不要重复已有内容；要改已有段落用 mode \"edit\" 和 edits:[{find,replace}]（find 是原文中唯一的一段）；除非我明确要求重写，不要用 replace。旧版本都会保留。不能写我的回答、代我完成步骤或评定我是否掌握。称呼步骤用标题，不要用 step-2 这类内部 ID。\n") +
       (step.kind === "recall" ? ui("当前是主动复述：先以问题指出缺口，不要直接给出完整参考答案。补充内容会由我主动展开。") : ui("内容请连起概念、例子和条件，避免只罗列名词。缺少依据时明确说明。")));
     setNotice(ui("请求已准备好，请在主对话确认发送。补充材料保存后会在这里显示。"));
   });
@@ -385,7 +385,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
   const content = record.content || step.content;
   const priorLesson = session.template.steps.slice(0, index).findLast(item => item.kind === "lesson");
   const recallContent = content || (priorLesson && (session.records[priorLesson.id]?.content ?? priorLesson.content));
-  const oralReported = output.split("\n").includes(ORAL_REPORT);
+  const oralReported = output.split("\n").some(line => Object.values(ORAL_REPORTS).includes(line));
   // The last reading of the retelling stays visible while the learner revises it,
   // marked as being about the earlier version, so the gaps are still in view.
   const lastFeedback = step.kind === "recall" ? record.feedback || null : null;
@@ -427,7 +427,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
       {step.instructions && <Markdown text={step.instructions} className="wf-instructions" />}
       {!active && <p className="wf-notice">{ui("已暂停。点「继续学习」后可接着作答，当前内容可以阅读。")}</p>}
       {["overview", "reflection"].includes(step.kind) && <LearnerChoices kind={step.kind} output={output} disabled={!active || busy || !!remote} onChange={changeOutput} />}
-      {step.kind === "recall" && <section className="wf-recall-invitation"><h3>{ui("先合上材料，用自己的话讲一遍")}</h3><p>{ui("试着说清核心机制、一个例子，以及什么时候不适用。")}</p><div className="wf-quick-choices"><button type="button" aria-pressed={oralReported} disabled={!active || busy || !!remote} onClick={() => changeOutput(oralReported ? output.split("\n").filter((line) => line !== ORAL_REPORT).join("\n").trim() : [output.trim(), ORAL_REPORT].filter(Boolean).join("\n"))}>{oralReported ? ui("已记录：我已口头复述") : ui("我已口头复述")}</button></div><small className="muted">{ui("这是你的自我记录；不会据此判分或认定掌握。也可以在下面写下复述。")}</small></section>}
+      {step.kind === "recall" && <section className="wf-recall-invitation"><h3>{ui("先合上材料，用自己的话讲一遍")}</h3><p>{ui("试着说清核心机制、一个例子，以及什么时候不适用。")}</p><div className="wf-quick-choices"><button type="button" aria-pressed={oralReported} disabled={!active || busy || !!remote} onClick={() => changeOutput(oralReported ? output.split("\n").filter((line) => !Object.values(ORAL_REPORTS).includes(line)).join("\n").trim() : [output.trim(), ORAL_REPORTS[getUiLanguage()]].filter(Boolean).join("\n"))}>{oralReported ? ui("已记录：我已口头复述") : ui("我已口头复述")}</button></div><small className="muted">{ui("这是你的自我记录；不会据此判分或认定掌握。也可以在下面写下复述。")}</small></section>}
       {step.kind === "skeleton" && (resources.skeleton ? <div className="wf-skeleton"><h3>{resources.skeleton.title}</h3>{resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} /></div> : <SkeletonMaker session={session} resources={resources} disabled={!active || busy || !!remote} onGenerate={generateSkeleton} />)}
       {step.kind === "lesson" && <WorkflowLesson key={step.id} topic={session.topic} content={content} record={record} resources={resources} disabled={!active || busy || !!remote} onTeach={teach} onUndo={undoTeaching} />}
       {!["lesson", "recall"].includes(step.kind) && content && <section className="wf-material" aria-label={ui("本步材料")}>

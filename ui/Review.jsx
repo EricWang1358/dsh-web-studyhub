@@ -319,7 +319,7 @@ export default function Review({
               <button
                 onClick={() =>
                   askInChat(
-                    `我刚在「${shellTitle}」里这些主题还没掌握稳：${run.weakTopics.join("、")}。请结合学习库资料逐个讲清楚，并各出一道小题检查我。`,
+                    uiFormat('我刚在「{0}」里这些主题还没掌握稳：{1}。请结合学习库资料逐个讲清楚，并各出一道小题检查我。', [shellTitle, run.weakTopics.join(', ')]),
                   )
                 }
               >{ui("在对话中讲解薄弱点")}</button>
@@ -363,7 +363,7 @@ export default function Review({
                       <div className="publication-mark-popover">
                         <p>{publicationIssues.join("；")}</p>
                         <button type="button" className="pill" onClick={() =>
-                          assistCard("improve", `发布检查发现：${publicationIssues.join("；")}`)}>{ui("交给后台修题")}</button>
+                          assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</button>
                       </div>
                     </details>}
                   <button
@@ -388,11 +388,11 @@ export default function Review({
               {(choice || isCloze || run.card.publicationUngrable) && prereqStrip}
               {run.card.publicationUngrable ? (
                 <div className="quality-note warning" role="status">
-                  <div className="question"><Markdown text={run.card.prompt || "题干尚未填写"} /></div>
+                  <div className="question"><Markdown text={run.card.prompt || ui("题干尚未填写")} /></div>
                   <p>{ui("这道题缺少可判分内容。你可以交给助教修改，或跳过；跳过不会记录成绩或改变复习进度。")}</p>
                   {!!publicationIssues.length && <p>{publicationIssues.join("；")}</p>}
                   <button type="button" disabled={busy} onClick={() =>
-                    assistCard("improve", `发布检查发现：${publicationIssues.join("；")}`)}>{ui("交给后台修题")}</button>
+                    assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</button>
                   <button className="primary" disabled={busy} onClick={() => reviewAct("review.skip")}>{ui("跳过此题，不计成绩 →")}</button>
                 </div>
               ) : choice ? (

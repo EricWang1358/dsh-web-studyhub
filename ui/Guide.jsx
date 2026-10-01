@@ -51,8 +51,8 @@ export default function Guide({
       body: data.drafts.length
         ? data.decks.length
           ? uiFormat("已有 {0} 个题组发布；还有 {1} 份草稿。{2}", [data.decks.length, data.drafts.length, draftWithIssues
-            ? "问题题可自行修改或选择后台修题，修好后再发布。"
-            : "打开草稿可继续检查并发布。"])
+            ? ui("问题题可自行修改或选择后台修题，修好后再发布。")
+            : ui("打开草稿可继续检查并发布。")])
           : uiFormat("有 {0} 份草稿待发布。发布时快速检查结构，随后直接学习新题。", [data.drafts.length])
         : data.decks.length
           ? uiFormat("已有 {0} 个题组发布，可以开始学习。", [data.decks.length])

@@ -1,6 +1,12 @@
-# StudyHub 2.0 Alpha architecture
+# StudyHub 2.0 architecture
 
 Question decks remain JSON. Materials retain their original PDF, Markdown, HTML or TXT files and expose versioned text projections. The workbench composes separately loadable capability plugins.
+
+## Interface language boundary
+
+Action envelopes may include `uiLanguage: "en" | "zh"`. The runtime consumes this reserved request metadata before validating the domain payload and supplies the language through request services. Without request metadata or an explicit service language, calls retain the legacy Chinese default. A request never changes another request's language or the library's stored content.
+
+`application-messages.js` projects only application-owned error, progress and notification fields. Sources, cards, notes, IDs, filenames and unknown provider evidence remain unchanged. Background work retains its starting language for notifications; newly created transcript scaffolding may use English, and readers accept both existing Chinese and new English transcript markers. Explicit bilingual translation targets stay independent of the interface language.
 
 ## Contexts and public APIs
 

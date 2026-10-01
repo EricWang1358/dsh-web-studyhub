@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale } from "./i18n.js";
+import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useMemo, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonCanvas from "./SkeletonCanvas.jsx";
@@ -33,15 +33,15 @@ const ago = (at) => {
 
 const EXTEND_ASK = {
   contrast: (term, text) => uiFormat("把概念「{0}」和「{1}」做对比，讲清它们的关键差异和容易混淆的地方。", [term, text]),
-  enrich: (term, text) => uiFormat("补充或修正概念「{0}」{1}", [term, text ? `：${text}` : "：含义、关键特征和它与其他概念的关系是否准确、完整。"]),
-  cards: (term, text) => uiFormat("为概念「{0}」补能真正练到它的题{1}", [term, text ? `：${text}` : "（理解、辨析或场景应用，不要只背名词）。"]),
+  enrich: (term, text) => uiFormat("补充或修正概念「{0}」{1}", [term, text ? `: ${text}` : ui("：含义、关键特征和它与其他概念的关系是否准确、完整。")]),
+  cards: (term, text) => uiFormat("为概念「{0}」补能真正练到它的题{1}", [term, text ? `: ${text}` : ui("（理解、辨析或场景应用，不要只背名词）。")]),
 };
 
 /** Ask the conversation to extend one skeleton incrementally (new concepts, relations, cards). */
 function extendPrompt({ skeleton, nodeId, term, intent, text }) {
   const want = intent && EXTEND_ASK[intent] ? EXTEND_ASK[intent](term, text) : text;
   return (
-    uiFormat("请扩展知识骨架「{0}」（id: {1}）{2}：\n{3}\n\n", [skeleton.title, skeleton.id, nodeId ? `，从节点 ${nodeId}「${term}」出发` : "", want]) +
+    uiFormat("请扩展知识骨架「{0}」（id: {1}）{2}：\n{3}\n\n", [skeleton.title, skeleton.id, nodeId ? uiFormat('，从节点 {0}「{1}」出发', [nodeId, term]) : "", want]) +
     ui("做法：\n") +
     ui("1. 用 study_workspace 的 skeleton.get（payload 为 {\"id\": \"") + skeleton.id + ui("\"}）读当前骨架；需要的概念已经在骨架里就复用它的节点。\n") +
     ui("2. 不在骨架里的概念：先用 card.search 查题库有没有相关题，用 source.search 查资料依据；再用 skeleton.patch 的 node.add 加节点（meaning 依据资料，资料里没有的明确写是补充知识），挂到合适的上位概念（parent），用 attributes 写 2–5 条关键特征，让差异在类图里一眼可见。\n") +
@@ -64,7 +64,7 @@ function chatPrompt({ scope, lint, topics, update }) {
     ui("步骤：\n") +
     ui("1. 用 study_workspace 的 skeleton.context（payload 为 {\"scope\": 上面的 scope}）读题目、每题的检测结果和引用原文片段；需要更多依据时用 source.search，不要逐份翻资料。\n") +
     ui("2. 设计一份骨架，会画成可交互的 UML 类图 + 时序图，并配文字阐述：\n") +
-    "   · 类图（nodes + relations）：每个名词是一个类，写一句含义 meaning 和 2–5 条关键特征 attributes；「是一种」用 parent（泛化），「是…的组成部分」用 part-of，「导致」用 causes，「学它之前要懂」用 prerequisite，「是…的例子」用 example-of，容易混的用 contrasts。不同题组里的同一个名词合并成一个节点，节点挂上对应题目的 {deckId, cardId}。classNote 用文字讲清这张结构图怎么读。\n" +
+    ui("   · 类图（nodes + relations）：每个名词是一个类，写一句含义 meaning 和 2–5 条关键特征 attributes；「是一种」用 parent（泛化），「是…的组成部分」用 part-of，「导致」用 causes，「学它之前要懂」用 prerequisite，「是…的例子」用 example-of，容易混的用 contrasts。不同题组里的同一个名词合并成一个节点，节点挂上对应题目的 {deckId, cardId}。classNote 用文字讲清这张结构图怎么读。\n") +
     ui("   · 时序图（sequences，最多 4 条）：把动态过程画出来，比如故障如何一步步传导、请求如何流转、机制如何生效。participants 是参与者（能对应节点就填 node），steps 按时间顺序写 from→to 的 message，kind 取 call / return / async；每条写 explanation 讲清因果。纯静态的概念可以不画时序图。\n") +
     ui("   · 学习脉络：nodes 的顺序就是学习顺序。没有 parent 的顶层概念按先学后学排列，会画成一条从左到右的主线；每个顶层概念下用 parent 挂 3–6 个要点，要点下可以再挂细节。题多时（例如一个题组 90 题）先抓 6–12 个顶层概念，不要把所有名词平铺在顶层。\n") +
     ui("   · overview 写一段总览和一条好记的主线，把两张图串起来。\n") +
@@ -303,14 +303,14 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 type="button"
                 className="sk-mini sk-ai"
                 title={ui("主题太碎时，交给对话按知识域归并成主题组（不改题目）")}
-                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length }))}
+                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length }, getUiLanguage()))}
               >{ui("✦ AI 归并主题")}</button>
             )}
             {groups.length > 0 && groupView.ungrouped.length > 0 && (
               <button
                 type="button"
                 className="sk-mini sk-ai"
-                onClick={() => askInChat(groupPrompt({ mode: "merge", ungrouped: groupView.ungrouped.length }))}
+                onClick={() => askInChat(groupPrompt({ mode: "merge", ungrouped: groupView.ungrouped.length }, getUiLanguage()))}
               >{ui("✦ 归并新增 ")}{groupView.ungrouped.length}{ui(" 个")}</button>
             )}
             {groups.length > 0 && (
@@ -318,7 +318,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 type="button"
                 className="sk-mini"
                 title={ui("让对话重新归并全部主题，替换现有主题组")}
-                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length }))}
+                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length }, getUiLanguage()))}
               >{ui("重新归并")}</button>
             )}
           </div>
