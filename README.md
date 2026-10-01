@@ -40,7 +40,7 @@ See the [installation and model setup guide](docs/install.md), or download the [
 
 ## Start learning
 
-1. Click **Add source**, choose the course first, then drop several PDF, Markdown, HTML, TXT, JSON-deck or subtitle files at once, or paste text; recordings use the **Audio / recording** tab of the same window. Each PDF is kept as one document you can expand to pages.
+1. Click **Add source**, choose the course first, then drop several PDF, Word (.docx), PowerPoint (.pptx), Markdown, HTML, TXT, JSON-deck or subtitle files at once (PDF and text up to 8 MB, Word and PowerPoint up to 40 MB; old .doc/.ppt files need to be saved as .docx/.pptx or PDF first), or paste text; recordings use the **Audio / recording** tab of the same window. Each PDF is kept as one document you can expand to pages, and each PowerPoint file keeps one page per slide with its speaker notes.
 2. In **Create deck**, choose sources by document, generate questions, review their draft and citations, then publish. If you already have questions (or ones generated elsewhere), import a JSON deck from the second tab. Choose an existing deck to add approved questions without replacing old questions or review progress.
 3. Practice from the library or follow a study workflow. Read explanations after answering, ask for help on the current question, and use SM-2 spaced review to revisit it later.
 4. Use the mistakes list, statistics, exams and oral practice to identify topics needing more work.

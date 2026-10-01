@@ -4,6 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Button, FileDrop, Icon, InlineMessage, SegmentedControl } from './components/index.js';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { sourceFormatLabel } from './SourcePicker.jsx';
+import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
 import css from './import-hub.css';
 
 /* The one way to add material (O-3, O-4, P19–P21, P05). The course is chosen
@@ -14,25 +15,49 @@ import css from './import-hub.css';
    App closes the dialog, shows the toast and highlights the new material). */
 
 const MB = 1024 * 1024;
-export const MAX_DOCUMENT_BYTES = 8 * MB;
+/** PDF, Markdown, HTML and TXT. Word and PowerPoint have MAX_OFFICE_BYTES (one constant per format: lib/office/limits.js). */
+export const MAX_DOCUMENT_BYTES = MAX_TEXT_DOCUMENT_BYTES;
+export { MAX_OFFICE_BYTES };
 export const MAX_DECK_BYTES = 2_000_000;
 export const MAX_SUBTITLE_BYTES = 8 * MB;
+/** PDF and text documents (the compact DocumentImport takes only these; Word and PowerPoint go through the hub). */
 export const DOCUMENT_EXTENSIONS = ['.pdf', '.md', '.markdown', '.html', '.htm', '.txt'];
+const OFFICE_EXTENSIONS = ['.docx', '.pptx'];
+// Documents in the order the native picker shows them: .docx and .pptx right after .pdf.
+const HUB_DOCUMENTS = ['.pdf', ...OFFICE_EXTENSIONS, ...DOCUMENT_EXTENSIONS.slice(1)];
+/* Old Office and other word-processor formats are accepted only to explain, per file, what to do instead. */
+const LEGACY_EXTENSIONS = ['.doc', '.ppt', '.wps', '.key', '.pages'];
 const DECK_EXTENSIONS = ['.json'];
 const SUBTITLE_EXTENSIONS = ['.srt', '.vtt'];
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.opus', '.webm', '.aiff', '.aif'];
 const extensionOf = name => /\.[^./\\]+$/.exec(String(name || '').toLowerCase())?.[0] || '';
-const FORMAT_OF = { '.pdf': 'pdf', '.md': 'md', '.markdown': 'md', '.html': 'html', '.htm': 'html', '.txt': 'txt' };
+const FORMAT_OF = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx', '.md': 'md', '.markdown': 'md', '.html': 'html', '.htm': 'html', '.txt': 'txt' };
 
-/** Extensions the drop zone accepts. Subtitles and audio need the audio component. */
+/** The size limit of a file, by its format. */
+export const documentLimit = name => maxBytesFor(FORMAT_OF[extensionOf(name)]);
+
+const LEGACY_MESSAGES = {
+  '.doc': '暂不支持旧版 .doc，请在 Word 里另存为 .docx 或 PDF 后再导入。',
+  '.ppt': '暂不支持旧版 .ppt，请在 PowerPoint 里另存为 .pptx 或 PDF 后再导入。',
+  '.wps': '暂不支持 .wps 文件，请在 WPS 里另存为 .docx 或 PDF 后再导入。',
+  '.key': '暂不支持 Keynote（.key），请在 Keynote 里导出为 PowerPoint 或 PDF 后再导入。',
+  '.pages': '暂不支持 Pages（.pages），请在 Pages 里导出为 Word 或 PDF 后再导入。',
+};
+
+/**
+ * Extensions the drop zone accepts, documents first (the native picker shows one
+ * long list and cuts it off at the end). Subtitles and audio need the audio
+ * component; audio stays so a dropped recording is routed to its own tab.
+ */
 export function importAccept({ audio = false } = {}) {
-  return [...DOCUMENT_EXTENSIONS, ...DECK_EXTENSIONS, ...(audio ? [...SUBTITLE_EXTENSIONS, ...AUDIO_EXTENSIONS] : [])];
+  return [...HUB_DOCUMENTS, ...DECK_EXTENSIONS, ...LEGACY_EXTENSIONS, ...(audio ? [...SUBTITLE_EXTENSIONS, ...AUDIO_EXTENSIONS] : [])];
 }
 
-/** 'document' | 'deck' | 'subtitle' | 'audio' | null for a dropped file. */
+/** 'document' | 'deck' | 'subtitle' | 'audio' | 'legacy' | null for a dropped file. */
 export function routeImportFile(file, { audio = false } = {}) {
   const extension = extensionOf(file?.name);
-  if (DOCUMENT_EXTENSIONS.includes(extension)) return 'document';
+  if (LEGACY_EXTENSIONS.includes(extension)) return 'legacy';
+  if (HUB_DOCUMENTS.includes(extension)) return 'document';
   if (DECK_EXTENSIONS.includes(extension)) return 'deck';
   if (audio && SUBTITLE_EXTENSIONS.includes(extension)) return 'subtitle';
   if (audio && AUDIO_EXTENSIONS.includes(extension)) return 'audio';
@@ -59,11 +84,16 @@ export async function fileToBase64(file) {
 
 const PLAIN_ERRORS = [
   [/not a valid PDF|不是有效 PDF|PDF 文件无效|PDF is invalid/i, '这个 PDF 读不出来（可能已损坏或超过 8 MB）。请重新导出 PDF 后再试。'],
+  [/exceeds 40 MB|at most 40 MB|超过 40 MB/i, '文件超过 40 MB。请压缩图片或拆分后再导入。'],
+  [/not a valid DOCX/i, '这个 Word 文件读不出来（可能已损坏）。请在 Word 里重新另存为 .docx 后再试。'],
+  [/not a valid PPTX/i, '这个 PowerPoint 文件读不出来（可能已损坏）。请在 PowerPoint 里重新另存为 .pptx 后再试。'],
+  [/password-protected or in an old format/i, '这个文件有密码保护，或是旧版格式。请去掉密码并另存为 .docx、.pptx 或 PDF 后再导入。'],
+  [/too large when unpacked|ZIP64/i, '这个文件展开后太大或格式特殊，无法读取。请拆分，或另存为 PDF 后再导入。'],
   [/exceeds 8 MB|at most 8 MB|超过 8 MB|8 MB/i, '文件超过 8 MB。请按章节拆分后再导入。'],
   [/UTF-8/i, '文本文件需要是 UTF-8 编码。请在编辑器里“另存为 UTF-8”后再导入。'],
   [/200 (?:页|pages)/i, 'PDF 超过 200 页。请按章节拆分后再导入。'],
   [/600,000/, '提取出的文字超过 60 万字。请按章节拆分后再导入。'],
-  [/Supported document formats/i, '不支持这种文件。可以导入 PDF、Markdown、HTML、TXT、JSON 题组和字幕。'],
+  [/Supported document formats/i, '不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。'],
   [/dataBase64/i, '文件没能完整读取，请重试。', false],
 ];
 /* Failures that will repeat on retry (size, encoding, format, no text). */
@@ -84,14 +114,17 @@ export function plainImportError(error) {
 async function importOne(file, { call, courses = [], audio = false }) {
   const kind = routeImportFile(file, { audio });
   if (kind === 'audio') throw permanentError(ui('音频请在「音频 / 录音」里导入，那里会先转写成文字。'));
-  if (!kind) throw permanentError(ui('不支持这种文件。可以导入 PDF、Markdown、HTML、TXT、JSON 题组和字幕。'));
+  if (kind === 'legacy') throw permanentError(ui(LEGACY_MESSAGES[extensionOf(file.name)]));
+  if (!kind) throw permanentError(ui('不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。'));
   if (kind === 'document') {
-    if (file.size > MAX_DOCUMENT_BYTES) throw permanentError(ui('文件超过 8 MB。请按章节拆分后再导入。'));
+    if (file.size > documentLimit(file.name)) throw permanentError(documentLimit(file.name) > MAX_DOCUMENT_BYTES
+      ? ui('文件超过 40 MB。请压缩图片或拆分后再导入。') : ui('文件超过 8 MB。请按章节拆分后再导入。'));
     const value = await call('materials.document.import', { dataBase64: await fileToBase64(file), filename: file.name, courses });
     const sourceIds = value?.sourceIds || value?.document?.sourceIds || [];
     const format = value?.document?.format || FORMAT_OF[extensionOf(file.name)];
     if (!sourceIds.length) throw permanentError(format === 'pdf'
-      ? ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。') : ui('文件里没有可用的文字。'));
+      ? ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。')
+      : format === 'pptx' ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
     return { kind, title: value?.document?.title || file.name, format, documentId: value?.documentId, sourceIds,
       pages: sourceIds.length, skippedPages: value?.skippedPages || [] };
   }
@@ -146,7 +179,7 @@ export function importDoneMessage({ documents = [], decks = [], subtitles = [] }
   const parts = [];
   if (documents.length === 1) {
     const [document] = documents;
-    parts.push(document.format !== 'pdf' ? uiFormat('已导入「{0}」', [document.title])
+    parts.push(document.format !== 'pdf' && document.format !== 'pptx' ? uiFormat('已导入「{0}」', [document.title])
       : document.pages === 1 ? uiFormat('已导入「{0}」（1 页）', [document.title]) : uiFormat('已导入「{0}」（{1} 页）', [document.title, document.pages]));
   } else if (documents.length > 1) parts.push(uiFormat('已导入 {0} 份资料', [documents.length]));
   if (decks.length === 1) parts.push(uiFormat('题组「{0}」已存为草稿（{1} 题）', [decks[0].title, decks[0].cards?.length || 0]));
@@ -221,7 +254,9 @@ function itemDetail(item) {
   const result = item.result;
   if (result.kind === 'deck') return uiFormat('已存为草稿「{0}」 · {1} 题', [result.title, result.count]);
   if (result.kind === 'subtitle') return ui('已开始后台校对，完成后出现在资料页');
-  const label = sourceFormatLabel({ format: result.format, sourceIds: result.sourceIds });
+  const label = result.format === 'docx' ? ui('Word') : result.format === 'pptx'
+    ? (result.sourceIds.length === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [result.sourceIds.length]))
+    : sourceFormatLabel({ format: result.format, sourceIds: result.sourceIds });
   return result.skippedPages?.length
     ? uiFormat('{0} · 第 {1} 页没有文字，已跳过', [label, result.skippedPages.join(ui('、'))])
     : uiFormat('{0} · 已保存到资料', [label]);
@@ -351,7 +386,8 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
         </InlineMessage>}
         <FileDrop className={stray ? 'is-attention' : undefined} accept={importAccept({ audio: audioOn })} multiple compact={items.length > 0}
           label={ui('把讲义、笔记或题组文件拖到这里，可以一次放多个')}
-          hint={audioOn ? ui('PDF · Markdown · HTML · TXT · JSON 题组 · SRT / VTT 字幕 · 每个最大 8 MB') : ui('PDF · Markdown · HTML · TXT · JSON 题组 · 每个最大 8 MB')}
+          hint={[audioOn ? ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组 · SRT / VTT 字幕') : ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组'),
+            uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />
         {!items.length && <p className="import-hub__routes">{audioOn
