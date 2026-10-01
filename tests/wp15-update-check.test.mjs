@@ -189,3 +189,25 @@ test('a broken cache file is ignored, and update.check / update.preferences are 
   assert.equal((await service.call('update.check', {})).autoCheck, false);
   assert.equal(net.calls.length, 1);
 });
+
+test('a loopback QA feed (STUDYHUB_QA_UPDATE_FEED) may stand in for GitHub; any other address is ignored', async t => {
+  await home(t);
+  const previous = process.env.STUDYHUB_QA_UPDATE_FEED;
+  t.after(() => { if (previous === undefined) delete process.env.STUDYHUB_QA_UPDATE_FEED; else process.env.STUDYHUB_QA_UPDATE_FEED = previous; });
+  const local = 'http://127.0.0.1:3222';
+  const localRelease = { ...githubRelease('v2.1.1'), html_url: `${local}/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.1`,
+    assets: githubRelease('v2.1.1').assets.map(asset => ({ ...asset, browser_download_url: asset.browser_download_url.replace('https://github.com', local) })) };
+  process.env.STUDYHUB_QA_UPDATE_FEED = local;
+  const net = github(() => json(localRelease));
+  const view = await checkForUpdate({ force: true, fetch: net.fetch, now: () => T0, current: '2.1.0' });
+  assert.equal(net.calls[0].url, `${local}/repos/EricWang1358/dsh-web-studyhub/releases/latest`);
+  assert.equal(view.assetUrl, `${local}/EricWang1358/dsh-web-studyhub/releases/download/v2.1.1/ericwang1358-dsh-daily-flashcard-2.1.1.tgz`);
+  assert.equal(view.url, localRelease.html_url);
+  for (const ignored of ['https://evil.example', 'http://192.168.1.5:3222', 'file:///C:/x', 'not a url']) {
+    process.env.STUDYHUB_QA_UPDATE_FEED = ignored;
+    const other = github(() => json(githubRelease('v2.1.1')));
+    const result = await checkForUpdate({ force: true, fetch: other.fetch, now: () => T0, current: '2.1.0' });
+    assert.equal(other.calls[0].url, RELEASES_API_URL, ignored);
+    assert.equal(result.assetUrl, `${REPO}/releases/download/v2.1.1/ericwang1358-dsh-daily-flashcard-2.1.1.tgz`);
+  }
+});

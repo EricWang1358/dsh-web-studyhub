@@ -124,7 +124,8 @@ test('the host handler adds install support to update.check and installs through
   assert.equal(checked.ok, true, checked.error?.message);
   assert.deepEqual(checked.value.install, { available: true, desktop: false });
   const stale = await handle('call', { sessionId: 's', action: 'update.install', args: { version: '2.1.2' } });
-  assert.equal(stale.ok, false, 'the version the learner saw must still be the latest');
+  assert.deepEqual(stale.value, { status: 'failed', code: 'UPDATE_STALE' }, 'the version the learner saw must still be the latest');
+  assert.equal(manager.installs.length, 0);
   const installed = await handle('call', { sessionId: 's', action: 'update.install', args: { version: checked.value.latest } });
   assert.equal(installed.ok, true, installed.error?.message);
   assert.equal(installed.value.status, 'installed');
@@ -133,6 +134,6 @@ test('the host handler adds install support to update.check and installs through
   const without = createHostHandler({ sessions: ctx.sessions, get: () => undefined }, { libraryRoot: join(dir, 'library') });
   assert.deepEqual((await without('call', { sessionId: 's', action: 'update.check', args: {} })).value.install, { available: false, desktop: false });
   const refused = await without('call', { sessionId: 's', action: 'update.install', args: { version: '2.1.1' } });
-  assert.equal(refused.ok, false);
-  assert.match(refused.error.message, /手动升级/);
+  assert.equal(refused.ok, true, 'an expected refusal is an answer, not a transport error');
+  assert.deepEqual(refused.value, { status: 'failed', code: 'UPDATE_NO_INSTALLER' });
 });
