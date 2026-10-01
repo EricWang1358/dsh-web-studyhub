@@ -93,7 +93,7 @@ test("the tour stops at 案例分析卷 right after the exam step", async () => 
   const step = TOUR_STEPS.find((item) => item.id === "case");
   assert.equal(step.page, "exam");
   assert.equal(step.anchor, "exam-case");
-  const source = await readFile(join(repo, "ui/Exam.jsx"), "utf8");
+  const source = await readFile(join(repo, "ui/ExamShell.jsx"), "utf8");
   assert.match(source, /data-tour="exam-case"/);
   const catalogue = Object.assign({}, ...await Promise.all((await readdir(join(repo, "ui/locales"))).filter((name) => /^en(\..+)?\.json$/.test(name))
     .map(async (name) => JSON.parse(await readFile(join(repo, "ui/locales", name), "utf8")))));
