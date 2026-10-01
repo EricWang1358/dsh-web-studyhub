@@ -21,7 +21,7 @@ const han = /[㐀-鿿]/;
 const LEVELS = [{ id: 'low', name: 'Low' }, { id: 'medium', name: 'Medium' }, { id: 'high', name: 'High' }];
 const binding = (overrides = {}, effort = {}) => ({
   modelSource: 'session', route: { provider: 'p', model: 'm', reasoningEffort: 'medium' }, reasoningEffort: '',
-  effort: { options: LEVELS, current: 'medium', source: 'session', applied: false, ...effort }, ...overrides,
+  effort: { options: LEVELS, current: 'medium', followed: 'medium', source: 'session', applied: false, ...effort }, ...overrides,
 });
 
 test('nothing is shown when the model offers fewer than two levels', () => {
@@ -65,9 +65,18 @@ test('a saved level is the active segment; unavailable saved levels fall back to
 
 test('with a custom generation model the first choice is the model default', () => {
   setUiLanguage('zh');
-  const out = render({ binding: binding({ modelSource: 'custom', route: { provider: 'c', model: 'cm' } }, { current: '', source: 'default' }) });
+  const out = render({ binding: binding({ modelSource: 'custom', route: { provider: 'c', model: 'cm' } }, { current: '', followed: '', source: 'default' }) });
   assert.match(out, /aria-pressed="true"[^>]*>模型默认</);
   assert.doesNotMatch(out, /跟随会话/);
+});
+
+test('the first choice names the level following would give, including the model default', () => {
+  setUiLanguage('zh');
+  const noOwn = (extra = {}) => binding({ route: { provider: 'p', model: 'm' }, ...extra }, { current: 'high', followed: 'high', source: 'default' });
+  assert.match(render({ binding: noOwn() }), /aria-pressed="true"[^>]*>跟随会话（High）</, 'the session names none, the model default is High');
+  assert.match(render({ binding: noOwn({ modelSource: 'custom' }) }), /aria-pressed="true"[^>]*>模型默认（High）</);
+  const chosen = binding({ reasoningEffort: 'low' }, { current: 'low', followed: 'medium', source: 'binding', applied: true });
+  assert.match(render({ binding: chosen }), /aria-pressed="false"[^>]*>跟随会话（Medium）</, 'a chosen level does not hide what following would give');
 });
 
 test('more than four levels switch to a select with the same first choice', () => {

@@ -38,11 +38,11 @@ export default function ReasoningEffortField({ binding = {}, busy = false, onCha
     </div>;
   }
   const preferred = effort.applied ? binding.reasoningEffort : '';
-  const own = binding.route?.reasoningEffort;
-  const ownName = options.find((item) => item.id === own)?.name;
+  // What following gives: the session's level, else the model's own default (binding.effort.followed).
+  const followedName = options.find((item) => item.id === (effort.followed ?? binding.route?.reasoningEffort))?.name;
   const followLabel = binding.modelSource === 'session'
-    ? (ownName ? uiFormat('跟随会话（{0}）', [ownName]) : ui('跟随会话'))
-    : ui('模型默认');
+    ? (followedName ? uiFormat('跟随会话（{0}）', [followedName]) : ui('跟随会话'))
+    : (followedName ? uiFormat('模型默认（{0}）', [followedName]) : ui('模型默认'));
   const choices = [{ value: '', label: followLabel }, ...options.map((item) => ({ value: item.id, label: item.name }))];
   const tradeoff = effortTradeoff(options, effort.current);
   return <div className="binding-row effort-row">

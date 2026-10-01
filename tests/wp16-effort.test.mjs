@@ -87,13 +87,22 @@ test('the resolved route carries no hidden preference into other consumers', asy
 test('effort state tells Settings what is offered, what is in effect and why', async () => {
   const ctx = { llm: fakeLlm() };
   const followed = { provider: 'p', model: 'm', reasoningEffort: 'medium' };
-  assert.deepEqual(await effort.effortState(ctx, followed, ''), { options: LEVELS, current: 'medium', source: 'session', applied: false });
-  assert.deepEqual(await effort.effortState(ctx, followed, 'high'), { options: LEVELS, current: 'high', source: 'binding', applied: true });
-  assert.deepEqual(await effort.effortState(ctx, { provider: 'p', model: 'm' }, ''), { options: LEVELS, current: '', source: 'default', applied: false });
-  assert.deepEqual(await effort.effortState(ctx, followed, 'max'), { options: LEVELS, current: 'medium', source: 'session', applied: false, stale: true },
+  assert.deepEqual(await effort.effortState(ctx, followed, ''), { options: LEVELS, current: 'medium', followed: 'medium', source: 'session', applied: false });
+  assert.deepEqual(await effort.effortState(ctx, followed, 'high'), { options: LEVELS, current: 'high', followed: 'medium', source: 'binding', applied: true });
+  assert.deepEqual(await effort.effortState(ctx, { provider: 'p', model: 'm' }, ''), { options: LEVELS, current: '', followed: '', source: 'default', applied: false });
+  assert.deepEqual(await effort.effortState(ctx, followed, 'max'), { options: LEVELS, current: 'medium', followed: 'medium', source: 'session', applied: false, stale: true },
     'a saved level the model does not offer is reported, not hidden');
-  assert.deepEqual(await effort.effortState({ llm: fakeLlm([]) }, followed, 'high'), { options: [], current: '', source: 'default', applied: false, stale: true });
-  assert.deepEqual(await effort.effortState(ctx, null, ''), { options: [], current: '', source: 'default', applied: false });
+  assert.deepEqual(await effort.effortState({ llm: fakeLlm([]) }, followed, 'high'), { options: [], current: '', followed: '', source: 'default', applied: false, stale: true });
+  assert.deepEqual(await effort.effortState(ctx, null, ''), { options: [], current: '', followed: '', source: 'default', applied: false });
+});
+
+test('a model default level counts as what following gives when the session names none', async () => {
+  const withDefault = { llm: { resolveModelInfo: async () => ({ reasoning: { efforts: LEVELS, defaultEffort: 'high' } }) } };
+  assert.deepEqual(await effort.effortState(withDefault, { provider: 'p', model: 'd' }, ''), { options: LEVELS, current: 'high', followed: 'high', source: 'default', applied: false });
+  assert.deepEqual(await effort.effortState(withDefault, { provider: 'p', model: 'd', reasoningEffort: 'low' }, ''), { options: LEVELS, current: 'low', followed: 'low', source: 'session', applied: false });
+  assert.deepEqual(await effort.effortState(withDefault, { provider: 'p', model: 'd' }, 'medium'), { options: LEVELS, current: 'medium', followed: 'high', source: 'binding', applied: true });
+  const unknownDefault = { llm: { resolveModelInfo: async () => ({ reasoning: { efforts: LEVELS, defaultEffort: 'turbo' } }) } };
+  assert.equal((await effort.effortState(unknownDefault, { provider: 'p', model: 'u' }, '')).followed, '', 'a default the list does not contain is ignored');
 });
 
 test('binding.set stores the preference beside root and model, and an omitted value keeps it', async (t) => {
@@ -139,10 +148,10 @@ test('binding.get tells the panel which levels the model in effect offers', asyn
   const ctx = sessionCtx({ provider: 'p', model: 'm', reasoningEffort: 'medium' });
   const first = await call(ctx, 'binding.get');
   assert.equal(first.ok, true);
-  assert.deepEqual(first.value.effort, { options: LEVELS, current: 'medium', source: 'session', applied: false });
+  assert.deepEqual(first.value.effort, { options: LEVELS, current: 'medium', followed: 'medium', source: 'session', applied: false });
   const saved = await call(ctx, 'binding.set', { reasoningEffort: 'high' });
   assert.equal(saved.value.reasoningEffort, 'high');
-  assert.deepEqual(saved.value.effort, { options: LEVELS, current: 'high', source: 'binding', applied: true });
+  assert.deepEqual(saved.value.effort, { options: LEVELS, current: 'high', followed: 'medium', source: 'binding', applied: true });
   const none = await call(sessionCtx({ provider: 'p', model: 'plain' }, []), 'binding.get');
   assert.deepEqual(none.value.effort.options, [], 'a model without levels offers nothing');
   assert.equal(none.value.effort.stale, true, 'and the saved preference is reported as stale');
