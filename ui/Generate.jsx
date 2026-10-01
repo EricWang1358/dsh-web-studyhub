@@ -230,7 +230,7 @@ export default function Generate({
           </Banner>}
           <p className="muted">{ui("先选资料，再设定学习目标。生成结果会先进入草稿；发布时逐题检查，通过的题先进入学习库。")}</p>
           <form onSubmit={submit}>
-            <fieldset>
+            <fieldset data-tour="generate-sources">
               <legend>{ui("01 / 选择资料")}</legend>
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
               <SourcePicker sources={data.sources} selected={selectedSources} onChange={setSelectedSources}
@@ -243,7 +243,7 @@ export default function Generate({
               {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel call={call} advice={advice} sourceIds={selectedSources}
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
             </fieldset>
-            <fieldset className="generate-form">
+            <fieldset className="generate-form" data-tour="generate-options">
               <legend>{ui("02 / 学习方式")}</legend>
               <CourseField courses={data.focus?.courses} value={generationCourse} onChange={course => setGen({ ...gen, course })} />
               {!generationCourse && selectedSources.length > 0 && <p className="muted">{ui('当前生成结果将归为未分类；可在上方指定课程。')}</p>}
@@ -310,7 +310,7 @@ export default function Generate({
                 </div>
               </Disclosure>
             </fieldset>
-            <div className="generate-submit">
+            <div className="generate-submit" data-tour="generate-summary">
               <div className="quality-note">
                 <Icon>✧</Icon>
                 <p>{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}<br />

@@ -263,7 +263,7 @@ export function WrongBookView({
       )}
 
       {showRecs && (
-        <section className="wb-recs" aria-labelledby="wb-recs-title">
+        <section className="wb-recs" aria-labelledby="wb-recs-title" data-tour="wrongbook-recs">
           <div className="wb-recs-head">
             <div>
               <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
