@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createBuiltinEnvironment, createStudyRuntime } from '../lib/runtime/builtins.js';
 import { StudyRuntime } from '../lib/runtime.js';
-import { LiveSession, register, unregister } from '../lib/live.js';
+import { LiveSession } from '../lib/live.js';
 import { Store } from '../lib/store.js';
 
 test('audio-only saves and reads transcripts without writing absent material or question contexts', async t => {
@@ -13,9 +13,9 @@ test('audio-only saves and reads transcripts without writing absent material or 
   const session = new LiveSession({ id: 'standalone-audio', title: 'Independent class', saved: {
     segments: [{ id: 1, t: 0, en: 'Bridge separates independent dimensions.', zh: '桥接模式分离独立维度。', zhState: 'done' }],
   } });
-  register(root, session);
-  t.after(async () => { unregister(root, session.id); await rm(root, { recursive: true, force: true }); });
   const runtime = createStudyRuntime(root, { contexts: ['audio'] });
+  runtime.liveSessions.register(root, session);
+  t.after(async () => { runtime.dispose(); await rm(root, { recursive: true, force: true }); });
   const receipt = await runtime.call('live.save', { id: session.id });
   assert.equal(receipt.sourceIds.length, 1);
   const results = await runtime.call('audio.results');
@@ -36,8 +36,8 @@ test('audio publication uses the material capability present when its locked sav
     const session = new LiveSession({ id: `dynamic-${initiallyInstalled}`, title: 'Dynamic class', saved: {
       segments: [{ id: 1, t: 0, en: 'Public APIs preserve ownership.', zh: '公开 API 保持能力归属。', zhState: 'done' }],
     } });
-    register(root, session);
-    t.after(async () => { runtime.dispose(); unregister(root, session.id); await rm(root, { recursive: true, force: true }); });
+    runtime.liveSessions.register(root, session);
+    t.after(async () => { runtime.dispose(); await rm(root, { recursive: true, force: true }); });
     let release, entered;
     const held = new Promise(resolve => { release = resolve; });
     const locked = new Promise(resolve => { entered = resolve; });

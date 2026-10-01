@@ -219,7 +219,7 @@ test("real DSH SDK entry imports, tool is defined and native HTTP route installs
   assert.equal((await tool("card.search", { keywords: ["Bridge"] })).results[0].cardId, "c1");
   const opened = await tool("panel.open", { cardId: "c1" });
   assert.equal(opened.status, "queued_for_sidebar");
-  const panelHandler = createHostHandler({ sessions: { get: () => agent.session } });
+  const panelHandler = createHostHandler({ sessions: { get: () => agent.session } }, {}, undefined, { owner: ctx });
   const pending = await panelHandler("call", { sessionId: agent.id, action: "panel.intent.next" });
   assert.equal(pending.value.intent.runId, opened.runId);
   assert.equal((await panelHandler("call", { sessionId: agent.id, action: "panel.intent.next" })).value.intent, null);

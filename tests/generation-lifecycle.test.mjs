@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { StudyRuntime } from '../lib/runtime.js';
 import { createBuiltinEnvironment } from '../lib/runtime/builtins.js';
 import { Store } from '../lib/store.js';
-import { jobs, queues, settled } from '../lib/legacy-kernel.js';
 import { importExample } from '../ui/json-prompts.js';
 import { Context } from '@deepseek-ai/cordis';
 import * as workbench from '../lib/index.js';
@@ -40,8 +39,9 @@ test('shared workbench transport follows the remaining owner configuration', asy
 test('unloading generation cancels queued publication while leaving the independent bank usable', async t => {
   const root = await mkdtemp(join(tmpdir(), 'study-generation-lifecycle-'));
   const runtime = new StudyRuntime(root);
+  const { jobs, queues, settled } = runtime.work;
   const environment = createBuiltinEnvironment(root, runtime);
-  environment.install('bank'); environment.install('materials');
+  environment.install('bank'); environment.install('materials'); environment.install('authoring');
   const disposeGeneration = environment.install('generation');
   t.after(async () => { runtime.dispose(); queues.delete(root); await rm(root, { recursive: true, force: true }); });
   const draft = await runtime.call('draft.import', { text: importExample('flashcard') });
@@ -64,11 +64,14 @@ test('native transport publication is cancelled when its workbench unloads while
   const session = { header: { cwd: directory } };
   ctx.provide('sessions', { get: () => session });
   ctx.provide('connection', { fetch: { register: route => { routes.push(route); return () => {}; } } });
-  t.after(async () => { await ctx.fiber.dispose(); queues.delete(root); await rm(directory, { recursive: true, force: true }); });
+  let work;
+  t.after(async () => { await ctx.fiber.dispose(); work?.queues.delete(root); await rm(directory, { recursive: true, force: true }); });
   const installed = ctx.plugin(workbench, { libraryRoot: root });
   await installed;
   const leaf = ctx.plugin(generation);
   await leaf;
+  work = ctx.studyRuntime.runtimeForLibrary(root).work;
+  const { jobs, queues, settled } = work;
   const call = async (action, args) => {
     const response = await routes[0].fetch(new Request('http://localhost/api/study-workspace/call', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({

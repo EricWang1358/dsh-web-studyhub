@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { audioDashboard, audioUsageFetch, keyId, rateHeaders, recordAudioUsage, summarizeAudioUsage } from '../lib/audio-dashboard.js';
+import { audioDashboard, audioUsageFetch, keyId, rateHeaders, recordAudioUsage, summarizeAudioUsage, usageTokens } from '../lib/audio-dashboard.js';
 import { AUDIO_DEFAULTS, publicAudioSettings, saveAudioSettings } from '../lib/audio-settings.js';
 import { GeminiTiers } from '../lib/gemini.js';
 import { groqChat } from '../lib/groq.js';
@@ -132,4 +132,15 @@ test('unchanged Big Four output is skipped as no change, never counted as low co
   const result = applyCorrections("That makes more sense if I'm Accenture, if I'm the Big Four, if I'm NCS", [{ wrong: 'the Big Four', right: 'the Big Four', confidence: 'low', reason: '无错误，保留原文' }]);
   assert.equal(result.applied.length, 0); assert.equal(result.skipped[0].skipped, 'empty');
   assert.equal(result.skipped.filter(item => item.skipped === 'low-confidence').length, 0);
+});
+
+test('transcription replies without candidatesTokenCount still count output tokens, and unreported output is not shown as zero', () => {
+  assert.deepEqual(usageTokens({ usageMetadata: { promptTokenCount: 62783, totalTokenCount: 70000 } }), { inputTokens: 62783, outputTokens: 7217, cachedInputTokens: 0 });
+  assert.equal(usageTokens({ usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5, thoughtsTokenCount: 3, totalTokenCount: 18 } }).outputTokens, 8);
+  assert.equal(usageTokens({ usage: { prompt_tokens: 4, completion_tokens: 2 } }).outputTokens, 2);
+  const events = [request('free', now, { inputTokens: 62783, outputTokens: 0 }), request('free', now, { inputTokens: 10, outputTokens: 5 }),
+    request('groq', now, { model: settings.groqTranscribeModel, audioSeconds: 600 }), request('free', now, { status: 429 })];
+  const [free, groq] = summarizeAudioUsage(events, settings, now).providers;
+  assert.equal(free.today.outputUnknown, 1); assert.equal(groq.today.outputUnknown, 0);
+  assert.equal(free.today.limited, 1); assert.equal(free.today.failures, 1);
 });

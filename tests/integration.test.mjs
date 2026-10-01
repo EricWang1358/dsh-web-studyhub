@@ -96,9 +96,8 @@ test("generation messages report delivery honestly and survive into later model 
 
 test("parallel jobs persist early drafts and broadcast to each active worker without losing other handles", { timeout: 10000 }, async () => {
   const root = await fresh(), releases = [];
-  let started, checkpointed, counter = 0;
+  let started, counter = 0;
   const readyWorkers = new Promise((resolve) => started = resolve);
-  const firstSave = new Promise((resolve) => checkpointed = resolve);
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
     const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
@@ -115,12 +114,6 @@ test("parallel jobs persist early drafts and broadcast to each active worker wit
     }
     return fixture(system, prompt.split("\n\nAdditional learner requirements")[0]);
   } });
-  const originalCall = service.call.bind(service);
-  service.call = async (action, args) => {
-    const result = await originalCall(action, args);
-    if (action === "draft.save") checkpointed(result);
-    return result;
-  };
   await service.call("source.add", source);
   const job = await service.call("generate", { sourceIds: ["s"], count: 11, kind: "flashcard" });
   let early;
@@ -129,7 +122,11 @@ test("parallel jobs persist early drafts and broadcast to each active worker wit
     const sent = await service.call("job.message", { jobId: job.jobId, message: "Keep each question focused" });
     assert.equal(sent.receipts.length, 3);
     assert.ok(sent.receipts.every((receipt) => receipt.delivered));
-    releases[0](); early = await firstSave;
+    releases[0]();
+    while (!early) {
+      early = (await service.call("export")).drafts.find(draft => draft.cards.length > 0);
+      if (!early) await new Promise(resolve => setTimeout(resolve, 5));
+    }
     assert.ok(early.cards.length > 0 && early.cards.length < 11);
     const persisted = await new StudyService(root).call("export");
     assert.equal(persisted.drafts[0].id, early.id);
@@ -1427,9 +1424,8 @@ test("Study cancellation stops the active phase and skips queued jobs, scoped to
 
 test("cancelling parallel generation retains the approved checkpoint and permits its publication", { timeout: 10000 }, async () => {
   const root = await fresh(), releases = [];
-  let started, checkpointed, counter = 0;
+  let started, counter = 0;
   const readyWorkers = new Promise((resolve) => started = resolve);
-  const firstSave = new Promise((resolve) => checkpointed = resolve);
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
     const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
@@ -1446,12 +1442,6 @@ test("cancelling parallel generation retains the approved checkpoint and permits
     }
     return fixture(system, prompt.split("\n\nAdditional learner requirements")[0]);
   } });
-  const originalCall = service.call.bind(service);
-  service.call = async (action, args) => {
-    const result = await originalCall(action, args);
-    if (action === "draft.save") checkpointed(result);
-    return result;
-  };
   await service.call("source.add", source);
   const job = await service.call("generate", { sourceIds: ["s"], count: 11, kind: "flashcard" });
   let early;
@@ -1460,7 +1450,11 @@ test("cancelling parallel generation retains the approved checkpoint and permits
     const sent = await service.call("job.message", { jobId: job.jobId, message: "Keep each question focused" });
     assert.equal(sent.receipts.length, 3);
     assert.ok(sent.receipts.every((receipt) => receipt.delivered));
-    releases[0](); early = await firstSave;
+    releases[0]();
+    while (!early) {
+      early = (await service.call("export")).drafts.find(draft => draft.cards.length > 0);
+      if (!early) await new Promise(resolve => setTimeout(resolve, 5));
+    }
     assert.ok(early.cards.length > 0 && early.cards.length < 11);
     const persisted = await new StudyService(root).call("export");
     assert.equal(persisted.drafts[0].id, early.id);

@@ -218,8 +218,8 @@ test('supplement total-budget expiry publishes the approved checkpoint without e
       return new Promise((resolve, reject) => execution.signal.addEventListener('abort', () => reject(execution.signal.reason), { once: true }));
     return model(system, prompt);
   });
-  const call = service.call.bind(service);
-  service.call = async (action, args) => { const result = await call(action, args); if (action === 'draft.save') ready(); return result; };
+  const invoke = service.runtime.invoke.bind(service.runtime);
+  service.runtime.invoke = async (api, action, args, services) => { const result = await invoke(api, action, args, services); if (api === 'bank.v1' && action === 'draft.save') ready(); return result; };
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 6, kind: 'flashcard' });
   await checkpoint;
@@ -253,11 +253,11 @@ test('budget finalization respects cancellation, target archival and stale revie
         return new Promise((resolve, reject) => execution.signal.addEventListener('abort', () => reject(execution.signal.reason), { once: true }));
       return model(system, prompt);
     });
-    const call = service.call.bind(service);
-    service.call = async (action, args) => {
-      if (action === 'draft.publish') { publishing(); await held; }
-      const result = await call(action, args);
-      if (action === 'draft.save') saved();
+    const invoke = service.runtime.invoke.bind(service.runtime);
+    service.runtime.invoke = async (api, action, args, services) => {
+      if (api === 'authoring.v1' && action === 'draft.publish') { publishing(); await held; }
+      const result = await invoke(api, action, args, services);
+      if (api === 'bank.v1' && action === 'draft.save') saved();
       return result;
     };
     sub.mock.timers.enable({ apis: ['setTimeout'] });

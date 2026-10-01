@@ -48,7 +48,8 @@ async function harness(t, { limit, transcript, complete } = {}) {
     }
     return reply('{"titleEn":"Google Maps Case Study"}');
   };
-  const service = new StudyService(join(dir, "library"), { fetch, complete });
+  const audioGate = { limit: 1, active: new Set(), waiting: [] };
+  const service = new StudyService(join(dir, "library"), { fetch, complete, audioGate });
   const services = [service];
   t.after(async () => {
     for (const item of services) {
@@ -64,7 +65,7 @@ async function harness(t, { limit, transcript, complete } = {}) {
   const start = (name) => service.call("audio.import", { path: files[name] });
   const jobsNow = async () => Object.fromEntries((await service.call("snapshot", {})).jobs.filter((job) => job.type === "audio-import").map((job) => [job.filename, job]));
   const release = (count = 1) => { for (let i = 0; i < count; i++) held.shift()?.(); };
-  const anotherLibrary = () => { const other = new StudyService(join(dir, 'other-library'), { fetch }); services.push(other); return other; };
+  const anotherLibrary = ({ sharedHost = true } = {}) => { const other = new StudyService(join(dir, 'other-library'), { fetch, ...(sharedHost ? { audioGate } : {}) }); services.push(other); return other; };
   return { service, calls, held, add, start, jobsNow, release, anotherLibrary };
 }
 
@@ -135,6 +136,21 @@ test('recordings from different libraries share one host processing slot', async
   assert.equal((await service.call('job.wait', { jobId: first.jobId, timeoutSeconds: 10 })).status, 'complete');
   await until(() => calls.transcribe === 2, 'other library transcription');
   release();
+  assert.equal((await other.call('job.wait', { jobId: second.jobId, timeoutSeconds: 10 })).status, 'complete');
+});
+
+test('separate runtime owners share audio capacity only when their host injects the same gate', async t => {
+  const { service, anotherLibrary, add, start, calls, release } = await harness(t);
+  const other = anotherLibrary({ sharedHost: false });
+  await add('first.wav', 13);
+  const path = await add('independent.wav', 14);
+  const first = await start('first.wav');
+  await until(() => calls.transcribe === 1, 'first owner transcription');
+  const second = await other.call('audio.import', { path });
+  assert.equal(second.status, 'running');
+  await until(() => calls.transcribe === 2, 'independent owner transcription');
+  release(2);
+  assert.equal((await service.call('job.wait', { jobId: first.jobId, timeoutSeconds: 10 })).status, 'complete');
   assert.equal((await other.call('job.wait', { jobId: second.jobId, timeoutSeconds: 10 })).status, 'complete');
 });
 

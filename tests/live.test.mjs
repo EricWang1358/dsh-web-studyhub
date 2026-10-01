@@ -6,7 +6,7 @@ import { join } from "node:path";
 import {
   FRAME_BYTES, LIVE_ENDPOINT, audioMessage, classifyClose, frameText, frames, parseServerMessage, setupMessage,
 } from "../lib/live-protocol.js";
-import { LiveSession, deleteSaved, listSaved, readSaved, registered, unregister, writeSaved } from "../lib/live.js";
+import { LiveSession, deleteSaved, listSaved, readSaved, writeSaved } from "../lib/live.js";
 import { GeminiTiers } from "../lib/gemini.js";
 import { clock, excerptText, quickDocuments } from "../lib/live-save.js";
 import { StudyService } from "../lib/service.js";
@@ -376,9 +376,9 @@ async function serviceFixture(t, { complete, seen = [] } = {}) {
   process.env.DSH_HOME = join(dir, "home");
   t.after(async () => {
     for (const item of await listSaved(service.store.root)) {
-      const session = registered(service.store.root, item.id);
+      const session = service.runtime.liveSessions.registered(service.store.root, item.id);
       if (session?.active) await session.stop();
-      await session?.retirePersistence(); unregister(service.store.root, item.id);
+      await session?.retirePersistence(); service.runtime.liveSessions.unregister(service.store.root, item.id);
     }
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
     await rm(dir, { recursive: true, force: true });
@@ -393,7 +393,7 @@ const say = (socket, text) => socket.say({ serverContent: { inputTranscription: 
 test('resume and delete wait for translations and retire the old disk writer', async (t) => {
   const { service, Socket } = await serviceFixture(t);
   const started = await service.call('live.start', { title: 'Race test', course: 'Original course' });
-  const old = registered(service.store.root, started.id);
+  const old = service.runtime.liveSessions.registered(service.store.root, started.id);
   old.timing.stopWaitMs = 10;
   let release;
   old.translate = ({ items }) => new Promise(resolve => { release = () => resolve(new Map(items.map(item => [item.n, '已翻译']))); });
@@ -405,7 +405,7 @@ test('resume and delete wait for translations and retire the old disk writer', a
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(resumed, false, 'wait for the prior writer before loading its snapshot');
   release(); await restarting;
-  const current = registered(service.store.root, started.id);
+  const current = service.runtime.liveSessions.registered(service.store.root, started.id);
   assert.equal(current.course, 'Original course');
   current.timing.stopWaitMs = 10;
   say(Socket.instances.at(-1), 'The next class adds another important sentence.');
@@ -429,8 +429,8 @@ test('restored incomplete translation can retry using configured model', async (
   await service.call('live.retry', { id });
   await until(async () => (await service.call('live.get', { id })).segments[0].zhState === 'done');
   assert.match((await service.call('live.get', { id })).segments[0].zh, /^译：/);
-  await registered(service.store.root, id).settled();
-  unregister(service.store.root, id);
+  await service.runtime.liveSessions.registered(service.store.root, id).settled();
+  service.runtime.liveSessions.unregister(service.store.root, id);
 });
 
 test('a reopened class retains its course through reviewed transcript saving', async t => {
@@ -527,7 +527,7 @@ test("a finished class is saved as a bilingual source, and an unfinished one ref
   await assert.rejects(service.call('live.archive', { id, archived: true }), /请先结束/);
   await service.call("live.stop", { id });
   await until(async () => (await service.call("live.poll", { id })).translating === 0);
-  await registered(service.store.root, id).settled();
+  await service.runtime.liveSessions.registered(service.store.root, id).settled();
   const saved = await service.call("live.save", { id });
   assert.equal(saved.sourceIds.length, 2);
   const note = await service.call('source.get', { id: saved.noteSourceId });
@@ -545,8 +545,8 @@ test("a finished class is saved as a bilingual source, and an unfinished one ref
   assert.ok((await readSaved(service.store.root, id)).archivedAt);
   assert.ok((await service.call('live.list')).sessions.find(item => item.id === id).archivedAt);
   await assert.rejects(service.call('live.start', { resumeId: id }), /归档中恢复/);
-  const old = registered(service.store.root, id);
-  await old.retirePersistence(); unregister(service.store.root, id);
+  const old = service.runtime.liveSessions.registered(service.store.root, id);
+  await old.retirePersistence(); service.runtime.liveSessions.unregister(service.store.root, id);
   assert.ok((await service.call('live.get', { id })).archivedAt, 'archive persists across process reload');
   await service.call('live.archive', { id, archived: false });
   assert.equal((await readSaved(service.store.root, id)).archivedAt, null);

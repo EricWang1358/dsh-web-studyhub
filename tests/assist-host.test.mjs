@@ -4,14 +4,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { startAssist, assistView, clearAssist } from '../lib/assist.js';
+import { createAssistService } from '../lib/assist.js';
 import { createHostHandler } from '../lib/host.js';
 import { runCorrectionAgent } from '../lib/live-correction-agent.js';
-import { LiveSession, register, unregister } from '../lib/live.js';
+import { LiveSession } from '../lib/live.js';
 import { GeminiTiers } from '../lib/gemini.js';
 import { runGenerationAgent } from '../lib/generation-agent.js';
 import { backgroundCapability, startBoundedChild } from '../lib/host-capabilities.js';
-import { disposeAssistChildren } from '../lib/assist-child.js';
+import { createAssistChildren } from '../lib/assist-child.js';
 
 const evidence = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
 const card = { id: 'c', kind: 'flashcard', topic: 'Bridge', objective: 'Explain Bridge', prompt: 'What does Bridge separate?', answer: 'Abstraction and implementation.', hint: 'Two dimensions.', explanation: 'Both vary independently.', misconception: 'It adapts interfaces.', citations: [{ sourceId: 's', quote: evidence }] };
@@ -65,10 +65,11 @@ function reusableHost(cwd) {
 }
 async function fixture(t, complete) {
   const root = await mkdtemp(join(tmpdir(), 'study-assist-host-'));
-  t.after(async () => { clearAssist(root); await rm(root, { recursive: true, force: true }); });
+  const children = createAssistChildren(), assist = createAssistService({ children });
+  t.after(async () => { assist.dispose(); await rm(root, { recursive: true, force: true }); });
   const service = new StudyService(root, { complete });
   await service.store.update(s => { s.sources.push({ id: 's', title: 'Lecture', text: evidence }); s.decks.push({ id: 'd', title: 'Patterns', course: 'Software', cards: [structuredClone(card)] }); });
-  return { root, service, start: (ctx = {}, extra = {}) => startAssist(ctx, { root, service, sessionId: 'parent', mode: 'ask', ref: { deckId: 'd', cardId: 'c' }, text: 'Explain it', helpChoices: ['example'], card, deckTitle: 'Patterns', route: { provider: 'p', model: 'm' }, ...extra }), task: () => assistView(root).tasks.at(-1) };
+  return { root, service, assist, children, start: (ctx = {}, extra = {}) => assist.startAssist(ctx, { root, service, sessionId: 'parent', mode: 'ask', ref: { deckId: 'd', cardId: 'c' }, text: 'Explain it', helpChoices: ['example'], card, deckTitle: 'Patterns', route: { provider: 'p', model: 'm' }, ...extra }), task: () => assist.assistView(root).tasks.at(-1) };
 }
 
 test('cold desktop help and improvement use real children and release their own coordinator', async t => {
@@ -111,14 +112,14 @@ test('same-question help reuses the existing idle native child and keeps replies
   assert.ok(!calls.followups[0].message.content[0].text.includes(evidence), 'stable evidence should not be resent');
   assert.deepEqual(calls.started[0].toolFilter, { allow: [] });
   assert.equal((await f.service.store.read()).decks[0].cards[0].followups.length, 2);
-  clearAssist(f.root);
+  f.assist.clearAssist(f.root);
   await until(() => calls.disposed.length === 2);
 });
 
 test('simultaneous same-question requests serialize through one child and save distinct answers', async t => {
   const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
   await Promise.all([f.start(ctx, { text: 'First question' }), f.start(ctx, { text: 'Second question' })]);
-  await until(() => assistView(f.root).tasks.every(task => task.status === 'done'));
+  await until(() => f.assist.assistView(f.root).tasks.every(task => task.status === 'done'));
   assert.equal(calls.started.length, 1);
   assert.equal(calls.followups.length, 1);
   assert.equal((await f.service.store.read()).decks[0].cards[0].followups.length, 2);
@@ -163,7 +164,7 @@ test('only four idle teachers remain and plugin disposal releases their handles'
   const f = await fixture(t, async () => {}), hosts = Array.from({ length: 5 }, () => reusableHost(f.root));
   for (const { ctx } of hosts) { await f.start(ctx); await until(() => f.task().status === 'done'); }
   await until(() => hosts[0].calls.disposed.length === 2);
-  for (const host of hosts.slice(1)) { assert.equal(host.calls.disposed.length, 0); disposeAssistChildren(host.ctx); }
+  for (const host of hosts.slice(1)) { assert.equal(host.calls.disposed.length, 0); f.children.disposeAssistChildren(host.ctx); }
   await until(() => hosts.every(host => host.calls.disposed.length === 2));
 });
 
@@ -221,7 +222,7 @@ test('plugin shutdown cancels a retired active teacher and prevents late result 
   const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
   let cleanup;
   ctx.effect = setup => { cleanup = setup(); };
-  createHostHandler(ctx);
+  createHostHandler(ctx, {}, undefined, { assist: f.assist });
   const release = gate(), save = f.service.saveAssistResult.bind(f.service);
   let waiting = false;
   f.service.saveAssistResult = async args => { waiting = true; await release.promise; return save(args); };
@@ -232,7 +233,7 @@ test('plugin shutdown cancels a retired active teacher and prevents late result 
   await until(() => calls.started.length === 2);
   cleanup();
   release.resolve();
-  await until(() => assistView(f.root).tasks.every(task => task.status === 'failed'));
+  await until(() => f.assist.assistView(f.root).tasks.every(task => task.status === 'failed'));
   await until(() => calls.disposed.length === 4);
   assert.ok((await f.service.store.read()).decks[0].cards.every(item => !item.followups?.length));
 });
@@ -361,7 +362,7 @@ test('an unchanged library snapshot still delivers the latest failed assist stat
   const release = gate();
   const f = await fixture(t, async () => { await release.promise; throw new Error('model unavailable'); });
   const ctx = { sessions: { get: () => ({ header: { cwd: f.root } }) }, get: () => undefined };
-  const handle = createHostHandler(ctx, { libraryRoot: f.root });
+  const handle = createHostHandler(ctx, { libraryRoot: f.root }, undefined, { assist: f.assist });
   await f.start();
   const first = await handle('call', { sessionId: 'parent', action: 'snapshot' });
   release.resolve(); await until(() => f.task().status === 'failed');
@@ -452,8 +453,8 @@ test('service language wrappers preserve background correction and Gemini never 
     f.service.audioSettings = async () => ({ textProvider, liveCorrectionReasoning: 'low', liveTranslateModel: 'test-model', freeKey: 'test-key' });
     f.service.fetch = async () => { geminiCalls++; return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"items":[]}' }] } }] }), { status: 200 }); };
     const session = new LiveSession({ id: textProvider, tiers: new GeminiTiers({}), save: async () => {}, saved: { segments: [{ id: 1, en: 'Old sentence.', zh: '旧句。' }], correction: { tasks: [{ id: 'correction', status: 'failed', attempts: 0, ids: [1], evidenceIds: [1], reason: 'Check wording.' }] } } });
-    register(f.root, session);
-    t.after(async () => { await session.retirePersistence(); unregister(f.root, session.id); });
+    f.service.runtime.liveSessions.register(f.root, session);
+    t.after(async () => { await session.retirePersistence(); f.service.runtime.liveSessions.unregister(f.root, session.id); });
     await f.service.call('live.correct.background', { id: session.id });
     await session.correction.settled();
     assert.equal(session.correction.tasks[0].status, 'done', session.correction.tasks[0].error);

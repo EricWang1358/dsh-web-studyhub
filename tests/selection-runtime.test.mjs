@@ -8,6 +8,33 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { authored, qualityPlan, qualityReview } from './helpers/assessment.mjs';
 
 const passage = "Architecture includes the principles guiding a system's design and evolution.";
+
+test('unloading one request owner aborts its held selection model while a sibling remains active', async t => {
+  const f = await fixture(t), firstOwner = Symbol('first'), siblingOwner = Symbol('sibling');
+  const signals = new Map();
+  let entered;
+  const bothEntered = new Promise(resolve => { entered = resolve; });
+  const completeFor = owner => (_system, _prompt, { signal }) => new Promise((_resolve, reject) => {
+    signals.set(owner, signal);
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    if (signals.size === 2) entered();
+  });
+  const args = { selection: f.selection, deckId: 'd', expectedVersion: 0, count: 1, kind: 'flashcard' };
+  const first = f.runtime.call('generation.selection.supplement', { ...args, operationId: 'owned-first' }, { complete: completeFor(firstOwner), workOwner: firstOwner });
+  const sibling = f.runtime.call('generation.selection.supplement', { ...args, operationId: 'owned-sibling' }, { complete: completeFor(siblingOwner), workOwner: siblingOwner });
+  // Observe rejection immediately so unloading cannot create an unhandled promise.
+  const firstStopped = assert.rejects(first, /unloaded/), siblingStopped = assert.rejects(sibling, /unloaded/);
+  t.after(() => { f.runtime.cancelOwner(firstOwner); f.runtime.cancelOwner(siblingOwner); });
+  await bothEntered;
+  f.runtime.cancelOwner(firstOwner);
+  await firstStopped;
+  assert.equal(signals.get(firstOwner).aborted, true);
+  assert.equal(signals.get(siblingOwner).aborted, false);
+  assert.equal(f.runtime.work.selectionActive.size, 1);
+  f.runtime.cancelOwner(siblingOwner);
+  await siblingStopped;
+  assert.equal((await f.runtime.call('bank.get', { deckId: 'd' })).deck.cards.length, 1);
+});
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'selection-runtime-'));
   t.after(() => rm(root, { recursive: true, force: true }));
