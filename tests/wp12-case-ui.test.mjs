@@ -17,7 +17,8 @@ import { paperPlan } from "../lib/case-study.js";
 
 const compiled = await build({ stdin: { contents: `export { RubricResult, CaseReport, RubricSkills } from './ui/CaseResult.jsx';
   export { ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor } from './ui/CaseWorkspace.jsx'; export { default as Generate } from './ui/Generate.jsx';
-  export { default as Exam } from './ui/Exam.jsx'; export { default as Review } from './ui/Review.jsx'; export { setUiLanguage } from './ui/i18n.js';`,
+  export { default as Exam } from './ui/Exam.jsx'; export { default as Review } from './ui/Review.jsx'; export { setUiLanguage } from './ui/i18n.js';
+  export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';`,
   resolveDir: process.cwd() }, bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
@@ -234,4 +235,26 @@ test("a case draft shows its scenario, marks and hidden cues, and edits criteria
   const editor = render(CriteriaEditor, { criteria: [{ id: "c1", label: "Recommendation", marks: 3, descriptor: "Clear choice", keyPoints: ["a", "b"] }], onChange: noop });
   assert.match(editor, /评分标准 · 共 3 分/);
   assert.match(editor, /<textarea[^>]*>a\nb<\/textarea>/);
+});
+
+test("a passage of a material can seed a case: 围绕这段出案例题 in the viewer, the passage on the form and in the author's brief", async () => {
+  const { DocumentViewer } = module.exports;
+  const pending = async () => new Promise(() => {});
+  // A PDF page renders without the HTML sanitiser, which needs a browser.
+  const pdf = { id: "a", title: "Lecture", text: "Polyglot persistence.", document: { id: "doc", page: 1 } };
+  const viewer = render(DocumentViewer, { source: pdf, call: pending,
+    data: { ...data, sources: [] }, onCaseFromPassage: noop });
+  assert.match(viewer, /围绕这段出案例题/);
+  assert.doesNotMatch(render(DocumentViewer, { source: pdf, call: pending, data }), /围绕这段出案例题/);
+  const { caseAuthorPrompt, caseGenerationArgs } = await import("../lib/case-study.js");
+  assert.equal(caseGenerationArgs({ sourceIds: ["a"], focus: "Relational stores keep payments consistent." }).focus, "Relational stores keep payments consistent.");
+  const { prompt } = caseAuthorPrompt({ language: "English", questions: 2, totalMarks: 20, sources: [], focus: "Relational stores keep payments consistent." });
+  assert.match(prompt, /around the focus passage/);
+  assert.equal(JSON.parse(prompt.split("REQUEST DATA:\n")[1]).focus, "Relational stores keep payments consistent.");
+  const sources = [{ id: "a", title: "Cloud persistence", text: "Polyglot persistence chooses a store per workload." }];
+  const form = render(Generate, { data: { ...data, sources, focus: { courses: [] } }, busy: false, running: false, act: noop, call: async () => { throw new Error("x"); },
+    openDraft: noop, setPage: noop, setNotice: noop, setGenSource: noop, gen: { kind: "quiz", count: 5, language: "中文" }, setGen: noop, selectedSources: [],
+    setSelectedSources: noop, setModal: noop, askInChat: noop, openModelSettings: noop, genSource: "case",
+    caseInitial: { sourceIds: ["a"], focus: "Polyglot persistence chooses a store per workload." } });
+  assert.match(form, /围绕这段资料出题[\s\S]*Polyglot persistence chooses a store per workload./);
 });

@@ -15,6 +15,7 @@ import { StudyService } from "../lib/service.js";
 import { validateDeck } from "../lib/domain.js";
 import { resolveCourseProfile, defaultCourseProfile } from "../lib/case-study.js";
 import { createFakeModel } from "../scripts/fake-model.mjs";
+import { libraryContracts, studyToolDescription } from "../lib/study-contracts.js";
 
 const materials = [
   { title: "Architectural styles", text: "Microservices split a system into independently deployable services that own their data. " +
@@ -226,4 +227,14 @@ test("the course profile adapter fills defaults before and after WP13", async ()
   assert.equal(profile.exam.sections.length, 0, "missing fields keep their defaults");
   assert.deepEqual(profile.guidanceSourceIds, ["g"]);
   assert.equal((await resolveCourseProfile({ courses: [{ name: "Other" }] }, "Cloud Native")).exam.minutesPerMark, 3);
+});
+
+test("agents find case generation, grading and drills in the compact study tool contracts", () => {
+  assert.match(studyToolDescription, /areas: [^.]*\bcases\b/);
+  assert.match(studyToolDescription, /card\.grade/);
+  assert.match(studyToolDescription, /case\.drills/);
+  assert.match(libraryContracts.cases, /generate \{kind:'case'/);
+  assert.match(libraryContracts.cases, /card\.grade \{/);
+  assert.match(libraryContracts.cases, /examKinds:'case'/);
+  assert.match(libraryContracts.cases, /never fabricate/i);
 });

@@ -251,6 +251,8 @@ export default function App({ call: transportCall, host = {} }) {
   }, [showEn]);
   // D1: 创建题组 opens on generating from materials; JSON import is the second tab.
   const [genSource, setGenSource] = useState("files");
+  // A case paper seeded from a passage of a material (WP12).
+  const [caseInitial, setCaseInitial] = useState(null);
   // A generation just started: the library home scrolls its progress card into view once (P26).
   const [revealHome, setRevealHome] = useState(0);
   const canChat = host.capabilities?.chat ?? !!host.askInChat;
@@ -2105,7 +2107,9 @@ export default function App({ call: transportCall, host = {} }) {
                 askInChat={askInChat}
                 canChat={canChat}
                 openModelSettings={openModelSettings}
-                onStarted={() => { setRevealHome((n) => n + 1); setPage("library"); }}
+                onStarted={() => { setRevealHome((n) => n + 1); setCaseInitial(null); setPage("library"); }}
+                caseInitial={caseInitial || undefined}
+                key={caseInitial?.nonce || "generate"}
               />
             )}
             {page === "draft" && draft && (
@@ -2318,7 +2322,9 @@ export default function App({ call: transportCall, host = {} }) {
                       setGenSource('files'); setModal(null); setPage('generate');
                     }}>{ui('从这份资料出题')}</button>
                     <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
-                      onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }} />
+                      onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
+                      onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
+                        setGenSource('case'); setModal(null); setPage('generate'); }} />
                   </>
                 ) : (
                   <p className="muted">{ui("无法找到此资料。")}</p>

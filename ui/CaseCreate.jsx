@@ -27,6 +27,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
   const [form, setForm] = useState({ questions: 2, totalMarks: 20, language: getUiLanguage() === "en" ? "English" : "中文", title: "", styleText: "" });
   const [pasted, setPasted] = useState({ title: "", scenario: "", questions: [blankQuestion()] });
   const [profile, setProfile] = useState(null);
+  const [passage, setPassage] = useState(initial.focus || "");
   useEffect(() => {
     let live = true;
     void resolveCourseProfile((action, args) => call(action, args), course).then((value) => {
@@ -45,7 +46,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
   function submit(event) {
     event.preventDefault();
     if (!model.ready || busy || !ready) return;
-    const shared = { kind: "case", course, guidanceSourceIds: guidance, focusTopics: topics, language: form.language };
+    const shared = { kind: "case", course, guidanceSourceIds: guidance, focusTopics: topics, language: form.language, ...(passage ? { focus: passage } : {}) };
     const args = mode === "import"
       ? { ...shared, title: pasted.title.trim() || undefined, scenario: pasted.scenario, sourceIds,
         questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })),
@@ -72,6 +73,11 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
         <SourcePicker sources={data.sources.filter((source) => !/^(案例：|Case: )/.test(source.title || ""))} selected={sourceIds} onChange={setSourceIds}
           courses={data.focus?.courses} onAdd={openImport} disabled={busy} />
         <p className="muted">{mode === "import" ? ui("可选：勾选课程资料，评分标准会用到其中的概念。") : ui("勾选要考查的课程资料；案例和题目都基于这些概念。")}</p>
+        {passage && mode !== "import" && <div className="case-create__passage">
+          <strong>{ui("围绕这段资料出题")}</strong>
+          <blockquote>{passage}</blockquote>
+          <Button size="sm" variant="quiet" onClick={() => setPassage("")}>{ui("不限定段落")}</Button>
+        </div>}
         <Disclosure summary={ui("评分说明来源（可选）")} meta={guidance.length ? uiFormat("已选 {0} 份", [guidance.length]) : ""}>
           <p className="muted">{ui("例如老师讲考试要求的录音逐字稿或评分说明 PDF。出题和批改都会参考它（只取一段摘录）。")}</p>
           <SourcePicker sources={data.sources} selected={guidance} onChange={setGuidanceIds} disabled={busy} />
