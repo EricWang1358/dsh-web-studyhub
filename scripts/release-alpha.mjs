@@ -34,13 +34,14 @@ for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'au
   for (const path of ['lib', 'references', 'LICENSE', 'README.md'])
     await cp(join(root, path), join(staging, path), { recursive: true });
   await mkdir(join(staging, 'docs'), { recursive: true });
-  await cp(join(root, 'docs/architecture.md'), join(staging, 'docs/architecture.md'));
+  for (const file of ['architecture.md', 'install.md', 'install.html'])
+    await cp(join(root, 'docs', file), join(staging, 'docs', file));
   const name = `@ericwang1358/dsh-study-${domain}`;
   const entry = `./lib/plugins/${domain}.js`;
   await writeFile(join(staging, 'package.json'), JSON.stringify({
     name, version: manifest.version, description: `StudyHub ${domain} capability plugin for DSH`,
     type: 'module', main: entry, exports: { '.': entry, './runtime': './lib/runtime.js', './package.json': './package.json' },
-    files: ['lib', 'references', 'docs/architecture.md', 'cordis.patch.yml', 'README.md', 'LICENSE'],
+    files: ['lib', 'references', 'docs/architecture.md', 'docs/install.md', 'docs/install.html', 'cordis.patch.yml', 'README.md', 'LICENSE'],
     license: manifest.license, engines: manifest.engines, dependencies: manifest.dependencies,
     peerDependencies: manifest.peerDependencies, peerDependenciesMeta: manifest.peerDependenciesMeta,
     dsh: { bundle: { patch: './cordis.patch.yml' } },
@@ -48,6 +49,10 @@ for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'au
   await writeFile(join(staging, 'cordis.patch.yml'), `- insert:\n    - id: study-${domain}\n      name: '${name}'\n      config: {}\n`);
   archives.push(await pack(staging));
 }
-await writeFile(join(target, `SHA256SUMS-${manifest.version}.txt`), archives.map(archive => `${archive.sha256}  ${archive.filename}`).join('\n') + '\n');
-await writeFile(join(target, 'artifacts.json'), JSON.stringify({ version: manifest.version, archives }, null, 2) + '\n');
-console.log(JSON.stringify({ directory: target, archives }, null, 2));
+const setupFilename = `StudyHub-${manifest.version}-Setup.html`;
+await cp(join(root, 'docs/install.html'), join(target, setupFilename));
+const setup = { filename: setupFilename,
+  sha256: createHash('sha256').update(await readFile(join(target, setupFilename))).digest('hex') };
+await writeFile(join(target, `SHA256SUMS-${manifest.version}.txt`), [...archives, setup].map(artifact => `${artifact.sha256}  ${artifact.filename}`).join('\n') + '\n');
+await writeFile(join(target, 'artifacts.json'), JSON.stringify({ version: manifest.version, archives, setup }, null, 2) + '\n');
+console.log(JSON.stringify({ directory: target, archives, setup }, null, 2));

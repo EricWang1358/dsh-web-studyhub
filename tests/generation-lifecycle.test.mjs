@@ -10,6 +10,63 @@ import { importExample } from '../ui/json-prompts.js';
 import { Context } from '@deepseek-ai/cordis';
 import * as workbench from '../lib/index.js';
 import * as generation from '../lib/plugins/generation.js';
+import * as bank from '../lib/plugins/bank.js';
+import * as audio from '../lib/plugins/audio.js';
+import * as materials from '../lib/plugins/materials.js';
+import * as study from '../lib/plugins/study.js';
+
+test('modular workbench follows independently installed capabilities across disable and re-enable', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'study-modular-host-'));
+  const ctx = new Context(), routes = [];
+  ctx.provide('sessions', { get: () => ({ header: { cwd: directory } }) });
+  ctx.provide('connection', { fetch: { register: route => { routes.push(route); return () => {}; } } });
+  t.after(async () => { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); });
+  const base = ctx.plugin(workbench, { libraryRoot: directory, modular: true });
+  await base;
+  assert.equal(ctx.studyRuntime.contextIds().includes('bank'), false, 'base UI must not pin optional domains');
+  const bankLeaf = ctx.plugin(bank), audioLeaf = ctx.plugin(audio), materialsLeaf = ctx.plugin(materials);
+  await bankLeaf; await audioLeaf; await materialsLeaf;
+  const studyLeaf = ctx.plugin(study, { independent: true }), generationLeaf = ctx.plugin(generation, { independent: true });
+  await studyLeaf; await generationLeaf;
+  const call = async (action, args = {}) => {
+    const response = await routes[0].fetch(new Request('http://localhost/api/study-workspace/call', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        type: 'client-request', rpcId: action, method: 'study-workspace/call', payload: { sessionId: 'test', action, args },
+      }),
+    }));
+    return (await response.json()).result;
+  };
+  assert.equal((await call('bank.list')).ok, true);
+  const retained = await call('draft.import', { text: importExample('flashcard') });
+  assert.equal(retained.ok, true, retained.error?.message);
+  const before = await call('snapshot');
+  assert.equal(before.ok, true, before.error?.message);
+  assert.ok(before.value.contexts.includes('bank'));
+  await bankLeaf.dispose();
+  const disabled = await call('bank.list');
+  assert.equal(disabled.ok, false);
+  assert.match(disabled.error.message, /Capability unavailable/);
+  assert.equal(ctx.studyRuntime.contextIds().includes('bank'), false, 'transport must not re-create disabled domains');
+  assert.ok(ctx.studyRuntime.contextIds().includes('study'));
+  assert.ok(ctx.studyRuntime.contextIds().includes('generation'));
+  assert.equal((await call('audio.settings.get')).ok, true, 'sibling remains usable');
+  const after = await call('snapshot', { since: before.value.fingerprint });
+  assert.equal(after.ok, true, after.error?.message);
+  assert.equal(after.value.unchanged, undefined, 'capability changes invalidate unchanged polling');
+  assert.equal(after.value.contexts.includes('bank'), false);
+  const reinstalled = ctx.plugin(bank);
+  await reinstalled;
+  assert.equal((await call('bank.list')).ok, true, 'reinstall becomes available on the existing transport');
+  const restored = (await call('snapshot')).value;
+  assert.ok(restored.contexts.includes('bank'));
+  assert.equal(restored.drafts[0].id, retained.value.id, 'disable must preserve learner content');
+  await materialsLeaf.dispose();
+  const missingMaterials = await call('materials.document.list');
+  assert.equal(missingMaterials.ok, false);
+  assert.match(missingMaterials.error.message, /Capability unavailable/);
+  assert.equal(ctx.studyRuntime.contextIds().includes('materials'), false, 'generation must not pin independently disabled materials');
+  assert.equal((await call('bank.list')).ok, true, 'independent bank reads survive materials disabling');
+});
 
 test('shared workbench transport follows the remaining owner configuration', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'study-host-owners-'));

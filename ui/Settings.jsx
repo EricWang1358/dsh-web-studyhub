@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useState } from "react";
 import AudioSettings from "./AudioSettings.jsx";
+import { hasContext } from './capabilities.js';
 
 const GOALS = [["", "未设定"], ["exam", "应付考试"], ["interview", "面试求职"], ["work", "工作中落地"], ["explore", "兴趣拓展"]];
 
@@ -49,7 +50,7 @@ export default function Settings({
         <legend>{ui("学习库与模型")}</legend>
         {workspacePanel}
       </fieldset>
-      <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />
+      {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
       {profile && (
         <fieldset>
           <legend>{ui("陪学")}</legend>

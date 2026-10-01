@@ -2,6 +2,7 @@ import { BlogNotes, Skeleton, Workflows, Graph, AudioDashboard, DocumentViewer, 
 import { languageSystem } from "../lib/language.js";
 import { localizeRunResponse, localizedRun } from "./run-titles.js";
 import { submitAssist } from "./assist-request.js";
+import { hasContext, pageAvailable } from './capabilities.js';
 import { uiLocale } from "./i18n.js";
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import StudyMap from "./StudyMap.jsx";
@@ -1207,10 +1208,12 @@ export default function App({ call: transportCall, host = {} }) {
   const sourceFormCourse = modal?.type === 'add' && modal.course !== undefined ? modal.course : sourceCourses;
   const changeSourceFormCourse = course => modal?.type === 'add' && modal.course !== undefined
     ? setModal(current => ({ ...current, course })) : setSourceCourses(course);
-  const sourceForm = (
+  const sourceForm = !hasContext(data, 'materials') ? (
+    <p role="status">{language === 'en' ? 'Enable materials in the DSH plugin manager to import sources.' : '请在 DSH 插件管理器中启用资料组件，再导入资料。'}</p>
+  ) : (
     <>
     <DocumentImport key={data?.root} busy={busy} act={act} courses={parseCourses(sourceFormCourse)} onImported={ids => setSelectedSources(ids)} />
-    <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} />
+    {hasContext(data, 'audio') && <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} />}
     <form
       onSubmit={(e) => {
         e.preventDefault();
@@ -1520,7 +1523,7 @@ export default function App({ call: transportCall, host = {} }) {
               (navPage === "review" ? " active" : "") +
               (data && !lastRun && !data.decks.length ? " muted-nav" : "")
             }
-            disabled={!data || busy}
+            disabled={!data || busy || !pageAvailable(data, 'review')}
             title={
               !data
                 ? ""
@@ -1541,7 +1544,7 @@ export default function App({ call: transportCall, host = {} }) {
               )}
             </span>
           </button>
-          {data?.coach?.ready > 0 && (
+          {data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
             <button
               className="nav coach-nav"
               disabled={busy}
@@ -1555,7 +1558,7 @@ export default function App({ call: transportCall, host = {} }) {
               <span className="nav-badge" aria-hidden="true">{data.coach.ready}</span>
             </button>
           )}
-          {[...navOrder.order.main, ...navOrder.order.upkeep].map((id) => {
+          {[...navOrder.order.main, ...navOrder.order.upkeep].filter(id => pageAvailable(data, id)).map((id) => {
             const label = navLabels[id], upkeep = NAV_DEFAULTS.upkeep.includes(id);
             return (
               <button
@@ -1684,7 +1687,7 @@ export default function App({ call: transportCall, host = {} }) {
         {contextTrail.length > 0 && !['review', 'notes'].includes(page) && <div className="context-return">
           <button type="button" disabled={busy} onClick={returnFromContext}>← {contextLabel(contextTrail.at(-1))}</button>
         </div>}
-        {data && <LiveClass key={binding.root} data={data} call={call} visible={page === "live"}
+        {data && pageAvailable(data, 'live') && <LiveClass key={binding.root} data={data} call={call} visible={page === "live"}
           onSettings={() => setPage("settings")} onSources={() => setPage("sources")}
           onJobs={() => { void refresh().catch((failure) => setError(failure.message)); }} />}
         {page === "board" ? (
@@ -1706,6 +1709,12 @@ export default function App({ call: transportCall, host = {} }) {
                 )
               }
             >{ui("重试")}</button>
+          </section>
+        ) : !pageAvailable(data, page) ? (
+          <section className="page" role="status">
+            <h1>{language === 'en' ? 'This feature is disabled' : '此功能已停用'}</h1>
+            <p>{language === 'en' ? 'Enable its components in the DSH plugin manager to continue. Your saved learning data is retained.' : '在 DSH 插件管理器中启用所需组件后即可继续，已保存的学习资料仍会保留。'}</p>
+            <button onClick={() => switchPage('settings')}>{ui('工作区设置')}</button>
           </section>
         ) : (
           <>

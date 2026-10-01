@@ -1,4 +1,25 @@
 - insert:
     - id: daily-flashcard
       name: '@ericwang1358/dsh-daily-flashcard'
+      config:
+        modular: true
+    - id: study-suite-runtime
+      name: '@ericwang1358/dsh-daily-flashcard/plugins/runtime'
+      config: {}
+    - id: study-suite-materials
+      name: '@ericwang1358/dsh-daily-flashcard/plugins/materials'
+      config: {}
+    - id: study-suite-bank
+      name: '@ericwang1358/dsh-daily-flashcard/plugins/bank'
+      config: {}
+    - id: study-suite-learning
+      name: '@ericwang1358/dsh-daily-flashcard/plugins/study'
+      config:
+        independent: true
+    - id: study-suite-generation
+      name: '@ericwang1358/dsh-daily-flashcard/plugins/generation'
+      config:
+        independent: true
+    - id: study-suite-audio
+      name: '@ericwang1358/dsh-daily-flashcard/plugins/audio'
       config: {}
