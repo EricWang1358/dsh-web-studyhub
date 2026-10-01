@@ -1,1 +1,23 @@
-{}
+{
+  "音频转写": "Audio transcript",
+  "JSON 题组": "JSON deck",
+  "文本": "Text",
+  "{0} · 1 页": "{0} · 1 page",
+  "{0} · {1} 页": "{0} · {1} pages",
+  "{0} · {1} 部分": "{0} · {1} parts",
+  "{0} · 旧版提取，建议重新导入": "{0} · old text extraction; re-import recommended",
+  "{0} · 第 {1} 页": "{0} · page {1}",
+  "文字偏少，核对正文": "little text; check the body",
+  "排版待核对": "check the layout",
+  "含旧版提取页，建议重新导入": "has pages from the old extractor; re-import recommended",
+  "第 {0} 页": "Page {0}",
+  "旧版提取": "old extraction",
+  "第 {0} 部分": "Part {0}",
+  "{0} 字符": "{0} characters",
+  "已选 {0} / {1} 页": "{0} / {1} pages selected",
+  "选择页面": "Choose pages",
+  "选择部分": "Choose parts",
+  "「{0}」的页面": "Pages of “{0}”",
+  "先添加讲义或笔记，再用它们出题。": "Add lecture notes or slides first, then generate questions from them.",
+  "已选择 {0} / {1} 份资料": "{0} / {1} sources selected"
+}
