@@ -83,8 +83,9 @@ test("both sample editions carry the same cards, and every quote is in the rende
       assert.ok(quoteFound(text, card.quote), `${content.language} ${card.key}: quote not in the lecture: ${card.quote}`);
     const sources = [{ id: "lecture", text }];
     const cards = (list) => list.map(({ key, quote, ...card }) => ({ ...card, id: key, citations: [{ sourceId: "lecture", quote }] }));
-    assert.deepEqual(validateDeck({ title: content.deck.title, cards: cards(content.deck.cards) }, sources).errors, [], content.language);
-    assert.deepEqual(validateDeck({ title: content.draft.title, cards: cards(content.draft.cards) }, sources).errors, [], content.language);
+    // No errors and no quality notices: the sample shows what a clean deck looks like.
+    assert.deepEqual(validateDeck({ title: content.deck.title, cards: cards(content.deck.cards) }, sources), { errors: [], warnings: [] }, content.language);
+    assert.deepEqual(validateDeck({ title: content.draft.title, cards: cards(content.draft.cards) }, sources), { errors: [], warnings: [] }, content.language);
   }
   const shape = (content) => content.deck.cards.map((card) => [card.key, card.kind, card.topic === "Memento" || card.topic === "Bridge" ? card.topic : "",
     (card.options || []).map((item) => `${item.id}:${item.correct}`).join(",")]);

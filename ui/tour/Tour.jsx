@@ -175,7 +175,17 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
   useEffect(() => {
     if (!layout || focused.current === step?.id) return;
     focused.current = step.id;
-    popoverRef.current?.focus({ preventScroll: true });
+    // Retry for a few frames: the card may still be settling (a reduced-motion
+    // stylesheet can turn every change into a short transition) or a page
+    // switch can move focus once more.
+    let tries = 0;
+    const focus = () => {
+      const card = popoverRef.current;
+      if (!card?.isConnected) return;
+      if (!card.contains(document.activeElement)) card.focus({ preventScroll: true });
+      if (!card.contains(document.activeElement) && ++tries < 8) requestAnimationFrame(focus);
+    };
+    focus();
   }, [layout, step?.id]);
 
   // Esc pauses the tour from anywhere in the study app except text fields and dialogs.

@@ -29,13 +29,14 @@ async function anchorsInSource() {
     // JSX attributes (data-tour="x") and spread props ({ "data-tour": "x" }).
     for (const match of text.matchAll(/data-tour["']?\s*[=:]\s*["']([a-z0-9-]+)["']/g)) anchors.add(match[1]);
     if (/data-tour=\{`nav-\$\{id\}`\}/.test(text)) for (const id of Object.values(NAV_DEFAULTS).flat()) anchors.add(`nav-${id}`);
+    // Tabs described as data ({ …, tour: "x" } rendered with data-tour={tab.tour}, ui/Generate.jsx).
+    if (/data-tour=\{tab\.tour\}/.test(text)) for (const match of text.matchAll(/\btour:\s*["']([a-z0-9-]+)["']/g)) anchors.add(match[1]);
   }
   return anchors;
 }
-/* Anchors that WP3 / WP4 add to their own pages (plan §5); until they merge the
-   tour shows those steps centred, so they may be absent here. */
-const PARALLEL = { "home-hero": "WP4", "home-today": "WP4", "home-catalog": "WP4", "generate-from-sources": "WP4", "generate-submit": "WP4",
-  "sources-list": "WP3", "sources-add": "WP3", "import-drop": "WP3" };
+/* Anchors that WP3 adds to its own pages (plan §5); until it merges the tour
+   shows those steps centred, so they may be absent here. WP4's are merged. */
+const PARALLEL = { "sources-list": "WP3", "sources-add": "WP3", "import-drop": "WP3" };
 const PLAN_ANCHORS = ["nav", "nav-library", "nav-sources", "nav-generate", "nav-wrongbook", "nav-exam", "nav-dashboard", "nav-skeleton",
   "nav-workflows", "nav-settings", "tour-reopen", "home-hero", "home-today", "home-catalog", "sources-list", "sources-add", "import-drop",
   "generate-from-sources", "generate-submit", "review-question", "review-help", "wrongbook-list", "exam-start", "dashboard-summary",

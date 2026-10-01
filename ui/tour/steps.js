@@ -21,7 +21,7 @@ export const TOUR_STEPS = [
   { id: "document", page: "sources", prepare: "openSampleDocument", anchor: "source-tools", placement: "left", needs: "sourceId",
     title: "在原文里提问、出题",
     body: "这是示例讲义的原文。标出的段落已经关联了题目和解析；选中任意一段文字，就能就这段提问，或者用它出几道题。" },
-  { id: "generate", page: "generate", prepare: "prepareGenerate", anchor: "generate-from-sources",
+  { id: "generate", page: "generate", prepare: "prepareGenerate", anchor: "generate-from-sources", placement: "right",
     title: "创建题组：用资料出题",
     body: "选好资料、题型和题数，内置 AI 会出题，并给每道题标出引用的原文。已经有现成的题目，也可以在这里直接导入。",
     modelNote: "出题需要先配置 AI 模型，导览快结束时会告诉你在哪里设置。" },

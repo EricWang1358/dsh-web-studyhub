@@ -232,7 +232,8 @@ export default function App({ call: transportCall, host = {} }) {
     [sampleBusy, setSampleBusy] = useState(false),
     [removingSample, setRemovingSample] = useState(false),
     [hiddenWelcome, setHiddenWelcome] = useState("");
-  const tourOrigin = useRef(null);
+  const tourOrigin = useRef(null),
+    tourRound = useRef(null);
   // EN 开关：开启后每张卡在其英文翻译就绪时展示「中文题干/答案 + 英文」。
   const [showEn, setShowEn] = useState(() => {
     try {
@@ -1427,7 +1428,6 @@ export default function App({ call: transportCall, host = {} }) {
     dismissWelcome(data.root);
     setHiddenWelcome(data.root);
   }
-  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : switchPage("settings"));
   const openFirstImport = () => setModal({ type: "add" });
   /** The tour switches pages at once: no leave animation, no stale context trail. */
   function showPage(id) {
@@ -1465,6 +1465,11 @@ export default function App({ call: transportCall, host = {} }) {
     const origin = tourOrigin.current;
     tourOrigin.current = null;
     setTourStep(null);
+    // A practice round the tour opened and nobody answered should not become "pick up where you left off".
+    const round = tourRound.current;
+    tourRound.current = null;
+    if (round) void call("review.get", { runId: round }).then((value) => !value.complete && !value.answered && !value.feedback
+      ? call("review.end", { runId: round }).then(() => refresh()) : null).catch(() => {});
     setModal((current) => (current?.tour ? null : current));
     if (origin?.page === "review" && origin.runId) void act("review.get", { runId: origin.runId }, enterRun);
     else showPage(origin?.page && origin.page !== "draft" && origin.page !== "review" ? origin.page : "library");
@@ -1495,7 +1500,10 @@ export default function App({ call: transportCall, host = {} }) {
       item.index < item.total && !item.purpose && sameScope(item));
     try {
       let next = open ? await call("review.get", { runId: open.id }) : null;
-      if (!next || next.complete) next = await call("review.start", { mode: "path", scope, fresh: true });
+      if (!next || next.complete) {
+        next = await call("review.start", { mode: "path", scope, fresh: true });
+        tourRound.current = next.id;
+      }
       enterRun(next);
     } catch (failure) {
       showPage("library");
@@ -1740,8 +1748,8 @@ export default function App({ call: transportCall, host = {} }) {
             <button type="button" aria-pressed={language === 'en'} onClick={() => setUiLanguage('en')}>EN</button>
           </div>
           {data && (
-            <button type="button" className="nav tour-nav" data-tour="tour-reopen" disabled={sampleBusy || !!tourStep}
-              title={ui("功能导览：切到每个关键功能，看看怎么用")} onClick={() => startTour()}>
+            <button type="button" className="nav tour-nav" data-tour="tour-reopen" disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
+              title={ui("功能导览：切到每个关键功能，看看怎么用")} onClick={() => { if (!tourStep) startTour(); }}>
               <Icon><TourGlyph /></Icon>
               <span className="nav-label">{ui("功能导览")}{tourResume && (
                 <small>{uiFormat("继续 {0}/{1}", [tourResume.index + 1, tourResume.total])}</small>

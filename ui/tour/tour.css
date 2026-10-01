@@ -54,7 +54,8 @@
 }
 .tour-pop:focus { outline: none; }
 .tour-pop:focus-visible { box-shadow: var(--shadow-lg), var(--ring); }
-.tour-layer.is-measuring .tour-pop { visibility: hidden; }
+/* Measured before it is shown; opacity (not visibility) keeps it focusable. */
+.tour-layer.is-measuring .tour-pop { opacity: 0; pointer-events: none; }
 
 /* The caret points from the card to the spotlight. */
 .tour-pop::before {
