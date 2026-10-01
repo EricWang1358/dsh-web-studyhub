@@ -11,6 +11,7 @@ import { build } from 'esbuild';
 import { StudyService } from '../lib/service.js';
 import { createHostHandler } from '../lib/host.js';
 import { groupPrompt } from '../ui/topic-group-prompt.js';
+import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -97,6 +98,16 @@ test('the host transport hands the not-found code to the UI', async t => {
   assert.equal(response.error.code, 'not-found');
   const other = await handler('call', { sessionId: 's', action: 'no.such.action', args: {} });
   assert.equal(other.error.code, 'STUDY_ERROR', 'unrelated failures keep the generic code');
+});
+
+test('the browser preview also carries the not-found code to the page', async t => {
+  const base = await mkdtemp(join(tmpdir(), 'study-wp21-preview-'));
+  t.after(() => rm(base, { recursive: true, force: true, maxRetries: 3 }));
+  const server = await createPreviewServer({ libraryRoot: join(base, 'lib'), home: join(base, 'home'), port: 0 });
+  t.after(() => server.close());
+  await assert.rejects(previewCall(server, 'skeleton.get', { id: 'gone' }), error => error.code === 'not-found');
+  const raw = await fetch(server.url + '/api/call', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Study-Token': server.token }, body: JSON.stringify({ action: 'skeleton.get', args: { id: 'gone' } }) });
+  assert.equal((await raw.json()).code, 'not-found');
 });
 
 const topic = (key, count, decks = 1) => ({ key, topic: key, count, decks: Array.from({ length: decks }, (_, i) => ({ deckId: `d${i}`, deckTitle: `D${i}`, folder: '', topic: key, count })) });

@@ -123,7 +123,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
     [error, setError] = useState(""),
     // The skeleton the user had open was deleted or is not in this course: a muted note, never an error.
     [stale, setStale] = useState(false),
-    [reload, setReload] = useState(0);
+    [reload, setReload] = useState(0),
+    [loadFailed, setLoadFailed] = useState(false);
   // Any failure that is not "the skeleton is gone" is shown in plain language; a gone skeleton is released quietly.
   const fail = (e) => {
     const result = classifySkeletonError(e);
@@ -140,6 +141,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
   useEffect(() => {
     let live = true;
     setTopics(null);
+    setLoadFailed(false);
     Promise.all([call('skeleton.topics', { course }), call('skeleton.list', { course })])
       .then(([r, list]) => {
         if (!live) return;
@@ -151,6 +153,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
         if (!live) return;
         setTopics([]);
         setGroupView(null);
+        setLoadFailed(true);
         setError(classifySkeletonError(e).text);
       });
     return () => {
@@ -306,8 +309,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
           <div className="sk-panel-head">
             <strong>{ui("选择主题")}</strong>
             <small className="muted">
-              {topics ? uiFormat("{0} 个主题", [topics.length]) : ""}
-              {groups.length ? uiFormat(" · {0} 个主题组", [groups.length]) : ui(" · 同名主题已跨题组合并")}
+              {topics && !loadFailed ? uiFormat("{0} 个主题", [topics.length]) : ""}
+              {loadFailed ? "" : groups.length ? uiFormat(" · {0} 个主题组", [groups.length]) : ui(" · 同名主题已跨题组合并")}
             </small>
           </div>
           <div className="sk-group-bar">
@@ -317,7 +320,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 <button type="button" className={!byGroup ? "on" : ""} aria-pressed={!byGroup} onClick={() => setByGroup(false)}>{ui("全部主题")}</button>
               </div>
             )}
-            {topics && !groups.length && (
+            {topics && !groups.length && !loadFailed && (
               <button
                 type="button"
                 className="sk-mini sk-ai"
@@ -350,6 +353,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
           />
           {!topics ? (
             <p className="muted small">{ui("正在读取主题…")}</p>
+          ) : loadFailed ? (
+            <p className="muted small">{ui("主题暂时读不出来，点上面的「重试」再试一次。")}</p>
           ) : !(grouped ? groupRows.length : shown.length) ? (
             <p className="muted small">{topics.length ? ui("没有匹配的主题。") : ui("这门课程里还没有题目。先用资料出题，有了题目才能整理成知识骨架。")}</p>
           ) : (

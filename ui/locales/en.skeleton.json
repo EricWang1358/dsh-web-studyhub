@@ -3,5 +3,6 @@
   "这一步没有成功，请稍后再试一次。": "That did not work. Please try again in a moment.",
   "之前打开的骨架已删除或不在这门课程中。": "The outline you had open was deleted or is not in this course.",
   "这门课程里还没有题目。先用资料出题，有了题目才能整理成知识骨架。": "This course has no questions yet. Generate questions from your materials first; an outline is built from questions.",
+  "主题暂时读不出来，点上面的「重试」再试一次。": "Topics could not be read right now. Select Retry above to try again.",
   "让对话只重新归并这门课程的主题，其他课程的主题组保持不变": "Ask the chat to regroup only this course's topics; other courses' topic groups stay unchanged"
 }
