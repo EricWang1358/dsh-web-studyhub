@@ -190,5 +190,8 @@
   "最近一次按评分标准批改：得分不足六成": "Latest rubric grading: under 60% of the marks",
   "批改未达标": "Below the mark",
   "批改完成": "Graded",
-  "按评分标准批改": "Rubric grading"
+  "按评分标准批改": "Rubric grading",
+  "案例分析卷：限时练长案例": "Case paper: timed practice on long cases",
+  "考试是长案例加开放题？在这里限时做一套：先阅读并用不同颜色高亮线索，再按分值分配时间作答。交卷后按评分标准逐项批改，指出没落到案例上的建议和该写的假设。示例里有一套已经批改好的案例。": "Is your exam a long case with open questions? Sit one here against the clock: read and highlight clues in several colours, then share your time by marks. After submission each answer is graded criterion by criterion, with recommendations that lack a case anchor and the assumptions you should state. The sample includes a graded case.",
+  "批改需要 AI 模型；示例里的批改结果不需要。": "Grading needs an AI model; the sample's graded result does not."
 }
