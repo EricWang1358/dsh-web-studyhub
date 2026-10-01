@@ -123,6 +123,7 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
   let text, tone = 'none';
   if (active) { text = uiFormat('已启用检索：{0}', [providerLabel(active)]); tone = 'on'; }
   else if (retrieval?.effective && retrieval.effective !== 'builtin') { text = ui('已选择的检索工具已启用。'); tone = 'on'; }
+  else if (retrieval.companion?.running) { text = ui('检索扩展已就绪；建好索引后会自动用它挑选页面。'); tone = 'found'; }
   else if (providers.length) { text = uiFormat('检测到 {0} 个检索工具，还没有选择。', [providers.length]); tone = 'found'; }
   else text = ui('没有检测到检索工具。');
   return (

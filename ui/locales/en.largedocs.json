@@ -96,6 +96,7 @@
   "所选资料太大。先在「这次想练什么？」写下主题，再生成。": "The selected material is too large. Write a topic under “What do you want to practise?” first, then generate.",
   "所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。": "The selected material is over what one generation accepts. Narrow it by chapter, or use a retrieval tool as suggested above.",
   "有图形界面的桌面客户端（Windows / macOS）：打开 PDF，导出带页码的 JSON。支持扫描件、公式、表格和中文。": "A desktop client with a normal window (Windows / macOS): open the PDF and export JSON with page numbers. Handles scanned pages, formulas, tables and Chinese.",
+  "检索扩展已就绪；建好索引后会自动用它挑选页面。": "The search extension is ready; once an index is built it is used automatically to pick pages.",
   "需要命令行": "Needs a command line",
   "需要 Docker": "Needs Docker",
   "需要手动配置": "Needs manual setup",

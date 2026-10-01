@@ -188,6 +188,12 @@ test('the card offers the install and the index builder where it is shown', () =
   assert.doesNotMatch(card({ call: undefined, retrieval: fresh }), /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?安装检索扩展/);
 });
 
+test('while the extension runs but holds no index yet, the status line says it will be used once built', () => {
+  assert.match(card({ retrieval: running, initialPlan: plan }), /检索扩展已就绪；建好索引后会自动用它挑选页面/);
+  assert.doesNotMatch(card({ retrieval: running, initialPlan: plan }), /还没有选择/);
+  assert.doesNotMatch(card({ retrieval: running, initialPlan: plan, courses: ['OS'] }, 'en'), han);
+});
+
 test('the card in English', () => {
   for (const reason of ['pdf-size', 'selection', 'long-document']) {
     const html = card({ reason, detail: { name: 'book.pdf', chars: 700000, pages: 400 }, courses: ['OS'] }, 'en');

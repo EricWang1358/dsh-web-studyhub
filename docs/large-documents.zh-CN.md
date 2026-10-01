@@ -23,10 +23,10 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 ## 步骤
 
-1. 用 MinerU 或 Docling（见下）转换 PDF，保留它们输出的 `.json`（或带分页标记的 Markdown）。
-2. 在**添加资料**里拖进这个文件。StudyHub 按内容识别转换结果，一页保存为一份资料，并按标题把书分成章节。每一页保留页码，引用可以回到原页。
+1. 用 **MinerU 桌面客户端**转换 PDF（像普通软件一样下载安装，打开 PDF，导出带页码的 JSON，即 `content_list.json`）。Docling 是命令行的备选（见下，在「高级」里）。
+2. 在**添加资料**里拖进导出的文件。StudyHub 按内容识别转换结果，一页保存为一份资料，并按标题把书分成章节。每一页保留页码，引用可以回到原页。
 3. 在**创建题组**里展开这本书，点**选择章节**，勾选要学的章节。一章就是一组页面；也可以点**改为按页选择**。
-4. 需要整本书出题时，先在 DSH 里添加检索工具（见下），到**设置 › 扩展：文档转换与检索**里选择它，再在**这次想练什么？**写下主题。选好工具后，超过 15 万字符的选择会缩小到工具找到的页面（最多约 12 万字符）。点**预览会用到的页面**可以在生成前勾选或取消页面；**只用勾选的页面**会把选择换成这些页面。任务的执行过程里会写明用了哪些页面。
+4. 需要整本书出题时，点**安装检索扩展**（在卡片上，或在**设置 › 扩展：文档转换与检索**里），再点**为这门课建立检索索引**，然后在**这次想练什么？**写下主题。扩展的索引建好后，超过 15 万字符的选择会缩小到工具找到的页面（最多约 12 万字符）。点**预览会用到的页面**可以在生成前勾选或取消页面；**只用勾选的页面**会把选择换成这些页面。任务的执行过程里会写明用了哪些页面。
 
 ## 推荐的转换工具
 
@@ -34,8 +34,8 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 | 工具 | 协议 | 平台 | MCP | StudyHub 读取的输出 | 说明 |
 |---|---|---|---|---|---|
-| **MinerU**（推荐） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表、带 `page_idx`；v2 按页分组）；Markdown 没有分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，客户端在官网提供。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
-| **Docling**（备选） | MIT | Windows、macOS、Linux | `docling-mcp`（MIT；stdio、SSE、streamable HTTP） | JSON（`DoclingDocument`，`prov.page_no` 从 1 开始）；Markdown | 用命令行或 Python 运行：`docling file.pdf --to json`；OCR 引擎有 RapidOCR、EasyOCR、Tesseract（`--ocr-engine`、`--ocr-lang`）。没有桌面应用。 |
+| **MinerU**（推荐；普通桌面软件） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表、带 `page_idx`；v2 按页分组）；Markdown 没有分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，客户端在官网提供。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
+| **Docling**（高级：需要命令行） | MIT | Windows、macOS、Linux | `docling-mcp`（MIT；stdio、SSE、streamable HTTP） | JSON（`DoclingDocument`，`prov.page_no` 从 1 开始）；Markdown | 用命令行或 Python 运行：`docling file.pdf --to json`；OCR 引擎有 RapidOCR、EasyOCR、Tesseract（`--ocr-engine`、`--ocr-lang`）。没有桌面应用。 |
 
 也核对过、但**不推荐**：
 
@@ -53,18 +53,31 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 「大陆可用」指中国境内托管的页面、模型库 ModelScope，或软件源镜像（清华 PyPI 镜像、npmmirror；DSH 自己的插件管理器也会回退到 npmmirror）。工具要从 Hugging Face 下载的模型文件，可能需要你所在网络提供的镜像；本文不推荐非官方镜像。
 
-## 检索工具
+## 检索扩展（一键安装）
+
+**设置 › 扩展：文档转换与检索**和「大教材建议」卡片里都有**安装检索扩展**。不用改任何文件，不用输入命令，也不用另装 Node、Python 或 Docker。
+
+- **它是什么。**一个很小的配套扩展包 `@ericwang1358/studyhub-retrieval`，作为同一 StudyHub 版本的发布附件提供（`ericwang1358-studyhub-retrieval-<版本>.tgz`，SHA-256 写在 `SHA256SUMS-<版本>.txt` 里）。里面有一个 DSH 插件，用 DSH 自带的 MCP 客户端连接本地检索服务器 [mcp-local-rag](https://github.com/shinpr/mcp-local-rag)（MIT，固定到确切版本），它是这个扩展包的 npm 依赖。
+- **怎么安装。**和 StudyHub 自己升级的方式一样：StudyHub 从项目的 GitHub 发布页下载附件，核对校验值，把核对过的文件放在 `<DSH 主目录>/study/updates`，再交给 DSH 的插件管理器（`ctx.pluginManager.installBundle`）。pnpm 随后从软件源取回服务器及其组件（默认源打不开时，DSH 会回退到 npmmirror）。pnpm 会拦下部分组件的安装脚本；StudyHub 把它们列出来，征得你同意后才放行。全新安装立即生效；替换已装的版本需要重启 DSH，页面会说明。
+- **为什么不用另装别的就能跑。**插件用 DSH 自己运行所用的 Node（`process.execPath`；在 DSH 桌面版里它是以 Node 模式运行的 Electron，所以还会设置 `ELECTRON_RUN_AS_NODE=1`）启动服务器，并在自己旁边找到服务器的入口文件。服务器需要 Node 22 或更新；插件会检查，DSH 的 Node 太旧就不启动，并写日志说明原因。
+- **建立索引。**点**为这门课建立检索索引**，课程的页面会逐页交给服务器，每页用自己的 id（`studyhub://source/<id>`），所以每条命中都能精确对应到页。只发送新的或改过的页，已不在资料库里的页会被移除；建立在后台进行，有进度和停止按钮。第一次建立会下载检索模型：约 90 MB，只下载一次（服务器文档如此说明），开始前页面会先告诉你；之后可以离线使用。
+- **检索效果。**服务器默认的模型针对英文；中文教材照样能检索（它还会加关键词匹配），但语义匹配较弱。项目没有文档说明某个多语言模型，所以没有内置也不推荐。
+- **模型下载不了时。**服务器文档用 `HF_ENDPOINT` 说明可以换下载地址。**高级 → 模型下载地址**保存一个地址（只能是 https），DSH 启动扩展时会传过去，所以改动要重启 DSH 才生效。这里不给出任何镜像地址：项目只说明了这个变量，没有说明镜像。
+- **数据放在哪里。**索引和模型缓存在 `<DSH 主目录>/study/retrieval`；StudyHub 建过哪些索引记在 `<DSH 主目录>/study/retrieval/manifests`；检索提供方的选择在 `<DSH 主目录>/study/retrieval.json`。卸载只移除扩展包，这些数据保留。
+- **自动选用。**索引建好后，除非你自己选过别的提供方，否则扩展会自动成为检索提供方。
+
+## 高级：其他检索工具
 
 StudyHub 通过 DSH 使用检索：DSH 的 MCP 客户端会把已配置的 MCP 服务器的每个工具注册成 `mcp__<服务器>__<工具>`，StudyHub 列出其中像搜索的工具（有文字参数，名称或说明里有 *search*、*query*、*retrieve*、*find*、*lookup*、*recall* 或 *rag*）。你在**设置 › 扩展：文档转换与检索**里选一个；**测试**会运行一次，并告诉你有多少段对应到了你资料里的页面。
 
 | 工具 | 协议 | 需要 | 说明 |
 |---|---|---|---|
-| **mcp-local-rag**（推荐，轻量） | MIT | Node.js 22+（`npx`） | 本地向量模型和向量库；读 PDF、Word、Markdown 和文本；语义检索并加关键词加权（`RAG_HYBRID_WEIGHT`）。默认向量模型（`Xenova/all-MiniLM-L6-v2`）偏英文：中文教材请用 `MODEL_NAME` 换成多语言向量模型（须是兼容均值池化和归一化的 Hugging Face 模型，先看它的 README）。结果带段落文字和文件路径，没有页码，所以 StudyHub 靠段落文字对应到页：请把转换后的 Markdown 放进它读取的文件夹。 |
+| **mcp-local-rag**（扩展替你运行的就是它；手动用：需要 Node.js 和配置文件） | MIT | Node.js 22+（`npx`） | 本地向量模型和向量库；读 PDF、Word、Markdown 和文本；语义检索并加关键词加权（`RAG_HYBRID_WEIGHT`）。默认向量模型（`Xenova/all-MiniLM-L6-v2`）偏英文：中文教材请用 `MODEL_NAME` 换成多语言向量模型（须是兼容均值池化和归一化的 Hugging Face 模型，先看它的 README）。结果带段落文字和文件路径，没有页码，所以 StudyHub 靠段落文字对应到页：请把转换后的 Markdown 放进它读取的文件夹。 |
 | **RAGFlow**（完整知识库） | Apache-2.0 | Docker；建议 4 核 CPU、16 GB 内存、50 GB 磁盘 | 带中文优先文档解析的网页应用，提供 MCP 接口（`/api/v1/mcp`，streamable HTTP）。先用转换后的书建一个知识库。共享的 API 密钥放在 RAGFlow 一侧（它设置里的 `mcp.host_api_key`），所以 DSH 配置里不含密钥。核对过的页面没有写明工具名和结果字段：StudyHub 读取 DSH 给出的参数说明，并按文字对应结果。 |
 
-### 在 DSH 里添加
+### 在 DSH 里手动添加
 
-DSH 没有添加 MCP 服务器的界面：它是一条插件配置。把下面这段加到 DSH 主目录的 `cordis.patch.yml`（接在已有内容后面；开启热重载时 DSH 不用重启就会生效）。设置页和卡片里有同样的文字和**复制配置**按钮。
+只在你不想用一键扩展时才需要：DSH 没有添加 MCP 服务器的界面，它是一条插件配置。把下面这段加到 DSH 主目录的 `cordis.patch.yml`（接在已有内容后面；开启热重载时 DSH 不用重启就会生效）。设置页和卡片里有同样的文字和**复制配置**按钮。
 
 ```yaml
 - insert:
@@ -129,7 +142,12 @@ StudyHub 从 DSH 读取工具的 JSON 参数说明（`ctx.tools.schemas()`），
 
 | 动作 | 用途 |
 |---|---|
-| `retrieval.status` | `{ selected, effective, missing?, hostCanSearch, providers, otherTools, limits }` |
+| `retrieval.status` | `{ selected, effective, missing?, explicit, hfEndpoint?, companion: { id, running }, extension: { canInstall, installed, enabled, version?, desktop }, hostCanSearch, providers, otherTools, limits }`（`extension` 由宿主处理器补上；扩展里有索引、且没有明确选过别的提供方时，它会成为 `effective`） |
+| `retrieval.extension.install { approvedBuilds? }` | `{ status: 'installed', restartRequired, application, version }` 或 `{ status: 'needs-approval', pending }`（带上 `approvedBuilds` 再调用一次）；错误码 `extension-no-installer`、`extension-download`、`extension-checksum`、`extension-install` |
+| `retrieval.extension.uninstall` | 移除扩展包；已选的扩展提供方回到 `builtin` |
+| `retrieval.index.plan { course? }` | `{ course, pages, toIndex, unchanged, toRemove, chars, firstRun, modelMb, canIndex }` |
+| `retrieval.index.start { course? }` / `.status` / `.cancel` | 后台建立：`{ runId, course, status: running\|complete\|failed\|cancelled, stage: preparing\|model\|indexing, done, total, added, removed, unchanged, failed, failedCount, firstRun, error?, errorCode? }`；每个资料库同一时间只有一个 |
+| `retrieval.endpoint.set { endpoint }` | 扩展的模型下载地址（https，留空为默认） |
 | `retrieval.set { provider, queryArg?, limitArg? }` | `provider`：`builtin`、`service` 或 `mcp:<工具>`；保存在 `$DSH_HOME/study/retrieval.json`（没有密钥） |
 | `retrieval.test { query? }` | 无害地调用一次；`{ ok, hits, matched, unresolved }` |
 | `retrieval.preview { sourceIds, query, course?, limit? }` | `{ provider, pages: [{ sourceId, title, page, score, snippet }], unresolved, hits }` |

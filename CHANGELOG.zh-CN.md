@@ -4,7 +4,7 @@
 
 ## 未发布
 
-- **大教材。** PDF 超过 8 MB 或 200 页、所选资料超过 60 万字符、或一本书超过 300 页时，会出现「大教材建议」卡片：推荐的转换工具（MinerU、Docling）、检索工具（mcp-local-rag、RAGFlow）、包括中国大陆可用在内的下载渠道和使用步骤。转换结果（MinerU 的 `content_list.json`、Docling JSON、Marker 或带分页标记的 Markdown）作为一份分页文档导入，并分成章节，不必在几百页里挑。DSH 提供的检索工具（MCP 工具，或插件注册的 `studyRetrieval` 服务）可以在设置里选用，之后出题和 AI 带学只用它找到的页面。见[大教材](docs/large-documents.zh-CN.md)。
+- **大教材。** PDF 超过 8 MB 或 200 页、所选资料超过 60 万字符、或一本书超过 300 页时，会出现「大教材建议」卡片：推荐的转换工具（MinerU、Docling）、检索工具（mcp-local-rag、RAGFlow）、包括中国大陆可用在内的下载渠道和使用步骤。转换结果（MinerU 的 `content_list.json`、Docling JSON、Marker 或带分页标记的 Markdown）作为一份分页文档导入，并分成章节，不必在几百页里挑。DSH 提供的检索工具（MCP 工具，或插件注册的 `studyRetrieval` 服务）可以在设置里选用，之后出题和 AI 带学只用它找到的页面。**一键安装检索扩展**（随每个版本发布的配套扩展包，通过 DSH 插件管理器安装，用 DSH 自己的 Node 运行：不用改任何文件，也不用另装别的），**再点一下就在后台为一门课建立检索索引**，只处理新的或改过的页。MinerU 桌面客户端是第一个转换工具；命令行、Docker 和手写配置都收到了「高级」里。见[大教材](docs/large-documents.zh-CN.md)。
 
 ## 2.1.1 — 2026-10-02
 
