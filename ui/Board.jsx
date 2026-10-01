@@ -1,207 +1,337 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import Markdown from "./Markdown.jsx";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useInjectCss } from "./shared.js";
-import css from "./views.css";
+import { Button, Dialog, EmptyState, IconButton, InlineMessage, PageHeader, ToastRegion } from "./components/index.js";
+import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
+import { createBoardStore } from "./board/store.js";
+import BoardCard from "./board/Card.jsx";
+import Composer from "./board/Composer.jsx";
+import CardEditor from "./board/CardEditor.jsx";
+import FilterBar from "./board/FilterBar.jsx";
+import Menu from "./board/Menu.jsx";
+import BIcon from "./board/icons.jsx";
+import { boardColumnLabel, cardsText, stamp, studyRefLabel } from "./board/meta.js";
+import css from "./board/board.css";
 
-// One subscription serves both the navigation badge and the visible board.
+export { boardColumnLabel };
+
+/** One subscription serves both the navigation badge and the visible board. */
 export function useBoard(call, visible) {
-  const [board, setBoard] = useState(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const current = useRef(null), sequence = useRef(0), writing = useRef(false), reading = useRef(false);
-  const accept = useCallback((next) => {
-    if (!next.unchanged) {
-      current.current = next;
-      setBoard(next);
-    }
-  }, []);
-  const refresh = useCallback(async () => {
-    if (writing.current || reading.current) return;
-    reading.current = true;
-    const ticket = ++sequence.current;
-    try {
-      const next = await call("board.get", current.current && !current.current.readOnly
-        ? { since: current.current.revision } : {});
-      if (ticket === sequence.current) accept(next);
-    } catch (e) {
-      if (ticket === sequence.current) setError(e.message);
-    } finally {
-      reading.current = false;
-    }
-  }, [call, accept]);
-  const invalidate = useCallback(() => { sequence.current++; }, []);
+  const latest = useRef(call);
+  latest.current = call;
+  const store = useMemo(() => createBoardStore((action, args) => latest.current(action, args)), []);
+  const snapshot = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   useEffect(() => {
-    refresh();
-    const timer = setInterval(() => {
-      if (!document.hidden) refresh();
-    }, visible ? 5000 : 30000);
-    return () => { clearInterval(timer); invalidate(); };
-  }, [refresh, visible, invalidate]);
-  const mutate = async (action, args = {}) => {
-    if (writing.current || !current.current || current.current.readOnly) return false;
-    writing.current = true;
-    sequence.current++;
-    setBusy(true);
-    setError("");
-    let succeeded = false;
-    try {
-      accept(await call(action, { revision: current.current.revision, ...args }));
-      succeeded = true;
-      return true;
-    } catch (e) {
-      setError(e.message);
-      return false;
-    } finally {
-      writing.current = false;
-      setBusy(false);
-      if (!succeeded) refresh();
-    }
-  };
-  return { board, error, busy, mutate, refresh };
+    store.refresh();
+    const timer = setInterval(() => { if (!document.hidden) store.refresh(); }, visible ? 5000 : 30000);
+    return () => { clearInterval(timer); store.invalidate(); };
+  }, [store, visible]);
+  return useMemo(() => ({ ...snapshot, mutate: store.mutate, refresh: store.refresh, clearError: store.clearError }), [snapshot, store]);
 }
 
-function CardEditor({ card, revision, board, busy, error, mutate, onClose }) {
-  const dialog = useRef(null);
-  const [draft, setDraft] = useState(() => ({ ...card, labels: (card.labels || []).join(", ") }));
-  const [base, setBase] = useState(revision);
-  const stale = board.revision !== base;
-  const latest = board.cards[card.id];
-  useEffect(() => {
-    const element = dialog.current;
-    element.showModal();
-    return () => element.close();
-  }, []);
-  const field = (key) => (e) => setDraft((d) => ({ ...d, [key]: e.target.value }));
-  return <dialog ref={dialog} className="board-dialog" aria-labelledby="board-editor-title"
-    onCancel={(e) => { e.preventDefault(); if (!busy) onClose(); }}>
-    <form onSubmit={async (e) => {
-      e.preventDefault();
-      if (await mutate("board.card.edit", { id: card.id, revision: base, title: draft.title,
-        note: draft.note, due: draft.due, labels: draft.labels.split(/[,，]/).map((s) => s.trim()).filter(Boolean) })) onClose();
-    }}>
-      <header><h2 id="board-editor-title">{ui("编辑待办")}</h2><button type="button" disabled={busy} onClick={onClose} aria-label={ui("关闭编辑")}>×</button></header>
-      {error && <p role="alert" className="wb-error">{error}</p>}
-      <fieldset disabled={busy || board.readOnly}>
-        <label>{ui("标题")}<input autoFocus required maxLength={200} value={draft.title} onChange={field("title")} /></label>
-        <label>{ui("备注 · 支持 Markdown")}<textarea rows={6} maxLength={20000} value={draft.note || ""} onChange={field("note")} /></label>
-        {draft.note && <details><summary>{ui("预览备注")}</summary><Markdown text={draft.note} /></details>}
-        <label>{ui("截止日期")}<input type="date" value={draft.due || ""} onChange={field("due")} /></label>
-        <label>{ui("标签 · 用逗号分隔")}<input value={draft.labels} onChange={field("labels")} maxLength={500} /></label>
-        {stale && <div className="board-conflict" role="status">{ui("看板已在其他位置更新。你的输入仍保留；请先查看最新卡片再编辑。")}{latest ? <button type="button" onClick={() => {
-            setDraft({ ...latest, labels: (latest.labels || []).join(", ") }); setBase(board.revision);
-          }}>{ui("载入最新卡片（替换当前输入）")}</button> : <p>{ui("这张卡片已被移除或归档。")}</p>}
-        </div>}
-      </fieldset>
-      <footer><button type="button" disabled={busy} onClick={onClose}>{ui("取消")}</button><button className="primary" disabled={busy || stale || board.readOnly}>{ui("保存")}</button></footer>
-    </form>
-  </dialog>;
-}
+const MOVE_KEYS = { left: -1, right: 1 };
+const COLLAPSE_KEY = "study-board-collapsed";
+const readCollapsed = () => { try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "[]")); } catch { return new Set(); } };
+const writeCollapsed = (set) => { try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set])); } catch { /* a per-viewer convenience only */ } };
+const friendly = (error, conflict) => conflict ? ui("看板已在其他位置更新，已载入最新内容，请再试一次。") : error;
 
-const defaultColumnTitles = { todo: '待办', doing: '进行中', done: '已完成' };
-export const boardColumnLabel = column => column.title === defaultColumnTitles[column.id] ? ui(column.title) : column.title;
-
-function BoardColumn({ column, board, today, busy, mutate, onEdit, onOrigin, onStudyRef, studyRef, onClearStudyRef }) {
+function Column({ column, view, board, today, library, drag, drop, setDrag, setDrop, hasDone, composer, collapsed, filtering, readOnly, labelSuggestions,
+  studyRef, onClearStudyRef, onOpenComposer, onCloseComposer, onAdd, onToggleDone, onEdit, onAction, onDropTo, onRename, onFold, onRemove, onOrigin, onStudyRef }) {
   const label = boardColumnLabel(column);
-  const [title, setTitle] = useState("");
+  const shown = view.cardIds;
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.title);
-  const [over, setOver] = useState(false);
-  const position = board.columns.findIndex((c) => c.id === column.id);
-  const disabled = busy || board.readOnly;
-  const move = (id, target, index) => mutate("board.card.move", { id, column: target, index });
-  const drop = (e, index) => {
-    e.preventDefault(); e.stopPropagation(); setOver(false);
-    const id = e.dataTransfer.getData("application/x-study-board-card");
-    if (!board.cards[id] || disabled) return;
-    // Drop before a card; account for the removed source slot in this column.
-    const from = column.cardIds.indexOf(id);
-    move(id, column.id, from >= 0 && from < index ? index - 1 : index);
+  const columns = board.columns.map((entry) => ({ id: entry.id, title: entry.title, done: entry.done }));
+  const dropHere = drop?.column === column.id;
+  // A slot among the visible cards maps back to the real position in the full column.
+  const realIndex = (slot) => slot >= shown.length ? column.cardIds.length : column.cardIds.indexOf(shown[slot]);
+  const aim = (event, slot) => {
+    if (!drag || readOnly) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (!drop || drop.column !== column.id || drop.slot !== slot) setDrop({ column: column.id, slot });
   };
-  return <section className={`board-column${over ? " is-over" : ""}`} aria-label={label}
-    onDragOver={(e) => { if (!disabled) { e.preventDefault(); setOver(true); } }}
-    onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false); }}
-    onDrop={(e) => drop(e, column.cardIds.length)}>
-    <header className="board-column-heading">
-      <span className={column.done ? "board-dot is-done" : "board-dot"} />
-      <h2>{label}</h2><span className="board-count">{column.cardIds.length}</span>
-      <button disabled={disabled} aria-label={uiFormat("设置列 {0}", [label])} title={ui("重命名或删除空列")} onClick={() => { setName(column.title); setRenaming(!renaming); }}>···</button>
+  const finish = (event) => {
+    event.preventDefault(); event.stopPropagation();
+    const id = event.dataTransfer.getData("application/x-study-board-card") || drag?.id;
+    const target = drop?.column === column.id ? drop.slot : shown.length;
+    setDrag(null); setDrop(null);
+    if (id && board.cards[id]) onDropTo(id, column.id, realIndex(target));
+  };
+  const items = [
+    { id: "rename", label: ui("重命名"), icon: "rename" },
+    { id: "fold", label: collapsed ? ui("展开列") : ui("折叠"), icon: "fold" },
+    { id: "remove", label: ui("删除空列"), icon: "trash", danger: true, disabled: column.cardIds.length > 0 || board.columns.length <= 1,
+      hint: column.cardIds.length > 0 ? ui("只能删除空列") : undefined },
+  ];
+  const showLine = (slot) => dropHere && drop.slot === slot && !(drag && column.cardIds.includes(drag.id)
+    && [column.cardIds.indexOf(drag.id), column.cardIds.indexOf(drag.id) + 1].includes(realIndex(slot)));
+  return <section className={`board-column${dropHere ? " is-over" : ""}${collapsed ? " is-collapsed" : ""}`} aria-label={label}
+    onDragOver={(event) => aim(event, shown.length)}
+    onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDrop(null); }}
+    onDrop={finish}>
+    <header className="board-column__head">
+      <span className={column.done ? "board-dot is-done" : "board-dot"} aria-hidden="true" />
+      {renaming
+        ? <form className="board-column__rename" onSubmit={async (event) => { event.preventDefault(); if (name.trim() && await onRename(column, name.trim())) setRenaming(false); }}>
+          <input autoFocus aria-label={ui("列名称")} value={name} maxLength={80} onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setRenaming(false); } }} onBlur={() => setRenaming(false)} />
+        </form>
+        : <h2 className="board-column__title">{label}</h2>}
+      <span className="board-count" aria-label={cardsText(column.cardIds.length)}>{filtering && shown.length !== column.cardIds.length ? `${shown.length}/${column.cardIds.length}` : column.cardIds.length}</span>
+      {!readOnly && <Menu label={uiFormat("列设置：{0}", [label])} items={items} className="board-column__menu"
+        onSelect={(id) => { if (id === "rename") { setName(column.title); setRenaming(true); } else if (id === "fold") onFold(column); else onRemove(column); }} />}
     </header>
-    {renaming && <form className="board-column-settings" onSubmit={async (e) => {
-      e.preventDefault(); if (await mutate("board.column.rename", { id: column.id, title: name })) setRenaming(false);
-    }}>
-      <input aria-label={ui("列名称")} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} disabled={disabled} />
-      <button disabled={disabled}>{ui("保存列名")}</button>
-      <button type="button" disabled={disabled || !!column.cardIds.length || board.columns.length <= 1} onClick={() => mutate("board.column.remove", { id: column.id })}>{ui("删除空列")}</button>
-    </form>}
-    <div className="board-cards">
-      {column.cardIds.map((id, index) => {
-        const card = board.cards[id];
-        const overdue = card.due && !column.done && card.due < today;
-        return <article key={id} className="board-card" draggable={!disabled}
-          onDragStart={(e) => { e.dataTransfer.setData("application/x-study-board-card", id); e.dataTransfer.effectAllowed = "move"; }}
-          onDrop={(e) => drop(e, index)}>
-          <button className="board-card-title" disabled={disabled} onClick={() => onEdit(card)}>{card.title}</button>
-          {card.note && <p className="board-note">{card.note}</p>}
-          {!!card.labels?.length && <div className="board-labels">{card.labels.map((label) => <span key={label}>{label}</span>)}</div>}
-          {card.due && <small className={overdue ? "board-due is-overdue" : "board-due"}>{overdue ? ui("已逾期 · ") : ui("截止 · ")}{card.due}</small>}
-          {card.origin?.workspace && <button className="board-origin" title={card.origin.workspace} disabled={!onOrigin} onClick={() => onOrigin?.(card.origin.workspace)}>{card.origin.workspaceTitle || card.origin.workspace} ↗</button>}
-          {card.studyRef && <button className="board-origin" title={card.studyRef.root} disabled={!onStudyRef}
-            onClick={() => onStudyRef?.(card.studyRef)}>{ui("打开关联内容")} ↗</button>}
-          <div className="board-card-controls" role="group" aria-label={uiFormat("移动 {0}", [card.title])}>
-            <button aria-label={uiFormat("左移 {0}", [card.title])} disabled={disabled || position === 0} onClick={() => move(id, board.columns[position - 1].id)}>←</button>
-            <button aria-label={uiFormat("右移 {0}", [card.title])} disabled={disabled || position === board.columns.length - 1} onClick={() => move(id, board.columns[position + 1].id)}>→</button>
-            <button aria-label={uiFormat("上移 {0}", [card.title])} disabled={disabled || index === 0} onClick={() => move(id, column.id, index - 1)}>↑</button>
-            <button aria-label={uiFormat("下移 {0}", [card.title])} disabled={disabled || index === column.cardIds.length - 1} onClick={() => move(id, column.id, index + 1)}>↓</button>
-            <button className="board-archive" disabled={disabled} onClick={() => mutate("board.card.archive", { id })}>{ui("归档")}</button>
-          </div>
-        </article>;
-      })}
-      {!column.cardIds.length && <p className="board-empty">{ui("暂无卡片")}<br /><small>{ui("添加待办，或将卡片拖到这里")}</small></p>}
-    </div>
-    <form className="board-add" onSubmit={async (e) => {
-      e.preventDefault(); if (await mutate("board.card.add", { column: column.id, title,
-        ...(studyRef ? { studyRef } : {}) })) { setTitle(""); onClearStudyRef?.(); }
-    }}>
-      <input aria-label={uiFormat("添加卡片到{0}", [label])} placeholder={ui("＋ 添加卡片")} value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} disabled={disabled} />
-      {studyRef && <small className="muted">{ui("关联当前学习内容")}: {studyRef.kind === 'card' ? studyRef.cardId : studyRef.kind === 'course' ? studyRef.course || ui('未分类') : studyRef.id || studyRef.sessionId || studyRef.runId}
-        <button type="button" onClick={onClearStudyRef}>{ui("不关联")}</button></small>}
-      {title && <button disabled={disabled || !title.trim()}>{ui("添加")}</button>}
-    </form>
+    {!collapsed && <>
+      <div className="board-cards" onDragOver={(event) => {
+        // The slot is the first card whose middle is below the pointer; gaps never flicker.
+        const cards = [...event.currentTarget.querySelectorAll(":scope > .board-card")];
+        let slot = cards.length;
+        for (let at = 0; at < cards.length; at++) {
+          const box = cards[at].getBoundingClientRect();
+          if (event.clientY < box.top + box.height / 2) { slot = at; break; }
+        }
+        aim(event, slot);
+        event.stopPropagation();
+      }}>
+        {shown.map((id, slot) => {
+          const card = board.cards[id];
+          return <React.Fragment key={id}>
+            {showLine(slot) && <div className="board-drop-line" aria-hidden="true" />}
+            <BoardCard card={card} column={column} columns={columns} index={column.cardIds.indexOf(id)} count={column.cardIds.length} today={today} library={library}
+              readOnly={readOnly} hasDone={hasDone} dragging={drag?.id === id} onToggleDone={onToggleDone} onEdit={onEdit} onAction={onAction}
+              onOrigin={onOrigin} onStudyRef={onStudyRef}
+              articleProps={{
+                onDragStart: (event) => { event.dataTransfer.setData("application/x-study-board-card", id); event.dataTransfer.effectAllowed = "move"; setDrag({ id }); },
+                onDragEnd: () => { setDrag(null); setDrop(null); },
+              }} />
+          </React.Fragment>;
+        })}
+        {showLine(shown.length) && <div className="board-drop-line" aria-hidden="true" />}
+        {!shown.length && !composer && (filtering && column.cardIds.length
+          ? <p className="board-column__none">{ui("没有符合筛选的卡片")}</p>
+          : <EmptyState size="sm" title={ui("暂无卡片")} description={ui("把卡片拖到这里，或点下面添加。")} />)}
+      </div>
+      {!readOnly && (composer
+        ? <Composer columnTitle={label} studyRef={studyRef} library={library} labelSuggestions={labelSuggestions} onSubmit={(fields) => onAdd(column, fields)}
+          onClose={onCloseComposer} onClearStudyRef={onClearStudyRef} />
+        : <Button variant="quiet" size="sm" icon="plus" className="board-column__add" onClick={() => onOpenComposer(column.id)}>{ui("添加卡片")}</Button>)}
+    </>}
   </section>;
 }
 
-export default function Board({ state, onOrigin, onStudyRef, studyRef, onClearStudyRef }) {
-  useInjectCss(css, "study-views");
-  const { board, error, busy, mutate, refresh } = state;
-  const [editing, setEditing] = useState(null);
-  const [columnTitle, setColumnTitle] = useState("");
-  const [archive, setArchive] = useState(false);
-  const [originError, setOriginError] = useState("");
-  const today = new Date().toLocaleDateString("sv-SE");
-  return <section className="page board-page">
-    <div className="page-heading"><div><div className="eyebrow">ACROSS WORKSPACES</div><h1>{ui("待办看板")}</h1><p className="muted">{ui("所有工作区共用。把想做的事记下来，逐步完成。")}</p></div>
-      <div className="board-actions"><button onClick={refresh} disabled={busy}>{ui("刷新")}</button><button onClick={() => setArchive(!archive)} aria-pressed={archive}>{ui("归档")}{board ? ` (${board.archived.length})` : ""}</button></div>
+function NewColumn({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  if (!open) return <div className="board-column board-column--new"><Button variant="quiet" size="sm" icon="plus" onClick={() => setOpen(true)}>{ui("新建列")}</Button></div>;
+  return <form className="board-column board-column--new is-editing" onSubmit={async (event) => { event.preventDefault(); if (name.trim() && await onAdd(name.trim())) { setName(""); setOpen(false); } }}>
+    <input autoFocus aria-label={ui("新列名称")} placeholder={ui("新列名称")} maxLength={80} value={name} onChange={(event) => setName(event.target.value)}
+      onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false); setName(""); } }} />
+    <div className="board-column__rename-actions">
+      <Button type="submit" variant="primary" size="sm" disabled={!name.trim()}>{ui("添加")}</Button>
+      <Button variant="quiet" size="sm" onClick={() => { setOpen(false); setName(""); }}>{ui("取消")}</Button>
     </div>
-    {(error || board?.error || originError) && <p role="alert" className="wb-error">{originError || board?.error || error}</p>}
-    {!board && <p className="muted">{ui("正在读取待办…")}</p>}
-    {board && <>
-      {archive ? <section className="board-archive-list" aria-label={ui("已归档卡片")}>
-        <h2>{ui("已归档")}</h2><p className="muted">{ui("恢复后会回到第一列。")}</p>
-        {!board.archived.length && <p>{ui("没有已归档的卡片。")}</p>}
-        {board.archived.map((card) => <article key={card.id}><span>{card.title}</span><button disabled={busy || board.readOnly || !board.columns.length} onClick={() => mutate("board.card.restore", { id: card.id })}>{ui("恢复")}</button></article>)}
-      </section> : <>
-        <div className="board-columns">{board.columns.map((column) => <BoardColumn key={column.id} column={column} board={board} today={today} busy={busy} mutate={mutate}
-          onEdit={(card) => setEditing({ card, revision: board.revision })}
-          onStudyRef={onStudyRef ? async (ref) => { try { setOriginError(''); await onStudyRef(ref); } catch (e) { setOriginError(e.message); } } : undefined}
-          studyRef={studyRef} onClearStudyRef={onClearStudyRef}
-          onOrigin={onOrigin ? async (workspace) => { try { setOriginError(""); await onOrigin(workspace); } catch (e) { setOriginError(e.message); } } : undefined} />)}</div>
-        <form className="board-new-column" onSubmit={async (e) => { e.preventDefault(); if (await mutate("board.column.add", { title: columnTitle })) setColumnTitle(""); }}>
-          <input aria-label={ui("新列名称")} placeholder={ui("新列名称")} maxLength={80} required value={columnTitle} disabled={busy || board.readOnly} onChange={(e) => setColumnTitle(e.target.value)} />
-          <button disabled={busy || board.readOnly || !columnTitle.trim()}>{ui("＋ 添加列")}</button>
-        </form>
-      </>}
-      {editing && <CardEditor {...editing} board={board} busy={busy} error={error} mutate={mutate} onClose={() => setEditing(null)} />}
-    </>}
+  </form>;
+}
+
+function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) {
+  return <section className="board-archive-list" aria-label={ui("已归档卡片")}>
+    <div className="board-archive-list__head">
+      <Button variant="link" size="sm" icon="arrow-left" onClick={onBack}>{ui("返回看板")}</Button>
+      <h2>{ui("已归档")}</h2><p className="muted">{ui("恢复后会回到第一列。")}</p>
+    </div>
+    {!board.archived.length && <EmptyState size="sm" icon="check" title={ui("没有已归档的卡片")} description={ui("在卡片的 ⋯ 菜单里选「归档」，完成的事会收到这里。")} />}
+    <ul>
+      {[...board.archived].reverse().map((card) => <li key={card.id}>
+        <div className="board-archive-list__text">
+          <span className="board-archive-list__title">{card.title}</span>
+          <span className="board-archive-list__meta">{uiFormat("更新于 {0}", [stamp(card.updatedAt)])}{card.studyRef ? ` · ${studyRefLabel(card.studyRef, library).text}` : ""}</span>
+        </div>
+        <Button variant="secondary" size="sm" icon={<BIcon name="undo" />} disabled={readOnly || !board.columns.length} onClick={() => onRestore(card)}>{ui("恢复")}</Button>
+        <IconButton icon={<BIcon name="trash" size={18} />} size="sm" label={uiFormat("永久删除：{0}", [card.title])} disabled={readOnly} onClick={() => onDelete(card)} />
+      </li>)}
+    </ul>
+  </section>;
+}
+
+export default function Board({ state, library, today: todayProp, onOrigin, onStudyRef, studyRef, onClearStudyRef }) {
+  useInjectCss(css, "study-board");
+  const { board, error, conflict, busy, mutate, refresh, clearError } = state;
+  const today = todayProp || localDate();
+  const [editing, setEditing] = useState(null);
+  const [archive, setArchive] = useState(false);
+  const [query, setQuery] = useState({});
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [composer, setComposer] = useState(() => studyRef && board?.columns?.length ? board.columns[0].id : null);
+  const [confirm, setConfirm] = useState(null);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [drag, setDrag] = useState(null);
+  const [drop, setDrop] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [originError, setOriginError] = useState("");
+  const boardRef = useRef(board), focusId = useRef(null), announced = useRef(0), toastCount = useRef(0);
+  boardRef.current = board;
+
+  // A study link handed over from "加入待办" opens the composer with the chip attached.
+  useEffect(() => { if (studyRef && boardRef.current?.columns?.length) setComposer(boardRef.current.columns[0].id); }, [studyRef]);
+  // Keyboard moves keep focus on the card that moved.
+  useEffect(() => {
+    if (!focusId.current) return;
+    const id = focusId.current;
+    const frame = requestAnimationFrame(() => { document.querySelector(`[data-card-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: false }); focusId.current = null; });
+    return () => cancelAnimationFrame(frame);
+  }, [board]);
+  // An undo offer lives a few seconds.
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = setTimeout(() => setToast((current) => current?.id === toast.id ? null : current), 8000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const say = useCallback((message) => { announced.current += 1; setAnnouncement(announced.current % 2 ? message : `${message}​`); }, []);
+  const offer = useCallback((message, undo) => {
+    toastCount.current += 1;
+    setToast({ id: toastCount.current, message, undo });
+    say(message);
+  }, [say]);
+  const run = useCallback((action, args, options) => (mutate ? mutate(action, args, options) : Promise.resolve(false)), [mutate]);
+
+  const columnName = (id) => { const column = boardRef.current.columns.find((entry) => entry.id === id); return column ? boardColumnLabel(column) : ""; };
+  const moveCard = useCallback(async (id, column, index, { quiet = false } = {}) => {
+    const now = boardRef.current, from = locateCard(now, id);
+    if (!from) return false;
+    const title = now.cards[id].title;
+    const ok = await run("board.card.move", { id, column, ...(index === undefined ? {} : { index }) });
+    if (!ok) return false;
+    const to = locateCard(boardRef.current, id);
+    const total = boardRef.current.columns.find((entry) => entry.id === column)?.cardIds.length || 0;
+    const message = column === from.column
+      ? uiFormat("已移到第 {0} 位（共 {1} 张）", [(to?.index ?? 0) + 1, total])
+      : uiFormat("已移到「{0}」：{1}", [columnName(column), title]);
+    if (quiet) say(message);
+    else offer(message, () => run("board.card.move", { id, column: from.column, index: from.index }));
+    return true;
+  }, [run, offer, say]);
+
+  const archiveCard = useCallback(async (card) => {
+    const from = locateCard(boardRef.current, card.id);
+    if (!from || !(await run("board.card.archive", { id: card.id }))) return false;
+    offer(uiFormat("已归档：{0}", [card.title]), () => run("board.card.restore", { id: card.id, column: from.column, index: from.index }));
+    return true;
+  }, [run, offer]);
+
+  const deleteCard = useCallback(async (card) => {
+    const now = boardRef.current, from = locateCard(now, card.id);
+    const snapshot = structuredClone(now.cards[card.id] || now.archived.find((entry) => entry.id === card.id));
+    if (!snapshot || !(await run("board.card.remove", { id: card.id }))) return false;
+    if (from) offer(uiFormat("已删除：{0}", [card.title]), () => run("board.card.undelete", { card: snapshot, column: from.column, index: from.index }));
+    else say(uiFormat("已删除：{0}", [card.title]));
+    return true;
+  }, [run, offer, say]);
+
+  const toggleDone = useCallback(async (card) => {
+    const target = doneToggleTarget(boardRef.current, card.id);
+    if (!target) return;
+    const wasDone = !!boardRef.current.columns.find((entry) => entry.cardIds.includes(card.id))?.done;
+    const from = locateCard(boardRef.current, card.id);
+    if (!(await run("board.card.move", { id: card.id, column: target.column, index: target.index }))) return;
+    offer(wasDone ? uiFormat("已移回「{0}」：{1}", [columnName(target.column), card.title]) : uiFormat("已完成：{0}", [card.title]),
+      () => run("board.card.move", { id: card.id, column: from.column, index: from.index }));
+  }, [run, offer]);
+
+  const onAction = useCallback(async (action, card) => {
+    const now = boardRef.current, from = locateCard(now, card.id);
+    if (!from) return;
+    const position = now.columns.findIndex((entry) => entry.id === from.column);
+    if (action.startsWith("to:")) { await moveCard(card.id, action.slice(3)); return; }
+    if (action === "edit") { setEditing({ id: card.id, revision: now.revision }); return; }
+    if (action === "archive") { await archiveCard(card); return; }
+    if (action === "delete") { setConfirm({ kind: "delete", card }); return; }
+    if (action === "up" || action === "down") {
+      const index = from.index + (action === "up" ? -1 : 1), size = now.columns[position].cardIds.length;
+      if (index < 0 || index >= size) return;
+      focusId.current = card.id;
+      await moveCard(card.id, from.column, index, { quiet: true });
+      return;
+    }
+    if (action === "left" || action === "right") {
+      const next = now.columns[position + MOVE_KEYS[action]];
+      if (!next) return;
+      focusId.current = card.id;
+      await moveCard(card.id, next.id, Math.min(from.index, next.cardIds.length), { quiet: true });
+    }
+  }, [moveCard, archiveCard]);
+
+  const addCard = useCallback(async (column, fields) => {
+    const args = { column: column.id, title: fields.title, labels: fields.labels, ...(fields.note ? { note: fields.note } : {}), ...(fields.due ? { due: fields.due } : {}),
+      ...(studyRef ? { studyRef } : {}) };
+    const ok = await run("board.card.add", args, { optimistic: false });
+    if (ok) { onClearStudyRef?.(); say(uiFormat("已添加到「{0}」：{1}", [boardColumnLabel(column), fields.title])); }
+    return ok;
+  }, [run, studyRef, onClearStudyRef, say]);
+
+  const openRef = (fn) => fn ? async (value) => { try { setOriginError(""); await fn(value); } catch (e) { setOriginError(e.message); } } : undefined;
+  const flip = (column) => setCollapsed((current) => { const next = new Set(current); if (!next.delete(column.id)) next.add(column.id); writeCollapsed(next); return next; });
+
+  const readOnly = !board || !!board.readOnly;
+  const filtering = isFiltering(query);
+  const view = useMemo(() => board ? filterCards(board, { ...query, today }) : null, [board, query, today]);
+  const labels = useMemo(() => board ? labelCounts(board) : [], [board]);
+  const total = board ? Object.keys(board.cards).length : 0;
+  const matched = view ? view.columns.reduce((sum, column) => sum + column.cardIds.length, 0) : 0;
+  const hasDone = !!board?.columns.some((column) => column.done);
+  const editingCard = editing && board?.cards[editing.id];
+  const message = originError || (board?.readOnly ? board.error : friendly(error, conflict));
+
+  return <section className="page board-page">
+    <PageHeader title={ui("待办看板")} eyebrow={ui("所有工作区")} description={ui("所有工作区共用。把想做的事记下来，逐步完成。")}
+      actions={<>
+        <IconButton icon={<BIcon name="refresh" size={18} />} label={ui("刷新")} size="sm" disabled={busy} onClick={() => refresh({ force: true })} />
+        <Button variant="quiet" size="sm" icon={<BIcon name="archive" />} aria-pressed={archive} onClick={() => setArchive(!archive)}>{ui("归档")}{board ? ` (${board.archived.length})` : ""}</Button>
+        {!archive && <Button variant="primary" icon="plus" disabled={readOnly || !board?.columns.length} onClick={() => setComposer(board.columns[0].id)}>{ui("添加卡片")}</Button>}
+      </>} />
+    {message && <InlineMessage tone={board?.readOnly ? "error" : conflict ? "warning" : "error"} boxed onDismiss={board?.readOnly ? undefined : () => { setOriginError(""); clearError?.(); }}>{message}</InlineMessage>}
+    {!board && <p className="muted board-loading" role="status">{ui("正在读取待办…")}</p>}
+    {board && (archive
+      ? <ArchiveList board={board} readOnly={readOnly} library={library} onBack={() => setArchive(false)}
+        onRestore={async (card) => { if (await run("board.card.restore", { id: card.id })) say(uiFormat("已恢复：{0}", [card.title])); }}
+        onDelete={(card) => setConfirm({ kind: "purge", card })} />
+      : <>
+        {(total > 0 || filtering) && <FilterBar query={query} labels={labels} onChange={setQuery} open={filterOpen} onToggle={() => setFilterOpen(!filterOpen)} matched={matched} total={total} />}
+        {total === 0 && !archive && <EmptyState icon="check" title={ui("还没有待办")} className="board-empty"
+          description={ui("把想做的事记在这里。在复习、题目或学习流里点「加入待办」，会把当前内容一起记下来。")}
+          primary={{ label: ui("添加第一张卡片"), icon: "plus", disabled: readOnly, onClick: () => setComposer(board.columns[0].id) }} />}
+        {filtering && matched === 0 && total > 0 && <EmptyState size="sm" icon={<BIcon name="search" size={22} />} title={ui("没有符合筛选的卡片")} className="board-empty"
+          secondary={{ label: ui("清除筛选"), onClick: () => setQuery({}) }} />}
+        <div className="board-columns" style={{ "--board-cols": board.columns.length }}>
+          {view.columns.map((column, at) => <Column key={column.id} column={board.columns[at]} view={column} board={board} today={today} library={library} drag={drag} drop={drop}
+            setDrag={setDrag} setDrop={setDrop} hasDone={hasDone} composer={composer === column.id} collapsed={collapsed.has(column.id)} filtering={filtering} readOnly={readOnly}
+            labelSuggestions={labels.map((entry) => entry.label)} studyRef={studyRef} onClearStudyRef={onClearStudyRef}
+            onOpenComposer={setComposer} onCloseComposer={() => setComposer(null)} onAdd={addCard} onToggleDone={toggleDone} onEdit={(card) => onAction("edit", card)} onAction={onAction}
+            onDropTo={(id, target, index) => moveCard(id, target, index)}
+            onRename={(entry, title) => run("board.column.rename", { id: entry.id, title })} onFold={flip}
+            onRemove={(entry) => run("board.column.remove", { id: entry.id })}
+            onOrigin={openRef(onOrigin)} onStudyRef={openRef(onStudyRef)} />)}
+          {!readOnly && <NewColumn onAdd={(title) => run("board.column.add", { title }, { optimistic: false })} />}
+        </div>
+      </>)}
+    {editingCard && <CardEditor key={editing.id} card={editingCard} board={board} baseRevision={editing.revision} library={library} today={today}
+      labelSuggestions={labels.map((entry) => entry.label)} saving={saving} error={message} conflict={conflict} onClose={() => { setEditing(null); clearError?.(); }}
+      onSave={async (fields) => { setSaving(true); const ok = await run("board.card.edit", { id: editingCard.id, revision: editing.revision, ...fields }, { optimistic: false }); setSaving(false); return ok; }}
+      onArchive={async (card) => { setEditing(null); await archiveCard(card); }} onDelete={async (card) => { setEditing(null); await deleteCard(card); }}
+      onOrigin={openRef(onOrigin) && ((workspace) => { setEditing(null); return openRef(onOrigin)(workspace); })}
+      onStudyRef={openRef(onStudyRef) && ((ref) => { setEditing(null); return openRef(onStudyRef)(ref); })} />}
+    {confirm && <Dialog size="sm" title={confirm.kind === "purge" ? ui("永久删除这张卡片？") : ui("删除这张卡片？")} onClose={() => setConfirm(null)}
+      description={confirm.kind === "purge" ? ui("它会从归档里消失，无法恢复。") : ui("删除后会立刻提示，可撤销。")}
+      footer={<>
+        <Button variant="quiet" onClick={() => setConfirm(null)}>{ui("保留")}</Button>
+        <Button variant="danger" icon={<BIcon name="trash" />} onClick={async () => { const { card, kind } = confirm; setConfirm(null); await (kind === "purge" ? run("board.card.remove", { id: card.id }) : deleteCard(card)); }}>{ui("确认删除")}</Button>
+      </>}><p className="board-confirm__title">{confirm.card.title}</p></Dialog>}
+    <div className="sh-visually-hidden" role="status" aria-live="polite">{announcement}</div>
+    <ToastRegion placement="page" toasts={toast ? [{ id: toast.id, tone: "success", message: toast.message, persistent: true,
+      action: toast.undo ? { label: ui("撤销"), onClick: async () => { const undo = toast.undo; setToast(null); if (await undo()) say(ui("已撤销")); } } : undefined }] : []}
+      onDismiss={() => setToast(null)} />
   </section>;
 }

@@ -1843,7 +1843,7 @@ export default function App({ call: transportCall, host = {} }) {
           onSettings={() => setPage("settings")} onSources={() => setPage("sources")}
           onJobs={() => { void refresh().catch((failure) => setError(failure.message)); }} />}
         {page === "board" ? (
-          <Board state={boardState} onOrigin={host.openWorkspaceNotebook} studyRef={boardStudyRef}
+          <Board state={boardState} library={data} onOrigin={host.openWorkspaceNotebook} studyRef={boardStudyRef}
             onClearStudyRef={() => setBoardStudyRef(null)} onStudyRef={openBoardReference} />
         ) : !data ? (
           <section className="onboarding">
