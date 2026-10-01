@@ -41,7 +41,7 @@
   "阅读时间": "Reading time",
   "每分用时": "Minutes per mark",
   "考试日期": "Exam date",
-  "留空的项按默认推算：每分 3 分钟，阅读时间约为作答时间的 1/12。": "Empty fields use the defaults: 3 minutes per mark, and reading time about 1/12 of the writing time.",
+  "留空的项按默认推算：每分 3 分钟，阅读时间约为作答时间的 1/5（5–30 分钟）。": "Empty fields use the defaults: 3 minutes per mark, and reading time about 1/5 of the writing time (5–30 minutes).",
   "考试部分": "Exam sections",
   "添加考试部分": "Add a section",
   "按讲师或题型分几部分时，在这里写下每部分的分值和考查知识点。": "If the paper is split by lecturer or question type, note each part's marks and topics here.",

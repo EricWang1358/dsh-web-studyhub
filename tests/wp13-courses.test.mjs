@@ -193,12 +193,14 @@ test('course.save, course.get and course.list hold course-level knowledge', asyn
 });
 
 test('course.profile fills documented defaults', async t => {
-  assert.deepEqual(examProfile(undefined), { format: 'other', totalMarks: 40, writingMinutes: 120, readingMinutes: 10, minutesPerMark: 3, sections: [] });
-  assert.deepEqual(examProfile({ totalMarks: 60, writingMinutes: 120 }), { format: 'other', totalMarks: 60, writingMinutes: 120, readingMinutes: 10, minutesPerMark: 2, sections: [] });
+  assert.deepEqual(examProfile(undefined), { format: 'other', totalMarks: 40, writingMinutes: 120, readingMinutes: 24, minutesPerMark: 3, sections: [] });
+  assert.deepEqual(examProfile({ totalMarks: 60, writingMinutes: 120 }), { format: 'other', totalMarks: 60, writingMinutes: 120, readingMinutes: 24, minutesPerMark: 2, sections: [] });
   const sections = [{ title: 'A', marks: 20, topics: ['x'] }, { title: 'B', marks: 30, topics: [] }];
-  assert.deepEqual(examProfile({ format: 'mixed', sections }), { format: 'mixed', totalMarks: 50, writingMinutes: 150, readingMinutes: 13, minutesPerMark: 3, sections });
-  assert.deepEqual(examProfile({ writingMinutes: 90 }), { format: 'other', totalMarks: 30, writingMinutes: 90, readingMinutes: 8, minutesPerMark: 3, sections: [] });
+  assert.deepEqual(examProfile({ format: 'mixed', sections }), { format: 'mixed', totalMarks: 50, writingMinutes: 150, readingMinutes: 30, minutesPerMark: 3, sections });
+  assert.deepEqual(examProfile({ writingMinutes: 90 }), { format: 'other', totalMarks: 30, writingMinutes: 90, readingMinutes: 18, minutesPerMark: 3, sections: [] });
   assert.equal(examProfile({ writingMinutes: 180, readingMinutes: 30 }).readingMinutes, 30, 'an explicit reading time wins');
+  assert.equal(examProfile({ writingMinutes: 600 }).readingMinutes, 30, 'reading time is capped at 30 minutes');
+  assert.equal(examProfile({ writingMinutes: 15 }).readingMinutes, 5, 'reading time is at least 5 minutes');
   assert.equal(examProfile({ minutesPerMark: 1.5, totalMarks: 100 }).writingMinutes, 150);
   assert.equal(examProfile({ date: '2026-12-01' }).date, '2026-12-01');
 

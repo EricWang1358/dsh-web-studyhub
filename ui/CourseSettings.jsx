@@ -199,7 +199,7 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
           <label className="course-settings__field"><span>{ui('考试日期')}</span>
             <input type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></label>
         </div>
-        <p className="course-settings__hint">{ui('留空的项按默认推算：每分 3 分钟，阅读时间约为作答时间的 1/12。')}</p>
+        <p className="course-settings__hint">{ui('留空的项按默认推算：每分 3 分钟，阅读时间约为作答时间的 1/5（5–30 分钟）。')}</p>
         <div className="course-settings__subhead"><strong>{ui('考试部分')}</strong>
           <Button size="sm" variant="quiet" icon="plus" disabled={disabled || draft.sections.length >= 20}
             onClick={() => change({ sections: [...draft.sections, { title: '', lecturer: '', marks: '', topics: '' }] })}>{ui('添加考试部分')}</Button></div>
