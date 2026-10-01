@@ -175,7 +175,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
         </div>
         <div className="live-actions">{capturing && <button disabled={disabled} onClick={() => void perform(() => client.pause())}>{session.status === 'paused' ? t('继续', 'Resume') : t('暂停', 'Pause')}</button>}
           {active(session) && <button disabled={disabled} onClick={() => void perform(async () => { await client.stop(); await refresh(); })}>{t('结束实录', 'End recording')}</button>}
-          {!active(session) && !session.archivedAt && <button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly }); })}>{t('接着录', 'Continue recording')}</button>}</div></div>
+          {!active(session) && !session.archivedAt && readiness?.live !== false && <button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly }); })}>{t('接着录', 'Continue recording')}</button>}</div></div>
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
         <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? t('正在按上下文润色…', 'Polishing with context…') : t('上下文润色', 'Context polish')}</span>
