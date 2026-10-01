@@ -14,5 +14,11 @@
   "选择文件": "Choose files",
   "选择一个文件": "Choose a file",
   "{0} 个文件没有添加": "{0} file(s) were not added",
-  "已选择的文件": "Selected files"
+  "已选择的文件": "Selected files",
+  "筛选": "Filter",
+  "筛选…": "Filter…",
+  "共 {0} 项": "{0} items",
+  "共 {0} 项 / 显示 {1} 项": "{0} items / showing {1}",
+  "没有匹配的项": "Nothing matches",
+  "还没有内容": "Nothing here yet"
 }
