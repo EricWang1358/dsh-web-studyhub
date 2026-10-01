@@ -57,7 +57,7 @@ export function ScopeBar({ session, resources, disabled, onRescope, onStartNew }
     <p className={`wf-scope-line${fallback ? " is-fallback" : ""}`} title={topics.join("、")}>
       {named ? <span>{scopeSentence(session, course, total, session.goal)}</span>
         : <span>{ui(PICKED[session.pickedBy]) || ui("本次范围")}{topicLine ? "：" : ""}{!named && topicLine}</span>}
-      {resources.cardCount > 0 && <> · {resources.cardCount}{ui(" 题")}</>}
+      {resources.cardCount > 0 && <span className="wf-scope-count">{` · ${resources.cardCount}${ui(" 题")}`}</span>}
     </p>
     {named && topicLine && <p className="wf-scope-topics" title={(resources.scopeDecks || []).join("、")}>{session.pickedBy === "course" ? ui("先从这些主题学起：") : ""}{topicLine}</p>}
     {session.aiFailed && <p className="wf-scope-note">{ui("模型暂时不可用，已按名称匹配主题")}</p>}

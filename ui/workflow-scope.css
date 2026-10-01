@@ -1,17 +1,19 @@
 /* WP18 · the guided flow's course line, switcher, references and model errors. */
 .wf-scope { display: grid; gap: 6px; margin-top: 10px; min-width: 0; }
 .wf-scope .wf-scope-line { margin: 0; font-size: var(--fs-15, 15px); color: var(--text); line-height: 1.6; overflow-wrap: anywhere; }
-.wf-scope .wf-scope-line > span:first-child { color: var(--text); font-weight: 600; }
-.wf-scope .wf-scope-line.is-fallback > span:first-child { color: var(--warn); }
+.wf-scope .wf-scope-line > span:first-child, .wf-scope .wf-scope-line.is-fallback > span:first-child { color: var(--text); font-weight: 600; }
+.wf-scope .wf-scope-count { white-space: nowrap; color: var(--text-muted); }
 .wf-scope-topics, .wf-scope-note { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); overflow-wrap: anywhere; }
 .wf-scope-note { color: var(--text-dim); font-style: normal; }
 .wf-scope-note::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--warn); vertical-align: middle; }
 .wf-scope-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 4px; }
-.wf-course-switch { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 2px 4px 2px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill, 999px); background: var(--bg-surface); font-size: 14px; color: var(--text-muted); }
+.workflow-page label.wf-course-switch { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; max-width: 100%; padding: 2px 4px 2px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill, 999px); background: var(--bg-surface); font-size: 14px; color: var(--text-muted); }
 .wf-course-switch:focus-within { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
 .wf-course-switch > span { white-space: nowrap; }
 .workflow-page .wf-course-switch select { width: auto; min-width: 0; max-width: min(320px, 56vw); min-height: 32px; padding: 4px 28px 4px 4px; border: 0; background-color: transparent; color: var(--text); font-weight: 600; text-overflow: ellipsis; cursor: pointer; }
-.workflow-page .wf-course-switch select:focus-visible { outline: 0; }
+.workflow-page .wf-course-switch select:is(:focus, :focus-visible) { outline: 0; box-shadow: none; background-color: transparent; }
+.wf-spine-status .wf-model-error { flex: 1 1 260px; }
+.wf-spine-status:has(.wf-model-error) { align-items: flex-start; }
 .wf-scope-hint { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); }
 .wf-scope-hint .link-btn { font-size: inherit; font-weight: 600; color: var(--accent-text); }
 

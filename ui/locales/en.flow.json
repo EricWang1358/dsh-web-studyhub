@@ -23,6 +23,7 @@
   "这次学习已经有练习作答，换课程会把记录混在一起。可以为另一门课开始一次新的学习，这次的记录会原样保留。": "This session already has practice answers, and switching course would mix the records. Start a new session for the other course instead; this one stays as it is.",
   "看答案": "Show answer",
   "已换到「{0}」课程，重新选了学习范围；之前写的笔记都保留着。": "Moved to the “{0}” course and picked the scope again. Your notes are all kept.",
+  "会在当前课程「{0}」的资料里选；想换课程，开始后在下一页点「换课程」。": "Topics are picked from the materials of the current course “{0}”. To use another course, choose Switch course on the next page.",
   "这次学习换了课程": "Course changed",
   "上次后台整理骨架没有完成。": "The last background outline did not finish."
 }
