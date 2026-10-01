@@ -1,30 +1,407 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
+import wrongCss from "./wrongbook.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
+import { Banner, Button, Icon, InlineMessage, SegmentedControl, SetupRequired } from './components/index.js';
+import { RECS_PREVIEW, VARIANT_BATCH_CAP, groupRows, reasonText, retrainOptions, shortDeckNames, variantFailureText, variantState } from './wrongbook-model.js';
 
 const PAGE_SIZE = 100;
+const POLL_MS = 2500;
+const refOf = ({ deckId, cardId }) => ({ deckId, cardId });
+/** Recommendations that fit one mistake, with the reasons that apply to that mistake. */
+const relatedTo = (recs, cardId) => recs
+  .map((rec) => ({ rec, match: rec.matches?.find((entry) => entry.cardId === cardId) }))
+  .filter(({ rec, match }) => match || rec.forCardIds?.includes(cardId))
+  .sort((a, b) => (b.match?.score ?? 0) - (a.match?.score ?? 0))
+  .slice(0, 3)
+  .map(({ rec, match }) => ({ ...rec, reasons: match?.reasons?.length ? match.reasons : rec.reasons }));
 
-/* 跨题库待巩固题。数据来自 call("wrongbook")，按题组分组
-   展示；客观答错与自评未掌握分开标记，练习都通过 onPractice(scope) 交给主会话，
-   由它用 review.start {mode:"path", scope} 开一轮练习。样式与 Dashboard /
-   Exam 共用 ui/views.css，注入 <style data-study-views> 按标记去重。 */
+/* 错题与待巩固。数据来自 call("wrongbook")；默认按主题合并跨题组的同类错题，
+   也可按题组看。「为你推荐」是题库里已有的相似题（不调用模型）；「生成变式」
+   通过陪学的备题队列为错题写新题（需要同意和可用模型）。练习都交给主会话：
+   onPractice(scope) 用 review.start {mode:"path", scope}，变式用 coach.practice。
+   WrongBookView 只负责展示，便于单独渲染测试。 */
 
-export default function WrongBook({ call, data, busy, onPractice, onLibrary, onCreate, onSources }) {
+function VariantControl({ state, onGenerate, onPractice, disabled }) {
+  if (state.kind === "preparing")
+    return <span className="wb-var is-busy" role="status"><span className="sh-spinner" aria-hidden="true" />{ui("生成中…")}</span>;
+  if (state.kind === "ready")
+    return (
+      <span className="wb-var is-ready">
+        <Icon name="success" size={16} />{uiFormat("已备好 {0} 道", [state.count])}
+        {onPractice && <Button variant="link" size="sm" disabled={disabled} onClick={onPractice}>{ui("去练")}</Button>}
+      </span>
+    );
+  if (state.kind === "failed")
+    return (
+      <span className="wb-var is-failed">
+        <span>{variantFailureText(state.message)}</span>
+        {onGenerate && <Button variant="quiet" size="sm" disabled={disabled} onClick={onGenerate}>{ui("重试")}</Button>}
+      </span>
+    );
+  return onGenerate
+    ? <Button variant="quiet" size="sm" icon="sparkle" disabled={disabled} onClick={onGenerate}>{ui("生成变式")}</Button>
+    : null;
+}
+
+function RecRow({ rec, shortName, open, onToggle, onPractice, disabled }) {
+  const id = useId();
+  return (
+    <li className={"wb-rec" + (open ? " is-open" : "")}>
+      <div className="wb-rec-line">
+        <button type="button" className="wb-rec-toggle" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+          <Icon name="chevron" size={16} className="wb-chevron" />
+          <span className="wb-prompt" title={plainPrompt(rec.prompt)}>{plainPrompt(rec.prompt)}</span>
+        </button>
+        <span className="wb-why" title={rec.reasons.map(reasonText).join(" · ")}>{reasonText(rec.reasons[0])}</span>
+        <Button variant="quiet" size="sm" disabled={disabled} onClick={onPractice}
+          aria-label={uiFormat("练习 {0}：{1}", [rec.topic || ui("未分类"), plainPrompt(rec.prompt)])}>{ui("练")}</Button>
+      </div>
+      {open && (
+        <div className="wb-detail" id={id}>
+          <p className="wb-full-prompt">{plainPrompt(rec.prompt)}</p>
+          <ul className="wb-why-list">{rec.reasons.map((reason, index) => <li key={index}>{reasonText(reason)}</li>)}</ul>
+          <small className="muted">{uiFormat("来自 {0}", [shortName(rec.deckTitle)])}</small>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function DetailLine({ label, children }) {
+  return children ? <div className="wb-fact"><dt>{label}</dt><dd>{children}</dd></div> : null;
+}
+
+function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, disabled }) {
+  return (
+    <div className="wb-detail" id={id}>
+      {detail === "loading" || detail === undefined ? <p className="muted" role="status">{ui("正在读取详情…")}</p>
+        : detail?.error ? <InlineMessage tone="error">{ui("读取详情失败，稍后再试")}</InlineMessage>
+          : (
+            <dl className="wb-facts">
+              <DetailLine label={ui("你的答案")}>{detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer}</DetailLine>
+              <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
+              <DetailLine label={ui("解析")}>{detail.explanation}</DetailLine>
+              <DetailLine label={ui("易错点")}>{detail.misconception}</DetailLine>
+            </dl>
+          )}
+      {variants.length > 0 && (
+        <div className="wb-sub">
+          <h4>{ui("这道题的变式")}</h4>
+          <ul>{variants.map((prompt, index) => <li key={index}>{plainPrompt(prompt)}</li>)}</ul>
+        </div>
+      )}
+      {recs.length > 0 && (
+        <div className="wb-sub">
+          <h4>{ui("同类题")}</h4>
+          <ul>
+            {recs.map((rec) => (
+              <li key={rec.cardId} className="wb-sub-rec">
+                <span className="wb-prompt" title={plainPrompt(rec.prompt)}>{plainPrompt(rec.prompt)}</span>
+                <span className="wb-why">{reasonText(rec.reasons[0])}</span>
+                <Button variant="quiet" size="sm" disabled={disabled} onClick={() => onPractice(rec)}>{ui("练")}</Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <small className="muted">{shortName(item.deckTitle)}</small>
+    </div>
+  );
+}
+
+export function WrongBookView({
+  data, course, onCourse, items, counts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
+  recs, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, busy,
+  onLibrary, onCreate, onSources, initial = {},
+}) {
   useInjectCss(css, "study-views");
+  useInjectCss(wrongCss, "study-wrongbook");
+  const [groupBy, setGroupBy] = useState(initial.groupBy || "topic");
+  const [expanded, setExpanded] = useState(() => new Set(initial.expanded || []));
+  const [recsAll, setRecsAll] = useState(!!initial.recsAll);
+  const [recOpen, setRecOpen] = useState(() => new Set());
+  const [choice, setChoice] = useState(initial.retrain || null);
+  const [ask, setAsk] = useState(initial.askConsent ? { cards: [] } : null);
+  const [pending, setPending] = useState(() => new Set());
+  const [working, setWorking] = useState(false);
+  const [message, setMessage] = useState(null);
+  const consentRef = useRef(null);
+
+  const rows = items || [];
+  const total = rows.length;
+  const recItems = recs?.items || [];
+  const localDecks = decksInCourse(data, course);
+  const shortName = useMemo(() => shortDeckNames(rows, data?.decks), [rows, data?.decks]);
+  const groups = useMemo(() => groupRows(rows, groupBy, data?.decks), [rows, groupBy, data?.decks]);
+  const hasCoach = !!coach;
+  const gated = hasCoach && !coach.enabled;
+  const canGenerate = hasCoach && coach.enabled && !!onGenerate;
+  const rowIds = new Set(rows.map((row) => row.cardId));
+  const readyHere = (coach?.readyCards || []).filter((variant) => rowIds.has(variant.originCardId));
+  const stateOf = (cardId) => variantState(coach, cardId, pending);
+  const eligible = (list) => list.filter((row) => stateOf(row.cardId).kind === "none" || stateOf(row.cardId).kind === "failed");
+  const toggle = (set, setter, key) => setter((previous) => {
+    const next = new Set(previous);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+
+  const { options, fallback } = retrainOptions({ mistakes: total, similar: recItems.length, variants: readyHere.length, paged: !!hasMore });
+  const picked = options.find((option) => option.value === choice && !option.disabled) ? choice : fallback;
+  const current = options.find((option) => option.value === picked);
+  const startRetrain = () => {
+    const mistakes = rows.map(refOf);
+    if (picked === "similar") onPractice([...mistakes, ...recItems.map(refOf)]);
+    else if (picked === "variants" && onPracticePrepared)
+      onPracticePrepared({ scope: mistakes, originCardIds: [...new Set(readyHere.map((variant) => variant.originCardId))] });
+    else onPractice(mistakes);
+  };
+
+  async function run(cards, consent) {
+    const chosen = cards.slice(0, VARIANT_BATCH_CAP).map(refOf);
+    if (!chosen.length) return;
+    setWorking(true);
+    setAsk(null);
+    setMessage(null);
+    setPending(new Set(chosen.map((card) => card.cardId)));
+    try {
+      const result = await onGenerate(chosen, { consent });
+      setPending(new Set());
+      if (result?.needsConsent) { setAsk({ cards }); return; }
+      const queued = result?.queued || 0;
+      setMessage(queued
+        ? { tone: "success", text: uiFormat("已开始为 {0} 道题生成变式，通常一两分钟；写好后这里会出现「去练」。", [queued])
+          + (result.deferred || cards.length > chosen.length ? " " + uiFormat("一次最多 {0} 题，另有 {1} 题等这批写好后再点一次。", [VARIANT_BATCH_CAP, (result.deferred || 0) + Math.max(0, cards.length - chosen.length)]) : "") }
+        : { tone: "info", text: ui("这些题已经有变式，或正在生成。") });
+    } catch (e) {
+      setPending(new Set());
+      setMessage({ tone: "error", text: e?.message || String(e) });
+    } finally {
+      setWorking(false);
+    }
+  }
+  const generate = (cards) => {
+    if (!cards.length || working) return;
+    if (coach?.consent !== true) {
+      setAsk({ cards });
+      requestAnimationFrame?.(() => consentRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" }));
+      return;
+    }
+    run(cards, false);
+  };
+
+  const openRow = (item) => {
+    toggle(expanded, setExpanded, item.cardId);
+    if (!expanded.has(item.cardId)) onLoadDetail?.(refOf(item));
+  };
+  const batch = eligible(rows);
+  const recsShown = recsAll ? recItems : recItems.slice(0, RECS_PREVIEW);
+  const showRecs = recItems.length > 0;
+  const practiceRec = (rec) => onPractice([refOf(rec)]);
+  const gateWhy = ui("生成变式要调用 AI 模型；上面的「为你推荐」不需要模型，现在就能练。");
+
+  return (
+    <section className="page wb">
+      <div className="page-heading">
+        <div>
+          <h1>{ui("错题与待巩固")}</h1>
+          <PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} />
+          <p className="muted">
+            {counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral]) : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
+            {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
+          </p>
+        </div>
+        <div className="section-heading-actions">
+          <Button variant="secondary" onClick={() => onReload(page)} disabled={busy || loading}>{ui("刷新")}</Button>
+        </div>
+      </div>
+
+      {err && <p className="wb-error">{items ? uiFormat("读取失败，仍显示上次结果：{0}", [err]) : err}</p>}
+      {loading && !items && <p className="muted">{ui("正在读取待巩固题…")}</p>}
+
+      {hasCoach && onPracticePrepared && coach.ready > 0 && (
+        <Banner tone="success" icon="sparkle" title={uiFormat("已为你备好 {0} 道变式题", [coach.ready])}
+          action={{ label: ui("去练 →"), onClick: () => onPracticePrepared({}), disabled: busy }}>
+          {ui("它们由你的错题改写而来，练完会放进「为你定制」。")}
+        </Banner>
+      )}
+
+      {total > 0 && (
+        <div className="wb-retrain">
+          <div className="wb-retrain-copy">
+            <strong>{ui("重练")}</strong>
+            <small className="muted">{ui("选择这一轮练什么；默认选内容最丰富的。")}</small>
+          </div>
+          <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} />
+          <Button variant="primary" icon="arrow-right" disabled={busy || loading || !total} onClick={startRetrain}
+            title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}>
+            {uiFormat("开始重练 ({0})", [current.count])}
+          </Button>
+        </div>
+      )}
+
+      {/* Weak rubric criteria as skills (WP12): case linkage, assumptions, justification… */}
+      <RubricSkills attempts={data?.attempts} practiceLabel={ui("练案例题")}
+        onPractice={data?.decks?.some((deck) => deck.format === "case-study" && !deck.archived)
+          ? () => onPractice(data.decks.filter((deck) => deck.format === "case-study" && !deck.archived).map((deck) => ({ deckId: deck.id }))) : undefined} />
+
+      {items && !counts.total && (
+        <div className="empty wb-empty" data-tour="wrongbook-list">
+          <span className="empty-icon">✓</span>
+          <h2>{data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录")}</h2>
+          <p className="muted">{data?.attempts?.length
+            ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
+            : ui("完成一次学习后，答错或自评未掌握的题会收在这里。")}</p>
+          <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
+            onCreate={onCreate} onSources={onSources} />
+        </div>
+      )}
+
+      {showRecs && (
+        <section className="wb-recs" aria-labelledby="wb-recs-title">
+          <div className="wb-recs-head">
+            <div>
+              <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
+              <p className="muted">{ui("题库里已有的相似题：同主题、引用同一页，或关键词相近；已排除你刚答对的。")}</p>
+            </div>
+            <Button variant="secondary" icon="arrow-right" disabled={busy} onClick={() => onPractice(recItems.map(refOf))}>
+              {uiFormat("练这 {0} 道", [recItems.length])}
+            </Button>
+          </div>
+          <ul className="wb-rec-list">
+            {recsShown.map((rec) => (
+              <RecRow key={rec.deckId + rec.cardId} rec={rec} shortName={shortName} disabled={busy}
+                open={recOpen.has(rec.cardId)} onToggle={() => toggle(recOpen, setRecOpen, rec.cardId)} onPractice={() => practiceRec(rec)} />
+            ))}
+          </ul>
+          {recItems.length > RECS_PREVIEW && (
+            <Button variant="link" size="sm" onClick={() => setRecsAll(!recsAll)}>
+              {recsAll ? ui("收起") : uiFormat("再显示 {0} 道", [recItems.length - RECS_PREVIEW])}
+            </Button>
+          )}
+        </section>
+      )}
+
+      {total > 0 && (
+        <div className="wb-controls">
+          <SegmentedControl label={ui("分组方式")} value={groupBy} onChange={setGroupBy} size="sm"
+            options={[{ value: "topic", label: ui("按主题") }, { value: "deck", label: ui("按题组") }]} />
+          {canGenerate && (
+            <div className="wb-batch">
+              <Button variant="secondary" size="sm" icon="sparkle" busy={working} disabled={busy || !batch.length} onClick={() => generate(batch)}>
+                {ui("为全部错题生成变式")}
+              </Button>
+              <small className="muted">{uiFormat("一次最多 {0} 题 · 约 1 次轻量模型调用/题", [VARIANT_BATCH_CAP])}</small>
+            </div>
+          )}
+        </div>
+      )}
+
+      {gated && total > 0 && (
+        <SetupRequired icon="model" title={ui("先配置一个 AI 模型")} why={gateWhy}
+          primary={onOpenSettings ? { label: ui("打开模型设置"), icon: "model", onClick: onOpenSettings } : undefined} />
+      )}
+
+      {ask && canGenerate && (
+        <div className="wb-consent" ref={consentRef} role="group" aria-label={ui("先确认是否备变式题")}>
+          <strong>{ui("要让 AI 为错题备变式题吗？")}</strong>
+          <p>{ui("生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在 设置 › 陪学 里关闭。")}</p>
+          <div className="wb-consent-actions">
+            <Button variant="secondary" icon="sparkle" busy={working} disabled={!ask.cards.length}
+              onClick={() => run(ask.cards, true)}>{ui("同意并生成")}</Button>
+            <Button variant="quiet" disabled={working} onClick={() => setAsk(null)}>{ui("暂不")}</Button>
+          </div>
+        </div>
+      )}
+      {message && <InlineMessage tone={message.tone} boxed onDismiss={() => setMessage(null)}>{message.text}</InlineMessage>}
+
+      {groups.map((group, index) => {
+        const open = eligible(group.rows);
+        return (
+          <div key={group.key} className="wb-group" {...(index === 0 ? { "data-tour": "wrongbook-list" } : {})}>
+            <div className="wb-group-head">
+              <div className="wb-group-title">
+                <strong>{group.title}</strong>
+                <small className="muted">{uiFormat("{0} 题", [group.rows.length])}</small>
+                {group.mode === "topic" && <small className="muted wb-from">{uiFormat("来自 {0}", [group.deckTitles.join("、")])}</small>}
+              </div>
+              {canGenerate && open.length > 0 && (
+                <Button variant="quiet" size="sm" icon="sparkle" disabled={busy || working} onClick={() => generate(open)}>
+                  {uiFormat("为本组生成变式 ({0})", [open.length])}
+                </Button>
+              )}
+            </div>
+            <ul className="wb-rows">
+              {group.rows.map((it) => {
+                const isOpen = expanded.has(it.cardId);
+                const state = stateOf(it.cardId);
+                const detailId = `wb-detail-${it.cardId}`;
+                return (
+                  <li key={it.cardId} className={"wb-row" + (isOpen ? " is-open" : "")}>
+                    <div className="wb-row-line">
+                      <button type="button" className="wb-row-toggle" aria-expanded={isOpen} aria-controls={detailId} onClick={() => openRow(it)}>
+                        <Icon name="chevron" size={16} className="wb-chevron" />
+                        <span className="wb-meta" title={group.mode === "topic" ? shortName(it.deckTitle) : it.topic || ui("未分类")}>
+                          {group.mode === "topic" ? shortName(it.deckTitle) : it.topic || ui("未分类")}
+                        </span>
+                        <span className="wb-prompt" title={plainPrompt(it.prompt)}>{plainPrompt(it.prompt)}</span>
+                      </button>
+                      <span className={"wb-grade" + (it.assessment === "graded" ? "" : " self")}
+                        title={it.assessment === 'oral' ? ui('最近一次口头 AI 评估：需要巩固') : it.assessment === 'rubric' ? ui('最近一次按评分标准批改：得分不足六成')
+                          : uiFormat("最近一次{0} {1} 分", [ui(it.assessment === "graded" ? "客观判分" : "自评"), it.lastGrade])}>
+                        {it.assessment === 'oral' ? ui('口头评估') : it.assessment === 'rubric' ? ui('批改未达标') : it.assessment === "graded" ? ui("答错") : ui("未掌握")}
+                      </span>
+                      {(canGenerate || state.kind === "ready") && (
+                        <VariantControl state={state} disabled={busy || working}
+                          onGenerate={canGenerate ? () => generate([it]) : undefined}
+                          onPractice={onPracticePrepared ? () => onPracticePrepared({ originCardIds: [it.cardId] }) : undefined} />
+                      )}
+                      <Button variant="quiet" size="sm" disabled={busy}
+                        aria-label={uiFormat("练习 {0}：{1}", [it.topic || "未分类", it.prompt])}
+                        onClick={() => onPractice([refOf(it)])}>{ui("练")}</Button>
+                    </div>
+                    {isOpen && (
+                      <RowDetail id={detailId} item={it} detail={details[it.cardId]} shortName={shortName} disabled={busy}
+                        variants={state.kind === "ready" ? state.prompts : []}
+                        recs={relatedTo(recItems, it.cardId)}
+                        onPractice={practiceRec} />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
+      {items && hasMore && <nav className="wb-pages" aria-label={ui("待巩固题分页")}>
+        <span>{ui("第 ")}{page * pageSize + 1}–{page * pageSize + total}{ui(" 题 / 共 ")}{counts.total}{ui(" 题")}</span>
+        <button type="button" disabled={busy || loading || page === 0} onClick={() => onPage(page - 1)}>{ui("上一页")}</button>
+        <button type="button" disabled={busy || loading || (page + 1) * pageSize >= counts.total}
+          onClick={() => onPage(page + 1)}>{ui("下一页")}</button>
+      </nav>}
+    </section>
+  );
+}
+
+export default function WrongBook({ call, data, busy, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
   const [course, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [page, setPage] = useState(0);
   const [result, setResult] = useState(null),
     [loading, setLoading] = useState(true),
-    [err, setErr] = useState("");
+    [err, setErr] = useState(""),
+    [recs, setRecs] = useState(null),
+    [details, setDetails] = useState({}),
+    [coachLive, setCoachLive] = useState(null);
   const seq = useRef(0);
   const current = result?.course === course ? result : null;
   const items = current?.items;
   const counts = current?.counts || { total: 0, graded: 0, self: 0, oral: 0 };
-  const localDecks = decksInCourse(data, course);
+  const coach = coachLive || data?.coach || null;
 
   const load = useCallback(async (requestedPage = 0) => {
     const request = ++seq.current;
@@ -45,6 +422,13 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
       // Keep this guard for older service versions that still return suspended cards.
         items: (res?.items || []).filter((it) => it && it.deckId && it.cardId && !it.suspended) });
       setPage(targetPage);
+      asked.current = new Set();
+      setDetails({});
+      // Similar questions are a bonus: a library without the read just shows none.
+      if (res?.total) call("wrongbook.recommend", { course, limit: 10 })
+        .then((found) => request === seq.current && setRecs({ course, items: found?.items || [] }))
+        .catch(() => request === seq.current && setRecs(null));
+      else setRecs(null);
     } catch (e) {
       if (request === seq.current) setErr(e.message || String(e));
     } finally {
@@ -55,104 +439,33 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
     load(0);
   }, [load]);
 
-  /* 服务端已按 lastAt 降序；这里只做按题组的稳定分组，保持组内顺序。 */
-  const groups = useMemo(() => {
-    const map = new Map();
-    for (const it of items || []) {
-      if (!map.has(it.deckId))
-        map.set(it.deckId, {
-          deckId: it.deckId,
-          deckTitle: it.deckTitle || it.deckId,
-          rows: [],
-        });
-      map.get(it.deckId).rows.push(it);
-    }
-    return [...map.values()];
-  }, [items]);
-  const total = items?.length || 0;
-  const hasMore = counts.total > PAGE_SIZE;
+  // While variants are being written, watch the cheap status call until they land.
+  const preparing = !!coach?.preparing;
+  useEffect(() => {
+    if (!preparing) return;
+    const timer = setInterval(() => call("coach.status").then(setCoachLive).catch(() => {}), POLL_MS);
+    return () => clearInterval(timer);
+  }, [preparing, call]);
+
+  const generate = useCallback(async (cards, { consent } = {}) => {
+    const res = await call("coach.variants", { cards, ...(consent ? { consent: true } : {}) });
+    if (res?.status) setCoachLive(res.status);
+    return res;
+  }, [call]);
+  const asked = useRef(new Set());
+  const loadDetail = useCallback((ref) => {
+    if (asked.current.has(ref.cardId)) return;
+    asked.current.add(ref.cardId);
+    setDetails((known) => ({ ...known, [ref.cardId]: "loading" }));
+    call("wrongbook.detail", ref).then((detail) => setDetails((now) => ({ ...now, [ref.cardId]: detail })))
+      .catch((e) => setDetails((now) => ({ ...now, [ref.cardId]: { error: e.message || true } })));
+  }, [call]);
 
   return (
-    <section className="page wb">
-      <div className="page-heading">
-        <div>
-          <h1>{ui("错题与待巩固")}</h1>
-          <PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} />
-          <p className="muted">
-            {counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral]) : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
-            {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
-          </p>
-        </div>
-        <div className="section-heading-actions">
-          <button onClick={() => load(page)} disabled={busy || loading}>{ui("刷新")}</button>
-          <button
-            className="primary"
-            disabled={busy || loading || !total}
-            title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}
-            onClick={() =>
-              onPractice(items.map((i) => ({ deckId: i.deckId, cardId: i.cardId })))
-            }
-          >
-            {hasMore ? ui("重练本页") : ui("重练全部")} ({total})
-          </button>
-        </div>
-      </div>
-
-      {err && <p className="wb-error">{items ? uiFormat("读取失败，仍显示上次结果：{0}", [err]) : err}</p>}
-      {loading && !items && <p className="muted">{ui("正在读取待巩固题…")}</p>}
-      {/* Weak rubric criteria as skills (WP12): case linkage, assumptions, justification… */}
-      <RubricSkills attempts={data?.attempts} practiceLabel={ui("练案例题")}
-        onPractice={data?.decks?.some((deck) => deck.format === "case-study" && !deck.archived)
-          ? () => onPractice(data.decks.filter((deck) => deck.format === "case-study" && !deck.archived).map((deck) => ({ deckId: deck.id }))) : undefined} />
-
-      {items && !counts.total && (
-        <div className="empty wb-empty" data-tour="wrongbook-list">
-          <span className="empty-icon">✓</span>
-          <h2>{data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录")}</h2>
-          <p className="muted">{data?.attempts?.length
-            ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
-            : ui("完成一次学习后，答错或自评未掌握的题会收在这里。")}</p>
-          <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
-            onCreate={onCreate} onSources={onSources} />
-        </div>
-      )}
-
-      {groups.map((g, index) => (
-        <div key={g.deckId} className="wb-group" {...(index === 0 ? { "data-tour": "wrongbook-list" } : {})}>
-          <div className="wb-group-head">
-            <strong>{g.deckTitle}</strong>
-            <small className="muted">{g.rows.length}{ui(" 题")}</small>
-          </div>
-          <ul className="wb-rows">
-            {g.rows.map((it) => (
-              <li key={it.cardId} className="wb-row">
-                <span className="wb-topic" title={it.topic || ui("未分类")}>
-                  {it.topic || ui("未分类")}
-                </span>
-                <span className="wb-prompt" title={plainPrompt(it.prompt)}>
-                  {plainPrompt(it.prompt)}
-                </span>
-                <span className={"wb-grade" + (it.assessment === "graded" ? "" : " self")}
-                  title={it.assessment === 'oral' ? ui('最近一次口头 AI 评估：需要巩固') : it.assessment === 'rubric' ? ui('最近一次按评分标准批改：得分不足六成')
-                    : uiFormat("最近一次{0} {1} 分", [ui(it.assessment === "graded" ? "客观判分" : "自评"), it.lastGrade])}>
-                  {it.assessment === 'oral' ? ui('口头评估') : it.assessment === 'rubric' ? ui('批改未达标') : it.assessment === "graded" ? ui("答错") : ui("未掌握")}
-                </span>
-                <button
-                  disabled={busy}
-                  aria-label={uiFormat("练习 {0}：{1}", [it.topic || "未分类", it.prompt])}
-                  onClick={() => onPractice([{ deckId: it.deckId, cardId: it.cardId }])}
-                >{ui("练")}</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      {items && hasMore && <nav className="wb-pages" aria-label={ui("待巩固题分页")}>
-        <span>{ui("第 ")}{page * PAGE_SIZE + 1}–{page * PAGE_SIZE + total}{ui(" 题 / 共 ")}{counts.total}{ui(" 题")}</span>
-        <button type="button" disabled={busy || loading || page === 0} onClick={() => load(page - 1)}>{ui("上一页")}</button>
-        <button type="button" disabled={busy || loading || (page + 1) * PAGE_SIZE >= counts.total}
-          onClick={() => load(page + 1)}>{ui("下一页")}</button>
-      </nav>}
-    </section>
+    <WrongBookView data={data} course={course} onCourse={setCourse} items={items} counts={counts} loading={loading} err={err}
+      page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
+      recs={recs?.course === course ? recs : null} coach={coach} details={details} onLoadDetail={loadDetail}
+      onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings}
+      busy={busy} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} />
   );
 }

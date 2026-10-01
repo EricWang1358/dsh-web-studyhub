@@ -66,8 +66,8 @@ test('为你推荐 lists similar bank questions with why, a cap and a practise-t
   assert.match(html, /同主题：保护状态/);
   assert.match(html, /引用同一页：05 Platform Management 第 21 页/);
   assert.match(html, /推荐题 0/);
-  assert.doesNotMatch(html, /推荐题 7/, 'only the first few show until expanded');
-  assert.match(html, /再显示 3 道/);
+  assert.doesNotMatch(html, /推荐题 3/, 'only the first three show until expanded');
+  assert.match(html, /再显示 5 道/);
   assert.match(text(render({ initial: { recsAll: true } })), /推荐题 7/);
   assert.doesNotMatch(render({ recs: { items: [] } }), /为你推荐/);
   assert.doesNotMatch(render({ recs: null }), /为你推荐/);
@@ -124,6 +124,14 @@ test('an opened row shows your answer, the correct answer, the explanation and i
   assert.match(text(render({ initial: { expanded: ['c1'] }, details: { c1: 'loading' } })), /正在读取详情/);
   const self = text(render({ initial: { expanded: ['c3'] }, details: { c3: { yourAnswer: null, selfGrade: 2, correctAnswer: '答案', explanation: '' } } }));
   assert.match(self, /自评 2 分/);
+});
+
+test('an opened row lists similar questions with the reason that fits that row', () => {
+  const rec = { deckId: 'd2', deckTitle: decks[1].title, cardId: 'x1', topic: '其它', kind: 'quiz', prompt: '同页的另一题', score: 6, forCardIds: ['c1', 'c2'],
+    reasons: [{ type: 'topic', topic: '集成收益' }],
+    matches: [{ cardId: 'c2', score: 6, reasons: [{ type: 'topic', topic: '集成收益' }] }, { cardId: 'c1', score: 4, reasons: [{ type: 'page', sourceTitle: '05 Platform Management', page: 21 }] }] };
+  const html = text(render({ recs: { items: [rec] }, initial: { expanded: ['c1'] }, details: { c1: { yourAnswer: 'A', correctAnswer: 'B', explanation: '', misconception: '' } } }));
+  assert.match(html, /同类题 同页的另一题 引用同一页：05 Platform Management 第 21 页/);
 });
 
 test('no model: one SetupRequired gate replaces every generate button; recommendations still work', () => {

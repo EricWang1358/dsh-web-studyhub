@@ -137,6 +137,9 @@ test('results are ranked by evidence, capped, deterministic and never mutate the
 test('several mistakes: a candidate lists every mistake it relates to and no mistakes means no recommendations', () => {
   const result = recommendSimilar(state(), { mistakes: [...mistakes, { deckId: 'd4', cardId: 'm2' }], course: 'PE', now: NOW });
   assert.ok(result.items.find((x) => x.cardId === 'same-topic').forCardIds.includes('m1'));
+  const match = result.items.find((x) => x.cardId === 'same-topic').matches.find((m) => m.cardId === 'm1');
+  assert.equal(match.reasons[0].type, 'topic', 'matches keep the reasons that apply to each mistake');
+  assert.ok(match.score > 0);
   assert.deepEqual(recommendSimilar(state(), { mistakes: [], course: 'PE', now: NOW }).items, []);
   assert.deepEqual(recommendSimilar(state(), { mistakes: [{ deckId: 'nope', cardId: 'x' }], course: 'PE', now: NOW }).items, []);
 });

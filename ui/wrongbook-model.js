@@ -5,7 +5,7 @@ import { normalizeTopic, deckShortTitles } from '../lib/recommend-text.js';
    options and the plain-language copy for recommendation reasons. */
 
 export const VARIANT_BATCH_CAP = 8;
-export const RECS_PREVIEW = 5;
+export const RECS_PREVIEW = 3;
 
 /** Short deck names, trimmed per course so "课程｜卷名｜90题" reads as "卷名". */
 export function shortDeckNames(items, decks = []) {
