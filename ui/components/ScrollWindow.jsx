@@ -16,6 +16,28 @@ export function filterItems(items = [], query = '', match = textOf) {
   });
 }
 
+/** Is there more content above / below the viewport's visible part? Drives the soft fades. */
+export const scrollEdges = element => ({
+  top: element.scrollTop > 1,
+  bottom: element.scrollTop + element.clientHeight < element.scrollHeight - 1,
+});
+
+/**
+ * A `measure(element)` that calls `publish(edges)` only when top or bottom really changed.
+ * It runs after every commit, so it must not call setState with an unchanged value: React 18
+ * does not bail out of those at once and the layout effect re-renders itself until it throws
+ * "Maximum update depth exceeded" (React error #185) once the list overflows.
+ */
+export function edgeTracker(publish, initial = { top: false, bottom: false }) {
+  let last = initial;
+  return element => {
+    const next = scrollEdges(element);
+    if (next.top === last.top && next.bottom === last.bottom) return;
+    last = next;
+    publish(next);
+  };
+}
+
 /** "共 N 项", or "共 N 项 / 显示 M 项" while a filter hides some. */
 export const scrollWindowCount = (total, shown, filtering) => filtering
   ? uiFormat('共 {0} 项 / 显示 {1} 项', [total, shown]) : uiFormat('共 {0} 项', [total]);
@@ -44,12 +66,9 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
   const filtering = !!String(value || '').trim();
   const viewport = useRef(null), id = useId();
   const [edges, setEdges] = useState({ top: false, bottom: false });
-  const measure = useCallback(() => {
-    const element = viewport.current;
-    if (!element) return;
-    const top = element.scrollTop > 1, bottom = element.scrollTop + element.clientHeight < element.scrollHeight - 1;
-    setEdges(current => current.top === top && current.bottom === bottom ? current : { top, bottom });
-  }, []);
+  const tracker = useRef(null);
+  tracker.current ??= edgeTracker(setEdges);
+  const measure = useCallback(() => { if (viewport.current) tracker.current(viewport.current); }, []);
   useIsoLayoutEffect(() => { measure(); });
   useEffect(() => {
     const element = viewport.current;

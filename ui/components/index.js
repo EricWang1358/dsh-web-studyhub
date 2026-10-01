@@ -11,4 +11,4 @@ export { default as SetupRequired } from './SetupRequired.jsx';
 export { default as FileDrop, partitionFiles, formatBytes, describeAccept, createDropHandlers, guardFileDrag } from './FileDrop.jsx';
 export { default as Dialog } from './Dialog.jsx';
 export { useTopDialog } from './dialog-stack.js';
-export { default as ScrollWindow, filterItems, scrollWindowCount } from './ScrollWindow.jsx';
+export { default as ScrollWindow, filterItems, scrollWindowCount, scrollEdges, edgeTracker } from './ScrollWindow.jsx';
