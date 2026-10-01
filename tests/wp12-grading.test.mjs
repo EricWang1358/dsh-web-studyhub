@@ -11,7 +11,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeGrading, smGradeFor, bandFor, weakCriteria, keyPointId } from "../lib/case-study.js";
-import { gradeCase } from "../lib/contexts/case/pipeline.js";
+import { gradeCase } from "../lib/rubric-grading.js";
 
 const scenario = [
   "FieldBid runs timed online auctions for used tractors and harvesters across four provinces.",
@@ -126,15 +126,17 @@ const paper = { title: "FieldBid", paragraphs: scenario.split("\n\n"), cues: [],
 const goodReply = JSON.stringify({ questions: [{ cardId: "q1", criteria: [{ id: "c1", score: 3 }, { id: "c2", score: 2 }, { id: "c3", score: 1 }] }], summary: "ok" });
 
 test("gradeCase asks again once when the reply is not usable JSON, then normalises", async () => {
-  const calls = [];
-  const complete = async (system, prompt) => { calls.push(prompt); return calls.length === 1 ? "I think the learner did well." : goodReply; };
+  const calls = [], systems = [];
+  const complete = async (system, prompt) => { systems.push(system); calls.push(prompt); return calls.length === 1 ? "I think the learner did well." : goodReply; };
   const result = await gradeCase(complete, { paper, answers, scenario }, { retryDelays: [] });
   assert.equal(calls.length, 2);
   assert.match(calls[1], /not usable JSON/);
   assert.equal(result.total, 6);
-  assert.match(calls[0], /^Mark every answered question/);
-  assert.ok(calls[0].includes("so I assume about 2,000 at peak"), "the learner's answer is part of the data");
-  assert.ok(!calls[0].includes('"cardId":"q2"'), "blank questions are not sent for grading");
+  assert.match(systems[0], /^You grade a learner's answers/);
+  assert.match(systems[0], /Mark every answered question/);
+  const data = JSON.parse(calls[0]);
+  assert.ok(data.questions[0].learnerAnswer.includes("so I assume about 2,000 at peak"), "the learner's answer is part of the data");
+  assert.deepEqual(data.questions.map((question) => question.cardId), ["q1"], "blank questions are not sent for grading");
 });
 
 test("gradeCase fails after a second malformed reply and retries transient model failures", async () => {
