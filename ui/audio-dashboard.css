@@ -64,7 +64,7 @@
 .study-app .audio-matrix-level { font-size: 12px; text-align: center; color: var(--text-dim); }
 .study-app .audio-reasoning-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 1; padding: 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-surface); }
 .study-app .audio-reasoning-grid button small { font-size: 9px; color: var(--text-muted); }
-.study-app .audio-matrix-dot { width: 6px; height: 6px; background: var(--text-faint); border-radius: 50%; }
+.study-app .audio-matrix-dot { width: 6px; height: 6px; background: var(--decor-faint); border-radius: 50%; }
 .study-app .audio-reasoning-grid button.selected { border-color: var(--accent-soft); background: var(--bg-selected); }
 .study-app .audio-reasoning-grid button.selected .audio-matrix-dot { background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-glow); }
 .study-app .audio-reasoning-fields label { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,160px); align-items: center; gap: 16px; margin: 0 0 20px; font-size: 14px; }
