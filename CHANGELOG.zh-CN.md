@@ -2,6 +2,10 @@
 
 [English](CHANGELOG.md)
 
+## 未发布
+
+- **大教材。** PDF 超过 8 MB 或 200 页、所选资料超过 60 万字符、或一本书超过 300 页时，会出现「大教材建议」卡片：推荐的转换工具（MinerU、Docling）、检索工具（mcp-local-rag、RAGFlow）、包括中国大陆可用在内的下载渠道和使用步骤。转换结果（MinerU 的 `content_list.json`、Docling JSON、Marker 或带分页标记的 Markdown）作为一份分页文档导入，并分成章节，不必在几百页里挑。DSH 提供的检索工具（MCP 工具，或插件注册的 `studyRetrieval` 服务）可以在设置里选用，之后出题和 AI 带学只用它找到的页面。见[大教材](docs/large-documents.zh-CN.md)。
+
 ## 2.1.1 — 2026-10-02
 
 - **新版本提醒与一键升级**：最多每 12 小时向 GitHub 查询一次最新版本（可关闭，除这次查询外不发送任何数据）。在 DSH 0.2 中可一键下载发布包、校验 SHA-256，并通过 DSH 插件管理器安装，重启 DSH 后生效；不支持该接口的环境提供复制安装地址的引导升级。文档改正了“重启即可更新”的说法。
