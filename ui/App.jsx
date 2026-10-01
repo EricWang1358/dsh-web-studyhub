@@ -22,7 +22,7 @@ import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
-import Settings from "./Settings.jsx";
+import Settings, { backupFileName } from "./Settings.jsx";
 import UpdateCenter from "./UpdateCenter.jsx";
 import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS } from "./generation-status.js";
@@ -38,6 +38,7 @@ import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import CourseSettings, { CourseList } from './CourseSettings.jsx';
+import LanguageSwitch from './LanguageSwitch.jsx';
 import Inbox from "./Inbox.jsx";
 import { QuickActionsContext, dismissJobs, markInboxRead, useQuickActionsController } from "./quick-actions.js";
 import quickCss from "./quick-actions.css";
@@ -206,6 +207,7 @@ export default function App({ call: transportCall, host = {} }) {
     [loading, setLoading] = useState(true),
     [syncIssue, setSyncIssue] = useState("");
   // WP13: the course settings panel (a course id), opened from the library heading or Settings.
+  // The open course panel: a course id, or { id, mergeFrom } when 合并到这里 opens the merge confirmation (WP14).
   const [courseSettings, setCourseSettings] = useState(null);
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
@@ -1218,7 +1220,7 @@ export default function App({ call: transportCall, host = {} }) {
       );
       const a = document.createElement("a");
       a.href = url;
-      a.download = "study-library.json";
+      a.download = backupFileName();
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
@@ -1361,7 +1363,7 @@ export default function App({ call: transportCall, host = {} }) {
           <small>
             {binding.modelSource === "session"
               ? ui("与对话输入框选择的模型一致，切换后自动生效。")
-              : ui("只用于出题与讲解，不改变对话模型。")}{ui("生成时所选资料会发送给该模型；复习不调用模型。")}</small>
+              : ui("只用于出题与讲解，不改变对话模型。")}{language === "en" ? " " : ""}{ui("生成时所选资料会发送给该模型；复习不调用模型。")}</small>
         </label>
       </div>
       {modelDraft && (
@@ -1736,10 +1738,7 @@ export default function App({ call: transportCall, host = {} }) {
           </span>
         </nav>
         <div className="sidebar-bottom">
-          <div className="study-language-switch" role="group" aria-label={ui("Interface language / 界面语言")}>
-            <button type="button" aria-pressed={language === 'zh'} onClick={() => setUiLanguage('zh')}>中文</button>
-            <button type="button" aria-pressed={language === 'en'} onClick={() => setUiLanguage('en')}>EN</button>
-          </div>
+          <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
           {data && (
             <button type="button" className="nav tour-nav" data-tour="tour-reopen" disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
               title={ui("功能导览：切到每个关键功能，看看怎么用")} onClick={() => { if (!tourStep) startTour(); }}>
@@ -2183,12 +2182,14 @@ export default function App({ call: transportCall, host = {} }) {
                 legacy={legacy}
                 setLegacy={setLegacy}
                 workspacePanel={workspacePanel}
-                coursePanel={<CourseList courses={data.courses || []} busy={busy} onOpen={setCourseSettings} />}
+                coursePanel={<CourseList courses={data.courses || []} busy={busy} onOpen={setCourseSettings} currentId={data.focus?.courseId}
+                  recent={Object.fromEntries((data.focus?.courses || []).map(course => [course.name, course.lastUsedAt]))}
+                  onMerge={(id, mergeFrom) => setCourseSettings({ id, mergeFrom })} />}
                 onboardingPanel={<OnboardingPanel sample={data.sample} progress={tourResume} busy={busy || sampleBusy}
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
-                onRestored={() => {
+                onRestored={(restored) => {
                   libraryEpoch.current++;
                   navigationRequest.current++;
                   setContextTrail([]); setDetour(null); setWorkflowReturn(null); setSkeletonFocus(null); setNoteInitialId(''); setBoardStudyRef(null);
@@ -2201,7 +2202,8 @@ export default function App({ call: transportCall, host = {} }) {
                   setSelectedSources([]);
                   setSettings({});
                   setPage("library");
-                  setNotice(ui("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。"));
+                  setNotice({ text: restored?.backupPath ? uiFormat("学习库已恢复。原数据已保存到 {0}", [restored.backupPath])
+                    : ui("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。"), tone: "success", persistent: true });
                 }}
               />
             )}
@@ -2281,7 +2283,8 @@ export default function App({ call: transportCall, host = {} }) {
           onImport={() => endTour({ then: openFirstImport })}
           onRemoveSample={data.sample?.loaded ? () => endTour({ then: () => setRemovingSample(true) }) : undefined} />
       )}
-      {courseSettings && <CourseSettings key={courseSettings} data={data} courseId={courseSettings} act={act} busy={busy}
+      {courseSettings && <CourseSettings key={courseSettings.id ? `${courseSettings.id}:${courseSettings.mergeFrom.join(',')}` : courseSettings} data={data}
+        courseId={courseSettings.id || courseSettings} mergeFrom={courseSettings.mergeFrom} act={act} busy={busy}
         setNotice={setNotice} onClose={() => setCourseSettings(null)} />}
       {removingSample && <RemoveSampleDialog busy={sampleBusy} onConfirm={removeSampleData}
         onClose={() => { if (!sampleBusy) setRemovingSample(false); }} />}
@@ -2347,11 +2350,11 @@ export default function App({ call: transportCall, host = {} }) {
                       {modal.source.usedBy.map(deck => <button key={`${deck.kind}:${deck.id}`} disabled={busy || deck.kind === 'draft'}
                         onClick={() => openLearningTarget({ kind: 'deck', id: deck.id })}>{deck.title}{deck.archived ? ` · ${ui('已归档')}` : ''}</button>)}
                     </div>}
-                    <button type="button" disabled={busy} onClick={() => {
-                      rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
-                      setGenSource('files'); setModal(null); setPage('generate');
-                    }}>{ui('从这份资料出题')}</button>
-                    <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
+                    <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host} generateDisabled={busy}
+                      onGenerate={() => {
+                        rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
+                        setGenSource('files'); setModal(null); setPage('generate');
+                      }}
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
                       onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
                         setGenSource('case'); setModal(null); setPage('generate'); }} />

@@ -218,8 +218,8 @@ export function UpdateSettings({ update, call, onOpen, checking = false }) {
     finally { setSaving(false); }
   }
   return (
-    <fieldset className="update-settings" data-tour="settings-update">
-      <legend>{ui('关于与更新')}</legend>
+    <fieldset className="settings-section update-settings" data-tour="settings-update">
+      <legend className="settings-section__title">{ui('关于与更新')}</legend>
       <dl className="update-facts">
         <div><dt>{ui('当前版本')}</dt><dd>{update?.current || '—'}</dd></div>
         <div><dt>{ui('上次检查')}</dt><dd>{update?.checkedAt ? formatTime(update.checkedAt) : ui('尚未检查')}</dd></div>
@@ -236,7 +236,7 @@ export function UpdateSettings({ update, call, onOpen, checking = false }) {
           {ui('自动检查更新')}
         </label>
       </div>
-      <p className="muted">{ui('每 12 小时最多向 GitHub 查询一次最新版本，不发送任何学习数据。')}</p>
+      <p className="settings-section__lead">{ui('每 12 小时最多向 GitHub 查询一次最新版本，不发送任何学习数据。')}</p>
     </fieldset>
   );
 }

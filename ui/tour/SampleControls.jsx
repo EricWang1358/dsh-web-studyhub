@@ -12,9 +12,9 @@ export function OnboardingPanel({ sample, progress, busy = false, onTour, onRest
   useInjectCss(css, "study-onboarding");
   const loaded = !!sample?.loaded;
   return (
-    <fieldset className="onboarding-settings" data-tour="settings-sample">
-      <legend>{ui("上手与示例")}</legend>
-      <p className="muted">{loaded
+    <fieldset className="onboarding-settings settings-section" data-tour="settings-sample">
+      <legend className="settings-section__title">{ui("上手与示例")}</legend>
+      <p className="settings-section__lead">{loaded
         ? uiFormat("示例课程「{0}」已载入。移除时只删除示例，不影响你自己的资料和记录。", [sample.course || ""])
         : ui("示例课程可以演示全部功能：一份讲义、一个题组和三周的练习记录。载入后随时可以一键移除。")}</p>
       <div className="onboarding-settings__actions">
