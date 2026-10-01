@@ -11,6 +11,7 @@ import { createHostHandler, unverifiedModelStatus } from "../lib/host.js";
 import { localizeAppMessage } from "../lib/application-messages.js";
 import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import { createFakeModel, FAKE_MODEL_ROUTE } from "./fake-model.mjs";
+import { cleanEffortPreference, withEffortState } from "../lib/reasoning-effort.js";
 
 const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 const SESSION_ID = "study-preview";
@@ -28,6 +29,8 @@ export function previewOptions(argv = process.argv, env = process.env) {
     model: env.STUDY_API_KEY ? { apiKey: env.STUDY_API_KEY, baseUrl: env.STUDY_BASE_URL, model: env.STUDY_MODEL }
       : env.STUDY_FAKE_MODEL ? "fake" : null,
     fakeLatencyMs: Number(env.STUDY_FAKE_LATENCY_MS || 900),
+    // STUDY_FAKE_EFFORTS=low,medium,high: the preview model offers these reasoning levels (lowest first).
+    efforts: (env.STUDY_FAKE_EFFORTS || "").split(",").map((id) => id.trim()).filter(Boolean),
   };
 }
 
@@ -61,9 +64,11 @@ function previewModel(model, fakeLatencyMs) {
  * state: the library is the --library folder itself, and choosing another one
  * in Settings lasts for this preview without writing a binding file.
  */
-function previewHost(workspaceRoot, model) {
+function previewHost(workspaceRoot, model, efforts = []) {
   const disposers = [];
   const ctx = {
+    // A model catalogue entry with reasoning levels, as DSH's ctx.llm.resolveModelInfo reports it.
+    ...(efforts.length ? { llm: { resolveModelInfo: async () => ({ reasoning: { efforts: efforts.map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })) } }) } } : {}),
     sessions: new Map([[SESSION_ID, { header: { cwd: workspaceRoot } }]]),
     // The session follows the preview model, as a DSH session follows its selected model.
     get: (name) => name === "agentDefaultModel" && model ? { currentSelection: () => model.route } : undefined,
@@ -74,15 +79,18 @@ function previewHost(workspaceRoot, model) {
   // binding() in lib/host.js reads these on every request.
   const config = { libraryRoot: workspaceRoot };
   const handle = createHostHandler(ctx, config, makeComplete, { owner: ctx });
-  let chosen = { root: "", provider: "", model: "" };
-  const view = () => {
+  let chosen = { root: "", provider: "", model: "", reasoningEffort: "" };
+  const view = async () => {
     const custom = !!(chosen.provider && chosen.model);
-    const route = custom ? { provider: chosen.provider, model: chosen.model } : model?.route || null;
+    // The preview session follows its model at the middle level when it offers levels.
+    const session = model?.route && efforts.length ? { ...model.route, reasoningEffort: efforts[Math.floor(efforts.length / 2)] } : model?.route || null;
+    const route = custom ? { provider: chosen.provider, model: chosen.model } : session;
     // Plan contract C3, as lib/host.js answers it for hosts without a model registry.
-    return { root: chosen.root || workspaceRoot, rootSource: chosen.root ? "custom" : "workspace", workspaceRoot,
+    return withEffortState(ctx, { root: chosen.root || workspaceRoot, rootSource: chosen.root ? "custom" : "workspace", workspaceRoot,
       provider: chosen.provider, model: chosen.model, modelSource: custom ? "custom" : "session", route,
+      reasoningEffort: chosen.reasoningEffort,
       modelStatus: unverifiedModelStatus(route),
-      host: { edition: "preview", chat: false, agentTasks: false, landing: false } };
+      host: { edition: "preview", chat: false, agentTasks: false, landing: false } });
   };
   function choose(args = {}) {
     // Same rules and messages as saveBinding, so the UI shows the same errors.
@@ -90,7 +98,9 @@ function previewHost(workspaceRoot, model) {
     if (root && !isAbsolute(root)) throw new Error("Choose an absolute library directory");
     const provider = String(args.provider || "").trim(), modelId = String(args.model || "").trim();
     if (!provider !== !modelId) throw new Error("Choose both a provider and a model, or follow the session model");
-    chosen = { root, provider, model: modelId };
+    // Like saveBinding: an omitted level is kept, an empty one follows the session.
+    const reasoningEffort = args.reasoningEffort === undefined ? chosen.reasoningEffort : cleanEffortPreference(args.reasoningEffort);
+    chosen = { root, provider, model: modelId, reasoningEffort };
     config.libraryRoot = root || workspaceRoot;
     if (provider) Object.assign(config, { provider, model: modelId });
     else { delete config.provider; delete config.model; }
@@ -98,7 +108,7 @@ function previewHost(workspaceRoot, model) {
   }
   async function call(action, args = {}) {
     if (action !== "binding.get" && action !== "binding.set") return handle("call", { sessionId: SESSION_ID, action, args });
-    try { return { ok: true, value: action === "binding.set" ? choose(args) : view() }; }
+    try { return { ok: true, value: action === "binding.set" ? await choose(args) : await view() }; }
     catch (error) { return { ok: false, error: { code: "STUDY_ERROR", message: localizeAppMessage(error.message, args.uiLanguage || "zh") } }; }
   }
   return { call, dispose: async () => { for (const dispose of disposers.reverse()) await dispose(); } };
@@ -123,7 +133,7 @@ async function readBody(req) {
  * settings) while the preview runs, so it never reads or writes ~/.dsh.
  * `port: 0` picks a free port.
  */
-export async function createPreviewServer({ libraryRoot, port = 4178, model = null, home, fakeLatencyMs = 900,
+export async function createPreviewServer({ libraryRoot, port = 4178, model = null, home, fakeLatencyMs = 900, efforts = [],
   distDir = resolve(repoRoot, "dist") } = {}) {
   const workspaceRoot = resolve(libraryRoot || resolve(repoRoot, "output/preview-library"));
   const homeDir = resolve(home || resolve(repoRoot, "output/preview-home"));
@@ -135,7 +145,7 @@ export async function createPreviewServer({ libraryRoot, port = 4178, model = nu
   if (await access(join(workspaceRoot, ".dsh-study-binding.json")).then(() => true, () => false))
     console.warn(`[study-preview] ${join(workspaceRoot, ".dsh-study-binding.json")} (saved by DSH) chooses the library; pass another --library to preview this folder itself.`);
   const token = randomBytes(24).toString("hex");
-  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs));
+  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts);
   let actualPort = port;
   const json = (res, status, value) => res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" })
     .end(JSON.stringify(value));

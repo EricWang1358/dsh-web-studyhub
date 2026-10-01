@@ -40,6 +40,8 @@ import CourseSettings, { CourseList } from './CourseSettings.jsx';
 import Inbox from "./Inbox.jsx";
 import css from "./coach.css";
 import libraryChipCss from "./library-chip.css";
+import ReasoningEffortField from "./ReasoningEffortField.jsx";
+import LibraryUsage from "./LibraryUsage.jsx";
 import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
@@ -1151,6 +1153,7 @@ export default function App({ call: transportCall, host = {} }) {
       root: binding.rootSource === "custom" ? binding.root : "",
       provider: binding.modelSource === "custom" ? binding.provider : "",
       model: binding.modelSource === "custom" ? binding.model : "",
+      reasoningEffort: binding.reasoningEffort || "",
       ...patch,
     };
   }
@@ -1175,7 +1178,7 @@ export default function App({ call: transportCall, host = {} }) {
         setSelectedSources([]);
       }
       await refresh();
-      setNotice(moved ? ui("已切换学习库") : ui("已更新生成模型"));
+      setNotice(moved ? ui("已切换学习库") : Object.hasOwn(patch, "reasoningEffort") ? ui("已更新推理程度") : ui("已更新生成模型"));
       return true;
     } catch (e) {
       setError(e.message);
@@ -1277,6 +1280,7 @@ export default function App({ call: transportCall, host = {} }) {
                 ? ui("插件配置指定")
                 : ui("自定义目录")}
             {" · "}{ui("资料、题库与复习记录保存在这里")}</small>
+          <LibraryUsage root={binding.root} call={call} active={!!data} />
         </div>
         <div className="binding-actions">
           <button type="button" onClick={chooseRoot} disabled={busy}>{ui("更换目录…")}</button>
@@ -1381,6 +1385,9 @@ export default function App({ call: transportCall, host = {} }) {
           <button type="button" onClick={() => setModelDraft(null)}>{ui("取消")}</button>
         </form>
       )}
+      <ReasoningEffortField binding={binding} busy={busy} refreshKey={JSON.stringify(followedModel || null)}
+        onChange={(reasoningEffort) => updateBinding({ reasoningEffort })}
+        onRefresh={() => call("binding.get").then(setBinding, () => {})} />
     </div>
   );
   /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────
