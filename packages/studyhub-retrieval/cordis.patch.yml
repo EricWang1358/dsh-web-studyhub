@@ -1,0 +1,4 @@
+- insert:
+    - id: studyhub-retrieval
+      name: '@ericwang1358/studyhub-retrieval'
+      config: {}

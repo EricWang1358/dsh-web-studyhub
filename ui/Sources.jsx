@@ -105,7 +105,7 @@ const pageLabel = (item, page) => item.format === 'pdf'
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, advice = false, retrieval = null, onOpenSettings }) {
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
   const [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), row = useRef(null);
   const multi = item.pages.length > 1;
@@ -162,7 +162,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
       </div>}
       {advice && <Disclosure className="source-doc__advice" summary={uiFormat('这份资料有 {0} 页，建议按章节使用', [Math.max(item.pages.length, item.totalPages || 0)])} meta={ui('大教材建议')}>
         <LargeDocumentCard reason="long-document" detail={{ name: displayTitle(item.title), pages: Math.max(item.pages.length, item.totalPages || 0) }}
-          retrieval={retrieval} onOpenSettings={onOpenSettings} />
+          retrieval={retrieval} onOpenSettings={onOpenSettings} call={call} courses={courses} defaultCourse={defaultCourse} onRetrieval={onRetrieval} />
       </Disclosure>}
     </article>
   );
@@ -312,7 +312,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
                   onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving}
-                  advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings} />)}
+                  advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
+                  call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>
             );
           })}

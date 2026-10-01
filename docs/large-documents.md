@@ -23,10 +23,10 @@ A converted book has **no import limit** (apart from 8 MB for Markdown and 40 MB
 
 ## Steps
 
-1. Convert the PDF with MinerU or Docling (below). Keep the `.json` they write (or Markdown with page markers).
-2. **Add material**, drop the file. StudyHub recognises converter output by its content, saves one source per page, and splits the book into chapters by its headings. Each page keeps its page number for citations.
+1. Convert the PDF with the **MinerU desktop client** (download and install it like any app, open the PDF, export the JSON with page numbers, `content_list.json`). Docling is the command-line alternative (below, under Advanced).
+2. **Add material**, drop the exported file. StudyHub recognises converter output by its content, saves one source per page, and splits the book into chapters by its headings. Each page keeps its page number for citations.
 3. **Create deck**: open the book, choose **Choose chapters**, tick the chapters to study. A chapter is a group of pages; **Choose by page instead** is still available.
-4. For whole-book questions, add a search tool in DSH (below), choose it in **Settings → Extensions: conversion and search**, and write the topic under **What do you want to practise?**. With a tool chosen, a selection above 150,000 characters is narrowed to the pages the tool finds (at most about 120,000 characters). **Preview the pages that will be used** lets you tick or untick pages before generating; **Use only the ticked pages** replaces the selection with them. The job's execution view says which pages were used.
+4. For whole-book questions, click **Install the search extension** (on the card, or in **Settings → Extensions: conversion and search**), then **Build the search index for this course**, and write the topic under **What do you want to practise?**. With the extension's index built, a selection above 150,000 characters is narrowed to the pages the tool finds (at most about 120,000 characters). **Preview the pages that will be used** lets you tick or untick pages before generating; **Use only the ticked pages** replaces the selection with them. The job's execution view says which pages were used.
 
 ## Recommended converters
 
@@ -34,8 +34,8 @@ Checked on 2026-10-01 against each project's own pages. Licences and features ca
 
 | Tool | Licence | Platforms | MCP | Output StudyHub reads | Notes |
 |---|---|---|---|---|---|
-| **MinerU** (recommended) | MinerU Open Source License: Apache-2.0 with extra conditions (a separate licence above 100 million monthly active users or USD 20 million monthly revenue; attribution for online services) | Windows, macOS, Linux (Python 3.10–3.14 for the library) | none from the project (community servers call its cloud API) | `content_list.json` (v1, flat, `page_idx`; v2, grouped by page), Markdown has no page markers | Handles scanned pages, formulas, tables and Chinese. Its website offers a desktop client for Windows and macOS (Apple silicon and Intel): [mineru.net/client](https://mineru.net/client). Whether the client parses locally or in the cloud is not stated on that page: check before uploading private material. The GitHub README documents the command line, SDK and WebUI rather than a client. CPU works (2 GB RAM for the basic tier); a GPU is optional. |
-| **Docling** (alternative) | MIT | Windows, macOS, Linux | `docling-mcp` (MIT; stdio, SSE, streamable HTTP) | JSON (`DoclingDocument`, `prov.page_no`, 1-based); Markdown | Run it from a command line or Python: `docling file.pdf --to json`; OCR engines include RapidOCR, EasyOCR and Tesseract (`--ocr-engine`, `--ocr-lang`). No desktop app. |
+| **MinerU** (recommended; a normal desktop app) | MinerU Open Source License: Apache-2.0 with extra conditions (a separate licence above 100 million monthly active users or USD 20 million monthly revenue; attribution for online services) | Windows, macOS, Linux (Python 3.10–3.14 for the library) | none from the project (community servers call its cloud API) | `content_list.json` (v1, flat, `page_idx`; v2, grouped by page), Markdown has no page markers | Handles scanned pages, formulas, tables and Chinese. Its website offers a desktop client for Windows and macOS (Apple silicon and Intel): [mineru.net/client](https://mineru.net/client). Whether the client parses locally or in the cloud is not stated on that page: check before uploading private material. The GitHub README documents the command line, SDK and WebUI rather than a client. CPU works (2 GB RAM for the basic tier); a GPU is optional. |
+| **Docling** (Advanced: needs a command line) | MIT | Windows, macOS, Linux | `docling-mcp` (MIT; stdio, SSE, streamable HTTP) | JSON (`DoclingDocument`, `prov.page_no`, 1-based); Markdown | Run it from a command line or Python: `docling file.pdf --to json`; OCR engines include RapidOCR, EasyOCR and Tesseract (`--ocr-engine`, `--ocr-lang`). No desktop app. |
 
 Also checked and **not** recommended:
 
@@ -53,18 +53,31 @@ Also checked and **not** recommended:
 
 Mainland channels are China-hosted pages, the model hub ModelScope, or registry mirrors (the Tsinghua PyPI mirror, npmmirror: DSH's own plugin manager falls back to npmmirror). Model files that a tool downloads from Hugging Face may need a mirror from your network provider; this guide does not recommend an unofficial one.
 
-## Retrieval tools
+## The search extension (one click)
+
+**Settings → Extensions: conversion and search**, and the Large textbooks card, offer **Install the search extension**. No file is edited, no command is typed, and no Node, Python or Docker has to be installed.
+
+- **What it is.** A small companion bundle, `@ericwang1358/studyhub-retrieval`, published as a release asset of the same StudyHub version (`ericwang1358-studyhub-retrieval-<version>.tgz`, with its SHA-256 in `SHA256SUMS-<version>.txt`). It carries one DSH plugin that mounts DSH's own MCP client for the local search server [mcp-local-rag](https://github.com/shinpr/mcp-local-rag) (MIT, pinned to an exact version), which is the bundle's npm dependency.
+- **How it installs.** The same way StudyHub updates itself: StudyHub downloads the asset from the project's GitHub release, checks the checksum, keeps the verified file under `<DSH home>/study/updates` and hands it to DSH's plugin manager (`ctx.pluginManager.installBundle`). pnpm then fetches the server and its components from the package registry (DSH falls back to the npmmirror registry when the default is unreachable). pnpm holds back some components' install scripts; StudyHub lists them and asks before allowing them. A fresh install is live at once; replacing an installed copy needs a DSH restart, and the page says so.
+- **How it runs without anything else installed.** The plugin starts the server with the Node that DSH itself runs on (`process.execPath`; under DSH Desktop that is Electron in Node mode, so it also sets `ELECTRON_RUN_AS_NODE=1`) and finds the server's entry file next to its own package. The server needs Node 22 or newer; the plugin checks and, if DSH's Node is older, does not start it and logs why.
+- **Build the index.** **Build the search index for this course** hands the course's pages to the server one by one under their own id (`studyhub://source/<id>`), so every hit names its page exactly. Only new or changed pages are sent, pages that left the library are removed, and the build runs in the background with progress and a stop button. The first build downloads the embedding model: about 90 MB, once (the server's documentation); the page says so before you start. It works offline afterwards.
+- **Search quality.** The server's default model is aimed at English; Chinese textbooks are still searched (it adds keyword matching) but semantic matching is weaker. No multilingual model is documented by the project, so none is bundled or recommended.
+- **If the model cannot be downloaded.** The server's documentation describes `HF_ENDPOINT` for a download address other than the default. **Advanced → Model download address** stores one (https only) and the extension passes it on when DSH starts it, so a change needs a DSH restart. No mirror address is suggested: the project documents the variable, not a mirror.
+- **Where things live.** Index and model cache: `<DSH home>/study/retrieval`; what StudyHub indexed: `<DSH home>/study/retrieval/manifests`; the choice of provider: `<DSH home>/study/retrieval.json`. Uninstalling removes the bundle and keeps these.
+- **Choosing it.** Once an index exists, the extension becomes the provider automatically unless you chose another one yourself.
+
+## Advanced: other retrieval tools
 
 StudyHub talks to retrieval through DSH: DSH's MCP client registers every tool of a configured MCP server as `mcp__<server>__<tool>`, and StudyHub lists the ones that look like search tools (a text argument and a name or description with *search*, *query*, *retrieve*, *find*, *lookup*, *recall* or *rag*). You choose one in **Settings → Extensions: conversion and search**; **Test** runs it once and reports how many passages matched pages of your material.
 
 | Tool | Licence | Needs | Notes |
 |---|---|---|---|
-| **mcp-local-rag** (recommended, light) | MIT | Node.js 22+ (`npx`) | Local embeddings and vector store; reads PDF, Word, Markdown and text; semantic search with a keyword boost (`RAG_HYBRID_WEIGHT`). The default embedding model (`Xenova/all-MiniLM-L6-v2`) favours English: for Chinese textbooks choose a multilingual embedding model with `MODEL_NAME` (it must be a Hugging Face model compatible with mean pooling and normalisation; check its README). Results carry the passage text and file path but no page number, so StudyHub matches them to pages by the passage text: put the converted Markdown in the folder it reads. |
+| **mcp-local-rag** (what the extension runs for you; by hand: needs Node.js and a configuration file) | MIT | Node.js 22+ (`npx`) | Local embeddings and vector store; reads PDF, Word, Markdown and text; semantic search with a keyword boost (`RAG_HYBRID_WEIGHT`). The default embedding model (`Xenova/all-MiniLM-L6-v2`) favours English: for Chinese textbooks choose a multilingual embedding model with `MODEL_NAME` (it must be a Hugging Face model compatible with mean pooling and normalisation; check its README). Results carry the passage text and file path but no page number, so StudyHub matches them to pages by the passage text: put the converted Markdown in the folder it reads. |
 | **RAGFlow** (full knowledge base) | Apache-2.0 | Docker; 4 CPU cores, 16 GB RAM and 50 GB disk recommended | A web application with Chinese-first document parsing and an MCP interface (streamable HTTP at `/api/v1/mcp`). Create a knowledge base from your converted books first. The shared API key stays on the RAGFlow side (`mcp.host_api_key` in its settings), so the DSH configuration holds no key. Tool name and result fields are not documented on the pages checked: StudyHub reads the schema DSH reports and matches results by text. |
 
-### Adding one in DSH
+### Adding one by hand in DSH
 
-DSH has no screen for adding an MCP server: it is a plugin entry. Add this to the `cordis.patch.yml` in your DSH home (after any existing content; DSH applies it without a restart when live reload is on). The Settings section and the card offer the same text with a **Copy configuration** button.
+Only if you do not want the one-click extension: DSH has no screen for adding an MCP server, it is a plugin entry. Add this to the `cordis.patch.yml` in your DSH home (after any existing content; DSH applies it without a restart when live reload is on). The Settings section and the card offer the same text with a **Copy configuration** button.
 
 ```yaml
 - insert:
@@ -129,7 +142,12 @@ StudyHub reads the tool's JSON schema from DSH (`ctx.tools.schemas()`), fills th
 
 | Action | Purpose |
 |---|---|
-| `retrieval.status` | `{ selected, effective, missing?, hostCanSearch, providers, otherTools, limits }` |
+| `retrieval.status` | `{ selected, effective, missing?, explicit, hfEndpoint?, companion: { id, running }, extension: { canInstall, installed, enabled, version?, desktop }, hostCanSearch, providers, otherTools, limits }` (`extension` is added by the host handler; when the extension holds an index and nothing was chosen explicitly it becomes `effective`) |
+| `retrieval.extension.install { approvedBuilds? }` | `{ status: 'installed', restartRequired, application, version }` or `{ status: 'needs-approval', pending }` (call again with `approvedBuilds`); errors `extension-no-installer`, `extension-download`, `extension-checksum`, `extension-install` |
+| `retrieval.extension.uninstall` | removes the bundle; a chosen extension provider falls back to `builtin` |
+| `retrieval.index.plan { course? }` | `{ course, pages, toIndex, unchanged, toRemove, chars, firstRun, modelMb, canIndex }` |
+| `retrieval.index.start { course? }` / `.status` / `.cancel` | background build: `{ runId, course, status: running\|complete\|failed\|cancelled, stage: preparing\|model\|indexing, done, total, added, removed, unchanged, failed, failedCount, firstRun, error?, errorCode? }`; one build per library at a time |
+| `retrieval.endpoint.set { endpoint }` | the extension's model download address (https, or empty for the default) |
 | `retrieval.set { provider, queryArg?, limitArg? }` | `provider`: `builtin`, `service` or `mcp:<tool>`; stored in `$DSH_HOME/study/retrieval.json` (no secrets) |
 | `retrieval.test { query? }` | one harmless call; `{ ok, hits, matched, unresolved }` |
 | `retrieval.preview { sourceIds, query, course?, limit? }` | `{ provider, pages: [{ sourceId, title, page, score, snippet }], unresolved, hits }` |

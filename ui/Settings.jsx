@@ -294,7 +294,7 @@ export default function Settings({
       </fieldset>
       {coursePanel}
       {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
-      {hasContext(data, 'generation') && <ExtensionsSettings call={call} setNotice={setNotice} />}
+      {hasContext(data, 'generation') && <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} />}
       {onboardingPanel}
       {profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}
       <fieldset className="settings-section">

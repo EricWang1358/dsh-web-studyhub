@@ -49,6 +49,16 @@ for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'au
   await writeFile(join(staging, 'cordis.patch.yml'), `- insert:\n    - id: study-${domain}\n      name: '${name}'\n      config: {}\n`);
   archives.push(await pack(staging));
 }
+// The search extension (WP28b): a companion bundle StudyHub installs on request; same version, same checksum list.
+{
+  const source = join(root, 'packages', 'studyhub-retrieval');
+  const staging = await mkdtemp(join(target, 'packages', 'retrieval-'));
+  await cp(source, staging, { recursive: true });
+  await cp(join(root, 'LICENSE'), join(staging, 'LICENSE'));
+  const companion = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'));
+  await writeFile(join(staging, 'package.json'), JSON.stringify({ ...companion, version: manifest.version }, null, 2) + '\n');
+  archives.push(await pack(staging));
+}
 const setupFilename = `StudyHub-${manifest.version}-Setup.html`;
 await cp(join(root, 'docs/install.html'), join(target, setupFilename));
 const setup = { filename: setupFilename,
