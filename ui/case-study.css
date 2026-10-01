@@ -468,3 +468,11 @@
   font-size: var(--fs-sm);
 }
 .case-create__passage button { justify-self: start; }
+
+.case-create__profile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+.case-create__profile p { margin: 0; }

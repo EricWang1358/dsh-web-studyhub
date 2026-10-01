@@ -2113,6 +2113,7 @@ export default function App({ call: transportCall, host = {} }) {
                 openModelSettings={openModelSettings}
                 onStarted={() => { setRevealHome((n) => n + 1); setCaseInitial(null); setPage("library"); }}
                 caseInitial={caseInitial || undefined}
+                onCourseSettings={setCourseSettings}
                 key={caseInitial?.nonce || "generate"}
               />
             )}

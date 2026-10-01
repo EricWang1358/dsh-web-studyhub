@@ -217,6 +217,21 @@ test("case requests are validated in the request language", async (t) => {
   await assert.rejects(lib.service.call("generate", { kind: "case", sourceIds: lib.sourceIds, questions: 9 }), /1–5 道题/);
 });
 
+test("examiner guidance and the time model come from the course profile (courses.v1) when the request leaves them out", async (t) => {
+  const lib = await library(t);
+  await lib.service.call("course.save", { name: "Cloud Native", guidanceSourceIds: [lib.guidanceId], focusTopics: ["Cloud persistence"],
+    exam: { format: "open-book-case", totalMarks: 30, writingMinutes: 75 } });
+  const started = await lib.service.call("generate", { kind: "case", sourceIds: lib.sourceIds, questions: 2, language: "English", course: "Cloud Native" });
+  const job = await wait(lib.service, started.jobId);
+  assert.equal(job.status, "complete", job.stage);
+  const draft = (await lib.service.store.read()).drafts.find((item) => item.id === job.draftId);
+  assert.equal(draft.case.totalMarks, 30, "the paper takes the course exam's marks");
+  assert.match(draft.cards.flatMap((card) => card.rubricCriteria.map((criterion) => criterion.descriptor)).join("\n"), /Tie every technology you recommend/);
+  const profile = await resolveCourseProfile((action, args) => lib.service.call(action, args), "Cloud Native");
+  assert.equal(profile.exam.minutesPerMark, 2.5, "75 minutes for 30 marks");
+  assert.deepEqual(profile.guidanceSourceIds, [lib.guidanceId]);
+});
+
 test("the course profile adapter fills defaults before and after WP13", async () => {
   assert.deepEqual(await resolveCourseProfile(async () => { throw new Error("Capability unavailable: course.profile"); }, "Cloud Native"),
     defaultCourseProfile("Cloud Native"));

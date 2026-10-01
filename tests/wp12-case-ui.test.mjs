@@ -218,8 +218,12 @@ test("创建题组 offers 案例分析题, and its form starts with the course, 
   assert.match(form, /data-tour="case-create"/);
   assert.match(form, /用资料出新案例[\s\S]*仿照真题出题[\s\S]*粘贴题目直接批改/);
   assert.ok(form.indexOf("课程") < form.indexOf("source-picker"), "the course comes first");
-  assert.match(form, /评分说明来源（可选）/);
-  assert.match(form, /重点主题/);
+  assert.match(form, /按课程的考试设置：每分约 3 分钟，还没有评分说明/);
+  assert.doesNotMatch(form, /评分说明来源（可选）/, "guidance and focus topics are edited in the course settings");
+  const linked = render(Generate, { ...props, genSource: "case", onCourseSettings: noop, data: { ...props.data, courses: [{ id: "course-1", name: "Cloud Native",
+    exam: { format: "open-book-case", totalMarks: 40, writingMinutes: 100 }, guidanceSourceIds: ["a"], focusTopics: ["Cloud Persistence"] }] } });
+  assert.match(linked, /每分约 2.5 分钟，评分说明 1 份，重点主题：Cloud Persistence/);
+  assert.match(linked, /修改课程的考试设置、评分说明和重点主题/);
   assert.match(form, /出一套案例题 →/);
   assert.match(render(Generate, { ...props, genSource: "case", data: { ...props.data, model: { ready: false, reason: "no-route" } } }), /先配置一个 AI 模型/);
 });

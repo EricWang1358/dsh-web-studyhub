@@ -3,7 +3,7 @@ import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
-import { Button, Disclosure, SegmentedControl, SetupRequired, IconButton } from "./components/index.js";
+import { Button, SegmentedControl, SetupRequired, IconButton } from "./components/index.js";
 import { modelReadiness } from "./generation-status.js";
 import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords } from "../lib/case-study.js";
 import css from "./case-study.css";
@@ -16,22 +16,19 @@ import css from "./case-study.css";
 
 const blankQuestion = () => ({ prompt: "", marks: 10, answer: "" });
 
-export default function CaseCreate({ data, busy, act, call, setNotice, onStarted, openImport, openSettings, initial = {} }) {
+export default function CaseCreate({ data, busy, act, setNotice, onStarted, openImport, openSettings, onCourseSettings, initial = {} }) {
   useInjectCss(css, "study-case-workspace");
   const model = modelReadiness(data);
   const [mode, setMode] = useState(initial.mode || "new");
   const [course, setCourse] = useState(initial.course ?? (data.focus?.course && data.focus.course !== "*" ? data.focus.course : ""));
   const [sourceIds, setSourceIds] = useState(initial.sourceIds || []);
-  const [guidanceIds, setGuidanceIds] = useState(null);
-  const [focus, setFocus] = useState(null);
   const [form, setForm] = useState({ questions: 2, totalMarks: 20, language: getUiLanguage() === "en" ? "English" : "中文", title: "", styleText: "" });
   const [pasted, setPasted] = useState({ title: "", scenario: "", questions: [blankQuestion()] });
-  // The course profile (WP13) as the snapshot carries it; defaults until courses are first-class.
-  const profile = useMemo(() => courseProfileFromState({ courses: data.focus?.courses }, course), [data.focus?.courses, course]);
+  // The course profile (WP13) from the snapshot's course records; guidance and focus topics are the course's.
+  const profile = useMemo(() => courseProfileFromState({ courses: data.courses }, course), [data.courses, course]);
+  const courseRecord = (data.courses || []).find((item) => item.name === course);
   const [passage, setPassage] = useState(initial.focus || "");
   useEffect(() => { if (profile.exam.totalMarks) setForm((current) => ({ ...current, totalMarks: profile.exam.totalMarks })); }, [profile.exam.totalMarks]);
-  const guidance = guidanceIds ?? profile?.guidanceSourceIds ?? [];
-  const topics = focus ?? (profile?.focusTopics || []).join(", ");
   const answered = pasted.questions.filter((question) => question.answer.trim()).length;
   const ready = mode === "import"
     ? countWords(pasted.scenario) >= 40 && pasted.questions.every((question) => question.prompt.trim().length >= 5 && Number(question.marks) > 0)
@@ -39,7 +36,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
   function submit(event) {
     event.preventDefault();
     if (!model.ready || busy || !ready) return;
-    const shared = { kind: "case", course, guidanceSourceIds: guidance, focusTopics: topics, language: form.language, ...(passage ? { focus: passage } : {}) };
+    const shared = { kind: "case", course, language: form.language, ...(passage ? { focus: passage } : {}) };
     const args = mode === "import"
       ? { ...shared, title: pasted.title.trim() || undefined, scenario: pasted.scenario, sourceIds,
         questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })),
@@ -60,9 +57,16 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
         { value: "new", label: ui("用资料出新案例") }, { value: "style", label: ui("仿照真题出题") }, { value: "import", label: ui("粘贴题目直接批改") }]} />
       <fieldset>
         <legend>{ui("01 / 课程与资料")}</legend>
-        <CourseField courses={data.focus?.courses} value={course} onChange={setCourse} label={ui("课程")} />
-        {profile && <p className="muted">{uiFormat("按课程的考试设置：每分约 {0} 分钟{1}。", [profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
-          profile.guidanceSourceIds.length ? uiFormat("，评分说明 {0} 份", [profile.guidanceSourceIds.length]) : ""])}</p>}
+        <CourseField courses={data.focus?.courses} value={course} onChange={setCourse} label={ui("所属课程")} />
+        {/* The course owns the exam profile, examiner guidance and focus topics (WP13); they are edited in its settings. */}
+        <div className="case-create__profile">
+          <p className="muted">{uiFormat("按课程的考试设置：每分约 {0} 分钟{1}{2}。", [profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
+            profile.guidanceSourceIds.length ? uiFormat("，评分说明 {0} 份", [profile.guidanceSourceIds.length]) : ui("，还没有评分说明"),
+            profile.focusTopics.length ? uiFormat("，重点主题：{0}", [profile.focusTopics.join("、")]) : ""])}</p>
+          {courseRecord && onCourseSettings
+            ? <Button size="sm" variant="link" onClick={() => onCourseSettings(courseRecord.id)}>{ui("修改课程的考试设置、评分说明和重点主题")}</Button>
+            : <small className="muted">{ui("选好课程后，可以在课程设置里指定评分说明资料和重点主题。")}</small>}
+        </div>
         <SourcePicker sources={data.sources.filter((source) => !/^(案例：|Case: )/.test(source.title || ""))} selected={sourceIds} onChange={setSourceIds}
           courses={data.focus?.courses} onAdd={openImport} disabled={busy} />
         <p className="muted">{mode === "import" ? ui("可选：勾选课程资料，评分标准会用到其中的概念。") : ui("勾选要考查的课程资料；案例和题目都基于这些概念。")}</p>
@@ -71,13 +75,6 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
           <blockquote>{passage}</blockquote>
           <Button size="sm" variant="quiet" onClick={() => setPassage("")}>{ui("不限定段落")}</Button>
         </div>}
-        <Disclosure summary={ui("评分说明来源（可选）")} meta={guidance.length ? uiFormat("已选 {0} 份", [guidance.length]) : ""}>
-          <p className="muted">{ui("例如老师讲考试要求的录音逐字稿或评分说明 PDF。出题和批改都会参考它（只取一段摘录）。")}</p>
-          <SourcePicker sources={data.sources} selected={guidance} onChange={setGuidanceIds} disabled={busy} />
-        </Disclosure>
-        <label>{ui("重点主题（可选，用逗号分隔）")}
-          <input value={topics} onChange={(event) => setFocus(event.target.value)} placeholder={ui("例如：云端持久化, 架构风格")} />
-        </label>
       </fieldset>
       {mode === "import" ? (
         <fieldset>

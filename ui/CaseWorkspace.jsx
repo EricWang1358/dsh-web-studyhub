@@ -214,7 +214,7 @@ export function CasePaper({ data, call, onExit, onWritten, onCreate, onStartRun,
   const model = modelReadiness(data);
 
   // The course profile (WP13) proposes the time model; the learner can override it for this paper.
-  const profile = useMemo(() => courseProfileFromState({ courses: data?.focus?.courses }, course === "*" ? "" : course), [data?.focus?.courses, course]);
+  const profile = useMemo(() => courseProfileFromState({ courses: data?.courses }, course === "*" ? "" : course), [data?.courses, course]);
   useEffect(() => {
     setSettings((current) => ({ ...current, minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
       readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null }));

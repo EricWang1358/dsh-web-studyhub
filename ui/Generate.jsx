@@ -38,6 +38,7 @@ export default function Generate({
   openModelSettings,
   onStarted,
   caseInitial,
+  onCourseSettings,
 }) {
   useInjectCss(homeCss, "study-generate-home");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
@@ -118,7 +119,7 @@ export default function Generate({
       {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={setNotice} openImport={openImport} openSettings={openSettings}
+        <CaseCreate data={data} busy={busy} act={act} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
