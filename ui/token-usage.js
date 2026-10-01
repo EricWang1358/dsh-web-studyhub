@@ -7,7 +7,7 @@
    form (12.2K, 1.2M). A cache-write row appears only when there was one and the
    hit rate only when something was sent, as in DSH. */
 import { ui, uiFormat } from './i18n.js';
-import { cacheHitPercent, formatCompactTokens, formatExactTokens, promptTokens, totalTokens } from '../lib/token-usage.js';
+import { cacheHitPercent, formatCompactTokens, formatExactTokens, totalTokens } from '../lib/token-usage.js';
 
 const tok = (formatted) => `${formatted} tok`;
 const DASH = '–';

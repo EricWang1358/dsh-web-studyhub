@@ -86,6 +86,24 @@ test('a case paper is tallied as a case, a light helper call as generation', asy
   assert.deepEqual(afterSuggest.byFeature.case, job.tokenUsage, 'the case tally is untouched');
 });
 
+test('a coach helper call is tallied as coach, in the light model path', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'study-wp27-coach-'));
+  const service = new StudyService(root, { completeLight: async () => {
+    reportUsage({ uncachedInputTokens: 700, outputTokens: 60, cacheReadTokens: 300, cacheWriteTokens: 0 }, { calls: 1 });
+    return JSON.stringify({ questions: ['为什么成对？', '怎样处理失败？', '能举例吗？'] });
+  } });
+  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
+  const quote = '方法成对出现，前者失败抛异常，后者返回特殊值。';
+  await service.call('source.add', { id: 's1', title: 'Queue', text: quote });
+  await service.call('draft.save', { deck: { id: 'd1', title: 'Java', cards: [{ id: 'f1', kind: 'flashcard', topic: '队列', objective: '区分失败行为', prompt: 'add 和 offer 失败时有何不同？',
+    answer: 'add 抛异常，offer 返回特殊值。', hint: '有两条失败路径。', explanation: quote, misconception: '以为都会抛异常。', citations: [{ sourceId: 's1', quote }] }] } });
+  await service.call('draft.publish', { id: 'd1' });
+  await service.call('card.followup.suggest', { deckId: 'd1', cardId: 'f1' });
+  const summary = await service.call('usage.summary', { days: 7 });
+  assert.deepEqual(summary.byFeature.coach, { uncachedInputTokens: 700, outputTokens: 60, cacheReadTokens: 300, cacheWriteTokens: 0, calls: 1 });
+  assert.equal(summary.byFeature.generate, undefined);
+});
+
 test('publication review is tallied as review work and lands on the publish job', async (t) => {
   const { service } = await library(t);
   const data = JSON.parse(importExample('flashcard'));
