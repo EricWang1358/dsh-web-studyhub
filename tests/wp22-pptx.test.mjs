@@ -56,7 +56,7 @@ test('text boxes are plain lines; explicit bullets and numbers are honoured; buN
 
 test('line breaks inside a paragraph, entities and Chinese text', async () => {
   const result = await extract([{ shapes: [shape([apara('进程 & 线程')], { ph: 'title' }), shape([apara('第一行\n第二行 <b>')], { ph: 'body', id: 3 })] }]);
-  assert.equal(result.sources[0].text, '## 第 1 页 · 进程 & 线程\n\n- 第一行\n第二行 <b>');
+  assert.equal(result.sources[0].text, '## 第 1 页 · 进程 & 线程\n\n- 第一行\n  第二行 <b>');
 });
 
 test('tables become Markdown tables, groups are descended, pictures are ignored', async () => {
@@ -71,7 +71,7 @@ test('tables become Markdown tables, groups are descended, pictures are ignored'
 
 test('merged table cells are padded', async () => {
   const result = await extract([{ shapes: [slideTable([[{ text: 'Wide', span: 2 }, { hMerge: true }, 'C'], ['a', 'b', 'c']])] }]);
-  assert.equal(result.sources[0].text, ['| Wide |  | C |', '| --- | --- | --- |', '| a | b | c |'].join('\n'));
+  assert.equal(result.sources[0].text, ['## 第 1 页', '', '| Wide |  | C |', '| --- | --- | --- |', '| a | b | c |'].join('\n'));
 });
 
 test('speaker notes are appended under 备注：, without the slide image or number placeholders', async () => {

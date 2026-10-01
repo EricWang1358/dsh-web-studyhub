@@ -85,7 +85,8 @@ test('caps declared and inflated sizes (zip bombs)', () => {
 });
 
 test('ordinary compressible XML stays within the default ratio cap', () => {
-  const xml = '<w:p><w:r><w:t>text</w:t></w:r></w:p>'.repeat(20_000);
+  const xml = Array.from({ length: 40_000 }, (_, index) => `<w:p><w:r><w:t>paragraph ${index * 7919}</w:t></w:r></w:p>`).join('');
+  assert.ok(xml.length > 1024 * 1024, 'above the size at which the ratio cap applies');
   const zip = readZip(zipFiles([{ name: 'word/document.xml', data: xml }]));
   assert.equal(zip.text('word/document.xml').length, xml.length);
 });
