@@ -41,6 +41,7 @@ import Inbox from "./Inbox.jsx";
 import css from "./coach.css";
 import libraryChipCss from "./library-chip.css";
 import ReasoningEffortField from "./ReasoningEffortField.jsx";
+import LibraryUsage from "./LibraryUsage.jsx";
 import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
@@ -1279,6 +1280,7 @@ export default function App({ call: transportCall, host = {} }) {
                 ? ui("插件配置指定")
                 : ui("自定义目录")}
             {" · "}{ui("资料、题库与复习记录保存在这里")}</small>
+          <LibraryUsage root={binding.root} call={call} active={!!data} />
         </div>
         <div className="binding-actions">
           <button type="button" onClick={chooseRoot} disabled={busy}>{ui("更换目录…")}</button>
