@@ -17,6 +17,7 @@ import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import resultCss from "./review-results.css";
 import { useInjectCss } from "./shared.js";
+import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -153,8 +154,22 @@ export default function Review({
     setHelpChoices([]);
   }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
-  const runningTask = cardTasks.find((task) => task.status === "running");
-  const lastTask = cardTasks.at(-1);
+  const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
+  const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
+  // Case questions (WP12): the scenario sits above the question; its highlights belong to this run.
+  const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
+  const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
+  const caseDeck = run.card ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
+  const caseSource = caseDeck ? data?.sources?.find((source) => source.id === caseDeck.caseSourceId) : null;
+  const [caseHighlights, setCaseHighlights] = React.useState(run.highlights || []);
+  React.useEffect(() => { setCaseHighlights(run.highlights || []); }, [run.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A finished round on a case set (WP12): its weak criteria become drills, or another case like it.
+  const summaryCase = run.complete ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
+  const [caseNote, setCaseNote] = React.useState("");
+  const saveHighlights = (next) => {
+    setCaseHighlights(next);
+    Promise.resolve(call?.("review.highlights", { runId: run.id, highlights: next })).catch(() => {});
+  };
   const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
   const nextFreshCount = run.freshRemaining ?? [...new Set((run.scope || []).map((scope) => scope.deckId))]
@@ -203,7 +218,7 @@ export default function Review({
   return (
     <section
       ref={pageRef}
-      className={"review-page " + (!choice ? "flash-mode" : "") + (rail ? " has-rail" : "")}
+      className={"review-page " + (!choice && !rubricCard ? "flash-mode" : "") + (rail ? " has-rail" : "")}
     >
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
@@ -300,8 +315,16 @@ export default function Review({
             {detour && <button className="primary" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题 →", [detour.index + 1])}</button>}
             {run.returnTo && !detour && <button className="primary" disabled={busy}
               onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>{ui("回到原题 →")}</button>}
+            {summaryCase && <>
+              <button disabled={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
+                setCaseNote(uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count])))}>
+                {ui("把薄弱项变成练习")}</button>
+              <button disabled={busy} onClick={() => act("generate", { kind: "case", fromDeckId: summaryCase.id },
+                () => setCaseNote(ui("已开始出一套同类案例，完成后草稿会出现在学习库。")))}>{ui("再来一个同类案例")}</button>
+            </>}
             <button onClick={() => setPage("library")}>{ui("回到学习目录")}</button>
           </div>
+          {caseNote && <p className="muted" role="status">{caseNote}</p>}
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
@@ -332,10 +355,13 @@ export default function Review({
           <div
             className={
               "question-area " +
-              (!choice && !isCloze ? "flash-area" : "")
+              (!choice && !isCloze && !rubricCard ? "flash-area" : "") +
+              (caseSource ? " has-case" : "")
             }
           >
             {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}
+            {caseSource && <ScenarioPanel className="case-review-scenario" title={caseSource.title} text={caseSource.text}
+              highlights={caseHighlights} onChange={saveHighlights} />}
             {/* The card: header, stem and answers on paper stock. Toolbar,
                 status and explanation sit below it on the desk. */}
             <div className="question-card" data-tour="review-question"
@@ -528,6 +554,12 @@ export default function Review({
                       }
                     >{ui("提交答案")}</button>
                   )}
+                </>
+              ) : rubricCard ? (
+                <>
+                  <RubricAnswer run={run} data={data} value={response} onChange={setResponse} busy={busy} task={gradeTask}
+                    onSubmit={(text) => assistCard("grade", text)} onSetupModel={() => setPage("settings")} />
+                  {prereqStrip}
                 </>
               ) : (
                 <>

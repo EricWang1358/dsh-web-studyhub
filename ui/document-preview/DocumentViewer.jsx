@@ -22,7 +22,7 @@ function QuotedText({ text, quote, anchor }) {
     ? <>{text.slice(0, hit.start)}<mark ref={mark} className="source-hit">{text.slice(hit.start, hit.end)}</mark>{text.slice(hit.end)}</> : text}</pre>;
 }
 
-export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onPublished }) {
+export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onPublished, onCaseFromPassage }) {
   const language = useUiLanguage();
   useInjectCss(css, 'study-document-preview');
   const [document, setDocument] = useState(null), [content, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
@@ -112,6 +112,9 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       <aside className="study-document-side" data-tour="source-tools">
         <button type="button" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</button>
         <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} onPublished={refreshLinks} onOpenCard={onOpenCard} />
+        {/* Case practice (WP12): a passage can be the seed of a case paper. */}
+        {onCaseFromPassage && <button type="button" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
+          onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</button>}
         <h3 className="study-document-links-heading">{ui('原文关联题目与解析')}</h3>
         <PassageLinks groups={focusedGroup ? [focusedGroup] : groups} onOpenCard={onOpenCard} />
         {focusedGroup && <button type="button" onClick={() => setFocusedGroup(null)}>{ui('显示全部引用')}</button>}

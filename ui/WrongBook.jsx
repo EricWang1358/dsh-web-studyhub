@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import css from "./views.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
+import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
 
 const PAGE_SIZE = 100;
@@ -40,7 +41,7 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
       setResult({ course, counts: { total: res?.total ?? res?.items?.length ?? 0,
         graded: res?.gradedTotal ?? res?.items?.filter((item) => item.assessment === "graded").length ?? 0,
         self: res?.selfTotal ?? res?.items?.filter((item) => item.assessment === "self").length ?? 0,
-        oral: res?.oralTotal ?? 0 },
+        oral: res?.oralTotal ?? 0, rubric: res?.rubricTotal ?? 0 },
       // Keep this guard for older service versions that still return suspended cards.
         items: (res?.items || []).filter((it) => it && it.deckId && it.cardId && !it.suspended) });
       setPage(targetPage);
@@ -79,6 +80,7 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
           <PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} />
           <p className="muted">
             {counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral]) : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
+            {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
           </p>
         </div>
         <div className="section-heading-actions">
@@ -98,6 +100,10 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
 
       {err && <p className="wb-error">{items ? uiFormat("读取失败，仍显示上次结果：{0}", [err]) : err}</p>}
       {loading && !items && <p className="muted">{ui("正在读取待巩固题…")}</p>}
+      {/* Weak rubric criteria as skills (WP12): case linkage, assumptions, justification… */}
+      <RubricSkills attempts={data?.attempts} practiceLabel={ui("练案例题")}
+        onPractice={data?.decks?.some((deck) => deck.format === "case-study" && !deck.archived)
+          ? () => onPractice(data.decks.filter((deck) => deck.format === "case-study" && !deck.archived).map((deck) => ({ deckId: deck.id }))) : undefined} />
 
       {items && !counts.total && (
         <div className="empty wb-empty" data-tour="wrongbook-list">
@@ -127,8 +133,9 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
                   {plainPrompt(it.prompt)}
                 </span>
                 <span className={"wb-grade" + (it.assessment === "graded" ? "" : " self")}
-                  title={it.assessment === 'oral' ? ui('最近一次口头 AI 评估：需要巩固') : uiFormat("最近一次{0} {1} 分", [ui(it.assessment === "graded" ? "客观判分" : "自评"), it.lastGrade])}>
-                  {it.assessment === 'oral' ? ui('口头评估') : it.assessment === "graded" ? ui("答错") : ui("未掌握")}
+                  title={it.assessment === 'oral' ? ui('最近一次口头 AI 评估：需要巩固') : it.assessment === 'rubric' ? ui('最近一次按评分标准批改：得分不足六成')
+                    : uiFormat("最近一次{0} {1} 分", [ui(it.assessment === "graded" ? "客观判分" : "自评"), it.lastGrade])}>
+                  {it.assessment === 'oral' ? ui('口头评估') : it.assessment === 'rubric' ? ui('批改未达标') : it.assessment === "graded" ? ui("答错") : ui("未掌握")}
                 </span>
                 <button
                   disabled={busy}

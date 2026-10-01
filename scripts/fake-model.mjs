@@ -177,6 +177,178 @@ function editorReview(candidate) {
   })) };
 }
 
+/* ---------- case-study papers (WP12): author, review, criteria, grading ---------- */
+
+/** The JSON data of a prompt that carries it after a "DATA:" marker, or the whole prompt. */
+const payload = (prompt) => prompt.includes("DATA:\n") ? after(prompt, "DATA:\n") : data(prompt);
+const CASE_COPY = {
+  en: {
+    paragraphs: (concepts) => [
+      "Harbourline Freight is a mid-sized shipping and warehousing company based in a busy river port. It moves containers for about four hundred importers and runs three bonded warehouses next to the quay. The board has engaged your consultancy to plan a new digital platform, because the current systems can no longer keep pace with the business and the company wants to offer its services to partners online. Your recommendations will be presented to the board and to the head of operations next month, so they must be concrete, justified and realistic for the team described below.",
+      "The board listed three motivations. First, it wants an open platform so that freight forwarders, customs brokers and trucking partners can book and track shipments through published interfaces instead of email and phone calls. Second, it wants to stop buying hardware for its small server room and pay only for what it uses. Third, it wants importers to follow their containers on their phones, from the vessel to the warehouse door, without calling the office.",
+      "The core system is a fifteen-year-old Java application deployed on two physical servers in the company's own server room. All modules, from bookings and customs paperwork to warehouse slots, invoicing and customer notifications, share a single relational database, and releases happen twice a year after a weekend of manual testing. Nightly batch jobs export bookings to the accounting package, and when a job fails the finance team discovers the gap only at month end. The original developers have left, and the remaining two engineers are reluctant to change code they did not write.",
+      "Last winter the customer portal recorded thousands of failed logins from unfamiliar networks within a single weekend, and two container release notes were altered shortly before the containers left the terminal. The incident was found by chance when a customs officer queried a mismatch, and nobody can say today who changed the documents or when. The insurer has asked for a clear account of how such changes will be traced in future.",
+      "In the envisioned platform, external partners reach the business through an interface layer. Behind it sit the core processes: booking a slot, tracking a container, preparing customs documents, allocating warehouse space and billing the customer. Shared services handle identity, documents and notifications, and connectors link the platform to the port authority, the customs system and the accounting package.",
+      "Data is scattered. Booking records, customs scans, temperature readings from refrigerated containers and photographs of damaged goods end up either in the same database or in shared folders, and the weekly report for the port authority is assembled by hand from spreadsheets. Several customers have asked for a monthly history of their shipments, which today takes an analyst most of a day to prepare, and the finance director would like to know which routes actually make money. Nobody is sure how long old records must be kept, and some of them contain the personal details of drivers.",
+      "Traffic is uneven. During the harvest export season the number of bookings triples for six weeks, and the customer portal slowed to a crawl last October. Drivers and yard staff use rugged handheld scanners that frequently lose their mobile signal between the container stacks, so scans are often uploaded in bursts when the devices reconnect.",
+      "The in-house team of eight knows the shipping domain very well, but only one person has worked with cloud services before, and nobody is on call at night. The head of operations insists that the new platform must not stop the quay during the busy season, and the finance director wants the first visible results within six months rather than a single launch at the end.",
+      `The architecture board expects the team to apply what it learned about ${concepts.join(" and ")}, and it will compare at least two options for each decision before committing money to it.`,
+    ],
+    cues: [
+      { paragraph: 4, quote: "Last winter the customer portal recorded thousands of failed logins from unfamiliar networks within a single weekend, and two container release notes were altered shortly before the containers left the terminal.",
+        implies: "The failed logins and altered release notes call for audit trails, monitoring and event analytics on document changes" },
+      { paragraph: 7, quote: "During the harvest export season the number of bookings triples for six weeks, and the customer portal slowed to a crawl last October.",
+        implies: "Seasonal peaks and bursty uploads call for elastic scaling and asynchronous, event-driven intake" },
+    ],
+    title: "Harbourline Freight case",
+    scenarioTitle: "Harbourline Freight · new digital platform",
+    prompt: (n, concept) => `Question ${n}: Applying ${concept}, what would you recommend for Harbourline's new platform? Justify your choices with evidence from the case, state your assumptions, and explain why you rejected the main alternative.`,
+    criteria: (concept, cues, guidance) => [
+      { label: `Recommendation using ${concept}`, descriptor: `Applies ${concept} precisely and makes a clear recommendation for this organisation.`,
+        keyPoints: [`Names ${concept} precisely and applies it to Harbourline`, "Explains why not the main alternative"] },
+      { label: "Case linkage", descriptor: `Ties every choice to a fact of the case.${guidance.length ? ` Examiner guidance: ${guidance.join(" ")}` : ""}`,
+        keyPoints: cues.map((cue) => cue.implies) },
+      { label: "Assumptions and trade-offs", descriptor: "States assumptions where the case is silent and weighs the trade-offs of the choice.",
+        keyPoints: ["States an assumption where the case is silent"] },
+    ],
+    answer: (concept) => `**Recommendation.** Apply ${concept} in stages instead of a big-bang rewrite.\n\n- The failed logins and altered release notes justify an audit trail and monitoring of every document change.\n- The six-week harvest peak justifies elastic capacity for booking and tracking.\n- Assumption: the case gives no budget, so I assume a small first phase that the team of eight can run.\n\nI would not rewrite everything at once, because the quay must keep running during the busy season.`,
+    explanation: (concept) => `An excellent answer names how ${concept} applies, anchors each choice in the security incident and the seasonal peak, states its assumptions and weighs one alternative.`,
+    hint: "Re-read the paragraphs about last winter and about the harvest season before you decide.",
+    misconception: "Listing cloud technologies without tying them to Harbourline's incidents and peaks.",
+    objective: (n, concept) => `Q${n}: apply ${concept} to Harbourline's platform`,
+  },
+  zh: {
+    paragraphs: (concepts) => [
+      "海联货运是一家位于繁忙内河港口的中型航运与仓储公司，为约四百家进口商运输集装箱，并在码头旁经营三座保税仓库。董事会聘请你所在的咨询团队规划一个新的数字平台，因为现有系统已经跟不上业务的发展，公司也希望把服务通过网络开放给合作伙伴。你的建议下个月要提交给董事会和运营总监，因此必须具体、有依据，并且符合下面所描述团队的实际能力。",
+      "董事会列出了三个动机。第一，希望建设一个开放平台，让货代、报关行和车队伙伴通过公开接口订舱和跟踪货物，而不再依赖邮件和电话。第二，希望不再为小机房采购硬件，只为实际用量付费。第三，希望进口商能在手机上跟踪自己的集装箱，从船舶一直到仓库门口，不必再打电话问办公室。",
+      "核心系统是一套运行了十五年的 Java 应用，部署在公司自有机房的两台物理服务器上。订舱、报关单证、仓位、开票和客户通知等所有模块共用一个关系数据库，每年只发布两次，每次都要用一个周末做人工测试。夜间批处理把订舱数据导出到财务软件，一旦作业失败，财务部门要到月底才会发现缺口。原来的开发人员已经离职，剩下的两名工程师不愿意修改不是自己写的代码。",
+      "去年冬天，客户门户在一个周末里记录了数千次来自陌生网络的失败登录，还有两份集装箱放行单在集装箱离开码头前不久被人改动。这件事是海关人员偶然发现单证不一致时才暴露的，至今没有人说得清是谁、在什么时候改了这些单证。保险公司要求公司说明今后将如何追踪此类改动。",
+      "在设想的新平台中，外部伙伴通过一层对外接口访问业务。接口之后是核心流程：预订舱位、跟踪集装箱、准备报关单证、分配仓位和向客户开票。身份认证、单证和通知由共享服务提供，连接器把平台与港务局、海关系统和财务软件连在一起。",
+      "数据非常分散。订舱记录、报关扫描件、冷藏集装箱的温度读数和货损照片，有的存在同一个数据库里，有的散落在共享文件夹中；每周给港务局的报表都要人工从电子表格拼出来。好几家客户希望每月拿到自己的货运历史，现在一位分析员要花大半天才能整理出来，财务总监也想知道到底哪些航线在赚钱。没有人确定旧记录需要保存多久，其中一些还包含司机的个人信息。",
+      "业务量很不均衡。每年出口收获季的六周里，订舱量会增加到平时的三倍，去年十月客户门户几乎无法使用。司机和堆场人员使用加固型手持扫描器，在集装箱堆之间经常失去移动信号，所以扫描数据往往在设备重新联网时成批上传。",
+      "公司内部的八人团队非常熟悉航运业务，但只有一个人用过云服务，夜间也没有人值班。运营总监坚持新平台在旺季绝不能让码头停工，财务总监则希望六个月内就看到第一批成果，而不是等到最后一次性上线。",
+      `架构委员会希望团队运用学到的${concepts.join("和")}知识，并且在为每个决定投入资金之前至少比较两种方案。`,
+    ],
+    cues: [
+      { paragraph: 4, quote: "去年冬天，客户门户在一个周末里记录了数千次来自陌生网络的失败登录，还有两份集装箱放行单在集装箱离开码头前不久被人改动。",
+        implies: "失败登录和被改动的放行单说明需要审计追踪、监控和对单证改动的事件分析" },
+      { paragraph: 7, quote: "每年出口收获季的六周里，订舱量会增加到平时的三倍，去年十月客户门户几乎无法使用。",
+        implies: "季节性高峰和成批上传说明需要弹性伸缩和异步的事件驱动接入" },
+    ],
+    title: "海联货运案例",
+    scenarioTitle: "海联货运 · 新数字平台",
+    prompt: (n, concept) => `第 ${n} 题：运用「${concept}」，你会为海联货运的新平台提出什么建议？请用案例中的事实说明理由，写出你的假设，并说明为什么不选主要的替代方案。`,
+    criteria: (concept, cues, guidance) => [
+      { label: `运用「${concept}」给出建议`, descriptor: `准确运用「${concept}」，为这家公司给出明确的建议。`,
+        keyPoints: [`准确说出「${concept}」并用到海联货运身上`, "说明为什么不选主要的替代方案"] },
+      { label: "案例关联", descriptor: `每个选择都和案例中的事实挂钩。${guidance.length ? `评分说明：${guidance.join("")}` : ""}`,
+        keyPoints: cues.map((cue) => cue.implies) },
+      { label: "假设与取舍", descriptor: "案例没写的地方先写出假设，并权衡方案的取舍。", keyPoints: ["在案例没有说明的地方写出假设"] },
+    ],
+    answer: (concept) => `**建议**：分阶段运用「${concept}」，不要一次性重写。\n\n- 失败登录和被改动的放行单，说明需要对每次单证改动做审计追踪和监控。\n- 六周的收获季高峰，说明订舱和跟踪需要弹性容量。\n- 假设：案例没有给出预算，我假设第一阶段规模较小，八人团队能够运维。\n\n不选择一次性全部重写，因为旺季码头必须持续运转。`,
+    explanation: (concept) => `优秀的回答要说清「${concept}」如何落地，把每个选择锚定在安全事件和季节高峰上，写出假设，并比较至少一个替代方案。`,
+    hint: "先重读讲去年冬天和收获季的两段，再下结论。",
+    misconception: "只罗列云技术，没有和海联货运的事件与高峰联系起来。",
+    objective: (n, concept) => `第 ${n} 题：把「${concept}」用到海联货运的平台上`,
+  },
+};
+
+function marksOf(total, count) {
+  const base = Math.floor(total / count);
+  return Array.from({ length: count }, (_, index) => base + (index === 0 ? total - base * count : 0));
+}
+function caseCriteria(marks, rows) {
+  if (marks < 3) return [{ id: "c1", marks, ...rows[0] }];
+  const first = Math.max(1, Math.round(marks * 0.4)), second = Math.max(1, Math.round(marks * 0.3));
+  return [{ id: "c1", marks: first, ...rows[0] }, { id: "c2", marks: second, ...rows[1] }, { id: "c3", marks: marks - first - second, ...rows[2] }];
+}
+const guidancePoints = (text) => sentences(String(text || "").replace(/^#.*$/gm, "")).slice(0, 2);
+
+function authorCasePaper(request) {
+  const english = englishContent(request.language, "");
+  const copy = CASE_COPY[english ? "en" : "zh"];
+  const concepts = [...new Set([...(request.focusTopics || []), ...(request.materials || []).map((item) => topicOf(item, english))])].filter(Boolean);
+  if (!concepts.length) concepts.push(english ? "Architectural styles" : "架构风格");
+  const count = Number(request.questions) || 2, guidance = guidancePoints(request.examinerGuidance);
+  const questions = marksOf(Number(request.totalMarks) || 20, count).map((marks, index) => {
+    const concept = concepts[index % concepts.length], n = index + 1;
+    return { id: `q${n}`, prompt: copy.prompt(n, concept), marks, topic: concept, objective: copy.objective(n, concept), concepts: [concept],
+      paragraphs: [3, 4, 7], criteria: caseCriteria(marks, copy.criteria(concept, copy.cues, guidance)),
+      answer: copy.answer(concept), explanation: copy.explanation(concept), hint: copy.hint, misconception: copy.misconception };
+  });
+  return { title: copy.title, scenario: { title: copy.scenarioTitle, paragraphs: copy.paragraphs(concepts.slice(0, 2)) },
+    cues: copy.cues.map((cue, index) => ({ id: `cue${index + 1}`, ...cue })), questions };
+}
+
+function reviewCasePaper(paper) {
+  const scenario = (paper?.scenario?.paragraphs || []).join("\n\n");
+  const issues = [];
+  for (const question of paper?.questions || []) {
+    const rubric = JSON.stringify(question.criteria || []).toLowerCase();
+    const concepts = (question.concepts || []).map((concept) => String(concept).toLowerCase());
+    if (concepts.length && !concepts.some((concept) => rubric.includes(concept)))
+      issues.push(`${question.id}: the criteria do not assess this question's concept (${question.concepts.join(", ")})`);
+  }
+  const cuesPresent = (paper?.cues || []).every((cue) => scenario.includes(cue.quote));
+  if (!cuesPresent) issues.push("scenario: a cue sentence is not in the scenario");
+  return { checks: { selfContained: "pass", answerable: "pass", criteriaAligned: issues.some((issue) => /criteria/.test(issue)) ? "fail" : "pass",
+    noAnswerLeak: "pass", cuesPresent: cuesPresent ? "pass" : "fail", original: "pass" }, issues,
+  summary: issues.length ? "Preview fixture review found problems." : "Preview fixture review accepted the paper; no real model judgment was made." };
+}
+
+function importedCriteria(input) {
+  const english = englishContent(input.language, (input.scenario || []).map((item) => item.text).join(" "));
+  const copy = CASE_COPY[english ? "en" : "zh"];
+  const paragraphs = input.scenario || [];
+  const cueParagraph = paragraphs[Math.min(2, paragraphs.length - 1)];
+  const cueSentence = sentences(cueParagraph?.text).find((item) => item.length >= 16) || cueParagraph?.text || "";
+  const cues = cueSentence ? [{ id: "cue1", paragraph: cueParagraph.n, quote: cueSentence,
+    implies: english ? "This incident shows what the new design must detect or prevent" : "这件事说明新设计必须能发现或防止什么问题" }] : [];
+  const concepts = (input.materials || []).map((item) => topicOf(item, english));
+  const guidance = guidancePoints(input.examinerGuidance);
+  return { title: english ? "Imported case" : "导入的案例", cues,
+    questions: (input.questions || []).map((question, index) => {
+      const concept = concepts[index % Math.max(1, concepts.length)] || (english ? "Architecture" : "架构");
+      return { index: index + 1, topic: concept, objective: copy.objective(index + 1, concept), concepts: [concept],
+        paragraphs: paragraphs.slice(0, 3).map((item) => item.n),
+        criteria: question.criteria || caseCriteria(Number(question.marks) || 3, copy.criteria(concept, cues, guidance)),
+        answer: copy.answer(concept), explanation: copy.explanation(concept), hint: copy.hint, misconception: copy.misconception };
+    }) };
+}
+
+function gradeCaseAnswers(input, english) {
+  const scenario = (input.scenario || []).map((item) => item.text).join("\n\n");
+  const lowerScenario = scenario.toLowerCase();
+  const cue = (input.cues || [])[0]?.quote || sentences((input.scenario || [])[0]?.text)[0] || "";
+  const anchored = (sentence) => {
+    const words = /[㐀-鿿]/.test(sentence) ? [...sentence.matchAll(/[㐀-鿿]{2}/g)].map((match) => match[0])
+      : sentence.toLowerCase().match(/[a-z]{5,}/g) || [];
+    return words.some((word) => lowerScenario.includes(word));
+  };
+  const pattern = [0.75, 0.5, 0.25, 1, 0.5];
+  return { summary: english ? "Preview grading (fake model): clear direction; tie more choices to the case." : "预览批改（模拟模型）：方向清楚，还需要把更多选择和案例联系起来。",
+    questions: (input.questions || []).map((question) => {
+      const parts = sentences(question.learnerAnswer).concat(String(question.learnerAnswer || "").split(/\n+/).map((item) => item.trim()).filter((item) => item.length >= 8));
+      const said = [...new Set(parts)];
+      const assumption = said.find((sentence) => /assum|假设|假定/i.test(sentence));
+      const loose = said.find((sentence) => sentence !== assumption && !anchored(sentence));
+      return { cardId: question.cardId,
+        summary: english ? "A clear recommendation; the case evidence is thin in places." : "建议明确，但有些地方缺少案例依据。",
+        criteria: (question.criteria || []).map((criterion, index) => {
+          const ratio = pattern[index % pattern.length], score = Math.round(criterion.marks * ratio * 2) / 2;
+          const points = (criterion.keyPoints || []).map((point) => point.id);
+          return { id: criterion.id, score, evidence: ratio >= 0.5 && said[index % Math.max(1, said.length)] ? [said[index % said.length]] : [],
+            covered: ratio === 1 ? points : ratio >= 0.5 ? points.slice(0, 1) : [], missing: [],
+            suggestion: english ? `Tie this to the case: "${clip(cue, 90)}" — then name the concept it calls for and why not the alternative.`
+              : `把它和案例联系起来：「${clip(cue, 40)}」——再说出它需要的概念，以及为什么不选另一种方案。` };
+        }),
+        unanchored: loose && cue ? [{ quote: loose, cue }] : [],
+        assumptions: assumption ? [{ gap: english ? "a figure the case does not give" : "案例没有给出的数字", stated: true, quote: assumption }]
+          : [{ gap: english ? "the migration budget" : "迁移预算", stated: false,
+            suggestion: english ? "Write: the case does not give a budget, so I assume a small first phase; therefore…" : "写成：案例没有给出预算，所以我假设第一阶段规模较小，因此……" }] };
+    }) };
+}
+
 /* ---------- handlers, first match wins ---------- */
 
 const HANDLERS = [
@@ -193,6 +365,14 @@ const HANDLERS = [
       return { card: { ...input.card, explanation: `${input.card?.explanation || ""}（预览修复：补充了判断依据。）`,
         ...(quote ? { citations: [{ sourceId: source.id, quote }] } : {}) } };
     } },
+  { name: "case.author", slow: true, match: (s) => s.startsWith("You write original case-study exam papers"),
+    reply: ({ prompt }) => authorCasePaper(payload(prompt)) },
+  { name: "case.review", slow: true, match: (s) => s.startsWith("You independently review a case-study exam paper"),
+    reply: ({ prompt }) => reviewCasePaper(payload(prompt).candidate) },
+  { name: "case.criteria", match: (s) => s.startsWith("You write marking criteria and model answers"),
+    reply: ({ prompt }) => importedCriteria(payload(prompt)) },
+  { name: "case.grade", match: (s) => s.startsWith("You grade a learner's answers"),
+    reply: ({ prompt, english }) => gradeCaseAnswers(payload(prompt), english) },
   { name: "capture.card", match: (s) => s.startsWith("You write one rigorous study card"),
     reply: ({ prompt, nextNumber }) => {
       const kind = (prompt.match(/as an? (\w+) card/) || [])[1] || "flashcard";

@@ -5,6 +5,8 @@ import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integ
 import { readableQualityIssue } from "./quality.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
+import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
+import { renderRubric } from "../lib/case-study.js";
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -125,6 +127,7 @@ export default function Draft({
       </div>
       {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
       </label>}
+      {!jsonMode && draft.format === "case-study" && <CaseDraftHeader draft={draft} data={data} />}
       <p className="draft-count">{ui("当前草稿 ")}<strong>{draft.cards.length}</strong>{ui(" 题")}{unsavedDraft && <span>{ui(" · 有未保存修改")}</span>}</p>
       <div className="sticky-actions" data-tour="draft-publish">
         <button
@@ -371,7 +374,7 @@ export default function Draft({
                 "hint",
                 "explanation",
                 "misconception",
-                ...(q.kind === "open" ? ["rubric"] : []),
+                ...(q.kind === "open" && !q.rubricCriteria ? ["rubric"] : []),
               ].map((key) => (
                 <label key={key}>
                   {
@@ -392,6 +395,12 @@ export default function Draft({
                   />
                 </label>
               ))}
+              {q.rubricCriteria && <CriteriaEditor criteria={q.rubricCriteria} onChange={(criteria) => {
+                // Case questions (WP12): marks follow the criteria; the plain rubric text is rewritten for older readers.
+                patchCard(i, "rubricCriteria", criteria);
+                patchCard(i, "marks", criteria.reduce((sum, criterion) => sum + (Number(criterion.marks) || 0), 0));
+                patchCard(i, "rubric", renderRubric(criteria, draft.case?.language));
+              }} />}
               {q.options?.map((o, oi) => (
                 <div className="edit-option" key={o.id}>
                   <label className="inline">

@@ -12,6 +12,7 @@ import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js'
 import { Banner, Button, EmptyState, PageHeader, SetupRequired } from './components/index.js';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import homeCss from './generate-home.css';
+import CaseCreate from './CaseCreate.jsx';
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
    importing questions that already exist is the second way in. Generation is
@@ -36,6 +37,8 @@ export default function Generate({
   canChat = false,
   openModelSettings,
   onStarted,
+  caseInitial,
+  onCourseSettings,
 }) {
   useInjectCss(homeCss, "study-generate-home");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
@@ -56,6 +59,8 @@ export default function Generate({
   const tabs = [
     { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", tour: "generate-from-sources" },
     { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), icon: "file" },
+    // Case-study papers (WP12): a long case with open questions, graded criterion by criterion.
+    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", tour: "generate-case" },
     // Recording into the conversation needs a chat that can take it (plan C3).
     ...(canChat ? [{ id: "chat", label: ui("在对话里录题"), note: ui("刷题软件、错题或截图") }] : []),
   ];
@@ -113,6 +118,9 @@ export default function Generate({
       <div className="generate-panel" role="tabpanel" id="generate-panel" aria-labelledby={`generate-tab-${current}`}>
       {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
+      ) : current === "case" ? (
+        <CaseCreate data={data} busy={busy} act={act} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+          initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
           data={data}

@@ -11,6 +11,8 @@ import homeCss from "./generate-home.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import CourseRoute from "./CourseRoute.jsx";
+import caseCss from "./case-study.css";
+import { ExamCountdown } from "./CourseSettings.jsx";
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
@@ -146,6 +148,7 @@ export default function StudyMap({
   onNotebookSearch,
   onShowGraph,
   onFocus,
+  onCourseSettings,
   suggestRole,
   suggestMerges,
   mergeDecks,
@@ -159,6 +162,7 @@ export default function StudyMap({
 }) {
   useInjectCss(focusCss, "study-focus");
   useInjectCss(homeCss, "study-generate-home");
+  useInjectCss(caseCss, "study-case-workspace");
   const pageRef = useRef(null), activityRef = useRef(null);
   // After a generation starts, land with its progress card in view (P26).
   useEffect(() => {
@@ -321,7 +325,8 @@ export default function StudyMap({
           />
           <span className={"map-dot lv-" + (p ? dotLevel(p) : "new")} />
           <button className="map-name" onClick={() => toggleOpen(d.id)}>
-            <strong>{d.title}</strong>
+            <strong>{d.title}{d.format === "case-study" && <span className="case-badge" title={ui("案例分析题组：长案例 + 开放题，按评分标准批改")}>
+              {d.caseBest ? uiFormat("案例 · 最好 {0}/{1}", [d.caseBest.total, d.caseBest.max]) : uiFormat("案例 · {0} 分", [d.caseMarks])}</span>}</strong>
             <small>
               {d.available}{ui(" 题")}{p?.due ? uiFormat(" · {0} 待复习", [p.due]) : ""}
               {d.wrong ? uiFormat(" · {0} 题待巩固", [d.wrong]) : ""}
@@ -629,15 +634,19 @@ export default function StudyMap({
                 if (role !== (data.focus?.role || "")) onFocus?.({ role });
               }} />
           ) : (data.focus?.courses || []).length ? (
-            <h1 className="course-heading">
+            <h1 className="course-heading" data-tour="home-course">
               <span>{data.focus?.course === '' ? ui('未分类课程') : data.focus?.course || headline}</span>
               <span className="course-caret" aria-hidden="true">▾</span>
+              <ExamCountdown course={(data.courses || []).find((course) => course.id === data.focus?.courseId)} />
               {/* The heading is the course switcher: a transparent native select
-                  keeps keyboard and screen-reader behaviour intact. */}
+                  keeps keyboard and screen-reader behaviour intact. Its last
+                  entry opens the current course's settings (WP13). */}
               <select aria-label={ui("切换当前课程")} value={data.focus?.course || ""}
-                onChange={(event) => onFocus?.({ course: event.target.value })}>
+                onChange={(event) => event.target.value === "@course-settings"
+                  ? onCourseSettings?.(data.focus?.courseId) : onFocus?.({ course: event.target.value })}>
                 {(data.focus?.courses || []).map((course) =>
                   <option key={course.name} value={course.name}>{course.name || ui('未分类课程')}</option>)}
+                {onCourseSettings && data.focus?.courseId && <option value="@course-settings">{ui("课程设置…")}</option>}
               </select>
             </h1>
           ) : (

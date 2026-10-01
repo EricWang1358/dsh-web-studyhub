@@ -215,6 +215,58 @@ export const JOURNEY_STEPS = [
     await j.settle();
     await j.shot();
   } },
+  // Course records (WP13): the course switcher opens the course panel; an exam profile saved there
+  // shows its countdown in the library heading, and Settings lists every course.
+  { name: "course-panel", needs: ["deck"], run: async (j) => {
+    const name = j.lang === "en" ? "Software Architecture" : "软件架构";
+    const deck = (await j.snapshot()).decks.find((item) => !item.systemKind);
+    if (deck.course !== name) {
+      await j.api("deck.course", { id: deck.id, course: name });
+      await j.api("focus.set", { course: name });
+      // A second course, so the panel offers a merge.
+      await j.api("source.add", { title: j.lang === "en" ? "Database reading" : "数据库阅读材料", text: sampleMaterial(j.lang).text,
+        courses: [j.lang === "en" ? "Database Systems" : "数据库系统"] });
+      await j.reload();
+    }
+    await j.nav("library");
+    await j.page.locator(".course-heading select").selectOption("@course-settings");
+    await j.dialog().waitFor({ timeout: 10000 });
+    await j.settle();
+    await j.shot("panel");
+    await j.dialog().getByRole("button", { name: j.t("开卷案例"), exact: true }).click();
+    await j.dialog().getByLabel(j.t("总分"), { exact: true }).fill("40");
+    const date = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10);
+    await j.dialog().getByLabel(j.t("考试日期")).fill(date);
+    await j.dialog().getByRole("button", { name: j.t("添加考试部分") }).click();
+    await j.dialog().getByLabel(j.t("标题"), { exact: true }).first().fill(j.lang === "en" ? "Part A · Architecture styles" : "第一部分 · 架构风格");
+    await j.dialog().getByLabel(j.t("分值"), { exact: true }).first().fill("20");
+    await j.dialog().getByLabel(j.t("考查知识点")).first().fill(j.lang === "en" ? "Microservices; Strangler fig" : "微服务；绞杀者模式");
+    await j.shot("filled", { fullPage: true });
+    await j.dialog().locator(".course-settings__disclosure summary").last().click();
+    await j.dialog().locator(".course-settings__merge input[type=checkbox]").first().check();
+    await j.dialog().getByRole("button", { name: j.t("合并所选课程") }).click();
+    await j.dialog().getByRole("button", { name: j.t("确认合并") }).scrollIntoViewIfNeeded();
+    await j.settle();
+    await j.shot("merge-confirm");
+    await j.dialog().getByRole("button", { name: j.t("取消"), exact: true }).first().click();
+    await j.dialog().getByRole("button", { name: j.t("保存课程信息") }).click();
+    await j.until(async () => (await j.snapshot()).courses?.some((course) => course.name === name && course.exam?.date === date), "the exam profile is saved");
+    await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the panel closes after saving");
+    await j.page.locator(".course-heading-exam").first().waitFor({ timeout: 15000 });
+    await j.settle();
+    await j.shot("heading");
+    // Course pickers list existing courses first.
+    await j.openAddSource();
+    await j.dialog().locator(".course-field__picks").first().waitFor({ timeout: 10000 });
+    await j.settle();
+    await j.shot("import-course-picks");
+    await j.page.keyboard.press("Escape");
+    await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the add-material dialog closes");
+    await j.nav("settings");
+    await j.page.locator(".course-list").scrollIntoViewIfNeeded();
+    await j.settle();
+    await j.shot("settings");
+  } },
 ];
 
 /* The onboarding set (WP5), run with `--steps tour`: the welcome page of an
@@ -268,6 +320,117 @@ export const TOUR_STEPS = [
   } },
 ];
 
+/* Case practice (WP12), run with `--steps case`: write a case paper from the
+   materials, check its draft, publish, answer one question with a highlight and
+   grade it, sit the timed case paper (reading → writing → report) and turn the
+   weak criteria into drills. */
+export const CASE_STEPS = [
+  { name: "case-create", needs: ["material"], run: async (j) => {
+    await j.nav("generate");
+    await j.anchor("generate-case").first().click();
+    await j.settle();
+    const form = j.anchor("case-create");
+    await form.getByRole("button", { name: j.t("选择当前范围") }).first().click();
+    await form.getByLabel(j.t("题组名称（可选）")).fill(j.lang === "en" ? "QA case paper" : "QA 案例分析卷");
+    await form.getByLabel(j.t("语言")).selectOption(j.lang === "en" ? "English" : "中文");
+    await j.shot("form", { fullPage: true });
+    const before = (await j.snapshot()).jobs.length;
+    await j.anchor("generate-submit").first().click();
+    await j.until(async () => (await j.snapshot()).jobs.length > before, "a case generation job starts");
+    j.state.caseJobId = (await j.snapshot()).jobs.at(-1).id;
+    await j.page.locator(".generation-jobs .job").first().waitFor({ timeout: 15000 });
+    await j.settle(300);
+    await j.shot("running");
+    const done = await j.api("job.wait", { jobId: j.state.caseJobId, timeoutSeconds: 60 });
+    if (done.status !== "complete") throw new Error(`case generation ended as ${done.status}: ${done.stage}`);
+    j.state.caseDraftId = done.draftId;
+    await j.settle(1200);
+    await j.shot("done");
+  } },
+  { name: "case-draft", needs: ["caseDraft"], run: async (j) => {
+    await j.nav("library");
+    await j.page.locator(".draft-row .draft-open").first().click();
+    await j.page.locator(".case-draft").waitFor({ timeout: 15000 });
+    await j.settle();
+    await j.shot();
+    await j.shot("full", { fullPage: true });
+  } },
+  { name: "case-practice", needs: ["caseDraft"], run: async (j) => {
+    if (!await j.page.getByRole("button", { name: j.t("保存并发布 →") }).count()) {
+      await j.nav("library");
+      await j.page.locator(".draft-row .draft-open").first().click();
+    }
+    await j.page.getByRole("button", { name: j.t("保存并发布 →") }).first().click();
+    await j.page.locator(".rubric-answer textarea").first().waitFor({ timeout: 20000 });
+    // Highlight the cue sentence of paragraph 4 with the highlighter (select, mouse up).
+    const paragraph = j.page.locator(".case-review-scenario .case-para__text").nth(3);
+    await paragraph.click({ clickCount: 3 });
+    await j.settle(300);
+    const answer = j.lang === "en"
+      ? "I recommend an event-driven architecture, migrated step by step with the strangler fig pattern.\nThe failed logins and altered release notes in the case call for an audit trail and monitoring of every document change.\nThe case does not give a budget, so I assume a small first phase; therefore I would not rewrite everything at once.\nI would also use serverless functions everywhere."
+      : "我建议采用事件驱动架构，并用绞杀者模式逐步迁移。\n案例里的失败登录和被改动的放行单，说明需要审计追踪和对每次单证改动的监控。\n案例没有给出预算，所以我假设第一阶段规模较小，因此不会一次性全部重写。\n我还会把所有功能都改成无服务器函数。";
+    await j.page.locator(".rubric-answer textarea").first().fill(answer);
+    await j.settle();
+    await j.shot("answer");
+    await j.page.getByRole("button", { name: j.t("提交批改") }).first().click();
+    await j.page.locator(".rubric-result").first().waitFor({ timeout: 45000 });
+    await j.settle(800);
+    await j.page.locator(".rubric-result").first().scrollIntoViewIfNeeded();
+    await j.shot("graded");
+    await j.shot("graded-full", { fullPage: true });
+  } },
+  { name: "case-paper", needs: ["caseDeck"], run: async (j) => {
+    await j.nav("exam");
+    await j.anchor("exam-case").first().click();
+    await j.page.getByRole("button", { name: j.t("开始考试") }).waitFor({ timeout: 15000 });
+    await j.page.getByLabel(j.t("阅读时间（分钟）")).fill("2");
+    await j.settle();
+    await j.shot("setup");
+    await j.page.getByRole("button", { name: j.t("开始考试") }).click();
+    await j.page.locator(".case-paper__bar").waitFor({ timeout: 15000 });
+    if (await j.page.locator(".case-paper__switch").isVisible()) await j.page.locator(".case-paper__switch").getByRole("button", { name: j.t("案例") }).click();
+    await j.page.locator(".case-paper .case-para__text").nth(5).click({ clickCount: 3 });
+    await j.page.locator(".case-paper .case-swatch.hl-green").first().click();
+    await j.settle();
+    await j.shot("reading");
+    await j.page.getByRole("button", { name: j.t("提前开始作答") }).click();
+    if (await j.page.locator(".case-paper__switch").isVisible()) await j.page.locator(".case-paper__switch").getByRole("button", { name: j.t("题目") }).click();
+    const boxes = j.page.locator(".case-paper .case-question textarea");
+    await boxes.first().fill(j.lang === "en" ? "Apply cloud persistence per workload: a relational store for bookings and billing.\nThe harvest peak in the case calls for elastic capacity.\nThe case does not say how long records are kept, so I assume seven years." : "按工作负载选择持久化：订舱和计费用关系数据库。\n案例中的收获季高峰说明需要弹性容量。\n案例没有说明记录保存多久，所以我假设七年。");
+    await j.settle(1500);
+    await j.shot("writing");
+    await j.page.getByRole("button", { name: j.t("交卷批改") }).click();
+    await j.page.locator("dialog[open]").waitFor({ timeout: 10000 });
+    await j.settle(300);
+    await j.shot("blank-warning");
+    await j.page.locator("dialog[open]").getByRole("button", { name: j.t("仍然交卷") }).click();
+    await j.page.locator(".case-report").waitFor({ timeout: 30000 });
+    await j.until(async () => !(await j.page.locator(".case-report__pending").count()), "every answered question is graded", 60000);
+    await j.settle(800);
+    await j.shot("report");
+    await j.shot("report-full", { fullPage: true });
+  } },
+  { name: "case-drills", needs: ["caseDeck"], run: async (j) => {
+    const button = j.page.getByRole("button", { name: j.t("把薄弱项变成练习") });
+    if (!await button.count()) throw new Error("run case-paper first: the report offers the drills");
+    const before = (await j.snapshot()).jobs.length;
+    await button.first().click();
+    await j.until(async () => (await j.snapshot()).jobs.length > before, "a drills job starts");
+    await j.settle(600);
+    await j.shot("started");
+    const job = (await j.snapshot()).jobs.at(-1);
+    const done = await j.api("job.wait", { jobId: job.id, timeoutSeconds: 60 });
+    if (done.status !== "complete") throw new Error(`drills ended as ${done.status}: ${done.stage}`);
+    await j.nav("library");
+    await j.settle(800);
+    await j.anchor("home-catalog").scrollIntoViewIfNeeded();
+    await j.shot("library");
+    await j.nav("wrongbook");
+    await j.settle();
+    await j.shot("wrongbook");
+  } },
+];
+
 /* ---------- state a step can require, created through the API ---------- */
 
 const SEED = {
@@ -305,6 +468,22 @@ const SEED = {
     await j.api("review.answer", { runId: run.id, cardId: run.card.id, ...(wrong ? { selected: [wrong.id] } : { grade: 1 }) });
     await j.reload();
   },
+  async caseDraft(j) {
+    if ((await j.snapshot()).drafts.some((draft) => draft.format === "case-study")) return;
+    await SEED.material(j);
+    const sourceIds = (await j.snapshot()).sources.map((source) => source.id);
+    const started = await j.api("generate", { kind: "case", sourceIds, questions: 2, totalMarks: 20, title: j.lang === "en" ? "QA case paper" : "QA 案例分析卷",
+      language: j.lang === "en" ? "English" : "中文" });
+    await j.api("job.wait", { jobId: started.jobId, timeoutSeconds: 60 });
+    await j.reload();
+  },
+  async caseDeck(j) {
+    if ((await j.snapshot()).decks.some((deck) => deck.format === "case-study")) return;
+    await SEED.caseDraft(j);
+    const draft = (await j.snapshot()).drafts.find((item) => item.format === "case-study");
+    await j.api("draft.publish", { id: draft.id, draftVersion: draft.draftVersion });
+    await j.reload();
+  },
   /** A SiliconFlow key, with SiliconFlow answered in this process (the preview shares it). */
   async siliconflow(j) {
     if (!j.state.restoreFetch) { j.state.restoreFetch = fakeSiliconflow(j.lang); j.cleanups.push(j.state.restoreFetch); }
@@ -317,7 +496,7 @@ const SEED = {
 /* ---------- options ---------- */
 
 export function parseJourneyArgs(argv = []) {
-  const names = JOURNEY_STEPS.map((step) => step.name), tour = TOUR_STEPS.map((step) => step.name);
+  const names = JOURNEY_STEPS.map((step) => step.name), tour = TOUR_STEPS.map((step) => step.name), cases = CASE_STEPS.map((step) => step.name);
   const values = {};
   for (let i = 0; i < argv.length; i++) {
     const match = /^--([a-z-]+)(?:=(.*))?$/.exec(argv[i]);
@@ -332,9 +511,9 @@ export function parseJourneyArgs(argv = []) {
   if (!Number.isInteger(width) || width < 320 || width > 3840) throw new Error("--width must be a pixel width such as 1440 or 420");
   // `tour` expands to the onboarding set; its steps can also be named one by one.
   const steps = values.steps ? values.steps.split(",").map((name) => name.trim()).filter(Boolean)
-    .flatMap((name) => name === "tour" ? tour : [name]) : names;
-  for (const name of steps) if (!names.includes(name) && !tour.includes(name))
-    throw new Error(`Unknown step "${name}". Steps: ${names.join(", ")}; onboarding: tour (${tour.join(", ")})`);
+    .flatMap((name) => name === "tour" ? tour : name === "case" ? cases : [name]) : names;
+  for (const name of steps) if (!names.includes(name) && !tour.includes(name) && !cases.includes(name))
+    throw new Error(`Unknown step "${name}". Steps: ${names.join(", ")}; onboarding: tour (${tour.join(", ")}); case practice: case (${cases.join(", ")})`);
   const port = Number(values.port ?? 0);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("--port must be a port number (0 picks a free one)");
   return { lang, theme, width, height: Number(values.height ?? 900), steps,
@@ -400,7 +579,7 @@ export async function runJourney(options) {
     j.cleanups = cleanups;
     await page.goto(server.url);
     await j.ready();
-    for (const step of [...JOURNEY_STEPS, ...TOUR_STEPS].filter((item) => options.steps.includes(item.name))) {
+    for (const step of [...JOURNEY_STEPS, ...TOUR_STEPS, ...CASE_STEPS].filter((item) => options.steps.includes(item.name))) {
       current = step.name;
       const started = Date.now(), record = { name: step.name, status: "ok", shots: [] };
       j.record = record;
@@ -432,7 +611,7 @@ export async function runJourney(options) {
 }
 
 function journeyContext({ page, server, options, english, fixtures, step }) {
-  const index = () => String([...JOURNEY_STEPS, ...TOUR_STEPS].findIndex((item) => item.name === step()) + 1).padStart(2, "0");
+  const index = () => String([...JOURNEY_STEPS, ...TOUR_STEPS, ...CASE_STEPS].findIndex((item) => item.name === step()) + 1).padStart(2, "0");
   const t = (zh) => options.lang === "en" && Object.hasOwn(english, zh) ? english[zh] : zh;
   const NAV = { library: "学习库", sources: "资料", generate: "创建题组", wrongbook: "错题与待巩固", exam: "模拟考试",
     dashboard: "统计", skeleton: "知识骨架", workflows: "学习流", settings: "设置", audio: "音频转录", live: "课堂实录" };

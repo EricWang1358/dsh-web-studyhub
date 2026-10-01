@@ -87,5 +87,7 @@
   "示例数据没能载入：{0}": "The sample data could not be loaded: {0}",
   "示例课程已载入，在学习库里就能看到。": "Sample course loaded. You will find it in your study library.",
   "示例数据已移除，你自己的资料和记录都还在。": "Sample data removed. Your own sources and records are all still here.",
-  "示例数据没能移除：{0}": "The sample data could not be removed: {0}"
+  "示例数据没能移除：{0}": "The sample data could not be removed: {0}",
+  "课程：考试信息与倒计时": "Courses: exam details and countdown",
+  "每门课可以记下考试形式、总分、作答和阅读时间、考试日期，课程标题旁会显示距考试还有几天。在这个标题的下拉菜单最后选「课程设置…」，还能放入老师的考试说明和重点知识点，出案例题、批改和模拟考试都会按它来。": "Each course can record its exam format, total marks, writing and reading time and exam date; the course heading shows how many days are left. Choose “Course settings…” at the end of this heading’s menu to add your lecturer’s exam briefing and focus topics — case papers, grading and mock exams follow them."
 }
