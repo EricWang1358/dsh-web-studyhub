@@ -4,7 +4,7 @@
 
 ## 0. 结论摘要
 
-- **一核两壳。** 全部学习功能和体验修复都在插件本体里：DSH 老用户继续用轻量插件。独立端基于 DSH 二次开发，只在外壳和重心上不同：StudyHub 作为落地页、品牌、学习模式预设、预置服务商卡片和启动器。
+- **一核两壳。** 全部学习功能和体验修复都在插件本体里：DSH 老用户继续用轻量插件。独立端基于 DSH 二次开发，只在外壳和重心上不同：StudyHub 作为落地页、品牌、学习模式预设、预置服务商卡片和启动器。**独立端安排在 3.0.0；本轮只修插件版，并遵守第 8 节的解耦护栏。当务之急是降低插件装好后的上手成本、提高指引质量。**
 - **DSH 0.2.0-rc.2 已证明能承载独立端**（R1 实测）：
   - 插件可以自带「学习模式」预设；
   - 学习库路径用 `libraryRoot: !!js dshHomePath('study','library')` 即可脱离工作区；
@@ -193,7 +193,7 @@
   - 首页和创建题组默认引导“添加资料 → 用资料出题”，配合示例数据演示效果。
   - JSON 导入保留为醒目的第二入口（“已有题目 / 外部 AI 生成的题”）。
   - 这条取代 F-009，记为 F-024。
-- **D2 独立端数据目录：独立的 `~/.studyhub`。** 会话、工作区和凭据都与 DSH 的编程会话隔离；模型 Key 需要单独配置一次。插件版继续使用 `~/.dsh`。
+- **D2 独立端数据目录（3.0.0）：独立的 `~/.studyhub`。** 会话、工作区和凭据都与 DSH 的编程会话隔离；模型 Key 需要单独配置一次。插件版继续使用 `~/.dsh`。
 - **D3 实现方式：worktree 分支并行 + 本地集成。** 每个子代理在独立的 worktree 分支上测试先行并提交；在本地集成分支 `codex/studyhub-overhaul` 上逐个合并、跑全量验证；全程不推送远端。
 - **D4 示例数据：设计模式示例，跟随界面语言。**
   - 复用体验版的 Memento / Bridge 内容，并补写中文版。
@@ -223,30 +223,48 @@
 
 ## 5. 工作包与波次
 
+> **范围与优先级调整（用户，2026-10-01）。**
+> - 独立端属于 **3.0.0**；本轮只修插件版，并保证不妨碍后续解耦（见第 8 节）。
+> - **当务之急是降低插件装好后的上手成本、提高指引质量**，所以第 1 波只做上手关键路径。
+
 每个工作包都要：
-1. 先写失败测试并记录红灯输出；
+1. 先写失败测试，并记录红灯输出；
 2. 实现；
 3. `npm run verify` 全绿；
 4. 界面改动用 WP0 的旅程脚本截图（中英文、深浅色、1440 和 420 宽）；
-5. 在独立 worktree 分支提交，报告改动、测试、截图路径和遗留问题。
+5. 在独立的 worktree 分支上提交，并在最终回复里报告：改了什么、测试结果、截图路径、遗留问题。
 
 | 波次 | 工作包 | 范围（拥有的文件） | 先写的失败测试（示例） | 覆盖痛点 |
 |---|---|---|---|---|
-| 0 | **WP0 验证工具** | `scripts/dev.mjs`、`scripts/fake-model.mjs`、`scripts/qa/*`（新）。DSH 0.2 隔离端到端脚本按简报里的安全启动方式写。 | 同一资料库跨请求复用同一个运行时，任务卡可见；`assist.start` 可用；模拟模型对每种题型返回合法结构；旅程脚本能跑通 A1 / A2 的关键步骤。 | P58–P60, P42 |
-| 0 | **WP1 设计系统基础** | `ui/components/*`（新）、`ui/style.css` 令牌区块、`ui/ModalFrame.jsx`、`ui/ActionFeedback.jsx`、`ui/Icon.jsx`、`ui/NavGlyph.jsx`、`ui/i18n.js`（文案分片） | 组件服务端渲染输出的结构和 ARIA 属性；FileDrop 在 drop 时调用 `stopPropagation`、支持多文件；Dialog 使用 top layer；对比度令牌 ≥ 4.5:1；文案分片能被合并。 | P51–P55, P05, C1, C2 |
-| 1 | **WP2 资料与导入** | `ui/ImportHub.jsx`（新）、`ui/SourcePicker.jsx`（新）、`ui/Sources.jsx`、`ui/document-preview/DocumentImport.jsx`、`ui/PdfImport.jsx`、`ui/JsonImport.jsx`、`lib/source-groups.js`（新）；`ui/App.jsx` 中 sourceForm 的接线 | 按文档分组（PDF 合成一项、可展开到页）；Markdown 不再标“旧版”；导入后关闭弹窗、显示 Toast 并高亮新项；课程字段放在最前；按文件类型自动路由。 | P18–P25, P19, P21 |
-| 1 | **WP3 出题、任务与草稿** | `ui/Generate.jsx`、`ui/StudyMap.jsx`（任务 / 草稿区与首页英雄区）、`ui/Draft.jsx`、`ui/Manage.jsx`、`ui/GenerationTrace.jsx`、`lib/generation.js` 与 `lib/contexts/jobs`（阶段码） | 默认标签按 D1 决定；任务和待发布草稿出现在顶部；表单在提交后重置；阶段码能被翻译；结束本轮；改题组名不需要先建草稿；页面切换时重置滚动。 | P08, P09, P26–P33 |
-| 1 | **WP4 音频与课堂** | `lib/audio-*.js`、`lib/groq.js`、`lib/gemini.js`、`lib/audio-settings.js`、`lib/live*.js`、`ui/AudioImport.jsx`、`ui/AudioSettings.jsx`、`ui/AudioDashboard.jsx`、`ui/LiveClass.jsx`、`ui/live-*.js` | 硅基流动转写层（只返回 `{text}`、限 50MB / 1h、按顺序回退）；m4a 无损切分，用真实样本验证；提交前预检；同批次失败时不再无故取消其他文件；没有服务商时先显示门槛、不开始上传；错误信息映射成人话；麦克风前先查密钥。 | P44–P49, P64 |
-| 1 | **WP5 练习打磨** | `ui/Review.jsx`、`ui/Cloze.jsx`、`ui/ThumbFeedback.jsx`、`ui/Exam.jsx`、`ui/OralExam.jsx`、`ui/WrongBook.jsx`、`ui/ShortcutHelp.jsx`、`ui/Graph.jsx`、`lib/oral-exam-service.js` | 填空和多选按 Enter 提交；托盘直到用户选择或按 Esc 才关闭，改写后有提示；考试题数正确；口头模拟的标题如实；图谱默认内嵌显示、Esc 能退出。 | P34–P40 |
-| 1 | **WP6 AI 后台任务** | `lib/agent-tasks.js`（新）、`lib/assist*.js`；`lib/host.js` 中 `agent.task.start` 一段；`ui/Skeleton.jsx`、`ui/SkeletonCanvas.jsx`、`ui/Workflows.jsx`、`ui/WorkflowPortal.jsx`、`ui/Ingest.jsx`、`ui/topic-group-prompt.js`；`ui/StudyMap.jsx` 与 `ui/Review.jsx` 中 askInChat 的几处 | 每种 kind 都能启动、取消，并把结果写进信箱；不再复制含系统前言的提示词；没有 agentTasks 能力的外壳会隐藏入口。 | P41–P43 |
-| 1 | **WP7 宿主与学习模式** | `lib/index.js`、`lib/host.js`（binding、能力、模型就绪）、`ui/host/*`、`presets/study.patch.yml`（新）、`cordis.patch.yml`、`package.json` 的 `dsh` 字段、`ui/Settings.jsx`；从 `ui/App.jsx` 拆出 `ui/WorkspacePanel.jsx` / `ui/ModelPanel.jsx` | 预设能被加载（DSH 0.2 隔离端到端测试）；模型就绪的各种原因；外壳配置行；顶级页面注册；Study 主视图给输入框让出空间；设置分区。 | P01, P03, P04, P06, P14–P17, P50, P61, P62 |
-| 1 | **WP8 独立外壳与启动器** | `packages/studyhub-shell/*`、`packages/studyhub-launcher/*`（均为新建）、`docs/standalone.md` | 外壳 bundle 的 dump-config 快照（默认预设、学习库、服务商卡片、隐藏的行）；启动器在 Win / Mac 上的路径解析（单元测试），以及 Windows 端到端测试（隔离环境）。 | P63 |
-| 2 | **WP9 上手、导览与示例数据** | `ui/tour/*`（新）、`lib/sample-library.js`（新）、`ui/Guide.jsx`（删除）、`ui/App.jsx`（导航顺序、欢迎页、导览接线）、各页面的 `data-tour` 锚点 | 示例数据通过真实的存储操作加载，并能干净地移除；导览每一步都能切换到对应页面并找到目标；导航顺序；欢迎页显示在主区。 | P10–P13, D4 |
-| 2 | **WP10 文案、术语与品牌** | `ui/locales/*`、各处文案 | 中英对照扫描（新增：禁止硬编码英文或中文 JSX 文本）；术语表；名称统一为 StudyHub。 | P56, P57, P06 |
-| 2 | **WP11 文档与发布** | `README*.md`、`docs/install*.md`、`docs/standalone.md`；链接检查脚本加进 verify | 所有链接返回 200；中文文档链到中文文件。 | P02, P07 |
-| 3 | **整体验收** | 重跑 A1 / A2 / A3 的旅程脚本，在 DSH 0.2 隔离环境里端到端跑插件版和独立端 | 前十大问题都已关闭 | 全部 |
+| 0 | **WP0 验证工具** | `scripts/dev.mjs`、`scripts/fake-model.mjs`、`scripts/qa/*`（新） | 同一个学习库跨请求复用同一运行时，任务卡可见；`assist.start` 可用；模拟模型能为每种题型返回合法结构；旅程脚本能跑通“空库 → 添加资料 → 出题 → 发布 → 练习”的关键步骤并截图。 | P58–P60, P42 |
+| 0 | **WP1 上手所需组件** | `ui/components/*`（新）：FileDrop、SetupRequired、Toast（视口内、页面级、成功色）、InlineMessage、Dialog（`showModal()`）、EmptyState、PageHeader、Button 变体；`ui/ModalFrame.jsx`、`ui/ActionFeedback.jsx`（改为用新组件实现）；`ui/i18n.js`（文案分片）；`ui/style.css` 只改令牌区块（对比度、字号下限） | 组件的服务端渲染结构和 ARIA 属性；FileDrop 在 drop 时调用 `stopPropagation`、支持多文件和键盘操作；Dialog 使用 top layer；对比度令牌 ≥ 4.5:1；文案分片能被合并。 | P05, P53, P54, P52（部分）, C1, C2 |
+| 1 | **WP2 入口与宿主** | `lib/index.js`、`lib/host.js`（能力标记、模型就绪、学习库位置）、`ui/host/*`、`presets/study.patch.yml`（新）、`cordis.patch.yml`、`package.json` 的 `dsh` 字段；`ui/App.jsx` 顶栏和学习库位置提示 | 学习模式预设能被加载（DSH 0.2 隔离端到端测试）；模型就绪的各种原因（无路由 / 无凭据）；能力标记（C3）；Study 首次启用后自动打开、加入可发现的入口（顶级页面或侧栏卡片）；Study 主视图给 DSH 输入框让出空间；标签名改为 StudyHub。 | P01, P03（可见性）, P04, P06, P14, P15, P61 |
+| 1 | **WP3 资料与导入** | `ui/ImportHub.jsx`（新）、`ui/SourcePicker.jsx`（新）、`ui/Sources.jsx`、`ui/document-preview/DocumentImport.jsx`、`ui/PdfImport.jsx`、`ui/JsonImport.jsx`、`lib/source-groups.js`（新）；`ui/App.jsx` 中 sourceForm 的接线 | 按文档分组（PDF 合成一项、可展开到页）；Markdown 不再被标成“旧版”；导入后关闭弹窗、显示 Toast 并高亮新项；课程字段放在最前；按文件类型自动路由；音频入口降为次要。 | P18–P23, P21 |
+| 1 | **WP4 出题与首页流程** | `ui/Generate.jsx`、`ui/StudyMap.jsx`（首页英雄区、任务 / 待发布区）、`ui/GenerationTrace.jsx`、`lib/generation.js` 与 `lib/contexts/jobs`（阶段码） | 默认标签为“用资料出题”（D1）；英雄区按状态给出主操作（无资料时添加资料，有资料时用资料出题）；任务和待发布草稿出现在顶部；生成表单在提交后重置；阶段码能被翻译；失败时给出人话加“去设置模型”按钮。 | P08, P09, P12, P15, P26–P29 |
+| 1 | **WP5 导览、示例数据与欢迎页** | `ui/tour/*`（新）、`lib/sample-library.js`（新）；删除 `ui/Guide.jsx`；`ui/App.jsx` 的导航顺序、欢迎页和导览接线；各页面的 `data-tour` 锚点（第 4 节的锚点清单） | 示例数据通过真实的存储操作载入，并能干净地移除；导览每一步都能切到对应页面并找到目标元素；导航顺序；欢迎页显示在主区；中英文导览文案齐全。 | P10, P11, P13, D4 |
+| 1 | **WP6 音频上手门槛** | `lib/audio-settings.js`、`lib/groq.js`、`lib/gemini.js`（新增硅基流动层）、`ui/AudioImport.jsx`、`ui/AudioSettings.jsx`、`ui/AudioDashboard.jsx`、`ui/LiveClass.jsx`、`ui/live-client.js` | 硅基流动转写层（只返回 `{text}`、限 50MB / 1h、按顺序回退）；没有服务商时先显示门槛、不开始上传；错误在原位显示、用人话写、附“打开音频设置”；麦克风前先检查密钥；中文用户默认推荐硅基流动，并附获取步骤与链接；用量控制台在首次转写后才显示。已有的密钥必须继续可用。 | P44, P45, P47, P48, P49 |
+| 2 | **WP7 长音频与批次** | `lib/audio-file.js`、`lib/audio-batch.js`、`lib/audio-job.js` | 用真实 m4a 样本验证无损切分；提交前预检；一键“分段并继续”；兄弟文件不再无故被取消；页脚费用提示只在执行过文本步骤时显示。 | P46 |
+| 2 | **WP8 练习打磨** | `ui/Review.jsx`、`ui/Cloze.jsx`、`ui/ThumbFeedback.jsx`、`ui/Exam.jsx`、`ui/OralExam.jsx`、`ui/WrongBook.jsx`、`ui/ShortcutHelp.jsx`、`ui/Graph.jsx`、`ui/Draft.jsx`、`ui/Manage.jsx` | 填空和多选按 Enter 提交；托盘直到用户选择或按 Esc 才关闭，改写后有提示；考试题数正确；图谱默认内嵌显示；可以结束本轮；改题组名不需要先建草稿；页面切换时重置滚动。 | P30–P40 |
+| 2 | **WP9 AI 后台任务** | `lib/agent-tasks.js`（新）、`lib/assist*.js`；`lib/host.js` 中 `agent.task.start` 一段；`ui/Skeleton.jsx`、`ui/SkeletonCanvas.jsx`、`ui/Workflows.jsx`、`ui/WorkflowPortal.jsx`、`ui/Ingest.jsx`、`ui/topic-group-prompt.js` | 每种 kind 都能启动、取消，结果写进信箱；不再复制含系统前言的提示词。 | P41–P43 |
+| 2 | **WP10 文案、术语、设置与令牌** | `ui/locales/*`、`ui/Settings.jsx`、`ui/style.css`、各处文案 | 中英对照扫描（禁止硬编码 JSX 文本）；术语表；设置分区；令牌 v2 全面替换。 | P50–P57 |
+| 2 | **WP11 文档**（由我负责） | `README*.md`、`docs/install*.md`；链接检查脚本 | 快速上手只有 5 步；有费用表；所有链接返回 200。 | P02, P07 |
+| 3 | **整体验收** | 重跑 A1 / A2 / A3 的旅程脚本，在 DSH 0.2 隔离环境里端到端测试插件版 | 新用户从装好插件到做第一道题的步骤数显著下降；第 2 节中的阻塞级和高优先级问题全部关闭。 | 全部 |
+| 3.0.0 | 独立外壳与启动器 | `packages/studyhub-shell/*`、`packages/studyhub-launcher/*` | 见 `docs/plans/2026-10-01-studyhub-3.0-standalone-notes.md` | P62–P64 |
 
-**合并顺序：** WP0 → WP1 → WP7 → WP2 → WP3 → WP4 → WP5 → WP6 → WP8 → WP9 → WP10 → WP11。每合并一个就跑一次全量验证。`ui/App.jsx`、`ui/StudyMap.jsx` 和 `lib/host.js` 由多个工作包分段修改，各自只改负责的那几段，冲突在集成时解决。
+**合并顺序：** WP0 → WP1 → WP2 → WP3 → WP4 → WP5 → WP6，然后第 2 波。每合并一个就跑一次全量验证。
+
+- 多个工作包会改 `ui/App.jsx`、`ui/StudyMap.jsx` 和 `lib/host.js`。各自只改自己负责的那几段，冲突在集成时由我解决。
+- **WP5 负责的导览锚点：** WP3 和 WP4 在自己的文件里按锚点清单添加 `data-tour`；其余页面的锚点由 WP5 添加。
+
+**导览锚点清单（`data-tour`）：**
+- `nav`、`nav-library`、`nav-sources`、`nav-generate`、`nav-wrongbook`、`nav-exam`、`nav-dashboard`、`nav-skeleton`、`nav-workflows`、`nav-settings`、`tour-reopen`
+- `home-hero`、`home-today`、`home-catalog`
+- `sources-list`、`sources-add`
+- `import-drop`
+- `generate-from-sources`、`generate-submit`
+- `review-question`、`review-help`
+- `wrongbook-list`、`exam-start`、`dashboard-summary`、`skeleton-main`、`workflows-main`
+- `settings-model`、`settings-audio`、`settings-sample`
 
 ## 6. 子代理安全规则
 
@@ -262,3 +280,12 @@
 - **有几处不能通过配置修改：** 页面标题、首页文案、模型的身份行。预设名称也不支持多语言。
 - **多个工作包都要改 `ui/App.jsx`**，存在合并冲突。
 - **m4a 切分需要真实样本**，并验证各服务商是否接受切出的片段。
+
+## 8. 为 3.0.0 独立端预留的解耦护栏（本轮必须遵守）
+
+1. **宿主相关代码只放在宿主适配层**：`lib/index.js`、`lib/host.js`、`ui/host/*`。`ui/` 中其余组件只读宿主能力标记（C3）和 `host` 属性，不直接访问 DSH 的 `ctx`、slots、sessions 等接口。由 `tests/architecture-boundaries.test.mjs` 扩展规则来守住。
+2. **不新增“把提示词塞进对话框”的写法。** 新的 AI 功能一律走 C4 动作，由宿主实现。
+3. **学习库路径只在一处解析**（`binding`）。3.0 的个人学习库通过配置项 `libraryRoot` 提供；本轮不改变现有插件用户的默认位置，只让位置在界面上可见，并提供明确的“改用个人学习库”选项。
+4. **学习模式预设和工具注册都由插件 bundle 提供。** 3.0 的外壳只把它设为默认。
+5. **面向用户的品牌名统一为 StudyHub**，不在界面上写死“DSH”。确实只有 DSH 才有的功能，用能力标记控制显示与否。
+6. **R1 实测跑通的 3.0 方案**（profile、外壳 bundle、启动器、桌面版运行时、服务商卡片、隐藏编程界面）记录在 `docs/plans/2026-10-01-studyhub-3.0-standalone-notes.md`，避免调研成果丢失。
