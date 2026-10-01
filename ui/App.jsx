@@ -19,6 +19,7 @@ import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
 import Generate from "./Generate.jsx";
+import { GENERATION_DEFAULTS } from "./generation-status.js";
 import ImportHub, { importOutcome } from './ImportHub.jsx';
 import { parseCourses } from './CourseField.jsx';
 import { countDocuments, documentSourceIds } from '../lib/source-groups.js';
@@ -200,12 +201,8 @@ export default function App({ call: transportCall, host = {} }) {
     [clozeValues, setClozeValues] = useState({});
   const [selectedSources, setSelectedSources] = useState([]),
     [gen, setGen] = useState({
-      kind: "mixed",
-      count: 10,
+      ...GENERATION_DEFAULTS,
       language: host.defaultContentLanguage || (language === 'en' ? 'English' : '中文'),
-      difficulty: "mixed",
-      focus: "",
-      role: "",
     });
   const [sourceCourses, setSourceCourses] = usePageScope(data?.root, 'text-import-courses', data?.focus?.course || '');
   const [draft, setDraft] = useState(null),
@@ -257,7 +254,13 @@ export default function App({ call: transportCall, host = {} }) {
       localStorage.setItem("study-en", showEn ? "1" : "0");
     } catch {}
   }, [showEn]);
-  const [genSource, setGenSource] = useState("json");
+  // D1: 创建题组 opens on generating from materials; JSON import is the second tab.
+  const [genSource, setGenSource] = useState("files");
+  // A generation just started: the library home scrolls its progress card into view once (P26).
+  const [revealHome, setRevealHome] = useState(0);
+  const canChat = host.capabilities?.chat ?? !!host.askInChat;
+  // DSH's own model settings when the host offers them, else Study Settings (plan C3).
+  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : setPage("settings"));
   const [showBack, setShowBack] = useState(false),
     [settings, setSettings] = useState({}),
     [flag, setFlag] = useState(""),
@@ -1739,6 +1742,12 @@ export default function App({ call: transportCall, host = {} }) {
                   })
                 }
                 importLibrary={() => { setGenSource("json"); setPage("generate"); }}
+                generateFromSources={(ids) => { setSelectedSources(ids); setGen((current) => ({ ...current, course: undefined }));
+                  setGenSource("files"); setPage("generate"); }}
+                openModelSettings={openModelSettings}
+                canChat={canChat}
+                reveal={revealHome}
+                onRevealed={() => setRevealHome(0)}
                 askInChat={askInChat}
                 theme={theme}
                 setTheme={setTheme}
@@ -1929,6 +1938,9 @@ export default function App({ call: transportCall, host = {} }) {
                 setSelectedSources={setSelectedSources}
                 setModal={setModal}
                 askInChat={askInChat}
+                canChat={canChat}
+                openModelSettings={openModelSettings}
+                onStarted={() => { setRevealHome((n) => n + 1); setPage("library"); }}
               />
             )}
             {page === "draft" && draft && (
