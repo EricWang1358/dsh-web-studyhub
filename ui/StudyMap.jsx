@@ -991,13 +991,13 @@ function JobCard({ job: j, drafts, busy, openDraft, openAgent, cancelJob, dismis
     <span className="job-mark" aria-hidden="true">{mark ? <Icon name={mark} size={20} /> : <span className="sh-spinner" />}</span>
     <div className="job-content">
       <strong className="job-title">{jobHeadline(j, drafts)}</strong>
-      {failure
-        ? <InlineMessage tone="error" title={failure.title}
-          action={failure.action === "settings" && openModelSettings ? { label: ui("去配置模型"), onClick: openModelSettings } : undefined}>
-          {failure.hint}
-        </InlineMessage>
-        : <small className="job-stage">{jobStageLabel(j, drafts)}</small>}
-      {failure && <Disclosure className="tech-details" summary={ui("技术详情")}><code className="job-raw">{j.stage}</code></Disclosure>}
+      {failure ? <div className="job-failure">
+        <InlineMessage tone="error" title={failure.title}>{failure.hint}</InlineMessage>
+        {/* The fix sits right under the reason, where the learner is reading. */}
+        {failure.action === "settings" && openModelSettings &&
+          <Button size="sm" variant="secondary" icon="model" onClick={openModelSettings}>{ui("去配置模型")}</Button>}
+        <Disclosure className="tech-details" summary={ui("技术详情")}><code className="job-raw">{j.stage}</code></Disclosure>
+      </div> : <small className="job-stage">{jobStageLabel(j, drafts)}</small>}
       {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
     </div>
     <div className="job-actions">

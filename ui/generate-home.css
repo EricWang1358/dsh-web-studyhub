@@ -26,7 +26,9 @@
 .home-activity .job-content { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
 .home-activity .job-title { font-size: var(--fs-md); font-weight: 600; line-height: var(--lh-snug); color: var(--text); }
 .home-activity .job-stage { display: block; margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
-.home-activity .job .sh-inline { margin-top: var(--space-1); }
+.home-activity .job-failure { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-1); }
+.home-activity .job-failure .sh-inline { width: 100%; }
+.home-activity .job-failure .tech-details { width: 100%; margin-top: 0; }
 .home-activity .job .generation-trace { margin-top: var(--space-1); font-size: var(--fs-sm); }
 .home-activity .job .generation-trace > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
 .home-activity .job .generation-trace > summary:hover { color: var(--text); }
