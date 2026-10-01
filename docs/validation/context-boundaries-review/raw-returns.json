@@ -1,0 +1,165 @@
+[
+  {
+    "reviewer": "correctness",
+    "findings": [
+      {
+        "title": "Detach drafts on the first scoped commit too",
+        "severity": "P2",
+        "file": "lib/store.js",
+        "line": 495,
+        "confidence": 75,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Build the committed cache from manifest/files even when projection fields are null (for example use deferredState for the full-commit branch too), or explicitly detach the full cached state on initial/migration commits. Add retained-callback-object tests for a first scoped write to an empty library and a version-1 library; after mutating the retained array, both Store.read and a new scoped read must still return the committed values.",
+        "first_evidence": "lib/store.js:495 -- state: fields ? deferredState(manifest, files) : state });"
+      },
+      {
+        "title": "Cancel selected-text generation by its work owner",
+        "severity": "P2",
+        "file": "lib/runtime.js",
+        "line": 51,
+        "confidence": 75,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Tag each selectionActive entry with request.workOwner using the existing ownWork helper, then have StudyRuntime.cancelOwner abort matching selection controllers as it does matching jobs and notes. Add a held-model test with two work owners on one runtime: cancel owner A, verify A's model signal is aborted and its deck is unchanged, and verify B's signal and request remain active.",
+        "first_evidence": "lib/runtime.js:51-52 -- this.#tasks.cancelOwner(owner); for (const job of this.work.jobs.values()) if (workOwnedBy(job, owner) && ['queued', 'running', 'cancelling'].includes(job.status)) {"
+      },
+      {
+        "title": "Include subtitle timings in reuse identity",
+        "severity": "P2",
+        "file": "lib/subtitle-job.js",
+        "line": 30,
+        "confidence": 75,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Derive subtitle source IDs and the existing-source lookup from a canonical timed input containing paragraphs, labels, and duration (or the normalized cue data). Retain the current text-only digest for proofreading/translation checkpoints so correcting an offset need not repeat those model calls. Add an import test that shifts timestamps with unchanged words and verifies the newly stored labels and audio.seconds reflect the second input.",
+        "first_evidence": "lib/subtitle-job.js:30 -- const content = paragraphs.join(\"\\n\");"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "security",
+    "findings": [
+      {
+        "title": "CWE-284: Revoked task handles can restart background work",
+        "severity": "P2",
+        "file": "lib/runtime.js",
+        "line": 180,
+        "confidence": 100,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Pass a captured activity guard such as () => this.#assertActive(domain, services) into the scoped task port and invoke it before start creates or deduplicates a task and before its callback executes. Keep cancelled task inspection/waiting available if needed. Add retained-handle tests for disposeContext, cancelOwner, runtime.dispose, and unload followed by reinstall, asserting that a fresh callback never runs.",
+        "first_evidence": "lib/runtime.js:180 --       work: this.#tasks.scoped(services.workOwner || domain.workOwner, api),"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "testing",
+    "findings": [],
+    "residual_risks": [
+      "Review validation ran 37 focused behavioral tests, all passing; no production mutation testing was performed. The native module test uses a portable classic-loader harness, with actual DSH ClientModuleSystem execution documented separately rather than exercised in that test."
+    ],
+    "testing_gaps": [
+      "lib/audio-review.js executeReviewJob promises that each 15-item batch commits before the next and cancellation or model failure retains prior decisions. Existing audio-review and subtitle-review-flow tests cover pure application and a one-item successful review only. Add a public audio.corrections.review test with more than 15 uncertain items, gate the second model batch, cancel or fail it, then assert the first batch persists consistently in sources and audioResults while the remaining suggestions are still pending."
+    ]
+  },
+  {
+    "reviewer": "maintainability",
+    "findings": [
+      {
+        "title": "Information Leakage: registration owns domain mutation policy",
+        "severity": "P2",
+        "file": "lib/runtime/builtins.js",
+        "line": 150,
+        "confidence": 75,
+        "autofix_class": "manual",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Move the edit/delete guards and post-delete cancellation into bank operations, publication preflight into authoring operations, source deletion guard into library operations, and review projection hints into study operations. Have those contexts return operation descriptors with their transaction hints; retain only uniform port construction, registration, and invocation in builtins.",
+        "first_evidence": "lib/runtime/builtins.js:150:         if (id === 'bank' && ['draft.save', 'draft.delete'].includes(action)) ports.jobServices.assertDraftWritable(root, action === 'draft.save' ? args.deck?.id : args.id, args.publishJobId);"
+      },
+      {
+        "title": "Repeated Switches: cancellation depends on domain record shapes",
+        "severity": "P2",
+        "file": "lib/runtime.js",
+        "line": 58,
+        "confidence": 75,
+        "autofix_class": "manual",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Keep domain work maps if needed, but register an owner-scoped cancellation callback from each worker context and reuse it for owner release and context disposal. Let StudyRuntime cancel the generic task service and dispatch registered lifecycle callbacks without enumerating coach/note/workflow/live record shapes.",
+        "first_evidence": "lib/runtime.js:58:     for (const job of [...this.work.workflowTeachingJobs.values(), ...this.work.workflowSkeletonJobs.values()])"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "performance",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": [
+      "The 5,000-card/50,000-attempt benchmark covers store writes and review.answer only. review.start, review.move, review.reveal and library snapshot reads are excluded or unmeasured; the new runtime readSnapshot path clones owned fields and clones returned API results, so a paired benchmark of those normal learner interactions would establish their latency and event-loop cost at the same fixture size."
+    ]
+  },
+  {
+    "reviewer": "api-contract",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "reliability",
+    "findings": [
+      {
+        "title": "Retain all volumes for single-import correction review",
+        "severity": "P2",
+        "file": "lib/audio-review.js",
+        "line": 106,
+        "confidence": 100,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Persist volume membership on every transcript record regardless of whether it came from a batch, and have reviewTarget use that membership to select the correction owner and every volume. Retain compatibility with existing batch metadata and derive siblings from stable single/subtitle source identifiers for legacy split imports. Verify a later-volume correction through the public review and retry flow.",
+        "first_evidence": "lib/audio-review.js:106: const ids = source.audio.batch?.sourceIds?.length ? source.audio.batch.sourceIds : [sourceId];"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "julik-frontend-races",
+    "findings": [
+      {
+        "title": "Keep subtitle selection exclusive across every input path",
+        "severity": "P2",
+        "file": "ui/AudioImport.jsx",
+        "line": 403,
+        "confidence": 100,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Enforce the exclusive subtitle/audio invariant centrally when appending, reject mixed selections again at submit, and acquire the same synchronous sending guard before awaiting subtitle.text(); release it in finally and discard completion after cancellation/unmount.",
+        "first_evidence": "ui/AudioImport.jsx:403:     if (files[0].kind === 'subtitle') {"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  }
+]

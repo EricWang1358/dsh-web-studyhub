@@ -1,0 +1,47 @@
+{
+  "reviewer": "maintainability",
+  "findings": [
+    {
+      "title": "Information Leakage: registration owns domain mutation policy",
+      "severity": "P2",
+      "file": "lib/runtime/builtins.js",
+      "line": 150,
+      "why_it_matters": "The new registration layer implements draft edit locks, publication preflight, source deletion guards, audio recovery, review-specific storage hints, and draft-delete cancellation while the corresponding handlers live in their context modules. A change to those behaviors now requires editing the context plus the runtime dispatcher, and invoking a context's own createOperations directly omits these policies. This preserves an omnibus action dispatcher behind the new boundary instead of making the domain operation the single owner of its behavior.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 75,
+      "evidence": [
+        "lib/runtime/builtins.js:150:         if (id === 'bank' && ['draft.save', 'draft.delete'].includes(action)) ports.jobServices.assertDraftWritable(root, action === 'draft.save' ? args.deck?.id : args.id, args.publishJobId);",
+        "lib/runtime/builtins.js:151:         if (id === 'authoring') args = await authoring.preparePublication(action, args, ports);",
+        "lib/runtime/builtins.js:152:         if (id === 'library' && action === 'source.remove' && [...work.jobs.values()].some(job => jobServices.activeJob(job) && job.sourceIds?.includes(args.id))) throw new Error('这份资料正在用于出题，请等待或取消生成任务后再删除');",
+        "lib/runtime/builtins.js:163:           const changed = ['review.move', 'review.reveal', 'review.skip', 'review.answer'].includes(action) && typeof args.runId === 'string'",
+        "lib/runtime/builtins.js:166:           if (action === 'draft.delete') for (const job of work.jobs.values()) if (job.draftId === args.id && jobServices.activeJob(job)) { job.cancelRequestedAt ||= new Date().toISOString(); work.generationControllers.get(job.id)?.abort(new Error('Draft deleted')); }"
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Move the edit/delete guards and post-delete cancellation into bank operations, publication preflight into authoring operations, source deletion guard into library operations, and review projection hints into study operations. Have those contexts return operation descriptors with their transaction hints; retain only uniform port construction, registration, and invocation in builtins."
+    },
+    {
+      "title": "Repeated Switches: cancellation depends on domain record shapes",
+      "severity": "P2",
+      "file": "lib/runtime.js",
+      "line": 58,
+      "why_it_matters": "The generic StudyRuntime now knows the private shapes and cancellation mechanisms of selection, workflow teaching/skeleton, coach preparation/tasks, notes, and live audio. The same domain-specific cleanup is implemented separately in builtins' context disposer. Adding or changing a worker requires synchronized edits in both paths; existing notes cancellation already sets cancelled and aborts in cancelOwner but only aborts on context disposal. This makes lifecycle ownership fragile despite a generic task service already being available.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 75,
+      "evidence": [
+        "lib/runtime.js:58:     for (const job of [...this.work.workflowTeachingJobs.values(), ...this.work.workflowSkeletonJobs.values()])",
+        "lib/runtime.js:64:     for (const pending of this.work.noteJobs.values()) if (workOwnedBy(pending, owner)) {",
+        "lib/runtime.js:65:       pending.cancelled = true; pending.controller?.abort(new Error('Work owner unloaded'));",
+        "lib/runtime/builtins.js:226:       if (id === 'notes') for (const pending of work.noteJobs.values()) pending.controller?.abort(new Error('Notes plugin unloaded'));",
+        "lib/runtime/builtins.js:227:       if (id === 'workflows') for (const job of [...work.workflowTeachingJobs.values(), ...work.workflowSkeletonJobs.values()]) job.cancelled = true;"
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Keep domain work maps if needed, but register an owner-scoped cancellation callback from each worker context and reuse it for owner release and context disposal. Let StudyRuntime cancel the generic task service and dispatch registered lifecycle callbacks without enumerating coach/note/workflow/live record shapes."
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

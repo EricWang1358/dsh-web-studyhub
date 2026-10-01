@@ -1,0 +1,28 @@
+{
+  "reviewer": "security",
+  "findings": [
+    {
+      "title": "CWE-284: Revoked task handles can restart background work",
+      "severity": "P2",
+      "file": "lib/runtime.js",
+      "line": 180,
+      "why_it_matters": "An asynchronous extension can start fresh background work after its context, host owner, or entire runtime has been unloaded. Cancellation only visits tasks that already exist, while the retained context.work handle continues to create tasks whose callbacks execute and finish successfully; those callbacks can still perform external model calls or other side effects after the user closes the plugin. Binding task creation to the same captured domain identity and owner revocation check used by state updates prevents obsolete handles from recreating work, including after a replacement context is registered.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Pass a captured activity guard such as () => this.#assertActive(domain, services) into the scoped task port and invoke it before start creates or deduplicates a task and before its callback executes. Keep cancelled task inspection/waiting available if needed. Add retained-handle tests for disposeContext, cancelOwner, runtime.dispose, and unload followed by reinstall, asserting that a fresh callback never runs.",
+      "confidence": 100,
+      "evidence": [
+        "lib/runtime.js:180 --       work: this.#tasks.scoped(services.workOwner || domain.workOwner, api),",
+        "lib/runtime/tasks.js:27 --     start(options, run) {",
+        "lib/runtime/tasks.js:74 --     cancelOwner: owner => { for (const entry of entries.values()) if (workOwnedBy(entry.task, owner)) cancelEntry(entry, new Error('Task owner unloaded')); owners.delete(owner); },",
+        "lib/runtime/tasks.js:75 --     cancelDomain: domain => { for (const entry of entries.values()) if (entry.domain === domain) cancelEntry(entry, new Error('Context unloaded')); for (const [owner, domains] of owners) { domains.delete(domain); if (!domains.size) owners.delete(owner); } },",
+        "Read-only in-memory Node reproducer captured context.work, then separately called disposeContext('extension'), cancelOwner(owner), or runtime.dispose before held.start({}, async () => { executed = true; return 'external side effect'; }). In all three cases held.wait(task.id) returned status complete and executed was true. No library read/update or filesystem mutation was used.",
+        "lib/runtime.js:213-216 already checks captured domain identity, cancelled host owners, and aborted request signals through #assertActive; the new scoped work port does not use that guard."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

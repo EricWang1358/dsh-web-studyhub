@@ -1,0 +1,8 @@
+{
+  "reviewer": "performance",
+  "findings": [],
+  "residual_risks": [],
+  "testing_gaps": [
+    "The 5,000-card/50,000-attempt benchmark covers store writes and review.answer only. review.start, review.move, review.reveal and library snapshot reads are excluded or unmeasured; the new runtime readSnapshot path clones owned fields and clones returned API results, so a paired benchmark of those normal learner interactions would establish their latency and event-loop cost at the same fixture size."
+  ]
+}

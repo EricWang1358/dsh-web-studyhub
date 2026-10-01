@@ -1,0 +1,26 @@
+{
+  "reviewer": "reliability",
+  "findings": [
+    {
+      "title": "Retain all volumes for single-import correction review",
+      "severity": "P2",
+      "file": "lib/audio-review.js",
+      "line": 106,
+      "why_it_matters": "Single audio and subtitle imports can split into multiple documents at the 400,000-character document limit. All corrections are retained on the first record, but only batch imports receive audio.batch.sourceIds. Reviewing the first volume consequently omits later volumes, permanently marks their valid corrections as reviewed/unsure because their contexts cannot be found, and retries cannot repair this because pendingUncertain excludes reviewed items. Reviewing later volumes directly instead fails because they have no correction record.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "lib/audio-review.js:106: const ids = source.audio.batch?.sourceIds?.length ? source.audio.batch.sourceIds : [sourceId];",
+        "lib/audio-job.js:50 and :60 add volume membership only inside ...(meta.batch ? { batch: { ...meta.batch, volume: index + 1, volumes: count, sourceIds: ids } } : {}); executeAudioJob and executeSubtitleJob supply no meta.batch.",
+        "lib/transcript.js:218: buildDocuments defaults limit to 400_000; lib/audio-job.js stores all corrections only on index 0.",
+        "Read-only executable reproduction with storeDocuments(ids=['sub','sub-p2'], documents=['First text.','Later word.'], meta={subtitle:true}, first-record correction context='Later word.') returned reviewTarget.ids=['sub']; applyReview marked that correction review.verdict='unsure' with reason '逐字稿里已找不到这段上下文，没有自动改'."
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Persist volume membership on every transcript record regardless of whether it came from a batch, and have reviewTarget use that membership to select the correction owner and every volume. Retain compatibility with existing batch metadata and derive siblings from stable single/subtitle source identifiers for legacy split imports. Verify a later-volume correction through the public review and retry flow."
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

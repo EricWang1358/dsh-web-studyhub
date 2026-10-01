@@ -1,0 +1,66 @@
+{
+  "reviewer": "correctness",
+  "findings": [
+    {
+      "title": "Detach drafts on the first scoped commit too",
+      "severity": "P2",
+      "file": "lib/store.js",
+      "line": 495,
+      "why_it_matters": "A scoped mutation's retained objects can change subsequent library reads after the first write to a fresh or legacy library, without changing the file on disk. Scoped updates now lend the private working objects to the callback, but migration and initial commits pass no projection fields and cache those same objects. Building the cached view from committed manifest/text on this branch preserves the detachment guarantee already implemented for current-version scoped commits.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 75,
+      "evidence": [
+        "lib/store.js:495 -- state: fields ? deferredState(manifest, files) : state });",
+        "lib/store.js:422 -- const projection = current.manifest?.version === LATEST_VERSION ? selected : null;",
+        "lib/store.js:335-336 -- const owned = Object.fromEntries(names.map(name => [name, state[name] ?? (this.collections.has(name) ? [] : undefined)]));",
+        "lib/store.js:339-344 assigns owned[name] directly to state[name], and update forwards null projection fields when there is no current manifest or its version is old.",
+        "tests/store-projection.test.mjs tests retained callback objects only after an initial unscoped commit has created a current-version manifest; it does not exercise retention on the first scoped write."
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Build the committed cache from manifest/files even when projection fields are null (for example use deferredState for the full-commit branch too), or explicitly detach the full cached state on initial/migration commits. Add retained-callback-object tests for a first scoped write to an empty library and a version-1 library; after mutating the retained array, both Store.read and a new scoped read must still return the committed values."
+    },
+    {
+      "title": "Cancel selected-text generation by its work owner",
+      "severity": "P2",
+      "file": "lib/runtime.js",
+      "line": 51,
+      "why_it_matters": "Unloading a workbench leaves its selected-text generation model request running when an independently installed generation plugin keeps the shared runtime alive. The later state-write checks prevent publication, but cancelOwner does not abort the controller held in selectionActive, so the provider continues spending work until it completes. Tagging that entry with the request owner lets shutdown stop this request while preserving a sibling owner's selection operation.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 75,
+      "evidence": [
+        "lib/runtime.js:51-52 -- this.#tasks.cancelOwner(owner); for (const job of this.work.jobs.values()) if (workOwnedBy(job, owner) && ['queued', 'running', 'cancelling'].includes(job.status)) {",
+        "lib/contexts/generation/selection.js:85 -- active.set(key, { fingerprint, promise, controller });",
+        "lib/contexts/generation/selection.js:80 -- const signal = request?.signal ? AbortSignal.any([request.signal, controller.signal]) : controller.signal;",
+        "lib/runtime/builtins.js:198 injects work.selectionActive into selection operations, and line 219 aborts its controllers only when the generation context itself is disposed.",
+        "lib/host.js servicesForHost cleanup calls runtime.cancelOwner(workOwner) for shared runtimes; the panel's serviceFor request supplies workOwner without an independent unload AbortSignal."
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Tag each selectionActive entry with request.workOwner using the existing ownWork helper, then have StudyRuntime.cancelOwner abort matching selection controllers as it does matching jobs and notes. Add a held-model test with two work owners on one runtime: cancel owner A, verify A's model signal is aborted and its deck is unchanged, and verify B's signal and request remain active."
+    },
+    {
+      "title": "Include subtitle timings in reuse identity",
+      "severity": "P2",
+      "file": "lib/subtitle-job.js",
+      "line": 30,
+      "why_it_matters": "Reimporting subtitles after correcting their timing offset silently returns the old transcript with the old timestamps. The reuse key contains only paragraph words and model settings, so changing start times while retaining the same paragraph text takes the early reuse return before labels or duration reach the stored document. Include the timed input in source identity while keeping text-only checkpoint reuse if desired.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 75,
+      "evidence": [
+        "lib/subtitle-job.js:30 -- const content = paragraphs.join(\"\\n\");",
+        "lib/subtitle-job.js:32-36 looks up subtitleSourceId(content, key, index), then returns reused:true without comparing labels or seconds.",
+        "lib/subtitle-job.js:50 creates the final document IDs from that same text-only content, while line 39 passes labels to finishTranscript and line 52 saves seconds in metadata.",
+        "Read-only reproduction: prepareSubtitles('[00:00:01.000] Same lecture words.') produced labels ['[0:01]']; replacing the time with 31 seconds produced ['[0:31]']; subtitleSourceId(paragraphs.join('\\n'), 'same-settings') was subtitle-c359a7ba for both."
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Derive subtitle source IDs and the existing-source lookup from a canonical timed input containing paragraphs, labels, and duration (or the normalized cue data). Retain the current text-only digest for proofreading/translation checkpoints so correcting an offset need not repeat those model calls. Add an import test that shifts timestamps with unchanged words and verifies the newly stored labels and audio.seconds reflect the second input."
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

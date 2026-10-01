@@ -12,7 +12,7 @@ Finish the architecture correction requested for a55edee: remove the shared lega
 - R4: Inventory every transition action, assign it to a named lasting domain, preserve its alias/behavior, and remove transition and its registration entirely. Move helper logic to its owning domain rather than another miscellaneous container.
 - R5: Every lasting context has an isolated load/read/write or meaningful operation smoke, including capability denial and unavailable optional dependencies. Test same-root distinct runtime isolation and plugin disposal without cancelling a sibling owner.
 - R6: lib/client.js is generated. Split authored frontend responsibilities and generated distribution at real module boundaries, preserving the DSH classic loader contract, one host React instance, native preview and standalone preview/demo behavior. Do not hand-edit generated bundles or merely move the same bundle into another file.
-- R7: Remove the five tracked obsolete root tgz files and prevent future root installer commits. Build/release outputs remain in output and installable.
+- R7: Remove the five obsolete root tgz files and prevent future root installer commits. Confirm their actual Git status rather than assuming they were tracked. Build/release outputs remain in output and installable.
 - R8: Lint enforces forbidden imports. Architecture tests measure forbidden edges and actual dependency cycles, not just file sizes. Existing tests are preserved/strengthened; full lint/test/build and installer smoke pass. New regressions have witnessed red/characterization evidence.
 
 ## Implementation units and ownership
@@ -41,3 +41,9 @@ Dependencies: boundary contracts inspected; final checks depend on U1/U2. Coordi
 ## Scope and settled decisions
 
 User-directed: retain JSON and old-user data compatibility; plugins are independent and composable; API boundaries isolate implementation; all six review issues are in scope. Published v2.0.0-alpha.1 tag/assets are immutable. Existing unrelated .claude, scripts/site-*, site and videos files are excluded. Do not narrow completion to file extraction, smoke-only success or a future migration promise.
+
+## User clarification during implementation
+
+The user subsequently prioritized performance and extensibility over splitting every shared implementation. Pure shared functions are acceptable; file count and eliminating a filename are not success metrics. Runtime state must still belong to one instance, and capabilities must remain explicit. Audio, generation, coach and notes retain their business workflows; the common work service provides task lifecycle, progress, cancellation, queueing and deduplication for built-in and third-party plugins.
+
+The storage optimization adds an explicit transaction field projection while retaining unscoped full-state updates for compatibility. Measure a fixture of 5,000 cards and 50,000 attempts before and after. Tests must demonstrate no unrelated decoding on scoped writes, preservation of absent plugin data, rollback, retained-object isolation, legacy migration and concurrent writers. Do not remove protective clones or replace mutation permission checking with reference equality without evidence that nested mutation still cannot cross a boundary. Schema compilation is deferred unless measurement identifies validation as a material cost.

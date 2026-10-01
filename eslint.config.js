@@ -10,6 +10,7 @@ export default [
       "dist/**",
       "output/**",
       "lib/client.js",
+      "lib/client.*.js",
       "node_modules/**",
       "*.tgz",
       "scripts/probe*.mjs",
@@ -29,6 +30,29 @@ export default [
         { args: "none", varsIgnorePattern: "^_", ignoreRestSiblings: true },
       ],
       "no-undef": "error",
+    },
+  },
+  {
+    files: ["lib/contexts/**/*.js"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["**/legacy-kernel.js", "**/legacy-registration.js", "**/store.js"],
+          message: "Contexts use runtime-injected scoped services and declared API ports; legacy authority and raw storage are forbidden.",
+        }, {
+          group: ["**/live.js"],
+          importNames: ["activeSession", "registered", "register", "unregister", "listSaved"],
+          message: "Use the runtime's owned live registry rather than the standalone compatibility registry.",
+        }, {
+          group: ["**/audio-upload.js"],
+          importNames: ["startUpload", "appendUpload", "finishUpload", "cancelUpload", "claimUpload", "releaseUpload", "discardUpload"],
+          message: "Use the runtime's owned upload registry.",
+        }, {
+          group: ["**/panel-bridge.js"],
+          importNames: ["queuePanelIntent", "takePanelIntent", "panelObservation", "hasPanelVisibility", "setPanelVisible", "registerPanelNotifier", "observePanelReview"],
+          message: "Use the runtime's owned panel bridge.",
+        }],
+      }],
     },
   },
   {

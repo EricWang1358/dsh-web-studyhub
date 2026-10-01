@@ -7,7 +7,8 @@ import { createHash } from 'node:crypto';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 if (!manifest.version.includes('-alpha.')) throw new Error('This packaging command is for alpha releases');
-const target = resolve(root, 'output', `release-${manifest.version}`);
+const outputArg = process.argv.find(arg => arg.startsWith('--outdir='))?.slice('--outdir='.length);
+const target = outputArg ? resolve(root, outputArg) : resolve(root, 'output', `release-${manifest.version}`);
 await mkdir(target, { recursive: true });
 const npmCli = process.env.npm_execpath || join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
 async function pack(cwd) {
