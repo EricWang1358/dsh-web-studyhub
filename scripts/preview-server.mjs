@@ -13,6 +13,7 @@ import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import { createFakeModel, FAKE_MODEL_ROUTE } from "./fake-model.mjs";
 import { cleanEffortPreference, withEffortState } from "../lib/reasoning-effort.js";
 import { createFakeRetrievalTools } from "./fake-retrieval.mjs";
+import { createFakeExtension } from "./fake-extension.mjs";
 
 const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 const SESSION_ID = "study-preview";
@@ -33,7 +34,8 @@ export function previewOptions(argv = process.argv, env = process.env) {
     // STUDY_FAKE_EFFORTS=low,medium,high: the preview model offers these reasoning levels (lowest first).
     efforts: (env.STUDY_FAKE_EFFORTS || "").split(",").map((id) => id.trim()).filter(Boolean),
     // STUDY_FAKE_RETRIEVAL=1: the preview plays a DSH that exposes a document-search MCP tool (scripts/fake-retrieval.mjs).
-    retrieval: env.STUDY_FAKE_RETRIEVAL ? "fake" : null,
+    // STUDY_FAKE_RETRIEVAL=extension: the search extension itself can be installed and an index built (scripts/fake-extension.mjs).
+    retrieval: env.STUDY_FAKE_RETRIEVAL === "extension" ? "extension" : env.STUDY_FAKE_RETRIEVAL ? "fake" : null,
   };
 }
 
@@ -69,13 +71,15 @@ function previewModel(model, fakeLatencyMs) {
  */
 function previewHost(workspaceRoot, model, efforts = [], retrieval = null) {
   const disposers = [];
+  const extension = retrieval === "extension" ? createFakeExtension({}) : null;
   const ctx = {
-    ...(retrieval === "fake" ? { tools: createFakeRetrievalTools({ root: workspaceRoot }) } : {}),
+    ...(retrieval === "fake" ? { tools: createFakeRetrievalTools({ root: workspaceRoot }) } : extension ? { tools: extension.tools } : {}),
     // A model catalogue entry with reasoning levels, as DSH's ctx.llm.resolveModelInfo reports it.
     ...(efforts.length ? { llm: { resolveModelInfo: async () => ({ reasoning: { efforts: efforts.map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })) } }) } } : {}),
     sessions: new Map([[SESSION_ID, { header: { cwd: workspaceRoot } }]]),
     // The session follows the preview model, as a DSH session follows its selected model.
-    get: (name) => name === "agentDefaultModel" && model ? { currentSelection: () => model.route } : undefined,
+    get: (name) => name === "agentDefaultModel" && model ? { currentSelection: () => model.route }
+      : extension && name === "pluginManager" ? extension.pluginManager : extension && name === "profileContext" ? { name: "web" } : undefined,
     effect: (setup) => { const dispose = setup(); if (typeof dispose === "function") disposers.push(dispose); },
   };
   const makeComplete = model ? (_route, _sessionId, options = {}) =>
