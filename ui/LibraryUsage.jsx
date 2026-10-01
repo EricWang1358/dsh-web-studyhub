@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, getUiLanguage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { IconButton } from './components/index.js';
@@ -71,20 +71,21 @@ export default function LibraryUsage({ root, call, active = true }) {
   const [state, setState] = useState({ status: 'idle' });
   const callRef = useRef(call);
   callRef.current = call;
-  const live = useRef(0);
+  // Counts requests, so a late answer for an older request or another library is dropped.
+  const live = useMemo(() => ({ turn: 0 }), []);
   const measure = useCallback((force) => {
-    const turn = ++live.current;
+    const turn = ++live.turn;
     setState((current) => current.usage ? { ...current, refreshing: true } : { status: 'loading' });
     callRef.current('library.usage', force ? { force: true } : {}).then(
-      (usage) => { if (turn === live.current) setState({ status: 'ready', usage }); },
-      () => { if (turn === live.current) setState({ status: 'error' }); },
+      (usage) => { if (turn === live.turn) setState({ status: 'ready', usage }); },
+      () => { if (turn === live.turn) setState({ status: 'error' }); },
     );
-  }, []);
+  }, [live]);
   useEffect(() => {
-    if (!active || !root) { live.current++; return undefined; }
+    if (!active || !root) { live.turn++; return undefined; }
     setState({ status: 'idle' });
     measure(false);
-    return () => { live.current++; };
-  }, [active, root, measure]);
+    return () => { live.turn++; };
+  }, [active, root, measure, live]);
   return <LibraryUsageView state={state} onRefresh={() => measure(true)} />;
 }
