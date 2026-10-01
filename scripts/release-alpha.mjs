@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -28,9 +28,9 @@ async function pack(cwd) {
 
 // Build and verification are deliberately owned by the release coordinator.
 const archives = [await pack(root)];
+await mkdir(join(target, 'packages'), { recursive: true });
 for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'audio']) {
-  const staging = join(target, 'packages', domain);
-  await mkdir(staging, { recursive: true });
+  const staging = await mkdtemp(join(target, 'packages', `${domain}-`));
   for (const path of ['lib', 'references', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md'])
     await cp(join(root, path), join(staging, path), { recursive: true });
   await mkdir(join(staging, 'docs'), { recursive: true });
