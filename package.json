@@ -57,7 +57,8 @@
     "README.zh-CN.md",
     "CHANGELOG.md",
     "CHANGELOG.zh-CN.md",
-    "LICENSE"
+    "LICENSE",
+    "presets"
   ],
   "license": "MIT",
   "engines": {
@@ -65,7 +66,10 @@
   },
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./presets/study.patch.yml"
+      ]
     },
     "client": {
       "platform": "web",
@@ -118,8 +122,8 @@
     "react-dom": "^19.0.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-llm": ">=0.0.1-rc.1 <2",
-    "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1 <2"
+    "@deepseek-ai/dsh-llm": ">=0.2.0-rc.2 <0.3",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.3"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-tools": {
