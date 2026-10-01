@@ -1,60 +1,72 @@
-import { ui } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React, { useState } from "react";
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
+import { FileDrop, InlineMessage } from './components/index.js';
+import { fileToBase64, plainImportError, MAX_DOCUMENT_BYTES } from './ImportHub.jsx';
 
+/** What happened to the chosen pages, in sentences that never contradict each other (P25). */
+export function pdfImportSummary(result) {
+  const extracted = result.sourceIds?.length ?? result.sources?.length ?? 0;
+  const skipped = result.skippedPages || [], sparse = result.sparsePages || [];
+  const chosen = result.selectedPages?.length ?? extracted + skipped.length;
+  const pages = list => list.join(ui("、"));
+  const lines = [uiFormat("所选 {0} 页中，{1} 页已保存为可出题的文字（新保存 {2} 页，已导入过的页沿用原记录）。", [chosen, extracted, result.added ?? 0])];
+  if (sparse.length) lines.push(uiFormat("其中第 {0} 页文字很少，可能只有页眉、页脚或标题；请核对正文是否为图片，需要时先 OCR 再重新导入。", [pages(sparse)]));
+  if (skipped.length) lines.push(uiFormat("第 {0} 页没有可提取的文字，已跳过。若是扫描页，请先 OCR 后重新导入。", [pages(skipped)]));
+  return lines;
+}
+
+function parsePages(text) {
+  const selected = [];
+  for (const part of text.split(/[,，]/)) {
+    const match = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    const start = Number(match?.[1]), end = Number(match?.[2] ?? match?.[1]);
+    if (!match || start < 1 || end < start || end > 200) throw new Error(ui("页码格式如 2-8, 11，范围为 1–200。"));
+    for (let n = start; n <= end; n++) selected.push(n);
+  }
+  return selected;
+}
+
+/* A PDF with an optional page range. Saved through materials.document.import,
+   so the original file is kept and the pages open as one document. */
 export default function PdfImport({ busy, act, onImported, data, courseText, onCourseTextChange, defaultCourse }) {
   const [storedCourses, setStoredCourses] = usePageScope(data?.root, 'pdf-import-courses', defaultCourse ?? data?.focus?.course ?? '');
   const courses = courseText ?? storedCourses, setCourses = onCourseTextChange || setStoredCourses;
-  const [reading, setReading] = useState(false);
+  const [reading, setReading] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [pages, setPages] = useState("");
   const [fullText, setFullText] = useState({});
-  async function importFile(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
+  async function importFile([file]) {
     if (!file) return;
-    const selectedCourses = parseCourses(courses);
-    setError(""); setResult(null); setReading(true);
+    setError(""); setResult(null); setReading(file.name);
     try {
-      if (file.size > 8 * 1024 * 1024) throw new Error(ui("PDF 最大 8 MB，请先按章节拆分。"));
-      const selected = [];
-      if (pages.trim()) {
-        for (const part of pages.split(/[,，]/)) {
-          const match = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
-          const start = Number(match?.[1]), end = Number(match?.[2] ?? match?.[1]);
-          if (!match || start < 1 || end < start || end > 200) throw new Error(ui("页码格式如 2-8, 11，范围为 1–200。"));
-          for (let n = start; n <= end; n++) selected.push(n);
-        }
-      }
-      const dataBase64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(",")[1]);
-        reader.onerror = () => reject(new Error(ui("读取文件失败，请重试。")));
-        reader.readAsDataURL(file);
-      });
-      await act("source.import", { filename: file.name, dataBase64, courses: selectedCourses, ...(selected.length ? { pages: selected } : {}) }, (value) => {
-        setResult(value); onImported(value.sourceIds);
-      }, { rethrow: true });
-    } catch (e) { setError(e.message); }
-    finally { setReading(false); }
+      const selected = pages.trim() ? parsePages(pages) : [];
+      const value = await act("materials.document.import", { filename: file.name, dataBase64: await fileToBase64(file), courses: parseCourses(courses),
+        ...(selected.length ? { pages: selected } : {}) }, undefined, { rethrow: true });
+      if (!value) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
+      if (!value.sourceIds?.length) throw new Error(ui("没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。"));
+      const records = new Map((value.document?.sources || []).map(source => [source.id, source]));
+      const previews = value.sourceIds.map(id => records.get(id)).filter(Boolean)
+        .map(({ text, ...source }) => ({ ...source, chars: text.length, preview: text.slice(0, 300) }));
+      setResult({ ...value, sources: previews });
+      onImported?.(value.sourceIds);
+    } catch (failure) { setError(plainImportError(failure)); }
+    finally { setReading(null); }
   }
   return <div className="pdf-import">
     <strong>{ui("PDF / 讲义 → 新题")}</strong>
     <p className="muted">{ui("按页提取并保留出处，导入后可取消勾选封面、目录或不想练的页面。扫描件需先 OCR；图表与公式请核对原文。")}</p>
-    <CourseField value={courses} onChange={setCourses} courses={data?.focus?.courses} multiple disabled={busy || reading} />
-    <label>{ui("导入页码（可选）")}<input value={pages} onChange={(e) => setPages(e.target.value)} placeholder={ui("全部页面；或 2-8, 11")} disabled={busy || reading} /></label>
-    <label>{reading ? ui("正在提取 PDF…") : ui("选择 PDF（最多 8 MB / 200 页）")}
-      <input type="file" accept=".pdf,application/pdf" disabled={busy || reading} onChange={importFile} />
-    </label>
-    {error && <p role="alert" className="warning">{error}</p>}
+    <CourseField value={courses} onChange={setCourses} courses={data?.focus?.courses} multiple disabled={busy || !!reading} />
+    <label>{ui("导入页码（可选）")}<input value={pages} onChange={(e) => setPages(e.target.value)} placeholder={ui("全部页面；或 2-8, 11")} disabled={busy || !!reading} /></label>
+    <FileDrop compact accept={[".pdf"]} maxBytes={MAX_DOCUMENT_BYTES} busy={!!reading} disabled={busy && !reading}
+      label={reading ? ui("正在提取 PDF…") : ui("把 PDF 拖到这里")} hint={ui("最多 8 MB / 200 页")} buttonLabel={ui("选择 PDF")}
+      onFiles={accepted => void importFile(accepted)} />
+    {error && <InlineMessage>{error}</InlineMessage>}
     {result && <div role="status">
-      <p>{ui("所选 ")}{result.selectedPages?.length ?? result.sources.length + result.skippedPages.length}{ui(" 页中，")}{result.sources.length}{ui(" 页提取到可出题文字，")}{result.skippedPages.length}{ui(" 页文字不足；新保存 ")}{result.added}{ui(" 页，重复页自动复用。")}</p>
+      {pdfImportSummary(result).map((line, index) => <p key={index} className={index ? "warning" : undefined}>{line}</p>)}
       <p className="muted">{ui("出题只会使用已提取的文字。图片、图表和公式未被理解；生成前请对照原 PDF 核对下方预览。")}</p>
-      {result.legacyPages > 0 && <p className="warning">{ui("其中 ")}{result.legacyPages}{ui(" 页已使用新版排版提取。旧版来源保留以保护已有题目的引用，本次选择的是新版。")}</p>}
-      {result.skippedPages.length > 0 && <p className="warning">{ui("第 ")}{result.skippedPages.join("、")}{ui(" 页没有足够文字，已跳过。若是扫描页，请先 OCR 后重新导入。")}</p>}
-      {result.sparsePages?.length > 0 && <p className="warning">{ui("第 ")}{result.sparsePages.join("、")}{ui(" 页提取到的文字很少，可能只有页眉、页脚或标题；请核对正文是否为图片。需要时先 OCR 再重新导入。")}</p>}
       {result.sources.some((s) => s.document?.warnings?.length) && <p className="warning">{ui("部分页面存在分栏、旋转或分散文字，提取顺序需要对照原 PDF 核对。")}</p>}
       <details><summary>{ui("查看逐页提取预览")}</summary>{result.sources.map((s) => {
         const shown = fullText[s.id] ?? s.preview;
