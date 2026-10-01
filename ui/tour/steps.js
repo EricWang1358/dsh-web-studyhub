@@ -53,7 +53,7 @@ export const TOUR_STEPS = [
     modelNote: "批改需要 AI 模型；示例里的批改结果不需要。" },
   { id: "dashboard", page: "dashboard", anchor: ["dashboard-charts", "dashboard-summary"],
     title: "统计：看见自己的进步",
-    body: "正确率趋势、未来 14 天的到期复习预测和各主题的掌握程度都在这里，页面底部的「模型用量」按功能列出 token 消耗。图里是示例的三周练习。" },
+    body: "分数趋势、未来 14 天的到期复习预测和各主题的掌握程度都在这里，页面底部的「模型用量」按功能列出 token 消耗。图里是示例的三周练习。" },
   { id: "skeleton", page: "skeleton", prepare: "openSampleSkeleton", anchor: "skeleton-main",
     title: "知识骨架：把题连成一张图",
     body: "骨架用概念和关系把零散的题串起来，点一个概念就能看到相关题目，也可以切换成知识图谱。" },
