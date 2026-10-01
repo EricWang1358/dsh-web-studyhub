@@ -1,3 +1,5 @@
+/* StudyHub for DeepSeek Harness (DSH): the workbench page.
+   Contributed by ericwang1358 (https://github.com/EricWang1358). */
 import { BlogNotes, Skeleton, Workflows, Graph, AudioDashboard, DocumentViewer, LiveClass } from "./workspace-views.jsx";
 import { languageSystem } from "../lib/language.js";
 import { localizeRunResponse, localizedRun } from "./run-titles.js";

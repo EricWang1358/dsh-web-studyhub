@@ -48,7 +48,7 @@ for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'au
     name, version: manifest.version, description: `StudyHub ${domain} capability plugin for DSH`,
     type: 'module', main: entry, exports: { '.': entry, './runtime': './lib/runtime.js', './package.json': './package.json' },
     files: manifest.files,
-    license: manifest.license, engines: manifest.engines, dependencies: manifest.dependencies,
+    author: manifest.author, license: manifest.license, engines: manifest.engines, dependencies: manifest.dependencies,
     peerDependencies: manifest.peerDependencies, peerDependenciesMeta: manifest.peerDependenciesMeta,
     dsh: { bundle: { patch: './cordis.patch.yml' } },
   }, null, 2) + '\n');

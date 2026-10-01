@@ -1,4 +1,5 @@
 /* StudyHub search extension: a DSH bundle with one small plugin.
+   Contributed by ericwang1358 (https://github.com/EricWang1358).
    Installed through DSH's plugin manager, it mounts DSH's own MCP client for a
    local document-search server (mcp-local-rag, an npm dependency of this bundle).
    The server is started with the Node DSH itself runs on (process.execPath; under

@@ -10,9 +10,18 @@
     "./locale/*.json": "./locale/*.json"
   },
   "icon": "./icon.svg",
-  "files": ["index.js", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md", "LICENSE"],
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
   "license": "MIT",
-  "engines": { "node": ">=22.19" },
+  "engines": {
+    "node": ">=22.19"
+  },
   "dependencies": {
     "mcp-local-rag": "0.20.0"
   },
@@ -20,7 +29,14 @@
     "@deepseek-ai/dsh-mcp-client": ">=0.2.0-rc.2 <0.3"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/dsh-mcp-client": { "optional": true }
+    "@deepseek-ai/dsh-mcp-client": {
+      "optional": true
+    }
   },
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "author": "ericwang1358 (https://github.com/EricWang1358)"
 }

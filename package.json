@@ -141,5 +141,6 @@
     "@deepseek-ai/dsh-llm": {
       "optional": true
     }
-  }
+  },
+  "author": "ericwang1358 (https://github.com/EricWang1358)"
 }
