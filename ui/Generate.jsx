@@ -12,6 +12,10 @@ import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js'
 import { Banner, Button, Disclosure, EmptyState, PageHeader, SegmentedControl, SetupRequired } from './components/index.js';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
+import { TokenEstimate } from './TokenUsage.jsx';
+import LargeDocumentCard from './LargeDocumentCard.jsx';
+import RetrievalPanel from './RetrievalPanel.jsx';
+import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import {
   COUNT_MAX, COUNT_MIN, COUNT_PRESETS, DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, clampCount, courseHasCaseExam,
   difficultyNote, estimateMinutes, kindNote, roleOpenByDefault, selectionStats, stepCount, suggestCount, summaryLine,
@@ -45,6 +49,8 @@ export default function Generate({
   onStarted,
   caseInitial,
   onCourseSettings,
+  reasoningEffort = '',
+  initialRetrieval = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(formCss, "study-generate-form");
@@ -54,6 +60,15 @@ export default function Generate({
   const stats = React.useMemo(() => selectionStats(data.sources, selectedSources), [data.sources, selectedSources]);
   const selectedPdfPages = stats.pages;
   const model = modelReadiness(data);
+  // 大教材 (WP28): what DSH can search with, read once, and what this page does with a selection of this size.
+  const [retrieval, setRetrieval] = React.useState(initialRetrieval);
+  React.useEffect(() => {
+    if (initialRetrieval || typeof call !== 'function') return undefined;
+    let live = true;
+    Promise.resolve(call('retrieval.status', {})).then((value) => { if (live && value) setRetrieval(value); }, () => {});
+    return () => { live = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const advice = generateAdvice({ sources: data.sources, selectedIds: selectedSources, focus: gen.focus, retrieval });
   // The learner's goal tells whether the target role belongs on the form; read once, quietly.
   const [goal, setGoal] = React.useState('');
   React.useEffect(() => {
@@ -109,7 +124,7 @@ export default function Generate({
   }
   function submit(event) {
     event.preventDefault();
-    if (!model.ready || busy || !selectedSources.length) return;
+    if (!model.ready || busy || !selectedSources.length || advice.blocked) return;
     const materials = documentCount(data.sources.filter((source) => selectedSources.includes(source.id)));
     act("generate", { ...gen, course: generationCourse, count: Number(gen.count), sourceIds: selectedSources }, (job) => {
       // Confirm with the deck's name, start the next deck from a clean form (P27),
@@ -156,7 +171,7 @@ export default function Generate({
       {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
@@ -215,7 +230,7 @@ export default function Generate({
           </Banner>}
           <p className="muted">{ui("先选资料，再设定学习目标。生成结果会先进入草稿；发布时逐题检查，通过的题先进入学习库。")}</p>
           <form onSubmit={submit}>
-            <fieldset>
+            <fieldset data-tour="generate-sources">
               <legend>{ui("01 / 选择资料")}</legend>
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
               <SourcePicker sources={data.sources} selected={selectedSources} onChange={setSelectedSources}
@@ -224,8 +239,12 @@ export default function Generate({
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>
+              {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={() => setPage?.("settings")}
+                call={call} courses={data.focus?.courses} defaultCourse={generationCourse} onRetrieval={setRetrieval} />}
+              {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel call={call} advice={advice} sourceIds={selectedSources}
+                focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
             </fieldset>
-            <fieldset className="generate-form">
+            <fieldset className="generate-form" data-tour="generate-options">
               <legend>{ui("02 / 学习方式")}</legend>
               <CourseField courses={data.focus?.courses} value={generationCourse} onChange={course => setGen({ ...gen, course })} />
               {!generationCourse && selectedSources.length > 0 && <p className="muted">{ui('当前生成结果将归为未分类；可在上方指定课程。')}</p>}
@@ -273,6 +292,8 @@ export default function Generate({
                     onChange={(e) => setGen({ ...gen, focus: e.target.value })}
                     placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
                   <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
+                    estimate={<TokenEstimate call={call} enabled={model.ready && selectedSources.length > 0}
+                      request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
                     onAsk={askAssist}
                     onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
                     onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
@@ -290,7 +311,7 @@ export default function Generate({
                 </div>
               </Disclosure>
             </fieldset>
-            <div className="generate-submit">
+            <div className="generate-submit" data-tour="generate-summary">
               <div className="quality-note">
                 <Icon>✧</Icon>
                 <p>{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}<br />
@@ -298,10 +319,16 @@ export default function Generate({
                 </p>
               </div>
               {summary && <p className="generate-summary" role="status">{summary}</p>}
+              {/* What the run is expected to use, from the real prompts of the pipeline (WP27). */}
+              <TokenEstimate call={call} enabled={selectedSources.length > 0}
+                request={{ feature: 'generate', sourceIds: selectedSources, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
+                  course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
+                {advice.blocked && <p className="warning" role="status">{advice.needsTopic ? ui("所选资料太大。先在「这次想练什么？」写下主题，再生成。")
+                  : ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</p>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
-                <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length}
+                <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked}
                   data-tour="generate-submit">
                   {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
                 </Button>

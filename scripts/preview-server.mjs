@@ -12,6 +12,8 @@ import { localizeAppMessage } from "../lib/application-messages.js";
 import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import { createFakeModel, FAKE_MODEL_ROUTE } from "./fake-model.mjs";
 import { cleanEffortPreference, withEffortState } from "../lib/reasoning-effort.js";
+import { createFakeRetrievalTools } from "./fake-retrieval.mjs";
+import { createFakeExtension } from "./fake-extension.mjs";
 
 const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 const SESSION_ID = "study-preview";
@@ -31,6 +33,9 @@ export function previewOptions(argv = process.argv, env = process.env) {
     fakeLatencyMs: Number(env.STUDY_FAKE_LATENCY_MS || 900),
     // STUDY_FAKE_EFFORTS=low,medium,high: the preview model offers these reasoning levels (lowest first).
     efforts: (env.STUDY_FAKE_EFFORTS || "").split(",").map((id) => id.trim()).filter(Boolean),
+    // STUDY_FAKE_RETRIEVAL=1: the preview plays a DSH that exposes a document-search MCP tool (scripts/fake-retrieval.mjs).
+    // STUDY_FAKE_RETRIEVAL=extension: the search extension itself can be installed and an index built (scripts/fake-extension.mjs).
+    retrieval: env.STUDY_FAKE_RETRIEVAL === "extension" ? "extension" : env.STUDY_FAKE_RETRIEVAL ? "fake" : null,
   };
 }
 
@@ -64,14 +69,17 @@ function previewModel(model, fakeLatencyMs) {
  * state: the library is the --library folder itself, and choosing another one
  * in Settings lasts for this preview without writing a binding file.
  */
-function previewHost(workspaceRoot, model, efforts = []) {
+function previewHost(workspaceRoot, model, efforts = [], retrieval = null) {
   const disposers = [];
+  const extension = retrieval === "extension" ? createFakeExtension({}) : null;
   const ctx = {
+    ...(retrieval === "fake" ? { tools: createFakeRetrievalTools({ root: workspaceRoot }) } : extension ? { tools: extension.tools } : {}),
     // A model catalogue entry with reasoning levels, as DSH's ctx.llm.resolveModelInfo reports it.
     ...(efforts.length ? { llm: { resolveModelInfo: async () => ({ reasoning: { efforts: efforts.map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })) } }) } } : {}),
     sessions: new Map([[SESSION_ID, { header: { cwd: workspaceRoot } }]]),
     // The session follows the preview model, as a DSH session follows its selected model.
-    get: (name) => name === "agentDefaultModel" && model ? { currentSelection: () => model.route } : undefined,
+    get: (name) => name === "agentDefaultModel" && model ? { currentSelection: () => model.route }
+      : extension && name === "pluginManager" ? extension.pluginManager : extension && name === "profileContext" ? { name: "web" } : undefined,
     effect: (setup) => { const dispose = setup(); if (typeof dispose === "function") disposers.push(dispose); },
   };
   const makeComplete = model ? (_route, _sessionId, options = {}) =>
@@ -133,7 +141,7 @@ async function readBody(req) {
  * settings) while the preview runs, so it never reads or writes ~/.dsh.
  * `port: 0` picks a free port.
  */
-export async function createPreviewServer({ libraryRoot, port = 4178, model = null, home, fakeLatencyMs = 900, efforts = [],
+export async function createPreviewServer({ libraryRoot, port = 4178, model = null, home, fakeLatencyMs = 900, efforts = [], retrieval = null,
   distDir = resolve(repoRoot, "dist") } = {}) {
   const workspaceRoot = resolve(libraryRoot || resolve(repoRoot, "output/preview-library"));
   const homeDir = resolve(home || resolve(repoRoot, "output/preview-home"));
@@ -145,7 +153,7 @@ export async function createPreviewServer({ libraryRoot, port = 4178, model = nu
   if (await access(join(workspaceRoot, ".dsh-study-binding.json")).then(() => true, () => false))
     console.warn(`[study-preview] ${join(workspaceRoot, ".dsh-study-binding.json")} (saved by DSH) chooses the library; pass another --library to preview this folder itself.`);
   const token = randomBytes(24).toString("hex");
-  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts);
+  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts, retrieval);
   let actualPort = port;
   const json = (res, status, value) => res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" })
     .end(JSON.stringify(value));

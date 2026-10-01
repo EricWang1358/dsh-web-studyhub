@@ -1,0 +1,42 @@
+{
+  "name": "@ericwang1358/studyhub-retrieval",
+  "version": "0.0.0-development",
+  "description": "StudyHub search extension: a local document-search server that DSH runs with its own Node, so large textbooks can be searched without editing any configuration.",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "icon": "./icon.svg",
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "dependencies": {
+    "mcp-local-rag": "0.20.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-mcp-client": ">=0.2.0-rc.2 <0.3"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-mcp-client": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "author": "ericwang1358 (https://github.com/EricWang1358)"
+}

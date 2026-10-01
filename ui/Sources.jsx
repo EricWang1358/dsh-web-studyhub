@@ -4,9 +4,11 @@ import { AudioJobs } from "./AudioImport.jsx";
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Button, Dialog, Icon, InlineMessage, PageHeader } from "./components/index.js";
+import { Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
-import { documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
+import { bigDocuments } from '../lib/large-documents.js';
+import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
+import LargeDocumentCard from './LargeDocumentCard.jsx';
 import css from "./sources.css";
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
@@ -103,10 +105,12 @@ const pageLabel = (item, page) => item.format === 'pdf'
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove }) {
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
   const [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), row = useRef(null);
   const multi = item.pages.length > 1;
+  // A converted book with chapters is browsed by chapter (WP28); its pages stay one click further in the picker.
+  const chaptered = !!item.chapters?.length;
   useEffect(() => {
     if (!isNew || !row.current) return;
     row.current.scrollIntoView?.({ block: "center", behavior: "smooth" });
@@ -138,9 +142,17 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
       {multi && <div className="source-doc__pages">
         <Button variant="quiet" size="sm" iconEnd="chevron" className="source-doc__pages-toggle" aria-expanded={pagesOpen} aria-controls={listId}
           onClick={() => setPagesOpen(open => !open)}>
-          {pagesOpen ? ui('收起') : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
+          {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
         </Button>
-        {pagesOpen && <ul id={listId} className="source-doc__page-list">
+        {pagesOpen && chaptered && <ul id={listId} className="source-doc__page-list source-doc__chapters">
+          {item.chapters.map(chapter => <li key={chapter.index} data-chapter-index={chapter.index}>
+            <button type="button" onClick={() => onOpen(chapter.sourceIds[0])}>
+              <span>{chapterLabel(chapter)}</span><small>{uiFormat('{0} 页 · {1} 字符', [chapter.sourceIds.length, chapter.chars.toLocaleString(uiLocale())])}</small>
+            </button>
+            {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy} onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
+          </li>)}
+        </ul>}
+        {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list">
           {item.pages.map(page => <li key={page.sourceId}>
             <button type="button" onClick={() => onOpen(page.sourceId)}>
               <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [page.chars.toLocaleString(uiLocale())])}</small>
@@ -148,6 +160,10 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
           </li>)}
         </ul>}
       </div>}
+      {advice && <Disclosure className="source-doc__advice" summary={uiFormat('这份资料有 {0} 页，建议按章节使用', [Math.max(item.pages.length, item.totalPages || 0)])} meta={ui('大教材建议')}>
+        <LargeDocumentCard reason="long-document" detail={{ name: displayTitle(item.title), pages: Math.max(item.pages.length, item.totalPages || 0) }}
+          retrieval={retrieval} onOpenSettings={onOpenSettings} call={call} courses={courses} defaultCourse={defaultCourse} onRetrieval={onRetrieval} />
+      </Disclosure>}
     </article>
   );
 }
@@ -180,12 +196,21 @@ function RemoveDialog({ item, busy, act, call, onClose, onRemoved }) {
   );
 }
 
-export default function Sources({ data, busy, act, call, setModal, setNotice, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, highlight }) {
+export default function Sources({ data, busy, act, call, setModal, setNotice, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
   useInjectCss(css, "study-sources");
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const items = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
   const filtered = useMemo(() => items.filter(item => inScope(item, scope)), [items, scope]);
+  // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
+  const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
+  const [retrieval, setRetrieval] = useState(null);
+  useEffect(() => {
+    if (!bigKeys.size || retrieval || typeof call !== 'function') return undefined;
+    let live = true;
+    Promise.resolve(call('retrieval.status', {})).then(value => { if (live) setRetrieval(value); }, () => {});
+    return () => { live = false; };
+  }, [bigKeys.size > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   const groups = useMemo(() => groupByDay(filtered), [filtered]);
   const fresh = useMemo(() => new Set(items.filter(item => item.sourceIds.some(id => highlight?.ids?.includes(id))).map(item => item.key)), [items, highlight]);
   // Explicit choices win; otherwise the newest day and any day holding a fresh import are open.
@@ -286,7 +311,9 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
-                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} />)}
+                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving}
+                  advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
+                  call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>
             );
           })}

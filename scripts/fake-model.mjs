@@ -7,6 +7,8 @@
    Add a prompt family by adding one entry to HANDLERS: { name, match, reply }. */
 import { norm } from "../lib/domain.js";
 import { parseJson } from "../lib/generation.js";
+import { reportUsage } from "../lib/usage-scope.js";
+import { dshSystemTokens, dshUserTokens } from "../lib/token-estimate.js";
 
 /** The route a preview reports for this model. */
 export const FAKE_MODEL_ROUTE = Object.freeze({ provider: "preview", model: "fake-model" });
@@ -542,12 +544,22 @@ const HANDLERS = [
 export const FAKE_MODEL_HANDLERS = Object.freeze(HANDLERS.map((handler) => handler.name));
 
 /**
- * @param {{ latencyMs?: number, generationLatencyMs?: number, log?: object[] }} options
+ * @param {{ latencyMs?: number, generationLatencyMs?: number, log?: object[], usage?: boolean }} options
  *   latencyMs delays every call; generationLatencyMs (default latencyMs) delays the
  *   plan/author/review stages so job progress is visible. Delays honour the abort signal.
+ *   usage: report token usage after every reply, as a provider does through modelCompletion: DSH's
+ *   estimate of the prompt and the reply, the system prompt served from cache once it has been seen.
  */
-export function createFakeModel({ latencyMs = 0, generationLatencyMs = latencyMs, log = [] } = {}) {
+export function createFakeModel({ latencyMs = 0, generationLatencyMs = latencyMs, log = [], usage = false } = {}) {
   let counter = 0;
+  const seenSystems = new Set();
+  const report = (system, prompt, reply) => {
+    const cached = seenSystems.has(system) ? dshSystemTokens(system) : 0;
+    seenSystems.add(system);
+    const prompted = dshSystemTokens(system) + dshUserTokens(prompt);
+    reportUsage({ uncachedInputTokens: Math.max(0, prompted - cached), cacheReadTokens: cached, cacheWriteTokens: 0,
+      outputTokens: Math.max(1, dshUserTokens(reply) - 8) }, { calls: 1 });
+  };
   const nextNumber = () => ++counter;
   return async function fakeComplete(system, prompt, options = {}) {
     const input = data(prompt);
@@ -555,8 +567,10 @@ export function createFakeModel({ latencyMs = 0, generationLatencyMs = latencyMs
     log.push({ system, prompt, handler: handler?.name || null, stage: options?.stage });
     await wait(handler?.slow ? (handler.name === "generation.review" ? Math.round(generationLatencyMs / 2) : generationLatencyMs) : latencyMs,
       options?.signal);
-    if (!handler) return "{}";
+    if (!handler) { if (usage) report(system, prompt, "{}"); return "{}"; }
     const value = handler.reply({ system, prompt, input, english: englishSession(system), nextNumber });
-    return handler.text ? value : JSON.stringify(value);
+    const reply = handler.text ? value : JSON.stringify(value);
+    if (usage) report(system, prompt, reply);
+    return reply;
   };
 }

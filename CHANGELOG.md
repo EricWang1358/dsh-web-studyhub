@@ -2,7 +2,15 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.1.2 — 2026-10-02
+
+- **Token usage, shown like DSH.** Before a run, generation, case papers, grading, 帮我想想, lessons and recordings show an estimate in DSH's own usage format (Token usage, cache hit, uncached input, cached input, cache write, output) built from the real prompts; afterwards each job shows its actual usage next to the estimate, and Statistics adds a model-usage panel for the last 7/30 days by feature. Tokens only, no prices. Big selections say plainly what is sent. See [token usage](docs/token-usage.md).
+- **A refreshed feature tour.** The tour is now 21 steps and shows the generate form (source picker with chapters, the type and count switches with the Suggest-a-focus assist, the estimated token line), mistakes grouped by topic with recommendations and variants, the three exam formats behind one switch, the statistics charts and model usage, and Settings for big textbooks and updates. The sources step now names Word and PowerPoint. The case-paper step is folded into the exam step.
+- **Large textbooks.** A PDF over 8 MB or 200 pages, a selection over 600,000 characters, or a book over 300 pages now gets a calm *Large textbooks* card with recommended converters (MinerU, Docling), search tools (mcp-local-rag, RAGFlow), download channels including mainland-China ones, and the steps. Converter output (MinerU `content_list.json`, Docling JSON, Marker or generic Markdown with page markers) imports as one paged document, split into chapters you can choose instead of hundreds of pages. A search tool DSH exposes (an MCP tool, or a plugin's `studyRetrieval` service) can be chosen in Settings; generation and the learning flow then use only the pages it finds. **One click installs the search extension** (a companion bundle published with each release, installed through DSH's plugin manager, running on DSH's own Node: no file to edit, nothing else to install) and **one more builds the search index of a course** in the background, only for new or changed pages. MinerU's desktop client is the first converter; command-line, Docker and hand-made configuration moved under Advanced. See [large textbooks](docs/large-documents.md).
+
 ## 2.1.1 — 2026-10-02
+
+Not released on its own; everything below ships in 2.1.2.
 
 - **Update notice and one-click upgrade.** StudyHub checks GitHub for a newer release at most every 12 hours (it can be turned off; nothing but the request is sent). In DSH 0.2 it downloads the exact release asset, verifies its SHA-256 and installs it through DSH's plugin manager; restart DSH to finish. Hosts without that API get a guided reinstall with the package address to copy. Restarting DSH alone never updated a plugin; the docs now say so.
 - **Word and PowerPoint.** Import `.docx` (headings, lists, tables, footnotes) and `.pptx` (one section per slide, with speaker notes and slide numbers for citations), up to 40 MB. Old `.doc`/`.ppt` files get a clear "save as .docx or PDF" message.

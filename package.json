@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "StudyHub: turn your course materials into cited flashcards, quizzes and spaced review.",
   "type": "module",
   "main": "lib/index.js",
@@ -51,6 +51,8 @@
     "docs/uml-canvas.md",
     "docs/pdf-workflow.md",
     "docs/pdf-workflow.zh-CN.md",
+    "docs/large-documents.md",
+    "docs/large-documents.zh-CN.md",
     "docs/coach.md",
     "docs/coach.zh-CN.md",
     "docs/assessment-quality.md",
@@ -86,7 +88,7 @@
     "build": "node scripts/build.mjs",
     "build:demo": "node scripts/build-demo.mjs",
     "test": "node --test tests/*.test.mjs",
-    "lint": "eslint lib scripts tests ui eslint.config.js",
+    "lint": "eslint lib scripts tests ui packages eslint.config.js",
     "dev": "node scripts/dev.mjs",
     "qa:journey": "node scripts/qa/journey.mjs",
     "qa:dismiss": "node scripts/qa/dismiss-timing.mjs",
@@ -139,5 +141,6 @@
     "@deepseek-ai/dsh-llm": {
       "optional": true
     }
-  }
+  },
+  "author": "ericwang1358 (https://github.com/EricWang1358)"
 }

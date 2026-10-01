@@ -96,6 +96,16 @@ The append transaction checks the destination version and material evidence whil
 
 Failed reviews retain authored candidates. Conflicting commits retain approved cards. Inspect `generation.selection.get`; use `generation.selection.review` to repeat an independent review, or `generation.selection.commit` with a newly read destination version to retry publication. Neither path authorizes unchecked additions or silently retargets an outdated source selection.
 
+## Retrieval providers (large textbooks)
+
+StudyHub has no search index of its own. A converted textbook is imported through the same `materials.document.import` (page sources, `document.chapter` for the heading it falls under, no retained original); selecting from it is chapter groups in `groupSourcesByDocument`. Searching is delegated through one contract, `retrieve({ query, sourceIds?, course?, limit, signal? }) -> [{ sourceId?, page?, document?, text, score }]` (`lib/retrieval.js`), with three providers:
+
+- **`mcp:<tool>`** — a tool DSH's MCP client registered as `mcp__<server>__<tool>`. The host adapter (`lib/retrieval-host.js`, wired in `lib/host.js` `serviceFor` as the `retrieval` request service) lists them with `ctx.tools.schemas()` and runs one with `ctx.tools.execute({ callId, name, arguments, signal })`; the result value is `{ content, structuredContent? }` and is mapped by `hitsFromMcpResult`. Only profile-level servers are visible.
+- **`service`** — another plugin registers the cordis service `studyRetrieval` with `retrieve(request)`; StudyHub reads it with `ctx.get('studyRetrieval')`.
+- **`builtin`** — no retrieval: the selection is sent as before.
+
+The choice is stored in `$DSH_HOME/study/retrieval.json` (no secrets) and managed with `retrieval.status | set | test | preview` (generation context). Contexts reach the host through `ports.retrieval` (`{ tools(), call(), service() }`), never `ctx` itself. `generate` narrows a selection above 150,000 characters to the retrieved pages (`narrowSelection`) and records `job.retrieval`; the guided flow uses it to rank topics (`lib/workflow-retrieval.js`). The search extension is a companion bundle (`packages/studyhub-retrieval`, a release asset built by `npm run release:pack`): its own plugin calls `ctx.plugin(mcpClient, config)` for `mcp-local-rag` with `process.execPath` as the command and the server entry resolved next to the package, so no configuration file is edited. `lib/retrieval-extension.js` installs and removes it through `ctx.pluginManager.installBundle` / `removeBundle` (verified asset, `approvedBuilds` confirmation); `lib/retrieval-index.js` indexes a course page by page under `studyhub://source/<id>` and is incremental; the host handler adds `retrieval.extension.*` and the `extension` field of `retrieval.status`. See [large documents](large-documents.md) for the formats, limits and recommended tools.
+
 ## Preview integration
 
 The workbench opens retained originals through DSH's public `sidebarRight.openResource` file resources and contributes learning actions to `sidebar.right.tab.document.actions`. Focused-target identity binds a captured selection to its current document tab.

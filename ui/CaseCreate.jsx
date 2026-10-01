@@ -5,6 +5,7 @@ import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
 import { Button, SegmentedControl, SetupRequired, IconButton } from "./components/index.js";
 import { modelReadiness } from "./generation-status.js";
+import { TokenEstimate } from "./TokenUsage.jsx";
 import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords } from "../lib/case-study.js";
 import css from "./case-study.css";
 
@@ -16,7 +17,7 @@ import css from "./case-study.css";
 
 const blankQuestion = () => ({ prompt: "", marks: 10, answer: "" });
 
-export default function CaseCreate({ data, busy, act, setNotice, onStarted, openImport, openSettings, onCourseSettings, initial = {} }) {
+export default function CaseCreate({ data, busy, act, call, setNotice, onStarted, openImport, openSettings, onCourseSettings, initial = {} }) {
   useInjectCss(css, "study-case-workspace");
   const model = modelReadiness(data);
   const [mode, setMode] = useState(initial.mode || "new");
@@ -115,6 +116,12 @@ export default function CaseCreate({ data, busy, act, setNotice, onStarted, open
       )}
       <div className="case-create__foot">
         <p className="muted">{ui("案例会存为一份资料；题目附评分标准和参考答案，进入草稿供你检查后发布。")}</p>
+        {/* What writing the paper is expected to use (WP27); a pasted case is priced from its own text. */}
+        <TokenEstimate call={call} enabled={ready} request={mode === "import"
+          ? { feature: "case", course, language: form.language, sourceIds, scenario: pasted.scenario,
+            questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })) }
+          : { feature: "case", course, language: form.language, sourceIds, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
+            ...(passage ? { focus: passage } : {}), ...(mode === "style" ? { styleText: form.styleText } : {}) }} />
         {model.ready ? (
           <Button type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready} data-tour="generate-submit">
             {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}

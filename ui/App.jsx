@@ -1,3 +1,5 @@
+/* StudyHub for DeepSeek Harness (DSH): the workbench page.
+   Contributed by ericwang1358 (https://github.com/EricWang1358). */
 import { BlogNotes, Skeleton, Workflows, Graph, AudioDashboard, DocumentViewer, LiveClass } from "./workspace-views.jsx";
 import { languageSystem } from "../lib/language.js";
 import { localizeRunResponse, localizedRun } from "./run-titles.js";
@@ -1259,7 +1261,7 @@ export default function App({ call: transportCall, host = {} }) {
   ) : (
     <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sourceFormCourse} onCourseChange={changeSourceFormCourse}
       pasteDraft={{ title: sourceTitle, text: sourceText }} onPasteDraftChange={draft => { setSourceTitle(draft.title); setSourceText(draft.text); }}
-      onImported={() => refresh().catch(() => {})} onComplete={finishImport}
+      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setPage('settings'); }}
       audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); setPage('settings'); }} /> : undefined} />
   );
   const modelGroups = host.modelGroups || [],
@@ -2015,6 +2017,7 @@ export default function App({ call: transportCall, host = {} }) {
                 onLibrary={() => setPage("library")}
                 onCreate={() => { setGenSource("files"); setPage("generate"); }}
                 onSources={() => setPage("sources")}
+                onAudioUsage={() => setPage("audio")}
               />
             )}
             {page === "exam" && (
@@ -2105,6 +2108,7 @@ export default function App({ call: transportCall, host = {} }) {
                 openAgent={host.openAgent}
                 onOpenSources={openAudioSources}
                 onLegacyRetry={job => { setLegacyAudioJobId(job.id); setPage('audio'); }}
+                onOpenSettings={() => setPage('settings')}
                 onGenerate={generateFromSources}
               />
             )}
@@ -2140,6 +2144,7 @@ export default function App({ call: transportCall, host = {} }) {
                 onStarted={() => { setRevealHome((n) => n + 1); setCaseInitial(null); setPage("library"); }}
                 caseInitial={caseInitial || undefined}
                 onCourseSettings={setCourseSettings}
+                reasoningEffort={binding.effort?.current || ""}
                 key={caseInitial?.nonce || "generate"}
               />
             )}

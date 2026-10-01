@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
@@ -10,7 +11,12 @@ if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(manifest.version)) throw new Error('Rel
 const outputArg = process.argv.find(arg => arg.startsWith('--outdir='))?.slice('--outdir='.length);
 const target = outputArg ? resolve(root, outputArg) : resolve(root, 'output', `release-${manifest.version}`);
 await mkdir(target, { recursive: true });
-const npmCli = process.env.npm_execpath || join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
+// npm's CLI sits next to node.exe on Windows and under <prefix>/lib/node_modules on Linux and macOS.
+const npmCli = [process.env.npm_execpath,
+  join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js'),
+  join(dirname(process.execPath), '../lib/node_modules/npm/bin/npm-cli.js')]
+  .find(candidate => candidate && /npm-cli\.js$/.test(candidate) && existsSync(candidate));
+if (!npmCli) throw new Error('Cannot find npm-cli.js; run the release pack through npm (npm run release:pack)');
 async function pack(cwd) {
   const child = spawn(process.execPath, [npmCli, 'pack', '--json', '--ignore-scripts', '--pack-destination', target],
     { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -42,11 +48,21 @@ for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'au
     name, version: manifest.version, description: `StudyHub ${domain} capability plugin for DSH`,
     type: 'module', main: entry, exports: { '.': entry, './runtime': './lib/runtime.js', './package.json': './package.json' },
     files: manifest.files,
-    license: manifest.license, engines: manifest.engines, dependencies: manifest.dependencies,
+    author: manifest.author, license: manifest.license, engines: manifest.engines, dependencies: manifest.dependencies,
     peerDependencies: manifest.peerDependencies, peerDependenciesMeta: manifest.peerDependenciesMeta,
     dsh: { bundle: { patch: './cordis.patch.yml' } },
   }, null, 2) + '\n');
   await writeFile(join(staging, 'cordis.patch.yml'), `- insert:\n    - id: study-${domain}\n      name: '${name}'\n      config: {}\n`);
+  archives.push(await pack(staging));
+}
+// The search extension (WP28b): a companion bundle StudyHub installs on request; same version, same checksum list.
+{
+  const source = join(root, 'packages', 'studyhub-retrieval');
+  const staging = await mkdtemp(join(target, 'packages', 'retrieval-'));
+  await cp(source, staging, { recursive: true });
+  await cp(join(root, 'LICENSE'), join(staging, 'LICENSE'));
+  const companion = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'));
+  await writeFile(join(staging, 'package.json'), JSON.stringify({ ...companion, version: manifest.version }, null, 2) + '\n');
   archives.push(await pack(staging));
 }
 const setupFilename = `StudyHub-${manifest.version}-Setup.html`;

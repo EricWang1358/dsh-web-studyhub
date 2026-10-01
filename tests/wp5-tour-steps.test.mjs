@@ -40,7 +40,9 @@ const PARALLEL = {};
 const PLAN_ANCHORS = ["nav", "nav-library", "nav-sources", "nav-generate", "nav-wrongbook", "nav-exam", "nav-dashboard", "nav-skeleton",
   "nav-workflows", "nav-settings", "tour-reopen", "home-hero", "home-today", "home-catalog", "sources-list", "sources-add", "import-drop",
   "generate-from-sources", "generate-submit", "review-question", "review-help", "wrongbook-list", "exam-start", "dashboard-summary",
-  "skeleton-main", "workflows-main", "settings-model", "settings-audio", "settings-sample"];
+  "skeleton-main", "workflows-main", "settings-model", "settings-audio", "settings-sample",
+  // 2.1.2 refresh (WP29)
+  "generate-sources", "generate-options", "generate-summary", "wrongbook-recs", "dashboard-charts", "settings-extensions", "settings-update"];
 const PAGES = new Set(["library", "sources", "generate", "draft", "review", "wrongbook", "exam", "dashboard", "skeleton", "workflows",
   "settings", "notes", "board", "audio", "live", "graph", "manage"]);
 
@@ -61,8 +63,8 @@ test("navigation puts the core loop first and the upkeep tools after it", () => 
 });
 
 test("the tour walks the key features in order: welcome → navigation → home → materials → … → settings → finish", () => {
-  assert.deepEqual(TOUR_STEPS.map((step) => step.id), ["welcome", "nav", "home", "course", "sources", "document", "generate", "draft", "practice", "help",
-    "wrongbook", "exam", "case", "dashboard", "skeleton", "workflows", "settings-model", "settings-audio", "finish"]);
+  assert.deepEqual(TOUR_STEPS.map((step) => step.id), ["welcome", "nav", "home", "course", "sources", "document", "generate", "generate-tune", "generate-cost",
+    "draft", "practice", "help", "wrongbook", "exam", "dashboard", "skeleton", "workflows", "settings-model", "settings-audio", "settings-extensions", "finish"]);
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
   assert.equal(TOUR_STEPS[0].anchor, undefined, "the welcome step is centred");
   assert.equal(TOUR_STEPS.at(-1).final, true);
