@@ -1,7 +1,7 @@
 import React, { useId, useMemo, useState } from 'react';
 import { ui, uiFormat, uiLocale } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, EmptyState } from './components/index.js';
+import { Button, EmptyState, ScrollWindow, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
 import css from './source-picker.css';
@@ -61,6 +61,12 @@ export function documentNotes(item) {
     item.warnings.includes('legacy-extraction') && ui('含旧版提取页，建议重新导入')].filter(Boolean);
 }
 
+/** What the picker's filter searches: title, file name, courses and format. */
+export const documentSearchText = item => [item.title, item.filename, ...(item.courses || []), sourceFormatLabel(item)].filter(Boolean).join(' ');
+
+/* The filter appears once the list is longer than a screenful of rows. */
+const FILTER_AFTER = 6;
+
 const pageLabel = (item, page) => item.format === 'pdf'
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : page.title;
@@ -75,7 +81,7 @@ function DocumentRow({ item, selected, onChange, disabled }) {
   const meta = [sourceFormatLabel(item), item.courses.join(' · ') || ui('未分类'),
     uiFormat('{0} 字符', [item.chars.toLocaleString(uiLocale())]), ...documentNotes(item)];
   return (
-    <li className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
+    <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
       <div className="source-picker__row">
         <label className="source-picker__doc">
           <input type="checkbox" checked={state === 'all'} disabled={disabled}
@@ -102,21 +108,27 @@ function DocumentRow({ item, selected, onChange, disabled }) {
           </label>
         </li>)}
       </ul>}
-    </li>
+    </div>
   );
 }
 
 /**
  * Props: sources (snapshot sources), selected (source ids), onChange(ids),
  * courses + scope + onScopeChange (course scope; omit onScopeChange to show
- * everything), disabled, onAdd (shows “添加资料”). Extra props land on the root.
+ * everything), disabled, onAdd (shows “添加资料”), defaultQuery (initial filter
+ * text), maxHeight (list window height in px). Extra props land on the root.
+ * The list scrolls in a bounded window with a filter (WP14), so a course with
+ * hundreds of materials never pushes the page down.
  */
 export default function SourcePicker({ sources = [], selected = [], onChange, courses = [], scope = '*', onScopeChange, disabled = false,
-  onAdd, className, ...rest }) {
+  onAdd, defaultQuery = '', maxHeight = 420, className, ...rest }) {
   useInjectCss(css, 'study-source-picker');
+  const [query, setQuery] = useState(defaultQuery);
   const items = useMemo(() => groupSourcesByDocument(sources), [sources]);
   const effectiveScope = onScopeChange ? scope : '*';
   const visible = items.filter(item => inScope(item, effectiveScope));
+  const filtering = !!query.trim();
+  const shown = filtering ? filterItems(visible, query, documentSearchText) : visible;
   const chosen = new Set(selected);
   const chosenDocuments = items.filter(item => item.sourceIds.some(id => chosen.has(id))).length;
   const outside = selected.some(id => !visible.some(item => item.sourceIds.includes(id)));
@@ -133,14 +145,18 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
       <div className="source-picker__bar">
         <p className="source-picker__count" role="status">{uiFormat('已选择 {0} / {1} 份资料', [chosenDocuments, items.length])}</p>
         <div className="source-picker__actions">
-          <Button size="sm" variant="quiet" disabled={disabled || !visible.length} onClick={() => change(selectDocuments(selected, visible))}>{ui('选择当前范围')}</Button>
+          <Button size="sm" variant="quiet" disabled={disabled || !shown.length} onClick={() => change(selectDocuments(selected, shown))}>
+            {filtering ? ui('选择筛选结果') : ui('选择当前范围')}</Button>
           {selected.length > 0 && <Button size="sm" variant="quiet" disabled={disabled} onClick={() => change([])}>{ui('清空选择')}</Button>}
         </div>
       </div>
       {outside && <p className="source-picker__note">{ui('已选资料包含其他范围，生成时仍会保留。')}</p>}
-      {visible.length ? <ul className="source-picker__list">
-        {visible.map(item => <DocumentRow key={item.key} item={item} selected={selected} onChange={change} disabled={disabled} />)}
-      </ul> : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
+      {visible.length ? <ScrollWindow className="source-picker__window" label={ui('资料列表')} items={visible} itemKey={item => item.key}
+        match={documentSearchText} query={query} onQueryChange={setQuery} filterable={visible.length > FILTER_AFTER || filtering}
+        filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} listClassName="source-picker__list" itemClassName="source-picker__entry"
+        empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
+        renderItem={item => <DocumentRow item={item} selected={selected} onChange={change} disabled={disabled} />} />
+        : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {onAdd && <Button variant="quiet" size="sm" icon="plus" className="source-picker__add" disabled={disabled} onClick={onAdd}>{ui('添加资料')}</Button>}
     </div>
   );
