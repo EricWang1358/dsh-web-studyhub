@@ -125,6 +125,8 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
   else if (retrieval?.effective && retrieval.effective !== 'builtin') { text = ui('已选择的检索工具已启用。'); tone = 'on'; }
   else if (retrieval.companion?.running) { text = ui('检索扩展已就绪；建好索引后会自动用它挑选页面。'); tone = 'found'; }
   else if (providers.length) { text = uiFormat('检测到 {0} 个检索工具，还没有选择。', [providers.length]); tone = 'found'; }
+  // Installed but not up yet: the extension panel already asks for a restart; "none detected" would contradict it.
+  else if (retrieval.extension?.installed) return null;
   else text = ui('没有检测到检索工具。');
   return (
     <p className={`large-doc__detect large-doc__detect--${tone}`} role="status">

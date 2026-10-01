@@ -31,6 +31,15 @@ test('the bundle declares what DSH needs: a patch layer, a pinned server depende
   assert.deepEqual(patch[0].insert.map(row => [row.id, row.name]), [['studyhub-retrieval', '@ericwang1358/studyhub-retrieval']]);
 });
 
+test('peers the server needs at runtime are declared, because DSH\'s installer does not add peer dependencies', () => {
+  // @lancedb/lancedb (under mcp-local-rag) requires apache-arrow >=15.0.0 <=18.1.0 as a peer; without it the
+  // server exits at start with "Cannot find module 'apache-arrow'" and the extension looks installed but never runs.
+  const arrow = manifest.dependencies['apache-arrow'];
+  assert.match(arrow, /^\d+\.\d+\.\d+$/);
+  const [major, minor, patch] = arrow.split('.').map(Number);
+  assert.ok(major >= 15 && (major < 18 || (major === 18 && (minor < 1 || (minor === 1 && patch === 0)))), `apache-arrow ${arrow} within lancedb's peer range`);
+});
+
 test('the server runs on DSH\'s own Node with absolute paths under the StudyHub home; nothing is read from PATH or a config file', () => {
   const home = join(tmpdir(), 'dsh-home');
   const config = serverConfig({ home, entry: join(home, 'node_modules', 'mcp-local-rag', 'dist', 'index.js'), execPath: process.execPath });
