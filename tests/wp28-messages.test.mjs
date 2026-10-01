@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localizeAppMessage } from '../lib/application-messages.js';
@@ -50,4 +51,39 @@ test('every retrieval message a learner can see is translated, with its details 
 test('the catalogue labels all have an English form', () => {
   assert.ok(ToolCatalogLabels.length >= 10);
   for (const { zh, en } of ToolCatalogLabels) assert.doesNotMatch(en, han, zh);
+});
+
+test('the search extension\'s install and index messages are translated too', async () => {
+  const { installExtension, uninstallExtension, extensionAssetName } = await import('../lib/retrieval-extension.js');
+  const { buildIndex, INDEX_TOOLS } = await import('../lib/retrieval-index.js');
+  const found = [];
+  const note = async run => { try { await run(); } catch (error) { found.push(error.message); } };
+  const bytes = Buffer.from('x'), sum = createHash('sha256').update(bytes).digest('hex');
+  const body = buffer => ({ ok: true, status: 200, arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) });
+  const dir = await mkdtemp(join(tmpdir(), 'wp28b-msg-'));
+  const good = async url => body(url.endsWith('.tgz') ? bytes : Buffer.from(`${sum}  ${extensionAssetName('2.1.1')}\n`));
+  const result = value => ({ installBundle: async () => value });
+  try {
+    await note(() => installExtension({ manager: {}, version: '2.1.1', fetch: good, dir }));
+    await note(() => installExtension({ manager: result({}), version: '2.1.1', fetch: async () => { throw new Error('offline'); }, dir }));
+    await note(() => installExtension({ manager: result({}), version: '2.1.1', fetch: async () => ({ ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) }), dir }));
+    await note(() => installExtension({ manager: result({}), version: '2.1.1', fetch: async url => url.endsWith('.tgz') ? body(Buffer.from('bad')) : good(url), dir }));
+    await note(() => installExtension({ manager: result({}), version: '2.1.1', fetch: async url => url.endsWith('.tgz') ? good(url) : body(Buffer.from('')), dir }));
+    for (const kind of ['network', 'no-matching-version', 'disk-full', 'permission', 'pnpm-missing', 'build-blocked', 'timeout', 'integrity', 'mystery'])
+      await note(() => installExtension({ manager: result({ application: 'failed', packageResult: { kind } }), version: '2.1.1', fetch: good, dir }));
+    await note(() => installExtension({ manager: result({ application: 'failed', error: { code: 'incompatible-version' } }), version: '2.1.1', fetch: good, dir }));
+    await note(() => installExtension({ manager: { installBundle: async () => { throw new Error('boom'); } }, version: '2.1.1', fetch: good, dir }));
+    await note(() => uninstallExtension({ manager: {} }));
+    await note(() => uninstallExtension({ manager: { removeBundle: async () => ({ application: 'failed' }) } }));
+    const sources = [{ id: 'a', title: 't', text: 'x' }];
+    await note(() => buildIndex({ port: { tools: () => [], call: async () => ({}) }, sources, library: ['a'], manifest: { sources: {} } }));
+    const tools = () => [{ name: INDEX_TOOLS.ingest, parameters: {} }];
+    await note(() => buildIndex({ port: { tools, call: async () => { throw new Error('getaddrinfo ENOTFOUND huggingface.co'); } }, sources, library: ['a'], manifest: { sources: {} } }));
+    const many = Array.from({ length: 6 }, (_, i) => ({ id: `s${i}`, title: 't', text: `x${i}` }));
+    await note(() => buildIndex({ port: { tools, call: async () => { throw new Error('parse failed'); } }, sources: many, library: many.map(s => s.id), manifest: { sources: {} } }));
+    await note(() => saveRetrievalSettings({ provider: 'builtin', hfEndpoint: 'http://insecure' }));
+  } finally { await rm(dir, { recursive: true, force: true }); }
+  assert.ok(found.length >= 20, `collected ${found.length} messages`);
+  for (const message of found) assert.doesNotMatch(english(message), han, message);
+  assert.match(english(found.find(message => /连续/.test(message))), /parse failed/, 'the detail of a failure is kept');
 });

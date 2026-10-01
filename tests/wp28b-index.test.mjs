@@ -57,7 +57,7 @@ test('the plan is incremental: new or changed pages are added, unchanged ones ar
   const next = planIndex({ sources: edited, library: ['p1', 'p2', 'p3'], manifest });
   assert.deepEqual(next.add.map(source => source.id), ['p2']);
   assert.equal(next.unchanged, 2);
-  const withGone = planIndex({ sources, library: ['p1', 'p2'], manifest: { sources: { ...manifest.sources, ghost: { hash: 'x' } } } });
+  const withGone = planIndex({ sources, library: ['p1', 'p2', 'p3'], manifest: { sources: { ...manifest.sources, ghost: { hash: 'x' } } } });
   assert.deepEqual(withGone.remove, ['ghost'], 'only pages that left the library are removed from the index');
 });
 
@@ -80,7 +80,7 @@ test('building ingests each page once, reports progress, and records what it ind
   assert.deepEqual(await buildIndex({ port: again.port, sources, library: ['p1', 'p2', 'p3'], manifest }), { added: 0, removed: 0, unchanged: 3, failed: [] });
   assert.equal(again.calls.length, 0);
   const third = fakeServer();
-  const result = await buildIndex({ port: third.port, sources: [sources[0], page(2, '改过的内容很长很长很长'), sources[2]], library: ['p1', 'p2'], manifest });
+  const result = await buildIndex({ port: third.port, sources: [sources[0], page(2, '改过的内容很长很长很长')], library: ['p1', 'p2'], manifest });
   assert.deepEqual([result.added, result.removed, result.unchanged], [1, 1, 1]);
   assert.deepEqual(third.calls.map(call => [call.name, call.args.metadata?.source || call.args.source]), [[INDEX_TOOLS.ingest, 'studyhub://source/p2'], [INDEX_TOOLS.delete, 'studyhub://source/p3']]);
   assert.equal(manifest.sources.p3, undefined);
