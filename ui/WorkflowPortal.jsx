@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
+import { ModelError, Readings, ScopeBar } from "./WorkflowScope.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./workflows.css";
 import skeletonCss from "./skeleton.css";
@@ -15,20 +16,8 @@ const clearDraft = (session, libraryKey) => { try { localStorage.removeItem(draf
 const keepDraft = (session, output, libraryKey) => { try { localStorage.setItem(draftKey(session, libraryKey), JSON.stringify({ output, base: savedOutput(session), version: session.version })); } catch {} };
 const ORAL_REPORTS = { zh: "我已口头复述（自我记录，未经过判分或掌握验证）。", en: 'I retold it aloud (self-recorded; not graded or verified for mastery).' };
 const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘" : "Ctrl";
-const PICKED = { ai: "AI 选的范围", match: "按名称匹配的范围", course: "没找到直接相关的主题，先学当前课程", route: "课程路线的这一批", none: "学习库里还没有相关的题目" };
 const prefersReducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const coarsePointer = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-
-/* What this session covers, so the learner can see what AI picked. */
-function ScopeLine({ session, resources }) {
-  const topics = resources.scopeTopics || [];
-  if (!topics.length && !session.pickedBy) return null;
-  const total = resources.scopeTopicCount || topics.length;
-  const shown = topics.slice(0, 4).join("、");
-  return <p className={`wf-scope-line${["course", "none"].includes(session.pickedBy) ? " is-fallback" : ""}`} title={topics.join("、")}>
-    <span>{ui(PICKED[session.pickedBy]) || ui("本次范围")}{shown ? "：" : ""}</span>{shown && <>{shown}{total > 4 ? uiFormat(" 等 {0} 个主题", [total]) : ""}</>}{resources.cardCount > 0 && <> · {resources.cardCount}{ui(" 题")}</>}
-  </p>;
-}
 
 // What each kind of step asks the main chat for; a goal step wants goal options, not an audit.
 const HANDOFF = {
@@ -87,7 +76,7 @@ function SkeletonMaker({ session, resources, disabled, onGenerate }) {
     <h3>{ui("本次还没有知识骨架")}</h3>
     <p className="muted">{ui("骨架把本次范围里的概念串成一条主线：先学什么、谁属于谁、哪些容易混。")}</p>
     {running ? <p className="wf-spine-status" role="status"><span className="wf-pulse" aria-hidden="true" />{ui("AI 正在整理本次范围的骨架（")}{job.cards}{ui(" 题），好了会直接显示在这里；也可以先往下学。")}</p>
-      : resources.modelReady ? <>{failed && <p className="wf-error">{ui("上次没有生成成功")}{job.message ? `：${job.message}` : "。"}</p>}
+      : resources.modelReady ? <>{failed && <div className="wf-error" role="alert"><p>{ui("上次没有生成成功")}{job.message ? "" : "。"}</p>{job.message && <ModelError text={job.message} />}</div>}
         <button type="button" className="primary" disabled={disabled || !resources.cardCount} onClick={onGenerate}>{failed ? ui("重新生成本次范围的骨架") : ui("一键生成本次范围的骨架")}</button>
         {!resources.cardCount && <p className="muted small">{ui("本次范围没有题目，无法整理骨架。")}</p>}</>
       : <p className="wf-model-hint">{ui("连接模型后可以一键生成；也可以请主对话帮你设计骨架。")}</p>}
@@ -116,22 +105,13 @@ function SavedTeaching({ session }) {
   })}</section>;
 }
 
-const Readings = React.memo(function Readings({ resources }) {
-  const titles = new Map((resources.sources || []).map((source) => [source.id, source.title]));
-  if (!resources.readings?.length) return <p className="muted">{ui("本次范围还没有关联资料。可以请主对话围绕这个主题补充讲解，或把自己的资料写在笔记里。")}</p>;
-  return <details className="wf-readings"><summary>{ui("参考已有题解与引用材料 ")}<span className="muted">{resources.readings.length}{ui(" 条")}</span></summary>
-    <p className="muted small">{ui("这些是所选范围内的现有内容，可请主对话整理成连贯讲解。")}</p>
-    {resources.readings.map((reading, index) => <article key={`${reading.deckId}:${reading.cardId}`}>
-      <h4>{index + 1}. {reading.topic || ui("参考材料")}</h4><Markdown text={reading.explanation} />
-      {reading.citations?.map((citation, ci) => <blockquote key={ci}><Markdown text={citation.quote} /><cite>{titles.get(citation.sourceId) || ui("关联资料")}{citation.locator ? ` · ${citation.locator}` : ""}</cite></blockquote>)}
-    </article>)}
-  </details>;
-});
-
 const History = React.memo(function History({ session }) {
   const title = (id) => session.template.steps.find((step) => step.id === id)?.title || ui("学习步骤");
   return <details className="wf-history" open={session.status === "completed"}><summary>{ui("学习足迹 · ")}{session.history.length}{ui(" 次活动")}</summary>
-    {!session.history.length ? <p className="muted">{ui("完成、回补或跳过一个步骤后，记录会出现在这里。")}</p> : <ol>{session.history.map((event, index) => <li key={event.requestId || index}>
+    {!session.history.length ? <p className="muted">{ui("完成、回补或跳过一个步骤后，记录会出现在这里。")}</p> : <ol>{session.history.map((event, index) => event.kind === "rescope" ? <li key={event.requestId || index} className="wf-rescope-event">
+      <div><strong>{ui("这次学习换了课程")}</strong><time>{new Date(event.at).toLocaleString(uiLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</time></div>
+      <p>{event.output}</p>
+    </li> : <li key={event.requestId || index}>
       <div><strong>{title(event.stepId)}</strong><span className={`wf-outcome ${event.outcome}`}>{ui(OUTCOME[event.outcome])}</span><time>{new Date(event.at).toLocaleString(uiLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</time></div>
       {event.output && <Markdown text={event.output} />}
     </li>)}</ol>}
@@ -150,8 +130,8 @@ function SpinePeek({ session, resources, late, disabled, onGenerate }) {
   // At the last step a new skeleton would only serve a later session.
   if (!resources.modelReady || late) return null;
   const interrupted = job?.status === "running" || job?.status === "failed";
-  return <p className="wf-spine-status muted">{interrupted ? uiFormat("上次后台整理骨架没有完成{0}", [job.message ? `：${job.message}` : "。"]) : ui("本次范围还没有知识骨架。")}
-    <button type="button" className="link-btn" disabled={disabled} onClick={onGenerate}>{interrupted ? ui("重新在后台生成") : ui("在后台生成一份")}</button></p>;
+  return <div className="wf-spine-status muted">{interrupted ? <><span>{ui("上次后台整理骨架没有完成。")}</span>{job.message && <ModelError text={job.message} />}</> : <span>{ui("本次范围还没有知识骨架。")}</span>}
+    <button type="button" className="link-btn" disabled={disabled} onClick={onGenerate}>{interrupted ? ui("重新在后台生成") : ui("在后台生成一份")}</button></div>;
 }
 
 export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession, onBack, revision }) {
@@ -278,6 +258,20 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
       const run = await call("review.start", { mode: "course", course: current.current.course.name, fresh: true });
       onOpenRun?.(run.id);
     }
+  });
+  // Same goal, another course: the pick is redone there and everything written is kept.
+  const rescope = (course) => act("rescope", async () => {
+    const saved = await persist();
+    const result = await call("workflow.rescope", { id, version: saved.version, course, requestId: crypto.randomUUID() });
+    if (!live.current) return;
+    adopt(result.session, { resources: result.resources, keepOutput: true });
+    setNotice(uiFormat("已换到「{0}」课程，重新选了学习范围；之前写的笔记都保留着。", [course || ui("未分类课程")]));
+  });
+  // Practice answers are on record: this session stays as it is and a new one starts in the other course.
+  const startInCourse = (course) => act("rescope", async (before) => {
+    await persist();
+    const next = await call("workflow.quickstart", { goal: before.goal, inCourse: course, requestId: crypto.randomUUID() });
+    onOpenSession?.(next.session.id);
   });
   const openPractice = (runId) => act("practice", async () => { await persist(); onOpenRun?.(runId); });
   async function prepareTeaching() {
@@ -406,8 +400,8 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
   };
   return <section className="page workflow-page wf-portal">
     <div className="wf-topline"><button type="button" disabled={busy || !!remote} onClick={leave}>{ui("← 保存并返回工作台")}</button><span className="muted small">{completed ? ui("本次学习已结束") : active ? ui("学习中") : ui("已暂停")}</span></div>
-    <header className="wf-heading" ref={headingRef}><div><p className="wf-eyebrow">{session.template.title}</p><h1>{session.topic}</h1><p className="muted">{completed ? ui("保留这次学习的记录，下一次可以换一种学习方式。") : uiFormat("第 {0} / {1} 步 · {2}", [index + 1, session.template.steps.length, step.title])}</p><ScopeLine session={session} resources={resources} /></div>{!completed && <button type="button" disabled={busy || !!remote} onClick={() => changeStatus(active ? "paused" : "active")}>{active ? ui("保存并暂停") : ui("继续学习")}</button>}</header>
-    {error && <div className="wf-error" role="alert"><p>{error}{ui(" 你的输入仍保留在此设备。")}</p><button type="button" disabled={busy} onClick={refresh}>{ui("核对最新进度")}</button></div>}
+    <header className="wf-heading" ref={headingRef}><div><p className="wf-eyebrow">{session.template.title}</p><h1>{session.topic}</h1><p className="muted">{completed ? ui("保留这次学习的记录，下一次可以换一种学习方式。") : uiFormat("第 {0} / {1} 步 · {2}", [index + 1, session.template.steps.length, step.title])}</p><ScopeBar session={session} resources={resources} disabled={busy || !!remote || !active} onRescope={rescope} onStartNew={startInCourse} /></div>{!completed && <button type="button" disabled={busy || !!remote} onClick={() => changeStatus(active ? "paused" : "active")}>{active ? ui("保存并暂停") : ui("继续学习")}</button>}</header>
+    {error && <div className="wf-error" role="alert"><ModelError text={error} /><p>{ui(" 你的输入仍保留在此设备。")}</p><button type="button" disabled={busy} onClick={refresh}>{ui("核对最新进度")}</button></div>}
     {remote && <div className="wf-notice" role="status"><p>{ui("这次学习在其他地方有了更新。你的文字已保留，请选择怎样继续。")}</p>
       {savedOutput(remote.session) && <details><summary>{ui("查看学习库中的最新回答")}</summary><Markdown text={savedOutput(remote.session)} /></details>}
       <div className="wf-actions"><button type="button" onClick={() => reconcile(true)}>{remote.session.currentStepId === session.currentStepId ? ui("载入更新，保留我的文字") : ui("进入新步骤，保留旧步草稿")}</button><button type="button" onClick={() => reconcile(false)}>{ui("使用最新记录")}</button></div>
@@ -462,7 +456,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
           : <><button type="button" className="link-btn" disabled={!active || busy || !!remote} onClick={revisit}>{ui("回到讲解补一补")}</button><button type="button" className="primary" disabled={cannotComplete} onClick={() => advance("done")}>{pending === "done" ? ui("保存中…") : ui("继续 →")}</button></>}</div>
         : <button type="button" className={(step.kind === "lesson" && !content) || (step.kind === "skeleton" && !resources.skeleton) ? undefined : "primary"} disabled={cannotComplete} onClick={() => advance("done")}>{pending === "done" ? ui("保存中…") : step.kind === "lesson" ? content ? ui("读完了，继续 →") : ui("先往下走 →") : step.kind === "skeleton" ? resources.skeleton ? ui("看完了，继续 →") : ui("先往下走 →") : ui("完成本步，继续 →")}</button>}</div>{step.kind === "practice" && !resources.practice?.complete && <p className="muted small">{ui("练完本步题目后可以继续，也可以在下方如实选择跳过。")}</p>}{["recall", "reflection"].includes(step.kind) && !output.trim() && <p className="muted small">{step.kind === "recall" ? ui("写下复述，或在实际口头复述后记录，即可继续。") : ui("选择符合实际的回顾，或补充自己的总结，即可继续。")}</p>}<details className="wf-other-path"><summary>{ui("还需巩固、跳过与步骤安排")}</summary><div className="wf-actions"><button type="button" disabled={!active || busy || !!remote} onClick={() => advance("needs_work")}>{ui("还需巩固")}</button><button type="button" disabled={!active || busy || !!remote} onClick={() => advance("skipped")}>{ui("跳过本步")}</button></div><div className="wf-branch-hint"><span>{ui("完成 / 跳过 → ")}{branchText(step.next)}</span><span>{ui("需巩固 → ")}{branchText(step.retry)}</span></div><p className="muted small">{ui("完成只记录本次活动；闪卡判分和复习安排照常独立保存。")}</p></details></footer>
     </article>}
-    {completed && <div className="wf-completed"><h2>{ui("这次学习已结束")}</h2><p>{ui("完成活动 ")}{session.history.filter((event) => event.outcome === "done").length}{ui(" 次 · 需要巩固 ")}{session.history.filter((event) => event.outcome === "needs_work").length}{ui(" 次 · 跳过 ")}{session.history.filter((event) => event.outcome === "skipped").length}{ui(" 次")}</p><p className="muted">{ui("这些记录描述本次学习过程，闪卡的判分与复习安排仍按原有规则保存。")}</p>{session.course ? <div className="wf-actions wf-course-next"><button type="button" className="primary" disabled={busy} onClick={() => continueCourse(false)}>{pending === "course" ? ui("准备中…") : ui("继续课程下一批 →")}</button><button type="button" disabled={busy} onClick={() => continueCourse(true)}>{ui("下一批也先讲后练")}</button><button type="button" className="link-btn" onClick={onBack}>{ui("返回学习流工作台")}</button></div>
+    {completed && <div className="wf-completed"><h2>{ui("这次学习已结束")}</h2><p>{ui("完成活动 ")}{session.history.filter((event) => event.outcome === "done").length}{ui(" 次 · 需要巩固 ")}{session.history.filter((event) => event.outcome === "needs_work").length}{ui(" 次 · 跳过 ")}{session.history.filter((event) => event.outcome === "skipped").length}{ui(" 次")}</p><p className="muted">{ui("这些记录描述本次学习过程，闪卡的判分与复习安排仍按原有规则保存。")}</p>{session.course && session.pickedBy === "route" ? <div className="wf-actions wf-course-next"><button type="button" className="primary" disabled={busy} onClick={() => continueCourse(false)}>{pending === "course" ? ui("准备中…") : ui("继续课程下一批 →")}</button><button type="button" disabled={busy} onClick={() => continueCourse(true)}>{ui("下一批也先讲后练")}</button><button type="button" className="link-btn" onClick={onBack}>{ui("返回学习流工作台")}</button></div>
       : <button type="button" onClick={onBack}>{ui("返回学习流工作台")}</button>}</div>}
     {completed && <SavedTeaching session={session} />}
     <History session={session} />

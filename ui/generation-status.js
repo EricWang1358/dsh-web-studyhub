@@ -159,7 +159,7 @@ const FAILURES = [
   ['credential', /api[ _-]?key|credential|NO_ADAPTER|unauthori[sz]ed|\b40[13]\b|authenticat|未注册模型提供方|没有可用模型|密钥|Configure a model provider/i],
   ['budget', /total budget|time budget|执行时限/i],
   ['timeout', /timed? ?out|timeout|超时|did not respond|没有回应/i],
-  ['network', /fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket hang up|network|连不上|网络/i],
+  ['network', /fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket hang up|connection (error|reset|refused|closed|terminated)|network|连不上|网络/i],
   ['unavailable', /overloaded|\b5\d\d\b|unavailable|暂时不可用/i],
   ['sources', /资料[^；;。]*(删除|缺失)|Select at least one source/i],
   ['quality', /Quality gate failed|Editorial review still found issues|No questions were generated|Author returned no questions|insufficient evidence|没有题目通过/i],
@@ -191,6 +191,27 @@ export function describeFailure(text = '', { hasDraft = false } = {}) {
       hint: ui('资料可能太短，或缺少可以考的内容。换几份内容更完整的资料，或减少题数再试。') };
     default: return { kind, action: 'retry', title: ui('生成没有完成'), hint: ui('可以按原资料重新设置后再试。') };
   }
+}
+
+/**
+ * A model failure anywhere in the learning flow, in plain words: { kind, title,
+ * hint, detail }. `detail` is the raw provider text for a 详情 toggle; an error
+ * that is not recognised passes through as the title with no detail.
+ */
+export function describeModelError(text = '') {
+  const raw = String(text || '').trim();
+  const found = FAILURES.find(([, pattern]) => pattern.test(raw))?.[0];
+  const copy = {
+    'rate-limit': [ui('模型当前限流'), ui('稍等一两分钟再点重新生成；或在设置里换一个模型。')],
+    quota: [ui('模型账户的余额或额度不足'), ui('充值，或在设置里换一个模型后再试。')],
+    credential: [ui('还没有可用的模型密钥'), ui('在模型设置里填好 API Key 后再试。')],
+    timeout: [ui('模型太久没有回应'), ui('稍后再试一次。')],
+    budget: [ui('模型太久没有回应'), ui('稍后再试一次。')],
+    network: [ui('连接模型失败'), ui('检查网络后重试。')],
+    unavailable: [ui('模型服务暂时不可用'), ui('稍后再试。')],
+  }[found];
+  if (!copy) return { kind: 'unknown', title: raw, hint: '', detail: '' };
+  return { kind: found === 'budget' ? 'timeout' : found, title: copy[0], hint: copy[1], detail: raw };
 }
 
 /** The toast after a generation starts (P26): which deck, and that it is on its way. */
