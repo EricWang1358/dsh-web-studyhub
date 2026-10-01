@@ -17,7 +17,7 @@ These steps work in your existing **desktop or web** DSH installation. Web users
 https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.0/ericwang1358-dsh-daily-flashcard-2.1.0.tgz
 ```
 
-For an update, finish or cancel tasks and restart the **existing DSH process**: quit and reopen desktop DSH, or restart your web service with its original profile. A browser refresh does not replace loaded plugin code.
+**Updating.** DSH plugins do not update themselves, and restarting DSH alone keeps the installed version. From 2.1.1, StudyHub asks GitHub for a newer release (at most every 12 hours; switch it off in **Settings › About & updates**) and shows a chip in its sidebar. **Upgrade** downloads the release package, checks its SHA-256 against the release's `SHA256SUMS` file and installs it through DSH's plugin manager. On older versions, or a host without in-app installs, open **Plugins**, uninstall StudyHub, then **Add plugin** with the new release's package address. Either way, finish or cancel background tasks first and restart DSH afterwards: quit desktop DSH fully and reopen it, or restart your web service with its original profile. A browser refresh alone does not load new plugin code. Your library and settings are kept.
 
 If GitHub URL installation is unavailable, download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.0) and supply its absolute path. The file must be on the **computer or server running DSH**. Your laptop’s download path is not a remote web server’s path; prefer the HTTPS URL above.
 
