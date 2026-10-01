@@ -36,6 +36,7 @@ import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.j
 import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
+import CourseSettings, { CourseList } from './CourseSettings.jsx';
 import Inbox from "./Inbox.jsx";
 import css from "./coach.css";
 import libraryChipCss from "./library-chip.css";
@@ -193,6 +194,8 @@ export default function App({ call: transportCall, host = {} }) {
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
     [syncIssue, setSyncIssue] = useState("");
+  // WP13: the course settings panel (a course id), opened from the library heading or Settings.
+  const [courseSettings, setCourseSettings] = useState(null);
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
     [sourceText, setSourceText] = useState("");
@@ -1924,6 +1927,7 @@ export default function App({ call: transportCall, host = {} }) {
                   setPage("graph");
                 }}
                 onFocus={(next) => act("focus.set", next)}
+                onCourseSettings={setCourseSettings}
                 startCourseFlow={startCourseFlow}
                 suggestRole={(args) => call("focus.suggest", args)}
                 suggestMerges={(args) => call("deck.merge.suggest", args)}
@@ -2146,6 +2150,7 @@ export default function App({ call: transportCall, host = {} }) {
                 legacy={legacy}
                 setLegacy={setLegacy}
                 workspacePanel={workspacePanel}
+                coursePanel={<CourseList courses={data.courses || []} busy={busy} onOpen={setCourseSettings} />}
                 onboardingPanel={<OnboardingPanel sample={data.sample} progress={tourResume} busy={busy || sampleBusy}
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
@@ -2243,6 +2248,8 @@ export default function App({ call: transportCall, host = {} }) {
           onImport={() => endTour({ then: openFirstImport })}
           onRemoveSample={data.sample?.loaded ? () => endTour({ then: () => setRemovingSample(true) }) : undefined} />
       )}
+      {courseSettings && <CourseSettings key={courseSettings} data={data} courseId={courseSettings} act={act} busy={busy}
+        setNotice={setNotice} onClose={() => setCourseSettings(null)} />}
       {removingSample && <RemoveSampleDialog busy={sampleBusy} onConfirm={removeSampleData}
         onClose={() => { if (!sampleBusy) setRemovingSample(false); }} />}
       {modal && (

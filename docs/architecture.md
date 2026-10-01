@@ -31,6 +31,7 @@ Action envelopes may include `uiLanguage: "en" | "zh"`. The runtime consumes thi
 | Jobs | `jobs.v1` | Public background job inspection, messages and cancellation |
 | System | `system.v1` | Settings and focus |
 | Library | `library.v1` | Workspace snapshots, administrative backups and cross-domain presentation |
+| Courses | `courses.v1` | Course records (id, aliases, exam profile, examiner guidance, focus topics) and `course.profile`; renames and merges run in Library as one transaction |
 
 The compatibility `StudyService` facade delegates to the same public runtime operations. It has no inherited kernel or mixed-in domain methods, and domains never receive the facade or the unrestricted store. Shared pure functions remain ordinary modules; splitting every helper is not a goal. Mutable work belongs to one runtime, with named service projections supplied to the domains that need them.
 
@@ -107,7 +108,7 @@ HTML scripts, event handlers, embedded browsing, forms and external resource loa
 
 The existing atomic, content-addressed v3 shard store remains. Contexts register collection descriptors without editing the core field list. Unknown extension shards, scalar values and older manifest arrays survive reads and unrelated writes, including when their plugin is absent.
 
-Supported older libraries normalize missing collections on read and upgrade during a later write, retaining a pre-upgrade backup. Old sources/decks may lack optional document or question metadata and remain usable. `materials.enrich` fills missing deterministic values and reports facts it cannot establish.
+Supported older libraries normalize missing collections on read and upgrade during a later write, retaining a pre-upgrade backup. Store version 4 gives courses stable ids (`course-` + a hash of the normalised name) derived on read; every commit keeps `courseIds`/`courseId` in sync with the legacy course names, which stay authoritative for older readers (`lib/courses.js`). Old sources/decks may lack optional document or question metadata and remain usable. `materials.enrich` fills missing deterministic values and reports facts it cannot establish.
 
 Original files live at library-relative `attachments/materials/<sha256>.<format>` paths. Document revisions retain historical source IDs and evidence. Opening an old retained path preserves its actual revision. A new projection does not overwrite old citation text.
 

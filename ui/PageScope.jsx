@@ -27,8 +27,8 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
   return <label className="page-scope">{label}<select value={value} onChange={event => onChange(event.target.value)} disabled={disabled}>
     <option value="*">{ui('全部课程')}</option>
     {selectedLabel && <option value="@selected">{selectedLabel}</option>}
+    {names.filter(name => name && name !== '*').map(name => <option key={name} value={name}>{name}</option>)}
     {unassigned && <option value="">{ui('未分类')}</option>}
     {value && value !== '*' && value !== '@selected' && !names.includes(value) && <option value={value}>{value}</option>}
-    {names.filter(name => name && name !== '*').map(name => <option key={name} value={name}>{name}</option>)}
   </select></label>;
 }
