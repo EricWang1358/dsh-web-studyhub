@@ -128,7 +128,8 @@ test("only audio jobs are listed, and nothing renders when there are none", () =
 
 test('audio imports show the source-page course, including source-only courses and explicit unassigned', () => {
   const props = { data: { ...data, focus: { course: 'A', courses: [{ name: 'A' }, { name: 'B' }] } }, initialFile: chosen };
-  assert.match(render({ ...props, defaultCourse: 'B' }), /<input[^>]*list="[^"]*"[^>]*value="B"/);
+  // WP14: a value that names an existing course has no datalist (it would hide the quick picks).
+  assert.match(render({ ...props, defaultCourse: 'B' }), /<input[^>]*value="B"/);
   assert.match(render({ ...props, defaultCourse: '' }), /<input[^>]*list="[^"]*"[^>]*value=""/);
 });
 
