@@ -1,10 +1,13 @@
 import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LEVEL_LABEL } from "./shared.js";
-import GenerationTrace, { generationStage } from "./GenerationTrace.jsx";
+import GenerationTrace from "./GenerationTrace.jsx";
 import { reviewedCardStatus } from "../lib/review-integrity.js";
-import { isActiveJob, visibleGenerationJobs, supplementJobLabel } from "./job-visibility.js";
+import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
+import { Button, Disclosure, Icon, InlineMessage } from "./components/index.js";
+import { describeFailure, documentCount, jobCode, jobHeadline, jobStageLabel, modelReadiness } from "./generation-status.js";
 import focusCss from "./focus.css";
+import homeCss from "./generate-home.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import CourseRoute from "./CourseRoute.jsx";
@@ -147,9 +150,22 @@ export default function StudyMap({
   suggestMerges,
   mergeDecks,
   startCourseFlow,
+  generateFromSources,
+  openModelSettings,
+  canChat = false,
+  reveal,
+  onRevealed,
   children,
 }) {
   useInjectCss(focusCss, "study-focus");
+  useInjectCss(homeCss, "study-generate-home");
+  const pageRef = useRef(null), activityRef = useRef(null);
+  // After a generation starts, land with its progress card in view (P26).
+  useEffect(() => {
+    if (!reveal) return;
+    pageRef.current?.scrollIntoView?.({ block: "start" });
+    onRevealed?.();
+  }, [reveal]); // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState(""),
     [showOtherCourses, setShowOtherCourses] = useState(false),
     [showAllCurrent, setShowAllCurrent] = useState(false),
@@ -197,7 +213,12 @@ export default function StudyMap({
   // Audio imports report progress in the add-source form, not among question generations.
   const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import");
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
-  const visibleJobs = visibleGenerationJobs(jobs);
+  // Top of the home: what is still running first, then the newest finished cards.
+  const visibleJobs = (() => {
+    const shown = visibleGenerationJobs(jobs);
+    return [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
+  })();
+  const modelReady = modelReadiness(data).ready;
   /* Mastery weighted by card count. Deck rows carry no mastery of their own in
      the snapshot; the per-deck figures live on `progress`. The current course
      leads; the whole library follows as context when it holds other courses. */
@@ -421,8 +442,32 @@ export default function StudyMap({
     );
   }
 
-  const headline = !data.decks.length
-    ? ui("从一份资料开始")
+  /* No decks yet: the card walks a newcomer from materials to a first deck
+     (D1): add a material → generate from it → check and publish the draft.
+     JSON import stays one link away for people who already have questions. */
+  const materials = documentCount(data.sources || []),
+    newestDraft = data.drafts?.at(-1),
+    generating = activeJobs.some((job) => job.type !== "draft-repair"),
+    jsonLink = [ui("已有题目？导入 JSON 题组"), importLibrary],
+    revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  const starter = data.decks.length ? null
+    : newestDraft ? { kind: "empty", step: 2, eyebrow: ui("下一步"), headline: ui("检查草稿，就能开始练习"),
+        title: ui("草稿已生成"), next: ui("草稿里的每道题都能修改；发布时还会再检查一遍。"),
+        action: { label: ui("检查并发布草稿"), run: () => openDraft(newestDraft) }, also: [jsonLink] }
+    : generating ? { kind: "empty", step: 1, eyebrow: ui("正在出题"), headline: ui("第一组题正在生成"),
+        title: ui("正在出第一组题"), next: ui("出题在后台进行，离开这一页也不会中断；完成后草稿会出现在上方。"),
+        action: { label: ui("查看进度"), run: revealActivity }, also: [] }
+    : materials ? { kind: "empty", step: 1, eyebrow: ui("下一步"), headline: ui("用资料出第一组题"),
+        title: uiFormat("{0} 份资料已就绪", [materials]), next: ui("选好资料、题型和题数，AI 出题后会逐题检查，再交给你确认。"),
+        action: { label: uiFormat("用这 {0} 份资料出题", [materials]), run: () => generateFromSources?.(data.sources.map((source) => source.id)) },
+        also: [[ui("＋ 再添加资料"), addSource], jsonLink] }
+    : { kind: "empty", step: 0, eyebrow: ui("开始"), headline: ui("从一份资料开始"),
+        title: ui("还没有资料"), next: ui("添加讲义、笔记或 PDF，AI 会据此出题；发布后这里会给出学习路径。"),
+        action: { label: ui("添加第一份资料"), run: addSource },
+        also: [jsonLink, ...(canChat ? [[ui("在对话中用工作区文件出题"), () => askInChat(
+          ui("请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。"))]] : [])] };
+  const headline = starter
+    ? starter.headline
     : today.ahead
       ? ui("今天的任务都完成了")
       : [
@@ -454,11 +499,8 @@ export default function StudyMap({
   /* The card offers exactly one action. An open run wins, then the current
      course's new questions (class mode), then today's review path. Every
      other start stays reachable as a quiet link beside it. */
-  const base = !data.decks.length
-    ? { kind: "empty", eyebrow: ui("开始"),
-        action: { label: ui("导入 JSON 题组"), run: importLibrary },
-        also: [[ui("添加资料补题"), addSource], [ui("在对话中用工作区文件出题"), () => askInChat(
-          ui("请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。"))]] }
+  const base = starter
+    ? starter
     : courseRun
       ? { kind: "resume", eyebrow: ui("继续课程"), count: courseRun.total - courseRun.index, unit: ui("题未完成"),
           detail: uiFormat("这一批已做到第 {0} / {1} 题", [courseRun.index + 1, courseRun.total]),
@@ -514,18 +556,72 @@ export default function StudyMap({
     otherRuns = runs.filter((r) => r !== shownRun);
   // Cards visible behind the top one: the stack is as thick as the day.
   plan.depth = plan.kind === "empty" ? 0 : Math.min(2, Math.max(0, (plan.count || 0) - 1));
+  const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks || []).some((n) => !n.current);
+  const drafts = data.drafts || [];
+  const finishedCount = visibleJobs.filter((j) => !isActiveJob(j)).length;
+  /* Generation progress and drafts waiting for review sit at the top of the
+     home (P26): a job started from 创建题组 is in view when the learner lands
+     here, and a failure shows up where they are looking (P15). */
+  const activity = (visibleJobs.length > 0 || drafts.length > 0) && (
+    <section className="home-activity" ref={activityRef} aria-label={ui("出题进度与待发布草稿")}>
+      {visibleJobs.length > 0 && <div className="jobs generation-jobs">
+        {visibleJobs.map((j) => <JobCard key={j.id} job={j} drafts={drafts} busy={busy} openDraft={openDraft}
+          openAgent={openAgent} cancelJob={cancelJob} dismissJob={dismissJob} retryGeneration={retryGeneration}
+          openModelSettings={openModelSettings} />)}
+        {dismissJob && finishedCount > 1 && <div className="jobs-actions">
+          <button type="button" className="link-btn jobs-dismiss-all" disabled={busy} onClick={() => dismissJob()}>{ui("全部知道了")}</button>
+        </div>}
+      </div>}
+      {drafts.length > 0 && <div className="home-drafts">
+        <div className="section-heading">
+          <h2>{ui("待发布 ")}<span>{drafts.length}</span>
+          </h2>
+          <small>{ui("发布时逐题检查；问题题留在草稿")}</small>
+        </div>
+        {[...drafts].reverse().map((d) => {
+          const missing = (d.editorial?.requested || 0) - d.cards.length;
+          const qualityCount = (d.quality?.warnings?.length || 0) + (d.quality?.errors?.length || 0);
+          const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
+          const reviewed = reviewedCardStatus(d);
+          const continuing = data.jobs?.some((j) => j.draftId === d.id && ["queued", "running", "cancelling"].includes(j.status));
+          const canContinue = missing > 0 && d.editorial?.generation?.sourceIds?.length &&
+            !d.editingDeckId && !rejectedCount && !d.editorial?.repairOfDeckId;
+          return <div key={d.id} className="draft-row">
+            <button type="button" className="draft-open" onClick={() => openDraft(d)}>
+              <span>
+                <strong>{d.title}</strong>
+                <small>
+                  {d.cards.length}{ui(" 道题")}{qualityCount ? uiFormat(" · {0} 项质量提醒", [qualityCount]) : ""}
+                  {rejectedCount ? uiFormat(" · {0} 题待处理", [rejectedCount])
+                    : ` · ${reviewed?.unchanged === d.cards.length ? ui("已复审，待发布") : ui("待发布检查")}`}
+                  {Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
+                    ? uiFormat(" · 生成未完成 {0}/{1} 批", [d.editorial.completedParts, d.editorial.parts]) : ""}
+                </small>
+              </span>
+              <span>{ui("打开 →")}</span>
+            </button>
+            {canContinue && <button type="button" disabled={busy || continuing || !modelReady}
+              title={!modelReady ? ui("先配置一个 AI 模型") : ui("用原资料补齐题目，保留已有草稿")}
+              onClick={() => continueDraft(d)}>{continuing ? ui("补题中…") : uiFormat("继续补齐 {0} 题", [missing])}</button>}
+          </div>;
+        })}
+      </div>}
+    </section>
+  );
 
   return (
-    <section className="page library-page map-page">
+    <section className="page library-page map-page" ref={pageRef}>
       {children}
-      <div className={"desk" + (plan.kind === "empty" ? " is-empty" : "")}>
+      {activity}
+      <div className={"desk" + (plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <div className="desk-intro">
-          <div className="focus-switch" role="group" aria-label={ui("学习模式")}>
+          {/* The study-mode switch matters once there is something to study (P12). */}
+          {(data.decks.length > 0 || interview) && <div className="focus-switch" role="group" aria-label={ui("学习模式")}>
             <button className={!interview ? "active" : ""} aria-pressed={!interview}
               onClick={() => onFocus?.({ mode: "class" })}>{ui("课堂跟学")}</button>
             <button className={interview ? "active" : ""} aria-pressed={interview}
               onClick={() => onFocus?.({ mode: "interview" })}>{ui("笔试 / 面试")}</button>
-          </div>
+          </div>}
           {interview ? (
             <input className="course-heading-input" aria-label={ui("岗位方向")} placeholder={ui("输入岗位方向")}
               value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} onBlur={() => {
@@ -597,9 +693,9 @@ export default function StudyMap({
                 <button className="link-btn" disabled={busy} onClick={() =>
                   start({ mode: "path", scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui("只学这个主题 →")}</button>
               </>
-            ) : data.decks.length
-              ? ui("所有主题都已掌握，可以提前巩固。")
-              : ui("添加讲义或笔记，生成题组后这里会给出学习路径。")}
+            ) : starter
+              ? starter.next
+              : ui("所有主题都已掌握，可以提前巩固。")}
           </p>
           {plan.also.length > 0 && (
             <p className="desk-also">
@@ -634,14 +730,24 @@ export default function StudyMap({
             </details>
           )}
         </div>
-        <div className="today-stack" data-depth={plan.depth}>
+        <div className="today-stack" data-depth={plan.depth} data-tour="home-today">
           <div className="today-card">
             <div className="today-card-head">
               <span>{plan.eyebrow}</span>
               <time>{todayLabel}</time>
             </div>
             {plan.kind === "empty" ? (
-              <p className="today-card-empty">{ui("还没有卡片。")}<br />{ui("从一份资料或一组题开始。")}</p>
+              <>
+                <p className="today-card-empty">{plan.title}</p>
+                <ol className="starter-steps" aria-label={ui("第一组题的三步")}>
+                  {[ui("添加资料"), ui("用资料出题"), ui("检查并发布")].map((label, index) => (
+                    <li key={label} className={index < plan.step ? "is-done" : index === plan.step ? "is-current" : undefined}
+                      aria-current={index === plan.step ? "step" : undefined}>
+                      <span className="starter-mark" aria-hidden="true">{index < plan.step ? "✓" : index + 1}</span>{label}
+                    </li>
+                  ))}
+                </ol>
+              </>
             ) : (
               <div className="today-count">
                 <strong>{plan.count}</strong>
@@ -659,15 +765,15 @@ export default function StudyMap({
         </div>
       </div>
 
-      <div className="section-heading map-heading">
+      <div className="section-heading map-heading" data-tour="home-catalog">
         <h2>{ui("学习目录 ")}<span>{data.decks.filter((d) => !d.archived).length}</span>
         </h2>
         <div className="section-heading-actions">
-          <button
+          {data.decks.length > 0 && <button
             disabled={busy}
             title={ui("用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）")}
             onClick={() => onShowGraph?.(null, { canvas: true })}
-          >{ui("查看图谱")}</button>
+          >{ui("查看图谱")}</button>}
           {/* Housekeeping lives behind one menu so the heading stays quiet. */}
           <span className="map-menu-wrap">
             <button
@@ -823,16 +929,14 @@ export default function StudyMap({
       ) : data.decks.length ? (
         <p className="muted map-empty">{ui("没有符合条件的题组。")}</p>
       ) : (
-        <div className="empty">
-          <span className="empty-icon">▧</span>
-          <h2>{ui("你的第一组好题，从资料开始")}</h2>
-          <p>{ui("添加讲义或笔记，生成题组后会在这里形成带掌握度的学习目录。")}</p>
-        </div>
+        // The desk above already says what to do first; the catalogue only explains itself.
+        <p className="muted map-empty">{ui("发布第一组题后，这里会按课程列出题组和掌握度。")}</p>
       )}
       {otherCourseCount > 0 && <button className="show-other-courses"
         onClick={() => setShowOtherCourses(true)}>{ui("查看其他课程 · ")}{otherCourseCount}</button>}
 
-      <NotebookDirectory
+      {/* Cross-workspace notebooks are for people with decks, or with notebooks elsewhere (P12). */}
+      {showNotebooks && <NotebookDirectory
         notebooks={notebooks}
         error={notebookError}
         busy={busy}
@@ -841,7 +945,7 @@ export default function StudyMap({
         onOpen={onNotebookOpen}
         refresh={refreshNotebooks}
         onSearch={onNotebookSearch}
-      />
+      />}
 
       {scope.length > 0 && (
         <div className="selection-bar" role="region" aria-label={ui("已选内容")}>
@@ -866,100 +970,48 @@ export default function StudyMap({
         </div>
       )}
 
-      {data.drafts.length > 0 && (
-        <>
-          <div className="section-heading">
-            <h2>{ui("待发布 ")}<span>{data.drafts.length}</span>
-            </h2>
-            <small>{ui("发布时逐题检查；问题题留在草稿")}</small>
-          </div>
-          {data.drafts.map((d) => {
-            const missing = (d.editorial?.requested || 0) - d.cards.length;
-            const qualityCount = (d.quality?.warnings?.length || 0) + (d.quality?.errors?.length || 0);
-            const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
-            const reviewed = reviewedCardStatus(d);
-            const continuing = data.jobs?.some((j) => j.draftId === d.id && ["queued", "running", "cancelling"].includes(j.status));
-            const canContinue = missing > 0 && d.editorial?.generation?.sourceIds?.length &&
-              !d.editingDeckId && !rejectedCount && !d.editorial?.repairOfDeckId;
-            return <div key={d.id} className="draft-row">
-              <button type="button" className="draft-open" onClick={() => openDraft(d)}>
-                <span>
-                  <strong>{d.title}</strong>
-                  <small>
-                    {d.cards.length}{ui(" 道题")}{qualityCount ? uiFormat(" · {0} 项质量提醒", [qualityCount]) : ""}
-                    {rejectedCount ? uiFormat(" · {0} 题待处理", [rejectedCount])
-                      : ` · ${reviewed?.unchanged === d.cards.length ? ui("已复审，待发布") : ui("待发布检查")}`}
-                    {Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
-                      ? uiFormat(" · 生成未完成 {0}/{1} 批", [d.editorial.completedParts, d.editorial.parts]) : ""}
-                  </small>
-                </span>
-                <span>{ui("打开 →")}</span>
-              </button>
-              {canContinue && <button type="button" disabled={busy || continuing || !data.modelReady}
-                title={!data.modelReady ? ui("先在对话输入框或设置中选择生成模型") : ui("用原资料补齐题目，保留已有草稿")}
-                onClick={() => continueDraft(d)}>{continuing ? ui("补题中…") : uiFormat("继续补齐 {0} 题", [missing])}</button>}
-            </div>;
-          })}
-        </>
-      )}
-      {jobs.length > 0 && (
-        <div className="jobs generation-jobs">
-          <div className="jobs-actions">
-          {dismissJob && visibleJobs.filter((j) => !isActiveJob(j)).length > 1 && <button type="button" className="link-btn jobs-dismiss-all" disabled={busy} onClick={() => dismissJob()}>{ui("全部知道了")}</button>}
-          {cancelJob && activeJobs.some((j) => ["running", "queued"].includes(j.status)) && <button disabled={busy} onClick={() => cancelJob()}>{ui("停止后台任务，保留草稿")}</button>}
-          </div>
-          {visibleJobs.map((j) => {
-            const incomplete = !['draft-repair', 'draft-publish'].includes(j.type) && j.status === 'complete' && j.requestedTotal > 0 && (j.savedCount ?? 0) < j.requestedTotal;
-            const supplement = j.type === 'supplement' ? supplementJobLabel(j) : null;
-            return <div className={"job " + (incomplete ? 'partial' : j.status)} key={j.id}>
-              <span>
-                {j.status === "running" || j.status === "cancelling" ? "◌"
-                  : j.status === "queued" ? "…"
-                    : j.status === "failed" ? "!"
-                      : j.status === "partial" || incomplete ? "◐"
-                        : j.status === "cancelled" ? "×" : "✓"}
-              </span>
-              <div className="job-content">
-                <strong>
-                  {supplement ? uiFormat(supplement.text, supplement.args || []) : j.type === "draft-publish"
-                    ? j.status === "queued" ? ui("发布检查排队中") : j.status === "running" ? ui("正在检查并发布题组")
-                      : j.status === "failed" ? ui("发布未完成") : j.rejected
-                        ? j.accepted ? ui("已发布部分题目") : ui("题目未通过发布检查") : ui("题组已发布")
-                    : j.type === "draft-repair"
-                    ? j.status === "running" ? ui("后台修题中") : j.status === "queued" ? ui("修题排队中")
-                      : j.status === "failed" ? j.savedCount ? uiFormat("修题中断 · {0}/{1} 题已修好", [j.savedCount, j.count]) : ui("未修好题目")
-                        : j.status === "partial" ? uiFormat("部分修好 · {0}/{1} 题", [j.savedCount, j.count])
-                        : j.status === "cancelling" ? ui("正在停止修题")
-                          : j.status === "cancelled" ? ui("修题已取消") : uiFormat("全部修好 · {0}/{1} 题", [j.savedCount, j.count])
-                    : j.status === "running"
-                    ? ui("正在生成题组")
-                    : j.status === "queued"
-                      ? ui("排队中")
-                      : j.status === "failed"
-                        ? ui("生成未完成")
-                        : j.status === "cancelling" ? ui("正在停止") : j.status === "cancelled" ? ui("已取消") : incomplete ? uiFormat("草稿待补齐 · {0}/{1} 题", [j.savedCount ?? 0, j.requestedTotal]) : ui("草稿已生成")}
-                  {j.parts > 1 ? uiFormat(" · 分 {0} 批", [j.parts]) : ""}
-                </strong>
-                <small>{generationStage(j.stage)}</small>
-                {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
-                {cancelJob && j.type !== "draft-publish" && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>{ui("停止任务，保留草稿")}</button>}
-                {retryGeneration && !["draft-repair", "draft-publish", "supplement"].includes(j.type) && ["failed", "cancelled"].includes(j.status) &&
-                  !j.draftId && <button type="button" disabled={busy} onClick={() => retryGeneration(j)}>{ui("按原资料重新设置")}</button>}
-              </div>
-              <div className="job-actions">
-              {j.draftId && data.drafts.some((d) => d.id === j.draftId) && (
-                <button onClick={() => openDraft(data.drafts.find((d) => d.id === j.draftId))}>{ui("打开")}</button>
-              )}
-              {/* 已知与删除: done with this card; the draft and approved questions stay. */}
-              {dismissJob && !isActiveJob(j) && <button type="button" className="job-dismiss" disabled={busy}
-                title={ui("删除这条任务记录；草稿和已通过的题目会保留")} onClick={() => dismissJob(j.id)}>{ui("知道了")}</button>}
-              </div>
-            </div>
-          })}
-        </div>
-      )}
     </section>
   );
+}
+
+const JOB_MARKS = { queued: "info", done: "success", partial: "warning", failed: "error", cancelled: "close" };
+
+/* One background job, compact: which deck, where it is in plain words, one
+   stop control while it runs, and the draft once there is one (P26–P29).
+   A failure says what is wrong and how to fix it; the raw message stays in
+   技术详情 (P15). */
+function JobCard({ job: j, drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings }) {
+  const code = jobCode(j), active = isActiveJob(j);
+  const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
+  const generation = !["draft-publish", "draft-repair"].includes(j.type);
+  const failure = code === "failed" && generation ? describeFailure(j.stage, { hasDraft: !!draft }) : null;
+  const tone = code === "failed" || code === "partial" || code === "cancelled" ? code : active ? "running" : "complete";
+  const mark = JOB_MARKS[code] || (active ? null : "success");
+  return <article className={"job " + tone} data-job-id={j.id}>
+    <span className="job-mark" aria-hidden="true">{mark ? <Icon name={mark} size={20} /> : <span className="sh-spinner" />}</span>
+    <div className="job-content">
+      <strong className="job-title">{jobHeadline(j, drafts)}</strong>
+      {failure ? <div className="job-failure">
+        <InlineMessage tone="error" title={failure.title}>{failure.hint}</InlineMessage>
+        {/* The fix sits right under the reason, where the learner is reading. */}
+        {failure.action === "settings" && openModelSettings &&
+          <Button size="sm" variant="secondary" icon="model" onClick={openModelSettings}>{ui("去配置模型")}</Button>}
+        <Disclosure className="tech-details" summary={ui("技术详情")}><code className="job-raw">{j.stage}</code></Disclosure>
+      </div> : <small className="job-stage">{jobStageLabel(j, drafts)}</small>}
+      {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
+    </div>
+    <div className="job-actions">
+      {cancelJob && j.type !== "draft-publish" && ["running", "queued"].includes(j.status) &&
+        <Button size="sm" variant="quiet" disabled={busy} title={ui("停止生成；已保存的题留在草稿里")}
+          onClick={() => cancelJob(j.id)}>{ui("停止")}</Button>}
+      {draft && !active && <Button size="sm" variant="secondary" onClick={() => openDraft(draft)}>{ui("打开草稿")}</Button>}
+      {retryGeneration && generation && j.type !== "supplement" && ["failed", "cancelled"].includes(j.status) && !draft &&
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => retryGeneration(j)}>{ui("按原资料重新设置")}</Button>}
+      {/* 已知与删除: done with this card; the draft and approved questions stay. */}
+      {dismissJob && !active && <button type="button" className="job-dismiss" disabled={busy}
+        title={ui("删除这条任务记录；草稿和已通过的题目会保留")} onClick={() => dismissJob(j.id)}>{ui("知道了")}</button>}
+    </div>
+  </article>;
 }
 
 /* Cross-workspace notebook directory. Entries are links, not copies: each
