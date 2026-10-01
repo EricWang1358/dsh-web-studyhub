@@ -37,6 +37,7 @@ import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import CourseSettings, { CourseList } from './CourseSettings.jsx';
+import LanguageSwitch from './LanguageSwitch.jsx';
 import Inbox from "./Inbox.jsx";
 import css from "./coach.css";
 import libraryChipCss from "./library-chip.css";
@@ -195,6 +196,7 @@ export default function App({ call: transportCall, host = {} }) {
     [loading, setLoading] = useState(true),
     [syncIssue, setSyncIssue] = useState("");
   // WP13: the course settings panel (a course id), opened from the library heading or Settings.
+  // The open course panel: a course id, or { id, mergeFrom } when 合并到这里 opens the merge confirmation (WP14).
   const [courseSettings, setCourseSettings] = useState(null);
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
@@ -1718,10 +1720,7 @@ export default function App({ call: transportCall, host = {} }) {
           </span>
         </nav>
         <div className="sidebar-bottom">
-          <div className="study-language-switch" role="group" aria-label={ui("Interface language / 界面语言")}>
-            <button type="button" aria-pressed={language === 'zh'} onClick={() => setUiLanguage('zh')}>中文</button>
-            <button type="button" aria-pressed={language === 'en'} onClick={() => setUiLanguage('en')}>EN</button>
-          </div>
+          <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
           {data && (
             <button type="button" className="nav tour-nav" data-tour="tour-reopen" disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
               title={ui("功能导览：切到每个关键功能，看看怎么用")} onClick={() => { if (!tourStep) startTour(); }}>
@@ -2161,7 +2160,8 @@ export default function App({ call: transportCall, host = {} }) {
                 legacy={legacy}
                 setLegacy={setLegacy}
                 workspacePanel={workspacePanel}
-                coursePanel={<CourseList courses={data.courses || []} busy={busy} onOpen={setCourseSettings} />}
+                coursePanel={<CourseList courses={data.courses || []} busy={busy} onOpen={setCourseSettings} currentId={data.focus?.courseId}
+                  onMerge={(id, mergeFrom) => setCourseSettings({ id, mergeFrom })} />}
                 onboardingPanel={<OnboardingPanel sample={data.sample} progress={tourResume} busy={busy || sampleBusy}
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
@@ -2259,7 +2259,8 @@ export default function App({ call: transportCall, host = {} }) {
           onImport={() => endTour({ then: openFirstImport })}
           onRemoveSample={data.sample?.loaded ? () => endTour({ then: () => setRemovingSample(true) }) : undefined} />
       )}
-      {courseSettings && <CourseSettings key={courseSettings} data={data} courseId={courseSettings} act={act} busy={busy}
+      {courseSettings && <CourseSettings key={courseSettings.id ? `${courseSettings.id}:${courseSettings.mergeFrom.join(',')}` : courseSettings} data={data}
+        courseId={courseSettings.id || courseSettings} mergeFrom={courseSettings.mergeFrom} act={act} busy={busy}
         setNotice={setNotice} onClose={() => setCourseSettings(null)} />}
       {removingSample && <RemoveSampleDialog busy={sampleBusy} onConfirm={removeSampleData}
         onClose={() => { if (!sampleBusy) setRemovingSample(false); }} />}
@@ -2325,11 +2326,11 @@ export default function App({ call: transportCall, host = {} }) {
                       {modal.source.usedBy.map(deck => <button key={`${deck.kind}:${deck.id}`} disabled={busy || deck.kind === 'draft'}
                         onClick={() => openLearningTarget({ kind: 'deck', id: deck.id })}>{deck.title}{deck.archived ? ` · ${ui('已归档')}` : ''}</button>)}
                     </div>}
-                    <button type="button" disabled={busy} onClick={() => {
-                      rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
-                      setGenSource('files'); setModal(null); setPage('generate');
-                    }}>{ui('从这份资料出题')}</button>
-                    <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
+                    <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host} generateDisabled={busy}
+                      onGenerate={() => {
+                        rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
+                        setGenSource('files'); setModal(null); setPage('generate');
+                      }}
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
                       onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
                         setGenSource('case'); setModal(null); setPage('generate'); }} />

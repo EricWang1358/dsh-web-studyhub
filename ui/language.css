@@ -1,8 +1,14 @@
-.study-app .study-language-switch{display:flex;gap:4px;padding:5px 8px;margin:4px 0 8px}
-.study-app .study-language-switch button{flex:1;font-size:13px;padding:6px 8px;min-width:0}
-.study-app .study-language-switch button[aria-pressed=true]{color:var(--accent);border-color:currentColor}
-.study-app .sidebar.is-narrow .study-language-switch{flex-direction:column;padding:3px}
-.study-app .sidebar.is-narrow .study-language-switch button{padding-inline:2px;white-space:nowrap}
+/* Sidebar language switch (WP14): one nav-height row, "语言" + a small segmented control. */
+.study-app .study-language-switch{display:flex;align-items:center;gap:12px;min-height:40px;margin:1px 0;padding:4px 6px 4px 12px;color:var(--text-dim)}
+.study-app .study-language-switch__label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.study-app .study-language-switch .sh-seg{flex:none;padding:2px;gap:1px}
+.study-app .study-language-switch .sh-seg__item{min-height:24px;padding:1px 9px;font-size:var(--fs-xs)}
+.study-app .study-language-switch .sh-seg__item.is-active{color:var(--text)}
+.study-app .sidebar .study-language-toggle{justify-content:center}
+.study-app .sidebar.is-narrow .study-language-toggle{padding:9px 6px}
+.study-app .study-language-toggle__code{display:inline-grid;place-items:center;min-width:28px;height:22px;padding:0 4px;border:1px solid var(--line-strong);border-radius:6px;
+  font-size:var(--fs-xs);font-weight:650;line-height:1;letter-spacing:0;color:var(--text-dim)}
+.study-app .study-language-toggle:hover .study-language-toggle__code{border-color:var(--text-muted);color:var(--text)}
 .study-app[lang=en] .nav{white-space:normal;line-height:1.35}
 .study-app[lang=en] .brand>div{min-width:0}
 .study-app[lang=en] .brand small{white-space:normal;overflow-wrap:anywhere;line-height:1.4}
