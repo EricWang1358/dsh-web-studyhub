@@ -80,6 +80,7 @@
   "用量与额度": "Usage and limits",
   "今日 {0} 次请求": "{0} requests today",
 
+  "课堂实录": "Live class",
   "课堂实录需要 Gemini 密钥": "Live class needs a Gemini key",
   "边听边转写只支持 Google Gemini 的实时接口（需要海外网络）。硅基流动和 Groq 只用于导入录音文件：课后可以在「音频转录」里导入录音。": "Live transcription works only with Google Gemini's live interface (it needs a network outside mainland China). SiliconFlow and Groq handle recorded files only: after class, import the recording in Audio transcription.",
   "在音频设置的 Google Gemini 卡片里粘贴，点「保存并验证」": "Paste it in the Google Gemini card in audio settings and choose Save and verify",
