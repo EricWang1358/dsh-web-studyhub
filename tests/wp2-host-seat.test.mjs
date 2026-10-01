@@ -135,6 +135,8 @@ test('the conversation Study tab reserves the DSH composer height instead of sit
   assert.doesNotMatch(side, /data-conversation-composer-overlay/, 'the right sidebar has no composer');
   const css = host.styles.join('\n');
   assert.match(css, /\.study-seat-frame\s*\{[^}]*padding-bottom:\s*calc\(var\(--dsh-composer-height,\s*152px\)/);
+  // .study-seat contains fixed modals; a 90vh modal would overflow the shorter seat and lose its footer.
+  assert.match(css, /\.study-seat \.modal:not\(dialog\)\s*\{[^}]*max-height:\s*min\(90vh,\s*100%\)/);
 });
 
 test('user-facing DSH labels say StudyHub in both languages', async () => {

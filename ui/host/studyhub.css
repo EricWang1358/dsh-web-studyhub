@@ -12,6 +12,15 @@
   padding-bottom: calc(var(--dsh-composer-height, 152px) + 12px);
 }
 
+/* .study-seat contains fixed descendants (contain: layout paint), so an
+   in-app modal is laid out in the seat, not the viewport. A seat shorter than
+   the window (the composer reservation above, the DSH right sidebar) would
+   clip a 90vh modal's footer; cap it to the seat. Top-layer dialogs keep
+   their own sizing. */
+.study-seat .modal:not(dialog) {
+  max-height: min(90vh, 100%);
+}
+
 /* Top-level StudyHub page: DSH's root main panel, no composer. Desktop shells
    publish a top strip that entry pages pad by. */
 .studyhub-page {
