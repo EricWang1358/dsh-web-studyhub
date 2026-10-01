@@ -22,6 +22,7 @@ import snappy from './locales/en.snappy.json';
 import board from './locales/en.board.json';
 import update from './locales/en.update.json';
 import wrongbook from './locales/en.wrongbook.json';
+import largedocs from './locales/en.largedocs.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -45,6 +46,7 @@ export const ENGLISH_SOURCES = {
   'en.board.json': board,
   'en.update.json': update,
   'en.wrongbook.json': wrongbook,
+  'en.largedocs.json': largedocs,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

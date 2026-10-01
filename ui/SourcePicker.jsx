@@ -23,12 +23,14 @@ export function sourceFormatLabel(value) {
   if (Array.isArray(value.sourceIds)) {
     const base = ui(FORMAT_LABELS[value.format] || FORMAT_LABELS.text);
     const parts = value.pages?.length || value.sourceIds.length;
+    // A book imported from a converter's output (WP28): paged like a PDF, but there is no PDF.
+    if (value.converted) return parts === 1 ? uiFormat('{0} · 1 页', [ui('转换文档')]) : uiFormat('{0} · {1} 页', [ui('转换文档'), parts]);
     if (value.format === 'pdf') return parts === 1 ? uiFormat('{0} · 1 页', [base]) : uiFormat('{0} · {1} 页', [base, parts]);
     if (value.format === 'pptx') return parts === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [parts]);
     if (value.format === 'audio' && parts > 1) return uiFormat('{0} · {1} 部分', [base, parts]);
     return base;
   }
-  const format = sourceFormat(value), base = ui(FORMAT_LABELS[format]);
+  const format = sourceFormat(value), base = value.document?.origin === 'converted' ? ui('转换文档') : ui(FORMAT_LABELS[format]);
   if (isLegacyExtraction(value)) return uiFormat('{0} · 旧版提取，建议重新导入', [base]);
   if ((format === 'pdf' || format === 'pptx') && Number.isInteger(value.document?.page)) return uiFormat('{0} · 第 {1} 页', [base, value.document.page]);
   return base;
@@ -45,6 +47,18 @@ export function selectionState(item, selected) {
 export function toggleDocument(selected, item, on) {
   const ids = new Set(item.sourceIds);
   return on ? [...new Set([...selected, ...item.sourceIds])] : selected.filter(id => !ids.has(id));
+}
+
+/** 'all' | 'some' | 'none' of a chapter's pages are selected (a chapter has `sourceIds` like a document). */
+export const chapterState = selectionState;
+/** Add or remove every page of one chapter. */
+export const toggleChapter = toggleDocument;
+
+/** “第一章 进程 · 第 1–4 页”: a chapter's title and where it lies. */
+export function chapterLabel(chapter) {
+  const title = chapter.title || (chapter.front ? ui('前言与目录') : '');
+  const range = chapter.startPage === chapter.endPage ? uiFormat('第 {0} 页', [chapter.startPage]) : uiFormat('第 {0}–{1} 页', [chapter.startPage, chapter.endPage]);
+  return title ? `${title} · ${range}` : range;
 }
 
 /** Select every source of the given documents (select-all for a scope). */
@@ -72,9 +86,10 @@ const pageLabel = (item, page) => item.format === 'pdf' || item.format === 'pptx
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : page.title;
 
-function DocumentRow({ item, selected, onChange, disabled }) {
-  const [open, setOpen] = useState(false);
-  const listId = useId();
+function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false);
+  const listId = useId(), chaptersId = useId();
+  const chaptered = !!item.chapters?.length;
   const state = selectionState(item, selected);
   const chosen = new Set(selected);
   const multi = item.pages.length > 1;
@@ -94,12 +109,40 @@ function DocumentRow({ item, selected, onChange, disabled }) {
             {state === 'some' && <small className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>
         </label>
-        {multi && <Button variant="quiet" size="sm" className="source-picker__expand" aria-expanded={open} aria-controls={listId}
+        {multi && <Button variant="quiet" size="sm" className="source-picker__expand" aria-expanded={open} aria-controls={chaptered ? chaptersId : listId}
           iconEnd="chevron" onClick={() => setOpen(value => !value)}>
-          {open ? ui('收起') : item.format === 'pdf' || item.format === 'pptx' ? ui('选择页面') : ui('选择部分')}
+          {open ? ui('收起') : chaptered ? ui('选择章节') : item.format === 'pdf' || item.format === 'pptx' ? ui('选择页面') : ui('选择部分')}
         </Button>}
       </div>
-      {multi && open && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [item.title])}>
+      {multi && open && chaptered && <div id={chaptersId} className="source-picker__chapters">
+        <ul className="source-picker__chapter-list" aria-label={uiFormat('「{0}」的章节', [item.title])}>
+          {item.chapters.map(chapter => {
+            const chapterPicked = chapterState(chapter, selected);
+            return <li key={chapter.index} data-chapter-index={chapter.index}>
+              <label>
+                <input type="checkbox" checked={chapterPicked === 'all'} disabled={disabled}
+                  ref={element => { if (element) element.indeterminate = chapterPicked === 'some'; }}
+                  onChange={event => onChange(toggleChapter(selected, chapter, event.target.checked))} />
+                <span>{chapterLabel(chapter)}</span>
+                <small>{uiFormat('{0} 页', [chapter.sourceIds.length])}</small>
+              </label>
+            </li>;
+          })}
+        </ul>
+        <Button variant="link" size="sm" aria-expanded={pagesOpen} aria-controls={listId} onClick={() => setPagesOpen(value => !value)}>
+          {pagesOpen ? ui('收起页面列表') : ui('改为按页选择')}</Button>
+        {pagesOpen && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [item.title])}>
+        {item.pages.map(page => <li key={page.sourceId}>
+          <label>
+            <input type="checkbox" checked={chosen.has(page.sourceId)} disabled={disabled}
+              onChange={event => onChange(event.target.checked ? [...selected, page.sourceId] : selected.filter(id => id !== page.sourceId))} />
+            <span>{pageLabel(item, page)}</span>
+            <small>{uiFormat('{0} 字符', [page.chars.toLocaleString(uiLocale())])}</small>
+          </label>
+        </li>)}
+      </ul>}
+      </div>}
+      {multi && open && !chaptered && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [item.title])}>
         {item.pages.map(page => <li key={page.sourceId}>
           <label>
             <input type="checkbox" checked={chosen.has(page.sourceId)} disabled={disabled}
@@ -117,12 +160,12 @@ function DocumentRow({ item, selected, onChange, disabled }) {
  * Props: sources (snapshot sources), selected (source ids), onChange(ids),
  * courses + scope + onScopeChange (course scope; omit onScopeChange to show
  * everything), disabled, onAdd (shows “添加资料”), defaultQuery (initial filter
- * text), maxHeight (list window height in px). Extra props land on the root.
+ * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px). Extra props land on the root.
  * The list scrolls in a bounded window with a filter (WP14), so a course with
  * hundreds of materials never pushes the page down.
  */
 export default function SourcePicker({ sources = [], selected = [], onChange, courses = [], scope = '*', onScopeChange, disabled = false,
-  onAdd, defaultQuery = '', maxHeight = 420, className, ...rest }) {
+  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, ...rest }) {
   useInjectCss(css, 'study-source-picker');
   const [query, setQuery] = useState(defaultQuery);
   const items = useMemo(() => groupSourcesByDocument(sources), [sources]);
@@ -156,7 +199,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
         match={documentSearchText} query={query} onQueryChange={setQuery} filterable={visible.length > FILTER_AFTER || filtering}
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} listClassName="source-picker__list" itemClassName="source-picker__entry"
         empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
-        renderItem={item => <DocumentRow item={item} selected={selected} onChange={change} disabled={disabled} />} />
+        renderItem={item => <DocumentRow item={item} selected={selected} onChange={change} disabled={disabled} defaultOpen={item.key === defaultOpenKey} />} />
         : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {onAdd && <Button variant="quiet" size="sm" icon="plus" className="source-picker__add" disabled={disabled} onClick={onAdd}>{ui('添加资料')}</Button>}
     </div>
