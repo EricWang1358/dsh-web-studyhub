@@ -199,3 +199,21 @@ Real model-provider generation was not run with user credentials. The generation
 - 本次交付通过 GitHub Release 分发；磁盘安装和运行中激活分开确认，不强制重启尚有内存任务的宿主。
 
 - 资料全屏预览：浏览器验证 1440×900 / 390×844，模拟宿主标题栏 40px 时关闭按钮顶部分别为 55px / 51px；按钮可命中，无窄窗口横向溢出，关闭及 Esc 返回原入口。受限侧栏中仍覆盖整个视口；实际窗口全屏时取消标题栏留白。截图 output/fullscreen-preview-windows.png。未声称已重启运行中的桌面宿主。
+
+## How to verify UI changes (WP0 tooling, 2026-10-01)
+
+Run `npm run build` first: every preview serves `dist/app.js` and `dist/app.css`. Use only your own port range.
+
+- **Browser preview.** `STUDY_FAKE_MODEL=1 PORT=<port> npm run dev -- --library=output/qa/<wp>/library`. `scripts/dev.mjs` is a thin CLI over `scripts/preview-server.mjs`, which answers every action through the real host handler (`createHostHandler` in `lib/host.js`). One runtime serves each library, so job cards, progress, stop buttons, uploads and `assist.start` behave as in DSH. The library is the `--library` folder; choosing another folder in Settings lasts for the session and writes no binding file. Global study files go to `DSH_HOME`, which defaults to `output/preview-home`, never `~/.dsh`. `STUDY_FAKE_LATENCY_MS` sets the fake model's delay. `STUDY_API_KEY`/`STUDY_BASE_URL`/`STUDY_MODEL` select a real model; agents must not use it.
+- **Fake model.** `scripts/fake-model.mjs` answers every prompt family with output that passes the real validators. It covers plan/author/review for quiz, multi, cloze, flashcard, open and mixed decks, repair, assist (ask/improve), oral follow-up and assessment, card and transcript translation, titles, workflow teaching, skeletons, coach tasks, capture and ingest. Objectives never repeat earlier ones, even across restarts. Add a family as one `HANDLERS` entry. Unknown prompts get `{}` and are logged with `handler: null`.
+- **Journey.** `npm run qa:journey -- --lang zh --theme dark --width 1440 --port <port>`, then again with `--lang en --theme light --width 420`. Steps: `empty-home, add-material, import-files, sources, generate, job-progress, draft, publish, practice, wrongbook, settings`.
+  - It starts the preview on a fresh library with the fake model, removes every key/token/base-url variable from its environment, and drives Chromium (`scripts/qa/browser.mjs`).
+  - Screenshots go to `output/qa/journey/<lang>-<theme>-<width>/NN-<step>[-<detail>].png`. `-full` shots capture the whole scrolling panel.
+  - `summary.json` records step status, console errors, page errors and failed API calls. The run exits non-zero when a step fails or the page throws.
+  - `--steps a,b` runs a subset: state the step needs (material, draft, deck, answers) is created through the API first. `--out <dir>` and `--keep` (leave the preview running) are optional.
+  - To add a step, append one entry to `JOURNEY_STEPS`. Locate elements by `data-tour` anchors (plan §4 C7) or by their Chinese `ui()` source text through `j.t()`. When your work package changes a flow a step drives, update that step in the same commit.
+- **DSH 0.2 end to end (optional, not in `npm test`).** `npm run qa:dsh -- --port <dsh port> --model-port <port>`.
+  - It installs `@deepseek-ai/dsh@0.2.0-rc.2` into `output/qa/dsh-cli` when missing, or uses `--dsh-bin <lib/bin.js>` / `DSH_QA_BIN`.
+  - It builds and packs the plugin, creates a fresh `DSH_HOME` at `output/qa/dsh-home` with a profile from the `web` template, and adds the package.
+  - It boots DSH with the secret variables removed, `SSH_TTY=audit`, the local fake OpenAI-compatible model `scripts/qa/fake-openai.mjs` as the default model, and documents under `output/qa/dsh-documents`. It opens Study, saves screenshots and `summary.json` to `output/qa/dsh-e2e`, and stops every process it started.
+- **Native controls.** File pickers render in the browser's own language. The scripts launch Chromium with a matching `--lang`, but a learner whose browser language differs from the StudyHub language still sees mixed text (plan P20).
