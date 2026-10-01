@@ -3,7 +3,9 @@ import { LiveClient } from './live-client.js';
 import LiveAudioMonitor from './LiveAudioMonitor.jsx';
 import LiveNotes from './LiveNotes.jsx';
 import LiveHistory from './LiveHistory.jsx';
-import { getUiLanguage, useUiLanguage, uiMessage } from './i18n.js';
+import { getUiLanguage, ui, useUiLanguage, uiMessage } from './i18n.js';
+import { SetupRequired } from './components/index.js';
+import { requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
 import CourseField from './CourseField.jsx';
@@ -53,7 +55,20 @@ export const Sentence = memo(function Sentence({ segment, selected, generated, c
   </article>;
 });
 
-export default function LiveClass({ call, data, visible, onJobs, onSettings, onSources }) {
+/**
+ * Shown INSTEAD of the start form while no Gemini key is configured: live transcription is Gemini Live only, so the
+ * microphone (or tab sharing) is never requested before the provider is known to be there.
+ */
+function LiveSetup({ onSettings }) {
+  return <SetupRequired className="live-setup-gate" icon="audio" title={ui('课堂实录需要 Gemini 密钥')}
+    why={ui('边听边转写只支持 Google Gemini 的实时接口（需要海外网络）。硅基流动和 Groq 只用于导入录音文件：课后可以在「音频转录」里导入录音。')}
+    steps={[{ text: ui('用 Google 账号登录 AI Studio'), href: 'https://aistudio.google.com' },
+      { text: ui('在「Get API key」页创建一个密钥（这个项目不要开通计费）'), href: 'https://aistudio.google.com/apikey' },
+      { text: ui('在音频设置的 Google Gemini 卡片里粘贴，点「保存并验证」') }]}
+    primary={onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: () => { requestAudioSettingsFocus(); onSettings(); } } : undefined} />;
+}
+
+export default function LiveClass({ call, data, visible, onJobs, onSettings, onSources, initialReadiness = null }) {
   const language = useUiLanguage();
   useInjectCss(css, 'study-live-class');
   const [course, setCourse] = usePageScope(data?.root, 'live-class-course', data?.focus?.course ?? '');
@@ -64,6 +79,14 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [working, setWorking] = useState(false);
   const [notice, setNotice] = useState(''), [follow, setFollow] = useState(true);
   const feed = useRef(null), operation = useRef(false);
+  // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
+  const [readiness, setReadiness] = useState(initialReadiness);
+  useEffect(() => {
+    if (!visible || initialReadiness || !call) return;
+    let alive = true;
+    Promise.resolve(call('audio.preflight', {})).then((result) => { if (alive && result && typeof result === 'object') setReadiness(result); }, () => {});
+    return () => { alive = false; };
+  }, [visible, call, initialReadiness]);
   const refresh = useCallback(async () => {
     const result = await call('live.list'); setSessions(result.sessions || []);
   }, [call]);
@@ -123,7 +146,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       <button className="ghost-btn" onClick={onSettings}>{t('音频设置', 'Audio settings')}</button></header>
     {error && <p className="alert error" role="alert">{uiMessage(error)}</p>}
     {notice && <p className="alert" role="status">{notice}</p>}
-    {!active(session) && <form className="live-setup" onSubmit={(event) => {
+    {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={onSettings} />}
+    {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); void perform(async () => { setSelected(new Set()); await client.start(kind, { title, course, subject, terms, paidOnly }); await refresh(); });
     }}>
       <div className="live-fields"><label>{t('课堂名称', 'Class title')}<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={t('例如：数据库 · 分区与索引', 'e.g. Databases · partitions and indexes')} /></label>

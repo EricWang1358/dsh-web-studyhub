@@ -1215,7 +1215,7 @@ export default function App({ call: transportCall, host = {} }) {
   ) : (
     <>
     <DocumentImport key={data?.root} busy={busy} act={act} courses={parseCourses(sourceFormCourse)} onImported={ids => setSelectedSources(ids)} />
-    {hasContext(data, 'audio') && <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} />}
+    {hasContext(data, 'audio') && <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); setPage('settings'); }} />}
     <form
       onSubmit={(e) => {
         e.preventDefault();
@@ -1935,7 +1935,7 @@ export default function App({ call: transportCall, host = {} }) {
                 <p className="muted">{language === "en" ? "Import a recording. Transcription, proofreading and translation run in the background; updates arrive in your inbox." : "导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。"}</p></div>
                 <div className="section-heading-actions"><button onClick={() => setPage("settings")}>{language === "en" ? "Audio settings" : "音频设置"}</button>
                   <button onClick={() => setPage("sources")}>{language === "en" ? "View sources" : "查看资料"}</button></div></div>
-              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources}
+              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => setPage('settings')}
                 recoveryJobId={legacyAudioJobId} onRecoveryChange={setLegacyAudioJobId} />
               <AudioDashboard call={call} />
             </section>}

@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const compiled = await build({
   stdin: { contents: `export { default as AudioImport, AudioCorrections, AudioJobs, audioProgress } from './ui/AudioImport.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".json": "json" },
+  bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".json": "json", ".css": "text" },
 });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
