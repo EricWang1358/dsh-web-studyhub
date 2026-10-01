@@ -905,6 +905,8 @@ export default function App({ call: transportCall, host = {} }) {
   const choice =
     run?.mode !== "flashcard" && ["quiz", "multi"].includes(run?.card?.kind);
   const isCloze = run?.mode !== "flashcard" && run?.card?.kind === "cloze";
+  // An open question with rubric criteria is answered in writing and graded, never flipped (WP12).
+  const rubricCard = run?.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => {
     setShowBack(!!run?.revealed);
@@ -980,7 +982,7 @@ export default function App({ call: transportCall, host = {} }) {
         if (run.feedback) reviewAct("review.move", { direction: 1 });
         else if (choice && run.card.multiple && selected.length) reviewAct("review.answer", { selected });
         else if (isCloze && Object.values(clozeValues).some((v) => String(v).trim())) reviewAct("review.answer", { answers: clozeValues });
-        else if (!choice && !isCloze) flipCard();
+        else if (!choice && !isCloze && !rubricCard) flipCard();
       } else if (letter === "h") {
         e.preventDefault();
         if (run.revealed) setExplain((v) => !v);
@@ -995,7 +997,7 @@ export default function App({ call: transportCall, host = {} }) {
       } else if (e.key === "ArrowLeft" && run.index) {
         e.preventDefault();
         reviewAct("review.move", { direction: -1 });
-      } else if (e.code === "Space" && !choice && !isCloze) {
+      } else if (e.code === "Space" && !choice && !isCloze && !rubricCard) {
         e.preventDefault();
         flipCard();
       } else if (choice && !run.feedback && /^[1-6]$/.test(e.key)) {
@@ -1055,7 +1057,9 @@ export default function App({ call: transportCall, host = {} }) {
       setNotice(
         mode === "ask"
           ? ui("后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。")
-          : ui("后台助教正在改这道题，改完会进信箱，可一步撤销。"),
+          : mode === "grade"
+            ? { text: ui("已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，也会进信箱。"), tone: "success" }
+            : ui("后台助教正在改这道题，改完会进信箱，可一步撤销。"),
       );
       refresh().catch(() => {});
       return true;
@@ -1998,6 +2002,8 @@ export default function App({ call: transportCall, host = {} }) {
                   setGenSource("files");
                   setPage("generate");
                 }}
+                onCreateCase={() => { setGenSource("case"); setPage("generate"); }}
+                onNotice={setNotice}
               />
             )}
             {page === "wrongbook" && (

@@ -17,6 +17,7 @@ import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import resultCss from "./review-results.css";
 import { useInjectCss } from "./shared.js";
+import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -153,8 +154,19 @@ export default function Review({
     setHelpChoices([]);
   }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
-  const runningTask = cardTasks.find((task) => task.status === "running");
-  const lastTask = cardTasks.at(-1);
+  const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
+  const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
+  // Case questions (WP12): the scenario sits above the question; its highlights belong to this run.
+  const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
+  const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
+  const caseDeck = run.card ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
+  const caseSource = caseDeck ? data?.sources?.find((source) => source.id === caseDeck.caseSourceId) : null;
+  const [caseHighlights, setCaseHighlights] = React.useState(run.highlights || []);
+  React.useEffect(() => { setCaseHighlights(run.highlights || []); }, [run.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saveHighlights = (next) => {
+    setCaseHighlights(next);
+    Promise.resolve(call?.("review.highlights", { runId: run.id, highlights: next })).catch(() => {});
+  };
   const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
   const nextFreshCount = run.freshRemaining ?? [...new Set((run.scope || []).map((scope) => scope.deckId))]
@@ -336,6 +348,8 @@ export default function Review({
             }
           >
             {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}
+            {caseSource && <ScenarioPanel className="case-review-scenario" title={caseSource.title} text={caseSource.text}
+              highlights={caseHighlights} onChange={saveHighlights} />}
             {/* The card: header, stem and answers on paper stock. Toolbar,
                 status and explanation sit below it on the desk. */}
             <div className="question-card" data-tour="review-question"
@@ -528,6 +542,12 @@ export default function Review({
                       }
                     >{ui("提交答案")}</button>
                   )}
+                </>
+              ) : rubricCard ? (
+                <>
+                  <RubricAnswer run={run} data={data} value={response} onChange={setResponse} busy={busy} task={gradeTask}
+                    onSubmit={(text) => assistCard("grade", text)} onSetupModel={() => setPage("settings")} />
+                  {prereqStrip}
                 </>
               ) : (
                 <>

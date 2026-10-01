@@ -9,6 +9,8 @@ import ResultBreakdown from "./ResultBreakdown.jsx";
 import OralExam from "./OralExam.jsx";
 import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
 import { readExamTarget } from './learning-navigation.js';
+import { CasePaper } from './CaseWorkspace.jsx';
+import caseCss from './case-study.css';
 
 /* 模拟考试（v0.4 契约 §3）：setup → running → report 自管理状态机。
    选中状态存本地（picks，按 deckId:cardId 键控），每次选择通过
@@ -46,11 +48,12 @@ const picksFromRun = (r) => {
   return map;
 };
 
-export default function Exam({ call, data, onExit, onCreate, onStartRun, initialRunId, initialKind = 'exam', onLocation }) {
+export default function Exam({ call, data, onExit, onCreate, onCreateCase, onStartRun, onNotice, initialRunId, initialKind = 'exam', onLocation }) {
   useInjectCss(css, "study-views");
+  useInjectCss(caseCss, "study-case-workspace");
   const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.mode === 'interview' ? '*' : data?.focus?.course ?? '*');
   const [deckChoice, setDeckChoice] = usePageScope(data?.root, 'exam-decks', '');
-  const [examMode, setExamMode] = useState(initialKind === 'oral' ? 'oral' : 'written');
+  const [examMode, setExamMode] = useState(initialKind === 'oral' ? 'oral' : initialKind === 'case' ? 'case' : 'written');
   const [phase, setPhase] = useState("setup"), // setup → running → report
     [run, setRun] = useState(null),
     [report, setReport] = useState(null),
@@ -108,7 +111,7 @@ export default function Exam({ call, data, onExit, onCreate, onStartRun, initial
   useEffect(() => {
     let live = true;
     (async () => {
-      if (initialKind === 'oral') return;
+      if (initialKind === 'oral' || initialKind === 'case') return;
       const open = initialRunId ? { id: initialRunId }
         : data?.lastRun?.mode === "exam" ? data.lastRun
           : (data?.runs || []).filter((r) => r?.mode === "exam")
@@ -312,6 +315,10 @@ export default function Exam({ call, data, onExit, onCreate, onStartRun, initial
     }
   }
 
+  // 案例分析卷 (WP12): a timed case paper on the same exam runs, timer and report.
+  if (examMode === "case") return <CasePaper call={call} data={data} onExit={onExit} onWritten={() => setExamMode("written")}
+    onCreate={onCreateCase || onCreate} onStartRun={onStartRun} onNotice={onNotice} onLocation={onLocation}
+    initialRunId={initialKind === 'case' ? initialRunId : undefined} />;
   if (examMode === "oral") return <OralExam call={call} data={data} onExit={onExit}
     initialRunId={initialKind === 'oral' ? initialRunId : undefined} onLocation={onLocation}
     onStartRun={onStartRun} onWritten={() => setExamMode("written")}
@@ -329,7 +336,10 @@ export default function Exam({ call, data, onExit, onCreate, onStartRun, initial
               <p className="muted">{ui("从勾选的题组里抽选择题，先覆盖不同主题，同主题优先抽较少考过的题；交卷后统一判分。")}</p>
               {data?.focus?.mode === "interview" && data.focus.role && <p className="muted">{ui("目标岗位：")}{data.focus.role}{ui('。本次按上方范围和勾选题组出题。')}</p>}
             </div>
-            <button type="button" className="ghost-btn" onClick={() => setExamMode("oral")}>{ui("切换到口头面试 →")}</button>
+            <div className="exam-mode-switch">
+              <button type="button" className="ghost-btn" data-tour="exam-case" onClick={() => setExamMode("case")}>{ui("案例分析卷 →")}</button>
+              <button type="button" className="ghost-btn" onClick={() => setExamMode("oral")}>{ui("切换到口头面试 →")}</button>
+            </div>
           </div>
           {decks.length ? (
             <div className="exam-panel exam-sheet" data-tour="exam-start">

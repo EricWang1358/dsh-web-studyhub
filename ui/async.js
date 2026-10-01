@@ -23,6 +23,8 @@ export function mergeReviewPoll(current, next) {
   if (!current || current.id !== next.id) return current;
   // Another tab can end a run while its last model request is still pending.
   if (next.closed) return next;
+  // A rubric grading finished in the background (WP12): its feedback arrives with the poll.
+  if (!current.feedback && next.feedback?.rubric && current.index === next.index) return next;
   const before = current.queueVersion || 0, after = next.queueVersion || 0;
   if (after > before) return next;
   if (after !== before || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return current;
