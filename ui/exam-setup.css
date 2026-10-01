@@ -42,7 +42,7 @@
 /* settings pieces */
 .es-section { display: grid; gap: var(--space-2); min-width: 0; }
 .es-section__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.es-section__head > div { display: grid; gap: 2px; min-width: 0; }
+.es-section__head > div:first-child { display: grid; gap: 2px; min-width: 0; }
 .es-section__head strong { font-size: var(--fs-md); }
 .es-section__head small, .es-hint { color: var(--text-muted); font-size: var(--fs-sm); }
 .es-tools { display: flex; gap: var(--space-1); }
@@ -52,33 +52,32 @@
 
 .es-count { display: grid; gap: var(--space-2); }
 .es-count__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.es-count__custom { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+.es-count__custom { display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
 .es-count__custom input { width: 72px; padding: 6px 10px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* compact deck list */
 .es-decks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 0 var(--space-5); }
 .es-decks > li { min-width: 0; }
-.es-deck { display: flex; align-items: center; gap: var(--space-3); margin: 0; padding: 9px var(--space-2); border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+.es-deck { display: flex; flex-direction: row; align-items: center; gap: var(--space-3); margin: 0; padding: 9px var(--space-2); border-bottom: 1px solid var(--line-soft); cursor: pointer; }
 .es-deck:hover { background: var(--bg-hover); }
 .es-deck.picked { background: color-mix(in srgb, var(--accent) 7%, transparent); }
-.es-deck input { accent-color: var(--accent); flex: none; }
 .es-deck__name { display: grid; min-width: 0; flex: 1 1 auto; }
 .es-deck__name strong { font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .es-deck__name small { color: var(--text-muted); font-size: var(--fs-sm); }
 
 /* case paper settings */
 .es-papers { display: grid; gap: var(--space-2); }
-.es-paper { display: flex; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; background: var(--bg-surface); }
+.es-paper { display: flex; flex-direction: row; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; background: var(--bg-surface); }
 .es-paper:hover { background: var(--bg-hover); }
 .es-paper.is-picked { border-color: var(--accent-soft); background: var(--bg-selected); }
-.es-paper input { accent-color: var(--accent); flex: none; }
+.es-paper input, .es-deck input, .es-check input { accent-color: var(--accent); flex: none; width: 17px; height: 17px; padding: 0; margin: 0; }
 .es-paper span { display: grid; gap: 2px; min-width: 0; }
 .es-paper small { color: var(--text-muted); font-size: var(--fs-sm); }
 .es-times { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
 .es-times label { display: grid; gap: var(--space-1); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); font-weight: 600; }
 .es-times input { width: 100%; box-sizing: border-box; padding: 7px 10px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
-.es-check { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; cursor: pointer; }
-.es-check input { accent-color: var(--accent); margin-top: 3px; }
+.es-check { display: flex; flex-direction: row; gap: var(--space-2); align-items: flex-start; margin: 0; cursor: pointer; }
+.es-check input { margin-top: 3px; }
 .es-check span { display: grid; gap: 2px; }
 .es-check small { color: var(--text-muted); font-size: var(--fs-sm); }
 .es-empty { display: grid; gap: var(--space-2); justify-items: start; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
