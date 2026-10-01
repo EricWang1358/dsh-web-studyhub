@@ -99,6 +99,16 @@ test('usage scopes chain, deduplicate by key and never let a sink break the call
   assert.equal(scope.reportUsage(null), undefined, 'empty usage is ignored');
 });
 
+test('the feature a caller names beats the default of the model wrapper that runs inside it', async () => {
+  const seen = [];
+  const entry = { key: 'a', sink: (_usage, meta) => seen.push(meta.feature) };
+  // The wrapper of a model (innermost) only supplies a default; the caller that knows what the work is for decides.
+  await scope.withUsageSink({ key: 'caller', sink: () => {} }, () => scope.withUsageSink(entry, async () => scope.reportUsage(buckets(1, 1)), { fallback: 'generate' }), { feature: 'case' });
+  await scope.withUsageSink(entry, async () => scope.reportUsage(buckets(1, 1)), { fallback: 'coach' });
+  await scope.withUsageSink({ key: 'outer', sink: () => {} }, () => scope.withUsageSink(entry, async () => scope.reportUsage(buckets(1, 1)), { fallback: 'flow' }));
+  assert.deepEqual(seen, ['case', 'coach', 'flow']);
+});
+
 test('a job usage sink adds every report to the job and its step', () => {
   const job = {}, step = {};
   const sink = usage.jobUsageSink(job, step);
