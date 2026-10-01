@@ -17,6 +17,7 @@ export default function Settings({
   legacy,
   setLegacy,
   workspacePanel,
+  onboardingPanel,
   exportData,
   onRestored,
 }) {
@@ -46,11 +47,12 @@ export default function Settings({
     <section className="page">
       <h1>{ui("工作区设置")}</h1>
       <p className="muted">{ui("资料、题库、调度与模型，由你掌控。")}</p>
-      <fieldset>
+      <fieldset data-tour="settings-model">
         <legend>{ui("学习库与模型")}</legend>
         {workspacePanel}
       </fieldset>
-      {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
+      {hasContext(data, 'audio') && <div data-tour="settings-audio"><AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} /></div>}
+      {onboardingPanel}
       {profile && (
         <fieldset>
           <legend>{ui("陪学")}</legend>

@@ -1,0 +1,186 @@
+/* ui/tour/tour.css — the feature tour. The study container dims around one
+   spotlight ring (cinnabar, like the one primary action) and a paper-light
+   card sits beside it with a small caret. Tokens only; both themes. The layer
+   never takes pointer events except on the card, so the highlighted UI stays
+   usable. Injected once per document as <style data-study-tour>. */
+
+.tour-layer {
+  --tour-shade: color-mix(in srgb, #0b0907 64%, transparent);
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow: hidden;
+  pointer-events: none;
+}
+.study-app[data-theme="light"] .tour-layer {
+  --tour-shade: color-mix(in srgb, #2a1c0e 36%, transparent);
+}
+/* A scrolled-to anchor clears the sticky top bar and keeps a little air. */
+.study-app [data-tour] {
+  scroll-margin-top: 68px;
+  scroll-margin-bottom: 16px;
+}
+.tour-shade {
+  position: absolute;
+  inset: 0;
+  background: var(--tour-shade);
+}
+.tour-spot {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 2px var(--accent-soft),
+    0 0 0 7px var(--accent-glow),
+    0 0 0 200vmax var(--tour-shade);
+}
+
+.tour-pop {
+  position: absolute;
+  left: calc(50% - 190px);
+  top: 30%;
+  width: min(380px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  pointer-events: auto;
+  padding: 16px 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--line-soft);
+  overscroll-behavior: contain;
+}
+.tour-pop:focus { outline: none; }
+.tour-pop:focus-visible { box-shadow: var(--shadow-lg), var(--ring); }
+.tour-layer.is-measuring .tour-pop { visibility: hidden; }
+
+/* The caret points from the card to the spotlight. */
+.tour-pop::before {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  transform: rotate(45deg);
+  display: none;
+}
+.tour-pop--bottom::before { display: block; top: -7px; left: var(--tour-caret, 50%); margin-left: -6px; border-right: 0; border-bottom: 0; }
+.tour-pop--top::before { display: block; bottom: -7px; left: var(--tour-caret, 50%); margin-left: -6px; border-left: 0; border-top: 0; }
+.tour-pop--right::before { display: block; left: -7px; top: var(--tour-caret, 50%); margin-top: -6px; border-top: 0; border-right: 0; }
+.tour-pop--left::before { display: block; right: -7px; top: var(--tour-caret, 50%); margin-top: -6px; border-bottom: 0; border-left: 0; }
+.tour-pop:is(.tour-pop--bottom, .tour-pop--top, .tour-pop--right, .tour-pop--left) { overflow: visible; }
+
+/* Narrow panels (the DSH sidebar): a sheet along the bottom edge. */
+.tour-pop--docked {
+  left: 12px;
+  right: 12px;
+  top: auto;
+  bottom: 12px;
+  width: auto;
+  max-height: min(58%, 440px);
+  border-radius: 14px;
+}
+
+.tour-pop__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 10px;
+}
+.tour-pop__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-text);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.tour-pop__count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.tour-pop__close { margin: -8px -10px -8px -4px; }
+.tour-pop__bar {
+  height: 3px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+.tour-pop__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.tour-pop__title {
+  margin: 0 0 6px;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 650;
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+.tour-pop__body {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+}
+.tour-pop__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--info) 13%, transparent);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+.tour-pop__note .sh-icon { margin-top: 1px; color: var(--info); }
+.tour-pop__note.is-ready { background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.tour-pop__note.is-ready .sh-icon { color: var(--ok); }
+.tour-pop__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: 16px;
+}
+.tour-pop__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.tour-pop__skip { color: var(--text-muted); }
+.tour-pop__spacer { flex: 1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tour-spot {
+    transition: left 0.3s var(--ease-out), top 0.3s var(--ease-out), width 0.3s var(--ease-out), height 0.3s var(--ease-out);
+  }
+  .tour-pop {
+    transition: left 0.3s var(--ease-out), top 0.3s var(--ease-out);
+    animation: tour-rise 0.26s var(--ease-out) both;
+  }
+  .tour-shade { animation: tour-fade 0.22s var(--ease) both; }
+  .tour-pop__bar > span { transition: width 0.3s var(--ease-out); }
+}
+@keyframes tour-rise {
+  from { opacity: 0; translate: 0 6px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes tour-fade {
+  from { opacity: 0; }
+}

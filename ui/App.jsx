@@ -4,16 +4,21 @@ import { localizeRunResponse, localizedRun } from "./run-titles.js";
 import { submitAssist } from "./assist-request.js";
 import { hasContext, pageAvailable } from './capabilities.js';
 import { uiLocale } from "./i18n.js";
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import StudyMap from "./StudyMap.jsx";
-import Guide from "./Guide.jsx";
+import Welcome, { SampleBanner } from "./Welcome.jsx";
+import Tour from "./tour/Tour.jsx";
+import TourGlyph from "./tour/TourGlyph.jsx";
+import { TOUR_STEPS, availableTourSteps, tourNeighbour } from "./tour/steps.js";
+import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from "./tour/progress.js";
+import { OnboardingPanel, RemoveSampleDialog } from "./tour/SampleControls.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
 import Icon from "./Icon.jsx";
 import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
-import { useNavOrder } from "./nav-order.js";
+import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
@@ -38,11 +43,6 @@ import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } 
 import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
-/* The sidebar pages in their original order. The learner can reorder them inside each group (see nav-order.js). */
-const NAV_DEFAULTS = {
-  main: ["library", "workflows", "live", "audio", "wrongbook", "exam", "dashboard"],
-  upkeep: ["sources", "generate", "skeleton", "notes", "board"],
-};
 const THEMES = [
   ["auto", "跟随系统"],
   ["dark", "深色"],
@@ -230,18 +230,12 @@ export default function App({ call: transportCall, host = {} }) {
     onReviewState?.(page === "review" ? run : null);
     return () => onReviewState?.(null);
   }, [onReviewState, page, run]);
-  const [guide, setGuide] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("study-guide")) || {};
-    } catch {
-      return {};
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("study-guide", JSON.stringify(guide));
-    } catch {}
-  }, [guide]);
+  // Onboarding (plan §5 WP5): the feature tour, the welcome page and the sample course.
+  const [tourStep, setTourStep] = useState(null),
+    [sampleBusy, setSampleBusy] = useState(false),
+    [removingSample, setRemovingSample] = useState(false),
+    [hiddenWelcome, setHiddenWelcome] = useState("");
+  const tourOrigin = useRef(null);
   // EN 开关：开启后每张卡在其英文翻译就绪时展示「中文题干/答案 + 英文」。
   const [showEn, setShowEn] = useState(() => {
     try {
@@ -1410,35 +1404,174 @@ export default function App({ call: transportCall, host = {} }) {
       )}
     </div>
   );
-  // Open by default until the core steps are done; an explicit toggle sticks.
-  const guideProps = data && {
-    data,
-    busy,
-    goal: guide.goal || "",
-    setGoal: (goal) => setGuide((g) => ({ ...g, goal })),
-    open: guide.open ?? !(data.decks.length && data.attempts.length),
-    setOpen: (open) => setGuide((g) => ({ ...g, open })),
-    addSource: () => setModal({ type: "add" }),
-    generate: () => {
-      setGenSource("json");
-      setPage("generate");
-    },
-    record: () => {
-      setGenSource("chat");
-      setPage("generate");
-    },
-    openDraft,
-    startToday: () => {
-      if (data.focus?.fresh?.length) {
-        act("review.start", { mode: "new", currentCourse: true, count: 10, fresh: true }, enterRun);
+  /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────
+     The welcome page of an empty library, the sample course (sample.* host
+     actions, C6) and the feature tour that switches to each key page. Hosts
+     without sample support send no `sample` in the snapshot; then the tour
+     still runs and the steps that need sample data are left out. */
+  const modelState = data ? data.model || { ready: !!data.modelReady } : null;
+  const tourSteps = useMemo(() => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample,
+    pageAvailable: (id) => pageAvailable(data, id), hasContext: (id) => hasContext(data, id) }) : [], [data]);
+  const savedTour = data?.root && !tourStep ? readTourProgress(data.root) : null;
+  const resumeAt = savedTour && !savedTour.done ? tourSteps.findIndex((step) => step.id === savedTour.stepId) : -1;
+  const tourResume = resumeAt > 0 ? { index: resumeAt, total: tourSteps.length } : null;
+  const ownLibraryEmpty = !!data && !data.sources.some((source) => !source.sample) && !data.drafts.some((item) => !item.sample) &&
+    !data.decks.some((deck) => !deck.systemKind && !deck.sample);
+  const showWelcome = !!data?.sample && page === "library" && !tourStep && hiddenWelcome !== data.root &&
+    !welcomeDismissed(data.root) && (ownLibraryEmpty || !!data.sample.loaded);
+  function hideWelcome() {
+    if (!data?.root) return;
+    dismissWelcome(data.root);
+    setHiddenWelcome(data.root);
+  }
+  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : switchPage("settings"));
+  const openFirstImport = () => setModal({ type: "add" });
+  /** The tour switches pages at once: no leave animation, no stale context trail. */
+  function showPage(id) {
+    clearTimeout(leaveTimer.current);
+    navigationRequest.current++;
+    setPageTarget(null);
+    setContextTrail([]);
+    if (id === "exam") { setExamRunId(null); setExamKind("exam"); }
+    setPage(id);
+    // Each step starts at the top of its page; the tour then scrolls to the step's anchor.
+    rootRef.current?.scrollTo?.({ top: 0 });
+  }
+  function startTour({ restart = false } = {}) {
+    if (!data || !tourSteps.length) return;
+    const saved = readTourProgress(data.root);
+    const first = !restart && saved && !saved.done && tourSteps.some((step) => step.id === saved.stepId) ? saved.stepId : tourSteps[0].id;
+    if (!tourStep) tourOrigin.current = { page, runId: page === "review" ? run?.id : null,
+      opener: rootRef.current?.contains(document.activeElement) ? document.activeElement : null };
+    hideWelcome();
+    setError("");
+    setTourStep(first);
+    writeTourProgress(data.root, { stepId: first });
+  }
+  function moveTour(direction) {
+    const next = tourNeighbour(tourSteps, tourStep, direction);
+    if (!next) {
+      if (direction > 0) finishTour();
+      return;
+    }
+    setTourStep(next);
+    if (data?.root) writeTourProgress(data.root, { stepId: next });
+  }
+  /** Leave the tour: close what it opened, go back to where it started, return focus. */
+  function endTour({ then } = {}) {
+    const origin = tourOrigin.current;
+    tourOrigin.current = null;
+    setTourStep(null);
+    setModal((current) => (current?.tour ? null : current));
+    if (origin?.page === "review" && origin.runId) void act("review.get", { runId: origin.runId }, enterRun);
+    else showPage(origin?.page && origin.page !== "draft" && origin.page !== "review" ? origin.page : "library");
+    then?.();
+    requestAnimationFrame(() => {
+      const target = origin?.opener?.isConnected ? origin.opener : rootRef.current?.querySelector('[data-tour="tour-reopen"]');
+      target?.focus?.({ preventScroll: true });
+    });
+  }
+  function closeTour(reason) {
+    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: reason === "skip" });
+    endTour();
+    if (reason !== "skip") setNotice({ text: ui("导览已暂停，可以从侧栏「功能导览」接着看。"), tone: "info" });
+  }
+  function finishTour() {
+    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: true });
+    endTour();
+    setNotice({ text: ui("导览完成。想再看一遍，点侧栏的「功能导览」。"), tone: "success" });
+  }
+  /** The tour's practice round on the sample deck: the open one if there is one, otherwise a fresh round. */
+  async function openSamplePractice(sample) {
+    if (!sample?.deckId) return;
+    const current = runRef.current;
+    if (latest.current.page === "review" && current && !current.complete && current.deckId === sample.deckId) return;
+    const scope = sample.practice?.length ? sample.practice : [{ deckId: sample.deckId }];
+    const sameScope = (item) => JSON.stringify(item.scope || []) === JSON.stringify(scope);
+    const open = (dataRef.current?.runs || []).find((item) => item.deckIds?.length === 1 && item.deckIds[0] === sample.deckId &&
+      item.index < item.total && !item.purpose && sameScope(item));
+    try {
+      let next = open ? await call("review.get", { runId: open.id }) : null;
+      if (!next || next.complete) next = await call("review.start", { mode: "path", scope, fresh: true });
+      enterRun(next);
+    } catch (failure) {
+      showPage("library");
+      setError(failure.message || String(failure));
+    }
+  }
+  /** Each step's page, prepared with sample content where the step shows it. */
+  async function enterTourStep(step) {
+    const sample = dataRef.current?.sample;
+    if (step.prepare !== "openSampleDocument") setModal((current) => (current?.tour ? null : current));
+    if (step.prepare === "openSampleDocument") {
+      const source = dataRef.current?.sources.find((item) => item.id === sample?.sourceId);
+      showPage(step.page);
+      if (source) setModal({ type: "source", source, tour: true });
+      return;
+    }
+    if (step.prepare === "prepareGenerate") {
+      setGenSource("files");
+      if (sample?.sourceId) setSelectedSources([sample.sourceId]);
+    }
+    if (step.prepare === "openSampleDraft") {
+      const sampleDraft = dataRef.current?.drafts.find((item) => item.id === sample?.draftId);
+      if (sampleDraft) {
+        openDraft(sampleDraft);
         return;
       }
-      const today = data.runs.find((r) => r.mode === "path" && !r.scope?.length);
-      if (today) act("review.get", { runId: today.id }, enterRun);
-      else act("review.start", { mode: "path" }, enterRun);
-    },
-    askInChat,
-  };
+    }
+    if (step.prepare === "openSampleSkeleton" && sample?.skeletonId) setSkeletonFocus(sample.skeletonId);
+    if (step.prepare === "startSamplePractice") {
+      await openSamplePractice(sample);
+      return;
+    }
+    if (step.page) showPage(step.page);
+  }
+  async function loadSample() {
+    setSampleBusy(true);
+    setError("");
+    try {
+      const status = await call("sample.load", { language: getUiLanguage() });
+      await refresh();
+      return status;
+    } catch (failure) {
+      setError(uiFormat("示例数据没能载入：{0}", [failure.message || String(failure)]));
+      return null;
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+  async function loadSampleAndTour() {
+    if (await loadSample()) startTour({ restart: true });
+  }
+  async function loadSampleInTour() {
+    if (await loadSample()) moveTour(1);
+  }
+  async function loadSampleOnly() {
+    if (await loadSample()) setNotice({ text: ui("示例课程已载入，在学习库里就能看到。"), tone: "success" });
+  }
+  async function removeSampleData() {
+    setSampleBusy(true);
+    setError("");
+    try {
+      const deckId = dataRef.current?.sample?.deckId;
+      const sampleSources = new Set((dataRef.current?.sources || []).filter((source) => source.sample).map((source) => source.id));
+      await call("sample.remove", {});
+      if (deckId && runRef.current?.deckId === deckId) setRun(null);
+      setDraft((current) => (current?.sample ? null : current));
+      setModal((current) => (current?.source && sampleSources.has(current.source.id) ? null : current));
+      setSelectedSources((ids) => ids.filter((id) => !sampleSources.has(id)));
+      if (["review", "draft"].includes(latest.current.page)) showPage("library");
+      if (data?.root) writeTourProgress(data.root, null);
+      await refresh();
+      setRemovingSample(false);
+      setNotice({ text: ui("示例数据已移除，你自己的资料和记录都还在。"), tone: "success" });
+    } catch (failure) {
+      setError(uiFormat("示例数据没能移除：{0}", [failure.message || String(failure)]));
+    } finally {
+      setSampleBusy(false);
+    }
+  }
   const shellTitle =
     page === "review"
       ? run?.title ||
@@ -1513,7 +1646,7 @@ export default function App({ call: transportCall, host = {} }) {
             {sidebarNarrow ? "»" : "«"}
           </button>
         </div>
-        <nav ref={navRef} className={"side-nav" + (navOrder.lifted ? " is-reordering" : "")}>
+        <nav ref={navRef} className={"side-nav" + (navOrder.lifted ? " is-reordering" : "")} data-tour="nav">
           {navMark && (
             <span
               className="nav-mark"
@@ -1568,6 +1701,7 @@ export default function App({ call: transportCall, host = {} }) {
               <button
                 key={id}
                 {...navOrder.bind(id)}
+                data-tour={`nav-${id}`}
                 className={"nav" + (upkeep ? " nav-upkeep" : "") + (navPage === id ? " active" : "") + (navOrder.lifted === id ? " is-dragging" : "")}
                 title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
                 onClick={() => switchPage(id, () => {
@@ -1602,7 +1736,15 @@ export default function App({ call: transportCall, host = {} }) {
             <button type="button" aria-pressed={language === 'zh'} onClick={() => setUiLanguage('zh')}>中文</button>
             <button type="button" aria-pressed={language === 'en'} onClick={() => setUiLanguage('en')}>EN</button>
           </div>
-          {guideProps && <Guide {...guideProps} variant="sidebar" />}
+          {data && (
+            <button type="button" className="nav tour-nav" data-tour="tour-reopen" disabled={sampleBusy || !!tourStep}
+              title={ui("功能导览：切到每个关键功能，看看怎么用")} onClick={() => startTour()}>
+              <Icon><TourGlyph /></Icon>
+              <span className="nav-label">{ui("功能导览")}{tourResume && (
+                <small>{uiFormat("继续 {0}/{1}", [tourResume.index + 1, tourResume.total])}</small>
+              )}</span>
+            </button>
+          )}
           <div className="local-status">
             <span />{ui("本地学习工作区")}</div>
           {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
@@ -1625,6 +1767,7 @@ export default function App({ call: transportCall, host = {} }) {
           <button
             className={navPage === "settings" ? "nav active" : "nav"}
             title={ui("设置")}
+            data-tour="nav-settings"
             onClick={() => switchPage("settings")}
           >
             <Icon><NavGlyph name="settings" /></Icon>{ui("设置")}</button>
@@ -1723,7 +1866,16 @@ export default function App({ call: transportCall, host = {} }) {
           </section>
         ) : (
           <>
-            {page === "library" && data.coach?.ready > 0 && (
+            {page === "library" && showWelcome && (
+              <Welcome model={modelState} sample={data.sample} busy={busy || sampleBusy}
+                onStartSample={loadSampleAndTour} onStartTour={() => startTour({ restart: true })} onImport={openFirstImport}
+                onSetupModel={openModelSettings} onRemoveSample={() => setRemovingSample(true)} onLater={hideWelcome} />
+            )}
+            {page === "library" && !showWelcome && data.sample?.loaded && (
+              <SampleBanner sample={data.sample} busy={busy || sampleBusy} onTour={() => startTour({ restart: true })}
+                onRemove={() => setRemovingSample(true)} />
+            )}
+            {page === "library" && !showWelcome && data.coach?.ready > 0 && (
               <div className="coach-offer" role="status">
                 <span className="coach-offer-mark" aria-hidden="true"><NavGlyph name="coach" /></span>
                 <div>
@@ -1735,7 +1887,7 @@ export default function App({ call: transportCall, host = {} }) {
                 <button className="primary" disabled={busy} onClick={() => act("coach.practice", {}, enterRun)}>{uiFormat("刷 {0} 道定制题 →", [data.coach.ready])}</button>
               </div>
             )}
-            {page === "library" && (
+            {page === "library" && !showWelcome && (
               <StudyMap
                 data={data}
                 busy={busy}
@@ -1794,7 +1946,6 @@ export default function App({ call: transportCall, host = {} }) {
                 suggestMerges={(args) => call("deck.merge.suggest", args)}
                 mergeDecks={(args) => act("deck.merge", args, null, { rethrow: true })}
               >
-                <Guide {...guideProps} variant="inline" />
                 {recovery && (
                   <div className="alert notice">
                     <span>{ui("有本窗口暂存的编辑：")}{recovery.draft.title}{ui("（尚未发布）")}</span>
@@ -2006,6 +2157,9 @@ export default function App({ call: transportCall, host = {} }) {
                 legacy={legacy}
                 setLegacy={setLegacy}
                 workspacePanel={workspacePanel}
+                onboardingPanel={<OnboardingPanel sample={data.sample} progress={tourResume} busy={busy || sampleBusy}
+                  onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
+                  onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
                 onRestored={() => {
                   libraryEpoch.current++;
@@ -2093,6 +2247,15 @@ export default function App({ call: transportCall, host = {} }) {
         )}
       </main>
       {shortcutHelp && <ShortcutHelp page={page} onClose={() => setShortcutHelp(false)} />}
+      {tourStep && data && (
+        <Tour steps={tourSteps} stepId={tourStep} rootRef={rootRef} model={modelState} sampleLoaded={!data.sample || !!data.sample.loaded}
+          busy={sampleBusy} onEnter={enterTourStep} onMove={moveTour} onClose={closeTour} onFinish={finishTour}
+          onLoadSample={data.sample ? loadSampleInTour : undefined} onBrowse={() => moveTour(1)}
+          onImport={() => endTour({ then: openFirstImport })}
+          onRemoveSample={data.sample?.loaded ? () => endTour({ then: () => setRemovingSample(true) }) : undefined} />
+      )}
+      {removingSample && <RemoveSampleDialog busy={sampleBusy} onConfirm={removeSampleData}
+        onClose={() => { if (!sampleBusy) setRemovingSample(false); }} />}
       {modal && (
         <ModalFrame fullscreen={modal.type === 'source'} onClose={() => setModal(null)}
           title={modal.type === "add"
