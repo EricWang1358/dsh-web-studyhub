@@ -2027,6 +2027,7 @@ export default function App({ call: transportCall, host = {} }) {
                   setPage("generate");
                 }}
                 onCreateCase={() => { setGenSource("case"); setPage("generate"); }}
+                onSetupModel={openModelSettings}
                 onNotice={setNotice}
               />
             )}

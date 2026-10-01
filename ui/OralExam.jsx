@@ -1,14 +1,17 @@
-import { ui, uiFormat, uiLocale } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./oral-exam.css";
 import { useInjectCss } from "./shared.js";
-import PageScope, { decksInCourse } from './PageScope.jsx';
+import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
+import { Button, Icon, InlineMessage } from './components/index.js';
+import { ExamSetupCard, CountField } from './ExamShell.jsx';
+import { modelReadiness } from './generation-status.js';
 
 const bandName = { strong: "回答扎实", developing: "有待补充", weak: "需要巩固" };
 
-export default function OralExam({ call, data, onWritten, onExit, onStartRun, initialRunId, onLocation, course = '*', onCourseChange, selection = { course } }) {
+export default function OralExam({ call, data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
   useInjectCss(css, "study-oral-exam");
   const [run, setRun] = React.useState(null);
   const [report, setReport] = React.useState(null);
@@ -119,10 +122,6 @@ export default function OralExam({ call, data, onWritten, onExit, onStartRun, in
     const result = await call("oral.submit", { runId: current.id });
     if (live()) showReport(result);
   });
-  const openReport = (runId) => perform(async live => {
-    const next = await call('oral.report', { runId });
-    if (live()) showReport(next);
-  });
   const practiceWeak = () => perform(async live => {
     const next = await call("review.start", { mode: "path", scope: report.weakScope, fresh: true });
     if (!live()) return;
@@ -130,30 +129,15 @@ export default function OralExam({ call, data, onWritten, onExit, onStartRun, in
     else onExit();
   });
 
+  const heading = <div className="oral-heading"><div><div className="eyebrow">{ui("岗位模拟")}</div><h1 tabIndex={-1} data-context-heading>{ui("口头面试")}</h1></div></div>;
+  const scopeNote = selection.scope ? uiFormat('沿用勾选的 {0} 个题组', [selection.scope.length]) : "";
   return <section className="page exam oral-exam">
-    <div className="oral-heading">
-      <div><div className="eyebrow">{ui("岗位模拟")}</div><h1 tabIndex={-1} data-context-heading>{ui("口头面试")}</h1></div>
-      <button type="button" onClick={onWritten}>{ui("切换到限时笔试")}</button>
-    </div>
+    {!loading && (run || report) ? heading : header || heading}
     {loading && <p className="muted">{ui("正在恢复口头模拟…")}</p>}
     {!loading && !run && !report && <>
-      <PageScope courses={data?.focus?.courses} value={course} onChange={onCourseChange} />
-      {selection.scope && <p className="muted">{uiFormat('沿用勾选的 {0} 个题组', [selection.scope.length])}</p>}
-      <div className="oral-intro">
-        <h2>{data?.focus?.mode === 'interview' && data.focus.role || ui("从学习库练习口头表达")}</h2>
-        <p>{ui('覆盖所选范围的主要知识点，并适度加入薄弱题。')}{ui("你可以按需请求追问；整场结束后才显示反馈。")}</p>
-        <label>{ui("本轮题数")}<input type="number" min="1" max="10" value={count} onChange={(event) => setCount(event.target.value)} />
-        </label>
-        <button className="primary" disabled={busy || !availableDecks.length} onClick={start}>
-          {busy ? ui("正在准备…") : ui("开始口头模拟")}
-        </button>
-      </div>
-      {data?.oralExams?.length > 0 && <div className="oral-history">
-        <h2>{ui("最近口头模拟")}</h2>
-        {data.oralExams.map((item) => <button key={item.runId} disabled={busy} onClick={() => openReport(item.runId)}>
-          {new Date(item.submittedAt).toLocaleString(uiLocale())} · {item.total}{ui(" 题 · ")}{item.assessed ? uiFormat("{0} 题回答扎实", [item.strong]) : ui("尚未评估")}
-        </button>)}
-      </div>}
+      <OralSetup data={data} count={count} onCount={setCount} onStart={start} busy={busy} canStart={availableDecks.length > 0}
+        scopeNote={scopeNote} onSetupModel={onSetupModel} />
+      {recent}
     </>}
     {run?.entry && !report && <>
       <div className="oral-progress"><span>{ui("第 ")}{run.index + 1} / {run.total}{ui(" 题")}</span><span>{ui("本轮已回答 ")}{run.answered}{ui(" 题")}</span></div>
@@ -213,4 +197,30 @@ export default function OralExam({ call, data, onWritten, onExit, onStartRun, in
     </div>}
     {error && <p className="exam-error" role="alert">{error}</p>}
   </section>;
+}
+
+/** The oral interview's setup card: how it works, how many questions, what is sent to the model. */
+export function OralSetup({ data, count, onCount, onStart, busy = false, canStart = true, scopeNote = "", onSetupModel }) {
+  useInjectCss(css, "study-oral-exam");
+  const model = modelReadiness(data);
+  const role = data?.focus?.mode === 'interview' && data.focus.role;
+  return <ExamSetupCard data-tour="exam-start" title={role || ui("口头面试")}
+    intro={ui("像面试官当面提问：你回答，可以被追问，整场结束后一次性给出反馈。")}
+    steps={[
+      ui("屏幕上会出现一道题，像面试官当面提问；题目来自你选的学习库范围。"),
+      ui("把你口头回答的要点写在输入框里（目前是文字作答，没有语音输入）。"),
+      ui("想被追问就点「追问一次」，每道题最多追问一次。"),
+      ui("点「保存并继续」进入下一题；回答保存在本地学习库。"),
+      ui("整场结束后一次性给出每题反馈，中途不显示对错。"),
+    ]}
+    summary={uiFormat("{0} 题 · 约 {1}–{2} 分钟 · 结束后看反馈", [count, count * 2, count * 3])}
+    action={<Button variant="primary" busy={busy} disabled={!canStart} onClick={onStart}>{busy ? ui("正在准备…") : ui("开始口头模拟")}</Button>}>
+    <CountField value={count} presets={[3, 5, 8]} min={1} max={10} onChange={onCount}
+      hint={ui("1–10 题 · 每个主题先出一题，薄弱和没考过的主题优先。")} />
+    {scopeNote && <p className="es-hint">{scopeNote}</p>}
+    {!canStart && <p className="es-warning">{ui("学习库里还没有可用于口头模拟的题；先出题再来。")}</p>}
+    <p className="es-note"><Icon name="info" size={16} /><span>{ui("发给 AI 模型的内容：追问时是当前题目和你的回答；结束评估时是题目、参考答案和你的全部回答。学习库的其他内容不会发送。")}</span></p>
+    {!model.ready && <InlineMessage tone="warning" action={onSetupModel ? { label: ui("打开模型设置"), onClick: onSetupModel } : undefined}>
+      {ui("还没有连接 AI 模型：追问会用固定问题，结束后只保存回答、不评估。")}</InlineMessage>}
+  </ExamSetupCard>;
 }
