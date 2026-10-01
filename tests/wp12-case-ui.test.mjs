@@ -232,7 +232,7 @@ test("模拟考试 offers 案例分析卷; its setup lists case sets with the ti
   const examData = { ...data, decks: [{ id: "orchard", title: "Orchard case", format: "case-study", caseMarks: 10, count: 2, caseBest: { total: 7, max: 10 }, course: "" }],
     runs: [], exams: [], focus: { courses: [] } };
   const setup = render(Exam, { call: async () => ({}), data: examData, onExit: noop });
-  assert.match(setup, /案例分析卷 →/);
+  assert.match(setup, /aria-label="考试形式"[\s\S]*案例分析卷/); // WP25: a first-class format of the one exam switch, not a corner link
   const paper = render(CasePaper, { call: async () => { throw new Error("Capability unavailable"); }, data: examData, onExit: noop, onWritten: noop });
   assert.match(paper, /Orchard case[\s\S]*2 题 · 10 分[\s\S]*最好成绩 7\/10/);
   assert.match(paper, /每分用时（分钟）[\s\S]*value="3"/);

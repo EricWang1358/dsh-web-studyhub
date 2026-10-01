@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./views.css";
@@ -7,10 +7,13 @@ import { createWriteQueue } from "./async.js";
 import { EXAM_LIMIT_MS } from "../lib/exam-timing.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import OralExam from "./OralExam.jsx";
-import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
+import { decksInCourse, usePageScope } from './PageScope.jsx';
 import { readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
 import caseCss from './case-study.css';
+import { Button, Icon } from './components/index.js';
+import { ExamHeader, ExamSetupCard, CountField, RecentExams } from './ExamShell.jsx';
+import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from './exam-format.js';
 
 /* 模拟考试（v0.4 契约 §3）：setup → running → report 自管理状态机。
    选中状态存本地（picks，按 deckId:cardId 键控），每次选择通过
@@ -48,12 +51,16 @@ const picksFromRun = (r) => {
   return map;
 };
 
-export default function Exam({ call, data, onExit, onCreate, onCreateCase, onStartRun, onNotice, initialRunId, initialKind = 'exam', onLocation }) {
+export default function Exam({ call, data, onExit, onCreate, onCreateCase, onStartRun, onNotice, onSetupModel, initialRunId, initialKind = 'exam', onLocation }) {
   useInjectCss(css, "study-views");
   useInjectCss(caseCss, "study-case-workspace");
   const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.mode === 'interview' ? '*' : data?.focus?.course ?? '*');
   const [deckChoice, setDeckChoice] = usePageScope(data?.root, 'exam-decks', '');
-  const [examMode, setExamMode] = useState(initialKind === 'oral' ? 'oral' : initialKind === 'case' ? 'case' : 'written');
+  // The format: a deep link wins, then the learner's last choice (kept for this tab), then what the course's exam profile points at.
+  const [savedFormat, setSavedFormat] = usePageScope(data?.root, 'exam-format', '');
+  const [picked, setPicked] = useState(() => initialKind === 'oral' || initialKind === 'case' ? initialKind : initialRunId ? 'written' : isExamFormat(savedFormat) ? savedFormat : '');
+  const [openRun, setOpenRun] = useState(null);
+  const examMode = picked || defaultExamFormat(data, course);
   const [phase, setPhase] = useState("setup"), // setup → running → report
     [run, setRun] = useState(null),
     [report, setReport] = useState(null),
@@ -88,6 +95,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
     () => decksInCourse(data, course).filter(d => (d.examCount || 0) > 0),
     [data, course],
   );
+  const deckNames = useMemo(() => shortDeckTitles(decks, course), [decks, course]);
   const savedChoice = useMemo(() => { try { return JSON.parse(deckChoice); } catch { return null; } }, [deckChoice]);
   const explicitDecks = savedChoice?.course === course && Array.isArray(savedChoice.ids);
   const pickedDecks = useMemo(() => new Set(explicitDecks
@@ -122,6 +130,11 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
       try {
         const { run: r, report: saved } = await readExamTarget(call, open.id);
         if (!live) return;
+        // A case paper lives on the same runs: send it to its own format instead of drawing it as multiple choice.
+        if (r.paper) {
+          if (initialRunId || (!saved && !picked)) { setOpenRun({ kind: 'case', runId: initialRunId || undefined }); setPicked('case'); }
+          return;
+        }
         if (saved) {
           if (initialRunId) { setRun(r); setReport(saved); setPhase('report'); }
           return;
@@ -315,13 +328,24 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
     }
   }
 
+  function chooseFormat(next) { setPicked(next); setSavedFormat(next); setOpenRun(null); setErr(""); }
+  function openRecent(item) {
+    if (item.kind === "written") { chooseFormat("written"); openReport(item.runId); return; }
+    setOpenRun({ kind: item.kind, runId: item.runId }); setPicked(item.kind); setSavedFormat(item.kind);
+  }
+
+  // One page, one switch (WP25): the header, the format's own setup card and the shared recent list.
+  const header = <ExamHeader courses={data?.focus?.courses} course={course} onCourse={chooseCourse} format={examMode} onFormat={chooseFormat} />;
+  const recent = <RecentExams items={recentExams(data)} format={examMode} onOpen={openRecent} busy={busy} />;
+  const deepRun = (kind) => openRun?.kind === kind ? openRun.runId : initialKind === kind ? initialRunId : undefined;
   // 案例分析卷 (WP12): a timed case paper on the same exam runs, timer and report.
-  if (examMode === "case") return <CasePaper call={call} data={data} onExit={onExit} onWritten={() => setExamMode("written")}
+  if (examMode === "case") return <CasePaper key={`case:${deepRun("case") || ""}`} call={call} data={data} onExit={onExit}
+    header={header} recent={recent} course={course} onCourseChange={chooseCourse} onSetupModel={onSetupModel}
     onCreate={onCreateCase || onCreate} onStartRun={onStartRun} onNotice={onNotice} onLocation={onLocation}
-    initialRunId={initialKind === 'case' ? initialRunId : undefined} />;
-  if (examMode === "oral") return <OralExam call={call} data={data} onExit={onExit}
-    initialRunId={initialKind === 'oral' ? initialRunId : undefined} onLocation={onLocation}
-    onStartRun={onStartRun} onWritten={() => setExamMode("written")}
+    initialRunId={deepRun("case")} />;
+  if (examMode === "oral") return <OralExam key={`oral:${deepRun("oral") || ""}`} call={call} data={data} onExit={onExit}
+    initialRunId={deepRun("oral")} onLocation={onLocation} onStartRun={onStartRun} onSetupModel={onSetupModel}
+    header={header} recent={recent}
     course={course} onCourseChange={chooseCourse}
     selection={explicitDecks ? { scope: [...pickedDecks].map(deckId => ({ deckId })) } : { course }} />;
 
@@ -329,65 +353,61 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
     <section ref={pageRef} className="page exam">
       {phase === "setup" && (
         <div className="exam-setup">
-          <div className="page-heading">
-            <div>
-              <h1>{ui("模拟考试")}</h1>
-              <PageScope courses={data?.focus?.courses} value={course} onChange={chooseCourse} />
-              <p className="muted">{ui("从勾选的题组里抽选择题，先覆盖不同主题，同主题优先抽较少考过的题；交卷后统一判分。")}</p>
-              {data?.focus?.mode === "interview" && data.focus.role && <p className="muted">{ui("目标岗位：")}{data.focus.role}{ui('。本次按上方范围和勾选题组出题。')}</p>}
-            </div>
-            <div className="exam-mode-switch">
-              <button type="button" className="ghost-btn" data-tour="exam-case" onClick={() => setExamMode("case")}>{ui("案例分析卷 →")}</button>
-              <button type="button" className="ghost-btn" onClick={() => setExamMode("oral")}>{ui("切换到口头面试 →")}</button>
-            </div>
-          </div>
-          {decks.length ? (
-            <div className="exam-panel exam-sheet" data-tour="exam-start">
-              <div className="exam-panel-head">
-                <div>
-                  <strong>{uiFormat("试卷 · {0} 题 · 限时 30 分钟", [count])}</strong>
-                  <small className="muted">
-                    {pickedDecks.size
-                      ? uiFormat("已选 {0} 个题组 · 共 {1} 道选择题", [pickedDecks.size, pickedQuizTotal])
-                      : uiFormat("{0} 个题组可用于模考", [decks.length])}
-                  </small>
+          {header}
+          <ExamSetupCard data-tour="exam-start" title={ui("选择题笔试")}
+            intro={ui("从勾选的题组里抽单选 / 多选题，先覆盖不同主题；交卷后统一判分。")}
+            steps={[
+              ui("勾选要考的题组，选好题型和题数。"),
+              uiFormat("点「开始考试」，限时 {0} 分钟，到时自动交卷。", [EXAM_LIMIT_MS / 60000]),
+              ui("作答中不显示对错，可以上一题 / 下一题，反复修改。"),
+              ui("交卷后看成绩单；答错和没答的题可以一键排进学习路径。"),
+              ui("再考一次时，优先抽没考过的题；题库不够时会重复。"),
+            ]}
+            summary={[uiFormat("{0} 题 · 限时 {1} 分钟", [count, EXAM_LIMIT_MS / 60000]),
+              decks.length ? (pickedDecks.size ? uiFormat("已选 {0} 个题组 · 共 {1} 道选择题", [pickedDecks.size, pickedQuizTotal])
+                : uiFormat("{0} 个题组可用于模考", [decks.length])) : ""].filter(Boolean).join(" · ")}
+            action={<Button variant="primary" busy={busy} disabled={!decks.length || !pickedDecks.size || !typeAvailable} onClick={startExam}>
+              {busy ? ui("正在出卷…") : decks.length && !pickedDecks.size ? ui("先勾选题组") : decks.length && !typeAvailable ? ui("没有符合题型的题") : ui("开始考试")}
+            </Button>}>
+            {data?.focus?.mode === "interview" && data.focus.role && <p className="es-note"><Icon name="info" size={16} /><span>{ui("目标岗位：")}{data.focus.role}{ui('。本次按上方范围和勾选题组出题。')}</span></p>}
+            {decks.length ? (
+              <>
+                <div className="es-section">
+                  <div className="es-section__head">
+                    <div>
+                      <strong>{ui("选题组")}</strong>
+                      <small>{pickedDecks.size ? uiFormat("已选 {0} 个题组 · 共 {1} 道选择题", [pickedDecks.size, pickedQuizTotal]) : ui("至少勾选一个题组")}</small>
+                    </div>
+                    <div className="es-tools">
+                      <Button size="sm" variant="quiet" disabled={pickedDecks.size === decks.length}
+                        onClick={() => setPickedDecks(new Set(decks.map((d) => d.id)))}>{ui("全选")}</Button>
+                      <Button size="sm" variant="quiet" disabled={!pickedDecks.size} onClick={() => setPickedDecks(new Set())}>{ui("清空")}</Button>
+                    </div>
+                  </div>
+                  <ul className="es-decks">
+                    {decks.map((d) => (
+                      <li key={d.id}>
+                        <label className={"es-deck" + (pickedDecks.has(d.id) ? " picked" : "")}>
+                          <input
+                            type="checkbox"
+                            checked={pickedDecks.has(d.id)}
+                            onChange={(e) =>
+                              setPickedDecks((prev) => {
+                                const next = new Set(prev);
+                                e.target.checked ? next.add(d.id) : next.delete(d.id);
+                                return next;
+                              })
+                            }
+                          />
+                          <span className="es-deck__name">
+                            <strong title={d.title}>{deckNames[d.id] || d.title}</strong>
+                            <small>{uiFormat("单选 {0} · 多选 {1}", [d.examQuizCount || 0, d.examMultiCount || 0])}</small>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="exam-setup-tools">
-                  <button
-                    disabled={pickedDecks.size === decks.length}
-                    onClick={() => setPickedDecks(new Set(decks.map((d) => d.id)))}
-                  >{ui("全选")}</button>
-                  <button
-                    disabled={!pickedDecks.size}
-                    onClick={() => setPickedDecks(new Set())}
-                  >{ui("清空")}</button>
-                </div>
-              </div>
-              <ul className="exam-decks">
-                {decks.map((d) => (
-                  <li key={d.id}>
-                    <label
-                      className={"exam-deck" + (pickedDecks.has(d.id) ? " picked" : "")}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={pickedDecks.has(d.id)}
-                        onChange={(e) =>
-                          setPickedDecks((prev) => {
-                            const next = new Set(prev);
-                            e.target.checked ? next.add(d.id) : next.delete(d.id);
-                            return next;
-                          })
-                        }
-                      />
-                      <span className="exam-deck-name">
-                        <strong>{d.title}</strong>
-                        <small>{ui("单选 ")}{d.examQuizCount || 0}{ui(" · 多选 ")}{d.examMultiCount || 0}</small>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
               <div className="exam-type-settings">
                 <strong>{ui("题型")}</strong>
                 <div role="group" aria-label={ui("考试题型")}>
@@ -398,68 +418,27 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
                 <small className="muted">{ui("已选题组：单选 ")}{pickedKinds.quiz}{ui(" 道，多选 ")}{pickedKinds.multi}{ui(" 道。均衡模式尽量各占一半，不足时由另一类补齐。")}</small>
                 {pickedDecks.size > 0 && !typeAvailable && <p className="warning">{ui("所选题组没有这种题型，请换题型或题组。")}</p>}
               </div>
-              <div className="exam-setup-foot">
-                <label className="exam-count">{ui("题数")}<input
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={countDraft}
-                    onChange={(e) => setCountDraft(e.target.value)}
-                    onBlur={() => setCountDraft(String(clampCount(countDraft)))}
-                  />
-                  <small>
-                    {pickedDecks.size && !typeAvailable
-                      ? ui("当前题型可选 0 道")
-                      : pickedDecks.size && typeAvailable < count
+                <CountField value={count} presets={[5, 10, 20]} min={1} max={50} onChange={(next) => setCountDraft(String(next))}
+                  hint={pickedDecks.size && !typeAvailable
+                    ? ui("当前题型可选 0 道")
+                    : pickedDecks.size && typeAvailable < count
                       ? uiFormat("符合题型的题只有 {0} 道，将全部出题", [typeAvailable])
-                      : ui("1–50 · 默认 10")}
-                  </small>
-                </label>
-                <button
-                  className="primary"
-                  disabled={!pickedDecks.size || !typeAvailable || busy}
-                  onClick={startExam}
-                >
-                  {busy ? ui("正在出卷…") : !pickedDecks.size ? ui("先勾选题组") : !typeAvailable ? ui("没有符合题型的题") : ui("开始考试")}
-                </button>
+                      : ui("1–50 · 默认 10")} />
+              </>
+            ) : (
+              <div className="es-empty">
+                <strong>{ui("还没有可以模考的选择题")}</strong>
+                <p>
+                  {flashOnly
+                    ? ui("现有题组都是闪卡。模拟考试只抽单选 / 多选题，创建题组时勾选选择题题型即可。")
+                    : ui("模拟考试从题组里抽单选 / 多选题。先创建一个包含选择题的题组，再回来生成试卷。")}
+                </p>
+                {onCreate && <Button variant="secondary" icon="plus" onClick={onCreate}>{ui("创建题组")}</Button>}
+                {data?.decks?.length > 0 && <Button variant="quiet" onClick={onExit}>{ui("去学习库")}</Button>}
               </div>
-              {/* House rules read as the fine print at the foot of the paper. */}
-              <ul className="exam-rules" aria-label={ui("考试规则")}>
-                <li>{ui("单选 / 多选")}</li>
-                <li>{ui("限时 30 分钟，到时自动交卷")}</li>
-                <li>{ui("作答中不显示对错，可反复修改")}</li>
-                <li>{ui("重考优先抽未考过的题，题库不够时会重复")}</li>
-                <li>{ui("交卷后可回看报告，答错与未答题可排进学习路径")}</li>
-              </ul>
-            </div>
-          ) : (
-            <div className="empty exam-empty" data-tour="exam-start">
-              <span className="empty-icon" aria-hidden="true">
-                ✎
-              </span>
-              <h2>{ui("还没有可以模考的选择题")}</h2>
-              <p className="muted">
-                {flashOnly
-                  ? ui("现有题组都是闪卡。模拟考试只抽单选 / 多选题，创建题组时勾选选择题题型即可。")
-                  : ui("模拟考试从题组里抽单选 / 多选题。先创建一个包含选择题的题组，再回来生成试卷。")}
-              </p>
-              <div className="exam-empty-actions">
-                {onCreate && (
-                  <button className="primary" onClick={onCreate}>{ui("＋ 创建题组")}</button>
-                )}
-                {data?.decks?.length > 0 && <button onClick={onExit}>{ui("去学习库")}</button>}
-              </div>
-            </div>
-          )}
-          {data?.exams?.length > 0 && <div className="exam-panel exam-history">
-            <div className="exam-panel-head"><strong>{ui("最近考试")}</strong><small className="muted">{ui("可重新查看成绩与待练题")}</small></div>
-            <ul>{data.exams.map((past) => <li key={past.runId}>
-              <span><strong>{past.scorePct}%</strong> · {past.correct}/{past.total}{ui(" 题 · ")}{new Date(past.submittedAt).toLocaleString(uiLocale())}
-                <small>{past.decks.join("、")} · {examKindLabel[past.examKinds] || examKindLabel.all}</small>
-                {past.comparison && <small>{ui("同范围、题数及题型构成：上次 ")}{past.comparison.scorePct}% · {scoreChange(past.comparison)}</small>}</span>
-              <button type="button" disabled={busy} onClick={() => openReport(past.runId)}>{ui("查看报告")}</button>
-            </li>)}</ul>
-          </div>}
+            )}
+          </ExamSetupCard>
+          {recent}
           {err && <p className="exam-error">{err}</p>}
         </div>
       )}

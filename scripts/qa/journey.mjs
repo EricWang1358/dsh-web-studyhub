@@ -381,7 +381,7 @@ export const CASE_STEPS = [
   } },
   { name: "case-paper", needs: ["caseDeck"], run: async (j) => {
     await j.nav("exam");
-    await j.anchor("exam-case").first().click();
+    await j.anchor("exam-case").first().getByRole("button", { name: j.t("案例分析卷") }).click();
     await j.page.getByRole("button", { name: j.t("开始考试") }).waitFor({ timeout: 15000 });
     await j.page.getByLabel(j.t("阅读时间（分钟）")).fill("2");
     await j.settle();
