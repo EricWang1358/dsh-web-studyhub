@@ -93,6 +93,11 @@ test('one batch imports documents, decks and subtitles, each with its own status
   assert.match(results[5].error, /OCR|扫描/);
   assert.match(results[6].error, /音频/);
   for (const result of results.filter(item => item.status === 'error')) assert.match(result.error, han);
+  assert.deepEqual(results.filter(item => item.status === 'error').map(item => item.permanent), [true, true, true],
+    'a file that is too large, has no text or is audio will fail again: offer removal, not retry');
+  const flaky = await runImport([new File(['# x'], 'notes.md')], { call: async () => { throw new Error('连接中断'); } });
+  assert.equal(flaky[0].permanent, false, 'a dropped connection is worth a retry');
+  assert.equal(flaky[0].error, '连接中断');
   const summary = importSummary(results);
   assert.equal(summary.done, 4);
   assert.equal(summary.failed, 3);

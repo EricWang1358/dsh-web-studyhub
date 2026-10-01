@@ -64,8 +64,15 @@ const PLAIN_ERRORS = [
   [/200 (?:页|pages)/i, 'PDF 超过 200 页。请按章节拆分后再导入。'],
   [/600,000/, '提取出的文字超过 60 万字。请按章节拆分后再导入。'],
   [/Supported document formats/i, '不支持这种文件。可以导入 PDF、Markdown、HTML、TXT、JSON 题组和字幕。'],
-  [/dataBase64/i, '文件没能完整读取，请重试。'],
+  [/dataBase64/i, '文件没能完整读取，请重试。', false],
 ];
+/* Failures that will repeat on retry (size, encoding, format, no text). */
+const permanentError = message => Object.assign(new Error(message), { permanent: true });
+export function isPermanentImportError(error) {
+  if (error?.permanent) return true;
+  const message = String(error?.message ?? error ?? '');
+  return PLAIN_ERRORS.some(([pattern, , permanent = true]) => permanent && pattern.test(message));
+}
 
 /** A failure in words a student can act on; unknown messages are kept as they are. */
 export function plainImportError(error) {
@@ -76,27 +83,27 @@ export function plainImportError(error) {
 
 async function importOne(file, { call, courses = [], audio = false }) {
   const kind = routeImportFile(file, { audio });
-  if (kind === 'audio') throw new Error(ui('音频请在「音频 / 录音」里导入，那里会先转写成文字。'));
-  if (!kind) throw new Error(ui('不支持这种文件。可以导入 PDF、Markdown、HTML、TXT、JSON 题组和字幕。'));
+  if (kind === 'audio') throw permanentError(ui('音频请在「音频 / 录音」里导入，那里会先转写成文字。'));
+  if (!kind) throw permanentError(ui('不支持这种文件。可以导入 PDF、Markdown、HTML、TXT、JSON 题组和字幕。'));
   if (kind === 'document') {
-    if (file.size > MAX_DOCUMENT_BYTES) throw new Error(ui('文件超过 8 MB。请按章节拆分后再导入。'));
+    if (file.size > MAX_DOCUMENT_BYTES) throw permanentError(ui('文件超过 8 MB。请按章节拆分后再导入。'));
     const value = await call('materials.document.import', { dataBase64: await fileToBase64(file), filename: file.name, courses });
     const sourceIds = value?.sourceIds || value?.document?.sourceIds || [];
     const format = value?.document?.format || FORMAT_OF[extensionOf(file.name)];
-    if (!sourceIds.length) throw new Error(format === 'pdf'
+    if (!sourceIds.length) throw permanentError(format === 'pdf'
       ? ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。') : ui('文件里没有可用的文字。'));
     return { kind, title: value?.document?.title || file.name, format, documentId: value?.documentId, sourceIds,
       pages: sourceIds.length, skippedPages: value?.skippedPages || [] };
   }
   const text = await file.text();
   if (kind === 'deck' && !looksLikeSubtitleJson(text)) {
-    if (file.size > MAX_DECK_BYTES) throw new Error(ui('题组文件不能超过 2 MB。'));
+    if (file.size > MAX_DECK_BYTES) throw permanentError(ui('题组文件不能超过 2 MB。'));
     const proposal = await call('draft.import.propose', { text });
     const deck = await call('draft.import', { text, title: proposal?.title, course: courses[0] ?? proposal?.course ?? '' });
     return { kind: 'deck', title: deck.title, deck, count: deck.cards?.length || 0 };
   }
-  if (!audio) throw new Error(ui('这是字幕文件，需要启用音频组件后才能导入。'));
-  if (file.size > MAX_SUBTITLE_BYTES) throw new Error(ui('字幕文件超过 8 MB。'));
+  if (!audio) throw permanentError(ui('这是字幕文件，需要启用音频组件后才能导入。'));
+  if (file.size > MAX_SUBTITLE_BYTES) throw permanentError(ui('字幕文件超过 8 MB。'));
   const job = await call('audio.subtitles.import', { filename: file.name, text, courses });
   return { kind: 'subtitle', title: file.name, job };
 }
@@ -104,7 +111,8 @@ async function importOne(file, { call, courses = [], audio = false }) {
 /**
  * Import files one after another. onUpdate(index, { status, result?, error? })
  * reports 'working', then 'done' or 'error'. Resolves to
- * [{ file, status: 'done'|'error', result?, error? }]; it never throws.
+ * [{ file, status: 'done'|'error', result?, error?, permanent? }]; it never
+ * throws. `permanent` errors repeat on retry (offer removal instead).
  */
 export async function runImport(files, { call, courses = [], audio = false, onUpdate } = {}) {
   const results = [];
@@ -115,9 +123,9 @@ export async function runImport(files, { call, courses = [], audio = false, onUp
       results.push({ file, status: 'done', result });
       onUpdate?.(index, { status: 'done', result });
     } catch (error) {
-      const message = plainImportError(error);
-      results.push({ file, status: 'error', error: message });
-      onUpdate?.(index, { status: 'error', error: message });
+      const message = plainImportError(error), permanent = isPermanentImportError(error);
+      results.push({ file, status: 'error', error: message, permanent });
+      onUpdate?.(index, { status: 'error', error: message, permanent });
     }
   }
   return results;
@@ -320,7 +328,8 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
   }
   const shown = items.map(item => ({ id: item.id, name: item.name, status: item.status, detail: itemDetail(item),
     action: item.status !== 'error' ? undefined : item.kind === 'audio' && audioOn ? { label: ui('去音频页'), onClick: () => setTab('audio') }
-      : item.kind ? { label: ui('重试'), onClick: () => retry(item.id), disabled: running } : undefined }));
+      : item.permanent || !item.kind ? { label: ui('移除'), onClick: () => setItems(current => current.filter(entry => entry.id !== item.id)), disabled: running }
+        : { label: ui('重试'), onClick: () => retry(item.id), disabled: running } }));
   const finished = items.filter(item => item.status === 'done').length, failed = items.filter(item => item.status === 'error').length;
   const tabs = [{ value: 'files', label: ui('文件'), icon: 'upload' }, { value: 'paste', label: ui('粘贴文本'), icon: 'file' },
     ...(audioOn ? [{ value: 'audio', label: ui('音频 / 录音'), icon: 'audio' }] : [])];
@@ -335,19 +344,19 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
       <SegmentedControl className="import-hub__tabs" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
       {stray && <p className="import-hub__stray" role="status"><Icon name="info" size={16} />{strayText}</p>}
       {tab === 'files' && <div className="import-hub__files">
-        <FileDrop className={stray ? 'is-attention' : undefined} accept={importAccept({ audio: audioOn })} multiple
-          label={ui('把讲义、笔记或题组文件拖到这里，可以一次放多个')}
-          hint={audioOn ? ui('PDF · Markdown · HTML · TXT · JSON 题组 · SRT / VTT 字幕 · 每个最大 8 MB') : ui('PDF · Markdown · HTML · TXT · JSON 题组 · 每个最大 8 MB')}
-          buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
-          onFiles={accepted => add(accepted)} data-tour="import-drop" />
-        <p className="import-hub__routes">{audioOn
-          ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')
-          : ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿。')}</p>
         {!running && failed > 0 && <InlineMessage tone="warning" boxed className="import-hub__summary"
           title={finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed])}
           action={finished ? { label: ui('查看已导入的内容'), onClick: () => onComplete?.(importSummary(itemsRef.current)) } : undefined}>
           {ui('原因写在每个文件旁边。修正后可以重新拖进来。')}
         </InlineMessage>}
+        <FileDrop className={stray ? 'is-attention' : undefined} accept={importAccept({ audio: audioOn })} multiple compact={items.length > 0}
+          label={ui('把讲义、笔记或题组文件拖到这里，可以一次放多个')}
+          hint={audioOn ? ui('PDF · Markdown · HTML · TXT · JSON 题组 · SRT / VTT 字幕 · 每个最大 8 MB') : ui('PDF · Markdown · HTML · TXT · JSON 题组 · 每个最大 8 MB')}
+          buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
+          onFiles={accepted => add(accepted)} data-tour="import-drop" />
+        {!items.length && <p className="import-hub__routes">{audioOn
+          ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')
+          : ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿。')}</p>}
       </div>}
       {tab === 'paste' && <PasteForm call={call} courses={courses} disabled={busy} draft={draft} onDraft={setDraft}
         onSaved={async summary => { await onImported?.(summary); if (alive.current) onComplete?.(summary); }} />}

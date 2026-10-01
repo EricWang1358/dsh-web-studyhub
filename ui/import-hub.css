@@ -46,4 +46,5 @@
 @container (max-width: 520px) {
   :is(.study-app, .study-seat) .import-hub__course { padding: var(--space-3); }
   :is(.study-app, .study-seat) .import-hub__tabs { justify-self: stretch; }
+  :is(.study-app, .study-seat) .import-hub__tabs .sh-icon { display: none; }
 }
