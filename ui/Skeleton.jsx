@@ -7,6 +7,8 @@ import css from "./skeleton.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
+import { InlineMessage } from "./components/index.js";
+import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
    多选后可以先做零 token 的质量检测，再把整组交给主会话设计骨架、
@@ -118,7 +120,22 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
     [confirmDelete, setConfirmDelete] = useState(false),
     [extendText, setExtendText] = useState(""),
     [skView, setSkView] = useState("spine"),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    // The skeleton the user had open was deleted or is not in this course: a muted note, never an error.
+    [stale, setStale] = useState(false),
+    [reload, setReload] = useState(0);
+  // Any failure that is not "the skeleton is gone" is shown in plain language; a gone skeleton is released quietly.
+  const fail = (e) => {
+    const result = classifySkeletonError(e);
+    if (result.kind === "stale") { setStale(true); onFocus(null); } else setError(result.text);
+  };
+  const chooseCourse = (next) => {
+    setCourse(next);
+    setStale(false);
+    setError("");
+    // The open skeleton stays only when the new course lists it.
+    if (focusId) focusSurvivesCourse(call, focusId, next).then((keep) => { if (!keep) onFocus(null); });
+  };
 
   useEffect(() => {
     let live = true;
@@ -130,11 +147,16 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
         setGroupView(r.groups);
         setSaved({ course, skeletons: list.skeletons });
       })
-      .catch((e) => live && setError(e.message));
+      .catch((e) => {
+        if (!live) return;
+        setTopics([]);
+        setGroupView(null);
+        setError(classifySkeletonError(e).text);
+      });
     return () => {
       live = false;
     };
-  }, [call, course, data?.revision]);
+  }, [call, course, data?.revision, reload]);
   useEffect(() => { setPicked(new Set()); setLint(null); }, [course]);
   const savedSkeletons = saved?.course === course ? saved.skeletons : [];
   // A directly opened object remains visible even when outside the browsing filter.
@@ -149,41 +171,33 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
       return;
     }
     let live = true;
-    call("skeleton.get", { id: focusId })
-      .then((k) => live && setViewing(k))
-      .catch((e) => live && setError(e.message));
+    openSkeleton(call, focusId).then((result) => {
+      if (!live) return;
+      if (result.skeleton) return setViewing(result.skeleton);
+      setViewing(null);
+      if (result.stale) {
+        setStale(true);
+        onFocus(null);
+      } else setError(result.error.text);
+    });
     return () => {
       live = false;
     };
+    // onFocus is the page's setter; it must not restart the read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [call, focusId, focusVersion]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (topics || []).filter((t) => !q || t.topic.toLowerCase().includes(q) || t.decks.some((d) => d.deckTitle.toLowerCase().includes(q)));
   }, [topics, query]);
-  const groups = groupView?.groups || [];
+  // Groups are stored library-wide: only those with members in this course count and show.
+  const courseRows = useMemo(() => courseGroupRows({ topics, groupView, query: "", shown: topics || [] }), [topics, groupView]);
+  const groups = useMemo(() => courseRows.filter((row) => !row.loose), [courseRows]);
   const grouped = byGroup && groups.length > 0;
-  // Group rows: saved groups plus an 未归入 bucket; a search keeps groups whose
-  // title matches (all members) or that contain matching topics (those members).
-  const groupRows = useMemo(() => {
-    if (!topics || !groupView?.groups.length) return [];
-    const byKey = new Map(topics.map((x) => [x.key, x]));
-    const q = query.trim().toLowerCase();
-    const rows = [
-      ...groupView.groups.map((g) => ({ ...g, members: g.topics.map((k) => byKey.get(k)).filter(Boolean) })),
-      ...(groupView.ungrouped.length
-        ? [{ id: "__ungrouped", title: ui("未归入主题组"), description: ui("还没有归入任何主题组的主题"), members: groupView.ungrouped.map((k) => byKey.get(k)).filter(Boolean), loose: true }]
-        : []),
-    ];
-    return rows
-      .map((g) => {
-        if (!q) return g;
-        const titleHit = g.title.toLowerCase().includes(q) || g.description.toLowerCase().includes(q);
-        const members = titleHit ? g.members : g.members.filter((m) => shown.includes(m));
-        return members.length ? { ...g, members, searchHit: !titleHit } : null;
-      })
-      .filter(Boolean);
-  }, [topics, groupView, query, shown]);
+  // Group rows: this course's saved groups plus an 未归入 bucket; a search keeps groups
+  // whose title matches (all members) or that contain matching topics (those members).
+  const groupRows = useMemo(() => courseGroupRows({ topics, groupView, query, shown }), [topics, groupView, query, shown]);
   const scope = useMemo(() => [...picked].map(fromKey), [picked]);
   const pickedTopics = useMemo(() => [...new Set(scope.map((x) => x.topic))], [scope]);
   const pickedCards = useMemo(
@@ -193,6 +207,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
   const pickedDecks = new Set(scope.map((x) => x.deckId)).size;
 
   const toggle = (keys, on) => {
+    setStale(false);
+    setError("");
     setPicked((prev) => {
       const next = new Set(prev);
       for (const k of keys) on ? next.add(k) : next.delete(k);
@@ -209,7 +225,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
       setLint(await call("skeleton.lint", { scope }));
       setIssueFilter("");
     } catch (e) {
-      setError(e.message);
+      fail(e);
     } finally {
       setPending("");
     }
@@ -276,11 +292,14 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
       <div className="page-heading">
         <div>
           <h1>{ui("知识骨架")}</h1>
-          <PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} />
+          <PageScope courses={data?.focus?.courses} value={course} onChange={chooseCourse} />
           <p className="muted">{ui("同一个主题常常散在好几个题组里。选好主题，先做质量检测，再交给对话把名词串成结构、修掉只能死记的题。")}</p>
         </div>
       </div>
-      {error && <p className="sk-error" role="alert">{error}</p>}
+      {error && (
+        <InlineMessage tone="error" boxed className="sk-msg" action={{ label: ui("重试"), onClick: () => { setError(""); setReload((n) => n + 1); } }}>{error}</InlineMessage>
+      )}
+      {stale && !error && <p className="muted small sk-stale" role="status">{ui("之前打开的骨架已删除或不在这门课程中。")}</p>}
 
       <div className="sk-layout">
         <div className="sk-panel sk-picker">
@@ -303,22 +322,22 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 type="button"
                 className="sk-mini sk-ai"
                 title={ui("主题太碎时，交给对话按知识域归并成主题组（不改题目）")}
-                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length }, getUiLanguage()))}
+                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length, course }, getUiLanguage()))}
               >{ui("✦ AI 归并主题")}</button>
             )}
             {groups.length > 0 && groupView.ungrouped.length > 0 && (
               <button
                 type="button"
                 className="sk-mini sk-ai"
-                onClick={() => askInChat(groupPrompt({ mode: "merge", ungrouped: groupView.ungrouped.length }, getUiLanguage()))}
+                onClick={() => askInChat(groupPrompt({ mode: "merge", ungrouped: groupView.ungrouped.length, course }, getUiLanguage()))}
               >{ui("✦ 归并新增 ")}{groupView.ungrouped.length}{ui(" 个")}</button>
             )}
             {groups.length > 0 && (
               <button
                 type="button"
                 className="sk-mini"
-                title={ui("让对话重新归并全部主题，替换现有主题组")}
-                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length }, getUiLanguage()))}
+                title={course === "*" ? ui("让对话重新归并全部主题，替换现有主题组") : ui("让对话只重新归并这门课程的主题，其他课程的主题组保持不变")}
+                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length, course }, getUiLanguage()))}
               >{ui("重新归并")}</button>
             )}
           </div>
@@ -327,12 +346,12 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
             type="search"
             placeholder={ui("搜索主题或题组…")}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setStale(false); setQuery(e.target.value); }}
           />
           {!topics ? (
             <p className="muted small">{ui("正在读取主题…")}</p>
           ) : !(grouped ? groupRows.length : shown.length) ? (
-            <p className="muted small">{ui("没有匹配的主题。")}</p>
+            <p className="muted small">{topics.length ? ui("没有匹配的主题。") : ui("这门课程里还没有题目。先用资料出题，有了题目才能整理成知识骨架。")}</p>
           ) : (
             grouped ? (
             <ul className="sk-topics sk-groups">
@@ -418,6 +437,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
               disabled={!picked.size || pickedCards > 200}
               title={pickedCards > 200 ? ui("一次最多 200 道题") : ui("在对话里设计骨架并修题")}
               onClick={() => {
+                setStale(false);
                 askInChat(chatPrompt({ scope, lint, topics: pickedTopics }));
                 setSent(true);
               }}
@@ -483,7 +503,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
           <ul className="sk-saved-list">
             {listedSkeletons.map((k) => (
               <li key={k.id}>
-                <button type="button" className={"sk-saved-item" + (k.id === focusId ? " on" : "")} onClick={() => onFocus(k.id === focusId ? null : k.id)}>
+                <button type="button" className={"sk-saved-item" + (k.id === focusId ? " on" : "")} onClick={() => { setStale(false); onFocus(k.id === focusId ? null : k.id); }}>
                   <strong>{k.title}</strong>
                   <small className="muted">
                     {k.nodes}{ui(" 个概念 · ")}{k.relations}{ui(" 条关系")}{k.sequences ? uiFormat(" · {0} 条时序", [k.sequences]) : ""} · {k.cardIds.length}{ui(" 题 · ")}{k.decks}{ui(" 个题组 · ")}{ago(k.updatedAt)}
@@ -524,7 +544,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                         await call("skeleton.delete", { id: viewing.id });
                         onFocus(null);
                       } catch (e) {
-                        setError(e.message);
+                        fail(e);
                       } finally {
                         setPending("");
                       }

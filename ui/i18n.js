@@ -15,6 +15,7 @@ import onboarding from './locales/en.onboarding.json';
 import copy from './locales/en.copy.json';
 import caseCopy from './locales/en.case.json';
 import course from './locales/en.course.json';
+import skeletonCopy from './locales/en.skeleton.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -31,6 +32,7 @@ export const ENGLISH_SOURCES = {
   'en.copy.json': copy,
   'en.case.json': caseCopy,
   'en.course.json': course,
+  'en.skeleton.json': skeletonCopy,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,
