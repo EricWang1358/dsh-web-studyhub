@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Dialog, Disclosure, EmptyState, IconButton, InlineMessage, SegmentedControl } from './components/index.js';
+import { Button, Dialog, Disclosure, EmptyState, Icon, IconButton, InlineMessage, ScrollWindow, SegmentedControl } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import { daysUntilExam, examProfile } from '../lib/courses.js';
+import { courseNameKey, findDuplicateCourses, groupCourseNames } from './course-names.js';
 import css from './course-settings.css';
 
 /* Course settings (WP13): one panel per course record — name and aliases,
@@ -64,23 +65,88 @@ const counted = (count, one, many) => count === 1 ? ui(one) : uiFormat(many, [co
 const countLine = course => [course.decks ? counted(course.decks, '1 个题组', '{0} 个题组') : '', course.sources ? counted(course.sources, '1 份资料', '{0} 份资料') : '']
   .filter(Boolean).join(' · ');
 
-/** Settings: every course with its panel one click away. */
-export function CourseList({ courses = [], onOpen, busy }) {
+const courseMeta = course => {
+  const countdown = course.exam ? examCountdown(course.exam) : null;
+  return [countLine(course), course.aliases?.length ? uiFormat('也叫 {0}', [course.aliases.join(' · ')]) : '', countdown ? countdown.text : ''].filter(Boolean).join(' · ');
+};
+
+/** One compact course row: name, counts, a duplicate hint with its merge action, and 设置. */
+function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMerge, busy, current }) {
+  const meta = courseMeta(course);
+  return <div className={`course-list__item${current ? ' is-current' : ''}`}>
+    <span className="course-list__text">
+      <strong title={course.name}>{label}</strong>
+      {(meta || current) && <small>{[current ? ui('当前课程') : '', meta].filter(Boolean).join(' · ')}</small>}
+      {duplicates.length > 0 && <span className="course-list__duplicate">
+        <Icon name="warning" size={14} />
+        <span>{uiFormat('可能与「{0}」重复', [duplicates.map(item => item.name).join('」「')])}</span>
+        {onMerge && <Button size="sm" variant="link" disabled={busy} onClick={() => onMerge(course.id, duplicates.map(item => item.id))}>{ui('合并到这里')}</Button>}
+      </span>}
+    </span>
+    <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>
+  </div>;
+}
+
+const entryKey = entry => entry.type === 'group' ? `group:${entry.key}` : entry.course.id || entry.course.name;
+const entryText = entry => entry.type === 'group'
+  ? [entry.name, ...entry.chapters.map(item => item.course.name), ...entry.chapters.flatMap(item => item.course.aliases || [])].join(' ')
+  : [entry.course.name, ...(entry.course.aliases || [])].join(' ');
+
+/**
+ * Settings: every course with its panel one click away (WP13), in a bounded,
+ * filterable window of compact rows (WP14). "Course / Chapter" names are
+ * grouped under the course, collapsed; near-duplicate names get a hint and
+ * 合并到这里, which opens the merge confirmation. Props: courses, onOpen(id),
+ * onMerge(intoId, fromIds), busy, currentId, defaultOpenGroups, defaultQuery.
+ */
+export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, defaultOpenGroups = [], defaultQuery = '' }) {
   useInjectCss(css, 'study-course-settings');
+  const entries = useMemo(() => groupCourseNames(courses), [courses]);
+  const duplicates = useMemo(() => findDuplicateCourses(courses), [courses]);
+  const [open, setOpen] = useState(() => new Set(defaultOpenGroups));
+  const [query, setQuery] = useState(defaultQuery);
+  const filtering = !!query.trim();
+  const dupesOf = course => duplicates.get(course.id || course.name) || [];
+  const toggle = name => setOpen(current => { const next = new Set(current); next.has(name) ? next.delete(name) : next.add(name); return next; });
+  const activeKey = entries.map(entry => entry.type === 'group'
+    ? (entry.chapters.some(item => item.course.id === currentId) || entry.parent?.id === currentId) && entryKey(entry)
+    : entry.course.id === currentId && entryKey(entry)).find(Boolean) || undefined;
+  const renderEntry = entry => {
+    if (entry.type === 'course') return <CourseRow course={entry.course} duplicates={dupesOf(entry.course)} onOpen={onOpen} onMerge={onMerge} busy={busy}
+      current={entry.course.id === currentId} />;
+    const words = query.trim().normalize('NFKC').toLowerCase().split(/\s+/).filter(Boolean);
+    const hit = item => words.every(word => item.course.name.normalize('NFKC').toLowerCase().includes(word));
+    const chapters = filtering && !words.every(word => entry.name.normalize('NFKC').toLowerCase().includes(word)) ? entry.chapters.filter(hit) : entry.chapters;
+    const expanded = open.has(entry.name) || (filtering && chapters.length > 0);
+    const flagged = new Set(entry.chapters.filter(item => dupesOf(item.course).length).map(item => courseNameKey(item.course))).size;
+    const sources = entry.chapters.reduce((sum, item) => sum + (item.course.sources || 0), 0);
+    const meta = [uiFormat('{0} 个章节', [entry.chapters.length]), sources ? counted(sources, '1 份资料', '{0} 份资料') : ''].filter(Boolean).join(' · ');
+    return <div className="course-list__group">
+      <div className="course-list__group-head">
+        <button type="button" className="course-list__toggle" aria-expanded={expanded} onClick={() => toggle(entry.name)}>
+          <Icon name="chevron" size={16} />
+          <span className="course-list__text">
+            <strong title={entry.name}>{entry.name}</strong>
+            <small>{meta}{flagged ? <span className="course-list__flag">{' · '}{uiFormat('{0} 处可能重复', [flagged])}</span> : null}</small>
+          </span>
+        </button>
+        {entry.parent && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(entry.parent.id)}>{ui('设置')}</Button>}
+      </div>
+      {expanded && <ul className="course-list__chapters" aria-label={uiFormat('「{0}」的章节', [entry.name])}>
+        {chapters.map(item => <li key={item.course.id || item.course.name}>
+          <CourseRow course={item.course} label={item.chapter} duplicates={dupesOf(item.course)} onOpen={onOpen} onMerge={onMerge} busy={busy}
+            current={item.course.id === currentId} />
+        </li>)}
+      </ul>}
+    </div>;
+  };
   return <fieldset className="course-list">
     <legend>{ui('课程')}</legend>
     <p className="muted">{ui('每门课可以记下考试形式、日期、分值和考官指引；改名或合并会同步更新所有题组和资料。')}</p>
-    {courses.length ? <ul className="course-list__items">
-      {courses.map(course => {
-        const countdown = course.exam ? examCountdown(course.exam) : null;
-        const meta = [countLine(course), course.aliases?.length ? uiFormat('也叫 {0}', [course.aliases.join(' · ')]) : '',
-          countdown ? countdown.text : ''].filter(Boolean).join(' · ');
-        return <li key={course.id} className="course-list__item">
-          <span className="course-list__text"><strong>{course.name}</strong>{meta && <small>{meta}</small>}</span>
-          <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>
-        </li>;
-      })}
-    </ul> : <EmptyState size="sm" icon="folder" title={ui('还没有课程')} description={ui('导入资料或发布题组时填写课程，这里就会出现。')} />}
+    {courses.length ? <ScrollWindow className="course-list__window" label={ui('课程列表')} items={entries} itemKey={entryKey} match={entryText}
+      renderItem={renderEntry} filterable={entries.length > 6 || filtering} filterPlaceholder={ui('筛选课程…')} query={query} onQueryChange={setQuery}
+      activeKey={activeKey} maxHeight={400} listClassName="course-list__items" itemClassName="course-list__entry" />
+      : <EmptyState size="sm" icon="folder" title={ui('还没有课程')} description={ui('导入资料或发布题组时填写课程，这里就会出现。')} />}
   </fieldset>;
 }
 
@@ -119,14 +185,22 @@ function SectionRow({ section, index, onChange, onRemove, disabled }) {
  * Props: data (snapshot: courses, sources, focus), courseId, act (App's act;
  * called with rethrow so errors stay in the panel), busy, setNotice, onClose.
  */
-export default function CourseSettings({ data, courseId, act, busy = false, setNotice, onClose }) {
+export default function CourseSettings({ data, courseId, act, busy = false, setNotice, onClose, mergeFrom = [] }) {
   useInjectCss(css, 'study-course-settings');
   const courses = useMemo(() => data?.courses || [], [data?.courses]);
   const course = courses.find(item => item.id === courseId);
   const [draft, setDraft] = useState(() => draftFromCourse(course));
   const [name, setName] = useState(course?.name || '');
-  const [confirm, setConfirm] = useState(null); // 'rename' | 'merge'
-  const [mergeIds, setMergeIds] = useState([]);
+  // 合并到这里 (WP14) opens the panel with the duplicate chosen and the merge confirmation showing.
+  const [confirm, setConfirm] = useState(() => mergeFrom.length ? 'merge' : null); // 'rename' | 'merge'
+  const [mergeIds, setMergeIds] = useState(() => mergeFrom.filter(id => id !== courseId && courses.some(item => item.id === id)));
+  const mergeCancel = useRef(null);
+  useEffect(() => {
+    if (!mergeFrom.length) return;
+    const frame = requestAnimationFrame(() => mergeCancel.current?.scrollIntoView?.({ block: 'center' }));
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
   if (!course) return null;
@@ -227,7 +301,7 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
       </Disclosure>
 
       {others.length > 0 && <Disclosure className="course-settings__disclosure" summary={ui('把其他课程合并到这里')}
-        meta={mergeIds.length ? uiFormat('已选 {0} 门', [mergeIds.length]) : ''}>
+        meta={mergeIds.length ? uiFormat('已选 {0} 门', [mergeIds.length]) : ''} defaultOpen={mergeFrom.length > 0}>
         <ul className="course-settings__merge">
           {others.map(item => <li key={item.id}><label>
             <input type="checkbox" checked={mergeIds.includes(item.id)} disabled={disabled}
@@ -241,7 +315,7 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
           <p>{ui('它们的题组、资料和练习会归入这门课；题目、答题记录、复习进度和前置关系都保留，原名称保留为别名。')}</p>
           <div className="course-settings__confirm">
             <Button size="sm" variant="primary" busy={working} disabled={busy} onClick={merge}>{ui('确认合并')}</Button>
-            <Button size="sm" variant="quiet" disabled={working} onClick={() => setConfirm(null)}>{ui('取消')}</Button>
+            <Button ref={mergeCancel} size="sm" variant="quiet" disabled={working} onClick={() => setConfirm(null)}>{ui('取消')}</Button>
           </div>
         </InlineMessage>}
       </Disclosure>}

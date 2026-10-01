@@ -13,6 +13,7 @@ import { groupPrompt } from "./topic-group-prompt.js";
 import CourseRoute from "./CourseRoute.jsx";
 import caseCss from "./case-study.css";
 import { ExamCountdown } from "./CourseSettings.jsx";
+import { groupCourseNames } from "./course-names.js";
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
@@ -644,8 +645,13 @@ export default function StudyMap({
               <select aria-label={ui("切换当前课程")} value={data.focus?.course || ""}
                 onChange={(event) => event.target.value === "@course-settings"
                   ? onCourseSettings?.(data.focus?.courseId) : onFocus?.({ course: event.target.value })}>
-                {(data.focus?.courses || []).map((course) =>
-                  <option key={course.name} value={course.name}>{course.name || ui('未分类课程')}</option>)}
+                {/* "Course / Chapter" names are grouped under their course (WP14). */}
+                {groupCourseNames(data.focus?.courses || []).map((entry) => entry.type === "group"
+                  ? <optgroup key={`group:${entry.key}`} label={entry.name}>
+                    {entry.parent && <option value={entry.parent.name}>{entry.parent.name}</option>}
+                    {entry.chapters.map(({ course, chapter }) => <option key={course.name} value={course.name}>{chapter}</option>)}
+                  </optgroup>
+                  : <option key={entry.course.name} value={entry.course.name}>{entry.course.name || ui('未分类课程')}</option>)}
                 {onCourseSettings && data.focus?.courseId && <option value="@course-settings">{ui("课程设置…")}</option>}
               </select>
             </h1>

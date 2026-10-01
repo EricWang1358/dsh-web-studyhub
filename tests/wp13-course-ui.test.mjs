@@ -107,7 +107,8 @@ test('course pickers show existing courses first and free text still works', () 
   const html = render(React.createElement(CourseField, { courses: data.focus.courses, value: 'Architecture', multiple: true, onChange() {} }));
   assert.match(html, /<input/, 'free text stays');
   assert.match(html, /aria-pressed="true"[^>]*>Architecture|>Architecture<\/button>/);
-  assert.equal(html.match(/<button/g)?.length, 2, 'one quick pick per existing course');
+  // WP14 adds a × clear button next to the input, so count the quick picks themselves.
+  assert.equal(html.match(/class="course-field__pick"/g)?.length, 2, 'one quick pick per existing course');
   const scope = render(React.createElement(PageScope, { courses: data.focus.courses, value: '*', onChange() {} }));
   assert.ok(scope.indexOf('>Architecture<') < scope.indexOf('>未分类<'), 'real courses come before the unassigned bucket');
 });

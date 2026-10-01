@@ -57,5 +57,15 @@
   "把 {0} 门课程并入「{1}」？": "Merge {0} course(s) into “{1}”?",
   "它们的题组、资料和练习会归入这门课；题目、答题记录、复习进度和前置关系都保留，原名称保留为别名。": "Their decks, materials and practice move into this course. Questions, answer history, review progress and prerequisites are all kept, and their names stay as aliases.",
   "确认合并": "Confirm merge",
-  "已有课程": "Existing courses"
+  "已有课程": "Existing courses",
+  "清空课程": "Clear course",
+  "输入新课程名，或点下方已有课程直接切换；点 × 清空。": "Type a new course name, or click an existing course below to switch. Click × to clear.",
+  "没有同名课程，保存时会新建这门课。": "No course has this name yet; saving creates it.",
+  "可能与「{0}」重复": "May duplicate “{0}”",
+  "合并到这里": "Merge into this",
+  "{0} 个章节": "{0} chapters",
+  "{0} 处可能重复": "{0} possible duplicate(s)",
+  "「{0}」的章节": "Chapters of “{0}”",
+  "课程列表": "Course list",
+  "筛选课程…": "Filter courses…"
 }
