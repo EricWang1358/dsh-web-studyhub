@@ -9,7 +9,7 @@ import { modelReadiness } from "./generation-status.js";
 import { Button, Dialog, Disclosure, EmptyState, InlineMessage, PageHeader, Panel, SegmentedControl } from "./components/index.js";
 import {
   scenarioParagraphs, countWords, questionMinutes, lengthHint, suggestedWords, paperPlan, defaultReadingMinutes,
-  blankQuestions, resolveCourseProfile, DEFAULT_MINUTES_PER_MARK,
+  blankQuestions, courseProfileFromState, DEFAULT_MINUTES_PER_MARK,
 } from "../lib/case-study.js";
 import {
   HIGHLIGHT_COLORS, addHighlight, removeHighlight, recolorHighlight, annotateHighlight, segmentParagraph,
@@ -66,9 +66,11 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
     const range = selection.getRangeAt(0);
     const startText = range.startContainer.parentElement?.closest?.(".case-para__text") || (range.startContainer.closest?.(".case-para__text"));
     const endText = range.endContainer.parentElement?.closest?.(".case-para__text") || (range.endContainer.closest?.(".case-para__text"));
-    if (!startText || startText !== endText || !rootRef.current?.contains(startText)) return false;
+    if (!startText || !rootRef.current?.contains(startText)) return false;
     const paragraph = Number(startText.dataset.paragraph);
-    const start = textOffset(startText, range.startContainer, range.startOffset), end = textOffset(startText, range.endContainer, range.endOffset);
+    // A selection running past its paragraph (a triple click) is cut at the paragraph's end.
+    const start = textOffset(startText, range.startContainer, range.startOffset);
+    const end = endText === startText ? textOffset(startText, range.endContainer, range.endOffset) : startText.textContent.length;
     if (!(end > start)) return false;
     onChange(addHighlight(highlights, { id: `h${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, paragraph, start, end, color: nextColor }));
     selection.removeAllRanges();
@@ -212,14 +214,11 @@ export function CasePaper({ data, call, onExit, onWritten, onCreate, onStartRun,
   const model = modelReadiness(data);
 
   // The course profile (WP13) proposes the time model; the learner can override it for this paper.
+  const profile = useMemo(() => courseProfileFromState({ courses: data?.focus?.courses }, course === "*" ? "" : course), [data?.focus?.courses, course]);
   useEffect(() => {
-    let live = true;
-    void resolveCourseProfile((action, args) => call(action, args), course === "*" ? "" : course).then((profile) => {
-      if (live) setSettings((current) => ({ ...current, minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
-        readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null }));
-    });
-    return () => { live = false; };
-  }, [course, call]);
+    setSettings((current) => ({ ...current, minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
+      readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null }));
+  }, [profile]);
 
   const paperCards = useMemo(() => run?.paperCards || [], [run?.paperCards]);
   const plan = useMemo(() => paperPlan(paperCards.map((card) => ({ cardId: card.id, marks: card.marks })),

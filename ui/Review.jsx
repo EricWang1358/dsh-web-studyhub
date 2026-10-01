@@ -218,7 +218,7 @@ export default function Review({
   return (
     <section
       ref={pageRef}
-      className={"review-page " + (!choice ? "flash-mode" : "") + (rail ? " has-rail" : "")}
+      className={"review-page " + (!choice && !rubricCard ? "flash-mode" : "") + (rail ? " has-rail" : "")}
     >
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
@@ -355,7 +355,8 @@ export default function Review({
           <div
             className={
               "question-area " +
-              (!choice && !isCloze ? "flash-area" : "")
+              (!choice && !isCloze && !rubricCard ? "flash-area" : "") +
+              (caseSource ? " has-case" : "")
             }
           >
             {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}

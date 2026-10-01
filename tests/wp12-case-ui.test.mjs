@@ -215,7 +215,7 @@ test("创建题组 offers 案例分析题, and its form starts with the course, 
   const tabs = render(Generate, { ...props, genSource: "files" });
   assert.match(tabs, /role="tab"[^>]*>[^]*?案例分析题/);
   const form = render(Generate, { ...props, genSource: "case" });
-  assert.match(form, /data-tour="generate-case"/);
+  assert.match(form, /data-tour="case-create"/);
   assert.match(form, /用资料出新案例[\s\S]*仿照真题出题[\s\S]*粘贴题目直接批改/);
   assert.ok(form.indexOf("课程") < form.indexOf("source-picker"), "the course comes first");
   assert.match(form, /评分说明来源（可选）/);

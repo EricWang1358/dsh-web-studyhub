@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
 import { Button, Disclosure, SegmentedControl, SetupRequired, IconButton } from "./components/index.js";
 import { modelReadiness } from "./generation-status.js";
-import { resolveCourseProfile, DEFAULT_MINUTES_PER_MARK, countWords } from "../lib/case-study.js";
+import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords } from "../lib/case-study.js";
 import css from "./case-study.css";
 
 /* 创建题组 › 案例分析题 (WP12). The course comes first: its profile proposes
@@ -26,17 +26,10 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
   const [focus, setFocus] = useState(null);
   const [form, setForm] = useState({ questions: 2, totalMarks: 20, language: getUiLanguage() === "en" ? "English" : "中文", title: "", styleText: "" });
   const [pasted, setPasted] = useState({ title: "", scenario: "", questions: [blankQuestion()] });
-  const [profile, setProfile] = useState(null);
+  // The course profile (WP13) as the snapshot carries it; defaults until courses are first-class.
+  const profile = useMemo(() => courseProfileFromState({ courses: data.focus?.courses }, course), [data.focus?.courses, course]);
   const [passage, setPassage] = useState(initial.focus || "");
-  useEffect(() => {
-    let live = true;
-    void resolveCourseProfile((action, args) => call(action, args), course).then((value) => {
-      if (!live) return;
-      setProfile(value);
-      if (value.exam.totalMarks) setForm((current) => ({ ...current, totalMarks: value.exam.totalMarks }));
-    });
-    return () => { live = false; };
-  }, [course, call]);
+  useEffect(() => { if (profile.exam.totalMarks) setForm((current) => ({ ...current, totalMarks: profile.exam.totalMarks })); }, [profile.exam.totalMarks]);
   const guidance = guidanceIds ?? profile?.guidanceSourceIds ?? [];
   const topics = focus ?? (profile?.focusTopics || []).join(", ");
   const answered = pasted.questions.filter((question) => question.answer.trim()).length;
@@ -62,7 +55,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
   }
   const setQuestion = (index, patch) => setPasted((current) => ({ ...current, questions: current.questions.map((question, at) => at === index ? { ...question, ...patch } : question) }));
   return (
-    <form className="case-create" onSubmit={submit} data-tour="generate-case">
+    <form className="case-create" onSubmit={submit} data-tour="case-create">
       <SegmentedControl label={ui("案例来源")} value={mode} onChange={setMode} options={[
         { value: "new", label: ui("用资料出新案例") }, { value: "style", label: ui("仿照真题出题") }, { value: "import", label: ui("粘贴题目直接批改") }]} />
       <fieldset>
