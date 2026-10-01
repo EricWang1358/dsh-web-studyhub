@@ -1,0 +1,39 @@
+/* Top-bar library location chip (P03): quiet, one click to Settings. */
+:where(.study-app) .library-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(30ch, 34cqi);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+:where(.study-app) .library-chip svg {
+  flex-shrink: 0;
+}
+:where(.study-app) .library-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(.study-app) .library-chip:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--bg-hover);
+}
+/* The ~420px DSH sidebar: keep the folder visible, drop the icon. */
+@container study (max-width: 640px) {
+  :where(.study-app) .library-chip {
+    max-width: 16ch;
+    padding: 3px 8px;
+  }
+  :where(.study-app) .library-chip svg {
+    display: none;
+  }
+}

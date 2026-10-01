@@ -31,6 +31,7 @@ import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import Inbox from "./Inbox.jsx";
 import css from "./coach.css";
+import libraryChipCss from "./library-chip.css";
 import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
@@ -60,6 +61,7 @@ export default function App({ call: transportCall, host = {} }) {
   }, [transportCall]);
   useInjectCss(localeCss, 'study-language');
   useInjectCss(css, "study-coach");
+  useInjectCss(libraryChipCss, "study-library-chip");
   const rootRef = useRef(null),
     requestSequence = useRef(0),
     acting = useRef(false),
@@ -1498,7 +1500,7 @@ export default function App({ call: transportCall, host = {} }) {
         <div className="brand">
           <span className="brand-mark" aria-hidden="true"><BrandMark /></span>
           <div>
-            Daily Flashcard<small>{ui("自己的资料，扎实地学")}</small>
+            {ui("StudyHub")}<small>{ui("自己的资料，扎实地学")}</small>
           </div>
           <button
             type="button"
@@ -1631,7 +1633,7 @@ export default function App({ call: transportCall, host = {} }) {
       <main className={pageTarget ? "is-leaving" : undefined}>
         <header className="topbar">
           <nav className="crumbs" aria-label={ui("位置")}>
-            <span className="crumb">Study</span>
+            <span className="crumb">{ui("StudyHub")}</span>
             <span className="breadcrumb" aria-hidden="true">
               ›
             </span>
@@ -1640,6 +1642,7 @@ export default function App({ call: transportCall, host = {} }) {
             </span>
           </nav>
           <div className="top-right">
+            <LibraryChip root={binding.root} onOpen={() => switchPage("settings")} />
             <span className={"top-status" + (!busy && !running && !syncIssue && data ? " idle" : "")}
               role="status" title={syncIssue || undefined}>
               <i
@@ -2167,5 +2170,28 @@ export default function App({ call: transportCall, host = {} }) {
         </ModalFrame>
       )}
     </div>
+  );
+}
+
+/** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
+export function libraryFolderName(root) {
+  const text = String(root || "");
+  const parts = text.split(/[\\/]+/).filter(Boolean);
+  const last = parts.at(-1) || text;
+  return last === ".dsh-study" && parts.length > 1 ? parts.at(-2) : last;
+}
+
+/** Top-bar "学习库：<folder>" (P03): where the library lives, one click from Settings. */
+export function LibraryChip({ root, onOpen }) {
+  if (!root) return null;
+  return (
+    <button type="button" className="library-chip" title={root}
+      aria-label={uiFormat("学习库位置：{0}。打开设置可更改", [root])} onClick={onOpen}>
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4"
+        strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="M1.75 4.25a1 1 0 0 1 1-1h3.1l1.4 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z" />
+      </svg>
+      <span>{uiFormat("学习库：{0}", [libraryFolderName(root)])}</span>
+    </button>
   );
 }
