@@ -52,6 +52,7 @@ export default function GenerationTrace({ job, openAgent }) {
         <code>{step.stage}</code>
         <small>
           {step.runtime === "subagent" ? ui("DSH 子代理") : step.runtime === "direct" ? ui("直接模型调用") : step.runtime || ""}
+          {step.reasoningEffort ? uiFormat(" · 推理程度 {0}", [step.reasoningEffort]) : ""}
           {step.communication ? ui(" · 支持双向通信") : ""}
           {step.toolMode === "native" ? ui(" · 无代码执行") : ""}
           {step.childId ? ` · ${step.childId}` : ""}
