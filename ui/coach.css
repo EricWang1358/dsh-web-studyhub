@@ -102,7 +102,7 @@
 .coach-score-split strong { color: var(--text); }
 .coach-levels { display: flex; gap: 6px; margin: 0 0 12px; height: 8px; border-radius: 6px; overflow: hidden; background: var(--line-soft); }
 .coach-levels span { display: block; height: 100%; transition: flex-grow 400ms var(--ease); }
-.coach-levels .recall { background: var(--text-faint); }
+.coach-levels .recall { background: var(--decor-faint); }
 .coach-levels .concept { background: var(--info); }
 .coach-levels .apply { background: var(--ok); }
 .coach-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 15px; color: var(--text-muted); margin: -4px 0 12px; }

@@ -1,0 +1,18 @@
+{
+  "需要先配置": "Setup needed",
+  "（在新标签页打开）": "(opens in a new tab)",
+  "音频": "Audio",
+  "图片": "Images",
+  "不支持这种文件；可以选择 {0}": "This file type is not supported. You can choose {0}.",
+  "文件超过 {0} 的上限": "The file is larger than the {0} limit.",
+  "文件是空的": "The file is empty.",
+  "一次只能添加一个文件": "Only one file can be added at a time.",
+  "等待中": "Waiting",
+  "最大 {0}": "Up to {0}",
+  "把文件拖到这里，可以一次放多个": "Drop files here — several at once is fine",
+  "把文件拖到这里": "Drop a file here",
+  "选择文件": "Choose files",
+  "选择一个文件": "Choose a file",
+  "{0} 个文件没有添加": "{0} file(s) were not added",
+  "已选择的文件": "Selected files"
+}
