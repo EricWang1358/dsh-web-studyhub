@@ -38,6 +38,9 @@ export const JOURNEY_STEPS = [
   } },
   { name: "add-material", run: async (j) => {
     await j.openAddSource();
+    await j.shot("dialog");
+    // The add-material dialog (ImportHub) opens on files; pasting is its second tab.
+    await j.clickIfPresent(j.dialog().getByRole("button", { name: j.t("粘贴文本"), exact: true }));
     const material = sampleMaterial(j.lang);
     await j.dialog().getByLabel(j.t("资料名称")).first().fill(material.title);
     await j.dialog().getByLabel(j.t("原文")).first().fill(material.text);
@@ -49,19 +52,18 @@ export const JOURNEY_STEPS = [
   } },
   { name: "import-files", run: async (j) => {
     await j.openAddSource();
-    for (const file of [j.fixtures.markdown, j.fixtures.pdf]) {
-      const before = (await j.snapshot()).sources.length;
-      const input = j.dialog().locator('input[type="file"][accept*=".pdf"]').first();
-      await input.setInputFiles(file);
-      const stem = basename(file).replace(/\.[^.]+$/, "");
-      await j.until(async () => {
-        const sources = (await j.snapshot()).sources;
-        return sources.length > before && sources.some((source) => source.title.includes(stem));
-      }, `${basename(file)} is imported`);
-      await j.settle();
-      await j.shot(basename(file).endsWith(".pdf") ? "pdf" : "markdown");
-    }
-    await j.closeDialog();
+    // One drop zone takes several files at once; the dialog closes when all are in.
+    const files = [j.fixtures.markdown, j.fixtures.pdf];
+    const input = j.dialog().locator('[data-tour="import-drop"] input[type="file"], input[type="file"][accept*=".pdf"]').first();
+    await input.setInputFiles(files);
+    const stems = files.map((file) => basename(file).replace(/\.[^.]+$/, ""));
+    await j.until(async () => {
+      const sources = (await j.snapshot()).sources;
+      return stems.every((stem) => sources.some((source) => source.title.includes(stem)));
+    }, `${files.map((file) => basename(file)).join(" and ")} are imported`);
+    await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the dialog closes after the import");
+    await j.settle();
+    await j.shot("imported");
   } },
   { name: "sources", needs: ["material"], run: async (j) => {
     await j.nav("sources");

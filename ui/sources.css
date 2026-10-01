@@ -51,10 +51,9 @@
   .source-doc__page-list button:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
   .source-doc__page-list small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
   .source-doc.is-new {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-    background: color-mix(in srgb, var(--accent) 7%, var(--bg-sunken));
-    box-shadow: 0 0 0 3px var(--accent-glow);
-    animation: source-new-in 1.2s var(--ease-out) 1;
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+    background: color-mix(in srgb, var(--accent) 4%, var(--bg-sunken));
+    animation: source-new-in 1.6s var(--ease-out) 1;
   }
   .source-new {
     padding: 1px 8px;
@@ -69,8 +68,8 @@
   .sources-empty__intro p { margin: 0; color: var(--text-muted); }
 }
 @keyframes source-new-in {
-  from { box-shadow: 0 0 0 8px var(--accent-glow); }
-  to { box-shadow: 0 0 0 3px var(--accent-glow); }
+  from { box-shadow: 0 0 0 6px var(--accent-glow); }
+  to { box-shadow: 0 0 0 0 transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.study-app, .study-seat) .source-doc.is-new { animation: none; }

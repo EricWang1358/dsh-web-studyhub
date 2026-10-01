@@ -19,8 +19,9 @@ import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
 import Generate from "./Generate.jsx";
-import DocumentImport from './document-preview/DocumentImport.jsx';
-import CourseField, { parseCourses } from './CourseField.jsx';
+import ImportHub, { importOutcome } from './ImportHub.jsx';
+import { parseCourses } from './CourseField.jsx';
+import { countDocuments, documentSourceIds } from '../lib/source-groups.js';
 import { usePageScope } from './PageScope.jsx';
 import AudioImport from "./AudioImport.jsx";
 import Draft from "./Draft.jsx";
@@ -1212,64 +1213,29 @@ export default function App({ call: transportCall, host = {} }) {
   const sourceFormCourse = modal?.type === 'add' && modal.course !== undefined ? modal.course : sourceCourses;
   const changeSourceFormCourse = course => modal?.type === 'add' && modal.course !== undefined
     ? setModal(current => ({ ...current, course })) : setSourceCourses(course);
+  // WP3: one add-material entry (ImportHub) for the dialog and the empty Sources page.
+  const [sourceHighlight, setSourceHighlight] = useState(null);
+  useEffect(() => { if (page !== 'sources') setSourceHighlight(null); }, [page]);
+  const generateFromSources = ids => { rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined })); setGenSource('files'); setPage('generate'); };
+  function finishImport(summary) {
+    const outcome = importOutcome(summary, { page });
+    setModal(null);
+    if (!outcome) return;
+    if (outcome.select?.length) setSelectedSources(current => [...new Set([...current, ...outcome.select])]);
+    if (outcome.openDraft) openDraft(outcome.openDraft);
+    else if (outcome.page && outcome.page !== page) setPage(outcome.page);
+    if (outcome.highlight) setSourceHighlight({ ids: outcome.highlight, at: Date.now() });
+    const ids = outcome.highlight;
+    setNotice({ text: outcome.notice.text, tone: outcome.notice.tone,
+      ...(outcome.notice.action === 'generate' ? { action: { label: ui('用它出题'), run: () => generateFromSources(ids) } } : {}) });
+  }
   const sourceForm = !hasContext(data, 'materials') ? (
     <p role="status">{language === 'en' ? 'Enable materials in the DSH plugin manager to import sources.' : '请在 DSH 插件管理器中启用资料组件，再导入资料。'}</p>
   ) : (
-    <>
-    <DocumentImport key={data?.root} busy={busy} act={act} courses={parseCourses(sourceFormCourse)} onImported={ids => setSelectedSources(ids)} />
-    {hasContext(data, 'audio') && <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} />}
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        act("source.add", { title: sourceTitle, text: sourceText, courses: parseCourses(sourceFormCourse) }, (source) => {
-          setModal(null);
-          setSourceTitle("");
-          setSourceText("");
-          // A source added while creating a deck is almost always the one to use.
-          setSelectedSources((v) => [...v, source.id]);
-          setNotice(page === "generate" ? ui("资料已保存并勾选，可以直接生成题组") : ui("资料已保存，可用于生成题组"));
-        });
-      }}
-    >
-      <label>{ui("资料名称")}<input
-          required
-          value={sourceTitle}
-          onChange={(e) => setSourceTitle(e.target.value)}
-          placeholder={ui("例如：设计模式 · 第 4 章")}
-        />
-      </label>
-      <CourseField value={sourceFormCourse} onChange={changeSourceFormCourse} courses={data?.focus?.courses} multiple disabled={busy} />
-      <label className="file-input">{ui("导入 Markdown / 文本")}<input
-          type="file"
-          accept=".md,.txt,.markdown"
-          onChange={async (e) => {
-            const f = e.target.files?.[0];
-            if (f) {
-              if (f.size > 600000) {
-                setError(ui("文件过大，请选取相关段落"));
-                return;
-              }
-              setSourceText(await f.text());
-              if (!sourceTitle) setSourceTitle(f.name.replace(/\.[^.]+$/, ""));
-            }
-          }}
-        />
-      </label>
-      <label>{ui("原文")}<textarea
-          required
-          rows={12}
-          value={sourceText}
-          maxLength={600000}
-          onChange={(e) => setSourceText(e.target.value)}
-          placeholder={ui("粘贴讲义、笔记或材料。生成内容将引用这里的原文。")}
-        />
-      </label>
-      <div className="form-footer">
-        <small>{sourceText.length.toLocaleString()}{ui(" / 600,000 字符")}</small>
-        <button className="primary" disabled={busy}>{ui("保存资料")}</button>
-      </div>
-    </form>
-    </>
+    <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sourceFormCourse} onCourseChange={changeSourceFormCourse}
+      pasteDraft={{ title: sourceTitle, text: sourceText }} onPasteDraftChange={draft => { setSourceTitle(draft.title); setSourceText(draft.text); }}
+      onImported={() => refresh().catch(() => {})} onComplete={finishImport}
+      audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} /> : undefined} />
   );
   const modelGroups = host.modelGroups || [],
     followedModel =
@@ -1585,7 +1551,7 @@ export default function App({ call: transportCall, host = {} }) {
                   <span className="nav-count">{boardCount}</span>
                 )}
                 {id === "sources" && data && (
-                  <span className="nav-count">{data.sources.length}</span>
+                  <span className="nav-count">{countDocuments(data.sources)}</span>
                 )}
               </button>
             );
@@ -1927,10 +1893,13 @@ export default function App({ call: transportCall, host = {} }) {
                 act={act}
                 setModal={setModal}
                 sourceForm={sourceForm}
+                call={call}
+                setNotice={setNotice}
+                highlight={sourceHighlight}
                 openAgent={host.openAgent}
                 onOpenSources={openAudioSources}
                 onLegacyRetry={job => { setLegacyAudioJobId(job.id); setPage('audio'); }}
-                onGenerate={ids => { rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined })); setGenSource('files'); setPage('generate'); }}
+                onGenerate={generateFromSources}
               />
             )}
             {page === "audio" && <section className="page">
@@ -2156,9 +2125,9 @@ export default function App({ call: transportCall, host = {} }) {
                         onClick={() => openLearningTarget({ kind: 'deck', id: deck.id })}>{deck.title}{deck.archived ? ` · ${ui('已归档')}` : ''}</button>)}
                     </div>}
                     <button type="button" disabled={busy} onClick={() => {
-                      rememberContext(); setSelectedSources([modal.source.id]); setGen(current => ({ ...current, course: undefined }));
+                      rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
                       setGenSource('files'); setModal(null); setPage('generate');
-                    }}>{ui('从这份资料补题')}</button>
+                    }}>{ui('从这份资料出题')}</button>
                     <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }} />
                   </>

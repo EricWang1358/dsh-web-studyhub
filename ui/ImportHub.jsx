@@ -147,6 +147,25 @@ export function importDoneMessage({ documents = [], decks = [], subtitles = [] }
   return parts.join(ui('；'));
 }
 
+/**
+ * What the App does once an import is complete. From 创建题组 the new material
+ * is ticked where the learner is; otherwise 资料 opens with it highlighted.
+ * A single JSON deck opens its draft. Returns { page?, highlight?, select?,
+ * openDraft?, notice: { text, tone, action?: 'generate' } } or null.
+ */
+export function importOutcome(summary, { page } = {}) {
+  if (!summary?.done) return null;
+  const ids = summary.sourceIds || [], decks = summary.decks || [], subtitles = summary.subtitles || [];
+  const text = importDoneMessage(summary);
+  if (ids.length && page === 'generate')
+    return { select: ids, notice: { text: uiFormat('{0}。已勾选，可以直接生成题组。', [text]), tone: 'success' } };
+  if (ids.length) return { page: 'sources', highlight: ids, select: ids, notice: { text, tone: 'success', action: 'generate' } };
+  if (decks.length === 1 && !subtitles.length)
+    return { openDraft: decks[0], notice: { text: uiFormat('已导入「{0}」共 {1} 题。可检查后直接发布。', [decks[0].title, decks[0].cards?.length || 0]), tone: 'success' } };
+  if (decks.length) return { page: 'library', notice: { text, tone: 'success' } };
+  return { page: 'sources', notice: { text, tone: 'success' } };
+}
+
 const isFileDrag = event => Array.from(event?.dataTransfer?.types || []).includes('Files');
 const swallow = event => {
   event.preventDefault();
@@ -303,7 +322,7 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
     action: item.status !== 'error' ? undefined : item.kind === 'audio' && audioOn ? { label: ui('去音频页'), onClick: () => setTab('audio') }
       : item.kind ? { label: ui('重试'), onClick: () => retry(item.id), disabled: running } : undefined }));
   const finished = items.filter(item => item.status === 'done').length, failed = items.filter(item => item.status === 'error').length;
-  const tabs = [{ value: 'files', label: ui('文件'), icon: 'file' }, { value: 'paste', label: ui('粘贴文本'), icon: 'plus' },
+  const tabs = [{ value: 'files', label: ui('文件'), icon: 'upload' }, { value: 'paste', label: ui('粘贴文本'), icon: 'file' },
     ...(audioOn ? [{ value: 'audio', label: ui('音频 / 录音'), icon: 'audio' }] : [])];
   const strayText = tab === 'audio' ? ui('把音频放进虚线框里才会导入。') : ui('把文件放进虚线框里才会导入。');
   return (

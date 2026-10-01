@@ -93,5 +93,7 @@
   "添加讲义、笔记或录音，之后就能用它们出题；题目会引用原文。": "Add lecture notes, slides or recordings, then generate questions from them; the questions cite the original text.",
   "{0} 份 · {1} 字符": "{0} sources · {1} characters",
   "已移除「{0}」": "Removed “{0}”",
-  "排版复杂，建议对照原文": "complex layout; compare with the original"
+  "排版复杂，建议对照原文": "complex layout; compare with the original",
+  "用它出题": "Generate questions",
+  "{0}。已勾选，可以直接生成题组。": "{0}. It is ticked, so you can generate the deck now."
 }
