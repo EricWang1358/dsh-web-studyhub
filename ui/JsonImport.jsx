@@ -3,6 +3,7 @@ import React, { useRef, useState } from "react";
 import { kinds } from "./shared.js";
 import { importExample, importPrompt } from "./json-prompts.js";
 import CourseField from './CourseField.jsx';
+import { FileDrop } from './components/index.js';
 
 export default function JsonImport({ data, busy, act, call, openDraft, setNotice }) {
   const [text, setText] = useState("");
@@ -13,9 +14,7 @@ export default function JsonImport({ data, busy, act, call, openDraft, setNotice
   const [proposing, setProposing] = useState(false);
   const [merge, setMerge] = useState(false);
   const fileRead = useRef(0);
-  async function readFile(event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  async function readFile([file]) {
     if (!file) return;
     const request = ++fileRead.current;
     setReading(true);
@@ -55,7 +54,9 @@ export default function JsonImport({ data, busy, act, call, openDraft, setNotice
         });
     }}>
       <fieldset><legend>{ui("02 / 导入题组")}</legend>
-        <label>{ui("读取 JSON / TXT 文件")}<input type="file" accept=".json,.txt,application/json,text/plain" disabled={busy || reading || proposing} onChange={readFile} /></label>
+        <FileDrop compact accept={[".json", ".txt"]} maxBytes={2_000_000} busy={reading} disabled={busy || proposing}
+          label={ui("把 JSON 题组文件拖到这里")} hint={ui("JSON 或内容为 JSON 的 TXT · 最大 2 MB")} buttonLabel={ui("读取 JSON / TXT 文件")}
+          onFiles={accepted => void readFile(accepted)} />
         <label>{ui("JSON 内容")}<textarea rows={14} required value={text} disabled={busy || reading || proposing} onChange={(e) => { setText(e.target.value); setProposal(null); setMerge(false); }} placeholder={ui("{\"title\":\"题组名称\",\"cards\":[...]}")} /></label>
         {proposal && <div className="import-proposal">
           <p className="muted">{proposal.method === "ai" ? ui("AI 建议，请确认或修改") : ui("初步整理建议，请确认或修改")}{ui(" · 原标题：")}{proposal.originalTitle}</p>

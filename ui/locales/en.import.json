@@ -68,5 +68,15 @@
   "{0} 个文件已导入，{1} 个没有导入": "{0} file(s) imported, {1} not imported",
   "{0} 个文件没有导入": "{0} file(s) not imported",
   "查看已导入的内容": "View what was imported",
-  "原因写在每个文件旁边。修正后可以重新拖进来。": "The reason is shown next to each file. Fix it and drop the file again."
+  "原因写在每个文件旁边。修正后可以重新拖进来。": "The reason is shown next to each file. Fix it and drop the file again.",
+  "另一个操作还在进行，请稍后重试。": "Another action is still running. Please retry in a moment.",
+  "把讲义或笔记拖到这里，可以一次放多个": "Drag notes or slides here — several at once is fine",
+  "所选 {0} 页中，{1} 页已保存为可出题的文字（新保存 {2} 页，已导入过的页沿用原记录）。": "Of the {0} pages chosen, {1} now have text for questions ({2} newly saved; pages imported before keep their records).",
+  "其中第 {0} 页文字很少，可能只有页眉、页脚或标题；请核对正文是否为图片，需要时先 OCR 再重新导入。": "Pages {0} have very little text and may hold only headers, footers or titles. Check whether the body is an image; if so, run OCR and import again.",
+  "第 {0} 页没有可提取的文字，已跳过。若是扫描页，请先 OCR 后重新导入。": "Pages {0} had no extractable text and were skipped. For scanned pages, run OCR first and import again.",
+  "把 PDF 拖到这里": "Drag a PDF here",
+  "最多 8 MB / 200 页": "Up to 8 MB / 200 pages",
+  "选择 PDF": "Choose PDF",
+  "把 JSON 题组文件拖到这里": "Drag a JSON deck file here",
+  "JSON 或内容为 JSON 的 TXT · 最大 2 MB": "JSON, or TXT containing JSON · up to 2 MB"
 }
