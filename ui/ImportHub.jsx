@@ -411,7 +411,8 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
             uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />
-        {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name }} retrieval={retrieval} onOpenSettings={onOpenSettings} />}
+        {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name }} retrieval={retrieval} onOpenSettings={onOpenSettings}
+          call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course} onRetrieval={setRetrieval} />}
         {!items.length && <p className="import-hub__routes">{ui('PDF 太大或有几百页？先用转换工具处理，再把转换结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。')}</p>}
         {!items.length && <p className="import-hub__routes">{audioOn
           ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')

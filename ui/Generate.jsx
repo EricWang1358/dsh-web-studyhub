@@ -239,7 +239,8 @@ export default function Generate({
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>
-              {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={() => setPage?.("settings")} />}
+              {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={() => setPage?.("settings")}
+                call={call} courses={data.focus?.courses} defaultCourse={generationCourse} onRetrieval={setRetrieval} />}
               {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel call={call} advice={advice} sourceIds={selectedSources}
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
             </fieldset>
