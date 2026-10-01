@@ -7,7 +7,7 @@ import { readFile, mkdir, access } from "node:fs/promises";
 import { join, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { createHostHandler } from "../lib/host.js";
+import { createHostHandler, unverifiedModelStatus } from "../lib/host.js";
 import { localizeAppMessage } from "../lib/application-messages.js";
 import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import { createFakeModel, FAKE_MODEL_ROUTE } from "./fake-model.mjs";
@@ -77,9 +77,12 @@ function previewHost(workspaceRoot, model) {
   let chosen = { root: "", provider: "", model: "" };
   const view = () => {
     const custom = !!(chosen.provider && chosen.model);
+    const route = custom ? { provider: chosen.provider, model: chosen.model } : model?.route || null;
+    // Plan contract C3, as lib/host.js answers it for hosts without a model registry.
     return { root: chosen.root || workspaceRoot, rootSource: chosen.root ? "custom" : "workspace", workspaceRoot,
-      provider: chosen.provider, model: chosen.model, modelSource: custom ? "custom" : "session",
-      route: custom ? { provider: chosen.provider, model: chosen.model } : model?.route || null };
+      provider: chosen.provider, model: chosen.model, modelSource: custom ? "custom" : "session", route,
+      modelStatus: unverifiedModelStatus(route),
+      host: { edition: "preview", chat: false, agentTasks: false, landing: false } };
   };
   function choose(args = {}) {
     // Same rules and messages as saveBinding, so the UI shows the same errors.
