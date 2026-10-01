@@ -95,7 +95,8 @@ export const JOURNEY_STEPS = [
     const done = await j.api("job.wait", { jobId: j.state.jobId, timeoutSeconds: 60 });
     if (done.status !== "complete") throw new Error(`generation ended as ${done.status}: ${done.stage}`);
     j.state.draftId = done.draft?.id;
-    await j.page.getByRole("button", { name: j.t("打开"), exact: true }).first().waitFor({ timeout: 15000 });
+    // WP4: the finished job card at the top of the home offers 打开草稿.
+    await j.page.locator(".generation-jobs .job").getByRole("button", { name: j.t("打开草稿"), exact: true }).first().waitFor({ timeout: 15000 });
     await j.page.locator(".generation-jobs .job").first().scrollIntoViewIfNeeded();
     await j.settle();
     await j.shot("done");
