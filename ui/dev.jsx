@@ -19,7 +19,7 @@ const call = async (action, args = {}) => {
     body: JSON.stringify({ action, args }),
   });
   const result = await response.json();
-  if (!result.ok) throw new Error(result.error);
+  if (!result.ok) throw Object.assign(new Error(result.error), { code: result.code });
   return result.value;
 };
 createRoot(document.getElementById("root")).render(<App call={call} host={host} />);

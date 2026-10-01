@@ -30,7 +30,7 @@ function MailboxIcon() {
   );
 }
 
-export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo }) {
+export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readError = "" }) {
   const [open, setOpen] = React.useState(false);
   const root = React.useRef(null),
     list = React.useRef(null);
@@ -90,8 +90,9 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo }) {
           <div className="inbox-head">
             <strong>{ui("信箱")}</strong>
             <small className="muted">{unread ? uiFormat("{0} 条未读", [unread]) : ui("都看过了")}</small>
-            <button type="button" className="inbox-read-all" disabled={!unread || busy} onClick={onReadAll}>{ui("全部已读")}</button>
+            <button type="button" className="inbox-read-all" disabled={!unread} onClick={onReadAll}>{ui("全部已读")}</button>
           </div>
+          {readError && <p className="job-error" role="alert">{uiFormat("没能标为已读：{0}", [readError])}</p>}
           {items.length ? (
             <ul className="inbox-list" ref={list}>
               {items.map((m) => (

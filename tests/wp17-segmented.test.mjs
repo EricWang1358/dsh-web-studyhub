@@ -105,7 +105,7 @@ test('the recording setup rows are segmented controls with the same labels and p
 test('every single-choice segment row uses the shared control and the old hand-rolled CSS is gone', () => {
   const rows = [
     ['ui/Exam.jsx', '考试题型'], ['ui/Skeleton.jsx', '主题视图'], ['ui/Skeleton.jsx', '骨架视图'], ['ui/Graph.jsx', '视图模式'],
-    ['ui/Ingest.jsx', null], ['ui/StudyMap.jsx', '学习模式'], ['ui/SkeletonCanvas.jsx', '想做什么'],
+    ['ui/Ingest.jsx', null], ['ui/Generate.jsx', null], ['ui/StudyMap.jsx', '学习模式'], ['ui/SkeletonCanvas.jsx', '想做什么'],
   ];
   for (const [file, label] of rows) {
     const src = read(file);
@@ -114,7 +114,17 @@ test('every single-choice segment row uses the shared control and the old hand-r
   }
   for (const [file, pattern] of [
     ['ui/views.css', /\.exam-type-settings button/], ['ui/skeleton.css', /\.sk-seg\b/], ['ui/skeleton.css', /\.skc-extend-intents button/],
-    ['ui/graph.css', /\.graph-mode\b/], ['ui/style.css', /\.focus-switch button/], ['ui/style.css', /\.choice-grid/],
+    ['ui/graph.css', /\.graph-mode\b/], ['ui/style.css', /\.focus-switch button/], ['ui/style.css', /\.choice-grid/], ['ui/style.css', /\.kind-grid|\.kind\.selected/],
   ]) assert.doesNotMatch(read(file), pattern, `${file} no longer carries ${pattern}`);
   assert.doesNotMatch(read('ui/Exam.jsx'), /className=\{typeMode === kind/);
+});
+
+test('wrapped segments: the thumb follows both axes, so a row that wraps (narrow sidebar) still slides to the right line', () => {
+  const src = read('ui/components/SegmentedControl.jsx');
+  for (const measure of ['offsetLeft', 'offsetTop', 'offsetWidth', 'offsetHeight']) assert.match(src, new RegExp(measure), `the thumb is placed from ${measure}`);
+  assert.match(src, /translate\(\$\{item\.offsetLeft\}px, \$\{item\.offsetTop\}px\)/, 'x and y in one transform');
+  assert.match(css, /\.sh-seg\s*\{[^}]*flex-wrap:\s*wrap/, 'the row may wrap');
+  assert.match(css, /\.sh-seg__thumb\s*\{[^}]*top:\s*0;[^}]*left:\s*0/, 'the thumb is positioned from the padding-box origin on both axes');
+  assert.match(css, /\.sh-seg\s*\{[^}]*position:\s*relative/, 'the group is the thumb offset parent, so offsetTop/offsetLeft are group-relative');
+  assert.match(read('ui/generate-form.css'), /\.generate-kind\s*\{[^}]*flex-wrap:\s*wrap/, 'the Generate kind row relies on wrapping');
 });

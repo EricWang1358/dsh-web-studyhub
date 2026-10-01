@@ -89,6 +89,7 @@
     "lint": "eslint lib scripts tests ui eslint.config.js",
     "dev": "node scripts/dev.mjs",
     "qa:journey": "node scripts/qa/journey.mjs",
+    "qa:dismiss": "node scripts/qa/dismiss-timing.mjs",
     "qa:dsh": "node scripts/qa/dsh-e2e.mjs",
     "verify": "npm run lint && npm test && npm run build",
     "release:pack": "node scripts/release-alpha.mjs",

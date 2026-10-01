@@ -1389,19 +1389,6 @@
     display: block;
     margin-top: 3px;
   }
-  .kind-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 9px;
-  }
-  .kind {
-    padding: 16px 8px;
-  }
-  .kind.selected {
-    background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
-    border-color: var(--accent-soft);
-    color: var(--text);
-  }
   .two-col,
   .three-col {
     display: grid;
@@ -3834,9 +3821,6 @@
     .three-col {
       grid-template-columns: 1fr;
       gap: 0;
-    }
-    .kind-grid {
-      grid-template-columns: repeat(2, 1fr);
     }
     .review-heading {
       padding: 21px 17px 0;
