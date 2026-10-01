@@ -761,6 +761,10 @@
   }
   .sh-dialog--full .sh-dialog__body { padding: var(--space-6); }
   .sh-dialog--full .sh-dialog__content { max-width: 1040px; margin-inline: auto; }
+  /* The source reader fills the whole dialog: its own toolbar and scroll areas, no padding or width cap. */
+  .sh-dialog--full.source-preview .sh-dialog__body { display: flex; flex-direction: column; padding: 0; overflow: hidden; scrollbar-gutter: auto; }
+  .sh-dialog--full.source-preview .sh-dialog__content { display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; max-width: none; min-height: 0; margin-inline: 0; }
+  .sh-dialog--full.source-preview .sh-dialog__content > :not(.study-document-viewer) { flex: none; margin: var(--space-2) var(--space-5); }
 
   @container study (max-width: 640px) {
     .sh-btn--md { min-height: 44px; }

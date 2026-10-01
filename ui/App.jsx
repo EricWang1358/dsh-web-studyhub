@@ -2307,7 +2307,7 @@ export default function App({ call: transportCall, host = {} }) {
                     ? ui("学习资料")
                     : modal.type === "flag"
                       ? ui("标记这道题")
-                      : modal.source?.title || ui("资料不可用")}>
+                      : (modal.source?.document ? modal.source.title.replace(/\s*·\s*p\.\d+$/, "") : modal.source?.title) || ui("资料不可用")}>
             {modal.type === "add" ? (
               sourceForm
             ) : modal.type === "sources" ? (

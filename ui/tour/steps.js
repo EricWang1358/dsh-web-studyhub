@@ -21,7 +21,7 @@ export const TOUR_STEPS = [
   { id: "sources", page: "sources", anchor: "sources-list",
     title: "资料：你的讲义和课件",
     body: "PDF、Word、PowerPoint、Markdown、网页和文本都可以导入，原文件会完整保留。一份文档就是一项资料，多页 PDF 也不会被拆散；上百页的大教材会提示先转换成带页码的文字。" },
-  { id: "document", page: "sources", prepare: "openSampleDocument", anchor: "source-tools", placement: "left", needs: "sourceId",
+  { id: "document", page: "sources", prepare: "openSampleDocument", anchor: ["source-tools", "source-tools-toggle"], placement: "left", needs: "sourceId",
     title: "在原文里提问、出题",
     body: "这是示例讲义的原文。标出的段落已经关联了题目和解析；选中任意一段文字，就能就这段提问，或者用它出几道题。右上角的「从这份资料出题」会用整份资料出题。" },
   { id: "generate", page: "generate", prepare: "prepareGenerate", anchor: "generate-sources", placement: "right",
