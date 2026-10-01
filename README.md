@@ -4,7 +4,7 @@
 
 [交互体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [下载安装包](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) · [版本记录](CHANGELOG.md)
 
-**当前版本**：[2.0.1](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.1) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
+**当前版本**：[2.0.2](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.2) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。全套安装后可在 DSH 插件管理器中分别启停组件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
 
 ## 可以做什么
 
@@ -17,7 +17,13 @@
 
 ## 安装与更新
 
-需要 DeepSeek Harness 和 Node.js **22.19 或以上**。
+**已有 DSH 桌面版或网页版？** 在当前 DSH 中打开「插件 → 添加插件」，粘贴[完整工作台安装包地址](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.2/ericwang1358-dsh-daily-flashcard-2.0.2.tgz)，安装后确认包名、版本并启用。仅安装插件，网页版无需下载客户端，继续使用原配置与模型。
+
+**还没有 DSH？** 可选择官方桌面安装器：[Windows 64 位（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) · [macOS Apple silicon（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。Linux 或不想安装客户端的用户，可安装 Node.js **22.19 或以上**，运行 `npx @deepseek-ai/dsh web` 使用网页版。桌面版自带运行时。完整步骤见[安装与模型配置](docs/install.md)，也可下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.2/StudyHub-2.0.2-Setup.html)。
+
+**高级自定义**：全套安装后，在 DSH 自带插件管理器选择各组件的开关；后续添加独立子插件也使用该管理器。停用所需组件时，学习界面会隐藏对应入口或提示功能已停用，已保存的数据保留。生题需要资料、题库和生成，答题需要题库和学习；多个安装来源提供同一能力时，需停用所有来源才能完全关闭。[详细说明](docs/install.md#高级自定义与后续启停)
+
+**已经在使用 DSH？** 可继续通过插件管理器更新，或使用 CLI。通过命令行运行 DSH 时，需要 Node.js **22.19 或以上**：
 
 1. 从 [GitHub Releases](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) 下载插件的 `.tgz` 安装包。
 2. 使用对应宿主的插件管理器安装到你的配置：
@@ -28,7 +34,9 @@ dsh plugin --profile <你的配置名> add <下载的tgz绝对路径>
 
 3. 等后台任务完成或取消后，重新加载该 DSH 配置。进入会话中的「学习」页；支持右栏的宿主也可在右侧打开学习工作台。
 
-桌面配置由桌面宿主管理，请使用桌面随附的插件管理器或 CLI。仓库更新和网页刷新不会替换桌面已经加载的插件。
+使用 CLI 时保留原 profile；网页版默认配置为 `web`，自定义配置请用原配置名。远程网页版的本地安装包路径须在 DSH 服务器上，也可直接使用 HTTPS 安装地址。桌面配置由桌面宿主管理，请使用随附的插件管理器。仓库更新和网页刷新不会替换已经加载的插件。
+
+更新已有安装包后，结束后台任务并重启 DSH 进程：桌面版重新打开，网页版重启原服务并使用原 profile；仅刷新浏览器不会加载新的插件代码。
 
 ## 开始学习
 
@@ -44,6 +52,10 @@ dsh plugin --profile <你的配置名> add <下载的tgz绝对路径>
 在同一题中连续使用「帮我弄懂」，支持本地子代理的宿主会尽量延续同一个助教及其问答上下文；同时提交的追问按顺序处理。切题、修改题目或切换模型后重新开始；空闲两分钟或完成八轮后释放助教。重新开始时会带上最近三条有效问答，已有解答仍保存在题目中。
 
 ## 模型与音频设置
+
+**首次使用需要配置模型提供方（Provider）**：在 DSH「设置 → 模型」保存 API Key，再在会话中选择模型。日常使用建议 [DeepSeek 官方 API](https://platform.deepseek.com/)；用量较大时，可考虑提供 API Key、且允许在 DSH 与学习用途下使用的 Coding Plan。购买前确认适用工具、用途、专用 API 地址与额度限制；有 API Key 不代表套餐允许任意应用调用。[配置步骤与套餐说明](docs/install.md#配置模型-provider)
+
+Claude Pro／Max、ChatGPT／Codex 订阅不能直接作为 DSH 的 API Key 或套餐额度。Anthropic 与 OpenAI 的独立付费 API 可配置为第三方 Provider；这里的限制针对订阅接入，并非禁止使用其 API 模型。
 
 生成、讲解与学习帮助默认使用会话当前模型，也可在设置中指定学习模型，复用宿主凭据。查看资料、作答和更新复习调度不调用模型；没有模型时仍可手工维护和复习已有题组。
 

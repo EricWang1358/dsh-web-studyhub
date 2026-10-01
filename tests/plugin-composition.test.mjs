@@ -1,16 +1,83 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cp, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { parse as parseYaml } from 'yaml';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Context } from '@deepseek-ai/cordis';
 import * as bank from '../lib/plugins/bank.js';
+import * as generation from '../lib/plugins/generation.js';
+import * as study from '../lib/plugins/study.js';
 import * as workbench from '../lib/plugins/composition.js';
 import { Store } from '../lib/store.js';
 import { acquireContexts } from '../lib/runtime/lifecycle.js';
 
 const turn = () => new Promise(resolve => setTimeout(resolve, 20));
+
+test('published bundle imports its real package exports and allows independent capability removal', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-bundle-'));
+  const ctx = new Context();
+  t.after(async () => { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }); });
+  const patch = parseYaml(await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8'));
+  const rows = patch.flatMap(layer => layer.insert);
+  const installed = new Map();
+  for (const row of rows) {
+    const fiber = ctx.plugin(await import(row.name), row.config);
+    await fiber;
+    installed.set(row.id, fiber);
+  }
+  const runtime = ctx.studyRuntime.runtimeForLibrary(root);
+  assert.equal((await runtime.call('bank.list')).decks.length, 0);
+  assert.equal(runtime.hasAction('generate'), true);
+  assert.equal(runtime.hasAction('audio.settings.get'), true);
+  await runtime.call('source.add', { id: 'retained-source', title: 'Source', text: 'original evidence' });
+  await new Store(root).update(state => {
+    state.decks.push({ id: 'retained-deck', title: 'Retained deck', cards: [{ id: 'retained-card', kind: 'flashcard',
+      prompt: 'Question', answer: 'Answer', citations: [{ sourceId: 'retained-source', quote: 'original evidence' }] }] });
+  });
+  await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /referenced/);
+  await installed.get('study-suite-bank').dispose();
+  assert.equal(runtime.hasAction('bank.list'), false, 'bundle siblings must not retain bank');
+  assert.equal(runtime.hasAction('generate'), true);
+  await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /启用.*题库/);
+  assert.equal((await new Store(root).read()).sources[0].id, 'retained-source', 'disabled references must remain protected');
+  const bankRow = rows.find(row => row.id === 'study-suite-bank');
+  const restoredBank = ctx.plugin(await import(bankRow.name), bankRow.config);
+  await restoredBank;
+  assert.equal((await runtime.call('bank.list')).decks[0].id, 'retained-deck', 're-enable retains the citing deck');
+  await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /referenced/);
+  await installed.get('study-suite-learning').dispose();
+  await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /启用.*学习/);
+  await installed.get('study-suite-materials').dispose();
+  assert.equal(runtime.hasAction('materials.document.list'), false, 'generation must not retain materials');
+  await installed.get('study-suite-audio').dispose();
+  assert.equal(runtime.hasAction('audio.settings.get'), false, 'workbench must not retain audio');
+  assert.equal(runtime.hasAction('snapshot'), true, 'remaining workbench still provides its public snapshot');
+});
+
+test('standalone defaults retain dependencies while independent leaves only own their domains', async t => {
+  const ctx = new Context();
+  t.after(() => ctx.fiber.dispose());
+  const practice = ctx.plugin(study);
+  await practice;
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['bank', 'study']);
+  const writing = ctx.plugin(generation);
+  await writing;
+  assert.ok(ctx.studyRuntime.contextIds().includes('materials'));
+  await practice.dispose();
+  assert.ok(ctx.studyRuntime.contextIds().includes('bank'), 'standalone generation retains its required bank');
+  await writing.dispose();
+  assert.equal(ctx.studyRuntime, undefined);
+  const independentPractice = ctx.plugin(study, { independent: true });
+  await independentPractice;
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['study']);
+  const independentWriting = ctx.plugin(generation, { independent: true });
+  await independentWriting;
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['study', 'authoring', 'generation']);
+  await independentWriting.dispose();
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['study']);
+});
 
 test('failed context acquisition leaves no provider or partially installed capabilities', async t => {
   const ctx = new Context(), tools = new Map();
