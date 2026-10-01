@@ -1,7 +1,7 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
   "version": "2.0.3",
-  "description": "Source-grounded flashcards, quizzes and spaced review in a native DSH study workspace.",
+  "description": "StudyHub: turn your course materials into cited flashcards, quizzes and spaced review.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -16,6 +16,9 @@
     "./plugins/generation": "./lib/plugins/generation.js",
     "./plugins/audio": "./lib/plugins/audio.js",
     "./plugins/workbench": "./lib/plugins/workbench.js",
+    "./locale/*": "./locale/*",
+    "./plugins/*/locale/en.json": "./locale/plugins/*/en.json",
+    "./plugins/*/locale/zh.json": "./locale/plugins/*/zh.json",
     "./package.json": "./package.json"
   },
   "files": [
@@ -57,7 +60,9 @@
     "README.zh-CN.md",
     "CHANGELOG.md",
     "CHANGELOG.zh-CN.md",
-    "LICENSE"
+    "LICENSE",
+    "presets",
+    "locale"
   ],
   "license": "MIT",
   "engines": {
@@ -65,7 +70,10 @@
   },
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./presets/study.patch.yml"
+      ]
     },
     "client": {
       "platform": "web",
@@ -80,6 +88,8 @@
     "test": "node --test tests/*.test.mjs",
     "lint": "eslint lib scripts tests ui eslint.config.js",
     "dev": "node scripts/dev.mjs",
+    "qa:journey": "node scripts/qa/journey.mjs",
+    "qa:dsh": "node scripts/qa/dsh-e2e.mjs",
     "verify": "npm run lint && npm test && npm run build",
     "release:pack": "node scripts/release-alpha.mjs",
     "prepack": "npm run build"
@@ -118,8 +128,8 @@
     "react-dom": "^19.0.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-llm": ">=0.0.1-rc.1 <2",
-    "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1 <2"
+    "@deepseek-ai/dsh-llm": ">=0.2.0-rc.2 <0.3",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.3"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-tools": {

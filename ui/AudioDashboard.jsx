@@ -1,24 +1,37 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getUiLanguage } from './i18n.js';
+import { getUiLanguage, ui, uiFormat } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 
-const providerNames = { free: 'Gemini Free', groq: 'Groq', paid: 'Gemini Paid' };
+/* 用量控制台：首次转写之前不显示（什么都没配置时由音频页的配置卡片代替），
+   显示后默认折叠；展开时才轮询。服务商按请求顺序排列：Gemini 免费 → 硅基流动 → Groq → Gemini 付费。 */
+
+const providerNames = { free: 'Gemini Free', siliconflow: 'SiliconFlow', groq: 'Groq', paid: 'Gemini Paid' };
+const REQUEST_ORDER = ['free', 'siliconflow', 'groq', 'paid'];
 const fmt = value => new Intl.NumberFormat(getUiLanguage() === 'en' ? 'en-US' : 'zh-CN', { maximumFractionDigits: 1 }).format(value);
+const anyKey = settings => ['freeKey', 'siliconflowKey', 'groqKey', 'paidKey'].some(field => settings?.[field]?.set);
+
+/** Shown only once something is configured and at least one request has been recorded. */
+export function dashboardVisible(settings, usage) {
+  return anyKey(settings) && usage?.since !== null && usage?.since !== undefined;
+}
+
 export function AudioDashboardView({ data, settings, busy, refresh, save, error }) {
   const en = getUiLanguage() === 'en', t = (zh, english) => en ? english : zh;
-  const sum = field => data.providers.reduce((n, provider) => n + provider.today[field], 0);
+  const providers = [...data.providers].sort((a, b) => REQUEST_ORDER.indexOf(a.tier) - REQUEST_ORDER.indexOf(b.tier));
+  const sum = field => providers.reduce((n, provider) => n + provider.today[field], 0);
   const total = sum('requests');
-  const freeQuota = data.providers.filter(p => p.tier !== 'paid' && p.configured).flatMap(p => p.models.map(model => ({ ...model, tier: p.tier }))).find(model => model.limit !== null && model.limit > 0);
+  const freeQuota = providers.filter(p => p.tier !== 'paid' && p.configured).flatMap(p => p.models.map(model => ({ ...model, tier: p.tier }))).find(model => model.limit !== null && model.limit > 0);
   const usedQuota = freeQuota ? freeQuota.limit - freeQuota.remaining : 0;
   const share = freeQuota ? Math.max(0, Math.min(100, Math.round(usedQuota / freeQuota.limit * 100))) : 0;
-  const max = Math.max(1, ...data.trend.map(day => day.free + day.groq + day.paid));
+  const dayTotal = day => REQUEST_ORDER.reduce((n, tier) => n + (day[tier] || 0), 0);
+  const max = Math.max(1, ...data.trend.map(dayTotal));
   return <section className="audio-dashboard" aria-labelledby="audio-dashboard-title">
     <header className="audio-dashboard-heading"><div><small>AUDIO / USAGE</small><h2 id="audio-dashboard-title">{t('用量控制台', 'Usage console')}</h2></div>
       <button type="button" disabled={busy} onClick={refresh}>{t('刷新', 'Refresh')} ↻</button></header>
     {error && <p className="audio-dashboard-error" role="alert">{error}</p>}
     <div className="audio-dashboard-summary">
       <div className="audio-usage-dial" style={{ '--share': `${share}%` }}><div><strong>{freeQuota ? fmt(freeQuota.remaining) : '—'}</strong>
-        <span>{freeQuota ? `${freeQuota.tier === 'free' ? 'Gemini' : 'Groq'} · ${freeQuota.source === 'provider' ? t('服务端余量', 'Reported left') : t('估算余量', 'Estimated left')}` : t('免费额度待确认', 'Free limit unknown')}</span>
+        <span>{freeQuota ? `${freeQuota.tier === 'free' ? 'Gemini' : providerNames[freeQuota.tier]} · ${freeQuota.source === 'provider' ? t('服务端余量', 'Reported left') : t('估算余量', 'Estimated left')}` : t('免费额度待确认', 'Free limit unknown')}</span>
         {freeQuota && <small title={freeQuota.model}>{fmt(usedQuota)} / {fmt(freeQuota.limit)} {t('已用', 'used')}</small>}
       </div></div>
       <div className="audio-dashboard-metrics">
@@ -29,7 +42,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
       </div>
     </div>
     <div className="audio-provider-list">
-      {data.providers.map(provider => <article key={provider.tier} className={`audio-provider ${provider.tier}`}>
+      {providers.map(provider => <article key={provider.tier} className={`audio-provider ${provider.tier}`}>
         <div className="audio-provider-heading"><span className="audio-provider-dot" aria-hidden="true" /><h3>{providerNames[provider.tier]}</h3>
           <small>{provider.configured ? settings[`${provider.tier}Key`]?.hint || t('已配置', 'Configured') : t('未配置', 'Not configured')}</small>
           <strong>{provider.today.requests}<span>{t('次请求', 'calls')}</span></strong></div>
@@ -54,11 +67,11 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
       </article>)}
     </div>
     <section className="audio-usage-trend" aria-label={t('近七日请求趋势', 'Requests over seven days')}>
-      <div className="audio-section-title"><h3>{t('近 7 日', 'Last 7 days')}</h3><span><i className="free" /> Gemini <i className="groq" /> Groq <i className="paid" /> {t('付费', 'Paid')}</span></div>
+      <div className="audio-section-title"><h3>{t('近 7 日', 'Last 7 days')}</h3><span><i className="free" /> Gemini <i className="siliconflow" /> SiliconFlow <i className="groq" /> Groq <i className="paid" /> {t('付费', 'Paid')}</span></div>
       <div className="audio-trend-bars">{data.trend.map(day => <div key={day.date} className="audio-trend-day" tabIndex={0}
-        aria-label={`${day.date}: Gemini Free ${day.free}, Groq ${day.groq}, Gemini Paid ${day.paid}`}>
-        <span>{day.free + day.groq + day.paid || '—'}</span><div className="audio-trend-column">
-          {['paid', 'groq', 'free'].map(tier => <i className={tier} key={tier} style={{ height: `${day[tier] / max * 100}%` }} />)}
+        aria-label={`${day.date}: Gemini Free ${day.free}, SiliconFlow ${day.siliconflow || 0}, Groq ${day.groq}, Gemini Paid ${day.paid}`}>
+        <span>{dayTotal(day) || '—'}</span><div className="audio-trend-column">
+          {['paid', 'groq', 'siliconflow', 'free'].map(tier => <i className={tier} key={tier} style={{ height: `${(day[tier] || 0) / max * 100}%` }} />)}
         </div><small>{day.date.slice(5).replace('-', '/')}</small></div>)}</div>
     </section>
     <AudioReasoning settings={settings} busy={busy} onSave={save} timings={data.timings} />
@@ -71,12 +84,22 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
       </form>
     </details>
     <footer className="audio-dashboard-footer"><span>{t('今日按太平洋时间 · 从启用此统计起记录模型请求，包含失败及重试。课堂实时音频与 DSH Token 不计入。', 'Today uses Pacific time · recorded model calls include failures and retries. Live audio streams and DSH tokens are excluded.')}</span>
-      <a href="https://aistudio.google.com/usage" target="_blank" rel="noreferrer">AI Studio ↗</a><a href="https://console.groq.com/settings/limits" target="_blank" rel="noreferrer">Groq ↗</a></footer>
+      <a href="https://aistudio.google.com/usage" target="_blank" rel="noreferrer">AI Studio ↗</a><a href="https://cloud.siliconflow.cn" target="_blank" rel="noreferrer">SiliconFlow ↗</a><a href="https://console.groq.com/settings/limits" target="_blank" rel="noreferrer">Groq ↗</a></footer>
   </section>;
+}
+
+/** The console folded away under one line with today's count; it opens on demand. */
+export function AudioDashboardPanel({ data, settings, busy, refresh, save, error, onToggle }) {
+  const today = data.providers.reduce((n, provider) => n + (provider.today?.requests || 0), 0);
+  return <details className="audio-usage-panel" onToggle={onToggle ? event => onToggle(event.currentTarget.open) : undefined}>
+    <summary><span>{ui('用量与额度')}</span><small>{uiFormat('今日 {0} 次请求', [today])}</small></summary>
+    <AudioDashboardView data={data} settings={settings} busy={busy} refresh={refresh} save={save} error={error} />
+  </details>;
 }
 
 export default function AudioDashboard({ call }) {
   const [data, setData] = useState(null), [settings, setSettings] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const saving = useRef(false);
   const polling = useRef(false);
   const revision = useRef(0);
@@ -93,10 +116,12 @@ export default function AudioDashboard({ call }) {
       return load().then(({ usage, config }) => { if (alive && !saving.current && expected === revision.current) { setData(usage); setSettings(config); setError(''); } }, e => { if (alive && !saving.current && expected === revision.current) setError(e.message); })
         .finally(() => { polling.current = false; });
     };
-    void update(); const timer = setInterval(update, 15000);
+    void update();
+    // Only an open console is kept fresh; a folded one is read once to decide whether to show at all.
+    const timer = open ? setInterval(update, 15000) : null;
     document.addEventListener('visibilitychange', update);
-    return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', update); };
-  }, [load]);
+    return () => { alive = false; if (timer) clearInterval(timer); document.removeEventListener('visibilitychange', update); };
+  }, [load, open]);
   const refresh = async () => {
     revision.current++;
     setBusy(true);
@@ -110,8 +135,7 @@ export default function AudioDashboard({ call }) {
     try { setSettings(await call('audio.settings.set', patch)); setData(await call('audio.usage', {})); setError(''); }
     catch (e) { setError(e.message); } finally { saving.current = false; setBusy(false); }
   };
-  if (!data || !settings) return <section className="audio-dashboard audio-dashboard-loading" aria-busy={!error}>
-    {error ? <><p role="alert">{error}</p><button type="button" onClick={refresh} disabled={busy}>{getUiLanguage() === 'en' ? 'Retry' : '重试'}</button></> : <p role="status">{getUiLanguage() === 'en' ? 'Loading usage…' : '正在读取用量…'}</p>}
-  </section>;
-  return <AudioDashboardView data={data} settings={settings} error={error} busy={busy} refresh={refresh} save={save} />;
+  // Before the first transcription there is nothing to show; with nothing configured the setup card stands in for it.
+  if (!data || !settings || !dashboardVisible(settings, data)) return null;
+  return <AudioDashboardPanel data={data} settings={settings} error={error} busy={busy} refresh={refresh} save={save} onToggle={setOpen} />;
 }

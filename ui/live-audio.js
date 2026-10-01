@@ -63,13 +63,39 @@ class StudyPcm extends AudioWorkletProcessor {
 }
 registerProcessor('study-pcm', StudyPcm);`;
 
+/**
+ * What the browser's refusal means for the learner. getUserMedia/getDisplayMedia reject with a DOMException whose name
+ * says what happened ("Not supported" alone helps nobody); unknown errors pass through. The text is the Chinese source
+ * copy: the live class shows it through uiMessage(), which translates it (ui/locales/en.audio.json). This module stays
+ * free of the i18n catalogue so the client can be loaded on its own.
+ */
+export function describeCaptureError(error, kind = 'microphone') {
+  const tab = kind === 'tab';
+  const text = {
+    NotAllowedError: tab ? '没有允许共享标签页（或取消了共享）。点「开始实录」后，选择正在播放课程的标签页，并勾选「共享标签页音频」。'
+      : '浏览器没有允许使用麦克风。点地址栏左侧的锁形图标，把麦克风改为「允许」后再试。',
+    SecurityError: '浏览器没有允许使用麦克风。点地址栏左侧的锁形图标，把麦克风改为「允许」后再试。',
+    NotFoundError: tab ? '所选内容里没有声音。请选择正在播放课程的标签页，并勾选「共享标签页音频」。'
+      : '没有找到麦克风。请插上麦克风，或在系统的声音设置里启用它。',
+    NotSupportedError: '这个页面不能采集声音。请用最新版 Chrome 或 Edge，通过 HTTPS 或 localhost 打开。',
+    TypeError: '这个页面不能采集声音。请用最新版 Chrome 或 Edge，通过 HTTPS 或 localhost 打开。',
+    NotReadableError: '麦克风正被其他程序占用（例如会议软件）。关闭占用它的程序后再试。',
+    AbortError: '采集声音被中断了，请再试一次。',
+    OverconstrainedError: '这个麦克风不支持所需的设置，请在系统里换一个麦克风后再试。',
+  }[error?.name];
+  return text ? Object.assign(new Error(text), { name: error.name, cause: error }) : error;
+}
+
 export async function captureAudio(kind, onAudio, onEnded, onState) {
-  if (!navigator.mediaDevices || !globalThis.AudioContext)
-    throw new Error('此页面无法采集声音，请在支持音频采集的浏览器中打开（HTTPS 或 localhost）');
+  if (!globalThis.navigator?.mediaDevices || !globalThis.AudioContext)
+    throw new Error('这个页面不能采集声音。请用最新版 Chrome 或 Edge，通过 HTTPS 或 localhost 打开。');
   // The chooser must be invoked directly from the learner's click.
-  const stream = await (kind === 'tab'
-    ? navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-    : navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false }));
+  let stream;
+  try {
+    stream = await (kind === 'tab'
+      ? navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+      : navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false }));
+  } catch (error) { throw describeCaptureError(error, kind); }
   let context, node, source, url, closed = false, paused = false;
   const tracks = stream.getTracks();
   const audioTracks = stream.getAudioTracks();

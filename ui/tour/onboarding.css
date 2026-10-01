@@ -1,0 +1,8 @@
+/* Settings › 上手与示例. Injected as <style data-study-onboarding>. */
+.onboarding-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.onboarding-settings__actions .sh-btn { margin: 0; }

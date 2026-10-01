@@ -2,15 +2,20 @@ import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import React from "react";
 import Icon from "./Icon.jsx";
 import Ingest from "./Ingest.jsx";
-import PdfImport from "./PdfImport.jsx";
 import JsonImport from "./JsonImport.jsx";
-import { kinds } from "./shared.js";
+import { kinds, useInjectCss } from "./shared.js";
 import CourseField from './CourseField.jsx';
-import PageScope, { usePageScope } from './PageScope.jsx';
+import { usePageScope } from './PageScope.jsx';
+import SourcePicker from './SourcePicker.jsx';
+import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
+import { Banner, Button, EmptyState, PageHeader, SetupRequired } from './components/index.js';
+import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
+import homeCss from './generate-home.css';
 
-/* 创建题组视图：从已存资料生成（选资料 → 设定学习方式 → 入队后台任务），
-   或切换到对话录题（Ingest，录题启动后把说明词填进对话输入框）。 */
+/* 创建题组 (D1): generating from the learner's own materials comes first;
+   importing questions that already exist is the second way in. Generation is
+   gated on a usable model before any effort goes into the form (P14). */
 export default function Generate({
   data,
   busy,
@@ -28,44 +33,87 @@ export default function Generate({
   setSelectedSources,
   setModal,
   askInChat,
+  canChat = false,
+  openModelSettings,
+  onStarted,
 }) {
+  useInjectCss(homeCss, "study-generate-home");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   const visibleSources = data.sources.filter(source => sourceMatchesCourse(source, sourceScope));
   const generationCourse = gen.course ?? courseForSources({ sources: data.sources }, selectedSources, sourceScope === '*' ? '' : sourceScope);
   const selectedPdfPages = new Set(data.sources.filter((source) => source.document && selectedSources.includes(source.id))
     .map((source) => `${source.document.id || source.id}:${source.document.page || source.id}`)).size;
-  // With a single source there is nothing to choose; don't make the learner tick it.
+  const model = modelReadiness(data);
+  const openImport = () => setModal({ type: "add", course: sourceScope === '*' ? '' : sourceScope });
+  const openSettings = () => (openModelSettings ? openModelSettings() : setPage?.("settings"));
+  // With a single document (one PDF is several page sources) there is nothing to choose; don't make the learner tick it.
   React.useEffect(() => {
-    if (visibleSources.length === 1 && !selectedSources.length)
-      setSelectedSources([visibleSources[0].id]);
+    const documents = groupSourcesByDocument(visibleSources);
+    if (documents.length === 1 && !selectedSources.length)
+      setSelectedSources(documents[0].sourceIds);
     // Only on entering the page, so 清空选择 still sticks.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const tabs = [
+    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", tour: "generate-from-sources" },
+    { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), icon: "file" },
+    // Recording into the conversation needs a chat that can take it (plan C3).
+    ...(canChat ? [{ id: "chat", label: ui("在对话里录题"), note: ui("刷题软件、错题或截图") }] : []),
+  ];
+  const current = tabs.some((tab) => tab.id === genSource) ? genSource : "files";
+  function moveTab(event, index) {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const next = tabs[(index + step + tabs.length) % tabs.length];
+    setGenSource(next.id);
+    event.currentTarget.parentElement?.querySelector(`#generate-tab-${next.id}`)?.focus();
+  }
+  function submit(event) {
+    event.preventDefault();
+    if (!model.ready || busy || !selectedSources.length) return;
+    const materials = documentCount(data.sources.filter((source) => selectedSources.includes(source.id)));
+    act("generate", { ...gen, course: generationCourse, count: Number(gen.count), sourceIds: selectedSources }, (job) => {
+      // Confirm with the deck's name, start the next deck from a clean form (P27),
+      // and land where the progress card is (P26).
+      setNotice(generationStartedNotice(job, gen, materials));
+      setGen(freshGeneration);
+      if (onStarted) onStarted(job);
+      else setPage("library");
+    });
+  }
+  const gateWhy = model.reason === "no-credential"
+    ? model.label ? uiFormat("已选择「{0}」，但还没有可用的 API Key。出题要用它调用模型。", [model.label])
+      : ui("已选择模型，但还没有可用的 API Key。出题要用它调用模型。")
+    : model.reason === "no-route" ? ui("还没有选择用来出题的 AI 模型。配置好之后回到这里，已填的内容会保留。")
+      : ui("出题需要一个可用的 AI 模型。配置好之后回到这里，已填的内容会保留。");
   return (
-    <section className="page">
-      <div className="eyebrow">IMPORT → STUDY</div>
-      <h1>{ui("导入或补充题目")}</h1>
-      <div className="source-mode" role="tablist" aria-label={ui("题目来源")}>
-        {[
-          ["json", ui("导入 JSON 题组"), ui("外部生成的题目 · 推荐")],
-          ["chat", ui("录入已有题目"), ui("刷题软件、错题或截图")],
-          ["files", ui("从资料补题"), ui("按需生成少量缺的题")],
-        ].map(([id, label, note]) => (
+    <section className="page generate-page">
+      <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
+        description={ui("用你的资料让 AI 出题，逐题检查后再发布；已经有现成的题目，也可以直接导入。")} />
+      <div className="source-mode" role="tablist" aria-label={ui("创建方式")}>
+        {tabs.map((tab, index) => (
           <button
-            key={id}
+            key={tab.id}
+            id={`generate-tab-${tab.id}`}
             type="button"
             role="tab"
-            aria-selected={genSource === id}
-            className={genSource === id ? "source-tab active" : "source-tab"}
-            onClick={() => setGenSource(id)}
+            aria-selected={current === tab.id}
+            aria-controls="generate-panel"
+            tabIndex={current === tab.id ? 0 : -1}
+            className={current === tab.id ? "source-tab active" : "source-tab"}
+            data-tour={tab.tour}
+            onClick={() => setGenSource(tab.id)}
+            onKeyDown={(event) => moveTab(event, index)}
           >
-            <strong>{label}</strong>
-            <small>{note}</small>
+            <strong>{tab.label}</strong>
+            <small>{tab.note}</small>
           </button>
         ))}
       </div>
-      {genSource === "json" ? (
+      <div className="generate-panel" role="tabpanel" id="generate-panel" aria-labelledby={`generate-tab-${current}`}>
+      {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
-      ) : genSource === "chat" ? (
+      ) : current === "chat" ? (
         <Ingest
           data={data}
           busy={busy}
@@ -109,73 +157,28 @@ export default function Generate({
             })
           }
         />
+      ) : !data.sources.length ? (
+        <EmptyState icon="file" title={ui("先添加一份资料")}
+          description={ui("讲义、笔记、PDF 或网页都可以。AI 只根据你添加的资料出题，并标出每道题的出处。")}
+          primary={{ label: ui("添加资料"), icon: "upload", onClick: openImport }}
+          secondary={{ label: ui("已有题目？导入 JSON 题组"), onClick: () => setGenSource("json") }} />
       ) : (
         <>
+          {!model.ready && <Banner tone="warning" title={ui("还没有可用的 AI 模型")}
+            action={{ label: ui("打开模型设置"), onClick: openSettings }}>
+            {ui("可以先选好资料和题型；生成前需要先配置模型。")}
+          </Banner>}
           <p className="muted">{ui("先选资料，再设定学习目标。生成结果会先进入草稿；发布时逐题检查，通过的题先进入学习库。")}</p>
-          <PdfImport data={data} defaultCourse={sourceScope === '*' ? '' : sourceScope} busy={busy} act={act} onImported={(ids) => setSelectedSources(ids)} />
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              act(
-                "generate",
-                {
-                  ...gen,
-                  course: generationCourse,
-                  count: Number(gen.count),
-                  sourceIds: selectedSources,
-                },
-                (job) => {
-                  setPage("library");
-                  setNotice(
-                    (job.status === "queued"
-                      ? uiFormat("已加入队列（前面还有 {0} 个）",[job.queuedBehind])
-                      : ui("已开始生成")) +
-                      (job.parts > 1 ? uiFormat("，分 {0} 小批出题并审阅",[job.parts]) : "") +
-                      ui("。完成后出现在待发布列表。"),
-                  );
-                },
-              );
-            }}
-          >
+          <form onSubmit={submit}>
             <fieldset>
               <legend>{ui("01 / 选择资料")}</legend>
-              <PageScope courses={data.focus?.courses} value={sourceScope} onChange={setSourceScope} />
-              <p className="muted">{ui("已选择 ")}{selectedSources.length} / {data.sources.length}{ui(" 份资料")}</p>
-              {selectedSources.some(id => !visibleSources.some(source => source.id === id)) && <p className="muted">{ui('已选资料包含其他范围，生成时仍会保留。')}</p>}
-              <div className="source-selection">
-              {data.sources.length ? (
-                visibleSources.map((s) => (
-                  <label className="source-choice" key={s.id}>
-                    <input
-                      type="checkbox"
-                      checked={selectedSources.includes(s.id)}
-                      onChange={(e) =>
-                        setSelectedSources((v) =>
-                          e.target.checked
-                            ? [...v, s.id]
-                            : v.filter((x) => x !== s.id),
-                        )
-                      }
-                    />
-                    <span>
-                      {s.title}
-                      <small>{s.courses?.join(' · ') || ui('未分类')}{s.coursesInferred ? ui(' · 推断归属') : ''}</small>
-                      <small>{s.text.length.toLocaleString()}{ui(" 字符")}{s.document ? (s.document.extractionVersion === 2 ? ui(" · 排版提取 v2") : ui(" · 旧版提取，建议重新导入")) : ""}{s.document?.sparseText ? ui(" · 文字偏少，核对正文") : ""}{s.document?.warnings?.length ? ui(" · 排版待核对") : ""}</small>
-                    </span>
-                  </label>
-                ))
-              ) : (
-                <p className="muted">{ui("先添加一份资料。")}</p>
-              )}
+              {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
+              <SourcePicker sources={data.sources} selected={selectedSources} onChange={setSelectedSources}
+                courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} />
+              <div className="generate-sources-actions">
+                {/* The one way to add material from here: the shared import dialog (WP3). */}
+                <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>
-              {!!data.sources.length && <div>
-                <button type="button" onClick={() => setSelectedSources(current => [...new Set([...current, ...visibleSources.map(source => source.id)])])}>{ui("选择当前范围")}</button>{" "}
-                <button type="button" onClick={() => setSelectedSources([])}>{ui("清空选择")}</button>
-              </div>}
-              <button
-                type="button"
-                onClick={() => setModal({ type: "add", course: sourceScope === '*' ? '' : sourceScope })}
-              >{ui("＋ 添加资料")}</button>
             </fieldset>
             <fieldset>
               <legend>{ui("02 / 学习方式")}</legend>
@@ -251,31 +254,32 @@ export default function Generate({
                 />
               </label>
             </fieldset>
-            <div className="quality-note">
-              <Icon>✧</Icon>
-              <p>{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}<br />
-                <small>{ui("发布时会再次逐题检查；合格题先发布，未通过的题可选择交给后台修复。")}</small>
-              </p>
+            <div className="generate-submit">
+              <div className="quality-note">
+                <Icon>✧</Icon>
+                <p>{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}<br />
+                  <small>{ui("发布时会再次逐题检查；合格题先发布，未通过的题可选择交给后台修复。")}</small>
+                </p>
+              </div>
+              {model.ready ? <>
+                {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
+                {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
+                <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length}
+                  data-tour="generate-submit">
+                  {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
+                </Button>
+              </> : (
+                /* P14: no usable model, so there is nothing to click into a 20-second failure. */
+                <SetupRequired data-tour="generate-submit" icon="model" title={ui("先配置一个 AI 模型")} why={gateWhy}
+                  steps={[{ text: ui("打开模型设置，选择一个服务商") }, { text: ui("填入这个服务商的 API Key") },
+                    { text: ui("回到这里，点「生成并检查题组」") }]}
+                  primary={{ label: ui("打开模型设置"), icon: "model", onClick: openSettings }} />
+              )}
             </div>
-            {!data.modelReady && (
-              <p className="warning">{ui("当前会话没有可用模型。请在对话输入框选择模型，或在设置中指定生成模型。")}</p>
-            )}
-            {data.modelReady && !selectedSources.length && (
-              <p className="muted">
-                {data.sources.length ? ui("在「01 / 选择资料」勾选至少一份资料后即可生成。") : ui("先点「＋ 添加资料」或导入 PDF，再生成。")}
-              </p>
-            )}
-            <button
-              className="primary wide"
-              disabled={
-                busy || !selectedSources.length || !data.modelReady
-              }
-            >
-              {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
-            </button>
           </form>
         </>
       )}
+      </div>
     </section>
   );
 }

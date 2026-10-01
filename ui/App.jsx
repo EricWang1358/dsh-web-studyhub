@@ -4,23 +4,30 @@ import { localizeRunResponse, localizedRun } from "./run-titles.js";
 import { submitAssist } from "./assist-request.js";
 import { hasContext, pageAvailable } from './capabilities.js';
 import { uiLocale } from "./i18n.js";
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import StudyMap from "./StudyMap.jsx";
-import Guide from "./Guide.jsx";
+import Welcome, { SampleBanner } from "./Welcome.jsx";
+import Tour from "./tour/Tour.jsx";
+import TourGlyph from "./tour/TourGlyph.jsx";
+import { TOUR_STEPS, availableTourSteps, tourNeighbour } from "./tour/steps.js";
+import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from "./tour/progress.js";
+import { OnboardingPanel, RemoveSampleDialog } from "./tour/SampleControls.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
 import Icon from "./Icon.jsx";
 import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
-import { useNavOrder } from "./nav-order.js";
+import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
 import Generate from "./Generate.jsx";
-import DocumentImport from './document-preview/DocumentImport.jsx';
-import CourseField, { parseCourses } from './CourseField.jsx';
+import { GENERATION_DEFAULTS } from "./generation-status.js";
+import ImportHub, { importOutcome } from './ImportHub.jsx';
+import { parseCourses } from './CourseField.jsx';
+import { countDocuments, documentSourceIds } from '../lib/source-groups.js';
 import { usePageScope } from './PageScope.jsx';
 import AudioImport from "./AudioImport.jsx";
 import Draft from "./Draft.jsx";
@@ -31,17 +38,13 @@ import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import Inbox from "./Inbox.jsx";
 import css from "./coach.css";
+import libraryChipCss from "./library-chip.css";
 import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
 import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
-/* The sidebar pages in their original order. The learner can reorder them inside each group (see nav-order.js). */
-const NAV_DEFAULTS = {
-  main: ["library", "workflows", "live", "audio", "wrongbook", "exam", "dashboard"],
-  upkeep: ["sources", "generate", "skeleton", "notes", "board"],
-};
 const THEMES = [
   ["auto", "跟随系统"],
   ["dark", "深色"],
@@ -60,6 +63,7 @@ export default function App({ call: transportCall, host = {} }) {
   }, [transportCall]);
   useInjectCss(localeCss, 'study-language');
   useInjectCss(css, "study-coach");
+  useInjectCss(libraryChipCss, "study-library-chip");
   const rootRef = useRef(null),
     requestSequence = useRef(0),
     acting = useRef(false),
@@ -197,12 +201,8 @@ export default function App({ call: transportCall, host = {} }) {
     [clozeValues, setClozeValues] = useState({});
   const [selectedSources, setSelectedSources] = useState([]),
     [gen, setGen] = useState({
-      kind: "mixed",
-      count: 10,
+      ...GENERATION_DEFAULTS,
       language: host.defaultContentLanguage || (language === 'en' ? 'English' : '中文'),
-      difficulty: "mixed",
-      focus: "",
-      role: "",
     });
   const [sourceCourses, setSourceCourses] = usePageScope(data?.root, 'text-import-courses', data?.focus?.course || '');
   const [draft, setDraft] = useState(null),
@@ -228,18 +228,13 @@ export default function App({ call: transportCall, host = {} }) {
     onReviewState?.(page === "review" ? run : null);
     return () => onReviewState?.(null);
   }, [onReviewState, page, run]);
-  const [guide, setGuide] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("study-guide")) || {};
-    } catch {
-      return {};
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("study-guide", JSON.stringify(guide));
-    } catch {}
-  }, [guide]);
+  // Onboarding (plan §5 WP5): the feature tour, the welcome page and the sample course.
+  const [tourStep, setTourStep] = useState(null),
+    [sampleBusy, setSampleBusy] = useState(false),
+    [removingSample, setRemovingSample] = useState(false),
+    [hiddenWelcome, setHiddenWelcome] = useState("");
+  const tourOrigin = useRef(null),
+    tourRound = useRef(null);
   // EN 开关：开启后每张卡在其英文翻译就绪时展示「中文题干/答案 + 英文」。
   const [showEn, setShowEn] = useState(() => {
     try {
@@ -254,7 +249,13 @@ export default function App({ call: transportCall, host = {} }) {
       localStorage.setItem("study-en", showEn ? "1" : "0");
     } catch {}
   }, [showEn]);
-  const [genSource, setGenSource] = useState("json");
+  // D1: 创建题组 opens on generating from materials; JSON import is the second tab.
+  const [genSource, setGenSource] = useState("files");
+  // A generation just started: the library home scrolls its progress card into view once (P26).
+  const [revealHome, setRevealHome] = useState(0);
+  const canChat = host.capabilities?.chat ?? !!host.askInChat;
+  // DSH's own model settings when the host offers them, else Study Settings (plan C3).
+  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : setPage("settings"));
   const [showBack, setShowBack] = useState(false),
     [settings, setSettings] = useState({}),
     [flag, setFlag] = useState(""),
@@ -1210,64 +1211,29 @@ export default function App({ call: transportCall, host = {} }) {
   const sourceFormCourse = modal?.type === 'add' && modal.course !== undefined ? modal.course : sourceCourses;
   const changeSourceFormCourse = course => modal?.type === 'add' && modal.course !== undefined
     ? setModal(current => ({ ...current, course })) : setSourceCourses(course);
+  // WP3: one add-material entry (ImportHub) for the dialog and the empty Sources page.
+  const [sourceHighlight, setSourceHighlight] = useState(null);
+  useEffect(() => { if (page !== 'sources') setSourceHighlight(null); }, [page]);
+  const generateFromSources = ids => { rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined })); setGenSource('files'); setPage('generate'); };
+  function finishImport(summary) {
+    const outcome = importOutcome(summary, { page });
+    setModal(null);
+    if (!outcome) return;
+    if (outcome.select?.length) setSelectedSources(current => [...new Set([...current, ...outcome.select])]);
+    if (outcome.openDraft) openDraft(outcome.openDraft);
+    else if (outcome.page && outcome.page !== page) setPage(outcome.page);
+    if (outcome.highlight) setSourceHighlight({ ids: outcome.highlight, at: Date.now() });
+    const ids = outcome.highlight;
+    setNotice({ text: outcome.notice.text, tone: outcome.notice.tone,
+      ...(outcome.notice.action === 'generate' ? { action: { label: ui('用它出题'), run: () => generateFromSources(ids) } } : {}) });
+  }
   const sourceForm = !hasContext(data, 'materials') ? (
     <p role="status">{language === 'en' ? 'Enable materials in the DSH plugin manager to import sources.' : '请在 DSH 插件管理器中启用资料组件，再导入资料。'}</p>
   ) : (
-    <>
-    <DocumentImport key={data?.root} busy={busy} act={act} courses={parseCourses(sourceFormCourse)} onImported={ids => setSelectedSources(ids)} />
-    {hasContext(data, 'audio') && <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} />}
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        act("source.add", { title: sourceTitle, text: sourceText, courses: parseCourses(sourceFormCourse) }, (source) => {
-          setModal(null);
-          setSourceTitle("");
-          setSourceText("");
-          // A source added while creating a deck is almost always the one to use.
-          setSelectedSources((v) => [...v, source.id]);
-          setNotice(page === "generate" ? ui("资料已保存并勾选，可以直接生成题组") : ui("资料已保存，可用于生成题组"));
-        });
-      }}
-    >
-      <label>{ui("资料名称")}<input
-          required
-          value={sourceTitle}
-          onChange={(e) => setSourceTitle(e.target.value)}
-          placeholder={ui("例如：设计模式 · 第 4 章")}
-        />
-      </label>
-      <CourseField value={sourceFormCourse} onChange={changeSourceFormCourse} courses={data?.focus?.courses} multiple disabled={busy} />
-      <label className="file-input">{ui("导入 Markdown / 文本")}<input
-          type="file"
-          accept=".md,.txt,.markdown"
-          onChange={async (e) => {
-            const f = e.target.files?.[0];
-            if (f) {
-              if (f.size > 600000) {
-                setError(ui("文件过大，请选取相关段落"));
-                return;
-              }
-              setSourceText(await f.text());
-              if (!sourceTitle) setSourceTitle(f.name.replace(/\.[^.]+$/, ""));
-            }
-          }}
-        />
-      </label>
-      <label>{ui("原文")}<textarea
-          required
-          rows={12}
-          value={sourceText}
-          maxLength={600000}
-          onChange={(e) => setSourceText(e.target.value)}
-          placeholder={ui("粘贴讲义、笔记或材料。生成内容将引用这里的原文。")}
-        />
-      </label>
-      <div className="form-footer">
-        <small>{sourceText.length.toLocaleString()}{ui(" / 600,000 字符")}</small>
-        <button className="primary" disabled={busy}>{ui("保存资料")}</button>
-      </div>
-    </form>
-    </>
+    <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sourceFormCourse} onCourseChange={changeSourceFormCourse}
+      pasteDraft={{ title: sourceTitle, text: sourceText }} onPasteDraftChange={draft => { setSourceTitle(draft.title); setSourceText(draft.text); }}
+      onImported={() => refresh().catch(() => {})} onComplete={finishImport}
+      audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); setPage('settings'); }} /> : undefined} />
   );
   const modelGroups = host.modelGroups || [],
     followedModel =
@@ -1408,35 +1374,181 @@ export default function App({ call: transportCall, host = {} }) {
       )}
     </div>
   );
-  // Open by default until the core steps are done; an explicit toggle sticks.
-  const guideProps = data && {
-    data,
-    busy,
-    goal: guide.goal || "",
-    setGoal: (goal) => setGuide((g) => ({ ...g, goal })),
-    open: guide.open ?? !(data.decks.length && data.attempts.length),
-    setOpen: (open) => setGuide((g) => ({ ...g, open })),
-    addSource: () => setModal({ type: "add" }),
-    generate: () => {
-      setGenSource("json");
-      setPage("generate");
-    },
-    record: () => {
-      setGenSource("chat");
-      setPage("generate");
-    },
-    openDraft,
-    startToday: () => {
-      if (data.focus?.fresh?.length) {
-        act("review.start", { mode: "new", currentCourse: true, count: 10, fresh: true }, enterRun);
+  /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────
+     The welcome page of an empty library, the sample course (sample.* host
+     actions, C6) and the feature tour that switches to each key page. Hosts
+     without sample support send no `sample` in the snapshot; then the tour
+     still runs and the steps that need sample data are left out. */
+  const modelState = data ? data.model || { ready: !!data.modelReady } : null;
+  const tourSteps = useMemo(() => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample,
+    pageAvailable: (id) => pageAvailable(data, id), hasContext: (id) => hasContext(data, id) }) : [], [data]);
+  const savedTour = data?.root && !tourStep ? readTourProgress(data.root) : null;
+  const resumeAt = savedTour && !savedTour.done ? tourSteps.findIndex((step) => step.id === savedTour.stepId) : -1;
+  const tourResume = resumeAt > 0 ? { index: resumeAt, total: tourSteps.length } : null;
+  const ownLibraryEmpty = !!data && !data.sources.some((source) => !source.sample) && !data.drafts.some((item) => !item.sample) &&
+    !data.decks.some((deck) => !deck.systemKind && !deck.sample);
+  const showWelcome = !!data?.sample && page === "library" && !tourStep && hiddenWelcome !== data.root &&
+    !welcomeDismissed(data.root) && (ownLibraryEmpty || !!data.sample.loaded);
+  function hideWelcome() {
+    if (!data?.root) return;
+    dismissWelcome(data.root);
+    setHiddenWelcome(data.root);
+  }
+  const openFirstImport = () => setModal({ type: "add" });
+  /** The tour switches pages at once: no leave animation, no stale context trail. */
+  function showPage(id) {
+    clearTimeout(leaveTimer.current);
+    navigationRequest.current++;
+    setPageTarget(null);
+    setContextTrail([]);
+    if (id === "exam") { setExamRunId(null); setExamKind("exam"); }
+    setPage(id);
+    // Each step starts at the top of its page; the tour then scrolls to the step's anchor.
+    rootRef.current?.scrollTo?.({ top: 0 });
+  }
+  function startTour({ restart = false } = {}) {
+    if (!data || !tourSteps.length) return;
+    const saved = readTourProgress(data.root);
+    const first = !restart && saved && !saved.done && tourSteps.some((step) => step.id === saved.stepId) ? saved.stepId : tourSteps[0].id;
+    if (!tourStep) tourOrigin.current = { page, runId: page === "review" ? run?.id : null,
+      opener: rootRef.current?.contains(document.activeElement) ? document.activeElement : null };
+    hideWelcome();
+    setError("");
+    setTourStep(first);
+    writeTourProgress(data.root, { stepId: first });
+  }
+  function moveTour(direction) {
+    const next = tourNeighbour(tourSteps, tourStep, direction);
+    if (!next) {
+      if (direction > 0) finishTour();
+      return;
+    }
+    setTourStep(next);
+    if (data?.root) writeTourProgress(data.root, { stepId: next });
+  }
+  /** Leave the tour: close what it opened, go back to where it started, return focus. */
+  function endTour({ then } = {}) {
+    const origin = tourOrigin.current;
+    tourOrigin.current = null;
+    setTourStep(null);
+    // A practice round the tour opened and nobody answered should not become "pick up where you left off".
+    const round = tourRound.current;
+    tourRound.current = null;
+    if (round) void call("review.get", { runId: round }).then((value) => !value.complete && !value.answered && !value.feedback
+      ? call("review.end", { runId: round }).then(() => refresh()) : null).catch(() => {});
+    setModal((current) => (current?.tour ? null : current));
+    if (origin?.page === "review" && origin.runId) void act("review.get", { runId: origin.runId }, enterRun);
+    else showPage(origin?.page && origin.page !== "draft" && origin.page !== "review" ? origin.page : "library");
+    then?.();
+    requestAnimationFrame(() => {
+      const target = origin?.opener?.isConnected ? origin.opener : rootRef.current?.querySelector('[data-tour="tour-reopen"]');
+      target?.focus?.({ preventScroll: true });
+    });
+  }
+  function closeTour(reason) {
+    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: reason === "skip" });
+    endTour();
+    if (reason !== "skip") setNotice({ text: ui("导览已暂停，可以从侧栏「功能导览」接着看。"), tone: "info" });
+  }
+  function finishTour() {
+    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: true });
+    endTour();
+    setNotice({ text: ui("导览完成。想再看一遍，点侧栏的「功能导览」。"), tone: "success" });
+  }
+  /** The tour's practice round on the sample deck: the open one if there is one, otherwise a fresh round. */
+  async function openSamplePractice(sample) {
+    if (!sample?.deckId) return;
+    const current = runRef.current;
+    if (latest.current.page === "review" && current && !current.complete && current.deckId === sample.deckId) return;
+    const scope = sample.practice?.length ? sample.practice : [{ deckId: sample.deckId }];
+    const sameScope = (item) => JSON.stringify(item.scope || []) === JSON.stringify(scope);
+    const open = (dataRef.current?.runs || []).find((item) => item.deckIds?.length === 1 && item.deckIds[0] === sample.deckId &&
+      item.index < item.total && !item.purpose && sameScope(item));
+    try {
+      let next = open ? await call("review.get", { runId: open.id }) : null;
+      if (!next || next.complete) {
+        next = await call("review.start", { mode: "path", scope, fresh: true });
+        tourRound.current = next.id;
+      }
+      enterRun(next);
+    } catch (failure) {
+      showPage("library");
+      setError(failure.message || String(failure));
+    }
+  }
+  /** Each step's page, prepared with sample content where the step shows it. */
+  async function enterTourStep(step) {
+    const sample = dataRef.current?.sample;
+    if (step.prepare !== "openSampleDocument") setModal((current) => (current?.tour ? null : current));
+    if (step.prepare === "openSampleDocument") {
+      const source = dataRef.current?.sources.find((item) => item.id === sample?.sourceId);
+      showPage(step.page);
+      if (source) setModal({ type: "source", source, tour: true });
+      return;
+    }
+    if (step.prepare === "prepareGenerate") {
+      setGenSource("files");
+      if (sample?.sourceId) setSelectedSources([sample.sourceId]);
+    }
+    if (step.prepare === "openSampleDraft") {
+      const sampleDraft = dataRef.current?.drafts.find((item) => item.id === sample?.draftId);
+      if (sampleDraft) {
+        openDraft(sampleDraft);
         return;
       }
-      const today = data.runs.find((r) => r.mode === "path" && !r.scope?.length);
-      if (today) act("review.get", { runId: today.id }, enterRun);
-      else act("review.start", { mode: "path" }, enterRun);
-    },
-    askInChat,
-  };
+    }
+    if (step.prepare === "openSampleSkeleton" && sample?.skeletonId) setSkeletonFocus(sample.skeletonId);
+    if (step.prepare === "startSamplePractice") {
+      await openSamplePractice(sample);
+      return;
+    }
+    if (step.page) showPage(step.page);
+  }
+  async function loadSample() {
+    setSampleBusy(true);
+    setError("");
+    try {
+      const status = await call("sample.load", { language: getUiLanguage() });
+      await refresh();
+      return status;
+    } catch (failure) {
+      setError(uiFormat("示例数据没能载入：{0}", [failure.message || String(failure)]));
+      return null;
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+  async function loadSampleAndTour() {
+    if (await loadSample()) startTour({ restart: true });
+  }
+  async function loadSampleInTour() {
+    if (await loadSample()) moveTour(1);
+  }
+  async function loadSampleOnly() {
+    if (await loadSample()) setNotice({ text: ui("示例课程已载入，在学习库里就能看到。"), tone: "success" });
+  }
+  async function removeSampleData() {
+    setSampleBusy(true);
+    setError("");
+    try {
+      const deckId = dataRef.current?.sample?.deckId;
+      const sampleSources = new Set((dataRef.current?.sources || []).filter((source) => source.sample).map((source) => source.id));
+      await call("sample.remove", {});
+      if (deckId && runRef.current?.deckId === deckId) setRun(null);
+      setDraft((current) => (current?.sample ? null : current));
+      setModal((current) => (current?.source && sampleSources.has(current.source.id) ? null : current));
+      setSelectedSources((ids) => ids.filter((id) => !sampleSources.has(id)));
+      if (["review", "draft"].includes(latest.current.page)) showPage("library");
+      if (data?.root) writeTourProgress(data.root, null);
+      await refresh();
+      setRemovingSample(false);
+      setNotice({ text: ui("示例数据已移除，你自己的资料和记录都还在。"), tone: "success" });
+    } catch (failure) {
+      setError(uiFormat("示例数据没能移除：{0}", [failure.message || String(failure)]));
+    } finally {
+      setSampleBusy(false);
+    }
+  }
   const shellTitle =
     page === "review"
       ? run?.title ||
@@ -1498,7 +1610,7 @@ export default function App({ call: transportCall, host = {} }) {
         <div className="brand">
           <span className="brand-mark" aria-hidden="true"><BrandMark /></span>
           <div>
-            Daily Flashcard<small>{ui("自己的资料，扎实地学")}</small>
+            {ui("StudyHub")}<small>{ui("自己的资料，扎实地学")}</small>
           </div>
           <button
             type="button"
@@ -1511,7 +1623,7 @@ export default function App({ call: transportCall, host = {} }) {
             {sidebarNarrow ? "»" : "«"}
           </button>
         </div>
-        <nav ref={navRef} className={"side-nav" + (navOrder.lifted ? " is-reordering" : "")}>
+        <nav ref={navRef} className={"side-nav" + (navOrder.lifted ? " is-reordering" : "")} data-tour="nav">
           {navMark && (
             <span
               className="nav-mark"
@@ -1566,6 +1678,7 @@ export default function App({ call: transportCall, host = {} }) {
               <button
                 key={id}
                 {...navOrder.bind(id)}
+                data-tour={`nav-${id}`}
                 className={"nav" + (upkeep ? " nav-upkeep" : "") + (navPage === id ? " active" : "") + (navOrder.lifted === id ? " is-dragging" : "")}
                 title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
                 onClick={() => switchPage(id, () => {
@@ -1583,7 +1696,7 @@ export default function App({ call: transportCall, host = {} }) {
                   <span className="nav-count">{boardCount}</span>
                 )}
                 {id === "sources" && data && (
-                  <span className="nav-count">{data.sources.length}</span>
+                  <span className="nav-count">{countDocuments(data.sources)}</span>
                 )}
               </button>
             );
@@ -1600,7 +1713,15 @@ export default function App({ call: transportCall, host = {} }) {
             <button type="button" aria-pressed={language === 'zh'} onClick={() => setUiLanguage('zh')}>中文</button>
             <button type="button" aria-pressed={language === 'en'} onClick={() => setUiLanguage('en')}>EN</button>
           </div>
-          {guideProps && <Guide {...guideProps} variant="sidebar" />}
+          {data && (
+            <button type="button" className="nav tour-nav" data-tour="tour-reopen" disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
+              title={ui("功能导览：切到每个关键功能，看看怎么用")} onClick={() => { if (!tourStep) startTour(); }}>
+              <Icon><TourGlyph /></Icon>
+              <span className="nav-label">{ui("功能导览")}{tourResume && (
+                <small>{uiFormat("继续 {0}/{1}", [tourResume.index + 1, tourResume.total])}</small>
+              )}</span>
+            </button>
+          )}
           <div className="local-status">
             <span />{ui("本地学习工作区")}</div>
           {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
@@ -1623,6 +1744,7 @@ export default function App({ call: transportCall, host = {} }) {
           <button
             className={navPage === "settings" ? "nav active" : "nav"}
             title={ui("设置")}
+            data-tour="nav-settings"
             onClick={() => switchPage("settings")}
           >
             <Icon><NavGlyph name="settings" /></Icon>{ui("设置")}</button>
@@ -1631,7 +1753,7 @@ export default function App({ call: transportCall, host = {} }) {
       <main className={pageTarget ? "is-leaving" : undefined}>
         <header className="topbar">
           <nav className="crumbs" aria-label={ui("位置")}>
-            <span className="crumb">Study</span>
+            <span className="crumb">{ui("StudyHub")}</span>
             <span className="breadcrumb" aria-hidden="true">
               ›
             </span>
@@ -1640,6 +1762,7 @@ export default function App({ call: transportCall, host = {} }) {
             </span>
           </nav>
           <div className="top-right">
+            <LibraryChip root={binding.root} onOpen={() => switchPage("settings")} />
             <span className={"top-status" + (!busy && !running && !syncIssue && data ? " idle" : "")}
               role="status" title={syncIssue || undefined}>
               <i
@@ -1720,7 +1843,16 @@ export default function App({ call: transportCall, host = {} }) {
           </section>
         ) : (
           <>
-            {page === "library" && data.coach?.ready > 0 && (
+            {page === "library" && showWelcome && (
+              <Welcome model={modelState} sample={data.sample} busy={busy || sampleBusy}
+                onStartSample={loadSampleAndTour} onStartTour={() => startTour({ restart: true })} onImport={openFirstImport}
+                onSetupModel={openModelSettings} onRemoveSample={() => setRemovingSample(true)} onLater={hideWelcome} />
+            )}
+            {page === "library" && !showWelcome && data.sample?.loaded && (
+              <SampleBanner sample={data.sample} busy={busy || sampleBusy} onTour={() => startTour({ restart: true })}
+                onRemove={() => setRemovingSample(true)} />
+            )}
+            {page === "library" && !showWelcome && data.coach?.ready > 0 && (
               <div className="coach-offer" role="status">
                 <span className="coach-offer-mark" aria-hidden="true"><NavGlyph name="coach" /></span>
                 <div>
@@ -1732,7 +1864,7 @@ export default function App({ call: transportCall, host = {} }) {
                 <button className="primary" disabled={busy} onClick={() => act("coach.practice", {}, enterRun)}>{uiFormat("刷 {0} 道定制题 →", [data.coach.ready])}</button>
               </div>
             )}
-            {page === "library" && (
+            {page === "library" && !showWelcome && (
               <StudyMap
                 data={data}
                 busy={busy}
@@ -1770,6 +1902,12 @@ export default function App({ call: transportCall, host = {} }) {
                   })
                 }
                 importLibrary={() => { setGenSource("json"); setPage("generate"); }}
+                generateFromSources={(ids) => { setSelectedSources(ids); setGen((current) => ({ ...current, course: undefined }));
+                  setGenSource("files"); setPage("generate"); }}
+                openModelSettings={openModelSettings}
+                canChat={canChat}
+                reveal={revealHome}
+                onRevealed={() => setRevealHome(0)}
                 askInChat={askInChat}
                 theme={theme}
                 setTheme={setTheme}
@@ -1791,7 +1929,6 @@ export default function App({ call: transportCall, host = {} }) {
                 suggestMerges={(args) => call("deck.merge.suggest", args)}
                 mergeDecks={(args) => act("deck.merge", args, null, { rethrow: true })}
               >
-                <Guide {...guideProps} variant="inline" />
                 {recovery && (
                   <div className="alert notice">
                     <span>{ui("有本窗口暂存的编辑：")}{recovery.draft.title}{ui("（尚未发布）")}</span>
@@ -1924,10 +2061,13 @@ export default function App({ call: transportCall, host = {} }) {
                 act={act}
                 setModal={setModal}
                 sourceForm={sourceForm}
+                call={call}
+                setNotice={setNotice}
+                highlight={sourceHighlight}
                 openAgent={host.openAgent}
                 onOpenSources={openAudioSources}
                 onLegacyRetry={job => { setLegacyAudioJobId(job.id); setPage('audio'); }}
-                onGenerate={ids => { rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined })); setGenSource('files'); setPage('generate'); }}
+                onGenerate={generateFromSources}
               />
             )}
             {page === "audio" && <section className="page">
@@ -1935,7 +2075,7 @@ export default function App({ call: transportCall, host = {} }) {
                 <p className="muted">{language === "en" ? "Import a recording. Transcription, proofreading and translation run in the background; updates arrive in your inbox." : "导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。"}</p></div>
                 <div className="section-heading-actions"><button onClick={() => setPage("settings")}>{language === "en" ? "Audio settings" : "音频设置"}</button>
                   <button onClick={() => setPage("sources")}>{language === "en" ? "View sources" : "查看资料"}</button></div></div>
-              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources}
+              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => setPage('settings')}
                 recoveryJobId={legacyAudioJobId} onRecoveryChange={setLegacyAudioJobId} />
               <AudioDashboard call={call} />
             </section>}
@@ -1957,6 +2097,9 @@ export default function App({ call: transportCall, host = {} }) {
                 setSelectedSources={setSelectedSources}
                 setModal={setModal}
                 askInChat={askInChat}
+                canChat={canChat}
+                openModelSettings={openModelSettings}
+                onStarted={() => { setRevealHome((n) => n + 1); setPage("library"); }}
               />
             )}
             {page === "draft" && draft && (
@@ -2003,6 +2146,9 @@ export default function App({ call: transportCall, host = {} }) {
                 legacy={legacy}
                 setLegacy={setLegacy}
                 workspacePanel={workspacePanel}
+                onboardingPanel={<OnboardingPanel sample={data.sample} progress={tourResume} busy={busy || sampleBusy}
+                  onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
+                  onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
                 onRestored={() => {
                   libraryEpoch.current++;
@@ -2090,6 +2236,15 @@ export default function App({ call: transportCall, host = {} }) {
         )}
       </main>
       {shortcutHelp && <ShortcutHelp page={page} onClose={() => setShortcutHelp(false)} />}
+      {tourStep && data && (
+        <Tour steps={tourSteps} stepId={tourStep} rootRef={rootRef} model={modelState} sampleLoaded={!data.sample || !!data.sample.loaded}
+          busy={sampleBusy} onEnter={enterTourStep} onMove={moveTour} onClose={closeTour} onFinish={finishTour}
+          onLoadSample={data.sample ? loadSampleInTour : undefined} onBrowse={() => moveTour(1)}
+          onImport={() => endTour({ then: openFirstImport })}
+          onRemoveSample={data.sample?.loaded ? () => endTour({ then: () => setRemovingSample(true) }) : undefined} />
+      )}
+      {removingSample && <RemoveSampleDialog busy={sampleBusy} onConfirm={removeSampleData}
+        onClose={() => { if (!sampleBusy) setRemovingSample(false); }} />}
       {modal && (
         <ModalFrame fullscreen={modal.type === 'source'} onClose={() => setModal(null)}
           title={modal.type === "add"
@@ -2153,9 +2308,9 @@ export default function App({ call: transportCall, host = {} }) {
                         onClick={() => openLearningTarget({ kind: 'deck', id: deck.id })}>{deck.title}{deck.archived ? ` · ${ui('已归档')}` : ''}</button>)}
                     </div>}
                     <button type="button" disabled={busy} onClick={() => {
-                      rememberContext(); setSelectedSources([modal.source.id]); setGen(current => ({ ...current, course: undefined }));
+                      rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
                       setGenSource('files'); setModal(null); setPage('generate');
-                    }}>{ui('从这份资料补题')}</button>
+                    }}>{ui('从这份资料出题')}</button>
                     <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }} />
                   </>
@@ -2167,5 +2322,28 @@ export default function App({ call: transportCall, host = {} }) {
         </ModalFrame>
       )}
     </div>
+  );
+}
+
+/** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
+export function libraryFolderName(root) {
+  const text = String(root || "");
+  const parts = text.split(/[\\/]+/).filter(Boolean);
+  const last = parts.at(-1) || text;
+  return last === ".dsh-study" && parts.length > 1 ? parts.at(-2) : last;
+}
+
+/** Top-bar "学习库：<folder>" (P03): where the library lives, one click from Settings. */
+export function LibraryChip({ root, onOpen }) {
+  if (!root) return null;
+  return (
+    <button type="button" className="library-chip" title={root}
+      aria-label={uiFormat("学习库位置：{0}。打开设置可更改", [root])} onClick={onOpen}>
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4"
+        strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="M1.75 4.25a1 1 0 0 1 1-1h3.1l1.4 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z" />
+      </svg>
+      <span>{uiFormat("学习库：{0}", [libraryFolderName(root)])}</span>
+    </button>
   );
 }

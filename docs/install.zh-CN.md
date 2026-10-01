@@ -12,7 +12,7 @@ StudyHub 是 DSH 的学习插件。[下载浏览器安装引导](https://github.
 1. 在现有 DSH 桌面版或网页版中打开「插件」页，选择「添加插件」。
 2. 在安装地址中粘贴下方完整工作台包地址，完成安装后确认包名为 `@ericwang1358/dsh-daily-flashcard`、版本为 `2.0.3`。
 3. 启用工作台及所需子插件；若提示重新加载，先等当前后台任务完成或取消，再重新加载配置。
-4. 选择存放课程资料的工作区，新建会话后进入「学习」页。
+4. 启用后 StudyHub 会自动打开；之后从 DSH 左栏的「StudyHub」进入，不需要先建会话或发消息。学习库为空时，点「载入示例并开始导览」，约 3 分钟看完所有关键功能，不需要模型。
 
 更新已有插件包后，结束后台任务并重启 DSH 进程，以加载新版本代码。桌面版退出后重新打开；网页版重启原来的 DSH 服务并保留原 profile。仅刷新浏览器不够。
 
@@ -64,6 +64,6 @@ npx @deepseek-ai/dsh web
 
 **Claude／Codex 订阅不作为本安装流程的 Provider。** DSH 当前模型配置不支持 Codex 等 OAuth 订阅接入；Claude Pro／Max、ChatGPT／Codex 的订阅额度也不是可粘贴到 DSH 的通用 API Key。Anthropic 与 OpenAI 的独立付费 API 可以作为第三方提供方配置，费用与订阅分开。参见 [Claude 订阅与 API 计费说明](https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console)、[OpenAI API 独立计费说明](https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform)。
 
-不要把 API Key 填入安装引导、课程资料或题组文件；只在 DSH 的模型设置中保存。音频原始转写另需在学习插件的「设置 → 音频转写」配置 Gemini 或 Groq 密钥，模型 Provider 用于后续校对、翻译与学习帮助。
+不要把 API Key 填入安装引导、课程资料或题组文件；只在 DSH 的模型设置中保存。音频原始转写另需在学习插件的「设置 → 音频转写」配置转写服务（推荐硅基流动 SenseVoice：免费、国内直连；也支持 Gemini 与 Groq），模型 Provider 用于后续校对、翻译与学习帮助。
 
 核实日期：2026-10-01。下载入口、模型和套餐规则以各提供方当前官方说明为准。

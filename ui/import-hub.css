@@ -1,0 +1,50 @@
+/* ImportHub (WP3): course first, one drop zone, paste and audio as tabs.
+   Tokens only; scoped like ui/components so it outranks the bare element
+   defaults in style.css. */
+:is(.study-app, .study-seat) {
+  .import-hub { display: grid; gap: var(--space-4); min-width: 0; }
+  .import-hub__course {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+  }
+  .import-hub__course label { margin: 0; gap: 6px; font-weight: 600; }
+  .import-hub__course input { font-weight: 400; }
+  .import-hub__course small { font-size: var(--fs-sm); font-weight: 400; line-height: var(--lh-snug); }
+  .import-hub__tabs { justify-self: start; max-width: 100%; }
+  .import-hub__files { display: grid; gap: var(--space-3); min-width: 0; }
+  .import-hub__routes { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+  .import-hub__summary { margin: 0; }
+  .import-hub__stray {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--info) 14%, transparent);
+    color: var(--text);
+    font-size: var(--fs-sm);
+  }
+  .import-hub__stray .sh-icon { color: var(--info); }
+  .import-hub .is-attention .sh-drop {
+    border-style: solid;
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  .import-hub__paste { display: grid; min-width: 0; }
+  .import-hub__paste label { margin: 0 0 var(--space-4); }
+  .import-hub__paste textarea { min-height: 180px; }
+  .import-hub__paste-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .import-hub__paste-footer small { font-size: var(--fs-sm); }
+  .import-hub__paste .sh-inline { margin: 0 0 var(--space-3); }
+  /* AudioImport keeps its own markup; inside the tab it drops its card frame. */
+  .import-hub__audio > .audio-import { margin: 0; padding: 0; border: 0; }
+  .import-hub__audio > .audio-import > strong:first-child { display: none; }
+}
+@container (max-width: 520px) {
+  :is(.study-app, .study-seat) .import-hub__course { padding: var(--space-3); }
+  :is(.study-app, .study-seat) .import-hub__tabs { justify-self: stretch; }
+  :is(.study-app, .study-seat) .import-hub__tabs .sh-icon { display: none; }
+}

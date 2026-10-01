@@ -477,9 +477,9 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
         </h2>
       </div>
       {!listedSkeletons.length ? (
-        <p className="muted small">{ui("还没有骨架。选好主题后点「在对话中生成骨架」。")}</p>
+        <p className="muted small" data-tour="skeleton-main">{ui("还没有骨架。选好主题后点「在对话中生成骨架」。")}</p>
       ) : (
-        <div className="sk-saved">
+        <div className="sk-saved" data-tour="skeleton-main">
           <ul className="sk-saved-list">
             {listedSkeletons.map((k) => (
               <li key={k.id}>

@@ -332,7 +332,7 @@ export default function Exam({ call, data, onExit, onCreate, onStartRun, initial
             <button type="button" className="ghost-btn" onClick={() => setExamMode("oral")}>{ui("切换到口头面试 →")}</button>
           </div>
           {decks.length ? (
-            <div className="exam-panel exam-sheet">
+            <div className="exam-panel exam-sheet" data-tour="exam-start">
               <div className="exam-panel-head">
                 <div>
                   <strong>{uiFormat("试卷 · {0} 题 · 限时 30 分钟", [count])}</strong>
@@ -423,7 +423,7 @@ export default function Exam({ call, data, onExit, onCreate, onStartRun, initial
               </ul>
             </div>
           ) : (
-            <div className="empty exam-empty">
+            <div className="empty exam-empty" data-tour="exam-start">
               <span className="empty-icon" aria-hidden="true">
                 ✎
               </span>

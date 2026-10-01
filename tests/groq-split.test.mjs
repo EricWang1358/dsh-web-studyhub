@@ -5,7 +5,7 @@ import { mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GeminiTiers } from "../lib/gemini.js";
-import { findFfmpeg, groqPlan, sweepStaleCuts } from "../lib/groq.js";
+import { CUT_PREFIX, findFfmpeg, groqPlan, sweepStaleCuts } from "../lib/groq.js";
 
 /* Cutting the formats that need a decoder, checked with the real ffmpeg (these tests skip themselves without one):
    speech-like noise in bursts with a pause every ten seconds is made into each format, cut, and every piece is decoded again. */
@@ -28,7 +28,8 @@ async function decodedSeconds(file) {
   const times = [...log.matchAll(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/g)].at(-1);
   return Number(times[1]) * 3600 + Number(times[2]) * 60 + Number(times[3]);
 }
-const groqDirs = async () => (await readdir(tmpdir())).filter((name) => name.startsWith("study-groq-"));
+// Only this process's folders: other test runs (parallel worktrees) share the OS temp directory.
+const groqDirs = async () => (await readdir(tmpdir())).filter((name) => name.startsWith(CUT_PREFIX));
 
 /** 60 s of noise bursts, 9.4 s of sound and a 0.6 s pause every ten seconds, as WAV, then in the format asked for. */
 async function recording(t, formats) {
@@ -129,7 +130,7 @@ test("without ffmpeg a big M4A goes on to the next tier, and the warning says wh
 });
 
 test("cut folders left by a process that died are swept once a day old, and fresh ones are left alone", async (t) => {
-  const stale = await mkdtemp(join(tmpdir(), "study-groq-")), fresh = await mkdtemp(join(tmpdir(), "study-groq-"));
+  const stale = await mkdtemp(join(tmpdir(), CUT_PREFIX)), fresh = await mkdtemp(join(tmpdir(), CUT_PREFIX));
   t.after(() => Promise.all([stale, fresh].map((folder) => rm(folder, { recursive: true, force: true }))));
   await writeFile(join(stale, "in.m4a"), "copy of somebody's recording");
   const twoDaysAgo = new Date(Date.now() - 48 * 3600_000);

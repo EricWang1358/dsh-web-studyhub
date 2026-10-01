@@ -37,7 +37,7 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
             {enBusy ? "EN…" : "EN"}
           </button>
         )}
-        <button className="tool-action tool-help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</button>
+        <button className="tool-action tool-help" data-tour="review-help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</button>
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}

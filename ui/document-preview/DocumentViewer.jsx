@@ -109,7 +109,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
               <h3>{item.title || `p.${item.document?.page || 1}`}</h3><QuotedText text={item.text} quote={item.id === source.id ? quote : ''} anchor={source.selection} />
             </section>) : <QuotedText text={mode === 'text' ? content : sources[0]?.text || content} quote={quote} anchor={source.selection} />}
       </div>
-      <aside className="study-document-side">
+      <aside className="study-document-side" data-tour="source-tools">
         <button type="button" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</button>
         <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} onPublished={refreshLinks} onOpenCard={onOpenCard} />
         <h3 className="study-document-links-heading">{ui('原文关联题目与解析')}</h3>

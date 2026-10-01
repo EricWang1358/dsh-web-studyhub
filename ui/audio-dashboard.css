@@ -1,11 +1,11 @@
 .study-app .audio-dashboard {
-  --usage-free: var(--ok); --usage-groq: var(--info); --usage-paid: var(--accent-soft);
+  --usage-free: var(--ok); --usage-siliconflow: var(--warn); --usage-groq: var(--info); --usage-paid: var(--accent-soft);
   margin-top: 28px; padding: 28px; border: 1px solid var(--line-strong); border-radius: 16px;
   background: var(--bg-sunken); color: var(--text); container-type: inline-size;
 }
 .study-app .audio-dashboard :is(h2,h3,p) { margin: 0; }
 .study-app .audio-dashboard-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
-.study-app .audio-dashboard-heading small { color: var(--text-muted); font-size: 10px; letter-spacing: .18em; }
+.study-app .audio-dashboard-heading small { color: var(--text-muted); font-size: var(--fs-xs); letter-spacing: .18em; }
 .study-app .audio-dashboard-heading h2 { font-size: 24px; margin-top: 6px; letter-spacing: -.04em; }
 .study-app .audio-dashboard button { min-height: 40px; }
 .study-app .audio-dashboard-summary { display: grid; grid-template-columns: 156px minmax(0,1fr); align-items: center; gap: 36px; margin-bottom: 32px; }
@@ -19,30 +19,32 @@
 .study-app .audio-dashboard-metrics strong { display: block; font-size: 32px; font-weight: 600; letter-spacing: -.045em; font-variant-numeric: tabular-nums; margin-top: 4px; }
 .study-app .audio-dashboard-metrics strong small { color: var(--text-muted); font-size: 12px; margin-left: 8px; letter-spacing: 0; font-weight: 400; }
 .study-app .audio-dashboard-metrics .audio-token-count { font-size: 25px; }
-.study-app .audio-provider-list { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; padding-block: 24px; border-block: 1px solid var(--line); }
+.study-app .audio-provider-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,170px),1fr)); gap: 24px; padding-block: 24px; border-block: 1px solid var(--line); }
 .study-app .audio-provider { --provider-color: var(--usage-free); min-width: 0; }
+.study-app .audio-provider.siliconflow { --provider-color: var(--usage-siliconflow); }
 .study-app .audio-provider.groq { --provider-color: var(--usage-groq); }
 .study-app .audio-provider.paid { --provider-color: var(--usage-paid); }
 .study-app .audio-provider-heading { display: grid; grid-template-columns: 7px minmax(0,1fr); gap: 4px 8px; align-items: center; }
 .study-app .audio-provider-heading h3 { font-size: 14px; font-weight: 600; }
 .study-app .audio-provider-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--provider-color); }
-.study-app .audio-provider-heading > small { grid-column: 2; color: var(--text-muted); font-size: 11px; }
+.study-app .audio-provider-heading > small { grid-column: 2; color: var(--text-muted); font-size: var(--fs-xs); }
 .study-app .audio-provider-heading strong { grid-column: 2; font-size: 28px; font-variant-numeric: tabular-nums; margin-block: 9px; }
-.study-app .audio-provider-heading strong span { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 8px; }
+.study-app .audio-provider-heading strong span { font-size: var(--fs-xs); font-weight: 400; color: var(--text-muted); margin-left: 8px; }
 .study-app .audio-model-quota { margin-top: 16px; }
-.study-app .audio-model-quota > div:first-child { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; font-size: 11px; color: var(--text-dim); }
+.study-app .audio-model-quota > div:first-child { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-dim); }
 .study-app .audio-model-quota > div:first-child > span { overflow-wrap: anywhere; }
-.study-app .audio-model-quota > div:first-child small { font-size: 11px; font-variant-numeric: tabular-nums; }
+.study-app .audio-model-quota > div:first-child small { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .study-app .audio-quota-track { height: 4px; background: var(--line); margin-block: 8px; overflow: hidden; border-radius: 2px; }
 .study-app .audio-quota-track i { height: 100%; display: block; background: var(--provider-color); }
 .study-app .audio-quota-track.unknown { opacity: .5; }
 .study-app .audio-model-quota > small { display: block; font-size: 12px; line-height: 1.6; color: var(--text-dim); }
-.study-app .audio-provider-note { font-size: 11px; color: var(--text-muted); line-height: 1.6; margin-top: 16px !important; }
+.study-app .audio-provider-note { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.6; margin-top: 16px !important; }
 .study-app .audio-section-title { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 .study-app .audio-section-title h3 { font-size: 16px; letter-spacing: -.02em; }
-.study-app .audio-section-title :is(span,small) { font-size: 10px; color: var(--text-muted); }
+.study-app .audio-section-title :is(span,small) { font-size: var(--fs-xs); color: var(--text-muted); }
 .study-app .audio-section-title i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 10px; }
 .study-app .audio-dashboard .free { background-color: var(--usage-free); }
+.study-app .audio-dashboard .siliconflow { background-color: var(--usage-siliconflow); }
 .study-app .audio-dashboard .groq { background-color: var(--usage-groq); }
 .study-app .audio-dashboard .paid { background-color: var(--usage-paid); }
 /* Provider articles remain on the canvas; only chart marks carry route colors. */
@@ -50,34 +52,34 @@
 .study-app .audio-usage-trend { padding-block: 24px; }
 .study-app .audio-trend-bars { height: 118px; display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 16px; }
 .study-app .audio-trend-day { display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
-.study-app .audio-trend-day > span { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.study-app .audio-trend-day > span { font-size: var(--fs-xs); color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .study-app .audio-trend-column { flex: 1; width: min(100%,36px); display: flex; flex-direction: column; justify-content: flex-end; }
 .study-app .audio-trend-column i { display: block; min-height: 0; }
-.study-app .audio-trend-day > small { color: var(--text-muted); font-size: 10px; }
+.study-app .audio-trend-day > small { color: var(--text-muted); font-size: var(--fs-xs); }
 .study-app .audio-reasoning { padding-top: 24px; border-top: 1px solid var(--line); }
 .study-app .audio-reasoning .audio-section-title small { display: block; margin-bottom: 7px; letter-spacing: .13em; }
 .study-app .audio-reasoning-body { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: 32px; align-items: center; }
-.study-app .audio-matrix-axis { color: var(--text-muted); font-size: 10px; display: block; margin-bottom: 8px; }
+.study-app .audio-matrix-axis { color: var(--text-muted); font-size: var(--fs-xs); display: block; margin-bottom: 8px; }
 .study-app .audio-matrix-current { color: var(--text-dim); font-size: 12px; line-height: 1.7; margin-bottom: 10px !important; }
 .study-app .audio-matrix-axis.horizontal { text-align: right; margin: 8px 0 0; }
 .study-app .audio-reasoning-grid { display: grid; grid-template-columns: 24px repeat(3,1fr); gap: 4px; align-items: center; }
 .study-app .audio-matrix-level { font-size: 12px; text-align: center; color: var(--text-dim); }
 .study-app .audio-reasoning-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 1; padding: 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-surface); }
-.study-app .audio-reasoning-grid button small { font-size: 9px; color: var(--text-muted); }
-.study-app .audio-matrix-dot { width: 6px; height: 6px; background: var(--text-faint); border-radius: 50%; }
+.study-app .audio-reasoning-grid button small { font-size: var(--fs-xs); color: var(--text-muted); }
+.study-app .audio-matrix-dot { width: 6px; height: 6px; background: var(--decor-faint); border-radius: 50%; }
 .study-app .audio-reasoning-grid button.selected { border-color: var(--accent-soft); background: var(--bg-selected); }
 .study-app .audio-reasoning-grid button.selected .audio-matrix-dot { background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-glow); }
 .study-app .audio-reasoning-fields label { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,160px); align-items: center; gap: 16px; margin: 0 0 20px; font-size: 14px; }
 .study-app .audio-reasoning-fields label small { display: block; font-size: 12px; color: var(--text-muted); margin-top: 5px; }
 .study-app .audio-reasoning-fields select { width: 100%; min-width: 0; padding: 9px; font-size: 12px; }
-.study-app .audio-reasoning-fields p { color: var(--text-muted); font-size: 11px; line-height: 1.7; }
+.study-app .audio-reasoning-fields p { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.7; }
 .study-app .audio-quota-settings { margin-top: 26px; font-size: 12px; }
 .study-app .audio-quota-settings summary { cursor: pointer; color: var(--text-dim); }
 .study-app .audio-quota-settings p { color: var(--text-muted); line-height: 1.7; padding-top: 12px; }
 .study-app .audio-quota-settings form { margin-top: 16px; }
 .study-app .audio-quota-settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; overflow-wrap: anywhere; }
 .study-app .audio-quota-settings input { width: 110px; min-width: 80px; }
-.study-app .audio-dashboard-footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; font-size: 10px; color: var(--text-muted); line-height: 1.7; }
+.study-app .audio-dashboard-footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.7; }
 .study-app .audio-dashboard-footer span { flex: 1 1 320px; }
 .study-app .audio-dashboard-footer a { color: var(--text-dim); }
 .study-app .audio-dashboard-error { color: var(--bad); margin-bottom: 16px !important; }
@@ -100,3 +102,11 @@
   .study-app .audio-usage-dial { width: 112px; }
   .study-app .audio-reasoning-fields label { grid-template-columns: 1fr; gap: 8px; }
 }
+/* Folded under one line until the learner opens it. */
+.study-app .audio-usage-panel { margin-top: var(--space-6); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
+.study-app .audio-usage-panel > summary { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; list-style: none; font-size: var(--fs-sm); font-weight: 600; }
+.study-app .audio-usage-panel > summary::-webkit-details-marker { display: none; }
+.study-app .audio-usage-panel > summary::before { content: "›"; color: var(--text-muted); transition: transform .15s var(--ease); }
+.study-app .audio-usage-panel[open] > summary::before { transform: rotate(90deg); }
+.study-app .audio-usage-panel > summary small { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 400; }
+.study-app .audio-usage-panel > .audio-dashboard { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 var(--radius-card) var(--radius-card); }
