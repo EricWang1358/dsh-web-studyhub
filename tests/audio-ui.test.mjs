@@ -47,6 +47,38 @@ test('batch progress includes every member and offers the exact completed transc
   assert.match(html, /B.wav/); assert.match(html, /A.wav/); assert.match(html, /打开逐字稿/);
 });
 
+test('batch audio separates three active children from thirteen historical tasks and labels their states', () => {
+  const now = Date.now(), at = n => new Date(now - n * 1000).toISOString();
+  const tasks = Array.from({ length: 16 }, (_, index) => ({ id: `task-${index}`, childId: `child-${index}`,
+    kind: 'proofread', part: index + 1, parts: 30, runtime: 'subagent', startedAt: at(30),
+    status: index < 12 ? 'complete' : index === 12 ? 'failed' : 'running',
+    ...(index < 13 ? { finishedAt: at(5) } : {}), ...(index === 12 ? { note: 'Rate limit' } : {}) }));
+  const batch = job({ status: 'running', filename: 'API应用与产品策略培训.mp3 + 4', phase: 'batch',
+    members: [{ filename: 'API应用与产品策略培训.mp3', status: 'running', phase: 'proofread', tasks,
+      steps: { transcribe: { done: 1, total: 1 }, proofread: { done: 10, total: 30 } } },
+      ...Array.from({ length: 4 }, (_, index) => ({ filename: `queued-${index}.mp3`, status: 'queued', phase: 'queued' }))] });
+  const renderBatch = () => renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [batch] }, act() {}, openAgent() {} }));
+  try {
+    setUiLanguage('zh');
+    const html = renderBatch();
+    assert.match(html, /正在执行 3 个任务/);
+    assert.match(html, /校对 已完成 10\/30/);
+    assert.match(html, /查看历史任务 · 13 次模型任务/);
+    assert.match(html, /失败 · DSH 子代理/);
+    assert.match(html, /Rate limit/);
+    assert.equal(html.match(/class="audio-now"/g).length, 3);
+    assert.equal(html.match(/class="generation-trace audio-trace"/g).length, 1);
+    for (let part = 1; part <= 16; part++) {
+      assert.equal(html.match(new RegExp(`aria-label="查看子代理：校对 ${part}/30"`, 'g'))?.length, 1, `one link for child ${part}`);
+    }
+    setUiLanguage('en');
+    const english = renderBatch().replaceAll('API应用与产品策略培训.mp3', 'lecture.mp3');
+    assert.doesNotMatch(english, /[㐀-鿿]/);
+    assert.match(english, /3 tasks running/);
+    assert.match(english, /View task history · 13 model tasks/);
+  } finally { setUiLanguage('zh'); }
+});
+
 test('a legacy failed recording remains visible with a same-file selection action', () => {
   const legacy = job({ id: 'old', status: 'failed', stage: '旧版任务没有保存原文件位置', legacy: true, relinkable: true, retryable: false });
   const html = renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [legacy] }, busy: false, act() {}, onLegacyRetry() {} }));
@@ -160,21 +192,21 @@ test("a running import shows the bar, the steps and the task in flight, and can 
     assert.match(page, /<strong>31%<\/strong>/);
     assert.match(page, /✓ 转写 已完成 1\/1/);
     assert.match(page, /校对 已完成 1\/5/);
-    assert.match(page, /正在做：校对 2\/5 · DSH 子代理 · 已等待 \d+ 秒/);
+    assert.match(page, /正在做：校对 2\/5 · DSH 子代理 · 执行中 · 已等待 \d+ 秒/);
     assert.match(page, /本步骤预计还需约 \d+ 分钟/);
     assert.match(page, /录音时长 12\.5 分钟 · 已用 3 分 \d+ 秒/, "the length of the recording is labelled as such, next to the time spent");
-    assert.match(page, /查看执行过程 · 2 次模型任务/);
-    assert.equal(page.match(/>查看子代理</g).length, 2, "one button beside the task in flight, one in the list");
+    assert.match(page, /查看历史任务 · 1 次模型任务/);
+    assert.equal(page.match(/>查看子代理</g).length, 1, "the active child is not duplicated in the historical list");
     assert.ok(!html({}, { openAgent: undefined }).includes("查看子代理"), "no button when the host cannot open an agent");
     assert.ok(html({ tasks: [] }).includes("role=\"progressbar\""), "the bar does not depend on the task list");
-    assert.ok(!html({ tasks: [] }).includes("查看执行过程"));
+    assert.ok(!html({ tasks: [] }).includes("查看历史任务"));
     assert.ok(html({ phase: "transcribe", steps: { transcribe: { done: 0, total: 1 } }, pace: {}, tasks: [] }).includes("不是卡住了"), "a long single request explains the wait");
     assert.ok(!html({ status: "failed", stage: "boom" }).includes("progressbar"), "a stopped import has no moving bar; what is saved is listed instead");
     assert.ok(!html({ phase: "queued", status: "queued" }).includes("progressbar"));
     setUiLanguage("en");
     const english = html().replace(/lecture\.mp3/g, "");
     assert.doesNotMatch(english, /[㐀-鿿]/);
-    for (const text of ["Working on: Proofreading 2/5 · DSH subagent · waited", "Left in this step: about", "Transcription 1/1 done", "View subagent", "View progress details · 2 model tasks", "recording length 12.5 min"])
+    for (const text of ["Working on: Proofreading 2/5 · DSH subagent · Running · waited", "Left in this step: about", "Transcription 1/1 done", "View subagent", "View task history · 1 model tasks", "recording length 12.5 min"])
       assert.ok(english.includes(text), text);
   } finally { setUiLanguage("zh"); }
 });

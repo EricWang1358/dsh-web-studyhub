@@ -4,7 +4,7 @@
 
 [交互体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [下载安装包](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) · [版本记录](CHANGELOG.md)
 
-**2.0 测试版**：[2.0.0-alpha.1](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.0-alpha.1) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
+**当前版本**：[2.0.1](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.1) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
 
 ## 可以做什么
 
