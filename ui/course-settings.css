@@ -1,0 +1,54 @@
+/* Course settings panel, course list and exam countdown (WP13). Tokens only. */
+:is(.study-app, .study-seat) .course-settings .sh-dialog__body { display: grid; gap: var(--space-5); align-content: start; }
+:is(.study-app, .study-seat) .course-settings__block { display: grid; gap: var(--space-3); min-width: 0; }
+:is(.study-app, .study-seat) .course-settings__block + .course-settings__block { padding-top: var(--space-5); border-top: 1px solid var(--line-soft); }
+:is(.study-app, .study-seat) .course-settings__block h3 { margin: 0; font-size: var(--fs-md); font-weight: 650; color: var(--text); }
+:is(.study-app, .study-seat) .course-settings__field { display: grid; gap: var(--space-1); margin: 0; min-width: 0; font-size: var(--fs-sm); color: var(--text-dim); }
+:is(.study-app, .study-seat) .course-settings__field > span:first-child { font-weight: 550; }
+:is(.study-app, .study-seat) .course-settings__field input { width: 100%; min-width: 0; }
+:is(.study-app, .study-seat) .course-settings__field .sh-seg { justify-self: start; max-width: 100%; flex-wrap: wrap; }
+:is(.study-app, .study-seat) .course-settings__number { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+:is(.study-app, .study-seat) .course-settings__number small { flex: none; font-size: var(--fs-xs); color: var(--text-muted); }
+:is(.study-app, .study-seat) .course-settings__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); min-width: 0; }
+:is(.study-app, .study-seat) .course-settings__wide { grid-column: 1 / -1; }
+:is(.study-app, .study-seat) .course-settings__rename { display: flex; align-items: flex-end; gap: var(--space-2); min-width: 0; }
+:is(.study-app, .study-seat) .course-settings__rename .course-settings__field { flex: 1; }
+:is(.study-app, .study-seat) .course-settings__aliases { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+:is(.study-app, .study-seat) .course-settings__aliases small { font-size: var(--fs-sm); }
+:is(.study-app, .study-seat) .course-settings__alias { padding: 2px var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--text-dim); background: var(--bg-sunken); }
+:is(.study-app, .study-seat) .course-settings__hint { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .course-settings__subhead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: var(--fs-sm); color: var(--text-dim); }
+:is(.study-app, .study-seat) .course-settings__sections { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+:is(.study-app, .study-seat) .course-settings__section-row { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
+:is(.study-app, .study-seat) .course-settings__section-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-sm); color: var(--text-dim); }
+:is(.study-app, .study-seat) .course-settings__confirm { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+:is(.study-app, .study-seat) .course-settings .sh-inline p { margin: var(--space-1) 0 0; }
+:is(.study-app, .study-seat) .course-settings__disclosure .sh-disclosure__body { display: grid; gap: var(--space-3); }
+:is(.study-app, .study-seat) .course-settings__disclosure .sh-disclosure__body > button { justify-self: start; }
+:is(.study-app, .study-seat) .course-settings__merge { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
+:is(.study-app, .study-seat) .course-settings__merge label { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); margin: 0; padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm); cursor: pointer; }
+:is(.study-app, .study-seat) .course-settings__merge label:hover { background: var(--bg-hover); }
+:is(.study-app, .study-seat) .course-settings__merge input { width: auto; flex: none; margin-top: 3px; }
+:is(.study-app, .study-seat) .course-settings__merge span { display: grid; gap: 2px; min-width: 0; }
+:is(.study-app, .study-seat) .course-settings__merge small { font-size: var(--fs-xs); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .course-settings__error { margin-right: auto; flex: 1 1 240px; }
+
+/* Settings: the course list. */
+:is(.study-app, .study-seat) .course-list__items { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+:is(.study-app, .study-seat) .course-list__item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
+:is(.study-app, .study-seat) .course-list__text { display: grid; gap: 2px; min-width: 0; }
+:is(.study-app, .study-seat) .course-list__text strong { color: var(--text); overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .course-list__text small { font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+
+/* Library heading: the countdown sits beside the course name. */
+:is(.study-app, .study-seat) .course-heading .course-heading-exam { flex: none; align-self: center; padding: 3px var(--space-2); border-radius: var(--radius-pill);
+  font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0; line-height: var(--lh-tight); white-space: nowrap;
+  color: var(--accent-text); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+@container study (max-width: 520px) {
+  :is(.study-app, .study-seat) .course-settings__rename { flex-direction: column; align-items: stretch; }
+  :is(.study-app, .study-seat) .course-settings__grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  :is(.study-app, .study-seat) .course-heading { flex-wrap: wrap; row-gap: var(--space-1); }
+}

@@ -11,7 +11,7 @@ These steps work in your existing **desktop or web** DSH installation. Web users
 1. Open DSH’s **Plugins → Add plugin**.
 2. Paste the complete package URL below. Confirm the name `@ericwang1358/dsh-daily-flashcard` and version **2.0.3** after installation.
 3. Enable the workbench and desired components. If reloading is requested, finish or cancel background tasks first.
-4. Select your course workspace, create a session and open **Study**.
+4. StudyHub opens by itself after enabling. Later, open **StudyHub** from DSH’s left sidebar; no session or chat message is needed first. On an empty library, **Load the sample and start the tour** shows every key feature in about three minutes without a model.
 
 ```text
 https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/ericwang1358-dsh-daily-flashcard-2.0.3.tgz
@@ -66,7 +66,7 @@ Configure an eligible third-party provider under **Add model provider**. For cus
 
 **Claude/Codex subscriptions are not providers in this setup.** DSH’s current model configuration does not accept Codex-style OAuth subscriptions. Claude Pro/Max and ChatGPT/Codex subscription allowances are not a general API key to paste into DSH. Separately paid Anthropic and OpenAI APIs can be configured as third-party providers; their billing is separate. See [Claude’s subscription/API billing explanation](https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console) and [OpenAI’s separate API billing explanation](https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform).
 
-Save API keys only in DSH’s model settings, never in a setup guide, source material or deck. Original audio transcription separately needs Gemini or Groq credentials in **Study Settings → Audio transcription**; the model provider handles subsequent proofreading, translation and learning help.
+Save API keys only in DSH’s model settings, never in a setup guide, source material or deck. Original audio transcription separately needs a transcription provider in **Study Settings → Audio transcription** (SiliconFlow SenseVoice is free and reachable from mainland China; Gemini and Groq are also supported); the model provider handles subsequent proofreading, translation and learning help.
 
 ## Interface language and original content
 

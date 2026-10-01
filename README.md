@@ -6,6 +6,22 @@ Turn your course materials, recordings and live classes into questions linked to
 
 [Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Download 2.0.3](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.3) · [Changelog](CHANGELOG.md)
 
+## Quick start
+
+| You want to | You need | Cost |
+| --- | --- | --- |
+| Take the sample course and feature tour, browse sources, practise existing questions | The plugin only | Free, no model calls |
+| Generate questions from your sources, explanations, "Help me understand" | One AI model key (DSH **Settings → Models**) | Billed by your model provider, e.g. the [DeepSeek API](https://platform.deepseek.com/) |
+| Turn recordings into text | One transcription key (StudyHub **Settings → Audio transcription**) | SiliconFlow SenseVoice is free and reachable from mainland China; Gemini and Groq have free tiers but need an overseas network there |
+
+1. **Install DSH** (skip if you have it): use the official Windows / macOS installers below, or install Node.js 22.19+ and run `npx @deepseek-ai/dsh web`.
+2. **Install StudyHub**: in DSH open **Plugins → Add plugin**, paste the package address from *Install or update* below, then click DSH's enable button. StudyHub opens by itself; afterwards use **StudyHub** in DSH's left sidebar — no chat message needed.
+3. **Take the tour (optional, about 3 minutes)**: on the welcome page choose **Load the sample and start the tour**. The 17-step tour switches between sources, generation, practice, mistakes, exams and statistics and points at the real controls. The sample makes no model calls and can be removed with one click.
+4. **Add an AI model**: paste a key in DSH **Settings → Models**. Until then StudyHub tells you right where a model is needed instead of letting a request fail later.
+5. **Start with your own material**: click **Add source**, drop several PDFs, slides or notes at once (each PDF is kept as one document), then **Generate from sources** → review the draft → publish → practise.
+
+Want the chat assistant to use only what you stored in StudyHub? Pick the **学习模式 · StudyHub** agent preset for a new session: it treats "materials", "my notes" or "this lecture" as your StudyHub library, asks when a request is ambiguous, and never runs commands or edits your files.
+
 ## Install or update
 
 **Already using DSH on desktop or in a browser?** Open its plugin manager and add the complete StudyHub package:
@@ -14,7 +30,7 @@ Turn your course materials, recordings and live classes into questions linked to
 https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/ericwang1358-dsh-daily-flashcard-2.0.3.tgz
 ```
 
-Confirm version **2.0.3**, enable the workbench and desired components, and open **Study** in a session with your course workspace. Existing web users only install the plugin; keep your current server, profile, model settings and workspace. For an update, finish or cancel background tasks and restart the existing DSH process. Refreshing the browser alone does not load updated plugin code.
+Confirm version **2.0.3** and enable it. StudyHub opens by itself; afterwards use **StudyHub** in DSH’s left sidebar (the session tab and right sidebar also work). Existing web users only install the plugin; keep your current server, profile, model settings and workspace. For an update, finish or cancel background tasks and restart the existing DSH process. Refreshing the browser alone does not load updated plugin code.
 
 **New to DSH?** Use the official [Windows x64 installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) or [macOS Apple silicon installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg). On Linux, or if you prefer a browser on any platform, install Node.js **22.19 or later** and run `npx @deepseek-ai/dsh web`. Desktop installers include their runtime.
 
@@ -24,8 +40,8 @@ See the [installation and model setup guide](docs/install.md), or download the [
 
 ## Start learning
 
-1. Open **Materials** and import PDF, Markdown, HTML or TXT; paste text or import recordings through **Audio transcription**. JSON question decks are also supported.
-2. Select your course and source scope, generate questions, review their draft and citations, then publish. Choose an existing deck to add approved questions without replacing old questions or review progress.
+1. Click **Add source**, choose the course first, then drop several PDF, Markdown, HTML, TXT, JSON-deck or subtitle files at once, or paste text; recordings use the **Audio / recording** tab of the same window. Each PDF is kept as one document you can expand to pages.
+2. In **Create deck**, choose sources by document, generate questions, review their draft and citations, then publish. If you already have questions (or ones generated elsewhere), import a JSON deck from the second tab. Choose an existing deck to add approved questions without replacing old questions or review progress.
 3. Practice from the library or follow a study workflow. Read explanations after answering, ask for help on the current question, and use SM-2 spaced review to revisit it later.
 4. Use the mistakes list, statistics, exams and oral practice to identify topics needing more work.
 
@@ -45,7 +61,7 @@ Generation, explanations and learning help need a model provider configured in *
 
 For everyday use, start with the [official DeepSeek API](https://platform.deepseek.com/). For higher usage, consider a Coding Plan only if it provides an API key and permits DSH and your actual study use; verify tools, endpoint, models, concurrency and quota rules before purchasing. Claude Pro/Max and ChatGPT/Codex subscriptions do not supply a general API key for this setup. Separately billed Anthropic or OpenAI APIs can be configured as third-party providers. See the [provider setup guide](docs/install.md#configure-a-model-provider).
 
-Original audio transcription separately requires Gemini or Groq credentials in **Study Settings → Audio transcription**. The default route tries Gemini free, Groq, then Gemini paid; individual imports can request paid keys only. Credentials stay in DSH’s settings directory, with only configured status and the final four characters displayed; they are excluded from library exports and conversations.
+Original audio transcription needs a transcription provider in **Study Settings → Audio transcription**. SiliconFlow SenseVoice is free and reachable from mainland China; Gemini and Groq are also supported. With several keys the route tries Gemini free, SiliconFlow, Groq, then Gemini paid; individual imports can request paid keys only. Until a provider is set, the import page asks you to configure one before any upload starts. M4A recordings over an hour can be split losslessly with one click. Credentials stay in DSH’s settings directory, with only configured status and the final four characters displayed; they are excluded from library exports and conversations.
 
 Recordings are processed sequentially, with proofreading and translation windows concurrent within a recording. Completed windows are checkpointed; retry reuses them. The usage dashboard records this plugin’s requests, retries, tokens and transcription duration. Other applications’ requests and live-stream/DSH model tokens are outside that local accounting. Reasoning strength is selectable separately for proofreading and translation; unsupported settings fall back to the provider default.
 
