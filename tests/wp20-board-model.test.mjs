@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CHECKLIST_MAX_ITEMS, CHECKLIST_MAX_TEXT, isMeaningfulTitle, checklistProgress, dueState, labelHue, LABEL_HUES,
-  labelCounts, filterCards, isFiltering, locateCard, doneToggleTarget, applyBoardAction, weekEnd,
+  labelCounts, filterCards, isFiltering, locateCard, doneToggleTarget, applyBoardAction, weekEnd, dueSummary,
 } from '../lib/board-model.js';
 
 const card = (id, extra = {}) => ({ id, title: id, note: '', due: '', labels: [], createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z',
@@ -188,4 +188,10 @@ test('column rename and remove are mirrored for the optimistic view', () => {
 test('unknown actions are ignored by the optimistic patch', () => {
   const b = board();
   assert.equal(applyBoardAction(b, 'board.card.add', { title: 'x' }), b, 'adds wait for the server id');
+});
+
+test('dueSummary counts open cards that are overdue or due today (for a home/today line)', () => {
+  assert.deepEqual(dueSummary(board(), '2026-10-02'), { overdue: 1, today: 0 }, 'b is overdue; e is overdue but done');
+  assert.deepEqual(dueSummary(board(), '2026-10-05'), { overdue: 1, today: 1 });
+  assert.deepEqual(dueSummary({ columns: [], cards: {} }, '2026-10-05'), { overdue: 0, today: 0 });
 });
