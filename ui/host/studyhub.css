@@ -1,0 +1,79 @@
+/* Host-owned seat chrome (DSH only). The study app keeps its own tokens. */
+
+/* Conversation "StudyHub" tab: DSH floats its composer over the bottom of the
+   active view. Opting into the conversation's overlay mode (the attribute the
+   official Trajectory view uses) bounds the view to the scrollport, and the
+   frame reserves the composer height DSH publishes on that scrollport, so the
+   app (and any modal contained by .study-seat) ends above the composer. */
+.study-seat-frame {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding-bottom: calc(var(--dsh-composer-height, 152px) + 12px);
+}
+
+/* .study-seat contains fixed descendants (contain: layout paint), so an
+   in-app modal is laid out in the seat, not the viewport. A seat shorter than
+   the window (the composer reservation above, the DSH right sidebar) would
+   clip a 90vh modal's footer; cap it to the seat. Top-layer dialogs keep
+   their own sizing. */
+.study-seat .modal:not(dialog) {
+  max-height: min(90vh, 100%);
+}
+
+/* Top-level StudyHub page: DSH's root main panel, no composer. Desktop shells
+   publish a top strip that entry pages pad by. */
+.studyhub-page {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding-top: var(--dsh-frame-top-clearance, 0px);
+}
+.studyhub-page-empty {
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--text);
+  background: var(--bg-canvas);
+  font-family: var(--font-ui);
+}
+.studyhub-page-empty svg {
+  color: var(--text-muted);
+}
+.studyhub-page-empty h1 {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+}
+.studyhub-page-empty p {
+  margin: 0;
+  max-width: 44ch;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+.studyhub-page-empty button {
+  margin-top: 8px;
+  padding: 9px 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.studyhub-page-empty button:hover {
+  background: var(--accent-soft);
+}
+.studyhub-page-empty button:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 3px;
+}

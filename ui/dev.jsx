@@ -6,6 +6,9 @@ import { createRoot } from "react-dom/client";
 import "./style.css";
 import './audio-dashboard.css';
 import App from "./App.jsx";
+// Plan contract C3: the preview has no chat, agent tasks or landing shell.
+const host = { capabilities: { edition: "preview", chat: false, agentTasks: false, landing: false } };
+document.title = "StudyHub";
 const call = async (action, args = {}) => {
   const response = await fetch("/api/call", {
     method: "POST",
@@ -19,4 +22,4 @@ const call = async (action, args = {}) => {
   if (!result.ok) throw new Error(result.error);
   return result.value;
 };
-createRoot(document.getElementById("root")).render(<App call={call} />);
+createRoot(document.getElementById("root")).render(<App call={call} host={host} />);
