@@ -634,7 +634,7 @@ export default function StudyMap({
                 if (role !== (data.focus?.role || "")) onFocus?.({ role });
               }} />
           ) : (data.focus?.courses || []).length ? (
-            <h1 className="course-heading">
+            <h1 className="course-heading" data-tour="home-course">
               <span>{data.focus?.course === '' ? ui('未分类课程') : data.focus?.course || headline}</span>
               <span className="course-caret" aria-hidden="true">▾</span>
               <ExamCountdown course={(data.courses || []).find((course) => course.id === data.focus?.courseId)} />

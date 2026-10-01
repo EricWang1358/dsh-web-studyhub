@@ -61,14 +61,14 @@ test("navigation puts the core loop first and the upkeep tools after it", () => 
 });
 
 test("the tour walks the key features in order: welcome → navigation → home → materials → … → settings → finish", () => {
-  assert.deepEqual(TOUR_STEPS.map((step) => step.id), ["welcome", "nav", "home", "sources", "document", "generate", "draft", "practice", "help",
+  assert.deepEqual(TOUR_STEPS.map((step) => step.id), ["welcome", "nav", "home", "course", "sources", "document", "generate", "draft", "practice", "help",
     "wrongbook", "exam", "case", "dashboard", "skeleton", "workflows", "settings-model", "settings-audio", "finish"]);
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
   assert.equal(TOUR_STEPS[0].anchor, undefined, "the welcome step is centred");
   assert.equal(TOUR_STEPS.at(-1).final, true);
   for (const step of TOUR_STEPS) {
     if (step.page) assert.ok(PAGES.has(step.page), `${step.id}: unknown page ${step.page}`);
-    for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "draft-publish", "exam-case"].includes(anchor),
+    for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "draft-publish", "exam-case", "home-course"].includes(anchor),
       `${step.id}: anchor ${anchor} is not in the plan's list`);
   }
 });
