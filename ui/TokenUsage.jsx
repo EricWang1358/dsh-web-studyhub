@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { ui } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button } from './components/index.js';
+import { Button, Panel } from './components/index.js';
 import Icon from './components/Icon.jsx';
 import css from './token-usage.css';
 import { totalTokens } from '../lib/token-usage.js';
@@ -153,14 +153,12 @@ export function ModelUsageView({ state = { status: 'idle' }, days = 30, onDays, 
   const biggest = Math.max(1, ...features.map((id) => totalTokens(summary.byFeature[id])));
   const lines = summary && features.length ? [...features.map((id) => `${featureLabel(id)}: ${usageText(summary.byFeature[id])}`),
     `${ui('合计')}: ${usageText(summary.total)}`].join('\n') : '';
-  return <section className="dash-section model-usage" data-model-usage>
-    <div className="model-usage__head">
-      <h2>{ui('模型用量')}<small>{days === 7 ? ui(' · 近 7 天') : ui(' · 近 30 天')}</small></h2>
-      <div className="model-usage__days" role="group" aria-label={ui('统计范围')}>
-        {DAY_CHOICES.map((choice) => <button key={choice} type="button" className="generate-chip" aria-pressed={days === choice}
-          onClick={() => onDays?.(choice)}>{choice === 7 ? ui('近 7 天') : ui('近 30 天')}</button>)}
-      </div>
-    </div>
+  const toggle = <div className="model-usage__days" role="group" aria-label={ui('统计范围')}>
+    {DAY_CHOICES.map((choice) => <button key={choice} type="button" className="generate-chip" aria-pressed={days === choice}
+      onClick={() => onDays?.(choice)}>{choice === 7 ? ui('近 7 天') : ui('近 30 天')}</button>)}
+  </div>;
+  return <Panel className="dash-chart model-usage" data-model-usage title={ui('模型用量')}
+    description={uiFormat('近 {0} 天，各功能的 token 用量', [days])} actions={toggle}>
     {state.status === 'loading' && <p className="muted">{ui('正在统计模型用量…')}</p>}
     {summary && !features.length && <p className="muted">{ui('还没有模型用量记录。出题、陪学或生成讲解之后，这里会显示 token 用量。')}</p>}
     {summary && features.length > 0 && <>
@@ -183,7 +181,7 @@ export function ModelUsageView({ state = { status: 'idle' }, days = 30, onDays, 
       {ui('音频转录按分钟计，不在这里；见「音频转录」页的「用量与额度」。')}
       {onAudio && <> <Button variant="link" size="sm" onClick={onAudio}>{ui('打开音频转录')}</Button></>}
     </p>
-  </section>;
+  </Panel>;
 }
 
 /** 模型用量, connected: asks `usage.summary` for the chosen window. */

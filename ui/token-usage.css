@@ -101,9 +101,7 @@
 :is(.study-app, .study-seat) .job-usage__expected { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
 /* ── 模型用量 in 学习统计 ──────────────────────────────────────────────── */
-:is(.study-app, .study-seat) .model-usage { display: grid; gap: var(--space-3); }
-:is(.study-app, .study-seat) .model-usage__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
-:is(.study-app, .study-seat) .model-usage__head h2 { margin: 0; }
+:is(.study-app, .study-seat) .model-usage { display: grid; gap: var(--space-4); }
 :is(.study-app, .study-seat) .model-usage__days { display: flex; gap: var(--space-2); }
 :is(.study-app, .study-seat) .model-usage__list { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
 :is(.study-app, .study-seat) .model-usage__item { display: grid; gap: 4px; min-width: 0; }

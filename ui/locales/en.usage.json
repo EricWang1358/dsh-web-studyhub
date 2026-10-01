@@ -20,7 +20,6 @@
   "正在估算…": "Estimating…",
   "查看估算明细": "Show how this is estimated",
   "模型用量": "Model usage",
-  "· 近 7 天": "· Last 7 days",
   "近 7 天": "Last 7 days",
   "近 30 天": "Last 30 days",
   "统计范围": "Time range",
@@ -44,5 +43,6 @@
   "转写稿的长度按正常语速、英文讲课估算；中文讲课的转写稿更短，但每个字的 token 更多。": "The transcript length is estimated from a normal speaking rate for an English lecture; a Chinese lecture gives a shorter transcript but more tokens per character.",
   "本次讲解的用量": "Usage of this lesson",
   "转写本身按音频时长计，不在这里；见「音频转录」页的用量与额度。": "Transcription itself is counted by audio length, not here; see Usage and limits on the Audio transcription page.",
-  "下限按 DSH 的固定估算；上限按 DeepSeek 公布的换算（中文每字约 0.6 token，英文每字符约 0.3）。": "The lower end is DSH's fixed estimate; the upper end uses DeepSeek's published conversion (about 0.6 token per Chinese character, 0.3 per English character)."
+  "下限按 DSH 的固定估算；上限按 DeepSeek 公布的换算（中文每字约 0.6 token，英文每字符约 0.3）。": "The lower end is DSH's fixed estimate; the upper end uses DeepSeek's published conversion (about 0.6 token per Chinese character, 0.3 per English character).",
+  "近 {0} 天，各功能的 token 用量": "Last {0} days, token usage by feature"
 }
