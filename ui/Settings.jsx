@@ -51,7 +51,7 @@ export default function Settings({
         <legend>{ui("学习库与模型")}</legend>
         {workspacePanel}
       </fieldset>
-      {hasContext(data, 'audio') && <div data-tour="settings-audio"><AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} /></div>}
+      {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
       {onboardingPanel}
       {profile && (
         <fieldset>

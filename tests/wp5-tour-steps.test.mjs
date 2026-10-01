@@ -34,9 +34,9 @@ async function anchorsInSource() {
   }
   return anchors;
 }
-/* Anchors that WP3 adds to its own pages (plan §5); until it merges the tour
-   shows those steps centred, so they may be absent here. WP4's are merged. */
-const PARALLEL = { "sources-list": "WP3", "sources-add": "WP3", "import-drop": "WP3" };
+/* Anchors another work package still has to add to its own pages (plan §5).
+   WP3 and WP4 have merged, so every anchor must exist now. */
+const PARALLEL = {};
 const PLAN_ANCHORS = ["nav", "nav-library", "nav-sources", "nav-generate", "nav-wrongbook", "nav-exam", "nav-dashboard", "nav-skeleton",
   "nav-workflows", "nav-settings", "tour-reopen", "home-hero", "home-today", "home-catalog", "sources-list", "sources-add", "import-drop",
   "generate-from-sources", "generate-submit", "review-question", "review-help", "wrongbook-list", "exam-start", "dashboard-summary",
