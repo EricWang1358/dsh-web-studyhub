@@ -1,7 +1,7 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
   "version": "2.0.3",
-  "description": "Source-grounded flashcards, quizzes and spaced review in a native DSH study workspace.",
+  "description": "StudyHub: turn your course materials into cited flashcards, quizzes and spaced review.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -16,6 +16,9 @@
     "./plugins/generation": "./lib/plugins/generation.js",
     "./plugins/audio": "./lib/plugins/audio.js",
     "./plugins/workbench": "./lib/plugins/workbench.js",
+    "./locale/*": "./locale/*",
+    "./plugins/*/locale/en.json": "./locale/plugins/*/en.json",
+    "./plugins/*/locale/zh.json": "./locale/plugins/*/zh.json",
     "./package.json": "./package.json"
   },
   "files": [
@@ -58,7 +61,8 @@
     "CHANGELOG.md",
     "CHANGELOG.zh-CN.md",
     "LICENSE",
-    "presets"
+    "presets",
+    "locale"
   ],
   "license": "MIT",
   "engines": {
