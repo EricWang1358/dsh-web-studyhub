@@ -40,7 +40,7 @@
   "资料较多：规划阶段会把每份资料读一遍，之后每一批只带上规划选中的页。缩小页码范围能明显减少用量。": "With a lot of material, planning reads every page once; after that each batch carries only the pages the plan picked. Narrowing the page range cuts usage noticeably.",
   "你选的 {1} 份资料共 {3} 字符，超过了一次最多 {0} 字符的上限，请缩小页码范围或分批出题。上面的数字是一次最多能选入的资料（约前 {2} 份）的用量。": "The {1} sources you picked total {3} characters, over the limit of {0} characters per run. Narrow the page range or write the questions in batches. The numbers above are for the most that fits (about the first {2} sources).",
   "推理程度越高，推理 token 越多（计入输出）。": "The higher the reasoning level, the more reasoning tokens (counted in the output).",
-  "中文资料的实际 token 通常更接近上限。": "For Chinese material the real token count is usually closer to the upper end.",
+  "中文内容的实际 token 通常更接近上限。": "For Chinese material the real token count is usually closer to the upper end.",
   "转写稿的长度按正常语速、英文讲课估算；中文讲课的转写稿更短，但每个字的 token 更多。": "The transcript length is estimated from a normal speaking rate for an English lecture; a Chinese lecture gives a shorter transcript but more tokens per character.",
   "本次讲解的用量": "Usage of this lesson",
   "转写本身按音频时长计，不在这里；见「音频转录」页的用量与额度。": "Transcription itself is counted by audio length, not here; see Usage and limits on the Audio transcription page.",

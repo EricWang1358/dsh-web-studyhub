@@ -176,3 +176,30 @@ test('a failing child still reports what it used before it failed', async () => 
     { jobId: 'job-4', stage: 'Authoring', resultOwner: 'plugin', onEvent() {} }, () => 'direct')), /overloaded/);
   assert.deepEqual(reports.map((item) => item.usage), [buckets(5, 5)], 'a billed failed attempt counts');
 });
+
+test('a one-shot child whose stored session cannot be read still reports from its live session', async () => {
+  const { reports, entry } = collect();
+  const { ctx, parent, output } = childHarness({ childUsage: undefined });
+  const events = [
+    { type: 'assistant/message', data: { turn: 0, step: 0, message: {}, stream: [], usage: { inputTokens: 400, outputTokens: 90, cacheReadTokens: 1200 } } },
+    { type: 'assistant/message', data: { turn: 0, step: 1, message: {}, stream: [], usage: { inputTokens: 30, outputTokens: 10 } } },
+  ];
+  ctx.get('subagents').start = async () => ({ id: 'child-run', localAgent: { session: { seq: events.length, eventAt: (index) => events[index] } },
+    result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: output }] }), dispose: async () => {} });
+  ctx.get = ((original) => (key) => key === 'sessionQuery' ? { observeSession: async () => { throw new Error('child already unloaded'); } } : original(key))(ctx.get);
+  const result = await withUsageSink(entry, () => runGenerationAgent(ctx, { provider: 'p', model: 'm' }, parent.id, 'system', 'prompt',
+    { jobId: 'job-5', stage: 'Authoring', resultOwner: 'plugin', onEvent() {} }, () => { throw new Error('no direct call expected'); }));
+  assert.equal(result, output);
+  assert.deepEqual(reports.map((item) => item.usage), [buckets(430, 100, 1200)]);
+  assert.equal(reports[0].meta.calls, 2);
+});
+
+test('the stored session is preferred over the live one when both can be read', async () => {
+  const { reports, entry } = collect();
+  const { ctx, parent } = childHarness({ childUsage: buckets(7, 8, 9, 10) });
+  ctx.get('subagents').start = async () => ({ id: 'child-run', localAgent: { session: { seq: 1, eventAt: () => ({ type: 'assistant/message', data: { turn: 0, step: 0, message: {}, stream: [], usage: { inputTokens: 1, outputTokens: 1 } } }) } },
+    result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: '{}' }] }), dispose: async () => {} });
+  await withUsageSink(entry, () => runGenerationAgent(ctx, { provider: 'p', model: 'm' }, parent.id, 'system', 'prompt',
+    { jobId: 'job-6', stage: 'Authoring', resultOwner: 'plugin', onEvent() {} }, () => 'direct'));
+  assert.deepEqual(reports.map((item) => item.usage), [buckets(7, 8, 9, 10)]);
+});

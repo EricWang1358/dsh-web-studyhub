@@ -91,7 +91,7 @@ export function noteText(code, estimate = {}) {
         [formatExactTokens(blocked.limit), blocked.totalSources, blocked.fitSources, formatExactTokens(blocked.chars)])
       : '';
     case 'effort-high': return ui('推理程度越高，推理 token 越多（计入输出）。');
-    case 'cjk-higher': return ui('中文资料的实际 token 通常更接近上限。');
+    case 'cjk-higher': return ui('中文内容的实际 token 通常更接近上限。');
     case 'transcript-estimated': return ui('转写稿的长度按正常语速、英文讲课估算；中文讲课的转写稿更短，但每个字的 token 更多。');
     case 'transcribe-separate': return ui('转写本身按音频时长计，不在这里；见「音频转录」页的用量与额度。');
     default: return '';

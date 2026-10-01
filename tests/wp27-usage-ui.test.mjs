@@ -237,6 +237,12 @@ test('a case paper, a rubric answer and a lesson each carry their estimate where
   assert.match(english, /Token usage 2,111,680 tok/);
 });
 
+test('the panel bundle takes no Node module: the usage components build for the browser', async () => {
+  const result = await build({ stdin: { contents: `export * from './ui/TokenUsage.jsx'; export * from './ui/GenerationTrace.jsx';`, resolveDir: process.cwd() },
+    bundle: true, write: false, platform: 'browser', format: 'esm', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  assert.ok(result.outputFiles[0].text.includes('data-token-usage'));
+});
+
 test('nothing this work package ships mentions a price or a currency', async () => {
   const files = ['lib/token-usage.js', 'lib/token-estimate.js', 'lib/model-usage.js', 'lib/usage-scope.js', 'ui/token-usage.js', 'ui/TokenUsage.jsx', 'ui/token-usage.css', 'ui/locales/en.usage.json'];
   for (const file of files) {

@@ -7,6 +7,7 @@
   gap: var(--space-2);
   min-width: 0;
 }
+:is(.study-app, .study-seat) .token-usage:not(.token-usage--inline) { max-width: 34rem; }
 :is(.study-app, .study-seat) .token-usage__rows {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -98,7 +99,6 @@
 :is(.study-app, .study-seat) .job-usage { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
 :is(.study-app, .study-seat) .job-usage__title { font-size: var(--fs-sm); }
 :is(.study-app, .study-seat) .job-usage__expected { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .generation-trace .step-usage { margin-inline-start: var(--space-2); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
 /* ── 模型用量 in 学习统计 ──────────────────────────────────────────────── */
 :is(.study-app, .study-seat) .model-usage { display: grid; gap: var(--space-3); }
