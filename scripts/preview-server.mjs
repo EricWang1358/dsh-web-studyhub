@@ -154,7 +154,7 @@ export async function createPreviewServer({ libraryRoot, port = 4178, model = nu
         if (typeof action !== "string") throw new Error("An action is required");
         const result = await host.call(action, args);
         if (result.ok) json(res, 200, { ok: true, value: result.value });
-        else json(res, 400, { ok: false, error: result.error?.message || "Study request failed" });
+        else json(res, 400, { ok: false, error: result.error?.message || "Study request failed", code: result.error?.code });
         return;
       }
       if (req.method !== "GET") {
@@ -205,6 +205,6 @@ export async function previewCall({ url, token }, action, args = {}) {
     body: JSON.stringify({ action, args }),
   });
   const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
-  if (!body.ok) throw new Error(body.error);
+  if (!body.ok) throw Object.assign(new Error(body.error), { code: body.code });
   return body.value;
 }
