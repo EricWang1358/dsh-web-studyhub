@@ -4,6 +4,7 @@ import CourseField, { parseCourses } from './CourseField.jsx';
 import { Button, FileDrop, InlineMessage } from './components/index.js';
 import { AudioSetupGate, requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
+import { TokenEstimate } from './TokenUsage.jsx';
 import { dismissJobs, useQuickActions } from './quick-actions.js';
 import settingsCss from './audio-settings.css';
 
@@ -621,6 +622,9 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
   }
   function replaceFile(index) { remove(index); picker.current?.click(); }
   const notes = preflightNotes(files, checks, confirmed);
+  // The text steps of the recordings (WP27); transcription is counted in minutes on its own page.
+  const audioMinutes = Math.round(audioFiles.reduce((sum, file) => sum + (checks[file.key]?.seconds || 0), 0) / 60);
+  const termCount = terms.split(/[\n,，、;；]+/).map((term) => term.trim()).filter(Boolean).length;
   const percent = upload?.size ? Math.min(100, Math.round((upload.sent / upload.size) * 100)) : 0;
   return (
     <div className="pdf-import audio-import">
@@ -715,6 +719,8 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
           <input type="checkbox" checked={paidOnly} onChange={(e) => setPaidOnly(e.target.checked)} disabled={busy} />
           {ui("只用付费密钥（免费额度下，Google 可能用内容改进产品）")}
         </label>
+        <TokenEstimate call={call} enabled={audioMinutes > 0}
+          request={{ feature: "audio", minutes: audioMinutes, language: "en", terms: termCount, subject: subject.trim() }} />
         <div className="audio-submit">
           <button className="primary" disabled={busy || !!upload || starting || audioFiles.some(file => checks[file.key]?.checking)}>{starting ? ui("正在检查…") : ui("开始导入")}</button>
           {submitError && <InlineMessage action={openSettings && aboutSettings(submitError) ? { label: ui('打开音频设置'), onClick: openSettings } : undefined}

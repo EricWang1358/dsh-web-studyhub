@@ -14,11 +14,15 @@ const compiled = await build({ stdin: { contents: `
   export { TokenUsage, TokenEstimateView, JobUsage, ModelUsageView } from './ui/TokenUsage.jsx';
   export { default as Generate } from './ui/Generate.jsx';
   export { default as GenerationTrace } from './ui/GenerationTrace.jsx';
+  export { default as GenerateAssist } from './ui/GenerateAssist.jsx';
+  export { default as CaseCreate } from './ui/CaseCreate.jsx';
+  export { RubricAnswer } from './ui/CaseWorkspace.jsx';
+  export { default as WorkflowLesson } from './ui/WorkflowLesson.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { format, TokenUsage, TokenEstimateView, JobUsage, ModelUsageView, Generate, GenerationTrace, setUiLanguage } = module.exports;
+const { format, TokenUsage, TokenEstimateView, JobUsage, ModelUsageView, Generate, GenerationTrace, GenerateAssist, CaseCreate, RubricAnswer, WorkflowLesson, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const render = (element) => renderToStaticMarkup(element);
@@ -200,6 +204,37 @@ test('the 创建题组 form carries the estimate where the summary line is, only
   assert.match(selected, /data-token-estimate/);
   const none = render(React.createElement(Generate, { ...base, selectedSources: [] }));
   assert.doesNotMatch(none, /data-token-estimate/);
+});
+
+test('帮我想想 carries its own tiny estimate slot', () => {
+  setUiLanguage('zh');
+  const html = render(React.createElement(GenerateAssist, { ready: true, estimate: React.createElement('i', { 'data-slot': 'estimate' }) }));
+  assert.match(html, /data-slot="estimate"/);
+  assert.doesNotMatch(render(React.createElement(GenerateAssist, { ready: true })), /data-slot/);
+});
+
+test('a case paper, a rubric answer and a lesson each carry their estimate where the action is', () => {
+  setUiLanguage('zh');
+  const caseData = { root: 'r', sources: [{ id: 's1', title: 'notes', text: 'x'.repeat(500) }], focus: { courses: [] }, courses: [], model: { ready: true } };
+  const caseForm = (initial) => render(React.createElement(CaseCreate, { data: caseData, busy: false, act() {}, call: () => Promise.resolve({}), setNotice() {}, initial }));
+  assert.match(caseForm({ sourceIds: ['s1'] }), /data-token-estimate/, 'sources chosen: the paper can be priced');
+  assert.doesNotMatch(caseForm({ sourceIds: [] }), /data-token-estimate/);
+  const run = { id: 'run', deckId: 'deck', card: { id: 'card', kind: 'open', prompt: 'Why bridge?', marks: 6, rubricCriteria: [{ id: 'c1', label: 'L', marks: 6 }] } };
+  const answer = (value) => render(React.createElement(RubricAnswer, { run, data: caseData, value, call: () => Promise.resolve({}), onChange() {}, onSubmit() {} }));
+  assert.match(answer('My answer'), /data-token-estimate/);
+  assert.doesNotMatch(answer(''), /data-token-estimate/, 'nothing typed, nothing to grade');
+  const lesson = (record) => render(React.createElement(WorkflowLesson, { topic: '缓存', content: '', record, resources: { modelReady: true }, disabled: false,
+    onTeach() {}, onUndo() {}, call: () => Promise.resolve({}), sessionId: 'session', stepId: 'lesson' }));
+  assert.match(lesson({}), /data-token-estimate/, 'the empty lesson shows what the full explanation is expected to use');
+  const done = text(render(React.createElement(WorkflowLesson, { topic: '缓存', content: '## 讲解\n\n内容', resources: { modelReady: true }, disabled: false, onTeach() {}, onUndo() {},
+    record: { teaching: { status: 'done', tokenUsage: session } } })));
+  assert.match(done, /本次讲解的用量/);
+  assert.match(done, /Token 用量 2,111,680 tok/);
+  setUiLanguage('en');
+  const english = text(render(React.createElement(WorkflowLesson, { topic: 'Cache', content: '## Lesson\n\nbody', resources: { modelReady: true }, disabled: false, onTeach() {}, onUndo() {},
+    record: { teaching: { status: 'done', tokenUsage: session } } })));
+  assert.match(english, /Usage of this lesson/);
+  assert.match(english, /Token usage 2,111,680 tok/);
 });
 
 test('nothing this work package ships mentions a price or a currency', async () => {

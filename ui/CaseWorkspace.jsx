@@ -6,6 +6,7 @@ import { usePageScope } from "./PageScope.jsx";
 import { createWriteQueue } from "./async.js";
 import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
+import { TokenEstimate } from "./TokenUsage.jsx";
 import { Button, Dialog, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, SetupRequired } from "./components/index.js";
 import { ExamSetupCard } from "./ExamShell.jsx";
 import {
@@ -133,7 +134,7 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
  * An open question with rubric criteria: write the answer, then 提交批改 (a
  * background grading task); the per-criterion result replaces self-rating.
  */
-export function RubricAnswer({ run, data, value = "", onChange, onSubmit, busy, task, onSetupModel }) {
+export function RubricAnswer({ run, data, value = "", onChange, onSubmit, busy, task, onSetupModel, call }) {
   useInjectCss(css, "study-case-workspace");
   const card = run.card, rubric = run.feedback?.rubric;
   const model = modelReadiness(data);
@@ -179,6 +180,9 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, busy, 
               : <InlineMessage tone="warning" action={{ label: ui("打开模型设置"), onClick: onSetupModel }}>
                 {ui("批改需要先配置 AI 模型；你的回答会先保存在本机。")}</InlineMessage>}
           </div>
+          {/* What marking this answer is expected to use: the case, the rubric and the answer as typed (WP27). */}
+          <TokenEstimate call={call} enabled={!!call && !!draft.trim() && !rubric}
+            request={{ feature: "grade", deckId: run.deckId, cardId: card.id, answerChars: draft.length }} />
           {grading && <p className="assist-status" role="status"><i className="assist-spin" aria-hidden="true" />
             {ui("正在按评分标准逐项批改：完成后结果显示在这里，也会进信箱。可以先去做别的题。")}</p>}
           {task?.status === "failed" && <InlineMessage>{uiFormat("批改没有完成：{0}。可以重新提交。", [task.message || ui("任务失败")])}</InlineMessage>}

@@ -557,7 +557,7 @@ export default function Review({
                 </>
               ) : rubricCard ? (
                 <>
-                  <RubricAnswer run={run} data={data} value={response} onChange={setResponse} busy={busy} task={gradeTask}
+                  <RubricAnswer run={run} data={data} call={call} value={response} onChange={setResponse} busy={busy} task={gradeTask}
                     onSubmit={(text) => assistCard("grade", text)} onSetupModel={() => setPage("settings")} />
                   {prereqStrip}
                 </>

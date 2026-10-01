@@ -158,7 +158,7 @@ export default function Generate({
       {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
@@ -275,6 +275,8 @@ export default function Generate({
                     onChange={(e) => setGen({ ...gen, focus: e.target.value })}
                     placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
                   <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
+                    estimate={<TokenEstimate call={call} enabled={model.ready && selectedSources.length > 0}
+                      request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
                     onAsk={askAssist}
                     onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
                     onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
