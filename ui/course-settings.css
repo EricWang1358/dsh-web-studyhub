@@ -6,6 +6,7 @@
 :is(.study-app, .study-seat) .course-settings__field { display: grid; gap: var(--space-1); margin: 0; min-width: 0; font-size: var(--fs-sm); color: var(--text-dim); }
 :is(.study-app, .study-seat) .course-settings__field > span:first-child { font-weight: 550; }
 :is(.study-app, .study-seat) .course-settings__field input { width: 100%; min-width: 0; }
+:is(.study-app, .study-seat) .course-settings__field .sh-seg { justify-self: start; max-width: 100%; flex-wrap: wrap; }
 :is(.study-app, .study-seat) .course-settings__number { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 :is(.study-app, .study-seat) .course-settings__number small { flex: none; font-size: var(--fs-xs); color: var(--text-muted); }
 :is(.study-app, .study-seat) .course-settings__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); min-width: 0; }
@@ -23,6 +24,7 @@
 :is(.study-app, .study-seat) .course-settings__confirm { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 :is(.study-app, .study-seat) .course-settings .sh-inline p { margin: var(--space-1) 0 0; }
 :is(.study-app, .study-seat) .course-settings__disclosure .sh-disclosure__body { display: grid; gap: var(--space-3); }
+:is(.study-app, .study-seat) .course-settings__disclosure .sh-disclosure__body > button { justify-self: start; }
 :is(.study-app, .study-seat) .course-settings__merge { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
 :is(.study-app, .study-seat) .course-settings__merge label { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); margin: 0; padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm); cursor: pointer; }

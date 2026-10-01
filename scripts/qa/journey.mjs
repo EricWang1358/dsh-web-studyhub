@@ -223,6 +223,9 @@ export const JOURNEY_STEPS = [
     if (deck.course !== name) {
       await j.api("deck.course", { id: deck.id, course: name });
       await j.api("focus.set", { course: name });
+      // A second course, so the panel offers a merge.
+      await j.api("source.add", { title: j.lang === "en" ? "Database reading" : "数据库阅读材料", text: sampleMaterial(j.lang).text,
+        courses: [j.lang === "en" ? "Database Systems" : "数据库系统"] });
       await j.reload();
     }
     await j.nav("library");
@@ -239,12 +242,26 @@ export const JOURNEY_STEPS = [
     await j.dialog().getByLabel(j.t("分值"), { exact: true }).first().fill("20");
     await j.dialog().getByLabel(j.t("考查知识点")).first().fill(j.lang === "en" ? "Microservices; Strangler fig" : "微服务；绞杀者模式");
     await j.shot("filled", { fullPage: true });
+    await j.dialog().locator(".course-settings__disclosure summary").last().click();
+    await j.dialog().locator(".course-settings__merge input[type=checkbox]").first().check();
+    await j.dialog().getByRole("button", { name: j.t("合并所选课程") }).click();
+    await j.dialog().getByRole("button", { name: j.t("确认合并") }).scrollIntoViewIfNeeded();
+    await j.settle();
+    await j.shot("merge-confirm");
+    await j.dialog().getByRole("button", { name: j.t("取消"), exact: true }).first().click();
     await j.dialog().getByRole("button", { name: j.t("保存课程信息") }).click();
     await j.until(async () => (await j.snapshot()).courses?.some((course) => course.name === name && course.exam?.date === date), "the exam profile is saved");
     await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the panel closes after saving");
     await j.page.locator(".course-heading-exam").first().waitFor({ timeout: 15000 });
     await j.settle();
     await j.shot("heading");
+    // Course pickers list existing courses first.
+    await j.openAddSource();
+    await j.dialog().locator(".course-field__picks").first().waitFor({ timeout: 10000 });
+    await j.settle();
+    await j.shot("import-course-picks");
+    await j.page.keyboard.press("Escape");
+    await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the add-material dialog closes");
     await j.nav("settings");
     await j.page.locator(".course-list").scrollIntoViewIfNeeded();
     await j.settle();

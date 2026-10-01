@@ -60,7 +60,8 @@ export function ExamCountdown({ course, now }) {
   </small>;
 }
 
-const countLine = course => [course.decks ? uiFormat('{0} 个题组', [course.decks]) : '', course.sources ? uiFormat('{0} 份资料', [course.sources]) : '']
+const counted = (count, one, many) => count === 1 ? ui(one) : uiFormat(many, [count]);
+const countLine = course => [course.decks ? counted(course.decks, '1 个题组', '{0} 个题组') : '', course.sources ? counted(course.sources, '1 份资料', '{0} 份资料') : '']
   .filter(Boolean).join(' · ');
 
 /** Settings: every course with its panel one click away. */

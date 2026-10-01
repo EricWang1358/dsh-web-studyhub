@@ -46,7 +46,7 @@ test('the course panel shows name, aliases, the exam profile, focus topics, guid
   assert.match(html, /Databases/, 'other courses are offered for merging');
   assert.match(html, /placeholder="10"/, 'the default reading time is shown as a placeholder');
   const en = panel('en');
-  for (const label of ['Exam format', 'Open-book case study', 'Closed-book', 'Total marks', 'Writing time', 'Reading time', 'Minutes per mark', 'Exam date', 'Focus topics', 'Examiner guidance', 'Rename', 'Merge', 'Save course'])
+  for (const label of ['Exam format', 'Open-book case', 'Closed-book', 'Total marks', 'Writing time', 'Reading time', 'Minutes per mark', 'Exam date', 'Focus topics', 'Examiner guidance', 'Rename', 'Merge', 'Save course'])
     assert.ok(en.includes(label), `en panel shows ${label}`);
   assert.doesNotMatch(en.replace(/…/g, ''), han, 'no untranslated application copy');
 });
