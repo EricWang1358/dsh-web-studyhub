@@ -7,7 +7,7 @@ import css from "./skeleton.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { InlineMessage } from "./components/index.js";
+import { InlineMessage, SegmentedControl } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
@@ -315,10 +315,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
           </div>
           <div className="sk-group-bar">
             {groups.length > 0 && (
-              <div className="sk-seg" role="group" aria-label={ui("主题视图")}>
-                <button type="button" className={byGroup ? "on" : ""} aria-pressed={byGroup} onClick={() => setByGroup(true)}>{ui("主题组")}</button>
-                <button type="button" className={!byGroup ? "on" : ""} aria-pressed={!byGroup} onClick={() => setByGroup(false)}>{ui("全部主题")}</button>
-              </div>
+              <SegmentedControl size="sm" label={ui("主题视图")} value={byGroup ? "group" : "all"} onChange={(next) => setByGroup(next === "group")}
+                options={[{ value: "group", label: ui("主题组") }, { value: "all", label: ui("全部主题") }]} />
             )}
             {topics && !groups.length && !loadFailed && (
               <button
@@ -578,12 +576,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 <button type="submit" disabled={!extendText.trim()}>{ui("✦ 发到对话")}</button>
               </form>
               {/* 脉络 reads in learning order; 结构图 keeps every relation. */}
-              <div className="sk-seg sk-view-switch" role="group" aria-label={ui("骨架视图")}>
-                <button type="button" className={skView === "spine" ? "on" : ""} aria-pressed={skView === "spine"}
-                  onClick={() => setSkView("spine")}>{ui("脉络")}</button>
-                <button type="button" className={skView === "canvas" ? "on" : ""} aria-pressed={skView === "canvas"}
-                  onClick={() => setSkView("canvas")}>{ui("结构图")}</button>
-              </div>
+              <SegmentedControl size="sm" className="sk-view-switch" label={ui("骨架视图")} value={skView} onChange={setSkView}
+                options={[{ value: "spine", label: ui("脉络") }, { value: "canvas", label: ui("结构图") }]} />
               {skView === "spine" ? (
                 <SkeletonSpine skeleton={viewing} onPractice={onPractice} />
               ) : (

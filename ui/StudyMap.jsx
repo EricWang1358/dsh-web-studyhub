@@ -5,7 +5,7 @@ import GenerationTrace from "./GenerationTrace.jsx";
 import { reviewedCardStatus } from "../lib/review-integrity.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import { useQuickActions } from "./quick-actions.js";
-import { Button, Disclosure, Icon, InlineMessage } from "./components/index.js";
+import { Button, Disclosure, Icon, InlineMessage, SegmentedControl } from "./components/index.js";
 import { describeFailure, documentCount, jobCode, jobHeadline, jobStageLabel, modelReadiness } from "./generation-status.js";
 import focusCss from "./focus.css";
 import homeCss from "./generate-home.css";
@@ -625,12 +625,9 @@ export default function StudyMap({
       <div className={"desk" + (plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <div className="desk-intro">
           {/* The study-mode switch matters once there is something to study (P12). */}
-          {(data.decks.length > 0 || interview) && <div className="focus-switch" role="group" aria-label={ui("学习模式")}>
-            <button className={!interview ? "active" : ""} aria-pressed={!interview}
-              onClick={() => onFocus?.({ mode: "class" })}>{ui("课堂跟学")}</button>
-            <button className={interview ? "active" : ""} aria-pressed={interview}
-              onClick={() => onFocus?.({ mode: "interview" })}>{ui("笔试 / 面试")}</button>
-          </div>}
+          {(data.decks.length > 0 || interview) && <SegmentedControl className="focus-switch" label={ui("学习模式")} value={interview ? "interview" : "class"}
+            onChange={(mode) => onFocus?.({ mode })}
+            options={[{ value: "class", label: ui("课堂跟学") }, { value: "interview", label: ui("笔试 / 面试") }]} />}
           {interview ? (
             <input className="course-heading-input" aria-label={ui("岗位方向")} placeholder={ui("输入岗位方向")}
               value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} onBlur={() => {
