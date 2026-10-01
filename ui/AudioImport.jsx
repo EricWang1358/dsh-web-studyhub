@@ -96,7 +96,36 @@ export function audioProgress(job, now = Date.now()) {
 
 function OpenAgent({ task, openAgent }) {
   return task.childId && openAgent
-    ? <button type="button" className="link-btn" onClick={() => openAgent(task.childId)}>{ui("查看子代理")}</button> : null;
+    ? <button type="button" className="link-btn" aria-label={uiFormat('查看子代理：{0}', [taskLabel(task)])}
+      onClick={() => openAgent(task.childId)}>{ui("查看子代理")}</button> : null;
+}
+
+function AudioTasks({ job, now, openAgent }) {
+  const tasks = job.tasks || [];
+  const active = isActive(job) ? tasks.filter(task => !task.finishedAt && ['starting', 'running', 'finishing'].includes(task.status)) : [];
+  const history = tasks.filter(task => !active.includes(task));
+  return <>
+    {active.length > 0 && <div className="audio-active-tasks">
+      <small>{uiFormat('正在执行 {0} 个任务', [active.length])}</small>
+      {active.map(task => <small className="audio-now" key={task.id}>
+        {uiFormat('正在做：{0}', [taskLabel(task)])}{ui(RUNTIME[task.runtime] || '')}
+        {` · ${ui(TASK_STATUS[task.status] || task.status)}`}{uiFormat(' · 已等待 {0}', [spent(now - Date.parse(task.startedAt))])}
+        <OpenAgent task={task} openAgent={openAgent} />
+      </small>)}
+    </div>}
+    {history.length > 0 && <details className="generation-trace audio-trace">
+      <summary>{uiFormat('查看历史任务 · {0} 次模型任务', [history.length])}</summary>
+      <ol>{[...history].reverse().map(task => <li key={task.id}>
+        <strong>{taskLabel(task)}</strong>
+        <small>{ui(TASK_STATUS[task.status] || task.status)}{ui(RUNTIME[task.runtime] || '')}
+          {task.finishedAt ? uiFormat(' · {0}', [spent(Date.parse(task.finishedAt) - Date.parse(task.startedAt))]) : ''}</small>
+        {task.note && <small className="warning">{task.note}</small>}
+        {task.reasoning && <small>{getUiLanguage() === 'en' ? 'Reasoning: ' : '推理：'}{task.reasoning}
+          {task.reasoningEffort && task.reasoningEffort !== task.reasoning ? ` → ${task.reasoningEffort}` : ''}</small>}
+        <OpenAgent task={task} openAgent={openAgent} />
+      </li>)}</ol>
+    </details>}
+  </>;
 }
 
 function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
@@ -109,8 +138,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
   }, [running]);
   const took = job.startedAt && job.status !== "queued" ? (running ? now : Date.parse(job.finishedAt || job.startedAt)) - Date.parse(job.startedAt) : null;
   const counted = ORDER.includes(job.phase) && job.total > 0;
-  const progress = audioProgress(job, now), tasks = job.tasks || [];
-  const current = running ? [...tasks].reverse().find((task) => !task.finishedAt) : null;
+  const progress = audioProgress(job, now);
   const usage = job.usage;
   const paidUsed = usage?.paid.requests > 0;
   const title = job.review
@@ -147,10 +175,6 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
                 {step?.total > 0 ? uiFormat(" 已完成 {0}/{1}", [step.done, step.total]) : ""}</li>;
             })}</ol>}
           </div>
-          {current && <small className="audio-now">
-            {uiFormat("正在做：{0}", [taskLabel(current)])}{ui(RUNTIME[current.runtime] || "")}{uiFormat(" · 已等待 {0}", [spent(now - Date.parse(current.startedAt))])}
-            <OpenAgent task={current} openAgent={openAgent} />
-          </small>}
           {progress.eta !== null
             ? <small className="muted">{uiFormat("本步骤预计还需{0}", [roughly(progress.eta)])}</small>
             : job.phase === "transcribe" && <small className="muted">{ui("转写要等 Google 处理完整段录音，长录音需要几分钟，不是卡住了；上面的「已用」时间在走。")}</small>}
@@ -158,10 +182,11 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
         {job.status === "failed" && <small className="warning">{job.stage}</small>}
         {job.members?.length > 0 && <ol className="audio-members">{job.members.map((member, index) => <li key={index}>
           <strong>{member.filename}</strong><small>{ui(TASK_STATUS[member.status] || PHASES[member.phase] || '排队中')}
-            {isActive(member) ? ` · ${ui(PHASES[member.phase] || '处理中')} · ${audioProgress(member, now).percent}%` : ''}
+            {isActive(member) && member.phase !== 'queued' ? ` · ${ui(PHASES[member.phase] || '处理中')} · ${audioProgress(member, now).percent}%` : ''}
             {member.status === 'failed' ? ` · ${member.stage || ''}` : ''}</small>
-          {member.tasks?.some(task => task.childId) && <details><summary>{uiFormat('查看执行过程 · {0} 次模型任务', [member.tasks.filter(task => task.childId).length])}</summary>
-            <ol>{member.tasks.filter(task => task.childId).map(task => <li key={task.id}><small>{taskLabel(task)}</small> <OpenAgent task={task} openAgent={openAgent} /></li>)}</ol></details>}
+          {ORDER.filter(phase => member.steps?.[phase]?.total > 0).map(phase => <small key={phase}>
+            {ui(TASK_KINDS[phase])}{uiFormat(' 已完成 {0}/{1}', [member.steps[phase].done, member.steps[phase].total])}</small>)}
+          <AudioTasks job={member} now={now} openAgent={openAgent} />
         </li>)}</ol>}
         {job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources && <button type="button" className="link-btn"
           onClick={() => onOpenSources(job.sourceIds)}>{ui('打开逐字稿')}</button>}
@@ -189,20 +214,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
           <small>{uiFormat("若全部走付费密钥，转写约 ${0}", [job.estimatedUsd])}</small>
         )}
         {(job.warnings || []).map((warning) => <small className="warning" key={warning}>{warning}</small>)}
-        {tasks.length > 0 && <details className="generation-trace audio-trace">
-          <summary>{uiFormat("查看执行过程 · {0} 次模型任务", [tasks.length])}</summary>
-          {openAgent && tasks.some((task) => task.runtime === "subagent") &&
-            <p className="muted">{ui("用 DSH 的模型处理文本时，每一段校对、翻译都是一个 DSH 子代理；点「查看子代理」能看到它的输出和工具调用。")}</p>}
-          <ol>{[...tasks].reverse().map((task) => <li key={task.id}>
-            <strong>{taskLabel(task)}</strong>
-            <small>{ui(TASK_STATUS[task.status] || task.status)}{ui(RUNTIME[task.runtime] || "")}
-              {task.finishedAt ? uiFormat(" · {0}", [spent(Date.parse(task.finishedAt) - Date.parse(task.startedAt))]) : uiFormat(" · 已等待 {0}", [spent(now - Date.parse(task.startedAt))])}</small>
-            {task.note && <small className="warning">{task.note}</small>}
-            {task.reasoning && <small>{getUiLanguage() === 'en' ? 'Reasoning: ' : '推理：'}{task.reasoning}
-              {task.reasoningEffort && task.reasoningEffort !== task.reasoning ? ` → ${task.reasoningEffort}` : ''}</small>}
-            <OpenAgent task={task} openAgent={openAgent} />
-          </li>)}</ol>
-        </details>}
+        <AudioTasks job={job} now={now} openAgent={openAgent} />
         {["running", "queued"].includes(job.status) &&
           <button type="button" disabled={busy} onClick={() => act("job.cancel", { jobId: job.id })}>{ui("停止（已转写的部分会保留）")}</button>}
         {["failed", "cancelled"].includes(job.status) && job.retryable &&

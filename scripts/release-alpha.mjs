@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-if (!manifest.version.includes('-alpha.')) throw new Error('This packaging command is for alpha releases');
+if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(manifest.version)) throw new Error('Release version must be a valid version number');
 const outputArg = process.argv.find(arg => arg.startsWith('--outdir='))?.slice('--outdir='.length);
 const target = outputArg ? resolve(root, outputArg) : resolve(root, 'output', `release-${manifest.version}`);
 await mkdir(target, { recursive: true });
