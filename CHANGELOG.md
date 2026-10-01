@@ -2,6 +2,12 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.1.3 — 2026-10-02
+
+- **The search extension now actually starts.** Its search server needs `apache-arrow`, which a database component lists only as a peer; DSH's plugin installer does not add peers, so the server stopped at launch and the extension stayed "installed" without running. The extension now declares it itself. If you installed the 2.1.2 extension, upgrade and restart DSH.
+- **Clearer extension install.** The install-script approval explains each component (the ONNX Runtime engine, the Protocol Buffers reader, the image library) and what its script does. A busy DSH plugin folder reads as "wait a minute, or restart DSH" instead of a lock-file error. Once installed but not yet running, the panel says "restart DSH to apply" and updates by itself when the extension comes up; it no longer also says that no search tool was found.
+- **Fixed a crash in scrolling panels** (React error #185) caused by repeatedly re-publishing unchanged fade edges.
+
 ## 2.1.2 — 2026-10-02
 
 - **Token usage, shown like DSH.** Before a run, generation, case papers, grading, 帮我想想, lessons and recordings show an estimate in DSH's own usage format (Token usage, cache hit, uncached input, cached input, cache write, output) built from the real prompts; afterwards each job shows its actual usage next to the estimate, and Statistics adds a model-usage panel for the last 7/30 days by feature. Tokens only, no prices. Big selections say plainly what is sent. See [token usage](docs/token-usage.md).
