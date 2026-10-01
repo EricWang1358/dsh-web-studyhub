@@ -12,7 +12,7 @@ import { schedule, initialReview, defaults } from '../lib/domain.js';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
-  export { default as Settings, CoachSection, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName } from './ui/Settings.jsx';
+  export { default as Settings, CoachSection, coachActions, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName } from './ui/Settings.jsx';
   export { default as AudioSettings, ProviderKeyForm, PROVIDERS } from './ui/AudioSettings.jsx';
   export { CourseList } from './ui/CourseSettings.jsx';
   export { OnboardingPanel } from './ui/tour/SampleControls.jsx';
@@ -21,7 +21,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { Settings, CoachSection, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName, AudioSettings, ProviderKeyForm, PROVIDERS,
+const { Settings, CoachSection, coachActions, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName, AudioSettings, ProviderKeyForm, PROVIDERS,
   CourseList, OnboardingPanel, previewSchedule, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const h = React.createElement;
@@ -191,4 +191,23 @@ test('a chosen backup shows its name, size and contents before the destructive c
   assert.match(html, /sh-btn--danger[\s\S]*?用此备份替换当前学习库/);
   const en = render(h(RestorePreview, { file: { name: 'b.json', size: 2048, state }, busy: false, onConfirm: noop, onCancel: noop }), 'en');
   assert.doesNotMatch(en, han);
+});
+
+test('changing the coach consent or goal reloads the profile outside the single-flight act', async () => {
+  const calls = [];
+  let acting = false;
+  // App's act is single-flight: a nested act() while one is running returns at once without calling.
+  const act = async (action, args, after) => {
+    if (acting) { calls.push(`skipped ${action}`); return undefined; }
+    acting = true; calls.push(action);
+    try { const result = { ok: true }; await after?.(result); return result; } finally { acting = false; }
+  };
+  const call = async (action) => { calls.push(`call ${action}`); return { ...profile, goal: 'work' }; };
+  let shown = null;
+  const { setConsent, setGoal } = coachActions({ act, call, setProfile: value => { shown = value; } });
+  await setGoal('work');
+  assert.deepEqual(calls, ['coach.goal', 'call coach.profile']);
+  assert.equal(shown.goal, 'work');
+  await setConsent(false);
+  assert.deepEqual(calls.slice(2), ['coach.consent', 'call coach.profile']);
 });

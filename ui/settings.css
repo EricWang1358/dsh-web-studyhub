@@ -106,6 +106,9 @@
 }
 @container study (max-width: 520px) {
   :is(.study-app, .study-seat) .settings-page .settings-section { margin-top: var(--space-6); }
+  /* The library row stacks: path and usage get the full width, 更换目录… goes below. */
+  :is(.study-app, .study-seat) .settings-page .binding-row { flex-direction: column; align-items: stretch; }
+  :is(.study-app, .study-seat) .settings-page .binding-actions { justify-content: flex-start; }
   :is(.study-app, .study-seat) .sm2-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   :is(.study-app, .study-seat) .sm2-input input { width: 100%; min-width: 0; }
   :is(.study-app, .study-seat) .backup-block { padding: var(--space-4); }

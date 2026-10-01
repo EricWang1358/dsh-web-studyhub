@@ -15,12 +15,28 @@ const GOALS = [["", "未设定"], ["exam", "应付考试"], ["interview", "面�
 
 /* ---------- 陪学 ---------- */
 
+/**
+ * The consent and goal toggles. App's act() is single-flight, so reloading the
+ * profile with a nested act() inside the first one's callback was skipped and
+ * the section kept showing the old profile; the reload uses call() instead.
+ */
+export function coachActions({ act, call, setProfile }) {
+  const reload = async () => {
+    const next = call ? await call("coach.profile", {}) : null;
+    if (next) setProfile(next);
+  };
+  return {
+    setConsent: (prep) => act("coach.consent", { prep }, reload),
+    setGoal: (goal) => act("coach.goal", { goal }, reload),
+  };
+}
+
 /** 陪学: what the profile changes, the goal, a short profile with a compact feedback row, and a confirmed reset. */
-export function CoachSection({ profile, busy, act, setProfile, setNotice, confirmForget = false }) {
+export function CoachSection({ profile, busy, act, call, setProfile, setNotice, confirmForget = false }) {
   const [expanded, setExpanded] = useState(false);
   const [confirm, setConfirm] = useState(confirmForget);
   const summaryId = useId();
-  const refresh = () => act("coach.profile", {}, setProfile);
+  const { setConsent, setGoal } = coachActions({ act, call, setProfile });
   const summary = profile.summary || "";
   const long = summary.length > 60;
   const updated = profile.updatedAt && Number.isFinite(Date.parse(profile.updatedAt))
@@ -34,9 +50,9 @@ export function CoachSection({ profile, busy, act, setProfile, setNotice, confir
       <p className="settings-section__note">{ui("画像只影响陪学：答错后的提示、追问、改题、强化变式题和每轮复盘的措辞与侧重；不影响出题和复习排期。")}</p>
       <label className="inline-check">
         <input type="checkbox" checked={profile.consent === true} disabled={busy}
-          onChange={(e) => act("coach.consent", { prep: e.target.checked }, refresh)} />{ui("做题时在后台准备变式题和应用场景题")}</label>
+          onChange={(e) => setConsent(e.target.checked)} />{ui("做题时在后台准备变式题和应用场景题")}</label>
       <div className="settings-field">
-        <label>{ui("学习目标")}<select value={profile.goal} disabled={busy} onChange={(e) => act("coach.goal", { goal: e.target.value }, refresh)}>
+        <label>{ui("学习目标")}<select value={profile.goal} disabled={busy} onChange={(e) => setGoal(e.target.value)}>
           {GOALS.map(([id, label]) => <option key={id} value={id}>{ui(label)}</option>)}
         </select></label>
         <small>{ui("提示语气与例子会贴近这个目标。")}</small>
@@ -276,7 +292,7 @@ export default function Settings({
       {coursePanel}
       {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
       {onboardingPanel}
-      {profile && <CoachSection profile={profile} busy={busy} act={act} setProfile={setProfile} setNotice={setNotice} />}
+      {profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}
       <fieldset className="settings-section">
         <legend className="settings-section__title">{ui("导入 study-lib-spar")}</legend>
         <p className="settings-section__lead">{ui("从已有本地学习库导入，保留可迁移的复习记录。")}</p>

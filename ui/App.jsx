@@ -1362,7 +1362,7 @@ export default function App({ call: transportCall, host = {} }) {
           <small>
             {binding.modelSource === "session"
               ? ui("与对话输入框选择的模型一致，切换后自动生效。")
-              : ui("只用于出题与讲解，不改变对话模型。")}{ui("生成时所选资料会发送给该模型；复习不调用模型。")}</small>
+              : ui("只用于出题与讲解，不改变对话模型。")}{language === "en" ? " " : ""}{ui("生成时所选资料会发送给该模型；复习不调用模型。")}</small>
         </label>
       </div>
       {modelDraft && (
