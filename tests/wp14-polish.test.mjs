@@ -12,7 +12,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
-  export { ScrollWindow, filterItems } from './ui/components/index.js';
+  export { ScrollWindow, filterItems, scrollEdges, edgeTracker } from './ui/components/index.js';
   export { default as CourseField, courseQuery, pickCourse } from './ui/CourseField.jsx';
   export { CourseList, default as CourseSettings } from './ui/CourseSettings.jsx';
   export { groupCourseNames, findDuplicateCourses, courseNameKey, splitCourseName, rankCourses } from './ui/course-names.js';
@@ -24,7 +24,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { ScrollWindow, filterItems, CourseField, courseQuery, pickCourse, rankCourses, CourseList, CourseSettings, groupCourseNames, findDuplicateCourses, courseNameKey,
+const { ScrollWindow, filterItems, scrollEdges, edgeTracker, CourseField, courseQuery, pickCourse, rankCourses, CourseList, CourseSettings, groupCourseNames, findDuplicateCourses, courseNameKey,
   splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, originalHandling, viewerFormat, sourceFormatLabel, LanguageSwitch, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -253,6 +253,32 @@ test('ScrollWindow filters with a live count', () => {
 test('ScrollWindow marks the active item for keeping it in view', () => {
   const html = windowOf({ activeKey: 'Cherry' });
   assert.match(html, /data-scroll-key="Cherry"[^>]*data-active="true"|data-active="true"[^>]*data-scroll-key="Cherry"/);
+});
+
+test('scrollEdges: more above once scrolled past 1px, more below until the last pixel', () => {
+  assert.deepEqual(scrollEdges({ scrollTop: 0, clientHeight: 280, scrollHeight: 280 }), { top: false, bottom: false });
+  assert.deepEqual(scrollEdges({ scrollTop: 1, clientHeight: 280, scrollHeight: 728 }), { top: false, bottom: true });
+  assert.deepEqual(scrollEdges({ scrollTop: 12, clientHeight: 280, scrollHeight: 728 }), { top: true, bottom: true });
+  assert.deepEqual(scrollEdges({ scrollTop: 448, clientHeight: 280, scrollHeight: 728 }), { top: true, bottom: false });
+});
+
+/* ScrollWindow measures after every commit. Publishing an unchanged value from there made React 18
+   (the DSH host's React) re-render it until "Maximum update depth exceeded" (error #185), which
+   crashed the whole panel when a course group in the add-material list was expanded. */
+test('edgeTracker publishes the fade edges only when they change, so a per-commit measure cannot loop', () => {
+  const published = [];
+  const measure = edgeTracker(edges => published.push(edges));
+  const view = (scrollTop, scrollHeight) => ({ scrollTop, clientHeight: 280, scrollHeight });
+  for (let pass = 0; pass < 5; pass++) measure(view(0, 280));
+  assert.deepEqual(published, [], 'a list that fits has nothing to fade and nothing to publish');
+  for (let pass = 0; pass < 5; pass++) measure(view(0, 728));
+  assert.deepEqual(published, [{ top: false, bottom: true }], 'a group expanded past the window: one change, not five');
+  for (let pass = 0; pass < 5; pass++) measure(view(12, 728));
+  measure(view(448, 728));
+  measure(view(448, 728));
+  assert.deepEqual(published, [{ top: false, bottom: true }, { top: true, bottom: true }, { top: true, bottom: false }]);
+  measure(view(0, 280));
+  assert.deepEqual(published.at(-1), { top: false, bottom: false }, 'collapsing the group clears the fades');
 });
 
 /* ---------- 4 · grouping and 5 · duplicates ---------- */
