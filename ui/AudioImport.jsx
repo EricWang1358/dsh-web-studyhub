@@ -1,10 +1,18 @@
-import { getUiLanguage, ui, uiFormat, uiLocale } from "./i18n.js";
+import { getUiLanguage, ui, uiFormat, uiLocale, uiMessage, useUiLanguage } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
 import CourseField, { parseCourses } from './CourseField.jsx';
+import { Button, FileDrop, InlineMessage } from './components/index.js';
+import { AudioSetupGate, requestAudioSettingsFocus } from './AudioSettings.jsx';
+import { useInjectCss } from './shared.js';
+import settingsCss from './audio-settings.css';
 
 /* 音频导入：录音 → 转写 → 校对识别错误的词 → 中英对照逐字稿，存为一份资料。
    这里只管导入；出题仍走「资料 → 生成」。转写在后台进行，进度来自快照里的
    audio-import 任务，取消后已转写的部分会保留，重新导入接着做。
+
+   还没有配置转写服务时，这里显示配置卡片而不是拖放区（字幕文件不需要转写，仍可导入），
+   文件也不会开始上传。选好文件后先做预检：格式、时长、要几次请求；超过 1 小时的录音
+   给出「无损分段并继续」，读不了的文件给出「跳过此文件继续 / 换一个文件」，其余文件写明在等谁。
 
    选文件不用输路径：拖进来或点击选择（浏览器把文件分块传给插件），从工作区里搜，
    或在对话输入框里用 @ 选。手输路径留在「高级」里。 */
@@ -24,6 +32,8 @@ const unquote = (value) => value.trim().replace(/^"(.*)"$/, "$1").trim();
 const extensionOf = (name) => name.slice(name.lastIndexOf(".")).toLowerCase();
 const baseName = (path) => path.replace(/^.*[\\/]/, "");
 const isAbsolutePath = (value) => /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("/") || value.startsWith("\\\\");
+/** A failure that the audio settings can fix: offer the way there. */
+const aboutSettings = (message) => /设置|密钥|Settings|API key|\bkey\b/i.test(String(message || ""));
 export const formatSize = (bytes = 0) => (bytes >= 1024 * 1024 * 1024 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 * 1024 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 const toBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -50,19 +60,26 @@ const spent = (ms) => {
   const total = Math.max(0, Math.floor(ms / 1000)), minutes = Math.floor(total / 60);
   return minutes ? uiFormat("{0} 分 {1} 秒", [minutes, total % 60]) : uiFormat("{0} 秒", [total]);
 };
-const requestsOf = (usage) => (usage?.free?.requests || 0) + (usage?.paid?.requests || 0); // Gemini requests; Groq has its own line
+const requestsOf = (usage) => (usage?.free?.requests || 0) + (usage?.paid?.requests || 0); // Gemini requests; Groq and SiliconFlow have their own lines
 const roughly = (ms) => (ms < 45000 ? ui("不到 1 分钟") : uiFormat("约 {0} 分钟", [Math.max(1, Math.round(ms / 60000))]));
 
 /** The work in the order it happens, and how much of the whole each part usually is. */
 const ORDER = ["transcribe", "proofread", "translate"];
 const WEIGHT = { transcribe: 0.25, proofread: 0.3, translate: 0.45 };
 const TASK_KINDS = { transcribe: "转写", proofread: "校对", translate: "翻译", title: "生成标题" };
-const TASK_STATUS = { starting: "启动中", running: "执行中", finishing: "结果已返回，正在结束子会话", complete: "已完成", failed: "失败", cancelled: "已取消" };
+const TASK_STATUS = { starting: "启动中", running: "执行中", finishing: "结果已返回，正在结束子会话", complete: "已完成", failed: "失败", cancelled: "已取消", skipped: "已跳过" };
 const RUNTIME = { subagent: " · DSH 子代理", direct: " · 直接模型调用", gemini: " · Gemini" };
 const taskLabel = (task) => {
   const kind = ui(TASK_KINDS[task.kind] || task.stage || "");
   return task.parts ? uiFormat("{0} {1}/{2}", [kind, task.part, task.parts]) : kind;
 };
+
+/** Whether proofreading or translation actually ran for this job (or any member of a batch). */
+export function textStepsRan(job = {}) {
+  if (["proofread", "translate"].some((phase) => job.steps?.[phase]?.done > 0)) return true;
+  if ((job.tasks || []).some((task) => ["proofread", "translate"].includes(task.kind) && task.status === "complete")) return true;
+  return (job.members || []).some((member) => textStepsRan(member));
+}
 
 /**
  * Overall progress from the real step counts: each phase counts for its share of the work, and inside a phase it is
@@ -128,7 +145,17 @@ function AudioTasks({ job, now, openAgent }) {
   </>;
 }
 
-function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
+/** One batch member's state in words: why it has not started, or how far it is. */
+function memberState(member, jobActive, now) {
+  if (member.status === 'blocked') return { text: uiFormat('未通过预检：{0}', [uiMessage(member.stage || '')]), reason: true };
+  if (member.status === 'waiting') return { text: uiFormat('因「{0}」未通过预检尚未开始', [member.waitingFor || '']), reason: true };
+  if (member.status === 'queued' && !jobActive) return { text: ui('未开始') };
+  return { text: <>{ui(TASK_STATUS[member.status] || PHASES[member.phase] || '排队中')}
+    {isActive(member) && member.phase !== 'queued' ? ` · ${ui(PHASES[member.phase] || '处理中')} · ${audioProgress(member, now).percent}%` : ''}
+    {member.status === 'failed' ? ` · ${member.stage || ''}` : ''}</> };
+}
+
+function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onOpenSettings }) {
   // The length of the recording is not how long the work takes: show how long it has actually taken.
   const running = isActive(job), [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -141,6 +168,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
   const progress = audioProgress(job, now);
   const usage = job.usage;
   const paidUsed = usage?.paid.requests > 0;
+  const held = job.status === "failed" && job.blocked && job.members?.length > 0;
   const title = job.review
     ? job.status === "complete" ? uiFormat("复核完成：改进正稿 {0} 处 · 判定原文无误 {1} 处 · 仍拿不准 {2} 处", [job.review.applied, job.review.rejected, job.review.unsure])
       : job.status === "failed" ? ui("复核未完成；已复核的部分已保存")
@@ -149,7 +177,8 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
             : job.total > 0 ? uiFormat("复核存疑处（{0}/{1}）", [Math.min(job.done + 1, job.total), job.total]) : ui("复核存疑处")
     : job.status === "complete"
     ? job.reused ? ui("已导入过，直接复用") : uiFormat("已存为 {0} 份资料 · 校对修正 {1} 处", [job.sourceIds?.length ?? 0, job.corrected ?? 0])
-    : job.status === "failed" ? ui("导入未完成")
+    : held ? ui("有文件没通过预检，这一批还没开始")
+      : job.status === "failed" ? ui("导入未完成")
       : job.status === "cancelled" ? ui("导入已取消")
         : job.status === "cancelling" ? ui("正在停止")
           : counted ? uiFormat("{0}（{1}/{2}）", [ui(PHASES[job.phase]), Math.min(job.done + 1, job.total), job.total]) : ui(PHASES[job.phase] || "处理中");
@@ -160,7 +189,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
       <div>
         <strong>{job.filename}</strong>
         <small>{title}{job.minutes ? uiFormat(" · 录音时长 {0} 分钟", [job.minutes]) : ""}
-          {took !== null && (running || job.finishedAt) ? uiFormat(running ? " · 已用 {0}" : " · 用时 {0}", [spent(took)]) : ""}</small>
+          {took !== null && (running || job.finishedAt) && !held ? uiFormat(running ? " · 已用 {0}" : " · 用时 {0}", [spent(took)]) : ""}</small>
         {running && job.phase !== "queued" && <div className="audio-progress">
           <div className="audio-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent}
             title={ui("总进度按步骤估算：转写 25% · 校对 30% · 翻译 45%；每一步里按已完成的段数计算。")}>
@@ -169,7 +198,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
           </div>
           <div className="audio-progress-line">
             <strong>{progress.percent}%</strong>
-            {job.members ? <small>{uiFormat('已完成 {0}/{1} 段音频', [job.members.filter(member => member.status === 'complete').length, job.members.length])}</small> : <ol className="audio-steps">{order.map((phase) => {
+            {job.members ? <small>{uiFormat('已完成 {0}/{1} 段音频', [job.members.filter(member => member.status === 'complete').length, job.members.filter(member => member.status !== 'skipped').length])}</small> : <ol className="audio-steps">{order.map((phase) => {
               const step = job.steps?.[phase], state = step?.total > 0 && step.done >= step.total ? "done" : job.phase === phase ? "current" : "todo";
               return <li key={phase} className={state}>{state === "done" ? "✓ " : ""}{ui(TASK_KINDS[phase])}
                 {step?.total > 0 ? uiFormat(" 已完成 {0}/{1}", [step.done, step.total]) : ""}</li>;
@@ -177,17 +206,19 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
           </div>
           {progress.eta !== null
             ? <small className="muted">{uiFormat("本步骤预计还需{0}", [roughly(progress.eta)])}</small>
-            : job.phase === "transcribe" && <small className="muted">{ui("转写要等 Google 处理完整段录音，长录音需要几分钟，不是卡住了；上面的「已用」时间在走。")}</small>}
+            : job.phase === "transcribe" && <small className="muted">{ui("转写要等服务商处理完整段录音，长录音需要几分钟，不是卡住了；上面的「已用」时间在走。")}</small>}
         </div>}
-        {job.status === "failed" && <small className="warning">{job.stage}</small>}
-        {job.members?.length > 0 && <ol className="audio-members">{job.members.map((member, index) => <li key={index}>
-          <strong>{member.filename}</strong><small>{ui(TASK_STATUS[member.status] || PHASES[member.phase] || '排队中')}
-            {isActive(member) && member.phase !== 'queued' ? ` · ${ui(PHASES[member.phase] || '处理中')} · ${audioProgress(member, now).percent}%` : ''}
-            {member.status === 'failed' ? ` · ${member.stage || ''}` : ''}</small>
-          {ORDER.filter(phase => member.steps?.[phase]?.total > 0).map(phase => <small key={phase}>
-            {ui(TASK_KINDS[phase])}{uiFormat(' 已完成 {0}/{1}', [member.steps[phase].done, member.steps[phase].total])}</small>)}
-          <AudioTasks job={member} now={now} openAgent={openAgent} />
-        </li>)}</ol>}
+        {job.status === "failed" && <small className="warning">{job.stage}
+          {onOpenSettings && aboutSettings(job.stage) && <> <button type="button" className="link-btn" onClick={onOpenSettings}>{ui('打开音频设置')}</button></>}</small>}
+        {job.members?.length > 0 && <ol className="audio-members">{job.members.map((member, index) => {
+          const state = memberState(member, running, now);
+          return <li key={index}>
+            <strong>{member.filename}</strong><small className={state.reason ? 'audio-member-reason' : undefined}>{state.text}</small>
+            {ORDER.filter(phase => member.steps?.[phase]?.total > 0).map(phase => <small key={phase}>
+              {ui(TASK_KINDS[phase])}{uiFormat(' 已完成 {0}/{1}', [member.steps[phase].done, member.steps[phase].total])}</small>)}
+            <AudioTasks job={member} now={now} openAgent={openAgent} />
+          </li>;
+        })}</ol>}
         {job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources && <button type="button" className="link-btn"
           onClick={() => onOpenSources(job.sourceIds)}>{ui('打开逐字稿')}</button>}
         {["failed", "cancelled"].includes(job.status) && savedSteps(job.steps) && <small>{uiFormat("已保存：{0}", [savedSteps(job.steps)])}</small>}
@@ -201,6 +232,9 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
             {paidUsed && usage.estimatedPaidTranscribeUsd > 0 ? uiFormat(" · 转写付费部分约 ${0}", [usage.estimatedPaidTranscribeUsd]) : ""}
           </small>
         )}
+        {usage?.siliconflow?.requests > 0 && (
+          <small>{uiFormat("硅基流动请求（免费，这份录音累计）：{0} 次", [usage.siliconflow.requests])}</small>
+        )}
         {usage?.groq?.requests > 0 && (
           <small>{uiFormat("Groq 请求（免费额度，这份录音累计）：{0} 次", [usage.groq.requests])}</small>
         )}
@@ -209,7 +243,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
             ? ui("这次没有新发 Gemini 请求：已保存的转写等结果直接复用了")
             : uiFormat("其中本次：免费 {0} 次 · 付费 {1} 次", [job.usageRun.free.requests, job.usageRun.paid.requests])}</small>
         )}
-        {usage && job.textProvider === "host" && <small className="muted">{ui("校对和翻译由 DSH 的模型完成，不在上面的 Gemini 次数里")}</small>}
+        {usage && job.textProvider === "host" && textStepsRan(job) && <small className="muted">{ui("校对和翻译由 DSH 的模型完成，不在上面的 Gemini 次数里")}</small>}
         {isActive(job) && !job.reused && job.estimatedUsd > 0 && (
           <small>{uiFormat("若全部走付费密钥，转写约 ${0}", [job.estimatedUsd])}</small>
         )}
@@ -217,7 +251,12 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
         <AudioTasks job={job} now={now} openAgent={openAgent} />
         {["running", "queued"].includes(job.status) &&
           <button type="button" disabled={busy} onClick={() => act("job.cancel", { jobId: job.id })}>{ui("停止（已转写的部分会保留）")}</button>}
-        {["failed", "cancelled"].includes(job.status) && job.retryable &&
+        {held && job.retryable && <div className="audio-job-actions">
+          <Button variant="primary" size="sm" disabled={busy} onClick={() => act("audio.retry", { jobId: job.id, skip: [job.blocked.index] })}>{ui("跳过此文件继续")}</Button>
+          <Button size="sm" disabled={busy} title={ui("修好这个文件或音频设置后，从头再检查一遍；已完成的部分不会重复付费")}
+            onClick={() => act("audio.retry", { jobId: job.id })}>{ui("修复后继续")}</Button>
+        </div>}
+        {!held && ["failed", "cancelled"].includes(job.status) && job.retryable &&
           <button type="button" className="primary" disabled={busy} title={ui("已转写、校对、翻译好的部分会直接复用，不会重复付费；也不用重新选文件")}
             onClick={() => act("audio.retry", { jobId: job.id })}>{ui("接着做（不重复付费）")}</button>}
         {job.legacy && onLegacyRetry && <button type="button" className="primary" disabled={busy}
@@ -273,9 +312,10 @@ export function AudioCorrections({ audio, onReview }) {
 }
 
 /** Progress and results of audio imports; shown in the add-source form and at the top of the sources page. */
-export function AudioJobs({ data, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
+export function AudioJobs({ data, busy, act, openAgent, onOpenSources, onLegacyRetry, onOpenSettings }) {
   const jobs = (data.jobs || []).filter((job) => job.type === "audio-import");
-  return jobs.length ? <div className="jobs audio-jobs">{jobs.map((job) => <AudioJob key={job.id} job={job} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} />)}</div> : null;
+  return jobs.length ? <div className="jobs audio-jobs">{jobs.map((job) => <AudioJob key={job.id} job={job} busy={busy} act={act} openAgent={openAgent}
+    onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onOpenSettings={onOpenSettings} />)}</div> : null;
 }
 
 /** Search the session workspace for audio, like @ in the composer: type a few letters, pick one. */
@@ -316,21 +356,88 @@ function WorkspaceAudio({ call, onPick }) {
   );
 }
 
-export default function AudioImport({ data, busy, act, call, setNotice, askInChat, canAsk = false, openAgent, onOpenSources, initialFile = null, initialFiles, defaultCourse, defaultCourses, recoveryJobId = '', onRecoveryChange }) {
-  const [files, setFiles] = useState(() => (initialFiles || (initialFile ? [initialFile] : [])).map((file, index) => ({ ...file, key: `initial-${index}` }))), [upload, setUpload] = useState(null), [dragging, setDragging] = useState(false);
+/**
+ * The pre-flight result of each chosen file, in words: a long recording offers a lossless split (the learner confirms
+ * the extra requests), a file that cannot be imported says why, and every other file says whom it is waiting for.
+ * checks: key → pre-flight probe ({ blocked, issue, seconds, requests }) or { checking: true }; confirmed: keys whose split was accepted.
+ */
+export function preflightNotes(files, checks = {}, confirmed = new Set()) {
+  const notes = {}, audio = files.filter((file) => file.kind !== 'subtitle');
+  const blocker = audio.find((file) => checks[file.key]?.blocked);
+  const pending = audio.find((file) => checks[file.key]?.issue?.code === 'long-split' && !confirmed.has(file.key));
+  for (const file of audio) {
+    const check = checks[file.key];
+    if (!check) notes[file.key] = null;
+    else if (check.checking) notes[file.key] = { kind: 'checking', text: ui('正在检查…') };
+    else if (check.blocked) notes[file.key] = { kind: 'blocked', text: uiMessage(check.issue?.message || ui('这个文件不能导入')) };
+    else if (check.issue?.code === 'long-split') {
+      const { minutes, parts, requests } = check.issue;
+      notes[file.key] = confirmed.has(file.key)
+        ? { kind: 'split-confirmed', text: uiFormat('将无损分成 {0} 段转写（占用 {1} 次请求）', [parts, requests ?? parts]) }
+        : { kind: 'split', text: uiFormat('约 {0} 分钟，超过单次 1 小时上限 → 无损分成 {1} 段转写（占用 {2} 次请求）', [minutes, parts, requests ?? parts]) };
+    } else if (blocker) notes[file.key] = { kind: 'held', text: uiFormat('因「{0}」未通过预检尚未开始', [blocker.name]) };
+    else if (pending) notes[file.key] = { kind: 'waiting', text: uiFormat('等待「{0}」处理', [pending.name]) };
+    else notes[file.key] = { kind: 'ok', text: check.seconds ? uiFormat('约 {0} 分钟 · {1} 次转写请求', [Math.max(1, Math.round(check.seconds / 60)), check.requests || 1]) : ui('可以导入') };
+  }
+  return notes;
+}
+const inputOf = (file) => (file.kind === 'upload' ? { uploadId: file.uploadId } : { path: file.path });
+const withoutFiles = (result) => { const status = { ...result }; delete status.files; return status; };
+
+export default function AudioImport({ data, busy, act, call, setNotice, askInChat, canAsk = false, openAgent, onOpenSources, initialFile = null, initialFiles, defaultCourse, defaultCourses, recoveryJobId = '', onRecoveryChange,
+  onOpenSettings, initialReadiness = null, initialChecks }) {
+  useInjectCss(settingsCss, 'study-audio-settings');
+  const language = useUiLanguage();
+  const [files, setFiles] = useState(() => (initialFiles || (initialFile ? [initialFile] : [])).map((file, index) => ({ ...file, key: file.key || `initial-${index}` }))), [upload, setUpload] = useState(null);
   const [pathText, setPathText] = useState(""), [problem, setProblem] = useState("");
   const [subject, setSubject] = useState(""), [terms, setTerms] = useState(""), [title, setTitle] = useState('');
   const [chosenCourse, setCourse] = useState(undefined), [paidOnly, setPaidOnly] = useState(false);
+  // Pre-flight: whether a transcription provider is configured (null until known), and each chosen file's check.
+  const [readiness, setReadiness] = useState(initialReadiness), [checks, setChecks] = useState(initialChecks || {});
+  const [confirmed, setConfirmed] = useState(() => new Set()), [submitError, setSubmitError] = useState(''), [starting, setStarting] = useState(false);
   const course = chosenCourse ?? defaultCourses?.join('; ') ?? defaultCourse ?? data.focus?.course ?? '';
   const picker = useRef(null), cancelled = useRef(false), uploadId = useRef("");
-  const pendingUploads = useRef(new Set()), nextKey = useRef(0), moving = useRef(null), sending = useRef(false);
+  const pendingUploads = useRef(new Set()), nextKey = useRef(0), moving = useRef(null), sending = useRef(false), checking = useRef(0);
   const courses = data.focus?.courses?.map(item => item.name) || [...new Set((data.decks || []).map((deck) => deck.course).filter(Boolean))];
+  const openSettings = onOpenSettings ? () => { requestAudioSettingsFocus(); onOpenSettings(); } : undefined;
   // Only unsubmitted uploads belong to this form; a submitted batch owns durable copies.
   useEffect(() => {
     const owned = pendingUploads.current;
     return () => { cancelled.current = true; for (const uploadId of owned) if (call) void call('audio.upload.cancel', { uploadId }).catch(() => {}); };
   }, [call]);
+  /** Ask the plugin what is configured; nothing is sent to a provider. */
+  const refreshReadiness = async () => {
+    if (!call) return null;
+    try {
+      const result = await call("audio.preflight", {});
+      if (!result || typeof result !== 'object') return null;
+      const status = withoutFiles(result);
+      setReadiness(status);
+      return status;
+    } catch { return null; }
+  };
+  useEffect(() => {
+    if (!initialReadiness) void refreshReadiness();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call]);
+  // Check the chosen recordings as soon as they are in the list, so a problem shows before the learner presses start.
+  const audioFiles = files.filter(file => file.kind !== 'subtitle');
+  const signature = audioFiles.map(file => file.key).join('|');
+  useEffect(() => {
+    if (!call || !audioFiles.length || initialChecks) return;
+    const run = ++checking.current;
+    setChecks(current => Object.fromEntries(audioFiles.map(file => [file.key, current[file.key] || { checking: true }])));
+    const timer = setTimeout(() => {
+      void call("audio.preflight", { files: audioFiles.map(inputOf), ...(paidOnly ? { paidOnly: true } : {}) }).then(result => {
+        if (run !== checking.current || !Array.isArray(result?.files)) return;
+        setChecks(Object.fromEntries(audioFiles.map((file, index) => [file.key, result.files[index]])));
+      }, () => { if (run === checking.current) setChecks({}); });
+    }, 150);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, signature, paidOnly]);
   const append = file => setFiles(current => [...current, { ...file, key: `chosen-${++nextKey.current}` }]);
+  const gated = !!readiness && !readiness.transcription && !files.length && !upload && !recoveryJobId;
 
   const reject = (message) => { setProblem(message); return false; };
   function check(name, size) {
@@ -361,6 +468,9 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
     }
     if (files.some(file => file.kind === 'subtitle')) { setProblem(ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。")); return; }
     if (!call || sending.current || !chosenFiles.length || !chosenFiles.every(chosen => check(chosen.name, chosen.size))) return;
+    // No upload starts before a transcription provider is configured: a big file would travel for nothing.
+    const ready = readiness || await refreshReadiness();
+    if (ready && !ready.transcription) { setProblem(ui("请先配置转写服务，再选择录音：文件还没有上传。")); return; }
     sending.current = true;
     cancelled.current = false;
     let currentFile;
@@ -399,88 +509,143 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
     append({ kind: "path", path, name: baseName(path), size });
     setPathText('');
   }
-  function remove(index) {
-    const file = files[index];
-    setFiles(current => current.filter((_, at) => at !== index));
-    if (file.uploadId && call) { pendingUploads.current.delete(file.uploadId); void call('audio.upload.cancel', { uploadId: file.uploadId }).catch(() => {}); }
+  function remove(index, list = files) {
+    const file = list[index];
+    const next = list.filter((_, at) => at !== index);
+    setFiles(next);
+    setSubmitError('');
+    if (file?.uploadId && call) { pendingUploads.current.delete(file.uploadId); void call('audio.upload.cancel', { uploadId: file.uploadId }).catch(() => {}); }
+    return next;
   }
   function move(from, to) {
     if (from === to || from < 0 || to < 0 || to >= files.length) return;
     setFiles(current => { const next = [...current], [file] = next.splice(from, 1); next.splice(to, 0, file); return next; });
   }
+  /** A path dragged as text (file trees give text, not files): file drags are taken by the drop zone itself. */
+  function dropText(event) {
+    const types = Array.from(event.dataTransfer?.types || []);
+    if (types.includes('Files') || !types.includes('text/plain')) return;
+    event.preventDefault();
+    const paths = String(event.dataTransfer.getData('text/plain') || '').split(/\r?\n/).map(droppedPath).filter(Boolean);
+    if (paths.length) paths.forEach(path => pickPath(path)); else reject(ui("请拖入音频文件。"));
+  }
   function drop(event) {
     event.preventDefault();
-    setDragging(false);
+    event.stopPropagation();
     const dropped = Array.from(event.dataTransfer?.files || []);
     if (dropped.length) return void send(dropped);
     const paths = String(event.dataTransfer?.getData('text/plain') || '').split(/\r?\n/).map(droppedPath).filter(Boolean);
     if (paths.length) paths.forEach(path => pickPath(path)); else reject(ui("请拖入音频文件。"));
   }
-  function start(event) {
-    event.preventDefault();
-    if (!files.length || upload) return;
-    if (files.some(file => file.kind === 'subtitle') && files.length !== 1)
+  const failed = (error) => setSubmitError(String(error?.message || error || ''));
+  async function start(event, { list = files, accepted = confirmed } = {}) {
+    event?.preventDefault?.();
+    if (!list.length || upload || starting) return;
+    setSubmitError('');
+    if (list.some(file => file.kind === 'subtitle') && list.length !== 1)
       return void reject(ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。"));
-    if (recoveryJobId && files.length !== 1) { setProblem(ui('旧任务请选择同一份原录音。')); return; }
-    if (files[0].kind === 'subtitle') {
-      act("audio.subtitles.import", {
-        filename: files[0].name, text: files[0].text,
+    if (recoveryJobId && list.length !== 1) { setProblem(ui('旧任务请选择同一份原录音。')); return; }
+    if (list[0].kind === 'subtitle') {
+      try {
+        await act("audio.subtitles.import", {
+          filename: list[0].name, text: list[0].text,
+          ...(title.trim() ? { title: title.trim() } : {}),
+          ...(subject.trim() ? { subject: subject.trim() } : {}),
+          ...(terms.trim() ? { terms: terms.trim() } : {}),
+          courses: parseCourses(course),
+          ...(paidOnly ? { paidOnly: true } : {}),
+        }, () => {
+          setFiles([]);
+          setTitle('');
+          setNotice({ text: ui("已开始后台校对字幕（不需要转写）。完成后会出现在「资料」页的「今天」分组里。"), tone: 'success' });
+        }, { rethrow: true });
+      } catch (error) { failed(error); }
+      return;
+    }
+    // Pre-flight every file again right before starting: nothing is sent to a provider until all of them can go.
+    let current = checks;
+    if (call) {
+      setStarting(true);
+      try {
+        const result = await call("audio.preflight", { files: list.map(inputOf), ...(paidOnly ? { paidOnly: true } : {}) });
+        if (result && Array.isArray(result.files)) {
+          current = Object.fromEntries(list.map((file, index) => [file.key, result.files[index]]));
+          setChecks(current);
+          const status = withoutFiles(result);
+          setReadiness(status);
+          if (!status.transcription) return void failed(status.reason === 'paid-missing'
+            ? ui("选择了「只用付费密钥」，但还没有配置 Gemini 付费密钥：去掉这个勾选，或在音频设置的「高级」里填写。")
+            : ui("还没有配置转写服务：请先在音频设置里填一个密钥。"));
+        }
+      } catch (error) { return void failed(error); }
+      finally { setStarting(false); }
+    }
+    const notes = preflightNotes(list, current, accepted);
+    if (list.some(file => ['blocked', 'split'].includes(notes[file.key]?.kind))) return void failed(ui("有文件需要先处理：见上面每个文件下的提示。"));
+    const inputs = list.map(inputOf);
+    try {
+      await act("audio.import", {
+        ...(list.length > 1 ? { files: inputs } : inputs[0]),
         ...(title.trim() ? { title: title.trim() } : {}),
         ...(subject.trim() ? { subject: subject.trim() } : {}),
         ...(terms.trim() ? { terms: terms.trim() } : {}),
         courses: parseCourses(course),
+        ...(recoveryJobId ? { recoveryJobId } : {}),
         ...(paidOnly ? { paidOnly: true } : {}),
-      }, () => {
+      }, (started) => {
+        list.forEach(file => pendingUploads.current.delete(file.uploadId));
         setFiles([]);
         setTitle('');
-        setNotice(ui("已开始后台校对字幕（不需要转写）。完成后会出现在「资料」页的「今天」分组里。"));
-      });
-      return;
-    }
-    const inputs = files.map(file => file.kind === 'upload' ? { uploadId: file.uploadId } : { path: file.path });
-    act("audio.import", {
-      ...(files.length > 1 ? { files: inputs } : inputs[0]),
-      ...(title.trim() ? { title: title.trim() } : {}),
-      ...(subject.trim() ? { subject: subject.trim() } : {}),
-      ...(terms.trim() ? { terms: terms.trim() } : {}),
-      courses: parseCourses(course),
-      ...(recoveryJobId ? { recoveryJobId } : {}),
-      ...(paidOnly ? { paidOnly: true } : {}),
-    }, (started) => {
-      files.forEach(file => pendingUploads.current.delete(file.uploadId));
-      setFiles([]);
-      setTitle('');
-      onRecoveryChange?.('');
-      setNotice(started?.status === "queued"
-        ? uiFormat("已加入队列（前面还有 {0} 个）：轮到它时自动开始，完成后会出现在「资料」页的「今天」分组里。", [started.queuedBehind])
-        : ui("已开始后台转写。长录音需要几分钟到十几分钟，可以先做别的；完成后会出现在「资料」页的「今天」分组里。"));
-    });
+        setChecks({});
+        setConfirmed(new Set());
+        onRecoveryChange?.('');
+        setNotice({ tone: 'success', text: started?.status === "queued"
+          ? uiFormat("已加入队列（前面还有 {0} 个）：轮到它时自动开始，完成后会出现在「资料」页的「今天」分组里。", [started.queuedBehind])
+          : ui("已开始后台转写。长录音需要几分钟到十几分钟，可以先做别的；完成后会出现在「资料」页的「今天」分组里。") });
+      }, { rethrow: true });
+    } catch (error) { failed(error); }
   }
+  /** "Split and continue": accept the lossless split of this file, then start when nothing else is waiting. */
+  function confirmSplit(key) {
+    const next = new Set(confirmed).add(key);
+    setConfirmed(next);
+    void start(null, { accepted: next });
+  }
+  function skipAndContinue(index) {
+    const next = remove(index);
+    if (next.length) void start(null, { list: next });
+  }
+  function replaceFile(index) { remove(index); picker.current?.click(); }
+  const notes = preflightNotes(files, checks, confirmed);
   const percent = upload?.size ? Math.min(100, Math.round((upload.sent / upload.size) * 100)) : 0;
   return (
     <div className="pdf-import audio-import">
       <strong>{ui("音频 / 录音 → 中英对照逐字稿")}</strong>
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
         <button type="button" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</button></p>}
-      <p className="muted">{ui("用 Google AI Studio 转写，再校对识别错误的词、翻译成中文，保存为一份资料。之后出题仍在「生成」里另选；密钥在「设置 › 音频转写」填写。")}</p>
+      <p className="muted">{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「生成」里另选。")}</p>
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${[...EXTENSIONS, ...SUBTITLES].join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
-      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources}
+      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings}
         onLegacyRetry={job => { onRecoveryChange?.(job.id); picker.current?.click(); }} />
-      {!files.length && !upload && <>
-        <div className={`audio-drop${dragging ? " over" : ""}`} role="button" tabIndex={0} aria-label={ui("把音频文件拖到这里，或点击选择")}
-          onClick={() => picker.current?.click()}
-          onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); picker.current?.click(); } }}
-          onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={drop}>
-          <span className="audio-drop-icon" aria-hidden="true">♫</span>
-          <strong>{ui("把音频文件拖到这里，或点击选择")}</strong>
-          <small>MP3 · WAV · M4A · AAC · OGG · FLAC · OPUS · WEBM · AIFF · {ui("最大 512 MB")}</small>
-          <small className="muted">{ui("也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。")}</small>
-        </div>
+      {gated && <>
+        <AudioSetupGate language={language} call={call} onOpenSettings={openSettings} reason={readiness.reason}
+          onSaved={() => { void refreshReadiness(); }} />
+        {readiness.text !== false && <div className="audio-subtitle-only">
+          <p>{ui("字幕文件不需要转写服务，现在就可以导入：")}</p>
+          <FileDrop compact accept={SUBTITLES} label={ui("把字幕文件拖到这里")} hint="SRT · VTT · JSON · TXT" buttonLabel={ui("选择字幕文件")}
+            disabled={busy} onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
+        </div>}
       </>}
-      {problem && <p role="alert" className="warning">{problem}</p>}
-      {!upload && <>
-        {files.length > 0 && <div className={`audio-add${dragging ? ' over' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={drop}>
+      {!gated && !files.length && !upload && <div className="audio-drop-zone" onDragOver={event => { if (!Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault(); }} onDrop={dropText}>
+        <FileDrop multiple accept={[...EXTENSIONS, ...SUBTITLES]} disabled={busy}
+          label={ui("把音频文件拖到这里，或点击选择")} hint={`MP3 · WAV · M4A · AAC · OGG · FLAC · OPUS · WEBM · AIFF · ${ui("最大 512 MB")}`}
+          onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
+        <small className="muted">{ui("也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。")}</small>
+      </div>}
+      {problem && <InlineMessage tone="warning">{problem}</InlineMessage>}
+      {!upload && !gated && <>
+        {files.length > 0 && <div className="audio-add" onDragOver={event => event.preventDefault()} onDrop={drop}>
           <button type="button" disabled={busy} onClick={() => picker.current?.click()}>{ui('添加音频')}</button>
           <small className="muted">{ui('也可把更多音频拖到这里')}</small>
         </div>}
@@ -509,17 +674,29 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
       </div>}
       {files.length > 0 && <form onSubmit={start}>
         {files.length > 1 && <small className="muted">{ui('按下面的顺序合成一份逐字稿，可拖动或用按钮调整。')}</small>}
-        <ol className={`audio-selection${files.length === 1 ? ' single' : ''}`}>{files.map((file, index) => <li key={file.key} className="audio-chosen" draggable={!busy && files.length > 1}
-          onDragStart={event => { moving.current = index; event.dataTransfer.setData('text/plain', file.name); }}
-          onDragEnd={() => { moving.current = null; }} onDragOver={event => { if (moving.current !== null) event.preventDefault(); }}
-          onDrop={event => { if (moving.current !== null) { event.preventDefault(); event.stopPropagation(); move(moving.current, index); moving.current = null; } }}>
-          <span className="audio-drop-icon" aria-hidden="true">{files.length > 1 ? index + 1 : '♫'}</span>
-          <div><strong title={file.path || file.name}>{file.name}</strong><small className="muted">{file.size ? `${formatSize(file.size)} · ` : ''}{file.kind === 'subtitle' ? ui('字幕文件 · 不转写，直接校对') : file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small></div>
-          <div className="audio-order-actions">{files.length > 1 && <>
-            <button type="button" disabled={busy} aria-disabled={busy || index === 0} aria-label={uiFormat('上移 {0}', [file.name])} onClick={() => move(index, index - 1)}>↑</button>
-            <button type="button" disabled={busy} aria-disabled={busy || index === files.length - 1} aria-label={uiFormat('下移 {0}', [file.name])} onClick={() => move(index, index + 1)}>↓</button>
-          </>}<button type="button" disabled={busy} aria-label={uiFormat('移除 {0}', [file.name])} onClick={() => remove(index)}>{ui(files.length === 1 ? '换一个' : '移除')}</button></div>
-        </li>)}</ol>
+        <ol className={`audio-selection${files.length === 1 ? ' single' : ''}`}>{files.map((file, index) => {
+          const note = notes[file.key];
+          return <li key={file.key} className="audio-chosen" draggable={!busy && files.length > 1}
+            onDragStart={event => { moving.current = index; event.dataTransfer.setData('text/plain', file.name); }}
+            onDragEnd={() => { moving.current = null; }} onDragOver={event => { if (moving.current !== null) event.preventDefault(); }}
+            onDrop={event => { if (moving.current !== null) { event.preventDefault(); event.stopPropagation(); move(moving.current, index); moving.current = null; } }}>
+            <span className="audio-drop-icon" aria-hidden="true">{files.length > 1 ? index + 1 : '♫'}</span>
+            <div><strong title={file.path || file.name}>{file.name}</strong><small className="muted">{file.size ? `${formatSize(file.size)} · ` : ''}{file.kind === 'subtitle' ? ui('字幕文件 · 不转写，直接校对') : file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small>
+              {note && <span className={`audio-check audio-check--${note.kind}`} role={note.kind === 'blocked' ? 'alert' : undefined}>
+                <span>{note.text}</span>
+                {note.kind === 'split' && <Button size="sm" disabled={busy || starting} onClick={() => confirmSplit(file.key)}>{ui('分段并继续')}</Button>}
+                {note.kind === 'blocked' && <>
+                  {files.length > 1 && <Button size="sm" disabled={busy || starting} onClick={() => skipAndContinue(index)}>{ui('跳过此文件继续')}</Button>}
+                  <Button size="sm" variant="quiet" disabled={busy || starting} onClick={() => replaceFile(index)}>{ui('换一个文件')}</Button>
+                </>}
+              </span>}
+            </div>
+            <div className="audio-order-actions">{files.length > 1 && <>
+              <button type="button" disabled={busy} aria-disabled={busy || index === 0} aria-label={uiFormat('上移 {0}', [file.name])} onClick={() => move(index, index - 1)}>↑</button>
+              <button type="button" disabled={busy} aria-disabled={busy || index === files.length - 1} aria-label={uiFormat('下移 {0}', [file.name])} onClick={() => move(index, index + 1)}>↓</button>
+            </>}<button type="button" disabled={busy} aria-label={uiFormat('移除 {0}', [file.name])} onClick={() => remove(index)}>{ui(files.length === 1 ? '换一个' : '移除')}</button></div>
+          </li>;
+        })}</ol>
         <label>{ui('逐字稿名称（可选）')}<input value={title} onChange={event => setTitle(event.target.value)} disabled={busy} maxLength={200} /></label>
         <label>{ui("这段音频讲什么（可选，帮助纠正术语）")}
           <input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={busy} maxLength={300}
@@ -534,7 +711,11 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
           <input type="checkbox" checked={paidOnly} onChange={(e) => setPaidOnly(e.target.checked)} disabled={busy} />
           {ui("只用付费密钥（免费额度下，Google 可能用内容改进产品）")}
         </label>
-        <button className="primary" disabled={busy || !!upload}>{ui("开始导入")}</button>
+        <div className="audio-submit">
+          <button className="primary" disabled={busy || !!upload || starting || audioFiles.some(file => checks[file.key]?.checking)}>{starting ? ui("正在检查…") : ui("开始导入")}</button>
+          {submitError && <InlineMessage action={openSettings && aboutSettings(submitError) ? { label: ui('打开音频设置'), onClick: openSettings } : undefined}
+            onDismiss={() => setSubmitError('')}>{uiMessage(submitError)}</InlineMessage>}
+        </div>
       </form>}
     </div>
   );

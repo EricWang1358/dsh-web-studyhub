@@ -199,7 +199,7 @@ test("a retry uses the settings as they are now, and dismissing a failed card re
   const restarted = await service.call("audio.retry", { jobId: first.id });
   const broken = await service.call("job.wait", { jobId: restarted.jobId, timeoutSeconds: 30 });
   assert.equal(broken.status, "failed");
-  assert.match(broken.stage, /还没有配置 Gemini API 密钥/, "the key that was removed is not remembered from the first attempt");
+  assert.match(broken.stage, /还没有配置转写服务/, "the key that was removed is not remembered from the first attempt");
   assert.equal(counts.transcribe, 1);
   assert.equal(broken.retryable, true);
   await service.call("job.dismiss", { jobId: broken.id });
