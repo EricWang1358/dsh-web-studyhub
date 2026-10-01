@@ -3,11 +3,11 @@
 .study-app .job.job-leaving {
   overflow: hidden;
   pointer-events: none;
-  animation: job-leave var(--dur-leave, 180ms) cubic-bezier(.4, 0, 1, 1) forwards;
+  animation: job-leave var(--dur-leave, 150ms) ease-out forwards;
 }
 @keyframes job-leave {
   0% { opacity: 1; max-height: 220px; }
-  55% { opacity: 0; }
+  45% { opacity: 0; }
   100% {
     opacity: 0; max-height: 0; visibility: hidden;
     margin-top: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0;

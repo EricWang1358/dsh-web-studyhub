@@ -126,7 +126,7 @@ export function useQuickActionsController(call) {
   const callRef = useRef(call);
   callRef.current = call;
   const controller = useMemo(() => createQuickActions({ call: (action, args) => callRef.current(action, args) }), []);
-  const stamp = useSyncExternalStore(controller.subscribe, controller.version);
+  const stamp = useSyncExternalStore(controller.subscribe, controller.version, controller.version);
   const api = useMemo(() => controller.snapshot(), [controller, stamp]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => controller.reset(), [controller]);
   return { controller, api, stamp };
