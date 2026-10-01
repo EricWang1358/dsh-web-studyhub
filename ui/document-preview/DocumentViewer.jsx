@@ -98,7 +98,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       {source.selection && document?.currentRevision && document.currentRevision !== source.selection.revision && <p className="warning">{ui('此引用来自较早版本，当前资料已有更新。')}</p>}
     </div>
     {quote && <blockquote className="highlight-quote">{quote}</blockquote>}
-    <AudioCorrections audio={source.audio} />
+    <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />
     <div className="study-document-layout">
       <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select}>
         {format === 'pdf' && fileUrl && mode === 'layout'

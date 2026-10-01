@@ -1,3 +1,4 @@
+import { BlogNotes, Skeleton, Workflows, Graph, AudioDashboard, DocumentViewer, LiveClass } from "./workspace-views.jsx";
 import { languageSystem } from "../lib/language.js";
 import { localizeRunResponse, localizedRun } from "./run-titles.js";
 import { submitAssist } from "./assist-request.js";
@@ -9,7 +10,6 @@ import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
-import Graph from "./Graph.jsx";
 import Icon from "./Icon.jsx";
 import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder } from "./nav-order.js";
@@ -19,25 +19,19 @@ import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
 import Generate from "./Generate.jsx";
 import DocumentImport from './document-preview/DocumentImport.jsx';
-import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
 import AudioImport from "./AudioImport.jsx";
-import AudioDashboard from './AudioDashboard.jsx';
-import LiveClass from "./LiveClass.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
 import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
-import BlogNotes from "./BlogNotes.jsx";
 import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import Inbox from "./Inbox.jsx";
-import Skeleton from "./Skeleton.jsx";
-import Workflows from "./Workflows.jsx";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
-import { fillMissingDraftText } from "../lib/draft-fields.js";
+import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
 import localeCss from './language.css';
 
@@ -52,76 +46,6 @@ const THEMES = [
   ["dark", "深色"],
   ["light", "浅色"],
 ];
-
-function hasUnsavedDraft({ draft, draftText, jsonMode, draftLoaded } = {}) {
-  if (!draft) return false;
-  if (!draft.draftVersion || !draftLoaded) return true;
-  return JSON.stringify(draft) !== draftLoaded ||
-    (jsonMode && draftText !== JSON.stringify(draft, null, 2));
-}
-
-function parseDraft(raw) {
-  const d = JSON.parse(raw);
-  if (
-    !d ||
-    typeof d !== "object" ||
-    typeof d.title !== "string" ||
-    !Array.isArray(d.cards) ||
-    !d.cards.length
-  )
-    throw new Error(ui("题组需要 title 和非空 cards 数组"));
-  d.cards = d.cards.map(fillMissingDraftText);
-  for (const q of d.cards) {
-    if (!q || typeof q !== "object") throw new Error(ui("每道题必须是一个对象"));
-    for (const key of [
-      "id",
-      "kind",
-      "topic",
-      "objective",
-      "prompt",
-      "answer",
-      "hint",
-      "explanation",
-      "misconception",
-    ])
-      if (typeof q[key] !== "string")
-        throw new Error(ui("每道题需要文本字段：") + key);
-    if (q.rubric !== undefined && typeof q.rubric !== "string")
-      throw new Error(ui("rubric 必须是文本"));
-    if (q.cloze !== undefined) {
-      if (
-        !q.cloze ||
-        typeof q.cloze.text !== "string" ||
-        !Array.isArray(q.cloze.answers)
-      )
-        throw new Error(ui("cloze 需要 text 和 answers 数组"));
-      if (q.cloze.answers.some((a) => !a || typeof a.id !== "string" || typeof a.value !== "string"))
-        throw new Error(ui("cloze answers 每项需要 id 和 value"));
-    }
-    if (
-      !Array.isArray(q.citations) ||
-      q.citations.some(
-        (c) =>
-          !c || typeof c.quote !== "string" || typeof c.sourceId !== "string",
-      )
-    )
-      throw new Error(ui("citations 需要 sourceId 和 quote"));
-    if (
-      q.options !== undefined &&
-      (!Array.isArray(q.options) ||
-        q.options.some(
-          (o) =>
-            !o ||
-            typeof o.id !== "string" ||
-            typeof o.text !== "string" ||
-            typeof o.explanation !== "string" ||
-            typeof o.correct !== "boolean",
-        ))
-    )
-      throw new Error(ui("选项结构不完整"));
-  }
-  return d;
-}
 
 export default function App({ call: transportCall, host = {} }) {
   const language = useUiLanguage();

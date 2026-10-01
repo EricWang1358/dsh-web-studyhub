@@ -14,6 +14,9 @@ const PHASES = {
   proofread: "校对识别错误的词", translate: "翻译并整理成中英对照", batch: '按顺序整理逐字稿', assemble: '合成逐字稿', done: "完成",
 };
 const EXTENSIONS = [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".opus", ".webm", ".aiff", ".aif"];
+// Downloaded subtitles (Bilibili and the like) skip transcription and start at proofreading.
+const SUBTITLES = [".srt", ".vtt", ".json", ".txt"];
+const MAX_SUBTITLE_BYTES = 8 * 1024 * 1024;
 const MAX_BYTES = 512 * 1024 * 1024;
 const CHUNK = 3 * 1024 * 1024;
 const isActive = (job) => ["queued", "running", "cancelling"].includes(job.status);
@@ -69,6 +72,9 @@ const taskLabel = (task) => {
  */
 export function audioProgress(job, now = Date.now()) {
   if (job.status === "complete") return { percent: 100, flight: 0, eta: null };
+  // A review is one step: batches decided out of batches there are.
+  if (job.review) return { percent: job.total > 0 ? Math.min(99, Math.floor(job.done / job.total * 100)) : 0,
+    flight: isActive(job) && job.total > 0 ? Math.min(100 / job.total, 99) : 0, eta: null };
   if (job.members?.length) {
     const values = job.members.map(member => audioProgress(member, now));
     return { percent: Math.min(99, Math.floor(values.reduce((sum, value) => sum + value.percent, 0) / values.length)),
@@ -107,12 +113,19 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
   const current = running ? [...tasks].reverse().find((task) => !task.finishedAt) : null;
   const usage = job.usage;
   const paidUsed = usage?.paid.requests > 0;
-  const title = job.status === "complete"
+  const title = job.review
+    ? job.status === "complete" ? uiFormat("复核完成：改进正稿 {0} 处 · 判定原文无误 {1} 处 · 仍拿不准 {2} 处", [job.review.applied, job.review.rejected, job.review.unsure])
+      : job.status === "failed" ? ui("复核未完成；已复核的部分已保存")
+        : job.status === "cancelled" ? ui("复核已取消；已复核的部分已保存")
+          : job.status === "cancelling" ? ui("正在停止")
+            : job.total > 0 ? uiFormat("复核存疑处（{0}/{1}）", [Math.min(job.done + 1, job.total), job.total]) : ui("复核存疑处")
+    : job.status === "complete"
     ? job.reused ? ui("已导入过，直接复用") : uiFormat("已存为 {0} 份资料 · 校对修正 {1} 处", [job.sourceIds?.length ?? 0, job.corrected ?? 0])
     : job.status === "failed" ? ui("导入未完成")
       : job.status === "cancelled" ? ui("导入已取消")
         : job.status === "cancelling" ? ui("正在停止")
           : counted ? uiFormat("{0}（{1}/{2}）", [ui(PHASES[job.phase]), Math.min(job.done + 1, job.total), job.total]) : ui(PHASES[job.phase] || "处理中");
+  const order = job.review ? [] : job.subtitle ? ORDER.filter(phase => phase !== "transcribe") : ORDER;
   return (
     <div className={"job " + job.status} role="status">
       <span>{job.status === "failed" ? "!" : job.status === "cancelled" ? "×" : isActive(job) ? "◌" : "✓"}</span>
@@ -128,7 +141,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
           </div>
           <div className="audio-progress-line">
             <strong>{progress.percent}%</strong>
-            {job.members ? <small>{uiFormat('已完成 {0}/{1} 段音频', [job.members.filter(member => member.status === 'complete').length, job.members.length])}</small> : <ol className="audio-steps">{ORDER.map((phase) => {
+            {job.members ? <small>{uiFormat('已完成 {0}/{1} 段音频', [job.members.filter(member => member.status === 'complete').length, job.members.length])}</small> : <ol className="audio-steps">{order.map((phase) => {
               const step = job.steps?.[phase], state = step?.total > 0 && step.done >= step.total ? "done" : job.phase === phase ? "current" : "todo";
               return <li key={phase} className={state}>{state === "done" ? "✓ " : ""}{ui(TASK_KINDS[phase])}
                 {step?.total > 0 ? uiFormat(" 已完成 {0}/{1}", [step.done, step.total]) : ""}</li>;
@@ -147,13 +160,15 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
           <strong>{member.filename}</strong><small>{ui(TASK_STATUS[member.status] || PHASES[member.phase] || '排队中')}
             {isActive(member) ? ` · ${ui(PHASES[member.phase] || '处理中')} · ${audioProgress(member, now).percent}%` : ''}
             {member.status === 'failed' ? ` · ${member.stage || ''}` : ''}</small>
-          {member.tasks?.some(task => task.childId) && <details><summary>{ui('查看执行过程')}</summary>{member.tasks.map(task => <OpenAgent key={task.id} task={task} openAgent={openAgent} />)}</details>}
+          {member.tasks?.some(task => task.childId) && <details><summary>{uiFormat('查看执行过程 · {0} 次模型任务', [member.tasks.filter(task => task.childId).length])}</summary>
+            <ol>{member.tasks.filter(task => task.childId).map(task => <li key={task.id}><small>{taskLabel(task)}</small> <OpenAgent task={task} openAgent={openAgent} /></li>)}</ol></details>}
         </li>)}</ol>}
         {job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources && <button type="button" className="link-btn"
           onClick={() => onOpenSources(job.sourceIds)}>{ui('打开逐字稿')}</button>}
         {["failed", "cancelled"].includes(job.status) && savedSteps(job.steps) && <small>{uiFormat("已保存：{0}", [savedSteps(job.steps)])}</small>}
         {job.status === "complete" && !job.reused && job.uncertain > 0 && (
-          <small>{uiFormat("另有 {0} 处把握不大的疑似错词没有改，可在资料里查看", [job.uncertain])}</small>
+          <small>{uiFormat("另有 {0} 处把握不大的疑似错词没有改，可在资料里查看", [job.uncertain])}
+            {job.sourceIds?.length > 0 && onOpenSources && <button type="button" className="link-btn" onClick={() => onOpenSources(job.sourceIds.slice(0, 1))}>{ui("去复核")}</button>}</small>
         )}
         {requestsOf(usage) > 0 && (
           <small>
@@ -203,15 +218,25 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry }) {
   );
 }
 
-/** What proofreading changed in an audio source, so the learner can check it. */
-export function AudioCorrections({ audio }) {
+/** What proofreading changed in an audio source, so the learner can check it; unsure items can be given a second look. */
+export function AudioCorrections({ audio, onReview }) {
+  const [review, setReview] = useState({ status: "idle", error: "" });
   const applied = audio?.corrections?.applied || [];
-  const unsure = (audio?.corrections?.skipped || []).filter((item) => item.skipped === "low-confidence");
+  const lowConfidence = (audio?.corrections?.skipped || []).filter((item) => item.skipped === "low-confidence");
+  const unsure = lowConfidence.filter((item) => item.review?.verdict !== "reject");
+  const kept = lowConfidence.length - unsure.length, pending = unsure.filter((item) => !item.review).length;
   if (!applied.length && !unsure.length) return null;
+  const start = async () => {
+    setReview({ status: "running", error: "" });
+    try { await onReview(); setReview({ status: "started", error: "" }); }
+    catch (error) { setReview({ status: "idle", error: String(error?.message || error) }); }
+  };
   const row = (item, key) => (
     <li key={key}>
       <strong>{item.wrong} → {item.right}</strong>
+      {item.reviewed ? <span> · {ui("复核后采纳")}</span> : null}
       {item.reason ? <span> · {item.reason}</span> : null}
+      {item.review?.verdict === "unsure" && item.review.reason ? <span> · {uiFormat("复核：{0}", [item.review.reason])}</span> : null}
       <small className="muted" style={{ display: "block" }}>…{item.context}…</small>
     </li>
   );
@@ -221,8 +246,16 @@ export function AudioCorrections({ audio }) {
       {applied.length > 0 && <ul>{applied.map((item, index) => row(item, `a${index}`))}</ul>}
       {unsure.length > 0 && <>
         <p className="muted">{ui("下面这些把握不大，没有改动，需要时请对照录音核对：")}</p>
+        {onReview && pending > 0 && <p>
+          <button type="button" disabled={review.status !== "idle"} onClick={start}
+            title={ui("用对话模型结合上下文再判一次：能确定的直接改进正稿（译文里的同一处一起改），仍拿不准的留在这里")}>
+            {uiFormat("让模型复核这 {0} 处", [pending])}</button>
+          {review.status === "started" && <small className="muted"> {ui("已开始复核，进度见音频任务卡片")}</small>}
+          {review.error && <small className="warning"> {review.error}</small>}
+        </p>}
         <ul>{unsure.map((item, index) => row(item, `u${index}`))}</ul>
       </>}
+      {kept > 0 && <p className="muted">{uiFormat("另有 {0} 处经复核判定原文无误，已不再列出", [kept])}</p>}
     </details>
   );
 }
@@ -297,7 +330,24 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
   }
   /** Send a browser file to the plugin in chunks; the import then uses its upload id. */
   async function send(chosenFiles) {
+    if (sending.current) return;
     if (recoveryJobId && chosenFiles.length !== 1) { setProblem(ui('旧任务请选择同一份原录音。')); return; }
+    const subtitles = chosenFiles.filter(chosen => SUBTITLES.includes(extensionOf(chosen.name)));
+    if (subtitles.length) {
+      setProblem("");
+      if (subtitles.length !== chosenFiles.length || chosenFiles.length !== 1 || files.length || recoveryJobId)
+        return void reject(ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。"));
+      if (subtitles[0].size > MAX_SUBTITLE_BYTES) return void reject(ui("字幕文件超过 8 MB。"));
+      sending.current = true;
+      cancelled.current = false;
+      try {
+        const text = await subtitles[0].text();
+        if (!cancelled.current) append({ kind: 'subtitle', name: subtitles[0].name, size: subtitles[0].size, text });
+      } catch { if (!cancelled.current) reject(ui("读取文件失败，请重试。")); }
+      finally { sending.current = false; }
+      return;
+    }
+    if (files.some(file => file.kind === 'subtitle')) { setProblem(ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。")); return; }
     if (!call || sending.current || !chosenFiles.length || !chosenFiles.every(chosen => check(chosen.name, chosen.size))) return;
     sending.current = true;
     cancelled.current = false;
@@ -331,6 +381,8 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
   }
   function cancelUpload() { cancelled.current = true; }
   function pickPath(path, size) {
+    if (sending.current) return;
+    if (files.some(file => file.kind === 'subtitle')) return void reject(ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。"));
     if (!check(path, size)) return;
     append({ kind: "path", path, name: baseName(path), size });
     setPathText('');
@@ -355,7 +407,24 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
   function start(event) {
     event.preventDefault();
     if (!files.length || upload) return;
+    if (files.some(file => file.kind === 'subtitle') && files.length !== 1)
+      return void reject(ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。"));
     if (recoveryJobId && files.length !== 1) { setProblem(ui('旧任务请选择同一份原录音。')); return; }
+    if (files[0].kind === 'subtitle') {
+      act("audio.subtitles.import", {
+        filename: files[0].name, text: files[0].text,
+        ...(title.trim() ? { title: title.trim() } : {}),
+        ...(subject.trim() ? { subject: subject.trim() } : {}),
+        ...(terms.trim() ? { terms: terms.trim() } : {}),
+        courses: parseCourses(course),
+        ...(paidOnly ? { paidOnly: true } : {}),
+      }, () => {
+        setFiles([]);
+        setTitle('');
+        setNotice(ui("已开始后台校对字幕（不需要转写）。完成后会出现在「资料」页的「今天」分组里。"));
+      });
+      return;
+    }
     const inputs = files.map(file => file.kind === 'upload' ? { uploadId: file.uploadId } : { path: file.path });
     act("audio.import", {
       ...(files.length > 1 ? { files: inputs } : inputs[0]),
@@ -382,7 +451,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
         <button type="button" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</button></p>}
       <p className="muted">{ui("用 Google AI Studio 转写，再校对识别错误的词、翻译成中文，保存为一份资料。之后出题仍在「生成」里另选；密钥在「设置 › 音频转写」填写。")}</p>
-      <input ref={picker} type="file" hidden multiple accept={`audio/*,${EXTENSIONS.join(',')}`}
+      <input ref={picker} type="file" hidden multiple accept={`audio/*,${[...EXTENSIONS, ...SUBTITLES].join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources}
         onLegacyRetry={job => { onRecoveryChange?.(job.id); picker.current?.click(); }} />
@@ -394,6 +463,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
           <span className="audio-drop-icon" aria-hidden="true">♫</span>
           <strong>{ui("把音频文件拖到这里，或点击选择")}</strong>
           <small>MP3 · WAV · M4A · AAC · OGG · FLAC · OPUS · WEBM · AIFF · {ui("最大 512 MB")}</small>
+          <small className="muted">{ui("也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。")}</small>
         </div>
       </>}
       {problem && <p role="alert" className="warning">{problem}</p>}
@@ -432,7 +502,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
           onDragEnd={() => { moving.current = null; }} onDragOver={event => { if (moving.current !== null) event.preventDefault(); }}
           onDrop={event => { if (moving.current !== null) { event.preventDefault(); event.stopPropagation(); move(moving.current, index); moving.current = null; } }}>
           <span className="audio-drop-icon" aria-hidden="true">{files.length > 1 ? index + 1 : '♫'}</span>
-          <div><strong title={file.path || file.name}>{file.name}</strong><small className="muted">{file.size ? `${formatSize(file.size)} · ` : ''}{file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small></div>
+          <div><strong title={file.path || file.name}>{file.name}</strong><small className="muted">{file.size ? `${formatSize(file.size)} · ` : ''}{file.kind === 'subtitle' ? ui('字幕文件 · 不转写，直接校对') : file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small></div>
           <div className="audio-order-actions">{files.length > 1 && <>
             <button type="button" disabled={busy} aria-disabled={busy || index === 0} aria-label={uiFormat('上移 {0}', [file.name])} onClick={() => move(index, index - 1)}>↑</button>
             <button type="button" disabled={busy} aria-disabled={busy || index === files.length - 1} aria-label={uiFormat('下移 {0}', [file.name])} onClick={() => move(index, index + 1)}>↓</button>

@@ -24,8 +24,8 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
       <div className="audio-dashboard-metrics">
         <div><span>{t('今日模型请求', 'Model requests today')}</span><strong>{fmt(total)}<small>{t('次', 'calls')}</small></strong></div>
         <div><span>{t('已转录音频', 'Audio transcribed')}</span><strong>{fmt(sum('audioSeconds') / 60)}<small>min</small></strong></div>
-        <div><span>{t('输入 / 输出 Token', 'Input / output tokens')}</span><strong className="audio-token-count">{fmt(sum('inputTokens'))}<small> / {fmt(sum('outputTokens'))}</small></strong></div>
-        <div><span>{t('限流 / 失败', 'Rate limited / failed')}</span><strong>{sum('limited')}<small> / {sum('failures')}</small></strong></div>
+        <div><span>{t('输入 / 输出 Token', 'Input / output tokens')}</span><strong className="audio-token-count">{fmt(sum('inputTokens'))}<small title={sum('outputUnknown') ? t('部分请求未报告输出 Token', 'Some calls did not report output tokens') : undefined}> / {sum('outputUnknown') ? (sum('outputTokens') ? `≥${fmt(sum('outputTokens'))}` : '—') : fmt(sum('outputTokens'))}</small></strong></div>
+        <div><span>{t('限流 / 其他失败', 'Rate limited / other failures')}</span><strong>{sum('limited')}<small> / {sum('failures') - sum('limited')}</small></strong></div>
       </div>
     </div>
     <div className="audio-provider-list">

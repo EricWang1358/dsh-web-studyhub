@@ -60,6 +60,12 @@ test("English audio import copy is fully translated and keeps user content as wr
     setUiLanguage("en");
     const html = render().replace(/lecture\.mp3|数据库|server says no/g, "");
     assert.doesNotMatch(html, /[㐀-鿿]/);
+    const reviewed = renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [
+      job({ status: 'complete', review: { applied: 1, rejected: 2, unsure: 3 } }),
+      job({ id: 'subtitle', status: 'running', subtitle: true, phase: 'proofread' }),
+    ] }, busy: false, act() {} })).replace(/lecture\.mp3/g, '');
+    assert.doesNotMatch(reviewed, /[㐀-鿿]/);
+    assert.match(reviewed, /Review complete: 1 correction\(s\) applied/);
     for (const text of ["Audio / recording", "Transcribing audio (1/3)", "Saved as 1 source(s) · 4 correction(s)", "Gemini requests (this recording, all attempts): free 6 · paid 2",
       "Import cancelled", "Stop (finished transcription is kept)", "Drop an audio file here, or click to choose", "up to 512 MB",
       "Find in the workspace", "Paste a file path (advanced)"])
