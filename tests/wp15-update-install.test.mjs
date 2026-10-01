@@ -54,6 +54,12 @@ test('the package is downloaded from its exact release address and must match SH
   assert.deepEqual((await readdir(join(dir, 'study', 'updates'))).filter(name => name.endsWith('.tgz')), ['ericwang1358-dsh-daily-flashcard-2.1.1.tgz'], 'a rejected download leaves nothing behind');
 });
 
+test('a text-only HTTP helper (no arrayBuffer) is refused as a download failure instead of corrupting the package', async t => {
+  await home(t);
+  const textOnly = async () => ({ ok: true, status: 200, text: async () => 'x', json: async () => ({}) });
+  await assert.rejects(prepareVerifiedPackage({ view: view(), fetch: textOnly }), error => error.code === 'UPDATE_DOWNLOAD');
+});
+
 test('addresses outside this repository\'s release downloads are refused before any request', async t => {
   await home(t);
   const net = releaseHost();

@@ -190,6 +190,15 @@ test('a broken cache file is ignored, and update.check / update.preferences are 
   assert.equal(net.calls.length, 1);
 });
 
+test('package files on disk newer than the running code mean a restart is pending, however they got there', async () => {
+  const { updateView, installedVersion } = await import('../lib/update-check.js');
+  assert.equal(installedVersion(), currentVersion(), 'read fresh from this package on disk');
+  assert.equal(updateView({}, '2.1.0', '2.1.1-test').pendingRestart, '2.1.1-test');
+  assert.equal(updateView({}, '2.1.0', '2.1.0').pendingRestart, null);
+  assert.equal(updateView({ pending: '2.1.1' }, '2.1.0', '2.1.0').pendingRestart, '2.1.1');
+  assert.equal(updateView({}, '2.1.1', '2.1.0').pendingRestart, null);
+});
+
 test('a loopback QA feed (STUDYHUB_QA_UPDATE_FEED) may stand in for GitHub; any other address is ignored', async t => {
   await home(t);
   const previous = process.env.STUDYHUB_QA_UPDATE_FEED;

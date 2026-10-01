@@ -111,30 +111,37 @@ async function bootDsh(bin, { env, cwd, patch, port }) {
   return { child, url, output: () => output };
 }
 
-async function openStudy(page, url, { firstMessage }) {
+/** Bring the StudyHub page up: it opens by itself, offers 新建会话 without a session, or sits behind its sidebar entry. */
+async function ensureStudy(page) {
+  const app = page.locator(".study-app .sidebar").first();
+  for (let i = 0; i < 40 && !await app.count(); i++) {
+    const start = page.locator(".studyhub-page-empty button");
+    if (await start.count()) { await start.first().click(); await sleep(3000); continue; }
+    const entry = page.getByText("StudyHub", { exact: true });
+    if (i % 5 === 2 && await entry.count()) await entry.first().click().catch(() => {});
+    await sleep(1000);
+  }
+  await app.waitFor({ timeout: 60000 });
+  await sleep(2500);
+}
+async function openStudy(page, url) {
   await page.goto(url, { waitUntil: "networkidle" });
   await sleep(1500);
   for (let i = 0; i < 4; i++) {
     const next = page.getByRole("button", { name: /^(继续|稍后配置|跳过|Continue|Configure later|Skip)$/ });
     if (!await next.count()) break;
-    await next.first().click();
+    await next.first().click({ timeout: 5000 }).catch(() => {});
     await sleep(800);
   }
-  if (firstMessage) {
-    const box = page.getByRole("textbox").last();
-    await box.click();
-    await page.keyboard.type(firstMessage);
-    await page.keyboard.press("Enter");
-    await sleep(6000);
-  } else {
-    const conversation = page.locator("[data-session-id], a[href*='session'], [role=listitem]").filter({ hasText: /学习|study/i }).first();
-    if (await conversation.count()) { await conversation.click().catch(() => {}); await sleep(2000); }
-  }
-  const tab = page.getByRole("tab", { name: /学习|Study/ });
-  await tab.first().waitFor({ timeout: 60000 });
-  await tab.first().click();
-  await page.locator(".study-app").first().waitFor({ timeout: 60000 });
-  await sleep(2500);
+  await ensureStudy(page);
+}
+async function readSettings(page) {
+  await page.locator('[data-tour="nav-settings"]').first().click();
+  const section = page.locator(".update-settings");
+  await section.waitFor({ timeout: 30000 });
+  await section.scrollIntoViewIfNeeded();
+  await sleep(1500);
+  return section;
 }
 
 export async function runUpgradeProof(options) {
@@ -182,7 +189,7 @@ export async function runUpgradeProof(options) {
     };
     watch(page);
     const shot = (name) => page.screenshot({ path: join(options.out, `${name}.png`) });
-    await step("open-study", () => openStudy(page, dsh.url, { firstMessage: options.lang === "en" ? "Hello, let's study." : "你好，我们来学习。" }));
+    await step("open-study", () => openStudy(page, dsh.url));
     await step("chip-appears", async () => {
       await page.locator(".update-chip").first().waitFor({ timeout: 60000 });
       summary.facts.chip = (await page.locator(".update-chip").first().innerText()).trim();
@@ -197,10 +204,20 @@ export async function runUpgradeProof(options) {
       await sleep(300);
       await shot("03-confirm");
       await page.locator(".update-dialog .sh-dialog__footer .sh-btn--primary").click();
-      await page.locator(".update-dialog .update-done").waitFor({ timeout: 240000 });
-      await sleep(500);
-      await shot("04-installed");
-      summary.facts.installedMessage = (await page.locator(".update-dialog .update-done").innerText()).trim();
+      // DSH may unload and reload StudyHub's browser code as soon as the package files change,
+      // taking the dialog (and the pending answer) with it; both endings are recorded.
+      const answered = page.locator(".update-dialog .update-done, .update-dialog .sh-inline--error").first();
+      summary.facts.installOutcome = await Promise.race([
+        answered.waitFor({ timeout: 240000 }).then(() => "dialog-answered"),
+        page.locator(".update-dialog").waitFor({ state: "detached", timeout: 240000 }).then(() => "panel-unloaded"),
+      ]);
+      await sleep(1500);
+      await shot("04-after-install");
+      if (summary.facts.installOutcome === "dialog-answered") {
+        if (!await page.locator(".update-dialog .update-done").count())
+          throw new Error(`The dialog reports: ${(await page.locator(".update-dialog .sh-inline--error").innerText()).trim()}`);
+        summary.facts.installedMessage = (await page.locator(".update-dialog .update-done").innerText()).trim();
+      }
     });
     await step("verify-installed-on-disk", async () => {
       summary.facts.after = { installed: await installedVersion(), dependency: await dependency() };
@@ -211,11 +228,12 @@ export async function runUpgradeProof(options) {
       if (summary.facts.savedSha256 !== feed.sha) throw new Error("the installed file is not the verified one");
       summary.facts.update = JSON.parse(await readFile(join(home, "study", "update.json"), "utf8"));
     });
-    await step("still-old-before-restart", async () => {
-      await page.locator(".update-dialog .sh-dialog__footer .sh-btn--primary").click();
-      await sleep(800);
+    await step("before-restart", async () => {
+      if (await page.locator(".update-dialog .update-done").count()) await page.locator(".update-dialog .sh-dialog__footer .sh-btn--primary").click();
+      await ensureStudy(page);
       summary.facts.chipBeforeRestart = (await page.locator(".update-chip").first().innerText().catch(() => "")).trim();
-      await shot("05-restart-chip");
+      await shot("05-before-restart");
+      summary.facts.settingsBeforeRestart = (await (await readSettings(page)).innerText()).trim();
     });
     await step("restart-dsh", async () => {
       await context.close();
@@ -228,21 +246,18 @@ export async function runUpgradeProof(options) {
       const second = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: options.lang === "en" ? "en-US" : "zh-CN" });
       page = await second.newPage();
       watch(page);
-      await openStudy(page, dsh.url, { firstMessage: options.lang === "en" ? "Hello again." : "再来一次。" });
-      await page.locator('[data-tour="nav-settings"]').first().click();
-      const section = page.locator(".update-settings");
-      await section.waitFor({ timeout: 30000 });
-      await section.scrollIntoViewIfNeeded();
-      await sleep(1500);
+      await openStudy(page, dsh.url);
+      const section = await readSettings(page);
       summary.facts.settingsAfterRestart = (await section.innerText()).trim();
       await section.screenshot({ path: join(options.out, "06-settings-after-restart.png") });
       if (!summary.facts.settingsAfterRestart.includes(TEST_VERSION)) throw new Error(`Settings shows: ${summary.facts.settingsAfterRestart}`);
       summary.facts.chipAfterRestart = await page.locator(".update-chip").count();
     });
-    summary.feedRequests = feed.log;
   } catch (error) {
     summary.error = String(error?.message || error).slice(0, 4000);
+    await browser?.contexts().at(-1)?.pages().at(-1)?.screenshot({ path: join(options.out, "99-failure.png") }).catch(() => {});
   } finally {
+    if (feed) summary.feedRequests = feed.log;
     await browser?.close().catch(() => {});
     stopTree(dsh?.child);
     if (dsh) logs.push(dsh.output());

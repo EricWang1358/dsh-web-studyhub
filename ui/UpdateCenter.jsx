@@ -146,7 +146,9 @@ function Installed({ phase, host }) {
 /** The upgrade dialog: version, release notes, and one-click or guided upgrade. */
 export function UpdateDialog({ update, call, host, onClose, notify, initialPhase = null }) {
   useInjectCss(css, 'study-update');
-  const [phase, setPhase] = useState(initialPhase || { phase: 'idle' });
+  // Already installed and waiting for a restart (perhaps answered before DSH reloaded this page).
+  const [phase, setPhase] = useState(initialPhase || (update.pendingRestart
+    ? { phase: 'installed', version: update.pendingRestart, restartRequired: true, desktop: !!update.install?.desktop } : { phase: 'idle' }));
   const [guided, setGuided] = useState(false);
   const inApp = update.install?.available === true && !guided && !!update.assetUrl;
   const working = phase.phase === 'working';
@@ -178,7 +180,7 @@ export function UpdateDialog({ update, call, host, onClose, notify, initialPhase
     </div>
   );
   return (
-    <Dialog title={uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" onClose={onClose} footer={footer}
+    <Dialog title={phase.phase === 'installed' ? uiFormat('StudyHub {0} 等待重启', [phase.version]) : uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" onClose={onClose} footer={footer}
       className="update-dialog" bodyLabel={ui('升级说明')}>
       {phase.phase === 'installed' ? <Installed phase={phase} host={host} /> : <>
         {update.notes && <section className="update-notes-wrap" aria-label={ui('更新内容')}>

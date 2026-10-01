@@ -98,6 +98,9 @@ test('startUpgrade asks before stopping running jobs and reports the restart DSH
   assert.match(installed, /完全退出/, 'desktop: quit the app fully, then reopen');
   const web = render(h(UpdateDialog, { update: update({ install: { available: true, desktop: false } }), call, onClose() {}, initialPhase: { phase: 'installed', version: '2.1.1', restartRequired: true, desktop: false } }));
   assert.match(web, /重启 DSH 服务/);
+  const pending = render(h(UpdateDialog, { update: update({ pendingRestart: '2.1.1', install: { available: true, desktop: false } }), call, onClose() {} }));
+  assert.match(pending, /已安装 2\.1\.1/, 'the restart chip opens the restart instructions, not a second upgrade');
+  assert.doesNotMatch(pending, /一键升级/);
   const jobs = render(h(UpdateDialog, { update: update({ install: { available: true } }), call, onClose() {}, initialPhase: { phase: 'jobs', jobs: 2 } }));
   assert.match(jobs, /2 个后台任务/);
   assert.match(jobs, /停止任务并升级/);
