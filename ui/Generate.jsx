@@ -305,7 +305,7 @@ export default function Generate({
               {/* What the run is expected to use, from the real prompts of the pipeline (WP27). */}
               <TokenEstimate call={call} enabled={selectedSources.length > 0}
                 request={{ feature: 'generate', sourceIds: selectedSources, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
-                  focus: gen.focus || '', role: gen.role || '', course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
+                  course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
