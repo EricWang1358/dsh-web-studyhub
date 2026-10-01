@@ -74,7 +74,7 @@ test('pure copy: relative due text and study link labels resolve names cheaply',
   assert.equal(studyRefLabel({ root: '/lib', kind: 'skeleton', id: 'k1' }, library).text, '知识骨架 · Platform map');
   assert.equal(studyRefLabel({ root: '/lib', kind: 'workflow', sessionId: 'w1' }, library).text, '学习流', 'unknown names fall back to the kind');
   assert.equal(studyRefLabel({ root: '/elsewhere', kind: 'source', id: 's1' }, library).text, '资料', 'another library is never resolved against this one');
-  assert.equal(studyRefLabel({ root: '/lib', kind: 'course', course: '' }, library).text, '课程');
+  assert.equal(studyRefLabel({ root: '/lib', kind: 'course', course: '' }, library).text, '未分类课程');
 });
 
 test('a card is calm: 2-line title, markdown note with a real expand button, no arrow row', () => {
@@ -90,7 +90,7 @@ test('a card is calm: 2-line title, markdown note with a real expand button, no 
   assert.match(html, /tabindex="0"/, 'the card itself is focusable');
   assert.match(html, /draggable="true"/);
   const en = cardHtml('a', 'en');
-  assert.match(en, /aria-expanded="false"[^>]*>Show more<\/button>/);
+  assert.match(en, /aria-expanded="false"[^>]*>Expand<\/button>/);
 });
 
 test('a short note has no expand button; a card without a note has no note block', () => {
@@ -243,11 +243,12 @@ test('the board page: header, columns with counts, a quiet + 新建列 button in
   assert.match(html, /aria-live="polite"/, 'moves are announced');
   assert.match(html, /归档 \(1\)|归档<[^>]*>\s*\(1\)|归档.{0,40}1/);
   const en = render(board(), 'en');
-  assert.match(en, /<h1[^>]*>To-do board<\/h1>/);
+  assert.match(en, /<h1[^>]*>Task board<\/h1>/);
   assert.match(en, /New column/);
   assert.match(en, /Add card/);
-  const visible = strip(en).replace(/SCS TechConnect 2026 校园招聘\/职业活动|Platform Engineering 期末复习|读论文|写报告|旧任务|已归档的一张|[^\x00-\x7F]*(?:时间|地点|形式|报名|现场)[^\n]*?(?= [A-Za-z]|$)/g, '');
-  assert.doesNotMatch(visible.replace(/时间[^]*?简历与学生证/g, ''), han, 'English UI shows no Chinese chrome');
+  const english = { ...boardData(), cards: Object.fromEntries(Object.entries(boardData().cards).map(([id, c]) => [id, { ...c, title: `Card ${id}`, note: '' }])),
+    archived: [] };
+  assert.doesNotMatch(strip(render(board({ board: english }), 'en')), han, 'English UI shows no Chinese chrome');
 });
 
 test('a card with a studyRef opens the composer with the link chip already attached', () => {
@@ -302,7 +303,7 @@ test('card detail: title, markdown note with preview, due, labels, checklist, li
   assert.match(html, /更新于/);
   assert.match(html, /归档/);
   assert.match(html, /删除/);
-  assert.match(html, /<datalist[^>]*>[\s\S]*value="career"/);
+  assert.match(html, /board-chip is-choice board-hue-\d[^>]*>\+ career/, 'existing labels are offered as suggestions');
   assert.match(html, /保存/);
   const en = render(React.createElement(CardEditor, editorProps()), 'en');
   for (const text of ['Preview', 'Add item', 'Created', 'Updated', 'Archive', 'Delete', 'Save']) assert.ok(en.includes(text), text);
