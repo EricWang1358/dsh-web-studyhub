@@ -2,24 +2,24 @@
 
 English · [简体中文](install.zh-CN.md)
 
-StudyHub is a plugin for DeepSeek Harness (DSH). Download the [English browser setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/StudyHub-2.0.3-Setup.html), or follow the steps below.
+StudyHub is a plugin for DeepSeek Harness (DSH). Download the [English browser setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.0/StudyHub-2.1.0-Setup.html), or follow the steps below.
 
 ## Already using DSH: install only the plugins
 
 These steps work in your existing **desktop or web** DSH installation. Web users do not need a desktop client or a new configuration.
 
 1. Open DSH’s **Plugins → Add plugin**.
-2. Paste the complete package URL below. Confirm the name `@ericwang1358/dsh-daily-flashcard` and version **2.0.3** after installation.
+2. Paste the complete package URL below. Confirm the name `@ericwang1358/dsh-daily-flashcard` and version **2.1.0** after installation.
 3. Enable the workbench and desired components. If reloading is requested, finish or cancel background tasks first.
 4. StudyHub opens by itself after enabling. Later, open **StudyHub** from DSH’s left sidebar; no session or chat message is needed first. On an empty library, **Load the sample and start the tour** shows every key feature in about three minutes without a model.
 
 ```text
-https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/ericwang1358-dsh-daily-flashcard-2.0.3.tgz
+https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.0/ericwang1358-dsh-daily-flashcard-2.1.0.tgz
 ```
 
 For an update, finish or cancel tasks and restart the **existing DSH process**: quit and reopen desktop DSH, or restart your web service with its original profile. A browser refresh does not replace loaded plugin code.
 
-If GitHub URL installation is unavailable, download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.3) and supply its absolute path. The file must be on the **computer or server running DSH**. Your laptop’s download path is not a remote web server’s path; prefer the HTTPS URL above.
+If GitHub URL installation is unavailable, download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.0) and supply its absolute path. The file must be on the **computer or server running DSH**. Your laptop’s download path is not a remote web server’s path; prefer the HTTPS URL above.
 
 ### Advanced installation and component switches
 
