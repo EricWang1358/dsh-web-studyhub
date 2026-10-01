@@ -8,6 +8,7 @@ import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
 import { ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
+import { ModelUsage } from "./TokenUsage.jsx";
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
    用于展示当前到期概览（data.today）。热力图为 CSS grid；三张图（每日平均分、
@@ -153,7 +154,7 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
   );
 }
 
-export default function Dashboard({ call, data, busy, onStartScope, onLibrary, onCreate, onSources }) {
+export default function Dashboard({ call, data, busy, onStartScope, onLibrary, onCreate, onSources, onAudioUsage }) {
   useInjectCss(css, "study-views");
   useInjectCss(chartCss, "study-dash-charts");
   const [course, setCourse] = usePageScope(data?.root, 'dashboard', data?.focus?.course ?? '*');
@@ -200,6 +201,8 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
         <StatsView stats={stats} course={course} data={data} busy={busy} localDecks={localDecks}
           onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} />
       )}
+      {/* What the study model used, by feature (WP27); the library's own ledger, not the course view. */}
+      <ModelUsage call={call} onAudio={onAudioUsage} />
     </section>
   );
 }

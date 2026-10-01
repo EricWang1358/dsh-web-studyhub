@@ -12,6 +12,7 @@ import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js'
 import { Banner, Button, Disclosure, EmptyState, PageHeader, SegmentedControl, SetupRequired } from './components/index.js';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
+import { TokenEstimate } from './TokenUsage.jsx';
 import {
   COUNT_MAX, COUNT_MIN, COUNT_PRESETS, DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, clampCount, courseHasCaseExam,
   difficultyNote, estimateMinutes, kindNote, roleOpenByDefault, selectionStats, stepCount, suggestCount, summaryLine,
@@ -45,6 +46,7 @@ export default function Generate({
   onStarted,
   caseInitial,
   onCourseSettings,
+  reasoningEffort = '',
 }) {
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(formCss, "study-generate-form");
@@ -298,6 +300,10 @@ export default function Generate({
                 </p>
               </div>
               {summary && <p className="generate-summary" role="status">{summary}</p>}
+              {/* What the run is expected to use, from the real prompts of the pipeline (WP27). */}
+              <TokenEstimate call={call} enabled={selectedSources.length > 0}
+                request={{ feature: 'generate', sourceIds: selectedSources, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
+                  focus: gen.focus || '', role: gen.role || '', course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}

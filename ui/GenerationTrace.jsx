@@ -2,6 +2,8 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useState } from "react";
 import { Disclosure } from "./components/index.js";
 import { legacyStageText, stepLabel } from "./generation-status.js";
+import { JobUsage } from "./TokenUsage.jsx";
+import { formatExactTokens, totalTokens } from "../lib/token-usage.js";
 
 /** Kept for older callers: generation prose from an older backend, in Chinese. */
 export const generationStage = legacyStageText;
@@ -24,12 +26,14 @@ export default function GenerationTrace({ job, openAgent }) {
   const status = STEP_STATUS();
   return <details className="generation-trace">
     <summary>{uiFormat("查看执行过程 · {0} 步", [steps.length])}</summary>
+    <JobUsage job={job} />
     <p className="muted">{job.concurrency ? ui("先统一规划考点，再分批同时出题；") : ""}{ui("每批最多 5 题，先出题并自查，再由另一位助手独立审阅；没通过的题不会进入草稿。")}</p>
     {job.savedCount > 0 && active && <p className="muted">{uiFormat("已保存 {0} 题到草稿；其余批次仍在生成。", [job.savedCount])}</p>}
     {job.totalTimeoutSeconds > 0 && <p className="muted">{uiFormat("最长 {0} 分钟（不算排队）；到时会停止，已通过检查的题保留在草稿里。", [Math.round(job.totalTimeoutSeconds / 60)])}</p>}
     {!steps.length && <p className="muted">{job.status === "queued" ? ui("正在排队，还没有开始。") : ui("还没有步骤记录。")}</p>}
     {steps.length > 0 && <ol>{steps.map((step) => <li key={step.id}>
       <strong>{stepLabel(step, job)}</strong>
+      {step.tokenUsage && <small className="step-usage">{`${formatExactTokens(totalTokens(step.tokenUsage))} tok`}</small>}
       <small>{status[step.status] || step.status}
         {step.startedAt && (step.finishedAt ? uiFormat(" · {0} 秒", [seconds(step.startedAt, Date.parse(step.finishedAt))])
           : uiFormat(" · 已等待 {0} 秒", [seconds(step.startedAt, now)]))}
