@@ -1,0 +1,5 @@
+{
+  "没能移除这条记录：{0}": "Could not remove this card: {0}",
+  "没能全部移除：{0}": "Could not clear them all: {0}",
+  "没能标为已读：{0}": "Could not mark them as read: {0}"
+}

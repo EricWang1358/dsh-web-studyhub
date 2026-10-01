@@ -4,6 +4,7 @@ import CourseField, { parseCourses } from './CourseField.jsx';
 import { Button, FileDrop, InlineMessage } from './components/index.js';
 import { AudioSetupGate, requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
+import { dismissJobs, useQuickActions } from './quick-actions.js';
 import settingsCss from './audio-settings.css';
 
 /* 音频导入：录音 → 转写 → 校对识别错误的词 → 中英对照逐字稿，存为一份资料。
@@ -156,6 +157,7 @@ function memberState(member, jobActive, now) {
 }
 
 function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onOpenSettings }) {
+  const quick = useQuickActions(), dismissFailure = quick?.failures[job.id];
   // The length of the recording is not how long the work takes: show how long it has actually taken.
   const running = isActive(job), [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -184,7 +186,8 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
           : counted ? uiFormat("{0}（{1}/{2}）", [ui(PHASES[job.phase]), Math.min(job.done + 1, job.total), job.total]) : ui(PHASES[job.phase] || "处理中");
   const order = job.review ? [] : job.subtitle ? ORDER.filter(phase => phase !== "transcribe") : ORDER;
   return (
-    <div className={"job " + job.status} role="status">
+    <div className={"job " + job.status + (job.leaving ? " job-leaving" : "")} role="status"
+      aria-hidden={job.leaving ? "true" : undefined} inert={job.leaving || undefined}>
       <span>{job.status === "failed" ? "!" : job.status === "cancelled" ? "×" : isActive(job) ? "◌" : "✓"}</span>
       <div>
         <strong>{job.filename}</strong>
@@ -261,9 +264,10 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
             onClick={() => act("audio.retry", { jobId: job.id })}>{ui("接着做（不重复付费）")}</button>}
         {job.legacy && onLegacyRetry && <button type="button" className="primary" disabled={busy}
           onClick={() => onLegacyRetry(job)}>{ui("重新选择原录音继续")}</button>}
+        {dismissFailure && <p className="job-error" role="alert">{uiFormat("没能移除这条记录：{0}", [dismissFailure])}</p>}
       </div>
       {!isActive(job) && (
-        <button type="button" className="job-dismiss" disabled={busy} onClick={() => act("job.dismiss", { jobId: job.id })}>{ui("知道了")}</button>
+        <button type="button" className="job-dismiss" onClick={() => quick ? dismissJobs(quick, job.id) : act("job.dismiss", { jobId: job.id })}>{ui("知道了")}</button>
       )}
     </div>
   );

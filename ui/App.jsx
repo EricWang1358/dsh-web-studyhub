@@ -39,8 +39,12 @@ import ShortcutHelp from "./ShortcutHelp.jsx";
 import CourseSettings, { CourseList } from './CourseSettings.jsx';
 import LanguageSwitch from './LanguageSwitch.jsx';
 import Inbox from "./Inbox.jsx";
+import { QuickActionsContext, dismissJobs, markInboxRead, useQuickActionsController } from "./quick-actions.js";
+import quickCss from "./quick-actions.css";
 import css from "./coach.css";
 import libraryChipCss from "./library-chip.css";
+import ReasoningEffortField from "./ReasoningEffortField.jsx";
+import LibraryUsage from "./LibraryUsage.jsx";
 import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
@@ -134,11 +138,17 @@ export default function App({ call: transportCall, host = {} }) {
   const [contextTrail, setContextTrail] = useState([]), [focusRequest, setFocusRequest] = useState(null);
   const examLocation = useRef(null);
   const [examKind, setExamKind] = useState('exam');
-  const [data, setData] = useState(null),
+  const [serverData, setData] = useState(null),
     [binding, setBinding] = useState({ root: "", provider: "", model: "" }),
     [rootDraft, setRootDraft] = useState(null),
     [modelDraft, setModelDraft] = useState(null),
     [page, setPage] = useState("library");
+  /* Light actions (知道了, 全部已读) patch what is on screen at once and run in the background; see ui/quick-actions.js.
+     `data` is the server snapshot with those pending patches applied. */
+  const { controller: quick, api: quickApi, stamp: quickStamp } = useQuickActionsController(call);
+  const data = useMemo(() => quick.view(serverData), [quick, serverData, quickStamp]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { quick.reconcile(serverData); }, [quick, serverData]);
+  useInjectCss(quickCss, "study-quick-actions");
   /* Sidebar page switches: the current page lifts away briefly, then the new
      one settles in (its entrance lives in CSS). The highlight moves on click. */
   const [pageTarget, setPageTarget] = useState(null),
@@ -293,6 +303,7 @@ export default function App({ call: transportCall, host = {} }) {
       if (!cur || snapshotKey.current !== nextKey) {
         if (cur && cur.root !== next.root) {
           libraryEpoch.current++;
+          quick.reset();
           navigationRequest.current++;
           acting.current = false;
           clearTimeout(leaveTimer.current);
@@ -343,7 +354,7 @@ export default function App({ call: transportCall, host = {} }) {
       }
     }
     return next;
-  }, [call, setNotice]);
+  }, [call, quick, setNotice]);
   const previousLanguage = useRef(language);
   useEffect(() => {
     if (previousLanguage.current === language) return;
@@ -1153,6 +1164,7 @@ export default function App({ call: transportCall, host = {} }) {
       root: binding.rootSource === "custom" ? binding.root : "",
       provider: binding.modelSource === "custom" ? binding.provider : "",
       model: binding.modelSource === "custom" ? binding.model : "",
+      reasoningEffort: binding.reasoningEffort || "",
       ...patch,
     };
   }
@@ -1177,7 +1189,7 @@ export default function App({ call: transportCall, host = {} }) {
         setSelectedSources([]);
       }
       await refresh();
-      setNotice(moved ? ui("已切换学习库") : ui("已更新生成模型"));
+      setNotice(moved ? ui("已切换学习库") : Object.hasOwn(patch, "reasoningEffort") ? ui("已更新推理程度") : ui("已更新生成模型"));
       return true;
     } catch (e) {
       setError(e.message);
@@ -1279,6 +1291,7 @@ export default function App({ call: transportCall, host = {} }) {
                 ? ui("插件配置指定")
                 : ui("自定义目录")}
             {" · "}{ui("资料、题库与复习记录保存在这里")}</small>
+          <LibraryUsage root={binding.root} call={call} active={!!data} />
         </div>
         <div className="binding-actions">
           <button type="button" onClick={chooseRoot} disabled={busy}>{ui("更换目录…")}</button>
@@ -1383,6 +1396,9 @@ export default function App({ call: transportCall, host = {} }) {
           <button type="button" onClick={() => setModelDraft(null)}>{ui("取消")}</button>
         </form>
       )}
+      <ReasoningEffortField binding={binding} busy={busy} refreshKey={JSON.stringify(followedModel || null)}
+        onChange={(reasoningEffort) => updateBinding({ reasoningEffort })}
+        onRefresh={() => call("binding.get").then(setBinding, () => {})} />
     </div>
   );
   /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────
@@ -1606,6 +1622,7 @@ export default function App({ call: transportCall, host = {} }) {
   const feedback = <ActionFeedback error={error} notice={notice} busy={busy}
     onCloseError={() => setError("")} onCloseNotice={() => setNotice("")} />;
   return (
+    <QuickActionsContext.Provider value={quickApi}>
     <div
       className="study-app"
       data-theme={resolvedTheme}
@@ -1792,7 +1809,8 @@ export default function App({ call: transportCall, host = {} }) {
                 inbox={data.inbox}
                 busy={busy}
                 onOpen={openInboxItem}
-                onReadAll={() => act("inbox.read", { all: true })}
+                onReadAll={() => markInboxRead(quick)}
+                readError={quickApi.failures["inbox:read"]}
                 onUndo={(m) => act(m.kind === "rewrite" ? "coach.revert" : "card.revert",
                   { deckId: m.deckId, cardId: m.cardId })}
               />
@@ -1900,7 +1918,7 @@ export default function App({ call: transportCall, host = {} }) {
                 }}
                 openAgent={host.openAgent}
                 cancelJob={(jobId) => act("job.cancel", jobId ? { jobId } : { all: true })}
-                dismissJob={(jobId) => act("job.dismiss", jobId ? { jobId } : { all: true })}
+                dismissJob={(jobId) => dismissJobs(quick, jobId)}
                 addSource={() => setModal({ type: "add" })}
                 createManual={() =>
                   openDraft({
@@ -2345,6 +2363,7 @@ export default function App({ call: transportCall, host = {} }) {
         </ModalFrame>
       )}
     </div>
+    </QuickActionsContext.Provider>
   );
 }
 
