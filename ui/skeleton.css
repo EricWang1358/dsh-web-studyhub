@@ -874,26 +874,6 @@
   gap: 6px;
   flex-wrap: wrap;
 }
-.sk-seg {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  background: var(--bg-sunken);
-}
-.study-app .sk-seg button {
-  padding: 3px 11px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 15px;
-}
-.study-app .sk-seg button.on {
-  background: var(--bg-raised);
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
-}
 .study-app button.sk-ai {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   color: var(--accent-soft);
@@ -976,21 +956,6 @@
   gap: 6px;
   padding-top: 8px;
   border-top: 1px solid var(--line-soft);
-}
-.skc-extend-intents {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.study-app .skc-extend-intents button {
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 11.5px;
-}
-.study-app .skc-extend-intents button.on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--text);
 }
 .skc-extend form,
 .sk-extend-row {

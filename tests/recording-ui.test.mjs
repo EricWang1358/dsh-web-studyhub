@@ -6,7 +6,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const compiled = await build({ entryPoints: ['ui/Ingest.jsx'], bundle: true, write: false,
-  platform: 'node', format: 'cjs', external: ['react'] });
+  platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const Ingest = module.exports.default;

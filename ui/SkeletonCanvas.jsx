@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
+import { SegmentedControl } from './components/index.js';
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
 
 /* 知识骨架的两张可交互图：UML 类图（概念结构）+ UML 时序图（动态链路）。
@@ -237,13 +238,8 @@ function ExtendBox({ node, onAsk }) {
   return (
     <div className="skc-extend">
       <h5>{ui("在对话中扩展")}</h5>
-      <div className="skc-extend-intents" role="group" aria-label={ui("想做什么")}>
-        {EXTEND_INTENTS.map(([id, label]) => (
-          <button key={id} type="button" className={intent === id ? "on" : ""} aria-pressed={intent === id} onClick={() => setIntent(id)}>
-            {ui(label)}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl size="sm" className="skc-extend-intents" label={ui("想做什么")} value={intent} onChange={setIntent}
+        options={EXTEND_INTENTS.map(([value, label]) => ({ value, label: ui(label) }))} />
       <form
         onSubmit={(ev) => {
           ev.preventDefault();

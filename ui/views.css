@@ -503,10 +503,7 @@
   font-size: 15px;
 }
 .exam-type-settings { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
-.exam-type-settings > div { display: flex; flex-wrap: wrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); }
-.exam-type-settings button { padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; font-size: 15px; color: var(--text-muted); }
-.exam-type-settings button:hover:not(:disabled) { background: transparent; color: var(--text); }
-.exam-type-settings button.picked { background: var(--bg-raised); color: var(--text); box-shadow: 0 1px 3px #20160c26; }
+.exam-type-settings .sh-seg { align-self: flex-start; }
 .exam-type-settings small { font-size: 15px; }
 .exam-type-settings .warning { margin: 0; }
 .exam-setup-foot {

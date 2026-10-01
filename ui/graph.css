@@ -29,29 +29,6 @@
   gap: 12px;
   flex-wrap: wrap;
 }
-.graph-modes {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-}
-.graph-mode {
-  border: none;
-  background: transparent;
-  padding: 5px 12px;
-  border-radius: 7px;
-  font-size: 13px;
-}
-.graph-mode:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: transparent;
-}
-.graph-modes .graph-mode.active {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
 .graph-legend {
   display: flex;
   align-items: center;

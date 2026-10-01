@@ -11,6 +11,7 @@ import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
 import { readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
 import caseCss from './case-study.css';
+import { SegmentedControl } from './components/index.js';
 
 /* 模拟考试（v0.4 契约 §3）：setup → running → report 自管理状态机。
    选中状态存本地（picks，按 deckId:cardId 键控），每次选择通过
@@ -390,11 +391,8 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
               </ul>
               <div className="exam-type-settings">
                 <strong>{ui("题型")}</strong>
-                <div role="group" aria-label={ui("考试题型")}>
-                  {Object.entries(examKindLabel).map(([kind, label]) => <button key={kind} type="button"
-                    aria-pressed={typeMode === kind} className={typeMode === kind ? "picked" : ""}
-                    onClick={() => setTypeMode(kind)}>{ui(label)}</button>)}
-                </div>
+                <SegmentedControl label={ui("考试题型")} value={typeMode} onChange={setTypeMode}
+                  options={Object.entries(examKindLabel).map(([value, label]) => ({ value, label: ui(label) }))} />
                 <small className="muted">{ui("已选题组：单选 ")}{pickedKinds.quiz}{ui(" 道，多选 ")}{pickedKinds.multi}{ui(" 道。均衡模式尽量各占一半，不足时由另一类补齐。")}</small>
                 {pickedDecks.size > 0 && !typeAvailable && <p className="warning">{ui("所选题组没有这种题型，请换题型或题组。")}</p>}
               </div>
