@@ -80,8 +80,11 @@ export const JOURNEY_STEPS = [
     await j.clickIfPresent(j.anchor("generate-from-sources").or(j.page.getByRole("tab", { name: j.t("从资料补题") })));
     await j.clickIfPresent(j.page.getByRole("button", { name: j.t("选择当前范围") }));
     await j.page.getByRole("button", { name: j.t("单选测验"), exact: true }).click();
-    await j.page.getByLabel(j.t("题数")).fill("4");
-    await j.page.getByLabel(j.t("题组名称（可选）")).fill(j.lang === "en" ? "QA journey deck" : "QA 旅程题组");
+    await j.page.locator("#generate-count").fill("4"); // the stepper group, its buttons and presets share the 题数 label
+    // 题组名称 lives under 更多选项 since the 2.1.1 form redesign.
+    const name = j.page.getByLabel(j.t("题组名称（可选）"));
+    if (!await name.isVisible()) await j.page.locator(".generate-more summary").click();
+    await name.fill(j.lang === "en" ? "QA journey deck" : "QA 旅程题组");
     await j.shot("form", { fullPage: true });
     const before = (await j.snapshot()).jobs.length;
     await j.anchor("generate-submit").or(j.page.getByRole("button", { name: new RegExp(`^(${escapeRe(j.t("生成并检查题组 →"))}|${escapeRe(j.t("加入生成队列 →"))})`) })).first().click();
