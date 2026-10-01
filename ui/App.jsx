@@ -254,6 +254,8 @@ export default function App({ call: transportCall, host = {} }) {
   }, [showEn]);
   // D1: 创建题组 opens on generating from materials; JSON import is the second tab.
   const [genSource, setGenSource] = useState("files");
+  // A case paper seeded from a passage of a material (WP12).
+  const [caseInitial, setCaseInitial] = useState(null);
   // A generation just started: the library home scrolls its progress card into view once (P26).
   const [revealHome, setRevealHome] = useState(0);
   const canChat = host.capabilities?.chat ?? !!host.askInChat;
@@ -908,6 +910,8 @@ export default function App({ call: transportCall, host = {} }) {
   const choice =
     run?.mode !== "flashcard" && ["quiz", "multi"].includes(run?.card?.kind);
   const isCloze = run?.mode !== "flashcard" && run?.card?.kind === "cloze";
+  // An open question with rubric criteria is answered in writing and graded, never flipped (WP12).
+  const rubricCard = run?.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => {
     setShowBack(!!run?.revealed);
@@ -983,7 +987,7 @@ export default function App({ call: transportCall, host = {} }) {
         if (run.feedback) reviewAct("review.move", { direction: 1 });
         else if (choice && run.card.multiple && selected.length) reviewAct("review.answer", { selected });
         else if (isCloze && Object.values(clozeValues).some((v) => String(v).trim())) reviewAct("review.answer", { answers: clozeValues });
-        else if (!choice && !isCloze) flipCard();
+        else if (!choice && !isCloze && !rubricCard) flipCard();
       } else if (letter === "h") {
         e.preventDefault();
         if (run.revealed) setExplain((v) => !v);
@@ -998,7 +1002,7 @@ export default function App({ call: transportCall, host = {} }) {
       } else if (e.key === "ArrowLeft" && run.index) {
         e.preventDefault();
         reviewAct("review.move", { direction: -1 });
-      } else if (e.code === "Space" && !choice && !isCloze) {
+      } else if (e.code === "Space" && !choice && !isCloze && !rubricCard) {
         e.preventDefault();
         flipCard();
       } else if (choice && !run.feedback && /^[1-6]$/.test(e.key)) {
@@ -1058,7 +1062,9 @@ export default function App({ call: transportCall, host = {} }) {
       setNotice(
         mode === "ask"
           ? ui("后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。")
-          : ui("后台助教正在改这道题，改完会进信箱，可一步撤销。"),
+          : mode === "grade"
+            ? { text: ui("已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，也会进信箱。"), tone: "success" }
+            : ui("后台助教正在改这道题，改完会进信箱，可一步撤销。"),
       );
       refresh().catch(() => {});
       return true;
@@ -2002,6 +2008,8 @@ export default function App({ call: transportCall, host = {} }) {
                   setGenSource("files");
                   setPage("generate");
                 }}
+                onCreateCase={() => { setGenSource("case"); setPage("generate"); }}
+                onNotice={setNotice}
               />
             )}
             {page === "wrongbook" && (
@@ -2103,7 +2111,10 @@ export default function App({ call: transportCall, host = {} }) {
                 askInChat={askInChat}
                 canChat={canChat}
                 openModelSettings={openModelSettings}
-                onStarted={() => { setRevealHome((n) => n + 1); setPage("library"); }}
+                onStarted={() => { setRevealHome((n) => n + 1); setCaseInitial(null); setPage("library"); }}
+                caseInitial={caseInitial || undefined}
+                onCourseSettings={setCourseSettings}
+                key={caseInitial?.nonce || "generate"}
               />
             )}
             {page === "draft" && draft && (
@@ -2319,7 +2330,9 @@ export default function App({ call: transportCall, host = {} }) {
                       setGenSource('files'); setModal(null); setPage('generate');
                     }}>{ui('从这份资料出题')}</button>
                     <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
-                      onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }} />
+                      onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
+                      onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
+                        setGenSource('case'); setModal(null); setPage('generate'); }} />
                   </>
                 ) : (
                   <p className="muted">{ui("无法找到此资料。")}</p>

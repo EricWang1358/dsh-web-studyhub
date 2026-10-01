@@ -241,5 +241,6 @@ test("a load interrupted half-way is cleaned up by the next load", async (t) => 
   await call("sample.load", { language: "zh" });
   const state = await store.read();
   assert.equal(state.sources.filter((source) => source.id === "sample-orphan").length, 0);
-  assert.equal(state.sources.filter((source) => source.sample === true).length, 1);
+  // The lecture and the case scenario (WP12).
+  assert.equal(state.sources.filter((source) => source.sample === true).length, 2);
 });

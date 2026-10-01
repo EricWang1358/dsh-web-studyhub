@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import css from "./views.css";
 import { useInjectCss } from "./shared.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
+import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
@@ -129,6 +130,8 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
             <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onStartScope(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
               onCreate={onCreate} onSources={onSources} />
           </div>}
+          {/* Rubric skills over time (WP12), weakest first. */}
+          <RubricSkills attempts={data?.attempts} />
           <div className="dash-hero" data-tour="dashboard-summary">
             <div className="dash-streak">
               <strong>{totals.streak ?? 0}</strong>

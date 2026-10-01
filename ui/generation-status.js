@@ -111,6 +111,13 @@ export function jobHeadline(job = {}, drafts = []) {
         : job.status === 'partial' ? uiFormat('部分修好 · {0}/{1} 题', [job.savedCount, job.count])
           : job.status === 'cancelling' ? ui('正在停止修题')
             : job.status === 'cancelled' ? ui('修题已取消') : uiFormat('全部修好 · {0}/{1} 题', [job.savedCount, job.count]));
+  // Case papers (WP12) read as cases; queueing and stopping read as any generation.
+  if (job.kind === 'case' && !['queued', 'cancelling', 'cancelled'].includes(jobCode(job))) {
+    const code = jobCode(job);
+    if (code === 'done') return job.publication ? uiFormat('案例「{0}」已导入，{1} 题已批改', [name, job.graded || 0]) : uiFormat('案例「{0}」草稿已生成', [name]);
+    if (code === 'failed') return uiFormat('案例「{0}」没有生成完成', [name]);
+    return uiFormat('正在出案例「{0}」', [name]);
+  }
   switch (jobCode(job)) {
     case 'queued': return uiFormat('「{0}」排队中', [name]);
     case 'cancelling': return uiFormat('正在停止「{0}」', [name]);
@@ -125,6 +132,7 @@ export function jobHeadline(job = {}, drafts = []) {
 /** The card's second line: the stage in plain words, its batch and what is saved. */
 export function jobStageLabel(job = {}, drafts = []) {
   const code = jobCode(job), draft = draftOf(job, drafts);
+  if (job.kind === 'case' && job.publication && code === 'done') return ui('批改结果已进信箱；这套案例在学习库里，可以随时再练。');
   if (ownProse(job) && code !== 'failed') return job.stage || stageCodeLabel(code);
   if (code === 'cancelled') {
     const kept = draft ? job.savedCount || draft.cards?.length || 0 : 0;
