@@ -4,6 +4,7 @@
 //   DSH_HOME             global study files (default output/preview-home, never ~/.dsh)
 //   STUDY_FAKE_MODEL=1   deterministic fake model (scripts/fake-model.mjs);
 //                        STUDY_FAKE_LATENCY_MS sets its delay (default 900)
+//   STUDY_FAKE_RETRIEVAL=1  the preview plays a DSH that exposes a document-search tool (scripts/fake-retrieval.mjs)
 //   STUDY_API_KEY        a real OpenAI-compatible model instead, with
 //                        STUDY_BASE_URL (default DeepSeek) and STUDY_MODEL
 // Run `npm run build` first: the page is dist/app.js and dist/app.css.
