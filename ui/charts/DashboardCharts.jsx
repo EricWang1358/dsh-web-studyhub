@@ -89,7 +89,7 @@ export function TrendPanel({ trend = [], today }) {
     return (
       <circle key={`${kind}${r.date}`} className={`dash-point ${kind}`} cx={x(i)} cy={yy} r={4.5} tabIndex={0}
         aria-label={uiFormat('{0} · {1} 平均 {2} 分 · {3} 次', [r.date, name, value, count])}
-        onFocus={() => show(i)} onBlur={() => setActive(null)} />
+        onMouseEnter={() => show(i)} onFocus={() => show(i)} onBlur={() => setActive(null)} />
     );
   };
 
