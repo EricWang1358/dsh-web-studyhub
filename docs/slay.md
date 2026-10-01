@@ -1,13 +1,15 @@
-# 斩题
+# Removing a question from active study
 
-练习页（题目、闪卡、填空和开放问答）及题组管理页提供「斩」。第一次使用时创建本学习工作区唯一的系统「斩题组」，此后统一收纳。学习目录上方有入口，也可在已归档题组中找到。
+[中文](slay.zh-CN.md)
 
-在练习页斩题后，提示条提供「撤销」，等同于立即「恢复原题组」；恢复的题不会回到当前这一轮。
+**Slay** is available during question, flashcard, cloze, and open-response practice and in deck management. First use creates the workspace's single system deck for removed questions, accessible above the library list and among archived decks.
 
-斩题会把原卡移出原题组，暂停学习，保留卡片 ID、内容、复习进度、原题组名称、斩题时间和已有作答历史。当前练习自动继续下一题，所有未结束练习中的该题及重练副本被移除，不新增评分记录。已结束的练习和历史作答不改写。
+During practice, **Undo** immediately restores a card to its original deck. It does not return to the current round.
 
-斩题组不参与日常复习、学习路径和模拟考试，不能整组取消归档或恢复学习。管理页可逐题「恢复原题组」，沿用原复习进度及原暂停状态；原题组已归档时仍保持归档。原题组或编辑草稿达到 100 题时需先整理再恢复。
+Slaying moves and suspends the original card, retaining its ID, content, progress, original deck name, removal time, and history. Practice advances. The card and retry copies leave all unfinished runs without a new grade. Finished runs and historical answers remain unchanged.
 
-题目迁移会同步原题组的编辑草稿并更新版本，旧窗口不能把已斩题目发布回来。前置题关联随迁移更新，已斩题不会出现在待学前置题中，恢复后关联可继续使用。斩题组允许累计超过普通题组的 100 题上限。
+This system deck is excluded from daily review, learning paths, and mock exams. It cannot be unarchived or resumed as a whole. Restore individual cards with **Restore to original deck**, retaining original progress and suspended status. An archived original deck stays archived. If the original deck or edit draft has 100 questions, organize it before restoring.
 
-接口：`card.slay {deckId,cardId,runId?}`；传入 runId 时校验当前题并返回更新后的练习视图，否则返回目标题组与卡片 ID。`card.restore {deckId,cardId}` 恢复原题组。
+Movement synchronizes the original edit draft and version so old windows cannot republish removed cards. Prerequisite links move too; removed cards are excluded from pending prerequisites and links work again after restoration. The system deck may exceed the ordinary 100-question limit.
+
+API: `card.slay {deckId,cardId,runId?}`. With `runId`, it validates the current question and returns the updated practice view; otherwise it returns destination deck and card IDs. `card.restore {deckId,cardId}` restores the original deck.

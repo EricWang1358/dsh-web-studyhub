@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale } from "./i18n.js";
+import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LEVEL_LABEL } from "./shared.js";
 import GenerationTrace, { generationStage } from "./GenerationTrace.jsx";
@@ -25,7 +25,7 @@ function TopicGroupReminder({ grouping, root, askInChat }) {
   return <div className="group-reminder" role="status">
     <span>{first ? uiFormat("学习库有 {0} 个主题，还没按知识域归并成主题组", [grouping.topics]) : uiFormat("有 {0} 个主题还没归入主题组（通常来自新导入的题组）", [grouping.ungrouped])}</span>
     <span className="group-reminder-actions">
-      <button type="button" className="link-btn" onClick={() => askInChat(groupPrompt(first ? { mode: "replace", topicCount: grouping.topics } : { mode: "merge", ungrouped: grouping.ungrouped }))}>{first ? ui("让对话归并主题") : ui("让对话归入主题组")} →</button>
+      <button type="button" className="link-btn" onClick={() => askInChat(groupPrompt(first ? { mode: "replace", topicCount: grouping.topics } : { mode: "merge", ungrouped: grouping.ungrouped }, getUiLanguage()))}>{first ? ui("让对话归并主题") : ui("让对话归入主题组")} →</button>
       <button type="button" className="ghost-btn" onClick={hold}>{ui("稍后")}</button>
     </span>
   </div>;
@@ -408,7 +408,7 @@ export default function StudyMap({
                     aria-label={uiFormat("在对话中讲解 {0}", [t.name])}
                     onClick={() =>
                       askInChat(
-                        `请结合学习库里的资料，给我讲解「${t.name}」（题组「${d.title}」）。我目前掌握度 ${t.mastery}%${t.counts.weak ? `，有 ${t.counts.weak} 道题当前薄弱` : ""}。先讲核心概念，再用一两道小问题检查我是否理解。`,
+                        uiFormat('请结合学习库里的资料，给我讲解「{0}」（题组「{1}」）。我目前掌握度 {2}%{3}。先讲核心概念，再用一两道小问题检查我是否理解。', [t.name, d.title, t.mastery, t.counts.weak ? uiFormat('，有 {0} 道题当前薄弱', [t.counts.weak]) : '']),
                       )
                     }
                   >{ui("问")}</button>
@@ -1014,7 +1014,7 @@ function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onO
     });
   const stats = (n) =>
     n.exists
-      ? uiFormat("{0} 个题组{1}", [n.deckCount, n.dueToday ? ` · ${n.dueToday} 道到期` : ""])
+      ? uiFormat("{0} 个题组{1}", [n.deckCount, n.dueToday ? uiFormat(' · {0} 道到期', [n.dueToday]) : ""])
       : ui("学习库目录已不可访问");
   const topics = (n) =>
     n.decks

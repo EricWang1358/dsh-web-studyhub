@@ -1,34 +1,33 @@
-# PDF → 测验与闪卡
+# PDF sources to quizzes and flashcards
 
-本次优化来自实际使用记录：讲义被误送入录题流程、模型自行探测 PDF 提取工具、混合题型不被接受、重复等待后台任务，以及一条坏引用导致整批题目失败。
+[中文 and historical verification notes](pdf-workflow.zh-CN.md)
 
-## 使用流程
+## Workflow
 
-1. 「创建题组 → 从资料生成新题」上传 PDF；「添加资料」也提供同一入口。可限定页码，如 `3-12, 15`。
-2. 按页保存原文，显示提取预览。选中的页面成为生成来源，可取消封面、目录、图表页。同文件同页重复导入复用原记录。
-3. 选择测验、闪卡或混合题型，填写总题数和课程题组名称。混合题型在一个任务内分配为一半单选、一半闪卡，奇数多一道单选。
-4. 后台每批最多 5 题，逐批经过生成、结构与引用检查、独立审阅和必要的修复。修复后仍有结构问题时，保留合格子集，再独立审阅。审阅不通过的子集不会保存。
-5. 草稿显示请求数、实际生成数、失败原因和未引用来源。发布仍沿用已有审阅流程。
+1. In **Create deck → Generate questions from sources**, upload a PDF. **Add source** offers the same import. Optionally specify pages such as `3-12, 15`.
+2. Original text is saved per page with an extraction preview. Select generation pages and deselect covers, contents, or diagrams as needed. Reimporting the same file and extraction-version page reuses its source.
+3. Choose quiz, flashcard, or mixed types, a total count, and a course/deck title. A mixed job allocates half single-choice and half flashcards, with an extra single-choice question for odd counts.
+4. Generation processes batches of up to five questions. It plans evidence, combines authorship with self-check, validates structure/citations, and runs **exactly one independent review per batch**. Passing candidates remain; failures are recorded and dropped. Since 1.4.6, generation does not automatically loop through repair/review or generate extra questions to fill the count. Later explicit repair is separate.
+5. The draft shows requested and actual counts, failure reasons, and sources without accepted citations. Review and publication are separate from extraction; consult [quality boundaries](assessment-quality.md), especially the difference between default quick publication and reviewed publication.
 
-对话入口：`source.import {path, pages?}` 接收绝对本地路径；返回 `sourceIds` 后调用 `generate {sourceIds, kind:"mixed", count, title?}`。浏览器通过同一导入动作传递文件内容。原始 PDF、附带文字和题目始终作为资料，不作为指令执行。
+The conversation API accepts an absolute local path through `source.import {path, pages?}`. Then pass the returned IDs to `generate {sourceIds, kind:"mixed", count, title?}`. Browser uploads use the same import action with file content. PDFs, attached text, and questions are treated as material rather than executable instructions.
 
-已有题目使用 `ingest`。讲义生成新题不写入错题记录、不关闭录题模式。模型说明和上手指引均已同步；任务入队后默认返回控制权，避免反复等待与重复生成。
+Use `ingest` for existing questions. Generating from a handout does not add wrong-answer records or close question-capture mode. Enqueueing returns control by default; do not repeatedly wait or start duplicate generation.
 
-## 边界与验证
+## Limits
 
-- PDF 上限 8 MB、200 页、选页文本合计 600,000 字符；题组上限 30 题。
-- 目前支持文字层提取，不包含 OCR 和图表理解。导入结果列出所选页数、可用于出题的页数、文字不足的页码、文字偏少的页码和排版待核对页；完全无文字时在文件选择处说明原因，不保存资料。文字偏少的页面仍会保存其可引用文字，但可能只有页眉、页脚或标题，正文需核对是否为图片。阅读顺序、公式和图片仍需核对。
-- 出题前，当所选 PDF 页数多于题数时会提示缩小范围或分批生成。草稿逐份显示模型规划的考点次数与最终引用该资料的合格题数，并可只选没有合格题的资料另建补充草稿。这些数字说明本次出题触及了哪些资料，不证明整页或全部知识点已覆盖。
-- 任务仍在宿主进程内运行；重启会中断未完成任务。已保存的生成草稿可手动继续补齐缺题，启动新的模型任务并保留已有合格题；不会自动恢复旧模型会话。
-- 回归测试覆盖真实 PDF 结构、选页、重复导入、空页、来源到混合任务的完整服务流程、部分修复后再次审阅，以及模型调用失败不被误判成 JSON 错误。
-- 浏览器使用实际的 SWE5001《Introduction to Solution Architecture v2.1》讲义验证第 3–5 页上传、提取预览与重复导入。测试库位于 `output/pdf-library`，未写入课程学习库。模型生成测试使用确定性模拟响应，未对真实模型内容质量作通过保证。
+- PDFs: 8 MB, 200 pages, and 600,000 selected text characters. The documented PDF generation flow limits requested decks to 30 questions.
+- Extraction reads a text layer; it does not perform OCR or understand diagrams. Results distinguish selected/usable pages, no-text pages, sparse text, and layout warnings. An entirely textless selection fails before saving sources. Sparse pages retain citable text but may contain only headings or footers; check whether the body is an image.
+- When selected pages outnumber requested questions, narrow the range or generate in batches. Per-source planned objectives and accepted citation counts describe this job's reach, not full-page or complete conceptual coverage. Sources without accepted questions can be selected for a separate supplementary draft.
+- Generation runs in the host process. Restart interrupts unfinished jobs. Saved drafts can be continued manually with a new model task and existing accepted questions; old model conversations are not resumed automatically.
+- Existing questions are never rewritten simply because extraction or the plugin changes.
 
-## 文字提取修正（第二版）
+## Text order and extraction versions
 
-第一版将 PDF 内部绘制顺序直接拼接，并给每个文字片段加空格。在真实讲义第 5 页上，System 因此出现在 Architecture 之前；换字体的词也可能被拆成两段。现在按页面坐标恢复行顺序，依据间距拼接字词，保留列间距离和续行缩进。第 4、5、6、14 页已与原版排版对照。
+Extraction reconstructs lines from page coordinates, joins font-split word fragments according to spacing, and preserves column gaps and continuation indentation. The preview retains whitespace, reports displayed character counts, and can load full-page text.
 
-此结果仍是位置化的文字转写，不是图表理解。复杂表格、箭头、图中层次关系和旋转文字不能由线性排序可靠恢复；页面提示和生成说明明确要求核对、不从相邻标签猜测关系。
+This is positional text transcription, not diagram interpretation. Complex tables, arrows, hierarchy, and rotated text cannot be reconstructed reliably through linear ordering. Check the original and do not infer relationships merely from neighboring labels.
 
-预览保留换行与缩进，明确标注已显示字符数，支持读取完整页面文字。重新导入会生成第二版来源，原来源保留以维持已有引用；同一第二版来源仍自动去重。既有题目不会被自动改写。
+Extraction version two creates new sources while retaining version-one sources to preserve citations. Repeated version-two imports deduplicate normally.
 
-本次增加绘制顺序、字体片段、分栏续行、提取版本引用稳定性的回归测试；56 项测试通过。由于工作区保留上一轮未提交修改，本轮只对相关文件做定向手工审查，没有做文件级批量简化或提交混合修改。
+Historical checks used actual PDF structures and a lecture PDF in an isolated library; generation tests used deterministic model responses. Tests cover pages, duplicates, empty/sparse pages, mixed generation, source safety, coordinate ordering, font fragments, column continuations, citation-version stability, and model failure handling. They do not establish real model content quality or complete PDF understanding.

@@ -1,107 +1,79 @@
-# DSH Daily Flashcard
+# StudyHub for DeepSeek Harness
 
-把课程资料、录音和课堂实录变成可以追溯原文的题组，在 DeepSeek Harness 中学习、复习和补齐薄弱点。资料与学习进度保存在本地，支持中文与 English 界面。
+English · [简体中文](README.zh-CN.md)
 
-[交互体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [下载安装包](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) · [版本记录](CHANGELOG.md)
+Turn your course materials, recordings and live classes into questions linked to their original sources. StudyHub keeps your library and review progress locally and supports English and Chinese interfaces.
 
-**当前版本**：[2.0.2](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.2) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。全套安装后可在 DSH 插件管理器中分别启停组件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
+[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Download 2.0.3](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.3) · [Changelog](CHANGELOG.md)
 
-## 可以做什么
+## Install or update
 
-- **从自己的资料出题**：导入 PDF、Markdown、HTML、TXT 或 JSON 题库。资料保留原文件；选中文字后可提问或生成题目，独立审核通过后增量加入已有题组，保留旧题与复习进度。
-- **从资料回到题目与解析**：资料中的段落、表格可关联多道题及当前解析；工作台显示引用角标，题目引用也能返回原文。资料更新后保留历史版本，位置不明确时要求重新定位。
-- **按课程持续学习**：组织课程与章节，先讲后练，使用 SM-2 安排复习；通过错题本、模拟考试和口试发现薄弱点。
-- **导入录音和课堂实录**：后台转录、校正和翻译，按顺序处理多份音频；失败后从已保存片段继续，完成后打开中英对照资料。
-- **查看音频用量**：区分免费与付费通道，查看每日调用、Token、转录时长与七日趋势，分别选择校正和翻译的推理强度。
-- **让帮助回到学习对象**：题目讲解、笔记、学习看板与信箱保留对应入口。资料可全屏预览，未提交输入和学习往返位置可恢复。
+**Already using DSH on desktop or in a browser?** Open its plugin manager and add the complete StudyHub package:
 
-## 安装与更新
-
-**已有 DSH 桌面版或网页版？** 在当前 DSH 中打开「插件 → 添加插件」，粘贴[完整工作台安装包地址](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.2/ericwang1358-dsh-daily-flashcard-2.0.2.tgz)，安装后确认包名、版本并启用。仅安装插件，网页版无需下载客户端，继续使用原配置与模型。
-
-**还没有 DSH？** 可选择官方桌面安装器：[Windows 64 位（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) · [macOS Apple silicon（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。Linux 或不想安装客户端的用户，可安装 Node.js **22.19 或以上**，运行 `npx @deepseek-ai/dsh web` 使用网页版。桌面版自带运行时。完整步骤见[安装与模型配置](docs/install.md)，也可下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.2/StudyHub-2.0.2-Setup.html)。
-
-**高级自定义**：全套安装后，在 DSH 自带插件管理器选择各组件的开关；后续添加独立子插件也使用该管理器。停用所需组件时，学习界面会隐藏对应入口或提示功能已停用，已保存的数据保留。生题需要资料、题库和生成，答题需要题库和学习；多个安装来源提供同一能力时，需停用所有来源才能完全关闭。[详细说明](docs/install.md#高级自定义与后续启停)
-
-**已经在使用 DSH？** 可继续通过插件管理器更新，或使用 CLI。通过命令行运行 DSH 时，需要 Node.js **22.19 或以上**：
-
-1. 从 [GitHub Releases](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) 下载插件的 `.tgz` 安装包。
-2. 使用对应宿主的插件管理器安装到你的配置：
-
-```powershell
-dsh plugin --profile <你的配置名> add <下载的tgz绝对路径>
+```text
+https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/ericwang1358-dsh-daily-flashcard-2.0.3.tgz
 ```
 
-3. 等后台任务完成或取消后，重新加载该 DSH 配置。进入会话中的「学习」页；支持右栏的宿主也可在右侧打开学习工作台。
+Confirm version **2.0.3**, enable the workbench and desired components, and open **Study** in a session with your course workspace. Existing web users only install the plugin; keep your current server, profile, model settings and workspace. For an update, finish or cancel background tasks and restart the existing DSH process. Refreshing the browser alone does not load updated plugin code.
 
-使用 CLI 时保留原 profile；网页版默认配置为 `web`，自定义配置请用原配置名。远程网页版的本地安装包路径须在 DSH 服务器上，也可直接使用 HTTPS 安装地址。桌面配置由桌面宿主管理，请使用随附的插件管理器。仓库更新和网页刷新不会替换已经加载的插件。
+**New to DSH?** Use the official [Windows x64 installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) or [macOS Apple silicon installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg). On Linux, or if you prefer a browser on any platform, install Node.js **22.19 or later** and run `npx @deepseek-ai/dsh web`. Desktop installers include their runtime.
 
-更新已有安装包后，结束后台任务并重启 DSH 进程：桌面版重新打开，网页版重启原服务并使用原 profile；仅刷新浏览器不会加载新的插件代码。
+See the [installation and model setup guide](docs/install.md), or download the [English browser setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/StudyHub-2.0.3-Setup.html). A [Chinese guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/StudyHub-2.0.3-Setup.zh-CN.html) is also available. These are setup guides; DSH itself uses the official installers above.
 
-## 开始学习
+**Customize components** in DSH’s plugin manager. The complete package includes the workbench, runtime, materials, question bank, learning, generation and audio. Each capability can be enabled or disabled independently; saved data survives disabling. Generation requires materials, bank and generation; practice requires bank and learning. Disable every installation providing a capability to turn it off completely. Separate component archives are included in the release.
 
-1. **添加资料**：打开「资料」，上传 PDF、Markdown、HTML、TXT，添加文本，或进入「音频转录」导入录音。
-2. **创建题组**：选择课程及资料范围，生成题目；检查草稿及引用后发布。补题时选择已有题组，可保留原复习记录。
-3. **学习与复习**：从学习库开始练习，或进入学习流先讲后练。作答后查看选项解释；需要帮助时让模型讲解当前题。
-4. **回来看薄弱点**：使用错题本、统计、考试或口试，集中练习尚未掌握的主题。
+## Start learning
 
-课程是资料和题组的归属标签；文件夹用于题组的展示分组。生成与练习按照你明确选择的课程、资料和题组范围进行。
+1. Open **Materials** and import PDF, Markdown, HTML or TXT; paste text or import recordings through **Audio transcription**. JSON question decks are also supported.
+2. Select your course and source scope, generate questions, review their draft and citations, then publish. Choose an existing deck to add approved questions without replacing old questions or review progress.
+3. Practice from the library or follow a study workflow. Read explanations after answering, ask for help on the current question, and use SM-2 spaced review to revisit it later.
+4. Use the mistakes list, statistics, exams and oral practice to identify topics needing more work.
 
-出题每批只做一轮独立审核，不循环修题；通过的题保留，未补足的数量会明确说明。补入已有题组时，预算到点仍会完成已审核部分的保存，不要求再次确认发布。
+Courses label materials and decks; folders organize the deck display. Actions use your explicitly selected courses, sources and decks. Question generation performs one independent review per batch, keeps accepted questions and reports any shortfall. Adding to an existing deck saves reviewed results even when the generation budget expires.
 
-在同一题中连续使用「帮我弄懂」，支持本地子代理的宿主会尽量延续同一个助教及其问答上下文；同时提交的追问按顺序处理。切题、修改题目或切换模型后重新开始；空闲两分钟或完成八轮后释放助教。重新开始时会带上最近三条有效问答，已有解答仍保存在题目中。
+Materials retain original files and historical versions. Select a passage to ask a question or generate candidates, then review and add them to an existing JSON deck. Paragraph and table markers link to related questions and explanations; citations lead back to the source. Uncertain or outdated positions require relocation rather than guessing.
 
-## 模型与音频设置
+## English and Chinese
 
-**首次使用需要配置模型提供方（Provider）**：在 DSH「设置 → 模型」保存 API Key，再在会话中选择模型。日常使用建议 [DeepSeek 官方 API](https://platform.deepseek.com/)；用量较大时，可考虑提供 API Key、且允许在 DSH 与学习用途下使用的 Coding Plan。购买前确认适用工具、用途、专用 API 地址与额度限制；有 API Key 不代表套餐允许任意应用调用。[配置步骤与套餐说明](docs/install.md#配置模型-provider)
+First-time users get English when their browser’s preferred language is not Chinese. Use the language switch in the workbench to choose English or Chinese; your explicit choice is remembered. UI controls, application errors, background progress, notifications and conversation handoffs follow that choice. New generation requests default to the interface language unless a content language is explicitly configured.
 
-Claude Pro／Max、ChatGPT／Codex 订阅不能直接作为 DSH 的 API Key 或套餐额度。Anthropic 与 OpenAI 的独立付费 API 可配置为第三方 Provider；这里的限制针对订阅接入，并非禁止使用其 API 模型。
+Switching the interface does **not** translate saved sources, filenames, questions, notes or provider responses. Those remain in their original language. Use the explicit question translation action when you want an English question version. Audio’s bilingual transcript feature also keeps its explicit source/translation targets.
 
-生成、讲解与学习帮助默认使用会话当前模型，也可在设置中指定学习模型，复用宿主凭据。查看资料、作答和更新复习调度不调用模型；没有模型时仍可手工维护和复习已有题组。
+## Models and audio
 
-音频转录在「设置 → 音频转写」配置 Gemini 或 Groq 密钥。默认按 Gemini 免费 → Groq → Gemini 付费的顺序尝试；可为单次导入选择只用付费密钥。密钥只保存在用户的 DSH 设置目录，界面显示已配置状态及末四位，不进入学习库导出或对话。
+Generation, explanations and learning help need a model provider configured in **DSH Settings → Models**, with a model selected in the session. Browsing materials and reviewing existing questions work without a model. Credentials are managed by DSH.
 
-「音频转录」下方的用量控制台记录本插件发出的模型请求，包含失败与重试。Groq 的每日剩余额度来自有效响应；Gemini 可填入 AI Studio 中当前模型的每日上限，显示本插件统计下的估计余量。项目中其他应用的调用不会成为本插件的本地记录。课堂实时音频流与 DSH 模型 Token 不计入这份 API 统计。
+For everyday use, start with the [official DeepSeek API](https://platform.deepseek.com/). For higher usage, consider a Coding Plan only if it provides an API key and permits DSH and your actual study use; verify tools, endpoint, models, concurrency and quota rules before purchasing. Claude Pro/Max and ChatGPT/Codex subscriptions do not supply a general API key for this setup. Separately billed Anthropic or OpenAI APIs can be configured as third-party providers. See the [provider setup guide](docs/install.md#configure-a-model-provider).
 
-校正和翻译的推理强度可分别选择低、中、高或模型默认；更高推理通常花更长时间，不等同于保证更高正确率。模型不支持该档位时使用默认设置。只有高置信度且通过原文定位检查的校正才会改写正文；其余建议留待查看。
+Original audio transcription separately requires Gemini or Groq credentials in **Study Settings → Audio transcription**. The default route tries Gemini free, Groq, then Gemini paid; individual imports can request paid keys only. Credentials stay in DSH’s settings directory, with only configured status and the final four characters displayed; they are excluded from library exports and conversations.
 
-详见 [音频导入](docs/audio-import.md)与[课堂实录](docs/live-class.md)。
+Recordings are processed sequentially, with proofreading and translation windows concurrent within a recording. Completed windows are checkpointed; retry reuses them. The usage dashboard records this plugin’s requests, retries, tokens and transcription duration. Other applications’ requests and live-stream/DSH model tokens are outside that local accounting. Reasoning strength is selectable separately for proofreading and translation; unsupported settings fall back to the provider default.
 
-## 数据与备份
+See [audio import](docs/audio-import.md) and [live classes](docs/live-class.md).
 
-学习库保留资料、题组、作答与复习状态，按分片保存。可在设置中导出 JSON 备份；恢复前会备份当前库。旧版学习库在首次写入时迁移并保留原文件备份。
+## Data and compatibility
 
-2.0 的完整备份还包含已保留的资料原文件。旧库缺少新字段时仍可读取和学习；原文件曾未保存的旧资料继续显示提取文字，重新导入可补全原件。插件暂时卸载后，其扩展数据仍随学习库保存。
+The local library stores materials, JSON decks, attempts and review schedules in shards. Export a JSON backup from Settings; restoration first backs up the current library. Full 2.0 backups include retained original material files. Older libraries with missing optional fields remain usable; older text-only materials show extracted text until an original file is reimported. Unknown extension data is preserved even when its plugin is absent.
 
-音频用量记录与密钥设置位于学习库之外；用量按日保存并保留最近 31 天，读取时流式汇总。音频任务通过检查点恢复，已结束的任务卡可以清理，生成的资料与题目继续保留。
+Audio usage and credentials live outside library backups. Usage records retain the latest 31 days. Clearing completed task cards keeps generated materials and questions. Source citations and structure are validated in code; model-generated content can still be wrong. Published questions and unpublished drafts remain separate. Source text is evidence, never an instruction to execute.
 
-题目引用和结构由代码检查，内容仍可能存在模型错误。正式题目与未发布草稿分开；发布检查发现的问题会留在草稿中。源资料中的文字作为证据处理，不作为执行指令。
+## Development
 
-导入 `study-lib-spar` 时，选择包含实际节点与题目的学习库目录；仓库源码不是学习库。导入只读原文件，保留可解析的到期时间、间隔和来源，重复导入不覆盖已有进度。
-
-## 开发与验证
-
-```powershell
+```sh
 npm install --legacy-peer-deps
 npm run verify
 npm run build:demo
-npm pack
+npm run release:pack
 ```
 
-开发环境需能解析宿主 SDK 的 `@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-llm`。安装包使用宿主提供的运行时；缺少可选 SDK 时，对应宿主测试会明确跳过。
+The host supplies optional DSH SDKs; tests requiring unavailable SDKs report an explicit skip. Local development needs an explicit library root. The static demo uses public examples and prepared replies rather than live models.
 
-本地预览通过 `npm run dev` 启动，需要明确的学习库位置，配置见 [验证说明](docs/verification.md)。静态体验版使用公开示例和预置模型回复，不调用真实模型；构建与部署见 [静态体验版](docs/static-demo.md)。
+- [Architecture and public plugin APIs](docs/architecture.md)
+- [Study workflows](docs/study-workflows.md)
+- [JSON deck import](docs/json-import.md)
+- [Main conversation queries](docs/main-session-queries.md)
+- [Background jobs and sidebar](docs/generation-agents-sidebar.md)
+- [Library schema](references/library-schema.md)
+- [Verification records (Chinese)](https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.0.3/docs/verification.md)
 
-## 进一步了解
-
-- [学习工作流](docs/study-workflows.md)
-- [JSON 题库导入](docs/json-import.md)
-- [主会话查询与操作](docs/main-session-queries.md)
-- [后台任务与右栏](docs/generation-agents-sidebar.md)
-- [数据结构与复习调度](references/library-schema.md)
-- [开发验证记录](docs/verification.md)
-- [更新日志](CHANGELOG.md)
-
-八步系统学习路径目前属于设计规划，见[开发计划](docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md)。实际功能以当前界面和版本记录为准。
-
-MIT License。沿用的学习质量、调度和数据结构参考资料位于 `references/`，授权见 [LICENSE](LICENSE)。
+MIT License. See [LICENSE](LICENSE); learning-quality and scheduling references are in `references/`.

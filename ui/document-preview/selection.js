@@ -93,7 +93,7 @@ export function renderedPassageRange(container, selection) {
   return range;
 }
 
-export function annotatePassages(container, groups, onOpen) {
+export function annotatePassages(container, groups, onOpen, title = count => `${count} 道相关题目与解析`) {
   if (!container) return () => {};
   const markers = [];
   for (const [index, group] of groups.entries()) {
@@ -103,7 +103,7 @@ export function annotatePassages(container, groups, onOpen) {
     range.collapse(false);
     const marker = container.ownerDocument.createElement('sup'), button = container.ownerDocument.createElement('button');
     marker.className = 'study-passage-mark'; marker.dataset.studyMarker = 'true';
-    button.type = 'button'; button.textContent = `[${group.number || index + 1}]`; button.title = `${group.links.length} 道相关题目与解析`;
+    button.type = 'button'; button.textContent = `[${group.number || index + 1}]`; button.title = title(group.links.length);
     button.addEventListener('click', () => onOpen(group)); marker.append(button); range.insertNode(marker); markers.push(marker);
   }
   return () => { markers.forEach(marker => marker.remove()); container.normalize(); };

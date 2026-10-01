@@ -1,46 +1,51 @@
-# 出题前后自查
+# Question generation and quality checks
 
-范围说明（2026-09-27）：下面的生成、自查、独立验收适用于内置资料出题及显式审阅发布路径。当前草稿界面默认快速发布，不等待模型复审；不能把本篇的审阅保证套到每份外部 JSON 或默认发布操作上。
+[中文 and historical verification records](assessment-quality.zh-CN.md)
 
-资料生成（含 PDF 转 quiz/flashcard）每批最多 5 题。先按资料块统一规划并分配考点，之后最多 3 批并行；每批内部依次执行后续步骤：
+Built-in source generation and explicitly reviewed publication have quality checks. The current draft interface defaults to quick publication without model review; do not apply model-review guarantees to every external JSON import or default publish action.
 
-1. 证据规划：确定考点、答案边界、比较维度、易错点和题干必需背景；本地校验规划引用确实存在于所选资料。
-2. 写题：按已规划的考点生成。
-3. 主动自查改写：逐题检查并修正，返回完整改稿及简短改动记录。
-4. 独立验收：新调用只看改稿和资料，逐题检查自足性、泄题风险、选项质量、学习价值、证据支持、题解教学质量。题解必须说明题干条件如何导向答案、关键推导与易错边界；只复述答案或给选项贴对错标签不能通过。缺少逐题记录，或任何维度失败，都不能通过。
-5. 有问题时执行一次修复并重新独立验收；仍有逐题缺陷时，筛出通过全部维度的题，并对这个子集再做一次独立验收；子集通过才保留。不能用单题 pass 标记忽略批次级问题。结构错误同样允许移除不合格题，但保留的题仍须通过独立验收。
+## Current generation pipeline
 
-正常为每资料块 1 次共享规划、每批 2 次模型调用（写题与自查合并，另加独立验收；未共享规划时共 3 次）；需要修复时该批再增加 2 次，保留子集验收最多增加 1 次，另有一次格式错误重试机制。原生子代理条件满足时，各阶段出现在生成任务记录中；其他环境明确显示直接模型调用。草稿可展开生成时的考点数量、主动改写和验收记录。
+Source generation, including PDF-to-quiz/flashcard, uses batches of up to five questions. Shared evidence planning assigns objectives across source blocks, and up to three batches can run concurrently. Within each batch:
 
-每张生成题会记录审阅时的内容指纹；编辑后草稿立即显示审阅已失效。内容不完整的题可以保存在草稿中，发布时逐题做结构校验；若模型可用，还会自动独立复审修改、新增及旧版没有指纹的题。批量审阅的问题无法定位到具体题，或整批请求失败时，会逐题复审，避免一题拖住整批。通过的题目先发布；确定有缺陷的题留在待处理草稿。单题模型请求失败属于未完成审阅，结构合格的题可带“未自动审阅”标记发布，修复模型连接后可通过编辑题组并重新发布完成复审。用户可选择启动后台修题，逐题修复并独立复审，之后再发布到原题组；缺少引用的题会使用原生成资料，单资料草稿会使用该资料，找不到来源时明确要求先选择资料。后台修题会看到目标题组的已有考点；改稿有内容缺陷或与已通过、已发布题目重复时，带着具体问题再改一次，第二稿仍需独立复审，失败则继续留在草稿。用户手动修改待处理题后，保存会移除该题上次的失败结论；再次发布时才会按新内容检查，后台修题不能接收尚未保存的页面编辑。模型不可用时仍允许离线发布，但会明确显示并保留未自动审阅题数。
+1. Plan evidence, answer boundaries, comparison dimensions, misconceptions, and required prompt context. Local validation confirms planned quotations exist in selected sources.
+2. Write questions and perform author self-check in the same author task, returning revised complete candidates and brief changes.
+3. Validate structure, citation locations, answer leakage, and learner-visible context.
+4. Run **one independent editorial review** against material and candidate questions. Required per-question checks include self-contained context, answer leakage, option quality, learning value, evidence support, and explanation quality. Explanations must connect conditions to the answer and teach reasoning and error boundaries, rather than merely restating the answer.
+5. Retain only accepted candidates and record rejected candidates with reasons. Since 1.4.6, neither normal generation nor supplementation automatically repairs, repeats independent review, or generates more merely to reach the requested count. Unreadable or incomplete review output is a protocol failure rather than permission to review again.
 
-规则针对实际失败案例：不同维度的荒谬干扰项、题干或提示抄出答案、依赖未展示幻灯片、只问图上括号位置，以及用原文未支持的概念区分包装成“应用题”。基础闪卡仍允许简洁回忆，不要求每题都写情境。PDF 文字位置不证明图表语义。
+Author self-assessment is never independent approval. Type errors affect the corresponding candidate. Recoverable complete questions in damaged author JSON still require independent review. A batch-level problem that cannot be attributed safely is not ignored.
 
-作答前的卡片数据不再返回学习目标和评分标准，防止其中包含答案。原始元数据保留；评分标准在揭晓后可用。
+Normal model work comprises shared planning and one author plus one editor request per batch. Format recovery for authors remains bounded; it is separate from repeating editorial review. Execution records show native subagents when supported and actual direct calls otherwise. The plugin collects stage output internally and sends final notifications rather than flooding the main conversation with stage JSON.
 
-本流程用于 generate；ingest 保留用户已有题目的措辞，不自动改写导入题库。不要在对话中生成一批题后用 ingest 绕过生成验收。既有题目需要单独修改，不会因更新插件而被改写。
+For supplementation, budget expiry can merge saved questions with unchanged valid review evidence without another model request, while reporting the shortfall. Cancellation, version conflicts, target archival, and subsequent edits continue to block affected publication.
 
-验证包含阶段顺序、自查改稿被采用、虚构规划引用被拦截、漏检/泄题验收失败、不可见幻灯片依赖及作答前字段隔离。模型输出采用测试适配器，尚未用真实模型做样本质量评估；规则和多轮审阅不能证明事实必然正确。
+## Publication and explicit repair
 
-2026-09-14 实际运行确认：三次中止均发生在约 180 秒，触发的是生成阶段自身的超时。生成专用时限现为 10 分钟（普通教学调用不变）；一次性子代理、可通信子代理及直接生成调用使用相同上限。超时不当作内容质量不合格。修复后子集验收最多额外一次模型调用，仍不保证达到请求数量。
+Generated questions record reviewed-content fingerprints. Editing invalidates that review. Incomplete content can stay in drafts; publication validates structure question by question.
 
+The explicit reviewed-publication route can independently check modified, new, or older questions lacking fingerprints when a model is available. If a batch failure cannot be attributed, it may review questions individually. Accepted questions publish while confirmed defects stay pending. A failed per-question model request means incomplete review; structurally valid content can publish with a **Not automatically reviewed** marker. Offline publication remains possible with visible unreviewed counts.
 
-2026-09-20：修复后不再采信修复者的自评；验收记录升级到版本 3，必须包含 explanationQuality。新增生成阶段的答案原样复述拦截。独立验收接收请求的岗位、难度和重点。旧题不会自动被改写；揭晓题解后可点“重新讲清楚”，直接生成并保存针对本题的补充讲解，无需先生成追问建议，复习进度保持原有行为。补充讲解须标明证据不足或原题错误，不能为了维护原答案编造理由。
+Users can explicitly request background repair and independent review, then publish accepted repairs into the original deck. Missing citations use original generation sources, or the single source of a single-source draft. If none is available, select material first. Repairs consider the target's existing objectives and cannot introduce duplicates. Unsaved page edits are not submitted to background repair. Saving a manually edited pending question clears its old failure verdict; the new content is checked when published.
 
-### 本次修复验证（2026-09-20）
+These explicit publication/repair capabilities are separate from the one-round generation policy above. Default quick publication does not wait for them.
 
-- 缺陷复现：旧实现会忽略题解质量失败，并让修复者自己的通过标记代替独立验收；两条回归测试在修改前失败、修改后通过。
-- 验证：218 项自动化测试通过，构建通过，修复涉及文件的 ESLint 通过。360px 浏览器交互验证了直接重讲、错误提示、重试成功和无横向溢出；回答为测试桩，不是真实教学质量样本。
-- Scope：仅本次题目质量与重讲入口改动。
-- Simplify：核心文件有重叠的既有修改，跳过文件级自动简化；新 UI 改动很小，无需额外抽象。
-- Review：因分支包含无关的既有工作，对照修改前快照进行定向人工审阅，未扩大到整个分支。
-- Residuals：没有发现阻塞性的实现缺陷；真实模型与用户差题样本的教学质量评估尚未完成。
-- Re-verification：当时的最终回归、定向静态检查和浏览器交互验证通过；这些改动随后纳入 v0.9.0。
+## Evidence, privacy, and limits
 
-## 课程覆盖与学习证据（规划，尚未实现）
+Checks address implausible distractors, leaked answers, dependence on invisible slides or recordings, meaningless diagram-position questions, and unsupported distinctions disguised as application problems. Concise foundational flashcards remain valid without an invented scenario. PDF text coordinates do not prove diagram semantics.
 
-题目内容合格、资料覆盖完整、学习者能力通过是三个独立结论。题目审阅通过不能证明课程没有遗漏，也不能证明学习者会迁移或实操。
-拟新增的验收任务绑定稳定知识点及目标版本、必需 rubric 项和任务族；服务端记录提示/答案暴露，按实际提交生成分维度证据。关键词分类为“应用”、重复同题、自评、间接前置加分和生成笔记均不能直接验收核心点。
-模型审阅缺项、不可用或依据不足时记录未评估；不以默认通过或默认不懂代替。真实模型样本应与人工标准对照，分别记录误通过和误拒绝。
-人工盲评确认的实质误通过必须修复，并用原失败及独立样本复核；未解决时，受影响评分路径只能提供候选/支持性反馈，不得发放已验收证据。延迟回忆还要跨题检查该知识点最近一次讲解、提示或练习时间，防止刚重学后换题答对被当成记忆保持。
-规范见 [开发计划 Evidence Policy、U1/U5/U6/U8](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md)；覆盖范围见该计划 R2–R4/U3，试点门槛见 R16 和 Verification Contract。
+Before answering, public card data hides learning objectives and rubrics that could reveal answers. Original metadata remains stored; rubrics become available after reveal. `ingest` preserves existing questions rather than rewriting them. Do not generate in the conversation and then use ingest to bypass generation checks. Existing questions are not automatically rewritten after an update.
+
+Generation-stage calls have a ten-minute limit across direct, one-shot, and communicating-subagent execution; ordinary teaching calls retain their separate limits. Timeout is not a content-quality rejection and does not guarantee the requested count.
+
+After revealing an explanation, **Explain again clearly** generates and saves a supplementary explanation without first requesting follow-up suggestions or changing review progress. It must acknowledge insufficient evidence or an erroneous original question rather than invent reasons to defend an answer.
+
+Automated fixtures verify sequencing, evidence and context checks, per-question review records, explanation quality, accepted subsets, protocol failures, and answer hiding. Browser fixtures verify explanation/retry interactions. These tests and repeated review do not prove factual correctness or real teaching effectiveness.
+
+## Planned curriculum coverage and learning evidence
+
+Question validity, curriculum coverage, and learner competence are separate conclusions. A reviewed question does not prove the course is complete or the learner can transfer knowledge.
+
+The proposed evidence system is not delivered. It would bind tasks to stable concepts and objective versions, mandatory rubric criteria, and task families; track hint/answer exposure; and credit demonstrated dimensions only. Self-ratings, repetitions, keyword-based application labels, indirect prerequisite credit, and generated notes would not independently certify a concept. Missing model results would remain unassessed. Delayed recall would account for the concept's latest teaching, hint, or practice across questions.
+
+See the [Evidence Policy and implementation units](https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.0.3/docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) and [proposed workflow](study-workflows.md#proposed-system-learning). Historical audits remain in the Chinese companion.

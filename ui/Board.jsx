@@ -98,7 +98,11 @@ function CardEditor({ card, revision, board, busy, error, mutate, onClose }) {
   </dialog>;
 }
 
+const defaultColumnTitles = { todo: '待办', doing: '进行中', done: '已完成' };
+export const boardColumnLabel = column => column.title === defaultColumnTitles[column.id] ? ui(column.title) : column.title;
+
 function BoardColumn({ column, board, today, busy, mutate, onEdit, onOrigin, onStudyRef, studyRef, onClearStudyRef }) {
+  const label = boardColumnLabel(column);
   const [title, setTitle] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.title);
@@ -114,14 +118,14 @@ function BoardColumn({ column, board, today, busy, mutate, onEdit, onOrigin, onS
     const from = column.cardIds.indexOf(id);
     move(id, column.id, from >= 0 && from < index ? index - 1 : index);
   };
-  return <section className={`board-column${over ? " is-over" : ""}`} aria-label={column.title}
+  return <section className={`board-column${over ? " is-over" : ""}`} aria-label={label}
     onDragOver={(e) => { if (!disabled) { e.preventDefault(); setOver(true); } }}
     onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false); }}
     onDrop={(e) => drop(e, column.cardIds.length)}>
     <header className="board-column-heading">
       <span className={column.done ? "board-dot is-done" : "board-dot"} />
-      <h2>{column.title}</h2><span className="board-count">{column.cardIds.length}</span>
-      <button disabled={disabled} aria-label={uiFormat("设置列 {0}", [column.title])} title={ui("重命名或删除空列")} onClick={() => { setName(column.title); setRenaming(!renaming); }}>···</button>
+      <h2>{label}</h2><span className="board-count">{column.cardIds.length}</span>
+      <button disabled={disabled} aria-label={uiFormat("设置列 {0}", [label])} title={ui("重命名或删除空列")} onClick={() => { setName(column.title); setRenaming(!renaming); }}>···</button>
     </header>
     {renaming && <form className="board-column-settings" onSubmit={async (e) => {
       e.preventDefault(); if (await mutate("board.column.rename", { id: column.id, title: name })) setRenaming(false);
@@ -159,7 +163,7 @@ function BoardColumn({ column, board, today, busy, mutate, onEdit, onOrigin, onS
       e.preventDefault(); if (await mutate("board.card.add", { column: column.id, title,
         ...(studyRef ? { studyRef } : {}) })) { setTitle(""); onClearStudyRef?.(); }
     }}>
-      <input aria-label={uiFormat("添加卡片到{0}", [column.title])} placeholder={ui("＋ 添加卡片")} value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} disabled={disabled} />
+      <input aria-label={uiFormat("添加卡片到{0}", [label])} placeholder={ui("＋ 添加卡片")} value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} disabled={disabled} />
       {studyRef && <small className="muted">{ui("关联当前学习内容")}: {studyRef.kind === 'card' ? studyRef.cardId : studyRef.kind === 'course' ? studyRef.course || ui('未分类') : studyRef.id || studyRef.sessionId || studyRef.runId}
         <button type="button" onClick={onClearStudyRef}>{ui("不关联")}</button></small>}
       {title && <button disabled={disabled || !title.trim()}>{ui("添加")}</button>}

@@ -1,67 +1,75 @@
-# 新用户安装与模型配置
+# Install StudyHub and configure a model
 
-StudyHub 是 DSH 的学习插件。[下载浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.2/StudyHub-2.0.2-Setup.html)，选择符合当前环境的路径：
+English · [简体中文](install.zh-CN.md)
 
-- **已有 DSH 桌面版或网页版：仅安装学习插件。** 在正在使用的 DSH 中打开「插件」页，按下方步骤安装全套插件。网页版无需安装客户端，也无需另建配置或迁移已有模型、资料。
-- **尚未安装 DSH：** Windows、Mac 可选择官方桌面安装器；Linux 或不希望安装客户端的用户可选择 DSH 网页版。
+StudyHub is a plugin for DeepSeek Harness (DSH). Download the [English browser setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/StudyHub-2.0.3-Setup.html), or follow the steps below.
 
-## 已有 DSH：仅安装全套插件
+## Already using DSH: install only the plugins
 
-1. 在现有 DSH 桌面版或网页版中打开「插件」页，选择「添加插件」。
-2. 在安装地址中粘贴下方完整工作台包地址，完成安装后确认包名为 `@ericwang1358/dsh-daily-flashcard`、版本为 `2.0.2`。
-3. 启用工作台及所需子插件；若提示重新加载，先等当前后台任务完成或取消，再重新加载配置。
-4. 选择存放课程资料的工作区，新建会话后进入「学习」页。
+These steps work in your existing **desktop or web** DSH installation. Web users do not need a desktop client or a new configuration.
 
-更新已有插件包后，结束后台任务并重启 DSH 进程，以加载新版本代码。桌面版退出后重新打开；网页版重启原来的 DSH 服务并保留原 profile。仅刷新浏览器不够。
+1. Open DSH’s **Plugins → Add plugin**.
+2. Paste the complete package URL below. Confirm the name `@ericwang1358/dsh-daily-flashcard` and version **2.0.3** after installation.
+3. Enable the workbench and desired components. If reloading is requested, finish or cancel background tasks first.
+4. Select your course workspace, create a session and open **Study**.
 
 ```text
-https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.2/ericwang1358-dsh-daily-flashcard-2.0.2.tgz
+https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.0.3/ericwang1358-dsh-daily-flashcard-2.0.3.tgz
 ```
 
-无法直接从 GitHub 安装时，可从 [2.0.2 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.2)下载 `.tgz`，再填写安装包的绝对路径。路径必须在 **DSH 运行的电脑或服务器上**：访问远程网页版时，自己电脑的下载路径不等于服务器路径，可优先使用上述 HTTPS 地址。浏览器刷新不会替换已安装的插件。
+For an update, finish or cancel tasks and restart the **existing DSH process**: quit and reopen desktop DSH, or restart your web service with its original profile. A browser refresh does not replace loaded plugin code.
 
-### 高级自定义与后续启停
+If GitHub URL installation is unavailable, download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.0.3) and supply its absolute path. The file must be on the **computer or server running DSH**. Your laptop’s download path is not a remote web server’s path; prefer the HTTPS URL above.
 
-完整包默认安装工作台、运行时、资料、题库、学习、生成和音频组件。使用 **DSH 自带插件管理器**查看包内各组件，按需启用或停用；不另设学习插件管理器。
+### Advanced installation and component switches
 
-- 工作台保留界面与共享基础能力；音频、资料、题库、学习、生成使用独立组件开关。
-- 生题需要资料、题库和生成组件；答题、错题与考试需要题库和学习组件。停用所需组件时，对应入口会隐藏或提示功能已停用。
-- 删除资料前须启用题库和学习组件，完整检查题目、草稿与学习记录的引用，避免误删来源。
-- 停用前先结束相关后台任务。停用不删除已保存的资料、题组与学习进度，重新启用后可继续使用。
-- 发布页也提供独立子插件安装包，可在同一插件管理器中添加。组件有多个安装来源时，须停用所有提供该能力的来源才会完全关闭；旧版完整工作台仍会提供整套能力，升级后再进行自定义。
+The complete package installs the workbench, runtime, materials, bank, learning, generation and audio. Use **DSH’s own plugin manager** to enable or disable individual components and to add standalone component packages later.
 
-通过 CLI 管理现有配置时，请使用原配置名，例如 `dsh plugin --profile web add <安装包地址或绝对路径>`；若正在使用自定义 profile，请将 `web` 换成原配置名。桌面版请优先使用随附的插件管理器。
+- Generation needs materials, bank and generation; practice, mistakes and exams need bank and learning. Unavailable capabilities hide their UI entries or show a disabled message.
+- Enable bank and learning before deleting a material, so saved questions, drafts and learning records can be checked for citations.
+- Finish related tasks before disabling a component. Saved sources, decks and progress remain; enabling the component restores access.
+- If several installations provide the same capability, disable all providers to turn it off. An old complete workbench still provides all capabilities; update before customizing.
 
-## 安装 DSH
+If managing an existing web profile by CLI, keep that profile name:
 
-| 电脑 | 官方安装器 | 安装方式 |
-| --- | --- | --- |
-| Windows 64 位 | [下载 .exe](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) | 打开安装器，完成安装后启动 DeepSeek Harness。 |
-| macOS，Apple silicon（M 系列） | [下载 .dmg](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg) | 打开磁盘映像，按提示把 DSH 放入「应用程序」，然后启动。 |
-| Linux，或任何平台希望仅用网页版 | [官方 npm 启动说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md#run) | 安装 Node.js 22.19 或以上，运行下方命令，再在网页版中安装学习插件。 |
+```sh
+dsh plugin --profile web add <package-URL-or-absolute-path>
+```
 
-以上复用 [DSH 官方下载入口](https://www.deepseek.com/en/harness/)；安装器随官方版本更新，DSH 的版本号与学习插件的 2.0.2 不同。桌面版自带运行时，无需另装 Node.js。
+Replace `web` with your existing custom profile if applicable. Prefer the bundled plugin manager for desktop DSH.
 
-Windows、Mac 也可以使用以下网页版路径。这里只提供已核实的 Windows x64 与 Mac arm64 桌面安装器；Intel Mac、Windows ARM 用户请查看官方最新支持情况，或使用网页版。
+## Install DSH
+
+| Platform | Official route |
+| --- | --- |
+| Windows x64 | [Download the .exe installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe), install and open DeepSeek Harness. |
+| macOS Apple silicon | [Download the .dmg installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg), copy DSH into Applications as prompted and open it. |
+| Linux, or browser-only on any platform | Install Node.js **22.19 or later**, then start the official npm web version below. |
+
+Desktop installers include their runtime. For Intel Macs or Windows ARM, check the [official DSH site](https://www.deepseek.com/en/harness/) for current support or use the web route.
 
 ```sh
 npx @deepseek-ai/dsh web
 ```
 
-默认打开本机 `http://127.0.0.1:3080`。保持 DSH 进程运行，在该网页的插件管理器安装学习插件。Linux 当前使用这条官方路径，不提供未经核实的 `.deb` 或 AppImage。已有 DSH 网页版的用户不需要重新运行此首次启动步骤。
+Keep the process running. The default local address is `http://127.0.0.1:3080`. Install StudyHub through that web page’s plugin manager. Existing web users skip this first-time startup step. Linux uses the official npm route; this release does not supply an unverified Linux desktop installer.
 
-## 配置模型 Provider
+## Configure a model provider
 
-生成题目、讲解、校对和翻译需要可用的模型提供方；安装插件、查看资料及复习已有题目无需模型。模型和凭据由 DSH 管理。
+Question generation, explanations, proofreading and translation need a usable model provider. Installation, material browsing and review of existing decks do not. DSH manages models and credentials.
 
-**日常使用建议 DeepSeek 官方 API。** 在 [DeepSeek 开放平台](https://platform.deepseek.com/)创建 API Key，确认账户可调用模型。打开 DSH「设置 → 模型」，在 DeepSeek 卡片保存密钥，再回到会话选择可用模型。内置 DeepSeek 配置不要求手工填写地址；自定义接入可按[官方 API 文档](https://api-docs.deepseek.com/zh-cn/)使用 `https://api.deepseek.com` 与当前支持的模型 ID。
+**For everyday use, start with the official DeepSeek API.** Create a key at the [DeepSeek platform](https://platform.deepseek.com/) and ensure the account can call models. Open **DSH Settings → Models**, save the key on the DeepSeek provider card, then choose a model in your session. Built-in DeepSeek configuration does not require a manually entered endpoint. For custom integration, use `https://api.deepseek.com` and supported model IDs from the [official API documentation](https://api-docs.deepseek.com/).
 
-**用量较大时可考虑兼容的 Coding Plan。** 只选提供 API Key、允许 DSH 及实际学习用途的套餐。购买前检查适用工具、用途、专用 Base URL、模型 ID、并发限制和额度重置规则。某些套餐只支持指定编程工具或编程任务；例如 [GLM Coding Plan FAQ](https://docs.bigmodel.cn/cn/coding-plan/faq)明确限制适用环境，不能因为能创建 Key 就默认它支持本插件。本项目不承诺某个 Coding Plan 适用于学习、批量出题或音频校对。
+**For high usage, consider a compatible Coding Plan.** It must provide an API key and allow DSH and the intended study workload. Before purchasing, check supported tools and uses, dedicated base URL, model IDs, concurrency and quota resets. A key alone does not make a plan compatible with arbitrary applications. Some plans restrict tools or coding workloads; StudyHub does not promise that any particular plan permits learning, batch generation or audio proofreading.
 
-接入获准的套餐时，在「设置 → 模型 → 添加模型提供商」选择对应提供方；自定义端点选择「自定义模型 API」，填写提供方给出的地址、协议、Key 和模型 ID。按[DSH 模型配置指南](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/providers.zh.md)选择端点真实支持的协议；套餐专用端点与普通 API 端点可能使用不同的计费额度。
+Configure an eligible third-party provider under **Add model provider**. For custom endpoints, select **Custom model API** and supply the provider’s endpoint, protocol, key and model ID. Use a protocol the endpoint actually supports. A plan’s dedicated endpoint and its ordinary API may bill different quotas.
 
-**Claude／Codex 订阅不作为本安装流程的 Provider。** DSH 当前模型配置不支持 Codex 等 OAuth 订阅接入；Claude Pro／Max、ChatGPT／Codex 的订阅额度也不是可粘贴到 DSH 的通用 API Key。Anthropic 与 OpenAI 的独立付费 API 可以作为第三方提供方配置，费用与订阅分开。参见 [Claude 订阅与 API 计费说明](https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console)、[OpenAI API 独立计费说明](https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform)。
+**Claude/Codex subscriptions are not providers in this setup.** DSH’s current model configuration does not accept Codex-style OAuth subscriptions. Claude Pro/Max and ChatGPT/Codex subscription allowances are not a general API key to paste into DSH. Separately paid Anthropic and OpenAI APIs can be configured as third-party providers; their billing is separate. See [Claude’s subscription/API billing explanation](https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console) and [OpenAI’s separate API billing explanation](https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform).
 
-不要把 API Key 填入安装引导、课程资料或题组文件；只在 DSH 的模型设置中保存。音频原始转写另需在学习插件的「设置 → 音频转写」配置 Gemini 或 Groq 密钥，模型 Provider 用于后续校对、翻译与学习帮助。
+Save API keys only in DSH’s model settings, never in a setup guide, source material or deck. Original audio transcription separately needs Gemini or Groq credentials in **Study Settings → Audio transcription**; the model provider handles subsequent proofreading, translation and learning help.
 
-核实日期：2026-10-01。下载入口、模型和套餐规则以各提供方当前官方说明为准。
+## Interface language and original content
+
+The workbench chooses English for first-time browsers whose preferred language is not Chinese. Use its language switch to select English or Chinese; the saved choice takes priority. Changing the interface does not rewrite saved sources, questions, notes or filenames. Select the desired generation language or explicitly request question translation when needed.
+
+Official routes and provider rules were checked on **2026-10-01**; their current official documentation governs future changes.

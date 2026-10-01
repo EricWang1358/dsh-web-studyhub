@@ -1,42 +1,46 @@
-# 课堂实录（1.4.0）
+# Live classroom recording
 
-入口在左侧「课堂实录」。现场课选麦克风，网课选「标签页 / 系统声音」，在浏览器弹出的选择器中勾选共享音频。只把音频发给转写服务，不发送画面。
+[中文](live-class.zh-CN.md)
 
-1. 在「设置 › 音频转写」配置 Gemini 密钥。高级设置可以分别更改课堂实时转写模型和实时翻译模型；翻译也能使用对话模型。
-2. 填课堂名称，需要时补课程背景和术语，然后开始实录。
-3. 原文先出现，模型随后给出简体中文。未完成的识别文字不进入选题范围。
-   实录页的「输入音量」显示当前设备名称及实际送出 PCM 的相对音量。静音、设备静音、浏览器采音中断、长时间没有音频帧和声音过大都会显示对应状态；「已收到音频」与「后端已接收」分别计时，后者只表示上传确认，不代表 Google 已经识别成文字。音量不是校准分贝，也不判断声音是否为人声。
-4. 勾选句子、鼠标划选原文/译文，或选「最近 8 句」。选够约 120 个原文字符后，可生成 1–15 道题。原文片段成为可引用资料，题目沿用既有生成、质量审阅和草稿发布流程；实录继续进行。
-5. 暂停时不再上传音频；结束时释放音轨。切到待办、资料或其他插件页面会继续实录，关闭页面或切学习库会结束采音。
-6. 「查看课堂笔记」位于原文/译文列表上方：查看累计摘要、分批笔记和历史歧义校正状态，点击句子编号跳回原文。结束后保存为资料，会另外保存一份包含摘要、笔记及引用的课堂笔记；也可以先做术语校对，后者是后台任务。翻译失败可单独重试。
-7. 历史课堂可以打开、接着录或归档。归档记录放在「历史课堂 › 归档课堂」里，可以打开、恢复或永久删除。正在录音的课堂需先结束才能归档；已归档课堂需先恢复才能继续录音。永久删除会移除实录中的逐字稿、翻译与笔记，已另存的学习资料保留。
+Open **Live class**. Use the microphone for in-person classes or **Tab / system audio** for online classes, enabling audio sharing in the browser picker. Only audio goes to transcription; screen images are not sent.
 
-## 上下文校正与笔记
+1. Configure Gemini keys in **Settings → Audio transcription**. Advanced settings independently select live transcription and translation models; translation can use the conversation model.
+2. Enter a class name and, if useful, course context and terminology, then start recording.
+3. Original text appears first, followed by Simplified Chinese translation. Provisional recognition cannot be selected for questions. This is an explicitly bilingual feature; English interface language does not remove its Chinese translation.
+4. **Input volume** shows the device and relative outgoing PCM level. It distinguishes quiet input, device mute, capture interruption, missing frames, and excessive level. **Audio received** and **Backend received** are separate timings: upload acknowledgment does not prove Google has recognized text. Volume is neither calibrated decibels nor speech detection.
+5. Select sentences, drag-select original/translated text, or choose **Latest 8 sentences**. With about 120 original characters, generate 1–15 questions while recording continues. Selected originals become citable source snapshots and use existing generation, review, and draft publication.
+6. Pause stops uploads; End releases audio tracks. Switching plugin pages keeps recording active. Closing the page or switching libraries ends capture.
+7. **View class notes**, above the transcript, shows cumulative summary, batch notes, and historical ambiguity correction. Sentence numbers jump to original text. After ending, save sources and a separate class note containing summary, notes, and citations. Terminology correction before saving is a background task. Failed translation can be retried separately.
+8. Reopen, continue, or archive historical classes. Archived classes can be opened, restored, or permanently deleted. End an active recording before archiving; restore before continuing. Permanent deletion removes the live transcript, translation, and notes but keeps separately saved library sources.
 
-每 30 秒启动一次顺序检查：每批最多 8 句新内容，加上前批最后 2 句作为重叠上下文。一次检查会逐批消化开始时已有的全部积压，不是只截取最新 10 句；检查途中到达的新句子参加下一轮，结束时补齐尾部。没有新句子就不调用。失败保留游标与待处理句子；「覆盖」表示已提交校正，不能保证模型修正率为 100%。
+## Contextual correction and notes
 
-**句子右侧的标记，用来辨别和测试这套机制：** 实心绿点表示校正器改动过这一句（鼠标悬停显示原因，展开「查看识别原稿」可对照识别原文）；空心绿圈表示已被检查、无需修改；没有标记表示还没轮到。「上下文润色」一行显示已检查和已润色的句数，右侧有图例。标记只反映校正器高置信度改动过的句子，不代表其余句子一定正确。
+Every 30 seconds, a sequential check processes up to eight new sentences per batch with the prior batch's last two sentences as overlap. It drains the backlog present when the check began; arrivals join the next check and finalization handles the tail. No new sentences means no call. Failure retains the cursor and pending text. Coverage means submitted for correction, not guaranteed accuracy.
 
-校正器读取窗口中的前后句、课程背景、术语、最多 1600 字的累计摘要与最近三条笔记，同时写出本批笔记和更新后的摘要。完整笔记持久保存，不把不断增长的整份历史逐次重发。校正只接受已有句子编号和高置信度的原文/简体中文结果；两行直接更新到原有列表位置，首次识别原稿折叠保留。旧的翻译请求不能覆盖已校正句子。此前已选取生成的资料是独立快照，不会被回写。
+A solid green dot marks a corrected sentence; hover for its reason and expand the original recognition to compare. An empty green circle means checked without changes. No marker means not yet checked. Counts and the legend show these states. Markers identify high-confidence changes, not proof that other sentences are correct.
 
-若需修正窗口外的旧句，主校正器提出具体句号和疑点，放入独立后台队列。每个子代理最多检查 20 句指定旧句，附带触发请求的窗口作为证据；队列同时运行一个子代理，主校正不等待它。子代理无工具写入权限，也不继续委派，结果由后端校验句子版本再合并。旧版本、超时或失败结果保留为待重试请求。子代理使用 DSH 宿主连接的模型；仅配置 Gemini 密钥而没有宿主子代理能力时，显示能力缺失并保留请求，不伪装为子代理、不退回主流程执行。最终保存等待正在运行的校正，未完成的历史校正会在笔记资料中列出。
+Correction reads nearby sentences, context, terminology, up to 1,600 characters of cumulative summary, and the last three notes. It updates batch notes and summary without resending the entire growing history. Only existing sentence IDs and high-confidence original/Simplified Chinese corrections are accepted. Original recognition remains folded for comparison. Earlier translation requests cannot overwrite corrected sentences. Previously selected generation sources remain independent snapshots.
 
-音频高级设置中的校正推理程度默认 `low`，也可选 `default`。宿主模型不继承父会话的 high/max；不支持 low 时用默认。Gemini 3 系列发送 low，不支持该字段时使用默认配置。每批使用固定提示前缀，统计服务商实际返回的缓存输入 tokens；另有最多 8 个结果的本地缓存。缓存命中与折扣不保证，也未创建另行收取存储费的显式缓存。子代理用量由宿主计费，不计入 Gemini 校正用量。
+For suspected mistakes outside the current window, the corrector queues specific old sentence IDs and doubts separately. One historical task runs at a time, checking at most 20 specified sentences with the triggering window as evidence; main correction does not wait. Native subagents have no write tools or further delegation. The backend validates sentence versions before merging. Stale, timed-out, or failed output remains retryable.
 
-免费转付费沿用音频设置的规则；可以只用付费密钥。页面金额是付费转写估算，不含 LLM 翻译和校对费用。密钥留在后端，不通过浏览器音频消息传输。
+Historical correction follows the selected audio text-model route. Gemini uses Gemini directly; a host model prefers an official restricted subagent and uses a direct call to the same model when native capabilities are unavailable. Gemini keys alone do not supply a DSH subagent. Actual model/capability failures preserve retryable requests and are not presented as successful work. Once native work has started, failure does not trigger another execution route. Final save waits for active correction and lists unfinished historical requests in notes.
 
-## 保存与恢复
+Correction reasoning defaults to `low`, with `default` available. Host models do not inherit high/max from a parent; unsupported low uses default. Gemini 3 uses low when supported. Calls use a fixed prompt prefix and record actual cached-input tokens; a local cache retains up to eight results. Cache hits/discounts are not guaranteed, and no separately billed explicit storage cache is created. Host subagent usage is excluded from Gemini correction counts.
 
-实时记录保存在当前学习库的 `live/<id>.json`，不保存原始录音。自动保存按顺序执行，磁盘失败会显示提示。突然断电或进程崩溃仍可能丢失尚未写入的几秒内容，不保证恢复完整录音。
+Free/paid fallback follows audio settings, including paid-only mode. Displayed money estimates cover paid transcription, not text translation/correction. Keys stay on the backend and never travel in browser audio messages.
 
-关闭后未完成的翻译与校正会在内存中继续处理；重启后仍未完成的内容标为可重试，笔记、校正游标、历史歧义任务与归档状态一起保存。接着录和删除都会等待已有后台处理与保存完成，并停止旧实例写回，避免旧结果覆盖新课堂或重建已删除记录。历史课堂原始文件独立于库的 manifest；需要进入常规资料导出时，先点「保存为资料」。
+## Persistence and recovery
 
-## 实现与验证边界
+Records persist in the current library at `live/<id>.json`; raw audio is not saved. Saves execute in order and disk failures are visible. Crashes or power loss can lose the last unwritten seconds; complete audio recovery is not guaranteed.
 
-- 浏览器 AudioWorklet 将单声道/多声道输入转换成 16 kHz、16-bit 小端 PCM，约 100 ms 一帧，顺序传给插件。采音工作线程源码使用字面量，避免生产压缩改名破坏其独立运行环境。
-- 服务端用 WebSocket 连接 Gemini，必须收到 setup 完成才能发送音频；解析原文与临时文本。10 分钟连接上限前开新连接，等旧连接最后的文字收齐后再展示新连接的文字。
-- 连接切换不是服务端会话恢复；故障仍可能丢失未最终确认的词。重连只保留有限音频缓冲。时间标记来自本地已发送音频累计时间，是课堂定位提示，不是逐字时间戳。
-- 已用模拟 WebSocket 和模型验证转写、翻译、免费/付费切换、断线、换连接、持久化、恢复、选句生题、停止及重试。浏览器测试使用合成音频和模拟实时接口，验证真实 AudioWorklet、暂停、切页不中断、结束释放音轨和保存按钮。
-- 尚未使用有效 Gemini 密钥验证实际识别质量、延迟和计费，也未验证 DSH 宿主的麦克风/屏幕共享权限。当前环境缺少可选宿主 SDK，相应检查明确跳过。
+Pending translation/correction can continue in memory after closure. After restart, unfinished work is retryable. Notes, correction cursor, historical tasks, and archival status persist. Continuing or deleting waits for pending processing/saves and prevents old instances from overwriting resumed or deleted records. Live files are separate from the library manifest; choose **Save as sources** for ordinary source export.
 
-协议参考：[Google 官方实时转录文档](https://ai.google.dev/gemini-api/docs/live-api/live-transcribe)。浏览器共享音频能力取决于平台与共享来源，参考 [MDN getDisplayMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia)。
+## Technical and verification limits
+
+Browser AudioWorklet converts input to 16 kHz, 16-bit little-endian PCM, approximately 100 ms per frame. The backend waits for Gemini WebSocket setup before sending audio. Before the ten-minute connection limit, it starts another connection and presents old final text before new text.
+
+Connection rotation is not server session resumption. Failure can lose unconfirmed words, and reconnect buffering is bounded. Time markers derive from accumulated sent audio and support navigation; they are not word-level timestamps.
+
+Simulated WebSocket/model tests cover transcription, translation, provider fallback, connection loss/rotation, persistence, recovery, question selection, stopping, and retries. Browser checks use synthetic audio and simulated live responses to exercise real AudioWorklet, pause, navigation, track release, and saving. Historical checks did not establish real Gemini recognition quality, latency, billing, or DSH microphone/screen-sharing permissions; optional unavailable SDK checks were skipped.
+
+References: [Google live transcription](https://ai.google.dev/gemini-api/docs/live-api/live-transcribe) and [MDN getDisplayMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia). Audio sharing depends on platform and selected source.

@@ -233,14 +233,14 @@ function ExtendBox({ node, onAsk }) {
     setValue("");
     setSent(false);
   }, [node.id]);
-  const placeholder = EXTEND_INTENTS.find(([id]) => id === intent)[2];
+  const placeholder = ui(EXTEND_INTENTS.find(([id]) => id === intent)[2]);
   return (
     <div className="skc-extend">
       <h5>{ui("在对话中扩展")}</h5>
       <div className="skc-extend-intents" role="group" aria-label={ui("想做什么")}>
         {EXTEND_INTENTS.map(([id, label]) => (
           <button key={id} type="button" className={intent === id ? "on" : ""} aria-pressed={intent === id} onClick={() => setIntent(id)}>
-            {label}
+            {ui(label)}
           </button>
         ))}
       </div>
@@ -527,7 +527,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
                     {e.d ? <path d={e.d} markerEnd={marker ? `url(#${markerPrefix}-${marker})` : undefined} /> : <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} markerEnd={marker ? `url(#${markerPrefix}-${marker})` : undefined} />}
                     {(e.label || e.note) && (
                       <text x={e.labelX ?? (e.x1 + e.x2) / 2} y={(e.labelY ?? (e.y1 + e.y2) / 2) - 6} textAnchor="middle">
-                        {e.label}
+                        {ui(e.label)}
                         {e.note && <title>{e.note}</title>}
                       </text>
                     )}
@@ -600,7 +600,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
                 <ul className="skc-rels">
                   {nodeRelations.map((r) => (
                     <li key={r.key}>
-                      <span className="skc-rel-type">{r.text}</span>
+                      <span className="skc-rel-type">{ui(r.text)}</span>
                       <button type="button" className="skc-link" onClick={() => onSelect(r.other)}>{term(r.other)}</button>
                       {r.note && <small>{r.note}</small>}
                     </li>
@@ -625,7 +625,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
         {LEGEND.map(([kind, label]) => (
           <li key={kind} className={`k-${kind}`}>
             <i aria-hidden="true" />
-            {label}
+            {ui(label)}
           </li>
         ))}
       </ul>

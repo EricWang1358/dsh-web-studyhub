@@ -1,5 +1,5 @@
 import StudyBoundary from "./StudyBoundary.jsx";
-import { ui } from "../i18n.js";
+import { getUiLanguage, ui } from "../i18n.js";
 import React from "react";
 import App from "../App.jsx";
 import css from "../style.css";
@@ -32,11 +32,14 @@ function useHostStore(store) {
 }
 
 export function apply(ctx, registerDocumentLearning) {
-  const makeCall = sessionId => createStudyCall({ rpc: { call: (...args) => {
-    const connection = ctx.get('connection');
-    if (!connection?.rpc) throw new Error('Study connection is unavailable');
-    return connection.rpc.call(...args);
-  } } }, sessionId);
+  const makeCall = sessionId => {
+    const call = createStudyCall({ rpc: { call: (...args) => {
+      const connection = ctx.get('connection');
+      if (!connection?.rpc) throw new Error('Study connection is unavailable');
+      return connection.rpc.call(...args);
+    } } }, sessionId);
+    return (action, args = {}) => call(action, { ...args, uiLanguage: getUiLanguage() });
+  };
   registerDocumentLearning(ctx, makeCall, async (sessionId, link) => {
     const run = await makeCall(sessionId)('review.start', { mode: 'path', fresh: true,
       scope: [{ deckId: link.deckId, cardId: link.cardId }] });

@@ -1,139 +1,120 @@
-# 音频导入：录音 → 中英对照逐字稿
+# Audio import: recordings to bilingual transcripts
 
-录音只是资料来源：导入后得到一份（很长时是几份）中英对照逐字稿，存进「资料」。之后出题仍走原来的「资料 → 生成」，这里不做一键生题。
+[中文](audio-import.zh-CN.md)
 
-## 使用
+Recordings are source material. Import creates one English–Chinese transcript, or several for very long text, in **Sources**. Question generation remains a separate **Sources → Generate** workflow.
 
-1. **设置 › 音频转写** 填两把 Google AI Studio 密钥，点「验证密钥」。
-2. 左侧 **音频转录**：选文件，不用输路径，三种方式任选：把文件拖到虚线框（或点击它选择）；展开「从工作区里找」，按文件名搜索后点选；或点「在对话里用 @ 选文件」，回到对话输入框用 @ 选。选好后可写一句「这段音频讲什么」和术语表，点「开始导入」。原来的「添加资料 › 音频 / 录音」入口也保留。
-3. 转写在后台进行，音频转录页与资料页的任务卡片显示**真实进度**：一条总进度条（转写、校对、翻译按 25% / 30% / 45% 估算，每一步里按「已完成的段数 / 总段数」计），下面写三步各完成了几段、正在做哪一段、已经等了多久；有一段真正做完之后，还会按它们的速度估计这一步大约还要多久。单个请求（比如一整段长录音的转写）没法知道做到哪儿，进度条上用流动的一格表示它，并写明「不是卡住了」。标题行里的「录音时长」是录音本身的长度，「已用」才是处理花的时间。可随时停止，已转写的部分会保留。
-4. 信箱按实际处理顺序收到「已转录成功」「已校对润色」「已翻译成功」通知，全部落盘后另有「录音处理完成」。点消息可打开成稿资料；尚未保存时进入音频转录页。处理失败会收到未完成通知，部分校对失败不会宣称全部校对成功。消息在学习库内持久保存。
-5. 完成后在资料里打开这份逐字稿；顶部列出校对改了哪些词，以及把握不大、没有改的存疑处。
+## Get started
 
-支持 MP3、WAV、M4A、AAC、OGG、FLAC、OPUS、WEBM、AIFF；至多 512 MB、8 小时。
+1. In **Settings → Audio transcription**, configure Google AI Studio keys and choose **Verify keys**. Optional Groq-only configuration also works.
+2. Open **Audio transcription**. Drag a file into the drop area, click to select it, search **Find in workspace**, or choose **Select a file with @ in the conversation**. Optionally describe the recording and add terminology, then start import. **Add source → Audio / recording** remains available.
+3. Processing runs in the background. Task cards show measured stage progress: transcription, correction, and translation use estimated overall weights of 25% / 30% / 45%, with completed/total segment counts inside each stage. Cards show the active segment and elapsed time. Once a segment completes, its observed speed supports a remaining-time estimate. A single long request has no measurable internal percentage; its moving indicator explains that it is still running. Recording duration and processing elapsed time are separate.
+4. Stop at any time; saved transcription checkpoints remain. Inbox notifications follow actual processing order: transcription, correction, translation, then final saved output. They open the saved source, or the transcription page before saving. Partial correction failure does not claim complete correction. Notifications persist in the library.
+5. Open the finished transcript in Sources. Its header lists applied terminology corrections and uncertain suggestions left for you to check.
 
-## 用量控制台与推理策略
+Supported formats: MP3, WAV, M4A, AAC, OGG, FLAC, OPUS, WEBM, and AIFF. Limits: 512 MB and eight hours.
 
-音频转录页下方显示当前密钥的模型调用、音频分钟数、Token、限流与失败、七日趋势。统计从启用此功能后开始，计入实际模型 HTTP 请求及失败/重试；验证密钥、文件上传、缓存命中、课堂实时音频流与 DSH 模型 Token 不计入。今日统计采用太平洋时间，便于对齐 Gemini 每日请求重置。
+## Usage and reasoning settings
 
-Groq 的模型每日请求余量取自有效响应头；过期后显示未知，读取面板不会额外调用供应商。Gemini 的模型 RPD 可从 AI Studio 填入「设置 Gemini 免费每日上限」；这是按本插件记录计算的估计值，项目中其他应用或密钥的调用不在本地统计中。未知额度不显示为零；付费余额请查看供应商控制台。
+The usage console shows model requests, audio minutes, tokens, throttling/failures, and seven-day trends for current keys. It records actual HTTP requests, including failures and retries, from the time this feature is enabled. Key checks, uploads, cache hits, live classroom streams, and DSH model tokens are excluded. Today's counters use Pacific time to align with Gemini daily resets.
 
-校正与翻译可独立选择低、中、高或模型默认，点击二维组合或修改两个选择框都会保存配置，供下一次任务使用。二维组合表达两项任务的推理深度，不是经过测量的准确率。耗时样本按实际采用的档位汇总；分段长度和模型也会影响耗时。
+Groq remaining daily requests come from valid response headers and become unknown when stale. Viewing the console does not make another provider call. Enter Gemini free daily limits from AI Studio to obtain estimates based on local records; other applications or keys in the same project are not included. Unknown limits do not appear as zero. Check provider consoles for paid balances.
 
-DSH 路由按模型目录支持的档位执行；Gemini 3 使用 thinkingLevel，Gemini 2.5 使用 thinkingBudget，Groq 支持的 GPT OSS 模型使用 reasoning_effort。供应商拒绝相应参数时回到模型默认，任务执行过程可查看实际档位。已有校对/翻译的缓存会因档位选择变化重新计算，原始转写仍可复用，不自动改写既有成稿。
+Correction and translation can independently use low, medium, high, or model-default reasoning. Both the two-dimensional selector and individual controls save settings for the next job. The grid describes reasoning depth, not measured accuracy. Timing samples are grouped by actual depth; model and segment size also affect time.
 
-用量记录位于用户 DSH 目录的 `study/audio-usage/YYYY-MM-DD.jsonl`，不含密钥、请求正文或返回正文，保留最近 31 天。读取按 16 KiB 流式处理并聚合成日/模型计数；离开页面移除轮询与监听器，窗口隐藏时暂停后台刷新。
+DSH uses reasoning levels supported by its model catalog. Gemini 3 uses `thinkingLevel`, Gemini 2.5 uses `thinkingBudget`, and supported Groq GPT OSS models use `reasoning_effort`. Rejected parameters fall back to model defaults; execution records show the actual level. Changed levels invalidate correction/translation caches while retaining raw transcription. Existing finished sources are not rewritten automatically.
 
-- **拖入或点击选择**：浏览器把文件每 3 MB 一块传给插件，先存到学习库的 `audio-uploads/`（保留原文件名），导入任务结束后删除这份副本，转写结果留在 `audio-cache/`。上传中可取消；离开页面会清掉没传完的副本；超过 24 小时没人认领的副本会在下次上传时清理。
-- **从工作区里找**：只读当前会话工作区，跳过 `node_modules`、`dist`、隐藏文件夹等，最多 6 层、最新的排前面。选中的文件直接读原文件，不复制，只有文件名、大小和日期回到页面。
-- **在对话里用 @ 选文件**：把提示词预填进对话输入框（不自动发送），在末尾用 DSH 输入框自带的 @ 选文件后发送，agent 就会调用 `audio.import`。
-- **粘贴文件路径**：留在「高级」里，绝对路径带不带引号都行。
-- **执行过程**：卡片里的「查看执行过程」按顺序列出每一次模型请求（转写、每个校对窗口、每个翻译部分、标题）及其状态和耗时。校对与翻译走对话模型时（「自动」在 DSH 里就是这样），每个窗口都是一个只读、无工具的 DSH 子代理，「查看子代理」直接打开它，能看到它的输出和调用；宿主没有子代理能力时退回直接调用模型，并在那一条上写明。
+Usage logs live under the DSH user directory at `study/audio-usage/YYYY-MM-DD.jsonl`, retain 31 days, and omit keys and request/response bodies. Reads stream in 16 KiB blocks and aggregate daily/model counts. Polling and listeners stop on leaving the page, and background refresh pauses while the window is hidden.
 
-## 密钥与顺序：Gemini 免费 → Groq → Gemini 付费
+## File selection and execution records
 
-- 免费密钥必须来自**没有开通计费**的 Google Cloud 项目；付费密钥来自开通计费并充值的项目。同一个项目开通计费后，就没有免费额度了，所以必须是两个项目、两把密钥。
-- 每个请求先走免费密钥。遇到每分钟限流，按 Google 给出的等待时间等（最多等两次、每次不超过 65 秒）；仍不行或是每日额度用完，就交给下一档（配了 Groq 就是 Groq，否则是付费密钥），并且这一轮不再去打免费密钥。
-- **Groq（可选）**：在 console.groq.com 创建密钥，填在「设置 › 音频转写」，也可用环境变量 `GROQ_API_KEY`。它排在 Gemini 免费和 Gemini 付费之间：免费 Gemini 用完或被限流才轮到它，Groq 也不行才用付费 Gemini，付费也失败才报错。转写用 Groq 的 Whisper（默认 `whisper-large-v3`），校对、翻译和标题用 Groq 上的对话模型（默认 `openai/gpt-oss-120b`），两个模型都可在「高级」里改。只配 Groq、不配任何 Gemini 密钥也能导入。
-  - **免费额度**（Groq 公布的免费档，可能变动）：Whisper 每分钟 20 次、每天 2000 次、每小时 7200 秒音频、每天 28800 秒音频（即每天约 8 小时录音）；文本模型 `gpt-oss-120b` 每分钟 30 次、每天 1000 次、每分钟 8000 token、每天 20 万 token（一份一小时的讲座校对加翻译大约用掉几万 token）。碰到每分钟限流会按 Groq 给的等待时间等（不超过 65 秒），每小时或每天的限额用完就把 Groq 搁置一段时间（按它给的等待时间，最长 6 小时），改用下一档。
-  - **文件大小：太大就切，不是放弃**。Groq 免费档每个文件最多 25 MB，所以一段录音会被切成几片分别上传，文字再拼起来：
-    - WAV：先转成 16 kHz 单声道（Groq 自己也会转，体积却小得多，一小时约 115 MB），再在说话的停顿处切。
-    - MP3：在帧边界切，不重新编码。
-    - 其他格式（M4A、OGG、Opus、FLAC、WebM，以及 Groq 本来读不了的 AAC、AIFF）：用 **ffmpeg** 切，装了就自动用。先解码一遍找出最安静的地方，把切点挪到那里（不会把一句话切断），再一片一片做成 16 kHz 单声道的 16 位 FLAC（一片约 11 分钟、不超过 21 MB），做一片传一片，长录音不会把所有片同时放在内存里，用完的临时文件会删除（进程意外中断留下的，超过一天会在下次切片时清掉）。ffmpeg 取环境变量 `FFMPEG_PATH`，没有就取 PATH 里的 `ffmpeg`。
-    - **没有 ffmpeg**：这几种格式超过 24 MB（或本来就不被 Groq 接受）时没法切，这一步会带着「需要 ffmpeg」的说明交给下一档；不超过 24 MB 的 M4A、OGG、FLAC、WebM 不需要 ffmpeg，整个发过去。
-    - 限流等待后从没传完的那一片接着传，不会重传前面的。
-  - **和 Gemini 转写的区别**：Whisper 没有「整理」风格，也不接受自定义词表，只能把术语表当作提示（最多约 224 token，超出会截断），所以术语更依赖后面的校对；Gemini 走免费档时 Google 可能拿内容改进产品，Groq 有它自己的数据政策，请自行确认。需要保密的录音勾选「只用付费密钥」：这会同时跳过 Gemini 免费和 Groq。
-  - **用量**：卡片单列一行「Groq 请求」，不混进 Gemini 的次数；Groq 的金额不折算（免费档没有费用）。保存的转写会记住是谁做的。
-- 免费密钥无效或所在地区不支持时，同样改用付费密钥，任务里会写明原因。
-- 付费余额用完（HTTP 402）时任务停止并提示充值，不会自动退回免费。
-- 免费额度下，Google 可能用提交的内容改进产品，并由人工审阅（付费则不会）；欧盟、瑞士、英国地区必须用付费。需要保密的录音，导入时勾选「只用付费密钥」。
-- 顺序的失败规则：免费 Gemini 遇到超时或服务端错误、且下一档是 Groq 时，直接交给 Groq；Groq 遇到任何做不了的情况（模型不存在、参数被拒、要切文件却没有 ffmpeg、超时、服务端错误）也交给下一档，只有密钥被拒（401/403）才永久搁置；最后一档（付费 Gemini）失败才让整个请求失败。没配 Groq 时，免费到付费的行为和以前一样。
-- 转写模型 `gemini-3.5-transcribe` 公布的价格约为每分钟 $0.005（输入加输出）。任务卡片会显示「若全部走付费密钥」的估算，以及实际走付费的那部分。校对和翻译的用量只记次数与 token，不折算金额。
-- 卡片上的请求次数是**这份录音累计**的 Gemini 请求，含之前失败或停止的尝试（记在这份录音的 `audio-cache/…/usage.json` 里），另用一行写「其中本次」。转写结果直接复用时，本次可以是 0 次，累计仍包含当初转写的那一次；以前没有记录的，按已保存的转写补上（每段一次）。校对和翻译交给对话模型时，它们不在这个次数里，卡片上会写明。
+- **Drag or choose:** the browser uploads 3 MB chunks into the library's `audio-uploads/`, retaining the filename. Successful completion removes the temporary copy and leaves results in `audio-cache/`. Canceling upload or leaving the page cleans unfinished uploads; unclaimed copies older than 24 hours are cleaned on the next upload.
+- **Find in workspace:** searches only the current conversation workspace, skipping hidden folders, `node_modules`, and `dist`, to depth six. Newest files appear first. The original file is read directly; only its name, size, and date return to the panel.
+- **Select with @:** prefills the conversation input without sending. Use DSH's @ file selector and submit; the agent calls `audio.import`. If the selector does not open, press @ manually.
+- **Paste a path:** available under Advanced; quoted or unquoted absolute paths are accepted.
+- **View execution process:** lists transcription, correction windows, translation parts, and title requests with state and duration. Host-model text processing uses restricted, read-only, tool-free DSH subagents when supported. **View subagent** opens the real session. Unsupported hosts show direct model execution explicitly.
 
-密钥只写在用户目录的 `~/.dsh/study/audio.json`（遵循 `DSH_HOME`；明文文件，不加密），也可用环境变量 `GEMINI_FREE_API_KEY`、`GEMINI_PAID_API_KEY`。它们不进学习库、备份、面板快照、任务记录，也不会出现在对话里。**不要把密钥贴到对话里。**
+## Provider order: free Gemini → Groq → paid Gemini
 
-## 处理流程
+Use separate Google Cloud projects for free and paid keys. The free key must belong to a project without billing; enabling billing on that project removes its free tier. Paid keys belong to a billing-enabled, funded project.
 
-1. **识别格式与切分**：先看文件内容，不看扩展名（一个改名成 `.mp3` 的 WAV 会按 WAV 处理，并提示「扩展名是 .mp3，实际是 WAV」）；MP3 里能识别的音频不到一半会直接报错，不会把一堆乱码发出去。免费额度按请求次数算，所以**能整段发就整段发**：单次请求上限约 59.5 分钟（接口上限 1 小时），不超过就一次发完；超过时按最少的段数平均切开（不重新编码、不需要 ffmpeg）。WAV（16 位 PCM）的切点会挪到附近最安静的 200 毫秒，也就是说话的停顿处，避免把一句话切断；MP3 在帧边界切。设置 › 音频转写 › 高级里可以把「每次请求最长」调小（5 到 59 分钟，默认 59）。M4A 超过 1 小时会被拒绝并提示先转成 MP3；其他格式整段发送，由接口判断长度。
-   **等待时间按录音大小放宽**：等 Google 回答的时间是 3 分钟加上音频每秒 0.6 秒，最少 5 分钟、最多 30 分钟（47.8 分钟的录音等 30 分钟，13.7 分钟的等约 11 分钟）；上传按每秒 100 KB 的慢速估算，最少 2 分钟、最多 40 分钟。Node 自带的 fetch 等响应最多 5 分钟且不能改，所以请求走 `node:https` 自己控制期限（同样支持 `NODE_USE_ENV_PROXY` 代理）。超时后会再试一次，不会更多：每次都可能消耗额度。
-2. **转写**：`gemini-3.5-transcribe`，默认「整理」风格（去掉口头禅和重复、自动分段），可在设置里改为逐字。当前课程的题组名和题目主题词，加上你填的术语表，最多 100 个，作为自定义词表帮助识别；接口不接受词表时，这一段改为不带词表转写并给出提示。12 MB 以内直接内联发送，更大的经 Files API 上传（按密钥各传一份，用完即删）。
-   转写模型对参数很严格，Google 拒绝时只回一句「Request contains an invalid argument」。所以被拒（HTTP 400）后会按固定顺序换更朴素的请求重试：先换另一种送音频的方式（直接发送 / 先上传再引用），再依次去掉自定义词表、转写风格、语言设置，最后不带任何转写选项。哪一种成功了，后面的段落直接沿用，并在任务里写明去掉了什么。全部被拒时，错误信息会带上转写第几段以及 Google 指出的字段。密钥无效、余额用完、网络不通不属于参数问题，不会这样重试。
-3. **校对**：模型不重写转写稿，只返回「某处的某个词应改成什么」的清单，每条必须原样引用前后文。代码只应用满足以下全部条件的修正：引用能在原文里逐字找到；错词是引用里的完整单词（`patient` 不会改到 `patients`）；改动很小（不换行、不扩写成句子）；模型把握为高或中。把握低的不改，只列在资料顶部供核对。前面已确认的修正会作为「已知修正」提示后面的窗口保持一致；前面的窗口不会因此回头重查。
-4. **翻译并分部分**：约 3,500 字符为一个部分，模型给出该部分的中英文标题，并逐段翻译。每段编号必须一一对应，缺一段就带着原因重试一次。英文取自校对后的转写本身，不由模型重写。关键术语第一次出现写成「中文（English）」。
-   **中文录音**：转写结果以中文为主时，翻译方向反过来，把中文译成英文，每个部分先写 `【中文原文】`，再写 `【英文对照】`；校对也按中文的同音字词处理。英文录音仍是 `【英文原句】` 在前、`【中文对照】` 在后。
-5. **成稿**：
+Requests begin with the free key. Per-minute throttling waits according to Google's response, at most twice and at most 65 seconds each. Continued throttling or exhausted daily quota advances to Groq if configured, otherwise paid Gemini; that attempt does not return to the free key.
 
-```
-================================================================================
-《文件名.mp3》全量中英对照逐字稿
-Full Bilingual Transcript: <英文标题>
-================================================================================
+**Optional Groq:** create a key at [Groq Console](https://console.groq.com/) and save it in audio settings or `GROQ_API_KEY`. Default transcription is `whisper-large-v3`; correction, translation, and titles use `openai/gpt-oss-120b`. Advanced settings can change both. Groq works without Gemini keys.
 
-【第一部分：<中文标题>】
-[Part 1: <English title>]
+Historical documented free-tier limits are not a current quota guarantee: Whisper was listed at 20 requests/minute, 2,000/day, 7,200 audio seconds/hour, and 28,800/day; GPT OSS at 30 requests/minute, 1,000/day, 8,000 tokens/minute, and 200,000/day. A one-hour lecture may require tens of thousands of text tokens. Use current provider dashboards and response headers. Per-minute waits cap at 65 seconds; hourly/daily exhaustion temporarily sets Groq aside according to the reported delay, up to six hours, and advances to the next provider.
 
-【英文原句】
-<校对后的英文段落，空行分隔>
+### Groq file handling
 
-【中文对照】
-<对应的中文段落，空行分隔>
+Groq's documented free upload limit is 25 MB. Large recordings are divided and their text recombined:
 
---------------------------------------------------------------------------------
+- WAV is converted to 16 kHz mono and split near speech pauses.
+- MP3 is split at frame boundaries without re-encoding.
+- M4A, OGG, Opus, FLAC, WebM, AAC, and AIFF use **ffmpeg** when splitting or format conversion is required. A decoding pass locates quiet cuts, then creates 16 kHz mono 16-bit FLAC parts, approximately 11 minutes and no more than 21 MB each. Parts are produced and uploaded one at a time. Temporary files are removed after use; interrupted files older than a day are cleaned during later splitting.
+- Set `FFMPEG_PATH` or place `ffmpeg` on PATH. Without ffmpeg, supported M4A/OGG/FLAC/WebM files up to 24 MB can be sent whole. Larger or unsupported inputs advance to the next provider with an explanatory message.
+- After throttling, upload resumes from the unfinished part without resending completed parts.
 
-【第二部分：……】
-```
+Whisper lacks the cleaned transcription style and a custom vocabulary interface. Terminology becomes a prompt of approximately 224 tokens, truncated if longer, so later correction matters more. Provider data policies differ. **Paid key only** skips both free Gemini and Groq for confidential recordings.
 
-超过约 40 万字符时按部分边界拆成多份资料，编号顺延。
+Groq requests appear separately from Gemini counts; Groq costs are not converted to a monetary estimate. Saved transcription records its provider.
 
-**只有转写一定是 Gemini 请求。** 校对、翻译和标题默认走「自动」：DSH 里有对话模型就用它（这时它们不占 Gemini 的免费额度，也不出现在请求次数里），没有（比如独立预览）才用 Gemini，同样先免费后付费。「高级」里可以固定成 Gemini，或固定成对话当前使用的模型。课堂实时翻译遵循同一个设置。
+Invalid free keys or unsupported regions also advance to paid Gemini with a reason. Paid-balance exhaustion (HTTP 402) stops and asks you to fund the account rather than returning to free. Free Gemini submissions may be used for product improvement and human review; the original provider guidance requires paid access in the EU, Switzerland, and UK. Confirm the current provider terms before submitting sensitive content.
 
-## 录音排队与单条录音并发
+Free Gemini timeouts/server errors advance directly to Groq when available. Groq failures—including absent models, rejected parameters, missing ffmpeg, timeout, and server errors—advance to the next provider. Only rejected credentials (401/403) permanently disable that route. Failure of the final configured paid route ends the request. Without Groq, free-to-paid behavior is unchanged.
 
-同一宿主内录音逐个处理，跨学习库、单文件和批次成员共用一条处理队列。多出来的录音排队，先来的先做；卡片显示「排队中」。旧版的多录音并发设置自动归一化为 1。
+The historical published `gemini-3.5-transcribe` estimate was about $0.005 per audio minute including input/output. Cards show an all-paid estimate and actual paid transcription portion; correction/translation requests and tokens are counted without a monetary conversion. Current pricing remains provider-controlled.
 
-单条录音内，校对与翻译分别按窗口并发，默认最多 3 个，可在设置 › 音频转写 › 高级 › 「单条录音的校对与翻译并发数」改为 2 个。每组窗口使用一致的前文术语或标题上下文，完成后按原文顺序合并，再开始下一组；所有校对完成后才开始翻译。每个完成窗口立即保存检查点，取消或致命错误会停止同组子任务，重试可复用已完成部分。并发不会增加正常处理所需的请求数，但更容易触发每分钟限流。
+Gemini request counts accumulate across attempts for the recording in `audio-cache/…/usage.json`; cards also show this attempt separately. Cache reuse can mean zero new requests with a nonzero lifetime total. Older caches infer one request per saved transcription segment where no usage record exists. Host-model correction/translation is not included in Gemini counts and is labeled accordingly.
 
-- 修改窗口并发数用于下一次处理或续做；已在进行的录音不会被打断，也不会放行第二条录音。
-- 排队中的任务可以直接停止，它不占名额，卡片上仍有「接着做」。
-- 内容完全相同的两个文件（哪怕改了名）不会同时转写，后来的等前一个做完，再直接复用它保存的资料，不重复花钱。
-- 课堂实录结束后的「校对并保存」走同一条队列，和录音导入共用名额。
+Keys are stored in the DSH user directory's `~/.dsh/study/audio.json`, honoring `DSH_HOME`. This is an unencrypted local file. `GEMINI_FREE_API_KEY` and `GEMINI_PAID_API_KEY` are also supported. Keys do not enter the library, backups, snapshots, task records, or conversation. Do not paste keys into chat.
 
-## 中断、续做与重复导入
+## Processing
 
-- 每段转写结果、每个校对窗口、每个翻译部分都存到 `<学习库>/audio-cache/`。单文件和多音频批次的任务清单也持久保存；失败、取消或宿主重启后任务卡会重新出现，点「接着做」沿原提交范围补未完成部分。相同文件与设置的已存检查点不会重复请求模型；本地路径文件若已删除或内容变化，会提示重新导入，避免把旧进度接到别的录音。上传原件在任务清单内有独立副本，直到任务完成或用户清除记录。
-- 原始转写按「模型、风格、语言」缓存，与词表无关：发现某个词总是错，把它加进术语表再导入，只会重做校对和翻译。
-- 失败或取消的任务卡片上有「接着做（不重复付费）」：不用重新选文件（上传的副本保留到导入成功或点「知道了」），按当前设置继续，只做没保存的部分；卡片上写着转写、校对、翻译各已保存几段。同样的校对错误连续出现两次会先停下，免得每个窗口都白花一遍。点「接着做」时，旧的「录音处理未完成」信箱通知会撤掉，再失败会有新的。
-- 旧版单文件任务可能只有失败信箱、没有任务清单。新版会把这条信箱恢复成可见的“重新选择原录音继续”卡片；需选择同一文件并核对课程、术语等旧提交参数。原参数无法从信箱可靠还原，因此不显示误导性的“一键续做”；内容和设置确实相同的检查点仍会复用。重新提交成功后，旧失败通知才移除。
-- 资料编号由文件内容和文本处理设置决定。同一文件、同样设置再次导入直接复用已有资料；改了术语表或课程会另存一份，旧的可自行在资料里移除。
+1. **Detect and split:** format detection reads bytes, not the extension. A WAV named MP3 is processed as WAV with a warning. MP3 inputs with less than half their bytes recognized as audio are rejected. Inputs below about 59.5 minutes fit one transcription request; longer MP3/WAV inputs split into the fewest balanced parts without ffmpeg or re-encoding. 16-bit PCM WAV cuts move toward nearby quiet 200 ms intervals; MP3 cuts follow frames. Advanced settings allow a 5–59 minute limit, default 59. M4A longer than one hour is rejected with a request to convert to MP3; other formats are submitted whole for API length validation.
+2. **Timeouts:** transcription response time allows three minutes plus 0.6 seconds per audio second, bounded to 5–30 minutes. Upload time assumes 100 KB/second, bounded to 2–40 minutes. Requests use `node:https` for these deadlines and support `NODE_USE_ENV_PROXY`. Timeout receives one retry because each attempt may consume quota.
+3. **Transcribe:** `gemini-3.5-transcribe` defaults to cleaned speech with repetition/filler removal and paragraphs; verbatim mode is available. Up to 100 terms combine course/deck topics with your terminology list. Rejected vocabulary falls back without it and reports the change. Inputs up to 12 MB are inline; larger inputs use Files API uploads per key, deleted afterward.
+4. **Parameter fallback:** after a Gemini HTTP 400 rejection, retries first change inline/file delivery, then remove vocabulary, style, and language options in order, finally trying no transcription options. Successful settings are reused for later segments and recorded. Exhaustion reports the segment and provider field. Credential, balance, and connectivity failures do not use this parameter-correction loop.
+5. **Correct terminology:** the model returns proposed small replacements with exact surrounding quotations rather than rewriting the transcript. The service requires a verbatim location, complete-word boundaries, and a small single-line edit. Under the current confidence policy, only **high-confidence** valid suggestions modify text; medium, low, and invalid confidence suggestions remain in the skipped list. Earlier confirmed corrections inform later windows, without rechecking earlier windows.
+6. **Translate:** parts are approximately 3,500 characters, each with English/Chinese titles and aligned paragraphs. Missing paragraph numbers receive one retry. English recordings retain corrected English, followed by Chinese translation; Chinese recordings retain corrected Chinese, followed by English translation. First-use key terms include their English equivalents.
+7. **Save:** transcripts contain bilingual headings and paired original/translated paragraphs. Above roughly 400,000 characters they split at part boundaries with continuing numbering. The original language and explicit bilingual format remain regardless of interface language.
 
-## 对话动作
+Text processing defaults to **Automatic**: use the DSH conversation model when available, otherwise Gemini. Advanced settings can pin Gemini or the conversation model; live translation follows the same choice. Groq transcription is an alternative to Gemini, so transcription itself is not necessarily a Gemini request.
 
-`audio.import {path 或 uploadId, title?, subject?, terms?, course?, paidOnly?}`（对话里的 path 可以带引号、带 @，也可以是相对工作区的路径；`uploadId` 由面板的 `audio.upload.start/chunk/finish` 产生）、`audio.settings.get`（只返回是否已配置和末四位）、`audio.settings.set`、`audio.test`。导入任务与其他后台任务一样可 `job.wait`、`job.cancel`、`job.dismiss`。任务结束时会给对话一条通知；通知只说明逐字稿已存为资料，不会触发出题。
+## Queue and window concurrency
 
-## 连不上时
+Recordings run one at a time within the same host. Libraries, single imports, and batch members share that queue in arrival order. Legacy multiple-recording concurrency settings normalize to one.
 
-任务失败并显示「连不上 Google 服务」，通常是网络需要代理。Node 的请求默认不读系统代理；用环境变量启动 DSH 即可（Node 22.21 及以后支持）：
+Inside one recording, correction and translation each process concurrent windows: default maximum three, configurable to two under Advanced. A window group shares a consistent prior terminology/title context; results merge in original order before the next group. All correction finishes before translation begins. Each completed window saves a checkpoint immediately. Cancellation or fatal errors stop sibling tasks. Retries reuse completed windows. Concurrency does not increase normal request counts, but can increase minute-level throttling.
+
+Changes apply to the next run or continuation without interrupting active recordings or releasing a second recording. Queued jobs can be stopped and resumed. Identical bytes under different filenames are deduplicated: the later job waits and reuses saved sources. Live-session correction/save uses the same queue.
+
+## Interruptions and retries
+
+Transcription segments, correction windows, and translation parts persist under `audio-cache/`, along with single/batch task manifests. Failed, canceled, and host-interrupted task cards reappear. **Continue** completes the original submission scope using saved checkpoints. Changed or deleted local files require re-import to avoid attaching old progress to another recording. Uploaded originals retain a manifest-owned copy until completion or dismissal.
+
+Raw transcription caches use model, style, and language rather than terminology. Adding terms redoes correction/translation while retaining transcription. Current text-cache policy may invalidate older correction results, but raw audio transcription caches remain.
+
+Continue does not require choosing the file again and reports saved stage counts. Repeated identical correction errors stop after two occurrences. Resuming removes the previous incomplete notification; another failure creates a new one. Legacy jobs with only inbox failure records require reselecting the original file and confirming prior parameters rather than offering an unreliable one-click resume; matching checkpoints remain reusable. Old notices disappear only after successful resubmission.
+
+Source identity depends on bytes and text-processing settings. Identical re-imports reuse sources; changed terms or course save another version, and old sources can be removed manually. Saved old transcripts are never automatically rewritten.
+
+## Conversation API
+
+`audio.import {path or uploadId, title?, subject?, terms?, course?, paidOnly?}` accepts quoted, @-prefixed, or workspace-relative paths. Panel uploads use `audio.upload.start/chunk/finish`. `audio.settings.get` reports configuration presence and only the final four key characters; use `audio.settings.set` and `audio.test` to configure/check. Tasks support `job.wait`, `job.cancel`, and `job.dismiss`. Completion notifies the conversation that sources were saved without generating questions.
+
+Host-model text requests use one-shot restricted subagents. The plugin collects, validates, and saves their output directly; completed text does not return as a full continuable-subagent notification in the main conversation. Jobs and sources remain visible in the panel and inbox.
+
+## Connectivity and verification limits
+
+A Google connectivity error may require a proxy. Node requests do not ordinarily read system proxy settings. On supported Node versions (22.21 or later), start DSH with environment variables such as:
 
 ```powershell
-$env:NODE_USE_ENV_PROXY = "1"; $env:HTTPS_PROXY = "http://127.0.0.1:7890"
+$env:NODE_USE_ENV_PROXY = "1"
+$env:HTTPS_PROXY = "http://127.0.0.1:7890"
 ```
 
-按你的代理地址修改端口。「Location is not supported」则说明所在地区不受 Gemini API 支持，需要换网络。
+Use your actual proxy address. A location-not-supported response requires an eligible network/region.
 
-## 边界与验证
+Mock Gemini/Groq services cover splitting, provider order, throttling, uploads/deletion, parameter fallback, safe correction, output, resumption, and key isolation. Real ffmpeg fixtures cover supported conversion formats and pause-sensitive cuts; optional checks skip when ffmpeg is absent. These tests do not verify current quotas, provider behavior, real transcription quality, or real model JSON/reasoning support. Historical API checks used documentation dated 2026-09-29; the implementation uses Gemini `generateContent`, not the newer Interactions API.
 
-- 校对和翻译这类文本请求如果被 Google 以 400 拒绝，会先去掉可选设置再重试。校对仍失败时只是保留这一段原转写并给出提示，不会中止导入；翻译仍失败时任务停止并写明是第几部分，已付费的转写都在缓存里，重试不会重复转写。
-- 校对、翻译交给 DSH 子代理这条路径只用伪造的宿主测过（任务带着 job id 调用，事件里的 `childId` 记到任务上）；没有在真实 DSH 里验证过子代理的启动和「查看子代理」的跳转。进度条的 25% / 30% / 45% 是经验权重，各步真实耗时随录音和模型而变，所以整体百分比是估计，「本步骤预计还需」才是按实际速度算的。
-- 「在对话里用 @ 选文件」只预填输入框，这里没有 DSH 宿主 SDK，没能验证末尾的 @ 会不会自动弹出文件选择；不弹的话，手动再按一次 @ 即可。
-
-- Groq 这一档用伪造的 Groq 服务测过（多部分上传的字段、切片与续传、限流等待、按顺序的降级、密钥不外泄）；用 ffmpeg 切片的部分另用**真实的 ffmpeg** 验证过：M4A、Ogg Vorbis、Opus、WebM、FLAC、AAC、AIFF 各做了一分钟带停顿的录音，每一片都能重新解码、加起来和原来一样长、切点落在停顿里、临时文件删干净（没有 ffmpeg 的机器上这几项测试会自动跳过）；请求字段依据 2026-09-29 查阅的 Groq 文档（`/openai/v1/audio/transcriptions`、`/openai/v1/chat/completions`），没有用真实 Groq 密钥调用过，真实转写质量、文本模型对 JSON 模式和 `reasoning_effort` 的支持、以及免费档的实际限额都未验证。
-- 尚未用真实密钥调用过 Google 服务。请求字段依据 2026-09-29 查阅的 Gemini API 文档（`generateContent`，模型 `gemini-3.5-transcribe`、`gemini-3.8-flash`，均可在设置里改）。文档把 `generateContent` 标为「旧版」，新的 Interactions API 目前没有采用；如果接口变化，只需改 `lib/gemini.js`。
-- 自动化测试用本地伪造的 Gemini 覆盖：MP3/WAV 切分、免费到付费的各种切换、Files API 上传与删除、词表被拒后的降级、校对修正的安全规则、成稿格式、断点续做、密钥不外泄。它们证明代码按预期处理这些响应，不证明真实转写的质量。
-- 术语识别不可能百分之百：首轮转写仍可能有校对没发现的错词，也可能有校对把握低而没改的词。资料顶部的清单就是为了让你核对。
-- 不处理说话人区分和时间戳（接口要求它们与词表、整理风格互斥）。
-
-
-## 校对回收与置信度（1.4.0）
-
-宿主模型处理音频文本时使用一次性受限子代理，结果由插件直接回收、验证并保存；不经可继续子代理的完整完成通知回流主会话。音频任务和成稿仍在学习页与信箱中可见。只有 `high` 置信度且通过原文定位和修改大小检查的建议会写入正文；`medium`、`low` 与无效置信度保留在跳过建议中，不会自动改写原文。文本处理缓存策略已更新；原始音频转写缓存保留，重新处理无需重复转写已缓存音频。不会自动修改已保存的旧逐字稿。
+Terminology can still be wrong or uncertain. Check the correction header and original sources. Speaker separation and word-level timestamps are not provided.

@@ -1,131 +1,106 @@
-# StudyHub 学习流程与数据边界
+# StudyHub learning workflows and data boundaries
 
-更新：2026-09-27。本文前半部分描述当前实现；`Proposed System Learning` 起为拟议工作流，尚未实现。
-新行为的规则和开发拆分以 [统一开发计划](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) 为准；接续状态见 [本次 handoff](handoffs/2026-09-27-learning-workflow-redesign.md)。
+[中文 and the original planning document](study-workflows.zh-CN.md)
 
-## 课堂跟学
+The first sections describe the current classroom and interview-oriented implementation. **Proposed System Learning** is a design, not a delivered feature.
 
-学习库保存当前课程。首页优先展示该课程最近发布的三个题组和最多十道未学新题；到期复习从独立入口进入。有没做完的练习时，首页主卡先给「接着做」，指向侧栏「回到题目」的那一轮（不论是课程批次、题组、主题还是「为你定制」，也不论属于哪门课），开新一批降为主卡旁的链接，其余未完成的练习收在「另有 N 组练习未完成」里。练习属于标题以外的课程时，主卡和折叠行都标出课程名；当前课程不会因此自动切换（F-023）。导入外部 JSON 时，系统建议短标题、课程和可能并入的题组，用户可修改并确认。原始标题仍保存在题组中。发布后立刻进入新发布题组的十道新题；完成一轮后由用户选择是否继续下一批。
+## Following a course
 
-“整理题组”只提出当前课程现有题组的合并建议。用户逐条确认后，题组服务才执行合并。卡片 ID、作答记录、复习计划、前置关系及笔记卡片关联一并迁移。拆分按主题移动卡片，并继承原课程。
+The library remembers a current course. Home prioritizes that course's three most recently published decks and up to ten unseen questions. Due review has a separate entry.
 
-## 公开学习笔记
+When practice is unfinished, the main card offers **Continue** for the same run as the sidebar's return-to-question action—whether a course batch, deck, topic, or prepared practice, and regardless of course. Starting a fresh batch becomes a secondary link; other unfinished runs collapse below. Runs from another course show that course name without changing the current course automatically.
 
-用户主动挑选题目创建一篇文章。笔记草稿保存 Markdown，编辑器和公式预览在本地打包运行。生成文章时提供题目涉及的知识点，但公开文本使用通用案例，不包含 PPT、讲义细节或个人信息。后台生成结果送达信箱。
+External JSON import suggests a short title, course, and possible merge destination for confirmation. The original title remains stored. Publication begins up to ten new questions from the published deck; after the round, the learner chooses whether to continue.
 
-用户在 CSDN 自行发布。StudyHub 只保存公开博客主页，不使用账号密码或 Cookie。复制文章并打开发布页之前先保存草稿；确认公开链接后，本地只保存文章标题、题目关联、公开链接和时间，不再存长篇正文。若刚发布的新文章可从公开主页唯一确认且标题相同，则自动关联；旧同名、多候选或发布时间无法确认时，用户确认候选或手填链接。
+**Organize decks** only suggests merges among the current course's decks. The service merges after explicit confirmation, retaining card IDs, answers, review schedules, prerequisites, and note links. Topic-based splitting moves cards and inherits the course.
 
-## 代码边界
+## Public study notes
 
-- `lib/focus.js` 负责课程焦点和新题排序；`lib/deck-organization.js` 负责题组合并、拆分和引用迁移。
-- `lib/blog-notes.js` 负责笔记状态与题目关联；`lib/adapters/csdn-public.js` 只查询公开网页。
-- `lib/service.js` 编排应用操作与持久化；`ui/` 展示状态并收集用户确认，不决定合并、判分或链接安全规则。
+Choose questions to create an article. Drafts use Markdown with bundled local editing and formula preview. Generation receives the associated concepts, but public text uses general examples without slide/handout details or personal information. Background results arrive in the inbox.
 
-外部 JSON 题组标记“外部导入”，不要求伪造原文引用。可判分的问题题照常学习；无法判分的题允许跳过且不修改复习进度。
+Publication on CSDN is manual. StudyHub stores a public blog homepage, not credentials or cookies. Save before copying the article/opening the publication page. After confirming a public URL, the library keeps its title, question links, URL, and time rather than the long article body.
+
+A newly published, uniquely identifiable same-title article can link automatically. Older same-name articles, multiple candidates, or uncertain publication times require candidate confirmation or a manually entered URL.
+
+## Current data boundaries
+
+Course focus and new-question order belong to `lib/focus.js`; merge/split/reference migration belongs to `lib/deck-organization.js`. `lib/blog-notes.js` handles notes and card links; the CSDN adapter queries public pages only. Services own persistence and rules; the UI shows state and collects confirmation rather than deciding merges, grading, or link safety.
+
+External JSON decks retain an external-import label without fabricated citations. Gradable flagged questions can still be studied; ungradable ones can be skipped without updating review progress.
 
 ## Current Learning Loop
 
-当前课堂主流程为：外部 AI 根据资料生成 JSON → 导入草稿并确认归属 → 快速发布 → 立即开始最多 10 道新题 → 答题/翻卡与反馈 → 用户主动请求帮助、补前置或修题 → 本轮小结 → 手动继续或以后复习。
-首页最近内容优先；到期复习有独立入口。另有通用学习路径，会按到期、薄弱和新题排序，并可能拉入前置；它与用户“不在答错后强制插前置”的交互期望并不完全等价。新系统路线不能直接把这个队列当作零基础课程。
-陪学备题、逐步讲解、口头模拟和图谱已经存在，但并未形成逐核心知识点的统一证据验收。
+External AI produces JSON from material → import a draft and confirm its destination → quick publish → practice up to ten new questions → answer or self-rate → view explanation and review scheduling → explicitly request help, prerequisites, or repair as needed → see the round summary → manually continue or return later.
+
+Home prioritizes recent content; due review is separate. Another general study path orders due, weak, and new cards and can pull in prerequisites. That existing queue is not equivalent to the proposed zero-background course: some prerequisite behavior differs from an explicit-remediation-only preference.
+
+Prepared questions, staged explanations, oral simulation, and knowledge graphs already exist but do not jointly certify evidence for every required core concept.
 
 ```mermaid
 flowchart TD
-  A[外部生成五个 JSON] --> B[导入并快速发布]
-  B --> C[新题一轮最多十道]
-  C --> D[作答或自评]
-  D --> E[答案解析与复习调度]
-  E --> F{用户选择}
-  F -->|需要帮助| G[追问 补前置 修题]
+  A[External JSON] --> B[Import and quick publication]
+  B --> C[Up to ten new questions]
+  C --> D[Answer or self-rate]
+  D --> E[Explanation and review schedule]
+  E --> F{Learner chooses}
+  F -->|Needs help| G[Follow-up, prerequisites or repair]
   G --> C
-  F -->|本轮结束| H[小结]
-  H -->|手动继续| C
-  H -->|下次| I[新题 到期复习 错题]
+  F -->|Round complete| H[Summary]
+  H -->|Continue manually| C
+  H -->|Later| I[New, due or wrong questions]
 ```
 
 ## Proposed System Learning
 
-对象：接近零基础、已导入五份 Platform Engineering PDF 所生成的五个题组的学习者。
-这些材料的真实内容尚未核查；以下是产品流程设计，不是已经成立的课程覆盖报告。
-首版实操已由用户选择为外部完成并提交成果，插件不内置执行环境。
+Everything in this section is proposed and not implemented. The design targets a learner near zero background with five decks generated from five Platform Engineering PDFs. The source contents have not been audited, so this is a workflow example rather than an established coverage report. Proposed practical exercises take place externally; no execution environment is built into the plugin.
 
-### Entry and Modes
+### Entry and modes
 
-课堂跟学、面试准备保留。学习者主动选择“系统学习”后，仅需确定课程范围、起点和目标；这里默认采用已知的“接近零基础、理解并能应用”。不重复问已经确认的信息。
-主按钮为“继续系统学习”，旁边一句理由，例如“先弄清请求如何到达服务，后面的发布排错会用到”。
-题目已发布即可学习。只有 JSON 时显示“题组已就绪，资料覆盖待核对”；关联原始 PDF 后才后台做范围审计。用户无须逐题审完才能开始。
-默认每轮最多 5 个学习任务；一次实操可以独占一轮。课堂原有的 10 道新题规则继续保留。轮末必须手动选择下一轮。
-已在系统学习模式时，快速发布后回到系统任务或入门入口，不再自动开启课堂的十题轮次。
+Classroom and interview modes would remain. Selecting system learning would establish scope, starting point, and goal without asking again for known information. One **Continue system learning** action would explain why the next task matters.
 
-### Eight Steps
+Published questions would remain usable immediately. JSON-only courses would say that decks are ready but source coverage is unverified; explicitly linking original PDFs would enable background scope auditing. Individual manual review would not be required to begin.
 
-| 步骤 | 学习者看到和操作什么 | 系统在后台做什么 | 过关与失败返回 |
-| --- | --- | --- | --- |
-| 1. 确定范围 | 看简短的课程目标与“哪些资料待核对”；必要时补原始 PDF | 分段提取目标、跨资料归并、匹配题目、标出图表不确定性和缺任务点 | 无资料仍能学；只称候选范围，不宣称全部核心覆盖 |
-| 2. 最小前置诊断 | 用几个小检查确认当前台阶，允许“不知道/稍后” | 区分未诊断、基础缺口与环境阻塞，给出最小补救包 | 用户点“先补基础”才进入；补完回原位置；跳过仍显示缺口 |
-| 3. 看整体案例 | 先看一个能理解的过程，再看少量概念与关系 | 把五个题组映射到同一课程主线；无题概念仍显示 | 能用自己的话说清要解决的问题；不懂则回到相应前置 |
-| 4. 理解一个单元 | 看示范、补步骤、解释原因，再独立做 | 按表现逐步减少提示，保存阶段和帮助使用记录 | 必需评分项通过才推进对应维度；讲解完成不等于学会 |
-| 5. 回忆并保持 | 合上答案说出/写出，距该知识点最近一次学习至少 24 小时后复测 | 跨题记录相关讲解、提示和练习的时间，SM-2 继续管卡片 | 刚重讲后换题答对只算当前表现；延迟失败回到相应薄弱点 |
-| 6. 迁移与辨析 | 面对变约束、反例、排错或跨章节问题，先回答再看反馈 | 检查任务族、未展示状态和 rubric，避免仅换词 | 通过陌生任务才记相应迁移证据；只会原题则继续练新情境 |
-| 7. 外部小实验 | 读目标/环境/验收项，在自己的环境完成后交成果 | 校验提交完整性，按标准审阅并给出最少补交项 | 标明“提交物审阅通过”等实际证据级别；环境失败不冒充概念不懂 |
-| 8. 综合与延迟验收 | 看每个核心点还缺什么，下一轮只选一个具体任务 | 汇总逐点维度，处理复测到期、较新失败和范围版本变化 | 全部必学点均有有效证据才称本范围已验收；任何缺项不能被高平均分抵消 |
+A proposed round would contain at most five learning tasks, with an experiment allowed to occupy a whole round. Existing classroom ten-question rounds would remain. Continuing always requires the learner's choice. Quick publication while already in system mode would return to that mode rather than opening a classroom round.
 
-第 4–7 步按单元循环，期间穿插局部图谱回忆；第 5/8 步跨日继续。八步不对应八个必须逐一打开的页面，也不对应五个 PDF 的线性顺序。
+### Eight steps
 
-### Before and After
-
-| 方面 | 当前工作流 | 优化后的目标 | 迁移策略 |
-| --- | --- | --- | --- |
-| 学习主线 | 题组/主题及卡片顺序，课堂最新内容优先 | 系统路线按目标、前置和证据缺口推进 | 新路线可选，课堂逻辑保留 |
-| 范围 | 从已有题目看主题与图谱 | 原资料独立台账，遗漏核心点也可见 | 已有卡片关联到新知识点，不强制重生成 |
-| 首次理解 | 常从做题和答后解释开始 | 示例→半完成→独立检查 | 复用现有讲解和题卡组件 |
-| 前置不会 | 卡住后追问/关联，部分路径自动拉题 | 最小诊断、明确补救入口、限量、原位返回 | 不直接复用自动拉前置的 path 队列 |
-| 掌握状态 | 最近表现和 SM-2 间隔推算，主题按加权值汇总 | 理解/回忆/迁移/实操按目标分别验收 | 旧统计称估计熟练度；历史不清零 |
-| 举一反三 | 定制变式、题干关键词分类、口头追问 | 未见任务族＋变约束＋理由和评分依据 | 原变式继续练习，新增独立验收资格 |
-| 图谱入脑 | 浏览结构、顺序、节点练题 | 阅读之外加入遮挡、补关系、排序、故障推演 | 复用画布，验收状态单独记录 |
-| 实际应用 | 题目与讨论为主 | 外部实验、成果提交、逐项审阅、重交 | 不增加执行器，不声称观察了外部运行 |
-| 完成标准 | 轮次结束、题目熟练度、抽样考试成绩 | 当前范围每个必学点有全部所需有效证据 | 旧考试保留；抽样高分不等于全覆盖 |
-| 使用负担 | 自己在题组、图谱、追问、考试间切换 | 一个当前任务＋一句原因＋可展开缺口 | 不再增加一排必须使用的新按钮 |
-
-### Daily Use
-
-进入后优先恢复未完成任务。没有未完成任务时，推荐一个到期核心复测、当前阻塞点或新单元；用户可以更换。
-任务中只有当前问题和主操作，解释/帮助按需要展开。前置补救计入本轮预算，不无限递归；默认最多 3 个局部台阶，再深则建议单独基础单元。
-轮末显示“本轮新增了什么证据、哪个核心点仍缺什么、下次做哪件事”，不会把图谱浏览或生成笔记算成验收。
-未学和未评估不涂成红色失败；处理中的模型评分、环境阻塞和真正答错分别显示。关闭页面后继续原任务。
-
-### Platform Engineering Example
-
-以下任务仅示范结构，实际知识范围需由五份资料核对决定。
-
-1. 先用提供的示例服务认识“请求、进程、端口和日志”，能预测一次请求会走到哪里。
-2. 看一次交付示范，补全遗漏的测试/发布步骤，再解释失败时应该查看什么证据。
-3. 改变配置或访问条件，先预测结果，再在外部环境验证；报告预测与观察是否一致。
-4. 将流程整理成另一个开发者可以重复使用的模板，说明默认值、可配置项、限制和使用者收益。
-5. 隔天凭记忆画出简化链路，面对一个新故障指出排查顺序，并提交修订成果。
-
-“会运行示例”只覆盖其中一部分目标；“会解释限制并能在变更条件下验证”需要额外证据。
-
-### Progress and Evidence
-
-首页示例文案：“当前范围 12/18 个核心点已验收；4 个待独立检查，2 个待实操。资料范围仍有 1 页图表待核对。”数字是示例，不是实际用户数据。
-点击一个点能看到所需维度、通过/缺失依据、是否有帮助、最近一次验证及来源版本。
-同一实验可支撑多个点，但各点评分独立；口头回答、图谱任务和普通题目都不会自动推断所有前置已掌握。
-具体证据门槛、分母规则、失效与迁移由计划中的 Evidence Policy 和 R2–R15 定义。
-
-### Exceptions and Recovery
-
-| 场景 | 用户看到什么 | 恢复行为 |
+| Step | Learner activity | Proposed evidence and recovery |
 | --- | --- | --- |
-| 缺 PDF / 扫描图未识别 | 范围待核对及可继续学习的内容 | 后台补审计，不阻塞旧题 |
-| 模型失败或评分不完整 | 已保存提交，暂未评估 | 重试同一提交或换已有任务，不能自动记失败 |
-| 资料/目标更新 | 哪些核心点新增或需复验 | 当前会话保留版本快照，显式切换或下一轮采用新范围；旧任务结果仅计旧版，已撤销任务保留回答并转新入口 |
-| 补前置越来越深 | 本轮预算与可返回入口 | 暂停补救，推荐独立基础单元，不强行递归 |
-| 实验环境跑不起来 | 环境阻塞及最少诊断项 | 保留进度，区分环境与知识错误 |
-| 重复提交或迟到反馈 | 唯一提交记录及对应版本 | 过期结果不覆盖新提交，得分不重复增加 |
-| 斩题/题组合并/拆分 | 知识点和历史保留，必要时显示缺评估任务 | 不暗减必学分母，不因整理题组丢进度 |
+| 1. Define scope | Read goals and unchecked-source notices; optionally add PDFs | Merge candidate objectives across sources and map questions; missing material does not prevent learning or justify a complete-coverage claim |
+| 2. Minimal prerequisite diagnosis | Try small checks, with unknown/later available | Distinguish undiagnosed gaps from environment blocks; remediation begins only by choice and returns to the original task |
+| 3. Understand an overall case | See an understandable process and a few concepts/relationships | Map decks to a course narrative; concepts lacking questions remain visible; explain the problem in one's own words |
+| 4. Understand one unit | Study a demonstration, fill steps, explain reasons, then work independently | Reduce scaffolding with performance; only required grading criteria advance the checked dimension; finishing an explanation is not mastery |
+| 5. Recall and retain | Answer without the solution, then retest at least 24 hours after the concept's latest learning | Track teaching/hints/practice across questions; SM-2 still handles cards; immediate success after reteaching is not delayed retention |
+| 6. Transfer and discriminate | Predict changed constraints, counterexamples, faults, or cross-topic outcomes before feedback | Use unseen task families and explicit rubrics; cosmetic rewording does not establish transfer |
+| 7. External experiment | Work in one's own environment and submit artifacts against acceptance criteria | Grade submission completeness and evidence; describe artifact review accurately without claiming to observe execution; separate environment failures from concept errors |
+| 8. Integrated and delayed checks | See missing evidence per core point and select one next task | Require valid evidence for every mandatory point; averages cannot cancel missing dimensions; handle due retests, newer failures, and scope versions |
 
-### Delivery Boundary
+Steps 4–7 repeat per unit, interleaving local graph recall. Steps 5/8 span days. These are not eight mandatory pages or a linear PDF order.
 
-本节是设计方案。当前代码仍运行前文的课堂/面试流程，八步系统学习尚未交付。
-三阶段开发依次是 P0 覆盖与可信进度、P1 零基础循环、P2 外部实操与综合验收；实施单元 U1–U9、AE1–AE16 和测试文件均在统一开发计划中。
+### Intended changes and migration
+
+The proposed route would progress by goals, prerequisites, and evidence gaps rather than only deck/card order. A source ledger would expose missing concepts while existing cards link to stable concept IDs without forced regeneration. Initial teaching would use worked, partially completed, and independent exercises.
+
+Remediation would be minimal, explicit, bounded, and return to the original position rather than reusing an automatic prerequisite queue unchanged. Existing mastery statistics would remain as estimates while understanding, recall, transfer, and practical work gain separate evidence. Existing variants would remain practice rather than automatically becoming independent assessments.
+
+The graph would add hidden nodes, relationship completion, ordering, reconstruction, and fault tracing to current reading/navigation. External experiments would use submission review without an executor. Existing exams would remain; sample scores would not establish total coverage. The interface would offer one current task and an expandable explanation of gaps.
+
+### Daily use and progress
+
+Unfinished work would resume first. Otherwise, one due concept retest, blocker, or new unit would be suggested, with another choice available. Help expands on demand. Remediation counts toward the round budget, normally at most three local steps before recommending a separate foundations unit.
+
+A round summary would distinguish new evidence, remaining gaps, and one next task. Graph browsing and generated notes would not count as certification. Unlearned or unassessed content would not appear as failed; pending model grading, environment blocks, and incorrect answers would have separate states.
+
+An illustrative dashboard might say “12/18 core points accepted; four need independent checks, two need experiments; one diagram page still needs checking.” These are example figures, not real user results. Each point would show required dimensions, evidence/gaps, help exposure, latest verification, and source version. One experiment could support several points, graded separately, without automatically crediting all prerequisites.
+
+### Platform Engineering example
+
+An illustrative sequence would follow a request through process/port/logs, complete a demonstrated delivery pipeline, predict a configuration change and verify it externally, create a reusable template explaining defaults and limits, then reconstruct the chain from memory the next day and diagnose a new fault. Actual scope still requires source review. Running a sample demonstrates only part of these goals.
+
+### Exceptions and delivery boundary
+
+Missing PDFs or unreadable diagrams would leave scope unverified without blocking existing questions. Model failures would retain submissions as unassessed for retry, not mark them wrong. Source/goal changes would use explicit version snapshots and keep old evidence tied to its scope. Excessive prerequisite depth would stop bounded remediation and offer a separate foundations unit.
+
+Environment failures would retain progress. Duplicate/late results would not duplicate credit or replace newer submissions. Removed questions, merges, and splits would preserve concept history rather than silently reducing the required denominator.
+
+The eight-step system is not delivered. The original design divides work into coverage/trustworthy progress, the zero-background loop, and external practical/integrated checks. Complete historical planning details and references remain in the Chinese companion.

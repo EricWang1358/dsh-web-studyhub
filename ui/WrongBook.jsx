@@ -127,7 +127,7 @@ export default function WrongBook({ call, data, busy, onPractice, onLibrary, onC
                   {plainPrompt(it.prompt)}
                 </span>
                 <span className={"wb-grade" + (it.assessment === "graded" ? "" : " self")}
-                  title={it.assessment === 'oral' ? ui('最近一次口头 AI 评估：需要巩固') : uiFormat("最近一次{0} {1} 分", [it.assessment === "graded" ? "客观判分" : "自评", it.lastGrade])}>
+                  title={it.assessment === 'oral' ? ui('最近一次口头 AI 评估：需要巩固') : uiFormat("最近一次{0} {1} 分", [ui(it.assessment === "graded" ? "客观判分" : "自评"), it.lastGrade])}>
                   {it.assessment === 'oral' ? ui('口头评估') : it.assessment === "graded" ? ui("答错") : ui("未掌握")}
                 </span>
                 <button

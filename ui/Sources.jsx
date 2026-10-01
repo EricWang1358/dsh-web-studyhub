@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useMemo, useState } from "react";
 import Icon from "./Icon.jsx";
 import { AudioJobs } from "./AudioImport.jsx";
@@ -31,6 +31,7 @@ function dayLabel(key) {
   if (key === dayKey(yesterday)) return ui("昨天");
   const [y, m, d] = key.split("-").map(Number),
     date = new Date(y, m - 1, d);
+  if (getUiLanguage() === 'en') return date.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric', ...(y !== today.getFullYear() ? { year: 'numeric' } : {}) });
   return uiFormat("{0}{1} 月 {2} 日 · {3}", [y === today.getFullYear() ? "" : `${y} 年 `, m, d, WEEKDAYS[date.getDay()]]);
 }
 
@@ -43,7 +44,7 @@ function groupByDay(sources) {
     groups.get(key).push(s);
   }
   const titleOrder = (a, b) =>
-    String(a.title).localeCompare(String(b.title), "zh-CN", { numeric: true });
+    String(a.title).localeCompare(String(b.title), uiLocale(), { numeric: true });
   return [...groups.entries()]
     .sort(([a], [b]) => (a === UNKNOWN ? 1 : b === UNKNOWN ? -1 : b.localeCompare(a)))
     .map(([key, rows]) => ({

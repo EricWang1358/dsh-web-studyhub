@@ -326,7 +326,7 @@ export default function Graph({
     }
     if (p.kind === "topic" || p.kind === "ghost") {
       const tail = idTail(n.id);
-      const label = n.ghost ? n.label : n.label || tail?.[1] || ui("未命名主题");
+      const label = n.ghost ? ui(n.label) : n.label || tail?.[1] || ui("未命名主题");
       const meta = n.ghost ? "" : metaOf(n);
       return (
         <g key={p.key} transform={`translate(${p.x} ${p.y - p.h / 2})`}>

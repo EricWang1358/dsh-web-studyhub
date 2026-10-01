@@ -1,65 +1,61 @@
-# 陪学、自动驾驶与定制题
+# Coaching, prepared questions, and optional autopilot
 
-本文记录现有陪学能力；零基础系统学习的新设计见文末，尚未实现。已有自动行为与用户最新主动触发偏好的差异，须以 [反馈约束](user-feedback-intake.md) 和实际入口核对，不能直接作为新路线的默认策略。
+[中文](coach.zh-CN.md)
 
-目标：想快速学的时候不用打字、不用操心题目质量。系统在旁边陪着，记住你的目标和掌握情况；你同意后，它会边陪你做题边备好变式题。
+This guide describes current coaching. The optional evidence-based system-learning proposal below is not delivered. Existing automatic behavior should not be assumed to define that proposed route.
 
-## 陪学栏（已移除）
+## Teaching assistance and goals
 
-v1.0.0 起做题页不再显示陪学栏，答错后的帮助统一走「帮我弄懂」（见 [反馈约束](user-feedback-intake.md) F-010：答错本身不自动调用模型）。组件已删除；`coach.nudge` `coach.reply` 仍保留在服务端，只在显式调用时生成巩固点，界面不会调用。
+Since 1.0.0, the practice page no longer has the old coaching bar. Help after an incorrect answer uses **Help me understand**, triggered by the learner; an incorrect answer alone does not call a model. Server actions `coach.nudge` and `coach.reply` remain available only on explicit invocation.
 
-原先由陪学栏发出的「要不要在后台备题」询问，现在放在一轮结果页的小结卡里，见下文。学习目标在 **设置 › 陪学** 里选。
+Select goals in **Settings → Coaching**. The result summary asks whether to prepare follow-up questions when consent has not yet been provided.
 
-## 👍 / 👎 反馈
+## Feedback
 
-- 工具栏的 👍/👎，快捷键 G / B。👎 会展开标签：题干太空、选项太烂、太简单、太难、答案有误、解析不清（展开后按 1–6 选择），停手 1.2 秒自动提交。
-- 题干太空、选项太烂、答案有误、解析不清：后台按标签只改被批评的部分。引用仍要逐字对得上原文，校验不过会带着错误信息再试一次。改完后信箱里会有「撤销修改」。已作答的这道题保持屏幕上的反馈不变，本轮队尾重练和以后的练习会用新版。
-- 答案有误：先对照资料核对。原答案确实正确时不改，并说明依据。
-- 太简单 / 太难：开启备题时，分别准备一道更难的应用题，或一道更基础的前置概念题。
+Use 👍/👎 in the toolbar or G/B. Negative feedback opens six tags: vague prompt, poor options, too easy, too hard, wrong answer, or unclear explanation. Keys 1–6 select tags; submission occurs after 1.2 seconds without further interaction.
 
-## 定制题与「雷霆建议」
+For content-quality tags, background repair changes only the criticized parts. Quotations must still match sources; invalid output receives one bounded correction retry. The inbox offers undo. Feedback already shown for an answered question stays unchanged; later retries/reviews use the new version.
 
-- 开启备题后，客观答错或自评未掌握的题、标记太简单/太难的题，以及只练了概念且已达标的一轮，都会成为变式题的目标。目标先攒批（每批最多 4 个、最多等 20 秒），一次调用写完，每张卡单独过代码校验，不合格的直接丢弃。最多同时备 12 道。
-- 每轮结束时的小结先由代码算出认知层次分布（记忆 / 概念辨析 / 应用分析）、客观题通过率、自评达标率、薄弱主题和反馈标签。两类结果分别判断；自评未掌握不会被算成客观答错，也不会被其他客观题的高分掩盖。下一步由代码选定；模型只在与该建议一致时提供文案和画像更新。点「先补薄弱点」只重练本轮低分题，不混入新题。
-- 最后一题答完时会预取小结。备好的题会以「刷 N 道为你定制的题」出现在小结里、侧栏和学习库顶部。开刷后，这些题移入系统题组「为你定制」，按正常 SM-2 复习。
-- 征求同意：还没表过态（`consent` 为空）且有可用模型时，结果页小结卡下方问一次「要按这一轮给你备几道变式题和应用场景题吗？」。选「好」会调用 `coach.consent { prep: true, runId }`：除了最近答错的题，若这一轮按小结规则需要应用题（只练了概念且已达标等），也一并加入备题；小结卡随后显示「正在按这一轮备题…」，备好后按钮变成「刷 N 道为你定制的题」。选「先不用」不再询问，可在 **设置 › 陪学** 修改。
-- 入口位置（备好 ≥1 道题时都会出现，点一下即开刷）：
-  - 侧栏「为你定制 · N 道题已备好」，任何页面可见；收起侧栏后是图标加红点。
-  - 一轮结果页：小结卡（雷霆建议）直接放在成绩下方，不折叠。它给出的下一步是「刷定制题」或「先补薄弱点」时，页面上其他「继续」类按钮改为次要样式，保证一屏一个实心主按钮。
-  - 学习库顶部横幅「刷 N 道定制题 →」。
-- 结果页显示小结卡就会请求一次 `coach.debrief`（按已答题数缓存，与之前预取共用）。自动驾驶的轮末倒计时只在普通练习结果页生效；从学习流、绕路或「回到原题」进入的结果页不倒计时，避免把人拉走。
+A wrong-answer report first checks sources. If the original answer is supported, it remains unchanged with an explanation. With preparation enabled, too-easy/too-hard feedback requests a harder application question or simpler prerequisite question.
 
-## 自动驾驶（可选）
+## Prepared questions and round summaries
 
-- 快捷键 A 开关，只保存在本机浏览器。
-- 答对后 1.5 秒自动下一题，期间有进度条，点任意处或按任意键就停下。答错不会自动跳走。
-- 一轮结束后，按小结给出的下一步倒计时 5 秒执行（刷定制题 / 继续学习 / 补薄弱），可以取消；建议休息时不会自动操作。
+With preparation enabled, incorrect objective answers, self-ratings below mastery, too-easy/too-hard tags, and a successful concept-only round can become variant targets. Targets batch up to four, waiting at most 20 seconds. One call creates the batch; each question is validated independently and invalid candidates are discarded. At most 12 prepared questions wait.
 
-## 快捷键
+Code computes cognitive-level distribution, objective pass rate, self-rating attainment, weak topics, feedback, and the next step. Objective results and self-ratings stay distinct; a high objective score does not hide low self-ratings. A model supplies wording/profile updates only when consistent with the chosen recommendation. **Work on weak points first** retries this round's low-scoring questions without mixing in new ones.
 
-`1–6` 选项 · `0–5` 自评 · `Enter` 下一题 / 提交多选或填空 / 翻卡 · `Space` 翻卡 · `← →` 切题 · `H` 提示/讲解 · `G`/`B` 👍/👎 · `A` 自动驾驶 · `S` 从任意页继续或开始学习 · `?` 快捷键速查 · `Esc` 关闭。
+The final answer prefetches a summary. Prepared questions appear in the summary, sidebar, and library banner. Starting them moves them into the system **For you** deck for normal SM-2 review.
 
-## 省 token 的做法
+If `consent` is unset and a model is available, the result summary asks once whether to prepare variants/application questions. Accepting calls `coach.consent {prep:true,runId}` and adds eligible round targets; declining suppresses further prompts. Change this later in Settings.
 
-- 陪学调用走轻量路由：同一个会话模型，思考程度选模型提供的 off/none/minimal，没有就选 low。只有思考完全关闭时才限制输出长度（陪学点 450、追问 320、改题 1600、变式 3600、小结 650 token），避免把推理 token 截断。
-- 陪学点只发送题目自带的答案和解析，不发原文。改题和变式题只发送引用附近的原文片段（每次最多约 5–6 千字符），逐字引用仍由代码校验。
-- 认知层次、指标、洞察和默认下一步都由代码计算。本轮小结按已答题数缓存，同时发起的请求共享一次调用。
-- 学习面板轮询快照时带上指纹，没有变化时服务端只回 `unchanged`，不再每 2.5 秒传输并比较整个学习库（包含资料全文）。
+The result summary calls `coach.debrief`, cached by answered-question count and shared with prefetch. A single primary action reflects its recommendation; other continuation buttons become secondary. Sidebar and library entry points appear once at least one question is ready.
 
-## 数据与隐私
+## Optional autopilot
 
-### 讲解追问与定制题
+A toggles autopilot locally in the current browser. Correct answers advance after 1.5 seconds with a progress indicator; any click or key cancels. Incorrect answers do not advance automatically.
 
-「讲解」末尾的「追问？」支持推荐问题和自定义问题，Q&A 保存在卡片中。开启备题时，新追问会进入原有备题队列，结合具体疑问生成「追问巩固」题目；仍须通过来源引用与题目校验。关闭备题不会阻止保存问答。并发「还是不懂」请求合并，同一次点击不会消耗两次解释机会。详见 [讲解追问](followup.md)。
+At the end of ordinary practice, a five-second cancelable countdown follows the summary recommendation: prepared practice, continuation, or weak-point practice. Rest recommendations do not auto-act. Learning-flow, detour, and return-to-original result views omit this countdown.
 
-卡片上的 Q&A、推荐缓存和 EN 翻译不属于陪学画像，「清空画像」不会删除它们。
+## Shortcuts
 
-陪学相关数据保存在学习库中（画像在清单 `study-workspace.json`，其余在 `shards/misc/`）：`learner`（是否同意备题、目标、≤400 字画像摘要、懂了/不懂/👍/👎 计数）、`coach`（陪学线程，最多保留 400 条）、`feedback`（反馈记录）、`prepared`（未使用的定制题）。在 **设置 › 陪学** 可以查看、关闭备题、修改目标或「清空画像」，练习记录不受影响。
+`1–6` options · `0–5` self-rating · `Enter` next/submit multi-choice or cloze/flip · `Space` flip · arrows switch questions · `H` hint/explanation · `G/B` feedback · `A` autopilot · `S` resume/start study from any page · `?` shortcut reference · `Esc` close.
 
-接口（面板内部使用）：`coach.nudge` `coach.reply` `coach.feedback` `coach.consent` `coach.goal` `coach.debrief` `coach.practice` `coach.revert` `coach.status` `coach.profile` `coach.forget` `coach.prepare`。
+## Token use and stored data
 
-## 系统学习中的陪学（规划）
+Lightweight coaching uses the session model's off/none/minimal level, otherwise low. Output caps apply only when reasoning is fully disabled: coaching 450, follow-up 320, repair 1,600, variants 3,600, and summary 650 tokens. Coaching nudges use embedded answers/explanations; repairs and variants receive citation-adjacent source excerpts of roughly 5–6 thousand characters. Code verifies exact quotes.
 
-新路线复用例子、追问和教学阶梯，增加“最小前置诊断→完整示范→半完成练习→独立检查”。用户选择补救后才进入，默认最多 3 个局部台阶并计入本轮预算，完成或退出都能回原任务。不会因答错自动切走，也不会在轮末自动追加下一轮。
-提示与答案帮助作为证据资格保存；“懂了”、讲解完成和自评达标不等于独立验收。无模型时可继续已保存的内容，开放判分显示待评估，保留提交以便重试。
-原有备题同意不扩展为全资料审计或外部实操执行授权。具体状态、延迟检查和原/新模式边界见 [计划 R5–R9、U4–U6](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) 与 [学习工作流](study-workflows.md#proposed-system-learning)。
+Metrics and recommendations are computed locally. Snapshot polling uses fingerprints and returns `unchanged` when possible rather than repeatedly sending source text.
+
+Explanation Q&A and cached suggestions persist on cards. With preparation enabled, new follow-ups can create source-validated reinforcement questions; disabling preparation does not block Q&A. Concurrent identical help requests coalesce. See [follow-ups](followup.md).
+
+Q&A, suggestion caches, and EN translations are separate from the coaching profile and survive **Clear profile**. Coaching data is stored in the library: `learner` holds consent, goals, a profile summary of up to 400 characters, and feedback counts; `coach` retains up to 400 thread entries; `feedback` records tags; `prepared` stores unused questions. Settings let you inspect these, stop preparation, change goals, or clear the profile without deleting practice history.
+
+APIs: `coach.nudge`, `coach.reply`, `coach.feedback`, `coach.consent`, `coach.goal`, `coach.debrief`, `coach.practice`, `coach.revert`, `coach.status`, `coach.profile`, `coach.forget`, and `coach.prepare`.
+
+## Proposed system-learning coaching
+
+The proposed route would reuse examples and follow-ups for minimal diagnosis → worked example → partial exercise → independent check. The learner would enter remediation explicitly, with at most three local steps within the round budget and a return to the original task. Wrong answers would not switch tasks automatically or append another round.
+
+Hint/answer exposure would affect evidence eligibility. Understanding clicks, completed explanations, and self-ratings would not certify independent attainment. Saved learning remains available without a model; pending open grading retains submissions for retry. Existing preparation consent would not authorize a whole-source audit or external execution.
+
+See [R5–R9 and U4–U6](https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.0.3/docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) and the [proposed workflow](study-workflows.md#proposed-system-learning).
