@@ -9,9 +9,15 @@ import { usePageScope } from './PageScope.jsx';
 import SourcePicker from './SourcePicker.jsx';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
-import { Banner, Button, EmptyState, PageHeader, SetupRequired } from './components/index.js';
+import { Banner, Button, Disclosure, EmptyState, PageHeader, SegmentedControl, SetupRequired } from './components/index.js';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
+import GenerateAssist from './GenerateAssist.jsx';
+import {
+  COUNT_MAX, COUNT_MIN, COUNT_PRESETS, DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, clampCount, courseHasCaseExam,
+  difficultyNote, estimateMinutes, kindNote, roleOpenByDefault, selectionStats, stepCount, suggestCount, summaryLine,
+} from './generate-form.js';
 import homeCss from './generate-home.css';
+import formCss from './generate-form.css';
 import CaseCreate from './CaseCreate.jsx';
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
@@ -41,12 +47,40 @@ export default function Generate({
   onCourseSettings,
 }) {
   useInjectCss(homeCss, "study-generate-home");
+  useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   const visibleSources = data.sources.filter(source => sourceMatchesCourse(source, sourceScope));
   const generationCourse = gen.course ?? courseForSources({ sources: data.sources }, selectedSources, sourceScope === '*' ? '' : sourceScope);
-  const selectedPdfPages = new Set(data.sources.filter((source) => source.document && selectedSources.includes(source.id))
-    .map((source) => `${source.document.id || source.id}:${source.document.page || source.id}`)).size;
+  const stats = React.useMemo(() => selectionStats(data.sources, selectedSources), [data.sources, selectedSources]);
+  const selectedPdfPages = stats.pages;
   const model = modelReadiness(data);
+  // The learner's goal tells whether the target role belongs on the form; read once, quietly.
+  const [goal, setGoal] = React.useState('');
+  React.useEffect(() => {
+    let live = true;
+    Promise.resolve(call?.('coach.profile', {})).then((profile) => { if (live && typeof profile?.goal === 'string') setGoal(profile.goal); }, () => {});
+    return () => { live = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 帮我想想: asked on click only; a result belongs to the sources and course it was asked for.
+  const [assist, setAssist] = React.useState({ phase: 'idle', result: null, applied: false });
+  const assistToken = React.useRef(0);
+  const selectionKey = `${generationCourse}|${selectedSources.join(',')}`;
+  React.useEffect(() => { assistToken.current += 1; setAssist({ phase: 'idle', result: null, applied: false }); }, [selectionKey]);
+  const focusBox = React.useRef(null);
+  React.useEffect(() => {
+    const box = focusBox.current;
+    if (!box) return;
+    box.style.height = 'auto';
+    box.style.height = `${Math.min(box.scrollHeight + 2, 220)}px`;
+  }, [gen.focus]);
+  async function askAssist() {
+    const token = ++assistToken.current;
+    setAssist({ phase: 'loading', result: null, applied: false });
+    let result;
+    try { result = await call('generate.suggest', { sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }); }
+    catch (error) { result = { source: 'local', focus: [], unavailable: { reason: 'failed', message: String(error?.message || '') } }; }
+    if (token === assistToken.current) setAssist({ phase: 'done', result, applied: false });
+  }
   const openImport = () => setModal({ type: "add", course: sourceScope === '*' ? '' : sourceScope });
   const openSettings = () => (openModelSettings ? openModelSettings() : setPage?.("settings"));
   // With a single document (one PDF is several page sources) there is nothing to choose; don't make the learner tick it.
@@ -91,6 +125,9 @@ export default function Generate({
       : ui("已选择模型，但还没有可用的 API Key。出题要用它调用模型。")
     : model.reason === "no-route" ? ui("还没有选择用来出题的 AI 模型。配置好之后回到这里，已填的内容会保留。")
       : ui("出题需要一个可用的 AI 模型。配置好之后回到这里，已填的内容会保留。");
+  const suggestedCount = suggestCount(stats);
+  const caseExam = courseHasCaseExam((data.courses || []).find((course) => course?.name === generationCourse));
+  const summary = summaryLine({ ...stats, count: gen.count, difficulty: gen.difficulty, language: gen.language, minutes: estimateMinutes(data.jobs, gen.count) });
   return (
     <section className="page generate-page">
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
@@ -188,79 +225,70 @@ export default function Generate({
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>
             </fieldset>
-            <fieldset>
+            <fieldset className="generate-form">
               <legend>{ui("02 / 学习方式")}</legend>
-              <div className="kind-grid">
-                {Object.entries({ mixed: ui("测验 + 闪卡"), ...kinds }).map(([id, label]) => (
-                  <button
-                    type="button"
-                    key={id}
-                    aria-pressed={gen.kind === id}
-                    className={gen.kind === id ? "kind selected" : "kind"}
-                    onClick={() => setGen({ ...gen, kind: id })}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="muted">{ui("“测验 + 闪卡”将总题数分配为一半单选、一半闪卡（奇数多一道单选），合并为一个待审题组。")}</p>
-              <label>{ui("题组名称（可选）")}<input value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} /></label>
               <CourseField courses={data.focus?.courses} value={generationCourse} onChange={course => setGen({ ...gen, course })} />
               {!generationCourse && selectedSources.length > 0 && <p className="muted">{ui('当前生成结果将归为未分类；可在上方指定课程。')}</p>}
-              <div className="three-col">
-                <label>{ui("题数")}<input
-                    type="number"
-                    min="1"
-                    max="30"
-                    required
-                    value={gen.count}
-                    onChange={(e) =>
-                      setGen({ ...gen, count: e.target.value })
-                    }
-                  />
-                </label>
-                <label>{ui("难度")}<select
-                    value={gen.difficulty}
-                    onChange={(e) =>
-                      setGen({ ...gen, difficulty: e.target.value })
-                    }
-                  >
-                    <option value="mixed">{ui("混合")}</option>
-                    <option value="foundation">{ui("基础理解")}</option>
-                    <option value="application">{ui("应用迁移")}</option>
-                    <option value="advanced">{ui("深入辨析")}</option>
-                  </select>
-                </label>
-                <label>{ui("语言")}<select
-                    value={gen.language}
-                    onChange={(e) =>
-                      setGen({ ...gen, language: e.target.value })
-                    }
-                  >
-                    <option value={"中文"}>{ui("中文")}</option>
-                    <option>English</option>
-                    <option value={"中英双语"}>{ui("中英双语")}</option>
-                  </select>
-                </label>
+              {caseExam && <p className="generate-case-hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
+                <Button variant="link" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}
+              <div className="generate-rows">
+                <FormRow label={ui("题型")}>
+                  <SegmentedControl label={ui("题型")} className="generate-kind" value={gen.kind}
+                    options={KINDS.map((id) => ({ value: id, label: id === "mixed" ? ui("测验 + 闪卡") : kinds[id] }))}
+                    onChange={(kind) => setGen({ ...gen, kind })} />
+                  <p className="generate-note">{kindNote(gen.kind)}</p>
+                </FormRow>
+                <FormRow label={ui("题数")} htmlFor="generate-count">
+                  <div className="generate-count">
+                    <div className="generate-stepper" role="group" aria-label={ui("题数")}>
+                      <button type="button" aria-label={ui("减少题数")} disabled={clampCount(gen.count) <= COUNT_MIN} onClick={() => setGen({ ...gen, count: stepCount(gen.count, -1) })}>−</button>
+                      <input id="generate-count" type="number" min={COUNT_MIN} max={COUNT_MAX} inputMode="numeric" required value={gen.count}
+                        onChange={(e) => setGen({ ...gen, count: e.target.value })}
+                        onBlur={(e) => setGen({ ...gen, count: clampCount(e.target.value) })} />
+                      <button type="button" aria-label={ui("增加题数")} disabled={clampCount(gen.count) >= COUNT_MAX} onClick={() => setGen({ ...gen, count: stepCount(gen.count, 1) })}>+</button>
+                    </div>
+                    <div className="generate-chips" role="group" aria-label={ui("常用题数")}>
+                      {COUNT_PRESETS.map((preset) => (
+                        <button type="button" key={preset} className="generate-chip generate-preset" aria-pressed={Number(gen.count) === preset}
+                          onClick={() => setGen({ ...gen, count: preset })}>{preset}</button>
+                      ))}
+                      {suggestedCount && suggestedCount !== Number(gen.count) && (
+                        <button type="button" className="generate-chip generate-hint" title={ui("按资料大小估算，点一下采用")}
+                          onClick={() => setGen({ ...gen, count: suggestedCount })}>{uiFormat("建议 {0} 题", [suggestedCount])}</button>
+                      )}
+                    </div>
+                  </div>
+                </FormRow>
+                <FormRow label={ui("难度")}>
+                  <SegmentedControl label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
+                    onChange={(difficulty) => setGen({ ...gen, difficulty })} />
+                  <p className="generate-note">{difficultyNote(gen.difficulty)}</p>
+                </FormRow>
+                <FormRow label={ui("语言")}>
+                  <SegmentedControl label={ui("语言")} size="sm" value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
+                    onChange={(language) => setGen({ ...gen, language })} />
+                </FormRow>
+                <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus">
+                  <textarea id="generate-focus" ref={focusBox} className="generate-focus" rows={2} value={gen.focus}
+                    onChange={(e) => setGen({ ...gen, focus: e.target.value })}
+                    placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
+                  <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
+                    onAsk={askAssist}
+                    onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
+                    onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
+                </FormRow>
               </div>
               {selectedPdfPages > Number(gen.count) && <p className="warning" role="status">{ui("已选 ")}{selectedPdfPages}{ui(" 页 PDF，计划生成 ")}{gen.count}{ui(" 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。")}</p>}
-              <label>{ui("这次想练什么？")}<textarea
-                  rows={3}
-                  value={gen.focus}
-                  onChange={(e) =>
-                    setGen({ ...gen, focus: e.target.value })
-                  }
-                  placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")}
-                />
-              </label>
-              <label>{ui("目标岗位 / 面试方向（可选）")}<input
-                  value={gen.role}
-                  onChange={(e) =>
-                    setGen({ ...gen, role: e.target.value })
-                  }
-                  placeholder={ui("例如：后端工程师 · 系统设计")}
-                />
-              </label>
+              <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
+                <div className="generate-rows">
+                  <FormRow label={ui("题组名称（可选）")} htmlFor="generate-title">
+                    <input id="generate-title" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
+                  </FormRow>
+                  <FormRow label={ui("目标岗位 / 面试方向（可选）")} htmlFor="generate-role">
+                    <input id="generate-role" value={gen.role} onChange={(e) => setGen({ ...gen, role: e.target.value })} placeholder={ui("例如：后端工程师 · 系统设计")} />
+                  </FormRow>
+                </div>
+              </Disclosure>
             </fieldset>
             <div className="generate-submit">
               <div className="quality-note">
@@ -269,6 +297,7 @@ export default function Generate({
                   <small>{ui("发布时会再次逐题检查；合格题先发布，未通过的题可选择交给后台修复。")}</small>
                 </p>
               </div>
+              {summary && <p className="generate-summary" role="status">{summary}</p>}
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
@@ -289,5 +318,15 @@ export default function Generate({
       )}
       </div>
     </section>
+  );
+}
+
+/* One label-left row of the form: the label column on wide panes, stacked on narrow ones. */
+function FormRow({ label, htmlFor, children }) {
+  return (
+    <div className="generate-row">
+      {htmlFor ? <label className="generate-row__label" htmlFor={htmlFor}>{label}</label> : <div className="generate-row__label">{label}</div>}
+      <div className="generate-row__control">{children}</div>
+    </div>
   );
 }
