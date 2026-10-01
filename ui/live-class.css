@@ -40,7 +40,7 @@
 .study-app .live-audio-meter { height: 12px; overflow: hidden; border-radius: 6px; background: var(--bg-sunken); }
 .study-app .live-audio-meter > span { display: block; height: 100%; background: var(--ok); border-radius: inherit; }
 .study-app .live-audio-meter > span.clipping { background: var(--warn); }
-.study-app .live-audio-scale { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--text-dim); }
+.study-app .live-audio-scale { display: flex; justify-content: space-between; margin-top: 4px; font-size: var(--fs-xs); color: var(--text-dim); }
 .study-app .live-audio-transfer { margin: 8px 0 0; font-size: 13px; }
 .study-app .live-audio-warning { color: var(--warn); white-space: nowrap; }
 .study-app .live-audio-hint { margin: 8px 0 0; font-size: 13px; color: var(--warn); }
@@ -142,3 +142,4 @@
   .study-app .live-count-label { padding: 0 8px 0 10px; font-size: 13px; }
   .study-app .live-selection .live-count button { padding: 0; width: 30px; font-size: 18px; }
 }
+.study-app .live-setup-gate { margin: var(--space-4) 0 var(--space-6); }

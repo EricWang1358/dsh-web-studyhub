@@ -198,7 +198,7 @@ test("empty paid balance stops with a clear message; a bad free key falls back t
   assert.deepEqual(used, [FREE, PAID, PAID]);
   assert.match(fallback.warnings[0], /免费密钥无效/);
 
-  await assert.rejects(new GeminiTiers({ keys: {} }).complete("m", "s", "p"), /还没有配置 Gemini API 密钥/);
+  await assert.rejects(new GeminiTiers({ keys: {} }).complete("m", "s", "p"), /还没有配置可用的密钥/);
   assert.equal(new GeminiTiers({ keys: { free: FREE, paid: PAID }, skipFree: true }).keys.free, "", "paid-only imports never send content to the free key");
 });
 
@@ -354,7 +354,7 @@ test("an audio file becomes a proofread bilingual source, and a re-import reuses
   t.after(async () => { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(dir, { recursive: true, force: true }); });
   const { fetch, stats } = fakeGemini();
   const service = new StudyService(root, { fetch });
-  await assert.rejects(service.call("audio.import", { path: file }), /还没有配置 Gemini API 密钥/);
+  await assert.rejects(service.call("audio.import", { path: file }), /还没有配置转写服务/);
   await service.call("audio.settings.set", { freeKey: FREE, paidKey: PAID });
 
   const started = await service.call("audio.import", { path: file, subject: "SQL 数据库课程", terms: "Partition, SQL" });

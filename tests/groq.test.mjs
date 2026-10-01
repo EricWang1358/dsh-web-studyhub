@@ -182,7 +182,7 @@ test("how audio is prepared for Groq: speech-rate WAV, pieces under the limit, a
 
   // What needs a decoder, when there is none: the reason is given, and the request moves on to the next tier.
   assert.match((await groqPlan({ bytes: Buffer.alloc(10), kind: ".aac", ffmpeg: null })).error, /AAC 不是 Groq 能直接读的格式，要转换需要 ffmpeg/);
-  assert.match((await groqPlan({ bytes: Buffer.alloc(GROQ_FILE_LIMIT + 1), kind: ".m4a", ffmpeg: null })).error, /M4A 超过 Groq 的 25 MB 限制，要切开需要 ffmpeg.*FFMPEG_PATH/);
+  assert.match((await groqPlan({ bytes: Buffer.alloc(GROQ_FILE_LIMIT + 1), kind: ".m4a", ffmpeg: null })).error, /M4A 超过 Groq 的 25 MB 限制，要切开需要 ffmpeg/);
 });
 
 test("cuts are moved to the quietest moment near where they would fall", () => {

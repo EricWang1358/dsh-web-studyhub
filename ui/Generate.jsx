@@ -5,44 +5,13 @@ import Ingest from "./Ingest.jsx";
 import JsonImport from "./JsonImport.jsx";
 import { kinds, useInjectCss } from "./shared.js";
 import CourseField from './CourseField.jsx';
-import PageScope, { usePageScope } from './PageScope.jsx';
+import { usePageScope } from './PageScope.jsx';
+import SourcePicker from './SourcePicker.jsx';
+import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
 import { Banner, Button, EmptyState, PageHeader, SetupRequired } from './components/index.js';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import homeCss from './generate-home.css';
-
-/* SEAM(WP3 SourcePicker): this checklist is the stand-in for <SourcePicker>
-   (ui/SourcePicker.jsx, grouped by document). Swap it at integration and keep
-   the contract: sources in scope, selected ids, setSelectedSources. */
-function SourceChecklist({ sources, visibleSources, selectedSources, setSelectedSources }) {
-  return <div className="source-selection">
-    {sources.length ? (
-      visibleSources.map((s) => (
-        <label className="source-choice" key={s.id}>
-          <input
-            type="checkbox"
-            checked={selectedSources.includes(s.id)}
-            onChange={(e) =>
-              setSelectedSources((v) =>
-                e.target.checked
-                  ? [...v, s.id]
-                  : v.filter((x) => x !== s.id),
-              )
-            }
-          />
-          <span>
-            {s.title}
-            <small>{s.courses?.join(' · ') || ui('未分类')}{s.coursesInferred ? ui(' · 推断归属') : ''}</small>
-            {/* P22: only PDF pages have an extraction version; Markdown/HTML documents are never "legacy". */}
-            <small>{s.text.length.toLocaleString()}{ui(" 字符")}{s.document && (!s.document.format || s.document.format === 'pdf') ? (s.document.extractionVersion === 2 ? ui(" · 排版提取 v2") : ui(" · 旧版提取，建议重新导入")) : ""}{s.document?.sparseText ? ui(" · 文字偏少，核对正文") : ""}{s.document?.warnings?.length ? ui(" · 排版待核对") : ""}</small>
-          </span>
-        </label>
-      ))
-    ) : (
-      <p className="muted">{ui("先添加一份资料。")}</p>
-    )}
-  </div>;
-}
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
    importing questions that already exist is the second way in. Generation is
@@ -77,10 +46,11 @@ export default function Generate({
   const model = modelReadiness(data);
   const openImport = () => setModal({ type: "add", course: sourceScope === '*' ? '' : sourceScope });
   const openSettings = () => (openModelSettings ? openModelSettings() : setPage?.("settings"));
-  // With a single source there is nothing to choose; don't make the learner tick it.
+  // With a single document (one PDF is several page sources) there is nothing to choose; don't make the learner tick it.
   React.useEffect(() => {
-    if (visibleSources.length === 1 && !selectedSources.length)
-      setSelectedSources([visibleSources[0].id]);
+    const documents = groupSourcesByDocument(visibleSources);
+    if (documents.length === 1 && !selectedSources.length)
+      setSelectedSources(documents[0].sourceIds);
     // Only on entering the page, so 清空选择 still sticks.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = [
@@ -202,14 +172,10 @@ export default function Generate({
           <form onSubmit={submit}>
             <fieldset>
               <legend>{ui("01 / 选择资料")}</legend>
-              <PageScope courses={data.focus?.courses} value={sourceScope} onChange={setSourceScope} />
-              <p className="muted">{ui("已选择 ")}{selectedSources.length} / {data.sources.length}{ui(" 份资料")}</p>
-              {selectedSources.some(id => !visibleSources.some(source => source.id === id)) && <p className="muted">{ui('已选资料包含其他范围，生成时仍会保留。')}</p>}
-              <SourceChecklist sources={data.sources} visibleSources={visibleSources}
-                selectedSources={selectedSources} setSelectedSources={setSelectedSources} />
+              {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
+              <SourcePicker sources={data.sources} selected={selectedSources} onChange={setSelectedSources}
+                courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} />
               <div className="generate-sources-actions">
-                <button type="button" onClick={() => setSelectedSources(current => [...new Set([...current, ...visibleSources.map(source => source.id)])])}>{ui("选择当前范围")}</button>
-                <button type="button" onClick={() => setSelectedSources([])}>{ui("清空选择")}</button>
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>

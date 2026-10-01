@@ -24,6 +24,7 @@ import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { sampleMaterial, sampleMarkdown, samplePdfHtml } from "./fixtures.mjs";
+import { FAKE_SILICONFLOW_KEY, fakeSiliconflow, longM4a, toneWav } from "./audio-fixtures.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -38,6 +39,9 @@ export const JOURNEY_STEPS = [
   } },
   { name: "add-material", run: async (j) => {
     await j.openAddSource();
+    await j.shot("dialog");
+    // The add-material dialog (ImportHub) opens on files; pasting is its second tab.
+    await j.clickIfPresent(j.dialog().getByRole("button", { name: j.t("粘贴文本"), exact: true }));
     const material = sampleMaterial(j.lang);
     await j.dialog().getByLabel(j.t("资料名称")).first().fill(material.title);
     await j.dialog().getByLabel(j.t("原文")).first().fill(material.text);
@@ -49,19 +53,18 @@ export const JOURNEY_STEPS = [
   } },
   { name: "import-files", run: async (j) => {
     await j.openAddSource();
-    for (const file of [j.fixtures.markdown, j.fixtures.pdf]) {
-      const before = (await j.snapshot()).sources.length;
-      const input = j.dialog().locator('input[type="file"][accept*=".pdf"]').first();
-      await input.setInputFiles(file);
-      const stem = basename(file).replace(/\.[^.]+$/, "");
-      await j.until(async () => {
-        const sources = (await j.snapshot()).sources;
-        return sources.length > before && sources.some((source) => source.title.includes(stem));
-      }, `${basename(file)} is imported`);
-      await j.settle();
-      await j.shot(basename(file).endsWith(".pdf") ? "pdf" : "markdown");
-    }
-    await j.closeDialog();
+    // One drop zone takes several files at once; the dialog closes when all are in.
+    const files = [j.fixtures.markdown, j.fixtures.pdf];
+    const input = j.dialog().locator('[data-tour="import-drop"] input[type="file"], input[type="file"][accept*=".pdf"]').first();
+    await input.setInputFiles(files);
+    const stems = files.map((file) => basename(file).replace(/\.[^.]+$/, ""));
+    await j.until(async () => {
+      const sources = (await j.snapshot()).sources;
+      return stems.every((stem) => sources.some((source) => source.title.includes(stem)));
+    }, `${files.map((file) => basename(file)).join(" and ")} are imported`);
+    await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the dialog closes after the import");
+    await j.settle();
+    await j.shot("imported");
   } },
   { name: "sources", needs: ["material"], run: async (j) => {
     await j.nav("sources");
@@ -154,6 +157,64 @@ export const JOURNEY_STEPS = [
     await j.shot();
     await j.shot("full", { fullPage: true });
   } },
+  // Audio (WP6): with no key the audio tab is a setup card, never a drop zone; then a SiliconFlow key (answered
+  // locally) lets a recording through pre-flight and transcription, and a 76-minute M4A offers a lossless split.
+  { name: "audio-gate", run: async (j) => {
+    await j.nav("audio");
+    await j.page.getByText(j.t("转写服务还没配置 · 约 2 分钟")).first().waitFor({ timeout: 15000 });
+    if (await j.page.locator(".audio-drop-zone").count()) throw new Error("the audio drop zone is offered before a provider is configured");
+    await j.settle();
+    await j.shot();
+    await j.shot("full", { fullPage: true });
+  } },
+  { name: "audio-settings", run: async (j) => {
+    await j.nav("settings");
+    const section = j.anchor("settings-audio");
+    await section.waitFor({ timeout: 15000 });
+    await section.scrollIntoViewIfNeeded();
+    await j.settle();
+    await j.shot();
+  } },
+  { name: "audio-import", needs: ["siliconflow"], run: async (j) => {
+    await j.nav("audio");
+    const input = j.page.locator('.audio-drop-zone input[type="file"]');
+    await input.waitFor({ state: "attached", timeout: 15000 });
+    await input.setInputFiles(j.fixtures.wav);
+    await j.page.locator(".audio-check--ok").first().waitFor({ timeout: 30000 });
+    await j.settle();
+    await j.shot("checked");
+    const done = () => j.snapshot().then((snapshot) => snapshot.jobs.filter((job) => job.type === "audio-import" && job.status === "complete").length);
+    const before = await done();
+    await j.page.getByRole("button", { name: j.t("开始导入"), exact: true }).click();
+    await j.until(async () => (await done()) > before, "the recording is transcribed and saved", 120000);
+    await j.settle(1500);
+    await j.page.locator(".audio-jobs .job").first().scrollIntoViewIfNeeded();
+    await j.shot("done");
+  } },
+  { name: "audio-long", needs: ["siliconflow"], run: async (j) => {
+    await j.nav("audio");
+    const input = j.page.locator('.audio-drop-zone input[type="file"]');
+    await input.waitFor({ state: "attached", timeout: 15000 });
+    await input.setInputFiles(j.fixtures.longM4a);
+    await j.page.locator(".audio-check--split").first().waitFor({ timeout: 30000 });
+    await j.settle();
+    await j.page.locator(".audio-check--split").first().scrollIntoViewIfNeeded();
+    await j.shot("split");
+    const finished = () => j.snapshot().then((snapshot) => snapshot.jobs.filter((job) => job.type === "audio-import" && job.status === "complete"));
+    const before = (await finished()).length;
+    await j.page.getByRole("button", { name: j.t("分段并继续") }).first().click();
+    await j.until(async () => (await finished()).length > before, "the long recording is transcribed in parts", 180000);
+    const job = (await finished()).find((item) => /76|long/i.test(item.filename) || item.usage?.siliconflow?.requests === 2);
+    if (job?.usage?.siliconflow?.requests !== 2) throw new Error(`expected 2 SiliconFlow requests for the 76-minute recording, got ${job?.usage?.siliconflow?.requests}`);
+    await j.settle(1500);
+    await j.shot("done");
+  } },
+  { name: "live-gate", run: async (j) => {
+    await j.nav("live");
+    await j.page.getByText(j.t("课堂实录需要 Gemini 密钥")).first().waitFor({ timeout: 15000 });
+    await j.settle();
+    await j.shot();
+  } },
 ];
 
 /* The onboarding set (WP5), run with `--steps tour`: the welcome page of an
@@ -244,6 +305,13 @@ const SEED = {
     await j.api("review.answer", { runId: run.id, cardId: run.card.id, ...(wrong ? { selected: [wrong.id] } : { grade: 1 }) });
     await j.reload();
   },
+  /** A SiliconFlow key, with SiliconFlow answered in this process (the preview shares it). */
+  async siliconflow(j) {
+    if (!j.state.restoreFetch) { j.state.restoreFetch = fakeSiliconflow(j.lang); j.cleanups.push(j.state.restoreFetch); }
+    if ((await j.api("audio.settings.get")).siliconflowKey?.set) return;
+    await j.api("audio.settings.set", { siliconflowKey: FAKE_SILICONFLOW_KEY });
+    await j.reload();
+  },
 };
 
 /* ---------- options ---------- */
@@ -283,8 +351,11 @@ async function englishStrings() {
 async function writeFixtures(browser, lang, dir) {
   await mkdir(dir, { recursive: true });
   const markdown = sampleMarkdown(lang);
-  const files = { markdown: join(dir, markdown.name), pdf: join(dir, lang === "en" ? "qa-database-indexes.pdf" : "qa-数据库索引.pdf") };
+  const files = { markdown: join(dir, markdown.name), pdf: join(dir, lang === "en" ? "qa-database-indexes.pdf" : "qa-数据库索引.pdf"),
+    wav: join(dir, lang === "en" ? "lecture-indexes.wav" : "数据库索引-第3讲.wav"), longM4a: join(dir, lang === "en" ? "PE1-long-lecture.m4a" : "PE1-长录音.m4a") };
   await writeFile(files.markdown, markdown.text, "utf8");
+  await writeFile(files.wav, toneWav(20));
+  await writeFile(files.longM4a, longM4a(76));
   const page = await browser.newPage();
   await page.setContent(samplePdfHtml(lang), { waitUntil: "load" });
   await page.pdf({ path: files.pdf, format: "A5", printBackground: true });
@@ -306,6 +377,7 @@ export async function runJourney(options) {
   const browser = await launchChromium({ args: [`--lang=${options.lang === "en" ? "en-US" : "zh-CN"}`] });
   const summary = { startedAt: new Date().toISOString(), options: { ...options }, url: server.url, scrubbedEnv: removed,
     steps: [], consoleErrors: [], pageErrors: [], apiErrors: [] };
+  const cleanups = [];
   try {
     const fixtures = await writeFixtures(browser, options.lang, join(repoRoot, "output/qa/fixtures", options.lang));
     const context = await browser.newContext({ viewport: { width: options.width, height: options.height }, deviceScaleFactor: 1,
@@ -325,6 +397,7 @@ export async function runJourney(options) {
       summary.apiErrors.push({ step: current, action, status: response.status(), error: body.error || "" });
     });
     const j = journeyContext({ page, server, options, english, fixtures, step: () => current });
+    j.cleanups = cleanups;
     await page.goto(server.url);
     await j.ready();
     for (const step of [...JOURNEY_STEPS, ...TOUR_STEPS].filter((item) => options.steps.includes(item.name))) {
@@ -350,6 +423,7 @@ export async function runJourney(options) {
   } finally {
     summary.finishedAt = new Date().toISOString();
     summary.ok = !summary.pageErrors.length && summary.steps.every((step) => step.status === "ok");
+    for (const cleanup of cleanups.reverse()) { try { cleanup(); } catch { /* best effort */ } }
     await writeFile(join(options.out, "summary.json"), JSON.stringify(summary, null, 2) + "\n");
     await browser.close().catch(() => {});
     await server.close();
@@ -361,7 +435,7 @@ function journeyContext({ page, server, options, english, fixtures, step }) {
   const index = () => String([...JOURNEY_STEPS, ...TOUR_STEPS].findIndex((item) => item.name === step()) + 1).padStart(2, "0");
   const t = (zh) => options.lang === "en" && Object.hasOwn(english, zh) ? english[zh] : zh;
   const NAV = { library: "学习库", sources: "资料", generate: "创建题组", wrongbook: "错题与待巩固", exam: "模拟考试",
-    dashboard: "统计", skeleton: "知识骨架", workflows: "学习流", settings: "设置" };
+    dashboard: "统计", skeleton: "知识骨架", workflows: "学习流", settings: "设置", audio: "音频转录", live: "课堂实录" };
   const j = {
     page, server, fixtures, lang: options.lang, state: {}, record: null, t,
     api: (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: options.lang }),
