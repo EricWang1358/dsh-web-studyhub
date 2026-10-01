@@ -10,6 +10,24 @@ import css from './large-documents.css';
    typed. Shown in Settings and on the 大教材建议 card; both pass the host's retrieval
    status (retrieval.status, with `extension` and `companion`). */
 
+/* What each component of the search extension is, and what its install script does, so the
+   approval is an informed one. A package not listed here still gets the general explanation. */
+const COMPONENTS = {
+  'onnxruntime-node': '运行检索模型的引擎（微软 ONNX Runtime），把每页文字变成可比较的向量。脚本按你的系统准备运行库，部分系统需要另外下载。',
+  protobufjs: '读取检索模型文件格式（Protocol Buffers）的工具库。脚本只做版本检查。',
+  sharp: '图片处理库：检索用的模型工具包（Transformers.js）附带依赖它，检索文字时用不到。脚本检查适合你系统的图片运行库是否就绪。',
+};
+const COMPONENT_UNKNOWN = '检索扩展依赖的组件；脚本用来准备适合你电脑的文件。';
+
+/** Installed but not running: ask the learner to restart DSH, and meanwhile check quietly in case it comes up anyway. */
+function StartupWait({ refresh }) {
+  useEffect(() => {
+    const poll = setInterval(() => { void refresh(); }, 3000);
+    return () => clearInterval(poll);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return <p className="extension-panel__lead" role="status">{ui('检索扩展已安装。请手动重启 DSH 以应用。')}</p>;
+}
+
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
@@ -125,7 +143,7 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
         <div><Button variant="primary" icon="download" busy={busy} onClick={() => install()}>{ui('安装检索扩展')}</Button></div>
       </>}
       {extension.canInstall && extension.installed && <>
-        <p className="extension-panel__lead extension-panel__lead--ok">{running ? ui('检索扩展已安装并在运行。') : ui('检索扩展已安装。DSH 正在启动它（通常几秒）；如果长时间没有变化，请重启 DSH。')}</p>
+        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p> : <StartupWait refresh={refresh} />}
         {restart && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
       </>}
       {error && <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>}
@@ -139,7 +157,9 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
           <Button variant="quiet" disabled={busy} onClick={() => setApproval(null)}>{ui('取消')}</Button>
           <Button variant="primary" busy={busy} onClick={() => install(approval)}>{ui('允许并继续')}</Button>
         </>}>
-        <ul className="extension-panel__pending">{approval.map(name => <li key={name}><code>{name}</code></li>)}</ul>
+        <ul className="extension-panel__pending">{approval.map(name => <li key={name}><code>{name}</code>
+          <small className="extension-panel__purpose">{ui(COMPONENTS[name] || COMPONENT_UNKNOWN)}</small></li>)}</ul>
+        <p className="large-doc__note">{ui('这些都是常用的开源组件，脚本只在安装时运行一次。取消后不会安装检索扩展，其他功能不受影响。')}</p>
       </Dialog>}
       {confirmRemove && <Dialog size="sm" title={ui('卸载检索扩展？')} onClose={() => setConfirmRemove(false)}
         description={ui('检索扩展会从 DSH 移除。已建好的索引和下载的检索模型仍留在 DSH 主目录里，重新安装后可以继续用。')}

@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "StudyHub: turn your course materials into cited flashcards, quizzes and spaced review.",
   "type": "module",
   "main": "lib/index.js",

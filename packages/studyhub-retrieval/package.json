@@ -23,6 +23,7 @@
     "node": ">=22.19"
   },
   "dependencies": {
+    "apache-arrow": "18.1.0",
     "mcp-local-rag": "0.20.0"
   },
   "peerDependencies": {
