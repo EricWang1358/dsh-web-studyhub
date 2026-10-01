@@ -186,6 +186,7 @@
   .wb-sub ul, .wb-why-list { margin: 0; padding-left: 1.2em; display: grid; gap: var(--space-1); }
   .wb-sub .wb-sub-rec { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3); list-style: none; margin-left: -1.2em; }
   .wb-sub .wb-sub-rec .wb-prompt { flex: 1 1 14em; }
+  .wb-sub .wb-why { flex: 1 1 14em; white-space: normal; overflow: visible; }
   .wb-why-list { color: var(--accent-text); font-size: var(--fs-sm); }
 
   .wb-pages { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: var(--fs-md); }

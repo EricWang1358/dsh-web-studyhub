@@ -36,7 +36,6 @@ function state(overrides = {}) {
 }
 const mistakes = [{ deckId: 'd4', cardId: 'm1' }];
 const ids = (result) => result.items.map((item) => item.cardId);
-const reasonsOf = (result, id) => result.items.find((item) => item.cardId === id)?.reasons.map((r) => r.type);
 
 test('topic names are normalised before comparing and 未分类 never matches', () => {
   assert.equal(normalizeTopic(' 保护 状态 '), normalizeTopic('保护状态'));

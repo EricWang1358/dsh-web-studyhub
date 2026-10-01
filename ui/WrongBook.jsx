@@ -132,7 +132,7 @@ export function WrongBookView({
   const [message, setMessage] = useState(null);
   const consentRef = useRef(null);
 
-  const rows = items || [];
+  const rows = useMemo(() => items || [], [items]);
   const total = rows.length;
   const recItems = recs?.items || [];
   const localDecks = decksInCourse(data, course);
