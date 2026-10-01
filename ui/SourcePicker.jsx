@@ -57,7 +57,7 @@ export function inScope(item, scope) {
 
 /** Small notes a learner should check before generating. */
 export function documentNotes(item) {
-  return [item.warnings.includes('sparse') && ui('文字偏少，核对正文'), item.warnings.includes('layout') && ui('排版待核对'),
+  return [item.warnings.includes('sparse') && ui('文字偏少，核对正文'), item.warnings.includes('layout') && ui('排版复杂，建议对照原文'),
     item.warnings.includes('legacy-extraction') && ui('含旧版提取页，建议重新导入')].filter(Boolean);
 }
 
