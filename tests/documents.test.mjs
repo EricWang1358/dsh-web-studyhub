@@ -1,7 +1,8 @@
 import { withQualityStages } from "./helpers/assessment.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { libraryContracts, studyToolDescription, studyUsagePrompt } from "../lib/study-contracts.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractPdf } from "../lib/documents.js";
@@ -136,9 +137,9 @@ test("a fabricated citation costs its own card, and the sound ones are kept", as
   const result = await generateDeck(withQualityStages(complete), { count: 2, kind: "flashcard", sources: [source], allowPartial: true });
   assert.equal(result.cards.length, 1, "the card whose quote is not in the source is dropped");
   assert.equal(result.editorial.dropped, 1);
-  assert.equal(calls, 5, "author, review, repair, independent review and retained subset review");
+  assert.equal(calls, 2, "author and one independent review; passing cards finish immediately");
 
-  // Unresolved deck-level defects must survive the repairer's self approval.
+  // Unattributed defects cannot be safely assigned to a passing card.
   await assert.rejects(generateDeck(
     withQualityStages(async (system) => JSON.stringify(
       system.includes("editor") ? { issues: ["Unsupported answer"] } : { title: "Lecture", cards: [card(1), bad] })),
@@ -147,7 +148,7 @@ test("a fabricated citation costs its own card, and the sound ones are kept", as
 });
 
 test("mixed generation uses small batches, one draft, requested title, and reports failed parts", async () => {
-  const request = { count: 13, kind: "mixed", sources: [source], title: "SWE5001" };
+  const request = { count: 13, kind: "mixed", sources: [source], title: "SWE5001", course: 'Architecture' };
   const plan = planGeneration(request);
   assert.deepEqual(plan.map((p) => [p.kind, p.count]), [["quiz", 5], ["quiz", 2], ["flashcard", 5], ["flashcard", 1]]);
   let n = 0, author = 0;
@@ -158,6 +159,8 @@ test("mixed generation uses small batches, one draft, requested title, and repor
     return JSON.stringify({ title: "Model title", cards: Array.from({ length: req.count }, () => card(++n, req.kind)) });
   }), request);
   assert.equal(result.title, "SWE5001");
+  assert.equal(result.course, 'Architecture');
+  assert.equal(result.editorial.generation.course, 'Architecture');
   assert.equal(result.cards.length, 11);
   assert.equal(result.editorial.failures.length, 1);
   assert.equal(result.editorial.requested, 13);
@@ -257,13 +260,74 @@ test("PDF sources feed a single mixed background job without changing recording 
   assert.equal(state.drafts[0].editorial.generation.kind, "mixed");
 });
 
+test('generation freezes the submitted course, infers shared sources, and keeps explicit unassigned destinations', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-generation-course-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call('source.add', { ...source, courses: [] });
+  await service.call('source.add', { id: 'catalog', title: 'Courses', text: source.text, courses: ['A', 'B'] });
+  await service.call('focus.set', { course: 'A' });
+  let release, entered;
+  const blocked = new Promise(resolve => release = resolve), started = new Promise(resolve => entered = resolve);
+  let n = 0, wait = true;
+  const model = withQualityStages(async (system, prompt) => {
+    if (system.includes('editor')) return JSON.stringify({ issues: [] });
+    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+    return JSON.stringify({ title: 'Generated', cards: [card(++n, request.kind)] });
+  });
+  service.complete = async (system, prompt) => {
+    if (wait) { wait = false; entered(); await blocked; }
+    return model(system, prompt);
+  };
+  const first = await service.call('generate', { sourceIds: [source.id], count: 1, kind: 'flashcard' });
+  await started;
+  const queued = await service.call('generate', { sourceIds: [source.id], count: 1, kind: 'flashcard' });
+  await service.call('focus.set', { course: 'B' });
+  release();
+  await service.call('job.wait', { jobId: first.jobId });
+  const done = await service.call('job.wait', { jobId: queued.jobId });
+  assert.equal(done.status, 'complete', done.stage);
+  assert.equal((await service.call('draft.get', { id: done.draftId })).course, 'A');
+  const empty = await service.call('generate', { sourceIds: [source.id], course: '', count: 1, kind: 'flashcard' });
+  const emptyDone = await service.call('job.wait', { jobId: empty.jobId });
+  assert.equal((await service.call('draft.get', { id: emptyDone.draftId })).course, '');
+  await service.call('source.courses.set', { assignments: [{ id: source.id, courses: ['A'] }] });
+  const inferred = await service.call('generate', { sourceIds: [source.id], count: 1, kind: 'flashcard' });
+  const inferredDone = await service.call('job.wait', { jobId: inferred.jobId });
+  const draft = await service.call('draft.get', { id: inferredDone.draftId });
+  assert.equal(draft.course, 'A');
+  const published = await service.call('draft.publish.quick', { id: draft.id, draftVersion: draft.draftVersion });
+  assert.equal((await service.call('deck.get', { id: published.id })).course, 'A');
+  assert.equal((await service.call('snapshot')).focus.course, 'B');
+});
+
+test('PDF extraction locks its launch course and repeat import adds relations without changing text', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-pdf-course-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call('source.add', { title: 'Courses', text: source.text, courses: ['A', 'B'] });
+  await service.call('focus.set', { course: 'A' });
+  const bytes = pdfFixture([source.text]).toString('base64');
+  let switching;
+  const imported = await service.call('source.import', { get dataBase64() {
+    switching ||= service.call('focus.set', { course: 'B' });
+    return bytes;
+  } });
+  await switching;
+  assert.deepEqual((await service.call('source.get', { id: imported.sourceIds[0] })).courses, ['A']);
+  await service.call('source.import', { dataBase64: bytes, courses: ['B'] });
+  const reused = await service.call('source.get', { id: imported.sourceIds[0] });
+  assert.deepEqual(reused.courses, ['A', 'B']);
+  assert.equal(reused.text, source.text);
+});
+
 test("an interrupted generation can fill its original draft without replacing approved cards", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-resume-generation-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root);
   await service.call("source.add", source);
   const saved = await service.call("draft.save", { deck: {
-    id: "partial", title: "Architecture", cards: [card(1)],
+    id: "partial", title: "Architecture", course: 'Original course', cards: [card(1)],
     editorial: { requested: 2, generated: 1, parts: 2, completedParts: 1, failures: [],
       generation: { sourceIds: [source.id], kind: "flashcard", language: "中文", difficulty: "mixed" } },
   } });
@@ -285,6 +349,8 @@ test("an interrupted generation can fill its original draft without replacing ap
   assert.equal(draft.length, 1);
   assert.equal(draft[0].id, saved.id);
   assert.equal(draft[0].cards.length, 2);
+  assert.equal(draft[0].course, 'Original course');
+  assert.equal(draft[0].editorial.generation.course, 'Original course');
   assert.equal(draft[0].cards[0].id, "q1");
   assert.notEqual(draft[0].cards[1].id, "q1");
   assert.equal(draft[0].editorial.requested, 2);
@@ -376,8 +442,8 @@ test("source removal waits until a generation using it has finished", async (t) 
 });
 
 test("PDF workflow guidance does not instruct repeated waits or external extraction", async () => {
-  const text = await readFile(new URL("../lib/index.js", import.meta.url), "utf8");
-  assert.ok(text.includes("source.import"));
-  assert.ok(text.includes("Lecture PDFs create new questions even during recording mode"));
+  const text = `${studyToolDescription}\n${studyUsagePrompt}\n${libraryContracts.imports}`;
+  assert.ok(studyUsagePrompt.includes("PDF uses source.import"));
+  assert.ok(libraryContracts.imports.includes("Lecture material always uses generate"));
   assert.ok(!text.includes("then call job.wait for each"));
 });

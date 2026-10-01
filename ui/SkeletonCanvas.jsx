@@ -1,3 +1,4 @@
+import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
@@ -153,10 +154,10 @@ function useCanvasFullscreen() {
 function ZoomBar({ zoomAt, fit, percent, children }) {
   return (
     <div className="skc-toolbar">
-      <button type="button" onClick={() => zoomAt(1 / 1.2)} aria-label="缩小">−</button>
-      {percent != null && <output className="skc-zoom-value" aria-label="当前缩放">{percent}%</output>}
-      <button type="button" onClick={() => zoomAt(1.2)} aria-label="放大">＋</button>
-      <button type="button" onClick={fit}>适应</button>
+      <button type="button" onClick={() => zoomAt(1 / 1.2)} aria-label={ui("缩小")}>−</button>
+      {percent != null && <output className="skc-zoom-value" aria-label={ui("当前缩放")}>{percent}%</output>}
+      <button type="button" onClick={() => zoomAt(1.2)} aria-label={ui("放大")}>＋</button>
+      <button type="button" onClick={fit}>{ui("适应")}</button>
       {children}
     </div>
   );
@@ -235,8 +236,8 @@ function ExtendBox({ node, onAsk }) {
   const placeholder = EXTEND_INTENTS.find(([id]) => id === intent)[2];
   return (
     <div className="skc-extend">
-      <h5>在对话中扩展</h5>
-      <div className="skc-extend-intents" role="group" aria-label="想做什么">
+      <h5>{ui("在对话中扩展")}</h5>
+      <div className="skc-extend-intents" role="group" aria-label={ui("想做什么")}>
         {EXTEND_INTENTS.map(([id, label]) => (
           <button key={id} type="button" className={intent === id ? "on" : ""} aria-pressed={intent === id} onClick={() => setIntent(id)}>
             {label}
@@ -252,9 +253,9 @@ function ExtendBox({ node, onAsk }) {
         }}
       >
         <input value={value} onChange={(ev) => setValue(ev.target.value)} placeholder={placeholder} aria-label={placeholder} />
-        <button type="submit" disabled={intent === "contrast" && !value.trim()}>发到对话</button>
+        <button type="submit" disabled={intent === "contrast" && !value.trim()}>{ui("发到对话")}</button>
       </form>
-      {sent && <small className="muted">已交给对话；改好后图会自动刷新并高亮变化。</small>}
+      {sent && <small className="muted">{ui("已交给对话；改好后图会自动刷新并高亮变化。")}</small>}
     </div>
   );
 }
@@ -424,8 +425,8 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
   const term = (id) => skeleton.nodes.find((n) => n.id === id)?.term || id;
   const nodeRelations = node
     ? [
-        ...(node.parent ? [{ key: "parent", text: "是一种", other: node.parent }] : []),
-        ...skeleton.nodes.filter((n) => n.parent === node.id).map((n) => ({ key: "child-" + n.id, text: "细分为", other: n.id })),
+        ...(node.parent ? [{ key: "parent", text: ui("是一种"), other: node.parent }] : []),
+        ...skeleton.nodes.filter((n) => n.parent === node.id).map((n) => ({ key: "child-" + n.id, text: ui("细分为"), other: n.id })),
         ...skeleton.relations.flatMap((r, i) =>
           r.from === node.id
             ? [{ key: "r" + i, text: RELATION_TEXT[r.type], other: r.to, note: r.note }]
@@ -450,65 +451,59 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
       }}
     >
       <ZoomBar zoomAt={zoomAt} fit={fitDrawing} percent={Math.round(view.k * 100)}>
-        <button type="button" onClick={fullscreen.toggle}>{fullscreen.full ? "退出全屏" : "全屏查看"}</button>
+        <button type="button" onClick={fullscreen.toggle}>{fullscreen.full ? ui("退出全屏") : ui("全屏查看")}</button>
         <details className="skc-layout-menu">
-        <summary>布局</summary>
+        <summary>{ui("布局")}</summary>
         <div>
-        <button type="button" onClick={readable} title="按原始字号阅读，可拖动画布">原始大小</button>
-        <label className="skc-attributes-toggle"><input type="checkbox" checked={showAttributes} onChange={(ev) => { setShowAttributes(ev.target.checked); setFocusPositions({}); }} />显示属性</label>
-        <select aria-label="布局方向" value={direction} onChange={(ev) => { setDirection(ev.target.value); setFocusMode(false); setFocusPositions({}); }}>
-          <option value="auto">自适应方向</option><option value="right">从左到右</option><option value="down">从上到下</option>
+        <button type="button" onClick={readable} title={ui("按原始字号阅读，可拖动画布")}>{ui("原始大小")}</button>
+        <label className="skc-attributes-toggle"><input type="checkbox" checked={showAttributes} onChange={(ev) => { setShowAttributes(ev.target.checked); setFocusPositions({}); }} />{ui("显示属性")}</label>
+        <select aria-label={ui("布局方向")} value={direction} onChange={(ev) => { setDirection(ev.target.value); setFocusMode(false); setFocusPositions({}); }}>
+          <option value="auto">{ui("自适应方向")}</option><option value="right">{ui("从左到右")}</option><option value="down">{ui("从上到下")}</option>
         </select>
-        <select aria-label="布局间距" value={spacing} onChange={(ev) => { setSpacing(Number(ev.target.value)); setFocusMode(false); setFocusPositions({}); }}>
-          <option value="1">标准间距</option><option value="1.6">宽松间距</option>
+        <select aria-label={ui("布局间距")} value={spacing} onChange={(ev) => { setSpacing(Number(ev.target.value)); setFocusMode(false); setFocusPositions({}); }}>
+          <option value="1">{ui("标准间距")}</option><option value="1.6">{ui("宽松间距")}</option>
         </select>
-        {!!Object.keys(positions).length && <button type="button" onClick={() => setPositions({})} title="恢复自动排版">
-          重置布局
-        </button>}
+        {!!Object.keys(positions).length && <button type="button" onClick={() => setPositions({})} title={ui("恢复自动排版")}>{ui("重置布局")}</button>}
         </div>
         </details>
         {selected && (
           <>
             <span className="skc-sep" />
-            {!!trail.current.length && <button type="button" onClick={goBack} title="回到上一个聚焦的概念">
-              ← 返回
-            </button>}
+            {!!trail.current.length && <button type="button" onClick={goBack} title={ui("回到上一个聚焦的概念")}>{ui("← 返回")}</button>}
             <button
               type="button"
               className={focusMode ? "on" : ""}
               aria-pressed={focusMode}
               onClick={() => setFocusMode((v) => !v)}
-              title={focusMode ? "显示全部概念，保留选中" : "只看选中概念和它的直接邻居"}
+              title={focusMode ? ui("显示全部概念，保留选中") : ui("只看选中概念和它的直接邻居")}
             >
-              {focusMode ? "显示全图" : "只看邻居"}
+              {focusMode ? ui("显示全图") : ui("只看邻居")}
             </button>
             {focusLayout && (
-              <span className="skc-focus-chip">
-                聚焦「{node?.term}」· {focusLayout.neighbours} 个邻居
-              </span>
+              <span className="skc-focus-chip">{ui("聚焦「")}{node?.term}」· {focusLayout.neighbours}{ui(" 个邻居")}</span>
             )}
           </>
         )}
         <span className="skc-hint">
-          {focused ? "点邻居继续走 · Esc 返回" : "拖动平移 · 用 ＋ / − 缩放"}
+          {focused ? ui("点邻居继续走 · Esc 返回") : ui("拖动平移 · 用 ＋ / − 缩放")}
         </span>
       </ZoomBar>
       <div className="skc-search">
-        <input aria-label="查找概念" placeholder="查找概念…" value={query} onChange={(ev) => setQuery(ev.target.value)} />
-        {components.length > 1 && <select aria-label="概念分组" value={component?.id || ""} onChange={(ev) => { setComponentId(ev.target.value); setFocusMode(false); onSelect(null); }}>
-          <option value="">全部 {components.length} 组</option>
-          {components.map((group) => <option key={group.id} value={group.id}>{group.title} · {group.nodes.length} 个概念</option>)}
+        <input aria-label={ui("查找概念")} placeholder={ui("查找概念…")} value={query} onChange={(ev) => setQuery(ev.target.value)} />
+        {components.length > 1 && <select aria-label={ui("概念分组")} value={component?.id || ""} onChange={(ev) => { setComponentId(ev.target.value); setFocusMode(false); onSelect(null); }}>
+          <option value="">{ui("全部 ")}{components.length}{ui(" 组")}</option>
+          {components.map((group) => <option key={group.id} value={group.id}>{group.title} · {group.nodes.length}{ui(" 个概念")}</option>)}
         </select>}
       </div>
-      {query.trim() && <div className="skc-results" aria-label="概念搜索结果">
+      {query.trim() && <div className="skc-results" aria-label={ui("概念搜索结果")}>
         {skeleton.nodes.filter((n) => `${n.term} ${n.meaning}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 30).map((n) => (
           <button key={n.id} type="button" onClick={() => { setQuery(""); setComponentId(""); setFocusMode(true); onSelect(n.id); }}>{n.term}</button>
         ))}
-        {!skeleton.nodes.some((n) => `${n.term} ${n.meaning}`.toLowerCase().includes(query.trim().toLowerCase())) && <span className="muted">没有匹配的概念</span>}
+        {!skeleton.nodes.some((n) => `${n.term} ${n.meaning}`.toLowerCase().includes(query.trim().toLowerCase())) && <span className="muted">{ui("没有匹配的概念")}</span>}
       </div>}
-      {!skeleton.nodes.length && <p className="muted" role="status">还没有概念</p>}
+      {!skeleton.nodes.length && <p className="muted" role="status">{ui("还没有概念")}</p>}
       <div className="skc-body">
-        <div className="skc-view" ref={viewRef} tabIndex={0} aria-label="概念画布，方向键平移，加减号缩放，0 适应" {...panHandlers} onKeyDown={(ev) => {
+        <div className="skc-view" ref={viewRef} tabIndex={0} aria-label={ui("概念画布，方向键平移，加减号缩放，0 适应")} {...panHandlers} onKeyDown={(ev) => {
           if (ev.target === ev.currentTarget && ev.key === "0") { ev.preventDefault(); fitDrawing(); }
           else panHandlers.onKeyDown(ev);
         }}>
@@ -570,11 +565,11 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
                 ) : (
                   <span className="skc-class-attrs empty" />
                 ))}
-                {b.node.cards.length > 0 && <span className="skc-class-count">{b.node.cards.length} 题</span>}
+                {b.node.cards.length > 0 && <span className="skc-class-count">{b.node.cards.length}{ui(" 题")}</span>}
               </button>
             ))}
           </div>
-          {layout.boxes.length > 12 && <button type="button" className="skc-minimap" aria-label="小地图：点击定位" onClick={(ev) => {
+          {layout.boxes.length > 12 && <button type="button" className="skc-minimap" aria-label={ui("小地图：点击定位")} onClick={(ev) => {
             const rect = ev.currentTarget.querySelector("svg").getBoundingClientRect();
             moveTo(ev.detail ? (ev.clientX - rect.left) / rect.width * world.w : world.w / 2,
               ev.detail ? (ev.clientY - rect.top) / rect.height * world.h : world.h / 2);
@@ -586,10 +581,10 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
           </button>}
         </div>
         {node && !detailHidden && (
-          <aside className="skc-detail" aria-label={`概念：${node.term}`}>
+          <aside className="skc-detail" aria-label={uiFormat("概念：{0}", [node.term])}>
             <div className="skc-detail-head">
               <strong>{node.term}</strong>
-              <button type="button" className="skc-close" aria-label="收起详情" title="收起详情（再点这个概念可展开）" onClick={() => setDetailHidden(true)}>×</button>
+              <button type="button" className="skc-close" aria-label={ui("收起详情")} title={ui("收起详情（再点这个概念可展开）")} onClick={() => setDetailHidden(true)}>×</button>
             </div>
             <p>{node.meaning}</p>
             {node.attributes?.length > 0 && (
@@ -601,7 +596,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
             )}
             {nodeRelations.length > 0 && (
               <>
-                <h5>关系</h5>
+                <h5>{ui("关系")}</h5>
                 <ul className="skc-rels">
                   {nodeRelations.map((r) => (
                     <li key={r.key}>
@@ -615,20 +610,18 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
             )}
             {inSequences.length > 0 && (
               <>
-                <h5>出现在时序</h5>
+                <h5>{ui("出现在时序")}</h5>
                 <p className="small muted">{inSequences.join("、")}</p>
               </>
             )}
             {onAsk && <ExtendBox node={node} onAsk={onAsk} />}
             {onPractice && node.cards.length > 0 && (
-              <button type="button" className="primary skc-practice" onClick={() => onPractice(node.cards)}>
-                练关联的 {node.cards.length} 题
-              </button>
+              <button type="button" className="primary skc-practice" onClick={() => onPractice(node.cards)}>{ui("练关联的 ")}{node.cards.length}{ui(" 题")}</button>
             )}
           </aside>
         )}
       </div>
-      <ul className="skc-legend" aria-label="图例">
+      <ul className="skc-legend" aria-label={ui("图例")}>
         {LEGEND.map(([kind, label]) => (
           <li key={kind} className={`k-${kind}`}>
             <i aria-hidden="true" />
@@ -690,9 +683,9 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
       onKeyDown(ev);
     }}>
       <ZoomBar zoomAt={zoomAt} fit={fit} percent={Math.round(view.k * 100)}>
-        <button type="button" onClick={fullscreen.toggle}>{fullscreen.full ? "退出全屏" : "全屏查看"}</button>
+        <button type="button" onClick={fullscreen.toggle}>{fullscreen.full ? ui("退出全屏") : ui("全屏查看")}</button>
         <span className="skc-sep" />
-        <button type="button" disabled={!current} onClick={() => { setPlaying(false); setCurrent((c) => Math.max(0, c - 1)); }} aria-label="上一步">
+        <button type="button" disabled={!current} onClick={() => { setPlaying(false); setCurrent((c) => Math.max(0, c - 1)); }} aria-label={ui("上一步")}>
           ◀
         </button>
         <button
@@ -705,15 +698,13 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
             setPlaying(true);
           }}
         >
-          {playing ? "暂停" : current >= total && total ? "重播" : "播放"}
+          {playing ? ui("暂停") : current >= total && total ? ui("重播") : ui("播放")}
         </button>
-        <button type="button" disabled={current >= total} onClick={() => { setPlaying(false); setCurrent((c) => Math.min(total, c + 1)); }} aria-label="下一步">
+        <button type="button" disabled={current >= total} onClick={() => { setPlaying(false); setCurrent((c) => Math.min(total, c + 1)); }} aria-label={ui("下一步")}>
           ▶
         </button>
-        <button type="button" disabled={!current} onClick={() => { setPlaying(false); setCurrent(0); }}>
-          全部
-        </button>
-        <span className="skc-hint">{current ? `第 ${current} / ${total} 步` : `共 ${total} 步 · ← → 逐步看`}</span>
+        <button type="button" disabled={!current} onClick={() => { setPlaying(false); setCurrent(0); }}>{ui("全部")}</button>
+        <span className="skc-hint">{current ? uiFormat("第 {0} / {1} 步", [current, total]) : uiFormat("共 {0} 步 · ← → 逐步看", [total])}</span>
       </ZoomBar>
       <div className="skc-view sqc-view" ref={viewRef} tabIndex={0} {...panHandlers} onKeyDown={onKeyDown} style={fullscreen.full ? undefined : { height: Math.min(480, Math.max(240, layout.height + 40)) }}>
         <div className="skc-world" style={{ width: layout.width, height: layout.height, transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
@@ -749,7 +740,7 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
               type="button"
               className={"sqc-actor" + (involved?.has(p.id) ? " lit" : "") + (p.node ? " linked" : "")}
               style={{ left: p.x - SEQ.colW / 2 + 8, top: SEQ.margin, width: SEQ.colW - 16, height: SEQ.head }}
-              title={p.node ? `${nodes.find((n) => n.id === p.node)?.meaning || ""}（点击在类图中查看）` : p.label}
+              title={p.node ? uiFormat("{0}（点击在类图中查看）", [nodes.find((n) => n.id === p.node)?.meaning || ""]) : p.label}
               onClick={() => p.node && onSelectNode(p.node)}
             >
               {p.label}
@@ -782,11 +773,11 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
       <p className="sqc-caption" aria-live="polite">
         {step ? (
           <>
-            <b>第 {current} 步</b> {label(step.from)} {step.kind === "return" ? "⇠" : "→"} {label(step.to)}：{step.message}
+            <b>{ui("第 ")}{current}{ui(" 步")}</b> {label(step.from)} {step.kind === "return" ? "⇠" : "→"} {label(step.to)}：{step.message}
             {step.note ? `（${step.note}）` : ""}
           </>
         ) : (
-          sequence.explanation || "点「播放」或按 → 逐步看这条链路。"
+          sequence.explanation || ui("点「播放」或按 → 逐步看这条链路。")
         )}
       </p>
       {step && sequence.explanation && <Markdown text={sequence.explanation} className="sqc-explanation md-compact" />}
@@ -818,19 +809,17 @@ export default function SkeletonCanvas({ skeleton, onPractice, onAsk }) {
           <span className="skc-change-dot" aria-hidden="true" />
           <span>{change.summary}</span>
           {change.addedNodes?.length > 0 && skeleton.nodes.some((n) => n.id === change.addedNodes[0]) && (
-            <button type="button" onClick={() => setSelected(change.addedNodes[0])}>
-              聚焦新概念
-            </button>
+            <button type="button" onClick={() => setSelected(change.addedNodes[0])}>{ui("聚焦新概念")}</button>
           )}
-          <button type="button" className="skc-change-close" aria-label="知道了" onClick={() => setDismissed(change.at)}>
+          <button type="button" className="skc-change-close" aria-label={ui("知道了")} onClick={() => setDismissed(change.at)}>
             ×
           </button>
         </div>
       )}
       <section className="skc-section">
         <div className="skc-section-head">
-          <h4>类图 · 概念结构</h4>
-          <small className="muted">{skeleton.nodes.length} 个概念 · {skeleton.relations.length + skeleton.nodes.filter((n) => n.parent).length} 条关系</small>
+          <h4>{ui("类图 · 概念结构")}</h4>
+          <small className="muted">{skeleton.nodes.length}{ui(" 个概念 · ")}{skeleton.relations.length + skeleton.nodes.filter((n) => n.parent).length}{ui(" 条关系")}</small>
         </div>
         <div ref={classRef}>
           <ClassCanvas key={skeleton.id} skeleton={skeleton} onPractice={onPractice} selected={selected} onSelect={setSelected} onAsk={onAsk} fresh={fresh} />
@@ -840,7 +829,7 @@ export default function SkeletonCanvas({ skeleton, onPractice, onAsk }) {
       {sequences.length > 0 && (
         <section className="skc-section">
           <div className="skc-section-head">
-            <h4>时序图 · 动态链路</h4>
+            <h4>{ui("时序图 · 动态链路")}</h4>
             {sequences.length > 1 && (
               <div className="skc-tabs" role="tablist">
                 {sequences.map((q, i) => (

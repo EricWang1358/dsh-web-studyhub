@@ -1,3 +1,4 @@
+import { ui, uiFormat } from "./i18n.js";
 import React, { useMemo } from "react";
 import css from "./graph.css";
 import { useInjectCss } from "./shared.js";
@@ -48,12 +49,12 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
   }, [text]);
 
   if (!card || !cloze || !text)
-    return <p className="cloze cloze-missing">这张卡片没有可填写的空位。</p>;
+    return <p className="cloze cloze-missing">{ui("这张卡片没有可填写的空位。")}</p>;
 
   let nth = 0;
   return (
     <div className="cloze">
-      {!details && <div className="cloze-hint">把空格补全</div>}
+      {!details && <div className="cloze-hint">{ui("把空格补全")}</div>}
       <div className="cloze-text">
         {parts.map((p, i) => {
           if (p.t === "text") return <span key={i}>{p.v}</span>;
@@ -65,15 +66,15 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
           // server did not judge stay as (disabled) inputs.
           if (detail)
             return detail.correct ? (
-              <span key={i} className="cloze-blank cloze-right" title="回答正确">
-                {val || solution?.cloze?.answers?.find((answer) => answer.id === id)?.value || "回答正确"}
+              <span key={i} className="cloze-blank cloze-right" title={ui("回答正确")}>
+                {val || solution?.cloze?.answers?.find((answer) => answer.id === id)?.value || ui("回答正确")}
                 <span className="cloze-mark">✓</span>
               </span>
             ) : (
-              <span key={i} className="cloze-blank cloze-wrong" title="回答错误">
+              <span key={i} className="cloze-blank cloze-wrong" title={ui("回答错误")}>
                 <span className="cloze-expected">{detail.expected ?? "—"}</span>
-                <span className="cloze-mark" aria-label="回答错误">✗</span>
-                {Object.hasOwn(values || {}, id) && <span className="cloze-yours">你的答案：{val || "未填写"}</span>}
+                <span className="cloze-mark" aria-label={ui("回答错误")}>✗</span>
+                {Object.hasOwn(values || {}, id) && <span className="cloze-yours">{ui("你的答案：")}{val || ui("未填写")}</span>}
               </span>
             );
           return (
@@ -84,7 +85,7 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
               value={val}
               disabled={disabled}
               style={{ width: `${Math.min(40, Math.max(6, chLen(val) + 2))}ch` }}
-              aria-label={`第 ${nthBlank} 个空`}
+              aria-label={uiFormat("第 {0} 个空", [nthBlank])}
               onChange={(e) => onChange?.(id, e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.preventDefault(); // never submit the form

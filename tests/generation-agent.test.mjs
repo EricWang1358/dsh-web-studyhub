@@ -62,6 +62,27 @@ test("communication is detected in the parent agent scope, not the global tool v
   assert.equal(oneShot, 0, "parent-scoped send_message must enable continuable execution");
 });
 
+test('plugin-owned audio output uses one-shot collection even when continuable is available', async () => {
+  const parent = { id: 'learner' }, output = '{"corrections":[{"confidence":"high"}]}';
+  let started = 0, continued = 0, disposed = 0, listener;
+  const subagents = {
+    getProvider: () => ({ capabilities: { toolFilter: true, agentOptions: true }, prepareContinuable() {} }),
+    startContinuable: async spec => { continued++; listener({ id: spec.childId, stopReason: 'completed', lastAssistantMessage: [{ type: 'text', text: output }] }); },
+    sendMessage() {}, drainContinuableChildren() {},
+    start: async (_provider, request) => {
+      started++; assert.equal(request.parent, parent);
+      assert.deepEqual(request.toolFilter, { allow: [] });
+      return { id: 'audio-child', result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: output }] }), dispose: async () => { disposed++; } };
+    },
+  };
+  const ctx = { on: (_event, fn) => { listener = fn; return () => {}; },
+    get: key => key === 'subagents' ? subagents : key === 'agents' ? { get: () => parent } : key === 'tools' ? { get: () => ({}) } : undefined };
+  const result = await runGenerationAgent(ctx, { provider: 'p', model: 'm' }, parent.id, 'system', 'transcript',
+    { jobId: 'audio-job', stage: 'Proofread', resultOwner: 'plugin', onEvent() {} }, () => { throw new Error('Unexpected direct call'); });
+  assert.equal(result, output);
+  assert.equal(started, 1); assert.equal(continued, 0); assert.equal(disposed, 1);
+});
+
 test("continuable phase observes early settlement and unregisters its delivery handle", async () => {
   let listener, removed = 0, messenger;
   const parent = { id: "parent" }, events = [];
@@ -127,6 +148,26 @@ test("generation creates a visible tool-less DSH child and records its real ID",
   assert.equal(f.events.at(-1).status, "complete");
   assert.equal(f.disposed(), 1);
   assert.equal(f.directCalls(), 0);
+});
+
+test('an unregistered selected provider is refused before spawning or direct execution', async () => {
+  const f = fixture();
+  f.ctx.llm = { listProviders: () => [{ id: 'deepseek', name: 'DeepSeek' }] };
+  await assert.rejects(f.run(), error => error.code === 'NO_ADAPTER' && error.fatal && /p/.test(error.message));
+  assert.equal(f.request(), undefined);
+  assert.equal(f.directCalls(), 0);
+});
+
+test('continuable errors retain the persisted provider code after the child is unloaded', async () => {
+  let listener, released = 0;
+  const ctx = { on: (_name, handler) => { listener = handler; return () => {}; },
+    get: key => key === 'sessionQuery' ? { observeSession: async () => ({ events: [
+      { type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'NO_ADAPTER', message: 'no adapter registered for provider "opencode2-deepseek"' } } } },
+    ], [Symbol.dispose]: () => { released++; } }) } : undefined };
+  const subagents = { startContinuable: async spec => listener({ id: spec.childId, stopReason: 'error' }), drainContinuableChildren: async () => {} };
+  await assert.rejects(runContinuablePhase(ctx, subagents, { id: 'parent' }, { label: 'Audio', prompt: [{ text: 'Proofread' }] }, { onEvent() {} }),
+    error => error.code === 'NO_ADAPTER' && error.modelFailure && /opencode2-deepseek/.test(error.message));
+  assert.equal(released, 1);
 });
 
 test("interrupted or failed child output cannot be accepted as a completed answer", async () => {

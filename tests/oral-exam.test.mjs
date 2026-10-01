@@ -91,11 +91,33 @@ test("written mock in interview mode covers target topics and reserves a small w
     ] }));
     state.attempts.push({ id: "old-weak", deckId: "d", quiz_id: "architecture-1", grade: 1 });
   });
-  const run = await service.call("review.start", { mode: "exam", scope: [{ deckId: "d" }], count: 4, fresh: true });
+  const run = await service.call("review.start", { mode: "exam", count: 4, fresh: true });
   const stored = (await service.call("export")).runs.find((item) => item.id === run.id);
   assert.equal(stored.entries.length, 4);
   assert.ok(stored.entries.every((entry) => ["架构", "性能"].includes(entry.card.topic)));
   assert.ok(new Set(stored.entries.map((entry) => entry.card.topic)).size >= 2);
   assert.ok(stored.entries.some((entry) => entry.card.id === "architecture-1"));
   assert.deepEqual(stored.examTargetTopics, ["架构", "性能"]);
+  const explicit = await service.call('review.start', { mode: 'exam', scope: [{ deckId: 'd', cardId: 'safety-1' }], count: 4, fresh: true });
+  assert.equal(explicit.total, 1, 'an explicit written question wins over the old JD');
+  assert.equal(explicit.card.id, 'safety-1');
+  assert.deepEqual((await service.call('export')).runs.find(item => item.id === explicit.id).examTargetTopics, []);
+});
+
+test('oral class ignores an old JD while explicit card and topic scopes override interview targets', async () => {
+  const service = await fixture();
+  await service.store.update(state => { state.focus.mode = 'class'; });
+  const classRun = await service.call('oral.start', { count: 3 });
+  assert.equal(classRun.total, 3);
+  assert.equal(classRun.role, '');
+  await service.store.update(state => { state.focus.mode = 'interview'; });
+  const exact = await service.call('oral.start', { scope: [{ deckId: 'd', cardId: 'c' }], count: 3 });
+  assert.equal(exact.total, 1);
+  assert.equal(exact.entry.cardId, 'c');
+  const topic = await service.call('oral.start', { scope: [{ deckId: 'd', topic: '安全' }], count: 3 });
+  assert.equal(topic.total, 1);
+  assert.equal(topic.entry.topic, '安全');
+  const all = await service.call('oral.start', { scope: [], count: 3 });
+  assert.equal(all.total, 3);
+  assert.deepEqual((await service.call('export')).oralRuns.at(-1).scope, []);
 });

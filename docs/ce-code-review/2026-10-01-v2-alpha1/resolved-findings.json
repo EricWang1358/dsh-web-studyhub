@@ -1,0 +1,93 @@
+[
+  {
+    "title": "Workbench transport jobs escaped plugin unload cleanup",
+    "severity": "P1",
+    "location": "lib/host.js:204",
+    "status": "resolved",
+    "verification": "transport-started publication cancels on workbench unload while sibling-owned work survives"
+  },
+  {
+    "title": "Materials-only backlink lookup threw without bank",
+    "severity": "P2",
+    "location": "lib/runtime/builtins.js:67",
+    "status": "resolved",
+    "verification": "bankCards is supplied only when bank capability exists; composition regression passed"
+  },
+  {
+    "title": "HTML preview admitted passive SVG/resource loaders",
+    "severity": "P1",
+    "location": "ui/document-preview/DocumentViewer.jsx:13",
+    "status": "resolved",
+    "verification": "built UI crafted HTML regression removed unsafe elements/resource attributes while retaining safe MathML text"
+  },
+  {
+    "title": "Invalid or partial context acquisition leaked references",
+    "severity": "P2",
+    "location": "lib/runtime/lifecycle.js:120",
+    "status": "resolved",
+    "verification": "up-front validation and acquisition rollback; lifecycle 7/7"
+  },
+  {
+    "title": "Model loss blocked committed operation replay",
+    "severity": "P1",
+    "location": "lib/runtime.js:80",
+    "status": "resolved",
+    "verification": "owned-state replay hook returns committed receipt without a model; fresh operations remain unavailable"
+  },
+  {
+    "title": "Nested owner left stale workbench configuration",
+    "severity": "P2",
+    "location": "lib/index.js:354",
+    "status": "resolved",
+    "verification": "last-active owner configuration follows owner disposal in native two-owner HTTP proof"
+  },
+  {
+    "title": "Materials absence still exposed document-learning controls",
+    "severity": "P2",
+    "location": "ui/host.jsx:73",
+    "status": "resolved",
+    "verification": "native toolbar queries capabilities and hides when materials is absent"
+  },
+  {
+    "title": "Audio publication captured materials availability too early",
+    "severity": "P2",
+    "location": "lib/contexts/audio/api.js:43",
+    "status": "resolved",
+    "verification": "publication-time capability check; install/unload during locked save covered"
+  },
+  {
+    "title": "Windows manifest replacement EPERM stranded a completed audio member",
+    "severity": "P1",
+    "location": "lib/audio-batch.js",
+    "status": "resolved",
+    "verification": "bounded same-temp-file retry; natural 48/48 pressure run and injected regression passed"
+  },
+  {
+    "title": "Failed context registration leaked collection descriptors",
+    "severity": "P2",
+    "location": "lib/runtime.js:53",
+    "status": "resolved",
+    "verification": "acquired collection disposers roll back before domain/route publication"
+  },
+  {
+    "title": "Persisted audio result without manifest completion caused retranscription",
+    "severity": "P2",
+    "location": "lib/audio-batch.js",
+    "status": "resolved",
+    "verification": "bound checkpoint envelope safely reuses orphan result inside queue admission; fault and invalid-envelope regressions passed"
+  },
+  {
+    "title": "Audio retry imported Node-only timer module into browser bundle",
+    "severity": "P1",
+    "location": "lib/audio-batch.js",
+    "status": "resolved",
+    "verification": "standard global setTimeout Promise retains delays; demo build, lint, and audio-batch 19/19 passed"
+  },
+  {
+    "title": "Failed audio saves left temporary files behind",
+    "severity": "P3",
+    "location": "lib/audio-batch.js:18",
+    "status": "resolved",
+    "verification": "normal exhausted replacement and partial-write ENOSPC tests remove owned temp, preserve old manifest bytes and original error, and retain subsequent/transient retry behavior; audio suite 21/21 and lint passed"
+  }
+]

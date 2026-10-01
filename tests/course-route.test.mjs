@@ -58,4 +58,15 @@ test("先讲后练 opens a guided session on exactly the next batch", async (t) 
   assert.deepEqual(session.course, { name: "Cloud Native", label: session.topic });
   assert.equal(resources.cardCount, 10);
   assert.equal(session.template.steps.find((s) => s.kind === "practice").count, 10, "it practises the batch it taught");
+  await service.call('focus.set', { course: 'PE' });
+  const next = await service.call('workflow.quickstart', { course: session.course.name, requestId: 'same-course' });
+  assert.equal(next.session.course.name, 'Cloud Native');
+  assert.ok(next.session.scope.every(ref => ['c1', 'c2'].includes(ref.deckId)));
+});
+
+test('guided fallback uses course ownership instead of chapter folder', async t => {
+  const service = await setup(t);
+  await service.store.update(s => { s.decks[0].course = 'Cloud Native'; s.decks[0].folder = 'Chapter folder'; });
+  const result = await service.call('workflow.quickstart', { goal: 'unmatched subject xyz', requestId: 'fallback' });
+  assert.ok(result.session.scope.some(ref => ref.deckId === 'c1'));
 });

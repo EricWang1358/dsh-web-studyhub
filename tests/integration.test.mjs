@@ -96,9 +96,8 @@ test("generation messages report delivery honestly and survive into later model 
 
 test("parallel jobs persist early drafts and broadcast to each active worker without losing other handles", { timeout: 10000 }, async () => {
   const root = await fresh(), releases = [];
-  let started, checkpointed, counter = 0;
+  let started, counter = 0;
   const readyWorkers = new Promise((resolve) => started = resolve);
-  const firstSave = new Promise((resolve) => checkpointed = resolve);
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
     const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
@@ -115,12 +114,6 @@ test("parallel jobs persist early drafts and broadcast to each active worker wit
     }
     return fixture(system, prompt.split("\n\nAdditional learner requirements")[0]);
   } });
-  const originalCall = service.call.bind(service);
-  service.call = async (action, args) => {
-    const result = await originalCall(action, args);
-    if (action === "draft.save") checkpointed(result);
-    return result;
-  };
   await service.call("source.add", source);
   const job = await service.call("generate", { sourceIds: ["s"], count: 11, kind: "flashcard" });
   let early;
@@ -129,7 +122,11 @@ test("parallel jobs persist early drafts and broadcast to each active worker wit
     const sent = await service.call("job.message", { jobId: job.jobId, message: "Keep each question focused" });
     assert.equal(sent.receipts.length, 3);
     assert.ok(sent.receipts.every((receipt) => receipt.delivered));
-    releases[0](); early = await firstSave;
+    releases[0]();
+    while (!early) {
+      early = (await service.call("export")).drafts.find(draft => draft.cards.length > 0);
+      if (!early) await new Promise(resolve => setTimeout(resolve, 5));
+    }
     assert.ok(early.cards.length > 0 && early.cards.length < 11);
     const persisted = await new StudyService(root).call("export");
     assert.equal(persisted.drafts[0].id, early.id);
@@ -142,6 +139,10 @@ test("parallel jobs persist early drafts and broadcast to each active worker wit
   assert.equal(done.status, "complete");
   assert.equal(done.draftId, early.id);
   assert.equal(done.draft.cards, 11);
+  const readableDraft = await service.call('draft.get', { id: done.draftId });
+  assert.equal(readableDraft.draftVersion, done.draft.draftVersion);
+  assert.equal(readableDraft.cards.length, done.draft.cards);
+  assert.equal(done.draft.draftVersion, (await service.store.read()).drafts.find((draft) => draft.id === done.draftId).draftVersion);
 });
 
 test("self-grades 0 and 1 append one hidden tail retry, persist on resume and preserve spacing", async () => {
@@ -725,30 +726,26 @@ test("legacy import preserves original files and scheduling, repeated import is 
     true,
   );
 });
-test("generation uses author and editor; broken citation is repaired before draft acceptance", async () => {
+test("generation rejects a broken citation without starting a repair loop", async () => {
   let calls = 0;
   const bad = deck();
   bad.cards[0].citations[0].quote = "fabricated quote";
-  const result = await generateDeck(
+  await assert.rejects(generateDeck(
     withQualityStages(async () =>
       JSON.stringify(
         [bad, { issues: ["unsupported quote"] }, deck(), { issues: [] }][calls++],
       )),
     { count: 1, kind: "flashcard", sources: [source] },
-  );
-  assert.equal(calls, 4, "author, review, repair, independent acceptance");
-  assert.equal(result.editorial.repaired, true);
-  assert.notEqual(result.id, "d");
+  ), /unsupported quote/);
+  assert.equal(calls, 2, "author and one independent review");
 });
-test("an editorial complaint buys one repair round, then the repaired deck is accepted", async () => {
+test("an unattributed editorial complaint stops the batch after one review", async () => {
   let calls = 0;
-  const result = await generateDeck(
+  await assert.rejects(generateDeck(
     withQualityStages(async () => JSON.stringify([deck(), { issues: ["ambiguous"] }, deck(), { issues: [] }][calls++])),
     { count: 1, kind: "flashcard", sources: [source] },
-  );
-  assert.equal(calls, 4, "one repair followed by independent acceptance");
-  assert.equal(result.cards.length, 1);
-  assert.equal(result.editorial.repaired, true);
+  ), /ambiguous/);
+  assert.equal(calls, 2, "no repair or second independent review");
 });
 
 test("a defect the local gate can prove still costs the card, however the editor votes", async () => {
@@ -769,7 +766,7 @@ test("generation rejects wrong question kind even when model editor approves", a
       ),
     /requested kind/,
   );
-  assert.equal(calls, 4);
+  assert.equal(calls, 2);
 });
 test("teaching stores conclusions only and cannot advance a failed check or add SM2 attempts", async () => {
   const service = await ready();
@@ -1086,7 +1083,13 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   assert.equal(second.draft.failures.length, 1);
   assert.ok(second.draft.cards >= 3 && second.draft.cards < 6);
   const compact = await service.call("snapshot", { compact: true });
-  assert.deepEqual(Object.keys(compact.sources[0]).sort(), ["chars", "id", "title"]);
+  const compactSource = compact.sources.find(source => source.id === big.id);
+  assert.deepEqual({ id: compactSource.id, title: compactSource.title, chars: compactSource.chars },
+    { id: big.id, title: big.title, chars: text.length });
+  assert.equal('text' in compactSource, false, 'compact reads never include the full source body');
+  assert.ok(Array.isArray(compactSource.courses));
+  assert.equal(typeof compactSource.coursesInferred, 'boolean');
+  assert.ok(Array.isArray(compactSource.usedBy));
   assert.equal(compact.drafts.length, 2);
   assert.ok(JSON.stringify(compact).length < 12000);
   const page = await service.call("source.get", { id: big.id, offset: 100, limit: 50 });
@@ -1421,9 +1424,8 @@ test("Study cancellation stops the active phase and skips queued jobs, scoped to
 
 test("cancelling parallel generation retains the approved checkpoint and permits its publication", { timeout: 10000 }, async () => {
   const root = await fresh(), releases = [];
-  let started, checkpointed, counter = 0;
+  let started, counter = 0;
   const readyWorkers = new Promise((resolve) => started = resolve);
-  const firstSave = new Promise((resolve) => checkpointed = resolve);
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
     const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
@@ -1440,12 +1442,6 @@ test("cancelling parallel generation retains the approved checkpoint and permits
     }
     return fixture(system, prompt.split("\n\nAdditional learner requirements")[0]);
   } });
-  const originalCall = service.call.bind(service);
-  service.call = async (action, args) => {
-    const result = await originalCall(action, args);
-    if (action === "draft.save") checkpointed(result);
-    return result;
-  };
   await service.call("source.add", source);
   const job = await service.call("generate", { sourceIds: ["s"], count: 11, kind: "flashcard" });
   let early;
@@ -1454,7 +1450,11 @@ test("cancelling parallel generation retains the approved checkpoint and permits
     const sent = await service.call("job.message", { jobId: job.jobId, message: "Keep each question focused" });
     assert.equal(sent.receipts.length, 3);
     assert.ok(sent.receipts.every((receipt) => receipt.delivered));
-    releases[0](); early = await firstSave;
+    releases[0]();
+    while (!early) {
+      early = (await service.call("export")).drafts.find(draft => draft.cards.length > 0);
+      if (!early) await new Promise(resolve => setTimeout(resolve, 5));
+    }
     assert.ok(early.cards.length > 0 && early.cards.length < 11);
     const persisted = await new StudyService(root).call("export");
     assert.equal(persisted.drafts[0].id, early.id);

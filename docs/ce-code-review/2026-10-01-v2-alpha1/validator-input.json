@@ -1,0 +1,89 @@
+{
+  "run_id": "20261001-034431-4bc1ba4c",
+  "findings": [],
+  "selected_findings": [],
+  "selected_count": 0,
+  "skip_count": 0,
+  "shortcut_skipped": 0,
+  "skip_evidence_basis": [],
+  "selection_reason": "No surviving primary findings after grounded current-source reconciliation; this is an empty batch, not an evidence shortcut.",
+  "scope": {
+    "mode": "standalone",
+    "base": "04c1f255130f86cfee3c0507c057768f96f7f9a7",
+    "diff_a": "04c1f255130f86cfee3c0507c057768f96f7f9a7",
+    "diff_b": null,
+    "pr": {
+      "number": null,
+      "url": null,
+      "title": null,
+      "body": null,
+      "base_ref_name": null,
+      "head_ref_oid": null,
+      "head_ref": null,
+      "base_ref": null,
+      "has_prior_comments": false
+    },
+    "branch": "codex/studyhub-v2-alpha.1",
+    "head_sha": "04c1f255130f86cfee3c0507c057768f96f7f9a7",
+    "files": "C:\\Users\\Eric1\\AppData\\Local\\Temp\\compound-engineering-Eric1\\ce-code-review\\20261001-034431-4bc1ba4c\\files.txt",
+    "diff": "C:\\Users\\Eric1\\AppData\\Local\\Temp\\compound-engineering-Eric1\\ce-code-review\\20261001-034431-4bc1ba4c\\full.diff",
+    "tree_is_reviewed_head": true,
+    "untracked_excluded": [
+      ".claude/",
+      "site/",
+      "videos/",
+      "scripts/site-*.mjs",
+      "docs/releases/"
+    ]
+  },
+  "scope_context": {
+    "mode": "standalone",
+    "tree_is_reviewed_head": true,
+    "base": "04c1f255130f86cfee3c0507c057768f96f7f9a7",
+    "diff": "C:\\Users\\Eric1\\AppData\\Local\\Temp\\compound-engineering-Eric1\\ce-code-review\\20261001-034431-4bc1ba4c\\full.diff",
+    "files": "C:\\Users\\Eric1\\AppData\\Local\\Temp\\compound-engineering-Eric1\\ce-code-review\\20261001-034431-4bc1ba4c\\files.txt",
+    "constraints": [
+      "READ-ONLY for review: never mutate production/tests/Git and do not run npm install/build/full suite from review agents. Writing the explicitly requested durable review receipt under docs/ce-code-review/2026-10-01-v2-alpha1/ is authorized.",
+      "Scope includes current tracked diff plus authored untracked lib/contexts/**, lib/plugins/**, lib/runtime/**, lib/runtime.js, lib/legacy-kernel.js, ui/document-preview/**, scripts/release-alpha.mjs, and scoped v2/runtime/selection/composition/extensions/backup/lifecycle/document-preview tests.",
+      "Ignore unrelated .claude/, site/, videos/, scripts/site-*.",
+      "Preserve structure pins in docs/plans/2026-10-01-studyhub-v2-alpha-plan.md.",
+      "Persist final merged validated receipt under docs/ce-code-review/2026-10-01-v2-alpha1/.",
+      "Include confirmed repaired candidates as a resolved-findings ledger; exclude temp prompts and provider state.",
+      "Do not claim external live-provider verification; record exact async-timing and live-provider skips as limitations."
+    ]
+  },
+  "intent": {
+    "summary": "StudyHub 2.0 alpha introduces bounded contexts and independently composable nested plugins while preserving legacy question JSON, progress, unknown fields, and four retained formats. Native preview selection supports grounded ask and reviewed generation into an existing deck with immutable revision evidence, atomic cancellation, durable receipts, and 1:n bidirectional links.",
+    "confidence": "explicit"
+  },
+  "resolved_findings_path": "C:\\Users\\Eric1\\AppData\\Local\\Temp\\compound-engineering-Eric1\\ce-code-review\\20261001-034431-4bc1ba4c\\resolved-findings.json",
+  "resolved_findings_count": 13,
+  "reviewed_source_sha256": {
+    "lib/audio-batch.js": "ddeb46be98e612fe6d23192c79fbe7b13330494008366635e53fab24044abdef",
+    "tests/audio-batch.test.mjs": "fe0ddba5882e61b2d052ed55f93c3f3edf5448f126acb0c506442c6eae8efd9f",
+    "lib/contexts/materials/operations.js": "f508db96553950788d7332bfe6e435492a481008d010a4b6685935b21f1fa36a",
+    "lib/contexts/materials/files.js": "b020a82eb22e39663a845e8773c9bf192d1009c0481336884ee727d5ec712a03",
+    "lib/documents.js": "f1c291fd80c00ec93b529a1d26ef28be7de9d2af80d88df6da51b511ed31f26f"
+  },
+  "coverage_notes": [
+    "Final frozen-tree verification supplied by the implementation coordinator: npm run verify passed 742/742 with 0 failed, cancelled, or skipped; lint, main client, standalone build, static demo build, seven fresh-install archives, and physical-copy composition passed.",
+    "Native/browser evidence covered real DOM selection in PDF, Markdown, HTML, and TXT; Markdown ask/generate/review/append/backlink round trip; TXT grounded ask; focused-target capture clearing; PDF native selection; HTML sanitizer payload; zero console errors in the cited runs.",
+    "No external live model/provider call was made. Exact in-flight async navigation timing beyond the focused-target preflight guard was not exercised and is a documented release limitation, not a claimed pass.",
+    "Resolved review findings are recorded in C:\\Users\\Eric1\\AppData\\Local\\Temp\\compound-engineering-Eric1\\ce-code-review\\20261001-034431-4bc1ba4c\\resolved-findings.json.",
+    "The two performance suggestions retained integrity hashing and bounded 200-page grouping because no measured user-visible regression justified weakening the list integrity contract.",
+    "The security path-import candidate was excluded as pre-existing and unsupported: base source.import/audio.import already accepted explicit absolute paths and the DSH tools runtime owns the global allow/deny/ask gate.",
+    "Generic earlier native-host testing gaps in correctness and maintainability reviewer artifacts were superseded by the final native/browser evidence listed above.",
+    "The report leaf must copy review.json, metadata.json, synthesized-findings.json, validator artifacts, and resolved-findings.json into D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\docs\\ce-code-review\\2026-10-01-v2-alpha1\\ as the durable receipt; omit prompts/provider state.",
+    "The final reliability P3 temporary-file cleanup was accepted and resolved after reviewer collection: exhausted replacement and partial-write tests passed; it belongs only in the resolved ledger, not final findings.",
+    "cross-model pass: not run; the sanctioned Claude route could not start because the bundled launcher found no working Python 3 interpreter on PATH, so the required adversarial lens ran in-process",
+    "No scoped project coding-standards file was present, so no project-standards reviewer ran.",
+    "Excluded untracked scope: .claude/, site/, videos/, scripts/site-*.mjs, and docs/releases/.",
+    "All ten selected local reviewer outcomes were collected; no reviewer failed or exceeded its collection bound.",
+    "Initial mechanics produced three primary candidates, with zero pre-existing findings, zero malformed findings or returns, zero confidence suppressions, zero quote demotions, and first_evidence_backfilled=3.",
+    "Current-source synthesis rejected two unmeasured performance preferences and removed one finding superseded by the frozen reliability fix; no primary or pre-existing finding remains. Mode-aware demotions=0 and no rejected claim was recycled into residual risks.",
+    "The two generic native-preview testing-gap claims were cleared by the final real-DOM PDF, Markdown, HTML, and TXT evidence; the narrower live-provider and exact in-flight async-timing limitations remain recorded separately.",
+    "The explicit plan settlements were evaluated and suppressed zero findings.",
+    "Validator batch selection is empty because no primary finding survives current-source admission; shortcut-skipped=0 and no independent cross-model evidence basis is claimed.",
+    "No production, test, or Git state was edited by this merge leaf."
+  ]
+}

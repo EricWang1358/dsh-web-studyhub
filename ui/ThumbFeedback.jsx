@@ -1,3 +1,4 @@
+import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
 
 /* 👍/👎 一键反馈。👎 立即记录并展开标签，停手 1.2 秒把新选的标签一次提交，
@@ -75,7 +76,7 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
       .catch((failure) => {
         if (activeKey.current === key) {
           args.tags?.forEach((tag) => submitting.current.delete(tag));
-          setError(`反馈未保存：${failure.message || String(failure)}。请重试。`);
+          setError(uiFormat("反馈未保存：{0}。请重试。", [failure.message || String(failure)]));
           setVote(saved.current.vote);
           setTags(saved.current.tags);
           sent.current = new Set(saved.current.tags);
@@ -163,17 +164,17 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
       // Keyboard activation retains normal button focus and accessibility.
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
     }}>
-      <button className="tool-icon" aria-label="这题不错" aria-pressed={vote === "up"} aria-keyshortcuts="G" title="这题不错（G）" onClick={() => thumb("up")}><ThumbGlyph /></button>
-      <button className="tool-icon" aria-label="这题有问题" aria-pressed={vote === "down"} aria-expanded={open} aria-keyshortcuts="B" title="这题有问题（B），选标签后自动优化" onClick={() => (open ? setOpen(false) : thumb("down"))}><ThumbGlyph down /></button>
+      <button className="tool-icon" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><ThumbGlyph /></button>
+      <button className="tool-icon" aria-label={ui("这题有问题")} aria-pressed={vote === "down"} aria-expanded={open} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签后自动优化")} onClick={() => (open ? setOpen(false) : thumb("down"))}><ThumbGlyph down /></button>
       {error && <small className="warning" role="alert">{error}</small>}
       {open && (
-        <span className="thumb-tray" role="group" aria-label="哪里不好">
+        <span className="thumb-tray" role="group" aria-label={ui("哪里不好")}>
           {TAGS.map(([id, label], i) => (
             <button key={id} className={"coach-chip" + (tags.includes(id) ? " on" : "")} aria-pressed={tags.includes(id)} disabled={sent.current.has(id) || submitting.current.has(id)} onClick={() => toggle(id)}>
-              <kbd>{i + 1}</kbd>{label}
+              <kbd>{i + 1}</kbd>{ui(label)}
             </button>
           ))}
-          <small>选好停一下就自动提交；已提交的标签不能撤销，改题在后台进行。</small>
+          <small>{ui("选好停一下就自动提交；已提交的标签不能撤销，改题在后台进行。")}</small>
         </span>
       )}
     </span>

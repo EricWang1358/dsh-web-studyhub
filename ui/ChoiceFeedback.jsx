@@ -1,3 +1,4 @@
+import { ui } from "./i18n.js";
 import React from "react";
 
 export default function ChoiceFeedback({ options, feedback, solution, multiple }) {
@@ -11,9 +12,9 @@ export default function ChoiceFeedback({ options, feedback, solution, multiple }
   const missed = multiple ? letters((id) => correct.has(id) && !picked.has(id)) : "";
   const extra = multiple ? letters((id) => picked.has(id) && !correct.has(id)) : "";
   return <div className="choice-feedback-wrap"><div className="choice-feedback" role="status">
-    <span>你的答案：<strong>{yours || "未选择"}</strong></span>
-    <span>正确答案：<strong>{expected}</strong></span>
-    {missed && <span className="choice-mismatch">漏选：<strong>{missed}</strong></span>}
-    {extra && <span className="choice-mismatch">错选：<strong>{extra}</strong></span>}
+    <span>{ui("你的答案：")}<strong>{yours || ui("未选择")}</strong></span>
+    <span>{ui("正确答案：")}<strong>{expected}</strong></span>
+    {missed && <span className="choice-mismatch">{ui("漏选：")}<strong>{missed}</strong></span>}
+    {extra && <span className="choice-mismatch">{ui("错选：")}<strong>{extra}</strong></span>}
   </div></div>;
 }

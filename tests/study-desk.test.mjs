@@ -54,6 +54,33 @@ test("the home card offers exactly one primary action in every state", () => {
   assert.doesNotMatch(states.empty, /today-count/);
 });
 
+test("the run the learner was last inside takes the card, and a new start stays one click away", () => {
+  const runs = [
+    { id: "deck-run", mode: "quiz", scope: [{ deckId: "d1" }], index: 4, total: 10, title: "行为型模式" },
+    { id: "other", mode: "path", scope: [{ deckId: "d2" }], index: 0, total: 3, title: "软件架构" },
+  ];
+  const html = render({ runs, lastRun: { id: "deck-run", index: 4, total: 10, title: "行为型模式" } });
+  assert.equal(primaries(html), 1);
+  assert.deepEqual(count(html), ["6", "题未完成"]);
+  assert.match(html, /行为型模式 · 已做到第 5 \/ 10 题/);
+  assert.match(html, /接着做<span aria-hidden="true">→<\/span>/);
+  assert.match(html, /到期复习与巩固 · 3 题/, "what the card would have started becomes a link");
+  assert.match(html, /<summary>另有 1 组练习未完成<\/summary>/, "the card's run is not listed again in the fold");
+});
+
+test("a half-done run from another course still takes the card, and says which course", () => {
+  const redis = { ...deck, id: "d2", title: "Redis 与缓存", folder: "", course: "后端面试八股" };
+  const runs = [
+    { id: "redis-run", mode: "quiz", deckIds: ["d2"], scope: [{ deckId: "d2" }], index: 2, total: 10, title: "Redis 与缓存" },
+    { id: "here", mode: "quiz", deckIds: ["d1"], scope: [{ deckId: "d1" }], index: 0, total: 5, title: "行为型模式" },
+  ];
+  const html = render({ decks: [deck, redis], progress: { ...progress, d2: progress.d1 }, runs,
+    lastRun: { id: "redis-run", index: 2, total: 10, title: "Redis 与缓存" } });
+  assert.match(html, /后端面试八股 › Redis 与缓存 · 已做到第 3 \/ 10 题/);
+  assert.match(html, /<span class="eyebrow">继续上次学习<\/span><strong>行为型模式<\/strong>/,
+    "a run inside the heading's course needs no label");
+});
+
 test("other open runs fold into one line under the desk", () => {
   const html = render({ runs: [
     { id: "a", mode: "path", scope: [{ deckId: "d1" }], index: 2, total: 5, title: "行为型模式" },
@@ -97,4 +124,13 @@ test("finished job cards can be acknowledged and removed, running ones cannot", 
   const done = html([job("a", "failed"), job("b", "partial"), job("c", "complete")]);
   assert.equal((done.match(/class="job-dismiss"/g) || []).length, 3);
   assert.match(done, /全部知道了/);
+});
+
+test("a finished generation with missing questions remains visibly incomplete", () => {
+  const html = render({ jobs: [{ id: 'partial', status: 'complete',
+    savedCount: 9, requestedTotal: 12, parts: 4,
+    stage: 'Draft ready with 9/12 questions; 2 part(s) failed' }] });
+  assert.match(html, /草稿待补齐 · 9\/12 题/);
+  assert.doesNotMatch(html, /草稿已生成|Draft ready with/);
+  assert.match(html, /class="job-actions"/);
 });

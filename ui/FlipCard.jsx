@@ -1,3 +1,4 @@
+import { ui } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 
@@ -28,7 +29,7 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
       className={"flashcard" + (showBack ? " flipped" : "")}
       disabled={busy && !run.revealed}
       aria-pressed={showBack}
-      aria-label={showBack ? "翻回题目" : "翻面查看答案"}
+      aria-label={showBack ? ui("翻回题目") : ui("翻面查看答案")}
       onClick={flipCard}
     >
       <div className="flip-inner" style={height == null ? undefined : { height }}>
@@ -45,7 +46,7 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
             </div>
           )}
           <span className="flip-label">
-            {run.revealed ? "点击看答案 · Space" : "点击翻面 · Space"}
+            {run.revealed ? ui("点击看答案 · Space") : ui("点击翻面 · Space")}
           </span>
         </div>
         <div ref={back} className="flip-face flip-back" aria-hidden={!showBack}>
@@ -66,10 +67,10 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
             </>
           ) : (
             <div className="flash-prompt">
-              <span className="flip-loading" aria-label="正在载入答案" />
+              <span className="flip-loading" aria-label={ui("正在载入答案")} />
             </div>
           )}
-          <span className="flip-label">参考答案 · 再点翻回题目</span>
+          <span className="flip-label">{ui("参考答案 · 再点翻回题目")}</span>
         </div>
       </div>
     </button>

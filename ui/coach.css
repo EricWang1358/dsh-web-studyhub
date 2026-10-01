@@ -1,80 +1,7 @@
-/* ui/coach.css — 陪学 panel, thumbs tray, debrief card, autopilot and the
-   shortcut sheet. Colours come from the .study-app tokens in ui/style.css.
+/* ui/coach.css — thumbs tray, debrief card, autopilot and the shortcut
+   sheet. Colours come from the .study-app tokens in ui/style.css.
    Injected once per document as <style data-study-coach>. */
 
-/* ── Layout: a third column beside the question when the panel is wide
-   (App decides by measured width); otherwise inline under the feedback. ── */
-.review-body.with-coach {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
-  column-gap: 20px;
-}
-.review-body.with-coach > .question-area { width: min(568px, 100%); }
-.review-body.with-coach > .coach-panel {
-  grid-column: 2;
-  grid-row: 1;
-  position: sticky;
-  /* Same line as the question rail, clear of the 51px sticky top bar. */
-  top: 72px;
-  margin-top: 43px;
-  max-height: calc(100dvh - 140px);
-}
-.coach-panel.inline { margin: 16px 0 0; }
-.coach-panel.inline .coach-thread { max-height: 360px; }
-.coach-panel.inline .coach-thread:empty { display: none; }
-.coach-panel.inline .coach-head { border-bottom: 0; }
-.coach-panel.inline:has(.coach-thread:not(:empty)) .coach-head { border-bottom: 1px solid var(--line-soft); }
-
-.coach-panel {
-    grid-column: 3;
-    grid-row: 1;
-    position: sticky;
-    top: 24px;
-    margin-top: 43px;
-    max-height: calc(100dvh - 140px);
-  }
-@container study (max-width: 1239px) {
-  .review-body.with-coach > .coach-panel {
-    grid-column: 1;
-    grid-row: 2;
-    width: min(568px, calc(100% - 48px));
-    margin: -26px auto 40px;
-  }
-}
-
-.coach-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  background: var(--bg-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow-sm);
-  contain: layout paint;
-  animation: coach-in 260ms var(--ease) both;
-}
-.coach-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line-soft);
-  font-size: 15px;
-  color: var(--text-dim);
-}
-.coach-head strong { color: var(--text); font-size: 15px; }
-.coach-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 15px;
-  background: linear-gradient(135deg, var(--accent), var(--info));
-  color: var(--accent-ink);
-  flex-shrink: 0;
-}
-.coach-head .spacer { flex: 1; }
 .coach-chip {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -88,48 +15,10 @@
 }
 .coach-chip:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
 .coach-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.coach-chip.ready { border-color: var(--ok); color: var(--ok); }
 .coach-chip:disabled { opacity: 0.55; }
 
-.coach-thread {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  min-height: 0;
-}
-.coach-empty { margin: 0; color: var(--text-faint); font-size: 15px; line-height: 1.7; }
-.coach-bubble {
-  align-self: flex-start;
-  max-width: 100%;
-  padding: 10px 12px;
-  border-radius: 4px 14px 14px 14px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line-soft);
-  font-size: 15px;
-  line-height: 1.7;
-  color: var(--text);
-  animation: coach-rise 240ms var(--ease) both;
-}
-.coach-bubble.me {
-  align-self: flex-end;
-  border-radius: 14px 4px 14px 14px;
-  background: var(--bg-selected);
-  color: var(--text);
-}
-.coach-bubble.system { background: transparent; border-style: dashed; color: var(--text-dim); font-size: 15px; }
-.coach-point { display: block; font-weight: 600; margin-bottom: 4px; }
-.coach-bubble p { margin: 0; }
-.coach-check { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
-.coach-check-q { font-size: 15px; color: var(--text-dim); margin-bottom: 6px; }
 .coach-options { display: flex; flex-wrap: wrap; gap: 6px; }
 .coach-options .coach-chip { font-size: 15px; padding: 4px 10px; }
-.coach-chip.right { border-color: var(--ok); color: var(--ok); }
-.coach-chip.wrong { border-color: var(--bad); color: var(--bad); }
-.coach-replies { display: flex; flex-wrap: wrap; gap: 6px; align-self: flex-end; animation: coach-rise 240ms var(--ease) both; }
 .coach-card {
   padding: 10px 12px;
   border-radius: var(--radius-sm);
@@ -140,27 +29,6 @@
 }
 .coach-card p { margin: 0 0 8px; color: var(--text); }
 .coach-card .coach-options { gap: 6px; }
-
-/* Typing indicator: the only loading state the thread needs. */
-.coach-typing {
-  align-self: flex-start;
-  display: inline-flex;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 4px 14px 14px 14px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line-soft);
-}
-.coach-typing i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  animation: coach-dot 1s infinite ease-in-out;
-}
-.coach-typing i:nth-child(2) { animation-delay: 0.15s; }
-.coach-typing i:nth-child(3) { animation-delay: 0.3s; }
-.coach-typing + small { color: var(--text-faint); font-size: 15px; }
 
 /* ── Thumbs ───────────────────────────────────────────────────────────── */
 .thumbs { display: inline-flex; align-items: center; gap: 4px; position: relative; }
@@ -175,7 +43,7 @@
   flex-wrap: wrap;
   gap: 6px;
   width: max-content;
-  max-width: min(360px, 80vw);
+  max-width: min(360px, 80cqi);
   padding: 10px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
@@ -225,6 +93,8 @@
   box-shadow: var(--shadow-md);
   animation: coach-rise 320ms var(--ease) both;
 }
+/* On the result page it lines up with the score card above it. */
+.result-page .coach-debrief { width: 100%; margin: 20px 0; }
 .coach-debrief .eyebrow { margin-bottom: 6px; }
 .coach-debrief h2 { margin: 0 0 6px; font-size: 21px; line-height: 1.4; color: var(--text); }
 .coach-debrief > p { margin: 0 0 12px; color: var(--text-dim); font-size: 15px; line-height: 1.7; }
@@ -239,6 +109,31 @@
 .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
 .coach-insights { margin: 0 0 14px; padding-left: 18px; font-size: 15px; line-height: 1.8; color: var(--text-dim); }
 .coach-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* A question, not a second primary: neutral stock and outlined chips. */
+.coach-consent {
+  margin-top: 14px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid var(--line-soft);
+}
+.coach-chip.coach-yes { border-color: var(--accent-soft); color: var(--text); font-weight: 600; }
+.coach-consent .coach-consent-error { margin: 8px 0 0; color: var(--bad); }
+.coach-consent-note { margin: 12px 0 0; font-size: 15px; color: var(--text-muted); }
+/* One filled primary per screen: when the 雷霆建议 hands over its own next
+   step (定制题 or 补薄弱), the generic next-step buttons on the page step back. */
+/* style.css forces .primary with !important, so the step-back needs it too. */
+.result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .primary:not(:disabled)) .summary-actions > button.primary {
+  background: color-mix(in srgb, var(--text) 5%, transparent) !important;
+  border-color: var(--line) !important;
+  color: inherit !important;
+  box-shadow: none;
+  font-weight: 400;
+}
+.result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .primary:not(:disabled)) .summary-actions > button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 11%, transparent) !important;
+  border-color: var(--line-strong) !important;
+  box-shadow: none;
+  transform: none;
+}
 .coach-countdown { font-size: 15px; color: var(--text-muted); }
 .skeleton {
   border-radius: 6px;
@@ -258,15 +153,69 @@
   margin: 15px 25px 0;
   padding: 12px 16px;
   border-radius: var(--radius);
-  border: 1px solid var(--accent-glow);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   background: linear-gradient(120deg, var(--accent-glow), transparent 80%), var(--bg-surface);
   animation: coach-rise 300ms var(--ease) both;
 }
 .coach-offer > div { flex: 1; min-width: 0; }
+.coach-offer .eyebrow { display: block; margin-bottom: 2px; }
 .coach-offer strong { display: block; color: var(--text); font-size: 15px; }
 .coach-offer small { color: var(--text-dim); font-size: 15px; }
+.coach-offer button.primary { white-space: nowrap; }
+.coach-offer-mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-soft);
+}
+.coach-offer-mark svg { width: 20px; height: 20px; }
 @container study (max-width: 600px) {
   .coach-offer { flex-wrap: wrap; }
+}
+
+/* ── Sidebar entry: shows on every page while 定制题 are ready ─────────── */
+.side-nav > .nav.coach-nav { color: var(--text); }
+.coach-nav .icon { color: var(--accent-soft); }
+.coach-nav .nav-label { display: grid; min-width: 0; text-align: left; font-weight: 600; }
+.coach-nav .nav-label small {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+.nav-badge {
+  margin-left: auto;
+  min-width: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent-soft);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* On the collapsed rail the count folds into a dot on the icon. */
+.sidebar.is-narrow .coach-nav .nav-label small { display: none; }
+.sidebar.is-narrow .coach-nav .nav-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 0;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 0;
+  background: var(--accent);
+  font-size: 0;
 }
 
 /* ── Shortcut sheet ──────────────────────────────────────────────────── */
@@ -275,7 +224,7 @@
   right: 20px;
   bottom: 20px;
   z-index: 40;
-  width: min(340px, calc(100vw - 40px));
+  width: min(340px, calc(100cqi - 40px));
   padding: 14px 16px;
   border-radius: var(--radius);
   border: 1px solid var(--line);
@@ -291,15 +240,13 @@
 .shortcut-sheet dt { white-space: nowrap; }
 .shortcut-sheet dd { margin: 0; }
 
-@keyframes coach-in { from { opacity: 0; transform: translateY(6px); } }
 @keyframes coach-rise { from { opacity: 0; transform: translateY(8px); } }
 @keyframes coach-pop { from { opacity: 0; transform: scale(0.96); } }
-@keyframes coach-dot { 0%, 80%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
 @keyframes autopilot-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .coach-panel, .coach-bubble, .coach-replies, .coach-card, .coach-debrief, .coach-offer, .thumb-tray, .shortcut-sheet { animation: none; }
-  .coach-typing i, .skeleton { animation-duration: 2.4s; }
+  .coach-card, .coach-debrief, .coach-offer, .thumb-tray, .shortcut-sheet { animation: none; }
+  .skeleton { animation-duration: 2.4s; }
 }
 
 /* ── Settings ────────────────────────────────────────────────────────── */

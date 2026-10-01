@@ -1,5 +1,13 @@
 # Study Library Schema
 
+## Scope of this reference
+
+The Markdown/YAML schema below describes the legacy `study-lib-spar` library, which the plugin can import. It is not the native plugin's current storage layout or binding policy. The native plugin currently uses `study-workspace.json` plus hashed shards (v2), and its default binding is documented in `README.md` and implemented in `lib/store.js` / `lib/service.js`.
+
+The [2026-09-27 system-learning plan](../docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) proposes independent curriculum, knowledge-point, learning-session and evidence records, with an opt-in v3 migration inside the same native store. These records do not exist yet. That plan's Domain and Persistence / Migration and Rollout sections govern the proposed native extension; importing legacy Markdown must remain read-only and preserve scheduling history.
+
+## Legacy Markdown Library
+
 All files are UTF-8 Markdown with YAML frontmatter. A learner chooses the
 library root explicitly; the plugin must never infer it from the plugin
 repository or current working directory.

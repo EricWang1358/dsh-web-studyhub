@@ -22,6 +22,12 @@ After drafting, check and improve every card before independent review:
 - Self-contained: the learner cannot see the original slide or diagram during
   ordinary review. Supply necessary conditions in the stem. Do not ask about an
   unseen bracket, arrow position, "this slide", or "the classroom original".
+  The same rule applies to lecture notes and audio transcripts. Never ask what
+  "this note", "these materials" or "the teacher's list" says without providing
+  the actual task context. Name the concept, scope and necessary scenario facts;
+  citations and document titles do not make an empty stem self-contained.
+  Test knowledge or application, not recollection of the wording of a hidden
+  document. If adding context would reveal the answer, replace the target.
 - No answer leakage: a learner must demonstrate knowledge, not paraphrase the
   stem. The prompt, topic and hint must not supply the requested conclusion or
   list its answer terms. A hint suggests a method, not the answer's location.

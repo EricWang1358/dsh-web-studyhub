@@ -1,3 +1,4 @@
+import { ui } from "./i18n.js";
 import React from "react";
 import { unescapeModelText } from "../lib/model-text.js";
 
@@ -168,7 +169,7 @@ function blocks(rows, links) {
       i++;
       out.push(
         <details key={key} className="md-details">
-          <summary>{inline(summary || "详情", links, key + "s")}</summary>
+          <summary>{inline(summary || ui("详情"), links, key + "s")}</summary>
           {blocks(body, links)}
         </details>,
       );

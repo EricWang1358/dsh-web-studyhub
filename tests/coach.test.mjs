@@ -288,6 +288,24 @@ test("debrief turns a concept-only session into an application offer and updates
   assert.match(learner.summary, /工作中落地/);
 });
 
+test("a yes given on a concept-only round's result page prepares its application variants", async (t) => {
+  const { service, log } = await setup(t);
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  while (!run.complete) {
+    run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text === "Caretaker").id] });
+    run = await service.call("review.move", { runId: run.id, direction: 1 });
+  }
+  const debrief = await service.call("coach.debrief", { runId: run.id });
+  assert.equal(debrief.status.consent, null, "the result page still has to ask");
+  assert.equal(debrief.preparing, false);
+  const status = await service.call("coach.consent", { prep: true, runId: run.id });
+  assert.equal(status.consent, true);
+  assert.equal(status.preparing, true, "nothing was missed, yet the round's application gap is queued");
+  await service.call("coach.prepare");
+  assert.equal(tasks(log, "为每个 target"), 1);
+  assert.ok((await service.call("coach.status")).ready >= 1);
+});
+
 test("debrief rules need no model", () => {
   const metrics = { answered: 6, met: 6, metRate: 100, gradedAnswered: 6, gradedCorrect: 6,
     accuracy: 100, selfAnswered: 0, selfMet: 0, selfRate: null, lowShare: 100,

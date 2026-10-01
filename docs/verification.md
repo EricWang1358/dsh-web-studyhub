@@ -1,5 +1,87 @@
 # Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
+## 2026-09-30 — 1.4.6 one review and budget checkpoint publication
+
+- User reports implicated both original generation and supplementation, which share `generateBatched`/`generateDeck`. Before the policy change an attributed rejection started repair and a second independent review; the repair prompt also retained the original exact-count instruction. The user selected a single audit policy. RED/GREEN evidence: `output/generation-single-review-red.log`; each part now writes/self-checks then makes one independent review call, with no repair, second audit or refill loop. Explicit later draft repair is a separate action.
+- Reproduced the supplementation deadline defect with approved checkpoint cards: the total-budget abort escaped `generateBatched` and skipped publication. Now only the scheduler's typed budget reason permits receipt-only finalization; no model is called, and stale receipts are rejected. Version/target/citation/duplicate checks and cancellation before the atomic mutation remain active. RED evidence: `output/supplement-budget-red.log`. User cancellation while budget cleanup is already stopping was separately reproduced and fixed.
+- Single-round fixtures cover partial output, local leaks and invisible context, correct kind attribution, author self-approval versus independent rejection, malformed review JSON/IDs/fields, and complete author objects containing literal controls. Author recovery still does not repair broken structure or approve recovered objects without review. Actual failed provider responses were unavailable for replay, so arbitrary quote/comma corruption is not claimed fixed.
+- Read-only disk evidence showed draft `407b18c7` had 11 current matching receipts and passing per-card checks; `75ef3c38` had 7 matching receipts at inspection time. The retained model summary described an earlier candidate set, not necessarily current retained defects. New summaries describe accepted cards; candidate notes and bounded omitted reasons are separate. No learner-library mutation or current-job cancellation was performed.
+- Full verification: 680 checks passed, zero failures/skips, concurrency 4; lint and native/standalone builds passed (`output/release-1.4.6-final-verify.log`); static demo build passed (`release-1.4.6-demo-build.log`). Extracted package: 136 passed, zero failures/skips (`release-1.4.6-package-smoke.log`). Deadline fixtures verify 5 approved cards merged from a requested 6 without post-deadline calls, cancellation before/during finalization, archive blocking, and stale receipt rejection. Original-generation execution metadata is plugin-owned and emits only one final notice.
+- Scoped reuse, quality and efficiency reviews completed. Both quality findings were fixed and re-tested: cancellation while stopping and deck-wide requested-kind rejection. Targeted final review reported no material findings. Scope is this fix's files, not unrelated branch work; pre-fix HEAD `c9068a59070cf679e13df9ee1f823301312d5dd3`. Dedicated whole-branch review was not run.
+- Desktop installation reports 1.4.6; 11 critical files match the artifact (`release-1.4.6-installed-check.log`). Configuration was backed up; the host was not restarted. Reload after active work ends to activate the new pipeline. No paid provider calls or live throughput/quality benchmarks were run; one review does not guarantee a full requested count or factual correctness. Existing blocked/failed drafts remain recoverable and are not automatically modified by installing the update.
+
+## 2026-09-30 — 1.4.5 same-question native teacher reuse
+
+- Root cause reproduced before the fix: `startAssist` always spawned and disposed a one-shot child, so identical-card follow-ups could never reuse it. RED evidence: `output/assist-reuse-red.log`. Local DSH SDK inspection established that a published in-process run retains its local agent until the caller disposes it, and supports `followup`, `whenIdle` and suffix session events.
+- Reuse is scoped to host context, parent session/agent, library, card/evidence, model and system instructions. Queued same-card requests share a child and serialize validation/persistence. Follow-up payloads omit stable evidence; collection reads only events after the new turn boundary, rejecting absent, interrupted or stale output. A new teacher receives at most three current-version saved question/answer pairs. Improvement calls and unsupported hosts retain one-shot collection.
+- At most four reusable entries remain cached. Each expires after two idle minutes or eight turns. Separate ownership tracking keeps retired in-flight entries reachable by shutdown without retaining finished ones. Cancellation reaches the child and atomic save validation; asynchronous handle disposal is awaited and shared. Controlled regressions exercise identity, concurrent requests, content/source/model/language/card invalidation, TTL/turn/cache caps, stale output, timeout, delayed disposal and shutdown after a scope change.
+- Full suite: 670 passed, zero failures/skips, concurrency 4; lint and native/standalone builds passed (`output/release-1.4.5-final-verify.log`). Final lint and static demo build passed after excluding the newly reachable desktop SDK from the browser build (`release-1.4.5-final-lint.log`, `release-1.4.5-demo-build.log`). Extracted package: 126 passed, zero failures/skips (`release-1.4.5-package-smoke.log`), including the current reuse regressions rather than older copies.
+- Scoped reuse, quality and efficiency review completed; disposal-await and unnecessary direct-route hashing findings were fixed. Manual review covered lifecycle ownership and browser SDK isolation after the final changes. This bounded review does not claim a formal whole-branch review receipt for unrelated existing work. Pre-fix HEAD: `af78cfed86cfa36f7f276f6c94ea0fd4e2a9417c`.
+- Desktop profile installation reports 1.4.5; 13 critical files match the extracted artifact (`release-1.4.5-installed-check.log`). Configuration was backed up. No host restart, learner-library mutations or paid provider requests were performed. Activate after current work ends by reloading DSH. SDK contracts and controlled host fixtures were checked; an interactive native-model round trip and actual token savings were not measured. Reuse ends on timeout/restart and is not persistent cold-session resume.
+
+## 2026-09-30 — 1.4.4 serial recordings and concurrent text windows
+
+- One process-owned FIFO recording slot is shared across libraries, single imports, batch members and live proofreading saves. Legacy recording concurrency is normalized to 1; text concurrency defaults to 3 and accepts only 2 or 3. There is no retained gate map per library.
+- Text windows run in bounded waves with stable prior-wave context. Successful windows checkpoint immediately, even when they finish out of order; results collect in source order, with a full proofreading barrier before translation. Fatal failures abort and settle sibling calls; cancellation starts no later wave and saved siblings remain reusable. Normal processing keeps the same number of model requests and reuses existing content checkpoints.
+- Focused fixtures exercised queue order, cross-library exclusion, service-level concurrent host child metadata/plugin ownership, 2/3 caps, reverse completion, monotonic progress, corrected text and prior terminology/title context, cancellation, fatal error recovery and legacy settings. Independent Gemini fallback records each concurrent request's actual reasoning.
+- Final suite: 660 passed, zero failures/skips, concurrency 4; lint, native/standalone build and static demo build passed. Evidence: `output/release-1.4.4-final-verify.log` and `output/release-1.4.4-demo-build.log`. Extracted runtime passed 116 checks, zero failures/skips, including the new concurrency and reasoning coverage: `output/release-1.4.4-package-smoke.log`.
+- Actual React settings browser fixture verified default 3, only 2/3 options, correct `textConcurrency` payload, persistence after reload and return to 3. Evidence: `output/playwright/audio-parallel/check.js` and `check.log`. The owned browser and fixture server were closed.
+- Desktop installation reports 1.4.4; 11 critical installed files match the package. Configuration was backed up; no host processes were restarted, no learner cards were changed and no paid model requests were made. Activation requires reloading DSH after active work completes. Model responses were controlled, so actual provider throughput and model quality were not benchmarked.
+
+## 2026-09-30 — 1.4.3 scoped slay feedback
+
+- Fixed a permanently retained action notice: slay/restore confirmations now own the returned review card, run, page and library. A new card/page/library hides the notice immediately and removes its retained callback. Returning to the old card does not revive it; revision-only polls keep the immediate undo opportunity.
+- Browser fixture with the actual React notice hook passed immediate undo, same-card poll, next card, return, restoration notice, page/library changes, unrelated notice preservation and expiry after navigation. The final expiry check used Playwright's clock. Evidence: `output/playwright/slay-notice/check-final.js` and `check-final.log`. The owned browser and fixture server were closed.
+- 24 focused app/render/review/navigation/slay/client checks passed with zero skips/failures; lint and build passed. The extracted runtime passed 92 package checks. Evidence: `output/slay-notice-focused.log` and `output/release-1.4.3-package-smoke.log`. The 651-test full-suite result below belongs to 1.4.2; it was not rerun for this UI-only fix.
+- Desktop installation reports 1.4.3. The installed client matches the packaged artifact; no host processes were restarted and no learner cards or review records were changed by validation. Reload after active tasks finish to activate the update.
+
+## 2026-09-30 — 1.4.2 release checks
+
+- Final suite: 651 passed, zero failures/skips, concurrency 4; lint, native/standalone build and static demo build passed. Evidence: `output/release-1.4.2-final-verify.log` and `output/release-1.4.2-demo-build.log`.
+- Extracted release runtime: 92 checks passed, zero failures/skips, including real Cordis injection, target publication, supplementation, malformed model JSON, self-contained stems, BOM-prefixed files, damaged-shard isolation and recovery. Evidence: `output/release-1.4.2-package-smoke.log`.
+- Desktop reports 1.4.2. Eleven installed files match the extracted artifact, including the client, service, generation, assessment, storage and audio readers. Profile configuration was backed up; active host processes were not restarted. Reloading after active tasks finish activates the update.
+- Invalid model string control characters are repaired locally without another model call. Stored JSON only permits a leading UTF-8 BOM; unrelated corruption is reported. Damaged shard content remains on disk; healthy records can be viewed, writes and full export are blocked, and repairing the shard recovers on the next snapshot without changing the manifest. Normal polling keeps its cached path, including the in-memory demo store.
+- The supplied note-dependent stem is rejected by deterministic validation even if a model declares it acceptable. These rules cover future generation and publication, not automatic rewriting of existing learner questions.
+- A BOM-prefixed audio checkpoint was backed up under the library's `backups/` directory and normalized by removing only its three-byte UTF-8 file header. A previously observed BOM-prefixed source shard had already been replaced by another writer before repair. The installed 1.4.1 reader subsequently read the current library successfully: 588 sources, 55 decks, one draft. This repair did not edit card or source content.
+- No paid model API calls were made. Model behaviors use controlled responses; real audio/model quality and in-process activation still require an actual host reload.
+
+## 2026-09-30 — authorized supplementation before packaging
+
+- Added `supplement`: reviewed generation and publication into one exact active deck, with plugin-owned phase results and a final persisted added/total receipt. Ordinary `generate` still creates a draft.
+- Full suite passed 643 tests, no failures/skips, with test concurrency 4; lint and native/standalone builds passed. The earlier default-concurrency run hit an existing audio recovery fixture time limit; the focused audio recovery rerun passed without changing its timeout or assertions.
+- After that run, the completed job's stale checkpoint pointer was removed, partial publication was checked against its new remaining checkpoint ID, and task labels were verified. All 14 final main-context/job-visibility tests passed; lint/build passed again. The final added partial-publication case was not included in the 643-test run.
+- Regression coverage includes exact target validation before model work, no leftover draft after full success, unchanged original cards/history, archival during generation, duplicates, cancellation, failed independent review, and partial publication receipts. Review/simplification was limited to the fix's files; unrelated untracked files remain untouched.
+- At this earlier implementation stage, only isolated fixture libraries and fake model responses were used. No learner library was changed, no model API requests were sent, and the published/installed 1.4.1 artifact had not yet been replaced. The subsequent 1.4.2 installation and file-header repair are recorded above.
+
+## 2026-09-30 — 1.4.1 audio usage and resource management
+
+- `npm run verify`: lint, 636 tests (0 failures, 0 skips), and native client/standalone build passed. `npm run build:demo` passed separately.
+- The packed 1.4.1 artifact passed 31 tests against its extracted runtime: real Cordis injection, publication semantics, provider usage accounting, reasoning fallback, privacy, and bounded streaming aggregation. A 10,000-request ledger plus oversized and incomplete records was checked without retaining individual requests.
+- Browser checks covered 1440 px and 320 px layouts, no horizontal overflow, independent reasoning grid/select synchronization, settings persistence after reload, empty quota state, and both light and dark themes. Visual fixture data was synthetic; the interactive demo exposes no account usage or keys.
+- Desktop installation reports 1.4.1. Installed client, dashboard, entry point, and service hashes match the release artifact. Reloading the desktop host remains necessary to activate it; no active host tasks were interrupted.
+- Usage refresh pauses while hidden and removes its timer/listener on unmount. Ledger retention is 31 days, request-body copying is avoided, and failed recoverable audio tasks retain their manifest while releasing model/service closures.
+- No paid API requests, real audio transcription, microphone session, or learner-library mutations were performed for this release. Gemini quota is a local estimate against a user-entered model limit; Groq remaining quota is displayed only while response headers are valid. Live audio and host-token usage are excluded.
+
+## 2026-09-27 learning-workflow design
+
+This change writes the [system-learning plan](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md), the [before/after workflow](study-workflows.md#proposed-system-learning), related documentation boundaries and a [handoff](handoffs/2026-09-27-learning-workflow-redesign.md). It does not implement the planned feature.
+
+Verification for this documentation change is limited to current-code grounding, plan review, Markdown links/references, requirement-to-unit coverage and whitespace/diff checks. No production tests, build, real-model evaluation or learner trial were run in this planning turn. Earlier test counts below are historical results, not evidence for U1–U9 or AE1–AE16.
+
+The prior assessment turn reproduced the existing 4-mastered/1-new → 80%/done calculation; that is evidence of the current rule, not a passing test of the new policy. Actual five-PDF/JSON coverage and zero-beginner teaching effectiveness remain unverified. The plan's Verification Contract specifies the implementation and pilot gates.
+
+Plan review covered coherence, feasibility, product, scope, design and adversarial lenses in separate contexts. Three findings were applied within the user's requested design scope:
+
+- Coherence: practical review now requires all mandatory criteria for each individual target, consistent with partial success in a multi-target experiment.
+- Adversarial: delayed recall measures the interval since the target's latest relevant learning event, including teaching or practice on a different question.
+- Adversarial: confirmed substantive false passes block the affected assessment path from issuing verified evidence until corrected and checked against the failure and independent samples.
+
+The lead also aligned post-publish navigation with the selected learning mode and clarified that a new curriculum version preserves an active old session without awarding evidence to the new version. The other four review lenses reported no actionable findings. No unresolved review decisions remain. The optional cross-model pass was unavailable: the installed Claude launcher points to a missing executable; no review document was sent externally and no provider review is claimed.
+
+Documentation checks cover all 12 changed/new Markdown files: local link targets and section anchors, balanced code fences, conflict markers, unique R1–R16 / AE1–AE16 / U1–U9 / KTD1–KTD8 definitions, requirement/example coverage and acyclic implementation dependencies. `git diff --check` passed. These are document integrity checks, not implementation or educational validation.
+
+## Historical evidence follows
+
 ## Automated evidence
 
 `npm test`: 35 tests passed, 0 failed, 0 skipped on this machine. Includes the 0.2.0 list below plus:
@@ -38,6 +120,24 @@
 `npm run build` creates the DSH classic-module client plus standalone browser preview. `npm pack` includes runtime modules, client, bundle patch, source protocols and README, excluding learner/demo data, tests and dev dependencies.
 
 ## Browser verification
+
+### Audio input diagnostics, import entry and inbox — 2026-09-29 (unpublished)
+
+- `npm run verify`: 440 tests, 435 passed, 0 failed, 5 optional host SDK checks skipped; lint and builds passed.
+- Input diagnostics measure the same PCM frames uploaded by LiveClient. Tests distinguish silent frames from absent frames, capture from backend acknowledgment, and muted, suspended, paused and stopped states.
+- Audio import integration tests verify all three stage notifications and the final saved-result message, persistence across service reopen, and opening the source from the inbox. Partial proofreading failures generate a warning milestone rather than a success milestone.
+- Chromium with synthetic audio and mocked live endpoints verifies changing input level, silence at zero, capture-context interruption, pause/resume, continued recording while opening the new Audio transcription page, track cleanup and no terminal polling. A separate mocked inbox verifies opening the source modal from a completion message. The stage/persistence behavior is separately exercised through the real StudyService with a fake provider.
+- Inspected the meter at 320px and the import page and inbox at 420px. Evidence: `output/playwright/audio-monitor-check.log`, `audio-meter-silent-320.png`, `audio-transcription-page-420.png`, `audio-inbox-check.log`, `audio-inbox-420.png`.
+- The user's physical microphone and live provider recognition quality were not tested; the new diagnostics make these observable without claiming a cause for sparse transcription.
+
+### Classroom live transcription and panel width follow-up — 2026-09-29 (unpublished)
+
+- `npm run verify`: lint and both builds passed; 437 tests, 432 passed, 0 failed, 5 skipped because the optional DSH SDK is unavailable.
+- Real Chromium in the isolated port 4182 preview, fixed 1440px window: 108 page/language/panel-width combinations passed the horizontal-overflow check. Chinese panels: 320, 360, 420, 640, 900 and 1440px; English panels: 320, 420 and 900px. Intentional kanban scrolling is checked by column width. Visually inspected the classroom, wrongbook and result card. The rendered Review result card uses one column at 320/420px and two at 900px without overflow.
+- The real browser AudioWorklet ran against synthetic audio and mocked live endpoints: 100ms PCM frames, pause/resume, selected-sentence generation, continued capture during navigation, ending releases tracks, ended sessions stop polling, and save confirmation. Provider/service behavior is tested separately with fake WebSockets and controlled translation responses.
+- Regression coverage includes late polls before/during stop, cancellation while connecting, delayed final text during connection handover and immediate stop, restored translation retries, serial persistence, failed-disk handoff rejection, and preventing retired writers from overwriting resumed or deleted sessions.
+- Independent scoped review and reuse/quality/efficiency checks completed; reported issues were fixed and covered by regressions. This bounded mixed-working-tree review is not a formal `ce-code-review` whole-diff receipt and does not replace earlier release receipts.
+- Evidence is local under `output/playwright/`: `layout-check.log`, `live-class-420.png`, `layout-3-320.png`, `result-420.png`, and `verify.log`. Live provider credentials and native DSH capture permissions remain unverified. These features are local changes and have not been published.
 
 Used Playwright CLI against the same React UI and StudyService exposed by the standalone server. Preview library was explicitly created at `output/preview-library` using the demo seed script.
 
@@ -82,3 +182,20 @@ The user's daily DSH profile was not changed. Full interaction inside an existin
 Initial 0.1.0 `ce-code-review`: completed, seven findings fixed and independently validated, no remaining actionable findings. Receipt: `docs/ce-code-review/2026-09-12-final/review.json`. The 0.2.0 completeness changes received an inline code review and the additional tests/browser checks above; that earlier independent receipt does not cover the new diff.
 
 Real model-provider generation was not run with user credentials. The generation protocol and repair/error paths are tested with controlled responses; the model's factual and teaching quality still requires checking against real source material. No claim is made that automated editorial review proves correctness. No lint or TypeScript checker is configured; files were formatted with Prettier and verified by build/tests.
+# 2026-09-29：实时上下文校正、课堂笔记与归档
+
+- `npm run verify`：449 项，444 通过，5 项缺少可选 DSH SDK 的检查跳过，0 失败；lint 与构建通过。记录：`output/playwright/correction-verify.log`。
+- 新增验证：35 句突发完整覆盖、8 新句加 2 句重叠、检查中新增句子留给下一轮、结束补齐尾部、失败/超时保留游标、识别原稿保留、旧翻译不覆盖新校正、笔记落盘、子代理不阻塞主流程、跨范围版本冲突拒绝合并、缺少子代理时可见重试、low/default 路由与实际缓存计数。
+- 归档状态经过落盘和重新加载验证，恢复可用，归档中删除不影响已另存的逐字稿与笔记资料。
+- 浏览器使用模拟模型结果验证历史句子原位更新、勾选保留、笔记引用跳转、中英文入口、保存调用，以及归档/恢复/取消删除/确认删除。320、420、900 px 面板均无相关区域横向溢出。脚本：`output/playwright/live-notes-check.js`、`output/playwright/live-archive-check.js`；截图：`live-notes-420.png`、`live-archive-420.png`。
+- 原生 DSH 子代理协议用模拟宿主验证；没有有效密钥或完整宿主 SDK，未声称验证真实识别/纠错质量、实际速度或节省费用。
+
+
+## 1.4.0 发布检查 — 2026-09-30
+
+- 完整 `npm run verify`：627 项通过、0 失败、0 跳过；使用本机 DSH SDK 执行真实 Cordis 依赖注入回归，静态检查和客户端构建通过。证据：`output/release-1.4.0-final-verify.log`。
+- `settings`、`map`、`source.list` 与命令/侧栏的会话依赖覆盖；普通模拟宿主不检查依赖的盲点已补足。
+- 八步系统学习路径仍未实现；真实付费音频、麦克风权限及运行中桌面模型交互的端到端验证仍未完成。SWE5001 的宿主 ACL 权限问题没有通过插件修改。
+- 本次交付通过 GitHub Release 分发；磁盘安装和运行中激活分开确认，不强制重启尚有内存任务的宿主。
+
+- 资料全屏预览：浏览器验证 1440×900 / 390×844，模拟宿主标题栏 40px 时关闭按钮顶部分别为 55px / 51px；按钮可命中，无窄窗口横向溢出，关闭及 Esc 返回原入口。受限侧栏中仍覆盖整个视口；实际窗口全屏时取消标题栏留白。截图 output/fullscreen-preview-windows.png。未声称已重启运行中的桌面宿主。

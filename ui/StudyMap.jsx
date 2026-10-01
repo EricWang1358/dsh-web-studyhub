@@ -1,8 +1,9 @@
+import { ui, uiFormat, uiLocale } from "./i18n.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LEVEL_LABEL } from "./shared.js";
 import GenerationTrace, { generationStage } from "./GenerationTrace.jsx";
 import { reviewedCardStatus } from "../lib/review-integrity.js";
-import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
+import { isActiveJob, visibleGenerationJobs, supplementJobLabel } from "./job-visibility.js";
 import focusCss from "./focus.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
@@ -22,10 +23,10 @@ function TopicGroupReminder({ grouping, root, askInChat }) {
   const first = !grouping.groups;
   const hold = () => { setLater(signature); try { localStorage.setItem(key, signature); } catch { /* per-device only */ } };
   return <div className="group-reminder" role="status">
-    <span>{first ? `学习库有 ${grouping.topics} 个主题，还没按知识域归并成主题组` : `有 ${grouping.ungrouped} 个主题还没归入主题组（通常来自新导入的题组）`}</span>
+    <span>{first ? uiFormat("学习库有 {0} 个主题，还没按知识域归并成主题组", [grouping.topics]) : uiFormat("有 {0} 个主题还没归入主题组（通常来自新导入的题组）", [grouping.ungrouped])}</span>
     <span className="group-reminder-actions">
-      <button type="button" className="link-btn" onClick={() => askInChat(groupPrompt(first ? { mode: "replace", topicCount: grouping.topics } : { mode: "merge", ungrouped: grouping.ungrouped }))}>{first ? "让对话归并主题" : "让对话归入主题组"} →</button>
-      <button type="button" className="ghost-btn" onClick={hold}>稍后</button>
+      <button type="button" className="link-btn" onClick={() => askInChat(groupPrompt(first ? { mode: "replace", topicCount: grouping.topics } : { mode: "merge", ungrouped: grouping.ungrouped }))}>{first ? ui("让对话归并主题") : ui("让对话归入主题组")} →</button>
+      <button type="button" className="ghost-btn" onClick={hold}>{ui("稍后")}</button>
     </span>
   </div>;
 }
@@ -72,7 +73,7 @@ function MasteryBar({ node }) {
   const total = BAR_ORDER.reduce((n, l) => n + node.counts[l], 0);
   const label = BAR_ORDER.filter((l) => node.counts[l])
     .map((l) => `${LEVEL_LABEL[l]} ${node.counts[l]}`)
-    .join(" · ") || "暂无题目";
+    .join(" · ") || ui("暂无题目");
   let seen = 0;
   return (
     <span className="mastery" title={label}>
@@ -193,7 +194,8 @@ export default function StudyMap({
   const progress = data.progress || EMPTY_PROGRESS,
     today = data.today || { due: 0, weak: 0, new: 0, size: 0 },
     runs = data.runs || [];
-  const jobs = data.jobs || [];
+  // Audio imports report progress in the add-source form, not among question generations.
+  const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import");
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
   const visibleJobs = visibleGenerationJobs(jobs);
   /* Mastery weighted by card count. Deck rows carry no mastery of their own in
@@ -208,7 +210,7 @@ export default function StudyMap({
     };
     const live = data.decks.filter((d) => !d.archived);
     const name = data.focus?.mode === "interview" ? null : data.focus?.course;
-    const inCourse = name ? live.filter((d) => !d.systemKind && d.course === name) : [];
+    const inCourse = name != null ? live.filter((d) => !d.systemKind && d.course === name) : [];
     const course = inCourse.length ? measure(inCourse) : null;
     const whole = measure(live);
     const others = course && live.some((d) => !inCourse.includes(d) && progress[d.id]?.total);
@@ -229,7 +231,7 @@ export default function StudyMap({
   const folders = useMemo(() => {
     const groups = new Map();
     for (const d of visible) {
-      const course = d.course || d.folder;
+      const course = d.course ?? d.folder ?? '';
       if (!groups.has(course)) groups.set(course, []);
       groups.get(course).push(d);
     }
@@ -284,14 +286,14 @@ export default function StudyMap({
           <button
             className="map-caret"
             aria-expanded={open}
-            aria-label={open ? "收起" : "展开"}
+            aria-label={open ? ui("收起") : ui("展开")}
             onClick={() => toggleOpen(d.id)}
           >
             {open ? "▾" : "▸"}
           </button>
           <input
             type="checkbox"
-            aria-label={`选择题组 ${d.title}`}
+            aria-label={uiFormat("选择题组 {0}", [d.title])}
             checked={whole}
             disabled={d.archived}
             onChange={(e) => toggleSelect([key], e.target.checked)}
@@ -300,30 +302,29 @@ export default function StudyMap({
           <button className="map-name" onClick={() => toggleOpen(d.id)}>
             <strong>{d.title}</strong>
             <small>
-              {d.available} 题
-              {p?.due ? ` · ${p.due} 待复习` : ""}
-              {d.wrong ? ` · ${d.wrong} 题待巩固` : ""}
-              {d.uncheckedAtPublish ? ` · ${d.uncheckedAtPublish} 题未自动审阅` : ""}
-              {d.selfCited ? ` · ${d.selfCited} 题仅有导入题目引用` : ""}
-              {d.archived ? " · 已归档" : ""}
+              {d.available}{ui(" 题")}{p?.due ? uiFormat(" · {0} 待复习", [p.due]) : ""}
+              {d.wrong ? uiFormat(" · {0} 题待巩固", [d.wrong]) : ""}
+              {d.uncheckedAtPublish ? uiFormat(" · {0} 题未自动审阅", [d.uncheckedAtPublish]) : ""}
+              {d.selfCited ? uiFormat(" · {0} 题仅有导入题目引用", [d.selfCited]) : ""}
+              {d.archived ? ui(" · 已归档") : ""}
             </small>
           </button>
           {p && <MasteryBar node={p} />}
           <button
             className={"map-play" + (run ? " is-run" : "")}
             disabled={busy || d.archived || !d.available}
-            title={run ? `继续 ${run.index + 1}/${run.total}` : `学习全部 ${d.available} 题`}
-            aria-label={`开始学习 ${d.title}`}
+            title={run ? uiFormat("继续 {0}/{1}", [run.index + 1, run.total]) : uiFormat("学习全部 {0} 题", [d.available])}
+            aria-label={uiFormat("开始学习 {0}", [d.title])}
             onClick={() =>
               run ? resume(run.id) : start({ mode: "path", scope: [{ deckId: d.id }] })
             }
           >
-            {run ? "继续" : "▶"}
+            {run ? ui("继续") : "▶"}
           </button>
           <span className="map-menu-wrap">
             <button
               className="map-menu-toggle"
-              aria-label="更多操作"
+              aria-label={ui("更多操作")}
               aria-expanded={menu === d.id}
               onClick={() => setMenu(menu === d.id ? null : d.id)}
             >
@@ -332,24 +333,24 @@ export default function StudyMap({
             {menu === d.id && (
               <div className="map-menu" role="menu">
                 {[
-                  ["从新题开始", () => start({ deckId: d.id, mode: "new", fresh: true }), !p?.counts?.new],
-                  ["闪卡翻看", () => start({ deckId: d.id, mode: "flashcard" }), !d.available],
-                  ["测验", () => start({ deckId: d.id, mode: "quiz" }), !d.quizCount],
-                  [`待巩固重练 ${d.wrong || 0}`, () => start({ deckId: d.id, mode: "wrong" }), !d.wrong],
+                  [ui("从新题开始"), () => start({ deckId: d.id, mode: "new", fresh: true }), !p?.counts?.new],
+                  [ui("闪卡翻看"), () => start({ deckId: d.id, mode: "flashcard" }), !d.available],
+                  [ui("测验"), () => start({ deckId: d.id, mode: "quiz" }), !d.quizCount],
+                  [uiFormat("待巩固重练 {0}", [d.wrong || 0]), () => start({ deckId: d.id, mode: "wrong" }), !d.wrong],
                   [
-                    "在对话中分析",
+                    ui("在对话中分析"),
                     () =>
                       askInChat(
-                        `请用 study_workspace 查看题组「${d.title}」的掌握情况（map），告诉我哪些主题最薄弱，并安排接下来的学习顺序。`,
+                        uiFormat("请用 study_workspace 查看题组「{0}」的掌握情况（map），告诉我哪些主题最薄弱，并安排接下来的学习顺序。", [d.title]),
                       ),
                     false,
                   ],
-                  ["管理题组", () => manage(d.id), false],
+                  [ui("管理题组"), () => manage(d.id), false],
                 ].map(([label, run, disabled]) => (
                   <button
                     key={label}
                     role="menuitem"
-                    disabled={busy || disabled || (d.archived && label !== "管理题组")}
+                    disabled={busy || disabled || (d.archived && label !== ui("管理题组"))}
                     onClick={() => {
                       setMenu(null);
                       run();
@@ -375,7 +376,7 @@ export default function StudyMap({
                 >
                   <input
                     type="checkbox"
-                    aria-label={`选择主题 ${t.name}`}
+                    aria-label={uiFormat("选择主题 {0}", [t.name])}
                     checked={whole || selected.has(k)}
                     disabled={whole || d.archived}
                     onChange={(e) => toggleSelect([k], e.target.checked)}
@@ -384,35 +385,33 @@ export default function StudyMap({
                   <span className="map-name">
                     <span>{t.name}</span>
                     <small>
-                      {t.total} 题 · {t.due ? `${t.due} 待复习` : LEVEL_LABEL[level]}
+                      {t.total}{ui(" 题 · ")}{t.due ? uiFormat("{0} 待复习", [t.due]) : LEVEL_LABEL[level]}
                     </small>
                   </span>
                   <MasteryBar node={t} />
                   <button
                     className={"map-play" + (topicRun ? " is-run" : "")}
                     disabled={busy || d.archived}
-                    aria-label={`学习主题 ${t.name}`}
-                    title={topicRun ? `继续 ${topicRun.index + 1}/${topicRun.total}` : "学习这个主题"}
+                    aria-label={uiFormat("学习主题 {0}", [t.name])}
+                    title={topicRun ? uiFormat("继续 {0}/{1}", [topicRun.index + 1, topicRun.total]) : ui("学习这个主题")}
                     onClick={() =>
                       topicRun
                         ? resume(topicRun.id)
                         : start({ mode: "path", scope: [{ deckId: d.id, topic: t.name }] })
                     }
                   >
-                    {topicRun ? "继续" : "▶"}
+                    {topicRun ? ui("继续") : "▶"}
                   </button>
                   <button
                     className="map-ask"
-                    title="在对话中讲解这个主题"
-                    aria-label={`在对话中讲解 ${t.name}`}
+                    title={ui("在对话中讲解这个主题")}
+                    aria-label={uiFormat("在对话中讲解 {0}", [t.name])}
                     onClick={() =>
                       askInChat(
                         `请结合学习库里的资料，给我讲解「${t.name}」（题组「${d.title}」）。我目前掌握度 ${t.mastery}%${t.counts.weak ? `，有 ${t.counts.weak} 道题当前薄弱` : ""}。先讲核心概念，再用一两道小问题检查我是否理解。`,
                       )
                     }
-                  >
-                    问
-                  </button>
+                  >{ui("问")}</button>
                 </li>
               );
             })}
@@ -423,27 +422,27 @@ export default function StudyMap({
   }
 
   const headline = !data.decks.length
-    ? "从一份资料开始"
+    ? ui("从一份资料开始")
     : today.ahead
-      ? "今天的任务都完成了"
+      ? ui("今天的任务都完成了")
       : [
-          today.due && `${today.due} 道待复习`,
-          today.weak && `${today.weak} 道薄弱`,
-          today.new && `${today.new} 道新题`,
+          today.due && uiFormat("{0} 道待复习", [today.due]),
+          today.weak && uiFormat("{0} 道薄弱", [today.weak]),
+          today.new && uiFormat("{0} 道新题", [today.new]),
         ]
           .filter(Boolean)
-          .join(" · ") || "暂无可学习的题目";
+          .join(" · ") || ui("暂无可学习的题目");
 
   const slain = data.decks.find((d) => d.systemKind === "slain");
   const interview = data.focus?.mode === "interview",
     freshAll = data.focus?.fresh?.length || 0,
     freshCount = Math.min(10, freshAll),
-    todayLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" })
+    todayLabel = new Intl.DateTimeFormat(uiLocale(), { month: "long", day: "numeric", weekday: "short" })
       .format(new Date()),
     breakdown = [
-      today.due && `到期 ${today.due}`,
-      today.weak && `薄弱 ${today.weak}`,
-      today.new && `新题 ${today.new}`,
+      today.due && uiFormat("到期 {0}", [today.due]),
+      today.weak && uiFormat("薄弱 {0}", [today.weak]),
+      today.new && uiFormat("新题 {0}", [today.new]),
     ].filter(Boolean).join(" · "),
     startFresh = () => start({ mode: "new", currentCourse: true, count: 10, fresh: true }),
     startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: "path" })),
@@ -451,41 +450,68 @@ export default function StudyMap({
     route = !interview ? data.focus?.route : null,
     courseRun = route && runs.find((r) => r.purpose === "course" && r.course === route.course),
     startCourse = () => (courseRun ? resume(courseRun.id) : start({ mode: "course" })),
-    flowLink = startCourseFlow && route?.next?.fresh ? [["先讲后练 · 学习流", () => startCourseFlow()]] : [];
+    flowLink = startCourseFlow && route?.next?.fresh ? [[ui("先讲后练 · 学习流"), () => startCourseFlow()]] : [];
   /* The card offers exactly one action. An open run wins, then the current
      course's new questions (class mode), then today's review path. Every
      other start stays reachable as a quiet link beside it. */
-  const plan = !data.decks.length
-    ? { kind: "empty", eyebrow: "开始",
-        action: { label: "导入 JSON 题组", run: importLibrary },
-        also: [["添加资料补题", addSource], ["在对话中用工作区文件出题", () => askInChat(
-          "请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。")]] }
+  const base = !data.decks.length
+    ? { kind: "empty", eyebrow: ui("开始"),
+        action: { label: ui("导入 JSON 题组"), run: importLibrary },
+        also: [[ui("添加资料补题"), addSource], [ui("在对话中用工作区文件出题"), () => askInChat(
+          ui("请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。"))]] }
     : courseRun
-      ? { kind: "resume", eyebrow: "继续课程", count: courseRun.total - courseRun.index, unit: "题未完成",
-          detail: `这一批已做到第 ${courseRun.index + 1} / ${courseRun.total} 题`,
-          action: { label: "接着学", run: startCourse }, also: today.size ? [[`到期复习与巩固 · ${today.size} 题`, startPath]] : [] }
+      ? { kind: "resume", eyebrow: ui("继续课程"), count: courseRun.total - courseRun.index, unit: ui("题未完成"),
+          detail: uiFormat("这一批已做到第 {0} / {1} 题", [courseRun.index + 1, courseRun.total]),
+          action: { label: ui("接着学"), run: startCourse }, also: today.size ? [[uiFormat("到期复习与巩固 · {0} 题", [today.size]), startPath]] : [] }
     : todayRun
-      ? { kind: "resume", eyebrow: "继续今日", count: todayRun.total - todayRun.index, unit: "题未完成",
-          detail: `已做到第 ${todayRun.index + 1} / ${todayRun.total} 题`,
-          action: { label: "继续学习", run: startPath },
-          also: !interview && freshCount ? [[`学当前课程新题 · ${freshCount} 题`, startFresh]] : [] }
+      ? { kind: "resume", eyebrow: ui("继续今日"), count: todayRun.total - todayRun.index, unit: ui("题未完成"),
+          detail: uiFormat("已做到第 {0} / {1} 题", [todayRun.index + 1, todayRun.total]),
+          action: { label: ui("继续学习"), run: startPath },
+          also: !interview && freshCount ? [[uiFormat("学当前课程新题 · {0} 题", [freshCount]), startFresh]] : [] }
       : route?.next
-        ? { kind: "course", eyebrow: route.current === null ? "课程巩固" : `第 ${route.current + 1} / ${route.chapters.length} 章`,
-            count: route.next.fresh + route.next.reviews, unit: "题 · 这一批",
-            detail: `${route.next.label}${route.next.reviews ? ` · 先巩固 ${route.next.reviews} 道` : ""}`,
-            action: { label: "继续课程", run: startCourse },
-            also: [...flowLink, ...(today.size ? [[`到期复习与巩固 · ${today.size} 题`, startPath]] : [])] }
+        ? { kind: "course", eyebrow: route.current === null ? ui("课程巩固") : uiFormat("第 {0} / {1} 章", [route.current + 1, route.chapters.length]),
+            count: route.next.fresh + route.next.reviews, unit: ui("题 · 这一批"),
+            detail: `${route.next.label}${route.next.reviews ? uiFormat(" · 先巩固 {0} 道", [route.next.reviews]) : ""}`,
+            action: { label: ui("继续课程"), run: startCourse },
+            also: [...flowLink, ...(today.size ? [[uiFormat("到期复习与巩固 · {0} 题", [today.size]), startPath]] : [])] }
       : !interview && freshCount
-        ? { kind: "fresh", eyebrow: "当前课程", count: freshCount, unit: "道新题",
+        ? { kind: "fresh", eyebrow: ui("当前课程"), count: freshCount, unit: ui("道新题"),
             detail: freshAll > freshCount
-              ? `本轮先学 ${freshCount} 道，课程还有 ${freshAll - freshCount} 道未学` : "当前课程的全部新题",
-            action: { label: "开始学新题", run: startFresh },
-            also: today.size ? [[`到期复习与巩固 · ${today.size} 题`, startPath]] : [] }
-        : { kind: today.size ? "path" : "clear", eyebrow: today.ahead ? "提前巩固" : "今日学习",
-            count: today.size, unit: today.size ? "题待学" : "题待学",
-            detail: today.ahead ? "今天的任务都完成了" : today.size ? breakdown : "今天已经清空",
-            action: { label: today.ahead ? "提前巩固" : "开始今日学习", run: startPath, disabled: !today.size },
+              ? uiFormat("本轮先学 {0} 道，课程还有 {1} 道未学", [freshCount, freshAll - freshCount]) : ui("当前课程的全部新题"),
+            action: { label: ui("开始学新题"), run: startFresh },
+            also: today.size ? [[uiFormat("到期复习与巩固 · {0} 题", [today.size]), startPath]] : [] }
+        : { kind: today.size ? "path" : "clear", eyebrow: today.ahead ? ui("提前巩固") : ui("今日学习"),
+            count: today.size, unit: today.size ? ui("题待学") : ui("题待学"),
+            detail: today.ahead ? ui("今天的任务都完成了") : today.size ? breakdown : ui("今天已经清空"),
+            action: { label: today.ahead ? ui("提前巩固") : ui("开始今日学习"), run: startPath, disabled: !today.size },
             also: [] };
+  /* The run the learner was last inside (the rail's 回到题目) outranks a new
+     batch: a deck, topic or 为你定制 run left half done must not sink into
+     the fold below while the big button quietly starts something else. */
+  const lastOpen = data.decks.length ? runs.find((r) => r.id === data.lastRun?.id) : null;
+  /* A semester holds several courses and any of them may be the one left half
+     done, so a run from outside the course in the heading names its course
+     instead of being held back. System decks (为你定制) belong to no course. */
+  const focusCourse = interview ? null : data.focus?.course,
+    otherCourse = (r) => {
+      const courses = new Set((r.deckIds || [r.deckId]).map((id) => data.decks.find((d) => d.id === id))
+        .filter((d) => d && !d.systemKind).map((d) => d.course));
+      const [course] = courses;
+      return courses.size === 1 && course !== focusCourse ? course : "";
+    };
+  const baseLink = base.kind === "course" ? uiFormat("课程下一批 · {0} 题", [base.count])
+    : base.kind === "fresh" ? uiFormat("学当前课程新题 · {0} 题", [base.count])
+      : base.kind === "path" ? uiFormat("到期复习与巩固 · {0} 题", [base.count]) : "";
+  const plan = lastOpen && lastOpen !== courseRun && lastOpen !== todayRun
+    ? { kind: "resume", eyebrow: ui("接着上次"), count: lastOpen.total - lastOpen.index, unit: ui("题未完成"),
+        detail: uiFormat("{0} · 已做到第 {1} / {2} 题", [
+          [otherCourse(lastOpen), lastOpen.title].filter(Boolean).join(" › "), lastOpen.index + 1, lastOpen.total]),
+        action: { label: ui("接着做"), run: () => resume(lastOpen.id) },
+        also: [...(baseLink ? [[baseLink, base.action.run]] : []),
+          ...base.also.filter(([label]) => label !== baseLink)] }
+    : base;
+  const shownRun = plan === base ? courseRun || todayRun : lastOpen,
+    otherRuns = runs.filter((r) => r !== shownRun);
   // Cards visible behind the top one: the stack is as thick as the day.
   plan.depth = plan.kind === "empty" ? 0 : Math.min(2, Math.max(0, (plan.count || 0) - 1));
 
@@ -494,36 +520,36 @@ export default function StudyMap({
       {children}
       <div className={"desk" + (plan.kind === "empty" ? " is-empty" : "")}>
         <div className="desk-intro">
-          <div className="focus-switch" role="group" aria-label="学习模式">
+          <div className="focus-switch" role="group" aria-label={ui("学习模式")}>
             <button className={!interview ? "active" : ""} aria-pressed={!interview}
-              onClick={() => onFocus?.({ mode: "class" })}>课堂跟学</button>
+              onClick={() => onFocus?.({ mode: "class" })}>{ui("课堂跟学")}</button>
             <button className={interview ? "active" : ""} aria-pressed={interview}
-              onClick={() => onFocus?.({ mode: "interview" })}>笔试 / 面试</button>
+              onClick={() => onFocus?.({ mode: "interview" })}>{ui("笔试 / 面试")}</button>
           </div>
           {interview ? (
-            <input className="course-heading-input" aria-label="岗位方向" placeholder="输入岗位方向"
+            <input className="course-heading-input" aria-label={ui("岗位方向")} placeholder={ui("输入岗位方向")}
               value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} onBlur={() => {
                 const role = roleDraft.trim();
                 if (role !== (data.focus?.role || "")) onFocus?.({ role });
               }} />
           ) : (data.focus?.courses || []).length ? (
             <h1 className="course-heading">
-              <span>{data.focus?.course || headline}</span>
+              <span>{data.focus?.course === '' ? ui('未分类课程') : data.focus?.course || headline}</span>
               <span className="course-caret" aria-hidden="true">▾</span>
               {/* The heading is the course switcher: a transparent native select
                   keeps keyboard and screen-reader behaviour intact. */}
-              <select aria-label="切换当前课程" value={data.focus?.course || ""}
+              <select aria-label={ui("切换当前课程")} value={data.focus?.course || ""}
                 onChange={(event) => onFocus?.({ course: event.target.value })}>
                 {(data.focus?.courses || []).map((course) =>
-                  <option key={course.name} value={course.name}>{course.name}</option>)}
+                  <option key={course.name} value={course.name}>{course.name || ui('未分类课程')}</option>)}
               </select>
             </h1>
           ) : (
             <h1 className="course-heading">{headline}</h1>
           )}
           {interview && <div className="role-prep">
-            <details><summary>用岗位描述细化练习范围</summary>
-              <textarea rows={4} value={jdDraft} placeholder="需要时粘贴 JD；不贴也可按岗位方向匹配"
+            <details><summary>{ui("用岗位描述细化练习范围")}</summary>
+              <textarea rows={4} value={jdDraft} placeholder={ui("需要时粘贴 JD；不贴也可按岗位方向匹配")}
                 onChange={(event) => setJdDraft(event.target.value)} />
               <button disabled={suggestBusy || !roleDraft.trim()} onClick={async () => {
                 setSuggestBusy(true);
@@ -531,34 +557,33 @@ export default function StudyMap({
                 try { setRoleProposal(await suggestRole?.({ role: roleDraft.trim(), jd: jdDraft })); }
                 catch (error) { setSuggestError(error.message); }
                 finally { setSuggestBusy(false); }
-              }}>{suggestBusy ? "匹配中…" : "AI 匹配知识点"}</button>
+              }}>{suggestBusy ? ui("匹配中…") : ui("AI 匹配知识点")}</button>
               {suggestError && <p role="alert">{suggestError}</p>}
               {roleProposal && <div className="role-proposal">
-                <p>建议练习：{roleProposal.targetTopics.length
-                  ? roleProposal.targetTopics.join("、") : "暂无匹配的现有知识点，可先用全库薄弱题练习"}</p>
+                <p>{ui("建议练习：")}{roleProposal.targetTopics.length
+                  ? roleProposal.targetTopics.join("、") : ui("暂无匹配的现有知识点，可先用全库薄弱题练习")}</p>
                 <button className="primary" onClick={() => {
                   onFocus?.({ mode: "interview", role: roleProposal.role, jd: roleProposal.jd,
                     targetTopics: roleProposal.targetTopics });
                   setRoleProposal(null);
-                }}>确认岗位范围</button>
+                }}>{ui("确认岗位范围")}</button>
               </div>}
             </details>
             {!!data.focus?.roleWeak?.length && <div className="role-weak">
-              <strong>优先练这些薄弱点</strong>
+              <strong>{ui("优先练这些薄弱点")}</strong>
               {data.focus.roleWeak.slice(0, 3).map((item) => <button key={`${item.deckId}:${item.topic}`}
                 onClick={() => start({ mode: "path", scope: [{ deckId: item.deckId, topic: item.topic }] })}>
-                {item.topic} · {item.weak} 道薄弱题 →</button>)}
+                {item.topic} · {item.weak}{ui(" 道薄弱题 →")}</button>)}
             </div>}
           </div>}
           {route && <CourseRoute route={route} busy={busy} onStartChapter={(deckId) => start({ mode: "course", deckId, fresh: true })} />}
           {primary && (
-            <div className="desk-mastery" title={mastery.course ? `「${mastery.name}」课程掌握度 ${mastery.course.value}%（${mastery.course.cards} 题）` : `全学习区掌握度 ${primary.value}%`}>
+            <div className="desk-mastery" title={mastery.course ? uiFormat("「{0}」课程掌握度 {1}%（{2} 题）", [mastery.name || ui('未分类课程'), mastery.course.value, mastery.course.cards]) : uiFormat("全学习区掌握度 {0}%", [primary.value])}>
               <span className="desk-mastery-value">{primary.value}<small>%</small></span>
-              <span className="desk-mastery-label">{mastery.course ? "本课程掌握" : "整体掌握"}</span>
+              <span className="desk-mastery-label">{mastery.course ? ui("本课程掌握") : ui("整体掌握")}</span>
               <MasteryBar node={primary.node} />
               {mastery.others && mastery.whole && (
-                <span className="desk-mastery-all" title={`全部课程合计 ${mastery.whole.cards} 题`}>
-                  全学习区 <strong>{mastery.whole.value}%</strong>
+                <span className="desk-mastery-all" title={uiFormat("全部课程合计 {0} 题", [mastery.whole.cards])}>{ui("全学习区 ")}<strong>{mastery.whole.value}%</strong>
                 </span>
               )}
             </div>
@@ -566,17 +591,15 @@ export default function StudyMap({
           <p className="desk-next">
             {data.next ? (
               <>
-                <span className="desk-next-label">推荐下一步</span>
+                <span className="desk-next-label">{ui("推荐下一步")}</span>
                 <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>
-                  <small> · 掌握 {data.next.mastery}%</small></span>
+                  <small>{ui(" · 掌握 ")}{data.next.mastery}%</small></span>
                 <button className="link-btn" disabled={busy} onClick={() =>
-                  start({ mode: "path", scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>
-                  只学这个主题 →
-                </button>
+                  start({ mode: "path", scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui("只学这个主题 →")}</button>
               </>
             ) : data.decks.length
-              ? "所有主题都已掌握，可以提前巩固。"
-              : "添加讲义或笔记，生成题组后这里会给出学习路径。"}
+              ? ui("所有主题都已掌握，可以提前巩固。")
+              : ui("添加讲义或笔记，生成题组后这里会给出学习路径。")}
           </p>
           {plan.also.length > 0 && (
             <p className="desk-also">
@@ -585,16 +608,15 @@ export default function StudyMap({
               ))}
             </p>
           )}
-          {runs.filter((r) => r !== todayRun).length > 0 && (
+          {otherRuns.length > 0 && (
             <details className="resume-list">
-              <summary>另有 {runs.filter((r) => r !== todayRun).length} 组练习未完成</summary>
-              {runs
-                .filter((r) => r !== todayRun)
+              <summary>{ui("另有 ")}{otherRuns.length}{ui(" 组练习未完成")}</summary>
+              {otherRuns
                 .map((r) => (
                   <div className="resume-row" key={r.id}>
                     <button className="resume" disabled={busy} onClick={() => resume(r.id)}>
                       <span>
-                        <span className="eyebrow">继续上次学习</span>
+                        <span className="eyebrow">{otherCourse(r) || ui("继续上次学习")}</span>
                         <strong>{r.title}</strong>
                       </span>
                       <span>
@@ -605,10 +627,8 @@ export default function StudyMap({
                       className="ghost-btn"
                       disabled={busy}
                       onClick={() => endRun(r.id)}
-                      title="结束此轮，保留已答记录"
-                    >
-                      结束
-                    </button>
+                      title={ui("结束此轮，保留已答记录")}
+                    >{ui("结束")}</button>
                   </div>
                 ))}
             </details>
@@ -621,7 +641,7 @@ export default function StudyMap({
               <time>{todayLabel}</time>
             </div>
             {plan.kind === "empty" ? (
-              <p className="today-card-empty">还没有卡片。<br />从一份资料或一组题开始。</p>
+              <p className="today-card-empty">{ui("还没有卡片。")}<br />{ui("从一份资料或一组题开始。")}</p>
             ) : (
               <div className="today-count">
                 <strong>{plan.count}</strong>
@@ -640,17 +660,14 @@ export default function StudyMap({
       </div>
 
       <div className="section-heading map-heading">
-        <h2>
-          学习目录 <span>{data.decks.filter((d) => !d.archived).length}</span>
+        <h2>{ui("学习目录 ")}<span>{data.decks.filter((d) => !d.archived).length}</span>
         </h2>
         <div className="section-heading-actions">
           <button
             disabled={busy}
-            title="用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）"
-            onClick={() => onShowGraph?.([], { canvas: true })}
-          >
-            查看图谱
-          </button>
+            title={ui("用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）")}
+            onClick={() => onShowGraph?.(null, { canvas: true })}
+          >{ui("查看图谱")}</button>
           {/* Housekeeping lives behind one menu so the heading stays quiet. */}
           <span className="map-menu-wrap">
             <button
@@ -659,22 +676,22 @@ export default function StudyMap({
               aria-expanded={menu === "catalog"}
               onClick={() => setMenu(menu === "catalog" ? null : "catalog")}
             >
-              {mergeBusy ? "整理中…" : "整理与添加"}
+              {mergeBusy ? ui("整理中…") : ui("整理与添加")}
             </button>
             {menu === "catalog" && (
               <div className="map-menu" role="menu">
                 {[
-                  data.focus?.course && ["整理题组", async () => {
+                  data.focus?.course != null && [ui("整理题组"), async () => {
                     setMergeBusy(true);
                     setMergeError("");
                     try { setMergeSuggestions(await suggestMerges?.({ course: data.focus.course })); }
                     catch (error) { setMergeError(error.message); }
                     finally { setMergeBusy(false); }
                   }, busy || mergeBusy],
-                  ["＋ 添加资料", addSource, false],
-                  ["手工建卡", createManual, !data.sources.length],
-                  ["导入 JSON 题组", importLibrary, false],
-                  slain && [`斩题组（${slain.count}）`, () => manage(slain.id), busy],
+                  [ui("＋ 添加资料"), addSource, false],
+                  [ui("手工建卡"), createManual, !data.sources.length],
+                  [ui("导入 JSON 题组"), importLibrary, false],
+                  slain && [uiFormat("斩题组（{0}）", [slain.count]), () => manage(slain.id), busy],
                 ].filter(Boolean).map(([label, run, disabled]) => (
                   <button
                     key={label}
@@ -697,15 +714,15 @@ export default function StudyMap({
       {mergeError && <p role="alert">{mergeError}</p>}
       {mergeSuggestions && <div className="merge-suggestions">
         <div className="merge-suggestions-head">
-          <strong>{mergeSuggestions.course} · 合并建议</strong>
-          <button onClick={() => setMergeSuggestions(null)}>关闭</button>
+          <strong>{mergeSuggestions.course}{ui(" · 合并建议")}</strong>
+          <button onClick={() => setMergeSuggestions(null)}>{ui("关闭")}</button>
         </div>
         {!mergeSuggestions.proposals.length && <p className="muted">
-          {mergeSuggestions.method === "unavailable" ? "当前没有可用模型；可以在题组管理中手动合并。" : "没有发现值得合并的题组。"}
+          {mergeSuggestions.method === "unavailable" ? ui("当前没有可用模型；可以在题组管理中手动合并。") : ui("没有发现值得合并的题组。")}
         </p>}
         {mergeSuggestions.proposals.map((item) => <div className="merge-suggestion" key={item.targetId}>
           <div><strong>{item.sourceTitles.join("、")} → {item.targetTitle}</strong>
-            <p>{item.reason} · 合并后共 {item.count} 题，全部题目保留。</p></div>
+            <p>{item.reason}{ui(" · 合并后共 ")}{item.count}{ui(" 题，全部题目保留。")}</p></div>
           <button disabled={busy || mergeBusy} onClick={async () => {
             setMergeBusy(true);
             setMergeError("");
@@ -715,7 +732,7 @@ export default function StudyMap({
                 proposals: current.proposals.filter((proposal) => proposal.targetId !== item.targetId) }));
             } catch (error) { setMergeError(error.message); }
             finally { setMergeBusy(false); }
-          }}>确认合并</button>
+          }}>{ui("确认合并")}</button>
         </div>)}
       </div>}
       {data.decks.length > 0 && (
@@ -723,20 +740,18 @@ export default function StudyMap({
           <div className="map-tools">
             <input
               type="search"
-              aria-label="搜索题组或主题"
+              aria-label={ui("搜索题组或主题")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索题组、目录或主题"
+              placeholder={ui("搜索题组、目录或主题")}
             />
             <button
               className={showArchived ? "chip active" : "chip"}
               aria-pressed={showArchived}
               onClick={() => setShowArchived((v) => !v)}
-            >
-              已归档
-            </button>
+            >{ui("已归档")}</button>
           </div>
-          <div className="map-legend" aria-label="掌握程度图例">
+          <div className="map-legend" aria-label={ui("掌握程度图例")}>
             {BAR_ORDER.map((l) => (
               <span key={l}>
                 <i className={"lv-" + l} />
@@ -770,7 +785,7 @@ export default function StudyMap({
                   </button>
                   <input
                     type="checkbox"
-                    aria-label={`选择目录 ${folder}`}
+                    aria-label={uiFormat("选择目录 {0}", [folder])}
                     checked={decks.every((d) => selected.has(topicKey(d.id)))}
                     onChange={(e) =>
                       toggleSelect(
@@ -782,7 +797,7 @@ export default function StudyMap({
                   <span className="map-folder-icon">▤</span>
                   <button className="map-name" onClick={() => toggleOpen("folder:" + folder)}>
                     <strong>{folder}</strong>
-                    <small>{decks.length} 个题组</small>
+                    <small>{decks.length}{ui(" 个题组")}</small>
                   </button>
                   <MasteryBar
                     node={mergeProgress(decks.map((d) => progress[d.id]).filter(Boolean))}
@@ -795,7 +810,7 @@ export default function StudyMap({
                       <li className="map-more">
                         <button className="show-other-courses" aria-expanded={showAllCurrent}
                           onClick={() => setShowAllCurrent((value) => !value)}>
-                          {showAllCurrent ? "收起，只看最近 3 个题组" : `查看全部题组 · ${decks.length}`}
+                          {showAllCurrent ? ui("收起，只看最近 3 个题组") : uiFormat("查看全部题组 · {0}", [decks.length])}
                         </button>
                       </li>
                     )}
@@ -806,16 +821,16 @@ export default function StudyMap({
           })}
         </ul>
       ) : data.decks.length ? (
-        <p className="muted map-empty">没有符合条件的题组。</p>
+        <p className="muted map-empty">{ui("没有符合条件的题组。")}</p>
       ) : (
         <div className="empty">
           <span className="empty-icon">▧</span>
-          <h2>你的第一组好题，从资料开始</h2>
-          <p>添加讲义或笔记，生成题组后会在这里形成带掌握度的学习目录。</p>
+          <h2>{ui("你的第一组好题，从资料开始")}</h2>
+          <p>{ui("添加讲义或笔记，生成题组后会在这里形成带掌握度的学习目录。")}</p>
         </div>
       )}
       {otherCourseCount > 0 && <button className="show-other-courses"
-        onClick={() => setShowOtherCourses(true)}>查看其他课程 · {otherCourseCount}</button>}
+        onClick={() => setShowOtherCourses(true)}>{ui("查看其他课程 · ")}{otherCourseCount}</button>}
 
       <NotebookDirectory
         notebooks={notebooks}
@@ -829,18 +844,14 @@ export default function StudyMap({
       />
 
       {scope.length > 0 && (
-        <div className="selection-bar" role="region" aria-label="已选内容">
-          <span>
-            已选 {scope.length} 项
-          </span>
-          <button onClick={() => setSelected(new Set())}>清除</button>
+        <div className="selection-bar" role="region" aria-label={ui("已选内容")}>
+          <span>{ui("已选 ")}{scope.length}{ui(" 项")}</span>
+          <button onClick={() => setSelected(new Set())}>{ui("清除")}</button>
           <button
             disabled={busy}
-            title="用整块画布打开所选范围的知识结构图或学习路径图（可缩放、拖拽）"
+            title={ui("用整块画布打开所选范围的知识结构图或学习路径图（可缩放、拖拽）")}
             onClick={() => onShowGraph?.(scopeOf(selected), { canvas: true })}
-          >
-            查看图谱
-          </button>
+          >{ui("查看图谱")}</button>
           <button
             className="primary"
             disabled={busy}
@@ -849,8 +860,8 @@ export default function StudyMap({
             }
           >
             {selectedRun
-              ? `▶ 继续 ${selectedRun.index + 1}/${selectedRun.total}`
-              : "▶ 学习所选内容"}
+              ? uiFormat("▶ 继续 {0}/{1}", [selectedRun.index + 1, selectedRun.total])
+              : ui("▶ 学习所选内容")}
           </button>
         </div>
       )}
@@ -858,10 +869,9 @@ export default function StudyMap({
       {data.drafts.length > 0 && (
         <>
           <div className="section-heading">
-            <h2>
-              待发布 <span>{data.drafts.length}</span>
+            <h2>{ui("待发布 ")}<span>{data.drafts.length}</span>
             </h2>
-            <small>发布时逐题检查；问题题留在草稿</small>
+            <small>{ui("发布时逐题检查；问题题留在草稿")}</small>
           </div>
           {data.drafts.map((d) => {
             const missing = (d.editorial?.requested || 0) - d.cards.length;
@@ -876,75 +886,76 @@ export default function StudyMap({
                 <span>
                   <strong>{d.title}</strong>
                   <small>
-                    {d.cards.length} 道题
-                    {qualityCount ? ` · ${qualityCount} 项质量提醒` : ""}
-                    {rejectedCount ? ` · ${rejectedCount} 题待处理`
-                      : ` · ${reviewed?.unchanged === d.cards.length ? "已复审，待发布" : "待发布检查"}`}
+                    {d.cards.length}{ui(" 道题")}{qualityCount ? uiFormat(" · {0} 项质量提醒", [qualityCount]) : ""}
+                    {rejectedCount ? uiFormat(" · {0} 题待处理", [rejectedCount])
+                      : ` · ${reviewed?.unchanged === d.cards.length ? ui("已复审，待发布") : ui("待发布检查")}`}
                     {Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
-                      ? ` · 生成未完成 ${d.editorial.completedParts}/${d.editorial.parts} 批` : ""}
+                      ? uiFormat(" · 生成未完成 {0}/{1} 批", [d.editorial.completedParts, d.editorial.parts]) : ""}
                   </small>
                 </span>
-                <span>打开 →</span>
+                <span>{ui("打开 →")}</span>
               </button>
               {canContinue && <button type="button" disabled={busy || continuing || !data.modelReady}
-                title={!data.modelReady ? "先在对话输入框或设置中选择生成模型" : "用原资料补齐题目，保留已有草稿"}
-                onClick={() => continueDraft(d)}>{continuing ? "补题中…" : `继续补齐 ${missing} 题`}</button>}
+                title={!data.modelReady ? ui("先在对话输入框或设置中选择生成模型") : ui("用原资料补齐题目，保留已有草稿")}
+                onClick={() => continueDraft(d)}>{continuing ? ui("补题中…") : uiFormat("继续补齐 {0} 题", [missing])}</button>}
             </div>;
           })}
         </>
       )}
       {jobs.length > 0 && (
-        <div className="jobs">
-          {dismissJob && visibleJobs.filter((j) => !isActiveJob(j)).length > 1 && <button type="button" className="link-btn jobs-dismiss-all" disabled={busy} onClick={() => dismissJob()}>全部知道了</button>}
-          {cancelJob && activeJobs.some((j) => ["running", "queued"].includes(j.status)) && <button disabled={busy} onClick={() => cancelJob()}>停止后台任务，保留草稿</button>}
-          {visibleJobs.map((j) => (
-            <div className={"job " + j.status} key={j.id}>
+        <div className="jobs generation-jobs">
+          <div className="jobs-actions">
+          {dismissJob && visibleJobs.filter((j) => !isActiveJob(j)).length > 1 && <button type="button" className="link-btn jobs-dismiss-all" disabled={busy} onClick={() => dismissJob()}>{ui("全部知道了")}</button>}
+          {cancelJob && activeJobs.some((j) => ["running", "queued"].includes(j.status)) && <button disabled={busy} onClick={() => cancelJob()}>{ui("停止后台任务，保留草稿")}</button>}
+          </div>
+          {visibleJobs.map((j) => {
+            const incomplete = !['draft-repair', 'draft-publish'].includes(j.type) && j.status === 'complete' && j.requestedTotal > 0 && (j.savedCount ?? 0) < j.requestedTotal;
+            const supplement = j.type === 'supplement' ? supplementJobLabel(j) : null;
+            return <div className={"job " + (incomplete ? 'partial' : j.status)} key={j.id}>
               <span>
                 {j.status === "running" || j.status === "cancelling" ? "◌"
                   : j.status === "queued" ? "…"
                     : j.status === "failed" ? "!"
-                      : j.status === "partial" ? "◐"
+                      : j.status === "partial" || incomplete ? "◐"
                         : j.status === "cancelled" ? "×" : "✓"}
               </span>
-              <div>
+              <div className="job-content">
                 <strong>
-                  {j.type === "draft-publish"
-                    ? j.status === "queued" ? "发布检查排队中" : j.status === "running" ? "正在检查并发布题组"
-                      : j.status === "failed" ? "发布未完成" : j.rejected
-                        ? j.accepted ? "已发布部分题目" : "题目未通过发布检查" : "题组已发布"
+                  {supplement ? uiFormat(supplement.text, supplement.args || []) : j.type === "draft-publish"
+                    ? j.status === "queued" ? ui("发布检查排队中") : j.status === "running" ? ui("正在检查并发布题组")
+                      : j.status === "failed" ? ui("发布未完成") : j.rejected
+                        ? j.accepted ? ui("已发布部分题目") : ui("题目未通过发布检查") : ui("题组已发布")
                     : j.type === "draft-repair"
-                    ? j.status === "running" ? "后台修题中" : j.status === "queued" ? "修题排队中"
-                      : j.status === "failed" ? j.savedCount ? `修题中断 · ${j.savedCount}/${j.count} 题已修好` : "未修好题目"
-                        : j.status === "partial" ? `部分修好 · ${j.savedCount}/${j.count} 题`
-                        : j.status === "cancelling" ? "正在停止修题"
-                          : j.status === "cancelled" ? "修题已取消" : `全部修好 · ${j.savedCount}/${j.count} 题`
+                    ? j.status === "running" ? ui("后台修题中") : j.status === "queued" ? ui("修题排队中")
+                      : j.status === "failed" ? j.savedCount ? uiFormat("修题中断 · {0}/{1} 题已修好", [j.savedCount, j.count]) : ui("未修好题目")
+                        : j.status === "partial" ? uiFormat("部分修好 · {0}/{1} 题", [j.savedCount, j.count])
+                        : j.status === "cancelling" ? ui("正在停止修题")
+                          : j.status === "cancelled" ? ui("修题已取消") : uiFormat("全部修好 · {0}/{1} 题", [j.savedCount, j.count])
                     : j.status === "running"
-                    ? "正在生成题组"
+                    ? ui("正在生成题组")
                     : j.status === "queued"
-                      ? "排队中"
+                      ? ui("排队中")
                       : j.status === "failed"
-                        ? "生成未完成"
-                        : j.status === "cancelling" ? "正在停止" : j.status === "cancelled" ? "已取消" : "草稿已生成"}
-                  {j.parts > 1 ? ` · 分 ${j.parts} 批` : ""}
+                        ? ui("生成未完成")
+                        : j.status === "cancelling" ? ui("正在停止") : j.status === "cancelled" ? ui("已取消") : incomplete ? uiFormat("草稿待补齐 · {0}/{1} 题", [j.savedCount ?? 0, j.requestedTotal]) : ui("草稿已生成")}
+                  {j.parts > 1 ? uiFormat(" · 分 {0} 批", [j.parts]) : ""}
                 </strong>
                 <small>{generationStage(j.stage)}</small>
                 {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
-                {cancelJob && j.type !== "draft-publish" && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>停止任务，保留草稿</button>}
-                {retryGeneration && !["draft-repair", "draft-publish"].includes(j.type) && ["failed", "cancelled"].includes(j.status) &&
-                  !j.draftId && <button type="button" disabled={busy} onClick={() => retryGeneration(j)}>
-                    按原资料重新设置
-                  </button>}
+                {cancelJob && j.type !== "draft-publish" && ["running", "queued"].includes(j.status) && <button disabled={busy} onClick={() => cancelJob(j.id)}>{ui("停止任务，保留草稿")}</button>}
+                {retryGeneration && !["draft-repair", "draft-publish", "supplement"].includes(j.type) && ["failed", "cancelled"].includes(j.status) &&
+                  !j.draftId && <button type="button" disabled={busy} onClick={() => retryGeneration(j)}>{ui("按原资料重新设置")}</button>}
               </div>
+              <div className="job-actions">
               {j.draftId && data.drafts.some((d) => d.id === j.draftId) && (
-                <button onClick={() => openDraft(data.drafts.find((d) => d.id === j.draftId))}>
-                  打开
-                </button>
+                <button onClick={() => openDraft(data.drafts.find((d) => d.id === j.draftId))}>{ui("打开")}</button>
               )}
               {/* 已知与删除: done with this card; the draft and approved questions stay. */}
               {dismissJob && !isActiveJob(j) && <button type="button" className="job-dismiss" disabled={busy}
-                title={"删除这条任务记录；草稿和已通过的题目会保留"} onClick={() => dismissJob(j.id)}>知道了</button>}
+                title={ui("删除这条任务记录；草稿和已通过的题目会保留")} onClick={() => dismissJob(j.id)}>{ui("知道了")}</button>}
+              </div>
             </div>
-          ))}
+          })}
         </div>
       )}
     </section>
@@ -982,13 +993,13 @@ function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onO
         if (!d.archived && d.due > 0) rows.push({ n, d });
     return rows.sort((a, b) => b.d.due - a.d.due).slice(0, 8);
   }, [list]);
-  if (!notebooks) return <section className="nb-dir" aria-label="全局笔记本目录">
+  if (!notebooks) return <section className="nb-dir" aria-label={ui("全局笔记本目录")}>
     <div className="section-heading map-heading">
-      <h2>全局笔记本</h2>
-      <button type="button" onClick={refresh} disabled={busy}>刷新</button>
+      <h2>{ui("全局笔记本")}</h2>
+      <button type="button" onClick={refresh} disabled={busy}>{ui("刷新")}</button>
     </div>
     <p className={error ? "warning" : "muted"} role="status">
-      {error ? `目录读取失败：${error}` : "正在读取全局笔记本目录…"}
+      {error ? uiFormat("目录读取失败：{0}", [error]) : ui("正在读取全局笔记本目录…")}
     </p>
   </section>;
   const current = list.find((n) => n.current),
@@ -1003,8 +1014,8 @@ function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onO
     });
   const stats = (n) =>
     n.exists
-      ? `${n.deckCount} 个题组${n.dueToday ? ` · ${n.dueToday} 道到期` : ""}`
-      : "学习库目录已不可访问";
+      ? uiFormat("{0} 个题组{1}", [n.deckCount, n.dueToday ? ` · ${n.dueToday} 道到期` : ""])
+      : ui("学习库目录已不可访问");
   const topics = (n) =>
     n.decks
       .filter((d) => !d.archived)
@@ -1029,53 +1040,46 @@ function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onO
     }
   };
   return (
-    <section className="nb-dir" aria-label="全局笔记本目录">
+    <section className="nb-dir" aria-label={ui("全局笔记本目录")}>
       <div className="section-heading map-heading">
         <h2>
           <button className="map-caret" aria-expanded={open} onClick={toggle}>
             {open ? "▾" : "▸"}
-          </button>{" "}
-          全局笔记本 <span>{published}</span>
+          </button>{" "}{ui("全局笔记本 ")}<span>{published}</span>
         </h2>
         <div className="section-heading-actions">
-          <button onClick={refresh} disabled={busy} title="重新读取全局目录">
-            刷新
-          </button>
+          <button onClick={refresh} disabled={busy} title={ui("重新读取全局目录")}>{ui("刷新")}</button>
           {!error && (current?.publishedAt ? (
-            <button onClick={onUnpublish} disabled={busy}>
-              取消发布
-            </button>
+            <button onClick={onUnpublish} disabled={busy}>{ui("取消发布")}</button>
           ) : (
             <button
               onClick={onPublish}
               disabled={busy}
-              title="把本工作区的学习笔记本登记到 ~/.dsh 全局目录，其他工作区可一键跳转到这里"
-            >
-              发布到全局目录
-            </button>
+              title={ui("把本工作区的学习笔记本登记到 ~/.dsh 全局目录，其他工作区可一键跳转到这里")}
+            >{ui("发布到全局目录")}</button>
           ))}
         </div>
       </div>
-      {error && <p className="warning" role="status">目录读取失败，仍显示上次结果：{error}</p>}
+      {error && <p className="warning" role="status">{ui("目录读取失败，仍显示上次结果：")}{error}</p>}
       {open && (
         <>
           {dueRows.length > 0 && (
             <div className="nb-due">
-              <div className="eyebrow">全局到期 · 跨工作区</div>
+              <div className="eyebrow">{ui("全局到期 · 跨工作区")}</div>
               <ul className="nb-list">
                 {dueRows.map(({ n, d }) => (
                   <li key={n.root + ":" + d.id}>
                     <button
                       className="nb-row due"
                       disabled={busy || !n.exists}
-                      title={n.exists ? `在新对话中打开：${n.workspace}` : n.workspace}
+                      title={n.exists ? uiFormat("在新对话中打开：{0}", [n.workspace]) : n.workspace}
                       onClick={() => onOpen?.(n)}
                     >
                       <span className="nb-main">
                         <strong>{n.title}</strong>
                         <small className="nb-path">{d.title}</small>
                       </span>
-                      <span className="nb-stats">{d.due} 道到期</span>
+                      <span className="nb-stats">{d.due}{ui(" 道到期")}</span>
                       <span className="nb-go" aria-hidden="true">
                         →
                       </span>
@@ -1088,17 +1092,17 @@ function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onO
           <form className="nb-search" onSubmit={runSearch}>
             <input
               type="search"
-              aria-label="跨笔记本搜索"
-              placeholder="跨笔记本搜索题组、主题或题目…"
+              aria-label={ui("跨笔记本搜索")}
+              placeholder={ui("跨笔记本搜索题组、主题或题目…")}
               value={query}
               maxLength={100}
               onChange={(e) => setQuery(e.target.value)}
             />
             <button disabled={searching || !query.trim() || !onSearch}>
-              {searching ? "搜索中…" : "搜索"}
+              {searching ? ui("搜索中…") : ui("搜索")}
             </button>
           </form>
-          {searchError && <p className="warning" role="status">搜索失败：{searchError}</p>}
+          {searchError && <p className="warning" role="status">{ui("搜索失败：")}{searchError}</p>}
           {results &&
             (results.items?.length ? (
               <ul className="nb-list nb-results">
@@ -1126,13 +1130,13 @@ function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onO
                 ))}
               </ul>
             ) : (
-              !searching && <p className="muted nb-empty">没有匹配的内容。</p>
+              !searching && <p className="muted nb-empty">{ui("没有匹配的内容。")}</p>
             ))}
           {list.length ? (
             <ul className="nb-list">
               {current?.publishedAt && (
                 <li className="nb-row current" title={current.workspace}>
-                  <span className="nb-chip">本工作区</span>
+                  <span className="nb-chip">{ui("本工作区")}</span>
                   <span className="nb-main">
                     <strong>{current.title}</strong>
                     <small>{topics(current) || stats(current)}</small>
@@ -1145,7 +1149,7 @@ function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onO
                   <button
                     className={"nb-row" + (n.exists ? "" : " missing")}
                     disabled={busy || !n.exists || !onOpen}
-                    title={n.exists ? `在新对话中打开：${n.workspace}` : n.workspace}
+                    title={n.exists ? uiFormat("在新对话中打开：{0}", [n.workspace]) : n.workspace}
                     onClick={() => onOpen?.(n)}
                   >
                     <span className="nb-main">
@@ -1161,9 +1165,7 @@ function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onO
               ))}
             </ul>
           ) : (
-            <p className="muted nb-empty">
-              还没有发布的笔记本。在某个工作区的学习库点「发布到全局目录」后，可以在这里跨工作区跳转：点击会新建该工作区的对话。
-            </p>
+            <p className="muted nb-empty">{ui("还没有发布的笔记本。在某个工作区的学习库点「发布到全局目录」后，可以在这里跨工作区跳转：点击会新建该工作区的对话。")}</p>
           )}
         </>
       )}

@@ -12,7 +12,7 @@
   letter-spacing: .17em;
   text-transform: uppercase;
 }
-.result-page .result-title { margin: 10px 0 6px; font-size: clamp(30px, 4vw, 43px); }
+.result-page .result-title { margin: 10px 0 6px; font-size: clamp(30px, 4cqi, 43px); }
 .result-page .result-subtitle { margin: 0 0 26px; color: var(--text-muted, #aeb8c5); }
 .result-hero {
   display: grid;
@@ -24,7 +24,7 @@
   border-radius: 24px;
   background: radial-gradient(circle at 0 0, color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%), var(--bg-surface);
 }
-.result-headline strong { display: block; font-size: clamp(52px, 8vw, 78px); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.06em; }
+.result-headline strong { display: block; font-size: clamp(52px, 8cqi, 78px); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.06em; }
 .result-headline span { display: block; margin-top: 10px; color: var(--text-muted, #aeb8c5); font-size: 15px; }
 .result-headline small { display: block; margin-top: 8px; color: var(--text-muted, #aeb8c5); }
 .result-breakdown { min-width: 0; }
@@ -53,7 +53,7 @@
 .exam-report .result-weak .muted { margin: 0; }
 .exam-report .result-weak button { margin-top: 16px; }
 .result-note-badge { font-size: 15px; text-decoration: none; }
-@media (max-width: 640px) {
+@container study (max-width: 640px) {
   .session-summary.result-page { margin-top: 28px; padding: 0 14px; }
   .result-hero { grid-template-columns: 1fr; padding: 22px; gap: 24px; }
 }

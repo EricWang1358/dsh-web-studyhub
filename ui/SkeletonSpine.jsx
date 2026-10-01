@@ -1,3 +1,4 @@
+import { ui, uiFormat } from "./i18n.js";
 import React, { useMemo, useRef } from "react";
 import { skeletonSpine } from "./skeleton-spine.js";
 
@@ -14,12 +15,10 @@ function Branch({ items, onPractice }) {
             <strong>{item.term}</strong>
             {item.meaning && <span className="spine-meaning">{item.meaning}</span>}
             {item.contrasts.length > 0 && (
-              <span className="spine-contrast">对比 · {item.contrasts.join("、")}</span>
+              <span className="spine-contrast">{ui("对比 · ")}{item.contrasts.join("、")}</span>
             )}
             {onPractice && item.subtreeCards.length > 0 && (
-              <button type="button" className="link-btn spine-practice" onClick={() => onPractice(item.subtreeCards)}>
-                练 {item.subtreeCards.length} 题
-              </button>
+              <button type="button" className="link-btn spine-practice" onClick={() => onPractice(item.subtreeCards)}>{ui("练 ")}{item.subtreeCards.length}{ui(" 题")}</button>
             )}
           </div>
           <Branch items={item.children} onPractice={onPractice} />
@@ -43,15 +42,14 @@ export default function SkeletonSpine({ skeleton, onPractice }) {
   };
   if (!stations.length) return null;
   return (
-    <section className="spine" aria-label={`学习脉络：${skeleton.title}`}>
+    <section className="spine" aria-label={uiFormat("学习脉络：{0}", [skeleton.title])}>
       <div className="spine-head">
         <span>
-          {stations.length} 站 · {points} 个要点
-        </span>
+          {stations.length}{ui(" 站 · ")}{points}{ui(" 个要点")}</span>
         {stations.length > 3 && (
           <span className="spine-steps">
-            <button type="button" aria-label="上一站" onClick={() => step(-1)}>←</button>
-            <button type="button" aria-label="下一站" onClick={() => step(1)}>→</button>
+            <button type="button" aria-label={ui("上一站")} onClick={() => step(-1)}>←</button>
+            <button type="button" aria-label={ui("下一站")} onClick={() => step(1)}>→</button>
           </span>
         )}
       </div>
@@ -75,9 +73,7 @@ export default function SkeletonSpine({ skeleton, onPractice }) {
                   <h4>{station.term}</h4>
                   {station.meaning && <p>{station.meaning}</p>}
                   {onPractice && station.subtreeCards.length > 0 && (
-                    <button type="button" className="link-btn spine-practice" onClick={() => onPractice(station.subtreeCards)}>
-                      学这一站 · {station.subtreeCards.length} 题 →
-                    </button>
+                    <button type="button" className="link-btn spine-practice" onClick={() => onPractice(station.subtreeCards)}>{ui("学这一站 · ")}{station.subtreeCards.length}{ui(" 题 →")}</button>
                   )}
                 </div>
               </div>

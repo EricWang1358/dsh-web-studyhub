@@ -4,6 +4,7 @@ import { resolve, isAbsolute } from "node:path";
 import { randomBytes } from "node:crypto";
 import { StudyService } from "../lib/service.js";
 import { boardAction } from "../lib/board.js";
+import { resolveAudioImportPaths, scanAudioFiles } from "../lib/audio-files.js";
 import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import { createFakeModel } from "./fake-model.mjs";
 import {
@@ -101,6 +102,8 @@ const server = createServer(async (req, res) => {
         value = previewView();
       else if (action.startsWith("board."))
         value = await boardAction(action, args, workspaceRoot);
+      else if (action === "audio.files")
+        value = await scanAudioFiles(workspaceRoot, args);
       else if (action.startsWith("notebook.")) {
         // Mirror the host handler so the preview exercises the same actions.
         const root = previewView().root;
@@ -120,7 +123,7 @@ const server = createServer(async (req, res) => {
       } else
         value = await new StudyService(previewView().root, { complete: complete || fake, completeLight: fake || undefined, coach: true }).call(
           action,
-          args,
+          action === "audio.import" ? resolveAudioImportPaths(workspaceRoot, args) : args,
         );
       res
         .writeHead(200, {

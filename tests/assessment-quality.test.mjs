@@ -1,68 +1,174 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateDeck } from "../lib/generation.js";
+import { generateDeck, salvageAuthoredCards, parseJson } from "../lib/generation.js";
+import { generateBatched } from "../lib/batch.js";
 import { publicCard } from "../lib/domain.js";
 import { authored, qualityPlan, qualityReview } from "./helpers/assessment.mjs";
-import { reviewIssues, explanationIssues } from "../lib/assessment-quality.js";
+import { reviewIssues, explanationIssues, answerLeakIssues, planIssues, learnerContextIssues } from "../lib/assessment-quality.js";
 import { reviewedCardFingerprint } from "../lib/review-integrity.js";
 
 const source = { id: "s", title: "Course notes", text: "Architecture includes the principles guiding a system's design and evolution." };
+test('model JSON control-character repair preserves strings and rejects unrelated corruption', () => {
+  const controls = Array.from({ length: 32 }, (_, n) => String.fromCharCode(n)).join('');
+  const value = { answer: 'Quoted "[text]" and path C:\\notes\\n', detail: controls };
+  const valid = JSON.stringify(value);
+  assert.deepEqual(parseJson(valid), value);
+  const malformed = valid.replace(JSON.stringify(controls), '"' + controls + '"');
+  assert.deepEqual(parseJson(malformed), value);
+  assert.deepEqual(parseJson('Result:\n```json\n' + malformed + '\n```\nEnd.'), value);
+  assert.deepEqual(parseJson('{\n"answer":"A\r\nB\tC"\n}'), { answer: 'A\r\nB\tC' });
+  for (const broken of ['{"answer":"Unclosed\n', '{"answer":"A\\qB\n"}', '{"answer":"A\\\nB"}', '{"answer":"A\nB",}'])
+    assert.throws(() => parseJson(broken), SyntaxError);
+});
 const request = { count: 1, kind: "flashcard", sources: [source] };
 const card = { id: "q", kind: "flashcard", topic: "Architecture decisions", objective: "Recognize the role of architectural constraints",
   prompt: "Why does architecture contain principles guiding design and evolution?", answer: "Principles guide subsequent design choices and changes.",
   hint: "Compare a current-state description with a constraint on permitted changes.", explanation: "The quoted definition explicitly includes principles governing design and evolution.", misconception: "Architecture only describes current components.", citations: [{ sourceId: "s", quote: source.text }] };
 const candidate = () => ({ title: "Architecture", cards: [structuredClone(card)] });
 
-test("a card that still fails after one repair round is dropped, and the rest is kept", async () => {
-  const draft = candidate();
-  draft.cards.push({ ...structuredClone(card), id: "q2", prompt: "What governs later system changes?", objective: "Identify constraints on evolution" });
-  const req = { ...request, count: 2, allowPartial: true };
-  const failed = qualityReview(draft, []);
-  failed.checks[1].answerLeak = "fail";
-  failed.checks[1].explanation = "q2 leaks its requested answer.";
-  // The repair and the retained subset both receive independent reviews.
-  const responses = [qualityPlan(req), authored(draft), failed, { deck: { cards: [draft.cards[1]] }, checks: [failed.checks[1]] }, failed, qualityReview({ cards: [draft.cards[0]] })];
-  const phases = [];
-  const result = await generateDeck(async () => JSON.stringify(responses.shift()), req, (stage) => phases.push(stage));
-  assert.equal(responses.length, 0, "repair and retained-subset reviews were consumed");
-  assert.equal(result.cards.length, 1, "only the sound card survives");
-  assert.equal(result.cards[0].prompt, card.prompt);
-  assert.equal(result.editorial.dropped, 1);
-  assert.equal(result.editorial.audit.checks.length, 1);
-  assert.equal(result.editorial.audit.checks[0].cardId, result.cards[0].id);
-  assert.ok(phases.some((stage) => /Dropping 1 question/.test(stage)));
-});
-
-test("only the flagged card is re-sent for repair, so a round cannot grow the payload", async () => {
-  const draft = candidate();
-  draft.cards.push({ ...structuredClone(card), id: "q2", prompt: "What governs later system changes?", objective: "Identify constraints on evolution" });
-  const req = { ...request, count: 2, allowPartial: true };
-  const failed = qualityReview(draft, []);
-  failed.checks[1].answerLeak = "fail";
-  failed.checks[1].explanation = "q2 leaks its requested answer.";
-  const repairedCard = { ...structuredClone(draft.cards[1]), prompt: "Which recorded rule constrains later changes?" };
-  const prompts = [];
-  const responses = [qualityPlan(req), authored(draft), failed,
-    { deck: { cards: [repairedCard] }, checks: [{ ...failed.checks[1], answerLeak: "pass", explanation: "The stem no longer names the answer." }] }, qualityReview({ cards: [draft.cards[0], repairedCard] })];
-  const result = await generateDeck(async (_system, prompt) => { prompts.push(prompt); return JSON.stringify(responses.shift()); }, req);
-  const repairPrompt = prompts.at(-2);
-  assert.match(repairPrompt, /Repair ONLY the questions in repair\[\]/);
-  assert.ok(repairPrompt.includes("q2"), "the flagged card travels");
-  assert.ok(!repairPrompt.includes(card.prompt), "the sound card does not");
-  assert.equal(result.cards.length, 2, "the repaired card rejoins the deck");
-  assert.ok(result.cards.some((c) => c.prompt === repairedCard.prompt));
-  assert.equal(result.editorial.dropped, undefined);
-});
-
-test("an unusable review is asked again instead of failing the batch", async () => {
+test('one independent review keeps approved questions without repair or a second audit', async () => {
   const deck = candidate();
-  const systems = [];
-  const responses = [qualityPlan(request), authored(deck), { issues: ["empty"] }, qualityReview(deck)];
-  const result = await generateDeck(async (system) => { systems.push(system); return JSON.stringify(responses.shift()); }, request);
-  assert.equal(responses.length, 0);
+  deck.cards.push({ ...structuredClone(card), id: 'bad', prompt: 'Another question?', objective: 'Another target' });
+  const req = { ...request, count: 2 }, review = qualityReview(deck);
+  review.checks[1].answerLeak = 'fail';
+  review.summary = 'The second card leaks its answer.';
+  const replies = [qualityPlan(req), authored(deck), review], systems = [];
+  const result = await generateDeck(async system => {
+    systems.push(system);
+    assert.ok(replies.length, 'must not launch another repair/audit');
+    return JSON.stringify(replies.shift());
+  }, req);
   assert.equal(result.cards.length, 1);
-  assert.equal(result.editorial.repaired, false, "a protocol hiccup is not a content repair");
-  assert.match(systems.at(-1), /^Act as a strict assessment editor/);
+  assert.equal(systems.filter(system => system.startsWith('Act as a strict')).length, 1);
+  assert.equal(result.editorial.reviewRounds, 1);
+  assert.doesNotMatch(result.editorial.summary, /second card leaks/);
+  assert.match(JSON.stringify(result.editorial.omittedIssues), /answerLeak/);
+});
+
+test('a requested-kind mismatch costs only that candidate instead of the approved batch', async () => {
+  const deck = candidate();
+  const quiz = { ...structuredClone(card), id: 'wrong-kind', kind: 'quiz', prompt: 'A different target?', objective: 'Different target',
+    options: ['a', 'b', 'c'].map(id => ({ id, text: `Option ${id}`, correct: id === 'a', explanation: `Why ${id}` })) };
+  deck.cards.push(quiz);
+  const req = { ...request, count: 2 }, replies = [qualityPlan(req), authored(deck), qualityReview(deck)];
+  const result = await generateDeck(async () => JSON.stringify(replies.shift()), req);
+  assert.equal(result.cards.length, 1);
+  assert.equal(result.cards[0].kind, 'flashcard');
+  assert.equal(result.editorial.dropped, 1);
+});
+
+test('questions cannot depend on remembering unseen lecture notes', () => {
+  for (const prompt of [
+    '这份口述笔记把建筑的电气图、管道图对应到 IT 的哪些视角？「蓝图」被界定为什么样的表达？',
+    '根据课堂笔记，老师列举了哪三项？',
+    'What does this lecture transcript call a blueprint?',
+  ]) assert.match(learnerContextIssues({ cards: [{ ...card, prompt }] }).join(), /unavailable.*(?:notes|source)/);
+  for (const prompt of ['IT 架构蓝图有什么作用？', '为什么同一个系统需要多个架构视角？', 'What is the role of an architectural blueprint?'])
+    assert.deepEqual(learnerContextIssues({ cards: [{ ...card, prompt }] }), []);
+});
+
+test('an empty notes-dependent stem is rejected even when the model reviewer marks it passed', async () => {
+  const bad = candidate();
+  bad.cards[0].prompt = '这份口述笔记把建筑的电气图、管道图对应到 IT 的哪些视角？';
+  await assert.rejects(generateDeck(async (system, prompt) => {
+    if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(request));
+    if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(authored(bad));
+  }, request), /Quality gate failed.*unavailable lecture notes/);
+});
+
+test('single-round approved cards checkpoint with stable identities and rejection reasons', async () => {
+ const deck=candidate(); deck.cards.push({...structuredClone(card),id:'bad',prompt:'Another question?',objective:'Another target'});
+ const req={...request,count:2,title:'One requested deck'}, failed=qualityReview(deck);failed.checks[1].answerLeak='fail';
+ const replies=[qualityPlan(req),authored(deck),failed],saved=[];
+ const result=await generateBatched(async()=>{assert.ok(replies.length);return JSON.stringify(replies.shift());},req,()=>{},async value=>saved.push(structuredClone(value)));
+ assert.equal(result.cards.length,1);assert.equal(result.cards[0].id,saved[0].cards[0].id);assert.equal(result.title,req.title);
+ assert.match(result.editorial.failures.join(),/answerLeak/);
+ assert.equal(result.editorial.reviewedCards[result.cards[0].id],reviewedCardFingerprint(result.cards[0]));
+});
+
+test('malformed author arrays salvage only complete objects and still require independent review', async () => {
+  const good = JSON.stringify(card);
+  const malformed = `{"deck":{"cards":[${good},{"kind":"flashcard","prompt":"broken" "answer":"bad"},{"kind":`;
+  assert.deepEqual(salvageAuthoredCards(malformed).deck.cards, [card]);
+  assert.equal(salvageAuthoredCards('{"checks":[{"cardId":"q"}]}'), null);
+  const req = { ...request, count: 2 };
+  const responses = [JSON.stringify(qualityPlan(req)), malformed, JSON.stringify(qualityReview(candidate()))];
+  const result = await generateDeck(async () => responses.shift(), req);
+  assert.equal(result.cards.length, 1);
+  assert.equal(responses.length, 0);
+  assert.equal(result.editorial.audit.checks.length, 1);
+});
+
+test('salvaged author objects retain literal control characters without losing sound cards', () => {
+  const good = { ...card, explanation: card.explanation + '\nA second line.' };
+  const text = JSON.stringify(good).replace('\\n', '\n');
+  const broken = `{"deck":{"cards":[${text},{"kind":"flashcard","prompt":"unfinished`;
+  assert.deepEqual(salvageAuthoredCards(broken)?.deck.cards, [good]);
+});
+
+test('local leakage checks normalise punctuation without claiming synonym detection', () => {
+  const deck = { cards: [{ ...card, answer: '技术用例与业务用例', topic: '选择依据：技术用例 / 与业务用例', hint: '想想系统的边界' }] };
+  assert.match(answerLeakIssues(deck).join(), /answerLeak in topic/);
+  deck.cards[0].topic = '参考架构选择'; deck.cards[0].hint = '技术用例与业务用例';
+  assert.match(answerLeakIssues(deck).join(), /answerLeak in hint/);
+  deck.cards[0].hint = '想想系统的边界';
+  assert.deepEqual(answerLeakIssues(deck), []);
+});
+
+test('planning rejects impossible list discrimination but permits scoped foundational recall', () => {
+  const plan = qualityPlan(request);
+  plan.targets[0].answerability = { mode: 'discrimination', requiredContextAvailable: true, answerOnlyInSourceList: true, criteriaWouldRevealAnswer: true };
+  assert.match(planIssues(plan, request).join(), /infeasible/);
+  plan.targets[0].answerability.mode = 'recall';
+  assert.deepEqual(planIssues(plan, request), []);
+  delete plan.targets[0].answerability;
+  assert.match(planIssues(plan, request).join(), /infeasible/);
+});
+
+test('total-budget cancellation retains the saved single-round approved subset', async () => {
+ const req={...request,count:6},controller=new AbortController(),saved=[];
+ const result=generateBatched(async(system,prompt)=>{
+  if(system.startsWith('Plan')) return JSON.stringify(qualityPlan(req));
+  if(system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+  const n=JSON.parse(prompt.split('REQUEST DATA:\n')[1]).count;
+  if(n===1) return new Promise((resolve,reject)=>controller.signal.addEventListener('abort',()=>reject(controller.signal.reason),{once:true}));
+  return JSON.stringify(authored({title:'Architecture',cards:Array.from({length:n},(_,i)=>({...structuredClone(card),id:'q'+i,prompt:'Distinct question '+i,objective:'Distinct target '+i}))}));
+ },{...req,signal:controller.signal},()=>{},async value=>{saved.push(structuredClone(value));controller.abort(new Error('total budget reached'));});
+ await assert.rejects(result,/total budget reached/);assert.equal(saved.at(-1).cards.length,5);
+});
+
+test('card-number findings reject only their assigned candidate in the single review', async () => {
+ const deck=candidate();deck.cards.push({...structuredClone(card),id:'q2',prompt:'Another question?',objective:'Another target'});
+ const req={...request,count:2},review=qualityReview(deck,['Card 2: leaks the answer']);
+ const replies=[qualityPlan(req),authored(deck),review];
+ const result=await generateDeck(async()=>JSON.stringify(replies.shift()),req);
+ assert.equal(result.cards.length,1);assert.equal(result.cards[0].prompt,card.prompt);assert.equal(replies.length,0);
+});
+
+test('a failed card is dropped after the single audit while approved cards are kept',async()=>{
+ const deck=candidate();deck.cards.push({...structuredClone(card),id:'q2',prompt:'Another question?',objective:'Another target'});
+ const req={...request,count:2},review=qualityReview(deck);review.checks[1].answerLeak='fail';
+ const replies=[qualityPlan(req),authored(deck),review],phases=[];
+ const result=await generateDeck(async()=>JSON.stringify(replies.shift()),req,stage=>phases.push(stage));
+ assert.equal(replies.length,0);assert.equal(result.cards.length,1);assert.equal(result.editorial.dropped,1);
+ assert.equal(result.editorial.audit.checks[0].cardId,result.cards[0].id);assert.ok(phases.some(s=>/Dropping 1/.test(s)));
+});
+
+test('a partial author response finishes after one audit without filling missing candidates',async()=>{
+ const req={...request,count:2},replies=[qualityPlan(req),authored(candidate()),qualityReview(candidate())];
+ const result=await generateDeck(async()=>{assert.ok(replies.length);return JSON.stringify(replies.shift());},req);
+ assert.equal(result.cards.length,1);assert.equal(result.editorial.reviewRounds,1);assert.equal(replies.length,0);
+});
+
+test('an unusable single-round review is a protocol failure without extra model calls',async()=>{
+ const badId=qualityReview(candidate());badId.checks[0].cardId='unknown';
+ const missing=qualityReview(candidate());delete missing.checks[0].sourceSupport;
+ for(const bad of [{issues:[]},badId,missing,'{"issues":']){
+  const replies=[qualityPlan(request),authored(candidate()),bad];
+  await assert.rejects(generateDeck(async()=>{assert.ok(replies.length);const value=replies.shift();return typeof value==='string'?value:JSON.stringify(value);},request),/Review (?:JSON )?protocol failed/);
+  assert.equal(replies.length,0);
+ }
 });
 
 test("authoring and self-improvement happen in one call before an independent review", async () => {
@@ -119,14 +225,10 @@ test("an empty issues list cannot approve missing or failed per-card checks", ()
   assert.match(reviewIssues(qualityReview(candidate()), choice).join(), /optionQuality/);
 });
 
-test("leakage that survives its repair round costs that card; a whole batch of them fails", async () => {
-  const deck = candidate(), failed = qualityReview(deck);
-  failed.checks[0].answerLeak = "fail";
-  failed.checks[0].explanation = "The stem supplies the requested principles and their effect.";
-  const responses = [qualityPlan(request), authored(deck), failed, { deck: { cards: deck.cards }, checks: failed.checks }, failed];
-  // The only card is still flagged, so nothing is left to keep.
-  await assert.rejects(generateDeck(async () => JSON.stringify(responses.shift()), request), /Quality gate failed.*answerLeak/);
-  assert.equal(responses.length, 0);
+test('a batch with no independently approved candidates fails without repair',async()=>{
+ const review=qualityReview(candidate());review.checks[0].answerLeak='fail';
+ const replies=[qualityPlan(request),authored(candidate()),review];
+ await assert.rejects(generateDeck(async()=>JSON.stringify(replies.shift()),request),/Quality gate failed.*answerLeak/);assert.equal(replies.length,0);
 });
 
 test("invisible slide dependency remains blocked even when all model checks claim pass", async () => {
@@ -151,27 +253,20 @@ test("an independent explanation-quality failure cannot be ignored", () => {
   assert.match(reviewIssues(review, candidate()).join(), /explanationQuality/);
 });
 
-test("a retained subset cannot bypass its independent review", async () => {
-  const deck = candidate();
-  deck.cards.push({ ...structuredClone(card), id: "q2", prompt: "What governs later changes?", objective: "Identify constraints" });
-  const req = { ...request, count: 2 };
-  const failed = qualityReview(deck);
-  failed.checks[1].explanationQuality = "fail";
-  const retained = qualityReview({ cards: [deck.cards[0]] }, ["Remaining answer is unsupported"]);
-  const responses = [qualityPlan(req), authored(deck), failed, authored(deck), failed, retained];
-  await assert.rejects(generateDeck(async () => JSON.stringify(responses.shift()), req), /Quality gate failed for retained questions.*unsupported/);
-  assert.equal(responses.length, 0);
+test('approved cards retain receipts when another candidate fails its one review',async()=>{
+ const deck=candidate();deck.cards.push({...structuredClone(card),id:'q2',prompt:'Another question?',objective:'Another target'});
+ const req={...request,count:2},review=qualityReview(deck);review.checks[1].explanationQuality='fail';
+ const replies=[qualityPlan(req),authored(deck),review];
+ const result=await generateDeck(async()=>JSON.stringify(replies.shift()),req);
+ assert.equal(result.cards.length,1);assert.equal(result.editorial.reviewedCards[result.cards[0].id],reviewedCardFingerprint(result.cards[0]));assert.equal(replies.length,0);
 });
 
-test("a repairer's self approval cannot replace an independent acceptance of the repaired text", async () => {
-  const deck = candidate(), failed = qualityReview(deck);
-  failed.checks[0].learningValue = "fail";
-  const systems = [];
-  const responses = [qualityPlan(request), authored(deck), failed, authored(deck), failed];
-  await assert.rejects(generateDeck(async (system) => { systems.push(system); return JSON.stringify(responses.shift()); }, request), /Quality gate failed/);
-  assert.equal(systems.filter(s => s.startsWith("Act as a strict assessment editor")).length, 2);
+test('author self approval cannot replace the single independent acceptance',async()=>{
+ const review=qualityReview(candidate());review.checks[0].learningValue='fail';const systems=[];
+ const replies=[qualityPlan(request),authored(candidate()),review];
+ await assert.rejects(generateDeck(async system=>{systems.push(system);return JSON.stringify(replies.shift());},request),/Quality gate failed/);
+ assert.equal(systems.filter(s=>s.startsWith('Act as a strict')).length,1);assert.equal(replies.length,0);
 });
-
 
 test("answer restatements are rejected locally even if the editor approves", async () => {
   const deck = candidate();

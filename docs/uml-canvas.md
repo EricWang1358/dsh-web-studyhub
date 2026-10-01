@@ -1,5 +1,7 @@
 # UML canvas changes and verification
 
+2026-09-27 planning note: the current canvas is a reading/navigation capability. The proposed active-retrieval workflow below is not implemented; historical browser measurements in this document do not validate it.
+
 The knowledge-skeleton UML canvas uses native HTML/SVG geometry, not Mermaid.
 
 ## Reading and navigation
@@ -33,3 +35,9 @@ Screenshots and browser check receipts are under `output/playwright/` and `outpu
 ## Limits
 
 Dense cyclic networks can still have crossing edges; this is deterministic hierarchical layout, not a crossing-free graph solver. At fit-all scale, large diagrams are overviews; use zoom, component selection or search to read individual concepts. Loading/service errors remain handled by the existing parent Skeleton screen.
+
+## Planned active retrieval
+
+The system-learning plan adds concept references independent of card references, so a required concept with no question remains visible. It reuses local focus and sequence views for hidden-node/relationship completion, ordering, fault tracing and reconstruction from a concrete case. Reading a graph or clicking a node does not create mastery evidence.
+Assessment views must track prior answer exposure across the panel and conversation, support keyboard/text input, and credit only the objective actually checked. Existing per-skeleton size limits must not truncate the curriculum coverage denominator; large courses use multiple local views over one curriculum.
+See [R11 and U7 in the development plan](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) and [the proposed learner workflow](study-workflows.md#proposed-system-learning). New browser verification belongs to U7/U9, separately from the historical receipts above.

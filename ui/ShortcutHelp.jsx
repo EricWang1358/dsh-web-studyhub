@@ -1,3 +1,4 @@
+import { ui } from "./i18n.js";
 import React from "react";
 
 /* 快捷键速查（按 ? 打开）。只列当前页面用得上的，避免一屏说明书。 */
@@ -19,12 +20,10 @@ const EVERYWHERE = [
 ];
 
 export default function ShortcutHelp({ page, onClose }) {
-  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...EVERYWHERE, ["A", "自动驾驶 开/关"]];
+  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...EVERYWHERE, ["A", ui("自动驾驶 开/关")]];
   return (
-    <div className="shortcut-sheet" role="dialog" aria-label="快捷键">
-      <h3>
-        快捷键
-        <button className="coach-chip" onClick={onClose} aria-label="关闭快捷键">
+    <div className="shortcut-sheet" role="dialog" aria-label={ui("快捷键")}>
+      <h3>{ui("快捷键")}<button className="coach-chip" onClick={onClose} aria-label={ui("关闭快捷键")}>
           Esc
         </button>
       </h3>
@@ -36,7 +35,7 @@ export default function ShortcutHelp({ page, onClose }) {
                 <kbd key={x}>{x}</kbd>
               ))}
             </dt>
-            <dd>{v}</dd>
+            <dd>{ui(v)}</dd>
           </React.Fragment>
         ))}
       </dl>

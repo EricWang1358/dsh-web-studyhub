@@ -1,35 +1,90 @@
-import { build } from "esbuild";
-import { mkdir, writeFile } from "node:fs/promises";
-import { hostReact, shimJsxRuntime } from "./host-react.mjs";
-await mkdir("dist", { recursive: true });
-const result = await build({
-  entryPoints: ["ui/host.jsx"],
-  bundle: true,
-  write: false,
-  format: "cjs",
-  platform: "browser",
-  plugins: [hostReact],
-  loader: { ".css": "text" },
-  jsx: "transform",
-  // Minified for load and parse time inside DSH; names kept for readable
-  // stack traces. The standalone preview below stays unminified.
-  minify: true,
-  keepNames: true,
-});
-// DSH supplies React via its classic-module loader; do not bundle a second copy.
-await writeFile(
-  "lib/client.js",
-  `window.__ModuleLoader__.load({id:'@ericwang1358/dsh-daily-flashcard',factory:function(require){var module={exports:{}};var exports=module.exports;\n${result.outputFiles[0].text}\nreturn module.exports;}});\n`,
-);
-await build({
-  entryPoints: ["ui/dev.jsx"],
-  plugins: [shimJsxRuntime],
-  bundle: true,
-  outdir: "dist",
-  entryNames: "app",
-  platform: "browser",
-  format: "iife",
-  loader: { ".css": "css" },
-  minify: false,
-});
-console.log("Built DSH client and standalone preview");
+import { build, transform } from 'esbuild';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { basename, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { hostReact, shimJsxRuntime } from './host-react.mjs';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+const packageId = '@ericwang1358/dsh-daily-flashcard';
+const chunkName = /^client\.[A-Za-z0-9][A-Za-z0-9._-]*\.js$/;
+
+/** Emit real ES module boundaries as DSH's package-local classic factories.
+ * DSH serves sibling client.*.js files and supplies require.async('./client.*.js').
+ * Its require is synchronous, so static dependencies must arrive before the
+ * requested factory materializes. Shared chunks keep React and UI state single.
+ */
+export async function buildHostClient({ outdir = resolve(root, 'lib'), write = true } = {}) {
+  const result = await build({
+    absWorkingDir: root, entryPoints: { client: 'ui/host.jsx' }, outdir,
+    chunkNames: 'client.[name]-[hash]', bundle: true, splitting: true,
+    write: false, metafile: true, format: 'esm', platform: 'browser',
+    plugins: [hostReact], loader: { '.css': 'text' }, jsx: 'transform',
+    minify: true, logLevel: 'silent',
+  });
+  const outputs = new Map(Object.entries(result.metafile.outputs).map(([path, output]) => [basename(path), output]));
+  const staticImports = name => outputs.get(name).imports
+    .filter(edge => !edge.external && edge.kind === 'import-statement').map(edge => basename(edge.path));
+  // Group shared dependencies by depth: unrelated files arrive in parallel,
+  // while a factory's own synchronous imports are already registered.
+  function loadExpression(name) {
+    const levels = new Map();
+    function visit(current, open = new Set()) {
+      if (open.has(current)) throw new Error(`Client static module cycle at ${current}`);
+      const next = new Set([...open, current]);
+      const depth = Math.max(-1, ...staticImports(current).map(dependency => visit(dependency, next))) + 1;
+      levels.set(current, depth); return depth;
+    }
+    visit(name);
+    let expression = 'Promise.resolve()';
+    for (let depth = 0; depth < levels.get(name); depth++) {
+      const names = [...levels].filter(([, value]) => value === depth).map(([file]) => file);
+      expression += `.then(()=>Promise.all([${names.map(file => `require.async(${JSON.stringify(`./${file}`)})`).join(',')}]))`;
+    }
+    return `${expression}.then(()=>require.async(${JSON.stringify(`./${name}`)}))`;
+  }
+  // esbuild emits a side-effect-only import of its shared runtime helpers in
+  // every entry, even this entry which uses none. They have no authored inputs;
+  // their consumers load them through the normal shared dependency graph.
+  for (const dependency of staticImports('client.js')) {
+    if (Object.keys(outputs.get(dependency).inputs).length)
+      throw new Error('Classic entry must expose apply without synchronous chunk imports');
+  }
+  result.outputFiles = await Promise.all(result.outputFiles.map(async file => {
+    const name = basename(file.path);
+    if (name !== 'client.js' && !chunkName.test(name)) throw new Error(`Unsupported DSH chunk name ${name}`);
+    const source = name === 'client.js' ? file.text.replace(/import"\.\/client\.[^"]+\.js";/g, '') : file.text;
+    const compiled = await transform(source, { format: 'cjs', minify: true, platform: 'browser' });
+    const code = compiled.code
+      .replace(/require\("\.\/(client\.[^"]+\.js)"\)/g, (_match, dependency) => `require(${JSON.stringify(`${packageId}/${dependency}`)})`)
+      .replace(/import\("\.\/(client\.[^"]+\.js)"\)/g, (_match, dependency) => loadExpression(dependency));
+    const registration = { id: packageId, ...(name === 'client.js' ? {} : { chunk: name }) };
+    const text = `// Generated by scripts/build.mjs from ui modules.\nwindow.__ModuleLoader__.load({...${JSON.stringify(registration)},factory:function(require){var module={exports:{}};var exports=module.exports;\n${code}\nreturn module.exports;}});\n`;
+    return { path: file.path, text, contents: Buffer.from(text) };
+  }));
+  if (write) {
+    await mkdir(outdir, { recursive: true });
+    // Remove only this build's obsolete hashed modules; backend files share lib.
+    const current = new Set(result.outputFiles.map(file => basename(file.path)));
+    for (const name of await readdir(outdir)) {
+      if (chunkName.test(name) && !current.has(name)) await rm(resolve(outdir, name));
+    }
+    await Promise.all(result.outputFiles.map(file => writeFile(file.path, file.contents)));
+  }
+  return result;
+}
+
+export async function buildPreview({ outdir = resolve(root, 'dist'), write = true } = {}) {
+  // The local preview server exposes app.js/app.css only. Its single IIFE
+  // includes the same authored lazy boundaries without extra HTTP resources.
+  return build({
+    absWorkingDir: root, entryPoints: ['ui/dev.jsx'], plugins: [shimJsxRuntime],
+    bundle: true, outdir, write, entryNames: 'app', platform: 'browser',
+    format: 'iife', loader: { '.css': 'css' }, minify: false,
+  });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  await buildHostClient();
+  await buildPreview();
+  console.log('Built DSH client modules and standalone preview');
+}

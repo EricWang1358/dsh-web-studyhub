@@ -1,0 +1,282 @@
+{
+  "status": "complete",
+  "verdict": "Ready with fixes",
+  "verdict_reason": "The reviewed code, packaging, compatibility, lifecycle, and native-preview work has no surviving implementation defect. The explicit R13/U9 release obligation remains open because GitHub has no v2.0.0-alpha.1 release yet; publish and verify the prerelease after exact-commit CI.",
+  "fix_order": [
+    "#1 Publish v2.0.0-alpha.1 after exact-commit CI, then verify the tag, target commit, seven archives, checksums, and release notes."
+  ],
+  "scope": {
+    "base": "04c1f255130f86cfee3c0507c057768f96f7f9a7",
+    "branch": "codex/studyhub-v2-alpha.1",
+    "head_sha": "04c1f255130f86cfee3c0507c057768f96f7f9a7",
+    "pr_url": null,
+    "files_changed": 83
+  },
+  "intent": "StudyHub 2.0 alpha introduces bounded contexts and independently composable nested plugins while preserving legacy question JSON, progress, unknown fields, and four retained formats. Native preview selection supports grounded ask and reviewed generation into an existing deck with immutable revision evidence, atomic cancellation, durable receipts, and 1:n bidirectional links.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness",
+    "testing",
+    "maintainability",
+    "agent-native",
+    "security",
+    "performance",
+    "api-contract",
+    "reliability",
+    "adversarial",
+    "julik-frontend-races"
+  ],
+  "findings": [
+    {
+      "#": 1,
+      "title": "R13 and U9 still require publication of the alpha prerelease",
+      "severity": "P1",
+      "file": "docs/plans/2026-10-01-studyhub-v2-alpha-plan.md",
+      "line": "60",
+      "confidence": 100,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "After exact-commit CI passes, publish GitHub prerelease v2.0.0-alpha.1 with the tested workbench archive, six independent plugin archives, SHA256SUMS-2.0.0-alpha.1.txt, and release notes; then verify the tag and target commit match the tested revision.",
+      "first_evidence": "R13 requires publishing the test release 2.0.0-alpha.1.",
+      "why_it_matters": "The explicit plan, U9 acceptance criteria, and Definition of Done require an actual GitHub prerelease. Packaging and local verification are complete, but without publication the release cannot be fetched or checked against the tested commit.",
+      "evidence": [
+        "docs/plans/2026-10-01-studyhub-v2-alpha-plan.md:60 requires publishing 2.0.0-alpha.1.",
+        "docs/plans/2026-10-01-studyhub-v2-alpha-plan.md:483 requires verification of the published prerelease, exact commit, installers, assets, and checksums.",
+        "docs/releases/2.0.0-alpha.1-validation.md:60 says the release coordinator will publish after exact-commit CI, so publication is intentionally pending.",
+        "A read-only gh release view v2.0.0-alpha.1 check returned release not found on 2026-09-30 UTC."
+      ],
+      "reviewers": [
+        "requirements-completeness"
+      ],
+      "independent_reviewers": []
+    }
+  ],
+  "actionable_findings": [
+    {
+      "#": 1,
+      "title": "R13 and U9 still require publication of the alpha prerelease",
+      "severity": "P1",
+      "file": "docs/plans/2026-10-01-studyhub-v2-alpha-plan.md",
+      "line": "60",
+      "confidence": 100,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "After exact-commit CI passes, publish GitHub prerelease v2.0.0-alpha.1 with the tested workbench archive, six independent plugin archives, SHA256SUMS-2.0.0-alpha.1.txt, and release notes; then verify the tag and target commit match the tested revision.",
+      "first_evidence": "R13 requires publishing the test release 2.0.0-alpha.1.",
+      "why_it_matters": "The explicit plan, U9 acceptance criteria, and Definition of Done require an actual GitHub prerelease. Packaging and local verification are complete, but without publication the release cannot be fetched or checked against the tested commit.",
+      "evidence": [
+        "docs/plans/2026-10-01-studyhub-v2-alpha-plan.md:60 requires publishing 2.0.0-alpha.1.",
+        "docs/plans/2026-10-01-studyhub-v2-alpha-plan.md:483 requires verification of the published prerelease, exact commit, installers, assets, and checksums.",
+        "docs/releases/2.0.0-alpha.1-validation.md:60 says the release coordinator will publish after exact-commit CI, so publication is intentionally pending.",
+        "A read-only gh release view v2.0.0-alpha.1 check returned release not found on 2026-09-30 UTC."
+      ],
+      "reviewers": [
+        "requirements-completeness"
+      ],
+      "independent_reviewers": []
+    }
+  ],
+  "triage_groups": [],
+  "pre_existing_findings": [],
+  "requirements_completeness": {
+    "plan_path": "docs/plans/2026-10-01-studyhub-v2-alpha-plan.md",
+    "plan_source": "explicit",
+    "requirements": [
+      {
+        "id": "R1",
+        "status": "met",
+        "evidence": "Standalone runtime, materials, bank, study, generation, and audio plugin entries plus workbench composition are present and passed fresh-install composition checks."
+      },
+      {
+        "id": "R2",
+        "status": "met",
+        "evidence": "Versioned context APIs and owned operations are documented and covered by runtime/domain contract tests."
+      },
+      {
+        "id": "R3",
+        "status": "met",
+        "evidence": "External capability, operation, tool, state collection, and disposal paths are covered without central dispatcher or storage field edits."
+      },
+      {
+        "id": "R4",
+        "status": "met",
+        "evidence": "Capability-driven tools/UI, model-optional reads and imports, and owned lifecycle cleanup passed composition and native-host evidence."
+      },
+      {
+        "id": "R5",
+        "status": "met",
+        "evidence": "Legacy libraries, IDs, progress, attempts, schedules, unknown fields, extension collections, and compatibility routes passed the final verification."
+      },
+      {
+        "id": "R6",
+        "status": "met",
+        "evidence": "Missing-field enrichment and legacy normalization preserve user-authored and unknown content while returning unresolved facts explicitly."
+      },
+      {
+        "id": "R7",
+        "status": "met",
+        "evidence": "The complete workbench retained legacy routes and features through named transition adapters; the full 742-test suite passed."
+      },
+      {
+        "id": "R8",
+        "status": "met",
+        "evidence": "JSON remains authoritative; reviewed additions append idempotently to existing decks while preserving existing card IDs, history, and scheduling state."
+      },
+      {
+        "id": "R9",
+        "status": "met",
+        "evidence": "PDF, Markdown, HTML, and TXT retain originals or honest legacy fallbacks and open through the native/companion preview flow."
+      },
+      {
+        "id": "R10",
+        "status": "met",
+        "evidence": "Real DOM/native selection covered grounded ask and reviewed generation, with unavailable or stale selection states surfaced explicitly."
+      },
+      {
+        "id": "R11",
+        "status": "met",
+        "evidence": "Durable 1:n cross-deck card links, current explanations, and both navigation directions passed persistence round-trip evidence."
+      },
+      {
+        "id": "R12",
+        "status": "met",
+        "evidence": "Revision-aware positions distinguish resolved, ambiguous, stale, and unavailable states without silent retargeting."
+      },
+      {
+        "id": "R13",
+        "status": "partially addressed",
+        "evidence": "Two architecture evaluations, implementation, full verification, builds, and seven archives are complete; GitHub prerelease v2.0.0-alpha.1 is not published yet."
+      }
+    ],
+    "implementation_units": [
+      {
+        "id": "U1",
+        "status": "met",
+        "evidence": "Runtime contracts, scoped persistence, unknown-data retention, and lifecycle rollback are implemented and verified."
+      },
+      {
+        "id": "U2",
+        "status": "met",
+        "evidence": "Bank ownership, versioned append, idempotent replay, and compatibility behavior are implemented and verified."
+      },
+      {
+        "id": "U3",
+        "status": "met",
+        "evidence": "Study ownership preserves practice, grading, scheduling, attempt, and no-generation/audio operation."
+      },
+      {
+        "id": "U4",
+        "status": "met",
+        "evidence": "Materials own originals, four format projections, positions, backlinks, legacy fallback, and portable backup behavior."
+      },
+      {
+        "id": "U5",
+        "status": "met",
+        "evidence": "Grounded ask, reviewed generation, atomic existing-deck append, conflict handling, and model-less receipt replay are covered."
+      },
+      {
+        "id": "U6",
+        "status": "met",
+        "evidence": "Independent audio, optional publishing, lifecycle cleanup, Windows replacement recovery, and checkpoint reuse are verified."
+      },
+      {
+        "id": "U7",
+        "status": "met",
+        "evidence": "Native and workbench document learning evidence covers all four formats, focus guards, inert HTML, ask, append, and navigation."
+      },
+      {
+        "id": "U8",
+        "status": "met",
+        "evidence": "Physical-copy composition, tool/capability discovery, transition transport, owner configuration, and disposal are verified."
+      },
+      {
+        "id": "U9",
+        "status": "partially addressed",
+        "evidence": "Architecture/docs, full verification, packaging, fresh installs, and checksum generation are complete; external prerelease publication and exact-commit release verification remain pending."
+      }
+    ],
+    "unrequested_behavior_rules": []
+  },
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [],
+  "testing_gaps": [
+    "No external live model/provider call was exercised; provider integration and paid-provider behavior are not claimed as verified.",
+    "Exact in-flight async navigation timing beyond the focused-target preflight guard was not exercised."
+  ],
+  "coverage": {
+    "depth": "full",
+    "scope_mode": "standalone",
+    "tree_is_reviewed_head": true,
+    "files_changed": 83,
+    "reviewers": {
+      "selected": 10,
+      "failed": [],
+      "bound_exceeded": []
+    },
+    "cross_model": "cross-model pass: not run; the sanctioned Claude route could not start because the bundled launcher found no working Python 3 interpreter on PATH, so the required adversarial lens ran in-process",
+    "validator": {
+      "outcome": "empty-batch",
+      "reason": "No surviving primary finding was selected after Stage 5 current-source admission.",
+      "selected": 0,
+      "confirmed": 0,
+      "rejected": 0,
+      "unresolved": 0,
+      "malformed": 0,
+      "failed": 0,
+      "shortcut_skipped": 0,
+      "post_batch_plan_findings": 1,
+      "post_batch_note": "The R13/U9 publication finding was created by the required Stage 6 explicit-plan completeness check and grounded by a direct read-only GitHub release lookup; it was not part of the empty validator batch."
+    },
+    "synthesis": {
+      "initial_candidates": 3,
+      "source_rejected": 2,
+      "superseded_by_parent_fix": 1,
+      "suppressed_by_confidence": {},
+      "malformed_findings": 0,
+      "malformed_returns": 0,
+      "first_evidence_backfilled": 3,
+      "quote_demoted": 0,
+      "mode_aware_demotions": 0,
+      "settlement_discards": 0
+    },
+    "standards": "No scoped project coding-standards file was present, so no project-standards reviewer ran.",
+    "compound_packs": {
+      "roots": [],
+      "warnings": [],
+      "errors": []
+    },
+    "verification": [
+      "Final frozen-tree verification supplied by the implementation coordinator: npm run verify passed 742/742 with 0 failed, cancelled, or skipped; lint, main client, standalone build, static demo build, seven fresh-install archives, and physical-copy composition passed.",
+      "Native/browser evidence covered real DOM selection in PDF, Markdown, HTML, and TXT; Markdown ask/generate/review/append/backlink round trip; TXT grounded ask; focused-target capture clearing; PDF native selection; HTML sanitizer payload; zero console errors in the cited runs."
+    ],
+    "limitations": [
+      "No external live model/provider call was made.",
+      "Exact in-flight async navigation timing beyond the focused-target preflight guard was not exercised."
+    ],
+    "excluded_untracked": [
+      ".claude/",
+      "site/",
+      "videos/",
+      "scripts/site-*.mjs",
+      "docs/releases/"
+    ],
+    "resolved_findings": {
+      "count": 13,
+      "path": "D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\docs\\ce-code-review\\2026-10-01-v2-alpha1\\resolved-findings.json"
+    },
+    "notes": [
+      "The two performance suggestions were rejected because integrity hashing and bounded 200-page grouping had no measured user-visible regression.",
+      "The path-import security candidate was excluded as pre-existing and unsupported; the runtime owns the global allow/deny/ask gate.",
+      "Generic native-host testing gaps were superseded by the final native/browser evidence.",
+      "The accepted temporary-file cleanup is recorded only in the resolved-findings ledger."
+    ]
+  },
+  "artifact_path": "D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\docs\\ce-code-review\\2026-10-01-v2-alpha1",
+  "run_id": "20261001-034431-4bc1ba4c"
+}

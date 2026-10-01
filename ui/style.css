@@ -440,6 +440,27 @@
   .nav:not(.nav-upkeep) + .nav-upkeep {
     margin-top: 21px;
   }
+  /* Reordering: hold an item, then drag; the lifted one follows the pointer while the others make way. */
+  .side-nav.is-reordering, .side-nav.is-reordering .nav { cursor: grabbing; user-select: none; }
+  .side-nav > .nav.is-dragging {
+    z-index: 3;
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised);
+    box-shadow: 0 8px 22px color-mix(in srgb, #000 40%, transparent);
+    color: var(--text);
+  }
+  .nav.is-dragging::after { display: none; }
+  .nav-reset {
+    display: block;
+    margin: 10px 12px 0;
+    padding: 2px 0;
+    border: none;
+    background: none;
+    color: var(--text-faint);
+    font-size: 12px;
+    text-align: left;
+  }
+  .nav-reset:hover { color: var(--text-dim); }
   .nav:not(.nav-upkeep) + .nav-upkeep::after {
     content: "";
     position: absolute;
@@ -589,11 +610,30 @@
     background: var(--warn);
     animation: dot-pulse 1.4s var(--ease) infinite;
   }
+  /* A narrow pane gives the page title the room: the decorative "Study ›"
+     goes, and the steady "已连接" shrinks to its dot (busy and failing
+     states keep their words). */
+  @container study (max-width: 640px) {
+    .crumbs > .crumb:first-child,
+    .crumbs > .breadcrumb {
+      display: none;
+    }
+    .top-status.idle .top-status-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
   /* ── Top-bar mailbox ────────────────────────────────────────────────── */
   .top-right {
     display: inline-flex;
     align-items: center;
     gap: 10px;
+    flex-shrink: 0;
+    margin-left: 12px;
   }
   .inbox {
     position: relative;
@@ -641,7 +681,7 @@
     top: calc(100% + 8px);
     right: -6px;
     z-index: 30;
-    width: min(380px, calc(100vw - 32px));
+    width: min(380px, calc(100cqi - 32px));
     max-height: min(70vh, 520px);
     display: flex;
     flex-direction: column;
@@ -816,6 +856,8 @@
   .page-heading p {
     margin-bottom: 0;
   }
+  .page-heading > :first-child { min-width: 0; }
+  .page-heading > .section-heading-actions { flex-shrink: 0; max-width: 100%; }
   .page-heading button {
     flex-shrink: 0;
   }
@@ -1165,6 +1207,23 @@
   .source-main .icon {
     color: var(--accent-soft);
   }
+  .generation-jobs .job { align-items: flex-start; flex-wrap: wrap; }
+  .generation-jobs .job-content { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+  .generation-jobs .job-actions, .jobs-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .generation-jobs .job-actions { margin-left: auto; }
+  .generation-jobs .job button { margin-left: 0; }
+  .jobs-actions:empty, .job-actions:empty { display: none; }
+  .page-scope { max-width: 340px; }
+  .source-organize { margin: 16px 0; }
+  .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
+  .source-organize > label { max-width: 560px; }
+  .source-organization-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .source-course-proposals { margin: 16px 0; padding-left: 16px; border-left: 2px solid var(--line); }
+  .source-row > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
+  .source-proposal-select { display: flex; align-items: center; gap: 8px; }
+  .source-proposal-select input { width: auto; }
+  .source-row-actions { max-width: 150px; flex: 0 0 auto; }
+  .source-row-actions button { display: block; margin-top: 8px; max-width: 100%; }
   /* Raw attachment paths have no spaces; let them wrap instead of overflowing. */
   .source-main strong {
     overflow-wrap: anywhere;
@@ -1355,6 +1414,82 @@
     max-width: 100%;
     font: 12px/1.6 ui-monospace, Consolas, monospace;
     tab-size: 4;
+  }
+  .audio-import label { display: block; margin-top: 12px; }
+  .audio-import textarea { width: 100%; }
+  .audio-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; padding: 26px 18px; border: 1.5px dashed var(--line-strong); border-radius: 12px; text-align: center; cursor: pointer; transition: border-color .15s, background-color .15s; }
+  .audio-drop:hover, .audio-drop:focus-visible, .audio-drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); outline: none; }
+  .audio-drop strong { font-size: 16px; }
+  .audio-drop small { color: var(--text-dim); overflow-wrap: anywhere; }
+  .audio-drop-icon { font-size: 26px; line-height: 1; color: var(--accent-soft); }
+  .audio-ways { display: grid; gap: 12px; margin-top: 14px; text-align: left; }
+  .audio-ways summary { cursor: pointer; }
+  .audio-ways .link-btn { justify-self: start; }
+  .audio-workspace input[type="search"], .audio-path-row input { width: 100%; min-width: 0; margin-top: 8px; }
+  .audio-path-row { display: flex; align-items: center; gap: 8px; }
+  .audio-path-row button { margin-top: 8px; flex: none; }
+  .audio-files { list-style: none; margin: 10px 0 0; padding: 0; max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .audio-files li + li { border-top: 1px solid var(--line); }
+  .audio-files button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; width: 100%; padding: 10px 12px; border: 0; border-radius: 0; background: transparent; text-align: left; }
+  .audio-files button:hover, .audio-files button:focus-visible { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .audio-files strong { overflow-wrap: anywhere; font-weight: 600; }
+  .audio-files small { color: var(--text-dim); overflow-wrap: anywhere; }
+  .audio-files small:last-child { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; white-space: nowrap; }
+  .audio-upload { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; text-align: left; }
+  .audio-upload-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .audio-upload-head strong { overflow-wrap: anywhere; }
+  .audio-bar { position: relative; height: 6px; margin: 10px 0 6px; overflow: hidden; border-radius: 3px; background: var(--bg-sunken); }
+  .audio-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .2s; }
+  /* The segment being worked on: it moves, because nothing says how far along one request is. */
+  .audio-bar > i { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 60%, transparent), transparent); background-size: 200% 100%; animation: audio-flow 1.6s linear infinite; transition: left .2s, width .2s; }
+  @media (prefers-reduced-motion: reduce) { .audio-bar > i { animation: none; opacity: .5; } }
+  .audio-jobs .job > div { flex: 1; min-width: 0; }
+  @media (max-width: 600px) {
+    .audio-jobs .job { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px 10px; }
+    .audio-jobs .job > span { grid-column: 1; grid-row: 1; }
+    .audio-jobs .job > div { grid-column: 1 / -1; grid-row: 2; overflow-wrap: anywhere; }
+    .audio-jobs .job-dismiss { grid-column: 3; grid-row: 1; margin: 0; }
+    .audio-jobs .job > div > button.primary { display: block; width: 100%; margin: 12px 0 0; }
+  }
+  .audio-progress { margin-top: 4px; }
+  .audio-progress-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+  .audio-progress-line > strong { min-width: 3.4ch; font-variant-numeric: tabular-nums; }
+  .audio-steps { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-muted); }
+  .audio-steps li.done { color: var(--accent-soft); }
+  .audio-steps li.current { color: var(--text); font-weight: 600; }
+  .audio-now button, .audio-trace button { margin-left: 8px; }
+  .audio-trace ol { max-height: 260px; margin: 0; padding: 0 8px 0 0; list-style: none; overflow: auto; }
+  .audio-trace li { margin: 8px 0; }
+  .audio-chosen { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-surface); text-align: left; }
+  .audio-chosen > div { flex: 1; min-width: 0; }
+  .audio-chosen strong { overflow-wrap: anywhere; }
+  .audio-chosen small { display: block; margin-top: 2px; }
+  .audio-selection { margin: 10px 0; padding: 0; list-style: none; }
+  .audio-selection .audio-chosen { margin-top: 8px; }
+  .audio-chosen > .audio-order-actions { flex: 0 0 auto; display: flex; gap: 5px; }
+  .audio-order-actions button { padding: 6px 9px; }
+  .audio-add { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+  .audio-add.over { outline: 2px dashed var(--line); outline-offset: 4px; }
+  .audio-members { margin: 10px 0; padding-left: 24px; }
+  .audio-members li { margin: 6px 0; overflow-wrap: anywhere; }
+  .audio-members strong, .audio-members small { display: block; }
+  @media (max-width: 520px) {
+    .audio-chosen { flex-wrap: wrap; gap: 8px; }
+    .audio-chosen > .audio-order-actions { flex-basis: 100%; justify-content: flex-end; }
+    .audio-add { align-items: flex-start; flex-direction: column; gap: 6px; }
+  }
+  @container (max-width: 520px) {
+    .audio-chosen { flex-wrap: wrap; gap: 8px; }
+    .audio-chosen > .audio-order-actions { flex-basis: 100%; justify-content: flex-end; }
+  }
+  .audio-order-actions button[aria-disabled="true"] { opacity: .45; cursor: default; }
+  .audio-corrections { margin: 0 0 14px; overflow-wrap: anywhere; }
+  .audio-corrections li { margin: 8px 0; }
+  .source-text.transcript-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+    line-height: 1.75;
   }
   .quality-note p {
     margin: 0;
@@ -1745,7 +1880,7 @@
     top: calc(100% + 10px);
     right: 0;
     z-index: 6;
-    width: min(300px, 75vw);
+    width: min(300px, 75cqi);
     padding: 12px;
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
@@ -2138,6 +2273,7 @@
   }
   .flip-face[aria-hidden="true"] {
     pointer-events: none;
+    visibility: hidden;
   }
   /* Area under the card: response box → grading → nothing, eased not snapped. */
   .smooth-height {
@@ -2549,6 +2685,7 @@
   }
   .grading {
     margin-top: 24px;
+    container: grading / inline-size;
   }
   .grading-head {
     display: flex;
@@ -2569,6 +2706,11 @@
     gap: 4px;
   }
   .grade {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
     min-height: 74px;
     padding: 10px 3px 8px;
     border: 0;
@@ -2599,9 +2741,15 @@
     font-variant-numeric: tabular-nums;
   }
   .grade span {
+    display: block;
     color: var(--text-dim);
     font-size: 15px;
-    white-space: nowrap;
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  @container grading (max-width: 640px) {
+    .grade-scale { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
   .response-label {
     font-size: 15px;
@@ -2659,7 +2807,11 @@
     max-width: 700px;
     width: 100%;
     max-height: 90vh;
-    overflow: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    color: var(--text);
     border: 1px solid var(--line-strong);
     background: var(--bg-raised);
     box-shadow: 0 25px 90px #0008;
@@ -2673,14 +2825,65 @@
     justify-content: space-between;
     gap: 20px;
     margin-bottom: 20px;
+    flex-shrink: 0;
+    min-width: 0;
   }
   .modal-heading h2 {
     margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .modal-heading button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    -webkit-app-region: no-drag;
     font-size: 22px;
     padding: 3px 10px;
     border: 0;
+    flex-shrink: 0;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .modal-body {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  dialog.source-preview {
+    --preview-titlebar-inset: var(--dsh-windows-titlebar-height, env(titlebar-area-height, 0px));
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    padding: 0;
+    border-radius: 0;
+    animation: none;
+  }
+  .source-preview .modal-heading {
+    /* Electron's native window controls occupy the top of this viewport. */
+    padding: calc(14px + var(--preview-titlebar-inset)) 24px 14px;
+    margin: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .source-preview .modal-heading h2 {
+    font-size: 18px;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .source-preview .modal-body { flex: 1; padding: 24px; }
+  .source-preview .modal-content { max-width: 1040px; margin-inline: auto; }
+  @media (max-width: 600px) {
+    .source-preview .modal-heading { padding: calc(10px + var(--preview-titlebar-inset)) 12px 10px; gap: 12px; }
+    .source-preview .modal-heading h2 { font-size: 16px; }
+    .source-preview .modal-body { padding: 16px; }
   }
   .source-text {
     font-family: inherit;
@@ -2723,13 +2926,25 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+  /* Feedback occupies its own space, beside the action on a question. */
+  .action-feedback .alert {
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .action-feedback .alert span { min-width: 0; }
+  .action-feedback button { flex-shrink: 0; }
+  .action-feedback-slot { min-height: 44px; }
+  .question-area .action-feedback .alert { margin: 6px 0; }
   .error {
     background: color-mix(in srgb, var(--bad) 14%, var(--bg-surface));
     color: var(--bad);
   }
   .notice {
-    background: color-mix(in srgb, var(--ok) 14%, var(--bg-surface));
-    color: var(--text);
+    background: color-mix(in srgb, var(--text) 4%, var(--bg-surface));
+    color: var(--text-dim);
   }
   .onboarding {
     max-width: 680px;
@@ -4183,6 +4398,10 @@
     opacity: 0.55;
   }
 }
+@keyframes audio-flow {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
 @keyframes page-in {
   from {
     opacity: 0;
@@ -4252,6 +4471,10 @@
 }
 @keyframes option-ink {
   from { transform: translateY(-6px); }
+}
+/* Native window buttons disappear in the host's actual fullscreen mode. */
+html[data-fullscreen] .study-app dialog.source-preview {
+  --preview-titlebar-inset: 0px;
 }
 @keyframes rise-in {
   from {

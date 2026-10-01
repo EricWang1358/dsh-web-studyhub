@@ -33,7 +33,7 @@ export function createStudyCall(connection, sessionId) {
       }
     }
     if (!result?.ok)
-      throw new Error(result?.error?.message || "Study request failed");
+      throw Object.assign(new Error(result?.error?.message || "Study request failed"), { code: result?.error?.code, details: result?.error?.details });
     return result.value;
   };
 }

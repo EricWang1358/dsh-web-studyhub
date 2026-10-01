@@ -34,6 +34,21 @@ test("board is global across workspaces and isolated by DSH_HOME", () => isolate
   assert.equal((await boardAction("board.get")).revision, 0);
 }));
 
+test("a manually captured study reference keeps exact IDs across the global board", () => isolated(async () => {
+  const ref = { root: "C:\\study\\library-a", kind: "card", deckId: "deck-a", cardId: "card-a" };
+  let board = await boardAction("board.card.add", { revision: 0, title: "Review this", studyRef: ref }, "C:\\courses\\module");
+  const id = board.columns[0].cardIds[0];
+  assert.deepEqual(board.cards[id].studyRef, ref);
+  board = await boardAction("board.card.edit", { revision: board.revision, id, title: "Later" });
+  assert.deepEqual(board.cards[id].studyRef, ref, "editing ordinary fields preserves the exact reference");
+  for (const studyRef of [
+    { root: "C:\\study\\library-a", kind: "card", deckId: "deck-a", cardId: "" },
+    { root: "C:\\study\\library-a", kind: "external", url: "https://example.com" },
+    { root: "https://example.com", kind: "source", id: "s1" },
+  ]) await assert.rejects(boardAction("board.card.add", { revision: board.revision, title: "Invalid", studyRef }));
+  assert.equal((await boardAction("board.get")).revision, board.revision);
+}));
+
 test("board supports ordering, edits, archive, restore, deletion and stable completion", () => isolated(async () => {
   let board = await boardAction("board.get");
   const mutate = async (action, args) => board = await boardAction(action, { ...args, revision: board.revision });

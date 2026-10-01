@@ -1,0 +1,27 @@
+{
+  "reviewer": "julik-frontend-races",
+  "findings": [
+    {
+      "title": "Keep subtitle selection exclusive across every input path",
+      "severity": "P2",
+      "file": "ui/AudioImport.jsx",
+      "line": 403,
+      "why_it_matters": "Select an SRT file, then choose an audio file through the still-visible workspace picker or advanced path input. pickPath appends the audio without checking for subtitles. The new subtitle submission branch sends only files[0] and its success callback clears the whole selection, so the audio is silently dropped. Moving audio first instead sends an undefined path for the subtitle. The awaited subtitle text read also occurs before the sending guard and can append after a competing selection.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "ui/AudioImport.jsx:403:     if (files[0].kind === 'subtitle') {",
+        "ui/AudioImport.jsx:380-383: pickPath validates audio extension then unconditionally append({ kind: \"path\", path, name: baseName(path), size });",
+        "ui/AudioImport.jsx:341:       try { append({ kind: 'subtitle', name: subtitles[0].name, size: subtitles[0].size, text: await subtitles[0].text() }); }",
+        "ui/AudioImport.jsx:411:         setFiles([]);",
+        "ui/AudioImport.jsx:467-479: WorkspaceAudio and advanced path controls remain available whenever !upload."
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Enforce the exclusive subtitle/audio invariant centrally when appending, reject mixed selections again at submit, and acquire the same synchronous sending guard before awaiting subtitle.text(); release it in finally and discard completion after cancellation/unmount."
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

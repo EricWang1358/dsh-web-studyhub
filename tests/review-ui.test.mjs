@@ -24,6 +24,39 @@ function render(kind, revealed, runPatch = {}, dataPatch = {}) {
     selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
   }));
 }
+function renderResult(status, next = "review_weak") {
+  const card = { id: "q", kind: "quiz", topic: "Context", prompt: "Who processes payments?", options: [] };
+  const debrief = { headline: "先把「Context」补稳。", why: "", next, insights: [],
+    metrics: { answered: 4, gradedAnswered: 4, gradedCorrect: 2 }, status };
+  const noop = () => {};
+  return renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "r", mode: "path", complete: true, index: 4, total: 4, questions: 4, answered: 4, correct: 2,
+      weakTopics: ["Context"], scope: [], card },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {},
+    shellTitle: "Review", busy: false, act: noop, enterRun: noop, setPage: noop, askInChat: noop,
+    coachProps: { call: async () => ({}), debrief, autopilot: false, onPractice: noop, onContinue: noop, onReviewWeak: noop },
+  }));
+}
+
+test("review action feedback is in the question's local tools area", () => {
+  const html = renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "feedback-run", index: 0, total: 1, mode: "path", card: {
+      id: "feedback-card", kind: "quiz", topic: "Context", prompt: "Which context?", options: [],
+    } }, data: { sources: [] }, host: {}, choice: true, selected: [], clozeValues: {},
+    feedback: React.createElement("p", { role: "status" }, "Help was submitted"),
+  }));
+  assert.match(html, /Help was submitted/);
+  assert.ok(html.indexOf("Help was submitted") > html.indexOf('class="question-toolbar"'));
+});
+test("the round's debrief sits under the score, and asks once before preparing 定制题", () => {
+  const ask = renderResult({ enabled: true, consent: null, ready: 0 });
+  assert.match(ask, /class="coach-debrief" data-next="review_weak"/);
+  assert.ok(ask.indexOf("coach-debrief") < ask.indexOf("result-details"), "not folded under 更多结果与练习");
+  assert.match(ask, /好，帮我备题/);
+  assert.doesNotMatch(renderResult({ enabled: true, consent: false, ready: 0 }), /好，帮我备题/, "a no is not asked again");
+  assert.doesNotMatch(renderResult({ enabled: false, consent: null, ready: 0 }), /好，帮我备题/, "no model, no offer");
+  assert.match(renderResult({ enabled: true, consent: true, ready: 3 }), /刷 3 道为你定制的题/);
+});
 test("imported question citations and verification warning start collapsed", () => {
   const source = { id: "import", title: "JSON 导入：90题", provenance: "json-card-self-reference" };
   const html = render("quiz", true, {
@@ -109,5 +142,5 @@ test("a question reached from the inbox offers the way back to where the learner
     detour: { runId: "course", index: 4, title: "课程 · Cloud Native" }, onReturnFromDetour: () => {},
     data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "信箱", busy: false,
   }));
-  assert.match(html, /class="review-detour"[^>]*>← 回到「课程 · Cloud Native」第 5 题</);
+  assert.match(html, /class="review-detour"[^>]*>← 回到之前的第 5 题</);
 });

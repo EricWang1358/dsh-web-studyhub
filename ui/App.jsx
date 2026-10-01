@@ -1,115 +1,67 @@
+import { BlogNotes, Skeleton, Workflows, Graph, AudioDashboard, DocumentViewer, LiveClass } from "./workspace-views.jsx";
+import { languageSystem } from "../lib/language.js";
+import { localizeRunResponse, localizedRun } from "./run-titles.js";
+import { submitAssist } from "./assist-request.js";
+import { uiLocale } from "./i18n.js";
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import StudyMap from "./StudyMap.jsx";
-import Markdown from "./Markdown.jsx";
 import Guide from "./Guide.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
-import Graph from "./Graph.jsx";
 import Icon from "./Icon.jsx";
 import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
+import { useNavOrder } from "./nav-order.js";
 import Sources from "./Sources.jsx";
+import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
 import Settings from "./Settings.jsx";
 import Generate from "./Generate.jsx";
-import PdfImport from "./PdfImport.jsx";
+import DocumentImport from './document-preview/DocumentImport.jsx';
+import CourseField, { parseCourses } from './CourseField.jsx';
+import { usePageScope } from './PageScope.jsx';
+import AudioImport from "./AudioImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
-import BlogNotes from "./BlogNotes.jsx";
+import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
 import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import Inbox from "./Inbox.jsx";
-import Skeleton from "./Skeleton.jsx";
-import Workflows from "./Workflows.jsx";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
-import { fillMissingDraftText } from "../lib/draft-fields.js";
+import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
+import { ui, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
+import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
+/* The sidebar pages in their original order. The learner can reorder them inside each group (see nav-order.js). */
+const NAV_DEFAULTS = {
+  main: ["library", "workflows", "live", "audio", "wrongbook", "exam", "dashboard"],
+  upkeep: ["sources", "generate", "skeleton", "notes", "board"],
+};
 const THEMES = [
   ["auto", "跟随系统"],
   ["dark", "深色"],
   ["light", "浅色"],
 ];
 
-function hasUnsavedDraft({ draft, draftText, jsonMode, draftLoaded } = {}) {
-  if (!draft) return false;
-  if (!draft.draftVersion || !draftLoaded) return true;
-  return JSON.stringify(draft) !== draftLoaded ||
-    (jsonMode && draftText !== JSON.stringify(draft, null, 2));
-}
-
-function parseDraft(raw) {
-  const d = JSON.parse(raw);
-  if (
-    !d ||
-    typeof d !== "object" ||
-    typeof d.title !== "string" ||
-    !Array.isArray(d.cards) ||
-    !d.cards.length
-  )
-    throw new Error("题组需要 title 和非空 cards 数组");
-  d.cards = d.cards.map(fillMissingDraftText);
-  for (const q of d.cards) {
-    if (!q || typeof q !== "object") throw new Error("每道题必须是一个对象");
-    for (const key of [
-      "id",
-      "kind",
-      "topic",
-      "objective",
-      "prompt",
-      "answer",
-      "hint",
-      "explanation",
-      "misconception",
-    ])
-      if (typeof q[key] !== "string")
-        throw new Error("每道题需要文本字段：" + key);
-    if (q.rubric !== undefined && typeof q.rubric !== "string")
-      throw new Error("rubric 必须是文本");
-    if (q.cloze !== undefined) {
-      if (
-        !q.cloze ||
-        typeof q.cloze.text !== "string" ||
-        !Array.isArray(q.cloze.answers)
-      )
-        throw new Error("cloze 需要 text 和 answers 数组");
-      if (q.cloze.answers.some((a) => !a || typeof a.id !== "string" || typeof a.value !== "string"))
-        throw new Error("cloze answers 每项需要 id 和 value");
-    }
-    if (
-      !Array.isArray(q.citations) ||
-      q.citations.some(
-        (c) =>
-          !c || typeof c.quote !== "string" || typeof c.sourceId !== "string",
-      )
-    )
-      throw new Error("citations 需要 sourceId 和 quote");
-    if (
-      q.options !== undefined &&
-      (!Array.isArray(q.options) ||
-        q.options.some(
-          (o) =>
-            !o ||
-            typeof o.id !== "string" ||
-            typeof o.text !== "string" ||
-            typeof o.explanation !== "string" ||
-            typeof o.correct !== "boolean",
-        ))
-    )
-      throw new Error("选项结构不完整");
-  }
-  return d;
-}
-
-export default function App({ call, host = {} }) {
+export default function App({ call: transportCall, host = {} }) {
+  const language = useUiLanguage();
+  const call = useCallback(async (action, args = {}) => {
+    const epoch = libraryEpoch.current;
+    const result = await transportCall(action, { ...args, uiLanguage: getUiLanguage() });
+    if (epoch !== libraryEpoch.current) throw new Error(ui('学习库已切换，请在当前学习库重试'));
+    return localizeRunResponse(result);
+  }, [transportCall]);
+  useInjectCss(localeCss, 'study-language');
   useInjectCss(css, "study-coach");
   const rootRef = useRef(null),
-    markRef = useRef(null),
     requestSequence = useRef(0),
-    acting = useRef(false);
+    acting = useRef(false),
+    libraryEpoch = useRef(0),
+    navigationRequest = useRef(0);
   /* 'auto' follows the OS (inside DSH, the host's appearance); explicit
      'dark'/'light' wins. The resolved theme is always stamped on the root,
      so every view, and the editors, switch together. */
@@ -149,8 +101,7 @@ export default function App({ call, host = {} }) {
       localStorage.setItem("study-sidebar", sidebarCollapsed ? "collapsed" : "open");
     } catch {}
   }, [sidebarCollapsed]);
-  const [narrowWindow, setNarrowWindow] = useState(false),
-    [coachSide, setCoachSide] = useState(false);
+  const [narrowWindow, setNarrowWindow] = useState(false);
   /* The loading screen renders .study-app without rootRef, so attach the
      observer through a callback ref instead of a mount-time effect. */
   const narrowObserver = useRef(null);
@@ -161,8 +112,6 @@ export default function App({ call, host = {} }) {
     if (node && typeof ResizeObserver !== "undefined") {
       const ro = new ResizeObserver(([entry]) => {
         setNarrowWindow(entry.contentRect.width <= 720);
-        // Room for a 陪学 column beside the question; otherwise it goes inline.
-        setCoachSide(entry.contentRect.width >= 1240);
       });
       ro.observe(node);
       narrowObserver.current = ro;
@@ -173,6 +122,9 @@ export default function App({ call, host = {} }) {
   const [managedDeck, setManagedDeck] = useState(null),
     [folderDraft, setFolderDraft] = useState("");
   const [noteInitialId, setNoteInitialId] = useState("");
+  const [contextTrail, setContextTrail] = useState([]), [focusRequest, setFocusRequest] = useState(null);
+  const examLocation = useRef(null);
+  const [examKind, setExamKind] = useState('exam');
   const [data, setData] = useState(null),
     [binding, setBinding] = useState({ root: "", provider: "", model: "" }),
     [rootDraft, setRootDraft] = useState(null),
@@ -184,6 +136,8 @@ export default function App({ call, host = {} }) {
     leaveTimer = useRef(0);
   const switchPage = useCallback((id, prepare) => {
     clearTimeout(leaveTimer.current);
+    navigationRequest.current++;
+    setContextTrail([]);
     const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (id === page || reduce) {
       prepare?.();
@@ -207,6 +161,12 @@ export default function App({ call, host = {} }) {
     loaded = !!data,
     lastRunId = data?.lastRun?.id,
     lastRunIndex = data?.lastRun?.index;
+  const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
+  const navLabels = {
+    library: ui("学习库"), workflows: ui("学习流"), live: language === "en" ? "Live class" : "课堂实录",
+    audio: language === "en" ? "Audio transcription" : "音频转录", wrongbook: ui("错题与待巩固"), exam: ui("模拟考试"),
+    dashboard: ui("统计"), sources: ui("资料"), generate: ui("创建题组"), skeleton: ui("知识骨架"), notes: ui("学习笔记"), board: ui("待办"),
+  };
   useLayoutEffect(() => {
     const nav = navRef.current;
     if (!nav) return;
@@ -221,27 +181,27 @@ export default function App({ call, host = {} }) {
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
     observer?.observe(nav);
     return () => observer?.disconnect();
-  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex]);
+  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex, navOrder.order]);
   const [error, setError] = useState(""),
-    [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
     [syncIssue, setSyncIssue] = useState("");
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
     [sourceText, setSourceText] = useState("");
-  const [graphScope, setGraphScope] = useState([]),
+  const [graphScope, setGraphScope] = useState(null),
     [graphCanvas, setGraphCanvas] = useState(false),
     [clozeValues, setClozeValues] = useState({});
   const [selectedSources, setSelectedSources] = useState([]),
     [gen, setGen] = useState({
       kind: "mixed",
       count: 10,
-      language: "中文",
+      language: host.defaultContentLanguage || "中文",
       difficulty: "mixed",
       focus: "",
       role: "",
     });
+  const [sourceCourses, setSourceCourses] = usePageScope(data?.root, 'text-import-courses', data?.focus?.course || '');
   const [draft, setDraft] = useState(null),
     [draftLoaded, setDraftLoaded] = useState(""),
     [recovery, setRecovery] = useState(null),
@@ -259,6 +219,7 @@ export default function App({ call, host = {} }) {
     [hint, setHint] = useState(false),
     [explain, setExplain] = useState(false),
     [response, setResponse] = useState("");
+  const [notice, setNotice] = useNotice(reviewNoticeScope(binding.root, page, run));
   const onReviewState = host.onReviewState;
   useEffect(() => {
     onReviewState?.(page === "review" ? run : null);
@@ -292,7 +253,6 @@ export default function App({ call, host = {} }) {
   }, [showEn]);
   const [genSource, setGenSource] = useState("json");
   const [showBack, setShowBack] = useState(false),
-    [rawSource, setRawSource] = useState(false),
     [settings, setSettings] = useState({}),
     [flag, setFlag] = useState(""),
     [teaching, setTeaching] = useState(null),
@@ -300,14 +260,18 @@ export default function App({ call, host = {} }) {
   const [notebooks, setNotebooks] = useState(null),
     [notebookError, setNotebookError] = useState("");
   const boardState = useBoard(call, page === "board");
+  const [boardStudyRef, setBoardStudyRef] = useState(null);
+  const [legacyAudioJobId, setLegacyAudioJobId] = useState('');
   const boardCount = boardState.board?.columns.reduce((n, column) => n + (column.done ? 0 : column.cardIds.length), 0);
   const dataRef = useRef(null),
     snapshotKey = useRef(""),
     notebookRequest = useRef(0);
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
+    const epoch = libraryEpoch.current;
     const since = dataRef.current?.fingerprint;
     const next = await call("snapshot", since ? { since } : {});
+    if (epoch !== libraryEpoch.current) return dataRef.current;
     // Nothing visible changed: skip transferring, diffing and re-rendering.
     if (next.unchanged && dataRef.current) return dataRef.current;
     if (sequence === requestSequence.current && !next.unchanged) {
@@ -317,14 +281,39 @@ export default function App({ call, host = {} }) {
       const nextKey = JSON.stringify(next);
       if (!cur || snapshotKey.current !== nextKey) {
         if (cur && cur.root !== next.root) {
+          libraryEpoch.current++;
+          navigationRequest.current++;
+          acting.current = false;
+          clearTimeout(leaveTimer.current);
+          setPageTarget(null);
+          setBusy(false);
+          setNotice("");
+          setError("");
           setRun(null);
           setExamRunId(null);
+          setExamKind('exam');
+          examLocation.current = null;
+          setContextTrail([]);
+          setBoardStudyRef(null);
+          setLegacyAudioJobId('');
+          setFocusRequest(null);
+          setDetour(null);
+          setWorkflowReturn(null);
+          setSkeletonFocus(null);
+          setNoteInitialId('');
+          setSelected([]);
+          setResponse('');
+          setClozeValues({});
+          setTeachAnswer('');
+          setHint(false);
+          setExplain(false);
           setDraft(null);
           setRecovery(null);
           setManagedDeck(null);
-          setGraphScope([]);
+          setGraphScope(null);
           setGraphCanvas(false);
           setSelectedSources([]);
+          setGen(current => ({ ...current, course: undefined }));
           setTeaching(null);
           setModal(null);
           setPage("library");
@@ -343,7 +332,14 @@ export default function App({ call, host = {} }) {
       }
     }
     return next;
-  }, [call]);
+  }, [call, setNotice]);
+  const previousLanguage = useRef(language);
+  useEffect(() => {
+    if (previousLanguage.current === language) return;
+    previousLanguage.current = language;
+    setRun(current => localizedRun(current));
+    void refresh().catch(error => setError(error.message));
+  }, [language, refresh]);
   useEffect(() => {
     if (!data?.root) return;
     try {
@@ -369,9 +365,9 @@ export default function App({ call, host = {} }) {
         setRecovery(null);
       }
     } catch {
-      setNotice("浏览器暂存不可用，请及时保存草稿。");
+      setNotice({ text: ui("浏览器暂存不可用，请及时保存草稿。"), persistent: true });
     }
-  }, [data?.root, draft, draftText, jsonMode, draftLoaded]);
+  }, [data?.root, draft, draftText, jsonMode, draftLoaded, setNotice]);
   // Cross-workspace directory: load once per library and refresh whenever the
   // learner returns to the library view, so due counts stay honest.
   const loadNotebooks = useCallback(async () => {
@@ -412,7 +408,7 @@ export default function App({ call, host = {} }) {
         } catch (e) {
           if (!live) return;
           if (isTransientStudyError(e) && attempt < 20) {
-            setConnecting(`正在连接学习插件…（第 ${attempt + 1} 次重试）`);
+            setConnecting(uiFormat("正在连接学习插件…（第 {0} 次重试）", [attempt + 1]));
             await new Promise((r) => setTimeout(r, Math.min(1000 * (attempt + 1), 5000)));
             continue;
           }
@@ -467,8 +463,11 @@ export default function App({ call, host = {} }) {
   const publishing = data?.jobs?.some((job) => job.type === "draft-publish" &&
     ["running", "queued"].includes(job.status));
   const reviewQueueVersion = run?.queueVersion || 0;
+  const priorQueue = useRef(null);
   useEffect(() => {
-    if (!reviewQueueVersion) return;
+    const previous = priorQueue.current;
+    priorQueue.current = { id: run?.id, version: reviewQueueVersion };
+    if (!previous || previous.id !== run?.id || previous.version === reviewQueueVersion) return;
     setSelected([]);
     setHint(false);
     setExplain(false);
@@ -476,7 +475,7 @@ export default function App({ call, host = {} }) {
     setTeaching(null);
     setTeachAnswer("");
     setClozeValues({});
-  }, [reviewQueueVersion]);
+  }, [run?.id, reviewQueueVersion]);
   useEffect(() => {
     if (!binding.root) return;
     let stopped = false,
@@ -499,7 +498,7 @@ export default function App({ call, host = {} }) {
     };
   }, [binding.root, refresh]);
   useEffect(() => {
-    if (!modal) return;
+    if (!modal || modal.type === 'source') return;
     const previous = document.activeElement;
     const dialog = rootRef.current?.querySelector('[role="dialog"]');
     if (!dialog) return;
@@ -533,52 +532,54 @@ export default function App({ call, host = {} }) {
       previous?.focus?.();
     };
   }, [modal]);
-  // A citation lands on the quoted passage inside the source modal.
-  useEffect(() => {
-    if (modal?.type !== "source" || !modal.quote) return;
-    const t = setTimeout(
-      () => markRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }),
-      60,
-    );
-    return () => clearTimeout(t);
-  }, [modal, rawSource]);
   async function act(action, args = {}, after, { refreshAfter = true, rethrow = false } = {}) {
     if (acting.current) return;
-    acting.current = true;
+    const operation = {}, epoch = libraryEpoch.current;
+    acting.current = operation;
     setBusy(true);
     setError("");
     try {
       const result = await call(action, args);
+      if (epoch !== libraryEpoch.current) return;
       if (after) await after(result);
       // Practice steps return the run they changed; the library snapshot
       // (about 1MB with sources) catches up on the next poll instead of
       // blocking every answer and every 下一题.
-      if (refreshAfter) await refresh();
+      if (refreshAfter && epoch === libraryEpoch.current) await refresh();
       return result;
     } catch (e) {
+      if (epoch !== libraryEpoch.current) return;
       if (rethrow) throw e;
       setError(e.message || String(e));
     } finally {
-      acting.current = false;
-      setBusy(false);
+      if (acting.current === operation) { acting.current = false; setBusy(false); }
     }
   }
   // A letter jumps to its card: the spot in an open run when there is one,
   // otherwise a one-card run that can return to the current question.
   function openInboxItem(item) {
-    const from = run && !run.complete ? { runId: run.id, index: run.index, title: run.title || shellTitle } : null;
+    const from = captureContext();
+    const fromReview = page === 'review' && run && !run.complete;
     act(
       "inbox.open",
-      { id: item.id, ...(from ? { runId: from.runId } : {}) },
+      { id: item.id, ...(fromReview ? { runId: from.runId } : {}) },
       (r) => {
+        if (r.kind === "audio") {
+          rememberContext(from);
+          setPage(r.sourceIds?.length ? "sources" : "audio");
+          if (r.sourceIds?.length) openAudioSources(r.sourceIds);
+          return;
+        }
         if (r.kind === "note" && r.noteId) {
+          rememberContext(from);
           setNoteInitialId(r.noteId);
           setPage("notes");
           return;
         }
         enterRun(r);
         // Keep the way back to where the learner was, until they use it.
-        if (from && (r.id !== from.runId || r.index !== from.index)) setDetour(from);
+        if (fromReview && (r.id !== from.runId || r.index !== from.index)) setDetour(from);
+        else if (!fromReview) rememberContext(from);
         // Show what arrived: the Q&A and revised explanation live in 讲解.
         if (["followup", "improve", "rewrite"].includes(item.kind) && r.revealed) setExplain(true);
       },
@@ -591,27 +592,161 @@ export default function App({ call, host = {} }) {
   });
   async function returnFromDetour() {
     const back = detour;
-    setDetour(null);
     if (!back) return;
-    try { enterRun(await call("review.move", { runId: back.runId, index: back.index })); }
-    catch { act("review.get", { runId: back.runId }, enterRun); }
+    const epoch = libraryEpoch.current;
+    if (back.root !== dataRef.current?.root) { setDetour(null); return; }
+    try {
+      const next = await call('review.move', { runId: back.runId, index: back.index });
+      if (epoch !== libraryEpoch.current) return;
+      enterRun(next, back.input); setDetour(null); setFocusRequest({ element: back.invoker });
+    } catch (error) { if (epoch === libraryEpoch.current) setError(error.message); }
   }
-  function enterRun(r) {
+  function enterRun(r, input) {
+    if (!r) return;
     runRef.current = r;
     if (r.mode === "exam") {
+      setExamKind('exam');
       setExamRunId(r.id);
       setPage("exam");
       return;
     }
     setRun(r);
     setPage("review");
-    setSelected(r.feedback?.selected || []);
-    setHint(false);
-    setExplain(false);
-    setResponse("");
+    const restored = input?.key === reviewEntryKey(r) && !r.feedback ? input : null;
+    setSelected(restored?.selected || r.feedback?.selected || []);
+    setHint(restored?.hint || false);
+    setExplain(restored?.explain || false);
+    setResponse(restored?.response || '');
+    setClozeValues(restored?.clozeValues || {});
     setTeaching(r.teaching || null);
-    setTeachAnswer("");
+    setTeachAnswer(restored?.teachAnswer || '');
   }
+  function captureContext(overrides = {}) {
+    return { root: dataRef.current?.root, page, runId: page === 'review' ? run?.id : undefined,
+      index: run?.index, noteId: noteInitialId, skeletonId: skeletonFocus, deckId: managedDeck?.id,
+      exam: examLocation.current, workflow: workflowReturn?.sessionId,
+      modal: modal?.type === 'source' ? { sourceId: modal.source?.id, quote: modal.quote } : null,
+      input: page === 'review' ? { key: reviewEntryKey(run), selected, response, clozeValues, hint, explain, teachAnswer } : null,
+      invoker: rootRef.current?.contains(document.activeElement) ? document.activeElement : null, ...overrides };
+  }
+  function rememberContext(origin = captureContext()) {
+    setContextTrail(previous => [...previous, origin]);
+    setFocusRequest({});
+  }
+  function contextLabel(origin) {
+    if (origin?.modal) return ui('返回资料');
+    if (origin?.page === 'review') return uiFormat('回到之前的第 {0} 题', [(origin.index || 0) + 1]);
+    if (origin?.page === 'exam') return origin.exam?.kind === 'oral' ? ui('返回口头模拟') : ui('返回笔试');
+    return uiFormat('返回{0}', [navLabels[origin?.page] || ui('原位置')]);
+  }
+  // Local links keep a small trail; ordinary sidebar navigation starts afresh.
+  async function openLearningTarget(target, { remember = true, throwOnError = false } = {}) {
+    const origin = captureContext(), epoch = libraryEpoch.current, request = ++navigationRequest.current;
+    const live = () => epoch === libraryEpoch.current && request === navigationRequest.current;
+    setError('');
+    try {
+      let result;
+      if (target.kind === 'card') {
+        await call('card.get', { deckId: target.deckId, cardId: target.cardId });
+        if (!live()) return;
+        result = await call('review.start', { mode: 'path', scope: [{ deckId: target.deckId, cardId: target.cardId }], fresh: true });
+      } else if (target.kind === 'source') result = await call('source.get', { id: target.id });
+      else if (target.kind === 'note') result = await call('note.get', { id: target.id });
+      else if (target.kind === 'skeleton') result = await call('skeleton.get', { id: target.id });
+      else if (target.kind === 'deck') result = await call('deck.get', { id: target.id });
+      else if (target.kind === 'exam') result = await call('review.get', { runId: target.runId });
+      else if (target.kind === 'oral') result = await call('oral.get', { runId: target.runId });
+      else if (target.kind === 'workflow') result = await call('workflow.session.get', { id: target.sessionId });
+      else if (target.kind === 'course') {
+        if (!dataRef.current?.focus?.courses?.some(item => item.name === target.course)) throw new Error(ui('关联课程已不存在'));
+        result = await call('focus.set', { course: target.course });
+        await refresh();
+      }
+      else return;
+      if (!live()) return;
+      if (remember && target.kind !== 'source') rememberContext(origin);
+      setModal(null);
+      if (target.kind === 'card') enterRun(result);
+      else if (target.kind === 'source') setModal({ type: 'source', source: dataRef.current.sources.find(source => source.id === target.id) || result, quote: target.quote });
+      else if (target.kind === 'note') { setNoteInitialId(result.id); setPage('notes'); }
+      else if (target.kind === 'skeleton') { setSkeletonFocus(result.id); setPage('skeleton'); }
+      else if (target.kind === 'deck') { setManagedDeck(result); setFolderDraft(result.folder || ''); setPage('manage'); }
+      else if (target.kind === 'workflow') { setWorkflowReturn({ sessionId: target.sessionId, nonce: Date.now() }); setPage('workflows'); }
+      else if (target.kind === 'course') setPage('library');
+      else { setExamKind(target.kind); setExamRunId(target.runId); setPage('exam'); }
+      if (target.kind !== 'source') setFocusRequest({});
+    } catch (error) { if (live()) { if (throwOnError) throw error; setError(error.message || String(error)); } }
+  }
+  function currentStudyReference() {
+    const root = dataRef.current?.root;
+    if (!root) return null;
+    if (modal?.type === 'source' && modal.source?.id) return { root, kind: 'source', id: modal.source.id };
+    if (page === 'review' && run?.card?.id) return { root, kind: 'card', deckId: run.deckId || run.card.deckId, cardId: run.card.id };
+    if (page === 'notes' && noteInitialId) return { root, kind: 'note', id: noteInitialId };
+    if (page === 'skeleton' && skeletonFocus) return { root, kind: 'skeleton', id: skeletonFocus };
+    if (page === 'manage' && managedDeck?.id) return { root, kind: 'deck', id: managedDeck.id };
+    if (page === 'workflows' && workflowReturn?.sessionId) return { root, kind: 'workflow', sessionId: workflowReturn.sessionId };
+    if (page === 'exam' && examLocation.current?.runId) return { root, kind: examLocation.current.kind === 'oral' ? 'oral' : 'exam', runId: examLocation.current.runId };
+    if (dataRef.current?.focus?.course != null) return { root, kind: 'course', course: dataRef.current.focus.course };
+    return null;
+  }
+  function openBoardWithContext() {
+    const ref = currentStudyReference();
+    if (ref) { rememberContext(); setBoardStudyRef(ref); }
+    setPage('board');
+  }
+  async function openBoardReference(ref) {
+    const sameRoot = (value) => String(value || '').replaceAll('\\', '/').toLowerCase();
+    if (sameRoot(ref.root) !== sameRoot(dataRef.current?.root))
+      throw new Error(ui('这条待办来自另一个学习库。请先在设置中切换到其学习库，再打开关联内容。'));
+    await openLearningTarget(ref, { throwOnError: true });
+  }
+  async function returnFromContext() {
+    const origin = contextTrail.at(-1), epoch = libraryEpoch.current, request = ++navigationRequest.current;
+    const live = () => epoch === libraryEpoch.current && request === navigationRequest.current;
+    if (!origin || origin.root !== dataRef.current?.root) { setContextTrail([]); return; }
+    try {
+      if (origin.page === 'review') {
+        const next = await call('review.move', { runId: origin.runId, index: origin.index });
+        if (!live()) return;
+        enterRun(next, origin.input);
+      } else if (origin.page === 'notes') {
+        if (origin.noteId) await call('note.get', { id: origin.noteId });
+        if (!live()) return;
+        setNoteInitialId(origin.noteId); setPage('notes');
+      } else if (origin.page === 'exam') {
+        setExamKind(origin.exam?.kind || 'exam'); setExamRunId(origin.exam?.runId || null); setPage('exam');
+      } else if (origin.page === 'skeleton') {
+        if (origin.skeletonId) await call('skeleton.get', { id: origin.skeletonId });
+        if (!live()) return;
+        setSkeletonFocus(origin.skeletonId); setPage('skeleton');
+      } else if (origin.page === 'manage' && origin.deckId) {
+        const deck = await call('deck.get', { id: origin.deckId });
+        if (!live()) return;
+        setManagedDeck(deck); setPage('manage');
+      } else setPage(origin.page);
+      if (origin.modal) {
+        const source = await call('source.get', { id: origin.modal.sourceId });
+        if (!live()) return;
+        setModal({ type: 'source', source: dataRef.current.sources.find(item => item.id === source.id) || source, quote: origin.modal.quote });
+      } else setModal(null);
+      setContextTrail(previous => previous.slice(0, -1));
+      setFocusRequest({ element: origin.invoker });
+    } catch (error) { if (live()) setError(error.message || String(error)); }
+  }
+  useEffect(() => {
+    if (!focusRequest) return;
+    const timer = requestAnimationFrame(() => {
+      const target = focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
+        : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
+          .find(element => element.getClientRects().length);
+      if (target) {
+        if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
+        target.focus();
+      }
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [focusRequest, page]);
   const toggleNotebook = (publish) =>
     act(
       publish ? "notebook.publish" : "notebook.unpublish",
@@ -698,17 +833,8 @@ export default function App({ call, host = {} }) {
     }, AUTO_ADVANCE_MS);
     return () => clearTimeout(autoTimer.current);
   }, [autopilot, page, passed, advanceKey, run?.complete, !!teaching]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Coach plumbing: stable callbacks so the memoized panel does not re-render per poll.
-  const onCoachThread = useCallback((thread, originKey) => setRun((r) => (r && reviewEntryKey(r) === originKey ? { ...r, coach: thread } : r)), []);
+  // Coach plumbing: stable callbacks so memoized children do not re-render per poll.
   const onCoachStatus = useCallback(() => refresh().catch(() => {}), [refresh]);
-  const onCoachRefreshRun = useCallback(async () => {
-    const current = runRef.current;
-    if (!current) return;
-    try {
-      const next = await call("review.get", { runId: current.id });
-      setRun((r) => (reviewEntryKey(r) === reviewEntryKey(current) ? mergeReviewPoll(r, next) : r));
-    } catch {}
-  }, [call]);
   const runRef = useRef(run);
   runRef.current = run;
   // One translate per card entry; a second click joins the in-flight call.
@@ -772,7 +898,6 @@ export default function App({ call, host = {} }) {
     }
   }
   const onCoachPractice = useCallback(() => latest.current.act("coach.practice", {}, latest.current.enterRun), []);
-  const onCoachAsk = useCallback((text) => latest.current.askInChat(text), []);
   const choice =
     run?.mode !== "flashcard" && ["quiz", "multi"].includes(run?.card?.kind);
   const isCloze = run?.mode !== "flashcard" && run?.card?.kind === "cloze";
@@ -780,10 +905,6 @@ export default function App({ call, host = {} }) {
   useEffect(() => {
     setShowBack(!!run?.revealed);
   }, [run?.id, run?.card?.id, run?.index, run?.queueVersion, run?.revealed]);
-  // A new card starts with empty blanks; feedback keeps them for the verdict.
-  useEffect(() => {
-    setClozeValues({});
-  }, [run?.id, run?.card?.id, run?.index]);
   async function flipCard() {
     if (!run?.card) return;
     if (run.revealed) {
@@ -912,73 +1033,77 @@ export default function App({ call, host = {} }) {
   function cardBrief() {
     const deck = data?.decks.find((d) => d.id === run.deckId);
     const options = run.card.options?.length
-      ? "\n选项：\n" +
+      ? ui("\n选项：\n") +
         run.card.options.map((o, i) => String.fromCharCode(65 + i) + ". " + o.text).join("\n")
       : "";
     return (
-      "题组「" + (deck?.title || "") + "」· 主题「" + run.card.topic + "」\n" +
-      "题目：" + run.card.prompt + options + "\n" +
-      "题库定位：" + JSON.stringify({ deckId: run.deckId, cardId: run.card.id })
+      ui("题组「") + (deck?.title || "") + ui("」· 主题「") + run.card.topic + "」\n" +
+      ui("题目：") + run.card.prompt + options + "\n" +
+      ui("题库定位：") + JSON.stringify({ deckId: run.deckId, cardId: run.card.id })
     );
   }
   /* 学习帮助交给后台，完成后由信箱交付；宿主暂不支持时直接提示。 */
   async function assistCard(mode, text, helpChoices = []) {
     if (!run?.card || (!text.trim() && !(mode === "ask" && helpChoices.length))) return false;
     try {
-      await call("assist.start", { deckId: run.deckId, cardId: run.card.id, runId: run.id,
+      await submitAssist(call, { deckId: run.deckId, cardId: run.card.id, runId: run.id,
         mode, text: text.trim(), helpChoices });
       setNotice(
         mode === "ask"
-          ? "后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。"
-          : "后台助教正在改这道题，改完会进信箱，可一步撤销。",
+          ? ui("后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。")
+          : ui("后台助教正在改这道题，改完会进信箱，可一步撤销。"),
       );
       refresh().catch(() => {});
       return true;
     } catch (e) {
-      setError(e.message || "后台帮助暂不可用，请稍后再试。");
+      setError(e.message || ui("后台帮助暂不可用，请稍后再试。"));
       return false;
     }
   }
   function askAboutCard(extra = "") {
     askInChat(
-      "我在做这道题时卡住了，想先把前置知识问清楚（先别直接告诉我答案）：\n" +
+      ui("我在做这道题时卡住了，想先把前置知识问清楚（先别直接告诉我答案）：\n") +
         cardBrief() +
-        "\n\n请先用 study_workspace 的 card.get 读这道题。需要资料依据时，用 source.search 一次查所有关键词，只读命中片段附近的原文，不要逐份翻资料；题库里已有的相关题用 card.search 找。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：" + extra,
+        ui("\n\n请先用 study_workspace 的 card.get 读这道题。需要资料依据时，用 source.search 一次查所有关键词，只读命中片段附近的原文，不要逐份翻资料；题库里已有的相关题用 card.search 找。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：") + extra,
     );
   }
   function improveCard(extra = "") {
     askInChat(
-      "这道题的质量需要提升：\n" +
+      ui("这道题的质量需要提升：\n") +
         cardBrief() +
-        "\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析），核对原文时用 source.search 查关键词、只读命中片段，按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：" + extra,
+        ui("\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析），核对原文时用 source.search 查关键词、只读命中片段，按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：") + extra,
     );
   }
   // Slaying is one click next to other tools; offer an immediate undo instead
   // of sending the learner to the slay deck in 管理题组.
   async function slayCard() {
     const ref = { deckId: run.deckId, cardId: run.card.id };
-    if (!(await reviewAct("card.slay", { deckId: ref.deckId }))) return;
+    const next = await reviewAct("card.slay", { deckId: ref.deckId });
+    if (!next) return;
+    const scope = reviewNoticeScope(binding.root, 'review', next);
     setNotice({
-      text: "已斩这道题：移入斩题组，不再复习。",
+      text: ui("已斩这道题：移入斩题组，不再复习。"),
+      scope,
       action: {
-        label: "撤销",
+        label: ui("撤销"),
         run: () =>
           act("card.restore", ref, () =>
-            setNotice("已恢复到原题组，复习进度不变；本轮练习不再出现这道题。"),
+            setNotice({ text: ui("已恢复到原题组，复习进度不变；本轮练习不再出现这道题。"), scope }),
           ),
       },
     });
   }
   async function askInChat(text) {
+    text += languageSystem("", getUiLanguage());
     if (host.askInChat?.(text)) {
-      setNotice("已填入对话输入框，确认后发送。");
+      setNotice(ui("已填入对话输入框，确认后发送。"));
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      setNotice("已复制提示词，粘贴到对话中即可。");
+      setNotice(ui("已复制提示词，粘贴到对话中即可。"));
     } catch {
-      setNotice(text);
+      setNotice({ text, persistent: true });
     }
   }
   function openDraft(d) {
@@ -1018,6 +1143,12 @@ export default function App({ call, host = {} }) {
   }
   async function updateBinding(patch) {
     ++requestSequence.current;
+    if (Object.prototype.hasOwnProperty.call(patch, 'root')) {
+      libraryEpoch.current++;
+      navigationRequest.current++;
+      clearTimeout(leaveTimer.current);
+      setPageTarget(null);
+    }
     setBusy(true);
     setError("");
     try {
@@ -1031,7 +1162,7 @@ export default function App({ call, host = {} }) {
         setSelectedSources([]);
       }
       await refresh();
-      setNotice(moved ? "已切换学习库" : "已更新生成模型");
+      setNotice(moved ? ui("已切换学习库") : ui("已更新生成模型"));
       return true;
     } catch (e) {
       setError(e.message);
@@ -1050,7 +1181,7 @@ export default function App({ call, host = {} }) {
       if (picked) await updateBinding({ root: picked });
     } catch {
       setRootDraft(binding.root || "");
-      setNotice("无法打开目录选择器，请直接输入路径。");
+      setNotice(ui("无法打开目录选择器，请直接输入路径。"));
     }
   }
   async function exportData() {
@@ -1068,34 +1199,40 @@ export default function App({ call, host = {} }) {
       setError(e.message);
     }
   }
+  function openAudioSources(sourceIds) {
+    const available = sourceIds.map(id => data.sources.find(source => source.id === id)).filter(Boolean);
+    if (!available.length) { setNotice(ui('逐字稿资料已被删除。')); return; }
+    setModal(available.length === 1 ? { type: 'source', source: available[0] } : { type: 'sources', sourceIds });
+  }
+  const sourceFormCourse = modal?.type === 'add' && modal.course !== undefined ? modal.course : sourceCourses;
+  const changeSourceFormCourse = course => modal?.type === 'add' && modal.course !== undefined
+    ? setModal(current => ({ ...current, course })) : setSourceCourses(course);
   const sourceForm = (
     <>
-    <PdfImport busy={busy} act={act} onImported={(ids) => setSelectedSources(ids)} />
+    <DocumentImport key={data?.root} busy={busy} act={act} courses={parseCourses(sourceFormCourse)} onImported={ids => setSelectedSources(ids)} />
+    <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} />
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        act("source.add", { title: sourceTitle, text: sourceText }, (source) => {
+        act("source.add", { title: sourceTitle, text: sourceText, courses: parseCourses(sourceFormCourse) }, (source) => {
           setModal(null);
           setSourceTitle("");
           setSourceText("");
           // A source added while creating a deck is almost always the one to use.
           setSelectedSources((v) => [...v, source.id]);
-          setNotice(page === "generate" ? "资料已保存并勾选，可以直接生成题组" : "资料已保存，可用于生成题组");
+          setNotice(page === "generate" ? ui("资料已保存并勾选，可以直接生成题组") : ui("资料已保存，可用于生成题组"));
         });
       }}
     >
-      <label>
-        资料名称
-        <input
+      <label>{ui("资料名称")}<input
           required
           value={sourceTitle}
           onChange={(e) => setSourceTitle(e.target.value)}
-          placeholder="例如：设计模式 · 第 4 章"
+          placeholder={ui("例如：设计模式 · 第 4 章")}
         />
       </label>
-      <label className="file-input">
-        导入 Markdown / 文本
-        <input
+      <CourseField value={sourceFormCourse} onChange={changeSourceFormCourse} courses={data?.focus?.courses} multiple disabled={busy} />
+      <label className="file-input">{ui("导入 Markdown / 文本")}<input
           type="file"
           accept=".md,.txt,.markdown"
           onChange={async (e) => {
@@ -1111,22 +1248,18 @@ export default function App({ call, host = {} }) {
           }}
         />
       </label>
-      <label>
-        原文
-        <textarea
+      <label>{ui("原文")}<textarea
           required
           rows={12}
           value={sourceText}
           maxLength={600000}
           onChange={(e) => setSourceText(e.target.value)}
-          placeholder="粘贴讲义、笔记或材料。生成内容将引用这里的原文。"
+          placeholder={ui("粘贴讲义、笔记或材料。生成内容将引用这里的原文。")}
         />
       </label>
       <div className="form-footer">
-        <small>{sourceText.length.toLocaleString()} / 600,000 字符</small>
-        <button className="primary" disabled={busy}>
-          保存资料
-        </button>
+        <small>{sourceText.length.toLocaleString()}{ui(" / 600,000 字符")}</small>
+        <button className="primary" disabled={busy}>{ui("保存资料")}</button>
       </div>
     </form>
     </>
@@ -1153,31 +1286,26 @@ export default function App({ call, host = {} }) {
     <div className="binding-panel">
       <div className="binding-row">
         <div className="binding-main">
-          <span className="binding-label">学习库</span>
+          <span className="binding-label">{ui("学习库")}</span>
           <code className="binding-value" title={binding.root}>
             {binding.root || "—"}
           </code>
           <small>
             {binding.rootSource === "workspace"
-              ? "当前工作区"
+              ? ui("当前工作区")
               : binding.rootSource === "config"
-                ? "插件配置指定"
-                : "自定义目录"}
-            {" · "}资料、题库与复习记录保存在这里
-          </small>
+                ? ui("插件配置指定")
+                : ui("自定义目录")}
+            {" · "}{ui("资料、题库与复习记录保存在这里")}</small>
         </div>
         <div className="binding-actions">
-          <button type="button" onClick={chooseRoot} disabled={busy}>
-            更换目录…
-          </button>
+          <button type="button" onClick={chooseRoot} disabled={busy}>{ui("更换目录…")}</button>
           {binding.rootSource === "custom" && (
             <button
               type="button"
               disabled={busy}
               onClick={() => updateBinding({ root: "" })}
-            >
-              改回当前工作区
-            </button>
+            >{ui("改回当前工作区")}</button>
           )}
         </div>
       </div>
@@ -1192,21 +1320,17 @@ export default function App({ call, host = {} }) {
           <input
             autoFocus
             required
-            aria-label="学习库绝对路径"
+            aria-label={ui("学习库绝对路径")}
             value={rootDraft}
             onChange={(e) => setRootDraft(e.target.value)}
           />
-          <button className="primary" disabled={busy}>
-            使用此目录
-          </button>
-          <button type="button" onClick={() => setRootDraft(null)}>
-            取消
-          </button>
+          <button className="primary" disabled={busy}>{ui("使用此目录")}</button>
+          <button type="button" onClick={() => setRootDraft(null)}>{ui("取消")}</button>
         </form>
       )}
       <div className="binding-row">
         <label className="binding-main">
-          <span className="binding-label">生成模型</span>
+          <span className="binding-label">{ui("生成模型")}</span>
           <select
             value={customModelKey}
             disabled={busy}
@@ -1224,9 +1348,7 @@ export default function App({ call, host = {} }) {
               }
             }}
           >
-            <option value="">
-              跟随当前会话
-              {followedModel ? `（${modelName(followedModel)}）` : ""}
+            <option value="">{ui("跟随当前会话")}{followedModel ? `（${modelName(followedModel)}）` : ""}
             </option>
             {modelGroups.map((g) => (
               <optgroup key={g.id} label={g.name || g.id}>
@@ -1240,14 +1362,12 @@ export default function App({ call, host = {} }) {
             {customModelKey && !customListed && (
               <option value={customModelKey}>{modelName(binding)}</option>
             )}
-            <option value="manual">手动填写…</option>
+            <option value="manual">{ui("手动填写…")}</option>
           </select>
           <small>
             {binding.modelSource === "session"
-              ? "与对话输入框选择的模型一致，切换后自动生效。"
-              : "只用于出题与讲解，不改变对话模型。"}
-            生成时所选资料会发送给该模型；复习不调用模型。
-          </small>
+              ? ui("与对话输入框选择的模型一致，切换后自动生效。")
+              : ui("只用于出题与讲解，不改变对话模型。")}{ui("生成时所选资料会发送给该模型；复习不调用模型。")}</small>
         </label>
       </div>
       {modelDraft && (
@@ -1270,19 +1390,15 @@ export default function App({ call, host = {} }) {
           />
           <input
             required
-            aria-label="模型 ID"
-            placeholder="模型 ID"
+            aria-label={ui("模型 ID")}
+            placeholder={ui("模型 ID")}
             value={modelDraft.model}
             onChange={(e) =>
               setModelDraft({ ...modelDraft, model: e.target.value })
             }
           />
-          <button className="primary" disabled={busy}>
-            使用
-          </button>
-          <button type="button" onClick={() => setModelDraft(null)}>
-            取消
-          </button>
+          <button className="primary" disabled={busy}>{ui("使用")}</button>
+          <button type="button" onClick={() => setModelDraft(null)}>{ui("取消")}</button>
         </form>
       )}
     </div>
@@ -1320,34 +1436,30 @@ export default function App({ call, host = {} }) {
     page === "review"
       ? run?.title ||
         data?.decks.find((d) => d.id === run?.deckId)?.title ||
-        "复习"
+        ui("复习")
       : {
-          library: "学习库",
-          sources: "资料",
-          generate: "创建题组",
-          draft: "草稿与发布",
-          settings: "工作区设置",
-          manage: "维护题组",
-          dashboard: "学习统计",
-          exam: "模拟考试",
-          wrongbook: "错题与待巩固",
-          board: "待办看板",
-          graph: "知识图谱",
-          skeleton: "知识骨架",
-          workflows: "学习流",
-          notes: "学习笔记",
+          library: ui("学习库"),
+          sources: ui("资料"),
+          generate: ui("创建题组"),
+          draft: ui("草稿与发布"),
+          settings: ui("工作区设置"),
+          manage: ui("维护题组"),
+          dashboard: ui("学习统计"),
+          exam: ui("模拟考试"),
+          wrongbook: ui("错题与待巩固"),
+          board: ui("待办看板"),
+          graph: ui("知识图谱"),
+          skeleton: ui("知识骨架"),
+          workflows: ui("学习流"),
+          live: language === "en" ? "Live class" : "课堂实录",
+          audio: language === "en" ? "Audio transcription" : "音频转录",
+          notes: ui("学习笔记"),
         }[page];
   const coachProps = data && {
     call,
-    status: data.coach,
     autopilot,
-    side: coachSide,
-    onAutopilot: setAutopilot,
-    onThread: onCoachThread,
     onStatus: onCoachStatus,
-    onRefreshRun: onCoachRefreshRun,
     onPractice: onCoachPractice,
-    askInChat: onCoachAsk,
     onContinue: () => act("review.start", { mode: "path", scope: run?.returnTo ? [] : run?.scope || [], fresh: true }, enterRun),
     onReviewWeak: () => act("review.weak.start", { runId: run.id }, enterRun),
     canShortcut,
@@ -1357,16 +1469,19 @@ export default function App({ call, host = {} }) {
   if (loading)
     return (
       <div className="study-app">
-        <div className="loading">{connecting || "正在打开学习工作区…"}</div>
+        <div className="loading">{connecting || ui("正在打开学习工作区…")}</div>
       </div>
     );
   const lastRun = data?.lastRun && page === "review" && run?.id === data.lastRun.id
     ? { ...data.lastRun, index: run.index, total: run.total }
     : data?.lastRun;
+  const feedback = <ActionFeedback error={error} notice={notice} busy={busy}
+    onCloseError={() => setError("")} onCloseNotice={() => setNotice("")} />;
   return (
     <div
       className="study-app"
       data-theme={resolvedTheme}
+      lang={language === 'en' ? 'en' : 'zh-CN'}
       ref={attachRoot}
       tabIndex={-1}
       onPointerDown={(e) => {
@@ -1378,20 +1493,20 @@ export default function App({ call, host = {} }) {
         <div className="brand">
           <span className="brand-mark" aria-hidden="true"><BrandMark /></span>
           <div>
-            Daily Flashcard<small>自己的资料，扎实地学</small>
+            Daily Flashcard<small>{ui("自己的资料，扎实地学")}</small>
           </div>
           <button
             type="button"
             className="collapse-toggle"
-            aria-label={sidebarNarrow ? "展开侧边栏" : "收起侧边栏"}
+            aria-label={sidebarNarrow ? ui("展开侧边栏") : ui("收起侧边栏")}
             aria-expanded={!sidebarNarrow}
-            title={sidebarNarrow ? "展开侧边栏" : "收起侧边栏"}
+            title={sidebarNarrow ? ui("展开侧边栏") : ui("收起侧边栏")}
             onClick={() => setSidebarCollapsed((v) => !v)}
           >
             {sidebarNarrow ? "»" : "«"}
           </button>
         </div>
-        <nav ref={navRef} className="side-nav">
+        <nav ref={navRef} className={"side-nav" + (navOrder.lifted ? " is-reordering" : "")}>
           {navMark && (
             <span
               className="nav-mark"
@@ -1410,64 +1525,79 @@ export default function App({ call, host = {} }) {
               !data
                 ? ""
                 : lastRun
-                  ? `回到「${lastRun.title}」第 ${lastRun.index + 1}/${lastRun.total} 题`
+                  ? uiFormat("回到「{0}」第 {1}/{2} 题", [lastRun.title, lastRun.index + 1, lastRun.total])
                   : data.decks.length
-                    ? "没有进行中的练习，开始今日学习"
-                    : "还没有题目，先去创建题组"
+                    ? ui("没有进行中的练习，开始今日学习")
+                    : ui("还没有题目，先去创建题组")
             }
             aria-keyshortcuts="S"
             onClick={resumeOrStart}
           >
             <Icon><NavGlyph name="resume" /></Icon>
-            <span className="nav-label">
-              回到题目
-              {lastRun && page !== "library" && (
+            <span className="nav-label">{ui("回到题目")}{lastRun && page !== "library" && (
                 <small>
                   {lastRun.index + 1}/{lastRun.total} · {lastRun.title}
                 </small>
               )}
             </span>
           </button>
-          {[
-            ["library", "学习库"],
-            ["workflows", "学习流"],
-            ["wrongbook", "错题与待巩固"],
-            ["exam", "模拟考试"],
-            ["dashboard", "统计"],
-            ["sources", "资料", "upkeep"],
-            ["generate", "创建题组", "upkeep"],
-            ["skeleton", "知识骨架", "upkeep"],
-            ["notes", "学习笔记", "upkeep"],
-            ["board", "待办", "upkeep"],
-          ].map(([id, label, group]) => (
+          {data?.coach?.ready > 0 && (
             <button
-              key={id}
-              className={"nav" + (group ? " nav-upkeep" : "") + (navPage === id ? " active" : "")}
-              title={label}
-              onClick={() => switchPage(id, () => {
-                if (id === "exam") setExamRunId(null);
-                if (id === "notes") setNoteInitialId("");
-                setError("");
-              })}
-              disabled={!data && id !== "board"}
+              className="nav coach-nav"
+              disabled={busy}
+              title={ui("开刷为你定制的题（这一轮会保留，可回来继续）")}
+              onClick={onCoachPractice}
             >
-              <Icon><NavGlyph name={id} /></Icon>
-              {label}
-              {id === "board" && boardCount !== undefined && (
-                <span className="nav-count">{boardCount}</span>
-              )}
-              {id === "sources" && data && (
-                <span className="nav-count">{data.sources.length}</span>
-              )}
+              <Icon><NavGlyph name="coach" /></Icon>
+              <span className="nav-label">{ui("为你定制")}
+                <small>{uiFormat("{0} 道题已备好", [data.coach.ready])}</small>
+              </span>
+              <span className="nav-badge" aria-hidden="true">{data.coach.ready}</span>
             </button>
-          ))}
+          )}
+          {[...navOrder.order.main, ...navOrder.order.upkeep].map((id) => {
+            const label = navLabels[id], upkeep = NAV_DEFAULTS.upkeep.includes(id);
+            return (
+              <button
+                key={id}
+                {...navOrder.bind(id)}
+                className={"nav" + (upkeep ? " nav-upkeep" : "") + (navPage === id ? " active" : "") + (navOrder.lifted === id ? " is-dragging" : "")}
+                title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
+                onClick={() => switchPage(id, () => {
+                  if (id === 'board') setBoardStudyRef(currentStudyReference());
+                  if (id === "exam") { setExamRunId(null); setExamKind('exam'); }
+                  if (id === "notes") setNoteInitialId("");
+                  if (id === 'graph') setGraphScope(null);
+                  setError("");
+                })}
+                disabled={!data && id !== "board"}
+              >
+                <Icon><NavGlyph name={id} /></Icon>
+                {ui(label)}
+                {id === "board" && boardCount !== undefined && (
+                  <span className="nav-count">{boardCount}</span>
+                )}
+                {id === "sources" && data && (
+                  <span className="nav-count">{data.sources.length}</span>
+                )}
+              </button>
+            );
+          })}
+          {navOrder.customized && !sidebarNarrow && (
+            <button type="button" className="nav-reset" onClick={navOrder.reset}>{ui("恢复默认顺序")}</button>
+          )}
+          <span className="sr-only" role="status" aria-live="polite">
+            {navOrder.announce && uiFormat("{0} 已移到第 {1} 位，共 {2} 项", [ui(navLabels[navOrder.announce.id]), navOrder.announce.position, navOrder.announce.count])}
+          </span>
         </nav>
         <div className="sidebar-bottom">
+          <div className="study-language-switch" role="group" aria-label={ui("Interface language / 界面语言")}>
+            <button type="button" aria-pressed={language === 'zh'} onClick={() => setUiLanguage('zh')}>中文</button>
+            <button type="button" aria-pressed={language === 'en'} onClick={() => setUiLanguage('en')}>EN</button>
+          </div>
           {guideProps && <Guide {...guideProps} variant="sidebar" />}
           <div className="local-status">
-            <span />
-            本地学习工作区
-          </div>
+            <span />{ui("本地学习工作区")}</div>
           {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
           {(() => {
             const i = Math.max(0, THEMES.findIndex(([id]) => id === theme)),
@@ -1477,26 +1607,25 @@ export default function App({ call, host = {} }) {
               <button
                 type="button"
                 className="nav theme-cycle"
-                title={`主题：${label}（点击切换为${nextLabel}）`}
-                aria-label={`主题：${label}，切换为${nextLabel}`}
+                title={uiFormat("主题：{0}（点击切换为{1}）", [ui(label), ui(nextLabel)])}
+                aria-label={uiFormat("主题：{0}，切换为{1}", [ui(label), ui(nextLabel)])}
                 onClick={() => setTheme(nextId)}
               >
-                <Icon><NavGlyph name={current} /></Icon>外观 · {label}
+                <Icon><NavGlyph name={current} /></Icon>{ui("外观 · ")}{ui(label)}
               </button>
             );
           })()}
           <button
             className={navPage === "settings" ? "nav active" : "nav"}
-            title="设置"
+            title={ui("设置")}
             onClick={() => switchPage("settings")}
           >
-            <Icon><NavGlyph name="settings" /></Icon>设置
-          </button>
+            <Icon><NavGlyph name="settings" /></Icon>{ui("设置")}</button>
         </div>
       </aside>
       <main className={pageTarget ? "is-leaving" : undefined}>
         <header className="topbar">
-          <nav className="crumbs" aria-label="位置">
+          <nav className="crumbs" aria-label={ui("位置")}>
             <span className="crumb">Study</span>
             <span className="breadcrumb" aria-hidden="true">
               ›
@@ -1506,20 +1635,21 @@ export default function App({ call, host = {} }) {
             </span>
           </nav>
           <div className="top-right">
-            <span className="top-status" role="status" title={syncIssue || undefined}>
+            <span className={"top-status" + (!busy && !running && !syncIssue && data ? " idle" : "")}
+              role="status" title={syncIssue || undefined}>
               <i
                 className={`dot ${busy || running ? "busy" : data && !syncIssue ? "on" : ""}`}
                 aria-hidden="true"
               />
-              {busy
-                ? "正在保存…"
+              <span className="top-status-label">{busy
+                ? ui("正在保存…")
                 : running
-                  ? publishing ? "正在发布…" : "正在生成…"
+                  ? publishing ? ui("正在发布…") : ui("正在生成…")
                   : syncIssue
-                    ? "连接中断，正在重试…"
+                    ? isTransientStudyError({ message: syncIssue }) ? ui("连接中断，正在重试…") : ui("学习库读取失败")
                   : data
-                    ? "已连接"
-                    : "待连接"}
+                    ? ui("已连接")
+                    : ui("待连接")}</span>
             </span>
             {data && (
               <Inbox
@@ -1536,53 +1666,35 @@ export default function App({ call, host = {} }) {
         {data?.ingest && (
           <div role="status" className="alert ingest-banner">
             <span>
-              <strong>录题中</strong> · 题组「{data.ingest.deckTitle}」· 已录入 {data.ingest.added} 题
-              <small>在对话里直接贴题目或截图即可</small>
+              <strong>{ui("录题中")}</strong>{uiFormat(" · 题组「{0}」· 已录入 {1} 题", [data.ingest.deckTitle, data.ingest.added])}<small>{ui("在对话里直接贴题目或截图即可")}</small>
             </span>
             <button
               disabled={busy}
               onClick={() =>
-                act("ingest.stop", {}, (r) => setNotice(`已停止录题，本次录入 ${r.added} 题。`))
+                act("ingest.stop", {}, (r) => setNotice(uiFormat("已停止录题，本次录入 {0} 题。",[r.added])))
               }
-            >
-              停止录题
-            </button>
+            >{ui("停止录题")}</button>
           </div>
         )}
-        {error && (
-          <div role="alert" className="alert error">
-            <span>{error}</span>
-            <button aria-label="关闭错误" onClick={() => setError("")}>
-              ×
-            </button>
-          </div>
-        )}
-        {notice && (
-          <div role="status" className="alert notice">
-            <span>{notice.text ?? notice}</span>
-            {notice.action && (
-              <button
-                className="alert-action"
-                disabled={busy}
-                onClick={notice.action.run}
-              >
-                {notice.action.label}
-              </button>
-            )}
-            <button aria-label="关闭提示" onClick={() => setNotice("")}>
-              ×
-            </button>
-          </div>
-        )}
+        {!(page === "review" && run && !run.complete) && feedback}
+        {!!data?.storageIssues?.length && <div role="alert" className="alert">
+          <strong>{ui("部分文件无法读取，其他内容仍可查看。修复前暂停保存，原文件保留。")}</strong>
+          <ul>{data.storageIssues.map(issue => <li key={issue.file}>{issue.file}</li>)}</ul>
+        </div>}
+        {contextTrail.length > 0 && !['review', 'notes'].includes(page) && <div className="context-return">
+          <button type="button" disabled={busy} onClick={returnFromContext}>← {contextLabel(contextTrail.at(-1))}</button>
+        </div>}
+        {data && <LiveClass key={binding.root} data={data} call={call} visible={page === "live"}
+          onSettings={() => setPage("settings")} onSources={() => setPage("sources")}
+          onJobs={() => { void refresh().catch((failure) => setError(failure.message)); }} />}
         {page === "board" ? (
-          <Board state={boardState} onOrigin={host.openWorkspaceNotebook} />
+          <Board state={boardState} onOrigin={host.openWorkspaceNotebook} studyRef={boardStudyRef}
+            onClearStudyRef={() => setBoardStudyRef(null)} onStudyRef={openBoardReference} />
         ) : !data ? (
           <section className="onboarding">
             <div className="eyebrow">YOUR LEARNING SPACE</div>
-            <h1>把资料变成真正会的知识。</h1>
-            <p className="intro">
-              学习库默认在当前工作区，出题模型跟随当前会话。无法打开时，可以换一个目录后重试。
-            </p>
+            <h1>{ui("把资料变成真正会的知识。")}</h1>
+            <p className="intro">{ui("学习库默认在当前工作区，出题模型跟随当前会话。无法打开时，可以换一个目录后重试。")}</p>
             {workspacePanel}
             <button
               className="primary"
@@ -1593,23 +1705,20 @@ export default function App({ call, host = {} }) {
                   (e) => setError(e.message),
                 )
               }
-            >
-              重试
-            </button>
+            >{ui("重试")}</button>
           </section>
         ) : (
           <>
             {page === "library" && data.coach?.ready > 0 && (
               <div className="coach-offer" role="status">
+                <span className="coach-offer-mark" aria-hidden="true"><NavGlyph name="coach" /></span>
                 <div>
+                  <span className="eyebrow">{ui("为你定制")}</span>
                   <strong>
-                    {data.today?.ahead ? "今天的任务完成了。" : ""}为你定制的 {data.coach.ready} 道题已备好
-                  </strong>
-                  <small>从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。</small>
+                    {data.today?.ahead ? ui("今天的任务完成了。") : ""}{uiFormat("为你定制的 {0} 道题已备好", [data.coach.ready])}</strong>
+                  <small>{ui("从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。")}</small>
                 </div>
-                <button className="primary" disabled={busy} onClick={() => act("coach.practice", {}, enterRun)}>
-                  开刷 →
-                </button>
+                <button className="primary" disabled={busy} onClick={() => act("coach.practice", {}, enterRun)}>{uiFormat("刷 {0} 道定制题 →", [data.coach.ready])}</button>
               </div>
             )}
             {page === "library" && (
@@ -1628,7 +1737,7 @@ export default function App({ call, host = {} }) {
                 }
                 openDraft={openDraft}
                 continueDraft={(draft) => act("generate", { resumeDraftId: draft.id, draftVersion: draft.draftVersion }, (job) =>
-                  setNotice(`已开始补齐「${draft.title}」剩余 ${job.missing} 题；通过检查后会保存到同一份草稿。`))}
+                  setNotice(uiFormat("已开始补齐「{0}」剩余 {1} 题；通过检查后会保存到同一份草稿。",[draft.title,job.missing])))}
                 retryGeneration={(job) => {
                   const available = new Set(data.sources.map((source) => source.id));
                   setSelectedSources((job.sourceIds || []).filter((id) => available.has(id)));
@@ -1636,7 +1745,7 @@ export default function App({ call, host = {} }) {
                     count: job.requestedTotal || job.count || current.count }));
                   setGenSource("files");
                   setPage("generate");
-                  setNotice("已带回可用资料、题型和题数；请核对学习目标后再生成。");
+                  setNotice(ui("已带回可用资料、题型和题数；请核对学习目标后再生成。"));
                 }}
                 openAgent={host.openAgent}
                 cancelJob={(jobId) => act("job.cancel", jobId ? { jobId } : { all: true })}
@@ -1661,7 +1770,7 @@ export default function App({ call, host = {} }) {
                 refreshNotebooks={loadNotebooks}
                 onNotebookSearch={searchNotebooks}
                 onShowGraph={(scope, opts) => {
-                  setGraphScope(scope || []);
+                  setGraphScope(scope ?? null);
                   setGraphCanvas(opts?.canvas !== false);
                   setPage("graph");
                 }}
@@ -1674,9 +1783,7 @@ export default function App({ call, host = {} }) {
                 <Guide {...guideProps} variant="inline" />
                 {recovery && (
                   <div className="alert notice">
-                    <span>
-                      有本窗口暂存的编辑：{recovery.draft.title}（尚未发布）
-                    </span>
+                    <span>{ui("有本窗口暂存的编辑：")}{recovery.draft.title}{ui("（尚未发布）")}</span>
                     <button
                       onClick={() => {
                         setDraft(recovery.draft);
@@ -1686,10 +1793,8 @@ export default function App({ call, host = {} }) {
                         setJsonMode(recovery.jsonMode);
                         setPage("draft");
                       }}
-                    >
-                      继续编辑
-                    </button>
-                    <button onClick={clearRecovery}>丢弃暂存</button>
+                    >{ui("继续编辑")}</button>
+                    <button onClick={clearRecovery}>{ui("丢弃暂存")}</button>
                   </div>
                 )}
               </StudyMap>
@@ -1734,10 +1839,12 @@ export default function App({ call, host = {} }) {
             {page === "exam" && (
               <Exam
                 initialRunId={examRunId}
-                key={`${data.root}:${examRunId || "latest"}`}
+                initialKind={examKind}
+                key={`${data.root}:${examKind}:${examRunId || "latest"}`}
                 call={call}
                 data={data}
-                onStartRun={enterRun}
+                onLocation={location => { examLocation.current = location; }}
+                onStartRun={(next, origin) => { if (origin) rememberContext(captureContext({ page: 'exam', exam: origin })); enterRun(next); }}
                 onExit={() => setPage("library")}
                 onCreate={() => {
                   setGenSource("files");
@@ -1768,6 +1875,7 @@ export default function App({ call, host = {} }) {
                 call={call}
                 busy={busy}
                 scope={graphScope}
+                library={data}
                 canvasWanted={graphCanvas}
                 onCanvasHandled={() => setGraphCanvas(false)}
                 onClose={() => setPage("library")}
@@ -1799,13 +1907,27 @@ export default function App({ call, host = {} }) {
             )}
             {page === "sources" && (
               <Sources
+                key={data.root}
                 data={data}
                 busy={busy}
                 act={act}
                 setModal={setModal}
                 sourceForm={sourceForm}
+                openAgent={host.openAgent}
+                onOpenSources={openAudioSources}
+                onLegacyRetry={job => { setLegacyAudioJobId(job.id); setPage('audio'); }}
+                onGenerate={ids => { rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined })); setGenSource('files'); setPage('generate'); }}
               />
             )}
+            {page === "audio" && <section className="page">
+              <div className="page-heading"><div><h1>{language === "en" ? "Audio transcription" : "音频转录"}</h1>
+                <p className="muted">{language === "en" ? "Import a recording. Transcription, proofreading and translation run in the background; updates arrive in your inbox." : "导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。"}</p></div>
+                <div className="section-heading-actions"><button onClick={() => setPage("settings")}>{language === "en" ? "Audio settings" : "音频设置"}</button>
+                  <button onClick={() => setPage("sources")}>{language === "en" ? "View sources" : "查看资料"}</button></div></div>
+              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources}
+                recoveryJobId={legacyAudioJobId} onRecoveryChange={setLegacyAudioJobId} />
+              <AudioDashboard call={call} />
+            </section>}
             {page === "generate" && (
               <Generate
                 data={data}
@@ -1863,6 +1985,7 @@ export default function App({ call, host = {} }) {
                 data={data}
                 busy={busy}
                 act={act}
+                call={call}
                 setNotice={setNotice}
                 settings={settings}
                 setSettings={setSettings}
@@ -1871,6 +1994,10 @@ export default function App({ call, host = {} }) {
                 workspacePanel={workspacePanel}
                 exportData={exportData}
                 onRestored={() => {
+                  libraryEpoch.current++;
+                  navigationRequest.current++;
+                  setContextTrail([]); setDetour(null); setWorkflowReturn(null); setSkeletonFocus(null); setNoteInitialId(''); setBoardStudyRef(null);
+                  setFocusRequest(null); examLocation.current = null;
                   setRun(null);
                   setExamRunId(null);
                   setDraft(null);
@@ -1879,25 +2006,26 @@ export default function App({ call, host = {} }) {
                   setSelectedSources([]);
                   setSettings({});
                   setPage("library");
-                  setNotice("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。");
+                  setNotice(ui("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。"));
                 }}
               />
             )}
             {page === "review" && run && (
               <Review
+                feedback={feedback}
+                contextReturnLabel={contextTrail.length ? contextLabel(contextTrail.at(-1)) : ''}
+                onReturnContext={returnFromContext}
                 detour={detour && !(detour.runId === run.id && detour.index === run.index) ? detour : null}
                 onReturnFromDetour={returnFromDetour}
                 onCourseFlow={startCourseFlow}
                 onBackToWorkflow={(sessionId) => { setWorkflowReturn({ sessionId, nonce: Date.now() }); setPage("workflows"); }}
-                onOpenNote={(noteId) => { setNoteInitialId(noteId); setPage("notes"); }}
-                onMakeNote={() => act("note.create", {
-                  title: `学习笔记 · ${new Date().toLocaleDateString("zh-CN")}`,
+                onOpenNote={(noteId) => openLearningTarget({ kind: 'note', id: noteId })}
+                onMakeNote={() => { const origin = captureContext(); return act("note.create", {
+                  title: `学习笔记 · ${new Date().toLocaleDateString(uiLocale())}`,
                   cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }],
-                }, (note) => { setNoteInitialId(note.id); setPage("notes"); })}
-                openSkeleton={(id) => {
-                  setSkeletonFocus(id);
-                  setPage("skeleton");
-                }}
+                }, (note) => { rememberContext(origin); setNoteInitialId(note.id); setPage("notes"); }); }}
+                onMakeTask={openBoardWithContext}
+                openSkeleton={id => openLearningTarget({ kind: 'skeleton', id })}
                 run={run}
                 data={data}
                 busy={busy}
@@ -1942,44 +2070,28 @@ export default function App({ call, host = {} }) {
                 call={call}
               />
             )}
-            {page === "notes" && <BlogNotes data={data} call={call} act={act} theme={resolvedTheme}
-              initialId={noteInitialId} onBack={() => { setNoteInitialId(""); setPage("library"); }} />}
+            {page === "notes" && <BlogNotes key={data.root} data={data} call={call} act={act} theme={resolvedTheme}
+              initialId={noteInitialId} onSelect={setNoteInitialId}
+              onOpenCard={ref => openLearningTarget({ kind: 'card', ...ref })}
+              backLabel={contextTrail.length ? contextLabel(contextTrail.at(-1)) : ''}
+              onBack={contextTrail.length ? returnFromContext : () => { setNoteInitialId(""); setPage("library"); }} />}
           </>
         )}
       </main>
       {shortcutHelp && <ShortcutHelp page={page} onClose={() => setShortcutHelp(false)} />}
       {modal && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setModal(null);
-          }}
-        >
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={modal.type === "add" ? "添加资料" : "查看详情"}
-          >
-            <div className="modal-heading">
-              <h2>
-                {modal.type === "add"
-                  ? "添加资料"
+        <ModalFrame fullscreen={modal.type === 'source'} onClose={() => setModal(null)}
+          title={modal.type === "add"
+                  ? ui("添加资料")
                   : modal.type === "sources"
-                    ? "学习资料"
+                    ? ui("学习资料")
                     : modal.type === "flag"
-                      ? "标记这道题"
-                      : modal.source?.title || "资料不可用"}
-              </h2>
-              <button aria-label="关闭" onClick={() => setModal(null)}>
-                ×
-              </button>
-            </div>
+                      ? ui("标记这道题")
+                      : modal.source?.title || ui("资料不可用")}>
             {modal.type === "add" ? (
               sourceForm
             ) : modal.type === "sources" ? (
-              data.sources
-                .filter((s) => run?.sourceIds?.includes(s.id))
+              (modal.sourceIds || run?.sourceIds || []).map(id => data.sources.find(source => source.id === id)).filter(Boolean)
                 .map((s) => (
                   <button
                     className="source-row"
@@ -1999,95 +2111,49 @@ export default function App({ call, host = {} }) {
                     () => {
                       setModal(null);
                       setNotice(
-                        flag ? "题目已标记，下轮优先复习" : "题目标记已清除",
+                        flag ? ui("题目已标记，下轮优先复习") : ui("题目标记已清除"),
                       );
                     },
                   );
                 }}
               >
-                <label>
-                  问题或需要回顾的地方
-                  <textarea
+                <label>{ui("问题或需要回顾的地方")}<textarea
                     value={flag}
                     maxLength={1000}
                     onChange={(e) => setFlag(e.target.value)}
-                    placeholder="例如：干扰项似乎也成立，需要核对原文"
+                    placeholder={ui("例如：干扰项似乎也成立，需要核对原文")}
                   />
                 </label>
-                <p className="muted">保留空白并保存可清除标记。</p>
-                <button className="primary" disabled={busy}>
-                  保存标记
-                </button>
+                <p className="muted">{ui("保留空白并保存可清除标记。")}</p>
+                <button className="primary" disabled={busy}>{ui("保存标记")}</button>
               </form>
             ) : (
               <>
-                {modal.quote && (
+                {modal.quote && !modal.source && (
                   <blockquote className="highlight-quote">
                     {modal.quote}
                   </blockquote>
                 )}
                 {modal.source ? (
                   <>
-                    {!modal.source.document && <div className="source-view-toggle">
-                      <button
-                        className={rawSource ? "chip" : "chip active"}
-                        aria-pressed={!rawSource}
-                        onClick={() => setRawSource(false)}
-                      >
-                        排版
-                      </button>
-                      <button
-                        className={rawSource ? "chip active" : "chip"}
-                        aria-pressed={rawSource}
-                        onClick={() => setRawSource(true)}
-                      >
-                        原文
-                      </button>
+                    {!!modal.source.usedBy?.length && <div className="source-connections">
+                      <small className="muted">{ui('使用这份资料的题组')}</small>
+                      {modal.source.usedBy.map(deck => <button key={`${deck.kind}:${deck.id}`} disabled={busy || deck.kind === 'draft'}
+                        onClick={() => openLearningTarget({ kind: 'deck', id: deck.id })}>{deck.title}{deck.archived ? ` · ${ui('已归档')}` : ''}</button>)}
                     </div>}
-                    {(() => {
-                      const text = modal.source.text,
-                        quote = modal.quote || "",
-                        at = quote ? text.indexOf(quote) : -1;
-                      if (at < 0)
-                        return rawSource || modal.source.document ? (
-                          <pre className={modal.source.document ? "source-text pdf-extracted-text" : "source-text"}>{text}</pre>
-                        ) : (
-                          <Markdown
-                            className="source-text source-md"
-                            text={text}
-                          />
-                        );
-                      // The quote is verbatim-validated, so slicing the
-                      // source at it keeps the passage exactly once on screen.
-                      const hit = (
-                        <mark className="source-hit" ref={markRef}>
-                          {quote}
-                        </mark>
-                      );
-                      if (rawSource || modal.source.document)
-                        return (
-                          <pre className={modal.source.document ? "source-text pdf-extracted-text" : "source-text"}>
-                            {text.slice(0, at)}
-                            {hit}
-                            {text.slice(at + quote.length)}
-                          </pre>
-                        );
-                      return (
-                        <div className="source-text source-md">
-                          <Markdown text={text.slice(0, at)} />
-                          {hit}
-                          <Markdown text={text.slice(at + quote.length)} />
-                        </div>
-                      );
-                    })()}
+                    <button type="button" disabled={busy} onClick={() => {
+                      rememberContext(); setSelectedSources([modal.source.id]); setGen(current => ({ ...current, course: undefined }));
+                      setGenSource('files'); setModal(null); setPage('generate');
+                    }}>{ui('从这份资料补题')}</button>
+                    <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
+                      onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }} />
                   </>
                 ) : (
-                  <p className="muted">无法找到此资料。</p>
+                  <p className="muted">{ui("无法找到此资料。")}</p>
                 )}
               </>
             )}
-          </section>
-        </div>
+        </ModalFrame>
       )}
     </div>
   );
