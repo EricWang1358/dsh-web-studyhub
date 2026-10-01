@@ -527,6 +527,10 @@
     color: var(--text-faint);
     font-weight: 400;
   }
+  .nav-count.is-due {
+    color: var(--danger, var(--accent));
+    font-weight: 600;
+  }
   /* ── Collapsed rail ─────────────────────────────────────────────────────
      .is-narrow is set manually via the toggle, or automatically when the
      workspace is ≤720px (ResizeObserver in App.jsx). */
@@ -1388,19 +1392,6 @@
   .source-choice small {
     display: block;
     margin-top: 3px;
-  }
-  .kind-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 9px;
-  }
-  .kind {
-    padding: 16px 8px;
-  }
-  .kind.selected {
-    background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
-    border-color: var(--accent-soft);
-    color: var(--text);
   }
   .two-col,
   .three-col {
@@ -2538,12 +2529,6 @@
     background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
     border-color: var(--accent-soft);
   }
-  .choice-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
-    gap: 8px;
-    margin-bottom: 8px;
-  }
   .review-heading-actions {
     display: flex;
     align-items: center;
@@ -2935,31 +2920,6 @@
     border-bottom: 1px solid var(--line-soft);
   }
   .desk-intro { min-width: 0; }
-  .focus-switch {
-    display: flex;
-    width: fit-content;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--text) 6%, transparent);
-  }
-  .focus-switch button {
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    padding: 5px 13px;
-    font-size: 15px;
-    color: var(--text-muted);
-  }
-  .focus-switch button:hover:not(:disabled) {
-    background: transparent;
-    color: var(--text);
-  }
-  .focus-switch button.active {
-    background: var(--bg-raised);
-    color: var(--text);
-    box-shadow: var(--shadow-sm);
-  }
   .course-heading {
     position: relative;
     display: inline-flex;
@@ -3865,9 +3825,6 @@
     .three-col {
       grid-template-columns: 1fr;
       gap: 0;
-    }
-    .kind-grid {
-      grid-template-columns: repeat(2, 1fr);
     }
     .review-heading {
       padding: 21px 17px 0;

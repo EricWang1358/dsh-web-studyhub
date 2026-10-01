@@ -1,6 +1,7 @@
 import { ui } from "./i18n.js";
 import React, { useState } from "react";
 import CourseField from './CourseField.jsx';
+import { SegmentedControl } from './components/index.js';
 
 const KINDS = [
   ["auto", "自动识别", "有选项保持单选/多选，没有选项做成问答闪卡"],
@@ -74,39 +75,15 @@ export default function Ingest({ data, busy, start }) {
       </fieldset>
       <fieldset>
         <legend>{ui("02 / 题型")}</legend>
-        <div className="choice-grid">
-          {KINDS.map(([id, label, note]) => (
-            <button
-              type="button"
-              key={id}
-              className={kind === id ? "kind selected" : "kind"}
-              aria-pressed={kind === id}
-              title={ui(note)}
-              onClick={() => setKind(id)}
-            >
-              {ui(label)}
-            </button>
-          ))}
-        </div>
-        <small>{ui(KINDS.find(([id]) => id === kind)[2])}</small>
+        <SegmentedControl label={ui("02 / 题型")} value={kind} onChange={setKind}
+          options={KINDS.map(([value, label, note]) => ({ value, label: ui(label), title: ui(note) }))} />
+        <small className="sh-seg-note">{ui(KINDS.find(([id]) => id === kind)[2])}</small>
       </fieldset>
       <fieldset>
         <legend>{ui("03 / 错题怎么记")}</legend>
-        <div className="choice-grid three">
-          {MISTAKES.map(([id, label, note]) => (
-            <button
-              type="button"
-              key={id}
-              className={mistakes === id ? "kind selected" : "kind"}
-              aria-pressed={mistakes === id}
-              title={ui(note)}
-              onClick={() => setMistakes(id)}
-            >
-              {ui(label)}
-            </button>
-          ))}
-        </div>
-        <small>{ui(MISTAKES.find(([id]) => id === mistakes)[2])}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
+        <SegmentedControl label={ui("03 / 错题怎么记")} value={mistakes} onChange={setMistakes}
+          options={MISTAKES.map(([value, label, note]) => ({ value, label: ui(label), title: ui(note) }))} />
+        <small className="sh-seg-note">{ui(MISTAKES.find(([id]) => id === mistakes)[2])}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
       </fieldset>
       {!data.modelReady && (
         <p className="warning">{ui("当前会话没有可用模型，录题需要模型整理题目。")}</p>

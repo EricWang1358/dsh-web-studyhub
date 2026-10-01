@@ -3,62 +3,6 @@
    ui/style.css, so both themes work; no raw hex values here. Injected once per
    document as <style data-study-views> by the three sibling components. */
 
-/* Global board uses the same theme tokens as the learning views. */
-.board-page { min-width: 0; }
-.board-page .page-heading { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: flex-start; }
-.board-actions { display: flex; gap: 8px; }
-.board-columns { display: flex; gap: 16px; overflow-x: auto; padding: 4px 2px 18px; align-items: flex-start; }
-.board-column { flex: 1 0 260px; min-width: 0; max-width: 380px; border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 12px; background: var(--bg-sunken); }
-.board-column.is-over { border-color: var(--accent); background: var(--bg-selected); }
-.board-column-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.board-column-heading h2 { font-size: 15px; margin: 0; flex: 1; overflow-wrap: anywhere; }
-.board-column-heading > button { padding: 2px 8px; }
-.board-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--accent-soft); }
-.board-dot.is-done { background: var(--ok); }
-.board-count { color: var(--text-muted); font-size: 15px; font-variant-numeric: tabular-nums; }
-.board-cards { display: flex; flex-direction: column; gap: 10px; min-height: 90px; }
-.board-card { min-width: 0; background: var(--bg-surface); padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
-.board-card[draggable="true"] { cursor: grab; }
-.board-card .board-card-title { padding: 0; width: 100%; display: block; background: none; border: 0; border-radius: 0; color: var(--text); font-size: 15px; text-align: left; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
-.board-note { font-size: 15px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 8px 0; }
-.board-labels { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-.board-labels span { padding: 2px 7px; font-size: 15px; color: var(--accent-soft); background: var(--bg-selected); border-radius: 5px; overflow-wrap: anywhere; max-width: 100%; }
-.board-due { display: block; color: var(--text-dim); margin-top: 8px; font-size: 15px; }
-.board-due.is-overdue { color: var(--bad); }
-.board-card .board-origin { border: 0; background: none; color: var(--text-muted); padding: 6px 0; text-align: left; width: 100%; overflow-wrap: anywhere; white-space: normal; font-size: 15px; }
-.board-card-controls { display: flex; gap: 4px; padding-top: 9px; margin-top: 7px; border-top: 1px solid var(--line-soft); }
-.board-card-controls button { padding: 3px 7px; min-width: 28px; font-size: 15px; }
-.board-card-controls .board-archive { margin-left: auto; }
-.board-empty { color: var(--text-muted); text-align: center; padding: 12px 0; font-size: 15px; line-height: 1.9; }
-.board-empty small { font-size: 15px; }
-.board-add, .board-new-column { display: flex; gap: 8px; margin-top: 12px; }
-.board-add { flex-wrap: wrap; }
-.board-add small { flex-basis: 100%; overflow-wrap: anywhere; }
-.board-add small button { margin-left: 8px; }
-.board-add input, .board-new-column input { width: 100%; min-width: 0; }
-.board-new-column { max-width: 350px; }
-.board-add button, .board-new-column button { flex-shrink: 0; }
-.board-column-settings { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.board-column-settings input { width: 100%; }
-.board-column-settings button { font-size: 15px; }
-.board-archive-list article { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.board-archive-list article span { flex: 1; overflow-wrap: anywhere; }
-.board-dialog { background: var(--bg-surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; box-shadow: var(--shadow-lg); }
-.board-dialog::backdrop { background: color-mix(in srgb, var(--bg-sunken) 75%, transparent); }
-.board-dialog header, .board-dialog footer { display: flex; gap: 10px; justify-content: space-between; align-items: center; }
-.board-dialog h2 { margin: 0; font-size: 21px; }
-.board-dialog fieldset { border: 0; padding: 18px 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
-.board-dialog label { display: flex; flex-direction: column; gap: 6px; font-size: 15px; color: var(--text-dim); }
-.board-dialog input, .board-dialog textarea { width: 100%; min-width: 0; }
-.board-dialog textarea { resize: vertical; }
-.board-dialog footer { justify-content: flex-end; }
-.board-conflict { padding: 12px; border: 1px solid var(--warn); border-radius: var(--radius-sm); font-size: 15px; }
-.board-conflict button { margin-top: 8px; white-space: normal; }
-@container study (max-width: 600px) {
-  .board-column { flex: 0 0 min(260px, 100%); }
-  .board-dialog { padding: 16px; }
-}
-
 /* ── shared shells ───────────────────────────────────────────────────── */
 .dash,
 .exam,
@@ -189,20 +133,6 @@
   grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   column-gap: 56px;
 }
-.dash-accuracy {
-  display: grid;
-  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
-  align-items: start;
-  column-gap: 56px;
-}
-.dash-accuracy > h2 { grid-column: 1 / -1; }
-.dash-accuracy .dash-rates { flex-direction: column; gap: 22px; }
-.dash-trend-figure { margin: 0; }
-.dash-trend-figure figcaption {
-  margin-bottom: 6px;
-  font-size: 15px;
-  color: var(--text-faint);
-}
 .dash-section h2 {
   margin: 0 0 14px;
   font-size: 17px;
@@ -253,42 +183,6 @@
   background: repeating-linear-gradient(90deg, var(--text-muted) 0 3px, transparent 3px 6px);
 }
 
-/* Trend line: plain SVG, grid lines at whole scores 0–5. */
-.dash-trend {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-.dash-trend-grid {
-  stroke: var(--line-soft);
-  stroke-width: 1;
-}
-.dash-trend-label {
-  fill: var(--text-faint);
-  font-size: 15px;
-}
-.dash-trend-line {
-  fill: none;
-  stroke: var(--text-dim);
-  stroke-width: 1.75;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-/* Dots are hover targets for the per-day tooltip, not marks. */
-.dash-trend-dot {
-  fill: transparent;
-}
-.dash-trend-dot:hover {
-  fill: var(--text-dim);
-}
-.dash-trend-line.self {
-  stroke: var(--text-muted);
-  stroke-dasharray: 3 4;
-}
-.dash-trend-dot.self:hover {
-  fill: var(--text-muted);
-}
-
 .dash-weak {
   list-style: none;
   margin: 0;
@@ -324,11 +218,9 @@
   flex: none;
 }
 @container study (max-width: 860px) {
-  .dash-hero,
-  .dash-accuracy {
+  .dash-hero {
     grid-template-columns: minmax(0, 1fr);
   }
-  .dash-accuracy .dash-rates { flex-direction: row; margin-bottom: 18px; }
   .dash-streak strong { font-size: 104px; }
 }
 
@@ -503,10 +395,7 @@
   font-size: 15px;
 }
 .exam-type-settings { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
-.exam-type-settings > div { display: flex; flex-wrap: wrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); }
-.exam-type-settings button { padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; font-size: 15px; color: var(--text-muted); }
-.exam-type-settings button:hover:not(:disabled) { background: transparent; color: var(--text); }
-.exam-type-settings button.picked { background: var(--bg-raised); color: var(--text); box-shadow: 0 1px 3px #20160c26; }
+.exam-type-settings .sh-seg { align-self: flex-start; }
 .exam-type-settings small { font-size: 15px; }
 .exam-type-settings .warning { margin: 0; }
 .exam-setup-foot {
@@ -823,101 +712,6 @@
   margin: 0;
 }
 
-/* ── WrongBook ───────────────────────────────────────────────────────── */
-/* A marked exercise book, not a stack of cards: each deck is a heading over
-   ruled lines, the mark sits in the margin, practice waits for the pointer. */
-.wb-group {
-  display: flex;
-  flex-direction: column;
-  margin-top: 14px;
-}
-.wb-group-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-}
-.wb-group-head strong {
-  font-family: var(--font-display);
-  font-size: 17px;
-}
-.wb-group-head small {
-  font-size: 15px;
-}
-.wb-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.wb-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 8px;
-  border-bottom: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
-  transition: background 0.15s var(--ease);
-}
-.wb-row:hover { background: var(--bg-hover); }
-@container study (max-width: 640px) {
-  .wb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
-  .wb-row .wb-topic { width: auto; }
-  .wb-row .wb-prompt { grid-column: 1 / -1; grid-row: 2; white-space: normal; overflow-wrap: anywhere; }
-  .wb-row .wb-grade { grid-column: 2; grid-row: 1; }
-  .study-app .wb-row button { grid-column: 2; grid-row: 3; opacity: 1; }
-}
-.wb-topic {
-  flex: none;
-  width: 108px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-muted);
-  font-size: 15px;
-}
-.wb-prompt {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 15px;
-}
-.wb-grade {
-  flex: none;
-  color: var(--bad);
-  font-size: 15px;
-}
-.wb-grade::before {
-  content: "× ";
-}
-.wb-grade.self {
-  color: var(--warn);
-}
-.wb-grade.self::before {
-  content: "○ ";
-}
-.wb-pages { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: 15px; }
-.wb-row button {
-  flex: none;
-  padding: 5px 14px;
-  border-radius: 999px;
-  border-color: var(--line);
-  background: transparent;
-}
-.wb-row button:hover:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-}
-@media (hover: hover) {
-  .wb-row button { opacity: 0; transition: opacity 0.15s var(--ease), background 0.15s var(--ease); }
-  .wb-row:hover button, .wb-row:focus-within button { opacity: 1; }
-}
-.wb-empty h2 {
-  margin: 0;
-}
 .study-empty-actions {
   display: flex;
   justify-content: center;

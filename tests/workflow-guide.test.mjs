@@ -43,7 +43,8 @@ test("one sentence starts a guided session on AI-chosen material, past the goal 
 
 test("without a model the goal is matched against topic and deck names", async (t) => {
   const service = await setup(t);
-  const { session, method } = await service.call("workflow.quickstart", { goal: "TCP 握手", requestId: "go" });
+  // The flow studies the current course (系统设计) unless told otherwise; 握手 lives in the other one.
+  const { session, method } = await service.call("workflow.quickstart", { goal: "TCP 握手", requestId: "go", inCourse: "计算机网络" });
   assert.equal(method, "match");
   assert.deepEqual(session.scope, [{ deckId: "net", topic: "TCP 握手" }]);
 });
@@ -146,7 +147,7 @@ test("a large scope is sampled evenly for the background skeleton and failures r
     s.decks.push({ id: "big", title: "大题组", folder: "大课", cards: Array.from({ length: 150 }, (_, i) => ({ id: `b${i}`, topic: topics[i % 5],
       kind: "flashcard", prompt: "很长的题干".repeat(80), answer: "答".repeat(400), explanation: "解".repeat(400) })) });
   });
-  const { session } = await service.call("workflow.quickstart", { goal: "大题组", requestId: "big", skeleton: true });
+  const { session } = await service.call("workflow.quickstart", { goal: "大题组", requestId: "big", skeleton: true, inCourse: "大课" });
   const after = await settle(service, session.id);
   assert.equal(after.skeletonJob.cards, 150, "the status reports the whole scope");
   assert.equal(seen.cards.length, 80);
@@ -159,7 +160,7 @@ test("a large scope is sampled evenly for the background skeleton and failures r
 
 test("a guided session remembers how its material was picked and names it for the learner", async (t) => {
   const service = await setup(t);
-  const { session, resources } = await service.call("workflow.quickstart", { goal: "TCP 握手", requestId: "go" });
+  const { session, resources } = await service.call("workflow.quickstart", { goal: "TCP 握手", requestId: "go", inCourse: "计算机网络" });
   assert.equal(session.pickedBy, "match");
   assert.deepEqual(resources.scopeTopics, ["TCP 握手"]);
   assert.equal(resources.scopeTopicCount, 1);
@@ -168,7 +169,8 @@ test("a guided session remembers how its material was picked and names it for th
     [{ stepIndex: 1, stepCount: session.template.steps.length, stepTitle: session.template.steps[1].title }], "the home can say where to resume");
   const fallback = await service.call("workflow.quickstart", { goal: "完全无关的东西", requestId: "none" });
   assert.equal(fallback.session.pickedBy, "course");
-  assert.deepEqual(fallback.resources.scopeTopics, ["缓存设计"], "the current course's decks, named by their titles");
+  assert.deepEqual([...fallback.resources.scopeTopics].sort(), ["缓存命中", "过期策略"], "the current course's own topics, not its deck titles");
+  assert.deepEqual(fallback.resources.scopeDecks, ["缓存设计"], "deck titles are secondary info");
 });
 
 test("the background skeleton input keeps English text intact and blanks cloze answers", async (t) => {

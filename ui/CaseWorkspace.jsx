@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
-import PageScope, { usePageScope } from "./PageScope.jsx";
+import { usePageScope } from "./PageScope.jsx";
 import { createWriteQueue } from "./async.js";
 import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
-import { Button, Dialog, Disclosure, EmptyState, InlineMessage, PageHeader, Panel, SegmentedControl } from "./components/index.js";
+import { Button, Dialog, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, SetupRequired } from "./components/index.js";
+import { ExamSetupCard } from "./ExamShell.jsx";
 import {
   scenarioParagraphs, countWords, questionMinutes, lengthHint, suggestedWords, paperPlan, defaultReadingMinutes,
   blankQuestions, courseProfileFromState, DEFAULT_MINUTES_PER_MARK,
@@ -193,14 +194,19 @@ const phaseLabel = (phase, handwriting) => ({ reading: ui("阅读时间"), writi
   transcribe: ui("录入答案（不计时）"), over: ui("时间到"), submitted: ui("已交卷") })[phase] || "";
 const paceLabel = (pace) => ({ ahead: ui("节奏从容"), "on-track": ui("节奏正常"), behind: ui("时间偏紧：先保证每题都写到") })[pace];
 
-export function CasePaper({ data, call, onExit, onWritten, onCreate, onStartRun, onNotice, initialRunId, onLocation }) {
+export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, initialRunId, onLocation, header, recent, course: courseProp, onCourseChange, onSetupModel }) {
   useInjectCss(css, "study-case-workspace");
-  const [course, setCourse] = usePageScope(data?.root, "exam", data?.focus?.course ?? "*");
+  // 模拟考试 owns the course scope and the header; used on its own the paper keeps its own scope.
+  const [ownCourse] = usePageScope(data?.root, "exam", data?.focus?.course ?? "*");
+  const course = courseProp ?? ownCourse;
   const decks = useMemo(() => (data?.decks || []).filter((deck) => deck.format === "case-study" && !deck.archived &&
     (course === "*" || (deck.course || "") === course)), [data, course]);
   const [deckId, setDeckId] = useState("");
   const deck = decks.find((item) => item.id === deckId) || decks[0] || null;
-  const [settings, setSettings] = useState({ minutesPerMark: DEFAULT_MINUTES_PER_MARK, readingMinutes: null, handwriting: false });
+  // The course profile (WP13) proposes the time model; the learner can override it for this paper.
+  const profile = useMemo(() => courseProfileFromState({ courses: data?.courses }, course === "*" ? "" : course), [data?.courses, course]);
+  const [settings, setSettings] = useState(() => ({ minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
+    readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null, handwriting: false }));
   const [phase, setPhase] = useState("setup");
   const [run, setRun] = useState(null), [report, setReport] = useState(null);
   const [answers, setAnswers] = useState({}), [highlights, setHighlights] = useState([]), [session, setSession] = useState(null);
@@ -213,8 +219,6 @@ export function CasePaper({ data, call, onExit, onWritten, onCreate, onStartRun,
   activeRef.current = activeId;
   const model = modelReadiness(data);
 
-  // The course profile (WP13) proposes the time model; the learner can override it for this paper.
-  const profile = useMemo(() => courseProfileFromState({ courses: data?.courses }, course === "*" ? "" : course), [data?.courses, course]);
   useEffect(() => {
     setSettings((current) => ({ ...current, minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
       readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null }));
@@ -470,62 +474,73 @@ export function CasePaper({ data, call, onExit, onWritten, onCreate, onStartRun,
   /* setup */
   const reading = settings.readingMinutes ?? (deck ? defaultReadingMinutes(deck.caseMarks, settings.minutesPerMark) : 0);
   const writing = deck ? Math.round(deck.caseMarks * settings.minutesPerMark) : 0;
-  const history = (data?.exams || []).filter((item) => item.examKinds === "case");
+  const courseRecord = (data?.courses || []).find((item) => item && item.name === course);
+  const examFormatName = { "open-book-case": ui("开卷案例"), "closed-book": ui("闭卷"), mixed: ui("混合"), other: ui("其他") }[courseRecord?.exam?.format];
   return (
     <section className="page exam case-paper">
-      <PageHeader eyebrow={ui("模拟考试")} title={ui("案例分析卷")}
-        description={ui("限时完成一套案例题：先阅读并高亮线索，再按分值分配时间作答；交卷后逐题按评分标准批改，结果进信箱。")}
-        actions={<Button variant="quiet" onClick={onWritten}>{ui("切换到选择题笔试 →")}</Button>} />
-      <PageScope courses={data?.focus?.courses} value={course} onChange={(value) => { setCourse(value); setDeckId(""); }} />
-      {!decks.length ? (
-        <EmptyState icon="file" title={ui("还没有案例分析题组")}
-          description={ui("在「创建题组 › 案例分析题」里用课程资料出一套案例，或粘贴往年真题仿照出题。")}
-          primary={onCreate ? { label: ui("去出一套案例题"), icon: "sparkle", onClick: onCreate } : undefined}
-          secondary={{ label: ui("回学习库"), onClick: onExit }} />
-      ) : (
-        <Panel title={ui("选择案例")} description={ui("每套案例一次考完；可以多次重考，最好成绩显示在学习库。")}>
-          <div className="case-paper__decks" role="radiogroup" aria-label={ui("案例题组")} data-tour="exam-start">
-            {decks.map((item) => (
-              <label key={item.id} className={"case-paper__deck" + (deck?.id === item.id ? " is-picked" : "")}>
-                <input type="radio" name="case-paper-deck" checked={deck?.id === item.id} onChange={() => setDeckId(item.id)} />
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{uiFormat("{0} 题 · {1} 分", [item.count, item.caseMarks])}{item.caseBest ? uiFormat(" · 最好成绩 {0}/{1}", [item.caseBest.total, item.caseBest.max]) : ""}</small>
-                </span>
-              </label>
-            ))}
+      {header || <PageHeader eyebrow={ui("模拟考试")} title={ui("案例分析卷")} />}
+      <ExamSetupCard data-tour="exam-start" title={ui("案例分析卷")}
+        intro={ui("限时完成一套案例题：先阅读并高亮线索，再按分值分配时间作答。")}
+        steps={[
+          ui("选一套案例卷，或点「新出一份案例卷」让 AI 按课程资料出一套。"),
+          ui("先读：阅读时间里只能看案例和题目，用不同颜色高亮线索。"),
+          ui("再写：按每题分值分配作答时间，页面会显示每题的建议用时。"),
+          ui("交卷后按评分标准逐条给分，并给出改写建议；批改由 AI 模型完成，结果也会进信箱。"),
+        ]}
+        summary={deck ? [uiFormat("满分 {0} 分", [deck.caseMarks]),
+          uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟（每分约 {2} 分钟）· 共 {3} 分钟", [reading, writing, settings.minutesPerMark, reading + writing])].join(" · ")
+          : ui("先选一套案例卷")}
+        action={<Button variant="primary" busy={busy} disabled={!deck} onClick={start}>{ui("开始考试")}</Button>}>
+        <div className="es-section">
+          <div className="es-section__head">
+            <div><strong>{ui("案例卷")}</strong><small>{ui("每套案例一次考完，可以重考；最好成绩显示在学习库。")}</small></div>
+            {decks.length > 0 && onCreate && <div className="es-tools"><Button size="sm" variant="secondary" icon="plus" onClick={onCreate}>{ui("新出一份案例卷")}</Button></div>}
           </div>
-          <div className="case-paper__settings">
-            <label>{ui("每分用时（分钟）")}
-              <input type="number" min={0.5} max={10} step={0.5} value={settings.minutesPerMark}
-                onChange={(event) => setSettings({ ...settings, minutesPerMark: Math.min(10, Math.max(0.5, Number(event.target.value) || DEFAULT_MINUTES_PER_MARK)) })} />
-            </label>
+          {decks.length ? (
+            <div className="es-papers" role="radiogroup" aria-label={ui("案例题组")}>
+              {decks.map((item) => (
+                <label key={item.id} className={"es-paper" + (deck?.id === item.id ? " is-picked" : "")}>
+                  <input type="radio" name="case-paper-deck" checked={deck?.id === item.id} onChange={() => setDeckId(item.id)} />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{uiFormat("{0} 题 · {1} 分", [item.count, item.caseMarks])}{item.caseBest ? uiFormat(" · 最好成绩 {0}/{1}", [item.caseBest.total, item.caseBest.max]) : ""}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="es-empty">
+              <strong>{ui("还没有案例分析题组")}</strong>
+              <p>{ui("在「创建题组 › 案例分析题」里用课程资料出一套案例，或粘贴往年真题仿照出题。")}</p>
+              {onCreate && <Button variant="secondary" icon="plus" onClick={onCreate}>{ui("新出一份案例卷")}</Button>}
+              <Button variant="quiet" onClick={onExit}>{ui("回学习库")}</Button>
+            </div>
+          )}
+        </div>
+        {deck && <div className="es-section">
+          <div className="es-times">
             <label>{ui("阅读时间（分钟）")}
               <input type="number" min={0} max={60} value={reading}
                 onChange={(event) => setSettings({ ...settings, readingMinutes: Math.min(60, Math.max(0, Math.round(Number(event.target.value) || 0))) })} />
             </label>
-            <label className="case-paper__check">
-              <input type="checkbox" checked={settings.handwriting} onChange={(event) => setSettings({ ...settings, handwriting: event.target.checked })} />
-              <span><strong>{ui("纸笔练习模式")}</strong><small>{ui("计时阶段隐藏输入框，你在纸上写；时间到后再录入要点批改，录入时间不计时。")}</small></span>
+            <label>{ui("每分用时（分钟）")}
+              <input type="number" min={0.5} max={10} step={0.5} value={settings.minutesPerMark}
+                onChange={(event) => setSettings({ ...settings, minutesPerMark: Math.min(10, Math.max(0.5, Number(event.target.value) || DEFAULT_MINUTES_PER_MARK)) })} />
             </label>
           </div>
-          {deck && <p className="case-paper__plan">{uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟（每分约 {2} 分钟）· 共 {3} 分钟", [reading, writing, settings.minutesPerMark, reading + writing])}</p>}
-          {!model.ready && <InlineMessage tone="warning">{ui("交卷后的批改需要 AI 模型；可以先考，答案会保存，配置好模型后再批改。")}</InlineMessage>}
-          <div className="case-paper__start">
-            <Button variant="primary" busy={busy} disabled={!deck} onClick={start}>{ui("开始考试")}</Button>
-            <small className="muted">{ui("规则：阅读时间内只能看和高亮；作答时显示每题建议用时与节奏；空题交卷前会提醒。")}</small>
-          </div>
-        </Panel>
-      )}
-      {history.length > 0 && <Panel title={ui("最近的案例分析卷")}>
-        <ul className="case-paper__history">{history.map((item) => <li key={item.runId}>
-          <span><strong>{item.scorePct}%</strong> · {item.decks.join("、")}</span>
-          <Button size="sm" variant="secondary" onClick={async () => {
-            try { setReport(await call("exam.report", { runId: item.runId })); setPhase("report"); }
-            catch (failure) { setError(failure.message); }
-          }}>{ui("查看报告")}</Button>
-        </li>)}</ul>
-      </Panel>}
+          {examFormatName && <small className="es-hint">{uiFormat("来自课程「{0}」的考试设置：{1}（可在课程设置里修改）", [course, examFormatName])}</small>}
+          <label className="es-check">
+            <input type="checkbox" checked={settings.handwriting} onChange={(event) => setSettings({ ...settings, handwriting: event.target.checked })} />
+            <span><strong>{ui("纸笔练习模式")}</strong><small>{ui("计时阶段隐藏输入框，你在纸上写；时间到后再录入要点批改，录入时间不计时。")}</small></span>
+          </label>
+        </div>}
+        {!model.ready && <div className="es-gate">
+          <SetupRequired tone="warning" icon="model" badge={ui("批改需要模型")} title={ui("批改需要 AI 模型")}
+            why={ui("交卷后按评分标准逐条给分、给出改写建议，这一步由 AI 模型完成。现在也可以先考：答案会保存在本机，配置好模型后再批改。")}
+            primary={onSetupModel ? { label: ui("打开模型设置"), icon: "model", onClick: onSetupModel } : undefined} />
+        </div>}
+      </ExamSetupCard>
+      {recent}
       {error && <InlineMessage>{error}</InlineMessage>}
     </section>
   );

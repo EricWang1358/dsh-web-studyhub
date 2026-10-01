@@ -1,6 +1,6 @@
 # StudyHub 2.0 architecture
 
-Question decks remain JSON. Materials retain their original PDF, Markdown, HTML or TXT files and expose versioned text projections. The workbench composes separately loadable capability plugins.
+Question decks remain JSON. Materials retain their original PDF, Word (.docx), PowerPoint (.pptx), Markdown, HTML or TXT files and expose versioned text projections. Word and PowerPoint are read server side by a small built-in ZIP/XML reader (`lib/office/*`, no dependency): a .docx becomes one Markdown-ish source, a .pptx one source per slide with `document.page` locators like PDF pages. Limits are one constant per format in `lib/office/limits.js` (8 MB for PDF and text, 40 MB for Word and PowerPoint). The workbench composes separately loadable capability plugins.
 
 ## Interface language boundary
 

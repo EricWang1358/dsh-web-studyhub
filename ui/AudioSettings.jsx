@@ -1,7 +1,7 @@
 import { getUiLanguage, ui, uiFormat, uiMessage, useUiLanguage } from "./i18n.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import AudioReasoning from './AudioReasoning.jsx';
-import { Button, Disclosure, InlineMessage, SegmentedControl, SetupRequired } from './components/index.js';
+import { Button, Disclosure, Icon, InlineMessage, SegmentedControl, SetupRequired } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
 
@@ -48,9 +48,14 @@ export function requestAudioSettingsFocus() { focusRequested = true; }
 
 const RESULT = (result) => (result.ok ? ui('可用：密钥有效，网络也连得上') : uiFormat('不可用：{0}', [uiMessage(result.message || ui('没有返回原因'))]));
 
-/** One key: paste, save and verify (the check never transcribes), verify a saved key, or clear it. */
-export function ProviderKeyForm({ provider, state, call, busy = false, primary = true, onSaved, label }) {
-  const [value, setValue] = useState(''), [working, setWorking] = useState(''), [result, setResult] = useState(null);
+/**
+ * One key: paste, save and verify (the check never transcribes), verify a saved key, or clear it.
+ * Three rows (WP14), so cards can line them up: the key input at full width,
+ * the actions, then the result message and an optional footnote.
+ * `initialResult` shows a check result on first render (previews and tests).
+ */
+export function ProviderKeyForm({ provider, state, call, busy = false, primary = true, onSaved, label, footnote, initialResult = null }) {
+  const [value, setValue] = useState(''), [working, setWorking] = useState(''), [result, setResult] = useState(initialResult);
   const messageId = useId();
   const run = async (kind, work) => {
     if (!call || working) return;
@@ -66,36 +71,45 @@ export function ProviderKeyForm({ provider, state, call, busy = false, primary =
   };
   return (
     <form className="audio-key-form" onSubmit={save}>
-      <div className="audio-key-row">
-        <input name="audio-key" type="password" autoComplete="off" spellCheck={false} value={value} disabled={busy || !!working}
-          aria-label={label || uiFormat('{0} 的 API 密钥', [ui(provider.name)])} aria-describedby={result ? messageId : undefined}
-          placeholder={state?.set ? uiFormat('已保存 {0}；粘贴新的会替换它', [state.hint]) : ui(provider.placeholder)}
-          onChange={(event) => setValue(event.target.value)} />
+      <input name="audio-key" className="audio-key-input" type="password" autoComplete="off" spellCheck={false} value={value} disabled={busy || !!working}
+        aria-label={label || uiFormat('{0} 的 API 密钥', [ui(provider.name)])} aria-describedby={result ? messageId : undefined}
+        placeholder={state?.set ? uiFormat('已保存 {0}；粘贴新的会替换它', [state.hint]) : ui(provider.placeholder)}
+        onChange={(event) => setValue(event.target.value)} />
+      <div className="audio-key-actions">
         <Button type="submit" variant={primary ? 'primary' : 'secondary'} busy={working === 'save'} disabled={busy || !!working || !value.trim()}>{ui('保存并验证')}</Button>
         {state?.set && <Button variant="secondary" busy={working === 'verify'} disabled={busy || !!working} onClick={() => void run('verify', verify)}>{ui('验证')}</Button>}
+        {state?.set && <Button variant="quiet" size="sm" className="audio-key-clear" disabled={busy || !!working}
+          onClick={() => void run('clear', async () => { onSaved?.(await call('audio.settings.set', { [provider.field]: '' })); })}>{ui('清除已保存的密钥')}</Button>}
       </div>
-      {result && <InlineMessage id={messageId} tone={result.ok ? 'success' : 'error'}>{RESULT(result)}</InlineMessage>}
-      {state?.set && <Button variant="link" size="sm" className="audio-key-clear" disabled={busy || !!working}
-        onClick={() => void run('clear', async () => { onSaved?.(await call('audio.settings.set', { [provider.field]: '' })); })}>{ui('清除已保存的密钥')}</Button>}
+      <div className="audio-key-foot">
+        {result && <InlineMessage id={messageId} tone={result.ok ? 'success' : 'error'}>{RESULT(result)}</InlineMessage>}
+        {footnote}
+      </div>
     </form>
   );
 }
 
+/* A card's rows (head, saved status, steps, key input, actions, message/footnote)
+   share the grid's rows through subgrid, so the same parts line up across cards. */
 function ProviderCard({ provider, state, call, busy, onSaved, recommended }) {
   return (
     <article className={`audio-provider-card${state?.set ? ' is-set' : ''}`} data-provider={provider.tier}>
       <header className="audio-provider-card__head">
         <h3>{ui(provider.name)}</h3>
-        <span className={`audio-chip${provider.tone === 'good' ? ' audio-chip--good' : ''}`}>{ui(provider.badge)}</span>
-        {recommended && <span className="audio-chip audio-chip--accent">{ui('推荐')}</span>}
-        <span className={`audio-key-state${state?.set ? ' is-set' : ''}`}>{state?.set ? uiFormat('已保存 {0}', [state.hint]) : ui('未配置')}</span>
+        <span className="audio-provider-card__chips">
+          <span className={`audio-chip${provider.tone === 'good' ? ' audio-chip--good' : ''}`}>{ui(provider.badge)}</span>
+          {recommended && <span className="audio-chip audio-chip--accent">{ui('推荐')}</span>}
+        </span>
       </header>
+      <p className={`audio-key-state${state?.set ? ' is-set' : ''}`}>
+        <Icon name={state?.set ? 'success' : 'key'} size={16} />{state?.set ? uiFormat('已保存 {0}', [state.hint]) : ui('未配置')}
+      </p>
       <ol className="audio-provider-steps">
         {provider.steps.map((step, index) => <li key={index}><span className="audio-step-num" aria-hidden="true">{index + 1}</span>
           {step.href ? <a href={step.href} target="_blank" rel="noreferrer">{ui(step.text)}<span className="sh-visually-hidden">{ui('（在新标签页打开）')}</span></a> : <span>{ui(step.text)}</span>}</li>)}
       </ol>
-      <ProviderKeyForm provider={provider} state={state} call={call} busy={busy} onSaved={onSaved} primary={!!recommended} />
-      <p className="audio-provider-note">{ui(provider.note)}</p>
+      <ProviderKeyForm provider={provider} state={state} call={call} busy={busy} onSaved={onSaved} primary={!!recommended}
+        footnote={<p className="audio-provider-note">{ui(provider.note)}</p>} />
     </article>
   );
 }
@@ -154,8 +168,8 @@ export default function AudioSettings({ busy, act, call, setNotice, initialView 
   const preset = presetOf(view);
   const configured = ['freeKey', 'siliconflowKey', 'groqKey', 'paidKey'].filter((field) => view[field]?.set).length;
   return (
-    <fieldset className="audio-settings" data-tour="settings-audio" ref={section}>
-      <legend>{ui("音频转写")}</legend>
+    <fieldset className="audio-settings settings-section" data-tour="settings-audio" ref={section}>
+      <legend className="settings-section__title">{ui("音频转写")}</legend>
       <p className="audio-settings-lead">{ui("录音要先转成文字。配一个服务就能用；配了几个时，按 Gemini 免费 → 硅基流动 → Groq → Gemini 付费 的顺序尝试，前一个不行自动换下一个。")}</p>
       {!configured && <p className="audio-settings-empty" role="status">{ui("还没有配置任何转写服务：从下面任选一个，约 2 分钟。")}</p>}
       <div className="audio-provider-grid">
@@ -163,7 +177,7 @@ export default function AudioSettings({ busy, act, call, setNotice, initialView 
           call={call} busy={busy} onSaved={saved} recommended={index === 0} />)}
       </div>
       <p className="audio-settings-path">{uiFormat("密钥只保存在这台电脑：{0}。不会进入学习库、备份或对话；请不要把密钥贴到对话里。", [view.settingsFile || '~/.dsh/study/audio.json'])}</p>
-      <Disclosure className="audio-advanced" summary={ui("高级")} meta={ui("校对与翻译的速度、付费密钥、模型")}>
+      <Disclosure className="audio-advanced settings-disclosure" summary={ui("高级")} meta={ui("校对与翻译的速度、付费密钥、模型")}>
         <div className="audio-preset">
           <span className="audio-preset__label">{ui("校对与翻译")}</span>
           <SegmentedControl label={ui("校对与翻译")} value={preset} disabled={busy} onChange={(name) => save(PRESETS[name], ui("已切换校对与翻译的速度"))}
@@ -176,7 +190,7 @@ export default function AudioSettings({ busy, act, call, setNotice, initialView 
           <ProviderKeyForm provider={{ tier: 'paid', field: 'paidKey', name: 'Gemini 付费密钥', placeholder: '粘贴付费项目的 AI Studio 密钥' }}
             state={view.paidKey} call={call} busy={busy} primary={false} onSaved={saved} />
         </div>
-        <Disclosure className="audio-expert" summary={ui("专家选项")} meta={ui("模型、并发、推理强度")}>
+        <Disclosure className="audio-expert settings-disclosure" summary={ui("专家选项")} meta={ui("模型、并发、推理强度")}>
           <label className="audio-field">{ui("校对与翻译用哪个模型")}
             <select value={view.textProvider} disabled={busy} onChange={(e) => save({ textProvider: e.target.value })}>
               <option value="auto">{ui("自动（有对话模型就用它，否则用 Gemini）")}</option>

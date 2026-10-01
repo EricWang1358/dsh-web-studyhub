@@ -6,7 +6,7 @@
 
 [交互体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [下载安装包](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) · [版本记录](CHANGELOG.zh-CN.md)
 
-**当前版本**：[2.1.0](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.0) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。全套安装后可在 DSH 插件管理器中分别启停组件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
+**当前版本**：[2.1.1](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.1) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。全套安装后可在 DSH 插件管理器中分别启停组件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
 
 ## 五分钟上手
 
@@ -26,7 +26,7 @@
 
 ## 可以做什么
 
-- **从自己的资料出题**：导入 PDF、Markdown、HTML、TXT 或 JSON 题库。资料保留原文件；选中文字后可提问或生成题目，独立审核通过后增量加入已有题组，保留旧题与复习进度。
+- **从自己的资料出题**：导入 PDF、Word（.docx）、PowerPoint（.pptx）、Markdown、HTML、TXT 或 JSON 题库。资料保留原文件；选中文字后可提问或生成题目，独立审核通过后增量加入已有题组，保留旧题与复习进度。
 - **从资料回到题目与解析**：资料中的段落、表格可关联多道题及当前解析；工作台显示引用角标，题目引用也能返回原文。资料更新后保留历史版本，位置不明确时要求重新定位。
 - **按课程持续学习**：组织课程与章节，先讲后练，使用 SM-2 安排复习；通过错题本、模拟考试和口试发现薄弱点。
 - **导入录音和课堂实录**：后台转录、校正和翻译，按顺序处理多份音频；失败后从已保存片段继续，完成后打开中英对照资料。
@@ -35,9 +35,9 @@
 
 ## 安装与更新
 
-**已有 DSH 桌面版或网页版？** 在当前 DSH 中打开「插件 → 添加插件」，粘贴[完整工作台安装包地址](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.0/ericwang1358-dsh-daily-flashcard-2.1.0.tgz)，安装后确认包名、版本并启用。仅安装插件，网页版无需下载客户端，继续使用原配置与模型。
+**已有 DSH 桌面版或网页版？** 在当前 DSH 中打开「插件 → 添加插件」，粘贴[完整工作台安装包地址](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.1/ericwang1358-dsh-daily-flashcard-2.1.1.tgz)，安装后确认包名、版本并启用。仅安装插件，网页版无需下载客户端，继续使用原配置与模型。
 
-**还没有 DSH？** 可选择官方桌面安装器：[Windows 64 位（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) · [macOS Apple silicon（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。Linux 或不想安装客户端的用户，可安装 Node.js **22.19 或以上**，运行 `npx @deepseek-ai/dsh web` 使用网页版。桌面版自带运行时。完整步骤见[安装与模型配置](docs/install.zh-CN.md)，也可下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.0/StudyHub-2.1.0-Setup.zh-CN.html)。
+**还没有 DSH？** 可选择官方桌面安装器：[Windows 64 位（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) · [macOS Apple silicon（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。Linux 或不想安装客户端的用户，可安装 Node.js **22.19 或以上**，运行 `npx @deepseek-ai/dsh web` 使用网页版。桌面版自带运行时。完整步骤见[安装与模型配置](docs/install.zh-CN.md)，也可下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.1/StudyHub-2.1.1-Setup.zh-CN.html)。
 
 **高级自定义**：全套安装后，在 DSH 自带插件管理器选择各组件的开关；后续添加独立子插件也使用该管理器。停用所需组件时，学习界面会隐藏对应入口或提示功能已停用，已保存的数据保留。生题需要资料、题库和生成，答题需要题库和学习；多个安装来源提供同一能力时，需停用所有来源才能完全关闭。[详细说明](docs/install.zh-CN.md#高级自定义与后续启停)
 
@@ -54,11 +54,11 @@ dsh plugin --profile <你的配置名> add <下载的tgz绝对路径>
 
 使用 CLI 时保留原 profile；网页版默认配置为 `web`，自定义配置请用原配置名。远程网页版的本地安装包路径须在 DSH 服务器上，也可直接使用 HTTPS 安装地址。桌面配置由桌面宿主管理，请使用随附的插件管理器。仓库更新和网页刷新不会替换已经加载的插件。
 
-更新已有安装包后，结束后台任务并重启 DSH 进程：桌面版重新打开，网页版重启原服务并使用原 profile；仅刷新浏览器不会加载新的插件代码。
+**更新：** DSH 插件不会自动更新，只重启 DSH 不会换成新版本。从 2.1.1 起，StudyHub 会向 GitHub 查询新版本（最多每 12 小时一次，可在「设置 › 关于与更新」关闭），有新版本时在侧栏提示；点「一键升级」会下载发布页的安装包，按 `SHA256SUMS` 核对 SHA-256 后交给 DSH 插件管理安装。旧版本或不支持应用内安装的宿主：在「插件」里卸载 StudyHub，再点「添加插件」粘贴新版本的安装包地址。两种方式都要先结束或取消后台任务，装好后重启 DSH：桌面版完全退出后重新打开，网页版用原 profile 重启服务；仅刷新浏览器不会加载新的插件代码。学习库和设置会保留。
 
 ## 开始学习
 
-1. **添加资料**：点「添加资料」，先选课程，再一次拖入多个 PDF、Markdown、HTML、TXT、JSON 题组或字幕文件，也可以粘贴文本；录音在同一窗口的「音频 / 录音」标签导入。每个 PDF 保存为一份文档，按需展开到页。
+1. **添加资料**：点「添加资料」，先选课程，再一次拖入多个 PDF、Word（.docx）、PowerPoint（.pptx）、Markdown、HTML、TXT、JSON 题组或字幕文件（PDF 和文本最大 8 MB，Word / PPT 最大 40 MB；旧版 .doc / .ppt 请先另存为 .docx / .pptx 或 PDF），也可以粘贴文本；录音在同一窗口的「音频 / 录音」标签导入。每个 PDF 保存为一份文档，按需展开到页；PowerPoint 按幻灯片分页并带上演讲者备注。
 2. **用资料出题**：在「创建题组」按文档选择资料生成题目；检查草稿及引用后发布。已经有题目（或外部 AI 生成的题）时，用第二个标签导入 JSON 题组。补题时选择已有题组，可保留原复习记录。
 3. **学习与复习**：从学习库开始练习，或进入学习流先讲后练。作答后查看选项解释；需要帮助时让模型讲解当前题。
 4. **回来看薄弱点**：使用错题本、统计、考试或口试，集中练习尚未掌握的主题。

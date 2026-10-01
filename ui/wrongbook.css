@@ -1,0 +1,210 @@
+/* ── 错题与待巩固 (WP26) ────────────────────────────────────────────────
+   A marked exercise book: topics are headings over ruled lines, the mark sits
+   in the margin. "为你推荐" and the retrain bar are quiet panels above it.
+   Tokens only; the shared .wb shell and .wb-error live in views.css. */
+:is(.study-app, .study-seat) {
+  .wb-empty h2 { margin: 0; }
+
+  /* retrain scope */
+  .wb-retrain {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+  }
+  .wb-retrain-copy { display: grid; gap: 2px; margin-right: auto; min-width: 8em; }
+  .wb-retrain-copy small { font-size: var(--fs-sm); }
+  .wb-retrain .sh-seg { flex-wrap: wrap; max-width: 100%; }
+
+  /* recommendations */
+  .wb-recs {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent-soft);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+  }
+  .wb-recs-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+  .wb-recs-head > div { min-width: 0; flex: 1 1 18em; }
+  .wb-recs-head h2 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0 0 2px;
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+  }
+  .wb-recs-head p { margin: 0; font-size: var(--fs-md); }
+  .wb-free {
+    padding: 1px 9px;
+    border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--ok) 12%, transparent);
+    color: var(--ok);
+    font-family: var(--font-ui);
+    font-size: var(--fs-sm);
+    font-weight: 550;
+  }
+  .wb-rec-list, .wb-rows { list-style: none; margin: 0; padding: 0; }
+  .wb-recs > .sh-btn--link { justify-self: start; }
+
+  /* controls */
+  .wb-controls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); }
+  .wb-batch { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+  .wb-batch small { font-size: var(--fs-sm); }
+  .wb-consent {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid color-mix(in srgb, var(--accent-soft) 55%, var(--line));
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg-surface));
+  }
+  .wb-consent p { margin: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-body); }
+  .wb-consent-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+  /* groups and rows */
+  .wb-group { display: flex; flex-direction: column; margin-top: var(--space-4); }
+  .wb-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .wb-group-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px var(--space-3); min-width: 0; flex: 1 1 14em; }
+  .wb-group-title strong { font-family: var(--font-display); font-size: var(--fs-lg); overflow-wrap: anywhere; }
+  .wb-group-title small { font-size: var(--fs-md); }
+  .wb-from { min-width: 0; overflow-wrap: anywhere; }
+
+  .wb-row, .wb-rec {
+    border-bottom: 1px solid var(--line-soft);
+    border-radius: var(--radius-sm);
+    transition: background 0.15s var(--ease);
+  }
+  .wb-row:hover, .wb-rec:hover { background: var(--bg-hover); }
+  .wb-row-line, .wb-rec-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-1) var(--space-2);
+    min-height: 48px;
+  }
+  .wb-row-toggle, .wb-rec-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1 1 18em;
+    min-width: 0;
+    min-height: 40px;
+    margin: 0;
+    padding: var(--space-1) 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--fs-md);
+    text-align: left;
+    cursor: pointer;
+  }
+  .wb-row-toggle:hover:not(:disabled), .wb-rec-toggle:hover:not(:disabled) { background: transparent; border: 0; }
+  .wb-row-toggle:focus-visible, .wb-rec-toggle:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+  .wb-chevron { transition: transform 0.15s var(--ease); color: var(--text-muted); }
+  [aria-expanded="true"] > .wb-chevron { transform: rotate(90deg); }
+  .wb-meta {
+    flex: none;
+    width: 8.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: var(--fs-md);
+  }
+  .wb-prompt {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-md);
+  }
+  .wb-grade { flex: none; color: var(--bad); font-size: var(--fs-md); }
+  .wb-grade::before { content: "× "; }
+  .wb-grade.self { color: var(--warn); }
+  .wb-grade.self::before { content: "○ "; }
+  .wb-why {
+    flex: 0 1 15em;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--accent-text);
+    font-size: var(--fs-sm);
+    font-weight: 550;
+  }
+  .wb-var {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+  }
+  .wb-var.is-ready { color: var(--ok); font-weight: 550; }
+  .wb-var.is-failed { color: var(--warn); max-width: 26em; }
+  .wb-var .sh-spinner { width: 0.9em; height: 0.9em; }
+
+  /* opened row */
+  .wb-detail {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0 var(--space-2) var(--space-3) calc(var(--space-2) + 24px);
+    padding: var(--space-3) var(--space-4);
+    border-left: 2px solid var(--line-strong);
+    background: color-mix(in srgb, var(--text) 3%, transparent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: var(--fs-md);
+  }
+  .wb-detail p { margin: 0; }
+  .wb-full-prompt { color: var(--text); line-height: var(--lh-body); overflow-wrap: anywhere; }
+  .wb-facts { display: grid; gap: var(--space-2); margin: 0; }
+  .wb-fact { display: grid; grid-template-columns: 6em minmax(0, 1fr); gap: var(--space-3); }
+  .wb-fact dt { color: var(--text-muted); }
+  .wb-fact dd { margin: 0; overflow-wrap: anywhere; line-height: var(--lh-body); }
+  .wb-sub h4 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; }
+  .wb-sub ul, .wb-why-list { margin: 0; padding-left: 1.2em; display: grid; gap: var(--space-1); }
+  .wb-sub .wb-sub-rec { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3); list-style: none; margin-left: -1.2em; }
+  .wb-sub .wb-sub-rec .wb-prompt { flex: 1 1 14em; }
+  .wb-sub .wb-why { flex: 1 1 14em; white-space: normal; overflow: visible; }
+  .wb-why-list { color: var(--accent-text); font-size: var(--fs-sm); }
+
+  .wb-pages { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: var(--fs-md); }
+}
+
+@container study (max-width: 640px) {
+  .wb-retrain { align-items: stretch; }
+  .wb-retrain > .sh-btn { width: 100%; }
+  .wb-retrain .sh-seg { width: 100%; }
+  .wb-retrain .sh-seg__item { flex: 1 1 100%; justify-content: flex-start; white-space: normal; text-align: left; }
+  .wb-meta { width: auto; max-width: 9em; }
+  .wb-row-line .wb-prompt, .wb-rec-line .wb-prompt { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .wb-row-toggle { flex-wrap: wrap; align-items: flex-start; }
+  .wb-row-toggle .wb-prompt { flex: 1 1 100%; padding-left: 24px; }
+  .wb-row-toggle .wb-meta { flex: 1 1 auto; }
+  .wb-rec-toggle .wb-prompt { flex: 1 1 0; }
+  .wb-why { flex: 1 1 100%; white-space: normal; padding-left: 24px; }
+  .wb-detail { margin-left: var(--space-2); }
+  .wb-fact { grid-template-columns: 1fr; gap: 2px; }
+  .wb-var.is-failed { max-width: none; }
+}

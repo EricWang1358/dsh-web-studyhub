@@ -16,13 +16,15 @@ import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
+import { dueSummary } from "../lib/board-model.js";
 import Icon from "./Icon.jsx";
 import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
-import Settings from "./Settings.jsx";
+import Settings, { backupFileName } from "./Settings.jsx";
+import UpdateCenter from "./UpdateCenter.jsx";
 import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS } from "./generation-status.js";
 import ImportHub, { importOutcome } from './ImportHub.jsx';
@@ -37,9 +39,14 @@ import { mergeReviewPoll, reviewEntryKey } from "./async.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import CourseSettings, { CourseList } from './CourseSettings.jsx';
+import LanguageSwitch from './LanguageSwitch.jsx';
 import Inbox from "./Inbox.jsx";
+import { QuickActionsContext, dismissJobs, markInboxRead, useQuickActionsController } from "./quick-actions.js";
+import quickCss from "./quick-actions.css";
 import css from "./coach.css";
 import libraryChipCss from "./library-chip.css";
+import ReasoningEffortField from "./ReasoningEffortField.jsx";
+import LibraryUsage from "./LibraryUsage.jsx";
 import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
@@ -133,11 +140,17 @@ export default function App({ call: transportCall, host = {} }) {
   const [contextTrail, setContextTrail] = useState([]), [focusRequest, setFocusRequest] = useState(null);
   const examLocation = useRef(null);
   const [examKind, setExamKind] = useState('exam');
-  const [data, setData] = useState(null),
+  const [serverData, setData] = useState(null),
     [binding, setBinding] = useState({ root: "", provider: "", model: "" }),
     [rootDraft, setRootDraft] = useState(null),
     [modelDraft, setModelDraft] = useState(null),
     [page, setPage] = useState("library");
+  /* Light actions (知道了, 全部已读) patch what is on screen at once and run in the background; see ui/quick-actions.js.
+     `data` is the server snapshot with those pending patches applied. */
+  const { controller: quick, api: quickApi, stamp: quickStamp } = useQuickActionsController(call);
+  const data = useMemo(() => quick.view(serverData), [quick, serverData, quickStamp]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { quick.reconcile(serverData); }, [quick, serverData]);
+  useInjectCss(quickCss, "study-quick-actions");
   /* Sidebar page switches: the current page lifts away briefly, then the new
      one settles in (its entrance lives in CSS). The highlight moves on click. */
   const [pageTarget, setPageTarget] = useState(null),
@@ -195,6 +208,7 @@ export default function App({ call: transportCall, host = {} }) {
     [loading, setLoading] = useState(true),
     [syncIssue, setSyncIssue] = useState("");
   // WP13: the course settings panel (a course id), opened from the library heading or Settings.
+  // The open course panel: a course id, or { id, mergeFrom } when 合并到这里 opens the merge confirmation (WP14).
   const [courseSettings, setCourseSettings] = useState(null);
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
@@ -272,6 +286,8 @@ export default function App({ call: transportCall, host = {} }) {
   const [boardStudyRef, setBoardStudyRef] = useState(null);
   const [legacyAudioJobId, setLegacyAudioJobId] = useState('');
   const boardCount = boardState.board?.columns.reduce((n, column) => n + (column.done ? 0 : column.cardIds.length), 0);
+  // Cards due today or overdue light the badge, so a deadline shows from any page.
+  const boardDue = boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 };
   const dataRef = useRef(null),
     snapshotKey = useRef(""),
     notebookRequest = useRef(0);
@@ -291,6 +307,7 @@ export default function App({ call: transportCall, host = {} }) {
       if (!cur || snapshotKey.current !== nextKey) {
         if (cur && cur.root !== next.root) {
           libraryEpoch.current++;
+          quick.reset();
           navigationRequest.current++;
           acting.current = false;
           clearTimeout(leaveTimer.current);
@@ -341,7 +358,7 @@ export default function App({ call: transportCall, host = {} }) {
       }
     }
     return next;
-  }, [call, setNotice]);
+  }, [call, quick, setNotice]);
   const previousLanguage = useRef(language);
   useEffect(() => {
     if (previousLanguage.current === language) return;
@@ -1151,6 +1168,7 @@ export default function App({ call: transportCall, host = {} }) {
       root: binding.rootSource === "custom" ? binding.root : "",
       provider: binding.modelSource === "custom" ? binding.provider : "",
       model: binding.modelSource === "custom" ? binding.model : "",
+      reasoningEffort: binding.reasoningEffort || "",
       ...patch,
     };
   }
@@ -1175,7 +1193,7 @@ export default function App({ call: transportCall, host = {} }) {
         setSelectedSources([]);
       }
       await refresh();
-      setNotice(moved ? ui("已切换学习库") : ui("已更新生成模型"));
+      setNotice(moved ? ui("已切换学习库") : Object.hasOwn(patch, "reasoningEffort") ? ui("已更新推理程度") : ui("已更新生成模型"));
       return true;
     } catch (e) {
       setError(e.message);
@@ -1205,7 +1223,7 @@ export default function App({ call: transportCall, host = {} }) {
       );
       const a = document.createElement("a");
       a.href = url;
-      a.download = "study-library.json";
+      a.download = backupFileName();
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
@@ -1277,6 +1295,7 @@ export default function App({ call: transportCall, host = {} }) {
                 ? ui("插件配置指定")
                 : ui("自定义目录")}
             {" · "}{ui("资料、题库与复习记录保存在这里")}</small>
+          <LibraryUsage root={binding.root} call={call} active={!!data} />
         </div>
         <div className="binding-actions">
           <button type="button" onClick={chooseRoot} disabled={busy}>{ui("更换目录…")}</button>
@@ -1347,7 +1366,7 @@ export default function App({ call: transportCall, host = {} }) {
           <small>
             {binding.modelSource === "session"
               ? ui("与对话输入框选择的模型一致，切换后自动生效。")
-              : ui("只用于出题与讲解，不改变对话模型。")}{ui("生成时所选资料会发送给该模型；复习不调用模型。")}</small>
+              : ui("只用于出题与讲解，不改变对话模型。")}{language === "en" ? " " : ""}{ui("生成时所选资料会发送给该模型；复习不调用模型。")}</small>
         </label>
       </div>
       {modelDraft && (
@@ -1381,6 +1400,9 @@ export default function App({ call: transportCall, host = {} }) {
           <button type="button" onClick={() => setModelDraft(null)}>{ui("取消")}</button>
         </form>
       )}
+      <ReasoningEffortField binding={binding} busy={busy} refreshKey={JSON.stringify(followedModel || null)}
+        onChange={(reasoningEffort) => updateBinding({ reasoningEffort })}
+        onRefresh={() => call("binding.get").then(setBinding, () => {})} />
     </div>
   );
   /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────
@@ -1604,6 +1626,7 @@ export default function App({ call: transportCall, host = {} }) {
   const feedback = <ActionFeedback error={error} notice={notice} busy={busy}
     onCloseError={() => setError("")} onCloseNotice={() => setNotice("")} />;
   return (
+    <QuickActionsContext.Provider value={quickApi}>
     <div
       className="study-app"
       data-theme={resolvedTheme}
@@ -1702,7 +1725,8 @@ export default function App({ call: transportCall, host = {} }) {
                 <Icon><NavGlyph name={id} /></Icon>
                 {ui(label)}
                 {id === "board" && boardCount !== undefined && (
-                  <span className="nav-count">{boardCount}</span>
+                  <span className={boardDue.overdue + boardDue.today ? "nav-count is-due" : "nav-count"}
+                    title={boardDue.overdue + boardDue.today ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}>{boardCount}</span>
                 )}
                 {id === "sources" && data && (
                   <span className="nav-count">{countDocuments(data.sources)}</span>
@@ -1718,10 +1742,7 @@ export default function App({ call: transportCall, host = {} }) {
           </span>
         </nav>
         <div className="sidebar-bottom">
-          <div className="study-language-switch" role="group" aria-label={ui("Interface language / 界面语言")}>
-            <button type="button" aria-pressed={language === 'zh'} onClick={() => setUiLanguage('zh')}>中文</button>
-            <button type="button" aria-pressed={language === 'en'} onClick={() => setUiLanguage('en')}>EN</button>
-          </div>
+          <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
           {data && (
             <button type="button" className="nav tour-nav" data-tour="tour-reopen" disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
               title={ui("功能导览：切到每个关键功能，看看怎么用")} onClick={() => { if (!tourStep) startTour(); }}>
@@ -1750,6 +1771,7 @@ export default function App({ call: transportCall, host = {} }) {
               </button>
             );
           })()}
+          <UpdateCenter call={call} host={host} compact={sidebarNarrow} notify={setNotice} />
           <button
             className={navPage === "settings" ? "nav active" : "nav"}
             title={ui("设置")}
@@ -1793,7 +1815,8 @@ export default function App({ call: transportCall, host = {} }) {
                 inbox={data.inbox}
                 busy={busy}
                 onOpen={openInboxItem}
-                onReadAll={() => act("inbox.read", { all: true })}
+                onReadAll={() => markInboxRead(quick)}
+                readError={quickApi.failures["inbox:read"]}
                 onUndo={(m) => act(m.kind === "rewrite" ? "coach.revert" : "card.revert",
                   { deckId: m.deckId, cardId: m.cardId })}
               />
@@ -1825,7 +1848,7 @@ export default function App({ call: transportCall, host = {} }) {
           onSettings={() => setPage("settings")} onSources={() => setPage("sources")}
           onJobs={() => { void refresh().catch((failure) => setError(failure.message)); }} />}
         {page === "board" ? (
-          <Board state={boardState} onOrigin={host.openWorkspaceNotebook} studyRef={boardStudyRef}
+          <Board state={boardState} library={data} onOrigin={host.openWorkspaceNotebook} studyRef={boardStudyRef}
             onClearStudyRef={() => setBoardStudyRef(null)} onStudyRef={openBoardReference} />
         ) : !data ? (
           <section className="onboarding">
@@ -1901,7 +1924,7 @@ export default function App({ call: transportCall, host = {} }) {
                 }}
                 openAgent={host.openAgent}
                 cancelJob={(jobId) => act("job.cancel", jobId ? { jobId } : { all: true })}
-                dismissJob={(jobId) => act("job.dismiss", jobId ? { jobId } : { all: true })}
+                dismissJob={(jobId) => dismissJobs(quick, jobId)}
                 addSource={() => setModal({ type: "add" })}
                 createManual={() =>
                   openDraft({
@@ -2009,6 +2032,7 @@ export default function App({ call: transportCall, host = {} }) {
                   setPage("generate");
                 }}
                 onCreateCase={() => { setGenSource("case"); setPage("generate"); }}
+                onSetupModel={openModelSettings}
                 onNotice={setNotice}
               />
             )}
@@ -2017,6 +2041,8 @@ export default function App({ call: transportCall, host = {} }) {
                 call={call}
                 data={data}
                 busy={busy}
+                onPracticePrepared={(args) => act("coach.practice", args || {}, enterRun)}
+                onOpenSettings={openModelSettings}
                 onPractice={(scope) =>
                   act(
                     "review.start",
@@ -2155,18 +2181,21 @@ export default function App({ call: transportCall, host = {} }) {
                 busy={busy}
                 act={act}
                 call={call}
+                host={host}
                 setNotice={setNotice}
                 settings={settings}
                 setSettings={setSettings}
                 legacy={legacy}
                 setLegacy={setLegacy}
                 workspacePanel={workspacePanel}
-                coursePanel={<CourseList courses={data.courses || []} busy={busy} onOpen={setCourseSettings} />}
+                coursePanel={<CourseList courses={data.courses || []} busy={busy} onOpen={setCourseSettings} currentId={data.focus?.courseId}
+                  recent={Object.fromEntries((data.focus?.courses || []).map(course => [course.name, course.lastUsedAt]))}
+                  onMerge={(id, mergeFrom) => setCourseSettings({ id, mergeFrom })} />}
                 onboardingPanel={<OnboardingPanel sample={data.sample} progress={tourResume} busy={busy || sampleBusy}
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
-                onRestored={() => {
+                onRestored={(restored) => {
                   libraryEpoch.current++;
                   navigationRequest.current++;
                   setContextTrail([]); setDetour(null); setWorkflowReturn(null); setSkeletonFocus(null); setNoteInitialId(''); setBoardStudyRef(null);
@@ -2179,7 +2208,8 @@ export default function App({ call: transportCall, host = {} }) {
                   setSelectedSources([]);
                   setSettings({});
                   setPage("library");
-                  setNotice(ui("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。"));
+                  setNotice({ text: restored?.backupPath ? uiFormat("学习库已恢复。原数据已保存到 {0}", [restored.backupPath])
+                    : ui("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。"), tone: "success", persistent: true });
                 }}
               />
             )}
@@ -2259,7 +2289,8 @@ export default function App({ call: transportCall, host = {} }) {
           onImport={() => endTour({ then: openFirstImport })}
           onRemoveSample={data.sample?.loaded ? () => endTour({ then: () => setRemovingSample(true) }) : undefined} />
       )}
-      {courseSettings && <CourseSettings key={courseSettings} data={data} courseId={courseSettings} act={act} busy={busy}
+      {courseSettings && <CourseSettings key={courseSettings.id ? `${courseSettings.id}:${courseSettings.mergeFrom.join(',')}` : courseSettings} data={data}
+        courseId={courseSettings.id || courseSettings} mergeFrom={courseSettings.mergeFrom} act={act} busy={busy}
         setNotice={setNotice} onClose={() => setCourseSettings(null)} />}
       {removingSample && <RemoveSampleDialog busy={sampleBusy} onConfirm={removeSampleData}
         onClose={() => { if (!sampleBusy) setRemovingSample(false); }} />}
@@ -2325,11 +2356,11 @@ export default function App({ call: transportCall, host = {} }) {
                       {modal.source.usedBy.map(deck => <button key={`${deck.kind}:${deck.id}`} disabled={busy || deck.kind === 'draft'}
                         onClick={() => openLearningTarget({ kind: 'deck', id: deck.id })}>{deck.title}{deck.archived ? ` · ${ui('已归档')}` : ''}</button>)}
                     </div>}
-                    <button type="button" disabled={busy} onClick={() => {
-                      rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
-                      setGenSource('files'); setModal(null); setPage('generate');
-                    }}>{ui('从这份资料出题')}</button>
-                    <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host}
+                    <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host} generateDisabled={busy}
+                      onGenerate={() => {
+                        rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
+                        setGenSource('files'); setModal(null); setPage('generate');
+                      }}
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
                       onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
                         setGenSource('case'); setModal(null); setPage('generate'); }} />
@@ -2342,6 +2373,7 @@ export default function App({ call: transportCall, host = {} }) {
         </ModalFrame>
       )}
     </div>
+    </QuickActionsContext.Provider>
   );
 }
 

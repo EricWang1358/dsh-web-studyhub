@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
 import PageScope, { usePageScope } from './PageScope.jsx';
+import { SegmentedControl } from './components/index.js';
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
 import {
   layoutStructure,
@@ -420,20 +421,8 @@ export default function Graph({
       onKeyDown={onKeyDown}
     >
       <div className="graph-toolbar">
-        <div className="graph-modes" role="group" aria-label={ui("视图模式")}>
-          <button
-            className={"graph-mode" + (mode === "structure" ? " active" : "")}
-            aria-pressed={mode === "structure"}
-            disabled={busy}
-            onClick={() => setMode("structure")}
-          >{ui("知识结构")}</button>
-          <button
-            className={"graph-mode" + (mode === "path" ? " active" : "")}
-            aria-pressed={mode === "path"}
-            disabled={busy}
-            onClick={() => setMode("path")}
-          >{ui("学习路径")}</button>
-        </div>
+        <SegmentedControl size="sm" label={ui("视图模式")} value={mode} disabled={busy} onChange={setMode}
+          options={[{ value: "structure", label: ui("知识结构") }, { value: "path", label: ui("学习路径") }]} />
         <div className="graph-zoom" role="group" aria-label={ui("缩放")}>
           <button
             type="button"

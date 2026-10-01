@@ -13,6 +13,7 @@ import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
 export const STUDYHUB_PANEL = "studyhub";
 const PAGE_SLOT = "study-workspace.page";
 const WELCOME_KEY = "studyhub.welcomed.v1";
+const STUDYHUB_PACKAGE = "@ericwang1358/dsh-daily-flashcard";
 /* Plan contract C3: what this host can do, read by the shared UI instead of
    probing for host callbacks. The DSH plugin can hand a prompt to the session's
    composer; background agent tasks and a landing shell are not wired yet. */
@@ -170,6 +171,14 @@ export function apply(ctx, registerDocumentLearning) {
         modelGroups: catalog?.value?.groups,
         sessionModel: current?.current || catalog?.value?.default,
         openAgent: (id) => ctx.get("sessions")?.open(id),
+        // WP15: DSH's plugin manager page, scrolled to StudyHub when the host offers that.
+        openPluginManager: ctx.get("layout")?.selectPanel
+          ? () => {
+              const navigation = ctx.get("pluginNavigation");
+              if (navigation?.openBundle) navigation.openBundle(STUDYHUB_PACKAGE);
+              else ctx.get("layout").selectPanel("plugins");
+            }
+          : undefined,
         openDocument: path => ctx.get('sidebarRight')?.openResource(sessionFileAddress(sessionId, path)),
         // Cross-workspace jump: create a new conversation in the notebook's
         // own workspace and select it; the study tab there opens that library.

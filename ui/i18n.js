@@ -15,6 +15,13 @@ import onboarding from './locales/en.onboarding.json';
 import copy from './locales/en.copy.json';
 import caseCopy from './locales/en.case.json';
 import course from './locales/en.course.json';
+import stats from './locales/en.stats.json';
+import flow from './locales/en.flow.json';
+import skeletonCopy from './locales/en.skeleton.json';
+import snappy from './locales/en.snappy.json';
+import board from './locales/en.board.json';
+import update from './locales/en.update.json';
+import wrongbook from './locales/en.wrongbook.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -31,6 +38,13 @@ export const ENGLISH_SOURCES = {
   'en.copy.json': copy,
   'en.case.json': caseCopy,
   'en.course.json': course,
+  'en.stats.json': stats,
+  'en.flow.json': flow,
+  'en.skeleton.json': skeletonCopy,
+  'en.snappy.json': snappy,
+  'en.board.json': board,
+  'en.update.json': update,
+  'en.wrongbook.json': wrongbook,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

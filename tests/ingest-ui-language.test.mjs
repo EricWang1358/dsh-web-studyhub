@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-const compiled = await build({ stdin: { contents: `export { default as Ingest } from './ui/Ingest.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'] });
+const compiled = await build({ stdin: { contents: `export { default as Ingest } from './ui/Ingest.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Ingest, setUiLanguage } = module.exports;

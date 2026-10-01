@@ -4,7 +4,8 @@ import { LEVEL_LABEL } from "./shared.js";
 import GenerationTrace from "./GenerationTrace.jsx";
 import { reviewedCardStatus } from "../lib/review-integrity.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
-import { Button, Disclosure, Icon, InlineMessage } from "./components/index.js";
+import { useQuickActions } from "./quick-actions.js";
+import { Button, Disclosure, Icon, InlineMessage, SegmentedControl } from "./components/index.js";
 import { describeFailure, documentCount, jobCode, jobHeadline, jobStageLabel, modelReadiness } from "./generation-status.js";
 import focusCss from "./focus.css";
 import homeCss from "./generate-home.css";
@@ -13,6 +14,7 @@ import { groupPrompt } from "./topic-group-prompt.js";
 import CourseRoute from "./CourseRoute.jsx";
 import caseCss from "./case-study.css";
 import { ExamCountdown } from "./CourseSettings.jsx";
+import { groupCourseNames, rankCourses } from "./course-names.js";
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
@@ -563,7 +565,8 @@ export default function StudyMap({
   plan.depth = plan.kind === "empty" ? 0 : Math.min(2, Math.max(0, (plan.count || 0) - 1));
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks || []).some((n) => !n.current);
   const drafts = data.drafts || [];
-  const finishedCount = visibleJobs.filter((j) => !isActiveJob(j)).length;
+  const quick = useQuickActions();
+  const finishedCount = visibleJobs.filter((j) => !isActiveJob(j) && !j.leaving).length;
   /* Generation progress and drafts waiting for review sit at the top of the
      home (P26): a job started from 创建题组 is in view when the learner lands
      here, and a failure shows up where they are looking (P15). */
@@ -574,7 +577,9 @@ export default function StudyMap({
           openAgent={openAgent} cancelJob={cancelJob} dismissJob={dismissJob} retryGeneration={retryGeneration}
           openModelSettings={openModelSettings} />)}
         {dismissJob && finishedCount > 1 && <div className="jobs-actions">
-          <button type="button" className="link-btn jobs-dismiss-all" disabled={busy} onClick={() => dismissJob()}>{ui("全部知道了")}</button>
+          {quick?.failures["jobs:all"] && <span className="job-error" role="alert">{uiFormat("没能全部移除：{0}", [quick.failures["jobs:all"]])}</span>}
+          {/* Not part of the single-flight act: it must stay clickable whatever else is running. */}
+          <button type="button" className="link-btn jobs-dismiss-all" onClick={() => dismissJob()}>{ui("全部知道了")}</button>
         </div>}
       </div>}
       {drafts.length > 0 && <div className="home-drafts">
@@ -621,12 +626,9 @@ export default function StudyMap({
       <div className={"desk" + (plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <div className="desk-intro">
           {/* The study-mode switch matters once there is something to study (P12). */}
-          {(data.decks.length > 0 || interview) && <div className="focus-switch" role="group" aria-label={ui("学习模式")}>
-            <button className={!interview ? "active" : ""} aria-pressed={!interview}
-              onClick={() => onFocus?.({ mode: "class" })}>{ui("课堂跟学")}</button>
-            <button className={interview ? "active" : ""} aria-pressed={interview}
-              onClick={() => onFocus?.({ mode: "interview" })}>{ui("笔试 / 面试")}</button>
-          </div>}
+          {(data.decks.length > 0 || interview) && <SegmentedControl className="focus-switch" label={ui("学习模式")} value={interview ? "interview" : "class"}
+            onChange={(mode) => onFocus?.({ mode })}
+            options={[{ value: "class", label: ui("课堂跟学") }, { value: "interview", label: ui("笔试 / 面试") }]} />}
           {interview ? (
             <input className="course-heading-input" aria-label={ui("岗位方向")} placeholder={ui("输入岗位方向")}
               value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} onBlur={() => {
@@ -644,8 +646,13 @@ export default function StudyMap({
               <select aria-label={ui("切换当前课程")} value={data.focus?.course || ""}
                 onChange={(event) => event.target.value === "@course-settings"
                   ? onCourseSettings?.(data.focus?.courseId) : onFocus?.({ course: event.target.value })}>
-                {(data.focus?.courses || []).map((course) =>
-                  <option key={course.name} value={course.name}>{course.name || ui('未分类课程')}</option>)}
+                {/* Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names grouped (WP14). */}
+                {groupCourseNames(rankCourses({ courses: data.focus?.courses || [], current: data.focus?.course })).map((entry) => entry.type === "group"
+                  ? <optgroup key={`group:${entry.key}`} label={entry.name}>
+                    {entry.parent && <option value={entry.parent.name}>{entry.parent.name}</option>}
+                    {entry.chapters.map(({ course, chapter }) => <option key={course.name} value={course.name}>{chapter}</option>)}
+                  </optgroup>
+                  : <option key={entry.course.name} value={entry.course.name}>{entry.course.name || ui('未分类课程')}</option>)}
                 {onCourseSettings && data.focus?.courseId && <option value="@course-settings">{ui("课程设置…")}</option>}
               </select>
             </h1>
@@ -991,12 +998,14 @@ const JOB_MARKS = { queued: "info", done: "success", partial: "warning", failed:
    技术详情 (P15). */
 function JobCard({ job: j, drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings }) {
   const code = jobCode(j), active = isActiveJob(j);
+  const dismissFailure = useQuickActions()?.failures[j.id];
   const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
   const generation = !["draft-publish", "draft-repair"].includes(j.type);
   const failure = code === "failed" && generation ? describeFailure(j.stage, { hasDraft: !!draft }) : null;
   const tone = code === "failed" || code === "partial" || code === "cancelled" ? code : active ? "running" : "complete";
   const mark = JOB_MARKS[code] || (active ? null : "success");
-  return <article className={"job " + tone} data-job-id={j.id}>
+  return <article className={"job " + tone + (j.leaving ? " job-leaving" : "")} data-job-id={j.id}
+    aria-hidden={j.leaving ? "true" : undefined} inert={j.leaving || undefined}>
     <span className="job-mark" aria-hidden="true">{mark ? <Icon name={mark} size={20} /> : <span className="sh-spinner" />}</span>
     <div className="job-content">
       <strong className="job-title">{jobHeadline(j, drafts)}</strong>
@@ -1007,6 +1016,7 @@ function JobCard({ job: j, drafts, busy, openDraft, openAgent, cancelJob, dismis
           <Button size="sm" variant="secondary" icon="model" onClick={openModelSettings}>{ui("去配置模型")}</Button>}
         <Disclosure className="tech-details" summary={ui("技术详情")}><code className="job-raw">{j.stage}</code></Disclosure>
       </div> : <small className="job-stage">{jobStageLabel(j, drafts)}</small>}
+      {dismissFailure && <p className="job-error" role="alert">{uiFormat("没能移除这条记录：{0}", [dismissFailure])}</p>}
       {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
     </div>
     <div className="job-actions">
@@ -1017,7 +1027,7 @@ function JobCard({ job: j, drafts, busy, openDraft, openAgent, cancelJob, dismis
       {retryGeneration && generation && j.type !== "supplement" && ["failed", "cancelled"].includes(j.status) && !draft &&
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => retryGeneration(j)}>{ui("按原资料重新设置")}</Button>}
       {/* 已知与删除: done with this card; the draft and approved questions stay. */}
-      {dismissJob && !active && <button type="button" className="job-dismiss" disabled={busy}
+      {dismissJob && !active && <button type="button" className="job-dismiss"
         title={ui("删除这条任务记录；草稿和已通过的题目会保留")} onClick={() => dismissJob(j.id)}>{ui("知道了")}</button>}
     </div>
   </article>;
