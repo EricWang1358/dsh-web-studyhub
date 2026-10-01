@@ -9,6 +9,7 @@
    the output directory, in Chromium, with key/token/base-url variables removed.
    Needs `npm run build` first (dist/app.js). */
 import { mkdir, rm, writeFile, access } from "node:fs/promises";
+/* global document, innerHeight */
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPreviewServer, previewCall } from "../preview-server.mjs";
@@ -52,6 +53,10 @@ async function seedBeforeServer(root) {
   await service.store.update((state) => {
     state.sources.push({ id: "legacy-transcript-05", title: TRANSCRIPT_TITLE, text: transcriptText(), createdAt, courses: [BIG_COURSE],
       audio: { provider: "gemini", filename: "lecture-05.m4a", durationSeconds: 5400, importedAt: createdAt } });
+    // A learner profile, as the coach writes it after a few rounds.
+    state.learner = { consent: { prep: true }, goal: "exam", levels: {}, updatedAt: "2026-09-30T08:15:00.000Z",
+      summary: "偏好先看例子再看定义；在分布式一致性和调度器相关题目上反复出错，选择题容易被“看起来更全面”的干扰项吸引。复盘时更愿意看到对比表，口头解释时常跳过前提条件。",
+      signals: { got: 44, confused: 20, easy: 3, hard: 5, up: 2, down: 67 } };
   });
 }
 
@@ -73,6 +78,32 @@ async function seedThroughServer(server, browser) {
   await page.close();
   await call("materials.document.import", { dataBase64: Buffer.from(pdf).toString("base64"), filename: "05-kubernetes-故障诊断.pdf", courses: [BIG_COURSE] });
   await call("focus.set", { course: BIG_COURSE });
+  // A saved SiliconFlow key whose check fails, so the provider cards show an error message.
+  await call("audio.settings.set", { siliconflowKey: "sk-qa-not-a-real-key-mtzj" });
+}
+
+/** Answer transcription-provider requests in this process (the preview shares it): every key is rejected. */
+function rejectProviderKeys() {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input?.url || input);
+    if (/siliconflow|groq\.com|generativelanguage/.test(url))
+      return new Response(JSON.stringify({ error: { message: "Invalid API key" } }), { status: 401, headers: { "Content-Type": "application/json" } });
+    return original(input, init);
+  };
+  return () => { globalThis.fetch = original; };
+}
+
+/* The left edge of each Settings section's title and body, for the report. */
+async function sectionEdges(page) {
+  return page.evaluate(() => [...document.querySelectorAll(".settings-page .settings-section")].map((section) => {
+    const title = section.querySelector(":scope > legend");
+    const body = [...section.children].filter((child) => child.tagName !== "LEGEND" && child.getBoundingClientRect().width > 0);
+    const nested = [...section.querySelectorAll(".settings-disclosure > .sh-disclosure__body > *")].filter((child) => child.getBoundingClientRect().width > 0);
+    return { section: title?.textContent || "", title: Math.round(title?.getBoundingClientRect().left ?? -1),
+      body: [...new Set(body.map((child) => Math.round(child.getBoundingClientRect().left)))],
+      disclosureBody: [...new Set(nested.map((child) => Math.round(child.getBoundingClientRect().left)))] };
+  }));
 }
 
 /* ---------- steps ---------- */
@@ -161,6 +192,25 @@ export const STEPS = [
     await j.page.keyboard.press("Escape");
     await j.settle(300);
   } },
+  { name: "settings", run: async (j) => {
+    await j.nav("settings");
+    await j.settle(800);
+    const audio = j.page.locator(".audio-settings");
+    const saved = audio.locator('.audio-provider-card.is-set');
+    await saved.getByRole("button", { name: j.t("验证"), exact: true }).click();
+    await saved.locator(".sh-inline").waitFor({ timeout: 15000 });
+    await audio.locator(".audio-advanced > summary").click();
+    await j.page.locator(".backup-settings input[type=file]").setInputFiles(j.backupFile);
+    await j.page.locator(".restore-preview").waitFor({ timeout: 10000 });
+    await j.settle(500);
+    await j.shot("cards", audio.locator(".audio-provider-grid"));
+    await j.shot("coach", j.page.locator(".coach-settings"));
+    await j.shot("sm2", j.page.locator(".sm2-settings"));
+    await j.shot("backup", j.page.locator(".backup-settings"));
+    j.summary.edges = j.summary.edges || {};
+    j.summary.edges[j.key] = await sectionEdges(j.page);
+    await j.fullShot("full");
+  } },
   { name: "sidebar", run: async (j) => {
     await j.nav("library");
     const bottom = j.page.locator(".sidebar-bottom");
@@ -193,8 +243,11 @@ export async function runBigLibrary(options) {
   const server = await createPreviewServer({ libraryRoot: join(work, "library"), home: join(work, "home"), port: options.port, model: createFakeModel({ latencyMs: 50 }) });
   const browser = await launchChromium();
   const summary = { scrubbedEnv: removed, shots: [], failures: [], pageErrors: [] };
+  const restoreFetch = rejectProviderKeys();
+  const backupFile = join(work, "study-library-2026-09-01.json");
   try {
     await seedThroughServer(server, browser);
+    await writeFile(backupFile, JSON.stringify(await previewCall(server, "export", {})));
     const english = options.langs.includes("en") ? await englishStrings() : {};
     for (const lang of options.langs) for (const theme of options.themes) for (const width of options.widths) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme });
@@ -208,6 +261,7 @@ export async function runBigLibrary(options) {
       const dir = join(options.out, `${lang}-${theme}-${width}`);
       await mkdir(dir, { recursive: true });
       const j = context_(page, dir, lang, english, summary);
+      j.backupFile = backupFile; j.summary = summary; j.key = `${lang}-${theme}-${width}`;
       for (const step of STEPS.filter((item) => options.steps.includes(item.name))) {
         j.step = step.name;
         try { await step.run(j); console.log(`ok   ${lang}-${theme}-${width} ${step.name}`); }
@@ -222,6 +276,7 @@ export async function runBigLibrary(options) {
     }
   } finally {
     await writeFile(join(options.out, "summary.json"), JSON.stringify(summary, null, 2) + "\n");
+    restoreFetch();
     await browser.close().catch(() => {});
     await server.close();
   }
@@ -254,6 +309,19 @@ function context_(page, dir, lang, english, summary) {
       if (await anchor.count()) await anchor.first().click();
       else await page.getByRole("button", { name: t(NAV[id]), exact: true }).first().click();
       await j.settle();
+    },
+    /** The whole app scroll container, grown to its content height. */
+    async fullShot(suffix) {
+      const view = page.viewportSize();
+      const height = await page.evaluate(() => {
+        let tallest = document.documentElement.scrollHeight;
+        for (const element of document.querySelectorAll("main, .study-app"))
+          if (element.scrollHeight > element.clientHeight + 4) tallest = Math.max(tallest, element.scrollHeight + innerHeight - element.clientHeight);
+        return tallest;
+      });
+      await page.setViewportSize({ width: view.width, height: Math.min(height, 9000) });
+      await j.settle(400);
+      try { return await j.shot(suffix); } finally { await page.setViewportSize(view); await sleep(200); }
     },
     /** A screenshot of the viewport, or of one element (with a margin) when given. */
     async shot(suffix = "", locator = null) {

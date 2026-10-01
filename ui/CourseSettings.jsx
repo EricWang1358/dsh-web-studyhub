@@ -142,9 +142,9 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
       </ul>}
     </div>;
   };
-  return <fieldset className="course-list">
-    <legend>{ui('课程')}</legend>
-    <p className="muted">{ui('每门课可以记下考试形式、日期、分值和考官指引；改名或合并会同步更新所有题组和资料。')}</p>
+  return <fieldset className="course-list settings-section">
+    <legend className="settings-section__title">{ui('课程')}</legend>
+    <p className="settings-section__lead">{ui('每门课可以记下考试形式、日期、分值和考官指引；改名或合并会同步更新所有题组和资料。')}</p>
     {courses.length ? <ScrollWindow className="course-list__window" label={ui('课程列表')} items={entries} itemKey={entryKey} match={entryText}
       renderItem={renderEntry} filterable={entries.length > 6 || filtering} filterPlaceholder={ui('筛选课程…')} query={query} onQueryChange={setQuery}
       activeKey={activeKey} maxHeight={400} listClassName="course-list__items" itemClassName="course-list__entry" />

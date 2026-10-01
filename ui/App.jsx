@@ -22,7 +22,7 @@ import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
-import Settings from "./Settings.jsx";
+import Settings, { backupFileName } from "./Settings.jsx";
 import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS } from "./generation-status.js";
 import ImportHub, { importOutcome } from './ImportHub.jsx';
@@ -1207,7 +1207,7 @@ export default function App({ call: transportCall, host = {} }) {
       );
       const a = document.createElement("a");
       a.href = url;
-      a.download = "study-library.json";
+      a.download = backupFileName();
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
@@ -2167,7 +2167,7 @@ export default function App({ call: transportCall, host = {} }) {
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
-                onRestored={() => {
+                onRestored={(restored) => {
                   libraryEpoch.current++;
                   navigationRequest.current++;
                   setContextTrail([]); setDetour(null); setWorkflowReturn(null); setSkeletonFocus(null); setNoteInitialId(''); setBoardStudyRef(null);
@@ -2180,7 +2180,8 @@ export default function App({ call: transportCall, host = {} }) {
                   setSelectedSources([]);
                   setSettings({});
                   setPage("library");
-                  setNotice(ui("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。"));
+                  setNotice({ text: restored?.backupPath ? uiFormat("学习库已恢复。原数据已保存到 {0}", [restored.backupPath])
+                    : ui("学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。"), tone: "success", persistent: true });
                 }}
               />
             )}
