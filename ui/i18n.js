@@ -1,6 +1,48 @@
 import { useSyncExternalStore } from 'react';
-import english from './locales/en.json';
+import base from './locales/en.json';
+// One English fragment per work package (plan §4 C2). esbuild cannot glob, so
+// a new fragment must be imported and listed here; tests/wp1-i18n-fragments
+// fails when a file in ui/locales is missing from ENGLISH_SOURCES.
+import components from './locales/en.components.json';
+import importCopy from './locales/en.import.json';
+import generate from './locales/en.generate.json';
+import audio from './locales/en.audio.json';
+import practice from './locales/en.practice.json';
+import agent from './locales/en.agent.json';
+import host from './locales/en.host.json';
+import shell from './locales/en.shell.json';
+import onboarding from './locales/en.onboarding.json';
+import copy from './locales/en.copy.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
+
+export const ENGLISH_SOURCES = {
+  'en.json': base,
+  'en.components.json': components,
+  'en.import.json': importCopy,
+  'en.generate.json': generate,
+  'en.audio.json': audio,
+  'en.practice.json': practice,
+  'en.agent.json': agent,
+  'en.host.json': host,
+  'en.shell.json': shell,
+  'en.onboarding.json': onboarding,
+  'en.copy.json': copy,
+};
+
+/** Merge catalogues in order. The first translation of a key wins; a second,
+ * different translation of the same source text is reported as a conflict. */
+export function mergeCatalogues(sources) {
+  const catalogue = {}, origin = {}, conflicts = [];
+  for (const [file, entries] of Object.entries(sources)) {
+    for (const [key, value] of Object.entries(entries || {})) {
+      if (!Object.hasOwn(catalogue, key)) { catalogue[key] = value; origin[key] = file; }
+      else if (catalogue[key] !== value) conflicts.push({ key, files: [origin[key], file], values: [catalogue[key], value] });
+    }
+  }
+  return { catalogue, conflicts };
+}
+
+const english = mergeCatalogues(ENGLISH_SOURCES).catalogue;
 const KEY = 'study-ui-language';
 const listeners = new Set();
 const browserLanguage = () => {
