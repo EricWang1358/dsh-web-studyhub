@@ -10,6 +10,8 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
 ## 2.1.1 — 2026-10-02
 
+Not released on its own; everything below ships in 2.1.2.
+
 - **Update notice and one-click upgrade.** StudyHub checks GitHub for a newer release at most every 12 hours (it can be turned off; nothing but the request is sent). In DSH 0.2 it downloads the exact release asset, verifies its SHA-256 and installs it through DSH's plugin manager; restart DSH to finish. Hosts without that API get a guided reinstall with the package address to copy. Restarting DSH alone never updated a plugin; the docs now say so.
 - **Word and PowerPoint.** Import `.docx` (headings, lists, tables, footnotes) and `.pptx` (one section per slide, with speaker notes and slide numbers for citations), up to 40 MB. Old `.doc`/`.ppt` files get a clear "save as .docx or PDF" message.
 - **Calmer, consistent Settings.** One left edge and one section style; aligned audio provider cards; a reasoning-effort choice for question generation when the model offers levels (with its trade-off); library disk use computed in the background; an SM-2 preview chart of upcoming review days; a guided backup and restore with a preview of the chosen file; the 陪学 profile explains what it affects and now reloads after changes.

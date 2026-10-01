@@ -6,7 +6,7 @@
 
 [交互体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [下载安装包](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) · [版本记录](CHANGELOG.zh-CN.md)
 
-**当前版本**：[2.1.1](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.1) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。全套安装后可在 DSH 插件管理器中分别启停组件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
+**当前版本**：[2.1.2](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.2) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。全套安装后可在 DSH 插件管理器中分别启停组件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
 
 ## 五分钟上手
 
@@ -35,9 +35,9 @@
 
 ## 安装与更新
 
-**已有 DSH 桌面版或网页版？** 在当前 DSH 中打开「插件 → 添加插件」，粘贴[完整工作台安装包地址](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.1/ericwang1358-dsh-daily-flashcard-2.1.1.tgz)，安装后确认包名、版本并启用。仅安装插件，网页版无需下载客户端，继续使用原配置与模型。
+**已有 DSH 桌面版或网页版？** 在当前 DSH 中打开「插件 → 添加插件」，粘贴[完整工作台安装包地址](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.2/ericwang1358-dsh-daily-flashcard-2.1.2.tgz)，安装后确认包名、版本并启用。仅安装插件，网页版无需下载客户端，继续使用原配置与模型。
 
-**还没有 DSH？** 可选择官方桌面安装器：[Windows 64 位（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) · [macOS Apple silicon（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。Linux 或不想安装客户端的用户，可安装 Node.js **22.19 或以上**，运行 `npx @deepseek-ai/dsh web` 使用网页版。桌面版自带运行时。完整步骤见[安装与模型配置](docs/install.zh-CN.md)，也可下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.1/StudyHub-2.1.1-Setup.zh-CN.html)。
+**还没有 DSH？** 可选择官方桌面安装器：[Windows 64 位（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) · [macOS Apple silicon（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。Linux 或不想安装客户端的用户，可安装 Node.js **22.19 或以上**，运行 `npx @deepseek-ai/dsh web` 使用网页版。桌面版自带运行时。完整步骤见[安装与模型配置](docs/install.zh-CN.md)，也可下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.2/StudyHub-2.1.2-Setup.zh-CN.html)。
 
 **高级自定义**：全套安装后，在 DSH 自带插件管理器选择各组件的开关；后续添加独立子插件也使用该管理器。停用所需组件时，学习界面会隐藏对应入口或提示功能已停用，已保存的数据保留。生题需要资料、题库和生成，答题需要题库和学习；多个安装来源提供同一能力时，需停用所有来源才能完全关闭。[详细说明](docs/install.zh-CN.md#高级自定义与后续启停)
 
@@ -54,7 +54,7 @@ dsh plugin --profile <你的配置名> add <下载的tgz绝对路径>
 
 使用 CLI 时保留原 profile；网页版默认配置为 `web`，自定义配置请用原配置名。远程网页版的本地安装包路径须在 DSH 服务器上，也可直接使用 HTTPS 安装地址。桌面配置由桌面宿主管理，请使用随附的插件管理器。仓库更新和网页刷新不会替换已经加载的插件。
 
-**更新：** DSH 插件不会自动更新，只重启 DSH 不会换成新版本。从 2.1.1 起，StudyHub 会向 GitHub 查询新版本（最多每 12 小时一次，可在「设置 › 关于与更新」关闭），有新版本时在侧栏提示；点「一键升级」会下载发布页的安装包，按 `SHA256SUMS` 核对 SHA-256 后交给 DSH 插件管理安装。旧版本或不支持应用内安装的宿主：在「插件」里卸载 StudyHub，再点「添加插件」粘贴新版本的安装包地址。两种方式都要先结束或取消后台任务，装好后重启 DSH：桌面版完全退出后重新打开，网页版用原 profile 重启服务；仅刷新浏览器不会加载新的插件代码。学习库和设置会保留。
+**更新：** DSH 插件不会自动更新，只重启 DSH 不会换成新版本。从 2.1.2 起，StudyHub 会向 GitHub 查询新版本（最多每 12 小时一次，可在「设置 › 关于与更新」关闭），有新版本时在侧栏提示；点「一键升级」会下载发布页的安装包，按 `SHA256SUMS` 核对 SHA-256 后交给 DSH 插件管理安装。旧版本或不支持应用内安装的宿主：在「插件」里卸载 StudyHub，再点「添加插件」粘贴新版本的安装包地址。两种方式都要先结束或取消后台任务，装好后重启 DSH：桌面版完全退出后重新打开，网页版用原 profile 重启服务；仅刷新浏览器不会加载新的插件代码。学习库和设置会保留。
 
 ## 开始学习
 

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -13,7 +14,8 @@ import { readRetrievalSettings, saveRetrievalSettings } from '../lib/retrieval-s
 /* WP28b: one-click install of the search extension through DSH's plugin manager (the WP15 path):
    a verified release asset, a confirmation for the build scripts pnpm holds back, a restart notice only when needed. */
 
-const VERSION = '2.1.1';
+// The host installs the extension of the version that is running, so the fixture follows package.json.
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const bytes = Buffer.from('fake tgz bytes');
 
