@@ -138,8 +138,14 @@ test("sample.load builds a realistic sample course through real operations", asy
   const weak = wrong.items.filter((item) => item.deckId === deck.id).map((item) => item.cardId).sort();
   assert.deepEqual(weak, zh.weak.map((key) => `sample-${key}`).sort());
   const stats = await call("stats", {});
-  assert.ok(stats.streak >= 1 || stats.heatmap.some((day) => day.count > 0));
+  assert.ok(stats.heatmap.filter((day) => day.count > 0).length >= 14, "about three weeks on the heatmap");
   assert.ok(snapshot.progress[deck.id].counts.new >= 2, "untouched cards stay new for the home plan");
+  assert.ok(snapshot.today.due >= 1 && snapshot.today.weak >= 2, "today's plan has reviews and weak cards");
+  assert.ok(stats.totals.streak >= 2 && stats.totals.streak < 21, `a believable streak with rest days: ${stats.totals.streak}`);
+  // The tour's practice round opens on a choice question.
+  assert.ok(status.practice.length >= 3);
+  const round = await call("review.start", { mode: "path", scope: status.practice, fresh: true });
+  assert.equal(round.card.kind, "quiz");
 
   // A learning-flow session paused at its prepared lesson.
   const session = state.workflowSessions.find((item) => item.sample === true);
