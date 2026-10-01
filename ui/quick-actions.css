@@ -1,0 +1,25 @@
+/* WP19: a card dismissed with 知道了 fades and collapses at once (the call runs in the background, ui/quick-actions.js),
+   and a failed dismissal puts a short message next to the card that came back. */
+.study-app .job.job-leaving {
+  overflow: hidden;
+  pointer-events: none;
+  animation: job-leave var(--dur-leave, 180ms) cubic-bezier(.4, 0, 1, 1) forwards;
+}
+@keyframes job-leave {
+  0% { opacity: 1; max-height: 220px; }
+  55% { opacity: 0; }
+  100% {
+    opacity: 0; max-height: 0; visibility: hidden;
+    margin-top: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .study-app .job.job-leaving { display: none; animation: none; }
+}
+.study-app .job-error {
+  margin: var(--space-1, 4px) 0 0;
+  font-size: var(--fs-sm, 13px);
+  line-height: var(--lh-snug, 1.35);
+  color: var(--bad);
+}
+.study-app .jobs-actions .job-error { margin: 0 var(--space-2, 8px) 0 0; align-self: center; }
