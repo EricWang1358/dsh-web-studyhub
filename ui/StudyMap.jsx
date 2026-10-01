@@ -11,6 +11,7 @@ import homeCss from "./generate-home.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import CourseRoute from "./CourseRoute.jsx";
+import { ExamCountdown } from "./CourseSettings.jsx";
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
@@ -146,6 +147,7 @@ export default function StudyMap({
   onNotebookSearch,
   onShowGraph,
   onFocus,
+  onCourseSettings,
   suggestRole,
   suggestMerges,
   mergeDecks,
@@ -632,12 +634,16 @@ export default function StudyMap({
             <h1 className="course-heading">
               <span>{data.focus?.course === '' ? ui('未分类课程') : data.focus?.course || headline}</span>
               <span className="course-caret" aria-hidden="true">▾</span>
+              <ExamCountdown course={(data.courses || []).find((course) => course.id === data.focus?.courseId)} />
               {/* The heading is the course switcher: a transparent native select
-                  keeps keyboard and screen-reader behaviour intact. */}
+                  keeps keyboard and screen-reader behaviour intact. Its last
+                  entry opens the current course's settings (WP13). */}
               <select aria-label={ui("切换当前课程")} value={data.focus?.course || ""}
-                onChange={(event) => onFocus?.({ course: event.target.value })}>
+                onChange={(event) => event.target.value === "@course-settings"
+                  ? onCourseSettings?.(data.focus?.courseId) : onFocus?.({ course: event.target.value })}>
                 {(data.focus?.courses || []).map((course) =>
                   <option key={course.name} value={course.name}>{course.name || ui('未分类课程')}</option>)}
+                {onCourseSettings && data.focus?.courseId && <option value="@course-settings">{ui("课程设置…")}</option>}
               </select>
             </h1>
           ) : (

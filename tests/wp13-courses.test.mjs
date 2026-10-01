@@ -71,7 +71,6 @@ async function writeVersion3Library(root, state = legacyState()) {
   await writeFile(join(root, 'study-workspace.json'), JSON.stringify(manifest, null, 2));
 }
 const manifestOf = async root => JSON.parse(await readFile(join(root, 'study-workspace.json'), 'utf8'));
-const byName = (state, name) => courseEntities(state).find(course => course.name === name);
 
 test('course ids are deterministic short hashes of the normalised name', () => {
   const id = courseIdFor('Databases');

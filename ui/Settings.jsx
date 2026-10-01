@@ -17,6 +17,7 @@ export default function Settings({
   legacy,
   setLegacy,
   workspacePanel,
+  coursePanel,
   onboardingPanel,
   exportData,
   onRestored,
@@ -51,6 +52,7 @@ export default function Settings({
         <legend>{ui("学习库与模型")}</legend>
         {workspacePanel}
       </fieldset>
+      {coursePanel}
       {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
       {onboardingPanel}
       {profile && (

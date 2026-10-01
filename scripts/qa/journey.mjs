@@ -215,6 +215,41 @@ export const JOURNEY_STEPS = [
     await j.settle();
     await j.shot();
   } },
+  // Course records (WP13): the course switcher opens the course panel; an exam profile saved there
+  // shows its countdown in the library heading, and Settings lists every course.
+  { name: "course-panel", needs: ["deck"], run: async (j) => {
+    const name = j.lang === "en" ? "Software Architecture" : "软件架构";
+    const deck = (await j.snapshot()).decks.find((item) => !item.systemKind);
+    if (deck.course !== name) {
+      await j.api("deck.course", { id: deck.id, course: name });
+      await j.api("focus.set", { course: name });
+      await j.reload();
+    }
+    await j.nav("library");
+    await j.page.locator(".course-heading select").selectOption("@course-settings");
+    await j.dialog().waitFor({ timeout: 10000 });
+    await j.settle();
+    await j.shot("panel");
+    await j.dialog().getByRole("button", { name: j.t("开卷案例"), exact: true }).click();
+    await j.dialog().getByLabel(j.t("总分"), { exact: true }).fill("40");
+    const date = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10);
+    await j.dialog().getByLabel(j.t("考试日期")).fill(date);
+    await j.dialog().getByRole("button", { name: j.t("添加考试部分") }).click();
+    await j.dialog().getByLabel(j.t("标题"), { exact: true }).first().fill(j.lang === "en" ? "Part A · Architecture styles" : "第一部分 · 架构风格");
+    await j.dialog().getByLabel(j.t("分值"), { exact: true }).first().fill("20");
+    await j.dialog().getByLabel(j.t("考查知识点")).first().fill(j.lang === "en" ? "Microservices; Strangler fig" : "微服务；绞杀者模式");
+    await j.shot("filled", { fullPage: true });
+    await j.dialog().getByRole("button", { name: j.t("保存课程信息") }).click();
+    await j.until(async () => (await j.snapshot()).courses?.some((course) => course.name === name && course.exam?.date === date), "the exam profile is saved");
+    await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the panel closes after saving");
+    await j.page.locator(".course-heading-exam").first().waitFor({ timeout: 15000 });
+    await j.settle();
+    await j.shot("heading");
+    await j.nav("settings");
+    await j.page.locator(".course-list").scrollIntoViewIfNeeded();
+    await j.settle();
+    await j.shot("settings");
+  } },
 ];
 
 /* The onboarding set (WP5), run with `--steps tour`: the welcome page of an
