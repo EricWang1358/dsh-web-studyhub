@@ -12,6 +12,7 @@ import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js'
 import { Banner, Button, Disclosure, EmptyState, PageHeader, SegmentedControl, SetupRequired } from './components/index.js';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
+import { TokenEstimate } from './TokenUsage.jsx';
 import {
   COUNT_MAX, COUNT_MIN, COUNT_PRESETS, DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, clampCount, courseHasCaseExam,
   difficultyNote, estimateMinutes, kindNote, roleOpenByDefault, selectionStats, stepCount, suggestCount, summaryLine,
@@ -45,6 +46,7 @@ export default function Generate({
   onStarted,
   caseInitial,
   onCourseSettings,
+  reasoningEffort = '',
 }) {
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(formCss, "study-generate-form");
@@ -156,7 +158,7 @@ export default function Generate({
       {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
@@ -273,6 +275,8 @@ export default function Generate({
                     onChange={(e) => setGen({ ...gen, focus: e.target.value })}
                     placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
                   <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
+                    estimate={<TokenEstimate call={call} enabled={model.ready && selectedSources.length > 0}
+                      request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
                     onAsk={askAssist}
                     onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
                     onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
@@ -298,6 +302,10 @@ export default function Generate({
                 </p>
               </div>
               {summary && <p className="generate-summary" role="status">{summary}</p>}
+              {/* What the run is expected to use, from the real prompts of the pipeline (WP27). */}
+              <TokenEstimate call={call} enabled={selectedSources.length > 0}
+                request={{ feature: 'generate', sourceIds: selectedSources, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
+                  course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}

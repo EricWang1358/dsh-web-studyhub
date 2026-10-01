@@ -10,7 +10,7 @@ import { DIFFICULTIES, focusIncludes, hasSettings } from './generate-form.js';
    what is sent (titles and outlines, never full text); without one, or after
    a failure, the same button answers from the learner's own wrong answers and
    material outlines. Failures read as one quiet sentence, never a banner. */
-export default function GenerateAssist({ ready = false, phase = 'idle', result = null, focus = '', applied = false, disabled = false, onAsk, onPick, onApply }) {
+export default function GenerateAssist({ ready = false, phase = 'idle', result = null, focus = '', applied = false, disabled = false, estimate = null, onAsk, onPick, onApply }) {
   const loading = phase === 'loading';
   const local = result?.source === 'local';
   const failed = local && result?.unavailable?.reason === 'failed';
@@ -26,6 +26,7 @@ export default function GenerateAssist({ ready = false, phase = 'idle', result =
         </Button>
         <span className="generate-assist__sent">{ready ? ui('只发送资料标题与目录，不发送全文') : ui('只用你的错题与资料目录，不调用模型')}</span>
       </div>
+      {estimate}
       {phase === 'done' && result && (
         <div className="generate-assist__result" aria-live="polite">
           {local && <p className="generate-assist__label">{ui('来自你的错题与资料目录')}</p>}

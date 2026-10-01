@@ -2015,6 +2015,7 @@ export default function App({ call: transportCall, host = {} }) {
                 onLibrary={() => setPage("library")}
                 onCreate={() => { setGenSource("files"); setPage("generate"); }}
                 onSources={() => setPage("sources")}
+                onAudioUsage={() => setPage("audio")}
               />
             )}
             {page === "exam" && (
@@ -2140,6 +2141,7 @@ export default function App({ call: transportCall, host = {} }) {
                 onStarted={() => { setRevealHome((n) => n + 1); setCaseInitial(null); setPage("library"); }}
                 caseInitial={caseInitial || undefined}
                 onCourseSettings={setCourseSettings}
+                reasoningEffort={binding.effort?.current || ""}
                 key={caseInitial?.nonce || "generate"}
               />
             )}

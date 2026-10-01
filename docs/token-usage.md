@@ -1,0 +1,83 @@
+# Token usage and estimates · token 用量与估算
+
+StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (Token 用量 / 缓存命中 / 未缓存输入 / 缓存读取 / 缓存写入 / 输出, with the `tok` unit). It never shows a price: take the numbers to your provider's price list. 本页回答「出一次题要用多少 token、该选什么模型和推理程度」。
+
+## 中文
+
+### 一次运行发给模型什么
+
+| 功能 | 调用哪些阶段 | 每个阶段收到什么 | 典型输出 |
+|---|---|---|---|
+| 创建题组 | ① 规划考点：每个分块 1 次 ② 出题与自查：每批 1 次 ③ 独立审阅：每批 1 次 | ① 整个分块（一个分块最多 6 万字符，长资料会被切开；一页 PDF 是一份资料）＋你的设置＋已有题目的考点 ② 只有规划选中的资料（每份全文）＋规划结果＋质量标准 ③ 同样的资料＋候选题 | 规划约 100–180 token/题；出题约 160–480 token/题（闪卡较短、单选带选项较长）；审阅约 60–100 token/题 |
+| 案例分析题 | ① 写案例和评分标准 1 次 ② 独立审阅 1 次（结构检查不过时再写 1 次） | ① 课程资料（合计最多 4 万字符，平均分给每份）＋真题模板（≤1.2 万字符）＋评分说明（≤6000 字符） ② 整套案例和题目 | 案例 600–1500 词（中文 900–2600 字）＋每题评分标准、参考答案，约 3–5 千 token |
+| 案例批改 | 每次提交批改 1 次 | 案例原文＋所答题的评分标准＋你的回答（≤3 万字符） | 每个评分项约 50–100 token |
+| 帮我想想 | 1 次轻量调用 | 资料标题和目录（≤3000 字符）、课程考试设置、≤6 个薄弱主题；不发送资料全文 | 几十到约 200 token |
+| 学习流「生成完整讲解」 | ① 写讲解 1 次 ② 检查 1 次（没通过会重写，最多 4 次） | 主题、笔记、≤24 张卡片、≤1.2 万字符的原文依据、骨架 | 讲解 600–2500 字（补讲更短） |
+| 音频文本步骤 | 校对：每 6000 字符 1 次；翻译：每 3500 字符 1 次；起标题 1 次 | 对应窗口的转写稿＋术语 | 校对很短；翻译约等于原文长度（换成另一种语言） |
+| 陪学 | 每次提示、追问、改题、变式各 1 次轻量调用 | 一张卡片的摘要＋学习者画像（变式一次带多张卡和 ≤6000 字符依据） | 输出有上限：提示 450、追问 320、改题 1600 token |
+
+转写本身（Gemini、Groq、SiliconFlow）不是 token，按音频分钟计，见「音频转录」页的「用量与额度」。
+
+### 估算怎么来的
+
+- 不调用模型、不联网。批次、分块用的是出题流程自己的函数；提示词用的是流程真正发送的那些字符串；DSH 有 `tokenMeter` 就用它估算，没有就用同一条规则（字符数 ÷ 4，加固定开销）。
+- 范围的下限是 DSH 的固定估算，上限按 DeepSeek 公布的换算（中文每字约 0.6 token，英文每字符约 0.3）。DSH 自己也说它对中文偏低，所以中文资料的实际值通常更接近上限。
+- 模型写出的内容无法预先构造，输出量按内置示例课程里的题目、案例和批改结果测得；案例长度取自提示词本身规定的字数。
+- 缓存读取的下限永远是 0（第一次运行可能一点也不命中），上限是各次调用重复的系统提示词和说明。命中多少取决于服务商。
+- 推理程度越高，推理 token 越多（计入输出）；推理 token 无法预先测量，所以只提示，不加数字。出错重试会让实际调用更多。
+
+### 资料很多时
+
+- 一次最多处理 60 万字符的资料（约 200 页普通 PDF）；超过会被拒绝，表单会直接告诉你「选了几份、最多能选前几份」，并给出最多能选的资料的用量。
+- 规划阶段会把每个分块完整读一遍（所以资料越多，规划越贵）；之后每一批只带上规划选中的页。**缩小页码范围**是减少用量最有效的办法；题数少于页数时也不可能逐页考查。
+- 单次调用的输入最大约 1.6–2.4 万 token（一个 6 万字符的分块加提示词），上下文窗口 32K 以上的模型都够用。
+
+### 选什么模型和推理程度
+
+StudyHub 使用你在 DSH 里选定的模型，不绑定某个模型。批量的记忆类题目用低档推理即可（更快、更省）；应用分析和案例题用高档（更慢、更耗额度，推理更严谨）。在「设置 › 生成模型」旁的推理程度里调整。
+
+### 实际用量记在哪
+
+- 直接调用：读取服务商返回的用量；DSH 子代理（出题的每个阶段）：读取该子会话 DSH 自己的 `tokenUsage` 投影，读不到就按同一规则重放它的事件。四个桶互不重叠，推理 token 已包含在输出里，重试的那次调用另外累加。
+- 每个任务的详情里有「实际用量」（并与出发前的估算对照）；「学习统计 › 模型用量」按功能（出题、改题与复核、陪学、学习流、案例、音频文本）列出近 7 / 30 天。数据只存数量，放在学习库里的 `model-usage.json`（保留 90 天，不含内容）。
+- 记录失败不会影响任何任务。
+
+## English
+
+### What one run sends to the model
+
+| Feature | Stages | What each stage receives | Typical output |
+|---|---|---|---|
+| Create question set | 1 plan per chunk, 2 write-and-self-check per batch, 3 independent review per batch | 1 the whole chunk (at most 60,000 characters; a long source is cut, each PDF page is a source) plus your settings and already-covered objectives; 2 only the sources the plan picked (full text each), the plan and the quality criteria; 3 the same sources plus the candidate questions | plan about 100-180 tokens/question; writing about 160-480 tokens/question (flashcards shorter, choice questions with options longer); review about 60-100 tokens/question |
+| Case paper | 1 write the case and criteria; 2 independent review (one more write when the structure check fails) | 1 course materials (at most 40,000 characters in total, shared equally), a past-paper template (up to 12,000) and examiner guidance (up to 6,000); 2 the whole case and its questions | case 600-1,500 words (900-2,600 Chinese characters) plus criteria and model answers, about 3-5K tokens |
+| Case grading | 1 call per submission | the case, the rubric of the answered questions and your answer (up to 30,000 characters) | about 50-100 tokens per criterion |
+| Suggest a focus | 1 light call | material titles and headings (up to 3,000 characters), the course exam profile, up to 6 weak topics; never the full text | tens to about 200 tokens |
+| Learning flow lesson | 1 write the article; 2 check it (a failed check rewrites: up to 4 calls) | the topic, notes, up to 24 cards, up to 12,000 characters of source evidence, the skeleton | 600-2,500 characters (a remedy is shorter) |
+| Audio text steps | proofreading: 1 per 6,000 characters; translation: 1 per 3,500; 1 title call | the transcript window plus terms | proofreading is tiny; translation is about the source's length in the other language |
+| Study coach | 1 light call per nudge, follow-up, rewrite or variant | a summary of one card plus the learner profile (variants: several cards and up to 6,000 characters of evidence) | output capped: 450 tokens for a nudge, 320 for a follow-up, 1,600 for a rewrite |
+
+Transcription itself (Gemini, Groq, SiliconFlow) is not tokens; it is counted in audio minutes under Usage and limits on the Audio transcription page.
+
+### How the estimate is made
+
+- No model call, no network. Batching and chunking are the pipeline's own functions; the prompts are the strings the pipeline really sends; DSH's `tokenMeter` prices them when the host has it, otherwise the same rule (characters / 4 plus fixed framing).
+- The low end of every range is DSH's fixed estimate; the high end uses DeepSeek's published conversion (about 0.6 token per Chinese character, 0.3 per English character). DSH itself says its heuristic underprices Chinese, so for Chinese material the real number is usually near the high end.
+- What a model writes cannot be built in advance: output sizes are measured from the bundled sample course (questions, cases, gradings); case length is the length the prompt itself asks for.
+- Cache read starts at 0 (a first run may hit nothing); its high end is the system prompt and instructions repeated between calls. How much hits depends on the provider.
+- A higher reasoning level means more reasoning tokens (counted in the output); they cannot be measured beforehand, so only a note is shown. Retries after an error add calls.
+
+### With a lot of material
+
+- One run takes at most 600,000 characters of material (about 200 ordinary PDF pages). More is refused; the form says how many sources you picked, how many fit, and prices the largest selection that fits.
+- Planning reads every chunk in full (more material costs more there); after that each batch carries only the pages the plan picked. **Narrowing the page range** is the most effective way to use fewer tokens; fewer questions than pages cannot cover every page anyway.
+- One call's input tops out around 16-24K tokens (a 60,000-character chunk plus prompts), so a model with a 32K or larger context window is enough.
+
+### Which model and reasoning level
+
+StudyHub uses the model you chose in DSH; it is not tied to one. Low reasoning is enough for batches of recall questions (faster, cheaper); use a high level for application questions and case papers (slower, more tokens, more careful reasoning). Change it under Settings, next to Generation model.
+
+### Where actual usage is recorded
+
+- Direct calls read the usage the provider reports; DSH sub-agent phases read DSH's own `tokenUsage` projection of the child session, or replay its events with the same fold. The four buckets are disjoint, reasoning tokens are already inside the output, and a retried attempt is added on top.
+- A job's details show Actual usage next to its estimate; Study statistics, Model usage lists the last 7 / 30 days per feature (question writing, repair and review, coach, learning flows, case papers, audio text). Only counts are stored, in `model-usage.json` in the library (90 days, no content).
+- A failure to record never affects a job.
