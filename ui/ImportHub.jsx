@@ -4,6 +4,9 @@ import { useInjectCss } from './shared.js';
 import { Button, FileDrop, Icon, InlineMessage, SegmentedControl } from './components/index.js';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { sourceFormatLabel } from './SourcePicker.jsx';
+import LargeDocumentCard from './LargeDocumentCard.jsx';
+import { looksLikeConvertedJson } from '../lib/converted-document.js';
+import { classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
 import css from './import-hub.css';
 
@@ -31,7 +34,8 @@ const DECK_EXTENSIONS = ['.json'];
 const SUBTITLE_EXTENSIONS = ['.srt', '.vtt'];
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.opus', '.webm', '.aiff', '.aif'];
 const extensionOf = name => /\.[^./\\]+$/.exec(String(name || '').toLowerCase())?.[0] || '';
-const FORMAT_OF = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx', '.md': 'md', '.markdown': 'md', '.html': 'html', '.htm': 'html', '.txt': 'txt' };
+// '.json' is only a document when it is a converter's output (MinerU, Docling); a question deck takes the deck route.
+const FORMAT_OF = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx', '.md': 'md', '.markdown': 'md', '.html': 'html', '.htm': 'html', '.txt': 'txt', '.json': 'json' };
 
 /** The size limit of a file, by its format. */
 export const documentLimit = name => maxBytesFor(FORMAT_OF[extensionOf(name)]);
@@ -111,24 +115,30 @@ export function plainImportError(error) {
   return message || ui('导入失败，请重试。');
 }
 
+/* One document through the ordinary import (a PDF, Word, text, or a converter's JSON/Markdown). */
+async function importDocumentFile(file, { call, courses = [] }) {
+  if (file.size > documentLimit(file.name)) throw permanentError(documentLimit(file.name) > MAX_DOCUMENT_BYTES
+    ? ui('文件超过 40 MB。请压缩图片或拆分后再导入。') : ui('文件超过 8 MB。请按章节拆分后再导入。'));
+  const value = await call('materials.document.import', { dataBase64: await fileToBase64(file), filename: file.name, courses });
+  const sourceIds = value?.sourceIds || value?.document?.sourceIds || [];
+  const format = value?.document?.format || FORMAT_OF[extensionOf(file.name)];
+  const converted = value?.document?.sources?.find(source => source?.document?.converter)?.document.converter;
+  if (!sourceIds.length) throw permanentError(format === 'pdf'
+    ? ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。')
+    : format === 'pptx' ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
+  return { kind: 'document', title: value?.document?.title || file.name, format, documentId: value?.documentId, sourceIds,
+    pages: sourceIds.length, skippedPages: value?.skippedPages || [], ...(converted ? { converted } : {}) };
+}
+
 async function importOne(file, { call, courses = [], audio = false }) {
   const kind = routeImportFile(file, { audio });
   if (kind === 'audio') throw permanentError(ui('音频请在「音频 / 录音」里导入，那里会先转写成文字。'));
   if (kind === 'legacy') throw permanentError(ui(LEGACY_MESSAGES[extensionOf(file.name)]));
   if (!kind) throw permanentError(ui('不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。'));
-  if (kind === 'document') {
-    if (file.size > documentLimit(file.name)) throw permanentError(documentLimit(file.name) > MAX_DOCUMENT_BYTES
-      ? ui('文件超过 40 MB。请压缩图片或拆分后再导入。') : ui('文件超过 8 MB。请按章节拆分后再导入。'));
-    const value = await call('materials.document.import', { dataBase64: await fileToBase64(file), filename: file.name, courses });
-    const sourceIds = value?.sourceIds || value?.document?.sourceIds || [];
-    const format = value?.document?.format || FORMAT_OF[extensionOf(file.name)];
-    if (!sourceIds.length) throw permanentError(format === 'pdf'
-      ? ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。')
-      : format === 'pptx' ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
-    return { kind, title: value?.document?.title || file.name, format, documentId: value?.documentId, sourceIds,
-      pages: sourceIds.length, skippedPages: value?.skippedPages || [] };
-  }
+  if (kind === 'document') return importDocumentFile(file, { call, courses });
   const text = await file.text();
+  // A converter's JSON (WP28) is a textbook, not a question deck.
+  if (kind === 'deck' && looksLikeConvertedJson(text)) return importDocumentFile(file, { call, courses });
   if (kind === 'deck' && !looksLikeSubtitleJson(text)) {
     if (file.size > MAX_DECK_BYTES) throw permanentError(ui('题组文件不能超过 2 MB。'));
     const proposal = await call('draft.import.propose', { text });
@@ -157,8 +167,10 @@ export async function runImport(files, { call, courses = [], audio = false, onUp
       onUpdate?.(index, { status: 'done', result });
     } catch (error) {
       const message = plainImportError(error), permanent = isPermanentImportError(error);
-      results.push({ file, status: 'error', error: message, permanent });
-      onUpdate?.(index, { status: 'error', error: message, permanent });
+      // Too large to import as it is (WP28): the hub explains how a big book is used instead.
+      const kind = classifyImportFailure(error), large = kind === 'pdf-size' || kind === 'pdf-pages' || kind === 'text-chars' ? kind : undefined;
+      results.push({ file, status: 'error', error: message, permanent, ...(large ? { large } : {}) });
+      onUpdate?.(index, { status: 'error', error: message, permanent, ...(large ? { large } : {}) });
     }
   }
   return results;
@@ -301,7 +313,7 @@ function PasteForm({ call, courses, disabled, draft, onDraft, onSaved }) {
  * is finished without failures or the learner confirms a partial one.
  */
 export default function ImportHub({ data, call, busy = false, course, onCourseChange, audio, initialTab = 'files', pasteDraft, onPasteDraftChange,
-  onImported, onComplete, className, ...rest }) {
+  onImported, onComplete, onOpenSettings, className, ...rest }) {
   useInjectCss(css, 'study-import-hub');
   const audioOn = audio !== undefined && audio !== null && audio !== false;
   const [tab, setTab] = useState(initialTab === 'audio' && !audioOn ? 'files' : initialTab);
@@ -321,6 +333,15 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
     strayTimer.current = setTimeout(() => { if (alive.current) setStray(false); }, type === 'drop' ? 4000 : 900);
   };
   const handleDrag = useMemo(() => hubDropHandler(type => strayRef.current?.(type)), []);
+  // A file that is too large gets the 大教材建议 card; what DSH can search with is read once, then.
+  const largeItem = items.find(item => item.status === 'error' && item.large);
+  const [retrieval, setRetrieval] = useState(null);
+  useEffect(() => {
+    if (!largeItem || retrieval || typeof call !== 'function') return undefined;
+    let live = true;
+    Promise.resolve(call('retrieval.status', {})).then(value => { if (live) setRetrieval(value); }, () => {});
+    return () => { live = false; };
+  }, [!!largeItem]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     alive.current = true;
     const element = root.current, dialog = element?.closest?.('dialog');
@@ -390,6 +411,8 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
             uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />
+        {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name }} retrieval={retrieval} onOpenSettings={onOpenSettings} />}
+        {!items.length && <p className="import-hub__routes">{ui('PDF 太大或有几百页？先用转换工具处理，再把转换结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。')}</p>}
         {!items.length && <p className="import-hub__routes">{audioOn
           ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')
           : ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿。')}</p>}
