@@ -1,5 +1,8 @@
 import { useSyncExternalStore } from 'react';
-import english from './locales/en.json';
+import base from './locales/en.json';
+// WP2 fragment (plan C2). WP1's fragment loader supersedes this stopgap merge.
+import hostCopy from './locales/en.host.json';
+const english = { ...base, ...hostCopy };
 import { localizeAppMessage } from '../lib/application-messages.js';
 const KEY = 'study-ui-language';
 const listeners = new Set();
