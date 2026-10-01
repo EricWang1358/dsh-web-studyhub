@@ -5,8 +5,18 @@ import App from "../App.jsx";
 import css from "../style.css";
 import bridgeCss from "../panel-bridge.css";
 import audioDashboardCss from '../audio-dashboard.css';
+import hostCss from './studyhub.css';
 import { createStudyCall } from "../transport.js";
 import { sessionFileAddress } from '../document-preview/selection.js';
+import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
+// The top-level DSH page (root `main` panel) and its sidebar entry share one key.
+export const STUDYHUB_PANEL = "studyhub";
+const PAGE_SLOT = "study-workspace.page";
+const WELCOME_KEY = "studyhub.welcomed.v1";
+/* Plan contract C3: what this host can do, read by the shared UI instead of
+   probing for host callbacks. The DSH plugin can hand a prompt to the session's
+   composer; background agent tasks and a landing shell are not wired yet. */
+const PLUGIN_CAPABILITIES = Object.freeze({ edition: "plugin", chat: true, agentTasks: false, landing: false });
 // A run handed from the main view to the right sidebar (session id → run id).
 const handoff = new Map(),
   handoffListeners = new Set();
@@ -28,7 +38,11 @@ function useHostStore(store) {
       [store],
     ),
     read = React.useCallback(() => store?.getSnapshot(), [store]);
-  return React.useSyncExternalStore(subscribe, read);
+  return React.useSyncExternalStore(subscribe, read, read);
+}
+/** Durable browser storage, or null where it is absent or blocked. */
+function durableStorage() {
+  try { return window.localStorage || null; } catch { return null; }
 }
 
 export function apply(ctx, registerDocumentLearning) {
@@ -48,15 +62,15 @@ export function apply(ctx, registerDocumentLearning) {
   ctx.effect(
     () =>
       ctx.locale.register("study-workspace", {
-        zh: { tab: "学习", guide: "闪卡、测验与间隔复习" },
-        en: { tab: "Study", guide: "Flashcards, quizzes and spaced review" },
+        zh: { tab: "StudyHub", page: "StudyHub", guide: "用你的资料出题、练习与间隔复习" },
+        en: { tab: "StudyHub", page: "StudyHub", guide: "Cited flashcards, quizzes and spaced review from your materials" },
       }),
     "study copy",
   );
   const t = ctx.locale.bind("study-workspace");
   ctx.effect(() => {
     const el = document.createElement("style");
-    el.textContent = css + "\n" + bridgeCss + '\n' + audioDashboardCss;
+    el.textContent = css + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
     document.head.appendChild(el);
     return () => el.remove();
   }, "study styles");
@@ -82,6 +96,7 @@ export function apply(ctx, registerDocumentLearning) {
     const timer = setInterval(poll, 1800);
     return () => clearInterval(timer);
   }, "study conversation panel bridge");
+  /** One shared App per placement: the conversation tab ("main"), the right sidebar, or the top-level page. */
   function Seat(props) {
     const { sessionId, openView } = props;
     const placement = props.placement || "main";
@@ -142,7 +157,13 @@ export function apply(ctx, registerDocumentLearning) {
     }, [models]);
     const workspace = ctx.get("uiWorkspace");
     const host = React.useMemo(
-      () => ({
+      () => {
+        // The conversation tab switches views; the top-level page reveals the Conversation panel.
+        const showChat = placement === "page"
+          ? () => ctx.get("layout")?.selectPanel(null)
+          : () => openView?.("chat", "");
+        return {
+        capabilities: PLUGIN_CAPABILITIES,
         pickDirectory: workspace?.pickDirectory
           ? () => workspace.pickDirectory()
           : undefined,
@@ -168,8 +189,8 @@ export function apply(ctx, registerDocumentLearning) {
               conversation = actx?.get("conversation");
             if (!conversation) return false;
             conversation.input.for(actx).setDraft(text);
-            // In the main area the study tab hides the chat; switch so the draft is visible.
-            openView?.("chat", "");
+            // StudyHub covers the chat; switch so the draft is visible.
+            showChat();
             return true;
           } catch {
             return false;
@@ -182,11 +203,11 @@ export function apply(ctx, registerDocumentLearning) {
             picks: run.picks, revealed: run.revealed, complete: run.complete } : null }).catch(() => {}),
         // Optional: keep the question in the right sidebar while the main area shows chat.
         openInSidebar:
-          placement === "main" && ctx.get("sidebarRight")?.openTab
+          placement !== "sidebar" && ctx.get("sidebarRight")?.openTab
             ? (runId) => {
                 if (runId) deliverRun(sessionId, runId);
                 ctx.get("sidebarRight").openTab("study-workspace");
-                openView?.("chat", "");
+                showChat();
               }
             : undefined,
         takeHandoff:
@@ -203,10 +224,11 @@ export function apply(ctx, registerDocumentLearning) {
                 return () => handoffListeners.delete(fn);
               }
             : undefined,
-      }),
+        };
+      },
       [workspace, catalog, current, sessionId, openView, placement, call],
     );
-    return (
+    const seat = (
       <div className="study-seat"><StudyBoundary>
         {placement === "sidebar" && candidateIntent?.candidates?.length > 0 &&
           <div className="study-panel-candidates" role="dialog" aria-label={ui("选择题目")}>
@@ -224,6 +246,10 @@ export function apply(ctx, registerDocumentLearning) {
         <App key={sessionId || "empty"} call={call} host={host} />
       </StudyBoundary></div>
     );
+    // DSH floats its composer over the conversation view; reserve its height there.
+    return placement === "main"
+      ? <div className="study-seat-frame" data-conversation-composer-overlay="">{seat}</div>
+      : seat;
   }
   ctx.slots.inject("conversation.view", () =>
     ctx.slots.register(
@@ -262,4 +288,64 @@ export function apply(ctx, registerDocumentLearning) {
       dispose?.();
     };
   });
+  /* Top-level StudyHub page (P01): a root `main` panel with a labelled entry in
+     DSH's left sidebar, reachable without sending a message. Its child slot is
+     `session-maybe` scoped, so like the Conversation it follows the session DSH
+     has selected (DSH creates a blank one in the default workspace at boot). */
+  const startSession = () => ctx.get("uiWorkspace")?.startSession?.();
+  function StudyHubPage({ sessionId }) {
+    if (!sessionId) return <NoSessionNotice onStart={ctx.get("uiWorkspace")?.startSession ? startSession : undefined} />;
+    return <div className="studyhub-page"><Seat sessionId={sessionId} placement="page" /></div>;
+  }
+  const StudyHubPanel = ({ renderSlot }) => renderSlot(PAGE_SLOT, {});
+  ctx.slots.inject("main", () =>
+    ctx.slots.register(
+      {
+        name: "main",
+        key: STUDYHUB_PANEL,
+        locale: "study-workspace",
+        children: { [PAGE_SLOT]: { kind: "single", scope: "session-maybe" } },
+      },
+      StudyHubPanel,
+    ),
+  );
+  ctx.slots.inject(PAGE_SLOT, () =>
+    ctx.slots.register({ name: PAGE_SLOT, locale: "study-workspace" }, StudyHubPage),
+  );
+  ctx.slots.inject("sidebar.panellist", () =>
+    ctx.slots.register(
+      {
+        name: "sidebar.panellist",
+        id: STUDYHUB_PANEL,
+        // Plugins sits at 0: StudyHub is listed first.
+        order: -10,
+        locale: "study-workspace",
+        label: () => t("page"),
+      },
+      StudyHubGlyph,
+    ),
+  );
+  /* First enable lands on StudyHub once. The flag is per browser profile;
+     without durable storage it would steal the main view on every load, so
+     it does nothing there. selectPanel throws until the panel is registered. */
+  ctx.effect(() => {
+    const storage = durableStorage();
+    let seen = true;
+    try { seen = !storage || !!storage.getItem(WELCOME_KEY); } catch { seen = true; }
+    if (seen) return;
+    let tries = 0, timer;
+    const land = () => {
+      try {
+        const layout = ctx.get("layout");
+        if (!layout?.selectPanel) throw new Error("layout is not ready");
+        layout.selectPanel(STUDYHUB_PANEL);
+      } catch {
+        if (++tries < 20) timer = setTimeout(land, 150);
+        return;
+      }
+      try { storage.setItem(WELCOME_KEY, new Date().toISOString()); } catch { /* shown once this load */ }
+    };
+    timer = setTimeout(land, 0);
+    return () => clearTimeout(timer);
+  }, "studyhub first-run landing");
 }
