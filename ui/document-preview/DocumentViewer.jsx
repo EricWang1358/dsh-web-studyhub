@@ -7,6 +7,7 @@ import { useInjectCss } from '../shared.js';
 import { Button, SegmentedControl } from '../components/index.js';
 import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
 import { annotatePassages, captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
+import { isOfficeFormat } from '../../lib/office/limits.js';
 import css from './document-preview.css';
 
 /** HTML is inert reading content: scripts, embedded browsing and external resource loads are removed. */
@@ -22,6 +23,24 @@ export function safeDocumentHtml(text) {
  * text-only sources are set for reading: proportional, wrapped, a comfortable measure.
  */
 export const sourceTextClass = ({ format } = {}) => format === 'pdf' ? 'source-text source-text--pdf' : 'source-text source-text--reading';
+
+/**
+ * What to do with a retained original: show a PDF, read text formats as text,
+ * offer Word / PowerPoint files as a download (they are zip files, never text),
+ * or nothing when only extracted text was kept.
+ */
+export function originalHandling(value) {
+  if (!value?.originalAvailable) return 'none';
+  if (value.format === 'pdf') return 'pdf';
+  return isOfficeFormat(value.format) ? 'download' : 'text';
+}
+
+/** The format the viewer lays out: the loaded document's, else the source's own (a slide is a slide before loading). */
+export const viewerFormat = (document, source) => document?.format
+  || (source?.document ? source.document.format || 'pdf' : source?.audio ? 'txt' : 'md');
+
+/** Formats whose sources are pages (PDF pages, PowerPoint slides), shown as page sections. */
+const PAGED = new Set(['pdf', 'pptx']);
 
 function QuotedText({ text, quote, anchor, format }) {
   const hit = locateQuote(text, quote, anchor), mark = useRef(null);
@@ -52,21 +71,34 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         setDocument(value);
         const backlink = await call('materials.links.list', { documentId: value.documentId || value.id });
         if (current) setLinks(backlink.links || []);
-        if (value.originalAvailable) {
+        const original = originalHandling(value);
+        if (original === 'download' || original === 'none') setContent(value.sources?.find(item => item.id === source.id)?.text || source.text);
+        else {
           const bytes = await call('materials.document.bytes', { documentId: value.documentId || value.id, revision: value.revision });
           if (!current || !bytes.dataBase64) return;
           const data = Uint8Array.from(atob(bytes.dataBase64), char => char.charCodeAt(0));
           if (value.format === 'pdf') {
             objectUrl = URL.createObjectURL(new Blob([data], { type: bytes.mime })); setFileUrl(objectUrl);
           } else setContent(new TextDecoder().decode(data));
-        } else setContent(value.sources?.find(item => item.id === source.id)?.text || source.text);
+        }
       } catch (e) {
         if (current) { setError(e.message); setContent(source.text || ''); }
       } finally { if (current) setLoading(false); }
     })();
     return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [call, source.id, source.text, source.selection?.revision]);
-  const format = document?.format || (source.document ? 'pdf' : source.audio ? 'txt' : 'md');
+  const format = viewerFormat(document, source);
+  const downloadOriginal = async () => {
+    try {
+      const bytes = await call('materials.document.bytes', { documentId: document.documentId || document.id, revision: document.revision });
+      const data = Uint8Array.from(atob(bytes.dataBase64), char => char.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([data], { type: bytes.mime || 'application/octet-stream' }));
+      const link = window.document.createElement('a');
+      link.href = url; link.download = document.filename || source.document?.filename || `${source.title || 'document'}.${format}`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { setError(e.message); }
+  };
   const groups = useMemo(() => groupPassageLinks(links), [links]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
   const html = useMemo(() => (format === 'md' && mode === 'layout') ? safeDocumentHtml(renderNoteMarkdown(content))
@@ -110,6 +142,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     <div className="study-document-toolbar">
       <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={mode} options={modes} onChange={setMode} />
       <div className="study-document-toolbar__actions">
+        {originalHandling(document) === 'download' && <Button size="sm" variant="quiet" icon="download" onClick={downloadOriginal}>{ui('下载原文件')}</Button>}
         {document?.preview?.kind === 'file' && host?.openDocument && <Button size="sm" variant="quiet" icon="external"
           onClick={() => host.openDocument(document.preview.path)}>{ui('使用宿主文件预览')}</Button>}
         {onGenerate && <Button variant="primary" icon="sparkle" disabled={generateDisabled} onClick={onGenerate}>{ui('从这份资料出题')}</Button>}
@@ -123,8 +156,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         {format === 'pdf' && fileUrl && mode === 'layout'
           ? <iframe src={`${fileUrl}#page=${source.document?.page || source.selection?.page || 1}`} title={source.title || ui('原始 PDF')} />
             : html ? <div className={`${reading} source-md`} data-study-text="true" dangerouslySetInnerHTML={{ __html: html }} />
-            : format === 'pdf' ? sources.map(item => <section key={item.id} className="study-document-page" data-study-page={item.document?.page || 1} data-study-source={item.id}>
-              <h3>{item.title || `p.${item.document?.page || 1}`}</h3><QuotedText format="pdf" text={item.text} quote={item.id === source.id ? quote : ''} anchor={source.selection} />
+            : PAGED.has(format) ? sources.map(item => <section key={item.id} className="study-document-page" data-study-page={item.document?.page || 1} data-study-source={item.id}>
+              <h3>{item.title || `p.${item.document?.page || 1}`}</h3><QuotedText format={format} text={item.text} quote={item.id === source.id ? quote : ''} anchor={source.selection} />
             </section>) : <QuotedText format={format} text={mode === 'text' ? content : sources[0]?.text || content} quote={quote} anchor={source.selection} />}
       </div>
       <aside className="study-document-side" data-tour="source-tools">

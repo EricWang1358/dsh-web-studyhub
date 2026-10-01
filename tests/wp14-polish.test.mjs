@@ -17,14 +17,15 @@ const compiled = await build({ stdin: { contents: `
   export { CourseList, default as CourseSettings } from './ui/CourseSettings.jsx';
   export { groupCourseNames, findDuplicateCourses, courseNameKey, splitCourseName, rankCourses } from './ui/course-names.js';
   export { default as SourcePicker } from './ui/SourcePicker.jsx';
-  export { default as DocumentViewer, sourceTextClass } from './ui/document-preview/DocumentViewer.jsx';
+  export { default as DocumentViewer, sourceTextClass, originalHandling, viewerFormat } from './ui/document-preview/DocumentViewer.jsx';
+  export { sourceFormatLabel } from './ui/SourcePicker.jsx';
   export { default as LanguageSwitch } from './ui/LanguageSwitch.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { ScrollWindow, filterItems, CourseField, courseQuery, pickCourse, rankCourses, CourseList, CourseSettings, groupCourseNames, findDuplicateCourses, courseNameKey,
-  splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, LanguageSwitch, setUiLanguage } = module.exports;
+  splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, originalHandling, viewerFormat, sourceFormatLabel, LanguageSwitch, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 const h = React.createElement;
@@ -373,4 +374,37 @@ test('the language switch is one compact row with a small segmented control', ()
   assert.match(narrow, /aria-label="Interface language \/ 界面语言[^"]*"/);
   assert.match(narrow, />中</);
   assert.match(render(h(LanguageSwitch, { language: 'en', narrow: true, onChange() {} })), />EN</);
+});
+
+/* ---------- Word and PowerPoint (WP22) in the viewer and the picker ---------- */
+
+const slide = n => ({ id: `pptx-s${n}`, title: `deck.pptx · p.${n}`, text: `slide ${n} text`, createdAt: '2026-10-01T08:00:00.000Z', courses: [],
+  document: { id: 'p'.repeat(64), filename: 'deck.pptx', page: n, totalPages: 12, format: 'pptx', materialId: 'document-p-pptx' } });
+
+test('office originals are downloaded, never decoded as text; office text reads like prose', () => {
+  assert.equal(originalHandling({ originalAvailable: true, format: 'pdf' }), 'pdf');
+  assert.equal(originalHandling({ originalAvailable: true, format: 'md' }), 'text');
+  assert.equal(originalHandling({ originalAvailable: true, format: 'docx' }), 'download');
+  assert.equal(originalHandling({ originalAvailable: true, format: 'pptx' }), 'download');
+  assert.equal(originalHandling({ originalAvailable: false, format: 'docx' }), 'none');
+  for (const format of ['docx', 'pptx']) assert.match(sourceTextClass({ format }), /source-text--reading/);
+  assert.equal(viewerFormat(null, slide(1)), 'pptx', 'a slide is a slide before the document loads');
+  assert.equal(viewerFormat(null, pdfPage), 'pdf');
+  assert.equal(viewerFormat(null, transcript), 'txt');
+  const html = viewer(slide(2));
+  assert.match(html, /data-study-page="2"/, 'slides get page sections like PDF pages');
+  assert.match(html, /<pre class="source-text source-text--reading"/);
+  assert.doesNotMatch(html, /source-text--pdf/);
+});
+
+test('the picker labels Word and PowerPoint and groups a deck of slides', () => {
+  setUiLanguage('zh');
+  const html = render(h(SourcePicker, { sources: Array.from({ length: 12 }, (_, i) => slide(i + 1)), selected: [], onChange() {} }));
+  assert.equal((html.match(/data-document-key="/g) || []).length, 1);
+  assert.match(html, /PowerPoint · 12 页/);
+  assert.match(html, /选择页面/);
+  assert.match(render(h(SourcePicker, { sources: Array.from({ length: 12 }, (_, i) => slide(i + 1)), selected: [], onChange() {} }), 'en'), /PowerPoint · 12 slides/);
+  const word = { id: 'w', title: 'notes.docx', text: 'x', createdAt: '2026-10-01T08:00:00.000Z', courses: [], document: { format: 'docx', filename: 'notes.docx', materialId: 'document-w-docx' } };
+  assert.equal(sourceFormatLabel(word), 'Word');
+  assert.match(sourceFormatLabel(slide(3)), /^PowerPoint · 第 3 页/);
 });

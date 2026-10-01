@@ -11,7 +11,7 @@ import css from './source-picker.css';
    documents. The selection itself stays a list of source ids, so the generate
    action is unchanged. */
 
-const FORMAT_LABELS = { pdf: 'PDF', md: 'Markdown', html: 'HTML', txt: 'TXT', audio: '录音逐字稿', json: 'JSON 题组', text: '文本' };
+const FORMAT_LABELS = { pdf: 'PDF', docx: 'Word', pptx: 'PowerPoint', md: 'Markdown', html: 'HTML', txt: 'TXT', audio: '录音逐字稿', json: 'JSON 题组', text: '文本' };
 
 /**
  * The one label for where a material came from. Accepts a source or a
@@ -24,12 +24,13 @@ export function sourceFormatLabel(value) {
     const base = ui(FORMAT_LABELS[value.format] || FORMAT_LABELS.text);
     const parts = value.pages?.length || value.sourceIds.length;
     if (value.format === 'pdf') return parts === 1 ? uiFormat('{0} · 1 页', [base]) : uiFormat('{0} · {1} 页', [base, parts]);
+    if (value.format === 'pptx') return parts === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [parts]);
     if (value.format === 'audio' && parts > 1) return uiFormat('{0} · {1} 部分', [base, parts]);
     return base;
   }
   const format = sourceFormat(value), base = ui(FORMAT_LABELS[format]);
   if (isLegacyExtraction(value)) return uiFormat('{0} · 旧版提取，建议重新导入', [base]);
-  if (format === 'pdf' && Number.isInteger(value.document?.page)) return uiFormat('{0} · 第 {1} 页', [base, value.document.page]);
+  if ((format === 'pdf' || format === 'pptx') && Number.isInteger(value.document?.page)) return uiFormat('{0} · 第 {1} 页', [base, value.document.page]);
   return base;
 }
 
@@ -67,7 +68,7 @@ export const documentSearchText = item => [item.title, item.filename, ...(item.c
 /* The filter appears once the list is longer than a screenful of rows. */
 const FILTER_AFTER = 6;
 
-const pageLabel = (item, page) => item.format === 'pdf'
+const pageLabel = (item, page) => item.format === 'pdf' || item.format === 'pptx'
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : page.title;
 
@@ -95,7 +96,7 @@ function DocumentRow({ item, selected, onChange, disabled }) {
         </label>
         {multi && <Button variant="quiet" size="sm" className="source-picker__expand" aria-expanded={open} aria-controls={listId}
           iconEnd="chevron" onClick={() => setOpen(value => !value)}>
-          {open ? ui('收起') : item.format === 'pdf' ? ui('选择页面') : ui('选择部分')}
+          {open ? ui('收起') : item.format === 'pdf' || item.format === 'pptx' ? ui('选择页面') : ui('选择部分')}
         </Button>}
       </div>
       {multi && open && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [item.title])}>
