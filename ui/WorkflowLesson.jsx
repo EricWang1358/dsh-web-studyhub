@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useMemo, useState } from "react";
 import { renderNoteMarkdown } from "./note-markdown.js";
+import { ModelError } from "./WorkflowScope.jsx";
 
 export const TeachingArticle = React.memo(function TeachingArticle({ content, className = "" }) {
   const html = useMemo(() => renderNoteMarkdown(content), [content]);
@@ -46,7 +47,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
     </div>}
     <TeachingCitations citations={record.citations} sources={resources.sources} />
     {running && !remedyRunning && <div className="wf-teaching-progress" role="status"><span className="wf-progress-mark" aria-hidden="true" /><div><strong>{teaching.mode === "improve" ? ui("正在改进这篇讲解") : content ? ui("正在补充讲解") : ui("正在组织概念与例子")}</strong><p>{ui("完成后会显示在这里。你可以继续阅读，也可以稍后回来。")}</p></div></div>}
-    {failed && <div className="wf-notice" role="status"><p>{interrupted ? ui("上次生成已中断，可以重新开始。") : teaching.message || ui("这次讲解没有生成成功，请重试。")}</p><button type="button" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>{ui("重新生成")}</button></div>}
+    {failed && <div className="wf-notice" role="status">{!interrupted && teaching.message ? <ModelError text={teaching.message} /> : <p>{interrupted ? ui("上次生成已中断，可以重新开始。") : ui("这次讲解没有生成成功，请重试。")}</p>}<button type="button" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>{ui("重新生成")}</button></div>}
     {unavailable && <p className="wf-model-hint">{ui("连接模型后即可生成讲解；也可以在下方请主对话补充材料。")}</p>}
     {content && <div className="wf-teaching-tools">
       <div className="wf-help-row"><span>{ui("帮我弄懂")}</span><div className="wf-quick-choices" role="group" aria-label={ui("帮助方式")}>{HELP.map((item) => <button type="button" key={item.mode} disabled={blocked} onClick={() => onTeach(item.mode)}>{ui(item.label)}</button>)}<button type="button" disabled={blocked} onClick={() => onTeach("improve")}>{ui("改进讲解")}</button></div></div>

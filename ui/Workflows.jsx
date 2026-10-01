@@ -293,6 +293,7 @@ export default function Workflows({ call, askInChat, data, openSession, openRun 
       <p className="wf-eyebrow">{ui("AI 带学")}</p>
       <h1>{ui("今天想学什么？")}</h1>
       <p className="muted">{ui("说一句就行。AI 从你的学习库里挑材料、排顺序、讲给你听，再看你的复述；你只管往下走。")}</p>
+      {data?.focus?.course != null && (data.focus.courses || []).length > 0 && <p className="wf-quick-course muted small">{uiFormat("会在当前课程「{0}」的资料里选；想换课程，开始后在下一页点「换课程」。", [data.focus.course || ui("未分类课程")])}</p>}
       {!modelReady && <p className="wf-quick-hint">{ui("还没有连接模型：会按主题和题组名匹配材料；讲解、复述反馈和后台骨架要连接模型后才会出现。")}</p>}
       {unfinished && <p className="wf-quick-resume"><span className="muted">{ui("上次学到一半")}</span><button type="button" className="link-btn" disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: unfinished.id })}>{unfinished.topic}{unfinished.stepIndex >= 0 ? uiFormat(" · 第 {0}/{1} 步 {2}", [unfinished.stepIndex + 1, unfinished.stepCount, unfinished.stepTitle]) : ""}{ui(" · 接着学 →")}</button></p>}
       <div className="wf-quick-row">
