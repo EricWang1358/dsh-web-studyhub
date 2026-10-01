@@ -12,7 +12,7 @@ const SILICONFLOW = { provider: 'siliconflow', model: 'Qwen/Qwen2.5-7B-Instruct'
    provider directory (@deepseek-ai/dsh-llm), the settings forms that hold each
    provider profile (@deepseek-ai/dsh-settings), and the credentials seam
    (@deepseek-ai/dsh-credentials). Secret values are never available here. */
-function host({ registered = ['deepseek-official', 'siliconflow'], configured = new Set(), accountModels = [], extra = {} } = {}) {
+function host({ registered = ['deepseek-official', 'siliconflow'], configured = new Set(), accountModels = [], catalog = {}, extra = {} } = {}) {
   const calls = { describeSettings: 0, describeRefs: [], resolve: 0 };
   const llm = {
     listProviders: () => registered.map(id => ({ id, name: { 'deepseek-official': 'DeepSeek', siliconflow: 'SiliconFlow', 'deepseek-account': 'DeepSeek Account', gateway: 'Gateway' }[id] || id })),
@@ -22,7 +22,7 @@ function host({ registered = ['deepseek-official', 'siliconflow'], configured = 
       { provider: 'gateway', displayName: 'Gateway', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'gateway'] },
       { provider: 'deepseek-account', displayName: 'DeepSeek Account', settingsNs: 'llm-deepseek-account', settingsPath: [] },
     ],
-    listModels: async provider => provider === 'deepseek-account' ? accountModels : [],
+    listModels: async provider => provider === 'deepseek-account' ? accountModels : catalog[provider] || [],
   };
   const settings = { describe(options) {
     calls.describeSettings++;
@@ -79,6 +79,13 @@ test('the DeepSeek account route is ready only while signed in', async () => {
   assert.equal((await modelStatus(signedOut.ctx, { provider: 'deepseek-account', model: 'deepseek-v4-pro' })).reason, 'no-credential');
   const signedIn = host({ registered: ['deepseek-account'], accountModels: [{ id: 'deepseek-v4-pro' }] });
   assert.equal((await modelStatus(signedIn.ctx, { provider: 'deepseek-account', model: 'deepseek-v4-pro' })).reason, 'ok');
+});
+
+test('the label uses the name DSH shows for the model when its catalog lists it', async () => {
+  const { ctx } = host({ catalog: { 'deepseek-official': [{ id: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash' }] } });
+  assert.equal((await modelStatus(ctx, DEEPSEEK)).label, 'DeepSeek · DeepSeek-V4-Flash');
+  const slow = host({ extra: { llm: { ...host().services.llm, listModels: () => new Promise(() => {}) } } });
+  assert.equal((await modelStatus(slow.ctx, DEEPSEEK)).label, 'DeepSeek · deepseek-v4-flash', 'a slow catalog never blocks the status');
 });
 
 test('hosts that cannot answer keep the previous permissive behaviour as unknown', async () => {
