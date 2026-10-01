@@ -160,7 +160,8 @@ function textSteps(system, prompt) {
 }
 
 test("the SiliconFlow key is stored like the others: masked, verified without transcribing, cleared on request", async (t) => {
-  const net = network({ siliconflow: (call) => (call.url.endsWith("/v1/user/info") ? json({ code: 20000, data: { id: "u" } }) : assert.fail("a key check must not transcribe")) });
+  const net = network({ siliconflow: (call) => (call.url.endsWith("/v1/models") ? json({ object: "list", data: [{ id: "FunAudioLLM/SenseVoiceSmall" }] })
+    : call.url.endsWith("/v1/user/info") ? json({ code: 20015, message: "This endpoint is deprecated and is no longer available." }, 410) : assert.fail("a key check must not transcribe")) });
   const { service, dir } = await serviceOn(t, net);
   const view = await service.call("audio.settings.set", { siliconflowKey: SF });
   assert.deepEqual(view.siliconflowKey, { set: true, hint: `••••${SF.slice(-4)}` });
@@ -170,7 +171,7 @@ test("the SiliconFlow key is stored like the others: masked, verified without tr
   const report = await service.call("audio.test", { tier: "siliconflow" });
   assert.deepEqual(Object.keys(report), ["siliconflow"], "one provider checked on its own");
   assert.equal(report.siliconflow.ok, true);
-  assert.equal(net.of("siliconflow")[0].url, "https://api.siliconflow.cn/v1/user/info");
+  assert.equal(net.of("siliconflow")[0].url, "https://api.siliconflow.cn/v1/models", "the key check uses the OpenAI-compatible model list (user/info answers 410 since 2026-10)");
   assert.equal(net.of("siliconflow")[0].init.headers.authorization, `Bearer ${SF}`);
   const all = await service.call("audio.test", {});
   assert.deepEqual(Object.keys(all), ["free", "siliconflow", "groq", "paid"]);
