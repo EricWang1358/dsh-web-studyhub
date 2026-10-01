@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import css from './components.css';
 import { useComponentCss, cx } from './css.js';
 import Icon from './Icon.jsx';
@@ -20,28 +20,38 @@ export default function SegmentedControl({ label, value, options = [], onChange,
   const root = useRef(null);
   const thumb = useRef(null);
   const placed = useRef(-2);
+  const active = useRef(-1);
+  const rect = useRef('');
   const activeIndex = options.findIndex(option => option.value === value);
   const tabStop = tabStopIndex(options, activeIndex, disabled);
   const signature = `${size}|${options.map(option => `${option.value}:${option.label}`).join('|')}`;
 
-  const place = animate => {
+  /* Move the thumb to the active item. Re-measuring an unchanged layout writes
+     nothing, so a parent re-render never cuts a slide short. */
+  const place = useCallback(animate => {
     const group = root.current, mark = thumb.current;
     if (!group || !mark) return;
-    const item = activeIndex >= 0 ? group.querySelectorAll(ITEMS)[activeIndex] : null;
-    if (!item || !item.offsetWidth) { group.removeAttribute('data-thumb'); placed.current = -2; return; }
-    const instant = !animate || group.getAttribute('data-thumb') !== 'on';
-    if (instant) mark.style.transition = 'none';
+    const item = active.current >= 0 ? group.querySelectorAll(ITEMS)[active.current] : null;
+    if (!item || !item.offsetWidth) { group.removeAttribute('data-thumb'); placed.current = -2; rect.current = ''; return; }
     // offset* is measured in the group's own padding box and ignores writing direction.
+    const next = [item.offsetLeft, item.offsetTop, item.offsetWidth, item.offsetHeight].join(',');
+    const on = group.getAttribute('data-thumb') === 'on';
+    placed.current = active.current;
+    if (on && next === rect.current) return;
+    rect.current = next;
+    const instant = !animate || !on;
+    if (instant) mark.style.transition = 'none';
     mark.style.width = `${item.offsetWidth}px`;
     mark.style.height = `${item.offsetHeight}px`;
     mark.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`;
     group.setAttribute('data-thumb', 'on');
     if (instant) { void mark.offsetWidth; mark.style.transition = ''; }
-    placed.current = activeIndex;
-  };
+  }, []);
 
   useLayoutEffect(() => {
-    place(placed.current !== -2 && placed.current !== activeIndex);
+    const moved = placed.current !== -2 && placed.current !== activeIndex;
+    active.current = activeIndex;
+    place(moved);
   });
 
   useEffect(() => {
@@ -52,7 +62,7 @@ export default function SegmentedControl({ label, value, options = [], onChange,
     group.querySelectorAll(ITEMS).forEach(item => observer.observe(item));
     document.fonts?.ready?.then(() => place(false));
     return () => observer.disconnect();
-  }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [signature, place]);
 
   const handleKeyDown = event => {
     onKeyDown?.(event);
