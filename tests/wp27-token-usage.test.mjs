@@ -104,8 +104,8 @@ test('a job usage sink adds every report to the job and its step', () => {
   const sink = usage.jobUsageSink(job, step);
   sink(buckets(10, 5, 100), { calls: 1 });
   sink(buckets(1, 1), { calls: 2 });
-  assert.deepEqual(job.usage, { ...buckets(11, 6, 100), calls: 3 });
-  assert.deepEqual(step.usage, { ...buckets(11, 6, 100), calls: 3 });
+  assert.deepEqual(job.tokenUsage, { ...buckets(11, 6, 100), calls: 3 });
+  assert.deepEqual(step.tokenUsage, { ...buckets(11, 6, 100), calls: 3 });
 });
 
 test('the ledger records per day and feature, stays bounded and survives damage', async (t) => {
