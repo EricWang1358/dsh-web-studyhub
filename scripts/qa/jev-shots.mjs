@@ -155,6 +155,28 @@ try {
       if (!await tab.getByRole('button', { name: /请 AI 建议|Suggest with AI/ }).count()) problems.push(`${tag}: "Suggest with AI" disappeared when Jev failed`);
       const overflow = await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       if (overflow > 1) problems.push(`${tag}: horizontal overflow ${overflow}px`);
+
+      // 6. A draft whose cards carry Jev pre-check signals (the shape lib/generation.js writes into editorial.jev).
+      const [anchor] = (await previewCall(server, 'source.list', {})).sources.filter(source => source.title === 'Intro to SQL');
+      const card = (id, prompt, objective) => ({ id, kind: 'flashcard', topic: 'Transactions', objective, prompt, answer: 'Isolation keeps concurrent changes apart.', hint: 'Think about two sessions.',
+        explanation: 'Lecture notes explain it.', misconception: 'Isolation means no concurrency.', citations: [{ sourceId: anchor.id, quote: 'Lecture notes. Lecture notes.' }] });
+      const check = (p, failure, failed) => ({ p, failure, failed });
+      await previewCall(server, 'draft.save', { deck: { id: 'qa-jev-draft', title: 'QA pre-check draft', cards: [
+        card('qa1', 'Why do databases isolate concurrent transactions?', 'Explain isolation'),
+        card('qa2', 'What does a rewritten question look like after the pre-check?', 'Explain a rewrite'),
+        card('qa3', 'Which property makes a transaction all-or-nothing, atomicity?', 'Name atomicity') ],
+      editorial: { summary: 'QA', jev: { version: 1, threshold: 0.8, signals: {
+        qa1: { checks: { stemLeaksAnswer: check(0.04, 0.04, false), needsSource: check(0.07, 0.07, false), answerInEvidence: check(0.93, 0.07, false) }, flagged: false, failures: [] },
+        qa2: { checks: { stemLeaksAnswer: check(0.96, 0.96, true), needsSource: check(0.1, 0.1, false), answerInEvidence: check(0.9, 0.1, false) }, flagged: true, failures: ['stemLeaksAnswer'], rewritten: true },
+        qa3: { checks: { stemLeaksAnswer: check(0.91, 0.91, true), needsSource: check(0.05, 0.05, false), answerInEvidence: check(0.4, 0.6, false) }, flagged: true, failures: ['stemLeaksAnswer'] } } } } } });
+      await tab.reload(); await tab.locator('aside, nav').first().waitFor({ timeout: 30000 }); await settle(600);
+      await openPage('library');
+      await tab.locator('.draft-row .draft-open').first().click();
+      await tab.locator('.draft-card').first().waitFor({ timeout: 15000 }); await settle(400);
+      if (await tab.locator('[data-jev-badge]').count() !== 3) problems.push(`${tag}: expected 3 Jev badges in the draft, found ${await tab.locator('[data-jev-badge]').count()}`);
+      await tab.locator('.draft-card').nth(1).locator('summary').click(); await settle(300);
+      await tab.locator('.draft-card').nth(1).scrollIntoViewIfNeeded();
+      await shot('9-draft-badge'); await audit(tab, `draft-signals/${tag}`, { scopes: ['.jev-card-signals'] });
       } catch (error) { await tab.screenshot({ path: join(out, `FAILED-${lang}-${theme}-${width}.png`) }).catch(() => {}); throw error; }
       await context.close();
     } finally { await server.close(); }
