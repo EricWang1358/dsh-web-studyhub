@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { courseSegments, courseWithin, courseScope, courseParent, courseTree } from '../lib/course-tree.js';
+import { courseSegments, courseWithin, courseScope, courseParent, courseTree, courseRelative } from '../lib/course-tree.js';
 
 /* Courses may contain courses (owner request): the hierarchy lives in the name, a path of segments
    separated by " / ". A slash without spaces separates only when what comes before it is a known course. */
@@ -72,6 +72,18 @@ test('parent of a path', () => {
   assert.equal(courseParent(P, OWNER), null);
   assert.equal(courseParent('A / B / C', []), 'A / B', 'an implicit parent is named by its path');
   assert.equal(courseParent('', []), null);
+});
+
+test('relative name below a scope (for rows listed under a parent)', () => {
+  assert.equal(courseRelative(C05, P, OWNER), '05 Kubernetes：对象、运行机制与故障诊断');
+  assert.equal(courseRelative(C01, P, OWNER), '01 云计算概览与参考架构');
+  assert.equal(courseRelative(`${P} / A / B`, P, OWNER), 'A / B');
+  assert.equal(courseRelative(P, P, OWNER), null, 'the scope itself has no relative name');
+  assert.equal(courseRelative('Other / x', P, OWNER), null);
+  assert.equal(courseRelative(C05, C07, OWNER), null, 'a sibling is not inside');
+  assert.equal(courseRelative(C05, '*', OWNER), null);
+  assert.equal(courseRelative(C05, '', OWNER), null);
+  assert.equal(courseRelative(C05, undefined, OWNER), null);
 });
 
 test('tree: children indented under their parent in natural order, implicit parents included', () => {

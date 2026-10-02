@@ -16,7 +16,7 @@ import caseCss from "./case-study.css";
 import { ExamCountdown } from "./CourseSettings.jsx";
 import { groupCourseNames, rankCourses } from "./course-names.js";
 import { courseMatcher, courseNamesOf } from "./PageScope.jsx";
-import { courseOrder } from "../lib/course-tree.js";
+import { courseOrder, courseRelative } from "../lib/course-tree.js";
 import { DraftTopUp, ShortfallReasons } from "./DraftShortfall.jsx";
 import { missingQuestions } from "./draft-shortfall.js";
 
@@ -923,7 +923,7 @@ export default function StudyMap({
                   />
                   <span className="map-folder-icon">▤</span>
                   <button className="map-name" onClick={() => toggleOpen("folder:" + folder)}>
-                    <strong>{folder}</strong>
+                    <strong title={folder}>{courseRelative(folder, data.focus?.course, courseNamesOf(data)) ?? folder}</strong>
                     <small>{decks.length}{ui(" 个题组")}</small>
                   </button>
                   <MasteryBar

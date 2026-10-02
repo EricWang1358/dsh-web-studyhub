@@ -3281,7 +3281,8 @@
   .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .map-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .map-tree, .map-topics, .map-children { list-style: none; margin: 0; padding: 0; }
-  .map-tree { display: grid; gap: 30px; }
+  /* minmax(0, 1fr): a long course path (a parent course lists its chapters here) must truncate in its row, not widen the page. */
+  .map-tree { display: grid; gap: 30px; grid-template-columns: minmax(0, 1fr); }
   .map-deck, .map-folder {
     border: 0;
     border-radius: 0;
