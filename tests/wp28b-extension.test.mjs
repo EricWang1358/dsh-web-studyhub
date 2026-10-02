@@ -211,3 +211,23 @@ test('ensure: nothing installed means nothing to restore, and a failed restore n
   assert.equal(await ensureExtensionPackage({ manager: installed, fetch: tampered.fetch, dir: where }), false, 'a file that fails SHA-256 is refused');
   await assert.rejects(readFile(join(where, extensionAssetName('2.1.2'))), { code: 'ENOENT' });
 });
+
+test('update over an installed older file: DSH says ambiguous-install, so the old one is removed first and the new one installed', async t => {
+  const { fetch } = fetchOf(), where = await dir(t);
+  const ambiguous = { changed: false, application: 'failed', stage: 'install', target: EXTENSION_PACKAGE, error: { code: 'ambiguous-install' } };
+  let removed = false;
+  const manager = managerOf(() => removed ? applied : ambiguous);
+  const remove = manager.removeBundle;
+  manager.removeBundle = async name => { removed = true; return remove(name); };
+  const result = await installExtension({ manager, version: VERSION, fetch, dir: where });
+  assert.deepEqual(manager.calls.map(call => call[0]), ['install', 'remove', 'install'], 'install, then remove, then install again');
+  assert.equal(manager.calls[1][1], EXTENSION_PACKAGE);
+  assert.deepEqual(result, { status: 'installed', restartRequired: false, application: 'applied', version: VERSION });
+  // Anything else that fails is not retried that way.
+  const failing = managerOf({ changed: false, application: 'failed', stage: 'install', target: EXTENSION_PACKAGE, packageResult: { kind: 'network' } });
+  await assert.rejects(installExtension({ manager: failing, version: VERSION, fetch, dir: where }), error => /网络/.test(error.message));
+  assert.deepEqual(failing.calls.map(call => call[0]), ['install'], 'no removal for an unrelated failure');
+  // When the removal itself fails, the original answer is what the learner reads.
+  const stuck = managerOf(ambiguous); stuck.removeBundle = async () => { throw new Error('locked'); };
+  await assert.rejects(installExtension({ manager: stuck, version: VERSION, fetch, dir: where }), error => /ambiguous-install/.test(error.message));
+});
