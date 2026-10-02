@@ -58,6 +58,18 @@ test("a review click rewrites its own run, not the whole library (mutation budge
   assert.ok(counts.shardWrites <= 2, `review.reveal wrote ${counts.shardWrites} shards; budget 2`);
 });
 
+test("the snapshot after a click does not parse or copy the library again (snapshot budget)", async (t) => {
+  const f = await fixture(t);
+  await f.service.call("snapshot");
+  await f.next("reveal");
+  const { value, counts } = await f.probe.measure(() => f.service.call("snapshot", { since: "stale" }));
+  const payload = JSON.stringify(value).length;
+  const report = { parsed: ratio(counts.jsonParseChars, f.libraryChars), cloned: ratio(counts.structuredCloneChars, f.libraryChars), payloadVsSourceText: ratio(payload, f.sourceChars) };
+  t.diagnostic(`snapshot after a click: ${JSON.stringify(report)}`);
+  assert.ok(report.parsed <= 0.1, `the snapshot after review.reveal parsed ${JSON.stringify(report)} of the library; budget 10% (only the shard the click wrote)`);
+  assert.ok(report.cloned <= 0.35, `the snapshot copied ${JSON.stringify(report)} of the library with structuredClone; budget 35%`);
+});
+
 test("an unchanged poll costs a stat, not a rebuild (poll budget)", async (t) => {
   const f = await fixture(t);
   const first = await f.service.call("snapshot");
