@@ -49,6 +49,8 @@ import { CourseActiveProvider, activeNotice } from './CourseActive.jsx';
 import LanguageSwitch from './LanguageSwitch.jsx';
 import Inbox from "./Inbox.jsx";
 import { QuickActionsContext, dismissJobs, markInboxRead, useQuickActionsController } from "./quick-actions.js";
+import { shareUnchanged, sameExceptFingerprint } from "./snapshot-share.js";
+import { pollDelay, POLL_FAST_MS } from "./poll-schedule.js";
 import quickCss from "./quick-actions.css";
 import css from "./coach.css";
 import libraryChipCss from "./library-chip.css";
@@ -314,7 +316,7 @@ export default function App({ call: transportCall, host = {} }) {
   // Cards due today or overdue light the badge, so a deadline shows from any page.
   const boardDue = boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 };
   const dataRef = useRef(null),
-    snapshotKey = useRef(""),
+    snapshotKey = useRef({}),
     notebookRequest = useRef(0);
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
@@ -324,12 +326,14 @@ export default function App({ call: transportCall, host = {} }) {
     if (epoch !== libraryEpoch.current) return dataRef.current;
     // Nothing visible changed: skip transferring, diffing and re-rendering.
     if (next.unchanged && dataRef.current) return dataRef.current;
+    let result = next;
     if (sequence === requestSequence.current && !next.unchanged) {
       // Root, model availability and due counts can change without a store write.
-      // Compare the full public snapshot before skipping a render.
+      // Compare the public snapshot key by key before skipping a render; a key that did not change keeps its
+      // identity, so memoised views over data.sources, data.decks ... survive a poll that only moved `progress`.
       const cur = dataRef.current;
-      const nextKey = JSON.stringify(next);
-      if (!cur || snapshotKey.current !== nextKey) {
+      const shared = shareUnchanged(cur, next, snapshotKey.current);
+      if (shared.changed) {
         if (cur && cur.root !== next.root) {
           libraryEpoch.current++;
           quick.reset();
@@ -374,15 +378,16 @@ export default function App({ call: transportCall, host = {} }) {
           setSettings(next.settings);
           setBinding((b) => ({ ...b, root: next.root }));
         }
-        dataRef.current = next;
-        snapshotKey.current = nextKey;
-        setData(next);
+        dataRef.current = shared.value;
+        snapshotKey.current = shared.texts;
+        setData(shared.value);
         setSettings((current) =>
           Object.keys(current).length ? current : next.settings,
         );
-      }
+        result = shared.value;
+      } else result = cur;
     }
-    return next;
+    return result;
   }, [call, quick, setNotice]);
   const previousLanguage = useRef(language);
   useEffect(() => {
@@ -540,25 +545,54 @@ export default function App({ call: transportCall, host = {} }) {
     setTeachAnswer("");
     setClozeValues({});
   }, [run?.id, reviewQueueVersion]);
+  // Work the host is doing for the learner keeps the quick poll rhythm; see ui/poll-schedule.js.
+  const workingRef = useRef(false);
+  workingRef.current = !!running || !!data?.coach?.preparing || !!data?.assist?.some(task => ["running", "queued"].includes(task.status));
   useEffect(() => {
     if (!binding.root) return;
     let stopped = false,
-      pending = false;
-    const t = setInterval(async () => {
-      if (document.hidden || pending || stopped) return;
-      pending = true;
-      try {
-        await refresh();
-        if (!stopped) setSyncIssue("");
-      } catch (e) {
-        if (!stopped) setSyncIssue(e.message || String(e));
-      } finally {
-        pending = false;
+      pending = false,
+      unchanged = 0,
+      timer;
+    const tick = async () => {
+      timer = undefined;
+      if (stopped) return;
+      if (!document.hidden && !pending) {
+        pending = true;
+        const before = dataRef.current;
+        try {
+          // An unchanged answer hands back the object the panel already holds.
+          const next = await refresh();
+          if (!stopped) setSyncIssue("");
+          // The once-a-minute fingerprint rollover alone is not a change.
+          unchanged = sameExceptFingerprint(before, next) ? unchanged + 1 : 0;
+        } catch (e) {
+          unchanged = 0;
+          if (!stopped) setSyncIssue(e.message || String(e));
+        } finally {
+          pending = false;
+        }
       }
-    }, 2500);
+      if (!stopped) timer = setTimeout(tick, pollDelay({ unchanged, running: workingRef.current }));
+    };
+    timer = setTimeout(tick, POLL_FAST_MS);
+    // Activity in the panel, or coming back to it, restores the quick rhythm at once.
+    const wake = () => { unchanged = 0; };
+    const visible = () => {
+      if (document.hidden || stopped) return;
+      unchanged = 0;
+      clearTimeout(timer);
+      timer = setTimeout(tick, 0);
+    };
+    window.addEventListener("pointerdown", wake, true);
+    window.addEventListener("keydown", wake, true);
+    document.addEventListener("visibilitychange", visible);
     return () => {
       stopped = true;
-      clearInterval(t);
+      clearTimeout(timer);
+      window.removeEventListener("pointerdown", wake, true);
+      window.removeEventListener("keydown", wake, true);
+      document.removeEventListener("visibilitychange", visible);
     };
   }, [binding.root, refresh]);
   useEffect(() => {

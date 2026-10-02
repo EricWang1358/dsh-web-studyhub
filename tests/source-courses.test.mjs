@@ -48,7 +48,8 @@ test('legacy citations infer courses without rewriting evidence; manual bulk cha
   await service.call('source.courses.set', { assignments: [{ id: 'a', courses: [] }] });
   const result = (await service.call('snapshot')).sources[0];
   assert.deepEqual(result.courses, []);
-  assert.equal(result.text, text);
+  assert.equal(result.chars, text.length);
+  assert.equal((await service.call('source.get', { id: 'a' })).text, text, 'course reassignment must not touch the text');
   assert.equal(result.usedBy[0].id, 'd', 'course reassignment must not break card citations');
   assert.equal(result.usedBy[1].id, 'other');
   const decks = (await service.call('export')).decks;

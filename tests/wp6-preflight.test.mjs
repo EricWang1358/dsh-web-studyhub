@@ -146,7 +146,8 @@ test("a blocked batch member holds its siblings with a reason, and skipping it c
   assert.deepEqual(done.members.map((member) => member.status), ["complete", "skipped", "complete"]);
   assert.equal(calls.length, 2, "the two good recordings, once each");
   const source = (await service.call("snapshot", {})).sources.find((item) => done.sourceIds.includes(item.id));
-  assert.ok(source.text.includes("A.wav") && source.text.includes("B.wav") && !source.text.includes("PE1.mp3"));
+  const { text } = await service.call("source.get", { id: source.id, limit: 60000 });
+  assert.ok(text.includes("A.wav") && text.includes("B.wav") && !text.includes("PE1.mp3"));
 });
 
 test("a failed part heading never surfaces field names: the part is titled after the file and the import continues", async () => {

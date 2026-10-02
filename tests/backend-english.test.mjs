@@ -145,7 +145,11 @@ test('snapshots and job.wait localize repair execution steps without changing le
     assert.deepEqual(projected.messages, original.messages);
   }
   assert.equal(en.sources[0].title, source.title);
-  assert.equal(en.sources[0].text, source.text);
+  // The snapshot reports the length and the first characters; the text is read with source.get.
+  assert.equal(en.sources[0].chars, source.text.length);
+  assert.equal(en.sources[0].excerpt, source.text.slice(0, 160));
+  assert.equal(Object.hasOwn(en.sources[0], 'text'), false);
+  assert.equal((await service.call('source.get', { id: source.id })).text, source.text);
   assert.deepEqual((await service.store.read()).sources[0], source);
   assert.deepEqual(job, original);
   assert.deepEqual((await service.call('snapshot', { uiLanguage: 'zh' })).jobs[0].steps, original.steps);
