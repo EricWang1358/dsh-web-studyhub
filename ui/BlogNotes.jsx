@@ -5,7 +5,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import noteCss from "./blog-notes.css";
 import { useInjectCss } from "./shared.js";
 import { renderNoteMarkdown } from "./note-markdown.js";
-import PageScope, { usePageScope } from './PageScope.jsx';
+import PageScope, { courseMatcher, usePageScope } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
 
 const editorExtensions = [markdown()];
@@ -61,7 +61,8 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       .catch(error => { if (identity.current === token) setMessage(error.message); });
   }, [call, id, note?.generation?.status, note?.status, summary?.generation?.status, summary?.status, summary?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const preview = useMemo(() => renderNoteMarkdown(note?.markdown || ""), [note?.markdown]);
-  const notes = (data.notes || []).filter(item => course === '*' || (course === '' ? !item.courses?.length : item.courses?.includes(course)));
+  const within = courseMatcher(data, course);
+  const notes = (data.notes || []).filter(item => course === '*' || (course === '' ? !item.courses?.length : (item.courses || []).some(within)));
   function edit(patch) {
     const next = { ...current.current, ...patch };
     applyNote(next);

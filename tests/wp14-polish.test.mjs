@@ -187,7 +187,7 @@ test('a chapter as the value opens its parent chip with short chapter names; lon
   assert.match(chips[0].html, /aria-expanded="true"/);
   const row = html.match(/<div class="course-field__chapters"[\s\S]*?<\/div>/)?.[0] || '';
   assert.match(row, /aria-label="「Distributed Systems Engineering」的章节"/);
-  assert.equal((row.match(/<button/g) || []).length, 8);
+  assert.equal((row.match(/<button/g) || []).length, 9, 'the parent (here implicit: nothing is filed under it) and the eight chapters');
   assert.match(row, new RegExp(`aria-pressed="true"[^>]*title="${value}"|title="${value}"[^>]*aria-pressed="true"`));
   assert.match(row, />05 第 5 章：一个相当长的章节标题，用来测试截断与分组</, 'only the chapter part is shown');
   assert.match(row, new RegExp(`aria-label="${value}"`), 'the full name is the accessible name');
@@ -302,9 +302,10 @@ test('edgeTracker publishes the fade edges only when they change, so a per-commi
 
 test('splitCourseName reads "Course / Chapter" and leaves ordinary slashes alone', () => {
   assert.deepEqual(splitCourseName(`${CNSD} / 05 Kubernetes`), { parent: CNSD, chapter: '05 Kubernetes' });
-  assert.deepEqual(splitCourseName(`${CNSD}/01 云计算概览`), { parent: CNSD, chapter: '01 云计算概览' });
+  assert.equal(splitCourseName(`${CNSD}/01 云计算概览`), null, 'a slash without spaces needs a known course before it');
+  assert.deepEqual(splitCourseName(`${CNSD}/01 云计算概览`, [CNSD]), { parent: CNSD, chapter: '01 云计算概览' });
   assert.deepEqual(splitCourseName(`${CNSD} ／ 02 容器`), { parent: CNSD, chapter: '02 容器' }, 'full-width slash');
-  assert.equal(splitCourseName('TCP/IP Basics'), null, 'a one-word part before an unspaced slash is not a course');
+  assert.equal(splitCourseName('TCP/IP Basics'), null, 'a part before an unspaced slash that is no course stays part of the name');
   assert.equal(splitCourseName('Databases'), null);
   assert.equal(splitCourseName(' / x'), null);
 });
@@ -314,14 +315,15 @@ test('groupCourseNames groups chapters under their course, in order, without ren
   const cnsd = groups.find(entry => entry.type === 'group');
   assert.equal(cnsd.name, CNSD);
   assert.equal(cnsd.chapters.length, 8, 'seven chapters plus the unspaced duplicate');
-  assert.deepEqual(cnsd.chapters.map(item => item.course.name), cnsd.chapters.map(item => item.course.name).slice().sort((a, b) => splitCourseName(a).chapter.localeCompare(splitCourseName(b).chapter, undefined, { numeric: true })));
+  const known = courses.map(item => item.name);
+  assert.deepEqual(cnsd.chapters.map(item => item.course.name), cnsd.chapters.map(item => item.course.name).slice().sort((a, b) => splitCourseName(a, known).chapter.localeCompare(splitCourseName(b, known).chapter, undefined, { numeric: true })));
   assert.ok(cnsd.chapters.every(item => courses.includes(item.course)), 'the original records, untouched');
   assert.equal(cnsd.chapters.find(item => item.course === chapters[4]).chapter, '05 Kubernetes：对象、运行机制与故障诊断');
   assert.equal(groups.filter(entry => entry.type === 'course').length, 10);
   assert.equal(groups.indexOf(cnsd), 1, 'the group sits where its first chapter was');
   assert.ok(groups.some(entry => entry.type === 'course' && entry.course.name === 'TCP/IP Basics'));
   const alone = groupCourseNames([course('Physics / 01 Mechanics'), course('Chemistry')]);
-  assert.deepEqual(alone.map(entry => entry.type), ['course', 'course'], 'a single chapter is not a group');
+  assert.deepEqual(alone.map(entry => entry.type), ['group', 'course'], 'a parent with a single chapter is a group too (it is a scope of its own)');
   const parented = groupCourseNames([course('Physics'), course('Physics / 01 Mechanics'), course('Physics / 02 Waves')]);
   assert.equal(parented.length, 1);
   assert.equal(parented[0].parent.name, 'Physics', 'a course named like the group heads it');

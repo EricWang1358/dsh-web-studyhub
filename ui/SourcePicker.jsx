@@ -4,6 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Button, EmptyState, ScrollWindow, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
+import { courseScope } from '../lib/course-tree.js';
 import css from './source-picker.css';
 
 /* Choosing material for generation (P18, P22). One row per document: a PDF is
@@ -64,10 +65,13 @@ export function chapterLabel(chapter) {
 /** Select every source of the given documents (select-all for a scope). */
 export const selectDocuments = (selected, items) => [...new Set([...selected, ...items.flatMap(item => item.sourceIds)])];
 
-/** A document is in a course scope when any of its pages belongs to it ('*' is everything, '' unassigned). */
-export function inScope(item, scope) {
+/**
+ * A document is in a course scope when any of its pages belongs to it ('*' is everything, '' unassigned);
+ * a parent course takes in its sub-courses (`known`: the library's course names, lib/course-tree.js).
+ */
+export function inScope(item, scope, known = []) {
   if (scope === undefined || scope === null || scope === '*') return true;
-  return scope === '' ? !item.courses.length : item.courses.includes(scope);
+  return scope === '' ? !item.courses.length : item.courses.some(courseScope(scope, known));
 }
 
 /** Small notes a learner should check before generating. */
@@ -170,7 +174,8 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const [query, setQuery] = useState(defaultQuery);
   const items = useMemo(() => groupSourcesByDocument(sources), [sources]);
   const effectiveScope = onScopeChange ? scope : '*';
-  const visible = items.filter(item => inScope(item, effectiveScope));
+  const known = useMemo(() => courses.map(course => typeof course === 'string' ? course : course?.name).filter(Boolean), [courses]);
+  const visible = items.filter(item => inScope(item, effectiveScope, known));
   const filtering = !!query.trim();
   const shown = filtering ? filterItems(visible, query, documentSearchText) : visible;
   const chosen = new Set(selected);

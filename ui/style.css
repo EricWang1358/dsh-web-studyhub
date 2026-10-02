@@ -1253,6 +1253,8 @@
   .generation-jobs .job button { margin-left: 0; }
   .jobs-actions:empty, .job-actions:empty { display: none; }
   .page-scope { max-width: 340px; }
+  /* A chosen sub-course shows its whole path under the select (the list itself shows only the last segment, indented). */
+  .page-scope__path { display: block; margin-top: 4px; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
   .source-organize { margin: 16px 0; }
   .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
   .source-organize > label { max-width: 560px; }
@@ -3279,7 +3281,8 @@
   .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .map-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .map-tree, .map-topics, .map-children { list-style: none; margin: 0; padding: 0; }
-  .map-tree { display: grid; gap: 30px; }
+  /* minmax(0, 1fr): a long course path (a parent course lists its chapters here) must truncate in its row, not widen the page. */
+  .map-tree { display: grid; gap: 30px; grid-template-columns: minmax(0, 1fr); }
   .map-deck, .map-folder {
     border: 0;
     border-radius: 0;
