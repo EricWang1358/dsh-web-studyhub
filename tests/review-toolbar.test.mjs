@@ -60,3 +60,15 @@ test("the hint and busy reason are English in the English UI", () => {
     assert.doesNotMatch(busy, han);
   } finally { setUiLanguage("zh"); }
 });
+
+test('the More chevron is drawn, not a text glyph: the "⌄" character sits below the baseline and looks like a subscript', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8');
+  const after = /\.question-toolbar \.review-more > summary::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.ok(after, 'the chevron rule exists');
+  assert.doesNotMatch(after, /content:\s*"[^"]/, 'no text glyph as content');
+  assert.match(after, /border-right:/); assert.match(after, /border-bottom:/);
+  assert.match(after, /transform:[^;]*rotate\(45deg\)/);
+  const open = /\.question-toolbar \.review-more\[open\] > summary::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.match(open, /rotate\(-135deg\)/, 'it turns up while the menu is open');
+});

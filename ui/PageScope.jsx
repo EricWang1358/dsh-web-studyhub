@@ -32,7 +32,9 @@ export function usePageScope(root, page, defaultValue = '*') {
   return [value ?? defaultValue, choose];
 }
 
-const INDENT = '\u00a0\u00a0\u00a0';
+/* Depth is shown as padding on the option: the open list indents, the closed select shows the chosen name flush left (leading
+   spaces in the label would have been shown in the closed select too). */
+const indent = depth => depth > 0 ? { paddingInlineStart: `${(depth * 1.25).toFixed(2)}em` } : undefined;
 
 /**
  * Scope of a page: all, one course (a parent includes its sub-courses), or uncategorised. Courses form a tree:
@@ -49,7 +51,7 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
     <option value="*">{ui('全部课程')}</option>
     {selectedLabel && <option value="@selected">{selectedLabel}</option>}
     {rows.flatMap(row => (row.names.length ? row.names : [row.name]).map((name, index) =>
-      <option key={name} value={name} title={row.depth > 0 ? name : undefined}>{INDENT.repeat(row.depth)}{row.label}{row.childCount && index === 0 ? ` · ${ui('含子课程')}` : ''}</option>))}
+      <option key={name} value={name} title={row.depth > 0 ? name : undefined} style={indent(row.depth)}>{row.label}{row.childCount && index === 0 ? ` · ${ui('含子课程')}` : ''}</option>))}
     {unassigned && <option value="">{ui('未分类')}</option>}
     {value && value !== '*' && value !== '@selected' && !listed.has(value) && !rows.some(row => row.name === value) && <option value={value}>{value}</option>}
   </select>{path && <small className="page-scope__path" title={chosen.name}>{path}</small>}</label>;

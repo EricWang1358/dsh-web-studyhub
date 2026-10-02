@@ -93,3 +93,16 @@ test('the course dialog starts from the current course and applies it through th
     assert.doesNotMatch(en, /[㐀-鿿]/);
   } finally { setUiLanguage('zh'); }
 });
+
+test('the row menu lists its actions in one stacked menu instead of putting every button at the same spot', async () => {
+  const { readFileSync } = await import('node:fs');
+  const here = { ...data, focus: { ...data.focus, course: 'Databases' } };
+  const html = renderToStaticMarkup(React.createElement(Sources, { data: here, act: noop, setModal: noop }));
+  const menu = /<details class="source-row-actions"><summary>[^<]*<\/summary>(<div class="source-row-menu"[^>]*>(.*?)<\/div>)<\/details>/.exec(html);
+  assert.ok(menu, 'the buttons sit inside one .source-row-menu container');
+  assert.deepEqual([...menu[2].matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(match => match[1]), ['改课程…', '移除']);
+  const css = readFileSync(new URL('../ui/sources.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /source-row-actions\[open\]\s*>\s*button/, 'a rule that makes every direct button absolute stacks them on top of each other');
+  const rule = /\.source-row-actions\[open\]\s*>\s*\.source-row-menu\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.match(rule, /position:\s*absolute/); assert.match(rule, /display:\s*grid/);
+});

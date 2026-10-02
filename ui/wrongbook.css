@@ -23,6 +23,9 @@
   /* recommendations */
   .wb-recs {
     display: grid;
+    /* An auto column is as wide as the longest nowrap question; this one may shrink so the rows ellipsise inside the panel. */
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
     gap: var(--space-3);
     padding: var(--space-4);
     border: 1px solid var(--line);
