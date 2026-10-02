@@ -2,7 +2,8 @@
 
    Settings are grouped by when they are touched:
    - 常用: what is touched whenever something is off (the interface language and appearance, the AI model);
-   - 一次性设置: what is set once, for a feature or a course (keys, the search extension, MinerU, audio, courses, import, backup).
+   - 一次性设置: what is set once, for a feature or a course (keys, the search extension, MinerU, audio, courses, import, backup);
+   - 高级: what almost nobody needs (today the one switch "显示实验性功能"; the experimental block appears under it only when it is on).
 
    A group is closed while what THIS library needs is set up, and open, with the names of what is missing, when it is not.
    "Needs" is read from the library, never assumed: a transcription key is missing only when the library has recordings,
@@ -15,13 +16,14 @@ import { bigDocuments } from '../lib/large-documents.js';
 export const SETTINGS_GROUPS = Object.freeze([
   { id: 'common', title: '常用', lead: '界面语言、外观和 AI 模型：哪里不对劲时才需要来看看。' },
   { id: 'once', title: '一次性设置', lead: '第一次用某项功能、或开始一门新课时设一次：密钥、检索扩展、MinerU、音频转写、课程、导入与备份。' },
+  { id: 'advanced', title: '高级', lead: '多数人用不到：实验性功能的开关。' },
 ]);
 
 /** Which group each deep-linkable section lives in. */
 export const SECTION_GROUP = Object.freeze({ 'settings-model': 'common' });
 
 export function settingsGroupState({ data, status = {}, saved = {}, forceOpen = false } = {}) {
-  const missing = { common: [], once: [] };
+  const missing = { common: [], once: [], advanced: [] };
   const modelMissing = data?.model ? data.model.ready === false : data?.modelReady === false;
   if (modelMissing) missing.common.push('model');
 

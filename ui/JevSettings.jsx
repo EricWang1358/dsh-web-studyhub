@@ -1,34 +1,41 @@
-import React, { useCallback, useEffect, useId, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Icon, InlineMessage } from './components/index.js';
 import { TokenUsage } from './TokenUsage.jsx';
 import JevLevelCheck from './JevLevelCheck.jsx';
-import { JEV_FEATURE_META, dshUsage, failureCode, percentText, privacyPoints, setupStep, thresholdChoices } from './jev-flow.js';
+import { JEV_FEATURE_META, JEV_PROVIDER_META, JEV_REPLACE_META, dshUsage, failureCode, keySourceText, percentText, privacyPoints, providerChoices, providerOf, setupStep, thresholdChoices } from './jev-flow.js';
 import audioCss from './audio-settings.css';
 import css from './jev.css';
 
-/* 设置 › 实验性 · Jev 判断服务. EXPERIMENTAL and off by default.
+/* 设置 › 高级 › 实验性功能 › Jev. EXPERIMENTAL, hidden until "Show experimental features" is on (ui/ExperimentalSettings.jsx), and off by default
+   even then. It is never anything but an experiment: opt-in, labelled as one, with the trade-off ("faster and cheaper, but accuracy may drop")
+   said wherever a model call can be replaced.
 
-   Jev is TypeSafe AI's "System One" model: a cheap, fast classifier-shaped service. StudyHub uses it only for small judgements
-   that it then treats as SIGNALS (which course, is this question flawed); it never writes anything by itself, and when Jev is
-   missing or failing everything works as before. Nothing is sent until ALL of these hold: a key is saved, the privacy note
-   below is confirmed, the master switch is on, and the individual experiment is switched on. The key is stored in the DSH
-   home (never in the library, an export or a backup) and shown back only as its last four characters. */
+   Jev is TypeSafe AI's "System One" model: a cheap, fast classifier-shaped service. The learner can let it answer a few decision-shaped model
+   calls instead (lib/jev-sites.js), or only add reference signals; either way it never writes anything by itself, and when Jev is missing, failing
+   or unsure everything works as before. The block is one guided flow, in this order: (a) a walk-through of what Jev could replace, (b) the provider,
+   its key and its privacy note, (c) the switches: each turns ON at once, or says what is still missing and offers that step. Nothing is sent
+   until ALL of these hold: a key is available, the privacy note of the CHOSEN provider is confirmed, the master switch is on, and the individual
+   switch is on. A pasted key is stored in the DSH home (never in the library, an export or a backup) and shown back only as its last four
+   characters; a key from an environment variable is never stored and only its variable's NAME is shown. */
 
 const TEST_STATE = { valid: () => ui('可用：密钥有效，Jev 连得上') };
+const GUIDE_KEY = 'study-jev-guide-seen';
+const guideSeen = () => { try { return globalThis.localStorage?.getItem(GUIDE_KEY) === '1'; } catch { return false; } };
+const rememberGuide = () => { try { globalThis.localStorage?.setItem(GUIDE_KEY, '1'); } catch { /* private window: it simply asks again next time */ } };
 
-/** The privacy note and the one-time confirmation: what is sent, where it goes, what the provider says (and does not say). */
-export function JevPrivacy({ confirmed, onChange, disabled, privacyUrl }) {
-  const id = useId();
+/** The privacy note and the one-time confirmation of ONE provider: what is sent, where it goes, what the provider says (and does not say). */
+export function JevPrivacy({ confirmed, onChange, disabled, privacyUrl, provider, host }) {
+  const id = useId(), chosen = providerOf({ provider });
   return (
-    <div className="jev-privacy" data-confirmed={confirmed ? 'true' : 'false'}>
+    <div className="jev-privacy" data-confirmed={confirmed ? 'true' : 'false'} data-provider={chosen}>
       <h3 className="jev-privacy__title">{ui('发送内容与隐私')}</h3>
-      <ul className="jev-privacy__list">{privacyPoints().map((text, index) => <li key={index}>{text}</li>)}</ul>
+      <ul className="jev-privacy__list">{privacyPoints(chosen, { host }).map((text, index) => <li key={index}>{text}</li>)}</ul>
       {privacyUrl && <p className="jev-privacy__link"><a href={privacyUrl} target="_blank" rel="noreferrer">{ui('查看服务商的隐私与数据说明')}<span className="sh-visually-hidden">{ui('（在新标签页打开）')}</span></a></p>}
       <label className="mineru-privacy__check" htmlFor={id}>
         <input id={id} type="checkbox" checked={!!confirmed} disabled={disabled} onChange={event => onChange?.(event.target.checked)} />
-        <span>{ui('我已阅读以上说明，同意把这些内容发送到 Jev（TypeSafe 云端）')}</span>
+        <span>{JEV_PROVIDER_META[chosen].confirmLabel()}</span>
       </label>
     </div>
   );
@@ -36,7 +43,7 @@ export function JevPrivacy({ confirmed, onChange, disabled, privacyUrl }) {
 
 /** Tokens and calls: today, in total, and per experiment, in the same rows as the study model's usage. Tokens only, never a price. */
 export function JevUsageView({ usage }) {
-  const used = JEV_FEATURE_META.filter(feature => usage?.byFeature?.[feature.id]?.calls > 0);
+  const used = [...JEV_REPLACE_META, ...JEV_FEATURE_META].filter(feature => usage?.byFeature?.[feature.id]?.calls > 0);
   const test = usage?.byFeature?.test?.calls > 0;
   return (
     <div className="jev-usage" data-jev-usage>
@@ -54,30 +61,135 @@ export function JevUsageView({ usage }) {
   );
 }
 
+/** (a) The walk-through of what Jev could replace: one replaceable model call per step, with next / back / skip. Shown here and nowhere else. */
+export function JevGuide({ initialStep }) {
+  const total = JEV_REPLACE_META.length, titleId = useId();
+  const [step, setStep] = useState(initialStep ?? (guideSeen() ? -1 : 0));
+  const finish = () => { rememberGuide(); setStep(-1); };
+  if (step < 0 || step >= total) return (
+    <p className="jev-guide jev-guide--done" data-jev-guide="done">
+      <span>{ui('你已经看过「Jev 可以替换哪些调用」。')}</span>
+      <Button variant="quiet" size="sm" onClick={() => setStep(0)}>{ui('再看一遍')}</Button>
+    </p>
+  );
+  const site = JEV_REPLACE_META[step], last = step === total - 1;
+  return (
+    <section className="jev-guide" data-jev-guide={step + 1} aria-labelledby={titleId}>
+      <header className="jev-guide__head">
+        <h3 id={titleId}>{ui('Jev 可以替换哪些调用')}</h3>
+        <span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span>
+        <span className="jev-guide__count">{uiFormat('{0} / {1}', [step + 1, total])}</span>
+      </header>
+      <h4 className="jev-guide__site">{site.label()}</h4>
+      <dl className="jev-guide__list">
+        <dt>{ui('现在')}</dt><dd>{site.hint()}</dd>
+        <dt>{ui('用 Jev')}</dt><dd>{site.instead()}</dd>
+        <dt>{ui('取舍')}</dt><dd>{ui('更快、更省，但准确度可能下降。')}</dd>
+      </dl>
+      <div className="jev-guide__actions">
+        <Button variant="quiet" size="sm" disabled={step === 0} onClick={() => setStep(step - 1)}>{ui('上一个')}</Button>
+        {last ? <Button variant="primary" size="sm" onClick={finish}>{ui('完成')}</Button> : <Button variant="primary" size="sm" onClick={() => setStep(step + 1)}>{ui('下一个')}</Button>}
+        <Button variant="quiet" size="sm" onClick={finish}>{ui('跳过')}</Button>
+      </div>
+    </section>
+  );
+}
+
+const PREREQ = {
+  endpoint: { text: () => ui('自定义端点还没有填写完整（接口地址和模型名）。'), go: () => ui('去填写端点') },
+  key: { text: () => ui('还没有可用的密钥。'), go: () => ui('去填写密钥') },
+  confirm: { text: () => ui('还没有确认隐私说明。'), go: () => ui('去确认隐私说明') },
+};
+
+/** (c) The per-site switches. A switch turns ON at once; if the provider, key or confirmation is still missing it says what and offers that step. */
+export function JevReplaceList({ settings, onToggle, onGoto, initialBlocked = '', disabled = false }) {
+  const [blocked, setBlocked] = useState(initialBlocked), step = setupStep(settings), ready = step === 'ready';
+  const toggle = (site, checked) => {
+    if (checked && !ready) { setBlocked(site); onGoto?.(step); return; }
+    setBlocked('');
+    onToggle?.(site, checked);
+  };
+  const need = PREREQ[step];
+  return (
+    <fieldset className="jev-replace" data-experimental="true" disabled={disabled}>
+      <legend>{ui('用 Jev 替换模型调用')}<span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span></legend>
+      <p className="audio-provider-note">{ui('默认全部关闭。打开某一项后，这一步会先问 Jev；出错、被限流或不确定时，自动改用原来的模型，并且只提示一次。随时可以关掉。')}</p>
+      {JEV_REPLACE_META.map(site => <label key={site.id} className="jev-switch" data-replace={site.id}>
+        <input type="checkbox" checked={!!settings.replace?.[site.id]} onChange={event => toggle(site.id, event.target.checked)} />
+        <span><strong>{site.label()}</strong><small>{site.hint()}</small><small className="jev-replace__replaces">{site.replaces()}</small><small>{ui('预期：更快、更省，但准确度可能下降。')}</small></span>
+      </label>)}
+      {!ready && need && <div className="jev-prereq" role="status">
+        <p><strong>{need.text()}</strong> {ui('先完成这一步，上面的开关才会生效。')}</p>
+        <Button size="sm" variant="secondary" data-goto={step} onClick={() => onGoto?.(step)}>{need.go()}</Button>
+      </div>}
+      {blocked && !ready && <p className="jev-prereq__blocked" role="alert">{uiFormat('先完成上面的步骤，才能打开「{0}」。', [JEV_REPLACE_META.find(site => site.id === blocked)?.label() ?? ''])}</p>}
+      <p className="audio-provider-note jev-replace__compare">{ui('想知道在你的资料上差多少？用评估脚本把 Jev 和现在的模型对比：node scripts/eval-jev.mjs（见 docs/jev-experimental.md）。')}</p>
+    </fieldset>
+  );
+}
+
 /** The controls of one saved state. `settings` is jev.settings.get, `usage` is jev.usage's `usage`; `failure` its last failure. */
-export function JevSettingsView({ call, settings, usage, failure, busy, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold }) {
-  const [value, setValue] = useState('');
-  const messageId = useId(), step = setupStep(settings), ready = step === 'ready';
+export function JevSettingsView({ call, settings, usage, failure, busy, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold, onProvider, onKeyEnv, onReplace, onCustom, onGoto }) {
+  const [value, setValue] = useState(''), [envName, setEnvName] = useState(settings.keyEnv || '');
+  const [endpoint, setEndpoint] = useState(settings.custom?.endpoint || ''), [model, setModel] = useState(settings.custom?.model || '');
+  const messageId = useId(), providerId = useId(), step = setupStep(settings), ready = step === 'ready';
   const locked = busy || !!working;
+  const provider = providerOf(settings), meta = settings.providers?.find(item => item.id === provider);
+  const family = meta?.family ?? (provider === 'typesafe' ? 'typesafe' : 'opencode'), outside = family !== 'typesafe', custom = family === 'custom';
+  const source = keySourceText(settings), fromFile = settings.key.set && settings.key.source === 'file';
   const save = event => { event.preventDefault(); const key = value.trim(); if (key) { onKey(key); setValue(''); } };
-  const text = result && (result.ok ? TEST_STATE.valid() : uiMessage(result.message || failureCode('unexpected')));
+  const useVariable = event => { event.preventDefault(); onKeyEnv?.(envName.trim()); };
+  const saveCustom = event => { event.preventDefault(); onCustom?.({ customEndpoint: endpoint.trim(), customModel: model.trim() }); };
+  const text = result && (result.ok ? TEST_STATE.valid() : uiMessage(result.message || failureCode('unexpected', provider)));
+  const keyEnvForm = (
+    <form className="audio-key-form jev-keyenv__form" onSubmit={useVariable}>
+      <label className="jev-keyenv__label" htmlFor={`${providerId}-env`}>{ui('存放密钥的环境变量名')}</label>
+      <input id={`${providerId}-env`} name="jev-key-env" className="audio-key-input" type="text" autoComplete="off" spellCheck={false} value={envName} disabled={locked}
+        placeholder={settings.keyEnvDefault || meta?.defaultKeyEnv || 'OPENCODE_GO_API_KEY_2'} onChange={event => setEnvName(event.target.value)} />
+      <div className="audio-key-actions"><Button type="submit" variant="secondary" size="sm" disabled={locked}>{ui('使用这个环境变量')}</Button></div>
+      <p className="audio-provider-note">{ui('只保存变量的名字，不保存它的值；留空就用默认名字。')}</p>
+    </form>
+  );
   return (
     <>
-      <JevPrivacy confirmed={settings.confirmed} disabled={locked} onChange={onConfirm} privacyUrl={settings.privacyUrl} />
+      <JevGuide />
+      <div className="jev-provider" data-provider={provider}>
+        <div className="jev-provider__row">
+          <label className="jev-provider__label" htmlFor={providerId}>{ui('Jev 服务商')}</label>
+          <span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span>
+          <select id={providerId} name="jev-provider" className="jev-provider__select" value={provider} disabled={locked} aria-label={ui('Jev 服务商')} onChange={event => onProvider?.(event.target.value)}>
+            {providerChoices().map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}
+          </select>
+        </div>
+        {meta && !custom && <p className="audio-provider-note jev-provider__where">{uiFormat('发送到 {0}，模型 {1}。', [meta.host, meta.model])}</p>}
+        {custom && <form className="jev-custom" onSubmit={saveCustom}>
+          <label htmlFor={`${providerId}-endpoint`}>{ui('接口地址')}</label>
+          <input id={`${providerId}-endpoint`} name="jev-custom-endpoint" type="text" className="audio-key-input" autoComplete="off" spellCheck={false} value={endpoint} disabled={locked}
+            placeholder="https://gateway.example.com/v1/systemone" onChange={event => setEndpoint(event.target.value)} />
+          <label htmlFor={`${providerId}-model`}>{ui('模型名')}</label>
+          <input id={`${providerId}-model`} name="jev-custom-model" type="text" className="audio-key-input" autoComplete="off" spellCheck={false} value={model} disabled={locked}
+            placeholder="jev-1.13" onChange={event => setModel(event.target.value)} />
+          <div className="audio-key-actions"><Button type="submit" variant="secondary" size="sm" disabled={locked || !endpoint.trim() || !model.trim()}>{ui('保存端点')}</Button></div>
+          <p className="audio-provider-note">{ui('只会发送到这个地址。需要 https（本机可以用 http）；地址里不要带用户名、密码或查询参数。')}</p>
+          {settings.custom?.host && <p className="audio-provider-note jev-provider__where">{uiFormat('当前发送到 {0}，模型 {1}。', [settings.custom.host, settings.custom.model])}</p>}
+        </form>}
+        <p className="audio-provider-note">{ui('Jev 有多个服务商可以配置：TypeSafe 自己的接口；OpenCode Zen（付费的 jev-1.13，以及限时免费的 jev-1.13-free）；也可以填一个自定义端点（接口地址、模型名、存放密钥的环境变量名），给提供同样接口的其他网关用。据报道 OpenRouter、AIML、Netlify AI Gateway 也提供 Jev，但它们的接口格式我们没有核实（未验证）。服务商和密钥来源由你选，我们不推荐其中某一家；免费模型 jev-1.13-free 是否保留提示词或用于训练，OpenCode 的文档没有说明。换服务商要重新确认下面的隐私说明；一个服务商的密钥不会发给另一个。')}</p>
+      </div>
+      <JevPrivacy confirmed={settings.confirmed} disabled={locked} onChange={onConfirm} privacyUrl={settings.privacyUrl} provider={provider} host={custom ? settings.custom?.host : ''} />
       <article className={`audio-provider-card jev-card${settings.key.set ? ' is-set' : ''}`}>
         <header className="audio-provider-card__head">
           <h3>{ui('Jev 密钥')}</h3>
           <span className="audio-provider-card__chips"><span className="audio-chip">{ui('文字内容会上传')}</span></span>
         </header>
-        <p className={`audio-key-state${settings.key.set ? ' is-set' : ''}`}>
+        <p className={`audio-key-state${settings.key.set ? ' is-set' : ''}`} data-key-source={source.state}>
           <Icon name={settings.key.set ? 'success' : 'key'} size={16} />
-          {settings.key.set ? uiFormat('已保存 {0}', [settings.key.hint]) : ui('未配置')}
-          {settings.key.source === 'env' && <span className="muted"> · {ui('来自环境变量')}</span>}
+          {source.text}
         </p>
+        {source.note && <p className="audio-provider-note jev-keysource__note">{source.note}</p>}
         <form className="audio-key-form" onSubmit={save}>
           <input name="jev-key" className="audio-key-input" type="password" autoComplete="off" spellCheck={false} value={value} disabled={locked}
             aria-label={ui('Jev 密钥')} aria-describedby={result ? messageId : undefined}
-            placeholder={settings.key.set ? uiFormat('已保存 {0}；粘贴新的会替换它', [settings.key.hint]) : ui('粘贴 TypeSafe 控制台里的 Jev 密钥')}
+            placeholder={fromFile ? uiFormat('已保存 {0}；粘贴新的会替换它', [settings.key.hint]) : outside ? (custom ? ui('自定义端点的密钥（可选，也可以只用环境变量）') : ui('OpenCode 密钥（可选，也可以只用环境变量）')) : ui('粘贴 TypeSafe 控制台里的 Jev 密钥')}
             onChange={event => setValue(event.target.value)} />
           <div className="audio-key-actions">
             <Button type="submit" variant="primary" busy={working === 'save'} disabled={locked || !value.trim()}>{ui('保存 Jev 密钥')}</Button>
@@ -90,7 +202,13 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
             <p className="audio-provider-note">{ui('验证只发一句不含你内容的话；密钥只保存在 DSH 主目录里，不进学习库、备份或快照。')}</p>
           </div>
         </form>
+        {custom && keyEnvForm}
+        {outside && !custom && <details className="jev-keyenv">
+          <summary>{ui('更换环境变量名')}</summary>
+          {keyEnvForm}
+        </details>}
       </article>
+      <JevReplaceList settings={settings} disabled={busy} onToggle={onReplace} onGoto={onGoto} />
       <fieldset className="jev-switches" disabled={!ready || locked}>
         <legend>{ui('实验功能开关')}</legend>
         {!ready && <p className="audio-provider-note">{ui('保存密钥并确认隐私说明之后才能打开。')}</p>}
@@ -98,19 +216,20 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
           <input type="checkbox" checked={!!settings.enabled} onChange={event => onEnabled(event.target.checked)} />
           <span><strong>{ui('启用 Jev 实验功能（总开关）')}</strong><small>{ui('关掉它就停用下面所有功能，立即生效；各项开关的选择会保留。')}</small></span>
         </label>
+        <p className="audio-provider-note jev-signals__note">{ui('下面这些只给出参考信号，不替换任何模型调用。')}</p>
         {JEV_FEATURE_META.map(feature => <label key={feature.id} className="jev-switch" data-feature={feature.id}>
           <input type="checkbox" checked={!!settings.features[feature.id]} onChange={event => onFeature(feature.id, event.target.checked)} />
           <span><strong>{feature.label()}</strong><small>{feature.hint()}</small></span>
         </label>)}
         <label className="jev-threshold">
-          <span><strong>{ui('自动填入所需的把握')}</strong><small>{ui('Jev 的把握低于这条线时，建议只展示概率，留给你决定。默认 80%。')}</small></span>
+          <span><strong>{ui('自动填入所需的把握')}</strong><small>{ui('Jev 的把握低于这条线时，建议只展示概率，留给你决定；替换模型调用时，低于这条线的判断改交给原来的模型。默认 80%。')}</small></span>
           <select value={String(settings.threshold)} onChange={event => onThreshold(Number(event.target.value))}>
             {thresholdChoices(settings.threshold).map(choice => <option key={choice} value={String(choice)}>{percentText(choice)}</option>)}
           </select>
         </label>
       </fieldset>
       {settings.enabled && settings.features.levelCheck && ready && <details className="jev-dev"><summary>{ui('开发者面板：题目认知层次对照')}</summary><JevLevelCheck call={call} /></details>}
-      {failure && <InlineMessage tone="warning" className="jev-failure">{uiMessage(failureCode(failure.reason))}</InlineMessage>}
+      {failure && <InlineMessage tone="warning" className="jev-failure">{uiMessage(failureCode(failure.reason, failure.provider))}</InlineMessage>}
       <JevUsageView usage={usage} />
       {error && <InlineMessage tone="error">{uiMessage(error)}</InlineMessage>}
     </>
@@ -121,6 +240,7 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
 export default function JevSettings({ call, busy = false, setNotice, initial = null, initialResult = null }) {
   useInjectCss(audioCss, 'study-audio-settings');
   useInjectCss(css, 'study-jev');
+  const section = useRef(null);
   const [settings, setSettings] = useState(initial?.settings ?? null), [usage, setUsage] = useState(initial?.usage ?? null), [failure, setFailure] = useState(initial?.failure ?? null);
   const [working, setWorking] = useState(''), [result, setResult] = useState(initialResult), [error, setError] = useState('');
   const refresh = useCallback(async () => {
@@ -139,18 +259,29 @@ export default function JevSettings({ call, busy = false, setNotice, initial = n
   };
   const change = (kind, patch, then) => run(kind, async () => { const next = await call('jev.settings.set', patch); setSettings(next); await then?.(next); await refresh(); });
   const verify = async () => { setResult(null); setResult(await call('jev.test', {})); await refresh(); };
+  // A switch that turned out to be missing a step: scroll to and focus the control that completes it.
+  const goto = step => {
+    const root = section.current, target = root?.querySelector(step === 'confirm' ? '.jev-privacy input[type="checkbox"]' : step === 'endpoint' ? 'input[name="jev-custom-endpoint"]' : 'input[name="jev-key"]');
+    target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); target?.focus?.({ preventScroll: true });
+  };
   return (
-    <fieldset className="audio-settings settings-section jev-settings" data-tour="settings-jev" data-experimental="true">
+    <fieldset className="audio-settings settings-section jev-settings" data-tour="settings-jev" data-experimental="true" ref={section}>
       <legend className="settings-section__title">{ui('实验性 · Jev 判断服务')}<span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span></legend>
-      <p className="settings-section__lead">{ui('Jev 是 TypeSafe AI 的「System One」模型：按服务商的说法又快又便宜（我们没有核实），擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。')}</p>
+      <p className="settings-section__lead">{ui('Jev 是 TypeSafe AI 的「System One」模型：按服务商的说法又快又便宜（我们没有核实），擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。它在本插件里始终只是实验功能，其他功能都不依赖它。')}</p>
       {!settings && !error && <p className="muted">{ui('正在读取 Jev 设置…')}</p>}
       {settings && <JevSettingsView call={call} settings={settings} usage={usage} failure={failure} busy={busy} working={working} result={result} error={error}
         onKey={key => change('save', { key }, async next => { setResult(null); if (next.confirmed) await verify(); })}
         onVerify={() => run('verify', verify)}
         onClearKey={() => change('clear', { key: '' }, async () => { setResult(null); })}
-        onConfirm={checked => change('confirm', { confirm: checked }, async () => { setNotice?.({ text: checked ? ui('已确认：Jev 功能会把所需内容发送到 TypeSafe 云端。') : ui('已撤回确认；之后使用 Jev 前会再问一次。'), tone: 'success' }); })}
+        onProvider={provider => change('provider', { provider }, async () => { setResult(null); })}
+        onKeyEnv={keyEnv => change('keyEnv', { keyEnv }, async () => { setResult(null); })}
+        onCustom={patch => change('custom', patch, async () => { setResult(null); })}
+        onConfirm={checked => change('confirm', { confirm: checked }, async next => { setNotice?.({ text: checked ? (providerOf(next) === 'typesafe' ? ui('已确认：Jev 功能会把所需内容发送到 TypeSafe 云端。') : providerOf(next) === 'custom' ? ui('已确认：Jev 功能会把所需内容发送到你填写的自定义端点。') : ui('已确认：Jev 功能会把所需内容发送到 OpenCode Zen 云端。')) : ui('已撤回确认；之后使用 Jev 前会再问一次。'), tone: 'success' }); })}
         onEnabled={checked => change('enabled', { enabled: checked })}
         onFeature={(id, checked) => change('feature', { features: { [id]: checked } })}
+        onReplace={(site, checked) => change('replace', { replace: { [site]: checked }, ...(checked && !settings.enabled ? { enabled: true } : {}) },
+          async () => { if (checked && !settings.enabled) setNotice?.({ text: ui('Jev 总开关也已一起打开。'), tone: 'success' }); })}
+        onGoto={goto}
         onThreshold={threshold => change('threshold', { threshold })} />}
       {settings?.settingsFile && <p className="audio-settings-path">{uiFormat('密钥和开关保存在 {0}，不在学习库里，也不会出现在导出或备份中。', [settings.settingsFile])}</p>}
     </fieldset>

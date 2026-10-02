@@ -95,7 +95,7 @@ test('a failure is remembered for the settings page and cleared by the next succ
   await h.open();
   assert.equal(h.runtime.lastFailure(), null);
   await ask(h.runtime);
-  assert.deepEqual({ ...h.runtime.lastFailure(), at: undefined }, { feature: 'courseSuggest', reason: 'invalid-key', at: undefined });
+  assert.deepEqual({ ...h.runtime.lastFailure(), at: undefined }, { feature: 'courseSuggest', reason: 'invalid-key', provider: 'typesafe', at: undefined });
   assert.ok(h.runtime.lastFailure().at);
   await ask(h.runtime);
   assert.equal(h.runtime.lastFailure(), null);

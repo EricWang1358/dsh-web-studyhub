@@ -17,7 +17,11 @@ JEV_API_KEY=<your key> node scripts/eval-jev.mjs tests/fixtures/jev-eval/dataset
 JEV_API_KEY=<your key> node scripts/eval-jev.mjs my-dataset.json --features courseSuggest --threshold 0.9 --out report.json --yes
 ```
 
-Without `JEV_API_KEY` it does nothing and says so. Any dataset other than this folder's needs `--yes`, because its text is sent to Jev.
+`--provider typesafe|opencode-zen-free|opencode-zen|custom` picks the service (default `typesafe`): the key is read from the environment variable the preset
+names (`JEV_API_KEY`, `OPENCODE_GO_API_KEY_2`, `JEV_CUSTOM_API_KEY`; `--key-env NAME` names another one), never from a file; the custom preset also needs
+`--endpoint <https address>` and `--model <id>`.
+
+Without that variable it does nothing and says so. Any dataset other than this folder's needs `--yes`, because its text is sent to Jev.
 `JEV_BASE_URL` points it at another address (a fake server, for testing the script itself).
 
 ## Dataset format
@@ -60,3 +64,24 @@ Without `JEV_API_KEY` it does nothing and says so. Any dataset other than this f
   makes the 80% line meaningless, so look at both.
 - **tokens**: as reported by the service (`usage`), per experiment and per item. Prices are not computed.
 - A request that fails (network, rate limit) is reported as failed and left out of the scores; it is never counted as a wrong answer.
+
+## Replaceable sites: Jev against the current model path
+
+Two more sections measure the model calls a learner can choose to have Jev answer instead (`cardReview`, `courseOrganize`; `lib/jev-sites.js`). Each item
+carries the labelled truth and, optionally, `model`: what the CURRENT model path answered for that item (record it from a run you already did, for example
+the verdicts of the independent review you saw, or the course the "请 AI 建议" proposed).
+
+```json
+"cardReview":     { "items": [{ "id": "r1", "verdict": "accept", "model": "accept",
+                                "card": { "kind": "flashcard", "prompt": "...", "answer": "...", "explanation": "...", "citations": [{ "sourceId": "s", "quote": "..." }] } }] },
+"courseOrganize": { "courses": [{ "name": "Databases", "titles": ["..."] }],
+                    "items": [{ "id": "o1", "title": "...", "text": "...", "course": "Databases", "model": "Databases" }] }
+```
+
+- `cardReview`: `verdict` is what a careful review should conclude (`accept` or `reject`); `model` is what the model review concluded. Cards the six yes/no checks
+  do not fit (multi-answer cards, no evidence, no explanation) are counted as "not judgeable" and never sent.
+- `courseOrganize`: `course` is the right course (or `null` for none); `model` is a course name, `null`, or a name the model proposed.
+
+The report says, per site, how much Jev settles at your confidence line, its accuracy when it settles, what the hybrid the product really runs (Jev where it is
+sure, the model for the rest) scores against the model alone, the agreement on what Jev settled, and Jev's latency per call and tokens. Without `model` answers
+only Jev against the truth is reported. A small dataset proves little; these numbers describe your data only.
