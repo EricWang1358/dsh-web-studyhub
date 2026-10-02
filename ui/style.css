@@ -350,6 +350,12 @@
     padding: 26px 14px 16px;
     display: flex;
     flex-direction: column;
+    /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). */
+    --nav-row: 38px;
+    --nav-row-upkeep: 34px;
+    /* How far the sidebar's own padding is: the active bar sits on its outer edge. */
+    --sidebar-pad: 14px;
+    --nav-highlight: color-mix(in srgb, var(--text) 8%, transparent);
   }
   .brand {
     display: flex;
@@ -412,7 +418,8 @@
     border: none;
     background: transparent;
     text-align: left;
-    padding: 9px 12px;
+    height: var(--nav-row);
+    padding: 0 12px;
     margin: 1px 0;
     color: var(--text-dim);
     transition:
@@ -427,6 +434,21 @@
   }
   .nav .icon {
     transition: transform 0.2s var(--ease-out), color 0.15s var(--ease);
+  }
+  /* The row keeps its one height: a label that does not fit takes a second line (tight leading) and past that is cut with an
+     ellipsis, the tooltip has the whole text. */
+  .nav-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+    line-height: 1.15;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
   }
   .nav:hover:not(:disabled):not(.active) .icon {
     transform: translateX(2px);
@@ -449,26 +471,33 @@
     left: 0;
     right: 0;
     border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--text) 8%, transparent);
+    background: var(--nav-highlight);
     pointer-events: none;
     transition:
       transform 0.42s var(--ease-out),
       height 0.42s var(--ease-out);
     animation: mark-in 0.3s var(--ease-out);
   }
-  .nav-mark::before {
+  .nav-mark::before,
+  .sidebar-bottom .nav.active::before {
     content: "";
     position: absolute;
-    left: -14px;
+    left: calc(var(--sidebar-pad) * -1);
     top: 9px;
     bottom: 9px;
     width: 3px;
     border-radius: 0 3px 3px 0;
     background: var(--text);
   }
+  /* Rows below the rail (Settings) are not on the gliding highlight; they get the same one directly. */
+  .sidebar-bottom .nav.active {
+    border-radius: var(--radius-sm);
+    background: var(--nav-highlight);
+  }
   /* Library upkeep sits below study, smaller and quieter. */
   .nav-upkeep {
-    padding-block: 7px;
+    height: var(--nav-row-upkeep);
+    padding-block: 0;
     font-size: 15px;
     color: var(--text-muted);
   }
@@ -521,6 +550,7 @@
     display: block;
   }
   .nav-count {
+    flex: none;
     margin-left: auto;
     font-size: 15px;
     font-variant-numeric: tabular-nums;
@@ -537,6 +567,9 @@
   .sidebar.is-narrow {
     width: 62px;
     padding: 20px 6px;
+    --sidebar-pad: 6px;
+    --nav-row: 42px;
+    --nav-row-upkeep: 42px;
   }
   .sidebar.is-narrow .brand {
     flex-direction: column;
@@ -548,8 +581,7 @@
   .sidebar.is-narrow .brand > div,
   .sidebar.is-narrow .nav-count,
   .sidebar.is-narrow .local-status,
-  .sidebar.is-narrow .guide-sidebar,
-  .sidebar.is-narrow .resume-nav .nav-label small {
+  .sidebar.is-narrow .guide-sidebar {
     display: none;
   }
   .sidebar.is-narrow .guide-inline {
@@ -558,11 +590,27 @@
   .sidebar.is-narrow .nav {
     font-size: 0;
     gap: 0;
-    padding: 11px;
+    padding: 0;
     justify-content: center;
   }
-  .sidebar.is-narrow .nav-mark::before {
-    left: -6px;
+  /* The label stays in the tree for assistive technology and the tooltip names the row; it just takes no room. */
+  .sidebar.is-narrow .nav-label {
+    flex: none;
+    width: 0;
+  }
+  /* A run in progress folds into a dot on the icon, as the coach count does. */
+  .sidebar.is-narrow .nav-progress {
+    display: block;
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 9px;
+    height: 9px;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    font-size: 0;
   }
   .sidebar.is-narrow .nav .icon svg {
     width: 20px;
@@ -573,17 +621,20 @@
   .sidebar-bottom {
     margin-top: auto;
   }
+  /* The dot sits in the same 20px slot as a row's icon, so the text lines up with the labels above. */
   .local-status {
     font-size: 15px;
     color: var(--text-muted);
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 20px 15px;
+    gap: 12px;
+    padding: 20px 12px;
   }
   .local-status span {
     width: 6px;
     height: 6px;
+    margin: 0 7px;
+    flex: none;
     border-radius: 50%;
     background: var(--ok);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent);
@@ -2481,21 +2532,9 @@
   .md .md-color code {
     color: inherit;
   }
-  .resume-nav .nav-label {
-    display: grid;
-    min-width: 0;
-    text-align: left;
-  }
-  .resume-nav .nav-label small {
-    font-size: 15px;
+  /* A run's progress in the resume row: a count like the others, a little brighter because it is live. */
+  .nav-progress {
     color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 150px;
-  }
-  .nav.muted-nav {
-    opacity: 0.45;
   }
   .ingest-banner {
     background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
@@ -3707,6 +3746,7 @@
       width: 190px;
       padding-left: 10px;
       padding-right: 10px;
+      --sidebar-pad: 10px;
     }
     .brand {
       font-size: 15px;

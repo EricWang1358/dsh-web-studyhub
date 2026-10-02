@@ -55,7 +55,7 @@ test('App wires the hub into the dialog and the empty state, and counts document
   assert.match(source, /const sourceForm = [\s\S]{0,400}<ImportHub/);
   assert.doesNotMatch(source, /导入 Markdown \/ 文本/, 'the third text input is gone');
   assert.doesNotMatch(source, /<DocumentImport /);
-  assert.match(source, /<span className="nav-count">\{countDocuments\(data\.sources\)\}<\/span>/);
+  assert.match(source, /hint=\{[^}]*countDocuments\(data\.sources\)/, 'the 资料 row shows its document count as its trailing hint');
   assert.match(source, /highlight=\{sourceHighlight\}/);
   assert.match(source, /onComplete=\{finishImport\}/);
   assert.match(source, /documentSourceIds\(data\.sources, modal\.source\.id\)/, 'the source dialog generates from the whole document');
