@@ -201,6 +201,19 @@ test('finished jobs stay in the panel when no passage is selected, and the panel
   assert.match(markup, /已加入「Architecture basics」1 张，1 张未通过审阅/);
 });
 
+test('the running job comes first and older results fold away, so progress never scrolls out of view', () => {
+  const { LearningPanel, SelectionJobList } = lib;
+  lib.setUiLanguage('zh');
+  const finished = ['a', 'b', 'c', 'd'].map(name => done({ id: `f${name}`, operationId: `op-${name}`, targetTitle: `Deck ${name}` }));
+  const markup = render(SelectionJobList, { jobs: [...finished, running({ operationId: 'live', id: 'live' })], now: at(5) });
+  assert.ok(markup.indexOf('data-job-id="live"') < markup.indexOf('data-job-id="fa"'), 'running jobs lead');
+  assert.match(text(markup), /更早的补题结果 · 2/);
+  assert.equal((markup.match(/<details class="selection-jobs__older"/g) || []).length, 1);
+  assert.equal((render(SelectionJobList, { jobs: finished.slice(0, 2), now: at(5) }).match(/selection-jobs__older/g) || []).length, 0);
+  const panelMarkup = render(LearningPanel, panel({ jobs: [running()] }));
+  assert.ok(panelMarkup.indexOf('class="selection-jobs"') < panelMarkup.indexOf('<form'), 'the job card sits above the forms');
+});
+
 test('notices: a start says it continues in the background, a finish names the deck and carries the jump', () => {
   const { startedNotice, finishedNotice } = lib;
   lib.setUiLanguage('zh');

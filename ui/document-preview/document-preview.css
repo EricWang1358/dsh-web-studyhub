@@ -42,10 +42,10 @@
 :is(.study-app, .study-seat, .study-document-native-dialog) .selection-job--conflict { border-color: color-mix(in srgb, var(--warn, #b8892f) 60%, var(--line, #8885)); }
 :is(.study-app, .study-seat, .study-document-native-dialog) .selection-job--failed { border-color: color-mix(in srgb, var(--accent, #c93d22) 55%, var(--line, #8885)); }
 :is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__head { display: flex; align-items: flex-start; gap: var(--space-2, 8px); min-width: 0; }
-:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__mark { display: inline-flex; flex: none; padding-top: 2px; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__mark { display: inline-flex; flex: none; justify-content: center; width: 20px; padding-top: 2px; }
 :is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__title { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-md, 14px); line-height: var(--lh-snug, 1.35); }
-:is(.study-app, .study-seat, .study-document-native-dialog) .study-document-learning .selection-job__passage { max-height: 3.6em; margin: 0; padding: 0 0 0 var(--space-2, 8px); overflow: hidden;
-  border-left: 3px solid var(--line-strong, #8886); color: var(--text-muted, inherit); font-size: var(--fs-sm, 13px); line-height: 1.45; white-space: normal; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .study-document-learning .selection-job__passage { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; margin: 0; padding: 0 0 0 var(--space-2, 8px); overflow: hidden;
+  border-left: 3px solid var(--line-strong, #8886); color: var(--text-muted, inherit); font-size: var(--fs-sm, 13px); line-height: 1.45; white-space: normal; max-height: none; }
 :is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__live,
 :is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__result,
 :is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__failure { display: grid; gap: var(--space-2, 8px); min-width: 0; }

@@ -32,16 +32,18 @@ export function PassageLinks({ groups = [], onOpenCard }) {
  * editable while a job runs (the same passage and deck is refused, another one is fine).
  */
 export function LearningPanel({ capture, resolution, resolving = false, error = '', question = '', answer = '', asking = false, deckId = '', count = 3, kind = 'flashcard',
-  decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, jobs = [], now = Date.now(), call,
+  decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, jobs = [], now = Date.now(), call, sectionRef,
   onQuestion, onAsk, onDeck, onCount, onKind, onStart, ...jobHandlers }) {
   const resolved = resolution?.status === 'resolved';
   const blocking = resolved && deckId ? blockingJob(jobs, resolution.selection, deckId) : null;
   const list = <SelectionJobList jobs={jobs} now={now} {...jobHandlers} />;
-  if (!capture?.quote) return <section className="study-document-learning" aria-label={ui('选段学习')}>
-    <p className="muted">{ui('选中原文中的一段文字，再提问或补充题目。')}</p>
+  // The jobs come first: progress is what the learner looks for after pressing the button, and it must not scroll away below the forms.
+  if (!capture?.quote) return <section className="study-document-learning" aria-label={ui('选段学习')} ref={sectionRef}>
     {list}
+    <p className="muted">{ui('选中原文中的一段文字，再提问或补充题目。')}</p>
   </section>;
-  return <section className="study-document-learning" aria-label={ui('选段学习')}>
+  return <section className="study-document-learning" aria-label={ui('选段学习')} ref={sectionRef}>
+    {list}
     <blockquote>{capture.quote}</blockquote>
     {resolving && <p role="status">{ui('正在核实原文位置…')}</p>}
     {resolution && !resolved && <p className="warning" role="status">{ui(statusLabels[resolution.status] || '这段文字暂时无法使用。')}</p>}
@@ -72,7 +74,6 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
       </form>
       {!modelReady && <p className="muted">{ui('连接模型后可提问和补题；原文与已有引用仍可浏览。')}</p>}
     </>}
-    {list}
   </section>;
 }
 
@@ -84,6 +85,7 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
   const [asking, setAsking] = useState(false), [starting, setStarting] = useState(false), [error, setError] = useState('');
   const [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set()), [now, setNow] = useState(Date.now);
   const [fallbackSnapshot, setFallbackSnapshot] = useState(null), [capabilities, setCapabilities] = useState(null), [bankDecks, setBankDecks] = useState(null);
+  const sectionRef = useRef(null), [reveal, setReveal] = useState('');
   const jobsRef = useRef(jobs), noticeRef = useRef(onNotice), publishedRef = useRef(onPublished);
   jobsRef.current = jobs; noticeRef.current = onNotice; publishedRef.current = onPublished;
   const snapshot = data ?? fallbackSnapshot;
@@ -129,6 +131,14 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
     return () => { current = false; };
   }, [call, listed, documentId]);
 
+  // A job just started is shown where the learner is looking: the panel scrolls to its card, which sits above the forms.
+  useEffect(() => {
+    if (!reveal) return;
+    const card = [...(sectionRef.current?.querySelectorAll('[data-operation]') || [])].find(node => node.dataset.operation === reveal);
+    if (!card) return;
+    card.scrollIntoView?.({ block: 'nearest' });
+    setReveal('');
+  }, [reveal, jobs]);
   const anyActive = jobs.some(isActive);
   useEffect(() => {
     if (!anyActive) return undefined;
@@ -181,6 +191,7 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
     try {
       ensureCurrent();
       const { started, deck } = await begin({ selection: resolution.selection, deckId, count: Number(count), kind, operationId: crypto.randomUUID() });
+      setReveal(started.operationId);
       await onStarted?.(started);
       noticeRef.current?.(startedNotice(started, deck.title || deckName(started.job)));
     } catch (e) { setError(startErrorText(e.message)); }
@@ -203,7 +214,7 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
   const shown = jobs.filter(job => !dismissed.has(job.operationId));
   return <LearningPanel capture={capture} resolution={resolution} resolving={resolving} error={error} question={question} answer={answer} asking={asking}
     deckId={deckId} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}
-    starting={starting} jobs={shown} now={now} call={call} canPractice={typeof onPractice === 'function'}
+    starting={starting} jobs={shown} now={now} call={call} sectionRef={sectionRef} canPractice={typeof onPractice === 'function'}
     onQuestion={setQuestion} onAsk={ask} onDeck={setDeckId} onCount={setCount} onKind={setKind} onStart={start}
     onCancel={cancel} onRetry={retry} onDismiss={job => setDismissed(current => new Set(current).add(job.operationId))}
     onPractice={onPractice} onOpenDeck={onOpenDeck} onOpenCard={onOpenCard} />;

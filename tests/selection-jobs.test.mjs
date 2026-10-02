@@ -184,6 +184,29 @@ test('a failed review saves nothing; starting again with the same operationId re
   assert.equal((await f.deck()).cards.length, 2);
 });
 
+test('a deck that changed while the job ran leaves the reviewed questions waiting; retrying saves them against the current version without another model call', async t => {
+  const model = gatedModel(); model.gates.review = deferred();
+  const f = await fixture(t, { model });
+  const args = f.args(f.a, { operationId: 'conflict', count: 2 });
+  const started = await f.runtime.call('generation.selection.start', args);
+  await waitFor(() => model.calls.includes('review'), 'review call');
+  await new Store(f.root).update(state => { state.decks.find(deck => deck.id === 'd').contentVersion = 5; });
+  model.gates.review.release();
+  const failed = await wait(f, started.jobId);
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.outcome, 'conflict');
+  assert.equal(failed.passed, 2, 'the reviewed questions are kept, not lost');
+  assert.equal(failed.stageCode, 'failed');
+  assert.equal((await f.deck()).cards.length, 1, 'the stale write was refused');
+  const calls = model.calls.length;
+  const again = await f.runtime.call('generation.selection.start', args);
+  const done = await wait(f, again.jobId);
+  assert.equal(done.status, 'complete', done.stage);
+  assert.equal(done.publication.added, 2);
+  assert.equal(model.calls.length, calls, 'nothing is written or reviewed again');
+  assert.equal((await f.deck()).cards.length, 3);
+});
+
 test('a retry after a failure that saved nothing starts over under the same operationId', async t => {
   const model = gatedModel(); model.gates.plan = deferred();
   const f = await fixture(t, { model });

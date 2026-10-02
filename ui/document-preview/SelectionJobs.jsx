@@ -56,15 +56,16 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
           : phase === 'conflict' ? uiFormat('补题待保存 ·「{0}」', [name])
             : phase === 'failed' ? uiFormat('补题没有完成 ·「{0}」', [name]) : uiFormat('正在补题 ·「{0}」', [name]);
   const copy = !active && !finished ? failureCopy(job) : null;
-  return <article className={`selection-job selection-job--${phase}`} data-job-id={job.id} data-phase={phase}>
+  return <article className={`selection-job selection-job--${phase}`} data-job-id={job.id} data-operation={job.operationId} data-phase={phase}>
     <header className="selection-job__head">
       <span className="selection-job__mark" aria-hidden="true">{active ? <span className="sh-spinner" /> : <Icon name={MARK[phase] || 'success'} size={18} />}</span>
       <strong className="selection-job__title">{headline}</strong>
     </header>
     {job.selection?.quote && <blockquote className="selection-job__passage">{clip(job.selection.quote)}</blockquote>}
-    {active && <div className="selection-job__live" role="status" aria-live="polite">
+    {/* Only the phase is announced; the clock ticks every second and stays out of the live region. */}
+    {active && <div className="selection-job__live">
       {phase !== 'queued' && phase !== 'cancelling' && <PhaseStrip phase={phase} />}
-      <p className="selection-job__stage">{phaseLabel(phase)}</p>
+      <p className="selection-job__stage" role="status" aria-live="polite">{phaseLabel(phase)}</p>
       {phase !== 'queued' && <p className="selection-job__meta">{countsText(job)}{clock && <> · {uiFormat('已用 {0}', [clock])}</>}</p>}
       <small className="muted">{ui('后台继续生成，关闭阅读器也不会中断；完成后进信箱。')}</small>
       <JobUsage job={job} />
@@ -102,10 +103,20 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
   </article>;
 }
 
-/** The supplements started from this material, newest first. */
+/** How many finished supplements stay open; the older ones fold away so the running one and the forms stay in view. */
+export const RECENT_FINISHED = 2;
+
+/** The supplements started from this material: running ones first, then the newest results; older results fold. */
 export function SelectionJobList({ jobs = [], ...handlers }) {
   if (!jobs.length) return null;
+  const running = jobs.filter(isActive), finished = jobs.filter((job) => !isActive(job));
+  const card = (job) => <SelectionJobCard key={job.operationId || job.id} job={job} {...handlers} />;
   return <section className="selection-jobs" aria-label={ui('补题任务')}>
-    {jobs.map((job) => <SelectionJobCard key={job.operationId || job.id} job={job} {...handlers} />)}
+    {running.map(card)}
+    {finished.slice(0, RECENT_FINISHED).map(card)}
+    {finished.length > RECENT_FINISHED && <details className="selection-jobs__older">
+      <summary>{uiFormat('更早的补题结果 · {0}', [finished.length - RECENT_FINISHED])}</summary>
+      {finished.slice(RECENT_FINISHED).map(card)}
+    </details>}
   </section>;
 }

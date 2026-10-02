@@ -36,6 +36,7 @@
   "查看这道题与解析": "View this question and its explanation",
   "题组没有变化，已通过审阅的题才会保存。": "The deck is unchanged; only questions that passed review are saved.",
   "补题任务": "Question jobs",
+  "更早的补题结果 · {0}": "Earlier results · {0}",
   "这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。": "A job for this passage and deck is already running. Wait for it, or stop it first.",
   "正在启动…": "Starting…",
   "停止补题；题组不会有变化": "Stop; the deck will not change",
