@@ -233,6 +233,8 @@ test('a second supplement for the same passage and deck is refused with a clear 
   assert.equal(other.queuedBehind, 1);
   const elsewhere = await f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'other-deck', deckId: 'e' }));
   assert.equal(elsewhere.status, 'queued');
+  await waitFor(() => model.calls.length === 1, 'the first job calls the model');
+  await sleep(50);
   assert.equal(model.calls.length, 1, 'only the first job has called the model');
   model.gates.plan.release();
   for (const job of [first, other, elsewhere]) assert.equal((await wait(f, job.jobId)).status, 'complete');
@@ -241,6 +243,7 @@ test('a second supplement for the same passage and deck is refused with a clear 
   const after = await f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'dup-after' }));
   assert.ok(after.jobId, 'once the first one finished, the same passage can be supplemented again');
   await f.runtime.call('job.cancel', { jobId: after.jobId });
+  await wait(f, after.jobId);
 });
 
 test('a queued job can be stopped and never starts', async t => {
@@ -289,6 +292,7 @@ test('usage.estimate prices a passage supplement before it starts, in the same f
   const started = await f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'est', count: 4 }));
   assert.deepEqual(started.job.estimate.calls, estimate.calls);
   await f.runtime.call('job.cancel', { jobId: started.jobId });
+  await wait(f, started.jobId);
   await assert.rejects(f.runtime.call('usage.estimate', { feature: 'selection', deckId: 'd' }), /selection/);
 });
 
