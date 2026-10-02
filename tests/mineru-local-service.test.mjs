@@ -173,8 +173,10 @@ test('a 120-page PDF is parsed locally in windows of 50 pages as one job, with n
   const sources = state.sources.filter(source => source.document?.converter === 'mineru');
   assert.equal(sources.length, 120);
   assert.deepEqual(sources[0].courses, ['Databases']);
-  assert.match(sources[50].text, /第 51 页的正文/);
-  assert.ok(!sources.some(source => /doc:5008352/.test(source.text)), 'no broken image links');
+  // The snapshot carries lengths; the stored text comes from the export.
+  const stored = new Map((await h.call('export')).sources.map(item => [item.id, item.text]));
+  assert.match(stored.get(sources[50].id), /第 51 页的正文/);
+  assert.ok(!sources.some(source => /doc:5008352/.test(stored.get(source.id))), 'no broken image links');
   assert.ok(finished.warnings.some(text => text === LOCAL_MESSAGES.headerFooter), 'the header/footer caveat is stated once');
   assert.equal(state.inbox.items.filter(item => item.kind === 'pdf-result').length, 1);
   assert.deepEqual(await filesUnder(join(convertHome(h.root), 'jobs')), []);

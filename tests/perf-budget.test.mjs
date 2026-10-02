@@ -82,6 +82,27 @@ test("an unchanged poll costs a stat, not a rebuild (poll budget)", async (t) =>
   assert.ok(counts.jsonStringifyChars <= f.libraryChars * 0.002, `an unchanged poll stringified ${counts.jsonStringifyChars} chars`);
 });
 
+test("the snapshot carries source metadata, not every source's text (payload budget)", async (t) => {
+  const f = await fixture(t);
+  // A case set's scenario is read straight from the snapshot by the case pages, so that one source keeps its text.
+  const scenario = "src-0003";
+  await f.service.store.update((state) => { state.decks[0].case = { sourceId: scenario, title: "Case" }; });
+  const snapshot = await f.service.call("snapshot");
+  const payload = JSON.stringify(snapshot).length;
+  t.diagnostic(`snapshot payload ${payload} chars for ${f.sourceChars} chars of source text over ${snapshot.sources.length} sources`);
+  assert.ok(payload <= f.sourceChars * 0.4, `snapshot is ${payload} chars for ${f.sourceChars} chars of source text; budget 40%`);
+  assert.ok(payload <= snapshot.sources.length * 1500, `snapshot is ${payload} chars for ${snapshot.sources.length} sources; budget 1500 per source`);
+  for (const source of snapshot.sources) {
+    assert.equal(typeof source.chars, "number", "each source reports its length as chars");
+    assert.equal(typeof source.excerpt, "string", "and the first characters the sources page shows");
+    assert.equal(Object.hasOwn(source, "text"), source.id === scenario, source.id === scenario ? "the scenario keeps its text" : "no other source ships its text");
+  }
+  const full = await f.service.call("source.get", { id: "src-0001", limit: 60000 });
+  const stored = (await f.service.store.read()).sources.find((source) => source.id === "src-0001");
+  assert.equal(full.text, stored.text.slice(0, 60000), "the text is one source.get away");
+  assert.equal(full.chars, snapshot.sources.find((source) => source.id === "src-0001").chars, "the snapshot's chars is the real length");
+});
+
 test("polling and clicking for a long time does not grow the heap (memory budget)", async (t) => {
   const f = await fixture(t);
   let fingerprint = (await f.service.call("snapshot")).fingerprint;
