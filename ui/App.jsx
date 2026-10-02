@@ -11,7 +11,7 @@ import StudyMap from "./StudyMap.jsx";
 import Welcome, { SampleBanner } from "./Welcome.jsx";
 import Tour from "./tour/Tour.jsx";
 import TourGlyph from "./tour/TourGlyph.jsx";
-import { NavItem, ResumeNavItem, CoachNavItem } from "./SideNav.jsx";
+import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from "./SideNav.jsx";
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from "./tour/steps.js";
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from "./tour/progress.js";
 import { OnboardingPanel, RemoveSampleDialog } from "./tour/SampleControls.jsx";
@@ -20,8 +20,9 @@ import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
 import { dueSummary } from "../lib/board-model.js";
-import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
-import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
+import { BrandMark } from "./NavGlyph.jsx";
+import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
+import sideGroupsCss from "./side-groups.css";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
@@ -31,8 +32,10 @@ import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS } from "./generation-status.js";
 import ImportHub, { importOutcome } from './ImportHub.jsx';
 import { parseCourses } from './CourseField.jsx';
-import { countDocuments, documentSourceIds } from '../lib/source-groups.js';
-import { usePageScope } from './PageScope.jsx';
+import { countDocuments, documentSourceIds, groupSourcesByDocument } from '../lib/source-groups.js';
+import { sourceMatchesCourse } from '../lib/source-courses.js';
+import { bigDocuments } from '../lib/large-documents.js';
+import { usePageScope, courseNamesOf } from './PageScope.jsx';
 import AudioImport from "./AudioImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
@@ -75,6 +78,7 @@ export default function App({ call: transportCall, host = {} }) {
     return localizeRunResponse(result);
   }, [transportCall]);
   useInjectCss(localeCss, 'study-language');
+  useInjectCss(sideGroupsCss, 'study-side-groups');
   useInjectCss(css, "study-coach");
   useInjectCss(libraryChipCss, "study-library-chip");
   const rootRef = useRef(null),
@@ -189,6 +193,7 @@ export default function App({ call: transportCall, host = {} }) {
     lastRunId = data?.lastRun?.id,
     lastRunIndex = data?.lastRun?.index;
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
+  const navGroups = useNavGroups();
   const navLabels = {
     library: ui("学习库"), workflows: ui("学习流"), live: language === "en" ? "Live class" : "课堂实录",
     audio: language === "en" ? "Audio transcription" : "音频转录", wrongbook: ui("错题与待巩固"), exam: ui("模拟考试"),
@@ -208,7 +213,7 @@ export default function App({ call: transportCall, host = {} }) {
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
     observer?.observe(nav);
     return () => observer?.disconnect();
-  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex, navOrder.order]);
+  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex, navOrder.order, navGroups.folded]);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
@@ -216,6 +221,8 @@ export default function App({ call: transportCall, host = {} }) {
   // WP13: the course settings panel (a course id), opened from the library heading or Settings.
   // The open course panel: a course id, or { id, mergeFrom } when 合并到这里 opens the merge confirmation (WP14).
   const [courseSettings, setCourseSettings] = useState(null);
+  // A Settings section another page points at (the search extension, say); Settings opens its group and scrolls to it.
+  const [settingsFocus, setSettingsFocus] = useState("");
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
     [sourceText, setSourceText] = useState("");
@@ -292,7 +299,7 @@ export default function App({ call: transportCall, host = {} }) {
   const [revealHome, setRevealHome] = useState(0);
   const canChat = host.capabilities?.chat ?? !!host.askInChat;
   // DSH's own model settings when the host offers them, else Study Settings (plan C3).
-  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : setPage("settings"));
+  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : (setSettingsFocus("settings-model"), setPage("settings")));
   const [showBack, setShowBack] = useState(false),
     [settings, setSettings] = useState({}),
     [flag, setFlag] = useState(""),
@@ -1289,7 +1296,7 @@ export default function App({ call: transportCall, host = {} }) {
   ) : (
     <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sourceFormCourse} onCourseChange={changeSourceFormCourse}
       pasteDraft={{ title: sourceTitle, text: sourceText }} onPasteDraftChange={draft => { setSourceTitle(draft.title); setSourceText(draft.text); }}
-      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setPage('settings'); }}
+      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setSettingsFocus("settings-mineru"); setPage('settings'); }}
       onOpenSources={ids => { setPage('sources'); openAudioSources(ids); }}
       audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); setPage('settings'); }} /> : undefined} />
   );
@@ -1457,6 +1464,24 @@ export default function App({ call: transportCall, host = {} }) {
     setHiddenWelcome(data.root);
   }
   const openFirstImport = () => setModal({ type: "add" });
+  /* 课程准备 (ui/SetupChecklist.jsx): each step reuses a page or dialog that already exists. Making the first questions opens
+     创建题组 with the course filled in and the course's ordinary materials ticked (a long book is left for the chapter picker). */
+  const setupHandlers = {
+    import: (course) => setModal({ type: "add", course: course ?? "" }),
+    sources: () => setPage("sources"),
+    index: () => { setSettingsFocus("settings-extensions"); setPage("settings"); },
+    generate: (course) => {
+      const items = groupSourcesByDocument(data.sources.filter((source) => sourceMatchesCourse(source, course, courseNamesOf(data))));
+      const long = new Set(bigDocuments(items).map((item) => item.key));
+      setSelectedSources(items.filter((item) => !long.has(item.key)).flatMap((item) => item.sourceIds));
+      setGen((current) => ({ ...current, course }));
+      setGenSource("files");
+      setPage("generate");
+    },
+    draft: (id) => { const found = data.drafts.find((item) => item.id === id); if (found) openDraft(found); },
+    course: setCourseSettings,
+    skeleton: () => setPage("skeleton"),
+  };
   /** The tour switches pages at once: no leave animation, no stale context trail. */
   function showPage(id) {
     clearTimeout(leaveTimer.current);
@@ -1695,43 +1720,55 @@ export default function App({ call: transportCall, host = {} }) {
               style={{ transform: `translateY(${navMark.top}px)`, height: navMark.height }}
             />
           )}
-          <ResumeNavItem
-            lastRun={lastRun}
-            hasDecks={!!data?.decks.length}
-            ready={!!data}
-            active={navPage === "review"}
-            disabled={!data || busy || !pageAvailable(data, 'review')}
-            onClick={resumeOrStart}
-          />
-          {data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
-            <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={onCoachPractice} />
-          )}
-          {[...navOrder.order.main, ...navOrder.order.upkeep].filter(id => pageAvailable(data, id)).map((id) => {
-            const label = navLabels[id], upkeep = NAV_DEFAULTS.upkeep.includes(id);
-            const due = id === "board" && boardDue.overdue + boardDue.today > 0;
+          {NAV_GROUPS.map((group) => {
+            const ids = navOrder.order[group.id].filter(id => pageAvailable(data, id));
+            // A group whose pages are all switched off in the host is not drawn; the daily one always is (it holds 回到题目).
+            if (!ids.length && group.id !== "daily") return null;
             return (
-              <NavItem
-                key={id}
-                {...navOrder.bind(id)}
-                data-tour={`nav-${id}`}
-                className={navOrder.lifted === id ? "is-dragging" : ""}
-                upkeep={upkeep}
-                active={navPage === id}
-                glyph={id}
-                label={ui(label)}
-                title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
-                onClick={() => switchPage(id, () => {
-                  if (id === 'board') setBoardStudyRef(currentStudyReference());
-                  if (id === "exam") { setExamRunId(null); setExamKind('exam'); }
-                  if (id === "notes") setNoteInitialId("");
-                  if (id === 'graph') setGraphScope(null);
-                  setError("");
+              <NavGroup key={group.id} id={group.id} label={group.label} hint={group.hint} collapsible={group.collapsible}
+                open={groupIsOpen(group.id, navGroups.folded, navPage)} onToggle={() => navGroups.toggle(group.id)}>
+                {group.id === "daily" && (
+                  <ResumeNavItem
+                    lastRun={lastRun}
+                    hasDecks={!!data?.decks.length}
+                    ready={!!data}
+                    active={navPage === "review"}
+                    disabled={!data || busy || !pageAvailable(data, 'review')}
+                    onClick={resumeOrStart}
+                  />
+                )}
+                {group.id === "daily" && data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
+                  <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={onCoachPractice} />
+                )}
+                {ids.map((id) => {
+                  const label = navLabels[id];
+                  const due = id === "board" && boardDue.overdue + boardDue.today > 0;
+                  return (
+                    <NavItem
+                      key={id}
+                      {...navOrder.bind(id)}
+                      data-tour={`nav-${id}`}
+                      className={navOrder.lifted === id ? "is-dragging" : ""}
+                      upkeep={group.id === "setup"}
+                      active={navPage === id}
+                      glyph={id}
+                      label={ui(label)}
+                      title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
+                      onClick={() => switchPage(id, () => {
+                        if (id === 'board') setBoardStudyRef(currentStudyReference());
+                        if (id === "exam") { setExamRunId(null); setExamKind('exam'); }
+                        if (id === "notes") setNoteInitialId("");
+                        if (id === 'graph') setGraphScope(null);
+                        setError("");
+                      })}
+                      disabled={!data && id !== "board"}
+                      hint={id === "board" ? boardCount : id === "sources" && data ? countDocuments(data.sources) : undefined}
+                      hintClass={due ? "nav-count is-due" : "nav-count"}
+                      hintTitle={due ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}
+                    />
+                  );
                 })}
-                disabled={!data && id !== "board"}
-                hint={id === "board" ? boardCount : id === "sources" && data ? countDocuments(data.sources) : undefined}
-                hintClass={due ? "nav-count is-due" : "nav-count"}
-                hintTitle={due ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}
-              />
+              </NavGroup>
             );
           })}
           {navOrder.customized && !sidebarNarrow && (
@@ -1881,18 +1918,6 @@ export default function App({ call: transportCall, host = {} }) {
               <SampleBanner sample={data.sample} busy={busy || sampleBusy} onTour={() => startTour({ restart: true })}
                 onRemove={() => setRemovingSample(true)} />
             )}
-            {page === "library" && !showWelcome && data.coach?.ready > 0 && (
-              <div className="coach-offer" role="status">
-                <span className="coach-offer-mark" aria-hidden="true"><NavGlyph name="coach" /></span>
-                <div>
-                  <span className="eyebrow">{ui("为你定制")}</span>
-                  <strong>
-                    {data.today?.ahead ? ui("今天的任务完成了。") : ""}{uiFormat("为你定制的 {0} 道题已备好", [data.coach.ready])}</strong>
-                  <small>{ui("从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。")}</small>
-                </div>
-                <button className="primary" disabled={busy} onClick={() => act("coach.practice", {}, enterRun)}>{uiFormat("刷 {0} 道定制题 →", [data.coach.ready])}</button>
-              </div>
-            )}
             {page === "library" && !showWelcome && (
               <StudyMap
                 data={data}
@@ -1933,6 +1958,9 @@ export default function App({ call: transportCall, host = {} }) {
                 importLibrary={() => { setGenSource("json"); setPage("generate"); }}
                 generateFromSources={(ids) => { setSelectedSources(ids); setGen((current) => ({ ...current, course: undefined }));
                   setGenSource("files"); setPage("generate"); }}
+                setupHandlers={setupHandlers}
+                onCoachPractice={pageAvailable(data, 'review') ? onCoachPractice : undefined}
+                onWeakPoints={pageAvailable(data, 'wrongbook') ? () => setPage("wrongbook") : undefined}
                 openModelSettings={openModelSettings}
                 canChat={canChat}
                 reveal={revealHome}
@@ -2103,7 +2131,7 @@ export default function App({ call: transportCall, host = {} }) {
                 openAgent={host.openAgent}
                 onOpenSources={openAudioSources}
                 onLegacyRetry={job => { setLegacyAudioJobId(job.id); setPage('audio'); }}
-                onOpenSettings={() => setPage('settings')}
+                onOpenSettings={() => { setSettingsFocus("settings-mineru"); setPage('settings'); }}
                 onGenerate={generateFromSources}
               />
             )}
@@ -2196,6 +2224,10 @@ export default function App({ call: transportCall, host = {} }) {
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
+                appearance={{ language, onLanguage: setUiLanguage, theme, themes: THEMES, onTheme: setTheme }}
+                tourActive={!!tourStep}
+                focusSection={settingsFocus}
+                onFocused={() => setSettingsFocus("")}
                 onRestored={(restored) => {
                   libraryEpoch.current++;
                   navigationRequest.current++;

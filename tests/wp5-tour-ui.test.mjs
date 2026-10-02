@@ -37,6 +37,11 @@ test("the welcome page offers the sample tour, a first import and — without a 
   assert.match(empty, /载入示例并开始导览/);
   assert.match(empty, /导入我的第一份资料/);
   assert.match(empty, /以后再说/);
+  // The walkthrough of new learners: the first screen leads with "my first material"; the sample is a quiet link after it.
+  const primary = empty.match(/<button[^>]*sh-btn--primary[^>]*>(?:(?!<\/button>).)*<\/button>/s)[0];
+  assert.match(primary, /导入我的第一份资料/, "the one primary action imports the learner's own material");
+  assert.match(empty, /<button[^>]*sh-btn--link[^>]*>(?:(?!<\/button>).)*载入示例并开始导览/s, "the sample is a link, not the lead");
+  assert.ok(empty.indexOf("导入我的第一份资料") < empty.indexOf("载入示例并开始导览"), "the import comes first");
   assert.match(empty, /sh-setup/, "the model gate is a SetupRequired card");
   assert.match(empty, /AI 模型/);
   assert.doesNotMatch(empty, /JSON/);

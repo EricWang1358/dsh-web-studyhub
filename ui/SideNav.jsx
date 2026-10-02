@@ -21,6 +21,25 @@ export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hin
   );
 }
 
+/* A group of rows by when they are used (每天 / 阶段性 / 课程准备与管理, ui/nav-order.js). The label is one fixed-height line
+   of its own, so folding or opening a group moves only what is below it and never the height of any row. A foldable group
+   is a button with aria-expanded; a folded group keeps its rows in the page (hidden), so anchors and shortcuts still
+   resolve. The daily group has nothing to fold and is a plain heading. `hint` is the one line that says what the group holds. */
+export function NavGroup({ id, label, hint, collapsible = false, open = true, onToggle, children }) {
+  const labelId = `nav-group-${id}-label`, itemsId = `nav-group-${id}-items`;
+  const title = hint ? ui(hint) : undefined;
+  return (
+    <div className="nav-group" role="group" aria-labelledby={labelId} data-nav-group={id} data-open={open ? "true" : "false"}>
+      {collapsible
+        ? <button type="button" className="nav-group-label" id={labelId} aria-expanded={open} aria-controls={itemsId} title={title} onClick={onToggle}>
+          <span className="nav-group-text">{ui(label)}</span><span className="nav-group-chevron" aria-hidden="true" />
+        </button>
+        : <div className="nav-group-label is-static" id={labelId} title={title}><span className="nav-group-text">{ui(label)}</span></div>}
+      <div className="nav-group-items" id={itemsId} hidden={open ? undefined : true}>{children}</div>
+    </div>
+  );
+}
+
 /** 回到题目: back into the open run, or start today's study; with an open run its progress is the trailing hint. */
 export function ResumeNavItem({ lastRun, hasDecks, ready = true, active = false, disabled = false, onClick }) {
   const title = !ready
