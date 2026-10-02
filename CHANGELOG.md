@@ -2,6 +2,13 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.1 — 2026-10-03
+
+- **Changing the course of a big book works.** "Change course" on a converted book with more than 200 pages failed with "Choose 1–200 sources", because a book is one assignment per page. The ceiling is now 5000, and a failed save is shown inside the dialog instead of in a notice that landed on top of its own buttons. A long course path shows an ellipsis and the whole path as a tooltip.
+- **The "See original page" panel moves and resizes the way it looks.** The browser's own resize corner sat on the scrollbars and, with the panel docked bottom-right, moved the wrong way. It now has two visible grips (the top-left one keeps the bottom-right corner still, the bottom-right one keeps the top-left still), keyboard resizing with the arrow keys, a title that moves the panel, always inside the window, and no sideways scrollbar when the page is fitted to the width.
+- **A collapsed translation leaves no frame.** The 译 on the paragraph folds the translation away completely (no box, no bar, no preview) and opens it again; the fold arrow inside the block does the same.
+- **The serif reading face is less blurry.** It is drawn at weight 450 so thin Chinese strokes do not look soft on a dark page, in the reader and in explanations, Q&A and notes.
+
 ## 2.5.0 — 2026-10-02
 
 - **The sidebar and Settings follow how often you use a thing.** The sidebar has three groups: Every day (library, review, notes, to-do), Periodic (mock exams, statistics) and Course setup and management (materials, create a deck, skeleton, audio, class recordings); the lower two fold and remember it. A new **Course setup** checklist on the home page tracks the once-per-course steps (materials, converting and chapters, search index for a big book, original files, first questions, exam date, skeleton), ticks them by itself and offers one action per step. Settings has two groups, Common and One-time, and opens the one that still needs something. The home page shows one card for today and folds the other ways to start; an empty library leads with importing your own material.
