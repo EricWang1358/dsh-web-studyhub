@@ -43,6 +43,18 @@
   min-height: 52px; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); }
 :is(.study-app, .study-seat) .course-list__item.is-current { box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 5%, transparent); }
 :is(.study-app, .study-seat) .course-list__item > .sh-btn { flex: none; }
+/* 有效课程: the row's switch sits before 设置; its confirmation and result take the full width below. */
+:is(.study-app, .study-seat) .course-list__item { flex-wrap: wrap; }
+:is(.study-app, .study-seat) .course-list__item > .course-list__text { flex: 1 1 160px; }
+:is(.study-app, .study-seat) .course-list__item > .course-active.is-compact { display: contents; }
+:is(.study-app, .study-seat) .course-list__item > .course-active.is-compact > .course-active__row { order: 1; flex: none; }
+:is(.study-app, .study-seat) .course-list__item > .sh-btn { order: 2; }
+:is(.study-app, .study-seat) .course-list__item > .course-active.is-compact > :not(.course-active__row) { order: 3; flex: 1 0 100%; }
+:is(.study-app, .study-seat) .course-list__group-head { flex-wrap: wrap; }
+:is(.study-app, .study-seat) .course-list__group-head > .course-list__toggle { flex: 1 1 200px; }
+:is(.study-app, .study-seat) .course-list__group-head > .course-active.is-compact { display: contents; }
+:is(.study-app, .study-seat) .course-list__group-head > .course-active.is-compact > .course-active__row { order: 1; flex: none; }
+:is(.study-app, .study-seat) .course-list__group-head > .course-active.is-compact > :not(.course-active__row) { order: 3; flex: 1 0 100%; margin-bottom: var(--space-2); padding-left: var(--space-3); }
 :is(.study-app, .study-seat) .course-list__text { display: grid; gap: 2px; min-width: 0; text-align: left; }
 :is(.study-app, .study-seat) .course-list__text strong { color: var(--text); font-weight: 600; line-height: var(--lh-snug); overflow-wrap: anywhere; }
 :is(.study-app, .study-seat) .course-list__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }

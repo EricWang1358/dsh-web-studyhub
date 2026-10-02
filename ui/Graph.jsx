@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
-import PageScope, { usePageScope } from './PageScope.jsx';
+import PageScope, { usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { SegmentedControl } from './components/index.js';
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
 import {
@@ -58,6 +58,7 @@ export default function Graph({
 }) {
   useInjectCss(css, "study-graph");
   const [course, setCourse] = usePageScope(library?.root, 'graph', library?.focus?.course ?? '*');
+  const [showInactive, setShowInactive] = useShowInactive(library?.root, 'graph');
   const [browse, setBrowse] = useState(false);
   const objectScope = scope != null && !browse;
   const [mode, setMode] = useState("structure");
@@ -77,7 +78,7 @@ export default function Graph({
   const autoTried = useRef(false);
   const lastFit = useRef("");
   const fittedScale = useRef(1);
-  const scopeKey = JSON.stringify(objectScope ? { scope } : { course });
+  const scopeKey = JSON.stringify(objectScope ? { scope } : scopeArgs(course, showInactive));
 
   const load = useCallback(async () => {
     const n = ++seq.current;
@@ -471,7 +472,8 @@ export default function Graph({
       <div className="graph-toolbar graph-toolbar-sub">
         <PageScope courses={library?.focus?.courses} value={objectScope ? scope.length ? '@selected' : '*' : course}
           selectedLabel={objectScope && scope.length ? uiFormat('已选 {0} 项范围', [scope.length]) : undefined}
-          onChange={value => { if (value !== '@selected') { setBrowse(true); setCourse(value); } }} />
+          onChange={value => { if (value !== '@selected') { setBrowse(true); setCourse(value); } }}
+          showInactive={showInactive} onShowInactive={objectScope ? undefined : setShowInactive} />
         <span className="graph-scope">
           {scopeLabel}
           {nodeCount ? uiFormat(" · {0} 个节点", [nodeCount]) : ""}

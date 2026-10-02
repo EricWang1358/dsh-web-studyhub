@@ -42,6 +42,7 @@ import { createActRunner } from "./act-runner.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import CourseSettings, { CourseList } from './CourseSettings.jsx';
+import { CourseActiveProvider, activeNotice } from './CourseActive.jsx';
 import LanguageSwitch from './LanguageSwitch.jsx';
 import Inbox from "./Inbox.jsx";
 import { QuickActionsContext, dismissJobs, markInboxRead, useQuickActionsController } from "./quick-actions.js";
@@ -244,6 +245,18 @@ export default function App({ call: transportCall, host = {} }) {
     [explain, setExplain] = useState(false),
     [response, setResponse] = useState("");
   const [notice, setNotice] = useNotice(reviewNoticeScope(binding.root, page, run));
+  // 有效课程: park or revive a course from any page (ui/CourseActive.jsx). One write at a time like every act(); the notice carries the real numbers.
+  const courseActiveApi = useMemo(() => {
+    const setActive = async (course, active, options = {}) => {
+      const result = await act('course.setActive', { ...(course.id ? { id: course.id } : { name: course.name }), active, ...options }, undefined, { rethrow: true });
+      if (!result) throw new Error(ui('正在处理上一个操作，请稍后再点一次'));
+      const note = activeNotice(result);
+      setNotice({ text: [note.text, note.detail].filter(Boolean).join(' '), tone: note.tone });
+      return result;
+    };
+    return { setActive, activate: (course) => setActive(course, true), manage: () => setPage('settings') };
+    // act / setPage / setNotice only reach for current state when called.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const onReviewState = host.onReviewState;
   useEffect(() => {
     onReviewState?.(page === "review" ? run : null);
@@ -1624,6 +1637,7 @@ export default function App({ call: transportCall, host = {} }) {
     onCloseError={() => setError("")} onCloseNotice={() => setNotice("")} />;
   return (
     <QuickActionsContext.Provider value={quickApi}>
+    <CourseActiveProvider value={courseActiveApi}>
     <div
       className="study-app"
       data-theme={resolvedTheme}
@@ -2339,6 +2353,7 @@ export default function App({ call: transportCall, host = {} }) {
         </ModalFrame>
       )}
     </div>
+    </CourseActiveProvider>
     </QuickActionsContext.Provider>
   );
 }

@@ -23,7 +23,7 @@ export default function OralExam({ call, data, onExit, onStartRun, initialRunId,
   const [loading, setLoading] = React.useState(true);
   const identity = React.useRef(null), pending = React.useRef(false);
   const current = React.useRef({ run: null, answer: '', followupAnswer: '' });
-  const availableDecks = decksInCourse(data, course).filter(deck => deck.available &&
+  const availableDecks = decksInCourse(data, course, selection.includeInactive === true).filter(deck => deck.available &&
     (!selection.scope || selection.scope.some(ref => ref.deckId === deck.id)));
 
   function showRun(next) {
