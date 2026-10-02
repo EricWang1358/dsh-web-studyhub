@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readdir, stat } from "node:fs/promises";
+import { mkdtemp, rm, readdir, stat, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
@@ -145,6 +145,27 @@ test("opening a page does not copy the library to read it (read budget)", async 
       `${action} copied ${counts.structuredCloneChars} chars with structuredClone for a ${response}-char answer over a ${f.libraryChars}-char library`);
   }
   t.diagnostic(`page reads: ${report.map((row) => `${row.action} ${row.cloned}/${row.response}`).join(", ")}`);
+});
+
+test("heavy dependencies are imported when used, not when the host starts (cold-start budget)", async () => {
+  // yaml (a legacy import), pdf-lib and pdfjs-dist (PDF import and chunking) cost ~100-560 ms each to load: a static import anywhere
+  // in lib/ would put that on every host start. The client bundle files (lib/client.*.js) are build output, not sources.
+  const heavy = ["yaml", "pdf-lib", "pdfjs-dist"];
+  const offenders = [];
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.name.endsWith(".js") && !/^client\./.test(entry.name)) {
+        const text = await readFile(path, "utf8");
+        for (const name of heavy)
+          if (new RegExp(String.raw`^\s*(?:import|export)\b[^\n;]*\bfrom\s*['"]${name}(?:/[^'"]*)?['"]`, "m").test(text) ||
+              new RegExp(String.raw`^\s*import\s*['"]${name}['"]`, "m").test(text)) offenders.push(`${path}: ${name}`);
+      }
+    }
+  };
+  await walk("lib");
+  assert.deepEqual(offenders, [], "import() these where they are used");
 });
 
 test("polling and clicking for a long time does not grow the heap (memory budget)", async (t) => {
