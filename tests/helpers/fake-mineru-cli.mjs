@@ -13,12 +13,14 @@ import { appendFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs
 
    Timing (all optional, in the state file): `perPageMs` per page, `overheadMs` per call, `firstCallMs` once (the model load of the first parse),
    `delayMs` flat; the parse record the service would show for the run is visible to `list parses --json [--status S]` while it runs
-   (`queueMs`: first "pending", then "parsing"; `idleParses: true`: the service never reports it; `listFails: true`: the command fails), and
+   when `trackParses: true` (`queueMs`: first "pending", then "parsing"; `idleParses: true`: the service never reports it; `listFails: true`: the command fails), and
    `device` is shown by `server status` and `config show` the way a CLI that exposes it would. `failStarts: [page, ...]` fails every window starting there. */
 
 const statePath = process.env.FAKE_MINERU_STATE, logPath = process.env.FAKE_MINERU_LOG;
 const state = JSON.parse(readFileSync(statePath, 'utf8'));
-const save = () => { const temporary = `${statePath}.${process.pid}.tmp`; writeFileSync(temporary, JSON.stringify(state)); renameSync(temporary, statePath); };
+const save = () => writeFileSync(statePath, JSON.stringify(state));
+// Runs that are watched while they work (`trackParses`, `firstCallMs`) write the state from two processes at once: replace it whole, never half-written.
+const saveAtomic = () => { const temporary = `${statePath}.${process.pid}.tmp`; writeFileSync(temporary, JSON.stringify(state)); renameSync(temporary, statePath); };
 const argv = process.argv.slice(2);
 if (logPath) appendFileSync(logPath, `${JSON.stringify({ argv, pid: process.pid })}\n`);
 const out = text => process.stdout.write(`${text}\n`);
@@ -71,14 +73,15 @@ else if (command === 'list' && sub === 'parses') {
   if (state.failStarts?.includes(first)) fail('parse failed: model crashed', 2);
   if (state.dieOnFirst && first === state.dieOnFirst) { state.running = false; save(); fail('connection to the local server was lost'); }
   const delay = (state.loaded ? 0 : state.firstCallMs || 0) + (state.overheadMs || 0) + (state.perPageMs || 0) * (last - first + 1) + (state.delayMs || 0);
-  if (!state.idleParses) {
+  const tracked = !!state.trackParses && !state.idleParses;
+  if (tracked) {
     state.nextParseId = (state.nextParseId || 100) + 1;
     state.active = { id: state.nextParseId, sha256: state.sha256 || 'fake-sha', tier: flag('--tier') ?? 'basic', page_range: `${first}-${last}`, status: state.queueMs ? 'pending' : 'parsing' };
-    save();
-    if (state.queueMs) setTimeout(() => { state.active = { ...state.active, status: 'parsing' }; save(); }, state.queueMs);
+    saveAtomic();
+    if (state.queueMs) setTimeout(() => { state.active = { ...state.active, status: 'parsing' }; saveAtomic(); }, state.queueMs);
   }
   const finish = () => {
-    delete state.active; state.loaded = true; save();
+    if (tracked || state.firstCallMs) { delete state.active; state.loaded = true; saveAtomic(); }
     const eol = state.crlf ? '\r\n' : '\n';
     const parts = [];
     for (let page = first; page <= last; page++) {
