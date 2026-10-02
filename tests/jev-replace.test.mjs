@@ -90,9 +90,10 @@ test('the gate of a replace site opens only with the master switch, the site swi
 
 test('the runtime answers "is this site open" without sending anything', async t => {
   const h = await harness(t);
-  assert.deepEqual(await h.runtime.gate(SITE), { ok: false, reason: 'off' });
+  const gate = async () => { const { provider, ...rest } = await h.runtime.gate(SITE); assert.equal(provider, 'typesafe'); return rest; };
+  assert.deepEqual(await gate(), { ok: false, reason: 'off' });
   await h.open();
-  assert.deepEqual(await h.runtime.gate(SITE), { ok: true });
+  assert.deepEqual(await gate(), { ok: true });
   assert.equal(h.fake.requests.length, 0);
 });
 
@@ -160,7 +161,7 @@ test('a failing Jev (bad key, rate limit, overload, outage, network) falls back 
   for (const [status, reason] of [[401, 'invalid-key'], [429, 'rate-limited'], [529, 'overloaded'], [503, 'unavailable']]) {
     h.fake.clearFailures(); h.fake.requests.length = 0;
     h.fake.fail(...Array(30).fill({ status, body: { detail: 'SECRET_BODY' } }));
-    const result = await route(h, items);
+    const result = await route(h, items, { concurrency: 1 });
     assert.deepEqual(result.calls, [['a', 'b', 'c']], `${status}: one model call over everything`);
     assert.equal(result.summary.fallback.reason, reason, String(status));
     assert.equal(result.summary.jev, 0);
