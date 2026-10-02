@@ -59,4 +59,15 @@ export const startsIncluded = proposal => !!proposal?.jev?.changed;
 export const noteText = result => result?.unavailable?.message
   || (result?.partial ? uiFormat('有 {0} 份资料 Jev 没能判断：{1}', [result.partial.failed, result.partial.message]) : '');
 
+/** The defects the pre-check looks for, named as the defect (the number shown is the chance that it is present). */
+export const TRIAGE_LABELS = {
+  stemLeaksAnswer: () => ui('题干泄露答案'),
+  needsSource: () => ui('脱离原文看不懂'),
+  answerInEvidence: () => ui('答案没有被原文支持'),
+  oneDefensible: () => ui('不止一个选项成立（或没有）'),
+};
+/** The rows of one card's signal: [{ id, label, value: chance the defect is present, failed }], in the order of TRIAGE_LABELS. */
+export const triageRows = signal => Object.keys(TRIAGE_LABELS).filter(id => signal?.checks?.[id])
+  .map(id => ({ id, label: TRIAGE_LABELS[id](), value: signal.checks[id].failure, failed: !!signal.checks[id].failed }));
+
 export const lineText = jev => uiFormat('采用线 {0}', [percentText(jev?.threshold ?? 0.8)]);

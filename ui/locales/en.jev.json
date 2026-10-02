@@ -49,5 +49,16 @@
   "把握不够，没有填入": "Not confident enough, so nothing was filled in",
   "都不合适": "None of these",
   "采用线 {0}": "line {0}",
+  "题干泄露答案": "The question gives the answer away",
+  "脱离原文看不懂": "Cannot be understood without the source",
+  "答案没有被原文支持": "The answer is not supported by the source",
+  "不止一个选项成立（或没有）": "More than one option (or none) is defensible",
+  "Jev 预审 · 已改写": "Jev pre-check · rewritten",
+  "Jev 预审 · 有疑点": "Jev pre-check · doubts",
+  "Jev 预审 · 未见明显问题": "Jev pre-check · nothing obvious",
+  "Jev 预审": "Jev pre-check",
+  "判断线 {0}；只是参考，最终以独立复审为准。": "Line {0}; for reference only, the independent review decides.",
+  "这道题按上面的问题改写过一次（下面是改写后的题目），之后仍通过了独立复审。数字是 Jev 对改写前原题的判断。": "This question was rewritten once for the problems above (what follows is the rewritten question) and then still passed the independent review. The numbers are Jev’s view of the original.",
+  "数字是这个问题存在的可能性。": "Each number is the chance that the problem is present.",
   "有 {0} 份资料 Jev 没能判断：{1}": "{0} of the sources could not be judged by Jev: {1}"
 }

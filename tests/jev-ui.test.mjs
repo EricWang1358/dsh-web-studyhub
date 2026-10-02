@@ -13,12 +13,13 @@ const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export { default as JevSettings, JevSettingsView, JevPrivacy, JevUsageView } from './ui/JevSettings.jsx';
   export { JevSuggestButton, JevNote, JevProbabilities } from './ui/JevOrganize.jsx';
+  export { JevCardBadge, JevCardSignals } from './ui/JevBadge.jsx';
   export { privacyPoints, noteText, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META } from './ui/jev-flow.js';
   export { setUiLanguage, ENGLISH_SOURCES } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { JevSettings, JevSettingsView, JevUsageView, JevSuggestButton, JevNote, JevProbabilities, privacyPoints, noteText, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META, setUiLanguage, ENGLISH_SOURCES } = module.exports;
+const { JevSettings, JevSettingsView, JevUsageView, JevSuggestButton, JevNote, JevProbabilities, JevCardBadge, JevCardSignals, privacyPoints, noteText, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META, setUiLanguage, ENGLISH_SOURCES } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -177,8 +178,29 @@ test('the note above the suggestions: the reason when Jev could not help, the co
   assert.equal(en, '2 of the sources could not be judged by Jev: Jev is temporarily unavailable.');
 });
 
+test('the draft shows a small Jev pre-check badge and, inside the card, the chance of each defect', () => {
+  const flagged = { checks: { stemLeaksAnswer: { p: 0.96, failure: 0.96, failed: true }, needsSource: { p: 0.05, failure: 0.05, failed: false }, answerInEvidence: { p: 0.9, failure: 0.1, failed: false } }, flagged: true, failures: ['stemLeaksAnswer'], rewritten: true };
+  assert.equal(render(h(JevCardBadge, { signal: undefined })), '');
+  assert.match(render(h(JevCardBadge, { signal: flagged })), /data-jev-badge="rewritten"[^>]*>Jev 预审 · 已改写/);
+  assert.match(render(h(JevCardBadge, { signal: { ...flagged, rewritten: false } })), /data-jev-badge="flagged"/);
+  assert.match(render(h(JevCardBadge, { signal: { checks: {}, flagged: false } })), /data-jev-badge="clear"/);
+  const html = render(h(JevCardSignals, { signal: flagged, threshold: 0.8 }));
+  assert.match(html, /题干泄露答案/);
+  assert.match(html, /96%/);
+  assert.match(html, /5%/);
+  assert.match(html, /10%/, 'answerInEvidence shows the chance it is NOT supported');
+  assert.doesNotMatch(html, /不止一个选项/, 'a check that was not asked is not shown');
+  assert.match(html, /判断线 80%/);
+  assert.match(html, /最终以独立复审为准/);
+  assert.match(html, /改写过一次/);
+  const en = render(h(JevCardSignals, { signal: flagged, threshold: 0.8 }), 'en');
+  assert.ok(!han.test(en), en);
+  assert.match(en, /The question gives the answer away/);
+  assert.match(render(h(JevCardBadge, { signal: flagged }), 'en'), /Jev pre-check · rewritten/);
+});
+
 test('every Chinese sentence of the Jev screens has an English one', async () => {
-  const files = ['ui/JevSettings.jsx', 'ui/JevOrganize.jsx', 'ui/jev-flow.js'];
+  const files = ['ui/JevSettings.jsx', 'ui/JevOrganize.jsx', 'ui/JevBadge.jsx', 'ui/jev-flow.js'];
   const english = Object.assign({}, ...Object.values(ENGLISH_SOURCES));
   const missing = [];
   for (const file of files) {
