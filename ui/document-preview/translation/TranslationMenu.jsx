@@ -2,6 +2,8 @@ import React, { useEffect, useId, useRef } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { Button, SegmentedControl } from '../../components/index.js';
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
+import { expectedText, rangeTok } from '../../token-usage.js';
+import { totalTokens } from '../../../lib/token-usage.js';
 import Glyph from './Glyph.jsx';
 import { DISPLAY_MODES, jobActive, jobClock, jobFraction } from './model.js';
 
@@ -85,6 +87,9 @@ export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss })
   const headline = active ? (job.status === 'queued' ? ui('翻译排队中') : job.status === 'cancelling' ? ui('正在停止翻译…') : ui('正在翻译'))
     : failed ? ui('翻译没有完成') : cancelled ? ui('翻译已停止') : job.rejected ? ui('翻译完成，有几段没译成') : ui('翻译完成');
   const counts = uiFormat('已处理 {0} / {1} 段', [job.done ?? 0, job.total ?? 0]);
+  // What it used against what was expected, on one line; the full rows open on request so the notice stays one line high.
+  const used = job.tokenUsage ? `${ui('实际用量')} ${rangeTok({ low: totalTokens(job.tokenUsage), high: totalTokens(job.tokenUsage) })}` : '', expected = job.estimate ? expectedText(job.estimate) : '';
+  const summary = [used, expected].filter(Boolean).join(' · ');
   return <div className="tr-job" data-status={job.status} role="group" aria-label={ui('翻译任务')}>
     <div className="tr-job__row">
       {active ? <span className="sh-spinner" aria-hidden="true" /> : null}
@@ -99,7 +104,7 @@ export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss })
     {active && <small className="tr-job__note">{ui('后台继续翻译，可以接着读、接着提问；停止后已译的段落会保留。')}</small>}
     {!active && job.rejected > 0 && <small className="tr-job__note is-warning">{uiFormat('有 {0} 段没通过检查，没有保存；可以在那几段上点 译 再试。', [job.rejected])}</small>}
     {failed && job.stage && <details className="tr-job__raw"><summary>{ui('技术详情')}</summary><code>{job.stage}</code></details>}
-    <JobUsage job={job} />
+    {summary && <details className="tr-job__usage"><summary>{summary}</summary><JobUsage job={job} /></details>}
   </div>;
 }
 

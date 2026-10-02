@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { paragraphKey } from '../lib/passage-translation.js';
 import {
-  DISPLAY_MODES, SIDE_MIN_WIDTH, TRANSLATION_SETTINGS_KEY, buttonState, countTranslated, effectiveMode, failureKind, initialState, isShown, jobActive, jobClock,
+  DISPLAY_MODES, SIDE_MIN_COLUMN, SIDE_MIN_WIDTH, TRANSLATION_SETTINGS_KEY, blockState, buttonState, countTranslated, effectiveMode, failureKind, initialState, isShown, jobActive, jobClock,
   jobFraction, jobToShow, keyedParagraphs, loadTranslationSettings, normalizeTranslationSettings, passageOf, reducer, saveTranslationSettings, shortQuote, versionOf,
 } from '../ui/document-preview/translation/model.js';
 
@@ -31,6 +31,7 @@ test('four display modes, one remembered choice; anything stored that is not a m
 
 test('左右分栏 needs room: under the reader\'s narrow width it is drawn as 逐段对照, the other modes never change', () => {
   assert.equal(SIDE_MIN_WIDTH, 900);
+  assert.equal(SIDE_MIN_COLUMN, 640, 'the reading column needs room for two columns too');
   assert.equal(effectiveMode('side', 1200), 'side');
   assert.equal(effectiveMode('side', 900), 'side');
   assert.equal(effectiveMode('side', 899), 'pairs');
@@ -66,17 +67,18 @@ test('the 译 button shows none, translating, has, stale or error for each parag
   assert.equal(buttonState(state, 'z'), 'none', 'a passage that needs no translation is not an error');
 });
 
-test('the answers of a translate call fill the state: kept items, reasons for the rest, and a fresh translation opens', () => {
+test('the answers of a translate call fill the state: kept items and the reasons for the rest; in 隐藏译文 a fresh translation is revealed', () => {
   let state = loaded([]);
   state = reducer(state, { type: 'pending', keys: ['a', 'b', 'c', 'd'] });
-  state = reducer(state, { type: 'settled', results: [
+  state = reducer(state, { type: 'settled', reveal: true, results: [
     { key: 'a', status: 'translated', item: item('a') }, { key: 'b', status: 'cached', item: item('b') }, { key: 'c', status: 'rejected', code: 'refusal', message: 'no' }, { key: 'd', status: 'unlocated', code: 'ambiguous' }] });
   assert.deepEqual(Object.keys(state.items), ['a', 'b']);
   assert.deepEqual(state.pending, {});
   assert.equal(state.errors.c.code, 'refusal');
   assert.equal(state.errors.d.code, 'ambiguous');
-  assert.equal(state.shown.a, true, 'what was just translated is open');
+  assert.equal(state.shown.a, true, 'what was just translated is shown even in 隐藏译文');
   assert.equal(state.shown.b, undefined, 'what was already there follows the mode');
+  assert.equal(reducer(loaded([]), { type: 'settled', results: [{ key: 'a', status: 'translated', item: item('a') }] }).shown.a, undefined, 'without the reveal the mode decides');
   state = reducer(state, { type: 'unavailable', keys: ['e'] });
   assert.equal(state.modelAvailable, false);
   assert.equal(state.errors.e.code, 'model');
@@ -86,14 +88,19 @@ test('the answers of a translate call fill the state: kept items, reasons for th
   assert.equal(failureKind('whatever'), 'other');
 });
 
-test('a block is open when the learner said so, otherwise the mode decides; 隐藏译文 hides until one is asked for', () => {
+test('a block is open, collapsed to its bar, or hidden: the learner\'s choice wins, otherwise the mode decides', () => {
   let state = loaded([item('a')]);
-  assert.equal(isShown(state, 'a', 'pairs'), true);
+  assert.equal(blockState(state, 'a', 'pairs'), 'open');
+  assert.equal(blockState(state, 'a', 'only'), 'open');
+  assert.equal(blockState(state, 'a', 'hidden'), 'hidden');
   assert.equal(isShown(state, 'a', 'hidden'), false);
   state = reducer(state, { type: 'show', keys: ['a'], value: true });
-  assert.equal(isShown(state, 'a', 'hidden'), true, 'asking for one translation shows it in 隐藏译文');
+  assert.equal(blockState(state, 'a', 'hidden'), 'open', 'asking for one translation shows it in 隐藏译文');
   state = reducer(state, { type: 'show', keys: ['a'], value: false });
-  assert.equal(isShown(state, 'a', 'pairs'), false, 'a collapsed one stays collapsed');
+  assert.equal(blockState(state, 'a', 'pairs'), 'collapsed', 'a folded one keeps its bar, it is not hidden');
+  assert.equal(isShown(state, 'a', 'pairs'), false);
+  assert.equal(blockState(reducer(state, { type: 'show', keys: ['a'], value: undefined }), 'a', 'hidden'), 'hidden', 'forgetting the choice returns to the mode');
+  assert.equal(blockState(reducer(state, { type: 'show-reset' }), 'a', 'pairs'), 'open', 'changing the mode clears every choice');
 });
 
 test('deleting keeps what is needed to undo for a few seconds; undoing puts it back; letting it expire drops it', () => {

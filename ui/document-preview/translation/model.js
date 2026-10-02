@@ -11,6 +11,8 @@ import { paragraphKey } from '../../../lib/passage-translation.js';
 export const DISPLAY_MODES = Object.freeze(['pairs', 'side', 'only', 'hidden']);
 /** Below this width of the reader, 左右分栏 falls back to 逐段对照 (the reader's own NARROW mirror). */
 export const SIDE_MIN_WIDTH = 900;
+/** ... and the reading column itself needs this much (outline and learning panel open leave less): two columns of at least 320px. */
+export const SIDE_MIN_COLUMN = 640;
 export const TRANSLATION_SETTINGS_KEY = 'study-reader-translation';
 export const TRANSLATION_DEFAULTS = Object.freeze({ mode: 'pairs' });
 
@@ -67,7 +69,7 @@ export function reducer(state, action) {
     case 'settled': {
       const items = { ...state.items }, errors = { ...state.errors }, shown = { ...state.shown };
       for (const result of action.results) {
-        if (result.item && ['translated', 'cached', 'reused'].includes(result.status)) { items[result.key] = result.item; delete errors[result.key]; if (result.status === 'translated' && shown[result.key] === undefined) shown[result.key] = true; }
+        if (result.item && ['translated', 'cached', 'reused'].includes(result.status)) { items[result.key] = result.item; delete errors[result.key]; if (action.reveal && result.status === 'translated') shown[result.key] = true; }
         else if (result.status === 'skipped') errors[result.key] = { code: result.code || 'same-language' };
         else errors[result.key] = { code: result.code || result.status, message: result.message };
       }
@@ -79,7 +81,8 @@ export function reducer(state, action) {
     case 'removed': return { ...state, items: without(state.items, action.keys), undo: { ...state.undo, ...Object.fromEntries(action.keys.map(key => [key, action.removed.filter(item => item.key === key)])) } };
     case 'undone': return { ...state, undo: without(state.undo, action.keys), items: { ...state.items, ...Object.fromEntries((action.items || []).map(item => [item.key, item])) } };
     case 'undo-expired': return { ...state, undo: without(state.undo, action.keys) };
-    case 'show': return { ...state, shown: mark(state.shown, action.keys, action.value) };
+    case 'show': return { ...state, shown: action.value === undefined ? without(state.shown, action.keys) : mark(state.shown, action.keys, action.value) };
+    case 'show-reset': return { ...state, shown: {} };
     case 'reset': return initialState;
     case 'dismiss-error': return { ...state, errors: without(state.errors, action.keys) };
     case 'glossary': return { ...state, glossary: action.glossary, ...(action.target ? { target: action.target, targetSource: 'document' } : {}) };
@@ -95,8 +98,12 @@ export function buttonState(state, key) {
   return state.errors[key] && state.errors[key].code !== 'same-language' ? 'error' : 'none';
 }
 
-/** Whether a paragraph's translation block is open: an explicit choice wins; otherwise 隐藏译文 hides it, the other modes show it. */
-export const isShown = (state, key, mode) => state.shown[key] !== undefined ? !!state.shown[key] : mode !== 'hidden';
+/**
+ * 'open' (the translation is drawn), 'collapsed' (only the block's bar) or 'hidden' (not drawn at all, only the mark at the end of the paragraph).
+ * The learner's own choice for a paragraph wins; without one, 隐藏译文 hides it and the other modes open it.
+ */
+export const blockState = (state, key, mode) => state.shown[key] === true ? 'open' : state.shown[key] === false ? 'collapsed' : mode === 'hidden' ? 'hidden' : 'open';
+export const isShown = (state, key, mode) => blockState(state, key, mode) === 'open';
 
 /** The keys that have a translation (or are being made), in the order given. */
 export const translatedKeys = (state, keys) => keys.filter(key => state.items[key] || state.pending[key]);

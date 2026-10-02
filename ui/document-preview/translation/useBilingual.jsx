@@ -6,7 +6,7 @@ import { locateGroups } from '../links/link-ranges.js';
 import { captureSelection } from '../selection.js';
 import { createHost, createMark, paragraphAround, scanParagraphs } from './dom.js';
 import {
-  buttonState, effectiveMode, initialState, isShown, jobActive, jobToShow, keyedParagraphs, loadTranslationSettings, passageOf, reducer, saveTranslationSettings,
+  SIDE_MIN_COLUMN, blockState, buttonState, effectiveMode, initialState, isShown, jobActive, jobToShow, keyedParagraphs, loadTranslationSettings, passageOf, reducer, saveTranslationSettings,
 } from './model.js';
 import TranslationBlock from './TranslationBlock.jsx';
 import GlossaryDialog from './GlossaryDialog.jsx';
@@ -79,10 +79,21 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const [supported, setSupported] = useState(false), [version, setVersion] = useState(0), [hosts, setHosts] = useState(() => new Map()), [page, setPage] = useState(null);
   const [chip, setChip] = useState(null), [floating, setFloating] = useState(null), [menuOpen, setMenuOpen] = useState(false), [scopes, setScopes] = useState([]);
   const [glossaryOpen, setGlossaryOpen] = useState(false), [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set()), [now, setNow] = useState(() => Date.now());
-  const layer = useRef(emptyLayer()), latest = useRef({}), reading = view === 'read';
+  const layer = useRef(emptyLayer()), latest = useRef({}), scopeDefs = useRef([]), reading = view === 'read';
   const identity = useMemo(() => doc ? { documentId: doc.documentId || doc.id, ...(doc.revision ? { revision: doc.revision } : {}) } : null, [doc]);
   const identityKey = identity ? JSON.stringify(identity) : '';
-  const target = state.target, mode = effectiveMode(settings.mode, narrow ? 0 : 1000);
+  // 左右分栏 needs room: the reader's own narrow width, or a reading column squeezed by the outline and the learning panel, draws 逐段对照 instead.
+  const [roomy, setRoomy] = useState(true), crowded = narrow || !roomy;
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => setRoomy(element.clientWidth >= SIDE_MIN_COLUMN);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [scroller]);
+  const target = state.target, mode = effectiveMode(settings.mode, crowded ? 0 : 1000);
   useEffect(() => { saveTranslationSettings(settings); }, [settings]);
 
   /* ---------- the translations of this revision ---------- */
@@ -159,7 +170,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       button.title = words; button.setAttribute('aria-label', words);
       button.setAttribute('aria-pressed', current === 'has' || current === 'stale' ? String(isShown(state, key, mode)) : 'false');
     }
-    for (const [key, host] of own.hosts) host.dataset.shown = state.items[key] && !state.pending[key] ? String(isShown(state, key, mode)) : 'true';
+    for (const [key, host] of own.hosts) host.dataset.shown = state.items[key] && !state.pending[key] ? String(blockState(state, key, mode) !== 'hidden') : 'true';
     for (const paragraph of own.paragraphs) {
       const folded = mode === 'only' && state.items[paragraph.key] && isShown(state, paragraph.key, mode) && !own.origOpen.has(paragraph.key);
       if (folded) paragraph.element.dataset.trClamp = 'true'; else delete paragraph.element.dataset.trClamp;
@@ -179,7 +190,8 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       if (result?.available === false || result?.status === 'unavailable') { dispatch({ type: 'unavailable', keys }); return; }
       const results = result.results.map(item => ({ ...item, key: item.key || entries[item.index]?.key }));
       for (const item of results) { const wasTemp = entries[item.index]?.key; if (item.item && wasTemp && wasTemp !== item.key && own.temp.has(wasTemp)) own.pinned.set(item.key, own.temp.get(wasTemp)); }
-      dispatch({ type: 'settled', results, keys });
+      dispatch({ type: 'settled', results, keys, reveal: latest.current.mode === 'hidden' });
+      return results;
     } catch (error) {
       if (/cancel/i.test(error?.message || '')) dispatch({ type: 'cancelled', keys }); else dispatch({ type: 'failed', keys, message: error?.message });
     } finally { keys.forEach(key => { own.requests.delete(key); own.temp.delete(key); }); }
@@ -205,7 +217,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     if (current === 'none' || current === 'error') { void send([paragraphEntry(paragraph)]); return; }
     const open = isShown(state, key, mode);
     dispatch({ type: 'show', keys: [key], value: !open });
-    if (!open) layer.current.hosts.get(key)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    if (!open) setTimeout(() => layer.current.hosts.get(key)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }), 50);
   }, [state, mode, send, cancel]);
 
   const translateSelection = useCallback(capture => {
@@ -219,7 +231,11 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       if (area && last) setFloating({ key: tempKey, left: Math.max(0, Math.min(last.left - area.left, area.width - 320)), top: last.bottom - area.top + 6 });
     }
     setChip(null);
-    void send([{ key: tempKey, passage: selectionPassage({ ...capture, sourceId: capture.sourceId || source.id }) }]).then(() => {});
+    // In the 原文 view the card follows the selection's translation from the call out to the kept one.
+    void send([{ key: tempKey, passage: selectionPassage({ ...capture, sourceId: capture.sourceId || source.id }) }]).then(results => {
+      const made = results?.[0];
+      if (!block && made?.item) setFloating(current => current?.key === tempKey ? { ...current, key: made.key } : current);
+    });
   }, [body, reading, page, send, source.id]);
 
   /* The active paragraph (hover or focus) and the selection: the two things Alt+T and the chip act on. */
@@ -253,7 +269,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     container.addEventListener('click', click, true);
     return () => { container.removeEventListener('pointerover', track); container.removeEventListener('focusin', track); container.removeEventListener('click', click, true); };
   }, [body, supported, view, version]);
-  useEffect(() => { latest.current = { onMark }; });
+  useEffect(() => { latest.current = { onMark, mode }; });
 
   // The chip follows a selection of words worth translating, at its end.
   useEffect(() => {
@@ -345,7 +361,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     const spans = spanKeys();
     const defs = [{ id: 'page', label: paged ? ui('翻译本页') : ui('翻译本节'), short: paged ? ui('本页') : ui('本节'), paragraphs: spans.page },
       ...(spans.chapter ? [{ id: 'chapter', label: ui('翻译本章'), short: ui('本章'), paragraphs: spans.chapter }] : [])];
-    latest.current.defs = defs;
+    scopeDefs.current = defs;
     setScopes(defs.map(def => ({ id: def.id, label: def.label, status: 'loading' })));
     for (const def of defs) {
       try {
@@ -356,7 +372,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   }, [call, identity, target, spanKeys, paged]);
 
   const start = useCallback(async scopeId => {
-    const def = latest.current.defs?.find(item => item.id === scopeId);
+    const def = scopeDefs.current.find(item => item.id === scopeId);
     if (!def || !identity) return;
     try {
       const started = await call('generation.translation.start', { ...identity, target, passages: def.paragraphs.map(passageOf), label: def.short });
@@ -376,9 +392,10 @@ export default function useBilingual({ call, document: doc, source, view, paged,
 
   const showAll = useCallback(value => {
     const spans = spanKeys(), keys = spans.page.map(paragraph => paragraph.key).filter(key => state.items[key]);
-    if (keys.length) dispatch({ type: 'show', keys, value });
+    // Folding everything in 隐藏译文 hides them again; in the other modes it leaves each block's bar.
+    if (keys.length) dispatch({ type: 'show', keys, value: value || mode !== 'hidden' ? value : undefined });
     setMenuOpen(false);
-  }, [spanKeys, state.items]);
+  }, [spanKeys, state.items, mode]);
 
   const saveGlossary = useCallback(async glossary => {
     const result = await call('materials.translation.glossary.set', { ...identity, glossary });
@@ -402,21 +419,21 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     if (error && !item) return <TranslationBlock {...common} state="error" error={error} onRetry={() => { const paragraph = layer.current.byKey.get(key); if (paragraph) void send([paragraphEntry(paragraph)]); }} onDismiss={() => { dispatch({ type: 'dismiss-error', keys: [key] }); }} />;
     if (!item) return null;
     const entry = () => entryOfItem(item);
-    return <TranslationBlock {...common} state={pending ? 'pending' : 'ok'} item={item} pendingKind={pending} open={isShown(state, key, mode)}
-      onToggle={() => dispatch({ type: 'show', keys: [key], value: !isShown(state, key, mode) })} onCopy={() => copy(item)} onDelete={() => remove(key)} onCancel={() => cancel(key)}
+    return <TranslationBlock {...common} state={pending ? 'pending' : 'ok'} item={item} pendingKind={pending} open={blockState(state, key, mode) === 'open'}
+      onToggle={() => dispatch({ type: 'show', keys: [key], value: blockState(state, key, mode) !== 'open' })} onCopy={() => copy(item)} onDelete={() => remove(key)} onCancel={() => cancel(key)}
       onRetranslate={comment => { const made = entry(); if (made) void send([made], { retranslate: true, comment }); }} />;
   };
   const layerNodes = <>
     {[...hosts].map(([key, host]) => createPortal(blockFor(key), host, key))}
     {page && chip && !floating && createPortal(<SelectionChip left={chip.left} top={chip.top} target={target} onClick={() => translateSelection(captureSelection(body.current))} />, page)}
-    {page && floating && createPortal(<div className="tr-float" style={{ left: floating.left, top: floating.top }}>{blockFor(floating.key) || null}
+    {page && floating && blockFor(floating.key) && createPortal(<div className="tr-float" style={{ left: floating.left, top: floating.top }}>{blockFor(floating.key)}
       <button type="button" className="tr-float__close" aria-label={ui('关闭')} onClick={() => setFloating(null)}>×</button></div>, page)}
     {glossaryOpen && <GlossaryDialog glossary={state.glossary} target={target} onSave={saveGlossary} onPrice={priceAgain} onRetranslate={retranslateMany} onClose={() => setGlossaryOpen(false)} />}
   </>;
   const hasTranslations = Object.keys(state.items).length > 0;
   return {
     supported,
-    displayRow: supported ? <TranslationDisplayRow mode={settings.mode} target={target} narrow={narrow} onChange={next => setSettings({ mode: next })} /> : null,
+    displayRow: supported ? <TranslationDisplayRow mode={settings.mode} target={target} narrow={crowded} onChange={next => { dispatch({ type: 'show-reset' }); setSettings({ mode: next }); }} /> : null,
     toolbar: supported && view !== 'original' ? <TranslationMenu open={menuOpen} onOpenChange={openMenu} scopes={scopes} target={target} modelAvailable={state.modelAvailable} stale={state.stale}
       busy={active} mode={mode} hasTranslations={hasTranslations} onStart={start} onExpandAll={() => showAll(true)} onCollapseAll={() => showAll(false)} onGlossary={() => { setMenuOpen(false); setGlossaryOpen(true); }} onTarget={setTarget} /> : null,
     notice: supported && job ? <TranslationJobCard key="translation-job" job={job} now={now} onStop={stopJob} onDismiss={() => setDismissed(set => new Set(set).add(job.id))} /> : null,

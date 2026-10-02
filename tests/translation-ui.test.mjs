@@ -223,7 +223,7 @@ test('English: the job line is English; the label the learner chose stays as it 
   assert.doesNotMatch(markup, han);
   assert.match(markup, /Translating · This page/);
   assert.match(markup, /6 \/ 15 paragraphs handled · Elapsed 1:05/);
-  assert.doesNotMatch(jobCard({ ...running, status: 'complete', rejected: 1, tokenUsage: undefined, estimate: undefined, finishedAt: '2026-10-01T08:01:00.000Z' }, 'en'), han);
+  assert.doesNotMatch(jobCard({ ...running, scopeLabel: 'This page', status: 'complete', rejected: 1, tokenUsage: undefined, estimate: undefined, finishedAt: '2026-10-01T08:01:00.000Z' }, 'en'), han);
 });
 
 /* ---------- the chip and the glossary ---------- */
