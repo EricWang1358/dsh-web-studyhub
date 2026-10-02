@@ -144,3 +144,22 @@ test("a question reached from the inbox offers the way back to where the learner
   }));
   assert.match(html, /class="review-detour"[^>]*>← 回到之前的第 5 题</);
 });
+
+test("a failed background assist offers 重新提交 and 改一改再提交 buttons (it used to only say 'you can submit again')", () => {
+  const card = { id: "q", kind: "quiz", topic: "Context", prompt: "Who processes payments?", options: [{ id: "a", text: "Payment System" }] };
+  const html = renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "r", index: 0, total: 2, card, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
+    assistTasks: [{ id: "t", cardId: "q", mode: "ask", status: "failed", message: "新前置题格式无效", question: "为什么？", choices: ["prerequisite"] }],
+  }));
+  assert.match(html, /后台助教没能完成：新前置题格式无效/);
+  assert.match(html, /<button[^>]*>重新提交<\/button>/);
+  assert.match(html, /<button[^>]*>改一改再提交<\/button>/);
+  assert.doesNotMatch(html, /。可以重新提交。/);
+  const grade = renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "r", index: 0, total: 2, card, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
+    assistTasks: [{ id: "t", cardId: "q", mode: "grade", status: "failed", message: "x" }],
+  }));
+  assert.doesNotMatch(grade, /重新提交/, "a grading task has its own flow");
+});

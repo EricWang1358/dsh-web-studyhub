@@ -27,7 +27,7 @@
     min-height: 0;
     background: var(--bg-surface);
   }
-  .study-document-viewer[data-face='serif'] { --reader-face: var(--reader-serif); }
+  .study-document-viewer[data-face='serif'] { --reader-face: var(--reader-serif); --reader-weight: 450; }
 
   /* ── Toolbar ─────────────────────────────────────────────────────────── */
   .reader-toolbar {
@@ -260,6 +260,7 @@
     margin-inline: auto;
     color: var(--text);
     font-family: var(--reader-face);
+    font-weight: var(--reader-weight, 400);
     font-size: var(--reader-size);
     line-height: var(--reader-leading);
     overflow-wrap: anywhere;

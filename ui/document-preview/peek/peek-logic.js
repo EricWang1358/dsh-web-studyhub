@@ -106,3 +106,25 @@ export function peekStatus(document) {
 const PLACEHOLDER = /^(?:\[(?:Figure|图|图片)\]|!\[[^\]]*\]\(doc:[^)\s]*\))$/;
 /** A lone figure marker of the text (the converter's [Figure], or the doc: image block it names): the text has no picture there. */
 export const isFigurePlaceholder = value => typeof value === 'string' && PLACEHOLDER.test(value.trim());
+
+/** The smallest the panel may be made. */
+export const PEEK_MIN = { width: 260, height: 200 };
+export const clampTo = (value, low, high) => Math.min(Math.max(value, low), Math.max(low, high));
+
+/** The box after the title was dragged by (dx, dy) from `from`: held 8 px inside the window, the title bar (40 px) always reachable. win: { width, height }. */
+export function moveBox(from, dx, dy, win) {
+  return { ...from, left: clampTo(from.left + dx, 8, win.width - 8 - from.width), top: clampTo(from.top + dy, 8, win.height - 40) };
+}
+
+/**
+ * The box after a corner grip was dragged by (dx, dy) from `from`. 'se' keeps the top-left corner still and grows towards the cursor; 'nw' keeps the
+ * bottom-right corner still (the panel starts docked in the bottom-right corner, so this is the way it grows). Never below PEEK_MIN, never outside the window.
+ */
+export function resizeBox(corner, dx, dy, from, win) {
+  if (corner === 'se') {
+    return { ...from, width: clampTo(from.width + dx, PEEK_MIN.width, win.width - 8 - from.left), height: clampTo(from.height + dy, PEEK_MIN.height, win.height - 8 - from.top) };
+  }
+  const right = from.left + from.width, bottom = from.top + from.height;
+  const width = clampTo(from.width - dx, PEEK_MIN.width, right - 8), height = clampTo(from.height - dy, PEEK_MIN.height, bottom - 8);
+  return { left: right - width, top: bottom - height, width, height };
+}

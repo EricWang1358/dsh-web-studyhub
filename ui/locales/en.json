@@ -612,6 +612,8 @@
   "后台助教正在": "Background assistant is",
   "后台助教没能完成：": "Background assistant could not finish:",
   "。可以重新提交。": ". You can submit again.",
+  "重新提交": "Submit again",
+  "改一改再提交": "Edit, then submit again",
   "自动驾驶：马上进入下一题，点任意处或按键可停下": "Autopilot: advancing shortly. Click anywhere or press a key to stop",
   "· 下次复习": "· Next review",
   "· 已追加到本轮队尾，稍后再练一次": "· Added to the end of this session for another attempt",

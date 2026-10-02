@@ -104,6 +104,8 @@ export function buttonState(state, key) {
  */
 export const blockState = (state, key, mode) => state.shown[key] === true ? 'open' : state.shown[key] === false ? 'collapsed' : mode === 'hidden' ? 'hidden' : 'open';
 export const isShown = (state, key, mode) => blockState(state, key, mode) === 'open';
+/** Whether the block's place in the page exists at all: a collapsed or hidden translation leaves no frame (the paragraph's own 译 brings it back); a paragraph with no translation yet keeps its place for the waiting, undo and error notes. */
+export const hostShown = (state, key, mode) => state.items[key] && !state.pending[key] ? blockState(state, key, mode) === 'open' : true;
 
 /** The keys that have a translation (or are being made), in the order given. */
 export const translatedKeys = (state, keys) => keys.filter(key => state.items[key] || state.pending[key]);

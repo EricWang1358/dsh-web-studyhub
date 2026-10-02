@@ -5,13 +5,13 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-const compiled = await build({ stdin: { contents: `export {default as Sources, CourseDialog, courseAssignments} from './ui/Sources.jsx';
+const compiled = await build({ stdin: { contents: `export {default as Sources, CourseDialog, courseAssignments, saveDocumentCourses} from './ui/Sources.jsx';
   export {default as Generate} from './ui/Generate.jsx'; export {default as PdfImport} from './ui/PdfImport.jsx';
   export {usePageScope} from './ui/PageScope.jsx'; export {setUiLanguage} from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Sources, CourseDialog, courseAssignments, Generate, PdfImport, usePageScope, setUiLanguage } = module.exports;
+const { Sources, CourseDialog, courseAssignments, saveDocumentCourses, Generate, PdfImport, usePageScope, setUiLanguage } = module.exports;
 const data = { root: 'library-A', decks: [], drafts: [], sources: [{ id: 'a', title: 'Database notes', text: 'Transactions keep changes consistent.', courses: ['Databases'], createdAt: '2026-09-30' }],
   focus: { course: 'Systems', courses: [{ name: 'Databases' }, { name: 'Systems' }] }, jobs: [], modelReady: true };
 const noop = () => {};
@@ -105,4 +105,24 @@ test('the row menu lists its actions in one stacked menu instead of putting ever
   assert.doesNotMatch(css, /source-row-actions\[open\]\s*>\s*button/, 'a rule that makes every direct button absolute stacks them on top of each other');
   const rule = /\.source-row-actions\[open\]\s*>\s*\.source-row-menu\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
   assert.match(rule, /position:\s*absolute/); assert.match(rule, /display:\s*grid/);
+});
+
+test('a failed course save is said inside the dialog and never raises the global notice that covers its buttons', async () => {
+  const calls = [];
+  const failing = async (action, args, after, options) => { calls.push({ action, args, options }); if (options?.rethrow) throw new Error('请选择 1–5000 份资料'); };
+  assert.equal(await saveDocumentCourses(failing, [{ id: 'a', courses: ['X'] }], noop), '请选择 1–5000 份资料');
+  assert.equal(calls[0].action, 'source.courses.set');
+  assert.equal(calls[0].options.rethrow, true, 'the error comes back to the dialog instead of the app-wide notice');
+  let closed = 0;
+  const working = async (action, args, after) => { await after({ updated: 1 }); return { updated: 1 }; };
+  assert.equal(await saveDocumentCourses(working, [{ id: 'a', courses: ['X'] }], () => { closed += 1; }), '');
+  assert.equal(closed, 1);
+});
+
+test('a long course path is not cut without a trace: the field shows an ellipsis and the whole path as its title', async () => {
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync(new URL('../ui/course-field-css.js', import.meta.url), 'utf8'), /course-field__control > input \{[^}]*text-overflow:\s*ellipsis/);
+  const item = { key: 'doc-1', title: 'Book', sourceIds: ['a'], courses: ['Cloud Native Solution Design / 07 微服务设计：边界、通信、发现与兼容演进'], usedBy: [], pages: [] };
+  const html = renderToStaticMarkup(React.createElement(CourseDialog, { item, items: [item], byId: new Map([['a', { id: 'a', courses: item.courses }]]), courses: [{ name: 'Databases' }], busy: false, act: noop, onClose: noop }));
+  assert.match(html, /title="Cloud Native Solution Design \/ 07 微服务设计：边界、通信、发现与兼容演进"/);
 });

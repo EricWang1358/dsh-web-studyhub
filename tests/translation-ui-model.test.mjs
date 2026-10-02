@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { paragraphKey } from '../lib/passage-translation.js';
 import {
-  DISPLAY_MODES, SIDE_MIN_COLUMN, SIDE_MIN_WIDTH, TRANSLATION_SETTINGS_KEY, blockState, buttonState, countTranslated, effectiveMode, failureKind, initialState, isShown, jobActive, jobClock,
+  DISPLAY_MODES, SIDE_MIN_COLUMN, SIDE_MIN_WIDTH, TRANSLATION_SETTINGS_KEY, blockState, buttonState, countTranslated, effectiveMode, failureKind, hostShown, initialState, isShown, jobActive, jobClock,
   jobFraction, jobToShow, keyedParagraphs, loadTranslationSettings, normalizeTranslationSettings, passageOf, reducer, saveTranslationSettings, shortQuote, versionOf,
 } from '../ui/document-preview/translation/model.js';
 
@@ -97,7 +97,12 @@ test('a block is open, collapsed to its bar, or hidden: the learner\'s choice wi
   state = reducer(state, { type: 'show', keys: ['a'], value: true });
   assert.equal(blockState(state, 'a', 'hidden'), 'open', 'asking for one translation shows it in 隐藏译文');
   state = reducer(state, { type: 'show', keys: ['a'], value: false });
-  assert.equal(blockState(state, 'a', 'pairs'), 'collapsed', 'a folded one keeps its bar, it is not hidden');
+  assert.equal(blockState(state, 'a', 'pairs'), 'collapsed', 'a folded one is remembered as the learner choice');
+  assert.equal(hostShown(state, 'a', 'pairs'), false, 'but it leaves no frame in the page: the inline 译 brings it back');
+  assert.equal(hostShown(reducer(state, { type: 'show', keys: ['a'], value: true }), 'a', 'pairs'), true);
+  assert.equal(hostShown(loaded([item('b')]), 'b', 'hidden'), false);
+  assert.equal(hostShown(loaded([item('b')]), 'b', 'pairs'), true);
+  assert.equal(hostShown(loaded([]), 'missing', 'pairs'), true, 'a paragraph with no translation yet keeps its host (pending/undo/error notes)');
   assert.equal(isShown(state, 'a', 'pairs'), false);
   assert.equal(blockState(reducer(state, { type: 'show', keys: ['a'], value: undefined }), 'a', 'hidden'), 'hidden', 'forgetting the choice returns to the mode');
   assert.equal(blockState(reducer(state, { type: 'show-reset' }), 'a', 'pairs'), 'open', 'changing the mode clears every choice');

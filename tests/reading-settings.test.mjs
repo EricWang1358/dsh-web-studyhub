@@ -173,3 +173,16 @@ test('an `extra` row (the reader\'s 译文显示 choice) is drawn between the ro
   assert.ok(markup.indexOf('data-extra') < markup.indexOf('恢复默认'), 'above the reset button');
   assert.ok(markup.indexOf('data-extra') > markup.indexOf('下划线'), 'below the underline row');
 });
+
+test('the serif face is drawn a little heavier than regular so thin CJK strokes do not look blurry on a dark page', async () => {
+  const { readFile: read } = await import('node:fs/promises');
+  const shared = await read(new URL('../ui/reading-settings/reading.css', import.meta.url), 'utf8');
+  const reader = await read(new URL('../ui/document-preview/reader/reader.css', import.meta.url), 'utf8');
+  assert.match(shared, /\[data-face='serif'\]\s*\{[^}]*--reader-weight:\s*450/, 'the study content reading blocks');
+  assert.match(reader, /\[data-face='serif'\]\s*\{[^}]*--reader-weight:\s*450/, 'the source reader');
+  // every text rule that takes the face also takes the weight, so the two cannot drift apart
+  for (const [name, css] of [['reading.css', shared], ['reader.css', reader]]) {
+    const faces = css.match(/font-family:\s*var\(--reader-face\);/g)?.length ?? 0, weights = css.match(/font-weight:\s*var\(--reader-weight,\s*400\);/g)?.length ?? 0;
+    assert.ok(faces > 0 && weights >= faces, `${name}: ${faces} face rules, ${weights} weight rules`);
+  }
+});

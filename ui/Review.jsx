@@ -707,7 +707,16 @@ export default function Review({
                 </p>
               )}
               {!runningTask && lastTask?.status === "failed" && (
-                <p className="assist-status failed" role="status">{ui("后台助教没能完成：")}{lastTask.message || ui("任务失败")}{ui("。可以重新提交。")}</p>
+                <div className="assist-status failed assist-failed" role="status">
+                  <p>{ui("后台助教没能完成：")}{lastTask.message || ui("任务失败")}</p>
+                  {/* "可以重新提交" used to be only a sentence: the buttons send the same request again, or open the form with it filled in to change first. */}
+                  <div className="assist-actions">
+                    <button type="button" className="primary pill" disabled={busy}
+                      onClick={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [])}>{ui("重新提交")}</button>
+                    {(lastTask.mode === "ask" || lastTask.mode === "improve") && <button type="button" className="pill"
+                      onClick={() => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); }}>{ui("改一改再提交")}</button>}
+                  </div>
+                </div>
               )}
             </SmoothHeight>
             {coachProps?.autoAdvance > 0 && (

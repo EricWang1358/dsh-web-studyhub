@@ -46,16 +46,19 @@
     overflow-wrap: anywhere;
   }
   .study-reading--measure { max-width: var(--reading-measure, none); }
-  .study-reading[data-face='serif'] { --reader-face: var(--reader-serif); }
+  /* The serif face is drawn a little heavier (variable CJK serifs such as Noto Serif SC follow it; a static one stays regular): at 16px on a dark page its thin strokes otherwise read as blur. */
+  .study-reading[data-face='serif'] { --reader-face: var(--reader-serif); --reader-weight: 450; }
 
   /* The text elements follow the reading size, leading and typeface. The doubled class outranks the page's own px sizes. */
   .study-reading.study-reading :is(p, li, blockquote, dd, dt, figcaption, .md) {
     font-family: var(--reader-face);
+    font-weight: var(--reader-weight, 400);
     font-size: var(--reader-size, 16px);
     line-height: var(--reading-leading, 1.65);
   }
   .study-reading.study-reading :is(td, th) {
     font-family: var(--reader-face);
+    font-weight: var(--reader-weight, 400);
     font-size: var(--reader-size, 16px);
     line-height: 1.6;
   }
@@ -67,6 +70,7 @@
   /* An article that is all text (a lesson): the container itself is the text, and its headings scale with it. */
   .study-reading--prose.study-reading {
     font-family: var(--reader-face);
+    font-weight: var(--reader-weight, 400);
     font-size: var(--reader-size, 16px);
     line-height: var(--reader-leading, 1.8);
   }

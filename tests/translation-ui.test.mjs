@@ -69,12 +69,10 @@ test('a second version shows its number and the comment that made it; the earlie
   assert.doesNotMatch(block({ state: 'ok', item: item() }), /历史版本|v1/);
 });
 
-test('a collapsed block keeps its bar and a one-line preview; an outdated one says why and offers a retranslation', () => {
+test('a collapsed block leaves no frame at all (the inline 译 on the paragraph opens it again); an outdated one says why and offers a retranslation', () => {
   const folded = block({ state: 'ok', item: item({ text: '一二三四五六七八九十'.repeat(30) }), open: false });
-  assert.match(folded, /aria-expanded="false"/);
-  assert.match(folded, /aria-label="展开译文"/);
-  assert.match(folded, /tr-block__preview/);
-  assert.doesNotMatch(folded, /tr-block__text/);
+  assert.equal(folded, '', 'no box, no bar, no preview once the learner collapsed it');
+  assert.match(block({ state: 'ok', item: item(), open: true }), /aria-label="收起译文"/, 'while open the bar can still fold it');
   const stale = block({ state: 'ok', item: item({ outdated: true }) });
   assert.match(stale, /术语表已改/);
   assert.match(stale, /术语表改过了，这段译文可能不一致。/);

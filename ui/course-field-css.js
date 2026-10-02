@@ -5,7 +5,7 @@ export default `:is(.study-app, .study-seat) .course-field { container: course-f
 :is(.study-app, .study-seat) .source-organize > .course-field { max-width: 560px; }
 :is(.study-app, .study-seat) .course-field__label { margin: 0; }
 :is(.study-app, .study-seat) .course-field__control { position: relative; min-width: 0; }
-:is(.study-app, .study-seat) .course-field__control > input { width: 100%; margin: 0; }
+:is(.study-app, .study-seat) .course-field__control > input { width: 100%; margin: 0; text-overflow: ellipsis; }
 :is(.study-app, .study-seat) .course-field__control.has-value > input { padding-right: 44px; }
 :is(.study-app, .study-seat) .course-field__clear { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); color: var(--text-muted); }
 :is(.study-app, .study-seat) .course-field__clear:hover:not(:disabled) { color: var(--text); }
