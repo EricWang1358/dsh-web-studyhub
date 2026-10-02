@@ -120,10 +120,10 @@ const History = React.memo(function History({ session }) {
 
 /* The skeleton for a guided session that started without one: it can be
    drafted in the background and appears here, folded, once it is ready. */
-export function SpinePeek({ session, resources, late, disabled, onGenerate }) {
+export function SpinePeek({ session, resources, stepKind, late, disabled, onGenerate }) {
   const job = session.skeletonJob;
-  if (resources.skeleton) return <details className="wf-spine-peek"><summary>{ui("本次脉络 · ")}{resources.skeleton.title}<span className="muted small">{job?.status === "done" ? ui("后台刚整理好，展开看看主线") : ui("展开看看主线")}</span></summary>
-    {resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} /></details>;
+  if (resources.skeleton) return <SkeletonSpine className="wf-spine-peek" skeleton={resources.skeleton} stepKind={stepKind || "lesson"} heading={uiFormat("本次脉络 · {0}", [resources.skeleton.title])}>
+    {resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}</SkeletonSpine>;
   if (session.status === "completed" || !resources.cardCount) return null;
   if (job?.status === "running" && resources.skeletonActive)
     return <p className="wf-spine-status" role="status"><span className="wf-pulse" aria-hidden="true" />{ui("AI 正在后台整理本次的知识骨架（")}{job.cards}{ui(" 题），好了会出现在这里，学习不用等它。")}</p>;
@@ -415,14 +415,14 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
         {reachable ? <button type="button" className="wf-route-link" disabled={busy} title={resume ? ui("回到刚才的进度") : uiFormat("回到「{0}」看看，记录都会保留", [item.title])} onClick={() => goTo(item.id)}>{body}</button> : body}
       </li>;
     })}</ol>
-    {!session.template.steps.some((item) => item.kind === "skeleton") && <SpinePeek session={session} resources={resources} late={step.kind === "reflection"} disabled={busy || !!remote} onGenerate={generateSkeleton} />}
+    {!session.template.steps.some((item) => item.kind === "skeleton") && <SpinePeek session={session} resources={resources} stepKind={step.kind} late={step.kind === "reflection"} disabled={busy || !!remote} onGenerate={generateSkeleton} />}
     {!completed && <article className="wf-activity">
       <div className="wf-section-head"><h2>{step.title}</h2></div>
       {step.instructions && <Markdown text={step.instructions} className="wf-instructions" />}
       {!active && <p className="wf-notice">{ui("已暂停。点「继续学习」后可接着作答，当前内容可以阅读。")}</p>}
       {["overview", "reflection"].includes(step.kind) && <LearnerChoices kind={step.kind} output={output} disabled={!active || busy || !!remote} onChange={changeOutput} />}
       {step.kind === "recall" && <section className="wf-recall-invitation"><h3>{ui("先合上材料，用自己的话讲一遍")}</h3><p>{ui("试着说清核心机制、一个例子，以及什么时候不适用。")}</p><div className="wf-quick-choices"><button type="button" aria-pressed={oralReported} disabled={!active || busy || !!remote} onClick={() => changeOutput(oralReported ? output.split("\n").filter((line) => !Object.values(ORAL_REPORTS).includes(line)).join("\n").trim() : [output.trim(), ORAL_REPORTS[getUiLanguage()]].filter(Boolean).join("\n"))}>{oralReported ? ui("已记录：我已口头复述") : ui("我已口头复述")}</button></div><small className="muted">{ui("这是你的自我记录；不会据此判分或认定掌握。也可以在下面写下复述。")}</small></section>}
-      {step.kind === "skeleton" && (resources.skeleton ? <div className="wf-skeleton"><h3>{resources.skeleton.title}</h3>{resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} /></div> : <SkeletonMaker session={session} resources={resources} disabled={!active || busy || !!remote} onGenerate={generateSkeleton} />)}
+      {step.kind === "skeleton" && (resources.skeleton ? <div className="wf-skeleton"><h3>{resources.skeleton.title}</h3>{resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} stepKind="skeleton" /></div> : <SkeletonMaker session={session} resources={resources} disabled={!active || busy || !!remote} onGenerate={generateSkeleton} />)}
       {step.kind === "lesson" && <WorkflowLesson key={step.id} topic={session.topic} content={content} record={record} resources={resources} disabled={!active || busy || !!remote} onTeach={teach} onUndo={undoTeaching} call={call} sessionId={id} stepId={step.id} />}
       {!["lesson", "recall"].includes(step.kind) && content && <section className="wf-material" aria-label={ui("本步材料")}>
         <p className="wf-material-head"><span className="wf-eyebrow">{!record.content ? ui("本步材料") : record.materialBy === "ai" ? ui("AI 补充的材料") : ui("主对话补充的材料")}</span>{record.materialAt && <time>{stamp(record.materialAt)}</time>}</p>

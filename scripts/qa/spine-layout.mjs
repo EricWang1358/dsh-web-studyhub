@@ -99,14 +99,18 @@ async function main() {
       const tag = `${lang}-${theme}-${width}`;
       for (const mode of ["peek", "subject"]) {
         const { page, errors, close } = await openSpine(browser, await harness, { lang, theme, width, mode });
-        const base = phase === "before" ? null : "default";
         const states = [];
-        if (base) states.push([base, async () => {}]);
-        if (phase === "before" && mode === "peek") states.push(["open", async () => { await page.locator(".wf-spine-peek > summary").click(); await sleep(200); }]);
-        if (phase === "before" && mode === "subject") states.push(["open", async () => {}]);
-        if (phase === "after") {
-          if (mode === "peek") states.push(["expanded", async () => { await page.locator(".spine-toggle").first().click(); await sleep(250); }]);
-          states.push(["all", async () => { await page.locator(".spine-all-toggle").first().click(); await sleep(250); }]);
+        const click = (selector) => async () => { await page.locator(selector).first().click(); await sleep(250); };
+        if (phase === "before") {
+          states.push(["open", mode === "peek" ? click(".wf-spine-peek > summary") : async () => {}]);
+        } else {
+          // Folded in a lesson, open on the skeleton step; then the longest station (4), the overview, and the fold again.
+          states.push([mode === "peek" ? "folded" : "open", async () => {}]);
+          if (mode === "peek") states.push(["open-st1", click(".spine-toggle")]);
+          states.push(["open-st4", async () => { await page.locator(".spine-tab").nth(3).click(); await sleep(250); }]);
+          states.push(["all", click(".spine-all-toggle")]);
+          states.push(["all-closed", click(".spine-all-toggle")]);
+          if (mode === "subject") states.push(["folded", click(".spine-toggle")]);
         }
         for (const [name, act] of states) {
           await act();

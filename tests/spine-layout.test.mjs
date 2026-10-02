@@ -1,3 +1,4 @@
+/* global document, window, getComputedStyle */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -13,10 +14,13 @@ import { spineFixture } from "../scripts/qa/spine-fixture.mjs";
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const COMBOS = [["zh", "dark", 1440], ["en", "light", 1194], ["zh", "light", 768], ["en", "dark", 420]];
-// Bounds in CSS px, taken from the measured design with headroom; the old panel was 729 (wide) and 1413 (420) when open.
-const BOUNDS = (width) => width >= 768
-  ? { folded: 72, foldedLessonTop: 260, openWorst: 560, openShort: 440 }
-  : { folded: 124, foldedLessonTop: 330, openWorst: 760, openShort: 560 };
+// Bounds in CSS px, measured on the finished design with ~10% headroom. The old panel, open, was 729 at every wide width and
+// 1413 (zh) / 1669 (en) at 420; folded is new (the old one was a closed <details>).
+const BOUNDS = (width) => width >= 1100
+  ? { folded: 64, foldedLessonTop: 260, openWorst: 520, openShort: 340 }
+  : width >= 640
+    ? { folded: 96, foldedLessonTop: 300, openWorst: 520, openShort: 320 }
+    : { folded: 150, foldedLessonTop: 330, openWorst: 940, openShort: 480 };
 
 const selected = (page) => page.locator('.spine-tab[aria-selected="true"]').evaluateAll((els) => els.map((el) => el.querySelector(".spine-marker").textContent.trim()));
 

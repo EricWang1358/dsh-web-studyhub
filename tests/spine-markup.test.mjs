@@ -92,7 +92,7 @@ test("English: every label, tooltip and count is English", () => {
     for (const props of [{ stepKind: "skeleton", onPractice: () => {} }, { stepKind: "lesson", heading: "Session outline · x" }, {}]) {
       const html = render({ skeleton, ...props });
       assert.doesNotMatch(html, han, JSON.stringify(props));
-      assert.match(html, /5 stations · 8 points/);
+      assert.match(html, /5 stations · 8 key points/);
     }
     const open = render({ skeleton, stepKind: "skeleton" });
     assert.match(open, /aria-label="Previous station"/);
