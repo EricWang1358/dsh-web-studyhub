@@ -1,4 +1,5 @@
-/* npm run qa:outline [-- --lang zh|en --theme dark|light --width 1440|1194|420 --out <dir>]
+/* npm run qa:outline [-- --lang zh|en --theme dark|light --width 1440|1194|420 --model fake|none|bad --out <dir>]
+   --model none: no model is connected (the flow says so plainly); bad: the model answers with something that is not an outline (rejected, usage shown).
    The reader's contents panel as a tree and the AI re-outline / re-segmentation flow, in the browser preview: a seeded
    temporary library (a bilingual transcript as Markdown, a text PDF, a recording of three files, a pasted text), the fake
    model, Chromium, every key/token/base-url variable removed. One screenshot per step and <out>/summary.json (steps,
@@ -13,6 +14,7 @@ import { createPreviewServer } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
+import { reportUsage } from "../../lib/usage-scope.js";
 import { bilingualMarkdown } from "../../tests/helpers/bilingual-transcript.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -22,7 +24,9 @@ export function parseArgs(argv) {
   const values = {};
   for (let i = 0; i < argv.length; i += 1) if (argv[i].startsWith("--")) values[argv[i].slice(2)] = argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : "true";
   const lang = values.lang ?? "zh", theme = values.theme ?? "dark", width = Number(values.width ?? 1440);
-  return { lang, theme, width, height: Number(values.height ?? (width < 700 ? 860 : 900)), out: resolve(values.out ?? join(repoRoot, `output/qa/outline/${lang}-${theme}-${width}`)) };
+  const model = values.model ?? "fake";
+  if (!["fake", "none", "bad"].includes(model)) throw new Error("--model must be fake, none or bad");
+  return { lang, theme, width, model, height: Number(values.height ?? (width < 700 ? 860 : 900)), out: resolve(values.out ?? join(repoRoot, `output/qa/outline/${lang}-${theme}-${width}`)) };
 }
 
 /** A library with one of each kind of document the flow is meant for. */
@@ -54,7 +58,10 @@ export async function runOutlineQa(options) {
   const library = join(options.out, "work", "library");
   await mkdir(library, { recursive: true });
   await seed(library);
-  const server = await createPreviewServer({ libraryRoot: library, home: join(options.out, "work", "home"), port: 0, model: createFakeModel({ latencyMs: 700, usage: true }) });
+  // A model that does not answer with an outline: one call, and what it cost is still reported.
+  const bad = async () => { reportUsage({ uncachedInputTokens: 1200, outputTokens: 40, cacheReadTokens: 0, cacheWriteTokens: 0 }, { calls: 1 }); return "Sorry, I cannot make an outline of this."; };
+  const model = options.model === "none" ? null : options.model === "bad" ? bad : createFakeModel({ latencyMs: 700, usage: true });
+  const server = await createPreviewServer({ libraryRoot: library, home: join(options.out, "work", "home"), port: 0, model });
   const browser = await launchChromium({ args: [`--lang=${options.lang === "en" ? "en-US" : "zh-CN"}`] });
   const summary = { startedAt: new Date().toISOString(), options, url: server.url, scrubbedEnv: removed, steps: [], consoleErrors: [], pageErrors: [], apiErrors: [] };
   try {
@@ -84,6 +91,7 @@ export async function runOutlineQa(options) {
     const openRow = async (title) => { await page.locator(".source-doc", { hasText: title }).locator(".source-main").click(); await viewer.waitFor(); await sleep(500); };
     const row = (title) => page.locator(".source-doc", { hasText: title });
     const dialog = page.locator("dialog[open]");
+    const finish = () => summary;
 
     await page.goto(server.url);
     await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
@@ -99,12 +107,29 @@ export async function runOutlineQa(options) {
     });
     await step("reader-filter", async () => { await openOutline(); await viewer.locator(".reader-outline__filter input").fill("对照"); });
     await step("reader-filter-cleared", async () => { await openOutline(); await viewer.locator(".reader-outline__filter input").fill(""); });
+    if (options.model === "none") {
+      await step("ai-no-model", async () => {
+        await openOutline();
+        await viewer.getByRole("button", { name: t("对自动解析的标题不满意？让 AI 帮你", "Not happy with the automatic headings? Let AI help") }).click();
+        await viewer.locator('[data-phase="nomodel"]').waitFor();
+      });
+      return finish();
+    }
     await step("ai-estimate", async () => {
       await openOutline();
       await viewer.getByRole("button", { name: t("对自动解析的标题不满意？让 AI 帮你", "Not happy with the automatic headings? Let AI help") }).click();
       await viewer.locator('[data-phase="ready"]').waitFor();
     });
-    await step("ai-running", async () => { await openOutline(); await viewer.getByRole("button", { name: t("开始", "Start") }).click(); await viewer.locator('[data-phase="running"]').waitFor(); });
+    await step("ai-running", async () => {
+      await openOutline();
+      await viewer.getByRole("button", { name: t("开始", "Start") }).click();
+      // a model that answers at once may already be past "running"
+      await viewer.locator('[data-phase="running"], [data-phase="rejected"]').first().waitFor();
+    });
+    if (options.model === "bad") {
+      await step("ai-rejected", async () => { await viewer.locator('[data-phase="rejected"]').waitFor({ timeout: 15000 }); });
+      return finish();
+    }
     await step("ai-proposal", async () => { await dialog.locator(".reader-assist__preview").waitFor({ timeout: 15000 }); });
     await step("ai-accepted", async () => {
       await dialog.getByRole("button", { name: t("采用这个目录", "Use this outline") }).click();
@@ -190,6 +215,7 @@ export async function runOutlineQa(options) {
     await sleep(300);
     await page.keyboard.press("Escape");
     await sleep(400);
+    return finish();
   } finally {
     summary.finishedAt = new Date().toISOString();
     summary.ok = !summary.pageErrors.length && summary.steps.every((item) => item.status === "ok");
