@@ -226,7 +226,7 @@ export default function StudyMap({
     today = data.today || { due: 0, weak: 0, new: 0, size: 0 },
     runs = data.runs || [];
   // Audio imports and PDF conversions report progress in the Sources page, not among question generations.
-  const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import" && job.type !== "pdf-convert");
+  const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import" && job.type !== "pdf-convert" && job.type !== "translation");
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
   // Top of the home: what is still running first, then the newest finished cards.
   const visibleJobs = (() => {

@@ -393,3 +393,29 @@ test('the text of a plain page is cut at its blank lines, a Markdown projection 
   assert.deepEqual(plan.passages.map(entry => entry.text), [`${A}\nstill the same paragraph.`, B]);
   assert.equal(textHash(plan.passages[1].text), plan.passages[1].hash);
 });
+
+/* ---------- backup ---------- */
+
+test('translations and the glossary travel in the full backup and come back identical, for a stored document and for one with no record', async t => {
+  const { StudyService } = await import('../lib/service.js');
+  const target = await mkdtemp(join(tmpdir(), 'materials-translation-restored-'));
+  t.after(() => rm(target, { recursive: true, force: true }));
+  const f = await fixture(t), { source, documentId, revision } = await f.imported();
+  await f.store.update(state => { state.sources.push({ id: 'legacy-1', title: 'Pasted notes', text: `${A}\n\n${B}`, createdAt: '2026-10-01T08:00:00.000Z' }); });
+  await f.call('glossary.set', { documentId, glossary: [{ term: 'CQRS', to: '' }], target: 'zh' });
+  await f.call('translate', { documentId, passages: [passage(source, A), passage(source, C), { sourceId: source.id, kind: 'selection', text: 'principles guiding a system', prefix: 'includes the ', suffix: ' design and evolution.' }] });
+  await f.call('translate', { documentId, retranslate: true, comment: 'Plainer.', passages: [passage(source, A)] });
+  await f.call('translate', { sourceId: 'legacy-1', passages: [{ sourceId: 'legacy-1', text: B }] });
+  const bare = ({ modelAvailable: _model, ...rest }) => rest;
+  const before = { stored: bare(await f.call('list', { documentId })), legacy: bare(await f.call('list', { sourceId: 'legacy-1' })) };
+  assert.equal(before.stored.items.length, 3);
+  const backup = await new StudyService(f.root).call('export');
+  await new StudyService(target).call('restore', { state: JSON.parse(JSON.stringify(backup)) });
+  const restored = new Store(target);
+  const ops = createMaterialsOperations({ root: target, read: async () => { const state = await restored.read(); return structuredClone({ sources: state.sources, documents: state.documents || [] }); },
+    update: fn => restored.update(async state => { const own = { sources: state.sources, documents: state.documents || [] }; const result = await fn(own); state.sources = own.sources; state.documents = own.documents; return result; }) });
+  const after = { stored: bare(await ops.handlers['materials.translation.list']({ documentId })), legacy: bare(await ops.handlers['materials.translation.list']({ sourceId: 'legacy-1' })) };
+  assert.deepEqual(after, before, 'every translation, version, history and the glossary survive the round trip');
+  assert.equal(after.stored.revision, revision);
+  assert.equal(after.stored.items.find(entry => entry.version === 2).comment, 'Plainer.');
+});
