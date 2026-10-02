@@ -243,6 +243,20 @@ export async function runTranslationQa(options) {
       await page.waitForFunction(() => document.querySelectorAll(".tr-mark[data-tr-state='has']").length >= 5, null, { timeout: 15000 });
     });
     await step("job-dismiss", async () => { await viewer.locator(".tr-job").getByRole("button", { name: t("知道了", "Got it") }).click(); await sleep(250); });
+    await step("selection-skips-translations", async () => {
+      // A selection that runs across a translated paragraph quotes the document, not the translation between the paragraphs.
+      await page.evaluate(([first, second]) => {
+        const find = (text) => [...document.querySelectorAll(".reader-html > p")].find((element) => element.textContent.includes(text));
+        const range = document.createRange();
+        range.setStartBefore(find(first)); range.setEndAfter(find(second));
+        const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+        document.querySelector(".study-document-body").dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      }, [doc.p0, doc.p1]);
+      const quote = await viewer.locator(".study-document-selection blockquote").first().innerText();
+      const foreign = zh ? /[一-鿿]/ : /[A-Za-z]/;
+      if (foreign.test(quote)) throw new Error("the captured quote contains the translation: " + quote.slice(0, 80));
+      if (!quote.includes(doc.p0.slice(0, 10)) || !quote.includes(doc.p1.slice(0, 10))) throw new Error("the captured quote lost the document's own text");
+    });
     await step("retranslate-ask", async () => {
       await blockAfter(doc.p0).getByRole("button", { name: t("这段译文的更多操作", "More actions for this translation") }).click();
       await page.getByRole("menuitem", { name: t("重新翻译…", "Retranslate…") }).click();
@@ -311,6 +325,14 @@ export async function runTranslationQa(options) {
     });
     await step("text-source-side", async () => {
       await setMode(labels.side); await sleep(400);
+    });
+    await step("keyboard-path", async () => {
+      // No pointer: focus the reading area and press Alt+T; the first paragraph in view is translated.
+      await setMode(labels.pairs);
+      const before = await viewer.locator(".tr-block").count();
+      await viewer.locator(".reader-scroll").focus();
+      await page.keyboard.press("Alt+t");
+      await page.waitForFunction((count) => document.querySelectorAll(".tr-block").length > count, before, { timeout: 15000 });
     });
     return summary;
   } finally {
