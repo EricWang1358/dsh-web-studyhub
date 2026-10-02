@@ -434,3 +434,38 @@ test('a call that names a requestId can be cancelled from outside: the model is 
   const again = await f.call('translate', { documentId, requestId: 'r1', passages: [passage(source, A)] });
   assert.equal(again.status, 'done', 'a request id can be used again once its call is over');
 });
+
+/* ---------- a chapter: the effective segmentation decides which paragraphs ---------- */
+
+test('a chapter is read through the effective segmentation: the chapters a kept outline defines, places inside one text', async t => {
+  const f = await fixture(t), { source, documentId } = await f.imported(markdown(A, B, C, 'The fourth paragraph closes the second part of the notes.'));
+  const before = await f.call('plan', { documentId, scope: { chapter: 0 } });
+  assert.equal(before.chapters.length, 0, 'no chapters, nothing to name');
+  assert.equal(before.passages.length, 0, 'a chapter that does not exist is no passage');
+  await f.ops.handlers['materials.outline.save']({ documentId, entries: [{ title: 'Part one', level: 1, startBlock: 0 }, { title: 'Part two', level: 1, startBlock: 3 }], segmentLevel: 1 });
+  const one = await f.call('plan', { documentId, scope: { chapter: 0 } });
+  assert.deepEqual(one.chapters.map(chapter => [chapter.index, chapter.title]), [[0, 'Part one'], [1, 'Part two']]);
+  assert.deepEqual(one.passages.map(entry => entry.text.slice(0, 12)), ['Notes', 'Architecture'.slice(0, 12), B.slice(0, 12)]);
+  const two = await f.call('plan', { documentId, scope: { chapter: 1 } });
+  assert.deepEqual(two.passages.map(entry => entry.text), [C, 'The fourth paragraph closes the second part of the notes.']);
+  assert.deepEqual(two.sourceIds, [source.id]);
+  const estimate = await f.call('translate', { documentId, estimate: true, scope: { chapter: 1 } });
+  assert.equal(estimate.counts.toTranslate, 2);
+  const done = await f.call('translate', { documentId, scope: { chapter: 1 } });
+  assert.equal(done.counts.translated, 2);
+  assert.deepEqual((await f.call('list', { documentId })).items.map(entry => entry.quote.slice(0, 6)), ['A CQRS', 'The fo']);
+  const missing = await f.call('plan', { documentId, scope: { chapter: 9 } });
+  assert.equal(missing.passages.length, 0);
+});
+
+test('a chapter of a converted book is the pages the accessor gives it', async t => {
+  const f = await fixture(t);
+  await f.store.update(state => {
+    ['p1', 'p2', 'p3'].forEach((id, index) => state.sources.push({ id, title: `Deck · p. ${index + 1}`, text: `${[A, B, C][index]}\n\nA second paragraph on page ${index + 1}, in plain words.`, createdAt: '2026-10-01T08:00:00.000Z',
+      document: { id: 'pdf-1', page: index + 1, format: 'pdf', filename: 'deck.pdf', origin: 'converted', converter: 'test-converter', chapter: { index: index === 2 ? 1 : 0, title: index === 2 ? 'Second' : 'First', level: 1 } } }));
+  });
+  const plan = await f.call('plan', { sourceId: 'p1', scope: { chapter: 0 } });
+  assert.deepEqual([...new Set(plan.passages.map(entry => entry.sourceId))], ['p1', 'p2']);
+  assert.equal(plan.passages.length, 4);
+  assert.deepEqual(plan.chapters.map(chapter => chapter.title), ['First', 'Second']);
+});

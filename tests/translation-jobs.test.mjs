@@ -250,3 +250,21 @@ test('retranslating chosen passages is a job too: it sends them again even thoug
   assert.equal(f.model.calls.at(-1).learnerComment, 'Plainer words.');
   assert.deepEqual((await f.list()).map(entry => entry.version), [2, 2]);
 });
+
+test('a chapter is a job scope too, as the effective segmentation defines it: only its paragraphs are in the job', async t => {
+  const f = await fixture(t);
+  await f.runtime.call('materials.outline.save', { documentId: f.imported.documentId, entries: [{ title: 'Part one', level: 1, startBlock: 0 }, { title: 'Part two', level: 1, startBlock: 8 }], segmentLevel: 1 });
+  const priced = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: { chapter: 1 }, estimate: true });
+  assert.equal(priced.counts.toTranslate, 7);
+  const started = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: { chapter: 1 }, label: 'Part two' });
+  assert.equal(started.job.total, 7);
+  assert.deepEqual(started.job.sourceIds, [f.source.id]);
+  assert.equal(started.job.scopeLabel, 'Part two');
+  const done = await wait(f, started.jobId);
+  assert.equal(done.status, 'complete');
+  const kept = await f.list();
+  assert.deepEqual(kept.map(entry => entry.quote.slice(0, 20)), lines.slice(7).map(line => line.slice(0, 20)));
+  const first = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: { chapter: 0 } });
+  assert.equal(first.job.total, 8, 'the other chapter still has its own paragraphs to do');
+  await wait(f, first.jobId);
+});
