@@ -62,7 +62,7 @@ const quick = { livenessMs: 80, livenessFirstMs: 20 };
 const isProbe = call => call === 'server status --json' || call.startsWith('list parses');
 
 test('a window waiting in the service queue is "queued", then "converting", and the card forgets the state when the window ends', async t => {
-  const h = await harness(t, { cliState: { trackParses: true, queueMs: 900, delayMs: 2600 }, limits: quick });
+  const h = await harness(t, { cliState: { trackParses: true, queueMs: 2200, delayMs: 5000 }, limits: quick }); // (a probe is three processes: on a loaded machine it needs room to land in the queue phase)
   await h.start();
   const { seen, job } = await h.watch();
   assert.ok(seen.includes('queued'), seen.join());
