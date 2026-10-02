@@ -8,6 +8,8 @@ import { Button, IconButton, SegmentedControl } from '../components/index.js';
 import DocumentLearning from './DocumentLearning.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { issueOf } from './original-file.js';
+import PagePeek from './peek/PagePeek.jsx';
+import { peekStatus } from './peek/peek-logic.js';
 import { captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
 import PassageLinksPanel, { linkTitleWords } from './links/PassageLinksPanel.jsx';
 import { buildLinkModel, groupTitle } from './links/link-model.js';
@@ -94,6 +96,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const [aiOutline, setAiOutline] = useState(null), [aiItems, setAiItems] = useState([]), [emptyOpen, setEmptyOpen] = useState(false);
   const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1);
   const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
+  const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   const outlineId = useId(), toolsId = useId();
   useEffect(() => {
@@ -290,6 +293,11 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   ].filter(Boolean);
   const pagerTitle = item => [itemLabel(item), item.title].filter(Boolean).join(' · ');
   const pageText = (section, index) => sources[index]?.text ?? '';
+  // 看原页: one page of the attached original PDF in a small panel, from the text views of a page-based document (never in the PDF tab).
+  const canPeek = paged && format === 'pdf' && view !== 'original' && !loading && !!document;
+  const openPeek = (page, { figure = false } = {}) => setPeek({ page, figure });
+  useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
+  const peekBytes = async () => fileUrl ? new Uint8Array(await (await fetch(fileUrl)).arrayBuffer()) : null;
 
   return <div className="study-document-viewer reader" ref={root} data-mode={view} data-tone={settings.tone} data-face={settings.face}
     data-narrow={narrow || undefined} style={readerVars(settings)} onKeyDown={onKeyDown}>
@@ -335,10 +343,11 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
               ? <div className="reader-original"><iframe src={`${fileUrl}#page=${pdfPage}`} title={source.title || ui('原始 PDF')} /></div>
               : reading
                 ? html ? <div className="reader-html source-md" data-study-text="true" dangerouslySetInnerHTML={{ __html: html }} />
-                  : <ReadingSections sections={sections} labelOf={labelOf} />
+                  : <ReadingSections sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} />
                 : paged ? sections.map((section, index) => <section key={section.id} className="study-document-page reader-section reader-section--page"
                   data-outline-id={section.id} data-study-page={section.page} data-study-source={section.sourceId}>
                   <span className="reader-section__label">{labelOf(section)}</span>
+                  {canPeek && <button type="button" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</button>}
                   <QuotedText format={format} text={pageText(section, index)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} />
                 </section>)
                   : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} />}
@@ -364,6 +373,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} />
       </aside>
     </div>
+    {peek && canPeek && <PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
+      status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }} />}
     {attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
       call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;
