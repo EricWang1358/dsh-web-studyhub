@@ -10,6 +10,7 @@
      materials  one new course with a material and no questions yet
      bigbook    a course with a long converted book (chapters, no search index yet) and a few legacy PDF pages
      newcourse  a second course starting in a library already in use: the full checklist card
+     nomodel    materials only, no AI model connected (Settings opens and marks the model)
      daily      a course in daily use: published questions, answered ones, a due card, a to-do
    For every language, theme and width it records screenshots and measures what must hold:
      - nothing overflows the window sideways (document and the main column);
@@ -44,6 +45,8 @@ export const SEEDS = {
   materials: async (api) => {
     await api("source.add", { id: "s1", title: "Week 1 · Services and boundaries", text: quote + "\n" + "A service owns its data and exposes it through a contract. ".repeat(6), course: COURSE });
   },
+  /* The materials library with no AI model connected (the snapshot says so): Settings opens the common group and marks it. */
+  nomodel: async (api) => { await SEEDS.materials(api); },
   bigbook: async (api) => {
     await api("source.add", { id: "s1", title: "Week 1 notes", text: quote, course: COURSE });
     // A converted book as the importer stores it: one source per page, chapters on the pages, a converter on the document;
@@ -108,6 +111,7 @@ async function measurePage(page) {
       continueCards: count(".today-card"), recommendations: count(".desk-next"), coachOffers: count(".coach-offer"),
       checklist: count("[data-setup-checklist]"), checklistMode: document.querySelector("[data-setup-checklist]")?.getAttribute("data-mode") || null,
       groups: [...document.querySelectorAll(".sidebar [data-nav-group]")].map((el) => ({ id: el.getAttribute("data-nav-group"), open: el.getAttribute("data-open") })),
+      settingsGroups: [...document.querySelectorAll("[data-settings-group]")].map((el) => ({ id: el.getAttribute("data-settings-group"), open: el.open, missing: el.querySelector(".settings-group__missing")?.textContent || "" })),
       title: document.querySelector("main h1, .crumb.current")?.textContent?.trim().slice(0, 60) || "",
     };
   });
@@ -123,6 +127,15 @@ async function openState({ browser, running, state, lang, theme, width, label, o
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));
+  if (state === "nomodel") await page.route("**/api/call", async (route) => {
+    let action = "";
+    try { action = JSON.parse(route.request().postData() || "{}").action; } catch { /* not json */ }
+    if (action !== "snapshot") return route.continue();
+    const response = await route.fetch();
+    const body = await response.json();
+    if (body?.ok && body.value && !body.value.unchanged) Object.assign(body.value, { modelReady: false, model: { ready: false, reason: "no-credential" } });
+    return route.fulfill({ response, body: JSON.stringify(body) });
+  });
   const settle = async (ms = 700) => { await page.waitForLoadState("networkidle").catch(() => {}); await sleep(ms); };
   await page.goto(server.url);
   await page.locator(".sidebar").first().waitFor({ timeout: 30000 });

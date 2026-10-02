@@ -109,7 +109,7 @@ test('English renders without Han, and the group labels have English text', () =
     assert.doesNotMatch(markup, han);
     assert.match(markup, /Every day/);
     assert.match(markup, /Now and then/);
-    assert.match(markup, /Course setup &amp; management/);
+    assert.match(markup, /Setup &amp; manage/);
   } finally { setUiLanguage('zh'); }
 });
 
