@@ -101,6 +101,23 @@
 :is(.study-app, .study-seat) .restore-preview__file small { flex: none; color: var(--text-muted); }
 :is(.study-app, .study-seat) .restore-preview p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); }
 
+/* Groups: 常用 / 一次性设置. A group is a disclosure; its summary is one row (title, what is missing, one line about the group)
+   so a closed group still says what it holds. */
+:is(.study-app, .study-seat) .settings-page .settings-group { margin-top: var(--space-6); border-top: 1px solid var(--line); }
+:is(.study-app, .study-seat) .settings-page .settings-group > .settings-group__summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3);
+  padding: var(--space-4) 0; cursor: pointer; list-style: none; }
+:is(.study-app, .study-seat) .settings-page .settings-group > .settings-group__summary::-webkit-details-marker { display: none; }
+:is(.study-app, .study-seat) .settings-group__chevron { align-self: center; flex: none; color: var(--text-muted); transition: transform 0.2s var(--ease-out); }
+:is(.study-app, .study-seat) .settings-group[open] > .settings-group__summary .settings-group__chevron { transform: rotate(90deg); }
+:is(.study-app, .study-seat) .settings-group__title { color: var(--text); font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 650; line-height: var(--lh-tight); }
+:is(.study-app, .study-seat) .settings-group__missing { padding: 1px 10px; border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line)); border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--text); font-size: var(--fs-sm); line-height: 1.5; }
+:is(.study-app, .study-seat) .settings-group__lead { flex: 1 1 100%; margin-left: 28px; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .settings-page .settings-group > .settings-group__body { padding-bottom: var(--space-2); }
+/* The first section of a group sits right under the group's own rule. */
+:is(.study-app, .study-seat) .settings-page .settings-group__body > :first-child.settings-section { margin-top: 0; border-top: 0; padding-top: 0; }
+:is(.study-app, .study-seat) .appearance-settings .sh-seg { justify-self: start; }
+
 @container study (max-width: 900px) {
   :is(.study-app, .study-seat) .sm2-fields { grid-template-columns: repeat(2, max-content); }
 }

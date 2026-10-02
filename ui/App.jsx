@@ -32,8 +32,10 @@ import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS } from "./generation-status.js";
 import ImportHub, { importOutcome } from './ImportHub.jsx';
 import { parseCourses } from './CourseField.jsx';
-import { countDocuments, documentSourceIds } from '../lib/source-groups.js';
-import { usePageScope } from './PageScope.jsx';
+import { countDocuments, documentSourceIds, groupSourcesByDocument } from '../lib/source-groups.js';
+import { sourceMatchesCourse } from '../lib/source-courses.js';
+import { bigDocuments } from '../lib/large-documents.js';
+import { usePageScope, courseNamesOf } from './PageScope.jsx';
 import AudioImport from "./AudioImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
@@ -218,6 +220,8 @@ export default function App({ call: transportCall, host = {} }) {
   // WP13: the course settings panel (a course id), opened from the library heading or Settings.
   // The open course panel: a course id, or { id, mergeFrom } when 合并到这里 opens the merge confirmation (WP14).
   const [courseSettings, setCourseSettings] = useState(null);
+  // A Settings section another page points at (the search extension, say); Settings opens its group and scrolls to it.
+  const [settingsFocus, setSettingsFocus] = useState("");
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
     [sourceText, setSourceText] = useState("");
@@ -1443,6 +1447,24 @@ export default function App({ call: transportCall, host = {} }) {
     setHiddenWelcome(data.root);
   }
   const openFirstImport = () => setModal({ type: "add" });
+  /* 课程准备 (ui/SetupChecklist.jsx): each step reuses a page or dialog that already exists. Making the first questions opens
+     创建题组 with the course filled in and the course's ordinary materials ticked (a long book is left for the chapter picker). */
+  const setupHandlers = {
+    import: (course) => setModal({ type: "add", course: course ?? "" }),
+    sources: () => setPage("sources"),
+    index: () => { setSettingsFocus("settings-extensions"); setPage("settings"); },
+    generate: (course) => {
+      const items = groupSourcesByDocument(data.sources.filter((source) => sourceMatchesCourse(source, course, courseNamesOf(data))));
+      const long = new Set(bigDocuments(items).map((item) => item.key));
+      setSelectedSources(items.filter((item) => !long.has(item.key)).flatMap((item) => item.sourceIds));
+      setGen((current) => ({ ...current, course }));
+      setGenSource("files");
+      setPage("generate");
+    },
+    draft: (id) => { const found = data.drafts.find((item) => item.id === id); if (found) openDraft(found); },
+    course: setCourseSettings,
+    skeleton: () => setPage("skeleton"),
+  };
   /** The tour switches pages at once: no leave animation, no stale context trail. */
   function showPage(id) {
     clearTimeout(leaveTimer.current);
@@ -1930,6 +1952,7 @@ export default function App({ call: transportCall, host = {} }) {
                 importLibrary={() => { setGenSource("json"); setPage("generate"); }}
                 generateFromSources={(ids) => { setSelectedSources(ids); setGen((current) => ({ ...current, course: undefined }));
                   setGenSource("files"); setPage("generate"); }}
+                setupHandlers={setupHandlers}
                 openModelSettings={openModelSettings}
                 canChat={canChat}
                 reveal={revealHome}
@@ -2193,6 +2216,10 @@ export default function App({ call: transportCall, host = {} }) {
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
+                appearance={{ language, onLanguage: setUiLanguage, theme, themes: THEMES, onTheme: setTheme }}
+                tourActive={!!tourStep}
+                focusSection={settingsFocus}
+                onFocused={() => setSettingsFocus("")}
                 onRestored={(restored) => {
                   libraryEpoch.current++;
                   navigationRequest.current++;

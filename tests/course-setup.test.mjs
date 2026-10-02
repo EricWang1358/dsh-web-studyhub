@@ -87,6 +87,14 @@ test('the index step appears only for a big book, and only once the search exten
   assert.ok(!ids(courseSetup(library({ sources }), { retrieval: { status: { effective: 'builtin' }, plan: null } })).includes('index'), 'no extension on offer, nothing to build');
 });
 
+test('with the search extension not installed yet the index step comes first as "install and build"; a host that cannot install offers nothing to do', () => {
+  const sources = [note(), ...converted()];
+  const pending = courseSetup(library({ sources }), { retrieval: { status: { extension: { installed: false, canInstall: true }, effective: 'builtin' }, plan: null } });
+  assert.equal(step(pending, 'index').status, 'todo');
+  assert.equal(step(pending, 'index').detail.installed, false);
+  assert.ok(!ids(courseSetup(library({ sources }), { retrieval: { status: { extension: { installed: false, canInstall: false }, effective: 'builtin' }, plan: null } })).includes('index'));
+});
+
 test('a long book that was never converted asks to be converted and split into chapters', () => {
   const setup = courseSetup(library({ sources: book() }));
   assert.equal(step(setup, 'convert').status, 'todo');

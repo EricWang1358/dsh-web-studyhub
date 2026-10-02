@@ -130,10 +130,10 @@ export function checkContract(states, label, { insertsRows = [] } = {}) {
 }
 
 /** Start the preview on an empty temporary library (`distDir`: another build of app.js/app.css than ./dist). */
-export async function startNavServer({ distDir } = {}) {
+export async function startNavServer({ distDir, retrieval = null } = {}) {
   scrubProcessEnv();
   const base = await mkdtemp(join(tmpdir(), "study-nav-"));
-  const server = await createPreviewServer({ libraryRoot: join(base, "library"), home: join(base, "home"), port: 0, model: createFakeModel({ latencyMs: 50 }), ...(distDir ? { distDir } : {}) });
+  const server = await createPreviewServer({ libraryRoot: join(base, "library"), home: join(base, "home"), port: 0, model: createFakeModel({ latencyMs: 50 }), ...(retrieval ? { retrieval } : {}), ...(distDir ? { distDir } : {}) });
   return { base, server, close: async () => { await server.close(); await rm(base, { recursive: true, force: true }); } };
 }
 

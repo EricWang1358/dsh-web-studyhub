@@ -45,6 +45,8 @@ export function presetOf(settings = {}) {
 /* "Open audio settings" from another page: the settings section scrolls into view and focuses its first empty key. */
 let focusRequested = false;
 export function requestAudioSettingsFocus() { focusRequested = true; }
+/** Has another page asked for the audio key? Settings opens its one-time group for it (the section scrolls and focuses once it is shown). */
+export const audioFocusPending = () => focusRequested;
 
 const RESULT = (result) => (result.ok ? ui('可用：密钥有效，网络也连得上') : uiFormat('不可用：{0}', [uiMessage(result.message || ui('没有返回原因'))]));
 

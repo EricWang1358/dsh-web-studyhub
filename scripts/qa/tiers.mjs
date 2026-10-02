@@ -9,6 +9,7 @@
      empty      a brand-new library: the welcome page, then the library home when it is dismissed
      materials  one new course with a material and no questions yet
      bigbook    a course with a long converted book (chapters, no search index yet) and a few legacy PDF pages
+     newcourse  a second course starting in a library already in use: the full checklist card
      daily      a course in daily use: published questions, answered ones, a due card, a to-do
    For every language, theme and width it records screenshots and measures what must hold:
      - nothing overflows the window sideways (document and the main column);
@@ -52,6 +53,12 @@ export const SEEDS = {
       createdAt: new Date().toISOString(), courses: [COURSE], document: { id: "a".repeat(64), materialId: `document-${"a".repeat(64)}-pdf`, format: "pdf", page, totalPages: 320,
         extractionVersion: 2, origin: "converted", converter: "mineru", bookTitle: "Textbook", chapter: { index: Math.ceil(page / 40) - 1, title: `Chapter ${Math.ceil(page / 40)}`, level: 1 } } });
     await api("restore", { state });
+  },
+  /* A second course starting in a library that is already in use: the checklist is a full card. */
+  newcourse: async (api) => {
+    await SEEDS.daily(api);
+    await api("source.add", { id: "s2", title: "Week 2 · Consistency", text: quote + " Replicas converge when writes are ordered.", course: "Distributed Systems" });
+    await api("focus.set", { course: "Distributed Systems" });
   },
   daily: async (api) => {
     await api("source.add", { id: "s1", title: "Week 1 · Services and boundaries", text: quote, course: COURSE });
@@ -164,13 +171,14 @@ async function main() {
   const langs = flag("lang", "both") === "both" ? ["zh", "en"] : [flag("lang")];
   const themes = flag("theme", "both") === "both" ? ["dark", "light"] : [flag("theme")];
   const widths = flag("widths", "1440,1194,768,420").split(",").map(Number);
-  const states = flag("states", "empty,materials,bigbook,daily").split(",");
+  const states = flag("states", "empty,materials,newcourse,bigbook,daily").split(",");
   const pages = flag("pages", "library,settings").split(",");
   const label = flag("label", "after");
   const out = resolve(flag("out", join(repoRoot, "output/qa/tiers")));
   const dist = flag("dist", "");
   await mkdir(out, { recursive: true });
-  const running = await startNavServer(dist ? { distDir: resolve(dist) } : {});
+  // The preview plays a DSH that can install the search extension, so the big book's index step is real.
+  const running = await startNavServer({ retrieval: "extension", ...(dist ? { distDir: resolve(dist) } : {}) });
   const browser = await launchChromium();
   const report = [], problems = [];
   try {

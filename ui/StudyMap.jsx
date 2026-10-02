@@ -18,6 +18,7 @@ import { groupCourseNames, rankCourses } from "./course-names.js";
 import { courseMatcher, courseNamesOf } from "./PageScope.jsx";
 import { courseOrder, courseRelative } from "../lib/course-tree.js";
 import { DraftTopUp, ShortfallReasons } from "./DraftShortfall.jsx";
+import SetupChecklist from "./SetupChecklist.jsx";
 import { missingQuestions } from "./draft-shortfall.js";
 
 /* After an import the new topics sit outside the topic groups until someone
@@ -161,6 +162,7 @@ export default function StudyMap({
   mergeDecks,
   startCourseFlow,
   generateFromSources,
+  setupHandlers,
   openModelSettings,
   canChat = false,
   reveal,
@@ -629,6 +631,8 @@ export default function StudyMap({
     <section className="page library-page map-page" ref={pageRef}>
       {children}
       {activity}
+      {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after. */}
+      <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} call={call} busy={busy} on={setupHandlers} />
       <div className={"desk" + (plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <div className="desk-intro">
           {/* The study-mode switch matters once there is something to study (P12). */}
