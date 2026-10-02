@@ -165,3 +165,11 @@ test('the shared stylesheet scopes everything to .study-reading, never touches c
   assert.doesNotMatch(css, /font-size:\s*(?:1[0-4]|[0-9])px/, 'no size under 15px is ever written');
   for (const rule of css.match(/\.study-reading[^{}]*\{/g) || []) assert.doesNotMatch(rule, /\b(?:button|input|select|textarea)\b/, rule);
 });
+
+test('an `extra` row (the reader\'s 译文显示 choice) is drawn between the rows and 恢复默认', () => {
+  const extra = h('div', { className: 'reader-setting', 'data-extra': 'yes' }, 'extra row');
+  const markup = renderToStaticMarkup(h(lib.ReaderDisplayControls, { settings: { ...shared.READER_DEFAULTS }, onChange() {}, onReset() {}, extra }));
+  assert.match(markup, /data-extra="yes"/, 'the translation display row must reach the popover');
+  assert.ok(markup.indexOf('data-extra') < markup.indexOf('恢复默认'), 'above the reset button');
+  assert.ok(markup.indexOf('data-extra') > markup.indexOf('下划线'), 'below the underline row');
+});

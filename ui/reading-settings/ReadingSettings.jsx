@@ -45,6 +45,7 @@ export function DisplayControls({ settings, onChange, onReset, underline = true,
       <SegmentedControl size="sm" label={ui('下划线')} value={settings.underline} onChange={pick('underline')}
         options={[{ value: 'show', label: ui('显示') }, { value: 'hide', label: ui('隐藏') }]} />
     </div>}
+    {extra}
     <Button size="sm" variant="quiet" className="reader-popover__reset" onClick={onReset}>{ui('恢复默认')}</Button>
   </>;
 }
