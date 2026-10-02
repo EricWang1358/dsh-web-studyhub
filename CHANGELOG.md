@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.4.0 — 2026-10-02
+
+- **Supplementing from a passage no longer blocks the reader.** "Add to an existing deck" from a selected passage used to wait for the whole plan-write-review run (minutes) in one call: the panel was locked, "ask from the source" was disabled, there was no progress and nothing to jump to afterwards. It is now a background job in the usual machinery: a card in the panel shows the phase (plan, write, independent review, save), "passed n of m", a clock, the expected and real token use and a Stop button; reading and asking go on meanwhile; the same passage and deck cannot be started twice; when it finishes the card says what was added to which deck and what was dropped and why, with buttons to practise exactly those cards, open the deck or see the question, plus a notice and an inbox letter. Only questions that pass the independent review are saved, as before.
+- **A long chapter list scrolls, and each chapter is one line.** In a book with dozens of chapters the list pushed the whole page down, and "Make questions from this chapter" dropped onto a line of its own, so every chapter took two rows. The list now scrolls inside its own box and the button sits at the end of the chapter's line.
+
 ## 2.3.1 — 2026-10-02
 
 - **The "More" chevron in the review toolbar is aligned.** It was the text character "⌄", which sits below the baseline and looked like a subscript; it is a drawn chevron now, centred on the label, and turns up while the menu is open.

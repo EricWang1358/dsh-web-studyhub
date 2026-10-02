@@ -148,7 +148,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
           onClick={() => setPagesOpen(open => !open)}>
           {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
         </Button>
-        {pagesOpen && chaptered && <ul id={listId} className="source-doc__page-list source-doc__chapters">
+        {pagesOpen && chaptered && <ul id={listId} className="source-doc__page-list source-doc__chapters" role="region" aria-label={ui('章节列表')} tabIndex={0}>
           {item.chapters.map(chapter => <li key={chapter.index} data-chapter-index={chapter.index}>
             <button type="button" onClick={() => onOpen(chapter.sourceIds[0])}>
               <span>{chapterLabel(chapter)}</span><small>{uiFormat('{0} 页 · {1} 字符', [chapter.sourceIds.length, chapter.chars.toLocaleString(uiLocale())])}</small>
@@ -156,7 +156,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
             {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy} onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
           </li>)}
         </ul>}
-        {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list">
+        {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
             <button type="button" onClick={() => onOpen(page.sourceId)}>
               <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [page.chars.toLocaleString(uiLocale())])}</small>

@@ -584,7 +584,8 @@ export default function StudyMap({
       {visibleJobs.length > 0 && <div className="jobs generation-jobs">
         {visibleJobs.map((j) => <JobCard key={j.id} job={j} jobs={visibleJobs} drafts={drafts} busy={busy} openDraft={openDraft}
           openAgent={openAgent} cancelJob={cancelJob} dismissJob={dismissJob} retryGeneration={retryGeneration}
-          openModelSettings={openModelSettings} />)}
+          openModelSettings={openModelSettings} openDeck={manage}
+          practiceCards={(deckId, cardIds) => start({ mode: "path", scope: cardIds.map((cardId) => ({ deckId, cardId })), fresh: true })} />)}
         {dismissJob && finishedCount > 1 && <div className="jobs-actions">
           {quick?.failures["jobs:all"] && <span className="job-error" role="alert">{uiFormat("没能全部移除：{0}", [quick.failures["jobs:all"]])}</span>}
           {/* Not part of the single-flight act: it must stay clickable whatever else is running. */}
@@ -1001,7 +1002,7 @@ const JOB_MARKS = { queued: "info", done: "success", partial: "warning", failed:
    stop control while it runs, and the draft once there is one (P26–P29).
    A failure says what is wrong and how to fix it; the raw message stays in
    技术详情 (P15). */
-function JobCard({ job: j, jobs = [], drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings }) {
+function JobCard({ job: j, jobs = [], drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards }) {
   const code = jobCode(j), active = isActiveJob(j);
   const dismissFailure = useQuickActions()?.failures[j.id];
   const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
@@ -1027,9 +1028,15 @@ function JobCard({ job: j, jobs = [], drafts, busy, openDraft, openAgent, cancel
     </div>
     <div className="job-actions">
       {cancelJob && j.type !== "draft-publish" && ["running", "queued"].includes(j.status) &&
-        <Button size="sm" variant="quiet" disabled={busy} title={ui("停止生成；已保存的题留在草稿里")}
+        <Button size="sm" variant="quiet" disabled={busy} title={j.origin === "selection" ? ui("停止补题；题组不会有变化") : ui("停止生成；已保存的题留在草稿里")}
           onClick={() => cancelJob(j.id)}>{ui("停止")}</Button>}
       {draft && !active && <Button size="sm" variant="secondary" onClick={() => openDraft(draft)}>{ui("打开草稿")}</Button>}
+      {/* A passage supplement jumps to where its questions went: practise exactly those, or open the deck. */}
+      {j.origin === "selection" && j.status === "complete" && j.publication?.cardIds?.length > 0 && <>
+        {practiceCards && <Button size="sm" variant="primary" iconEnd="arrow-right" disabled={busy} onClick={() => practiceCards(j.publication.deckId, j.publication.cardIds)}>
+          {j.publication.cardIds.length === 1 ? ui("马上练这 1 张") : uiFormat("马上练这 {0} 张", [j.publication.cardIds.length])}</Button>}
+        {openDeck && <Button size="sm" variant="secondary" disabled={busy} onClick={() => openDeck(j.publication.deckId)}>{ui("打开题组")}</Button>}
+      </>}
       {retryGeneration && generation && j.type !== "supplement" && ["failed", "cancelled"].includes(j.status) && !draft &&
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => retryGeneration(j)}>{ui("按原资料重新设置")}</Button>}
       {/* 已知与删除: done with this card; the draft and approved questions stay. */}

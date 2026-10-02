@@ -2286,5 +2286,7 @@
   "改课程…": "Change course…",
   "修改「{0}」的课程": "Change the course of “{0}”",
   "保存课程": "Save course",
-  "只更改归属，原文与引用保持不变。留空就是「未分类」。": "Only the course changes; the text and its citations stay as they are. Leave it blank for “Uncategorised”."
+  "只更改归属，原文与引用保持不变。留空就是「未分类」。": "Only the course changes; the text and its citations stay as they are. Leave it blank for “Uncategorised”.",
+  "章节列表": "Chapter list",
+  "页面列表": "Page list"
 }
