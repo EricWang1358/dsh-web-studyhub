@@ -9,6 +9,7 @@ import { learningScope } from '../lib/learning-scope.js';
 import { decksInCourse } from '../lib/focus.js';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { publishNotebook, listNotebooks } from '../lib/notebooks.js';
+import { weakTopicsFor } from '../lib/contexts/generation/suggest.js';
 
 /* "有效课程": a course the learner is not studying any more can be parked. Inactive courses stay out of everything that
    pushes review work (due counts, forecast, queue, recommendations, wrong book, exam pool) until they are activated again,
@@ -312,4 +313,16 @@ test('the oral mock leaves parked courses out of its default pool and still read
   const picked = await service.call('oral.start', { count: 3, course: 'Cloud' });
   const own = (await service.call('export')).oralRuns.find(run => run.id === picked.id);
   assert.ok(own.entries.length > 0 && own.entries.every(entry => entry.deckId.startsWith('old')), 'the parked course read on purpose');
+});
+
+test('the 创建题组 assist does not suggest weak topics from a parked course', async t => {
+  const service = await make(t);
+  const state = await service.call('export');
+  const all = weakTopicsFor(state, '*').map(item => item.topic);
+  assert.ok(all.some(topic => topic.startsWith('w')) && all.length > 0);
+  await service.call('course.deactivate', { name: 'Cloud' });
+  const parked = await service.call('export');
+  assert.ok(weakTopicsFor(parked, '*').every(item => !item.topic.startsWith('w')), 'the old course\'s weak cards are not offered as a topic to work on');
+  assert.ok(weakTopicsFor(parked, 'Cloud').some(item => item.topic.startsWith('w')), 'choosing the parked course reads it');
+  assert.ok(weakTopicsFor(parked, undefined).every(item => !item.topic.startsWith('w')));
 });
