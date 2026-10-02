@@ -36,3 +36,49 @@ test("unknown parents and parent cycles never drop a node", () => {
   assert.deepEqual(terms(spine).sort(), ["Orphan", "P", "Q"]);
   assert.equal(spine[0].term, "Orphan");
 });
+
+import { spineCounts, spineKeyTarget, spineDefaultOpen, spineOpenKey, readSpineOpen, writeSpineOpen } from "../ui/skeleton-spine.js";
+
+test("the counts are stations and the points under them, at any depth", () => {
+  const spine = skeletonSpine({
+    nodes: [
+      { id: "a", term: "A" }, { id: "a1", term: "A1", parent: "a" }, { id: "a1x", term: "A1x", parent: "a1" },
+      { id: "b", term: "B" }, { id: "b1", term: "B1", parent: "b" },
+    ],
+  });
+  assert.deepEqual(spineCounts(spine), { stations: 2, points: 3 });
+  assert.deepEqual(spineCounts([]), { stations: 0, points: 0 });
+});
+
+test("the tablist keys move to a neighbour, the ends, and never past them", () => {
+  assert.equal(spineKeyTarget(1, "ArrowRight", 5), 2);
+  assert.equal(spineKeyTarget(1, "ArrowLeft", 5), 0);
+  assert.equal(spineKeyTarget(4, "ArrowRight", 5), 4, "the last station stays the last");
+  assert.equal(spineKeyTarget(0, "ArrowLeft", 5), 0);
+  assert.equal(spineKeyTarget(2, "Home", 5), 0);
+  assert.equal(spineKeyTarget(2, "End", 5), 4);
+  assert.equal(spineKeyTarget(2, "a", 5), null, "other keys are not handled");
+  assert.equal(spineKeyTarget(0, "End", 0), null, "no stations, nothing to move to");
+});
+
+test("the spine is expanded by default only where the skeleton is the subject of the step", () => {
+  assert.equal(spineDefaultOpen("skeleton"), true);
+  for (const kind of ["lesson", "overview", "recall", "reflection", "practice", "", undefined]) assert.equal(spineDefaultOpen(kind), false, String(kind));
+});
+
+test("the folded state is kept per browser and per step type, and a blocked storage never throws", () => {
+  const data = new Map();
+  const storage = { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, v) => void data.set(k, String(v)) };
+  assert.notEqual(spineOpenKey("lesson"), spineOpenKey("skeleton"));
+  assert.equal(readSpineOpen("lesson", storage), false, "falls back to the default");
+  assert.equal(readSpineOpen("skeleton", storage), true);
+  writeSpineOpen("lesson", true, storage);
+  writeSpineOpen("skeleton", false, storage);
+  assert.equal(readSpineOpen("lesson", storage), true);
+  assert.equal(readSpineOpen("skeleton", storage), false);
+  assert.equal(readSpineOpen("recall", storage), false, "other step types keep their own default");
+  const blocked = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } };
+  assert.equal(readSpineOpen("skeleton", blocked), true);
+  assert.doesNotThrow(() => writeSpineOpen("skeleton", false, blocked));
+  assert.equal(readSpineOpen("lesson", null), false);
+});
