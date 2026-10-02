@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark light"><title>Install StudyHub 2.4.0 · Desktop or web</title><style>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark light"><title>Install StudyHub 2.5.0 · Desktop or web</title><style>
     :root { color-scheme: dark; --bg: #171a21; --panel: #20242d; --text: #edf0f5; --muted: #afb7c5; --line: #3c4452; --accent: #bcc2ff; }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.75 system-ui, sans-serif; }
@@ -23,8 +23,8 @@
     @media (max-width: 580px) { main { padding: 28px 18px; } .platforms { grid-template-columns: 1fr; } .card { padding: 18px; } }
   </style></head>
 <body><main>
-<p>English · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.4.0/StudyHub-2.4.0-Setup.zh-CN.html" lang="zh-CN">简体中文</a></p>
-<p class="muted">STUDYHUB · LEARNING PLUGINS 2.4.0</p>
+<p>English · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.0/StudyHub-2.5.0-Setup.zh-CN.html" lang="zh-CN">简体中文</a></p>
+<p class="muted">STUDYHUB · LEARNING PLUGINS 2.5.0</p>
 <h1>Set up your own study library</h1>
 <p>Already using DeepSeek Harness (DSH) on desktop or in a browser? Add the complete StudyHub plugin to your current installation. New users can choose an official desktop installer or the web version below.</p>
 <p class="note"><strong>Already using DSH web?</strong> Keep your current server and profile. <a href="#plugin">Install only the plugins ↓</a>; no desktop client is needed.</p>
@@ -36,9 +36,9 @@
 </div>
 <p class="muted">These installers come from the <a href="https://www.deepseek.com/en/harness/">official DSH site</a>. Install the StudyHub plugin afterward. For Intel Macs and Windows ARM, check current official support or use the web route.</p>
 <section id="plugin"><h2>Existing DSH: install only the plugins</h2><p>Use your current desktop or web plugin manager. Your model settings and workspace stay in place.</p>
-<ol><li>Open <strong>Plugins → Add plugin</strong> in DSH.</li><li>Paste the address below. Confirm <code>@ericwang1358/dsh-daily-flashcard</code>, version <strong>2.4.0</strong>, then enable it.</li><li>StudyHub opens by itself after enabling; later, open <strong>StudyHub</strong> in DSH’s left sidebar. On an empty library, <strong>Load the sample and start the tour</strong> shows every key feature in about three minutes without a model.</li></ol>
-<code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.4.0/ericwang1358-dsh-daily-flashcard-2.4.0.tgz</code>
-<p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.4.0">Packages and checksums</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.4.0/ericwang1358-dsh-daily-flashcard-2.4.0.tgz">Download the complete plugin</a></p>
+<ol><li>Open <strong>Plugins → Add plugin</strong> in DSH.</li><li>Paste the address below. Confirm <code>@ericwang1358/dsh-daily-flashcard</code>, version <strong>2.5.0</strong>, then enable it.</li><li>StudyHub opens by itself after enabling; later, open <strong>StudyHub</strong> in DSH’s left sidebar. On an empty library, <strong>Load the sample and start the tour</strong> shows every key feature in about three minutes without a model.</li></ol>
+<code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.0/ericwang1358-dsh-daily-flashcard-2.5.0.tgz</code>
+<p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.0">Packages and checksums</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.0/ericwang1358-dsh-daily-flashcard-2.5.0.tgz">Download the complete plugin</a></p>
 <p><strong>Updating:</strong> DSH plugins do not update themselves, and a restart alone keeps the installed version. From 2.1.2, StudyHub shows a chip when GitHub has a newer release; <strong>Upgrade</strong> verifies the package’s SHA-256 and installs it through DSH’s plugin manager (switch the check off in Settings › About &amp; updates). On older versions: in <strong>Plugins</strong>, uninstall StudyHub, then <strong>Add plugin</strong> with the new package address. Finish background tasks first, then <strong>restart DSH</strong>: quit desktop DSH fully and reopen it, or restart the web service with its original profile. Refreshing the browser alone is insufficient.</p>
 <p class="muted">If URL installation fails, download the .tgz and use its absolute path on the computer or server running DSH. A laptop download path is not a remote server path; prefer the HTTPS address above.</p>
 <details><summary>Advanced: customize and enable/disable components</summary><p>The complete package contains the workbench, runtime, materials, bank, learning, generation and audio. Expand the package in <strong>DSH’s plugin manager</strong> to toggle components. Standalone component archives are also available on the release page.</p><p>Generation needs materials, bank and generation; practice and exams need bank and learning. Missing capabilities hide their entries or show a disabled notice. End related tasks before disabling. Saved materials, decks and progress remain.</p><p>Enable bank and learning before deleting sources, so references can be checked. If multiple installations supply a capability, disable every provider to turn it off. Update an old complete workbench before customizing.</p></details></section>
@@ -49,5 +49,5 @@
 <h3>Claude/Codex subscriptions are not general API keys</h3><p>DSH’s current model settings do not accept Codex-style OAuth subscriptions. Claude Pro/Max and ChatGPT/Codex allowances cannot be pasted here. Separately paid Anthropic and OpenAI APIs can be configured; billing is separate from subscriptions.</p><p><a href="https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console">Claude billing explanation</a> · <a href="https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform">OpenAI billing explanation</a></p>
 <p class="muted">This guide collects no credentials. Save keys only in DSH settings. Original audio transcription separately needs a transcription provider (SiliconFlow SenseVoice is free and reachable from mainland China; Gemini and Groq also work) under <strong>Study Settings → Audio transcription</strong>; your model provider handles later proofreading, translation and learning help.</p></section>
 <section><h2>Choose English or Chinese</h2><p>New users get the browser’s preferred interface language; non-Chinese browsers start in English. The workbench language switch remembers your choice. Saved sources, questions and notes remain in their original language.</p></section>
-<footer>Official routes checked 2026-10-01 · DSH and StudyHub versions are independent · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.4.0/docs/install.md">Detailed English guide</a></footer>
+<footer>Official routes checked 2026-10-01 · DSH and StudyHub versions are independent · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.5.0/docs/install.md">Detailed English guide</a></footer>
 </main></body></html>
