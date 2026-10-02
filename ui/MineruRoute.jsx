@@ -89,7 +89,10 @@ export default function MineruRoute({ file = null, call, courses = [], onStarted
   const usable = route === 'local' ? localReady : cloudSet;
   const acknowledged = !!settings?.acknowledged || agreed;
   const pieces = plan ? (route === 'local' ? plan.windows : plan.pieces) : null;
-  const pieceCount = pieces?.length || 0;
+  /* The local route cuts the book into windows one at a time, from the speed it measures (plan.adaptive): before it starts there is no list of windows and no count to show,
+     only what it will do. A fixed plan (the seam of a test or a preview) still lists its windows. */
+  const adaptiveLocal = route === 'local' && !!plan?.adaptive && plan.pages > plan.adaptive.firstPages;
+  const pieceCount = adaptiveLocal ? 0 : pieces?.length || 0;
   const estimate = plan && local?.tier ? localEstimate(plan.pages, local.tier, local.estimates) : null;
   const refreshLocal = useCallback(next => setLocal(next), []);
 
@@ -144,11 +147,13 @@ export default function MineruRoute({ file = null, call, courses = [], onStarted
         </div>}
         {plan && <div className="mineru-plan" role="status">
           <p className="mineru-plan__line">
-            {pieceCount > 1
-              ? <strong>{uiFormat('这本书会分 {0} 段处理', [pieceCount])}</strong>
-              : <strong>{route === 'local' ? ui('不用分段，一次处理整本书') : ui('不用分段，整份一次解析')}</strong>}
+            {adaptiveLocal ? <strong>{ui('分段会按这台电脑的速度调整')}</strong>
+              : pieceCount > 1
+                ? <strong>{uiFormat('这本书会分 {0} 段处理', [pieceCount])}</strong>
+                : <strong>{route === 'local' ? ui('不用分段，一次处理整本书') : ui('不用分段，整份一次解析')}</strong>}
             <span>{uiFormat('共 {0} 页 · {1}', [plan.pages, formatBytes(plan.bytes)])}</span>
           </p>
+          {adaptiveLocal && <p className="mineru-plan__why">{uiFormat('先做 {0} 页看一看这台电脑有多快，再按它的速度调整每段的页数（每段约 {1} 秒，{2}–{3} 页）。', [plan.adaptive.firstPages, plan.adaptive.targetSeconds, plan.adaptive.minPages, plan.adaptive.maxPages])}</p>}
           {pieceCount > 1 && <p className="mineru-plan__why">
             {route === 'local' ? uiFormat('本地按每 {0} 页一段推进，这样能看到进度、随时停下，出错也只重做那一段。', [local?.windowPages || 50])
               : plan.byChapters ? ui('云端一次最多 200 页，所以按章节书签分段；超过上限的章节在 200 页处切开。')

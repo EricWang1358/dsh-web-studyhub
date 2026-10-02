@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LOCAL, halveWindow, localEta, localPace, nextWindow } from '../lib/mineru-local.js';
+import { LOCAL, halveWindow, localEta, localEtaRange, localPace, nextWindow } from '../lib/mineru-local.js';
 
 /* The adaptive plan of the local route: the first window is small so the first progress, the first measured pace and the first estimate arrive
    quickly; the next ones ramp up; then each is sized from the measured seconds per page so that it lasts about LOCAL.targetWindowSeconds, clamped
@@ -161,4 +161,21 @@ test('the sentence the card says about the plan comes from the same numbers: pac
   assert.equal(pace.secondsPerPage, 6);
   const upcoming = nextWindow({ total: 562, from: plan.slice(0, 4).reduce((sum, item) => sum + item.pages, 1), windows: windows.slice(0, 4), tier: 'basic' });
   assert.ok(Math.abs(upcoming.pages * pace.secondsPerPage - LOCAL.targetWindowSeconds) <= pace.secondsPerPage, 'about a target window long');
+});
+
+test('the estimate is "about": one figure when the windows agree, a range when one window (it also loaded the model) or windows that differ much are all there is to go on', () => {
+  const stable = localEtaRange({ remainingPages: 300, windows: [win(10, 100), win(20, 40), win(20, 42)], tier: 'basic' });
+  assert.equal(stable.stable, true);
+  assert.equal(stable.lowSeconds, stable.highSeconds);
+  assert.equal(stable.etaSeconds, stable.lowSeconds);
+  const one = localEtaRange({ remainingPages: 300, windows: [win(10, 20)], tier: 'basic' });
+  assert.equal(one.stable, false);
+  assert.ok(one.lowSeconds < one.etaSeconds && one.etaSeconds < one.highSeconds, 'a first reading is a band around the figure');
+  const swinging = localEtaRange({ remainingPages: 300, windows: [win(20, 20), win(20, 80), win(20, 30)], tier: 'basic' });
+  assert.equal(swinging.stable, false);
+  assert.equal(swinging.lowSeconds, 300, 'the fastest window: 1 s a page');
+  assert.equal(swinging.highSeconds, 1200, 'the slowest window: 4 s a page');
+  const unmeasured = localEtaRange({ remainingPages: 300, windows: [], tier: 'basic' });
+  assert.deepEqual([unmeasured.basis, unmeasured.stable], ['estimate', false], 'a published figure is never called steady');
+  assert.deepEqual([localEtaRange({ remainingPages: 5, windows: [], tier: 'advanced' }).lowSeconds], [null]);
 });

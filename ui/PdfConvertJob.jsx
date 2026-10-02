@@ -31,7 +31,9 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
   const took = job.startedAt && job.status !== 'queued' ? (running ? now : Date.parse(job.finishedAt || job.startedAt)) - Date.parse(job.startedAt) : null;
   const percent = job.total > 0 ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0;
   const count = job.chunk?.count || 1, index = job.chunk?.index || 0;
-  const piece = count > 1 && index > 0 ? uiFormat('第 {0}/{1} 段', [index, count]) : '';
+  // The adaptive plan decides its windows one at a time: "第 3 段", never "第 3/N 段".
+  const adaptive = job.route === 'local' && !!job.local?.adaptive;
+  const piece = adaptive ? (index > 0 ? uiFormat('第 {0} 段', [index]) : '') : count > 1 && index > 0 ? uiFormat('第 {0}/{1} 段', [index, count]) : '';
   const route = job.route === 'local' ? ui('本地') : ui('云端');
   const title = job.status === 'complete' ? uiFormat('已存为 {0} 页资料 · {1}解析', [job.sourceIds?.length ?? 0, route])
     : job.status === 'failed' ? ui('转换未完成')
@@ -63,10 +65,14 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
             <strong>{percent}%</strong>
             <small>{uiFormat('已解析 {0}/{1} 页', [job.done, job.total])}</small>
           </div>
-          {job.route === 'local' && count > 1 && <small className="muted">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</small>}
+          {job.route === 'local' && (count > 1 || adaptive) && <small className="muted">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</small>}
+          {job.route === 'local' && job.local?.eta && <small className="pdf-eta">{etaText(job.local.eta)}</small>}
+          {job.route === 'local' && job.local?.pace && <small className="muted">{uiFormat('这台电脑每页约 {0} 秒', [job.local.pace.secondsPerPage])}</small>}
         </div>}
+        {running && job.route === 'local' && job.phase === 'local' && job.local?.window && <LocalWindow job={job} now={now} />}
         {job.note && running && <small className="muted">{uiMessage(job.note)}</small>}
-        {count > 1 && job.chunks?.length > 1 && job.status !== 'complete' && <ChunkList chunks={job.chunks} index={index} count={count} running={running} expanded={expandChunks} />}
+        {running && job.local?.halved > 0 && <small className="muted">{uiFormat('有窗口没有成功，已自动拆成更小的段重试（{0} 次）', [job.local.halved])}</small>}
+        {(adaptive ? job.chunks?.length > 0 : count > 1 && job.chunks?.length > 1) && job.status !== 'complete' && <ChunkList chunks={job.chunks} index={index} count={count} running={running} expanded={expandChunks} adaptive={adaptive} next={adaptive && running ? job.local?.next : 0} />}
         {job.status === 'failed' && <small className="warning">{uiMessage(job.stage)}</small>}
         {(job.warnings || []).map(warning => <small className="warning" key={warning}>{uiMessage(warning)}</small>)}
         {job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources && <Button variant="link" size="sm" onClick={() => onOpenSources(job.sourceIds)}>{ui('打开资料')}</Button>}
@@ -95,6 +101,51 @@ export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOp
   return list.length ? <div className="jobs audio-jobs pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} expandChunks={expandChunks} />)}</div> : null;
 }
 
+/* ---------- the window in hand: what the service says about it ---------- */
+
+/** A duration of a few minutes or hours as a person says it ("25 min", "1 h 20 min"): whole minutes, never "0". */
+const roughDuration = seconds => historyDuration(Math.max(1, Math.round(seconds / 60)) * 60_000);
+/** What is left: "less than a minute", one figure when the speed is steady, "A to B" when it is not (it is said to be unsteady). Always "about". */
+function etaText(eta) {
+  if ((eta.highSeconds ?? eta.seconds) < 30) return ui('预计还需不到 1 分钟');
+  const low = roughDuration(eta.lowSeconds ?? eta.seconds), high = roughDuration(eta.highSeconds ?? eta.seconds);
+  return eta.stable || low === high ? uiFormat('预计还需约 {0}', [roughDuration(eta.seconds)]) : uiFormat('预计还需约 {0} 到 {1}（速度还不稳定，估算会变）', [low, high]);
+}
+
+const LIVE_LABEL = { queued: () => ui('排队中'), parsing: () => ui('转换中'), starting: () => ui('服务正在启动'), quiet: () => ui('转换中（服务还没有报告这一段）'),
+  stopped: () => ui('服务已停止'), unknown: () => ui('未知（读不到服务的状态）') };
+const LIVE_ADVICE = {
+  queued: () => ui('服务收到了这一段，正在排队，前面还有别的任务。'),
+  silent: () => ui('服务没有报告它在处理这一段。再等一会儿看看；如果一直没有变化，点「停止」，然后再选同一个 PDF：已经完成的段落会直接复用，只重做这一段。'),
+  stopped: () => ui('本地服务已经停止，这一段多半会失败。失败之后点「重新启动本地服务并接着做」，已经完成的段落会保留。'),
+  unknown: () => ui('暂时读不到服务的状态。这不表示出了问题：解析还在进行，读到状态后这里会更新。'),
+};
+
+/**
+ * The window that is running: which pages, how long it has been going and how long it should take, and (when the service could be asked, read-only) one honest state of it with
+ * what to do about it. The state comes from the service, not from the command, which prints nothing until a window ends: so "no response" is only said when the service reports
+ * nothing parsing or queued for a while, and a scan that simply takes minutes is explained, not alarmed.
+ */
+function LocalWindow({ job, now }) {
+  const win = job.local.window, live = job.liveness, state = live?.state;
+  const elapsed = win.startedAt ? Math.max(0, now - Date.parse(win.startedAt)) : null;
+  const silentFor = live?.lastSignalAt ? Math.max(0, now - Date.parse(live.lastSignalAt)) : (live?.silentForMs ?? 0);
+  const label = state === 'silent' ? uiFormat('无响应（已 {0}没有新状态）', [uiFormat('{0} 分钟', [Math.max(1, Math.round(silentFor / 60_000))])]) : LIVE_LABEL[state]?.();
+  const timing = [elapsed !== null && uiFormat('已经用了 {0}', [historyDuration(elapsed)]), win.expectedSeconds > 0 && uiFormat('预计约 {0}', [historyDuration(win.expectedSeconds * 1000)])].filter(Boolean).join(' · ');
+  return (
+    <div className="pdf-live" role="group" aria-label={ui('当前这一段')} data-state={state || 'none'}>
+      <p className="pdf-live__window"><strong>{uiFormat('这一段：第 {0} 页（{1} 页）', [pageRange(win.startPage, win.endPage), win.pages])}</strong>{timing && <span>{timing}</span>}</p>
+      {label && <p className={`pdf-live__state${state === 'silent' || state === 'stopped' ? ' pdf-live__state--warn' : ''}`} data-state={state}><span className="pdf-live__dot" aria-hidden="true" /><strong>{label}</strong></p>}
+      {live?.lastSignalAt && <small className="muted">{uiFormat('最后一次收到服务的状态：{0}', [historyAgo(live.lastSignalAt, now)])}</small>}
+      {LIVE_ADVICE[state] && <p className={`pdf-live__advice${state === 'silent' || state === 'stopped' ? ' pdf-live__advice--warn' : ''}`}>{LIVE_ADVICE[state]()}</p>}
+      <details className="pdf-live__why"><summary>{ui('为什么一段会这么久？')}</summary>
+        <p>{ui('扫描版 PDF 的第一段最慢：模型要先加载，每一页还要做文字识别。这台电脑慢，每段就按比例更久。')}</p>
+        <p>{ui('服务显示「转换中」时，几分钟没有新进度是正常的：一段做完，进度条才会前进。')}</p>
+      </details>
+    </div>
+  );
+}
+
 /* ---------- what does the work (运行环境) ---------- */
 
 const TIER_MEANING = { basic: () => ui('速度较快'), standard: () => ui('版面理解更好，稍慢') };
@@ -107,9 +158,12 @@ const MB = 1024 * 1024;
  * piece limits and the size of the book. One component for the live card (`service`: the state kept honest while it runs) and the history rows
  * (`bare`, no service, `stoppedAtFailure` from the record).
  */
-export function ConversionEnvironment({ env, service, stoppedAtFailure = false, bare = false, now = Date.now() }) {
+export function ConversionEnvironment({ env, service, stoppedAtFailure = false, bare = false, now = Date.now(), timings }) {
   if (!env) return null;
   const local = env.kind === 'local';
+  const timed = (timings?.windows || []).filter(window => window.seconds > 0);
+  const pages = timed.reduce((sum, window) => sum + (window.pages || 0), 0);
+  const pace = timings?.secondsPerPage > 0 ? timings.secondsPerPage : pages > 0 ? Math.round(timed.reduce((sum, window) => sum + window.seconds, 0) / pages * 100) / 100 : 0;
   const meaning = local ? TIER_MEANING[env.tier]?.() : '';
   const head = !local ? (env.modelVersion ? uiFormat('云端 MinerU · {0} 模型', [env.modelVersion]) : ui('云端 MinerU'))
     : env.mineruVersion && env.tier ? (meaning ? uiFormat('本地 mineru {0} · {1} 档（{2}）', [env.mineruVersion, env.tier, meaning]) : uiFormat('本地 mineru {0} · {1} 档', [env.mineruVersion, env.tier]))
@@ -133,6 +187,12 @@ export function ConversionEnvironment({ env, service, stoppedAtFailure = false, 
           ? uiFormat('每段不超过 {0} 页 / {1} MB · 本书 {2}', [env.maxPages, Math.round(env.maxBytes / MB), formatBytes(env.bookBytes)])
           : uiFormat('每段不超过 {0} 页 / {1} MB', [env.maxPages, Math.round(env.maxBytes / MB)])}</li>}
         {local && env.windows?.kind === 'fixed' && env.windows.pages > 0 && <li>{uiFormat('每次 {0} 页，一段做完才前进', [env.windows.pages])}</li>}
+        {local && env.windows?.kind === 'adaptive' && env.windows.firstPages > 0 && <li>{uiFormat('分段随这台电脑的速度调整：先做 {0} 页，之后每段约 {1} 秒（{2}–{3} 页）', [env.windows.firstPages, env.windows.targetSeconds, env.windows.minPages, env.windows.maxPages])}</li>}
+        {local && timed.length > 0 && pace > 0 && <li>{uiFormat('这台电脑每页约 {0} 秒', [pace])}</li>}
+        {local && timed.length > 0 && <li><details className="pdf-env__windows"><summary>{ui('各段用时')}</summary>
+          <ol>{(timings.windows).map((window, position) => <li key={`${window.start}-${window.end}`}>{uiFormat('第 {0} 段 · 第 {1} 页', [position + 1, pageRange(window.start, window.end)])}
+            {window.seconds > 0 ? ` · ${historyDuration(window.seconds * 1000)}` : window.state === 'failed' ? ` · ${ui('没有完成')}` : ''}</li>)}</ol>
+        </details></li>}
         {local && service && <li className={`pdf-env__service${state === 'stopped' ? ' pdf-env__warning' : ''}`} data-state={['running', 'stopped'].includes(state) ? state : 'unknown'}>
           <span className="pdf-env__dot" aria-hidden="true" />{serviceText}{state === 'running' && confirmed ? ` ${uiFormat('（{0}确认）', [confirmed])}` : ''}</li>}
         {local && state === 'stopped' && <li className="pdf-env__hint">{ui('点「重新启动本地服务并接着做」，已完成的段落会保留。')}</li>}
@@ -143,19 +203,22 @@ export function ConversionEnvironment({ env, service, stoppedAtFailure = false, 
 }
 
 /** The windows (or pieces) of a conversion: they wrap inside the card, each with its pages and its state; more than eight collapse to "第 i/N 段" and a toggle. */
-function ChunkList({ chunks, index, count, running = false, expanded = false }) {
+function ChunkList({ chunks, index, count, running = false, expanded = false, adaptive = false, next = 0 }) {
   const [open, setOpen] = useState(expanded), done = chunks.filter(chunk => chunk.state === 'done').length, many = chunks.length > 8;
   const list = <ol className="audio-steps pdf-chunks" aria-label={ui('各段状态')}>
     {chunks.map(chunk => {
       const label = uiFormat('第 {0} 段 · 第 {1} 页', [chunk.index, pageRange(chunk.startPage, chunk.endPage)]);
-      return <li key={chunk.index} className={chunk.state === 'done' ? 'done' : chunk.index === index && running ? 'current' : ''}>{chunk.state === 'done' ? `✓ ${label}` : label}</li>;
+      return <li key={chunk.index} className={chunk.state === 'done' ? 'done' : chunk.index === index && running ? 'current' : ''}>{chunk.state === 'done' ? `✓ ${label}${chunk.seconds > 0 ? ` · ${historyDuration(chunk.seconds * 1000)}` : ''}` : label}</li>;
     })}
   </ol>;
-  if (!many) return list;
+  // The windows still to be decided are not listed (nobody knows them yet): the size of the next one is said instead.
+  const upcoming = next > 0 ? <small className="pdf-chunks__next muted">{uiFormat('下一段约 {0} 页（按这台电脑现在的速度）', [next])}</small> : null;
+  if (!many) return <>{list}{upcoming}</>;
   return <>
-    <p className="pdf-chunks__summary"><span>{uiFormat('第 {0}/{1} 段 · 已完成 {2} 段', [index || done, count || chunks.length, done])}</span>
+    <p className="pdf-chunks__summary"><span>{adaptive ? uiFormat('第 {0} 段 · 已完成 {1} 段', [index || done, done]) : uiFormat('第 {0}/{1} 段 · 已完成 {2} 段', [index || done, count || chunks.length, done])}</span>
       <Button variant="link" size="sm" aria-expanded={open} onClick={() => setOpen(current => !current)}>{open ? ui('收起各段') : ui('展开各段')}</Button></p>
     {open && list}
+    {upcoming}
   </>;
 }
 
@@ -238,7 +301,8 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
         {progress && <small>{progress}</small>}
         {stuck && <small className="muted">{ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。')}</small>}
-        {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'} /></details>}
+        {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
+          timings={row.route === 'local' ? { windows: row.windows, secondsPerPage: row.plan?.secondsPerPage } : undefined} /></details>}
         <div className="pdf-history__actions">
           {status === 'complete' && document?.exists && <Button variant="link" size="sm" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
           {status === 'running' && row.live && <Button variant="link" size="sm" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}

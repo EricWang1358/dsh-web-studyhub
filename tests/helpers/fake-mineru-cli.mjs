@@ -14,7 +14,9 @@ import { appendFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs
    Timing (all optional, in the state file): `perPageMs` per page, `overheadMs` per call, `firstCallMs` once (the model load of the first parse),
    `delayMs` flat; the parse record the service would show for the run is visible to `list parses --json [--status S]` while it runs
    when `trackParses: true` (`queueMs`: first "pending", then "parsing"; `idleParses: true`: the service never reports it; `listFails: true`: the command fails), and
-   `device` is shown by `server status` and `config show` the way a CLI that exposes it would. `failStarts: [page, ...]` fails every window starting there. */
+   `device` is shown by `server status` and `config show` the way a CLI that exposes it would. `failStarts: [page, ...]` fails every window starting there.
+   `server status --json` answers the way the real one is understood to (`workers.parse_running`, `parse_queue_length`, `parse_server.local.healthy|starting`; `unhealthy`, `starting`, `statusJsonFails`
+   shape it), and `slowFromPage` + `slowMs` make every window starting at or after that page take that much longer (QA). */
 
 const statePath = process.env.FAKE_MINERU_STATE, logPath = process.env.FAKE_MINERU_LOG;
 const state = JSON.parse(readFileSync(statePath, 'utf8'));
@@ -49,6 +51,13 @@ else if (command === 'config' && sub === 'show') {
   if (key === 'parse_server.local.mode') state.mode = value;
   if (key === 'parse_server.local.managed_tier') state.tier = value;
   save(); out('ok');
+} else if (command === 'server' && sub === 'status' && argv.includes('--json')) {
+  // What the real CLI's `server status --json` shows about the workers (read-only): a stopped service says so and exits non-zero.
+  if (!state.running) { out('服务未在运行。'); process.exit(state.statusExitsZero ? 0 : 1); }
+  if (state.statusJsonFails) fail('unexpected failure while reading the status', 2);
+  const active = !state.idleParses && state.active ? state.active : null;
+  out(JSON.stringify({ running: true, pid: 12345, workers: { parse_running: active?.status === 'parsing' ? 1 : 0, parse_queue_length: active?.status === 'pending' ? 1 : 0 },
+    parse_server: { local: { healthy: !state.unhealthy, starting: !!state.starting } } }, null, 2));
 } else if (command === 'server' && sub === 'status') {
   if (state.running || state.statusStuck) {
     out(`┏━━━━━━━━━━┳━━━━━━━━━━┓\n┃ PID      ┃ 12345    ┃\n┃ Uptime   ┃ 2m       ┃\n┃ Version  ┃ 4.0.10   ┃${state.device ? `\n┃ Device   ┃ ${state.device.padEnd(8)} ┃` : ''}\n┗━━━━━━━━━━┻━━━━━━━━━━┛`);
@@ -72,7 +81,8 @@ else if (command === 'list' && sub === 'parses') {
   if (state.failWindowsOnce?.includes(first)) { state.failWindowsOnce = state.failWindowsOnce.filter(item => item !== first); save(); fail('parse failed: model crashed', 2); }
   if (state.failStarts?.includes(first)) fail('parse failed: model crashed', 2);
   if (state.dieOnFirst && first === state.dieOnFirst) { state.running = false; save(); fail('connection to the local server was lost'); }
-  const delay = (state.loaded ? 0 : state.firstCallMs || 0) + (state.overheadMs || 0) + (state.perPageMs || 0) * (last - first + 1) + (state.delayMs || 0);
+  const delay = (state.loaded ? 0 : state.firstCallMs || 0) + (state.overheadMs || 0) + (state.perPageMs || 0) * (last - first + 1) + (state.delayMs || 0)
+    + (state.slowFromPage && first >= state.slowFromPage ? state.slowMs || 0 : 0); // a machine that is fast until some page and then very slow (QA)
   const tracked = !!state.trackParses && !state.idleParses;
   if (tracked) {
     state.nextParseId = (state.nextParseId || 100) + 1;
