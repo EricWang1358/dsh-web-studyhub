@@ -7,7 +7,7 @@
    form (12.2K, 1.2M). A cache-write row appears only when there was one and the
    hit rate only when something was sent, as in DSH. */
 import { ui, uiFormat } from './i18n.js';
-import { cacheHitPercent, formatCompactTokens, formatExactTokens, totalTokens } from '../lib/token-usage.js';
+import { cacheHitPercent, formatCompactTokens, formatExactTokens, promptTokens, totalTokens } from '../lib/token-usage.js';
 
 const tok = (formatted) => `${formatted} tok`;
 const DASH = '–';
@@ -58,6 +58,22 @@ export const usedCallsText = (calls) => (calls === 1 ? ui('1 次调用') : uiFor
 /** "预计 58.3K–96.1K tok · 8–10 次模型调用": the one line above the submit button. */
 export function estimateSummary(estimate) {
   return `${ui('预计')} ${rangeTok(estimate.totalTokens)} · ${callsText(estimate.calls)}`;
+}
+
+/**
+ * What a finished job should say about its own numbers: when it used more than its estimate's upper bound, and when no
+ * call read from the cache. Each helper of a run is its own one-off DSH session, so calls do not share a cache with each
+ * other; the estimate does not count on one either. Empty when there is nothing unusual to say.
+ */
+export function usageNotes(job) {
+  const usage = job?.tokenUsage, estimate = job?.estimate, notes = [];
+  if (!usage) return notes;
+  const total = totalTokens(usage), high = estimate?.totalTokens?.high;
+  if (high > 0 && total > high)
+    notes.push(uiFormat('实际用量超出了预计上限（多 {0}%）。预计只按提示词本身估算；模型实际的分词、推理和出错重试会让它偏高。', [Math.round((total / high - 1) * 100)]));
+  if (usage.calls > 1 && promptTokens(usage) > 0 && !(usage.cacheReadTokens > 0))
+    notes.push(ui('这次没有命中缓存：每个出题、审阅步骤都是各自独立的会话，彼此不共享缓存；预计用量本来就不指望缓存。'));
+  return notes;
 }
 
 /** The estimate a job kept, as "预计 …" without the call count. */

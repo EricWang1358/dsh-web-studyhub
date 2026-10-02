@@ -99,6 +99,7 @@
 :is(.study-app, .study-seat) .job-usage { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
 :is(.study-app, .study-seat) .job-usage__title { font-size: var(--fs-sm); }
 :is(.study-app, .study-seat) .job-usage__expected { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+:is(.study-app, .study-seat) .job-usage__note { color: var(--text-dim); line-height: var(--lh-snug); }
 
 /* ── 模型用量 in 学习统计 ──────────────────────────────────────────────── */
 :is(.study-app, .study-seat) .model-usage { display: grid; gap: var(--space-4); }

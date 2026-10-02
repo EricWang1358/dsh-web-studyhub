@@ -1,0 +1,22 @@
+/* A draft that came out short: why, and the one top-up button (ui/DraftShortfall.jsx).
+   Injected by the components (useInjectCss 'study-draft-shortfall'); tokens only. */
+
+:is(.study-app, .study-seat) .draft-topup { display: grid; justify-items: start; gap: var(--space-1); min-width: 0; }
+:is(.study-app, .study-seat) .draft-topup .token-estimate { max-width: 34em; }
+
+:is(.study-app, .study-seat) .shortfall { display: grid; gap: var(--space-1); min-width: 0; margin-top: var(--space-1); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .shortfall p { margin: 0; }
+:is(.study-app, .study-seat) .shortfall__lead { color: var(--text-muted); }
+:is(.study-app, .study-seat) .shortfall__reasons { display: grid; gap: 2px; margin: 0; padding-left: 1.2em; }
+:is(.study-app, .study-seat) .shortfall__reasons small { display: inline; margin: 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+:is(.study-app, .study-seat) .shortfall__line { color: var(--text-dim); }
+
+:is(.study-app, .study-seat) .draft-shortfall { display: grid; gap: var(--space-2); }
+:is(.study-app, .study-seat) .draft-shortfall > strong { font-size: var(--fs-md); }
+
+:is(.study-app, .study-seat) .omitted-questions { font-size: var(--fs-sm); }
+:is(.study-app, .study-seat) .omitted-questions > summary { cursor: pointer; width: fit-content; }
+:is(.study-app, .study-seat) .omitted-questions ul { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding-left: 1.2em; }
+:is(.study-app, .study-seat) .omitted-questions li { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .omitted-questions li small { display: block; margin: 0; color: var(--text-dim); }
+:is(.study-app, .study-seat) .omitted-questions li small.muted { color: var(--text-muted); }

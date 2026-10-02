@@ -94,6 +94,12 @@ export function jobDeckName(job = {}, drafts = []) {
 }
 
 const incomplete = (job) => jobCode(job) === 'partial' && !ownProse(job);
+/* A finished partial card describes the draft it left behind, and the draft has moved on since: a top-up may have added
+   questions. The count and what is missing are read from the draft as it is now, falling back to what the job saw. */
+function standing(job, draft) {
+  const requested = job.requestedTotal || draft?.editorial?.requested || 0, saved = draft ? draft.cards?.length ?? 0 : job.savedCount ?? 0;
+  return { requested, saved, missing: Math.max(0, requested - saved) };
+}
 
 /** The card's first line: what happened to which deck. */
 export function jobHeadline(job = {}, drafts = []) {
@@ -123,14 +129,17 @@ export function jobHeadline(job = {}, drafts = []) {
     case 'cancelling': return uiFormat('正在停止「{0}」', [name]);
     case 'cancelled': return uiFormat('已停止生成「{0}」', [name]);
     case 'failed': return uiFormat('「{0}」没有生成完成', [name]);
-    case 'partial': return uiFormat('「{0}」草稿待补齐 · {1}/{2} 题', [name, job.savedCount ?? 0, job.requestedTotal]);
+    case 'partial': {
+      const { requested, saved, missing } = standing(job, draftOf(job, drafts));
+      return missing > 0 || !job.requestedTotal ? uiFormat('「{0}」草稿待补齐 · {1}/{2} 题', [name, saved, requested]) : uiFormat('「{0}」草稿已生成', [name]);
+    }
     case 'done': return uiFormat('「{0}」草稿已生成', [name]);
-    default: return uiFormat('正在生成「{0}」', [name]);
+    default: return job.continued ? uiFormat('正在补齐「{0}」', [name]) : uiFormat('正在生成「{0}」', [name]);
   }
 }
 
 /** The card's second line: the stage in plain words, its batch and what is saved. */
-export function jobStageLabel(job = {}, drafts = []) {
+export function jobStageLabel(job = {}, drafts = [], jobs = []) {
   const code = jobCode(job), draft = draftOf(job, drafts);
   if (job.kind === 'case' && job.publication && code === 'done') return ui('批改结果已进信箱；这套案例在学习库里，可以随时再练。');
   if (ownProse(job) && code !== 'failed') return job.stage || stageCodeLabel(code);
@@ -140,8 +149,11 @@ export function jobStageLabel(job = {}, drafts = []) {
   }
   if (code === 'failed') return ownProse(job) ? job.stage || stageCodeLabel(code) : describeFailure(job.stage, { hasDraft: !!draft }).title;
   if (code === 'partial' && incomplete(job)) {
-    const missing = (job.requestedTotal || 0) - (job.savedCount ?? 0);
-    return missing > 0 ? uiFormat('少了 {0} 题；可以打开草稿补齐。', [missing]) : stageCodeLabel(code);
+    const { missing } = standing(job, draft);
+    // A top-up of this very draft is already running: the advice to start one would be wrong, and the numbers are about to change.
+    if (missing > 0 && jobs.some((other) => other !== job && other.draftId === job.draftId && ACTIVE.has(other.status) && !ownProse(other)))
+      return uiFormat('还差 {0} 题，正在补题；进度见新的任务卡。', [missing]);
+    return missing > 0 ? uiFormat('少了 {0} 题；可以打开草稿补齐。', [missing]) : ui('草稿已补齐，检查后即可发布');
   }
   if (!ACTIVE.has(job.status) || code === 'queued' || code === 'cancelling') return stageCodeLabel(code);
   // While running, the newest step in flight says more than the job-level stage.
@@ -162,6 +174,7 @@ const FAILURES = [
   ['network', /fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket hang up|connection (error|reset|refused|closed|terminated)|network|连不上|网络/i],
   ['unavailable', /overloaded|\b5\d\d\b|unavailable|暂时不可用/i],
   ['sources', /资料[^；;。]*(删除|缺失)|Select at least one source/i],
+  ['plan', /Assessment plan is not usable/i],
   ['quality', /Quality gate failed|Editorial review still found issues|No questions were generated|Author returned no questions|insufficient evidence|没有题目通过/i],
 ];
 
@@ -187,6 +200,8 @@ export function describeFailure(text = '', { hasDraft = false } = {}) {
     case 'network': return { kind, action: 'retry', title: ui('连不上模型服务'), hint: ui('检查网络连接后重新生成。') };
     case 'unavailable': return { kind, action: 'retry', title: ui('模型服务暂时不可用'), hint: ui('稍后再重新生成。') };
     case 'sources': return { kind, action: 'retry', title: ui('出题用的资料已被删除'), hint: ui('重新选择资料后再生成。') };
+    case 'plan': return { kind, action: 'retry', title: ui('考点规划没有通过检查'),
+      hint: ui('资料里能稳妥出题的内容可能不够。换几份内容更完整的资料，或减少题数再试。') };
     case 'quality': return { kind, action: 'retry', title: ui('没有题目通过检查'),
       hint: ui('资料可能太短，或缺少可以考的内容。换几份内容更完整的资料，或减少题数再试。') };
     default: return { kind, action: 'retry', title: ui('生成没有完成'), hint: ui('可以按原资料重新设置后再试。') };

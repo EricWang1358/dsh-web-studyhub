@@ -15,6 +15,8 @@ import CourseRoute from "./CourseRoute.jsx";
 import caseCss from "./case-study.css";
 import { ExamCountdown } from "./CourseSettings.jsx";
 import { groupCourseNames, rankCourses } from "./course-names.js";
+import { DraftTopUp, ShortfallReasons } from "./DraftShortfall.jsx";
+import { missingQuestions } from "./draft-shortfall.js";
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
@@ -133,6 +135,7 @@ export default function StudyMap({
   manage,
   openDraft,
   continueDraft,
+  call,
   retryGeneration,
   openAgent,
   cancelJob,
@@ -216,8 +219,8 @@ export default function StudyMap({
   const progress = data.progress || EMPTY_PROGRESS,
     today = data.today || { due: 0, weak: 0, new: 0, size: 0 },
     runs = data.runs || [];
-  // Audio imports report progress in the add-source form, not among question generations.
-  const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import");
+  // Audio imports and PDF conversions report progress in the Sources page, not among question generations.
+  const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import" && job.type !== "pdf-convert");
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
   // Top of the home: what is still running first, then the newest finished cards.
   const visibleJobs = (() => {
@@ -573,7 +576,7 @@ export default function StudyMap({
   const activity = (visibleJobs.length > 0 || drafts.length > 0) && (
     <section className="home-activity" ref={activityRef} aria-label={ui("出题进度与待发布草稿")}>
       {visibleJobs.length > 0 && <div className="jobs generation-jobs">
-        {visibleJobs.map((j) => <JobCard key={j.id} job={j} drafts={drafts} busy={busy} openDraft={openDraft}
+        {visibleJobs.map((j) => <JobCard key={j.id} job={j} jobs={visibleJobs} drafts={drafts} busy={busy} openDraft={openDraft}
           openAgent={openAgent} cancelJob={cancelJob} dismissJob={dismissJob} retryGeneration={retryGeneration}
           openModelSettings={openModelSettings} />)}
         {dismissJob && finishedCount > 1 && <div className="jobs-actions">
@@ -589,13 +592,10 @@ export default function StudyMap({
           <small>{ui("发布时逐题检查；问题题留在草稿")}</small>
         </div>
         {[...drafts].reverse().map((d) => {
-          const missing = (d.editorial?.requested || 0) - d.cards.length;
+          const missing = missingQuestions(d);
           const qualityCount = (d.quality?.warnings?.length || 0) + (d.quality?.errors?.length || 0);
           const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
           const reviewed = reviewedCardStatus(d);
-          const continuing = data.jobs?.some((j) => j.draftId === d.id && ["queued", "running", "cancelling"].includes(j.status));
-          const canContinue = missing > 0 && d.editorial?.generation?.sourceIds?.length &&
-            !d.editingDeckId && !rejectedCount && !d.editorial?.repairOfDeckId;
           return <div key={d.id} className="draft-row">
             <button type="button" className="draft-open" onClick={() => openDraft(d)}>
               <span>
@@ -604,15 +604,14 @@ export default function StudyMap({
                   {d.cards.length}{ui(" 道题")}{qualityCount ? uiFormat(" · {0} 项质量提醒", [qualityCount]) : ""}
                   {rejectedCount ? uiFormat(" · {0} 题待处理", [rejectedCount])
                     : ` · ${reviewed?.unchanged === d.cards.length ? ui("已复审，待发布") : ui("待发布检查")}`}
+                  {missing > 0 ? uiFormat(" · 还差 {0} 题", [missing]) : ""}
                   {Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
                     ? uiFormat(" · 生成未完成 {0}/{1} 批", [d.editorial.completedParts, d.editorial.parts]) : ""}
                 </small>
               </span>
               <span>{ui("打开 →")}</span>
             </button>
-            {canContinue && <button type="button" disabled={busy || continuing || !modelReady}
-              title={!modelReady ? ui("先配置一个 AI 模型") : ui("用原资料补齐题目，保留已有草稿")}
-              onClick={() => continueDraft(d)}>{continuing ? ui("补题中…") : uiFormat("继续补齐 {0} 题", [missing])}</button>}
+            <DraftTopUp draft={d} jobs={data.jobs} busy={busy} modelReady={modelReady} call={call} onContinue={continueDraft} />
           </div>;
         })}
       </div>}
@@ -996,7 +995,7 @@ const JOB_MARKS = { queued: "info", done: "success", partial: "warning", failed:
    stop control while it runs, and the draft once there is one (P26–P29).
    A failure says what is wrong and how to fix it; the raw message stays in
    技术详情 (P15). */
-function JobCard({ job: j, drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings }) {
+function JobCard({ job: j, jobs = [], drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings }) {
   const code = jobCode(j), active = isActiveJob(j);
   const dismissFailure = useQuickActions()?.failures[j.id];
   const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
@@ -1015,7 +1014,8 @@ function JobCard({ job: j, drafts, busy, openDraft, openAgent, cancelJob, dismis
         {failure.action === "settings" && openModelSettings &&
           <Button size="sm" variant="secondary" icon="model" onClick={openModelSettings}>{ui("去配置模型")}</Button>}
         <Disclosure className="tech-details" summary={ui("技术详情")}><code className="job-raw">{j.stage}</code></Disclosure>
-      </div> : <small className="job-stage">{jobStageLabel(j, drafts)}</small>}
+      </div> : <small className="job-stage">{jobStageLabel(j, drafts, jobs)}</small>}
+      {code === "partial" && draft && generation && j.type !== "supplement" && <ShortfallReasons draft={draft} compact />}
       {dismissFailure && <p className="job-error" role="alert">{uiFormat("没能移除这条记录：{0}", [dismissFailure])}</p>}
       {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
     </div>
