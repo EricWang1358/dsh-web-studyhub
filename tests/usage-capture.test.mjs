@@ -183,6 +183,10 @@ test('documented shortcuts are keyed from the key and the page, and only where t
   assert.equal(press('Enter', {}, page.byTag('button')[0]), null);
   assert.equal(press(' ', { code: 'Space' }, page.byTag('button')[0]), null);
   assert.equal(press('s', {}, page.byTag('button')[0]), 'shortcut.resume', 'a letter key with focus on a button still triggers the shortcut');
+  // the usage section itself is never counted, not even by key
+  const ignored = dom('<main data-usage-area="settings"><section data-usage-ignore><button>x</button></section></main>').byTag('button')[0];
+  assert.equal(press('s', {}, ignored), null);
+  assert.equal(press('a', {}, ignored), null);
   // review-only keys outside the practice page are not shortcuts
   const library = dom('<main data-usage-area="library"><div></div></main>').byTag('div')[0];
   for (const key of ['h', 't', '3', 'ArrowLeft', 'Enter']) assert.equal(press(key, {}, library), null, key);

@@ -23,7 +23,7 @@ export function shortcutKeyFor(event, { fallbackArea = 'other' } = {}) {
   const key = typeof event.key === 'string' ? event.key : '';
   let onButton = false, area = null;
   for (let node = event.target, depth = 0; node && depth < MAX_DEPTH; node = node.parentElement, depth += 1) {
-    if (EDITABLE.has(node.tagName)) return null;
+    if (EDITABLE.has(node.tagName) || (typeof node.hasAttribute === 'function' && node.hasAttribute('data-usage-ignore'))) return null;
     const editable = typeof node.getAttribute === 'function' ? node.getAttribute('contenteditable') : null;
     if (editable !== null && editable !== 'false') return null;
     if (node.tagName === 'BUTTON' || node.tagName === 'A') onButton = true;

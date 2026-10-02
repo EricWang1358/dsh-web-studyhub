@@ -83,7 +83,11 @@ export async function runUsageQa(options) {
     const api = (action, args = {}) => previewCall(server, action, args);
     // What was done, so the report can be held to it. A control that is not there or is disabled is skipped, not counted.
     const hit = async (key, locator, { expect = true } = {}) => {
-      if (!(await locator.count()) || !(await locator.first().isEnabled().catch(() => false))) return false;
+      if (!(await locator.count())) return false;
+      // A control that is still loading (the reader's practice button waits for its question counts) is given a few seconds to become usable.
+      let usable = false;
+      for (let attempt = 0; attempt < 15 && !usable; attempt += 1) { usable = await locator.first().isEnabled().catch(() => false); if (!usable) await sleep(200); }
+      if (!usable) return false;
       try { await locator.first().click({ timeout: 4000 }); } catch { return false; }
       if (expect) tally.set(key, (tally.get(key) || 0) + 1);
       clicks.push(key);
