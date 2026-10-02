@@ -74,6 +74,17 @@ test('a paragraph the reader draws is found in the stored text by its text, with
   assert.equal(locateParagraph(text, 'Alpha beta.', 5).status, 'missing');
 });
 
+test('a selected passage is found with its context, and one that cannot be told apart is reported, not guessed', () => {
+  const text = 'The model is simple. Use it. The model is simple. Use it again.';
+  const first = locateParagraph(text, 'The model is simple.', undefined, { prefix: '', suffix: ' Use it. The' });
+  assert.equal(first.status, 'resolved');
+  assert.equal(first.start, 0);
+  const second = locateParagraph(text, 'The model is simple.', undefined, { prefix: 'Use it. ', suffix: ' Use it again.' });
+  assert.equal(second.start, text.lastIndexOf('The model is simple.'));
+  assert.equal(locateParagraph(text, 'The model is simple.', undefined, { prefix: 'zzz', suffix: 'qqq' }).status, 'ambiguous');
+  assert.equal(locateParagraph(text, 'Use it again.', undefined, { prefix: 'nothing', suffix: '' }).status, 'resolved', 'a unique passage needs no context');
+});
+
 /* ---------- size and batches ---------- */
 
 test('a long paragraph is split on sentence boundaries and the pieces rebuild it; short ones are left alone', () => {
