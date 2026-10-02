@@ -15,7 +15,7 @@ import ThumbFeedback from "./ThumbFeedback.jsx";
 import { reviewEntryKey } from "./async.js";
 import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
-import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
+import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
@@ -159,6 +159,11 @@ export default function Review({
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
+  // The question column follows the chosen reading width (the card, the toolbar and the explanation share it), not a fixed 700px: 窄 / 标准 / 宽 in the Aa popover.
+  const readingStyle = useReadingProps().style || {};
+  const readingMeasure = readingStyle["--reading-measure"];
+  // The card's own type (stem, options, flashcard faces) scales with the chosen size too: 16px is the designed size, so 1.0.
+  const cardScale = Math.round((parseFloat(readingStyle["--reader-size"]) / 16 || 1) * 100) / 100;
   // Case questions (WP12): the scenario sits above the question; its highlights belong to this run.
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
@@ -364,6 +369,7 @@ export default function Review({
               (!choice && !isCloze && !rubricCard ? "flash-area" : "") +
               (caseSource ? " has-case" : "")
             }
+            style={readingMeasure ? { "--reading-measure": readingMeasure, "--review-column": "calc(var(--reading-measure) - 4px)", "--card-scale": cardScale } : undefined}
           >
             {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}
             {caseSource && <ScenarioPanel className="case-review-scenario" title={caseSource.title} text={caseSource.text}
