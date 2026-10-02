@@ -8,6 +8,7 @@ import { syncBuiltinESMExports } from "node:module";
 import { runInNewContext } from "node:vm";
 import { setFlagsFromString, writeHeapSnapshot } from "node:v8";
 import fsp from "node:fs/promises";
+import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -33,7 +34,7 @@ export class Probe {
     if (this.#restore) return this;
     const counts = this.#counts;
     const { parse, stringify } = JSON, clone = globalThis.structuredClone;
-    const readFile = fsp.readFile, writeFile = fsp.writeFile;
+    const readFile = fsp.readFile, writeFile = fsp.writeFile, readFileSync = fs.readFileSync;
     JSON.parse = function (text, ...rest) {
       counts.jsonParseCalls++;
       if (typeof text === "string") counts.jsonParseChars += text.length;
@@ -59,6 +60,12 @@ export class Probe {
       else if (isManifest(path)) counts.manifestReads++;
       return out;
     };
+    // The store re-reads a shard synchronously only when it has no parsed copy to work from: that counts as a shard read too.
+    fs.readFileSync = function (path, ...rest) {
+      const out = readFileSync.call(this, path, ...rest);
+      if (isShard(path)) { counts.shardReads++; counts.shardReadBytes += out.length; }
+      return out;
+    };
     fsp.writeFile = async function (path, data, ...rest) {
       if (isShard(path)) { counts.shardWrites++; counts.shardWriteBytes += Buffer.byteLength(data); }
       else if (isManifest(path)) { counts.manifestWrites++; counts.manifestWriteBytes += Buffer.byteLength(data); }
@@ -67,7 +74,7 @@ export class Probe {
     syncBuiltinESMExports();
     this.#restore = () => {
       JSON.parse = parse; JSON.stringify = stringify; globalThis.structuredClone = clone;
-      fsp.readFile = readFile; fsp.writeFile = writeFile;
+      fsp.readFile = readFile; fsp.writeFile = writeFile; fs.readFileSync = readFileSync;
       syncBuiltinESMExports();
       this.#restore = null;
     };

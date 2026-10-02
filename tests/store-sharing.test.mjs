@@ -92,12 +92,15 @@ test("STUDY_STORE_PRIVATE=1 turns the sharing off: every transaction parses priv
   assert.equal((await store.read()).decks[0].title, "Deck d1", "a change to a field the transaction does not write is not persisted");
 });
 
-test("a parsed shard's text is not kept in memory, and a transaction that copies the shard reads the file again", async (t) => {
+test("a parsed shard's text is not kept in memory, and a transaction copies the parsed value instead of reading the file", async (t) => {
   const { root, store } = await seeded(t);
   const entry = await store.load();
   for (const field of Object.keys(entry.state)) void entry.state[field];
   assert.ok(entry.files.size > 0);
   assert.ok([...entry.files.values()].every((text) => text === null), "every shard was parsed and shared, so no text is held");
+  // Reading a collection of a thousand shard files back took 100-500 ms of blocking I/O: with the files gone, copies still work.
+  await rm(join(root, "shards", "decks"), { recursive: true });
+  await rm(join(root, "shards", "runs"), { recursive: true });
   await store.update((state) => { state.runs[1].index = 4; }, { runs: new Set(["r2"]) }, { reads: ["runs"], writes: ["runs"] });
   await store.update((state) => { state.decks[0].title = "renamed"; }, null, ["decks"]);
   const after = await store.read();

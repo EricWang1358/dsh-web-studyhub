@@ -147,6 +147,24 @@ test("opening a page does not copy the library to read it (read budget)", async 
   t.diagnostic(`page reads: ${report.map((row) => `${row.action} ${row.cloned}/${row.response}`).join(", ")}`);
 });
 
+test("a write that copies a whole collection reads no shard files back (write budget)", async (t) => {
+  const f = await fixture(t);
+  await f.service.call("snapshot");
+  const deck = (await f.service.call("snapshot", { since: "x" })).decks[0];
+  const card = (await f.service.call("deck.get", { deckId: deck.id, id: deck.id })).cards[0];
+  const report = {};
+  for (const [label, action, args] of [["card.flag (copies every deck)", "card.flag", { deckId: deck.id, cardId: card.id, reason: "perf" }],
+    ["source.add (copies every source)", "source.add", { title: "added", text: "added ".repeat(50), courses: [] }],
+    ["review.answer (copies decks and attempts)", null, null]]) {
+    if (!action) await f.next("reveal");
+    const { counts } = await f.probe.measure(() => action ? f.service.call(action, args) : f.next("answer"));
+    report[label] = { shardReads: counts.shardReads, parsedChars: ratio(counts.jsonParseChars, f.libraryChars) };
+    // A private copy of a shard the cache holds parsed is a copy of that value; the file (hundreds of them, blocking sync reads) is not read.
+    assert.equal(counts.shardReads, 0, `${label} read ${counts.shardReads} shard files back`);
+  }
+  t.diagnostic(`write copies: ${JSON.stringify(report)}`);
+});
+
 test("heavy dependencies are imported when used, not when the host starts (cold-start budget)", async () => {
   // yaml (a legacy import), pdf-lib and pdfjs-dist (PDF import and chunking) cost ~100-560 ms each to load: a static import anywhere
   // in lib/ would put that on every host start. The client bundle files (lib/client.*.js) are build output, not sources.
