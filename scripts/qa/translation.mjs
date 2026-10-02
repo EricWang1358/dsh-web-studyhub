@@ -9,6 +9,7 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
 import { createPreviewServer } from "../preview-server.mjs";
 import { launchChromium } from "./browser.mjs";
@@ -80,6 +81,17 @@ async function seed(root, lang) {
   const { md, txt } = content(lang);
   await runtime.call("materials.document.import", { filename: "platform-notes.md", dataBase64: Buffer.from(md).toString("base64"), courses: ["QA"] });
   await runtime.call("materials.document.import", { filename: "lecture-notes.txt", dataBase64: Buffer.from(txt).toString("base64"), courses: ["QA"] });
+  // A text PDF (one source per page, drawn as page sections): "this page" is a page, not a heading. Latin text only, so the Chinese interface translates it.
+  if (lang === "zh") {
+    const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica);
+    const pages = [["Process scheduling decides which process runs next on the processor.", "A good policy keeps the processor busy while it stays fair to every process in the system."],
+      ["Virtual memory gives every process its own address space to work in.", "Paging lets the system keep only the pages a process is using in physical memory."]];
+    for (const lines of pages) {
+      const sheet = pdf.addPage([480, 600]);
+      lines.forEach((line, index) => sheet.drawText(line, { x: 24, y: 540 - index * 22, size: 10, font }));
+    }
+    await runtime.call("materials.document.import", { filename: "lecture.pdf", dataBase64: Buffer.from(await pdf.save()).toString("base64"), courses: ["QA"] });
+  }
   runtime.dispose();
 }
 
@@ -329,11 +341,29 @@ export async function runTranslationQa(options) {
     await step("keyboard-path", async () => {
       // No pointer: focus the reading area and press Alt+T; the first paragraph in view is translated.
       await setMode(labels.pairs);
+      await page.mouse.move(2, 2);
       const before = await viewer.locator(".tr-block").count();
       await viewer.locator(".reader-scroll").focus();
       await page.keyboard.press("Alt+t");
       await page.waitForFunction((count) => document.querySelectorAll(".tr-block").length > count, before, { timeout: 15000 });
     });
+    if (options.lang === "zh") {
+      await closeReader();
+      await step("pdf-pages", async () => {
+        await openRow("lecture.pdf");
+        await viewer.locator(".tr-mark").first().waitFor({ timeout: 15000 });
+        if ((await viewer.locator("[data-study-page]").count()) < 2) throw new Error("the PDF is not drawn as pages");
+      });
+      await step("pdf-page-scope", async () => {
+        // The first page is in view: "this page" is exactly its paragraphs, and the second page stays as it is.
+        await openMenu();
+        await popover().getByText("翻译本页").waitFor();
+        await popover().locator(".tr-scope").first().getByRole("button", { name: "开始翻译" }).click();
+        await viewer.locator(".tr-job[data-status='complete']").waitFor({ timeout: 60000 });
+        const pages = await page.evaluate(() => [...document.querySelectorAll("[data-study-page]")].map((section) => section.querySelectorAll(".tr-host").length));
+        if (pages[0] < 1 || pages[1] !== 0) throw new Error(`translations per page: ${pages.join(", ")}`);
+      });
+    }
     return summary;
   } finally {
     summary.finishedAt = new Date().toISOString();

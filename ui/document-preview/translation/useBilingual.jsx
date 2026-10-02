@@ -246,7 +246,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     if (!container || !supported || view === 'original') return undefined;
     const own = layer.current;
     const track = event => {
-      const paragraph = paragraphAround(event.target, own.byElement);
+      const paragraph = event.target ? paragraphAround(event.target, own.byElement) : null;
       if (paragraph === own.active) return;
       own.marks.get(own.byElement.get(own.active)?.key)?.firstChild?.setAttribute('tabindex', '-1');
       own.active = paragraph;
@@ -266,10 +266,13 @@ export default function useBilingual({ call, document: doc, source, view, paged,
         if (key) { if (own.origOpen.has(key)) own.origOpen.delete(key); else own.origOpen.add(key); delete folded.dataset.trClamp; if (!own.origOpen.has(key)) folded.dataset.trClamp = 'true'; }
       }
     };
+    // The pointer leaving the text means no paragraph is under it any more: Alt+T then acts on the first one in view.
+    const leave = () => track({ target: null });
     container.addEventListener('pointerover', track);
+    container.addEventListener('pointerleave', leave);
     container.addEventListener('focusin', track);
     container.addEventListener('click', click, true);
-    return () => { container.removeEventListener('pointerover', track); container.removeEventListener('focusin', track); container.removeEventListener('click', click, true); };
+    return () => { container.removeEventListener('pointerover', track); container.removeEventListener('pointerleave', leave); container.removeEventListener('focusin', track); container.removeEventListener('click', click, true); };
   }, [body, supported, view, version]);
   useEffect(() => { latest.current = { onMark, mode }; });
 
