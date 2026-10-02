@@ -16,6 +16,7 @@ import { createServer } from 'node:http';
 export const FAKE_KEY = 'tsk_fake_JEV_key_0000000000000000000001';
 /** The paths this fake serves, and the models the Zen path accepts. */
 export const FAKE_PATHS = Object.freeze({ typesafe: '/v1/systemone', opencode: '/zen/v1/systemone' });
+/** Any other path ending in /systemone answers like TypeSafe's (a custom gateway endpoint of the same typed API). */
 export const ZEN_MODELS = Object.freeze(['jev-1.13', 'jev-1.13-free']);
 
 const json = (response, body, status = 200, headers = {}) => {
@@ -88,7 +89,7 @@ export async function startFakeJev(options = {}) {
       const spec = typeof fail === 'number' ? { status: fail } : fail;
       return json(response, spec.body ?? { detail: `fake failure ${spec.status}` }, spec.status, spec.headers);
     }
-    if (entry.method !== 'POST' || !Object.values(FAKE_PATHS).includes(entry.path)) return json(response, { detail: 'not found' }, 404);
+    if (entry.method !== 'POST' || !entry.path.endsWith('/systemone')) return json(response, { detail: 'not found' }, 404);
     if (request.headers.authorization !== `Bearer ${key}`) return json(response, { detail: 'invalid or missing API key' }, 401);
     const problems = validationProblems(payload);
     if (entry.path === FAKE_PATHS.opencode && !ZEN_MODELS.includes(payload?.model)) problems.push('model is not available on Zen');

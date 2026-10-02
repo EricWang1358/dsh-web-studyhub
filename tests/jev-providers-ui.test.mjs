@@ -35,8 +35,8 @@ const view = (settings, extra = {}) => h(JevSettingsView, { settings, usage: nul
 const noHan = (html, where) => assert.ok(!han.test(html.replace(/C:\\Users[^<]*/g, '')), `${where}: ${html.match(/.{0,30}[㐀-鿿]+.{0,30}/)?.[0]}`);
 
 test('the selector offers the three providers with plain labels, marks the chosen one and calls onProvider with its id', () => {
-  assert.deepEqual(providerChoices().map(choice => choice.id), ['typesafe', 'opencode-zen-free', 'opencode-zen']);
-  assert.deepEqual(providerChoices().map(choice => choice.label), ['TypeSafe（官方）', 'OpenCode Zen · Jev 免费', 'OpenCode Zen · Jev']);
+  assert.deepEqual(providerChoices().map(choice => choice.id), ['typesafe', 'opencode-zen-free', 'opencode-zen', 'custom']);
+  assert.deepEqual(providerChoices().map(choice => choice.label), ['TypeSafe（官方）', 'OpenCode Zen · Jev 免费', 'OpenCode Zen · Jev', '自定义端点']);
   const html = render(view(zenFree));
   assert.match(html, /<select[^>]*name="jev-provider"/);
   assert.match(html, /<option value="typesafe">TypeSafe（官方）<\/option>/);
