@@ -6,8 +6,9 @@ import { useInjectCss, plainPrompt } from "./shared.js";
 import { createWriteQueue } from "./async.js";
 import { EXAM_LIMIT_MS } from "../lib/exam-timing.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
+import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 import OralExam from "./OralExam.jsx";
-import { decksInCourse, usePageScope } from './PageScope.jsx';
+import { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
 import caseCss from './case-study.css';
@@ -55,6 +56,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
   useInjectCss(css, "study-views");
   useInjectCss(caseCss, "study-case-workspace");
   const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.mode === 'interview' ? '*' : data?.focus?.course ?? '*');
+  const [showInactive, setShowInactive] = useShowInactive(data?.root, 'exam');
   const [deckChoice, setDeckChoice] = usePageScope(data?.root, 'exam-decks', '');
   // The format: a deep link wins, then the learner's last choice (kept for this tab), then what the course's exam profile points at.
   const [savedFormat, setSavedFormat] = usePageScope(data?.root, 'exam-format', '');
@@ -92,8 +94,8 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
   }
 
   const decks = useMemo(
-    () => decksInCourse(data, course).filter(d => (d.examCount || 0) > 0),
-    [data, course],
+    () => decksInCourse(data, course, showInactive).filter(d => (d.examCount || 0) > 0),
+    [data, course, showInactive],
   );
   const deckNames = useMemo(() => shortDeckTitles(decks, course), [decks, course]);
   const savedChoice = useMemo(() => { try { return JSON.parse(deckChoice); } catch { return null; } }, [deckChoice]);
@@ -103,8 +105,8 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
   const setPickedDecks = update => setDeckChoice(JSON.stringify({ course, ids: [...(typeof update === 'function' ? update(pickedDecks) : update)] }));
   const chooseCourse = value => { setCourse(value); setDeckChoice(''); };
   const flashOnly = useMemo(
-    () => !decks.length && decksInCourse(data, course).some(d => d.available > 0),
-    [data, decks, course],
+    () => !decks.length && decksInCourse(data, course, showInactive).some(d => d.available > 0),
+    [data, decks, course, showInactive],
   );
   const pickedKinds = useMemo(
     () => decks.reduce((counts, deck) => pickedDecks.has(deck.id)
@@ -335,7 +337,8 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
   }
 
   // One page, one switch (WP25): the header, the format's own setup card and the shared recent list.
-  const header = <ExamHeader courses={data?.focus?.courses} course={course} onCourse={chooseCourse} format={examMode} onFormat={chooseFormat} />;
+  const header = <ExamHeader courses={data?.focus?.courses} course={course} onCourse={chooseCourse} format={examMode} onFormat={chooseFormat}
+    showInactive={showInactive} onShowInactive={show => { setShowInactive(show); setDeckChoice(''); }} />;
   const recent = <RecentExams items={recentExams(data)} format={examMode} onOpen={openRecent} busy={busy} />;
   const deepRun = (kind) => openRun?.kind === kind ? openRun.runId : initialKind === kind ? initialRunId : undefined;
   // 案例分析卷 (WP12): a timed case paper on the same exam runs, timer and report.
@@ -347,7 +350,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
     initialRunId={deepRun("oral")} onLocation={onLocation} onStartRun={onStartRun} onSetupModel={onSetupModel}
     header={header} recent={recent}
     course={course} onCourseChange={chooseCourse}
-    selection={explicitDecks ? { scope: [...pickedDecks].map(deckId => ({ deckId })) } : { course }} />;
+    selection={explicitDecks ? { scope: [...pickedDecks].map(deckId => ({ deckId })) } : scopeArgs(course, showInactive)} />;
 
   return (
     <section ref={pageRef} className="page exam">
@@ -526,12 +529,13 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
       )}
 
       {phase === "report" && report && (
-        <div className="exam-report">
+        <ReadingBlock className="exam-report">
           <div className="page-heading">
             <div>
               <h1>{ui("考试报告")}</h1>
               <p className="muted">{report.examRole ? `${report.examRole} · ` : ""}{ui("已判分并计入复习计划。")}</p>
             </div>
+            <ReadingSettingsButton className="exam-reading" />
           </div>
           <div className="result-hero">
             <div className="result-headline">
@@ -646,7 +650,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
 
           </details>
           {err && <p className="exam-error">{err}</p>}
-        </div>
+        </ReadingBlock>
       )}
     </section>
   );

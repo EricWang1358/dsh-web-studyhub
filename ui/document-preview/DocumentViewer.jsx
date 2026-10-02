@@ -1,27 +1,44 @@
-import React, { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { renderNoteMarkdown } from '../note-markdown.js';
 import { AudioCorrections } from '../AudioImport.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, IconButton, SegmentedControl } from '../components/index.js';
-import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
-import { annotatePassages, captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
+import DocumentLearning from './DocumentLearning.jsx';
+import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
+import { issueOf } from './original-file.js';
+import { peekStatus } from './peek/peek-logic.js';
+import { captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
+import PassageLinksPanel, { linkTitleWords } from './links/PassageLinksPanel.jsx';
+import { buildLinkModel, groupTitle } from './links/link-model.js';
+import { usePassageLinkLayer } from './links/usePassageLinkLayer.js';
+import useBilingual from './translation/useBilingual.jsx';
 import { isOfficeFormat } from '../../lib/office/limits.js';
+import { groupSourcesByDocument } from '../../lib/source-groups.js';
+import ReadingPractice from './practice/ReadingPractice.jsx';
+import { MasteryLine } from './practice/MasteryMark.jsx';
+import { useReadingLoop } from './practice/useReadingLoop.js';
 import OutlinePanel from './reader/OutlinePanel.jsx';
+import OutlineAssist from './reader/OutlineAssist.jsx';
 import FindBar from './reader/FindBar.jsx';
 import DisplaySettings from './reader/DisplaySettings.jsx';
 import ReadingSections from './reader/ReadingSections.jsx';
 import { useReaderSettings } from './reader/useReaderSettings.js';
 import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js';
-import { readerVars } from './reader/settings.js';
+import { readerVars, underlineShown } from './reader/settings.js';
 import { readingSections } from './reader/text-sections.js';
-import { outlineFromSections, collectHeadings, neighbours } from './reader/outline.js';
+import { outlineFromSections, collectHeadings, structureOutline, sectionNeighbours, chapterNeighbours, outlinePath } from './reader/outline.js';
+import { applyOutline, clearOutlineTags } from './reader/ai-outline.js';
 import { findRanges, paintMatches } from './reader/find.js';
 import css from './document-preview.css';
 import readerCss from './reader/reader.css';
+import linksCss from './links/links.css';
+import translationCss from './translation/translation.css';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+// 看原页 (pdf.js and its worker) is fetched on the first peek, never with the reader.
+const PagePeek = lazy(() => import('./peek/PagePeek.jsx'));
 
 /** HTML is inert reading content: scripts, embedded browsing and external resource loads are removed. */
 export function safeDocumentHtml(text) {
@@ -71,18 +88,24 @@ function QuotedText({ text, quote, anchor, format }) {
  * onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows "从这份资料出题" as the
  * toolbar's primary action), generateDisabled, initialMode ('read' | 'text' | 'original').
  */
-export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onNotice, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read' }) {
+export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onNotice, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
+  onPracticePages, onGeneratePages, resume, backLabel, onBack }) {
   const language = useUiLanguage();
   useInjectCss(css, 'study-document-preview');
   useInjectCss(readerCss, 'study-reader');
+  useInjectCss(linksCss, 'study-reader-links');
+  useInjectCss(translationCss, 'study-reader-translation');
   const [document, setDocument] = useState(null), [content, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
   const [error, setError] = useState(''), [loading, setLoading] = useState(true), [mode, setMode] = useState(initialMode);
-  const [capture, setCapture] = useState(null), [links, setLinks] = useState([]), [focusedGroup, setFocusedGroup] = useState(null);
+  const [capture, setCapture] = useState(null), [links, setLinks] = useState([]), [focusedKey, setFocusedKey] = useState(null);
   const [settings, updateSettings, resetSettings] = useReaderSettings();
   const [narrow, setNarrow] = useState(false), [overlay, setOverlay] = useState(null);
   const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
   const [headings, setHeadings] = useState([]);
+  const [aiOutline, setAiOutline] = useState(null), [aiItems, setAiItems] = useState([]), [emptyOpen, setEmptyOpen] = useState(false);
   const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1);
+  const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
+  const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   const outlineId = useId(), toolsId = useId();
   useEffect(() => {
@@ -100,7 +123,13 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         if (original === 'download' || original === 'none') setContent(value.sources?.find(item => item.id === source.id)?.text || source.text);
         else {
           const bytes = await call('materials.document.bytes', { documentId: value.documentId || value.id, revision: value.revision });
-          if (!current || !bytes.dataBase64) return;
+          if (!current) return;
+          if (!bytes.dataBase64) {
+            // The original is not there (a referenced file moved or changed): say so, and keep reading the stored text.
+            setDocument({ ...value, originalAvailable: false, original: { ...value.original, status: bytes.reason === 'none' ? 'none' : bytes.reason === 'missing' || bytes.reason === 'unreadable' ? bytes.reason : 'changed', reason: bytes.reason, ...(bytes.path ? { path: bytes.path } : {}) } });
+            setContent(value.sources?.find(item => item.id === source.id)?.text || source.text);
+            return;
+          }
           const data = Uint8Array.from(atob(bytes.dataBase64), char => char.charCodeAt(0));
           if (value.format === 'pdf') {
             objectUrl = URL.createObjectURL(new Blob([data], { type: bytes.mime })); setFileUrl(objectUrl);
@@ -111,7 +140,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       } finally { if (current) setLoading(false); }
     })();
     return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [call, source.id, source.text, source.selection?.revision]);
+  }, [call, source.id, source.text, source.selection?.revision, reload]);
   const format = viewerFormat(document, source), paged = PAGED.has(format);
   const view = mode === 'original' && !(format === 'pdf' && fileUrl) ? 'read' : mode, reading = view === 'read';
   const downloadOriginal = async () => {
@@ -126,6 +155,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     } catch (e) { setError(e.message); }
   };
   const groups = useMemo(() => groupPassageLinks(links), [links]);
+  // Which passages are underlined (resolved links) and which must be selected again; notes follow their cards.
+  const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges }), [groups, data?.noteBadges]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
   const sources = useMemo(() => document?.sources || [source], [document, source]);
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderNoteMarkdown(content))
@@ -136,17 +167,32 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const labelOf = section => section.kind === 'page' ? pageLabel(section.page) : '';
   const itemLabel = item => item.page ? pageLabel(item.page) : '';
   const textOutline = useMemo(() => outlineFromSections(sections), [sections]);
-  const outline = reading && html ? headings : textOutline;
+  const autoOutline = reading && html ? headings : textOutline;
   useEffect(() => { setHeadings(reading && html ? collectHeadings(body.current) : []); }, [reading, html]);
-  const [position, jump] = useReadingPosition(scroller, outline, `${view}:${html.length}:${sections.length}`);
+  // A kept AI outline (materials.outline.*) replaces the automatic one wherever its entries can be placed in what is drawn.
+  useEffect(() => { setAiOutline(document?.outline ?? null); }, [document]);
+  useIsoLayoutEffect(() => {
+    const drawn = body.current;
+    if (!aiOutline || view === 'original' || loading) { clearOutlineTags(drawn); setAiItems(items => items.length ? [] : items); return; }
+    setAiItems(applyOutline(drawn, aiOutline.entries));
+  }, [aiOutline, view, html, sections, content, document, loading]);
+  const aiOn = view !== 'original' && aiItems.length > 0;
+  const outlineItems = aiOn ? aiItems : autoOutline;
+  const outline = useMemo(() => structureOutline(outlineItems, { fold: !aiOn }), [outlineItems, aiOn]);
+  const [position, jump] = useReadingPosition(scroller, outline, `${view}:${html.length}:${sections.length}:${aiItems.length}`);
   const activeId = view === 'original' ? textOutline.find(item => item.page === pdfPage)?.id ?? null : position.activeId;
-  const around = useMemo(() => neighbours(outline, activeId), [outline, activeId]);
+  // Previous / next walk the sections; once the learner has applied the outline as the document's chapters, they walk the chapters.
+  const chapterLevel = aiOn && aiOutline?.segmentation?.level;
+  const around = useMemo(() => chapterLevel ? chapterNeighbours(outline, activeId, chapterLevel) : sectionNeighbours(outline, activeId), [outline, activeId, chapterLevel]);
   const here = outline.find(item => item.id === activeId);
-  const where = here ? [itemLabel(here), here.title].filter(Boolean).join(' · ') : '';
+  const where = here ? [itemLabel(here), outlinePath(outline, here.id).join(' › ')].filter(Boolean).join(' · ') : '';
   const jumpTo = item => {
-    if (view === 'original') { if (item.page) setPdfPage(item.page); } else jump(item.id);
+    if (view === 'original') { if (item.page) setPdfPage(item.page); }
+    else if (item.range && item.tagged === false) scrollToNode(scroller.current, item.range);
+    else jump(item.id);
     if (narrow) setOverlay(null);
   };
+  const assistTarget = useMemo(() => document ? { documentId: document.documentId || document.id, sourceId: source.id, revision: document.revision, legacy: !!document.legacy } : null, [document, source.id]);
 
   // Narrow panes: the outline and the learning panel slide over the text instead of sitting beside it.
   useIsoLayoutEffect(() => {
@@ -161,9 +207,12 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     return () => observer.disconnect();
   }, []);
   useEffect(() => { setOverlay(null); }, [narrow]);
-  const outlineOn = outline.length > 0 && (narrow ? overlay === 'outline' : settings.outline);
+  // The panel is also there when no headings were found, so "让 AI 帮你" can be asked for (it then opens only on request).
+  const canOutline = outline.length > 0 || (!!assistTarget && view !== 'original' && !loading && !!call);
+  const outlineOn = canOutline && (narrow ? overlay === 'outline' : outline.length > 0 ? settings.outline : emptyOpen);
   const toolsOn = narrow ? overlay === 'tools' : settings.tools;
-  const toggle = panel => narrow ? setOverlay(current => current === panel ? null : panel) : updateSettings({ [panel]: !settings[panel] });
+  const toggle = panel => narrow ? setOverlay(current => current === panel ? null : panel)
+    : panel === 'outline' && outline.length === 0 ? setEmptyOpen(open => !open) : updateSettings({ [panel]: !settings[panel] });
 
   const select = () => {
     const value = captureSelection(body.current);
@@ -178,7 +227,16 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     }
     await onPublished?.(value);
   };
-  useEffect(() => annotatePassages(body.current, groups, setFocusedGroup, count => uiFormat('{0} 道相关题目与解析', [count])), [groups, html, content, view, sections, document, language]);
+  // Link layer: [n] markers, underlines (when shown) and their click. Ranges are located once per links/text change.
+  const rendered = useMemo(() => ({ html, content, view, sections, document, language }), [html, content, view, sections, document, language]);
+  const linkTitle = group => groupTitle(group, linkTitleWords());
+  const openGroup = group => {
+    setFocusedKey(group.key);
+    if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
+  };
+  usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle });
+  // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
+  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, onNotice });
   const quoteState = quote ? locateQuote(sources.find(item => item.id === source.id)?.text || content, quote, source.selection) : null;
   useEffect(() => {
     if (!reading || !quote || quoteState?.status !== 'resolved') return undefined;
@@ -201,13 +259,21 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     if ((source.document?.page || 1) > 1) scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${source.id}"]`), { smooth: false });
   }, [paged, quote, loading, sections, view, source.id, source.document?.page]);
 
+  // 读 → 做这几页的题 → 回到阅读 → 掌握度: the questions linked to this document placed under the outline, the range chooser, and the way back to a stored position.
+  const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
+  const unit = aiOn || !paged ? 'section' : format === 'pptx' ? 'slide' : 'page';
+  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume });
+  const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
+  const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
+  const meters = loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
+
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
   useEffect(() => {
     ranges.current = finding && view !== 'original' && deferredQuery.trim() ? findRanges(body.current, deferredQuery) : [];
     setTotal(ranges.current.length);
     setMatch(0);
-  }, [finding, deferredQuery, view, html, sections, content, groups]);
+  }, [finding, deferredQuery, view, html, sections, content, model]);
   useEffect(() => {
     if (!total) return undefined;
     const index = Math.min(match, total - 1), clear = paintMatches(ranges.current, index);
@@ -227,36 +293,52 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const onKeyDown = event => {
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f' && view !== 'original') { event.preventDefault(); openFind(); }
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
+    else if (onPracticePages && view !== 'original' && event.key.toLowerCase() === 'p' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+      && !event.target.closest?.('input,textarea,select,[contenteditable]')) { event.preventDefault(); loop.setOpen(!loop.open); }
   };
 
+  // The 原始 PDF tab without a file is not dead: it explains and offers 补全原文件.
+  const chooseView = value => value === 'original' && !fileUrl ? (document && setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink')) : setMode(value);
+  if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
   const modes = [{ value: 'read', label: ui('阅读') }, { value: 'text', label: ui('原文') },
-    ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), disabled: !fileUrl, title: fileUrl ? undefined : ui('没有保留原始 PDF') }] : [])];
+    ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), title: fileUrl ? undefined : ui('还没有原始 PDF，点击查看如何补全') }] : [])];
   const notices = [
     loading && <p key="loading" role="status">{ui('正在打开资料…')}</p>,
-    document && !document.originalAvailable && <p key="legacy">{ui('这份旧资料保存了提取文字，原始文件尚未保留；仍可提问、补题和查看引用。重新导入原文件可补全预览。')}</p>,
+    <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     view === 'original' && <p key="pdf">{ui('原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。')}</p>,
     error && <p key="error" className="is-warning" role="alert">{error}</p>,
     quoteState?.status === 'ambiguous' && <p key="ambiguous" className="is-warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</p>,
     quoteState?.status === 'stale' && <p key="stale" className="is-warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</p>,
     source.selection && document?.currentRevision && document.currentRevision !== source.selection.revision
       && <p key="revision" className="is-warning">{ui('此引用来自较早版本，当前资料已有更新。')}</p>,
+    bilingual.notice,
+    loop.resumeNote === 'updated' && <p key="resume" className="reader-resume-note" role="status">{ui('资料已更新，已回到该章节大致的位置。')}</p>,
   ].filter(Boolean);
   const pagerTitle = item => [itemLabel(item), item.title].filter(Boolean).join(' · ');
   const pageText = (section, index) => sources[index]?.text ?? '';
+  // 看原页: one page of the attached original PDF in a small panel, from the text views of a page-based document (never in the PDF tab).
+  const canPeek = paged && format === 'pdf' && view !== 'original' && !loading && !!document;
+  const openPeek = (page, { figure = false } = {}) => setPeek({ page, figure });
+  useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
+  const peekBytes = async () => fileUrl ? new Uint8Array(await (await fetch(fileUrl)).arrayBuffer()) : null;
 
   return <div className="study-document-viewer reader" ref={root} data-mode={view} data-tone={settings.tone} data-face={settings.face}
     data-narrow={narrow || undefined} style={readerVars(settings)} onKeyDown={onKeyDown}>
     <div className="reader-toolbar">
       <div className="reader-toolbar__group">
-        {outline.length > 0 && <IconButton icon="list" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
+        {onBack && <Button size="sm" variant="secondary" icon="arrow-left" className="reader-back-to-question" onClick={onBack}>{backLabel}</Button>}
+        {canOutline && <IconButton icon="list" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
           onClick={() => toggle('outline')} />}
-        <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={view} options={modes} onChange={setMode} />
+        <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
       </div>
       <p className="reader-toolbar__where" title={where || undefined}>{where}</p>
+      {meters && <span className="reader-toolbar__mastery"><MasteryLine summary={loop.current} title={ui('本节掌握度')} /></span>}
       <div className="reader-toolbar__group reader-toolbar__group--end">
+        {view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} />}
         {view !== 'original' && <>
           <IconButton icon="search" label={ui('在文中查找')} aria-pressed={finding} onClick={() => finding ? closeFind() : openFind()} />
-          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} />
+          {bilingual.toolbar}
+          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} extra={bilingual.displayRow} />
         </>}
         <IconButton icon="panel" label={ui('学习工具')} aria-pressed={toolsOn} aria-controls={toolsId} data-tour="source-tools-toggle"
           data-attention={capture && !toolsOn ? 'true' : undefined} onClick={() => toggle('tools')}>
@@ -278,7 +360,9 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
-      {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} />}
+      {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters}
+        footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
+          missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={ui('资料内容')} data-mode={view}>
         <div className="reader-page">
           <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select}>
@@ -286,10 +370,11 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
               ? <div className="reader-original"><iframe src={`${fileUrl}#page=${pdfPage}`} title={source.title || ui('原始 PDF')} /></div>
               : reading
                 ? html ? <div className="reader-html source-md" data-study-text="true" dangerouslySetInnerHTML={{ __html: html }} />
-                  : <ReadingSections sections={sections} labelOf={labelOf} />
+                  : <ReadingSections sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} />
                 : paged ? sections.map((section, index) => <section key={section.id} className="study-document-page reader-section reader-section--page"
                   data-outline-id={section.id} data-study-page={section.page} data-study-source={section.sourceId}>
                   <span className="reader-section__label">{labelOf(section)}</span>
+                  {canPeek && <button type="button" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</button>}
                   <QuotedText format={format} text={pageText(section, index)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} />
                 </section>)
                   : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} />}
@@ -312,12 +397,13 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
           {onCaseFromPassage && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
-        {groups.length > 0 && <>
-          <h3 className="study-document-links-heading">{ui('原文关联题目与解析')}</h3>
-          <PassageLinks groups={focusedGroup ? [focusedGroup] : groups} onOpenCard={onOpenCard} />
-          {focusedGroup && <Button size="sm" variant="quiet" onClick={() => setFocusedGroup(null)}>{ui('显示全部引用')}</Button>}
-        </>}
+        <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} />
       </aside>
     </div>
+    {bilingual.layer}
+    {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
+      status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }} /></Suspense>}
+    {attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
+      call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;
 }

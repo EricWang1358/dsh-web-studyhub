@@ -55,7 +55,9 @@ function gatedModel() {
 
 async function fixture(t, { model = gatedModel(), notices = [], language = 'zh' } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'selection-jobs-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  const disposables = [];
+  // The runtime may still be writing its last files: stop it first, then remove the folder (retrying while a handle closes).
+  t.after(async () => { for (const dispose of disposables.reverse()) await dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   const old = { id: 'old', kind: 'flashcard', objective: 'Original objective', prompt: 'Original question?', answer: 'Original',
     review: { repetitions: 5, ease_factor: 2.6, due_at: '2030-01-01' } };
   await new Store(root).update(state => {
@@ -63,7 +65,7 @@ async function fixture(t, { model = gatedModel(), notices = [], language = 'zh' 
     state.decks.push({ id: 'e', title: 'Second deck', cards: [] });
   });
   const runtime = createStudyRuntime(root, { complete: model.complete, notify: message => notices.push(message), language });
-  t.after(() => runtime.dispose());
+  disposables.push(() => runtime.dispose());
   const imported = await runtime.call('materials.document.import', { filename: 'notes.md',
     dataBase64: Buffer.from(`# Notes\n\n${passageA}\n\n${passageB}`).toString('base64') });
   const resolve = async quote => (await runtime.call('materials.selection.resolve',

@@ -14,10 +14,14 @@ import { groupPrompt } from "./topic-group-prompt.js";
 import CourseRoute from "./CourseRoute.jsx";
 import caseCss from "./case-study.css";
 import { ExamCountdown } from "./CourseSettings.jsx";
+import { ParkedChip, isParked } from "./CourseActive.jsx";
 import { groupCourseNames, rankCourses } from "./course-names.js";
 import { courseMatcher, courseNamesOf } from "./PageScope.jsx";
 import { courseOrder, courseRelative } from "../lib/course-tree.js";
 import { DraftTopUp, ShortfallReasons } from "./DraftShortfall.jsx";
+import SetupChecklist from "./SetupChecklist.jsx";
+import { TERMS, LEVEL_HINT } from "./mastery-terms.js";
+import tiersCss from "./home-tiers.css";
 import { missingQuestions } from "./draft-shortfall.js";
 
 /* After an import the new topics sit outside the topic groups until someone
@@ -161,6 +165,9 @@ export default function StudyMap({
   mergeDecks,
   startCourseFlow,
   generateFromSources,
+  setupHandlers,
+  onCoachPractice,
+  onWeakPoints,
   openModelSettings,
   canChat = false,
   reveal,
@@ -170,6 +177,7 @@ export default function StudyMap({
   useInjectCss(focusCss, "study-focus");
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(caseCss, "study-case-workspace");
+  useInjectCss(tiersCss, "study-home-tiers");
   const pageRef = useRef(null), activityRef = useRef(null);
   // After a generation starts, land with its progress card in view (P26).
   useEffect(() => {
@@ -179,6 +187,7 @@ export default function StudyMap({
   }, [reveal]); // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState(""),
     [showOtherCourses, setShowOtherCourses] = useState(false),
+    [showParked, setShowParked] = useState(false),
     [showAllCurrent, setShowAllCurrent] = useState(false),
     [roleDraft, setRoleDraft] = useState(data.focus?.role || ""),
     [jdDraft, setJdDraft] = useState(data.focus?.jd || ""),
@@ -218,11 +227,13 @@ export default function StudyMap({
     return () => document.removeEventListener("pointerdown", close);
   }, [menu]);
 
+  const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
+  const parkedChoices = (data.focus?.courses || []).filter(isParked);
   const progress = data.progress || EMPTY_PROGRESS,
     today = data.today || { due: 0, weak: 0, new: 0, size: 0 },
     runs = data.runs || [];
   // Audio imports and PDF conversions report progress in the Sources page, not among question generations.
-  const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import" && job.type !== "pdf-convert");
+  const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import" && job.type !== "pdf-convert" && job.type !== "translation");
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
   // Top of the home: what is still running first, then the newest finished cards.
   const visibleJobs = (() => {
@@ -278,9 +289,15 @@ export default function StudyMap({
     return [...groups].sort(([left], [right]) =>
       (Number(inFocus(right)) - Number(inFocus(left))) || (inFocus(left) && inFocus(right) ? order(left, right) : 0));
   }, [visible, inFocus]); // eslint-disable-line react-hooks/exhaustive-deps
-  const shownFolders = query || showArchived || showOtherCourses
-    ? folders : folders.filter(([course]) => inFocus(course));
-  const otherCourseCount = folders.length - shownFolders.length;
+  // 未激活 (lib/course-active.js): parked courses are listed apart, collapsed, dimmed and still reachable; the current course stays where it is.
+  const parkedByName = useMemo(() => new Map((data.focus?.courses || []).filter(isParked).map((course) => [course.name, course])), [data.focus?.courses]);
+  const parkedFolders = folders.filter(([course]) => parkedByName.has(course) && !inFocus(course));
+  const liveFolders = folders.filter((entry) => !parkedFolders.includes(entry));
+  const shownLive = query || showArchived || showOtherCourses
+    ? liveFolders : liveFolders.filter(([course]) => inFocus(course));
+  const shownParked = query || showParked ? parkedFolders : [];
+  const shownFolders = [...shownLive, ...shownParked];
+  const otherCourseCount = liveFolders.length - shownLive.length;
   const singleCourse = shownFolders.length === 1 && inFocus(shownFolders[0][0]);
 
   const toggleOpen = (id) =>
@@ -340,7 +357,7 @@ export default function StudyMap({
             <strong>{d.title}{d.format === "case-study" && <span className="case-badge" title={ui("案例分析题组：长案例 + 开放题，按评分标准批改")}>
               {d.caseBest ? uiFormat("案例 · 最好 {0}/{1}", [d.caseBest.total, d.caseBest.max]) : uiFormat("案例 · {0} 分", [d.caseMarks])}</span>}</strong>
             <small>
-              {d.available}{ui(" 题")}{p?.due ? uiFormat(" · {0} 待复习", [p.due]) : ""}
+              {d.available}{ui(" 题")}{p?.due ? uiFormat(" · {0} 题到期", [p.due]) : ""}
               {d.wrong ? uiFormat(" · {0} 题待巩固", [d.wrong]) : ""}
               {d.uncheckedAtPublish ? uiFormat(" · {0} 题未自动审阅", [d.uncheckedAtPublish]) : ""}
               {d.selfCited ? uiFormat(" · {0} 题仅有导入题目引用", [d.selfCited]) : ""}
@@ -423,7 +440,7 @@ export default function StudyMap({
                   <span className="map-name">
                     <span>{t.name}</span>
                     <small>
-                      {t.total}{ui(" 题 · ")}{t.due ? uiFormat("{0} 待复习", [t.due]) : LEVEL_LABEL[level]}
+                      {t.total}{ui(" 题 · ")}{t.due ? uiFormat("{0} 题到期", [t.due]) : LEVEL_LABEL[level]}
                     </small>
                   </span>
                   <MasteryBar node={t} />
@@ -488,9 +505,9 @@ export default function StudyMap({
     : today.ahead
       ? ui("今天的任务都完成了")
       : [
-          today.due && uiFormat("{0} 道待复习", [today.due]),
-          today.weak && uiFormat("{0} 道薄弱", [today.weak]),
-          today.new && uiFormat("{0} 道新题", [today.new]),
+          today.due && uiFormat("{0} 题到期", [today.due]),
+          today.weak && uiFormat("{0} 题薄弱", [today.weak]),
+          today.new && uiFormat("{0} 题未学", [today.new]),
         ]
           .filter(Boolean)
           .join(" · ") || ui("暂无可学习的题目");
@@ -502,9 +519,9 @@ export default function StudyMap({
     todayLabel = new Intl.DateTimeFormat(uiLocale(), { month: "long", day: "numeric", weekday: "short" })
       .format(new Date()),
     breakdown = [
-      today.due && uiFormat("到期 {0}", [today.due]),
-      today.weak && uiFormat("薄弱 {0}", [today.weak]),
-      today.new && uiFormat("新题 {0}", [today.new]),
+      today.due && uiFormat("{0} 题到期", [today.due]),
+      today.weak && uiFormat("{0} 题薄弱", [today.weak]),
+      today.new && uiFormat("{0} 题未学", [today.new]),
     ].filter(Boolean).join(" · "),
     startFresh = () => start({ mode: "new", currentCourse: true, count: 10, fresh: true }),
     startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: "path" })),
@@ -547,7 +564,9 @@ export default function StudyMap({
   /* The run the learner was last inside (the rail's 回到题目) outranks a new
      batch: a deck, topic or 为你定制 run left half done must not sink into
      the fold below while the big button quietly starts something else. */
-  const lastOpen = data.decks.length ? runs.find((r) => r.id === data.lastRun?.id) : null;
+  const lastRunFound = data.decks.length ? runs.find((r) => r.id === data.lastRun?.id) : null;
+  // A half-done practice in a parked course is not pushed as 接着做; it stays in the list below with its state.
+  const lastOpen = lastRunFound && !lastRunFound.inactive ? lastRunFound : null;
   /* A semester holds several courses and any of them may be the one left half
      done, so a run from outside the course in the heading names its course
      instead of being held back. System decks (为你定制) belong to no course. */
@@ -570,6 +589,14 @@ export default function StudyMap({
     : base;
   const shownRun = plan === base ? courseRun || todayRun : lastOpen,
     otherRuns = runs.filter((r) => r !== shownRun);
+  /* The other ways to start (new questions, due review, the flow, personalised questions, weak points) sit under one folded
+     line: the card is the one thing to continue, the recommendation the one next step. */
+  const alternatives = [
+    ...plan.also.map(([label, run]) => [label, run]),
+    ...(data.coach?.ready > 0 && onCoachPractice ? [[uiFormat("刷 {0} 道为你定制的题", [data.coach.ready]), onCoachPractice,
+      ui("从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。")]] : []),
+    ...(today.weak > 0 && onWeakPoints ? [[uiFormat("{0} 题薄弱 · 看错题与待巩固", [today.weak]), onWeakPoints, ui(TERMS.weak.hint)]] : []),
+  ];
   // Cards visible behind the top one: the stack is as thick as the day.
   plan.depth = plan.kind === "empty" ? 0 : Math.min(2, Math.max(0, (plan.count || 0) - 1));
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks || []).some((n) => !n.current);
@@ -629,6 +656,8 @@ export default function StudyMap({
     <section className="page library-page map-page" ref={pageRef}>
       {children}
       {activity}
+      {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after. */}
+      <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} call={call} busy={busy} on={setupHandlers} />
       <div className={"desk" + (plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <div className="desk-intro">
           {/* The study-mode switch matters once there is something to study (P12). */}
@@ -653,18 +682,24 @@ export default function StudyMap({
                 onChange={(event) => event.target.value === "@course-settings"
                   ? onCourseSettings?.(data.focus?.courseId) : onFocus?.({ course: event.target.value })}>
                 {/* Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names grouped (WP14). */}
-                {groupCourseNames(rankCourses({ courses: data.focus?.courses || [], current: data.focus?.course })).map((entry) => entry.type === "group"
+                {groupCourseNames(rankCourses({ courses: (data.focus?.courses || []).filter((course) => !isParked(course)), current: data.focus?.course })).map((entry) => entry.type === "group"
                   ? <optgroup key={`group:${entry.key}`} label={entry.name}>
                     <option value={entry.parent.name}>{entry.parent.name} · {ui("含子课程")}</option>
                     {entry.chapters.map(({ course, chapter, depth }) => <option key={course.name} value={course.name}>{"\u00a0\u00a0".repeat(Math.max(0, depth - 1))}{chapter}</option>)}
                   </optgroup>
                   : <option key={entry.course.name} value={entry.course.name}>{entry.course.name || ui('未分类课程')}</option>)}
+                {/* Parked courses stay reachable, grouped apart; the heading's value may be one of them. */}
+                {parkedChoices.length > 0 && <optgroup label={uiFormat("未激活的课程 ({0})", [parkedChoices.length])}>
+                  {parkedChoices.map((course) => <option key={course.name} value={course.name}>{course.name}</option>)}
+                </optgroup>}
                 {onCourseSettings && data.focus?.courseId && <option value="@course-settings">{ui("课程设置…")}</option>}
               </select>
             </h1>
           ) : (
             <h1 className="course-heading">{headline}</h1>
           )}
+          {!interview && isParked(currentEntry) && <p className="course-parked-line"><ParkedChip course={currentEntry} />
+            <small>{ui("未激活的课程不进入到期复习和推荐；随时可以再激活")}</small></p>}
           {interview && <div className="role-prep">
             <details><summary>{ui("用岗位描述细化练习范围")}</summary>
               <textarea rows={4} value={jdDraft} placeholder={ui("需要时粘贴 JD；不贴也可按岗位方向匹配")}
@@ -696,12 +731,12 @@ export default function StudyMap({
           </div>}
           {route && <CourseRoute route={route} busy={busy} onStartChapter={(deckId) => start({ mode: "course", deckId, fresh: true })} />}
           {primary && (
-            <div className="desk-mastery" title={mastery.course ? uiFormat("「{0}」课程掌握度 {1}%（{2} 题）", [mastery.name || ui('未分类课程'), mastery.course.value, mastery.course.cards]) : uiFormat("全学习区掌握度 {0}%", [primary.value])}>
+            <div className="desk-mastery" title={`${mastery.course ? uiFormat("「{0}」的掌握度 {1}%（{2} 题）", [mastery.name || ui('未分类课程'), mastery.course.value, mastery.course.cards]) : uiFormat("所有课程的掌握度 {0}%", [primary.value])}\n${ui(TERMS.mastery.hint)}\n${ui(TERMS.mastered.hint)}`}>
               <span className="desk-mastery-value">{primary.value}<small>%</small></span>
-              <span className="desk-mastery-label">{mastery.course ? ui("本课程掌握") : ui("整体掌握")}</span>
+              <span className="desk-mastery-label">{ui(TERMS.mastery.label)}</span>
               <MasteryBar node={primary.node} />
               {mastery.others && mastery.whole && (
-                <span className="desk-mastery-all" title={uiFormat("全部课程合计 {0} 题", [mastery.whole.cards])}>{ui("全学习区 ")}<strong>{mastery.whole.value}%</strong>
+                <span className="desk-mastery-all" title={uiFormat("全部课程合计 {0} 题", [mastery.whole.cards])}>{ui("所有课程 ")}<strong>{mastery.whole.value}%</strong>
                 </span>
               )}
             </div>
@@ -711,7 +746,7 @@ export default function StudyMap({
               <>
                 <span className="desk-next-label">{ui("推荐下一步")}</span>
                 <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>
-                  <small>{ui(" · 掌握 ")}{data.next.mastery}%</small></span>
+                  <small title={ui("按课程里题组和主题的顺序，这是第一个还没掌握的主题。")}>{uiFormat(" · 课程里下一个没掌握的主题 · 掌握 {0}%", [data.next.mastery])}</small></span>
                 <button className="link-btn" disabled={busy} onClick={() =>
                   start({ mode: "path", scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui("只学这个主题 →")}</button>
               </>
@@ -719,12 +754,20 @@ export default function StudyMap({
               ? starter.next
               : ui("所有主题都已掌握，可以提前巩固。")}
           </p>
-          {plan.also.length > 0 && (
+          {plan.kind === "empty" && plan.also.length > 0 && (
             <p className="desk-also">
-              {plan.also.map(([label, run]) => (
-                <button key={label} className="link-btn" disabled={busy} onClick={run}>{label}</button>
-              ))}
+              {plan.also.map(([label, run]) => <button key={label} className="link-btn" disabled={busy} onClick={run}>{label}</button>)}
             </p>
+          )}
+          {plan.kind !== "empty" && alternatives.length > 0 && (
+            <details className="desk-more">
+              <summary>{ui("其他开始方式")}</summary>
+              <p className="desk-also">
+                {alternatives.map(([label, run, hint]) => (
+                  <button key={label} className="link-btn" disabled={busy} title={hint} onClick={run}>{label}</button>
+                ))}
+              </p>
+            </details>
           )}
           {otherRuns.length > 0 && (
             <details className="resume-list">
@@ -734,7 +777,7 @@ export default function StudyMap({
                   <div className="resume-row" key={r.id}>
                     <button className="resume" disabled={busy} onClick={() => resume(r.id)}>
                       <span>
-                        <span className="eyebrow">{otherCourse(r) || ui("继续上次学习")}</span>
+                        <span className="eyebrow">{[otherCourse(r) || ui("继续上次学习"), r.inactive ? ui("未激活") : ""].filter(Boolean).join(" · ")}</span>
                         <strong>{r.title}</strong>
                       </span>
                       <span>
@@ -776,7 +819,7 @@ export default function StudyMap({
                 <span>{plan.unit}</span>
               </div>
             )}
-            {plan.detail && <p className="today-detail">{plan.detail}</p>}
+            {plan.detail && <p className="today-detail" title={plan.kind === "path" ? ui(TERMS.due.hint) : undefined}>{plan.detail}</p>}
             {plan.action && (
               <button className="primary today-go" disabled={busy || plan.action.disabled}
                 onClick={plan.action.run}>
@@ -881,7 +924,7 @@ export default function StudyMap({
           </div>
           <div className="map-legend" aria-label={ui("掌握程度图例")}>
             {BAR_ORDER.map((l) => (
-              <span key={l}>
+              <span key={l} title={ui(LEVEL_HINT[l])}>
                 <i className={"lv-" + l} />
                 {LEVEL_LABEL[l]}
               </span>
@@ -897,11 +940,12 @@ export default function StudyMap({
             // only one on screen its header is hidden, so it is always open.
             const open = singleCourse || isOpen("folder:" + folder),
               truncated = inFocus(folder) && !query && decks.length > 3,
-              shown = truncated && !showAllCurrent ? decks.slice(0, 3) : decks;
+              shown = truncated && !showAllCurrent ? decks.slice(0, 3) : decks,
+              parked = parkedByName.get(folder);
             return (
               <li
                 key={"folder:" + folder}
-                className={"map-folder" + (decks.some((d) => d.id === menu) ? " menu-open" : "")}
+                className={"map-folder" + (decks.some((d) => d.id === menu) ? " menu-open" : "") + (parked ? " is-parked-row" : "")}
               >
                 <div className="map-row folder-row">
                   <button
@@ -927,6 +971,7 @@ export default function StudyMap({
                     <strong title={folder}>{courseRelative(folder, data.focus?.course, courseNamesOf(data)) ?? folder}</strong>
                     <small>{decks.length}{ui(" 个题组")}</small>
                   </button>
+                  {parked && <ParkedChip course={parked} />}
                   <MasteryBar
                     node={mergeProgress(decks.map((d) => progress[d.id]).filter(Boolean))}
                   />
@@ -956,6 +1001,8 @@ export default function StudyMap({
       )}
       {otherCourseCount > 0 && <button className="show-other-courses"
         onClick={() => setShowOtherCourses(true)}>{ui("查看其他课程 · ")}{otherCourseCount}</button>}
+      {parkedFolders.length > 0 && !query && <button className="show-other-courses parked-toggle" aria-expanded={showParked}
+        onClick={() => setShowParked((value) => !value)}>{showParked ? "▾ " : "▸ "}{uiFormat("未激活的课程 ({0})", [parkedFolders.length])}</button>}
 
       {/* Cross-workspace notebooks are for people with decks, or with notebooks elsewhere (P12). */}
       {showNotebooks && <NotebookDirectory

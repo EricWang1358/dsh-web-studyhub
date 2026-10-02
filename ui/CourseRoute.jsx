@@ -1,5 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import React from "react";
+import { TERMS } from "./mastery-terms.js";
 
 /* 课程路线：课程按题组顺序排成一章一章。进度条每一段是一章（按题量占宽），
    学过的部分填色；展开后能看到每一章学到哪里，并从任意一章开始。 */
@@ -16,9 +17,9 @@ export default function CourseRoute({ route, busy, onStartChapter }) {
         {chapter
           ? <span>{ui("第 ")}{route.current + 1} / {route.chapters.length}{ui(" 章 · ")}<strong>{chapter.title}</strong>{ui(" · 本章 ")}{chapter.learned}/{chapter.total}</span>
           : <span>{route.chapters.length}{ui(" 章全部学过")}</span>}
-        <span className="course-route-total">{ui("已学 ")}{route.learned} / {route.cards}{ui(" 题")}</span>
+        <span className="course-route-total" title={ui(TERMS.learned.hint)}>{uiFormat("学过 {0} / {1} 题", [route.learned, route.cards])}</span>
       </p>
-      <div className="course-route-bar" role="img" aria-label={uiFormat("已学 {0} / {1} 题", [route.learned, route.cards])}>
+      <div className="course-route-bar" role="img" aria-label={uiFormat("学过 {0} / {1} 题", [route.learned, route.cards])}>
         {route.chapters.map((c) => (
           <span key={c.deckId} className={`is-${c.status}`} style={{ flexGrow: c.total }} title={`${c.title} · ${c.learned}/${c.total}`}>
             <i style={{ width: `${Math.round((c.learned / c.total) * 100)}%` }} />

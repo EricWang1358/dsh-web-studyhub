@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
+import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 import { SegmentedControl } from './components/index.js';
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
 
@@ -577,9 +578,10 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
           </button>}
         </div>
         {node && !detailHidden && (
-          <aside className="skc-detail" aria-label={uiFormat("概念：{0}", [node.term])}>
+          <ReadingBlock as="aside" className="skc-detail" aria-label={uiFormat("概念：{0}", [node.term])}>
             <div className="skc-detail-head">
               <strong>{node.term}</strong>
+              <ReadingSettingsButton className="skc-reading" />
               <button type="button" className="skc-close" aria-label={ui("收起详情")} title={ui("收起详情（再点这个概念可展开）")} onClick={() => setDetailHidden(true)}>×</button>
             </div>
             <p>{node.meaning}</p>
@@ -614,7 +616,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
             {onPractice && node.cards.length > 0 && (
               <button type="button" className="primary skc-practice" onClick={() => onPractice(node.cards)}>{ui("练关联的 ")}{node.cards.length}{ui(" 题")}</button>
             )}
-          </aside>
+          </ReadingBlock>
         )}
       </div>
       <ul className="skc-legend" aria-label={ui("图例")}>

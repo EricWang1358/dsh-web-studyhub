@@ -1,0 +1,21 @@
+/* 资料重命名: the inline editor (a 资料 row, the reader's header) and the header's name. Tokens only. */
+:is(.study-app, .study-seat) {
+  .rename-field { display: grid; gap: var(--space-2); min-width: 0; flex: 1 1 auto; width: 100%; max-width: 44rem; font-weight: 400; }
+  .rename-field__input { margin: 0; padding: 8px 10px; font-size: var(--fs-md); line-height: var(--lh-snug); }
+  .rename-field__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .rename-field__hint { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+  /* Inside a 资料 row the generic .source-main small is one ellipsised line; the hint is a sentence. */
+  .rename-field small.rename-field__hint { display: block; max-width: none; margin: 0; overflow: visible; text-overflow: clip; white-space: normal; }
+  .rename-field__error { margin: 0; color: color-mix(in srgb, var(--bad) 80%, var(--text)); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+  .rename-field__input[aria-invalid="true"] { border-color: color-mix(in srgb, var(--bad) 70%, var(--line)); }
+
+  .source-doc .source-main--editing { display: flex; align-items: flex-start; gap: var(--space-3); flex: 1 1 auto; min-width: 0; padding: 5px; }
+  .source-doc .source-main--editing .source-doc__icon { margin-top: 10px; }
+  .source-doc .source-original { color: var(--text-muted); }
+
+  .sh-dialog__title .reader-heading { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; max-width: 100%; }
+  .sh-dialog__title .reader-heading__text { min-width: 0; overflow-wrap: anywhere; border-radius: var(--radius-sm); }
+  .sh-dialog__title .reader-heading__text:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+  .sh-dialog__title .reader-heading__rename { flex: none; }
+  .sh-dialog__title .rename-field--header { max-width: min(44rem, 100%); }
+}

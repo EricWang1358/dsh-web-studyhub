@@ -55,12 +55,21 @@ export const chapterState = selectionState;
 /** Add or remove every page of one chapter. */
 export const toggleChapter = toggleDocument;
 
-/** “第一章 进程 · 第 1–4 页”: a chapter's title and where it lies. */
-export function chapterLabel(chapter) {
+/**
+ * “第一章 进程 · 第 1–4 页”: a chapter's title and where it lies. `unit` (the document's chapterUnit): 'page' (default), 'part'
+ * (the files of one recording) or 'text' (chapters inside one text have no page to show).
+ */
+export function chapterLabel(chapter, unit = 'page') {
   const title = chapter.title || (chapter.front ? ui('前言与目录') : '');
-  const range = chapter.startPage === chapter.endPage ? uiFormat('第 {0} 页', [chapter.startPage]) : uiFormat('第 {0}–{1} 页', [chapter.startPage, chapter.endPage]);
+  if (unit === 'text') return title;
+  const one = chapter.startPage === chapter.endPage;
+  const range = unit === 'part' ? (one ? uiFormat('第 {0} 部分', [chapter.startPage]) : uiFormat('第 {0}–{1} 部分', [chapter.startPage, chapter.endPage]))
+    : one ? uiFormat('第 {0} 页', [chapter.startPage]) : uiFormat('第 {0}–{1} 页', [chapter.startPage, chapter.endPage]);
   return title ? `${title} · ${range}` : range;
 }
+
+/** Chapters the picker can scope generation to: those that hold whole pages (a chapter inside one page cannot be chosen alone). */
+export const chosenByChapters = item => !!item.chapters?.some(chapter => chapter.sourceIds.length) && item.pages.length > 1;
 
 /** Select every source of the given documents (select-all for a scope). */
 export const selectDocuments = (selected, items) => [...new Set([...selected, ...items.flatMap(item => item.sourceIds)])];
@@ -80,8 +89,8 @@ export function documentNotes(item) {
     item.warnings.includes('legacy-extraction') && ui('含旧版提取页，建议重新导入')].filter(Boolean);
 }
 
-/** What the picker's filter searches: title, file name, courses and format. */
-export const documentSearchText = item => [item.title, item.filename, ...(item.courses || []), sourceFormatLabel(item)].filter(Boolean).join(' ');
+/** What the picker's filter searches: title, file name, the title before a rename, courses and format. */
+export const documentSearchText = item => [item.title, item.filename, item.renamedFrom, ...(item.courses || []), sourceFormatLabel(item)].filter(Boolean).join(' ');
 
 /* The filter appears once the list is longer than a screenful of rows. */
 const FILTER_AFTER = 6;
@@ -93,7 +102,7 @@ const pageLabel = (item, page) => item.format === 'pdf' || item.format === 'pptx
 function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), chaptersId = useId();
-  const chaptered = !!item.chapters?.length;
+  const chaptered = chosenByChapters(item);
   const state = selectionState(item, selected);
   const chosen = new Set(selected);
   const multi = item.pages.length > 1;
@@ -121,14 +130,14 @@ function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false }
       {multi && open && chaptered && <div id={chaptersId} className="source-picker__chapters">
         <ul className="source-picker__chapter-list" aria-label={uiFormat('「{0}」的章节', [item.title])}>
           {item.chapters.map(chapter => {
-            const chapterPicked = chapterState(chapter, selected);
+            const chapterPicked = chapterState(chapter, selected), inside = chapter.sourceIds.length === 0;
             return <li key={chapter.index} data-chapter-index={chapter.index}>
               <label>
-                <input type="checkbox" checked={chapterPicked === 'all'} disabled={disabled}
+                <input type="checkbox" checked={chapterPicked === 'all'} disabled={disabled || inside}
                   ref={element => { if (element) element.indeterminate = chapterPicked === 'some'; }}
                   onChange={event => onChange(toggleChapter(selected, chapter, event.target.checked))} />
-                <span>{chapterLabel(chapter)}</span>
-                <small>{uiFormat('{0} 页', [chapter.sourceIds.length])}</small>
+                <span>{chapterLabel(chapter, item.chapterUnit)}</span>
+                <small>{inside ? ui('在同一页内，不能单独选择') : uiFormat(item.chapterUnit === 'part' ? '{0} 部分' : '{0} 页', [chapter.sourceIds.length])}</small>
               </label>
             </li>;
           })}

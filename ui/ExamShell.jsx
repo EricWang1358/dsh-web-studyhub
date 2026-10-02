@@ -20,13 +20,13 @@ export function formatOptions() {
 const TAGS = () => ({ written: ui("选择题"), case: ui("案例"), oral: ui("口头") });
 
 /** Title, the shared 课程范围 and the 考试形式 switch. `data-tour="exam-case"` keeps the tour's anchor on the switch. */
-export function ExamHeader({ courses, course, onCourse, format, onFormat }) {
+export function ExamHeader({ courses, course, onCourse, format, onFormat, showInactive, onShowInactive }) {
   useInjectCss(css, "study-exam-setup");
   return (
     <PageHeader title={ui("模拟考试")} className="es-header"
       description={ui("选一种考试形式，在限定时间里完成；交卷或结束后看成绩、反馈和薄弱点。")}>
       <div className="es-controls">
-        <PageScope courses={courses} value={course} onChange={onCourse} />
+        <PageScope courses={courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />
         <div className="es-format">
           <span className="es-label">{ui("考试形式")}</span>
           <SegmentedControl label={ui("考试形式")} value={format} onChange={onFormat} options={formatOptions()} data-tour="exam-case" />

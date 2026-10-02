@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
-import { courseMatcher, usePageScope } from "./PageScope.jsx";
+import { countsDeck, courseMatcher, usePageScope } from "./PageScope.jsx";
 import { createWriteQueue } from "./async.js";
 import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
@@ -204,8 +204,8 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
   const [ownCourse] = usePageScope(data?.root, "exam", data?.focus?.course ?? "*");
   const course = courseProp ?? ownCourse;
   const decks = useMemo(() => {
-    const within = courseMatcher(data, course);
-    return (data?.decks || []).filter((deck) => deck.format === "case-study" && !deck.archived && within(deck.course || ""));
+    const within = courseMatcher(data, course), counts = countsDeck(data, course, false);
+    return (data?.decks || []).filter((deck) => deck.format === "case-study" && !deck.archived && within(deck.course || "") && counts(deck));
   }, [data, course]);
   const [deckId, setDeckId] = useState("");
   const deck = decks.find((item) => item.id === deckId) || decks[0] || null;

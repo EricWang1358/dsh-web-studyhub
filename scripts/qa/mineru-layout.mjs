@@ -9,7 +9,7 @@
    The function is serialised into the page, so it must not use anything from this module's scope. */
 
 /** @param {{ scopes?: string[], maxGap?: number, tolerance?: number }} [options] @returns {{ problems: string[], cards: object[] }} */
-export function layoutAudit({ scopes = ['.audio-provider-card', '.mineru-route-panel'], maxGap = 48, tolerance = 2 } = {}) {
+export function layoutAudit({ scopes = ['.audio-provider-card', '.mineru-route-panel', '.pdf-history'], maxGap = 48, tolerance = 2 } = {}) {
   const problems = [], cards = [];
   const label = element => {
     const own = [...element.classList].filter(name => !/^is-/.test(name)).slice(0, 2).join('.');
@@ -17,6 +17,13 @@ export function layoutAudit({ scopes = ['.audio-provider-card', '.mineru-route-p
     return `${element.tagName.toLowerCase()}${own ? `.${own}` : ''}${text ? ` "${text}"` : ''}`;
   };
   const visible = element => {
+    // What sits inside a closed <details> (other than its summary) is not shown, whatever boxes the browser keeps for it: at any depth, so a closed <details> inside a closed
+    // <details> is hidden too (a closed <details> itself is as visible as the one around it).
+    for (let closed = element.closest('details:not([open])'); closed; closed = closed.parentElement?.closest('details:not([open])') ?? null) {
+      if (closed === element) continue;
+      const inSummary = element.closest('summary');
+      if (!inSummary || inSummary.parentElement !== closed) return false;
+    }
     const style = getComputedStyle(element);
     if (style.display === 'none' || style.visibility === 'hidden') return false;
     const rect = element.getBoundingClientRect();

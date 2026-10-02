@@ -15,6 +15,8 @@ test('actual registered Study prompts are short, discoverable and retain authori
   assert.match(studyToolDescription, /supplement/);
   assert.match(libraryContracts.generation, /authorizes local generation and publication/);
   assert.match(libraryContracts.generation, /zero direct citations is not a gap/);
+  assert.match(libraryContracts.learning, /course\.deactivate/);
+  assert.match(libraryContracts.learning, /includeInactive/);
   for (const area of Object.keys(libraryContracts)) {
     assert.ok(studyToolDescription.includes(area), `${area} is discoverable`);
     assert.ok(libraryContracts[area].length < 6000, `${area} can be read as bounded detail`);

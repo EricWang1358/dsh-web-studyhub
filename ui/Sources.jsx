@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./AudioImport.jsx";
-import { PdfConvertJobs } from './PdfConvertJob.jsx';
+import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
@@ -9,7 +9,14 @@ import { Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader } from "./c
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
+import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
+import { JevNote, JevProbabilities, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
+import { noteText, startsIncluded } from './jev-flow.js';
+import { OriginalMenuEntry } from './document-preview/OriginalFile.jsx';
+import OutlineDialog from './document-preview/reader/OutlineDialog.jsx';
+import { RenameField } from './document-preview/RenameTitle.jsx';
+import { originalNote, renameDocument, startsEditing } from './document-preview/rename.js';
 import css from "./sources.css";
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
@@ -106,9 +113,54 @@ const pageLabel = (item, page) => item.format === 'pdf'
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
-  const [pagesOpen, setPagesOpen] = useState(false);
-  const listId = useId(), row = useRef(null);
+/**
+ * The chapters of one document, each with where it lies and its own 出题 button. A chapter that starts and ends inside one page holds
+ * no whole page, so generation cannot be scoped to it (the button is off); it still opens the document at its start.
+ */
+export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery }) {
+  return <ul id={listId} className="source-doc__page-list source-doc__chapters" role="region" aria-label={ui('章节列表')} tabIndex={0}>
+    {item.chapters.map(chapter => {
+      const inside = chapter.sourceIds.length === 0, partial = chapter.partial && item.chapterUnit !== 'text';
+      return <li key={chapter.index} data-chapter-index={chapter.index}>
+        <button type="button" onClick={() => onOpen(chapter.startSourceId || chapter.sourceIds[0])}>
+          <span>{chapterLabel(chapter, item.chapterUnit)}</span>
+          <small>{[partial && (item.chapterUnit === 'part' ? ui('从文件中间开始') : ui('从页中间开始')),
+            item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, chapter.chars.toLocaleString(uiLocale())])].filter(Boolean).join(' · ')}</small>
+          <MasteryLine className="source-doc__mastery" summary={mastery?.chapters?.[chapter.index] ?? null} title={chapterLabel(chapter, item.chapterUnit)} />
+        </button>
+        {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy || inside}
+          title={inside ? (item.chapterUnit === 'text' ? ui('这份资料是一整段文字，出题仍以整份资料为单位') : ui('这一章在同一页内，不能单独出题')) : undefined}
+          onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
+      </li>;
+    })}
+  </ul>;
+}
+
+/** The entries of a row's 更多 menu. */
+export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSegment, onRename }) {
+  const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
+  return <div className="source-row-menu">
+    {call && <OriginalMenuEntry item={item} call={call} busy={busy} />}
+    {onRename && <button type="button" disabled={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</button>}
+    {onChangeCourse && <button type="button" disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</button>}
+    {onSegment && <button type="button" disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</button>}
+    <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('移除')}</button>
+  </div>;
+}
+
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, mastery, rename, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
+  const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
+  const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
+  useEffect(() => () => clearTimeout(opening.current), []);
+  useEffect(() => { if (wasEditing.current && !editing) main.current?.focus({ preventScroll: true }); wasEditing.current = editing; }, [editing]);
+  const editor = rename ? rename(item) : null;
+  // A click on the title opens the reader a moment late, so a double-click on it can rename instead; everything else opens at once.
+  const openRow = event => {
+    if (!editor || !event.target.closest?.('.source-title')) { onOpen(item.sourceIds[0]); return; }
+    if (event.detail > 1) return;
+    clearTimeout(opening.current); opening.current = setTimeout(() => onOpen(item.sourceIds[0]), 260);
+  };
+  const startEditing = () => { clearTimeout(opening.current); setEditing(true); };
   const multi = item.pages.length > 1;
   // A converted book with chapters is browsed by chapter (WP28); its pages stay one click further in the picker.
   const chaptered = !!item.chapters?.length;
@@ -124,42 +176,41 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
       <div className="source-doc__line">
         {organizing && <input type="checkbox" aria-label={uiFormat('选择资料：{0}', [displayTitle(item.title)])}
           checked={selected} onChange={event => onSelect(event.target.checked)} />}
-        <button className="source-main" onClick={() => onOpen(item.sourceIds[0])}>
+        {editing && editor ? <div className="source-main source-main--editing">
+          <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
+          <RenameField title={item.title} original={item.renamedFrom} label={uiFormat('重命名「{0}」', [displayTitle(item.title)])}
+            onSave={async title => { await editor.save(title); setEditing(false); }} onRestore={async () => { await editor.restore(); setEditing(false); }} onCancel={() => setEditing(false)} />
+        </div> : <button ref={main} className="source-main" onClick={openRow} aria-keyshortcuts={editor ? 'F2' : undefined}
+          onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
-            <strong title={item.title}>{displayTitle(item.title)}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
+            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{displayTitle(item.title)}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
             <small>{item.courses.join(' · ') || ui('未分类')}{item.coursesInferred ? ui(' · 推断归属') : ''}
               {item.usedBy.length ? uiFormat(' · 用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''}</small>
             <small>{details.join(" · ")}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
+            {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}
+            <MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={displayTitle(item.title)} />
+            {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
           </span>
-        </button>
+        </button>}
         <div className="source-doc__actions">
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <div className="source-row-menu">
-            {onChangeCourse && <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onChangeCourse(item); }}>{ui('改课程…')}</button>}
-            <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onRemove(item); }}>{ui('移除')}</button>
-            </div>
+            <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse} onRemove={onRemove} onSegment={onSegment} onRename={editor ? startEditing : undefined} />
           </details>
         </div>
       </div>
-      {multi && <div className="source-doc__pages">
+      {(multi || chaptered) && <div className="source-doc__pages">
         <Button variant="quiet" size="sm" iconEnd="chevron" className="source-doc__pages-toggle" aria-expanded={pagesOpen} aria-controls={listId}
           onClick={() => setPagesOpen(open => !open)}>
           {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
         </Button>
-        {pagesOpen && chaptered && <ul id={listId} className="source-doc__page-list source-doc__chapters" role="region" aria-label={ui('章节列表')} tabIndex={0}>
-          {item.chapters.map(chapter => <li key={chapter.index} data-chapter-index={chapter.index}>
-            <button type="button" onClick={() => onOpen(chapter.sourceIds[0])}>
-              <span>{chapterLabel(chapter)}</span><small>{uiFormat('{0} 页 · {1} 字符', [chapter.sourceIds.length, chapter.chars.toLocaleString(uiLocale())])}</small>
-            </button>
-            {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy} onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
-          </li>)}
-        </ul>}
+        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={onOpen} onGenerate={onGenerate} listId={listId} mastery={mastery} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
             <button type="button" onClick={() => onOpen(page.sourceId)}>
               <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [page.chars.toLocaleString(uiLocale())])}</small>
+              <MasteryLine className="source-doc__mastery" summary={mastery?.pages?.[page.sourceId] ?? null} title={pageLabel(item, page)} />
             </button>
           </li>)}
         </ul>}
@@ -245,8 +296,15 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   }, [highlight?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   const [organizing, setOrganizing] = useState(false), [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
+  // EXPERIMENTAL (off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
+  const jevOn = useJevCourseSuggest(call), [jevNote, setJevNote] = useState('');
   const [removing, setRemoving] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
+  const [segmenting, setSegmenting] = useState(null);
+  const renameFor = (act || call) ? item => ({
+    save: async title => { await renameDocument({ act, call }, item, { title }); setNotice?.({ text: uiFormat('已重命名为「{0}」', [title]), tone: 'success' }); },
+    restore: async () => { const done = await renameDocument({ act, call }, item, { restore: true }); setNotice?.({ text: uiFormat('已恢复原名「{0}」', [done.title]), tone: 'success' }); },
+  }) : undefined;
   const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); };
   const toggle = group => {
@@ -290,7 +348,16 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                   const item = items.find(entry => entry.sourceIds.includes(proposal.id));
                   return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: true, courseText: proposal.courses.join('; ') };
                 })))}>{ui('请 AI 建议')}</button>
+            <JevSuggestButton enabled={jevOn} disabled={busy || !selectedItems.length || selectedItems.length > 100}
+              onClick={() => { setJevNote(''); act('source.organize.jev', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
+                setJevNote(noteText(result));
+                if (result.proposals.length) setProposals(result.proposals.map(proposal => {
+                  const item = items.find(entry => entry.sourceIds.includes(proposal.id));
+                  return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: startsIncluded(proposal), courseText: proposal.courses.join('; ') };
+                }));
+              }); }} />
           </div>
+          <JevNote note={jevNote} />
           {proposals && <div className="source-course-proposals">
             <p className="muted">{ui('建议尚未保存，可先修改课程，再确认应用。')}</p>
             {proposals.map(proposal => <div key={proposal.id}>
@@ -300,6 +367,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
               <CourseField label={displayTitle(proposal.title)} value={proposal.courseText} multiple courses={data.focus?.courses}
                 onChange={courseText => setProposals(current => current.map(item => item.id === proposal.id ? { ...item, courseText } : item))} disabled={busy || !proposal.include} />
               <p className="muted">{proposal.reason}</p>
+              <JevProbabilities jev={proposal.jev} />
             </div>)}
             <button disabled={busy || !proposals.some(proposal => proposal.include)} onClick={() => act('source.courses.set', {
               assignments: proposals.filter(proposal => proposal.include).flatMap(proposal =>
@@ -311,6 +379,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
       </>}
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} />
       <PdfConvertJobs data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} />
+      <PdfConvertHistory data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
       {!items.length ? (
         <section className="sources-empty" data-tour="sources-list">
           <div className="sources-empty__intro">
@@ -334,8 +403,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
-                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse}
-                  advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
+                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined} rename={renameFor}
+                  mastery={data.materialMastery?.[item.key]} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
                   call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>
             );
@@ -344,6 +413,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
       )}
       {editingCourse && <CourseDialog item={editingCourse} items={items} byId={byId} courses={data.focus?.courses} busy={busy} act={act}
         onClose={() => setEditingCourse(null)} />}
+      {segmenting && <OutlineDialog item={segmenting} call={call} act={act} onClose={() => setSegmenting(null)} />}
       {removing && <RemoveDialog item={removing} busy={busy} act={act} call={call} onClose={() => setRemoving(null)}
         onRemoved={item => { setRemoving(null); setNotice?.({ text: uiFormat("已移除「{0}」", [displayTitle(item.title)]), tone: "success" }); }} />}
     </section>

@@ -23,10 +23,18 @@ import board from './locales/en.board.json';
 import update from './locales/en.update.json';
 import wrongbook from './locales/en.wrongbook.json';
 import usage from './locales/en.usage.json';
+import renameCopy from './locales/en.rename.json';
+import peekCopy from './locales/en.peek.json';
 import largedocs from './locales/en.largedocs.json';
 import mineruCopy from './locales/en.mineru.json';
 import reader from './locales/en.reader.json';
 import selectionCopy from './locales/en.selection.json';
+import original from './locales/en.original.json';
+import links from './locales/en.links.json';
+import tiers from './locales/en.tiers.json';
+import translationCopy from './locales/en.translation.json';
+import jevCopy from './locales/en.jev.json';
+import loop from './locales/en.loop.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -51,10 +59,18 @@ export const ENGLISH_SOURCES = {
   'en.update.json': update,
   'en.wrongbook.json': wrongbook,
   'en.usage.json': usage,
+  'en.rename.json': renameCopy,
+  'en.peek.json': peekCopy,
   'en.largedocs.json': largedocs,
   'en.mineru.json': mineruCopy,
   'en.reader.json': reader,
   'en.selection.json': selectionCopy,
+  'en.original.json': original,
+  'en.links.json': links,
+  'en.tiers.json': tiers,
+  'en.translation.json': translationCopy,
+  'en.jev.json': jevCopy,
+  'en.loop.json': loop,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

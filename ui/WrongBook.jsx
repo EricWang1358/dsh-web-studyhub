@@ -5,7 +5,7 @@ import wrongCss from "./wrongbook.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
-import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
+import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { Banner, Button, Icon, InlineMessage, SegmentedControl, SetupRequired } from './components/index.js';
 import { RECS_PREVIEW, VARIANT_BATCH_CAP, groupRows, reasonText, retrainOptions, shortDeckNames, variantFailureText, variantState } from './wrongbook-model.js';
 
@@ -115,7 +115,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
 }
 
 export function WrongBookView({
-  data, course, onCourse, items, counts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
+  data, course, onCourse, showInactive, onShowInactive, items, counts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, busy,
   onLibrary, onCreate, onSources, initial = {},
 }) {
@@ -135,7 +135,7 @@ export function WrongBookView({
   const rows = useMemo(() => items || [], [items]);
   const total = rows.length;
   const recItems = recs?.items || [];
-  const localDecks = decksInCourse(data, course);
+  const localDecks = decksInCourse(data, course, showInactive);
   const shortName = useMemo(() => shortDeckNames(rows, data?.decks), [rows, data?.decks]);
   const groups = useMemo(() => groupRows(rows, groupBy, data?.decks), [rows, groupBy, data?.decks]);
   const hasCoach = !!coach;
@@ -210,7 +210,7 @@ export function WrongBookView({
       <div className="page-heading">
         <div>
           <h1>{ui("错题与待巩固")}</h1>
-          <PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} />
+          <PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />
           <p className="muted">
             {counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral]) : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
             {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
@@ -390,6 +390,8 @@ export function WrongBookView({
 
 export default function WrongBook({ call, data, busy, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
   const [course, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
+  const [showInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
+  const key = JSON.stringify(scopeArgs(course, showInactive));
   const [page, setPage] = useState(0);
   const [result, setResult] = useState(null),
     [loading, setLoading] = useState(true),
@@ -398,7 +400,7 @@ export default function WrongBook({ call, data, busy, onPractice, onPracticePrep
     [details, setDetails] = useState({}),
     [coachLive, setCoachLive] = useState(null);
   const seq = useRef(0);
-  const current = result?.course === course ? result : null;
+  const current = result?.key === key ? result : null;
   const items = current?.items;
   const counts = current?.counts || { total: 0, graded: 0, self: 0, oral: 0 };
   const coach = coachLive || data?.coach || null;
@@ -409,13 +411,14 @@ export default function WrongBook({ call, data, busy, onPractice, onPracticePrep
     setErr("");
     try {
       let targetPage = requestedPage;
-      let res = await call("wrongbook", { course, offset: targetPage * PAGE_SIZE, limit: PAGE_SIZE });
+      const scope = scopeArgs(course, showInactive);
+      let res = await call("wrongbook", { ...scope, offset: targetPage * PAGE_SIZE, limit: PAGE_SIZE });
       if (targetPage > 0 && !res?.items?.length) {
         targetPage = Math.max(0, Math.ceil((res?.total || 0) / PAGE_SIZE) - 1);
-        res = await call("wrongbook", { course, offset: targetPage * PAGE_SIZE, limit: PAGE_SIZE });
+        res = await call("wrongbook", { ...scope, offset: targetPage * PAGE_SIZE, limit: PAGE_SIZE });
       }
       if (request !== seq.current) return;
-      setResult({ course, counts: { total: res?.total ?? res?.items?.length ?? 0,
+      setResult({ key, counts: { total: res?.total ?? res?.items?.length ?? 0,
         graded: res?.gradedTotal ?? res?.items?.filter((item) => item.assessment === "graded").length ?? 0,
         self: res?.selfTotal ?? res?.items?.filter((item) => item.assessment === "self").length ?? 0,
         oral: res?.oralTotal ?? 0, rubric: res?.rubricTotal ?? 0 },
@@ -425,8 +428,8 @@ export default function WrongBook({ call, data, busy, onPractice, onPracticePrep
       asked.current = new Set();
       setDetails({});
       // Similar questions are a bonus: a library without the read just shows none.
-      if (res?.total) call("wrongbook.recommend", { course, limit: 10 })
-        .then((found) => request === seq.current && setRecs({ course, items: found?.items || [] }))
+      if (res?.total) call("wrongbook.recommend", { ...scope, limit: 10 })
+        .then((found) => request === seq.current && setRecs({ key, items: found?.items || [] }))
         .catch(() => request === seq.current && setRecs(null));
       else setRecs(null);
     } catch (e) {
@@ -434,7 +437,7 @@ export default function WrongBook({ call, data, busy, onPractice, onPracticePrep
     } finally {
       if (request === seq.current) setLoading(false);
     }
-  }, [call, course]);
+  }, [call, course, showInactive, key]);
   useEffect(() => {
     load(0);
   }, [load]);
@@ -462,9 +465,9 @@ export default function WrongBook({ call, data, busy, onPractice, onPracticePrep
   }, [call]);
 
   return (
-    <WrongBookView data={data} course={course} onCourse={setCourse} items={items} counts={counts} loading={loading} err={err}
+    <WrongBookView data={data} course={course} onCourse={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} items={items} counts={counts} loading={loading} err={err}
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
-      recs={recs?.course === course ? recs : null} coach={coach} details={details} onLoadDetail={loadDetail}
+      recs={recs?.key === key ? recs : null} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings}
       busy={busy} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} />
   );

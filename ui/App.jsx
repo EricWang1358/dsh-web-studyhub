@@ -11,7 +11,7 @@ import StudyMap from "./StudyMap.jsx";
 import Welcome, { SampleBanner } from "./Welcome.jsx";
 import Tour from "./tour/Tour.jsx";
 import TourGlyph from "./tour/TourGlyph.jsx";
-import { NavItem, ResumeNavItem, CoachNavItem } from "./SideNav.jsx";
+import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from "./SideNav.jsx";
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from "./tour/steps.js";
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from "./tour/progress.js";
 import { OnboardingPanel, RemoveSampleDialog } from "./tour/SampleControls.jsx";
@@ -20,8 +20,9 @@ import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
 import { dueSummary } from "../lib/board-model.js";
-import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
-import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
+import { BrandMark } from "./NavGlyph.jsx";
+import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
+import sideGroupsCss from "./side-groups.css";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
@@ -31,8 +32,10 @@ import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS } from "./generation-status.js";
 import ImportHub, { importOutcome } from './ImportHub.jsx';
 import { parseCourses } from './CourseField.jsx';
-import { countDocuments, documentSourceIds } from '../lib/source-groups.js';
-import { usePageScope } from './PageScope.jsx';
+import { countDocuments, documentSourceIds, groupSourcesByDocument } from '../lib/source-groups.js';
+import { sourceMatchesCourse } from '../lib/source-courses.js';
+import { bigDocuments } from '../lib/large-documents.js';
+import { usePageScope, courseNamesOf } from './PageScope.jsx';
 import AudioImport from "./AudioImport.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
@@ -42,9 +45,12 @@ import { createActRunner } from "./act-runner.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import CourseSettings, { CourseList } from './CourseSettings.jsx';
+import { CourseActiveProvider, activeNotice } from './CourseActive.jsx';
 import LanguageSwitch from './LanguageSwitch.jsx';
 import Inbox from "./Inbox.jsx";
 import { QuickActionsContext, dismissJobs, markInboxRead, useQuickActionsController } from "./quick-actions.js";
+import { shareUnchanged, sameExceptFingerprint } from "./snapshot-share.js";
+import { pollDelay, POLL_FAST_MS } from "./poll-schedule.js";
 import quickCss from "./quick-actions.css";
 import css from "./coach.css";
 import libraryChipCss from "./library-chip.css";
@@ -54,6 +60,7 @@ import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
 import { finishedNotice, isActive as isSelectionJobActive } from './document-preview/selection-job.js';
+import { ReaderHeading } from './document-preview/RenameTitle.jsx';
 import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
@@ -74,6 +81,7 @@ export default function App({ call: transportCall, host = {} }) {
     return localizeRunResponse(result);
   }, [transportCall]);
   useInjectCss(localeCss, 'study-language');
+  useInjectCss(sideGroupsCss, 'study-side-groups');
   useInjectCss(css, "study-coach");
   useInjectCss(libraryChipCss, "study-library-chip");
   const rootRef = useRef(null),
@@ -188,6 +196,7 @@ export default function App({ call: transportCall, host = {} }) {
     lastRunId = data?.lastRun?.id,
     lastRunIndex = data?.lastRun?.index;
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
+  const navGroups = useNavGroups();
   const navLabels = {
     library: ui("学习库"), workflows: ui("学习流"), live: language === "en" ? "Live class" : "课堂实录",
     audio: language === "en" ? "Audio transcription" : "音频转录", wrongbook: ui("错题与待巩固"), exam: ui("模拟考试"),
@@ -207,7 +216,7 @@ export default function App({ call: transportCall, host = {} }) {
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
     observer?.observe(nav);
     return () => observer?.disconnect();
-  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex, navOrder.order]);
+  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex, navOrder.order, navGroups.folded]);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
@@ -215,6 +224,8 @@ export default function App({ call: transportCall, host = {} }) {
   // WP13: the course settings panel (a course id), opened from the library heading or Settings.
   // The open course panel: a course id, or { id, mergeFrom } when 合并到这里 opens the merge confirmation (WP14).
   const [courseSettings, setCourseSettings] = useState(null);
+  // A Settings section another page points at (the search extension, say); Settings opens its group and scrolls to it.
+  const [settingsFocus, setSettingsFocus] = useState("");
   const [modal, setModal] = useState(null),
     [sourceTitle, setSourceTitle] = useState(""),
     [sourceText, setSourceText] = useState("");
@@ -245,6 +256,18 @@ export default function App({ call: transportCall, host = {} }) {
     [explain, setExplain] = useState(false),
     [response, setResponse] = useState("");
   const [notice, setNotice] = useNotice(reviewNoticeScope(binding.root, page, run));
+  // 有效课程: park or revive a course from any page (ui/CourseActive.jsx). One write at a time like every act(); the notice carries the real numbers.
+  const courseActiveApi = useMemo(() => {
+    const setActive = async (course, active, options = {}) => {
+      const result = await act('course.setActive', { ...(course.id ? { id: course.id } : { name: course.name }), active, ...options }, undefined, { rethrow: true });
+      if (!result) throw new Error(ui('正在处理上一个操作，请稍后再点一次'));
+      const note = activeNotice(result);
+      setNotice({ text: [note.text, note.detail].filter(Boolean).join(' '), tone: note.tone });
+      return result;
+    };
+    return { setActive, activate: (course) => setActive(course, true), manage: () => setPage('settings') };
+    // act / setPage / setNotice only reach for current state when called.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const onReviewState = host.onReviewState;
   useEffect(() => {
     onReviewState?.(page === "review" ? run : null);
@@ -279,7 +302,7 @@ export default function App({ call: transportCall, host = {} }) {
   const [revealHome, setRevealHome] = useState(0);
   const canChat = host.capabilities?.chat ?? !!host.askInChat;
   // DSH's own model settings when the host offers them, else Study Settings (plan C3).
-  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : setPage("settings"));
+  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : (setSettingsFocus("settings-model"), setPage("settings")));
   const [showBack, setShowBack] = useState(false),
     [settings, setSettings] = useState({}),
     [flag, setFlag] = useState(""),
@@ -294,7 +317,7 @@ export default function App({ call: transportCall, host = {} }) {
   // Cards due today or overdue light the badge, so a deadline shows from any page.
   const boardDue = boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 };
   const dataRef = useRef(null),
-    snapshotKey = useRef(""),
+    snapshotKey = useRef({}),
     notebookRequest = useRef(0);
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
@@ -304,12 +327,14 @@ export default function App({ call: transportCall, host = {} }) {
     if (epoch !== libraryEpoch.current) return dataRef.current;
     // Nothing visible changed: skip transferring, diffing and re-rendering.
     if (next.unchanged && dataRef.current) return dataRef.current;
+    let result = next;
     if (sequence === requestSequence.current && !next.unchanged) {
       // Root, model availability and due counts can change without a store write.
-      // Compare the full public snapshot before skipping a render.
+      // Compare the public snapshot key by key before skipping a render; a key that did not change keeps its
+      // identity, so memoised views over data.sources, data.decks ... survive a poll that only moved `progress`.
       const cur = dataRef.current;
-      const nextKey = JSON.stringify(next);
-      if (!cur || snapshotKey.current !== nextKey) {
+      const shared = shareUnchanged(cur, next, snapshotKey.current);
+      if (shared.changed) {
         if (cur && cur.root !== next.root) {
           libraryEpoch.current++;
           quick.reset();
@@ -354,15 +379,16 @@ export default function App({ call: transportCall, host = {} }) {
           setSettings(next.settings);
           setBinding((b) => ({ ...b, root: next.root }));
         }
-        dataRef.current = next;
-        snapshotKey.current = nextKey;
-        setData(next);
+        dataRef.current = shared.value;
+        snapshotKey.current = shared.texts;
+        setData(shared.value);
         setSettings((current) =>
           Object.keys(current).length ? current : next.settings,
         );
-      }
+        result = shared.value;
+      } else result = cur;
     }
-    return next;
+    return result;
   }, [call, quick, setNotice]);
   const previousLanguage = useRef(language);
   useEffect(() => {
@@ -520,25 +546,54 @@ export default function App({ call: transportCall, host = {} }) {
     setTeachAnswer("");
     setClozeValues({});
   }, [run?.id, reviewQueueVersion]);
+  // Work the host is doing for the learner keeps the quick poll rhythm; see ui/poll-schedule.js.
+  const workingRef = useRef(false);
+  workingRef.current = !!running || !!data?.coach?.preparing || !!data?.assist?.some(task => ["running", "queued"].includes(task.status));
   useEffect(() => {
     if (!binding.root) return;
     let stopped = false,
-      pending = false;
-    const t = setInterval(async () => {
-      if (document.hidden || pending || stopped) return;
-      pending = true;
-      try {
-        await refresh();
-        if (!stopped) setSyncIssue("");
-      } catch (e) {
-        if (!stopped) setSyncIssue(e.message || String(e));
-      } finally {
-        pending = false;
+      pending = false,
+      unchanged = 0,
+      timer;
+    const tick = async () => {
+      timer = undefined;
+      if (stopped) return;
+      if (!document.hidden && !pending) {
+        pending = true;
+        const before = dataRef.current;
+        try {
+          // An unchanged answer hands back the object the panel already holds.
+          const next = await refresh();
+          if (!stopped) setSyncIssue("");
+          // The once-a-minute fingerprint rollover alone is not a change.
+          unchanged = sameExceptFingerprint(before, next) ? unchanged + 1 : 0;
+        } catch (e) {
+          unchanged = 0;
+          if (!stopped) setSyncIssue(e.message || String(e));
+        } finally {
+          pending = false;
+        }
       }
-    }, 2500);
+      if (!stopped) timer = setTimeout(tick, pollDelay({ unchanged, running: workingRef.current }));
+    };
+    timer = setTimeout(tick, POLL_FAST_MS);
+    // Activity in the panel, or coming back to it, restores the quick rhythm at once.
+    const wake = () => { unchanged = 0; };
+    const visible = () => {
+      if (document.hidden || stopped) return;
+      unchanged = 0;
+      clearTimeout(timer);
+      timer = setTimeout(tick, 0);
+    };
+    window.addEventListener("pointerdown", wake, true);
+    window.addEventListener("keydown", wake, true);
+    document.addEventListener("visibilitychange", visible);
     return () => {
       stopped = true;
-      clearInterval(t);
+      clearTimeout(timer);
+      window.removeEventListener("pointerdown", wake, true);
+      window.removeEventListener("keydown", wake, true);
+      document.removeEventListener("visibilitychange", visible);
     };
   }, [binding.root, refresh]);
   useEffect(() => {
@@ -712,6 +767,25 @@ export default function App({ call: transportCall, host = {} }) {
       else { setExamKind(target.kind); setExamRunId(target.runId); setPage('exam'); }
       if (target.kind !== 'source') setFocusRequest({});
     } catch (error) { if (live()) { if (throwOnError) throw error; setError(error.message || String(error)); } }
+  }
+  // 读 → 做这几页的题 → 回到阅读: practise exactly the questions of some pages. The run keeps where the learner was reading
+  // (lib/reading-return.js), so the way back is on the run itself and survives closing the app; nothing is held only in memory.
+  function practiceFromReading({ refs, reading }) {
+    if (!refs?.length || !reading) return;
+    return act("review.start", { mode: "path", scope: refs, fresh: true, reading: { ...reading, origin: { page } } },
+      (started) => { setModal(null); enterRun(started); setFocusRequest({}); });
+  }
+  // The existing generation entry, prefilled with the sources of the pages (the whole document for one text).
+  function generateFromPages(ids) {
+    rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined }));
+    setGenSource('files'); setModal(null); setPage('generate');
+  }
+  // Reopen the reader where the learner was: the section, the offset into it and the scroll position of the stored context.
+  function returnToReading(reading) {
+    const source = dataRef.current?.sources.find(item => item.id === reading?.sourceId);
+    if (!source) { setNotice({ text: ui('这份资料已不在资料库里，无法回到阅读。'), tone: 'warning' }); return; }
+    setPage(navLabels[reading.origin?.page] ? reading.origin.page : 'sources');
+    setModal({ type: 'source', source, resume: { ...reading, nonce: Date.now() } });
   }
   function currentStudyReference() {
     const root = dataRef.current?.root;
@@ -1240,6 +1314,9 @@ export default function App({ call: transportCall, host = {} }) {
       a.download = backupFileName();
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      // Originals attached by path stay where the learner keeps them; say how many are not in this file.
+      const referenced = s.portableMaterials?.referencedOriginals?.length;
+      if (referenced) setNotice({ text: uiFormat("备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。", [referenced]), tone: "success", persistent: true });
     } catch (e) {
       setError(e.message);
     }
@@ -1273,7 +1350,8 @@ export default function App({ call: transportCall, host = {} }) {
   ) : (
     <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sourceFormCourse} onCourseChange={changeSourceFormCourse}
       pasteDraft={{ title: sourceTitle, text: sourceText }} onPasteDraftChange={draft => { setSourceTitle(draft.title); setSourceText(draft.text); }}
-      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setPage('settings'); }}
+      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setSettingsFocus("settings-mineru"); setPage('settings'); }}
+      onOpenSources={ids => { setPage('sources'); openAudioSources(ids); }}
       audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); setPage('settings'); }} /> : undefined} />
   );
   const modelGroups = host.modelGroups || [],
@@ -1440,6 +1518,24 @@ export default function App({ call: transportCall, host = {} }) {
     setHiddenWelcome(data.root);
   }
   const openFirstImport = () => setModal({ type: "add" });
+  /* 课程准备 (ui/SetupChecklist.jsx): each step reuses a page or dialog that already exists. Making the first questions opens
+     创建题组 with the course filled in and the course's ordinary materials ticked (a long book is left for the chapter picker). */
+  const setupHandlers = {
+    import: (course) => setModal({ type: "add", course: course ?? "" }),
+    sources: () => setPage("sources"),
+    index: () => { setSettingsFocus("settings-extensions"); setPage("settings"); },
+    generate: (course) => {
+      const items = groupSourcesByDocument(data.sources.filter((source) => sourceMatchesCourse(source, course, courseNamesOf(data))));
+      const long = new Set(bigDocuments(items).map((item) => item.key));
+      setSelectedSources(items.filter((item) => !long.has(item.key)).flatMap((item) => item.sourceIds));
+      setGen((current) => ({ ...current, course }));
+      setGenSource("files");
+      setPage("generate");
+    },
+    draft: (id) => { const found = data.drafts.find((item) => item.id === id); if (found) openDraft(found); },
+    course: setCourseSettings,
+    skeleton: () => setPage("skeleton"),
+  };
   /** The tour switches pages at once: no leave animation, no stale context trail. */
   function showPage(id) {
     clearTimeout(leaveTimer.current);
@@ -1641,6 +1737,7 @@ export default function App({ call: transportCall, host = {} }) {
     onCloseError={() => setError("")} onCloseNotice={() => setNotice("")} />;
   return (
     <QuickActionsContext.Provider value={quickApi}>
+    <CourseActiveProvider value={courseActiveApi}>
     <div
       className="study-app"
       data-theme={resolvedTheme}
@@ -1677,43 +1774,55 @@ export default function App({ call: transportCall, host = {} }) {
               style={{ transform: `translateY(${navMark.top}px)`, height: navMark.height }}
             />
           )}
-          <ResumeNavItem
-            lastRun={lastRun}
-            hasDecks={!!data?.decks.length}
-            ready={!!data}
-            active={navPage === "review"}
-            disabled={!data || busy || !pageAvailable(data, 'review')}
-            onClick={resumeOrStart}
-          />
-          {data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
-            <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={onCoachPractice} />
-          )}
-          {[...navOrder.order.main, ...navOrder.order.upkeep].filter(id => pageAvailable(data, id)).map((id) => {
-            const label = navLabels[id], upkeep = NAV_DEFAULTS.upkeep.includes(id);
-            const due = id === "board" && boardDue.overdue + boardDue.today > 0;
+          {NAV_GROUPS.map((group) => {
+            const ids = navOrder.order[group.id].filter(id => pageAvailable(data, id));
+            // A group whose pages are all switched off in the host is not drawn; the daily one always is (it holds 回到题目).
+            if (!ids.length && group.id !== "daily") return null;
             return (
-              <NavItem
-                key={id}
-                {...navOrder.bind(id)}
-                data-tour={`nav-${id}`}
-                className={navOrder.lifted === id ? "is-dragging" : ""}
-                upkeep={upkeep}
-                active={navPage === id}
-                glyph={id}
-                label={ui(label)}
-                title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
-                onClick={() => switchPage(id, () => {
-                  if (id === 'board') setBoardStudyRef(currentStudyReference());
-                  if (id === "exam") { setExamRunId(null); setExamKind('exam'); }
-                  if (id === "notes") setNoteInitialId("");
-                  if (id === 'graph') setGraphScope(null);
-                  setError("");
+              <NavGroup key={group.id} id={group.id} label={group.label} hint={group.hint} collapsible={group.collapsible}
+                open={groupIsOpen(group.id, navGroups.folded, navPage)} onToggle={() => navGroups.toggle(group.id)}>
+                {group.id === "daily" && (
+                  <ResumeNavItem
+                    lastRun={lastRun}
+                    hasDecks={!!data?.decks.length}
+                    ready={!!data}
+                    active={navPage === "review"}
+                    disabled={!data || busy || !pageAvailable(data, 'review')}
+                    onClick={resumeOrStart}
+                  />
+                )}
+                {group.id === "daily" && data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
+                  <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={onCoachPractice} />
+                )}
+                {ids.map((id) => {
+                  const label = navLabels[id];
+                  const due = id === "board" && boardDue.overdue + boardDue.today > 0;
+                  return (
+                    <NavItem
+                      key={id}
+                      {...navOrder.bind(id)}
+                      data-tour={`nav-${id}`}
+                      className={navOrder.lifted === id ? "is-dragging" : ""}
+                      upkeep={group.id === "setup"}
+                      active={navPage === id}
+                      glyph={id}
+                      label={ui(label)}
+                      title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
+                      onClick={() => switchPage(id, () => {
+                        if (id === 'board') setBoardStudyRef(currentStudyReference());
+                        if (id === "exam") { setExamRunId(null); setExamKind('exam'); }
+                        if (id === "notes") setNoteInitialId("");
+                        if (id === 'graph') setGraphScope(null);
+                        setError("");
+                      })}
+                      disabled={!data && id !== "board"}
+                      hint={id === "board" ? boardCount : id === "sources" && data ? countDocuments(data.sources) : undefined}
+                      hintClass={due ? "nav-count is-due" : "nav-count"}
+                      hintTitle={due ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}
+                    />
+                  );
                 })}
-                disabled={!data && id !== "board"}
-                hint={id === "board" ? boardCount : id === "sources" && data ? countDocuments(data.sources) : undefined}
-                hintClass={due ? "nav-count is-due" : "nav-count"}
-                hintTitle={due ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}
-              />
+              </NavGroup>
             );
           })}
           {navOrder.customized && !sidebarNarrow && (
@@ -1863,18 +1972,6 @@ export default function App({ call: transportCall, host = {} }) {
               <SampleBanner sample={data.sample} busy={busy || sampleBusy} onTour={() => startTour({ restart: true })}
                 onRemove={() => setRemovingSample(true)} />
             )}
-            {page === "library" && !showWelcome && data.coach?.ready > 0 && (
-              <div className="coach-offer" role="status">
-                <span className="coach-offer-mark" aria-hidden="true"><NavGlyph name="coach" /></span>
-                <div>
-                  <span className="eyebrow">{ui("为你定制")}</span>
-                  <strong>
-                    {data.today?.ahead ? ui("今天的任务完成了。") : ""}{uiFormat("为你定制的 {0} 道题已备好", [data.coach.ready])}</strong>
-                  <small>{ui("从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。")}</small>
-                </div>
-                <button className="primary" disabled={busy} onClick={() => act("coach.practice", {}, enterRun)}>{uiFormat("刷 {0} 道定制题 →", [data.coach.ready])}</button>
-              </div>
-            )}
             {page === "library" && !showWelcome && (
               <StudyMap
                 data={data}
@@ -1915,6 +2012,9 @@ export default function App({ call: transportCall, host = {} }) {
                 importLibrary={() => { setGenSource("json"); setPage("generate"); }}
                 generateFromSources={(ids) => { setSelectedSources(ids); setGen((current) => ({ ...current, course: undefined }));
                   setGenSource("files"); setPage("generate"); }}
+                setupHandlers={setupHandlers}
+                onCoachPractice={pageAvailable(data, 'review') ? onCoachPractice : undefined}
+                onWeakPoints={pageAvailable(data, 'wrongbook') ? () => setPage("wrongbook") : undefined}
                 openModelSettings={openModelSettings}
                 canChat={canChat}
                 reveal={revealHome}
@@ -2085,7 +2185,7 @@ export default function App({ call: transportCall, host = {} }) {
                 openAgent={host.openAgent}
                 onOpenSources={openAudioSources}
                 onLegacyRetry={job => { setLegacyAudioJobId(job.id); setPage('audio'); }}
-                onOpenSettings={() => setPage('settings')}
+                onOpenSettings={() => { setSettingsFocus("settings-mineru"); setPage('settings'); }}
                 onGenerate={generateFromSources}
               />
             )}
@@ -2178,6 +2278,10 @@ export default function App({ call: transportCall, host = {} }) {
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
+                appearance={{ language, onLanguage: setUiLanguage, theme, themes: THEMES, onTheme: setTheme }}
+                tourActive={!!tourStep}
+                focusSection={settingsFocus}
+                onFocused={() => setSettingsFocus("")}
                 onRestored={(restored) => {
                   libraryEpoch.current++;
                   navigationRequest.current++;
@@ -2201,6 +2305,7 @@ export default function App({ call: transportCall, host = {} }) {
                 feedback={feedback}
                 contextReturnLabel={contextTrail.length ? contextLabel(contextTrail.at(-1)) : ''}
                 onReturnContext={returnFromContext}
+                onReturnToReading={returnToReading}
                 detour={detour && !(detour.runId === run.id && detour.index === run.index) ? detour : null}
                 onReturnFromDetour={returnFromDetour}
                 onCourseFlow={startCourseFlow}
@@ -2285,7 +2390,9 @@ export default function App({ call: transportCall, host = {} }) {
                     ? ui("学习资料")
                     : modal.type === "flag"
                       ? ui("标记这道题")
-                      : (modal.source?.document ? modal.source.title.replace(/\s*·\s*p\.\d+$/, "") : modal.source?.title) || ui("资料不可用")}>
+                      : modal.source ? <ReaderHeading data={data} source={modal.source} act={act} call={call}
+                          onRenamed={done => setNotice({ text: done.status === 'renamed' ? uiFormat("已重命名为「{0}」", [done.title]) : ui("名称没有变化"), tone: "success" })} />
+                        : ui("资料不可用")}>
             {modal.type === "add" ? (
               sourceForm
             ) : modal.type === "sources" ? (
@@ -2347,6 +2454,8 @@ export default function App({ call: transportCall, host = {} }) {
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
                       onOpenDeck={deckId => openLearningTarget({ kind: 'deck', id: deckId })}
                       onPractice={({ deckId, cardIds }) => openLearningTarget({ kind: 'cards', deckId, cardIds })}
+                      onPracticePages={practiceFromReading} onGeneratePages={generateFromPages} resume={modal.resume}
+                      backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? () => setModal(null) : undefined}
                       onStarted={started => { selectionJobs.current.set(started.jobId, 'active'); return refresh(); }} onNotice={setNotice}
                       onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
                         setGenSource('case'); setModal(null); setPage('generate'); }} />
@@ -2359,6 +2468,7 @@ export default function App({ call: transportCall, host = {} }) {
         </ModalFrame>
       )}
     </div>
+    </CourseActiveProvider>
     </QuickActionsContext.Provider>
   );
 }

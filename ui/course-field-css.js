@@ -53,6 +53,9 @@ export default `:is(.study-app, .study-seat) .course-field { container: course-f
 @container course-field (max-width: 720px) {
   :is(.study-app, .study-seat) .course-field__picks > .course-field__pick:not(.course-field__more):nth-child(n+5) { display: none; }
 }
+/* 有效课程: a parked (inactive) course stays selectable, only dimmed. */
+:is(.study-app, .study-seat) .course-field__pick.is-parked { color: var(--text-muted); border-style: dashed; }
+:is(.study-app, .study-seat) .course-field__option.is-parked { color: var(--text-muted); }
 @container course-field (max-width: 480px) {
   :is(.study-app, .study-seat) .course-field__picks > .course-field__pick:not(.course-field__more):nth-child(n+4) { display: none; }
   :is(.study-app, .study-seat) .course-field__pick { max-width: 100%; }

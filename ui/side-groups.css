@@ -1,0 +1,104 @@
+/* ui/side-groups.css — the sidebar's groups (每天 / 阶段性 / 课程准备与管理, ui/SideNav.jsx NavGroup).
+   Tokens only; both themes. A group label is one fixed-height line (--nav-group), so no state of the page can change
+   the height of anything in the rail; in the 62px rail the label shrinks to a hairline and every group is open. */
+
+.study-app .sidebar {
+  /* One height for every group label, whatever it says. */
+  --nav-group: 22px;
+}
+/* Three labels take room the rail did not have: take it back from the quiet parts around the rows. */
+.study-app .sidebar:not(.is-narrow) {
+  padding-top: 20px;
+}
+.study-app .sidebar:not(.is-narrow) .brand {
+  margin-bottom: 16px;
+}
+.study-app .sidebar:not(.is-narrow) .local-status {
+  padding-block: 4px;
+}
+.study-app .sidebar.is-narrow {
+  --nav-group: 9px;
+}
+.study-app .sidebar.is-narrow .nav-group + .nav-group {
+  margin-top: 0;
+}
+.study-app .nav-group + .nav-group {
+  margin-top: 6px;
+}
+.study-app .nav-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: var(--nav-group);
+  margin: 0;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-align: left;
+}
+.study-app button.nav-group-label {
+  cursor: pointer;
+  transition: color 0.15s var(--ease);
+}
+.study-app button.nav-group-label:hover {
+  color: var(--text-dim);
+}
+.study-app .nav-group-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.study-app .nav-group-chevron {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.2s var(--ease-out);
+}
+.study-app .nav-group-label[aria-expanded="false"] .nav-group-chevron {
+  transform: translateX(-2px) rotate(-45deg);
+}
+/* Every row, wherever it sits, floats above the one gliding highlight; a lifted row above its neighbours. */
+.study-app .side-nav .nav {
+  z-index: 1;
+}
+.study-app .side-nav .nav.is-dragging {
+  z-index: 3;
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  box-shadow: 0 8px 22px color-mix(in srgb, #000 40%, transparent);
+  color: var(--text);
+}
+/* The 62px rail has no room for words: the label becomes a hairline between the groups and nothing is folded. */
+.study-app .sidebar.is-narrow .nav-group-label {
+  height: var(--nav-group);
+  padding: 0;
+  justify-content: center;
+}
+.study-app .sidebar.is-narrow .nav-group-label::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  background: var(--line-soft);
+}
+.study-app .sidebar.is-narrow .nav-group-text,
+.study-app .sidebar.is-narrow .nav-group-chevron {
+  display: none;
+}
+/* first-of-type, not first-child: the gliding highlight (a span) comes before the first group while a page of the rail is open. */
+.study-app .sidebar.is-narrow .nav-group:first-of-type .nav-group-label {
+  display: none;
+}
+.study-app .sidebar.is-narrow .nav-group-items[hidden] {
+  display: block;
+}

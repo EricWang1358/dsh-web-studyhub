@@ -35,6 +35,19 @@
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
+/* An empty library: one lead card for the learner's own material, the sample as a line under it. */
+.welcome__choices--first { grid-template-columns: minmax(0, 640px); }
+.welcome__sample {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+}
+.welcome__sample small { flex: 1 1 100%; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
 .welcome-card {
   display: flex;
   flex-direction: column;

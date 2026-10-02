@@ -65,6 +65,11 @@
   .source-doc__page-list button:not(.sh-btn) > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .source-doc__page-list button:not(.sh-btn):hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
   .source-doc__page-list small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
+  /* A chapter row: the chapter opens on the left, its own 出题 button sits at the right (not a full-width second line). */
+  .source-doc__chapters li { display: flex; align-items: center; gap: var(--space-2); }
+  .source-doc__chapters li > button:first-child { flex: 1 1 auto; width: auto; min-width: 0; }
+  .source-doc__chapters li > .sh-btn { flex: none; width: auto; }
+  .source-doc__chapters li > button:first-child small { white-space: normal; text-align: right; }
   .source-doc.is-new {
     border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
     background: color-mix(in srgb, var(--accent) 4%, var(--bg-sunken));

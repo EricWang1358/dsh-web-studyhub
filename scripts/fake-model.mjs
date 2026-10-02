@@ -438,6 +438,24 @@ const HANDLERS = [
     reply: ({ input, english }) => english
       ? `Preview answer (no real model was called): the selected passage “${input.selection?.quote || ""}” is the evidence. Read the neighbouring text to see how it constrains later changes.`
       : `预览示例回答（未调用真实模型）：选段「${input.selection?.quote || ""}」提供了依据。可结合相邻文字检查设计原则如何约束后续变化。` },
+  { name: "outline.suggest", match: (s) => s.startsWith("You write the table of contents of one document") || s.startsWith("You find the chapter boundaries of one document"),
+    reply: ({ system, input }) => {
+      // The numbered blocks of the prompt: a part/chapter line is level 1 (level 2 under a document title), a numbered "2.1 …" line level 2.
+      const blocks = Array.isArray(input.blocks) ? input.blocks : [];
+      const part = /^(第[一二三四五六七八九十百\d]+[部分章节讲]|Chapter \d+|Part \d+)/, sub = /^\d+\.\d+[ .]/;
+      const outline = [], chapters = system.startsWith("You find the chapter boundaries");
+      blocks.forEach((block, at) => {
+        const text = String(block.text || "");
+        if (part.test(text)) outline.push({ title: text, level: 1, startBlock: block.index });
+        else if (!chapters && sub.test(text)) outline.push({ title: text, level: 2, startBlock: block.index });
+        else if (!chapters && at === 0 && text.length <= 30) outline.push({ title: text, level: 1, startBlock: block.index });
+      });
+      if (!outline.length && blocks.length) outline.push({ title: String(blocks[0].text || "").slice(0, 30), level: 1, startBlock: blocks[0].index });
+      // Under a document title the parts are its sections.
+      if (!chapters && outline.length > 1 && !part.test(String(blocks[0]?.text || "")) && outline[0].startBlock === blocks[0]?.index)
+        outline.forEach((entry, index) => { if (index) entry.level = Math.min(3, entry.level + 1); });
+      return { outline };
+    } },
   { name: "sources.organize", match: (s) => s.startsWith("Organize study sources into courses"),
     reply: ({ input }) => ({ proposals: (input.sources || []).map((source) => ({ id: source.id, courses: (input.courses || []).slice(0, 1).map((course) => course.name || course),
       reason: input.language === "en" ? "Preview: kept the existing course." : "预览：沿用现有课程。" })) }) },

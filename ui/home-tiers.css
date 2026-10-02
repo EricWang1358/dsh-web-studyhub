@@ -1,0 +1,20 @@
+/* ui/home-tiers.css — the home's daily path (ui/StudyMap.jsx): the other ways to start sit under one folded line. Tokens only. */
+.study-app .desk-more {
+  max-width: 560px;
+  margin: 12px 0 0;
+}
+.study-app .desk-more > summary {
+  padding: 2px 0;
+  list-style: none;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.study-app .desk-more > summary::-webkit-details-marker { display: none; }
+.study-app .desk-more > summary::before { content: "▸  "; color: var(--text-faint); }
+.study-app .desk-more[open] > summary::before { content: "▾  "; }
+.study-app .desk-more > summary:hover { color: var(--text); }
+.study-app .desk-more .desk-also { margin-top: 8px; }
+@container study (max-width: 760px) {
+  .study-app .desk-more { order: 6; }
+}

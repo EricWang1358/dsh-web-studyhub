@@ -23,7 +23,7 @@ test('first scoped commits detach retained nested values on both empty and versi
   }
 });
 
-test('scoped writes skip unrelated shard parsing and preserve committed data despite cached reader mutation', async t => {
+test('scoped writes skip unrelated shard parsing and preserve committed data; a reader can no longer poison the cached view', async t => {
   const root = await mkdtemp(join(tmpdir(), 'study-projection-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const store = new Store(root);
@@ -34,7 +34,9 @@ test('scoped writes skip unrelated shard parsing and preserve committed data des
   });
   detach();
   const before = JSON.parse(await readFile(store.path, 'utf8'));
-  (await store.read()).decks[0].cards[0].answer = 'poisoned reader';
+  // The cached view is deep-frozen (lib/store.js shares parsed shards): a reader that writes to it is refused, not silently shared.
+  const view = await store.read();
+  assert.throws(() => { view.decks[0].cards[0].answer = 'poisoned reader'; }, TypeError);
   let unrelatedParses = 0;
   const parse = JSON.parse;
   JSON.parse = (text, ...args) => {

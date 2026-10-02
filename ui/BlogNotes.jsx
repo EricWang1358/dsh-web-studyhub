@@ -7,6 +7,7 @@ import { useInjectCss } from "./shared.js";
 import { renderNoteMarkdown } from "./note-markdown.js";
 import PageScope, { courseMatcher, usePageScope } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
+import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
@@ -131,7 +132,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     }, { lockEditing: true });
   };
   return <section className="page blog-notes-page">
-    <header className="section-heading"><h1 tabIndex={-1} data-context-heading>{ui("学习笔记")}</h1><button onClick={onBack}>{backLabel || ui("返回学习库")}</button></header>
+    <header className="section-heading"><h1 tabIndex={-1} data-context-heading>{ui("学习笔记")}</h1><span className="note-header-tools"><ReadingSettingsButton /><button onClick={onBack}>{backLabel || ui("返回学习库")}</button></span></header>
     {message && <p role="status" className="muted">{message}</p>}
     {!note && <div className="note-list">
       <PageScope courses={data.focus?.courses} value={course} onChange={setCourse} />
@@ -190,7 +191,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       </div>
       {note.generation?.status === "failed" && <p role="alert">{ui("起草失败：")}{note.generation.message}</p>}
       {serverVersion && <details className="note-linking"><summary>{ui('已保存版本有更新，展开核对；你的输入已保留')}</summary>
-        <strong>{serverVersion.title}</strong><article className="note-preview" dangerouslySetInnerHTML={{ __html: renderNoteMarkdown(serverVersion.markdown || '') }} />
+        <strong>{serverVersion.title}</strong><ReadingBlock as="article" prose className="note-preview" dangerouslySetInnerHTML={{ __html: renderNoteMarkdown(serverVersion.markdown || '') }} />
       </details>}
       <label className="note-title">{ui("文章标题")}<input value={note.title} disabled={publishing || note.status === "published" || note.generation?.status === "running"}
         onChange={(event) => edit({ title: event.target.value })} /></label>
@@ -200,7 +201,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
           <CodeMirror value={note.markdown} height="560px" theme={theme === "light" ? "light" : "dark"} extensions={editorExtensions}
             editable={!publishing && note.status !== "published" && note.generation?.status !== "running"} onChange={(value) => edit({ markdown: value })} /></div>
         <div className="note-preview-pane"><strong>{ui("实时预览")}</strong>
-          <article className="note-preview" dangerouslySetInnerHTML={{ __html: preview }} /></div>
+          <ReadingBlock as="article" prose className="note-preview" dangerouslySetInnerHTML={{ __html: preview }} /></div>
       </div>}
       <details className="note-linking"><summary>{uiFormat("关联题目 · {0} 题", [note.cards.length])}</summary>
         <ul>{note.cards.map((ref) => <li key={ref.cardId}>

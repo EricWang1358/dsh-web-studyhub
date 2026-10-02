@@ -1,17 +1,31 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-/* The order of the sidebar's pages, set by holding an item with the left button and dragging it.
+/* The sidebar's pages, grouped by WHEN a page is used (docs/feature-tiers.md), and their order, set by holding an item
+   with the left button and dragging it.
 
-   Items are reordered inside their own group (study pages, upkeep pages) so the divider between the groups stays where
-   it is. The order is a per-viewer convenience kept in localStorage; pages added later go last in their group and pages
+   - 每天 (daily): what a learner opens every session;
+   - 阶段性 (periodic): what is opened now and then (a mock exam, the statistics);
+   - 课程准备与管理 (setup): what is done once at the start of a course (add materials, make the first questions, draw
+     the skeleton, transcribe the lectures) and when a course is looked after.
+
+   Items are reordered inside their own group, so the labels between the groups stay where they are. The order and which
+   groups are folded are per-viewer conveniences kept in localStorage; pages added later go last in their group and pages
    that no longer exist are forgotten. Alt+Up / Alt+Down move the focused item for keyboard users. */
 
 const KEY = "study-nav-order";
-/** The sidebar's default order (P11): the daily study loop first, upkeep tools after it. */
+const GROUPS_KEY = "study-nav-groups";
+/** The sidebar's default order: the pages of every day, then those of now and then, then the once-per-course ones. */
 export const NAV_DEFAULTS = Object.freeze({
-  main: ["library", "sources", "generate", "wrongbook", "exam", "dashboard"],
-  upkeep: ["workflows", "skeleton", "notes", "audio", "live", "board"],
+  daily: ["library", "wrongbook", "workflows", "notes", "board"],
+  periodic: ["exam", "dashboard"],
+  setup: ["sources", "generate", "skeleton", "audio", "live"],
 });
+/** The groups as drawn: a plain label, one line saying what they hold, and whether the learner can fold them. */
+export const NAV_GROUPS = Object.freeze([
+  { id: "daily", label: "每天", hint: "每天都会用：今日学习、错题、学习流、笔记、待办", collapsible: false },
+  { id: "periodic", label: "阶段性", hint: "隔一阵用一次：模拟考试、统计", collapsible: true },
+  { id: "setup", label: "课程准备与管理", hint: "每门课开头做一次：加资料、出题、知识骨架、录音转写", collapsible: true },
+]);
 const HOLD_MS = 350; // the item lifts only after this long, so an ordinary click or a slip never reorders
 const SLOP = 6; // moving further than this before the hold ends means the press was something else
 
@@ -25,14 +39,48 @@ const write = (value) => {
   try { if (value) localStorage.setItem(KEY, JSON.stringify(value)); else localStorage.removeItem(KEY); } catch { /* the order still applies this session */ }
 };
 
-/** A saved order applied to the pages that exist now. */
+/** A saved order applied to the pages that exist now. An order saved before the regrouping (main / upkeep) lends its
+ *  sequence to every new group, so a learner's own order survives the move. */
 export function mergeOrder(saved, defaults) {
   const merged = {};
+  const legacy = saved && typeof saved === "object" && !Object.keys(defaults).some((group) => group in saved) && ("main" in saved || "upkeep" in saved)
+    ? [...(Array.isArray(saved.main) ? saved.main : []), ...(Array.isArray(saved.upkeep) ? saved.upkeep : [])] : null;
   for (const [group, ids] of Object.entries(defaults)) {
-    const kept = (Array.isArray(saved?.[group]) ? saved[group] : []).filter((id, index, all) => ids.includes(id) && all.indexOf(id) === index);
+    const kept = (legacy ?? (Array.isArray(saved?.[group]) ? saved[group] : [])).filter((id, index, all) => ids.includes(id) && all.indexOf(id) === index);
     merged[group] = [...kept, ...ids.filter((id) => !kept.includes(id))];
   }
   return merged;
+}
+
+/** The groups the learner folded: { setup: true }. Only collapsible groups, only `true`; anything unreadable is nothing folded. */
+export function readNavGroups() {
+  try {
+    const value = JSON.parse(localStorage.getItem(GROUPS_KEY));
+    if (!value || typeof value !== "object") return {};
+    return Object.fromEntries(NAV_GROUPS.filter((group) => group.collapsible && value[group.id] === true).map((group) => [group.id, true]));
+  } catch { return {}; }
+}
+export function writeNavGroups(folded) {
+  try {
+    const kept = Object.fromEntries(Object.entries(folded || {}).filter(([, value]) => value === true));
+    if (Object.keys(kept).length) localStorage.setItem(GROUPS_KEY, JSON.stringify(kept)); else localStorage.removeItem(GROUPS_KEY);
+  } catch { /* the groups still fold this session */ }
+}
+/** Is a group drawn open? A folded group opens by itself while the learner is on one of its pages (the current page is always visible). */
+export function groupIsOpen(id, folded, activePage) {
+  const group = NAV_GROUPS.find((item) => item.id === id);
+  if (!group?.collapsible || !folded?.[id]) return true;
+  return NAV_DEFAULTS[id]?.includes(activePage) ?? false;
+}
+/** The folded groups, remembered; toggle(id) folds or opens one. */
+export function useNavGroups() {
+  const [folded, setFolded] = useState(readNavGroups);
+  const toggle = useCallback((id) => setFolded((current) => {
+    const next = { ...current, [id]: !current[id] };
+    writeNavGroups(next);
+    return next;
+  }), []);
+  return { folded, toggle };
 }
 export const sameOrder = (a, b) => Object.keys(a).every((group) => a[group].length === b[group]?.length && a[group].every((id, index) => id === b[group][index]));
 export const groupOf = (order, id) => Object.keys(order).find((group) => order[group].includes(id));

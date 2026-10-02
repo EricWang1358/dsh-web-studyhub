@@ -50,7 +50,7 @@ test("review action feedback is in the question's local tools area", () => {
 });
 test("the round's debrief sits under the score, and asks once before preparing 定制题", () => {
   const ask = renderResult({ enabled: true, consent: null, ready: 0 });
-  assert.match(ask, /class="coach-debrief" data-next="review_weak"/);
+  assert.match(ask, /data-next="review_weak"[^>]*class="study-reading coach-debrief"/, "the debrief is a reading block (the Aa setting applies to its text)");
   assert.ok(ask.indexOf("coach-debrief") < ask.indexOf("result-details"), "not folded under 更多结果与练习");
   assert.match(ask, /好，帮我备题/);
   assert.doesNotMatch(renderResult({ enabled: true, consent: false, ready: 0 }), /好，帮我备题/, "a no is not asked again");

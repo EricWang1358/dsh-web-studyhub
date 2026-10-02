@@ -43,7 +43,7 @@ test("the home card offers exactly one primary action in every state", () => {
   };
   for (const [name, html] of Object.entries(states)) assert.equal(primaries(html), 1, name);
   assert.deepEqual(count(states.path), ["3", "题待学"]);
-  assert.match(states.path, /到期 1 · 薄弱 2/);
+  assert.match(states.path, /1 题到期 · 2 题薄弱/);
   assert.deepEqual(count(states.resume), ["3", "题未完成"]);
   assert.match(states.resume, /继续学习/);
   assert.deepEqual(count(states.fresh), ["10", "道新题"]);

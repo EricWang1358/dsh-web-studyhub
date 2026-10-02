@@ -5,6 +5,7 @@ import { Button, Disclosure, Icon, InlineMessage, SetupRequired } from './compon
 import { LocalMineruPanel, MineruTokenForm, PrivacyConfirm, DOCS_URL } from './MineruSettings.jsx';
 import { chooseRoute, localEstimate, minutesOf, pageRange, uploadPdf } from './mineru-flow.js';
 import { formatBytes } from './components/FileDrop.jsx';
+import { PdfConvertHistory } from './PdfConvertJob.jsx';
 import css from './mineru.css';
 
 /* The one entry for turning a PDF into pages of text with MinerU, wherever the learner meets it: the import hub and the
@@ -33,9 +34,13 @@ const chip = (text, tone) => <span className={`audio-chip${tone ? ` audio-chip--
  * Props: file (a File, or null to offer a picker), call(action, args), courses (the course names to file the book under),
  * onStarted({ jobId, filename, pages, route }), onOpenSettings, onFile(file) (the picker chose one; the parent keeps it),
  * compact, and initialSettings / initialLocal / initialPlan / initialRoute / initialAcknowledged (previews and tests).
+ * The 解析历史 (every conversion, cloud and local, with its result) is part of the panel unless it is compact: `jobs` (the snapshot's job list, so
+ * the history refreshes when a conversion ends), `onOpenSources(sourceIds)` to jump to an imported document, `onOpenJob(row)` to show a running one,
+ * `historyOpen` to start with the history expanded, and initialHistory / historyNow (previews and tests).
  */
 export default function MineruRoute({ file = null, call, courses = [], onStarted, onOpenSettings, onFile, compact = false,
-  initialSettings = null, initialLocal = null, initialPlan = null, initialRoute = null, initialAcknowledged = false, className, ...rest }) {
+  initialSettings = null, initialLocal = null, initialPlan = null, initialRoute = null, initialAcknowledged = false, className,
+  jobs, act, onOpenSources, onOpenJob, onChanged, historyOpen = false, initialHistory = null, historyNow, ...rest }) {
   useInjectCss(css, 'study-mineru');
   const [settings, setSettings] = useState(initialSettings), [local, setLocal] = useState(initialLocal);
   const [plan, setPlan] = useState(initialPlan), [reading, setReading] = useState(null), [problem, setProblem] = useState('');
@@ -84,7 +89,10 @@ export default function MineruRoute({ file = null, call, courses = [], onStarted
   const usable = route === 'local' ? localReady : cloudSet;
   const acknowledged = !!settings?.acknowledged || agreed;
   const pieces = plan ? (route === 'local' ? plan.windows : plan.pieces) : null;
-  const pieceCount = pieces?.length || 0;
+  /* The local route cuts the book into windows one at a time, from the speed it measures (plan.adaptive): before it starts there is no list of windows and no count to show,
+     only what it will do. A fixed plan (the seam of a test or a preview) still lists its windows. */
+  const adaptiveLocal = route === 'local' && !!plan?.adaptive && plan.pages > plan.adaptive.firstPages;
+  const pieceCount = adaptiveLocal ? 0 : pieces?.length || 0;
   const estimate = plan && local?.tier ? localEstimate(plan.pages, local.tier, local.estimates) : null;
   const refreshLocal = useCallback(next => setLocal(next), []);
 
@@ -139,11 +147,13 @@ export default function MineruRoute({ file = null, call, courses = [], onStarted
         </div>}
         {plan && <div className="mineru-plan" role="status">
           <p className="mineru-plan__line">
-            {pieceCount > 1
-              ? <strong>{uiFormat('这本书会分 {0} 段处理', [pieceCount])}</strong>
-              : <strong>{route === 'local' ? ui('不用分段，一次处理整本书') : ui('不用分段，整份一次解析')}</strong>}
+            {adaptiveLocal ? <strong>{ui('分段会按这台电脑的速度调整')}</strong>
+              : pieceCount > 1
+                ? <strong>{uiFormat('这本书会分 {0} 段处理', [pieceCount])}</strong>
+                : <strong>{route === 'local' ? ui('不用分段，一次处理整本书') : ui('不用分段，整份一次解析')}</strong>}
             <span>{uiFormat('共 {0} 页 · {1}', [plan.pages, formatBytes(plan.bytes)])}</span>
           </p>
+          {adaptiveLocal && <p className="mineru-plan__why">{uiFormat('先做 {0} 页看一看这台电脑有多快，再按它的速度调整每段的页数（每段约 {1} 秒，{2}–{3} 页）。', [plan.adaptive.firstPages, plan.adaptive.targetSeconds, plan.adaptive.minPages, plan.adaptive.maxPages])}</p>}
           {pieceCount > 1 && <p className="mineru-plan__why">
             {route === 'local' ? uiFormat('本地按每 {0} 页一段推进，这样能看到进度、随时停下，出错也只重做那一段。', [local?.windowPages || 50])
               : plan.byChapters ? ui('云端一次最多 200 页，所以按章节书签分段；超过上限的章节在 200 页处切开。')
@@ -183,6 +193,9 @@ export default function MineruRoute({ file = null, call, courses = [], onStarted
           {onFile && <Button variant="quiet" disabled={starting} onClick={() => onFile(null)}>{ui('换一份 PDF')}</Button>}
         </div>
       </>}
+
+      {!compact && <PdfConvertHistory call={call} act={act} jobs={jobs} collapsible defaultOpen={historyOpen} initialRecords={initialHistory} now={historyNow}
+        onOpenSources={onOpenSources} onOpenJob={onOpenJob} onOpenSettings={onOpenSettings} onChanged={onChanged} className="mineru-history" />}
 
       <Disclosure summary={ui('高级：桌面客户端和命令行')} meta={ui('手动')} className="mineru-advanced">
         <p>{ui('也可以自己转换，再把结果拖进「添加资料」：用 MinerU 桌面客户端导出带页码的 JSON（content_list.json）；或在终端用 mineru parse 文件.pdf --pages 1-200 -o 结果.md（一定要写 --pages，默认只解析前 10 页），Markdown 里要有 <!-- page: N --> 分页标记。')}</p>

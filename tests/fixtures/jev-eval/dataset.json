@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "description": "A small public example dataset for scripts/eval-jev.mjs. Neutral textbook-style content written for this repository; no learner data. Too small to prove anything: it exists so the script and its metrics can be exercised, and as a template for your own labelled data.",
+  "features": {
+    "courseSuggest": {
+      "courses": [
+        { "name": "Databases", "titles": ["Relational algebra basics", "SQL joins and indexes"] },
+        { "name": "Operating Systems", "titles": ["Process scheduling", "Virtual memory paging"] },
+        { "name": "Computer Networks", "titles": ["TCP handshake and congestion control", "DNS resolution"] }
+      ],
+      "items": [
+        { "id": "cs1", "lang": "en", "title": "Normalisation: 1NF to BCNF", "text": "Normalisation removes redundancy from relational schemas. A relation is in first normal form when every attribute holds atomic values; Boyce-Codd normal form requires every determinant to be a candidate key.", "course": "Databases" },
+        { "id": "cs2", "lang": "en", "title": "Transaction isolation levels", "text": "Read committed, repeatable read and serializable differ in which anomalies they allow: dirty reads, non-repeatable reads and phantoms. Locking and multi-version concurrency control are two ways to enforce them.", "course": "Databases" },
+        { "id": "cs3", "lang": "en", "title": "B-tree indexes", "text": "A B-tree keeps keys sorted in balanced nodes so lookups, range scans and inserts take logarithmic time. Most relational engines use B+ trees for their primary and secondary indexes.", "course": "Databases" },
+        { "id": "cs4", "lang": "en", "title": "Deadlock detection and avoidance", "text": "A deadlock needs mutual exclusion, hold and wait, no preemption and circular wait. The operating system can detect cycles in the resource allocation graph or avoid unsafe states with the banker's algorithm.", "course": "Operating Systems" },
+        { "id": "cs5", "lang": "en", "title": "Mutexes, semaphores and monitors", "text": "A mutex gives one thread at a time access to a critical section; a counting semaphore admits several. Monitors bundle the lock with the condition variables that threads wait on.", "course": "Operating Systems" },
+        { "id": "cs6", "lang": "en", "title": "Page replacement: LRU and Clock", "text": "When physical memory is full the kernel evicts a page. LRU evicts the least recently used page; the Clock algorithm approximates it with a reference bit and a sweeping hand.", "course": "Operating Systems" },
+        { "id": "cs7", "lang": "en", "title": "Routing: distance vector vs link state", "text": "Distance vector routers exchange their tables with neighbours and can count to infinity; link state routers flood topology and run Dijkstra locally. RIP and OSPF are the classic examples.", "course": "Computer Networks" },
+        { "id": "cs8", "lang": "en", "title": "HTTP/2 multiplexing", "text": "HTTP/2 carries many request and response streams over one TCP connection, removing head-of-line blocking at the HTTP layer, though a lost TCP segment still stalls every stream.", "course": "Computer Networks" },
+        { "id": "cs9", "lang": "en", "title": "Subnetting and CIDR", "text": "CIDR notation writes a network as an address and a prefix length. A /26 prefix leaves six host bits, so each subnet has 64 addresses of which 62 are usable for hosts.", "course": "Computer Networks" },
+        { "id": "cs10", "lang": "zh", "title": "数据库事务与隔离级别", "text": "事务具有原子性、一致性、隔离性和持久性。隔离级别越高，并发异常越少，但锁的开销也越大；可重复读和串行化是常见的两个高级别。", "course": "Databases" },
+        { "id": "cs11", "lang": "zh", "title": "进程调度算法：时间片轮转", "text": "时间片轮转让每个就绪进程轮流运行一个固定的时间片。时间片太短会增加上下文切换开销，太长则退化为先来先服务。", "course": "Operating Systems" },
+        { "id": "cs12", "lang": "en", "title": "Weekly planner and deadlines", "text": "Monday: finish the lab report. Wednesday: book the meeting room. Friday: submit the form and call the landlord about the heating.", "course": null },
+        { "id": "cs13", "lang": "en", "title": "Pasta recipe notes", "text": "Boil the water with a generous pinch of salt, cook the pasta for two minutes less than the packet says, and finish it in the sauce with a splash of the cooking water.", "course": null }
+      ]
+    },
+    "preReview": {
+      "note": "labels are the CORRECT answer to each yes/no question: stemLeaksAnswer (yes = the wording gives the answer away), needsSource (yes = depends on unseen material), answerInEvidence (yes = the evidence supports the answer), oneDefensible (yes = exactly one option is defensible; quiz only).",
+      "items": [
+        { "id": "pr1", "lang": "en", "card": { "kind": "flashcard", "prompt": "What lets a database undo a half-finished transaction after a crash?", "answer": "The write-ahead log, which records changes before they are applied.", "citations": [{ "sourceId": "s", "quote": "Write-ahead logging records every change in a log before it is applied, so an interrupted transaction can be rolled back." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": true } },
+        { "id": "pr2", "lang": "en", "card": { "kind": "flashcard", "prompt": "Which ACID property, atomicity, makes a transaction all-or-nothing?", "answer": "Atomicity.", "citations": [{ "sourceId": "s", "quote": "Atomicity means a transaction either completes in full or has no effect at all." }] }, "labels": { "stemLeaksAnswer": true, "needsSource": false, "answerInEvidence": true } },
+        { "id": "pr3", "lang": "en", "card": { "kind": "flashcard", "prompt": "According to the passage above, why did the author prefer the second approach?", "answer": "It needed fewer joins.", "citations": [{ "sourceId": "s", "quote": "The second approach denormalises the table, which needs fewer joins at query time." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": true, "answerInEvidence": true } },
+        { "id": "pr4", "lang": "en", "card": { "kind": "flashcard", "prompt": "What is the default isolation level of PostgreSQL?", "answer": "Read committed.", "citations": [{ "sourceId": "s", "quote": "MySQL's InnoDB engine uses repeatable read as its default isolation level." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": false } },
+        { "id": "pr5", "lang": "en", "card": { "kind": "quiz", "prompt": "Which structure keeps keys sorted so range scans are efficient?", "answer": "A B+ tree", "options": [{ "text": "A B+ tree", "correct": true }, { "text": "A hash table", "correct": false }, { "text": "An unsorted heap", "correct": false }], "citations": [{ "sourceId": "s", "quote": "A B+ tree keeps keys sorted in balanced nodes, so lookups and range scans take logarithmic time." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": true, "oneDefensible": true } },
+        { "id": "pr6", "lang": "en", "card": { "kind": "quiz", "prompt": "Which of these is a CPU scheduling algorithm?", "answer": "Round robin", "options": [{ "text": "Round robin", "correct": true }, { "text": "First come, first served", "correct": false }, { "text": "Shortest job first", "correct": false }], "citations": [{ "sourceId": "s", "quote": "Round robin, first come first served and shortest job first are all CPU scheduling algorithms." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": true, "oneDefensible": false } },
+        { "id": "pr7", "lang": "en", "card": { "kind": "flashcard", "prompt": "Why can a link state router avoid the count-to-infinity problem?", "answer": "It floods the whole topology and computes shortest paths locally instead of trusting neighbours' distances.", "citations": [{ "sourceId": "s", "quote": "Link state routers flood the topology and run Dijkstra locally rather than relying on neighbours' distance estimates." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": true } },
+        { "id": "pr8", "lang": "en", "card": { "kind": "flashcard", "prompt": "In the example in the lecture slides, how many hosts fit in the /26 subnet?", "answer": "62 usable hosts.", "citations": [{ "sourceId": "s", "quote": "A /26 prefix leaves six host bits, so each subnet has 64 addresses of which 62 are usable." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": true, "answerInEvidence": true } },
+        { "id": "pr9", "lang": "en", "card": { "kind": "flashcard", "prompt": "A thread must wait while another holds the lock; what do we call a lock that lets exactly one thread hold it, a mutex?", "answer": "A mutex.", "citations": [{ "sourceId": "s", "quote": "A mutex gives one thread at a time access to a critical section." }] }, "labels": { "stemLeaksAnswer": true, "needsSource": false, "answerInEvidence": true } },
+        { "id": "pr10", "lang": "en", "card": { "kind": "flashcard", "prompt": "What does the Clock page replacement algorithm use to approximate LRU?", "answer": "A reference bit and a sweeping hand.", "citations": [{ "sourceId": "s", "quote": "The Clock algorithm approximates LRU with a reference bit per page and a hand that sweeps over the pages." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": true } },
+        { "id": "pr11", "lang": "en", "card": { "kind": "flashcard", "prompt": "Which routing protocol does the university network use?", "answer": "OSPF.", "citations": [{ "sourceId": "s", "quote": "RIP and OSPF are the classic distance vector and link state protocols respectively." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": true, "answerInEvidence": false } },
+        { "id": "pr12", "lang": "en", "card": { "kind": "quiz", "prompt": "Which anomaly does the serializable isolation level forbid but read committed allows?", "answer": "Phantom reads", "options": [{ "text": "Phantom reads", "correct": true }, { "text": "Dirty reads", "correct": false }, { "text": "Lost updates caused by a crash", "correct": false }], "citations": [{ "sourceId": "s", "quote": "Read committed forbids dirty reads but still allows non-repeatable reads and phantoms; serializable forbids all of them." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": true, "oneDefensible": false } },
+        { "id": "pr13", "lang": "zh", "card": { "kind": "flashcard", "prompt": "时间片过长会让时间片轮转调度退化成什么算法？", "answer": "先来先服务。", "citations": [{ "sourceId": "s", "quote": "时间片太短会增加上下文切换开销，太长则退化为先来先服务。" }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": true } },
+        { "id": "pr14", "lang": "zh", "card": { "kind": "flashcard", "prompt": "文中第二个例子里，为什么作者没有使用索引？", "answer": "因为表很小。", "citations": [{ "sourceId": "s", "quote": "对很小的表，全表扫描往往比走索引更快。" }] }, "labels": { "stemLeaksAnswer": false, "needsSource": true, "answerInEvidence": true } },
+        { "id": "pr15", "lang": "en", "card": { "kind": "flashcard", "prompt": "What makes HTTP/2 able to carry many requests over one connection?", "answer": "Multiplexed streams.", "citations": [{ "sourceId": "s", "quote": "HTTP/2 carries many request and response streams over one TCP connection." }] }, "labels": { "stemLeaksAnswer": false, "needsSource": false, "answerInEvidence": true } },
+        { "id": "pr16", "lang": "en", "card": { "kind": "flashcard", "prompt": "Name the four conditions for deadlock: mutual exclusion, hold and wait, no preemption and what?", "answer": "Circular wait.", "citations": [{ "sourceId": "s", "quote": "A deadlock needs mutual exclusion, hold and wait, no preemption and circular wait." }] }, "labels": { "stemLeaksAnswer": true, "needsSource": false, "answerInEvidence": true } }
+      ]
+    },
+    "outlineNoise": {
+      "note": "one document's headings in order; labels: chapter | label | running | other",
+      "items": [
+        { "id": "o1", "level": 1, "title": "Operating Systems — Lecture Notes", "label": "running" },
+        { "id": "o2", "level": 1, "title": "1 Introduction", "label": "chapter" },
+        { "id": "o3", "level": 2, "title": "1.1 What an operating system does", "label": "chapter" },
+        { "id": "o4", "level": 1, "title": "English original", "label": "label" },
+        { "id": "o5", "level": 1, "title": "Page 12 of 140", "label": "running" },
+        { "id": "o6", "level": 1, "title": "2 Processes and threads", "label": "chapter" },
+        { "id": "o7", "level": 1, "title": "中文对照", "label": "label" },
+        { "id": "o8", "level": 2, "title": "2.1 Scheduling", "label": "chapter" },
+        { "id": "o9", "level": 1, "title": "Example", "label": "label" },
+        { "id": "o10", "level": 1, "title": "Page 13 of 140", "label": "running" },
+        { "id": "o11", "level": 1, "title": "3 Memory management", "label": "chapter" },
+        { "id": "o12", "level": 2, "title": "3.1 Paging and virtual memory", "label": "chapter" },
+        { "id": "o13", "level": 1, "title": "© 2024 Example University. All rights reserved.", "label": "running" },
+        { "id": "o14", "level": 1, "title": "Answer", "label": "label" },
+        { "id": "o15", "level": 1, "title": "4 File systems", "label": "chapter" },
+        { "id": "o16", "level": 1, "title": "?", "label": "other" }
+      ]
+    },
+    "levelCheck": {
+      "items": [
+        { "id": "lv1", "lang": "en", "card": { "kind": "flashcard", "prompt": "What does the acronym ACID stand for in database transactions?", "answer": "Atomicity, consistency, isolation, durability." }, "level": "recall" },
+        { "id": "lv2", "lang": "en", "card": { "kind": "flashcard", "prompt": "Name the four necessary conditions for deadlock.", "answer": "Mutual exclusion, hold and wait, no preemption, circular wait." }, "level": "recall" },
+        { "id": "lv3", "lang": "zh", "card": { "kind": "flashcard", "prompt": "TCP 三次握手的第二步发送什么报文？", "answer": "SYN+ACK。" }, "level": "recall" },
+        { "id": "lv4", "lang": "en", "card": { "kind": "cloze", "prompt": "A {{b1}} gives one thread at a time access to a critical section.", "answer": "mutex" }, "level": "recall" },
+        { "id": "lv5", "lang": "en", "card": { "kind": "flashcard", "prompt": "Give the formula for the number of usable hosts in a subnet with n host bits.", "answer": "2^n - 2" }, "level": "recall" },
+        { "id": "lv6", "lang": "en", "card": { "kind": "flashcard", "prompt": "How does a link state protocol differ from a distance vector protocol?", "answer": "It floods topology and computes paths locally." }, "level": "concept" },
+        { "id": "lv7", "lang": "en", "card": { "kind": "flashcard", "prompt": "Why does a larger time slice reduce context switching but hurt responsiveness?", "answer": "Fewer switches, longer waits." }, "level": "concept" },
+        { "id": "lv8", "lang": "zh", "card": { "kind": "flashcard", "prompt": "可重复读和读已提交的区别是什么？", "answer": "前者同一事务内多次读取结果一致。" }, "level": "concept" },
+        { "id": "lv9", "lang": "en", "card": { "kind": "flashcard", "prompt": "Explain what makes a B+ tree better suited to range scans than a hash index.", "answer": "Sorted leaves are linked." }, "level": "concept" },
+        { "id": "lv10", "lang": "en", "card": { "kind": "flashcard", "prompt": "Distinguish a mutex from a counting semaphore.", "answer": "A mutex admits one holder; a semaphore admits a counted number." }, "level": "concept" },
+        { "id": "lv11", "lang": "en", "card": { "kind": "quiz", "prompt": "Your web service sees duplicate orders when two requests race. Which isolation level or locking choice would you apply, and what do you give up?", "answer": "Serializable or an explicit row lock, at the cost of concurrency." }, "level": "apply" },
+        { "id": "lv12", "lang": "en", "card": { "kind": "flashcard", "prompt": "A server has 62 hosts to address on a /26 and the company doubles in size next year. How would you re-plan the subnet?", "answer": "Move to a /25 or split by department." }, "level": "apply" },
+        { "id": "lv13", "lang": "zh", "card": { "kind": "flashcard", "prompt": "某系统的进程频繁因为抢占而饥饿，你会如何调整调度策略？", "answer": "引入老化机制或多级反馈队列。" }, "level": "apply" },
+        { "id": "lv14", "lang": "en", "card": { "kind": "flashcard", "prompt": "A query on a 10-million-row table is slow even though an index exists. Diagnose the likely causes.", "answer": "The index is not used, low selectivity, or stale statistics." }, "level": "apply" },
+        { "id": "lv15", "lang": "en", "card": { "kind": "flashcard", "prompt": "Given a mobile app on a flaky network, would you choose HTTP/2 or HTTP/3 and why?", "answer": "HTTP/3, because QUIC avoids TCP head-of-line blocking." }, "level": "apply" }
+      ]
+    }
+  }
+}

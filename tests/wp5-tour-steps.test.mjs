@@ -46,20 +46,22 @@ const PLAN_ANCHORS = ["nav", "nav-library", "nav-sources", "nav-generate", "nav-
 const PAGES = new Set(["library", "sources", "generate", "draft", "review", "wrongbook", "exam", "dashboard", "skeleton", "workflows",
   "settings", "notes", "board", "audio", "live", "graph", "manage"]);
 
-test("navigation puts the core loop first and the upkeep tools after it", () => {
+test("navigation is grouped by when a page is used: every day, now and then, once per course", () => {
   assert.deepEqual(NAV_DEFAULTS, {
-    main: ["library", "sources", "generate", "wrongbook", "exam", "dashboard"],
-    upkeep: ["workflows", "skeleton", "notes", "audio", "live", "board"],
+    daily: ["library", "wrongbook", "workflows", "notes", "board"],
+    periodic: ["exam", "dashboard"],
+    setup: ["sources", "generate", "skeleton", "audio", "live"],
   });
   // A learner's saved order still applies; pages it does not mention join at the end of their group.
-  const saved = { main: ["exam", "library"], upkeep: ["board", "audio"] };
+  const saved = { daily: ["board", "library"], setup: ["live", "audio"] };
   assert.deepEqual(mergeOrder(saved, NAV_DEFAULTS), {
-    main: ["exam", "library", "sources", "generate", "wrongbook", "dashboard"],
-    upkeep: ["board", "audio", "workflows", "skeleton", "notes", "live"],
+    daily: ["board", "library", "wrongbook", "workflows", "notes"],
+    periodic: ["exam", "dashboard"],
+    setup: ["live", "audio", "sources", "generate", "skeleton"],
   });
-  // An order saved before the regrouping (sources / generate were upkeep) keeps working.
-  assert.deepEqual(mergeOrder({ main: ["library", "workflows", "live", "audio"], upkeep: ["sources", "generate", "skeleton"] }, NAV_DEFAULTS).main,
-    ["library", "sources", "generate", "wrongbook", "exam", "dashboard"]);
+  // An order saved before the regrouping (main / upkeep) keeps working: its order is applied inside the new groups.
+  assert.deepEqual(mergeOrder({ main: ["library", "workflows", "live", "audio"], upkeep: ["sources", "generate", "skeleton"] }, NAV_DEFAULTS).setup,
+    ["live", "audio", "sources", "generate", "skeleton"]);
 });
 
 test("the tour walks the key features in order: welcome → navigation → home → materials → … → settings → finish", () => {

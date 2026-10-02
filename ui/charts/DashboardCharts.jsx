@@ -154,8 +154,11 @@ export function TrendPanel({ trend = [], today }) {
 
 /* ── Due forecast ────────────────────────────────────────────────────── */
 
-export function ForecastPanel({ forecast, onStart }) {
+export function ForecastPanel({ forecast, onStart, parked }) {
   const [boxRef, width] = useChartWidth();
+  // What the card counts: the active courses; what sits in parked ones (lib/course-active.js) is named, never silently dropped.
+  const parkedCount = forecast?.hidden?.count || 0;
+  const scopeNote = parkedCount ? uiFormat('仅有效课程 · 另有 {0} 题在未激活的课程里', [parkedCount]) : parked?.included ? ui('含未激活的课程') : '';
   const [active, setActive] = useState(null);
   const days = forecast?.days || [];
   const total = days.reduce((n, d) => n + d.count, 0);
@@ -236,6 +239,8 @@ export function ForecastPanel({ forecast, onStart }) {
           </Empty>
         )}
       </div>
+      {scopeNote && <p className="dash-scope-note">{scopeNote}
+        {parkedCount > 0 && parked?.onManage && <> <button type="button" className="link-btn" onClick={parked.onManage}>{ui('管理课程')}</button></>}</p>}
       {total > 0 && (
         <table className="dash-sr">
           <caption>{ui('未来 14 天到期复习')}</caption>

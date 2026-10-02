@@ -1,11 +1,13 @@
 import { getUiLanguage, ui, uiFormat, uiLocale } from "./i18n.js";
 import React, { useEffect, useId, useRef, useState } from "react";
-import AudioSettings from "./AudioSettings.jsx";
+import AudioSettings, { audioFocusPending } from "./AudioSettings.jsx";
 import ExtensionsSettings from './ExtensionsSettings.jsx';
 import MineruSettings from './MineruSettings.jsx';
+import JevSettings from './JevSettings.jsx';
 import { hasContext } from './capabilities.js';
+import { SETTINGS_GROUPS, SECTION_GROUP, settingsGroupState } from './settings-groups.js';
 import { UpdateSettingsPanel } from './UpdateCenter.jsx';
-import { Button, Dialog, Icon, InlineMessage, formatBytes } from './components/index.js';
+import { Button, Dialog, Icon, InlineMessage, SegmentedControl, formatBytes } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { previewSchedule } from '../lib/sm2.js';
 import css from './settings.css';
@@ -234,6 +236,7 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
         <section className="backup-block" aria-labelledby={exportId}>
           <h3 id={exportId} className="settings-subtitle">{ui("导出")}</h3>
           <p>{ui("下载一个完整的 JSON 备份：资料、题组、复习进度和作答记录都在里面。")}</p>
+          <p className="settings-section__note">{ui("已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。")}</p>
           <p className="settings-section__note">{uiFormat("文件名形如 {0}，保存到浏览器的下载文件夹。", [backupFileName()])}</p>
           <div className="settings-actions"><Button variant="primary" icon="download" disabled={busy} onClick={exportData}>{ui("导出学习库")}</Button></div>
         </section>
@@ -259,6 +262,54 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
   );
 }
 
+/* ---------- groups: 常用 / 一次性设置 ---------- */
+
+/** What can be reported "not set up", in plain words. */
+const MISSING_LABEL = { model: "AI 模型", audio: "音频转写", mineru: "MinerU", retrieval: "检索扩展" };
+const GROUPS_KEY = "study-settings-groups";
+const readGroups = () => {
+  try {
+    const value = JSON.parse(localStorage.getItem(GROUPS_KEY));
+    return value && typeof value === "object" ? Object.fromEntries(SETTINGS_GROUPS.filter(({ id }) => typeof value[id] === "boolean").map(({ id }) => [id, value[id]])) : {};
+  } catch { return {}; }
+};
+const writeGroups = (value) => { try { localStorage.setItem(GROUPS_KEY, JSON.stringify(value)); } catch { /* the group still opens and closes this session */ } };
+
+/** One group of settings: a disclosure with its title, one line about what it holds and, when something is missing, which. */
+export function SettingsGroup({ id, title, lead, open, missing = [], onToggle, children }) {
+  return (
+    <details className="settings-group" data-settings-group={id} open={open} onToggle={onToggle ? (event) => onToggle(event.currentTarget.open) : undefined}>
+      <summary className="settings-group__summary">
+        <Icon name="chevron" size={16} className="settings-group__chevron" />
+        <span className="settings-group__title">{ui(title)}</span>
+        {missing.length > 0 && <span className="settings-group__missing">{uiFormat("未设置：{0}", [missing.map((name) => ui(MISSING_LABEL[name] || name)).join(ui("、"))])}</span>}
+        <span className="settings-group__lead">{ui(lead)}</span>
+      </summary>
+      <div className="settings-group__body">{children}</div>
+    </details>
+  );
+}
+
+/** The interface language and appearance, the same two switches as the sidebar's, for people who look for them here. */
+function AppearanceSection({ appearance }) {
+  if (!appearance) return null;
+  return (
+    <fieldset className="settings-section appearance-settings">
+      <legend className="settings-section__title">{ui("界面")}</legend>
+      <div className="settings-field">
+        <span>{ui("界面语言")}</span>
+        <SegmentedControl label={ui("界面语言")} value={appearance.language} onChange={appearance.onLanguage}
+          options={[{ value: "zh", label: "中文" }, { value: "en", label: "English" }]} />
+      </div>
+      <div className="settings-field">
+        <span>{ui("外观")}</span>
+        <SegmentedControl label={ui("外观")} value={appearance.theme} onChange={appearance.onTheme}
+          options={(appearance.themes || []).map(([value, label]) => ({ value, label: ui(label) }))} />
+      </div>
+    </fieldset>
+  );
+}
+
 /* ---------- the page ---------- */
 
 export default function Settings({
@@ -278,6 +329,10 @@ export default function Settings({
   exportData,
   onRestored,
   initialProfile = null,
+  appearance = null,
+  tourActive = false,
+  focusSection = "",
+  onFocused,
 }) {
   useInjectCss(css, "study-settings");
   const [profile, setProfile] = useState(initialProfile);
@@ -285,33 +340,76 @@ export default function Settings({
     act("coach.profile", {}, setProfile);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // What the host says is set up: read once, quietly (no model is called). It only decides which group starts open.
+  const [status, setStatus] = useState({});
+  useEffect(() => {
+    if (typeof call !== "function") return undefined;
+    let live = true;
+    const keep = (name) => (value) => { if (live && value) setStatus((current) => ({ ...current, [name]: value })); };
+    if (hasContext(data, "audio")) {
+      Promise.resolve(call("audio.settings.get", {})).then((value) => keep("audio")(value && { configured: ["freeKey", "siliconflowKey", "groqKey", "paidKey"].some((field) => value[field]?.set) }), () => {});
+      Promise.resolve(call("mineru.settings.get", {})).then((value) => keep("mineru")(value && !value.unavailable && { configured: !!value.token?.set }), () => {});
+    }
+    if (hasContext(data, "generation")) {
+      Promise.resolve(call("retrieval.status", {})).then((value) => keep("retrieval")(value && { status: value, plan: null }), () => {});
+    }
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The groups the learner opened or folded are remembered. A deep link (the audio key, the search extension) and the
+  // tour open what they point at, once; the learner's first click on a group lets go of that.
+  const [saved, setSaved] = useState(readGroups);
+  const [pinned, setPinned] = useState(() => focusSection ? [SECTION_GROUP[focusSection] || "once"] : audioFocusPending() ? ["once"] : []);
+  const groups = settingsGroupState({ data, status, saved, forceOpen: tourActive || pinned });
+  const toggle = (id) => (open) => {
+    setPinned([]);
+    setSaved((current) => { const next = { ...current, [id]: open }; writeGroups(next); return next; });
+  };
+  useEffect(() => {
+    if (!focusSection) return;
+    document.querySelector(`[data-tour="${focusSection}"]`)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    onFocused?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSection]);
+  const group = (id, children) => {
+    const spec = SETTINGS_GROUPS.find((item) => item.id === id);
+    return <SettingsGroup id={id} title={spec.title} lead={spec.lead} open={groups[id].open} missing={groups[id].missing} onToggle={toggle(id)}>{children}</SettingsGroup>;
+  };
   return (
     <section className="page settings-page">
       <h1>{ui("工作区设置")}</h1>
       <p className="muted">{ui("资料、题库、调度与模型，由你掌控。")}</p>
-      <fieldset className="settings-section" data-tour="settings-model">
-        <legend className="settings-section__title">{ui("学习库与模型")}</legend>
-        {workspacePanel}
-      </fieldset>
-      {coursePanel}
-      {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
-      {hasContext(data, 'audio') && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
-      {hasContext(data, 'generation') && <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} />}
-      {onboardingPanel}
-      {profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}
-      <fieldset className="settings-section">
-        <legend className="settings-section__title">{ui("导入 study-lib-spar")}</legend>
-        <p className="settings-section__lead">{ui("从已有本地学习库导入，保留可迁移的复习记录。")}</p>
-        <label className="settings-field">{ui("原学习库路径")}<input value={legacy} onChange={(e) => setLegacy(e.target.value)} /></label>
-        <div className="settings-actions">
-          <Button disabled={busy || !legacy} onClick={() =>
-            act("legacy.import", { path: legacy }, (r) =>
-              setNotice(r.reused ? ui("该学习库已导入") : uiFormat("已导入 {0} 道题。{1}", [r.count, (r.warnings || []).join("；")])))}>{ui("导入学习库")}</Button>
-        </div>
-      </fieldset>
-      <ScheduleSection settings={settings} saved={data.settings} setSettings={setSettings} act={act} busy={busy} setNotice={setNotice} />
-      <BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} />
-      <UpdateSettingsPanel call={call} host={host} notify={setNotice} />
+      {group("common", <>
+        <AppearanceSection appearance={appearance} />
+        <fieldset className="settings-section" data-tour="settings-model">
+          <legend className="settings-section__title">{ui("学习库与模型")}</legend>
+          {workspacePanel}
+        </fieldset>
+      </>)}
+      {group("once", <>
+        {coursePanel}
+        {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
+        {hasContext(data, 'audio') && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
+        {hasContext(data, 'system') && <JevSettings busy={busy} call={call} setNotice={setNotice} />}
+        {hasContext(data, 'generation') && <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} />}
+        {onboardingPanel}
+        {profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}
+        <fieldset className="settings-section">
+          <legend className="settings-section__title">{ui("导入 study-lib-spar")}</legend>
+          <p className="settings-section__lead">{ui("从已有本地学习库导入，保留可迁移的复习记录。")}</p>
+          <label className="settings-field">{ui("原学习库路径")}<input value={legacy} onChange={(e) => setLegacy(e.target.value)} /></label>
+          <div className="settings-actions">
+            <Button disabled={busy || !legacy} onClick={() =>
+              act("legacy.import", { path: legacy }, (r) =>
+                setNotice(r.reused ? ui("该学习库已导入") : uiFormat("已导入 {0} 道题。{1}", [r.count, (r.warnings || []).join("；")])))}>{ui("导入学习库")}</Button>
+          </div>
+        </fieldset>
+        <ScheduleSection settings={settings} saved={data.settings} setSettings={setSettings} act={act} busy={busy} setNotice={setNotice} />
+        <BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} />
+        <UpdateSettingsPanel call={call} host={host} notify={setNotice} />
+      </>)}
     </section>
   );
 }
