@@ -14,6 +14,10 @@ import { buildLinkModel, groupTitle } from './links/link-model.js';
 import { usePassageLinkLayer } from './links/usePassageLinkLayer.js';
 import useBilingual from './translation/useBilingual.jsx';
 import { isOfficeFormat } from '../../lib/office/limits.js';
+import { groupSourcesByDocument } from '../../lib/source-groups.js';
+import ReadingPractice from './practice/ReadingPractice.jsx';
+import { MasteryLine } from './practice/MasteryMark.jsx';
+import { useReadingLoop } from './practice/useReadingLoop.js';
 import OutlinePanel from './reader/OutlinePanel.jsx';
 import OutlineAssist from './reader/OutlineAssist.jsx';
 import FindBar from './reader/FindBar.jsx';
@@ -81,7 +85,8 @@ function QuotedText({ text, quote, anchor, format }) {
  * onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows "从这份资料出题" as the
  * toolbar's primary action), generateDisabled, initialMode ('read' | 'text' | 'original').
  */
-export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onNotice, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read' }) {
+export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onNotice, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
+  onPracticePages, onGeneratePages, resume, backLabel, onBack }) {
   const language = useUiLanguage();
   useInjectCss(css, 'study-document-preview');
   useInjectCss(readerCss, 'study-reader');
@@ -250,6 +255,14 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     if ((source.document?.page || 1) > 1) scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${source.id}"]`), { smooth: false });
   }, [paged, quote, loading, sections, view, source.id, source.document?.page]);
 
+  // 读 → 做这几页的题 → 回到阅读 → 掌握度: the questions linked to this document placed under the outline, the range chooser, and the way back to a stored position.
+  const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
+  const unit = aiOn || !paged ? 'section' : format === 'pptx' ? 'slide' : 'page';
+  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume });
+  const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
+  const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
+  const meters = loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
+
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
   useEffect(() => {
@@ -276,6 +289,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const onKeyDown = event => {
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f' && view !== 'original') { event.preventDefault(); openFind(); }
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
+    else if (onPracticePages && view !== 'original' && event.key.toLowerCase() === 'p' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+      && !event.target.closest?.('input,textarea,select,[contenteditable]')) { event.preventDefault(); loop.setOpen(!loop.open); }
   };
 
   // The 原始 PDF tab without a file is not dead: it explains and offers 补全原文件.
@@ -293,6 +308,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     source.selection && document?.currentRevision && document.currentRevision !== source.selection.revision
       && <p key="revision" className="is-warning">{ui('此引用来自较早版本，当前资料已有更新。')}</p>,
     bilingual.notice,
+    loop.resumeNote === 'updated' && <p key="resume" className="reader-resume-note" role="status">{ui('资料已更新，已回到该章节大致的位置。')}</p>,
   ].filter(Boolean);
   const pagerTitle = item => [itemLabel(item), item.title].filter(Boolean).join(' · ');
   const pageText = (section, index) => sources[index]?.text ?? '';
@@ -301,12 +317,15 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     data-narrow={narrow || undefined} style={readerVars(settings)} onKeyDown={onKeyDown}>
     <div className="reader-toolbar">
       <div className="reader-toolbar__group">
+        {onBack && <Button size="sm" variant="secondary" icon="arrow-left" className="reader-back-to-question" onClick={onBack}>{backLabel}</Button>}
         {canOutline && <IconButton icon="list" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
           onClick={() => toggle('outline')} />}
         <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
       </div>
       <p className="reader-toolbar__where" title={where || undefined}>{where}</p>
+      {meters && <span className="reader-toolbar__mastery"><MasteryLine summary={loop.current} title={ui('本节掌握度')} /></span>}
       <div className="reader-toolbar__group reader-toolbar__group--end">
+        {view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} />}
         {view !== 'original' && <>
           <IconButton icon="search" label={ui('在文中查找')} aria-pressed={finding} onClick={() => finding ? closeFind() : openFind()} />
           {bilingual.toolbar}
@@ -332,7 +351,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
-      {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo}
+      {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters}
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={ui('资料内容')} data-mode={view}>

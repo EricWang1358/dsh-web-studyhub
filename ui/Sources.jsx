@@ -9,6 +9,7 @@ import { Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader } from "./c
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
+import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import { JevNote, JevProbabilities, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
 import { noteText, startsIncluded } from './jev-flow.js';
@@ -114,7 +115,7 @@ const pageLabel = (item, page) => item.format === 'pdf'
  * The chapters of one document, each with where it lies and its own 出题 button. A chapter that starts and ends inside one page holds
  * no whole page, so generation cannot be scoped to it (the button is off); it still opens the document at its start.
  */
-export function ChapterList({ item, busy, onOpen, onGenerate, listId }) {
+export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery }) {
   return <ul id={listId} className="source-doc__page-list source-doc__chapters" role="region" aria-label={ui('章节列表')} tabIndex={0}>
     {item.chapters.map(chapter => {
       const inside = chapter.sourceIds.length === 0, partial = chapter.partial && item.chapterUnit !== 'text';
@@ -123,6 +124,7 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId }) {
           <span>{chapterLabel(chapter, item.chapterUnit)}</span>
           <small>{[partial && (item.chapterUnit === 'part' ? ui('从文件中间开始') : ui('从页中间开始')),
             item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, chapter.chars.toLocaleString(uiLocale())])].filter(Boolean).join(' · ')}</small>
+          <MasteryLine className="source-doc__mastery" summary={mastery?.chapters?.[chapter.index] ?? null} title={chapterLabel(chapter, item.chapterUnit)} />
         </button>
         {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy || inside}
           title={inside ? (item.chapterUnit === 'text' ? ui('这份资料是一整段文字，出题仍以整份资料为单位') : ui('这一章在同一页内，不能单独出题')) : undefined}
@@ -143,7 +145,7 @@ export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSeg
   </div>;
 }
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, mastery, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
   const [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), row = useRef(null);
   const multi = item.pages.length > 1;
@@ -168,6 +170,8 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
             <small>{item.courses.join(' · ') || ui('未分类')}{item.coursesInferred ? ui(' · 推断归属') : ''}
               {item.usedBy.length ? uiFormat(' · 用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''}</small>
             <small>{details.join(" · ")}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
+            {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}
+            <MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={displayTitle(item.title)} />
           </span>
         </button>
         <div className="source-doc__actions">
@@ -182,11 +186,12 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
           onClick={() => setPagesOpen(open => !open)}>
           {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
         </Button>
-        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={onOpen} onGenerate={onGenerate} listId={listId} />}
+        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={onOpen} onGenerate={onGenerate} listId={listId} mastery={mastery} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
             <button type="button" onClick={() => onOpen(page.sourceId)}>
               <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [page.chars.toLocaleString(uiLocale())])}</small>
+              <MasteryLine className="source-doc__mastery" summary={mastery?.pages?.[page.sourceId] ?? null} title={pageLabel(item, page)} />
             </button>
           </li>)}
         </ul>}
@@ -376,7 +381,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
                   onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined}
-                  advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
+                  mastery={data.materialMastery?.[item.key]} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
                   call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>
             );

@@ -97,6 +97,7 @@
     "qa:selection-job": "node scripts/qa/selection-job.mjs",
     "qa:outline": "node scripts/qa/outline.mjs",
     "qa:translation": "node scripts/qa/translation.mjs",
+    "qa:reading-loop": "node scripts/qa/reading-loop.mjs",
     "qa:dsh": "node scripts/qa/dsh-e2e.mjs",
     "verify": "npm run lint && npm test && npm run build",
     "release:pack": "node scripts/release-alpha.mjs",

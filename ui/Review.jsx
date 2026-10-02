@@ -18,6 +18,7 @@ import ResultBreakdown from "./ResultBreakdown.jsx";
 import resultCss from "./review-results.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
+import { ReadingBackButton, ReadingResult, WrongAnswerSource } from "./document-preview/practice/ReadingReturn.jsx";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -92,6 +93,7 @@ export default function Review({
   feedback,
   contextReturnLabel,
   onReturnContext,
+  onReturnToReading,
 }) {
   useInjectCss(resultCss, "review-results");
   const pageRef = React.useRef(null);
@@ -247,6 +249,7 @@ export default function Review({
               onClick={() => host.openInSidebar(run.id)}
             >{ui("在右栏打开")}</button>
           )}
+          {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
           <button className="review-return" aria-label={flow ? ui("回到学习流") : ui("返回学习库")} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : setPage("library")}>
             <span className="review-return-full">{flow ? ui("回到学习流") : ui("返回学习库")}</span>
             <span className="review-return-short" aria-hidden="true">{ui("返回")}</span>
@@ -261,6 +264,7 @@ export default function Review({
           <div className="result-kicker">{ui("本轮学习结果")}</div>
           <h1 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h1>
           <p className="result-subtitle">{shellTitle} · {run.questions ?? run.total}{ui(" 道题")}</p>
+          {onReturnToReading && <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} />}
           <div className="result-hero">
             <div className="result-headline">
               <strong>{run.correct}</strong>
@@ -722,6 +726,7 @@ export default function Review({
                 {run.feedback.retryQueued && <span>{ui(" · 已追加到本轮队尾，稍后再练一次")}</span>}
               </p>
             )}
+            <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => setModal({ type: "source", source, quote, back: true })} />
             {run.solution && (explain || !!run.feedback) && (
               <div className="explanation">
                 <h3>{ui("理解这道题")}</h3>
