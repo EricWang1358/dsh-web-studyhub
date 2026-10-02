@@ -149,7 +149,7 @@ test('the file stays bounded: a pile of day buckets across keys folds the oldest
   const c = clock(), usage = createUsageFrequency({ now: c.now });
   await usage.set({ enabled: true });
   const cells = [];
-  for (let key = 0; key < 400; key += 1) for (let back = 0; back < 120; back += 2) cells.push({ key: `derived/button/b${key}`, area: 'library', day: day(c.now, back), n: 1 });
+  for (let key = 0; key < 400; key += 1) for (let back = 0; back < 170; back += 2) cells.push({ key: `derived/button/b${key}`, area: 'library', day: day(c.now, back), n: 1 });
   for (let at = 0; at < cells.length; at += USAGE_LIMITS.recordsPerBatch) await usage.record(cells.slice(at, at + USAGE_LIMITS.recordsPerBatch));
   const state = await usage.read();
   const count = Object.values(state.controls).reduce((sum, control) => sum + Object.keys(control.days).length, 0);

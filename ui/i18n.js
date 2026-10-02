@@ -87,6 +87,8 @@ export function mergeCatalogues(sources) {
 }
 
 const english = mergeCatalogues(ENGLISH_SOURCES).catalogue;
+/** The whole zh → en catalogue, read-only. The usage frequency record (ui/usage/names.js) reverses it to key a control by the app's own copy. */
+export const uiCatalogue = () => english;
 const KEY = 'study-ui-language';
 const listeners = new Set();
 const browserLanguage = () => {

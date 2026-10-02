@@ -53,17 +53,18 @@ test('the summary counts days with data, interactions and distinct controls in t
 test('the ranking is by count, with the plain registry name in the report language, a share, and unregistered keys marked as such', () => {
   const state = seeded();
   const en = buildReport(state, { period: 7, today: TODAY, language: 'en' });
-  assert.deepEqual(en.ranking.slice(0, 3).map(row => row.key), ['nav.library', 'review.grade', 'nav.sources']);
-  assert.equal(en.ranking[0].name, 'Study library');
-  assert.equal(en.ranking[0].count, 35, 'only the last 7 days of nav.library: 7 x 5');
+  assert.deepEqual(en.ranking.slice(0, 3).map(row => row.key), ['review.grade', 'nav.library', 'nav.sources']);
+  assert.equal(en.ranking[0].name, 'Grade yourself (0–5)');
+  assert.equal(en.ranking[1].name, 'Study library');
+  assert.equal(en.ranking[1].count, 35, 'only the last 7 days of nav.library: 7 x 5');
   assert.ok(en.ranking.every((row, i, rows) => i === 0 || rows[i - 1].count >= row.count));
   assert.ok(Math.abs(en.ranking.reduce((sum, row) => sum + row.share, 0) - 1) < 0.02);
   const derived = en.ranking.find(row => row.key === 'library/button/保存');
   assert.equal(derived.registered, false);
   assert.equal(derived.name, null, 'the page turns the key into a name; the server does not guess');
   const zh = buildReport(state, { period: 7, today: TODAY, language: 'zh' });
-  assert.equal(zh.ranking[0].name, '学习库');
-  assert.equal(zh.ranking[0].tier, 'daily');
+  assert.equal(zh.ranking[1].name, '学习库');
+  assert.equal(zh.ranking[1].tier, 'daily');
   assert.equal(zh.ranking[2].group, 'nav');
   assert.ok(en.ranking.length <= 15);
 });

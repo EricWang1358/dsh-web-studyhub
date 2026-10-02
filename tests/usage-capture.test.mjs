@@ -247,7 +247,7 @@ test('a failed flush keeps the counts for the next one; the pending map is bound
   await collector.flush();
   assert.equal(collector.pending(), 1, 'kept');
   fail = false;
-  collector.record('nav.library', 'library'); c.advance(1000);
+  c.advance(1000); collector.record('nav.library', 'library');
   await collector.flush();
   assert.equal(sent[0][0].n, 2, 'the failed batch and the new one are one');
   for (let i = 0; i < 400; i += 1) { collector.record(`derived/button/k${i}`, 'library'); c.advance(1); }
@@ -328,8 +328,8 @@ test('OFF: no listener is installed, no timer runs, nothing is sent: the control
 });
 
 test('ON: the controller installs the capture and the page-lifecycle flush; recording is batched; turning it off flushes, uninstalls and clears the timer; paused does the same', async () => {
-  const root = fakeRoot('library'), lifecycle = fakeRoot(), timers = fakeTimers(), calls = []; let status = { enabled: true, paused: false };
-  const controller = m.createUsageController({ root, lifecycle, setTimer: timers.set, clearTimer: timers.clear,
+  const root = fakeRoot('library'), lifecycle = fakeRoot(), timers = fakeTimers(), calls = []; let status = { enabled: true, paused: false }, at = new Date('2026-10-03T12:00:00').getTime();
+  const controller = m.createUsageController({ root, lifecycle, setTimer: timers.set, clearTimer: timers.clear, now: () => (at += 1000),
     call: async (action, args) => { calls.push([action, args]); if (action === 'usage.frequency.status') return status; if (action === 'usage.frequency.record') return { accepted: args.records.length, enabled: true }; return {}; } });
   await controller.refresh();
   assert.equal(controller.active, true);
