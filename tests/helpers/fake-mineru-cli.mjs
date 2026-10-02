@@ -14,7 +14,9 @@ import { appendFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs
    Timing (all optional, in the state file): `perPageMs` per page, `overheadMs` per call, `firstCallMs` once (the model load of the first parse),
    `delayMs` flat; the parse record the service would show for the run is visible to `list parses --json [--status S]` while it runs
    when `trackParses: true` (`queueMs`: first "pending", then "parsing"; `idleParses: true`: the service never reports it; `listFails: true`: the command fails), and
-   `device` is shown by `server status` and `config show` the way a CLI that exposes it would. `failStarts: [page, ...]` fails every window starting there. */
+   `device` is shown by `server status` and `config show` the way a CLI that exposes it would. `failStarts: [page, ...]` fails every window starting there.
+   `server status --json` answers the way the real one is understood to (`workers.parse_running`, `parse_queue_length`, `parse_server.local.healthy|starting`; `unhealthy`, `starting`, `statusJsonFails`
+   shape it), and `slowFromPage` + `slowMs` make every window starting at or after that page take that much longer (QA). */
 
 const statePath = process.env.FAKE_MINERU_STATE, logPath = process.env.FAKE_MINERU_LOG;
 const state = JSON.parse(readFileSync(statePath, 'utf8'));
@@ -79,7 +81,8 @@ else if (command === 'list' && sub === 'parses') {
   if (state.failWindowsOnce?.includes(first)) { state.failWindowsOnce = state.failWindowsOnce.filter(item => item !== first); save(); fail('parse failed: model crashed', 2); }
   if (state.failStarts?.includes(first)) fail('parse failed: model crashed', 2);
   if (state.dieOnFirst && first === state.dieOnFirst) { state.running = false; save(); fail('connection to the local server was lost'); }
-  const delay = (state.loaded ? 0 : state.firstCallMs || 0) + (state.overheadMs || 0) + (state.perPageMs || 0) * (last - first + 1) + (state.delayMs || 0);
+  const delay = (state.loaded ? 0 : state.firstCallMs || 0) + (state.overheadMs || 0) + (state.perPageMs || 0) * (last - first + 1) + (state.delayMs || 0)
+    + (state.slowFromPage && first >= state.slowFromPage ? state.slowMs || 0 : 0); // a machine that is fast until some page and then very slow (QA)
   const tracked = !!state.trackParses && !state.idleParses;
   if (tracked) {
     state.nextParseId = (state.nextParseId || 100) + 1;

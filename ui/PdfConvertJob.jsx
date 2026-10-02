@@ -103,13 +103,11 @@ export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOp
 
 /* ---------- the window in hand: what the service says about it ---------- */
 
-/** A duration of a few minutes or hours as a person says it ("about 25 min"): whole minutes, never "0". */
-const roughDuration = seconds => {
-  const minutes = Math.round(seconds / 60);
-  return minutes < 1 ? ui('不到 1 分钟') : historyDuration(minutes * 60_000);
-};
-/** What is left: one figure when the speed is steady, "A to B" when it is not (it is said to be unsteady). Always "about". */
+/** A duration of a few minutes or hours as a person says it ("25 min", "1 h 20 min"): whole minutes, never "0". */
+const roughDuration = seconds => historyDuration(Math.max(1, Math.round(seconds / 60)) * 60_000);
+/** What is left: "less than a minute", one figure when the speed is steady, "A to B" when it is not (it is said to be unsteady). Always "about". */
 function etaText(eta) {
+  if ((eta.highSeconds ?? eta.seconds) < 30) return ui('预计还需不到 1 分钟');
   const low = roughDuration(eta.lowSeconds ?? eta.seconds), high = roughDuration(eta.highSeconds ?? eta.seconds);
   return eta.stable || low === high ? uiFormat('预计还需约 {0}', [roughDuration(eta.seconds)]) : uiFormat('预计还需约 {0} 到 {1}（速度还不稳定，估算会变）', [low, high]);
 }
@@ -133,7 +131,7 @@ function LocalWindow({ job, now }) {
   const elapsed = win.startedAt ? Math.max(0, now - Date.parse(win.startedAt)) : null;
   const silentFor = live?.lastSignalAt ? Math.max(0, now - Date.parse(live.lastSignalAt)) : (live?.silentForMs ?? 0);
   const label = state === 'silent' ? uiFormat('无响应（已 {0}没有新状态）', [uiFormat('{0} 分钟', [Math.max(1, Math.round(silentFor / 60_000))])]) : LIVE_LABEL[state]?.();
-  const timing = [elapsed !== null && uiFormat('这一段已用 {0}', [historyDuration(elapsed)]), win.expectedSeconds > 0 && uiFormat('预计约 {0}', [historyDuration(win.expectedSeconds * 1000)])].filter(Boolean).join(' · ');
+  const timing = [elapsed !== null && uiFormat('已经用了 {0}', [historyDuration(elapsed)]), win.expectedSeconds > 0 && uiFormat('预计约 {0}', [historyDuration(win.expectedSeconds * 1000)])].filter(Boolean).join(' · ');
   return (
     <div className="pdf-live" role="group" aria-label={ui('当前这一段')} data-state={state || 'none'}>
       <p className="pdf-live__window"><strong>{uiFormat('这一段：第 {0} 页（{1} 页）', [pageRange(win.startPage, win.endPage), win.pages])}</strong>{timing && <span>{timing}</span>}</p>

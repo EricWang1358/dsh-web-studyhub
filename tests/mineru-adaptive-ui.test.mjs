@@ -44,7 +44,7 @@ test('the card says which window is converting, since when and how long it shoul
   assert.match(said, /本地解析 · 第 3 段/);
   assert.doesNotMatch(said, /第 3\/\d+ 段/, 'the number of windows is not known in advance, so it is never "i of N"');
   assert.match(said, /这一段：第 31–50 页（20 页）/);
-  assert.match(said, /这一段已用 1 分 3\d 秒 · 预计约 1 分 10 秒/);
+  assert.match(said, /已经用了 1 分 3\d 秒 · 预计约 1 分 10 秒/);
   assert.match(html, /data-state="parsing"/);
   assert.match(said, /转换中/);
   assert.match(said, /最后一次收到服务的状态：刚刚/);
@@ -118,6 +118,12 @@ test('the estimate: nothing before the first window has finished; "about" one fi
   const unsteady = text(render(jobs([job({ local: view({ eta: { basis: 'measured', seconds: 1500, lowSeconds: 900, highSeconds: 2400, stable: false } }) })])));
   assert.match(unsteady, /预计还需约 15 分钟 到 40 分钟（速度还不稳定，估算会变）/);
   assert.doesNotMatch(unsteady, /预计还需约 25 分钟/);
+  // the last stretch is "less than a minute", never "about less than a minute", and a range never starts at 0
+  const almost = text(render(jobs([job({ local: view({ eta: { basis: 'measured', seconds: 20, lowSeconds: 20, highSeconds: 20, stable: true } }) })])));
+  assert.match(almost, /预计还需不到 1 分钟/);
+  assert.doesNotMatch(almost, /约 不到/);
+  assert.match(text(render(jobs([job({ local: view({ eta: { basis: 'measured', seconds: 100, lowSeconds: 20, highSeconds: 400, stable: false } }) })]))), /预计还需约 1 分钟 到 7 分钟/);
+  assert.match(text(render(jobs([job({ local: view({ eta: { basis: 'measured', seconds: 20, lowSeconds: 20, highSeconds: 20, stable: true } }) })]), 'en')), /Less than a minute left/);
 });
 
 test('a window that had to be retried in smaller pieces is said so', () => {
@@ -181,10 +187,10 @@ test('English: no Chinese anywhere in the live card, in any state, nor in the hi
     assert.doesNotMatch(text(html), han, `${state}: ${text(html).match(han.source + '.{0,30}')}`);
   }
   const live = text(render(jobs([job()]), 'en'));
-  for (const phrase of [/Window 3/, /This window: pages 31–50 \(20 pages\)/, /Converting/, /Next window: about 22 pages/, /About 25 min left/, /about 3\.1 sec a page/i, /first window is the slowest/i]) assert.match(live, phrase);
+  for (const phrase of [/Piece 3/, /This piece: pages 31–50 \(20 pages\)/, /Converting/, /Next piece: about 22 pages/, /About 25 min left/, /about 3\.1 sec a page/i, /first piece is the slowest/i]) assert.match(live, phrase);
   const silent = text(render(jobs([job({ liveness: { state: 'silent', at: ago(10), lastSignalAt: ago(400), silentForMs: 400_000 } })]), 'en'));
   assert.match(silent, /No response \(nothing new for 7 min\)/);
-  assert.match(silent, /Stop[^.]*select the same PDF again[^.]*finished windows are reused/i);
+  assert.match(silent, /Stop[^.]*select the same PDF again[^.]*finished pieces are reused/i);
   const row = text(render(history([record()]), 'en'));
   assert.doesNotMatch(row, han);
   assert.match(row, /about 3\.1 sec a page/i);
