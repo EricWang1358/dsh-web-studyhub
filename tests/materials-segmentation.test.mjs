@@ -228,14 +228,15 @@ test('a recording of several files is one document: the prompt is the whole reco
   assert.equal((await store.read()).documents?.length ?? 0, 0, 'no document record was invented');
 });
 
-test('a single pasted text gains chapters too; they say where they start, and only the first holds the source', async t => {
+test('a single pasted text gains chapters too; they say where they start and hold no whole source (questions stay whole-document)', async t => {
   const { call, store, items } = await fixture(t);
   const text = 'Chapter 1\nFirst body line.\nChapter 2\nSecond body line.\nChapter 3\nThird body line.';
   await store.update(state => { state.sources.push({ id: 'note-1', title: 'Pasted notes', text, createdAt: '2026-09-01T00:00:00.000Z' }); });
   const proposed = await call('materials.outline.suggest', { sourceId: 'note-1', mode: 'chapters' }, { complete: model });
   await call('materials.outline.save', { sourceId: 'note-1', mode: 'chapters', entries: proposed.entries, segmentLevel: 1 });
   const [item] = await items();
-  assert.deepEqual(item.chapters.map(chapter => [chapter.title, chapter.sourceIds.length, chapter.startOffset]), [['Chapter 1', 1, 0], ['Chapter 2', 0, text.indexOf('Chapter 2')], ['Chapter 3', 0, text.indexOf('Chapter 3')]]);
+  assert.deepEqual(item.chapters.map(chapter => [chapter.title, chapter.sourceIds.length, chapter.startOffset]), [['Chapter 1', 0, 0], ['Chapter 2', 0, text.indexOf('Chapter 2')], ['Chapter 3', 0, text.indexOf('Chapter 3')]]);
+  assert.equal(item.chapters.reduce((sum, chapter) => sum + chapter.chars, 0), text.length, 'the chapters cover the text exactly');
   assert.equal(item.chapterUnit, 'text');
   assert.equal(text.slice(item.chapters[1].startOffset, item.chapters[1].startOffset + 9), 'Chapter 2', 'the offset is a real place in the stored text');
   const preview = await call('materials.outline.segment', { sourceId: 'note-1', preview: true });

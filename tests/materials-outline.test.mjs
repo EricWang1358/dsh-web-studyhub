@@ -54,7 +54,8 @@ test('the document becomes numbered blocks: a block per line of a projected text
   assert.equal(lines.units.length, text.split('\n').length);
   assert.deepEqual(lines.units.map(unit => unit.index), lines.units.map((_, index) => index));
   const paragraphs = planOutline([source('Title\nsubtitle line\n\nFirst paragraph\nwraps here.\n\nSecond paragraph.')]);
-  assert.deepEqual(paragraphs.units.map(unit => unit.excerpt), ['Title subtitle line', 'First paragraph wraps here.', 'Second paragraph.']);
+  assert.deepEqual(paragraphs.units.map(unit => [unit.excerpt, unit.lines]), [['Title', 2], ['First paragraph', 2], ['Second paragraph.', 1]], 'the model sees the first line, and that the block goes on');
+  assert.deepEqual(JSON.parse(outlinePrompt(paragraphs).prompt).blocks.map(block => block.lines), [2, 2, undefined]);
   const unit = lines.units[2];
   assert.equal(text.slice(unit.start, unit.start + unit.excerpt.length), unit.excerpt, 'a block starts where its text starts in the stored text');
   assert.deepEqual(planOutline([source('  \n \n')]).units, []);

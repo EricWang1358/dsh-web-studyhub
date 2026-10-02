@@ -64,13 +64,16 @@ test('a segmentation of other pages is stale and ignored; the heuristic chapters
   assert.equal(groupSourcesByDocument(withView(pages, { ...view(1), chapters: [] }))[0].chapters, undefined, 'an empty segmentation is no segmentation');
 });
 
-test('a document that is one source (Markdown, Word, a transcript) gains chapters: they list where each starts, only the first holds the source', () => {
+test('a document that is one source (Markdown, Word, a transcript) gains chapters: they list where each starts and hold no whole source', () => {
   const single = { id: 'doc-s1', title: 'Lecture', text: 'Intro line\nBody one\nSecond part\nBody two\n', createdAt: '2026-09-01T00:00:00.000Z', format: 'md' };
   const seg = { documentId: 'x', revision: 'r', sourceIds: ['doc-s1'], level: 1, chapters: [
     { index: 0, title: 'Intro', level: 1, sourceId: 'doc-s1', offset: 0 }, { index: 1, title: 'Second', level: 1, sourceId: 'doc-s1', offset: 21 }] };
   const [item] = groupSourcesByDocument([{ ...single, segmentation: seg }]);
-  assert.deepEqual(item.chapters.map(chapter => [chapter.title, chapter.sourceIds, chapter.partial === true]), [['Intro', ['doc-s1'], false], ['Second', [], true]]);
+  assert.deepEqual(item.chapters.map(chapter => [chapter.title, chapter.sourceIds, chapter.partial === true]), [['Intro', [], false], ['Second', [], true]]);
   assert.equal(item.chapters[1].startOffset, 21);
+  assert.deepEqual(item.chapters.map(chapter => chapter.chars), [21, single.text.length - 21], 'sizes come from where each chapter starts, and add up to the text');
+  const [preamble] = groupSourcesByDocument([{ ...single, segmentation: { ...seg, chapters: seg.chapters.map(chapter => ({ ...chapter, offset: chapter.offset + 5 })) } }]);
+  assert.deepEqual(preamble.chapters.map(chapter => [chapter.title, chapter.front === true, chapter.chars]), [['', true, 5], ['Intro', false, 21], ['Second', false, single.text.length - 26]], 'text before the first chapter is front matter');
   assert.equal(item.chapterUnit, 'text');
   assert.equal(groupSourcesByDocument([single])[0].chapters, undefined);
 });
