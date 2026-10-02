@@ -72,6 +72,9 @@ test('where the models live: a folder that is a link says where it really is; a 
   assert.equal(same.modelsRealPath, undefined);
   const broken = await readLocalEnvironment({ cli: fake.cli, home: fake.work, status, realpath: async () => { throw new Error('EPERM'); } });
   assert.equal(broken.modelsRealPath, undefined);
+  // A home reached through a short name or a link (a CI temp folder) is not a moved models folder: only the models folder itself moving counts.
+  const short = await readLocalEnvironment({ cli: fake.cli, home: fake.work, status, realpath: async path => (path === fake.work ? join(fake.work, 'real-home') : join(fake.work, 'real-home', 'models')) });
+  assert.equal(short.modelsRealPath, undefined);
 });
 
 test('without a command line there is still an environment: the route, and nothing invented', async () => {
