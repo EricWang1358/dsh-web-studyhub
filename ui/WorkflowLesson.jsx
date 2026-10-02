@@ -3,10 +3,11 @@ import React, { useMemo, useState } from "react";
 import { renderNoteMarkdown } from "./note-markdown.js";
 import { ModelError } from "./WorkflowScope.jsx";
 import { TokenEstimate, TokenUsage } from "./TokenUsage.jsx";
+import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
 export const TeachingArticle = React.memo(function TeachingArticle({ content, className = "" }) {
   const html = useMemo(() => renderNoteMarkdown(content), [content]);
-  return <div className={`wf-prose ${className}`.trim()} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <ReadingBlock prose className={`wf-prose ${className}`.trim()} dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
 const HELP = [{ mode: "example", label: "换个例子" }, { mode: "steps", label: "拆开讲" }, { mode: "prerequisite", label: "补前置" }];
@@ -40,7 +41,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
       {remedyRunning ? <p className="wf-remedy-status" role="status"><span className="wf-pulse" aria-hidden="true" />{ui("AI 正在针对这些点补讲，下面的讲解可以先看着。")}</p>
         : <><TeachingArticle content={remedy.content} /><TeachingCitations citations={remedy.citations} sources={resources.sources} /></>}
     </aside>}
-    <header className="wf-teaching-heading"><div><span className="wf-eyebrow">{ui("围绕主题，连起来学")}</span><h3>{content ? ui("本步讲解") : ui("从一篇完整讲解开始")}</h3></div>{content && <span className="wf-reading-label">{ui("阅读 · 理解 · 应用")}</span>}</header>
+    <header className="wf-teaching-heading"><div><span className="wf-eyebrow">{ui("围绕主题，连起来学")}</span><h3>{content ? ui("本步讲解") : ui("从一篇完整讲解开始")}</h3></div>{content && <span className="wf-reading-label">{ui("阅读 · 理解 · 应用")}</span>}<ReadingSettingsButton className="wf-reading" /></header>
     {content ? <TeachingArticle content={content} /> : <div className="wf-teaching-empty">
       <p>{ui("把「")}{topic}{ui("」的概念、原理和例子连成一条线，再看看它适用于什么情境。")}</p>
       <p className="muted">{ui("结合本次材料，生成可直接阅读的讲解；有公式或推导时逐步展开。")}</p>

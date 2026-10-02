@@ -6,6 +6,7 @@ import { useInjectCss, plainPrompt } from "./shared.js";
 import { createWriteQueue } from "./async.js";
 import { EXAM_LIMIT_MS } from "../lib/exam-timing.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
+import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 import OralExam from "./OralExam.jsx";
 import { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { readExamTarget } from './learning-navigation.js';
@@ -528,12 +529,13 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
       )}
 
       {phase === "report" && report && (
-        <div className="exam-report">
+        <ReadingBlock className="exam-report">
           <div className="page-heading">
             <div>
               <h1>{ui("考试报告")}</h1>
               <p className="muted">{report.examRole ? `${report.examRole} · ` : ""}{ui("已判分并计入复习计划。")}</p>
             </div>
+            <ReadingSettingsButton className="exam-reading" />
           </div>
           <div className="result-hero">
             <div className="result-headline">
@@ -648,7 +650,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
 
           </details>
           {err && <p className="exam-error">{err}</p>}
-        </div>
+        </ReadingBlock>
       )}
     </section>
   );

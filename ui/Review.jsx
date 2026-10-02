@@ -15,6 +15,7 @@ import ThumbFeedback from "./ThumbFeedback.jsx";
 import { reviewEntryKey } from "./async.js";
 import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
+import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
@@ -258,6 +259,7 @@ export default function Review({
         // for the summary, and the ✓ badge inherited .question-area's inline
         // min-height (set by the pinning effect above), stretching into an oval.
         <div key="summary" className="session-summary result-page">
+          <div className="result-reading"><ReadingSettingsButton /></div>
           <div className="result-kicker">{ui("本轮学习结果")}</div>
           <h1 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h1>
           <p className="result-subtitle">{shellTitle} · {run.questions ?? run.total}{ui(" 道题")}</p>
@@ -723,7 +725,7 @@ export default function Review({
               </p>
             )}
             {run.solution && (explain || !!run.feedback) && (
-              <div className="explanation">
+              <ReadingBlock className="explanation">
                 <h3>{ui("理解这道题")}</h3>
                 <Markdown text={run.solution.explanation} />
                 {enOn && enAnswer?.explanation && (
@@ -743,11 +745,11 @@ export default function Review({
                 <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
                   onOpenSource={(source, quote) => setModal({ type: "source", source, quote })} />
                 {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} call={call} readOnly />}
-              </div>
+              </ReadingBlock>
             )}
             {teaching && <div className="teaching-panel">
               {teaching && (
-                <section className="explanation">
+                <ReadingBlock as="section" className="explanation">
                   <div className="eyebrow">
                     GUIDED UNDERSTANDING ·{" "}
                     {Math.min(teaching.index + 1, teaching.total)} /{" "}
@@ -793,7 +795,7 @@ export default function Review({
                       </form>
                     </>
                   )}
-                </section>
+                </ReadingBlock>
               )}
             </div>}
           </div>

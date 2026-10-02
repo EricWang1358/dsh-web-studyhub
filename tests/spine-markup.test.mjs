@@ -48,7 +48,7 @@ test("where the skeleton is the subject the spine opens as a stepper strip with 
   assert.doesNotMatch(html, /每个服务一个数据库/, "the other stations' points are not listed at the same time");
   assert.match(html, /5 站 · 8 个要点/);
   assert.match(html, /1 \/ 5/, "a position counter says there are more stations");
-  assert.deepEqual(attr(html, "button", "aria-expanded").filter(Boolean), ["true", "false"], "the fold toggle is open, the show-all toggle is closed");
+  assert.deepEqual(attr(html, "button", "aria-expanded").filter(Boolean), ["true", "false", "false"], "the fold toggle is open, the show-all toggle is closed, and the Aa display popover is closed");
   assert.match(html, /学这一站 · 2 题/, "the practice link of the station is still offered");
 });
 

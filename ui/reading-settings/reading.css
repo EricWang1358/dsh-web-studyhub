@@ -31,6 +31,13 @@
   .reader-stepper__value { min-width: 2.5em; font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-align: center; }
   .reader-popover__reset { justify-self: start; }
 
+  /* Where the Aa button sits on each surface. */
+  .result-reading { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
+  .note-header-tools { display: inline-flex; align-items: center; gap: var(--space-2); }
+  .spine-bar .spine-reading, .exam-report .exam-reading, .wf-teaching-heading .wf-reading, .skc-detail-head .skc-reading { margin-left: auto; }
+  .exam-report .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+  .question-tools .review-reading { align-self: center; }
+
   .study-reading {
     --reader-sans: var(--font-ui);
     --reader-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;

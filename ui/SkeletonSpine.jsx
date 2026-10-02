@@ -2,6 +2,7 @@ import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Icon from "./components/Icon.jsx";
 import { skeletonSpine, spineCounts, spineKeyTarget, readSpineOpen, writeSpineOpen } from "./skeleton-spine.js";
+import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
 /* 脉络：一条学习主线。一行站点条（编号圆点 + 短标题）加一个"当前站"详情：
    站点条随时标出走到第几站，详情里读到这一站的说明和全部要点（一个字都不截断）。
@@ -139,6 +140,7 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
             <button type="button" className="link-btn spine-all-toggle" aria-expanded={all} onClick={() => setAll((value) => !value)}>{all ? ui("只看一站") : ui("展开全部")}</button>
           </span>
         )}
+        {open && <ReadingSettingsButton className="spine-reading" />}
         {!open && count > 1 && (
           <span className="spine-chip" role="group" aria-label={ui("当前站")}>
             {arrow(-1, "spine-arrow spine-chip-prev", ui("上一站"))}
@@ -159,7 +161,7 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
                       <span className="spine-marker" aria-hidden="true">{item.step}</span>
                       <span className="spine-all-title">{item.term}</span>
                     </summary>
-                    <div className="spine-all-body"><StationBody station={item} onPractice={onPractice} /></div>
+                    <ReadingBlock className="spine-all-body"><StationBody station={item} onPractice={onPractice} /></ReadingBlock>
                   </details>
                 </li>
               ))}
@@ -194,10 +196,10 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
                 </div>
                 {count > 1 && arrow(1, "spine-arrow spine-next", ui("下一站"))}
               </div>
-              <div className="spine-detail" role="tabpanel" id={panelId} aria-labelledby={tabId(index)}>
+              <ReadingBlock className="spine-detail" role="tabpanel" id={panelId} aria-labelledby={tabId(index)}>
                 <h4 className="spine-detail-title">{station.term}</h4>
                 <StationBody station={station} onPractice={onPractice} />
-              </div>
+              </ReadingBlock>
             </>
           )}
         </div>
