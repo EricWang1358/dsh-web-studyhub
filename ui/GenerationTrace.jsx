@@ -28,9 +28,13 @@ export default function GenerationTrace({ job, openAgent }) {
   return <details className="generation-trace">
     <summary>{uiFormat("查看执行过程 · {0} 步", [steps.length])}</summary>
     <JobUsage job={job} />
-    <p className="muted">{job.concurrency ? ui("先统一规划考点，再分批同时出题；") : ""}{ui("每批最多 5 题，先出题并自查，再由另一位助手独立审阅；没通过的题不会进入草稿。")}</p>
+    {job.origin === "selection"
+      ? <p className="muted">{ui("先规划考点，再出题并自查，最后由另一位助手独立审阅；只有通过审阅的题才会保存到题组。")}</p>
+      : <p className="muted">{job.concurrency ? ui("先统一规划考点，再分批同时出题；") : ""}{ui("每批最多 5 题，先出题并自查，再由另一位助手独立审阅；没通过的题不会进入草稿。")}</p>}
     {job.savedCount > 0 && active && <p className="muted">{uiFormat("已保存 {0} 题到草稿；其余批次仍在生成。", [job.savedCount])}</p>}
-    {job.totalTimeoutSeconds > 0 && <p className="muted">{uiFormat("最长 {0} 分钟（不算排队）；到时会停止，已通过检查的题保留在草稿里。", [Math.round(job.totalTimeoutSeconds / 60)])}</p>}
+    {job.totalTimeoutSeconds > 0 && <p className="muted">{job.origin === "selection"
+      ? uiFormat("最长 {0} 分钟（不算排队）；到时会停止，题组不会有变化。", [Math.round(job.totalTimeoutSeconds / 60)])
+      : uiFormat("最长 {0} 分钟（不算排队）；到时会停止，已通过检查的题保留在草稿里。", [Math.round(job.totalTimeoutSeconds / 60)])}</p>}
     {job.retrieval && <p className="muted" data-retrieval={retrievalSummary(job.retrieval).error ? "error" : "used"}>{retrievalSummary(job.retrieval).text}</p>}
     {!steps.length && <p className="muted">{job.status === "queued" ? ui("正在排队，还没有开始。") : ui("还没有步骤记录。")}</p>}
     {steps.length > 0 && <ol>{steps.map((step) => <li key={step.id}>

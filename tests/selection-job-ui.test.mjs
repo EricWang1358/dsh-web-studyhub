@@ -14,6 +14,8 @@ const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export * from './ui/i18n.js';
   export * from './ui/document-preview/selection-job.js';
+  export { jobHeadline, jobStageLabel } from './ui/generation-status.js';
+  export { default as GenerationTrace } from './ui/GenerationTrace.jsx';
   export { SelectionJobCard, SelectionJobList } from './ui/document-preview/SelectionJobs.jsx';
   export { default as DocumentLearning, LearningPanel } from './ui/document-preview/DocumentLearning.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
@@ -211,6 +213,21 @@ test('notices: a start says it continues in the background, a finish names the d
   assert.equal(finishedNotice(done({ stageCode: 'done', rejected: [], savedCount: 2, publication: { deckId: 'd', added: 2, total: 3, cardIds: ['a', 'b'] } })).tone, 'success');
   assert.equal(finishedNotice({ ...base, status: 'failed', outcome: 'review-failed', stage: 'rate limit' }).tone, 'error');
   assert.equal(finishedNotice({ ...base, status: 'cancelled' }).jump, null);
+});
+
+test('the global job card reads a passage supplement as a deck supplement, never as a draft', () => {
+  const { jobHeadline, jobStageLabel, GenerationTrace } = lib;
+  lib.setUiLanguage('zh');
+  assert.equal(jobHeadline(done()), '部分补入 1 题 · 共 2 题 ·「Architecture basics」');
+  assert.equal(jobHeadline(done({ stageCode: 'done', savedCount: 2, rejected: [], publication: { deckId: 'd', added: 2, total: 3, cardIds: ['a', 'b'] } })), '已补入 2 题 · 共 3 题 ·「Architecture basics」');
+  assert.equal(jobHeadline(running()), '正在审核并补入题组 ·「Architecture basics」');
+  assert.equal(jobStageLabel(done({ stageCode: 'done', savedCount: 2, rejected: [] })), '已通过独立审阅，并保存到题组。');
+  assert.equal(jobStageLabel(done()), '只有部分题通过了独立审阅；通过的已保存到题组。');
+  assert.equal(jobStageLabel({ ...base, status: 'cancelled', stageCode: 'cancelled' }), '已停止，题组没有变化。');
+  const trace = text(render(GenerationTrace, { job: running({ totalTimeoutSeconds: 1200, steps: [{ id: 's1', stage: 'Planning evidence and learning targets', status: 'complete' }] }) }));
+  assert.match(trace, /只有通过审阅的题才会保存到题组/);
+  assert.match(trace, /到时会停止，题组不会有变化/);
+  assert.doesNotMatch(trace, /草稿/);
 });
 
 test('start errors read in plain words', () => {

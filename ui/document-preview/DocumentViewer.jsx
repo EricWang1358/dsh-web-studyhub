@@ -71,7 +71,7 @@ function QuotedText({ text, quote, anchor, format }) {
  * onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows "从这份资料出题" as the
  * toolbar's primary action), generateDisabled, initialMode ('read' | 'text' | 'original').
  */
-export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read' }) {
+export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onNotice, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read' }) {
   const language = useUiLanguage();
   useInjectCss(css, 'study-document-preview');
   useInjectCss(readerCss, 'study-reader');
@@ -306,7 +306,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
           <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>
-          <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} onPublished={refreshLinks} onOpenCard={onOpenCard} />
+          <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} onPublished={refreshLinks} onOpenCard={onOpenCard}
+            onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} onNotice={onNotice} />
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
           {onCaseFromPassage && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}

@@ -53,7 +53,7 @@ function gatedModel() {
   return control;
 }
 
-async function fixture(t, { model = gatedModel(), notices = [] } = {}) {
+async function fixture(t, { model = gatedModel(), notices = [], language = 'zh' } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'selection-jobs-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const old = { id: 'old', kind: 'flashcard', objective: 'Original objective', prompt: 'Original question?', answer: 'Original',
@@ -62,7 +62,7 @@ async function fixture(t, { model = gatedModel(), notices = [] } = {}) {
     state.decks.push({ id: 'd', title: 'Architecture basics', cards: [old] });
     state.decks.push({ id: 'e', title: 'Second deck', cards: [] });
   });
-  const runtime = createStudyRuntime(root, { complete: model.complete, notify: message => notices.push(message), language: 'zh' });
+  const runtime = createStudyRuntime(root, { complete: model.complete, notify: message => notices.push(message), language });
   t.after(() => runtime.dispose());
   const imported = await runtime.call('materials.document.import', { filename: 'notes.md',
     dataBase64: Buffer.from(`# Notes\n\n${passageA}\n\n${passageB}`).toString('base64') });
@@ -281,6 +281,33 @@ test('the job is in the global job list, tallies usage, keeps its estimate and f
   assert.equal(inbox.items[0].missing, false);
   const opened = await f.runtime.call('inbox.open', { id: inbox.items[0].id });
   assert.equal(opened.card.id, done.publication.firstCardId, 'the letter opens at the first new card');
+});
+
+test('in an English library the duplicate refusal, the inbox letter and the notice are English', async t => {
+  const model = gatedModel(); model.gates.plan = deferred(); model.flagged.add('q2');
+  const notices = [];
+  const f = await fixture(t, { model, notices, language: 'en' });
+  const first = await f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'english', count: 2 }));
+  await assert.rejects(f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'english-2' })), /already running/);
+  model.gates.plan.release();
+  const done = await wait(f, first.jobId);
+  assert.equal(done.status, 'complete', done.stage);
+  assert.match(done.stage, /^Added 1 questions to Architecture basics/);
+  assert.match(notices[0].summary, /Architecture basics/);
+  const item = (await f.runtime.call('snapshot')).inbox.items[0];
+  assert.equal(item.label, 'Passage questions added');
+  assert.equal(item.detail, 'Added 1 to "Architecture basics"; 1 did not pass review');
+});
+
+test('the stage of a stopped job says what happens to the deck, not to a draft', async t => {
+  const model = gatedModel(); model.gates.author = deferred();
+  const f = await fixture(t, { model });
+  const started = await f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'wording' }));
+  await waitFor(() => model.calls.includes('author'), 'author call');
+  assert.match((await f.runtime.call('job.cancel', { jobId: started.jobId })).jobs[0].stage, /nothing is saved to the deck/);
+  const done = await wait(f, started.jobId);
+  assert.equal(done.status, 'cancelled');
+  assert.doesNotMatch(JSON.stringify(done), /draft/i);
 });
 
 test('usage.estimate prices a passage supplement before it starts, in the same format as other generation', async t => {

@@ -53,6 +53,7 @@ import LibraryUsage from "./LibraryUsage.jsx";
 import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
+import { finishedNotice, isActive as isSelectionJobActive } from './document-preview/selection-job.js';
 import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
@@ -492,6 +493,19 @@ export default function App({ call: transportCall, host = {} }) {
   );
   const publishing = data?.jobs?.some((job) => job.type === "draft-publish" &&
     ["running", "queued"].includes(job.status));
+  // A passage supplement runs in the background: when one that was seen running ends, say so, with the jump to its questions.
+  const selectionJobs = useRef(new Map());
+  useEffect(() => {
+    for (const job of data?.jobs || []) {
+      if (job.origin !== "selection") continue;
+      if (isSelectionJobActive(job)) { selectionJobs.current.set(job.id, "active"); continue; }
+      if (selectionJobs.current.get(job.id) !== "active") continue;
+      selectionJobs.current.set(job.id, "told");
+      const outcome = finishedNotice(job), added = outcome.jump?.cardIds?.length || 0;
+      setNotice({ text: outcome.text, tone: outcome.tone, ...(added ? { action: { label: added === 1 ? ui("马上练这 1 张") : uiFormat("马上练这 {0} 张", [added]),
+        run: () => openLearningTarget({ kind: "cards", deckId: outcome.jump.deckId, cardIds: outcome.jump.cardIds }) } } : {}) });
+    }
+  }, [data?.jobs]); // eslint-disable-line react-hooks/exhaustive-deps
   const reviewQueueVersion = run?.queueVersion || 0;
   const priorQueue = useRef(null);
   useEffect(() => {
@@ -669,6 +683,9 @@ export default function App({ call: transportCall, host = {} }) {
         await call('card.get', { deckId: target.deckId, cardId: target.cardId });
         if (!live()) return;
         result = await call('review.start', { mode: 'path', scope: [{ deckId: target.deckId, cardId: target.cardId }], fresh: true });
+      } else if (target.kind === 'cards') {
+        // Exactly the questions a passage supplement just added, as one practice run.
+        result = await call('review.start', { mode: 'path', scope: target.cardIds.map(cardId => ({ deckId: target.deckId, cardId })), fresh: true });
       } else if (target.kind === 'source') result = await call('source.get', { id: target.id });
       else if (target.kind === 'note') result = await call('note.get', { id: target.id });
       else if (target.kind === 'skeleton') result = await call('skeleton.get', { id: target.id });
@@ -685,7 +702,7 @@ export default function App({ call: transportCall, host = {} }) {
       if (!live()) return;
       if (remember && target.kind !== 'source') rememberContext(origin);
       setModal(null);
-      if (target.kind === 'card') enterRun(result);
+      if (target.kind === 'card' || target.kind === 'cards') enterRun(result);
       else if (target.kind === 'source') setModal({ type: 'source', source: dataRef.current.sources.find(source => source.id === target.id) || result, quote: target.quote });
       else if (target.kind === 'note') { setNoteInitialId(result.id); setPage('notes'); }
       else if (target.kind === 'skeleton') { setSkeletonFocus(result.id); setPage('skeleton'); }
@@ -2328,6 +2345,9 @@ export default function App({ call: transportCall, host = {} }) {
                         setGenSource('files'); setModal(null); setPage('generate');
                       }}
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
+                      onOpenDeck={deckId => openLearningTarget({ kind: 'deck', id: deckId })}
+                      onPractice={({ deckId, cardIds }) => openLearningTarget({ kind: 'cards', deckId, cardIds })}
+                      onStarted={started => { selectionJobs.current.set(started.jobId, 'active'); return refresh(); }} onNotice={setNotice}
                       onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
                         setGenSource('case'); setModal(null); setPage('generate'); }} />
                   </>

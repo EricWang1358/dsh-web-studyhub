@@ -142,6 +142,12 @@ export function jobHeadline(job = {}, drafts = []) {
 export function jobStageLabel(job = {}, drafts = [], jobs = []) {
   const code = jobCode(job), draft = draftOf(job, drafts);
   if (job.kind === 'case' && job.publication && code === 'done') return ui('批改结果已进信箱；这套案例在学习库里，可以随时再练。');
+  // A passage supplement saves into the deck itself: there is no draft to check.
+  if (job.origin === 'selection' && !ACTIVE.has(job.status)) {
+    if (code === 'cancelled') return ui('已停止，题组没有变化。');
+    if (code === 'done') return ui('已通过独立审阅，并保存到题组。');
+    if (code === 'partial') return ui('只有部分题通过了独立审阅；通过的已保存到题组。');
+  }
   if (ownProse(job) && code !== 'failed') return job.stage || stageCodeLabel(code);
   if (code === 'cancelled') {
     const kept = draft ? job.savedCount || draft.cards?.length || 0 : 0;
