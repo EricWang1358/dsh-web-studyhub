@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { installUpdate, prepareVerifiedPackage, updateDownloadDir, pluginInstallSupport } from '../lib/update-install.js';
@@ -142,4 +142,16 @@ test('the host handler adds install support to update.check and installs through
   const refused = await without('call', { sessionId: 's', action: 'update.install', args: { version: '99.0.0' } });
   assert.equal(refused.ok, true, 'an expected refusal is an answer, not a transport error');
   assert.deepEqual(refused.value, { status: 'failed', code: 'UPDATE_NO_INSTALLER' });
+});
+
+test('a finished upgrade removes only the older StudyHub packages, never the search extension\'s installer DSH still points at', async t => {
+  const dir = await home(t), updates = join(dir, 'study', 'updates');
+  await mkdir(updates, { recursive: true });
+  const extension = 'ericwang1358-studyhub-retrieval-2.1.2.tgz', unrelated = 'notes.txt';
+  for (const name of ['ericwang1358-dsh-daily-flashcard-98.0.0.tgz', extension, unrelated, 'ericwang1358-dsh-daily-flashcard-97.0.0.tgz.1234.part'])
+    await writeFile(join(updates, name), name);
+  const net = releaseHost(), manager = pluginManager();
+  await installUpdate({ view: view(), manager, fetch: net.fetch, activeJobs: 0 });
+  assert.deepEqual((await readdir(updates)).sort(), [extension, 'ericwang1358-dsh-daily-flashcard-99.0.0.tgz', unrelated].sort(),
+    'the old StudyHub package and its leftover download are gone; the extension installer and other files stay');
 });
