@@ -37,6 +37,12 @@ async function handle(message) {
       blockMaxMs: histogram.max / 1e6, blockP99Ms: histogram.percentile(99) / 1e6,
       peakRssMb: Math.max(mark?.peakRss || 0, usage.rss) / MB, peakHeapMb: Math.max(mark?.peakHeap || 0, usage.heapUsed) / MB };
   }
+  if (message.cmd === "shape") {
+    const state = await new Store(message.libraryRoot).read();
+    return { sources: state.sources.length, sourceChars: state.sources.reduce((sum, item) => sum + (item.text?.length || 0), 0), decks: state.decks.length,
+      cards: state.decks.reduce((sum, deck) => sum + deck.cards.length, 0), runs: state.runs.length, openRuns: state.runs.filter((run) => !run.closedAt).length,
+      attempts: state.attempts.length, courses: state.courses.length };
+  }
   if (message.cmd === "memory") return settledMemory();
   if (message.cmd === "heap") return heapSummary();
   if (message.cmd === "stop") { await preview?.close(); setImmediate(() => process.exit(0)); return {}; }

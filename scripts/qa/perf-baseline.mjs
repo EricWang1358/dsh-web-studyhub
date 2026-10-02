@@ -1,5 +1,6 @@
-/* node scripts/qa/perf-baseline.mjs --library <dir> [--work <dir>] [--in-place] [--polls 100] [--actions 200]
+/* node scripts/qa/perf-baseline.mjs (--library <dir> | --seed <sources>) [--work <dir>] [--in-place] [--polls 100] [--actions 200]
                                      [--minutes 0] [--heap] [--json <file>]
+   --seed N measures a synthetic library of N sources instead (scripts/qa/perf-seed.mjs), written to --work.
    Prints the host-side performance baseline of one study library as tables (docs/performance.md explains them).
    <dir> is the folder that holds study-workspace.json (usually "<workspace>/.dsh-study"). The library is COPIED to
    --work (default output/perf-work) and measured there; the original is only read. --in-place measures <dir> itself.
@@ -21,6 +22,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { scrubSecrets } from "./env.mjs";
 import { keyBytes, median, slope } from "./perf-probe.mjs";
+import { seedLibrary } from "./perf-seed.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const MB = 1024 * 1024;
@@ -81,15 +83,24 @@ async function startHost(libraryRoot, home) {
     if (!body.ok) throw Object.assign(new Error(body.error), { code: body.code });
     return { value: body.value, bytes: Buffer.byteLength(text), hostMs, parseMs, ...stats };
   }
-  return { call, memory: () => send("memory"), heap: () => send("heap"), stop: async () => { await send("stop").catch(() => {}); } };
+  return { call, memory: () => send("memory"), heap: () => send("heap"), shape: (libraryRoot) => send("shape", { libraryRoot }), stop: async () => { await send("stop").catch(() => {}); } };
 }
 
 const row = (name, x) => ({ name, ms: round(x.hostMs), block: round(x.blockMaxMs), peakRssMb: round(x.peakRssMb), peakHeapMb: round(x.peakHeapMb), counts: x.counts });
 
 export async function runBaseline(options = {}) {
-  const source = resolve(options.library);
-  if (!existsSync(join(source, "study-workspace.json"))) throw new Error(`No study-workspace.json in ${source}`);
+  let source = options.library ? resolve(options.library) : null;
   let root = source;
+  if (options.seed) {
+    // A synthetic library (scripts/qa/perf-seed.mjs) instead of a real one: nothing to copy.
+    root = resolve(options.work || join(repoRoot, "output/perf-work"));
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(root, { recursive: true });
+    await seedLibrary(root, { sources: Number(options.seed) });
+    source = root;
+    options = { ...options, inPlace: true };
+  }
+  if (!source || !existsSync(join(source, "study-workspace.json"))) throw new Error(`No study-workspace.json in ${source}`);
   if (!options.inPlace) {
     root = resolve(options.work || join(repoRoot, "output/perf-work"));
     if (root === source || root.startsWith(source + "\\") || root.startsWith(source + "/")) throw new Error("--work must be outside the library");
@@ -115,8 +126,7 @@ export async function runBaseline(options = {}) {
     result.coldSnapshotMs = round(first.hostMs);
     result.coldPeakRssMb = round(first.peakRssMb);
     const snap = first.value;
-    result.library = { ...result.library, sources: snap.sources.length, sourceChars: snap.sources.reduce((n, item) => n + (item.text?.length ?? item.chars ?? 0), 0),
-      decks: snap.decks.length, cards: snap.decks.reduce((n, deck) => n + deck.count, 0), runs: snap.runs.length, attempts: snap.attempts.length, courses: snap.courses.length };
+    result.library = { ...result.library, ...(await host.shape(root)) };
     await remember("idle (after first snapshot)");
 
     // payload
@@ -237,7 +247,7 @@ export function printTables(result) {
   const lines = [`# StudyHub performance baseline (node ${result.node}, ${result.platform})`, ""];
   const l = result.library;
   lines.push(table("Library", [l], [["sources", (x) => x.sources], ["source chars", (x) => x.sourceChars], ["decks", (x) => x.decks], ["cards", (x) => x.cards],
-    ["runs", (x) => x.runs], ["attempts", (x) => x.attempts], ["shard files", (x) => x.shardFiles], ["shards MB", (x) => x.shardsMb], ["backups MB", (x) => x.backupsMb]]));
+    ["runs", (x) => `${x.runs} (${x.openRuns} open)`], ["attempts", (x) => x.attempts], ["shard files", (x) => x.shardFiles], ["shards MB", (x) => x.shardsMb], ["backups MB", (x) => x.backupsMb]]));
   const p = result.payload;
   lines.push(table(`Snapshot payload: ${round(p.bytes / MB, 2)} MB, client JSON.parse ${p.parseMs} ms, source text inside it ${round(p.sourceTextBytes / MB, 2)} MB (source fields: ${p.sourceFields})`,
     p.keys, [["key", (x) => x.key], ["bytes", (x) => x.bytes], ["share", (x) => `${round((x.bytes / p.bytes) * 100)}%`]]));
@@ -267,9 +277,9 @@ export function printTables(result) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const library = option("library");
-  if (!library) { console.error("usage: node scripts/qa/perf-baseline.mjs --library <dir with study-workspace.json> [--work dir] [--in-place] [--polls 100] [--actions 200] [--minutes 0] [--heap] [--json file]"); process.exit(2); }
-  const result = await runBaseline({ library, work: option("work"), inPlace: flag("in-place"), polls: Number(option("polls", 100)), actions: Number(option("actions", 200)),
+  const library = option("library"), seed = option("seed");
+  if (!library && !seed) { console.error("usage: node scripts/qa/perf-baseline.mjs (--library <dir with study-workspace.json> | --seed <sources>) [--work dir] [--in-place] [--polls 100] [--actions 200] [--minutes 0] [--heap] [--json file]"); process.exit(2); }
+  const result = await runBaseline({ library, seed, work: option("work"), inPlace: flag("in-place"), polls: Number(option("polls", 100)), actions: Number(option("actions", 200)),
     minutes: Number(option("minutes", 0)), heap: flag("heap") });
   const json = option("json");
   if (json) writeFileSync(json, JSON.stringify(result, null, 2));

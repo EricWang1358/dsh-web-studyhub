@@ -4,6 +4,7 @@ import { mkdtemp, rm, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
+import { courseKey } from "../lib/courses.js";
 import { seedLibrary } from "../scripts/qa/perf-seed.mjs";
 import { Probe, settledMemory } from "../scripts/qa/perf-probe.mjs";
 
@@ -101,6 +102,30 @@ test("the snapshot carries source metadata, not every source's text (payload bud
   const stored = (await f.service.store.read()).sources.find((source) => source.id === "src-0001");
   assert.equal(full.text, stored.text.slice(0, 60000), "the text is one source.get away");
   assert.equal(full.chars, snapshot.sources.find((source) => source.id === "src-0001").chars, "the snapshot's chars is the real length");
+});
+
+test("building the snapshot again does not fingerprint every card or rebuild every outcome key (build budget)", async (t) => {
+  const f = await fixture(t);
+  await f.service.call("snapshot", { since: "warm" });
+  await f.next("reveal");
+  const { counts } = await f.probe.measure(() => f.service.call("snapshot", { since: "stale" }));
+  const cards = f.seeded.cards;
+  t.diagnostic(`snapshot build: ${counts.jsonStringifyCalls} JSON.stringify calls for ${cards} cards, ${f.seeded.attempts} attempts, ${f.seeded.sources} sources`);
+  // Before: one canonical stringify per reviewed card (reviewedCardStatus) and a key per attempt, five times over (latestOutcomes): ~9 000 calls here.
+  assert.ok(counts.jsonStringifyCalls <= cards * 1.5, `${counts.jsonStringifyCalls} JSON.stringify calls for ${cards} cards; budget ${cards * 1.5}`);
+});
+
+test("course names are normalised once each, however often they are asked for", () => {
+  const normalize = String.prototype.normalize;
+  let calls = 0;
+  String.prototype.normalize = function (...args) { calls++; return normalize.apply(this, args); };
+  try {
+    for (let round = 0; round < 50; round++) for (let name = 0; name < 100; name++) courseKey(`Course ${name} /  Chapter`);
+  } finally { String.prototype.normalize = normalize; }
+  assert.ok(calls <= 100, `${calls} normalisations for 100 distinct names asked 50 times each`);
+  for (let name = 0; name < 10000; name++) courseKey(`Name ${name}`);
+  assert.equal(courseKey("  Name   5 "), "Name 5", "the memo is bounded and still right after it was dropped");
+  assert.equal(courseKey(undefined), "");
 });
 
 test("polling and clicking for a long time does not grow the heap (memory budget)", async (t) => {

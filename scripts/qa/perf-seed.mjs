@@ -5,6 +5,7 @@
    embed a copy of each card (the heaviest part of a real library), chunked attempts and a few courses.
    No real content: the text is generated filler. */
 import { Store } from "../../lib/store.js";
+import { reviewedCardFingerprint } from "../../lib/review-integrity.js";
 
 /** mulberry32: small seeded generator, so a seeded library is byte-identical between runs. */
 function random(seed) {
@@ -58,8 +59,10 @@ export async function seedLibrary(root, options = {}) {
       if (kind === "open") card.rubric = sentence(rand, 12);
       return card;
     });
+    // Half the decks went through the independent review at publication, as a generated deck does: it left a fingerprint per card.
+    const editorial = deckIndex % 2 ? { reviewedCards: Object.fromEntries(cards.map((card) => [card.id, reviewedCardFingerprint(card)])), requested: cardsPerDeck } : undefined;
     state.decks.push({ id: `deck-${deckIndex}`, title: `Deck ${deckIndex + 1}`, folder: courseNames[deckIndex % courses], course: courseNames[deckIndex % courses],
-      createdAt: stamp(deckIndex * 3), cards });
+      createdAt: stamp(deckIndex * 3), cards, ...(editorial ? { editorial } : {}) });
   }
   for (let runIndex = 0; runIndex < runs; runIndex++) {
     const deck = state.decks[runIndex % decks];
