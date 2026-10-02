@@ -168,6 +168,10 @@ export function apply(ctx, registerDocumentLearning) {
         pickDirectory: workspace?.pickDirectory
           ? () => workspace.pickDirectory()
           : undefined,
+        // 补全原文件: a native file dialog when this DSH offers one (resolves a path); otherwise the dialog has a path field and a browser picker.
+        pickFile: workspace?.pickFile
+          ? (options) => workspace.pickFile(options)
+          : undefined,
         modelGroups: catalog?.value?.groups,
         sessionModel: current?.current || catalog?.value?.default,
         openAgent: (id) => ctx.get("sessions")?.open(id),

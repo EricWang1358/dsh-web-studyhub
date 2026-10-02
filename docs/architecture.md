@@ -124,6 +124,8 @@ Original files live at library-relative `attachments/materials/<sha256>.<format>
 
 Old PDF imports that discarded originals remain available as extracted text. Attach an actual original explicitly to gain an original preview. Full library exports with retained documents include a verified portable attachment bundle; restoring into a fresh library restores the original bytes as well as JSON and associations.
 
+`materials.original.attach` adds the original to an existing document without touching its text, revision, citations, selections or card links. `mode: "copy"` stores it as a retained original (`version.attachment`). `mode: "reference"` stores `version.external = { path, realPath, bytes, mtimeMs, hash, format, verifiedAt }` and nothing is copied; the hash is streamed once at attach time. Before attaching, the host compares the file with the stored text without a model (`materials.original.probe`: page count, per-page similarity after the same whitespace folding the citation matcher uses); a file that does not match is attached only with `confirm: true`, and the check is kept as `version.originalCheck`. A text-only legacy document gets a document record with exactly the identity it already had. `materials.document.bytes` serves a referenced original only from its stored path, and only while the file is still the one that was verified (same real path, size and hash); otherwise it answers `{ status: "unavailable", reason: "missing" | "changed" | "redirected" | "unreadable", path }`. No operation reads a path that the caller supplies at read time. A full export includes copies and lists referenced originals under `portableMaterials.referencedOriginals`; the referenced files themselves are not in the backup.
+
 ## Adding a capability
 
 ```js

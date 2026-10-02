@@ -1223,6 +1223,9 @@ export default function App({ call: transportCall, host = {} }) {
       a.download = backupFileName();
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      // Originals attached by path stay where the learner keeps them; say how many are not in this file.
+      const referenced = s.portableMaterials?.referencedOriginals?.length;
+      if (referenced) setNotice({ text: uiFormat("备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。", [referenced]), tone: "success", persistent: true });
     } catch (e) {
       setError(e.message);
     }
