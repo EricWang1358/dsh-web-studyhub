@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
+import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
@@ -97,7 +98,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
     );
   const m = debrief.metrics || {};
   return (
-    <div className="coach-debrief" data-next={next} role="region" aria-label={ui("本轮建议")}>
+    <ReadingBlock className="coach-debrief" data-next={next} role="region" aria-label={ui("本轮建议")}>
       <div className="eyebrow">{ui("陪学 · 本轮建议")}</div>
       <h2>{debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
@@ -172,6 +173,6 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       {consent.answer === false && (
         <p className="coach-consent-note" role="status">{ui("好的，不备题。想开启时去 设置 › 陪学。")}</p>
       )}
-    </div>
+    </ReadingBlock>
   );
 }

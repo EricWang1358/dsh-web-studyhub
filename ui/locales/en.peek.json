@@ -1,0 +1,15 @@
+{
+  "看原页": "Original page",
+  "原页预览": "Original page preview",
+  "原页": "Original page",
+  "第 {0} / {1} 页": "Page {0} / {1}",
+  "适合宽度": "Fit width",
+  "正在读取原文件…": "Reading the original file…",
+  "正在绘制…": "Drawing…",
+  "这份资料只保存了提取出的文字，没有原文件，所以看不到原页。": "Only the extracted text of this material was kept, not the original file, so the original page cannot be shown.",
+  "文字版共 {0} 页，原文件有 {1} 页：页码对不上，为避免看错页，这里不显示。": "The text has {0} pages and the original file has {1}: the page numbers do not line up, so nothing is shown rather than the wrong page.",
+  "这一页没能显示：{0}": "This page could not be shown: {0}",
+  "原文件里没有第 {0} 页": "The original file has no page {0}",
+  "文字版不含图片：这里直接显示原文件的这一页。": "Figures are not kept in the text: this shows that page of the original file.",
+  "原文件第 {0} 页": "Page {0} of the original file"
+}

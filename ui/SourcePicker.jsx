@@ -89,8 +89,8 @@ export function documentNotes(item) {
     item.warnings.includes('legacy-extraction') && ui('含旧版提取页，建议重新导入')].filter(Boolean);
 }
 
-/** What the picker's filter searches: title, file name, courses and format. */
-export const documentSearchText = item => [item.title, item.filename, ...(item.courses || []), sourceFormatLabel(item)].filter(Boolean).join(' ');
+/** What the picker's filter searches: title, file name, the title before a rename, courses and format. */
+export const documentSearchText = item => [item.title, item.filename, item.renamedFrom, ...(item.courses || []), sourceFormatLabel(item)].filter(Boolean).join(' ');
 
 /* The filter appears once the list is longer than a screenful of rows. */
 const FILTER_AFTER = 6;

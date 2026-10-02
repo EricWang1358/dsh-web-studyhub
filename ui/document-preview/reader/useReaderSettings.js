@@ -1,11 +1,2 @@
-import { useCallback, useEffect, useState } from 'react';
-import { loadReaderSettings, normalizeReaderSettings, resetReaderSettings, saveReaderSettings } from './settings.js';
-
-/** [settings, update(patch), reset()]: the reader's preferences, kept in the browser. */
-export function useReaderSettings() {
-  const [settings, setSettings] = useState(loadReaderSettings);
-  useEffect(() => { saveReaderSettings(settings); }, [settings]);
-  const update = useCallback(patch => setSettings(current => normalizeReaderSettings({ ...current, ...patch })), []);
-  const reset = useCallback(() => setSettings(resetReaderSettings), []);
-  return [settings, update, reset];
-}
+/* The reader's preferences are the shared reading settings (ui/reading-settings): one per browser, live in every open panel. */
+export { useReadingSettings as useReaderSettings } from '../../reading-settings/store.js';

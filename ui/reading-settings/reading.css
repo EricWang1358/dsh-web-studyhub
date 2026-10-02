@@ -1,0 +1,96 @@
+/* Reading blocks: the source reader's size, text width, typeface and background applied to the long-form text of the study content
+   (review explanations and Q&A, results, notes, lessons, the skeleton detail pane, the exam report). A block opts in with the
+   .study-reading class (ui/reading-settings/ReadingSettings.jsx sets the variables and the face / tone attributes on it); only
+   TEXT elements follow, never a control, and nothing goes below the 15px floor. Tokens only. */
+:is(.study-app, .study-seat) {
+  /* The Aa popover: the same rules the reader has, so it looks the same wherever it is mounted. */
+  .reader-popover { position: relative; display: inline-flex; }
+  .reader-popover__panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 30;
+    display: grid;
+    gap: var(--space-4);
+    box-sizing: border-box;
+    width: min(304px, calc(100vw - var(--space-4)));
+    padding: var(--space-4);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow-md);
+    color: var(--text);
+    text-align: left;
+    font-size: var(--fs-md);
+    font-weight: 400;
+    white-space: normal;
+  }
+  .reader-setting { display: grid; gap: var(--space-2); }
+  .reader-setting__label { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em; }
+  .reader-stepper { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .reader-stepper__value { min-width: 2.5em; font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-align: center; }
+  .reader-popover__reset { justify-self: start; }
+
+  /* Where the Aa button sits on each surface. */
+  .result-reading { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
+  .note-header-tools { display: inline-flex; align-items: center; gap: var(--space-2); }
+  .spine-bar .spine-reading, .exam-report .exam-reading, .wf-teaching-heading .wf-reading, .skc-detail-head .skc-reading { margin-left: auto; }
+  .exam-report .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+  .question-tools .review-reading { align-self: center; }
+
+  .study-reading {
+    --reader-sans: var(--font-ui);
+    --reader-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
+    --reader-face: var(--reader-sans);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .study-reading--measure { max-width: var(--reading-measure, none); }
+  .study-reading[data-face='serif'] { --reader-face: var(--reader-serif); }
+
+  /* The text elements follow the reading size, leading and typeface. The doubled class outranks the page's own px sizes. */
+  .study-reading.study-reading :is(p, li, blockquote, dd, dt, figcaption, .md) {
+    font-family: var(--reader-face);
+    font-size: var(--reader-size, 16px);
+    line-height: var(--reading-leading, 1.65);
+  }
+  .study-reading.study-reading :is(td, th) {
+    font-family: var(--reader-face);
+    font-size: var(--reader-size, 16px);
+    line-height: 1.6;
+  }
+  /* Headings grow with the text but keep their own face; they are never smaller than the body. */
+  .study-reading.study-reading h3 { font-size: calc(var(--reader-size, 16px) + 1px); }
+  .study-reading.study-reading :is(h4, h5) { font-size: var(--reader-size, 16px); }
+  .study-reading :is(.md-table, table) { max-width: 100%; }
+
+  /* An article that is all text (a lesson): the container itself is the text, and its headings scale with it. */
+  .study-reading--prose.study-reading {
+    font-family: var(--reader-face);
+    font-size: var(--reader-size, 16px);
+    line-height: var(--reader-leading, 1.8);
+  }
+  .study-reading--prose.study-reading h1 { font-size: 1.7em; }
+  .study-reading--prose.study-reading h2 { font-size: 1.4em; }
+  .study-reading--prose.study-reading h3 { font-size: 1.2em; }
+  .study-reading--prose.study-reading :is(h4, h5, h6) { font-size: 1em; }
+
+  /* 纸张: the text sits on a paper sheet. */
+  .study-reading[data-tone='paper'] {
+    --text: var(--paper-ink);
+    --text-dim: var(--paper-ink);
+    --text-muted: var(--paper-dim);
+    --text-faint: var(--paper-dim);
+    --line: var(--paper-rule);
+    --line-soft: var(--paper-rule);
+    --line-strong: var(--paper-dim);
+    --bg-sunken: var(--paper-rule);
+    --bg-hover: var(--paper-rule);
+    box-sizing: border-box;
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-card);
+    background: var(--paper);
+    color: var(--paper-ink);
+  }
+  .study-reading[data-tone='paper'] :is(.md th, th) { background: var(--paper-rule); }
+}

@@ -15,6 +15,8 @@ import { JevNote, JevProbabilities, JevSuggestButton, useJevCourseSuggest } from
 import { noteText, startsIncluded } from './jev-flow.js';
 import { OriginalMenuEntry } from './document-preview/OriginalFile.jsx';
 import OutlineDialog from './document-preview/reader/OutlineDialog.jsx';
+import { RenameField } from './document-preview/RenameTitle.jsx';
+import { originalNote, renameDocument, startsEditing } from './document-preview/rename.js';
 import css from "./sources.css";
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
@@ -135,19 +137,30 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery })
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSegment }) {
+export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSegment, onRename }) {
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
     {call && <OriginalMenuEntry item={item} call={call} busy={busy} />}
+    {onRename && <button type="button" disabled={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</button>}
     {onChangeCourse && <button type="button" disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</button>}
     {onSegment && <button type="button" disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</button>}
     <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('移除')}</button>
   </div>;
 }
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, mastery, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
-  const [pagesOpen, setPagesOpen] = useState(false);
-  const listId = useId(), row = useRef(null);
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, mastery, rename, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
+  const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
+  const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
+  useEffect(() => () => clearTimeout(opening.current), []);
+  useEffect(() => { if (wasEditing.current && !editing) main.current?.focus({ preventScroll: true }); wasEditing.current = editing; }, [editing]);
+  const editor = rename ? rename(item) : null;
+  // A click on the title opens the reader a moment late, so a double-click on it can rename instead; everything else opens at once.
+  const openRow = event => {
+    if (!editor || !event.target.closest?.('.source-title')) { onOpen(item.sourceIds[0]); return; }
+    if (event.detail > 1) return;
+    clearTimeout(opening.current); opening.current = setTimeout(() => onOpen(item.sourceIds[0]), 260);
+  };
+  const startEditing = () => { clearTimeout(opening.current); setEditing(true); };
   const multi = item.pages.length > 1;
   // A converted book with chapters is browsed by chapter (WP28); its pages stay one click further in the picker.
   const chaptered = !!item.chapters?.length;
@@ -163,21 +176,27 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
       <div className="source-doc__line">
         {organizing && <input type="checkbox" aria-label={uiFormat('选择资料：{0}', [displayTitle(item.title)])}
           checked={selected} onChange={event => onSelect(event.target.checked)} />}
-        <button className="source-main" onClick={() => onOpen(item.sourceIds[0])}>
+        {editing && editor ? <div className="source-main source-main--editing">
+          <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
+          <RenameField title={item.title} original={item.renamedFrom} label={uiFormat('重命名「{0}」', [displayTitle(item.title)])}
+            onSave={async title => { await editor.save(title); setEditing(false); }} onRestore={async () => { await editor.restore(); setEditing(false); }} onCancel={() => setEditing(false)} />
+        </div> : <button ref={main} className="source-main" onClick={openRow} aria-keyshortcuts={editor ? 'F2' : undefined}
+          onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
-            <strong title={item.title}>{displayTitle(item.title)}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
+            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{displayTitle(item.title)}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
             <small>{item.courses.join(' · ') || ui('未分类')}{item.coursesInferred ? ui(' · 推断归属') : ''}
               {item.usedBy.length ? uiFormat(' · 用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''}</small>
             <small>{details.join(" · ")}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
             {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}
             <MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={displayTitle(item.title)} />
+            {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
           </span>
-        </button>
+        </button>}
         <div className="source-doc__actions">
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse} onRemove={onRemove} onSegment={onSegment} />
+            <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse} onRemove={onRemove} onSegment={onSegment} onRename={editor ? startEditing : undefined} />
           </details>
         </div>
       </div>
@@ -282,6 +301,10 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   const [removing, setRemoving] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
   const [segmenting, setSegmenting] = useState(null);
+  const renameFor = (act || call) ? item => ({
+    save: async title => { await renameDocument({ act, call }, item, { title }); setNotice?.({ text: uiFormat('已重命名为「{0}」', [title]), tone: 'success' }); },
+    restore: async () => { const done = await renameDocument({ act, call }, item, { restore: true }); setNotice?.({ text: uiFormat('已恢复原名「{0}」', [done.title]), tone: 'success' }); },
+  }) : undefined;
   const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); };
   const toggle = group => {
@@ -380,7 +403,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
-                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined}
+                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined} rename={renameFor}
                   mastery={data.materialMastery?.[item.key]} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
                   call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>
