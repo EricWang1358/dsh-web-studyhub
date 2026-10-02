@@ -33,3 +33,17 @@ test('it documents the seam, the outline hook and the evaluation commands that r
   assert.match(doc, /scripts\/jev-live-check\.mjs/);
   assert.match(doc, /tests\/fixtures\/jev-eval\/README\.md/);
 });
+
+test('the providers section states the OpenCode facts exactly and what is unverified', () => {
+  for (const id of ['typesafe', 'opencode-zen-free', 'opencode-zen']) assert.match(doc, new RegExp(`\`${id}\``), id);
+  assert.match(doc, /https:\/\/opencode\.ai\/zen\/v1\/systemone/);
+  assert.match(doc, /`jev-1\.13-free`/);
+  assert.match(doc, /`jev-1\.13`/);
+  assert.match(doc, /OPENCODE_GO_API_KEY_2/);
+  assert.match(doc, /does not say whether prompts are retained or used for training/i);
+  assert.match(doc, /limited time/i);
+  assert.match(doc, /never stored/i);
+  assert.match(doc, /Not verified/);
+  assert.match(doc, /JEV_NOTICE_VERSION/);
+  assert.match(doc, /--provider/);
+});
