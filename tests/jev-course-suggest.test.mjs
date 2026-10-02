@@ -62,6 +62,15 @@ test('the options are the learner’s courses, with a few titles already filed u
   assert.match(question.instructions, /course/i);
 });
 
+test('a parent nobody filed anything under is still an option, so "sure it is Design, not sure which chapter" has somewhere to land', () => {
+  const s = state([source('a', 'k8s', 'x', ['Design / 05 Kubernetes']), source('b', 'istio', 'x', ['Design / 06 Istio'])]);
+  const candidates = courseCandidates(s);
+  assert.deepEqual(candidates.map(item => item.name).sort(), ['Design', 'Design / 05 Kubernetes', 'Design / 06 Istio']);
+  assert.equal(candidates.find(item => item.name === 'Design').count, 0);
+  const criteria = buildCourseRequest(source('z', 'Mesh', 'x', []), candidates).questions.course.criteria;
+  assert.match(criteria.Design, /parent course/);
+});
+
 test('only a title and a short excerpt are sent, never the whole text', () => {
   const long = 'Transactions and locks. '.repeat(500);
   const request = buildCourseRequest(source('z', 'New lecture', long, []), [{ name: 'Databases', count: 1, titles: [] }]);
@@ -203,6 +212,10 @@ test('a failing Jev falls back: the breaker stops asking, the note says why, fin
   const mixed = await suggestCourses({ runtime: flaky.runtime, state: s, sources: picked.slice(0, 3), threshold: 0.8, language: 'en', concurrency: 1 });
   assert.equal(mixed.proposals.length, 2, 'the first source failed after its retries, the others were answered');
   assert.equal(mixed.failed, 1);
+  assert.equal(mixed.unavailable, undefined, 'something was answered, so it is not "unavailable"');
+  assert.equal(mixed.partial.reason, 'unavailable', 'but the page can still say that one could not be judged');
+  assert.equal(mixed.partial.failed, 1);
+  assert.match(mixed.partial.message, /Jev/);
 });
 
 test('no courses to choose from is a plain note, not a request', async t => {

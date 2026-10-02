@@ -55,4 +55,8 @@ export function probabilityRows(jev) {
 /** The default "采用建议" for a Jev row: only a suggestion that was filled in and changes something starts checked. */
 export const startsIncluded = proposal => !!proposal?.jev?.changed;
 
+/** The one quiet line above the suggestions: why Jev could not help at all, or how many sources it could not judge. '' when all went well. */
+export const noteText = result => result?.unavailable?.message
+  || (result?.partial ? uiFormat('有 {0} 份资料 Jev 没能判断：{1}', [result.partial.failed, result.partial.message]) : '');
+
 export const lineText = jev => uiFormat('采用线 {0}', [percentText(jev?.threshold ?? 0.8)]);

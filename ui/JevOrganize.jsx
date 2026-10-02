@@ -29,10 +29,10 @@ export function JevSuggestButton({ enabled, disabled, onClick }) {
 }
 
 /** Why Jev could not help, in one quiet line; the existing "请 AI 建议" and the manual field are still there. */
-export function JevNote({ note, onDismiss }) {
+export function JevNote({ note }) {
   useInjectCss(css, 'study-jev');
   if (!note) return null;
-  return <InlineMessage tone="warning" className="jev-note" onDismiss={onDismiss}>{uiMessage(note)} {ui('可以用「请 AI 建议」，或直接手动选择课程。')}</InlineMessage>;
+  return <InlineMessage tone="warning" className="jev-note">{uiMessage(note)} {ui('可以用「请 AI 建议」，或直接手动选择课程。')}</InlineMessage>;
 }
 
 /** The probabilities behind one suggested row: the top courses as bars, "none of these", and the threshold line. */

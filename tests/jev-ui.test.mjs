@@ -13,12 +13,12 @@ const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export { default as JevSettings, JevSettingsView, JevPrivacy, JevUsageView } from './ui/JevSettings.jsx';
   export { JevSuggestButton, JevNote, JevProbabilities } from './ui/JevOrganize.jsx';
-  export { privacyPoints, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META } from './ui/jev-flow.js';
+  export { privacyPoints, noteText, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META } from './ui/jev-flow.js';
   export { setUiLanguage, ENGLISH_SOURCES } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { JevSettings, JevSettingsView, JevUsageView, JevSuggestButton, JevNote, JevProbabilities, privacyPoints, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META, setUiLanguage, ENGLISH_SOURCES } = module.exports;
+const { JevSettings, JevSettingsView, JevUsageView, JevSuggestButton, JevNote, JevProbabilities, privacyPoints, noteText, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META, setUiLanguage, ENGLISH_SOURCES } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -164,6 +164,17 @@ test('the organizer: no button unless the experiment is on; the probabilities an
   const en = render(h(JevProbabilities, { jev }), 'en');
   assert.match(en, /line 80%/i);
   assert.ok(!han.test(en), en);
+});
+
+test('the note above the suggestions: the reason when Jev could not help, the count when it only missed some, nothing when all went well', () => {
+  assert.equal(noteText({ proposals: [{}], failed: 0 }), '');
+  assert.match(noteText({ proposals: [], unavailable: { reason: 'invalid-key', message: 'Jev 密钥无效' } }), /密钥无效/);
+  const partial = { proposals: [{}], failed: 2, partial: { reason: 'unavailable', message: 'Jev 服务暂时不可用', failed: 2 } };
+  assert.match(noteText(partial), /有 2 份资料 Jev 没能判断：Jev 服务暂时不可用/);
+  setUiLanguage('en');
+  const en = noteText({ ...partial, partial: { ...partial.partial, message: 'Jev is temporarily unavailable.' } });
+  setUiLanguage('zh');
+  assert.equal(en, '2 of the sources could not be judged by Jev: Jev is temporarily unavailable.');
 });
 
 test('every Chinese sentence of the Jev screens has an English one', async () => {

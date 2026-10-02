@@ -95,6 +95,8 @@ export async function startFakeJev(options = {}) {
     baseUrl: origin(), key, requests,
     /** Queue more failures. */
     fail(...statuses) { failures.push(...statuses); },
+    /** Forget failures nobody asked for yet. */
+    clearFailures() { failures.length = 0; },
     close: () => new Promise(resolve => { server.closeAllConnections?.(); server.close(resolve); }),
   };
 }

@@ -11,7 +11,7 @@ import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import { JevNote, JevProbabilities, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
-import { startsIncluded } from './jev-flow.js';
+import { noteText, startsIncluded } from './jev-flow.js';
 import { OriginalMenuEntry } from './document-preview/OriginalFile.jsx';
 import css from "./sources.css";
 
@@ -298,14 +298,14 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 })))}>{ui('请 AI 建议')}</button>
             <JevSuggestButton enabled={jevOn} disabled={busy || !selectedItems.length || selectedItems.length > 100}
               onClick={() => { setJevNote(''); act('source.organize.jev', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
-                setJevNote(result.unavailable?.message || '');
+                setJevNote(noteText(result));
                 if (result.proposals.length) setProposals(result.proposals.map(proposal => {
                   const item = items.find(entry => entry.sourceIds.includes(proposal.id));
                   return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: startsIncluded(proposal), courseText: proposal.courses.join('; ') };
                 }));
               }); }} />
           </div>
-          <JevNote note={jevNote} onDismiss={() => setJevNote('')} />
+          <JevNote note={jevNote} />
           {proposals && <div className="source-course-proposals">
             <p className="muted">{ui('建议尚未保存，可先修改课程，再确认应用。')}</p>
             {proposals.map(proposal => <div key={proposal.id}>

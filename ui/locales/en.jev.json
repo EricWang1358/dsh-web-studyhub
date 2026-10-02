@@ -48,5 +48,6 @@
   "已填入": "Filled in",
   "把握不够，没有填入": "Not confident enough, so nothing was filled in",
   "都不合适": "None of these",
-  "采用线 {0}": "line {0}"
+  "采用线 {0}": "line {0}",
+  "有 {0} 份资料 Jev 没能判断：{1}": "{0} of the sources could not be judged by Jev: {1}"
 }
