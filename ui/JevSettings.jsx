@@ -3,6 +3,7 @@ import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Icon, InlineMessage } from './components/index.js';
 import { TokenUsage } from './TokenUsage.jsx';
+import JevLevelCheck from './JevLevelCheck.jsx';
 import { JEV_FEATURE_META, dshUsage, failureCode, percentText, privacyPoints, setupStep, thresholdChoices } from './jev-flow.js';
 import audioCss from './audio-settings.css';
 import css from './jev.css';
@@ -54,7 +55,7 @@ export function JevUsageView({ usage }) {
 }
 
 /** The controls of one saved state. `settings` is jev.settings.get, `usage` is jev.usage's `usage`; `failure` its last failure. */
-export function JevSettingsView({ settings, usage, failure, busy, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold }) {
+export function JevSettingsView({ call, settings, usage, failure, busy, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold }) {
   const [value, setValue] = useState('');
   const messageId = useId(), step = setupStep(settings), ready = step === 'ready';
   const locked = busy || !!working;
@@ -108,6 +109,7 @@ export function JevSettingsView({ settings, usage, failure, busy, working, resul
           </select>
         </label>
       </fieldset>
+      {settings.enabled && settings.features.levelCheck && ready && <details className="jev-dev"><summary>{ui('开发者面板：题目认知层次对照')}</summary><JevLevelCheck call={call} /></details>}
       {failure && <InlineMessage tone="warning" className="jev-failure">{uiMessage(failureCode(failure.reason))}</InlineMessage>}
       <JevUsageView usage={usage} />
       {error && <InlineMessage tone="error">{uiMessage(error)}</InlineMessage>}
@@ -140,9 +142,9 @@ export default function JevSettings({ call, busy = false, setNotice, initial = n
   return (
     <fieldset className="audio-settings settings-section jev-settings" data-tour="settings-jev" data-experimental="true">
       <legend className="settings-section__title">{ui('实验性 · Jev 判断服务')}<span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span></legend>
-      <p className="settings-section__lead">{ui('Jev 是 TypeSafe AI 的「System One」模型：又快又便宜，擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。')}</p>
+      <p className="settings-section__lead">{ui('Jev 是 TypeSafe AI 的「System One」模型：按服务商的说法又快又便宜（我们没有核实），擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。')}</p>
       {!settings && !error && <p className="muted">{ui('正在读取 Jev 设置…')}</p>}
-      {settings && <JevSettingsView settings={settings} usage={usage} failure={failure} busy={busy} working={working} result={result} error={error}
+      {settings && <JevSettingsView call={call} settings={settings} usage={usage} failure={failure} busy={busy} working={working} result={result} error={error}
         onKey={key => change('save', { key }, async next => { setResult(null); if (next.confirmed) await verify(); })}
         onVerify={() => run('verify', verify)}
         onClearKey={() => change('clear', { key: '' }, async () => { setResult(null); })}

@@ -60,6 +60,20 @@
 .study-app .jev-prob.is-none { color: var(--text-muted); }
 .study-app .jev-prob__value { text-align: right; font-variant-numeric: tabular-nums; }
 
+/* The developer panel of the level cross-check. */
+.study-app .jev-dev { display: grid; gap: var(--space-2); }
+.study-app .jev-dev > summary { cursor: pointer; color: var(--text-dim); font-size: var(--fs-sm); }
+.study-app .jev-levels { display: grid; gap: var(--space-2); padding: var(--space-3) 0; min-width: 0; }
+.study-app .jev-levels__counts, .study-app .jev-levels__note { margin: 0; font-size: var(--fs-sm); }
+.study-app .jev-levels__counts small { color: var(--text-muted); }
+.study-app .jev-levels__matrix { border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; max-width: 100%; }
+.study-app .jev-levels__matrix th, .study-app .jev-levels__matrix td { padding: 4px 10px; border: 1px solid var(--line-soft); text-align: center; }
+.study-app .jev-levels__matrix th[scope="row"] { text-align: left; }
+.study-app .jev-levels__matrix td.is-diagonal { background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.study-app .jev-levels__list { display: grid; gap: var(--space-2); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); }
+.study-app .jev-levels__list li { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.study-app .jev-levels__list small { color: var(--text-muted); }
+
 /* The draft: the badge on a card's summary line and the probabilities inside the opened card. */
 .study-app .jev-badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600;
   background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-text); }
