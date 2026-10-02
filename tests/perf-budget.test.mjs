@@ -91,8 +91,9 @@ test("the snapshot carries source metadata, not every source's text (payload bud
   const snapshot = await f.service.call("snapshot");
   const payload = JSON.stringify(snapshot).length;
   t.diagnostic(`snapshot payload ${payload} chars for ${f.sourceChars} chars of source text over ${snapshot.sources.length} sources`);
-  assert.ok(payload <= f.sourceChars * 0.4, `snapshot is ${payload} chars for ${f.sourceChars} chars of source text; budget 40%`);
-  assert.ok(payload <= snapshot.sources.length * 1500, `snapshot is ${payload} chars for ${snapshot.sources.length} sources; budget 1500 per source`);
+  // Budgets include `materialMastery` (about 280 chars per document that has questions: the reader's outline meters and the 资料 rows), added after the text was dropped.
+  assert.ok(payload <= f.sourceChars * 0.5, `snapshot is ${payload} chars for ${f.sourceChars} chars of source text; budget 50%`);
+  assert.ok(payload <= snapshot.sources.length * 1800, `snapshot is ${payload} chars for ${snapshot.sources.length} sources; budget 1800 per source`);
   for (const source of snapshot.sources) {
     assert.equal(typeof source.chars, "number", "each source reports its length as chars");
     assert.equal(typeof source.excerpt, "string", "and the first characters the sources page shows");
