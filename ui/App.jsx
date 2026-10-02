@@ -11,6 +11,7 @@ import StudyMap from "./StudyMap.jsx";
 import Welcome, { SampleBanner } from "./Welcome.jsx";
 import Tour from "./tour/Tour.jsx";
 import TourGlyph from "./tour/TourGlyph.jsx";
+import { NavItem, ResumeNavItem, CoachNavItem } from "./SideNav.jsx";
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from "./tour/steps.js";
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from "./tour/progress.js";
 import { OnboardingPanel, RemoveSampleDialog } from "./tour/SampleControls.jsx";
@@ -19,7 +20,6 @@ import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
 import { dueSummary } from "../lib/board-model.js";
-import Icon from "./Icon.jsx";
 import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
 import Sources from "./Sources.jsx";
@@ -1660,55 +1660,30 @@ export default function App({ call: transportCall, host = {} }) {
               style={{ transform: `translateY(${navMark.top}px)`, height: navMark.height }}
             />
           )}
-          <button
-            className={
-              "nav resume-nav" +
-              (navPage === "review" ? " active" : "") +
-              (data && !lastRun && !data.decks.length ? " muted-nav" : "")
-            }
+          <ResumeNavItem
+            lastRun={lastRun}
+            hasDecks={!!data?.decks.length}
+            ready={!!data}
+            active={navPage === "review"}
             disabled={!data || busy || !pageAvailable(data, 'review')}
-            title={
-              !data
-                ? ""
-                : lastRun
-                  ? uiFormat("回到「{0}」第 {1}/{2} 题", [lastRun.title, lastRun.index + 1, lastRun.total])
-                  : data.decks.length
-                    ? ui("没有进行中的练习，开始今日学习")
-                    : ui("还没有题目，先去创建题组")
-            }
-            aria-keyshortcuts="S"
             onClick={resumeOrStart}
-          >
-            <Icon><NavGlyph name="resume" /></Icon>
-            <span className="nav-label">{ui("回到题目")}{lastRun && page !== "library" && (
-                <small>
-                  {lastRun.index + 1}/{lastRun.total} · {lastRun.title}
-                </small>
-              )}
-            </span>
-          </button>
+          />
           {data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
-            <button
-              className="nav coach-nav"
-              disabled={busy}
-              title={ui("开刷为你定制的题（这一轮会保留，可回来继续）")}
-              onClick={onCoachPractice}
-            >
-              <Icon><NavGlyph name="coach" /></Icon>
-              <span className="nav-label">{ui("为你定制")}
-                <small>{uiFormat("{0} 道题已备好", [data.coach.ready])}</small>
-              </span>
-              <span className="nav-badge" aria-hidden="true">{data.coach.ready}</span>
-            </button>
+            <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={onCoachPractice} />
           )}
           {[...navOrder.order.main, ...navOrder.order.upkeep].filter(id => pageAvailable(data, id)).map((id) => {
             const label = navLabels[id], upkeep = NAV_DEFAULTS.upkeep.includes(id);
+            const due = id === "board" && boardDue.overdue + boardDue.today > 0;
             return (
-              <button
+              <NavItem
                 key={id}
                 {...navOrder.bind(id)}
                 data-tour={`nav-${id}`}
-                className={"nav" + (upkeep ? " nav-upkeep" : "") + (navPage === id ? " active" : "") + (navOrder.lifted === id ? " is-dragging" : "")}
+                className={navOrder.lifted === id ? "is-dragging" : ""}
+                upkeep={upkeep}
+                active={navPage === id}
+                glyph={id}
+                label={ui(label)}
                 title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
                 onClick={() => switchPage(id, () => {
                   if (id === 'board') setBoardStudyRef(currentStudyReference());
@@ -1718,17 +1693,10 @@ export default function App({ call: transportCall, host = {} }) {
                   setError("");
                 })}
                 disabled={!data && id !== "board"}
-              >
-                <Icon><NavGlyph name={id} /></Icon>
-                {ui(label)}
-                {id === "board" && boardCount !== undefined && (
-                  <span className={boardDue.overdue + boardDue.today ? "nav-count is-due" : "nav-count"}
-                    title={boardDue.overdue + boardDue.today ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}>{boardCount}</span>
-                )}
-                {id === "sources" && data && (
-                  <span className="nav-count">{countDocuments(data.sources)}</span>
-                )}
-              </button>
+                hint={id === "board" ? boardCount : id === "sources" && data ? countDocuments(data.sources) : undefined}
+                hintClass={due ? "nav-count is-due" : "nav-count"}
+                hintTitle={due ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}
+              />
             );
           })}
           {navOrder.customized && !sidebarNarrow && (
@@ -1741,13 +1709,10 @@ export default function App({ call: transportCall, host = {} }) {
         <div className="sidebar-bottom">
           <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
           {data && (
-            <button type="button" className="nav tour-nav" data-tour="tour-reopen" disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
-              title={ui("功能导览：切到每个关键功能，看看怎么用")} onClick={() => { if (!tourStep) startTour(); }}>
-              <Icon><TourGlyph /></Icon>
-              <span className="nav-label">{ui("功能导览")}{tourResume && (
-                <small>{uiFormat("继续 {0}/{1}", [tourResume.index + 1, tourResume.total])}</small>
-              )}</span>
-            </button>
+            <NavItem className="tour-nav" data-tour="tour-reopen" icon={<TourGlyph />} label={ui("功能导览")} disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
+              hint={tourResume ? `${tourResume.index + 1}/${tourResume.total}` : undefined}
+              title={ui("功能导览：切到每个关键功能，看看怎么用") + (tourResume ? "\n" + uiFormat("继续 {0}/{1}", [tourResume.index + 1, tourResume.total]) : "")}
+              onClick={() => { if (!tourStep) startTour(); }} />
           )}
           <div className="local-status">
             <span />{ui("本地学习工作区")}</div>
@@ -1757,25 +1722,25 @@ export default function App({ call: transportCall, host = {} }) {
               [current, label] = THEMES[i],
               [nextId, nextLabel] = THEMES[(i + 1) % THEMES.length];
             return (
-              <button
-                type="button"
-                className="nav theme-cycle"
+              <NavItem
+                className="theme-cycle"
+                glyph={current}
+                label={`${ui("外观 · ")}${ui(label)}`}
                 title={uiFormat("主题：{0}（点击切换为{1}）", [ui(label), ui(nextLabel)])}
                 aria-label={uiFormat("主题：{0}，切换为{1}", [ui(label), ui(nextLabel)])}
                 onClick={() => setTheme(nextId)}
-              >
-                <Icon><NavGlyph name={current} /></Icon>{ui("外观 · ")}{ui(label)}
-              </button>
+              />
             );
           })()}
           <UpdateCenter call={call} host={host} compact={sidebarNarrow} notify={setNotice} />
-          <button
-            className={navPage === "settings" ? "nav active" : "nav"}
+          <NavItem
+            glyph="settings"
+            label={ui("设置")}
+            active={navPage === "settings"}
             title={ui("设置")}
             data-tour="nav-settings"
             onClick={() => switchPage("settings")}
-          >
-            <Icon><NavGlyph name="settings" /></Icon>{ui("设置")}</button>
+          />
         </div>
       </aside>
       <main className={pageTarget ? "is-leaving" : undefined}>
