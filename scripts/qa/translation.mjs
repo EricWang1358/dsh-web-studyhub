@@ -39,6 +39,8 @@ const PAIRS = [
   ["Interoperability duties can reduce lock-in, but they also change how much a platform will invest in its own users.", "互操作义务可以减少锁定，但也会改变平台愿意为自己的用户投入多少。"],
 ];
 const KEEP = { CQRS: "命令查询职责分离" };
+/** A Chinese term and the English the dictionary renders it as, so a fixed translation from the glossary shows in the answer. */
+const RENDERED = { 网络效应: "Network effects" };
 const sayEnglish = (zh) => PAIRS.find(([, chinese]) => chinese === zh)?.[0];
 
 /** The two documents, in the language the learner reads in the other language of: English text for a Chinese interface, Chinese text for an English one. */
@@ -48,7 +50,8 @@ function content(lang) {
   const md = [`# ${heading("Platform Economics Notes", "平台经济学笔记")}`, "", text(0), "", text(1), "", `## ${heading("Pricing and subsidies", "定价与补贴")}`, "", text(2), "", text(3), "", text(4), "",
     `## ${heading("Governance", "治理")}`, "", text(5), "", text(6), "", english ? "平台让两类人群找到彼此。" : "Platforms let two groups find each other.", ""].join("\n");
   const txt = [heading("Lecture notes, week 3", "第三周课堂笔记"), "", text(1), "", text(3), "", text(6), "", text(7), ""].join("\n");
-  return { english, md, txt, p0: text(0).slice(0, 36), p1: text(1).slice(0, 30), cqrs: english ? "CQRS design" : "命令查询职责分离", sentence: english ? "The rules of the platform change what each group does." : "平台的规则会改变每一类用户的行为。" };
+  return { english, md, txt, p0: text(0).slice(0, 36), p1: text(1).slice(0, 30), cqrs: english ? "CQRS design" : "命令查询职责分离", sentence: english ? "The rules of the platform change what each group does." : "平台的规则会改变每一类用户的行为。",
+    term: english ? "CQRS" : "网络效应", fixed: english ? "" : "the network effect", affected: english ? "A CQRS design" : "网络效应是指" };
 }
 
 /** A translator that answers each passage the way the fixture says, adds a mark for the learner's comment and keeps glossary terms. */
@@ -61,7 +64,10 @@ function translator({ latencyMs, signalOnly = false }) {
     const translations = data.passages.map((passage) => {
       let text = toEnglish ? sayEnglish(passage.text) : PAIRS.find(([english]) => english === passage.text)?.[1];
       if (!text) text = toEnglish ? `This paragraph says: ${passage.text.length} characters of Chinese text, rendered in English for the reading.` : `这一段（${passage.text.length} 个字符）的中文译文。`;
-      for (const entry of data.glossary || []) if (entry.rule.startsWith("keep") && KEEP[entry.term]) text = text.replaceAll(KEEP[entry.term], entry.term);
+      for (const entry of data.glossary || []) {
+        if (entry.rule.startsWith("keep") && KEEP[entry.term]) text = text.replaceAll(KEEP[entry.term], entry.term);
+        if (entry.rule.startsWith("translate as: ") && RENDERED[entry.term]) text = text.replaceAll(RENDERED[entry.term], entry.rule.slice("translate as: ".length));
+      }
       if (data.learnerComment) text += toEnglish ? " (adjusted as you asked)" : "（已按你的意见调整）";
       return { id: passage.id, text };
     });
@@ -157,8 +163,8 @@ export async function runTranslationQa(options) {
     const blockAfter = (text) => paragraph(text).locator("xpath=following-sibling::*[1][contains(@class,'tr-host')]");
     const openDisplay = async () => { if (!(await viewer.locator(".reader-popover__panel[aria-label]").count())) await viewer.getByRole("button", { name: t("显示设置", "Display settings"), exact: true }).click(); await viewer.locator(".tr-modes").waitFor(); };
     const setMode = async (label) => { await openDisplay(); await viewer.locator(".tr-modes__item", { hasText: label }).click(); await page.keyboard.press("Escape"); await sleep(250); };
-    const labels = { pairs: t("逐段对照", "Paragraph pairs"), side: t("左右分栏", "Side by side"), only: t("仅中文", "Chinese only"), hidden: t("隐藏译文", "Hide translations") };
-    const toggleTools = async () => { await viewer.getByRole("button", { name: t("学习工具", "Learning tools"), exact: true }).click(); await sleep(300); };
+    const labels = { pairs: t("逐段对照", "Paragraph pairs"), side: t("左右分栏", "Side by side"), only: t("仅中文", "English only"), hidden: t("隐藏译文", "Hide translations") };
+    const toggleTools = async () => { await viewer.getByRole("button", { name: t("学习工具", "Study tools"), exact: true }).click(); await sleep(300); };
     const toggleOutline = async () => { await viewer.getByRole("button", { name: t("目录", "Contents"), exact: true }).click().catch(() => {}); await sleep(300); };
     const select = (phrase) => page.evaluate((words) => {
       const body = document.querySelector(".study-document-body"), walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
@@ -174,6 +180,8 @@ export async function runTranslationQa(options) {
     }, phrase);
     const popover = () => viewer.locator(".tr-panel");
     const openMenu = async () => { if (!(await popover().count())) await viewer.locator(".tr-toolbar-button").click(); await popover().waitFor(); await viewer.locator(".tr-scope[data-status='ready']").first().waitFor({ timeout: 15000 }); };
+    // A toast that a job left (6 seconds, held while the pointer rests on it) must not sit on the next dialog's buttons.
+    const clearToasts = async () => { await page.mouse.move(2, 2); await page.waitForFunction(() => !document.querySelector(".sh-toast"), null, { timeout: 15000 }).catch(() => {}); };
     const closeMenu = async () => { if (await popover().count()) await viewer.locator(".tr-toolbar-button").click(); await sleep(200); };
 
     await page.goto(server.url);
@@ -259,22 +267,27 @@ export async function runTranslationQa(options) {
       await blockAfter(doc.p0).locator(".tr-block__text").waitFor({ timeout: 10000 });
     });
     await step("glossary-open", async () => {
+      await clearToasts();
       await blockAfter(doc.p0).getByRole("button", { name: t("这段译文的更多操作", "More actions for this translation") }).click();
       await page.getByRole("menuitem", { name: t("术语表…", "Glossary…") }).click();
       await page.locator("dialog[open] .tr-gloss").waitFor();
-      await page.locator("dialog[open] .tr-gloss__term").first().fill("CQRS");
+      await page.locator("dialog[open] .tr-gloss__term").first().fill(doc.term);
+      if (doc.fixed) { await page.locator("dialog[open] .tr-gloss__mode").first().selectOption("fixed"); await page.locator("dialog[open] .tr-gloss__to").first().fill(doc.fixed); }
     }, { audit: false });
     await step("glossary-saved", async () => {
+      await clearToasts();
       await page.locator("dialog[open]").getByRole("button", { name: t("保存术语表", "Save glossary") }).click();
       await page.locator("dialog[open] .tr-gloss__result").waitFor({ timeout: 15000 });
     }, { audit: false });
     await step("glossary-retranslate", async () => {
+      await clearToasts();
       await page.locator("dialog[open] .tr-gloss__result").getByRole("button", { name: t(/重新翻译这 \d+ 段/, /Retranslate these \d+ paragraphs/) }).click();
       await viewer.locator(".tr-job").waitFor({ timeout: 15000 });
       await viewer.locator(".tr-job[data-status='complete']").waitFor({ timeout: 30000 });
-      await blockAfter(doc.cqrs).locator(".tr-block__text", { hasText: "CQRS" }).waitFor({ timeout: 15000 });
+      await blockAfter(doc.affected).locator(".tr-block__text", { hasText: doc.fixed || doc.term }).waitFor({ timeout: 15000 });
     });
     await step("target-switch", async () => {
+      await clearToasts();
       await openMenu();
       await popover().getByRole("button", { name: options.lang === "zh" ? "English" : t("简体中文", "Simplified Chinese") }).click();
       await sleep(900);
@@ -285,7 +298,7 @@ export async function runTranslationQa(options) {
       await sleep(900); await closeMenu();
     });
     await step("original-view", async () => {
-      await viewer.getByRole("radio", { name: t("原文", "Source text"), exact: true }).click().catch(() => viewer.getByRole("button", { name: t("原文", "Source text"), exact: true }).click());
+      await viewer.getByRole("radio", { name: t("原文", "Original text"), exact: true }).click().catch(() => viewer.getByRole("button", { name: t("原文", "Original text"), exact: true }).click());
       await sleep(600); await select(doc.sentence); await page.locator(".tr-chipbtn").waitFor();
       await page.locator(".tr-chipbtn").click(); await viewer.locator(".tr-float .tr-block__text").waitFor({ timeout: 15000 });
     });

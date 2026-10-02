@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { Button, SegmentedControl } from '../../components/index.js';
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
@@ -40,9 +40,21 @@ function scopeLine(scope) {
   return done ? uiFormat('还有 {0} 段要译 · 已译 {1} 段', [todo, done]) : uiFormat('还有 {0} 段要译', [todo]);
 }
 
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 /** The 译 button of the toolbar and its popover. */
 export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvailable, stale, busy, hasTranslations, onStart, onExpandAll, onCollapseAll, onGlossary, onTarget }) {
-  const root = useRef(null), panelId = useId();
+  const root = useRef(null), panel = useRef(null), panelId = useId();
+  // On a narrow reader the button can sit anywhere along the wrapped toolbar: slide the panel back inside the viewer (a style write, no state).
+  useIsoLayoutEffect(() => {
+    const element = panel.current, viewer = root.current?.closest('.study-document-viewer');
+    if (!open || !element || !viewer) return;
+    element.style.transform = '';
+    const box = element.getBoundingClientRect(), bounds = viewer.getBoundingClientRect(), margin = 8;
+    let shift = Math.min(0, bounds.right - margin - box.right);
+    shift = Math.max(shift, bounds.left + margin - box.left);
+    if (shift) element.style.transform = `translateX(${Math.round(shift)}px)`;
+  }, [open, scopes]);
   useEffect(() => {
     if (!open) return undefined;
     const outside = event => { if (root.current && !root.current.contains(event.target)) onOpenChange(false); };
@@ -56,7 +68,7 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
       title={ui('中英对照翻译')} data-busy={busy ? 'true' : undefined} data-tour="translation-toggle" onClick={() => onOpenChange(!open)}>
       <span className="tr-toolbar-button__tag" aria-hidden="true">{target === 'en' ? 'EN' : ui('译')}</span><span className="tr-toolbar-button__label">{ui('翻译')}</span>
     </Button>
-    {open && <div className="reader-popover__panel tr-panel" id={panelId} role="group" aria-label={ui('中英对照翻译')}>
+    {open && <div className="reader-popover__panel tr-panel" ref={panel} id={panelId} role="group" aria-label={ui('中英对照翻译')}>
       <div className="tr-panel__head">
         <strong>{ui('中英对照')}</strong>
         <SegmentedControl size="sm" label={ui('译成')} value={target} onChange={onTarget} options={[{ value: 'zh', label: names.zh }, { value: 'en', label: names.en }]} />
@@ -65,11 +77,9 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
       {scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
         <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
         {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} />}
-        {(scope.counts?.toTranslate || 0) > 0 && <>
-          <Button size="sm" variant="secondary" disabled={!modelAvailable || busy || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>
-          <small className="tr-scope__note">{ui('只译还没有译文的段落；在后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。')}</small>
-        </>}
+        {(scope.counts?.toTranslate || 0) > 0 && <Button size="sm" variant="secondary" disabled={!modelAvailable || busy || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>}
       </section>)}
+      {scopes.some(scope => (scope.counts?.toTranslate || 0) > 0) && <p className="tr-panel__note">{ui('只译还没有译文的段落；在后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。')}</p>}
       <div className="tr-panel__actions">
         <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onExpandAll}>{ui('展开本页全部译文')}</Button>
         <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onCollapseAll}>{ui('收起本页全部译文')}</Button>

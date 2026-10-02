@@ -27,7 +27,7 @@ const escapeAttribute = value => String(value).replace(/["\\]/g, '\\$&');
 let counter = 0;
 const nextId = prefix => `${prefix}-${Date.now().toString(36)}-${(counter += 1)}`;
 
-const emptyLayer = () => ({ paragraphs: [], byKey: new Map(), byElement: new Map(), marks: new Map(), hosts: new Map(), pinned: new Map(), temp: new Map(), origOpen: new Set(), active: null, requests: new Map(), timers: new Map() });
+const emptyLayer = () => ({ paragraphs: [], byKey: new Map(), byElement: new Map(), marks: new Map(), hosts: new Map(), pinned: new Map(), origOpen: new Set(), active: null, requests: new Map(), timers: new Map() });
 
 function teardown(layer) {
   for (const mark of layer.marks.values()) mark.remove();
@@ -140,7 +140,8 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     const own = layer.current, container = body.current;
     if (!container || !supported || !reading) { if (own.hosts.size) { own.hosts.forEach(host => host.remove()); own.hosts = new Map(); } setHosts(current => current.size ? new Map() : current); return; }
     let changed = false;
-    for (const [key, host] of own.hosts) if (!wanted.includes(key) || !host.isConnected) { host.remove(); own.hosts.delete(key); changed = true; }
+    const keep = new Set(wanted);
+    for (const [key, host] of own.hosts) if (!keep.has(key) || !host.isConnected) { host.remove(); own.hosts.delete(key); changed = true; }
     // Selections kept earlier are found again by their words and context, like the link underlines are.
     const lost = wanted.filter(key => !own.hosts.has(key) && state.items[key]?.kind === 'selection' && !(own.pinned.get(key)?.isConnected));
     if (lost.length) {
@@ -150,7 +151,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     for (const key of wanted) {
       if (own.hosts.has(key)) continue;
       const item = state.items[key];
-      const anchor = own.pinned.get(key)?.isConnected ? own.pinned.get(key) : own.temp.get(key)?.isConnected ? own.temp.get(key) : item?.kind === 'selection' ? null : own.byKey.get(key)?.element;
+      const anchor = own.pinned.get(key)?.isConnected ? own.pinned.get(key) : item?.kind === 'selection' ? null : own.byKey.get(key)?.element;
       if (!anchor) continue;
       const host = createHost(container.ownerDocument, key);
       anchor.after(host); own.hosts.set(key, host); changed = true;
@@ -189,12 +190,13 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       const result = await call('materials.translation.translate', { ...identity, target, requestId, passages: entries.map(entry => entry.passage), ...(retranslate ? { retranslate: true, comment } : {}) });
       if (result?.available === false || result?.status === 'unavailable') { dispatch({ type: 'unavailable', keys }); return; }
       const results = result.results.map(item => ({ ...item, key: item.key || entries[item.index]?.key }));
-      for (const item of results) { const wasTemp = entries[item.index]?.key; if (item.item && wasTemp && wasTemp !== item.key && own.temp.has(wasTemp)) own.pinned.set(item.key, own.temp.get(wasTemp)); }
+      // A selection's block is anchored where the selection ended; the key the backend gives it replaces the one it had while waiting.
+      for (const item of results) { const wasTemp = entries[item.index]?.key; if (item.item && wasTemp && wasTemp !== item.key && own.pinned.has(wasTemp)) own.pinned.set(item.key, own.pinned.get(wasTemp)); }
       dispatch({ type: 'settled', results, keys, reveal: latest.current.mode === 'hidden' });
       return results;
     } catch (error) {
       if (/cancel/i.test(error?.message || '')) dispatch({ type: 'cancelled', keys }); else dispatch({ type: 'failed', keys, message: error?.message });
-    } finally { keys.forEach(key => { own.requests.delete(key); own.temp.delete(key); }); }
+    } finally { keys.forEach(key => { own.requests.delete(key); }); }
   }, [call, identity, target]);
 
   const cancel = useCallback(async key => {
@@ -225,7 +227,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     if (!capture || !container) return;
     const tempKey = `tmp:${nextId('sel')}`;
     const block = reading ? paragraphAround(capture.range.endContainer, layer.current.byElement) : null;
-    if (block) layer.current.temp.set(tempKey, block);
+    if (block) layer.current.pinned.set(tempKey, block);
     else {
       const area = page?.getBoundingClientRect(), rects = capture.range.getClientRects(), last = rects[rects.length - 1];
       if (area && last) setFloating({ key: tempKey, left: Math.max(0, Math.min(last.left - area.left, area.width - 320)), top: last.bottom - area.top + 6 });
@@ -416,7 +418,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     const common = { target, onGlossary: () => setGlossaryOpen(true) };
     if (undoable && !item) return <TranslationBlock {...common} state="undo" onUndo={() => undo(key)} />;
     if (pending && !item) return <TranslationBlock {...common} state="pending" onCancel={() => cancel(key)} />;
-    if (error && !item) return <TranslationBlock {...common} state="error" error={error} onRetry={() => { const paragraph = layer.current.byKey.get(key); if (paragraph) void send([paragraphEntry(paragraph)]); }} onDismiss={() => { dispatch({ type: 'dismiss-error', keys: [key] }); }} />;
+    if (error && !item) return <TranslationBlock {...common} state="error" error={error} onRetry={() => { const paragraph = layer.current.byKey.get(key); if (paragraph) void send([paragraphEntry(paragraph)]); }} onDismiss={() => { dispatch({ type: 'dismiss-error', keys: [key] }); layer.current.pinned.delete(key); }} />;
     if (!item) return null;
     const entry = () => entryOfItem(item);
     return <TranslationBlock {...common} state={pending ? 'pending' : 'ok'} item={item} pendingKind={pending} open={blockState(state, key, mode) === 'open'}
