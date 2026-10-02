@@ -49,6 +49,13 @@ else if (command === 'config' && sub === 'show') {
   if (key === 'parse_server.local.mode') state.mode = value;
   if (key === 'parse_server.local.managed_tier') state.tier = value;
   save(); out('ok');
+} else if (command === 'server' && sub === 'status' && argv.includes('--json')) {
+  // What the real CLI's `server status --json` shows about the workers (read-only): a stopped service says so and exits non-zero.
+  if (!state.running) { out('服务未在运行。'); process.exit(state.statusExitsZero ? 0 : 1); }
+  if (state.statusJsonFails) fail('unexpected failure while reading the status', 2);
+  const active = !state.idleParses && state.active ? state.active : null;
+  out(JSON.stringify({ running: true, pid: 12345, workers: { parse_running: active?.status === 'parsing' ? 1 : 0, parse_queue_length: active?.status === 'pending' ? 1 : 0 },
+    parse_server: { local: { healthy: !state.unhealthy, starting: !!state.starting } } }, null, 2));
 } else if (command === 'server' && sub === 'status') {
   if (state.running || state.statusStuck) {
     out(`┏━━━━━━━━━━┳━━━━━━━━━━┓\n┃ PID      ┃ 12345    ┃\n┃ Uptime   ┃ 2m       ┃\n┃ Version  ┃ 4.0.10   ┃${state.device ? `\n┃ Device   ┃ ${state.device.padEnd(8)} ┃` : ''}\n┗━━━━━━━━━━┻━━━━━━━━━━┛`);
