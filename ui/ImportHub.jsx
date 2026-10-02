@@ -313,10 +313,11 @@ function PasteForm({ call, courses, disabled, draft, onDraft, onSaved }) {
  * omit when the audio component is off), initialTab 'files'|'paste'|'audio',
  * pasteDraft + onPasteDraftChange ({ title, text }, optional), onImported(summary)
  * after anything was saved (refresh data), onComplete(summary) when the batch
- * is finished without failures or the learner confirms a partial one.
+ * is finished without failures or the learner confirms a partial one, and
+ * onOpenSources(sourceIds) to jump to a material the 解析历史 lists.
  */
 export default function ImportHub({ data, call, busy = false, course, onCourseChange, audio, initialTab = 'files', pasteDraft, onPasteDraftChange,
-  onImported, onComplete, onOpenSettings, className, ...rest }) {
+  onImported, onComplete, onOpenSettings, onOpenSources, className, ...rest }) {
   useInjectCss(css, 'study-import-hub');
   const audioOn = audio !== undefined && audio !== null && audio !== false;
   const [tab, setTab] = useState(initialTab === 'audio' && !audioOn ? 'files' : initialTab);
@@ -340,7 +341,7 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
   const largeItem = items.find(item => item.status === 'error' && item.large);
   const [retrieval, setRetrieval] = useState(null);
   // A PDF to turn into pages of text with MinerU (cloud or local): chosen with the picker, or the file a too-large import was refused for.
-  const [mineruOpen, setMineruOpen] = useState(false), [mineruFile, setMineruFile] = useState(null);
+  const [mineruOpen, setMineruOpen] = useState(false), [mineruFile, setMineruFile] = useState(null), [mineruHistory, setMineruHistory] = useState(false);
   useEffect(() => {
     if (!largeItem || retrieval || typeof call !== 'function') return undefined;
     let live = true;
@@ -425,9 +426,12 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
         {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={onOpenSettings}
           call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course} onRetrieval={setRetrieval}
           courseNames={courses} onConversionStarted={conversionStarted} />}
-        {!largeItem && mineruOpen && <MineruRoute file={mineruFile} onFile={setMineruFile} call={call} courses={courses} onStarted={conversionStarted} onOpenSettings={onOpenSettings} />}
+        {!largeItem && mineruOpen && <MineruRoute file={mineruFile} onFile={setMineruFile} call={call} courses={courses} onStarted={conversionStarted} onOpenSettings={onOpenSettings}
+          jobs={data?.jobs} historyOpen={mineruHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route })}
+          onChanged={() => onImported?.()} />}
         {!largeItem && !mineruOpen && !running && <p className="import-hub__routes import-hub__mineru" data-tour="import-mineru">{ui('扫描件、公式多，或超过 200 页的 PDF？')}{' '}
-          <Button variant="link" size="sm" onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button></p>}
+          <Button variant="link" size="sm" onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button>{' '}<span aria-hidden="true">·</span>{' '}
+          <Button variant="link" size="sm" onClick={() => { setMineruHistory(true); setMineruOpen(true); }}>{ui('解析历史')}</Button></p>}
         {!items.length && <p className="import-hub__routes">{ui('PDF 太大或有几百页？点上面的「用 MinerU 解析」，会自动分段处理；也可以自己转换后，把结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。')}</p>}
         {!items.length && <p className="import-hub__routes">{audioOn
           ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')

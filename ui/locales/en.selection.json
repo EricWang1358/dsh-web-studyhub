@@ -27,7 +27,7 @@
   "补题没有完成 ·「{0}」": "Did not finish · \"{0}\"",
   "正在补题 ·「{0}」": "Adding questions · \"{0}\"",
   "已用 {0}": "Elapsed {0}",
-  "用时 {0}": "Took {0}",
+  "用时 {0}": "took {0}",
   "后台继续生成，关闭阅读器也不会中断；完成后进信箱。": "Keeps running in the background, even if you close the reader; it lands in your inbox when done.",
   "后台继续生成，完成后进信箱。": "Still running in the background; it lands in your inbox when done.",
   "马上练这 1 张": "Practise this question now",

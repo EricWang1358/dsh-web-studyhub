@@ -292,7 +292,7 @@ test('cancel kills the running process promptly', async t => {
 
 test('a window that takes longer than its bounded wait is stopped and reported as a timeout', async t => {
   const fake = await fakeCli(t, { mode: 'managed', running: true, delayMs: 60_000 });
-  await assert.rejects(parseWindow({ cli: fake.cli, pdf: 'book.pdf', tier: 'basic', startPage: 1, endPage: 5, totalPages: 120, outFile: join(fake.dir, 'o.md'), timeoutMs: 300 }),
+  await assert.rejects(parseWindow({ cli: fake.cli, pdf: 'book.pdf', tier: 'basic', startPage: 1, endPage: 5, totalPages: 120, outFile: join(fake.dir, 'o.md'), timeoutMs: 2000 }), // long enough for the fake CLI to start (and log itself) on a loaded machine
     error => error.code === 'timeout' && error.retryable === true && /太久/.test(error.message));
   const pid = (await fake.log()).find(entry => entry.argv[0] === 'parse').pid;
   assert.equal(await gone(pid), true);
