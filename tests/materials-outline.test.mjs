@@ -275,7 +275,7 @@ test('save validates again: an outline that does not fit the stored text is refu
 test('clear returns to the automatic outline; clearing nothing is harmless', async t => {
   const { call, imported } = await fixture(t);
   const { documentId } = await imported();
-  assert.deepEqual(await call('materials.outline.clear', { documentId }), { cleared: false, documentId, revision: (await call('materials.document.get', { documentId })).revision });
+  assert.deepEqual(await call('materials.outline.clear', { documentId }), { cleared: false, hadSegmentation: false, documentId, revision: (await call('materials.document.get', { documentId })).revision });
   const suggestion = await call('materials.outline.suggest', { documentId }, { complete: fakeModel });
   await call('materials.outline.save', { documentId, entries: suggestion.entries });
   assert.equal((await call('materials.outline.clear', { documentId })).cleared, true);
