@@ -396,7 +396,8 @@ test('SourcePicker lists documents inside a filterable scroll window', () => {
   assert.match(html, /class="sh-scroll[ "]/);
   assert.match(html, /placeholder="筛选资料…"/);
   assert.match(html, /共 180 项/);
-  assert.equal((html.match(/data-document-key="/g) || []).length, 180);
+  // A window draws its first 120 rows and the rest as the learner scrolls (ui/components/ScrollWindow.jsx), the count stays the real total.
+  assert.equal((html.match(/data-document-key="/g) || []).length, 120);
   const filtered = render(h(SourcePicker, { sources: many, selected: [], onChange() {}, defaultQuery: 'Pods' }));
   assert.equal((filtered.match(/data-document-key="/g) || []).length, 90);
   assert.match(filtered, /选择筛选结果/, 'select-all follows the filter');

@@ -38,6 +38,15 @@ export function edgeTracker(publish, initial = { top: false, bottom: false }) {
   };
 }
 
+/** Rows a window draws at first. Longer lists draw more as the learner scrolls: a library of a thousand materials drew thousands of nodes at once. */
+export const SCROLL_WINDOW_CHUNK = 120;
+
+/** The rows to draw: the first `limit` of `items`, and always up to the active one. */
+export const windowRows = (items, limit, activeIndex = -1) => items.slice(0, Math.max(limit, activeIndex + 1));
+
+/** Is the viewport within a screen of its last drawn row? Then the next chunk is drawn. */
+export const nearEnd = element => element.scrollTop + element.clientHeight > element.scrollHeight - 320;
+
 /** "共 N 项", or "共 N 项 / 显示 M 项" while a filter hides some. */
 export const scrollWindowCount = (total, shown, filtering) => filtering
   ? uiFormat('共 {0} 项 / 显示 {1} 项', [total, shown]) : uiFormat('共 {0} 项', [total]);
@@ -56,7 +65,7 @@ export const scrollWindowCount = (total, shown, filtering) => filtering
  *   listProps (extra props for the list, e.g. role="listbox"), itemProps(item) (extra props per item).
  */
 export default function ScrollWindow({ label, items = [], itemKey = (item, index) => index, renderItem = item => textOf(item), match = textOf,
-  filterable = false, filterLabel, filterPlaceholder, query, onQueryChange, defaultQuery = '', showCount, activeKey, maxHeight = 380,
+  filterable = false, filterLabel, filterPlaceholder, query, onQueryChange, defaultQuery = '', showCount, activeKey, maxHeight = 380, renderLimit = SCROLL_WINDOW_CHUNK,
   as = 'ul', listClassName, itemClassName, empty, toolbar, focusable = true, listProps, itemProps, className, style, ...rest }) {
   useComponentCss(css, 'study-scroll-window');
   const [ownQuery, setOwnQuery] = useState(defaultQuery);
@@ -64,6 +73,13 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
   const setQuery = next => { if (query === undefined) setOwnQuery(next); onQueryChange?.(next); };
   const shown = filterItems(items, value, match);
   const filtering = !!String(value || '').trim();
+  // Only the first rows are drawn; a new filter starts from the first chunk again.
+  const [grown, setGrown] = useState({ query: value, rows: renderLimit });
+  const rows = grown.query === value ? grown.rows : renderLimit;
+  const activeIndex = activeKey === undefined || activeKey === null ? -1 : shown.findIndex((item, index) => itemKey(item, index) === activeKey);
+  const drawn = renderLimit === Infinity ? shown : windowRows(shown, rows, activeIndex);
+  const more = drawn.length < shown.length;
+  const grow = () => setGrown(current => ({ query: value, rows: (current.query === value ? current.rows : renderLimit) + SCROLL_WINDOW_CHUNK }));
   const viewport = useRef(null), id = useId();
   const [edges, setEdges] = useState({ top: false, bottom: false });
   const tracker = useRef(null);
@@ -101,9 +117,16 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
         {counted && <small className="sh-scroll__count" aria-live="polite">{scrollWindowCount(items.length, shown.length, filtering)}</small>}
       </div>}
       <div className="sh-scroll__frame" data-fade-top={edges.top || undefined} data-fade-bottom={edges.bottom || undefined}>
-        <div ref={viewport} id={id} className="sh-scroll__viewport" role="region" aria-label={label} tabIndex={focusable ? 0 : undefined} onScroll={measure}>
+        <div ref={viewport} id={id} className="sh-scroll__viewport" role="region" aria-label={label} tabIndex={focusable ? 0 : undefined}
+          onScroll={event => { measure(); if (more && nearEnd(event.currentTarget)) grow(); }}
+          onFocus={event => {
+            // Tabbing into the last drawn rows draws the next chunk, so keyboard users are never stopped at an invisible end.
+            if (!more) return;
+            const rowNodes = [...event.currentTarget.querySelectorAll('[data-scroll-key]')];
+            if (rowNodes.findIndex(node => node.contains(event.target)) >= rowNodes.length - 3) grow();
+          }}>
           {shown.length ? <List {...listProps} className={cx('sh-scroll__list', listClassName)}>
-            {shown.map((item, index) => {
+            {drawn.map((item, index) => {
               const key = itemKey(item, index);
               const extra = itemProps?.(item, index) || {};
               return <Item key={key} {...extra} className={cx('sh-scroll__item', itemClassName, extra.className)} data-scroll-key={key}
