@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { pickActive, readingProgress } from './outline.js';
 
 const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-const outlineNode = (root, id) => root.querySelector(`[data-outline-id="${String(id).replace(/["\\]/g, '\\$&')}"]`);
+/* An entry's target: the heading or section the reader tagged (data-outline-id) or the block a kept AI outline points at (data-ai-outline-id). */
+const outlineNode = (root, id) => {
+  const value = String(id).replace(/["\\]/g, '\\$&');
+  return root.querySelector(`[data-outline-id="${value}"],[data-ai-outline-id="${value}"]`);
+};
 
 /** Scroll `node` to the top of the scroll area (a little below it), or to its middle. */
 export function scrollToNode(scroller, node, { center = false, smooth = true } = {}) {

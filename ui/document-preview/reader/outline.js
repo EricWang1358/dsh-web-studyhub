@@ -63,9 +63,10 @@ const labelKey = title => String(title || '').normalize('NFKC').toLowerCase().re
 /**
  * The entries with their place in the tree: `parent` (the nearest entry above with a lower heading level, else null),
  * `depth` (how many parents it has; a level that skips still nests), `children` (direct), and `minor`
- * (a repeated generic label) with `minorCount` on its parent. Order and ids are untouched.
+ * (a repeated generic label) with `minorCount` on its parent. Order and ids are untouched. `fold: false` marks no labels
+ * (a kept AI outline is the learner's own choice).
  */
-export function structureOutline(items) {
+export function structureOutline(items, { fold = true } = {}) {
   const stack = [], tree = items.map(entry => {
     while (stack.length && stack.at(-1).level >= entry.level) stack.pop();
     const parent = stack.at(-1) || null, node = { ...entry, parent: parent?.id ?? null, depth: stack.length, children: 0, minorCount: 0, minor: false };
@@ -74,6 +75,7 @@ export function structureOutline(items) {
     return node;
   });
   const parents = new Map();
+  if (!fold) return tree; // an outline the learner chose has no labels to fold
   for (const node of tree) {
     const key = labelKey(node.title);
     if (!node.parent || !key || node.children || node.title.length > LABEL_MAX_CHARS) continue;
