@@ -430,7 +430,7 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
           jobs={data?.jobs} historyOpen={mineruHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route })}
           onChanged={() => onImported?.()} />}
         {!largeItem && !mineruOpen && !running && <p className="import-hub__routes import-hub__mineru" data-tour="import-mineru">{ui('扫描件、公式多，或超过 200 页的 PDF？')}{' '}
-          <Button variant="link" size="sm" onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button>{' '}
+          <Button variant="link" size="sm" onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button>{' '}<span aria-hidden="true">·</span>{' '}
           <Button variant="link" size="sm" onClick={() => { setMineruHistory(true); setMineruOpen(true); }}>{ui('解析历史')}</Button></p>}
         {!items.length && <p className="import-hub__routes">{ui('PDF 太大或有几百页？点上面的「用 MinerU 解析」，会自动分段处理；也可以自己转换后，把结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。')}</p>}
         {!items.length && <p className="import-hub__routes">{audioOn

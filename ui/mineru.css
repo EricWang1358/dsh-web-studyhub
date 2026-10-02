@@ -102,7 +102,7 @@
 .study-app .pdf-history__day { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; }
 .study-app .pdf-history__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
 .study-app .pdf-history .job.pdf-history__row { margin: 0; padding: var(--space-3) var(--space-4); gap: var(--space-3); min-width: 0; border: 1px solid var(--line-soft); background: var(--bg); }
-.study-app .pdf-history .job.pdf-history__row > span { flex: none; width: 1.2em; font-size: var(--fs-lg); line-height: 1.3; text-align: center; }
+.study-app .pdf-history .job.pdf-history__row > span { flex: none; align-self: flex-start; width: 1.2em; font-size: var(--fs-lg); line-height: 1.3; text-align: center; }
 .study-app .pdf-history .job.interrupted > span { color: var(--warn); }
 .study-app .pdf-history .job.cancelled > span { color: var(--text-muted); }
 .study-app .pdf-history .job.complete > span { color: color-mix(in srgb, var(--ok) 75%, var(--text)); }
@@ -144,6 +144,7 @@
 .study-app .pdf-env-details { min-width: 0; max-width: 100%; font-size: var(--fs-xs); }
 .study-app .pdf-env-details > summary { cursor: pointer; width: fit-content; color: var(--accent-text); }
 .study-app .pdf-env-details .pdf-env { margin-top: var(--space-1); }
+.study-app .pdf-convert-jobs .job > span { align-self: flex-start; }
 /* The windows: they wrap INSIDE the card in even columns (never run off its edge), with a state each; many of them fold into one line and a toggle. */
 .study-app .pdf-chunks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 2px var(--space-3); min-width: 0; max-width: 100%; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
 .study-app .pdf-chunks li { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }

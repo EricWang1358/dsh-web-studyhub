@@ -49,7 +49,7 @@ await writeFile(pdfPath, await doc.save());
 
 const browser = await launchChromium();
 const shots = [], problems = [];
-const combos = quick ? [['zh', 'dark', 1440], ['en', 'light', 420]] : ['zh', 'en'].flatMap(lang => ['dark', 'light'].flatMap(theme => [1440, 420].map(width => [lang, theme, width])));
+const combos = quick ? [['zh', 'dark', 1440], ['en', 'light', 420]] : ['zh', 'en'].flatMap(lang => ['dark', 'light'].flatMap(theme => [1440, 1194, 420].map(width => [lang, theme, width])));
 /** The layout audit of the page as it stands; its problems are added to `problems` under `where`. */
 const audit = async (tab, where, options) => {
   const result = await tab.evaluate(layoutAudit, options);

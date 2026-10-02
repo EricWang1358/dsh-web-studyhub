@@ -17,6 +17,9 @@ export function layoutAudit({ scopes = ['.audio-provider-card', '.mineru-route-p
     return `${element.tagName.toLowerCase()}${own ? `.${own}` : ''}${text ? ` "${text}"` : ''}`;
   };
   const visible = element => {
+    // What sits inside a closed <details> (other than its summary) is not shown, whatever boxes the browser keeps for it.
+    const closed = element.closest('details:not([open])');
+    if (closed && closed !== element && !element.closest('summary')) return false;
     const style = getComputedStyle(element);
     if (style.display === 'none' || style.visibility === 'hidden') return false;
     const rect = element.getBoundingClientRect();

@@ -89,6 +89,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
  * `act(action, args)` (single-flight, from the app) or `call` sends the stop / retry / dismiss; `onChanged` refreshes the data afterwards.
  */
 export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOpenSettings, onChanged, expandChunks }) {
+  useInjectCss(css, 'study-mineru');
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
   const send = (action, args) => (act ? act(action, args) : call(action, args));
   return list.length ? <div className="jobs audio-jobs pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} expandChunks={expandChunks} />)}</div> : null;
@@ -183,6 +184,9 @@ export function historyAgo(iso, now = Date.now()) {
   return new Date(time).toLocaleString(uiLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+const capital = text => text.charAt(0).toUpperCase() + text.slice(1);
+/** A sentence that is embedded in another one ("Started just now") starts in lower case in English; Chinese is untouched. */
+const lowerFirst = text => (/^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text);
 const dayHeading = group => {
   if (group.when === 'today') return ui('今天');
   if (group.when === 'yesterday') return ui('昨天');
@@ -198,11 +202,11 @@ const STAGE_TEXT = { start: () => ui('启动'), queued: () => ui('排队'), spli
 
 function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, onOpenSettings }) {
   const status = row.status, finished = !!row.finishedAt && status !== 'running' && status !== 'interrupted';
-  const route = row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : ui('云端');
+  const route = row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : capital(ui('云端'));
   const size = Number.isFinite(row.bytes) ? formatBytes(row.bytes) : '', pages = Number.isFinite(row.pages) ? (row.pages === 1 ? ui('1 页') : uiFormat('{0} 页', [row.pages])) : '';
   const facts = [size, pages].filter(Boolean).join(' · ');
   const took = finished && Number.isFinite(row.elapsedMs) ? historyDuration(row.elapsedMs) : '';
-  const when = finished ? historyAgo(row.finishedAt, now) : uiFormat('开始于 {0}', [historyAgo(row.startedAt, now)]);
+  const when = finished ? historyAgo(row.finishedAt, now) : uiFormat('开始于 {0}', [lowerFirst(historyAgo(row.startedAt, now))]);
   const timeLine = [when, took && uiFormat('用时 {0}', [took]), row.attempts > 1 && uiFormat('已尝试 {0} 次', [row.attempts])].filter(Boolean).join(' · ');
   const document = row.document, imported = row.importedPages ?? document?.pages ?? 0;
   const title = document?.title || row.title || row.filename;
@@ -242,7 +246,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
             title={ui('已完成的段落会直接复用，不会重复上传或重复解析')} onClick={() => onRetry(row)}>
             {status === 'failed' ? (row.failure?.code === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做（不重复已完成的段落）')) : ui('接着做')}</Button>}
           {tokenProblem && onOpenSettings && <Button variant="primary" size="sm" onClick={onOpenSettings}>{ui('去设置里换一个令牌')}</Button>}
-          {status !== 'running' && <Button variant="quiet" size="sm" disabled={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
+          {status !== 'running' && <Button variant="link" size="sm" disabled={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
       </div>
     </li>
