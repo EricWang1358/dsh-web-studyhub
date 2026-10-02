@@ -4,6 +4,7 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
 ## 2.2.3 — 2026-10-02
 
+- **A working local MinerU is recognised as ready.** The 2.2.2 check still said "models not downloaded" on a machine where the service was running and set up: `mineru config get` answers with the whole line (`parse_server.local.mode = managed  [override]`), not the bare value, so the check never saw `managed`. It reads the real format now, and finds the model folders by the names the tool really uses (`MinerU-4_models_onnx`, `MinerU2.5-…-GGUF`) instead of the tier word. Checked against a real mineru 4.0.10: ready.
 - **Change a source's course right on its row.** A source created under the wrong course could only be fixed by opening "Organize courses", ticking it and applying, which is easy to miss. Every source row now has "Change course…" in its More menu: the same course field and the same action, for that one document.
 
 ## 2.2.2 — 2026-10-02
