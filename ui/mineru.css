@@ -151,3 +151,28 @@
 .study-app .pdf-chunks li.current::before { content: '▸ '; }
 .study-app .pdf-chunks__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .study-app .pdf-chunks__summary .sh-btn { margin: 0; }
+
+/* The window in progress (adaptive local plan): which pages and for how long, what the service says about it, and why a scan can take minutes. */
+.study-app .pdf-live { display: grid; justify-items: start; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 6%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+.study-app .pdf-live p, .study-app .pdf-live small { max-width: 100%; margin: 0; overflow-wrap: anywhere; }
+.study-app .pdf-live__window { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-2); color: var(--text); font-variant-numeric: tabular-nums; }
+.study-app .pdf-live__window span { color: var(--text-dim); }
+.study-app .pdf-live__state { display: flex; align-items: center; gap: var(--space-2); color: var(--text); }
+.study-app .pdf-live__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+.study-app .pdf-live__state[data-state="parsing"] .pdf-live__dot, .study-app .pdf-live__state[data-state="starting"] .pdf-live__dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+.study-app .pdf-live__state[data-state="queued"] .pdf-live__dot, .study-app .pdf-live__state[data-state="quiet"] .pdf-live__dot, .study-app .pdf-live__state[data-state="unknown"] .pdf-live__dot { background: var(--warn); }
+.study-app .pdf-live__state--warn { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
+.study-app .pdf-live__state--warn .pdf-live__dot { background: var(--bad); }
+.study-app .pdf-live__advice { color: var(--text-dim); }
+.study-app .pdf-live__advice--warn { color: var(--text); padding-left: var(--space-2); border-left: 3px solid color-mix(in srgb, var(--bad) 55%, transparent); }
+.study-app .pdf-live__why { min-width: 0; max-width: 100%; }
+.study-app .pdf-live__why summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
+.study-app .pdf-live__why summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.study-app .pdf-live__why p { margin: var(--space-1) 0 0; color: var(--text-dim); max-width: 62ch; }
+.study-app .pdf-eta { color: var(--text); font-variant-numeric: tabular-nums; }
+.study-app .pdf-chunks__next { display: block; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.study-app .pdf-env__windows summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
+.study-app .pdf-env__windows summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.study-app .pdf-env__windows ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 2px var(--space-3); margin: var(--space-1) 0 0; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }
+.study-app .pdf-env__windows li { min-width: 0; overflow-wrap: anywhere; }
