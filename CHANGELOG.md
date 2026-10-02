@@ -2,6 +2,12 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.3.0 — 2026-10-02
+
+- **Courses can contain courses.** A course name is a path: "Cloud Native Solution Design / 07 …" sits inside "Cloud Native Solution Design". Choosing the parent shows its own sources, decks, mistakes and statistics together with those of every chapter below it; choosing a chapter shows only that chapter. A slash without spaces counts as a separator only when the text before it is an existing course, so "TCP/IP" stays one name. Nothing is renamed or migrated; pickers show the chapters indented under their parent, and counts say "incl. sub-courses".
+- **A reader for sources.** The source preview is rebuilt as a reader: a table of contents, three views (typeset reading, the stored text line by line for checking citations, the original PDF when kept), search inside the text, and display settings (size, line width, typeface, paper tone). Selection, passage marks and card links work as before.
+- **A steadier sidebar.** The "back to the question" row no longer grows when a run is open, so nothing below it jumps; its progress is a count at the end of the row. One look for active (with `aria-current`), one for disabled, the same row height everywhere (including the language row and Settings), the active bar stays visible on narrow screens, and English labels no longer make the rail taller than the window.
+
 ## 2.2.3 — 2026-10-02
 
 - **A working local MinerU is recognised as ready.** The 2.2.2 check still said "models not downloaded" on a machine where the service was running and set up: `mineru config get` answers with the whole line (`parse_server.local.mode = managed  [override]`), not the bare value, so the check never saw `managed`. It reads the real format now, and finds the model folders by the names the tool really uses (`MinerU-4_models_onnx`, `MinerU2.5-…-GGUF`) instead of the tier word. Checked against a real mineru 4.0.10: ready.
