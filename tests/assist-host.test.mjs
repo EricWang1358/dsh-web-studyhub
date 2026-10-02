@@ -415,6 +415,49 @@ test('requested prerequisites can link and create; invalid or unrequested propos
   }
 });
 
+test('a reply the validator refuses is sent back once with the reason and fixed without the learner resubmitting; a second refusal fails the task', async t => {
+  const prereq = { ...card, prompt: 'Which two dimensions can vary independently?', objective: 'Name independent dimensions' };
+  delete prereq.id;
+  const bad = { answer: 'The abstraction is independent.', prerequisites: [{ card: { ...prereq, citations: [{ sourceId: 'missing', quote: evidence }] } }] };
+  const good = { answer: 'The abstraction is independent.', prerequisites: [{ card: prereq }] };
+  for (const [name, replies, status, calls] of [['fixed on the second reply', [bad, good], 'done', 2], ['refused twice', [bad, bad], 'failed', 2]]) {
+    const seen = [];
+    const f = await fixture(t, async (system, payload) => { seen.push({ system, payload }); return JSON.stringify(replies[Math.min(seen.length - 1, replies.length - 1)]); });
+    await f.start({}, { helpChoices: ['prerequisite'] });
+    await until(() => f.task().status !== 'running');
+    const state = await f.service.store.read();
+    assert.equal(f.task().status, status, `${name}: ${f.task().message}`);
+    assert.equal(seen.length, calls, `${name}: exactly one retry, never a loop`);
+    assert.match(seen[1].payload, /REFUSED_REPLY/, 'the refused reply goes back');
+    assert.match(seen[1].payload, /REASON/, 'with the reason');
+    assert.equal(f.task().repaired, true);
+    if (status === 'done') { assert.equal(state.decks[0].cards.length, 2); assert.equal(state.decks[0].cards[0].followups.length, 1); }
+    else { assert.equal(state.decks[0].cards.length, 1); assert.equal(state.decks[0].cards[0].followups, undefined); }
+  }
+});
+
+test('the task remembers what was asked (choices and the learner own question) so a failed one can be sent again or edited', async t => {
+  const f = await fixture(t, async () => '{"answer":"x"}');
+  await f.start({}, { helpChoices: ['example', 'prerequisite'], text: 'Why does retry amplify load?' });
+  await until(() => f.task().status !== 'running');
+  assert.deepEqual(f.task().choices, ['example', 'prerequisite']);
+  assert.equal(f.task().question, 'Why does retry amplify load?');
+});
+
+test('a prerequisite that points at a question that is not there (or at the question itself) is skipped: the explanation is still saved and the task still completes', async t => {
+  for (const [kind, requires] of [['ghost', { deckId: 'd', cardId: '6b18fba5-81f3-430c-81ea-bb817048ee41' }], ['no-deck', { cardId: 'nowhere' }], ['self', { deckId: 'd', cardId: 'c' }]]) {
+    const f = await fixture(t, async () => JSON.stringify({ answer: 'The abstraction is independent.', prerequisites: [{ requires }] }));
+    await f.start({}, { helpChoices: ['prerequisite'] });
+    await until(() => f.task().status !== 'running');
+    const state = await f.service.store.read();
+    assert.equal(f.task().status, 'done', `${kind}: ${f.task().message}`);
+    assert.equal(state.decks[0].cards.length, 1, `${kind}: nothing invented`);
+    assert.equal(state.decks[0].cards[0].requires ?? undefined, undefined, `${kind}: no link was made`);
+    assert.equal(state.decks[0].cards[0].followups.length, 1, `${kind}: the explanation was kept`);
+    assert.match(f.task().message, /前置题.*(略过|没有保存)|prerequisite/i, `${kind}: it says so`);
+  }
+});
+
 test('missing route-override or tool restriction capability uses direct help without starting a child', async t => {
   for (const capabilities of [{ toolFilter: false, agentOptions: true }, { toolFilter: true, agentOptions: false }]) {
     let spawned = 0;
