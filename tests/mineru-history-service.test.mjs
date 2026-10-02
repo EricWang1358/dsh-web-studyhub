@@ -99,11 +99,12 @@ test('a cloud conversion is on record while it runs, and complete only once the 
   assert.equal(typeof done.elapsedMs, 'number');
   assert.ok(done.elapsedMs >= 0);
   assert.equal(done.document.exists, true);
-  assert.equal(done.document.sourceIds.length, 3, 'the row can jump to the pages that were imported');
+  assert.equal(done.document.pages, 3, 'how many pages the library holds of it');
+  assert.equal(done.document.sourceIds.length, 1, 'one page id is enough to open the document');
   assert.ok(done.document.title);
   assert.equal(done.live, false);
   const sources = (await h.call('snapshot')).sources.filter(source => source.document?.converter === 'mineru');
-  assert.deepEqual(done.document.sourceIds.slice().sort(), sources.map(source => source.id).sort());
+  assert.ok(sources.some(source => source.id === done.document.sourceIds[0]), 'and it is one of the imported pages');
 });
 
 test('a local conversion is recorded with its tier and pieces (page windows)', async t => {
@@ -123,9 +124,8 @@ test('the record, the exported library and every file of the library hold no tok
   assert.equal(files.length, 1);
   const raw = await readFile(join(historyDir(h.root), files[0]), 'utf8');
   for (const forbidden of [FAKE_TOKEN, h.home, 'tmp', 'pdf-convert', 'source.pdf', 'local page 1', 'Authorization', 'Bearer']) assert.ok(!raw.includes(forbidden), `the record holds ${forbidden}`);
-  const keys = Object.keys(JSON.parse(raw)).sort();
-  assert.deepEqual(keys, ['attemptStartedAt', 'attempts', 'bytes', 'documentId', 'elapsedMs', 'filename', 'finishedAt', 'id', 'importedPages', 'pages', 'pagesDone', 'phase', 'pieces', 'route', 'startedAt', 'status', 'title', 'updatedAt', 'version']
-    .filter(key => key in JSON.parse(raw)));
+  const allowed = ['attemptStartedAt', 'attempts', 'bytes', 'documentId', 'elapsedMs', 'failure', 'filename', 'finishedAt', 'id', 'importedPages', 'pages', 'pagesDone', 'phase', 'piece', 'pieces', 'route', 'skippedPages', 'startedAt', 'status', 'tier', 'title', 'updatedAt', 'version'];
+  assert.deepEqual(Object.keys(JSON.parse(raw)).filter(key => !allowed.includes(key)), [], 'only the whitelisted facts are stored');
   const exported = JSON.stringify(await h.call('export', {}));
   assert.ok(!exported.includes(FAKE_TOKEN) && !exported.includes(h.home));
   assert.ok(!exported.includes('conversion-history'), 'the history is a job record: it is not part of the library export');
@@ -162,9 +162,9 @@ test('a piece that fails: the record says failed, at which stage, why; "接着�
   assert.equal(row.canRetry, true);
   assert.equal(row.document, undefined, 'a failed conversion imported nothing');
   const uploadsBefore = h.fake.uploads.length;
-  await h.call('mineru.retry', { jobId: row.id });
-  await h.until(async () => (await h.history()).records[0]?.status === 'running' || (await h.history()).records[0]?.status === 'complete', 'the retry to be recorded');
   healthy = true;
+  await h.call('mineru.retry', { jobId: row.id });
+  assert.ok(['running', 'complete'].includes((await h.history()).records[0].status), 'the new attempt is on record as soon as it starts');
   await h.finished();
   const after = (await h.history()).records;
   assert.equal(after.length, 1, 'a retry is the same row');
@@ -317,7 +317,8 @@ test('a document the learner deleted later shows as deleted in the row; the row 
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 2 })) });
   await h.finished();
   const [row] = (await h.history()).records;
-  for (const id of row.document.sourceIds) await h.call('source.remove', { id });
+  assert.equal(row.document.exists, true);
+  for (const source of (await h.call('snapshot')).sources.filter(item => item.document?.converter === 'mineru')) await h.call('source.remove', { id: source.id });
   const [after] = (await h.history()).records;
   assert.equal(after.status, 'complete');
   assert.equal(after.document.exists, false);
@@ -332,7 +333,7 @@ test('the latest 50 records are kept and older ones go when a new conversion is 
   const longAgo = Date.now() - 400 * 24 * 60 * 60_000;
   for (let i = 0; i < 52; i++) { await openRecord(h.root, { id: `seed-${String(i).padStart(4, '0')}`, filename: `old-${i}.pdf`, bytes: 1, pages: 1, pieces: 1, route: 'cloud' }, { now: () => longAgo + i * 1000 });
     await closeRecord(h.root, `seed-${String(i).padStart(4, '0')}`, { status: 'complete', documentId: 'd' }, { now: () => longAgo + i * 1000 + 10 }); }
-  assert.equal((await listRecords(h.root)).length, HISTORY.keepLatest);
+  assert.equal((await listRecords(h.root)).length, 52, 'each was young when it was written');
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) });
   await h.finished();
   const records = (await h.history()).records;

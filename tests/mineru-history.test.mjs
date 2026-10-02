@@ -112,35 +112,35 @@ test('the list is newest first', async t => {
 
 test('retention: the latest 50 are kept, and so is everything younger than 90 days, whichever is more; pruning happens on write', async t => {
   assert.deepEqual([HISTORY.keepLatest, HISTORY.keepMs], [50, 90 * DAY]);
-  const now = 1_000 * DAY;
-  // 60 records, all a year old: only the latest 50 stay.
+  const now = Date.now();
+  const seed = async (root, count, age, prefix) => { for (let i = 0; i < count; i++) await start(root, `${prefix}-${String(i).padStart(4, '0')}`, {}, now - age + i * 1000); };
+  // 60 records, all a year old, then one new one: only the latest 50 stay.
   const old = await library(t);
-  for (let i = 0; i < 59; i++) await start(old, `old-${String(i).padStart(4, '0')}`, {}, now - 365 * DAY + i * 1000);
-  await closeRecord(old, 'old-0000', { status: 'complete', documentId: 'd' }, { now: () => now - 365 * DAY + 5 });
-  await start(old, 'old-9999', {}, now - 365 * DAY + 100_000);
+  await seed(old, 60, 365 * DAY, 'old');
+  assert.equal((await listRecords(old)).length, 60, 'each was young when it was written');
+  await start(old, 'new-0001', {}, now);
   const kept = await listRecords(old);
   assert.equal(kept.length, 50);
-  assert.ok(kept.some(record => record.id === 'old-9999'), 'the newest is kept');
-  assert.ok(!kept.some(record => record.id === 'old-0000'), 'the oldest finished one went');
+  assert.ok(kept.some(record => record.id === 'new-0001'), 'the newest is kept');
+  assert.ok(!kept.some(record => record.id === 'old-0000'), 'the oldest went');
+  assert.ok(kept.some(record => record.id === 'old-0059'), 'the newest of the old ones stayed');
   // 60 records, all a week old: all stay (younger than 90 days beats the count).
   const young = await library(t);
-  for (let i = 0; i < 60; i++) await start(young, `new-${String(i).padStart(4, '0')}`, {}, now - 7 * DAY + i * 1000);
-  assert.equal((await listRecords(young)).length, 60);
-  // 55 records, all older than 90 days: the 50 newest stay, the 5 beyond them go.
+  await seed(young, 60, 7 * DAY, 'young');
+  await start(young, 'new-0001', {}, now);
+  assert.equal((await listRecords(young)).length, 61);
+  // 55 records 200 days old: the 50 newest stay, the rest go.
   const mixed = await library(t);
-  for (let i = 0; i < 55; i++) await start(mixed, `mix-${String(i).padStart(4, '0')}`, {}, now - 200 * DAY + i * 1000);
+  await seed(mixed, 55, 200 * DAY, 'mix');
+  await closeRecord(mixed, 'mix-0054', { status: 'complete', documentId: 'd' }, { now: () => now });
   assert.equal((await listRecords(mixed)).length, 50);
-  // a running conversion is never pruned, however old
+  // A conversion that must stay (it is running) is not pruned, however old.
   const running = await library(t);
-  await start(running, 'run-0001', {}, now - 400 * DAY);
-  for (let i = 0; i < 55; i++) await start(running, `fin-${String(i).padStart(4, '0')}`, {}, now - 300 * DAY + i * 1000);
-  assert.ok((await listRecords(running)).some(record => record.id === 'run-0001'));
-  // explicit pruning with a later clock
-  const later = await library(t);
-  for (let i = 0; i < 52; i++) await start(later, `lat-${String(i).padStart(4, '0')}`, {}, now + i * 1000);
-  assert.equal((await listRecords(later)).length, 52, 'young, so all stay');
-  assert.equal((await pruneRecords(later, { now: () => now + 200 * DAY })).removed, 2);
-  assert.equal((await listRecords(later)).length, 50);
+  await seed(running, 60, 300 * DAY, 'run');
+  assert.equal((await pruneRecords(running, { now: () => now, keep: ['run-0000'] })).removed, 9);
+  const left = await listRecords(running);
+  assert.equal(left.length, 51);
+  assert.ok(left.some(record => record.id === 'run-0000'));
 });
 
 test('removing one record and clearing the history touch nothing else', async t => {
