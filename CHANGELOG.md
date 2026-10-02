@@ -2,6 +2,10 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.2.3 — 2026-10-02
+
+- **Change a source's course right on its row.** A source created under the wrong course could only be fixed by opening "Organize courses", ticking it and applying, which is easy to miss. Every source row now has "Change course…" in its More menu: the same course field and the same action, for that one document.
+
 ## 2.2.2 — 2026-10-02
 
 - **下一题 no longer stalls for about two seconds now and then.** After every answer, reveal or move the panel's next poll rebuilt the whole library snapshot in one synchronous stretch that blocked the host for 2.5–3 s on a large library, and a click that arrived meanwhile waited for it. Two causes are removed: the course list re-read every card's citations once per course and source, and the library state was copied a second time on its way out. On a copy of a 94 MB library, clicks went from up to 4.4 s to 0.7 s at most (typically about 0.2 s) and the full snapshot from about 3.3 s to 0.6 s.
