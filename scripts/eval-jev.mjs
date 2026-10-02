@@ -31,7 +31,7 @@ import { Store } from '../lib/store.js';
 const args = process.argv.slice(2);
 const flag = name => { const at = args.indexOf(`--${name}`); return at >= 0 ? args[at + 1] : undefined; };
 const has = name => args.includes(`--${name}`);
-const valueFlags = new Set(['--features', '--threshold', '--out', '--skeleton', '--provider', '--key-env']);
+const valueFlags = new Set(['--features', '--threshold', '--out', '--skeleton', '--provider', '--key-env', '--endpoint', '--model']);
 const positional = args.filter((arg, index) => !arg.startsWith('--') && !valueFlags.has(args[index - 1]));
 const stop = (code, text) => { console.log(text); process.exit(code); };
 
@@ -45,11 +45,12 @@ if (has('skeleton')) {
 
 const source = scriptKeySource(args);
 if (source.error) stop(2, source.error);
-const { provider, keyEnvName, key } = source;
+const { provider, keyEnvName, key, endpoint, model } = source;
+const host = endpoint ? new URL(endpoint).host : new URL(jevBaseUrl(provider)).host;
 if (!key) stop(0, `${keyEnvName} is not set: nothing was done. Set it to your own Jev key to evaluate the experiments on a labelled dataset (see tests/fixtures/jev-eval/README.md).`);
 
 const [path] = positional;
-if (!path) stop(2, 'Usage: node scripts/eval-jev.mjs <dataset.json> [--features a,b] [--threshold 0.8] [--out report.json] [--yes]');
+if (!path) stop(2, 'Usage: node scripts/eval-jev.mjs <dataset.json> [--features a,b] [--threshold 0.8] [--out report.json] [--yes] [--provider typesafe|opencode-zen-free|opencode-zen|custom] [--key-env NAME] [--endpoint URL --model ID]');
 let dataset;
 try { dataset = JSON.parse(await readFile(resolve(path), 'utf8')); }
 catch (error) { stop(2, `The dataset could not be read (${error.code === 'ENOENT' ? 'file not found' : 'not valid JSON'}): ${path}`); }
@@ -63,11 +64,11 @@ if (!(threshold >= 0.5 && threshold <= 0.99)) stop(2, '--threshold must be a num
 const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), '../tests/fixtures/jev-eval') + sep;
 const items = Object.entries(dataset.features).filter(([name]) => !features || features.includes(name)).reduce((sum, [, section]) => sum + section.items.length, 0);
 if (!resolve(path).startsWith(fixtures) && !has('yes'))
-  stop(2, `This dataset (${items} items) is not the public example one, so its text would be sent to Jev (${provider.family === 'opencode' ? "OpenCode Zen's cloud, and its provider TypeSafe" : "TypeSafe's cloud"}, ${new URL(jevBaseUrl(provider)).host}; provider ${provider.id}) and may include your own material. Run it on a COPY you are happy to send, and add --yes to confirm.`);
+  stop(2, `This dataset (${items} items) is not the public example one, so its text would be sent to Jev (${provider.family === 'opencode' ? "OpenCode Zen's cloud, and its provider TypeSafe" : provider.family === 'custom' ? 'the custom endpoint you named' : "TypeSafe's cloud"}, ${host}; provider ${provider.id}) and may include your own material. Run it on a COPY you are happy to send, and add --yes to confirm.`);
 
 const meter = { record: async () => {} };
-const runtime = createJevRuntime({ usage: meter, settings: async () => ({ provider: provider.id, key, keySource: 'env', enabled: true, features: Object.fromEntries(JEV_FEATURES.map(name => [name, true])), replace: Object.fromEntries(JEV_REPLACE_SITES.map(name => [name, true])), threshold, confirmedAt: 'eval' }) });
-console.log(`Experimental Jev evaluation: ${items} items against ${new URL(jevBaseUrl(provider)).host} (provider ${provider.id}, model ${provider.model}) ...`);
+const runtime = createJevRuntime({ usage: meter, settings: async () => ({ provider: provider.id, ...(endpoint ? { customEndpoint: endpoint, customModel: model } : {}), key, keySource: 'env', enabled: true, features: Object.fromEntries(JEV_FEATURES.map(name => [name, true])), replace: Object.fromEntries(JEV_REPLACE_SITES.map(name => [name, true])), threshold, confirmedAt: 'eval' }) });
+console.log(`Experimental Jev evaluation: ${items} items against ${host} (provider ${provider.id}, model ${model ?? provider.model}) ...`);
 const report = await evaluate({ dataset, runtime, threshold, features });
 console.log(`\n${formatReport(report)}`);
 if (flag('out')) await writeFile(resolve(flag('out')), `${JSON.stringify(report, null, 2)}\n`, 'utf8');

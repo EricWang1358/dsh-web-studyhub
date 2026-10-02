@@ -109,3 +109,25 @@ test('the evaluation script: without the preset variable it does nothing; an unk
   assert.match(refused.out, /--yes/);
   assert.equal(fake.requests.length, 0, 'nothing was sent before the confirmation');
 });
+
+test('the custom preset on the command line: --endpoint and --model are required and validated, the key comes from JEV_CUSTOM_API_KEY (or --key-env), the request goes to that address', async t => {
+  const fake = await startFakeJev();
+  t.after(() => fake.close());
+  const endpoint = `${fake.baseUrl}/gw/v1/systemone`;
+  const missing = await run(live, ['--provider', 'custom'], { JEV_CUSTOM_API_KEY: FAKE_KEY });
+  assert.equal(missing.code, 2);
+  assert.match(missing.out, /--endpoint/);
+  const bad = await run(live, ['--provider', 'custom', '--endpoint', 'http://evil.example.com/x', '--model', 'm'], { JEV_CUSTOM_API_KEY: FAKE_KEY });
+  assert.equal(bad.code, 2);
+  assert.equal(fake.requests.length, 0);
+  const none = await run(live, ['--provider', 'custom', '--endpoint', endpoint, '--model', 'my-jev'], {});
+  assert.match(none.out, /JEV_CUSTOM_API_KEY is not set: nothing was done/);
+  const ok = await run(live, ['--provider', 'custom', '--endpoint', endpoint, '--model', 'my-jev', '--check-only'], { JEV_CUSTOM_API_KEY: FAKE_KEY });
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /provider custom, model my-jev/);
+  assert.ok(!ok.out.includes(FAKE_KEY));
+  assert.deepEqual([fake.requests[0].path, fake.requests[0].payload.model, fake.requests[0].headers.authorization], ['/gw/v1/systemone', 'my-jev', `Bearer ${FAKE_KEY}`]);
+  const viaName = await run(evaluation, [fixture, '--provider', 'custom', '--endpoint', endpoint, '--model', 'my-jev', '--key-env', 'MY_GATEWAY_KEY', '--features', 'levelCheck'], { MY_GATEWAY_KEY: FAKE_KEY });
+  assert.equal(viaName.code, 0, viaName.out);
+  assert.ok(fake.requests.at(-1).path === '/gw/v1/systemone' && fake.requests.at(-1).payload.model === 'my-jev');
+});

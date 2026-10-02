@@ -2,7 +2,7 @@
 
 **Jev is only ever an experimental feature of this plugin.** It is opt-in, off by default, hidden until a learner turns on *Show experimental
 features* (Settings › Advanced), and labelled *experimental* wherever it appears; nothing in StudyHub depends on it, nothing here is a
-recommendation, and no wording in the product or in this document says it will become the default or leave the experimental stage. A learner who
+recommendation, and no wording in the product or in this document suggests that it will graduate from the experimental stage or be made a default. A learner who
 never opens Settings › Advanced never sees that Jev exists.
 
 StudyHub can ask **Jev**, TypeSafe AI's "System One" model, small classifier-shaped questions that a text-generation model would answer at far
