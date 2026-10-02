@@ -49,7 +49,7 @@ await writeFile(pdfPath, await doc.save());
 
 const browser = await launchChromium();
 const shots = [], problems = [];
-const combos = quick ? [['zh', 'dark', 1440], ['en', 'light', 420]] : ['zh', 'en'].flatMap(lang => ['dark', 'light'].flatMap(theme => [1440, 420].map(width => [lang, theme, width])));
+const combos = quick ? [['zh', 'dark', 1440], ['en', 'light', 420]] : ['zh', 'en'].flatMap(lang => ['dark', 'light'].flatMap(theme => [1440, 1194, 420].map(width => [lang, theme, width])));
 /** The layout audit of the page as it stands; its problems are added to `problems` under `where`. */
 const audit = async (tab, where, options) => {
   const result = await tab.evaluate(layoutAudit, options);
@@ -85,7 +85,7 @@ try {
   if (!matrixOnly) {
 
   // 1. The gallery.
-  for (const [lang, theme, width] of combos) for (const scene of ['settings', 'route', 'local', 'jobs']) {
+  for (const [lang, theme, width] of combos) for (const scene of ['settings', 'route', 'local', 'jobs', 'history']) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1 });
     const tab = await context.newPage();
     tab.on('pageerror', error => problems.push(`${scene}/${lang}/${theme}/${width}: ${error.message}`));
@@ -97,7 +97,7 @@ try {
     // No horizontal scroll at any width.
     const overflow = await tab.evaluate(() => document.querySelector('.study-app').scrollWidth - document.querySelector('.study-app').clientWidth);
     if (overflow > 1) problems.push(`${scene}/${lang}/${theme}/${width}: horizontal overflow ${overflow}px`);
-    await audit(tab, `${scene}/${lang}/${theme}/${width}`, { scopes: scene === 'jobs' ? ['.pdf-convert-jobs > *'] : ['.audio-provider-card', '.mineru-route-panel', '.mineru-local'] });
+    await audit(tab, `${scene}/${lang}/${theme}/${width}`, { scopes: scene === 'jobs' ? ['.pdf-convert-jobs > *'] : scene === 'history' ? ['.pdf-history', '.pdf-history__row', '.pdf-history__empty', '.pdf-history__confirm', '.mineru-route-panel'] : ['.audio-provider-card', '.mineru-route-panel', '.mineru-local'] });
     const path = join(out, `gallery-${scene}-${lang}-${theme}-${width}.png`);
     await tab.screenshot({ path }); shots.push(path);
     await context.close();
