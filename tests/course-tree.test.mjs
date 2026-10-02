@@ -109,3 +109,12 @@ test('tree: two spellings of one path are one row that keeps both names', () => 
   assert.equal(rows.filter(row => row.depth === 1).length, 1);
   assert.deepEqual(child.names, [`${P} / 01 x`, `${P}/01 x`]);
 });
+
+test('a parent that only exists implicitly is known too, so a no-space chapter still joins it', () => {
+  assert.deepEqual(courseSegments(C01, [C07, C05]), [P, '01 云计算概览与参考架构']);
+  assert.equal(courseWithin(P, C01, [C07]), true);
+  const rows = courseTree([C07, C01]);
+  assert.deepEqual(rows.map(row => [row.depth, row.implicit]), [[0, true], [1, false], [1, false]]);
+  assert.equal(courseSegments('Networks/IP', ['Networks / Layer 3']).length, 2);
+  assert.equal(courseSegments('TCP/IP', ['Networks / Layer 3']).length, 1);
+});
