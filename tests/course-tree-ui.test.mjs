@@ -66,7 +66,8 @@ test('PageScope shows the tree: children indented under their parent, the full n
   const at = text => labels.findIndex(label => label.includes(text));
   assert.ok(at(P) >= 0 && at('01 云计算') > at(P) && at('05 Kubernetes') > at('01 云计算') && at('07 微服务') > at('05 Kubernetes') && at('08 Serverless') > at('07 微服务') && at('10 Serverless') > at('08 Serverless'),
     'chapters follow their parent in natural order');
-  assert.match(labels[at('05 Kubernetes')], /^_+05 Kubernetes/, 'a chapter is indented and shows only its last segment');
+  assert.match(labels[at('05 Kubernetes')], /^05 Kubernetes/, 'a chapter shows only its last segment, flush left in the label');
+  assert.match(html, /<option[^>]*style="padding-inline-start:1\.25em"[^>]*>05 Kubernetes/, 'and is indented by padding in the open list');
   assert.doesNotMatch(labels[at('05 Kubernetes')], /Cloud Native/);
   const chapter = options[at('05 Kubernetes')];
   assert.equal(chapter.value.replace(/&amp;/g, '&'), NAMES.c05, 'choosing a child fills the full path');
@@ -149,4 +150,23 @@ test('Settings course list: a parent counts its sub-courses and says so; an impl
   const en = render(h(CourseList, { courses: records, onOpen() {}, onMerge() {}, defaultOpenGroups: [P] }), 'en');
   noHan(en);
   assert.match(en, /incl\. sub-courses/);
+});
+
+test('PageScope: a closed select shows the chosen course without indentation spaces; depth is padding inside the list; the path wraps instead of being cut', async () => {
+  const { readFileSync } = await import('node:fs');
+  const html = render(h(PageScope, { courses: focusCourses, value: NAMES.c07, onChange() {} }));
+  const options = [...html.matchAll(/<option([^>]*)>([^<]*)</g)].map(match => ({ attrs: match[1], text: match[2] }));
+  assert.ok(options.length > 3);
+  for (const option of options) assert.doesNotMatch(option.text, /^[\s ]/, `no leading spaces in the label "${option.text}" (the closed select would show them)`);
+  const child = options.find(option => /07 微服务/.test(option.text));
+  assert.match(child.attrs, /style="[^"]*padding-inline-start:\s*1\.\d+em/, 'a child is indented by padding, which only the open list uses');
+  const root = options.find(option => /^全部课程$/.test(option.text));
+  assert.doesNotMatch(root.attrs, /padding/);
+  const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8');
+  const pathRule = /\.page-scope__path\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.doesNotMatch(pathRule, /white-space:\s*nowrap/, 'the whole path is shown, wrapped');
+  assert.doesNotMatch(pathRule, /text-overflow:\s*ellipsis/);
+  assert.match(pathRule, /overflow-wrap:\s*anywhere/);
+  const scopeRule = /\.page-scope\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.doesNotMatch(scopeRule, /max-width:\s*340px/, 'long chapter titles get more room than 340px');
 });

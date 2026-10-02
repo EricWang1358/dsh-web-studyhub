@@ -22,15 +22,23 @@
   }
   .source-doc__actions .source-row-actions > summary::-webkit-details-marker { display: none; }
   .source-doc__actions .source-row-actions > summary:hover { background: var(--bg-hover); }
-  .source-doc__actions .source-row-actions[open] > button {
+  /* The open menu is ONE stacked panel under the summary; the buttons inside are ordinary rows (an absolute button per row put them all at the same spot). */
+  .source-doc__actions .source-row-actions[open] > .source-row-menu {
     position: absolute;
+    top: 100%;
     right: 0;
-    z-index: 2;
+    z-index: 3;
+    display: grid;
+    gap: 2px;
+    min-width: 9em;
     margin-top: 4px;
-    white-space: nowrap;
+    padding: var(--space-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
     background: var(--bg-raised);
     box-shadow: var(--shadow-md);
   }
+  .source-doc__actions .source-row-menu button { display: block; width: 100%; margin: 0; text-align: left; white-space: nowrap; }
   .source-doc__pages { margin: var(--space-2) 0 0 calc(var(--space-3) + 20px + var(--space-3)); }
   .source-doc__pages-toggle .sh-icon:last-child { transition: transform 0.18s var(--ease); }
   .source-doc__pages-toggle[aria-expanded="true"] .sh-icon:last-child { transform: rotate(90deg); }

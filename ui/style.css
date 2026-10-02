@@ -1303,9 +1303,10 @@
   .generation-jobs .job-actions { margin-left: auto; }
   .generation-jobs .job button { margin-left: 0; }
   .jobs-actions:empty, .job-actions:empty { display: none; }
-  .page-scope { max-width: 340px; }
+  .page-scope { max-width: min(100%, 36rem); }
+  .page-scope select { max-width: 100%; text-overflow: ellipsis; }
   /* A chosen sub-course shows its whole path under the select (the list itself shows only the last segment, indented). */
-  .page-scope__path { display: block; margin-top: 4px; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+  .page-scope__path { display: block; margin-top: 4px; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 400; line-height: var(--lh-snug); overflow-wrap: anywhere; }
   .source-organize { margin: 16px 0; }
   .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
   .source-organize > label { max-width: 560px; }

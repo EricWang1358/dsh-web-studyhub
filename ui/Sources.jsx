@@ -136,8 +136,10 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
         <div className="source-doc__actions">
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
+            <div className="source-row-menu">
             {onChangeCourse && <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onChangeCourse(item); }}>{ui('改课程…')}</button>}
             <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onRemove(item); }}>{ui('移除')}</button>
+            </div>
           </details>
         </div>
       </div>
