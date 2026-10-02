@@ -45,7 +45,7 @@ import CourseSettings, { CourseList } from './CourseSettings.jsx';
 import LanguageSwitch from './LanguageSwitch.jsx';
 import Inbox from "./Inbox.jsx";
 import { QuickActionsContext, dismissJobs, markInboxRead, useQuickActionsController } from "./quick-actions.js";
-import { shareUnchanged } from "./snapshot-share.js";
+import { shareUnchanged, sameExceptFingerprint } from "./snapshot-share.js";
 import { pollDelay, POLL_FAST_MS } from "./poll-schedule.js";
 import quickCss from "./quick-actions.css";
 import css from "./coach.css";
@@ -544,7 +544,8 @@ export default function App({ call: transportCall, host = {} }) {
           // An unchanged answer hands back the object the panel already holds.
           const next = await refresh();
           if (!stopped) setSyncIssue("");
-          unchanged = next === before ? unchanged + 1 : 0;
+          // The once-a-minute fingerprint rollover alone is not a change.
+          unchanged = sameExceptFingerprint(before, next) ? unchanged + 1 : 0;
         } catch (e) {
           unchanged = 0;
           if (!stopped) setSyncIssue(e.message || String(e));

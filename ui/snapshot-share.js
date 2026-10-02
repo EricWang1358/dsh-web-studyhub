@@ -6,6 +6,16 @@
    previous value for every key that did not change, so identity says what changed. It also returns the texts, to be
    passed back on the next poll: one stringify per key replaces the whole-snapshot stringify the panel used to do. */
 
+/** Did nothing but the fingerprint change? The host rolls the fingerprint over every minute (due counts move with time), so a
+ *  new snapshot whose every other key kept its identity is a quiet poll as far as the poll rhythm is concerned. */
+export function sameExceptFingerprint(previous, next) {
+  if (previous === next) return true;
+  if (!previous || !next) return false;
+  const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
+  for (const key of keys) if (key !== "fingerprint" && previous[key] !== next[key]) return false;
+  return true;
+}
+
 /** { value, texts, changed }: `value` is `previous` itself when nothing changed, else `next` with unchanged keys taken from `previous`. */
 export function shareUnchanged(previous, next, previousTexts = {}) {
   const texts = {}, merged = {};

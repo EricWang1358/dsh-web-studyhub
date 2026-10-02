@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shareUnchanged } from "../ui/snapshot-share.js";
+import { shareUnchanged, sameExceptFingerprint } from "../ui/snapshot-share.js";
 
 const snapshot = (overrides = {}) => ({ revision: 1, fingerprint: "a", sources: [{ id: "s1", title: "One", chars: 10 }], decks: [{ id: "d1", count: 3 }], progress: { d1: { due: 2 } }, ...overrides });
 
@@ -29,6 +29,19 @@ test("a key that disappears or appears is a change", () => {
   const { fingerprint: _gone, ...without } = snapshot();
   assert.equal(shareUnchanged(first.value, without, first.texts).changed, true);
   assert.equal(shareUnchanged(first.value, snapshot({ extra: [] }), first.texts).changed, true);
+});
+
+test("a snapshot that only rolled its fingerprint over counts as quiet for the poll rhythm", () => {
+  const first = shareUnchanged(null, snapshot());
+  const rolled = shareUnchanged(first.value, snapshot({ fingerprint: "b" }), first.texts);
+  assert.equal(rolled.changed, true, "the panel still takes the new fingerprint");
+  assert.equal(sameExceptFingerprint(first.value, rolled.value), true);
+  const moved = shareUnchanged(rolled.value, snapshot({ fingerprint: "c", progress: { d1: { due: 0 } } }), rolled.texts);
+  assert.equal(sameExceptFingerprint(rolled.value, moved.value), false, "a real change is not quiet");
+  assert.equal(sameExceptFingerprint(null, first.value), false);
+  assert.equal(sameExceptFingerprint(first.value, first.value), true);
+  const { sources: _gone, ...fewer } = first.value;
+  assert.equal(sameExceptFingerprint(first.value, fewer), false, "a key that disappeared is a change");
 });
 
 test("the texts of one poll feed the next, and carry through unchanged keys", () => {
