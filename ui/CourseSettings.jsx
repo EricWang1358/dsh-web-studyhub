@@ -62,8 +62,13 @@ export function ExamCountdown({ course, now }) {
 }
 
 const counted = (count, one, many) => count === 1 ? ui(one) : uiFormat(many, [count]);
-const countLine = course => [course.decks ? counted(course.decks, '1 个题组', '{0} 个题组') : '', course.sources ? counted(course.sources, '1 份资料', '{0} 份资料') : '']
-  .filter(Boolean).join(' · ');
+/** Counts of a course; a parent that holds sub-courses shows what the whole subtree holds and says so (含子课程). */
+const countLine = course => {
+  const whole = (course.decksTotal ?? 0) > (course.decks ?? 0) || (course.sourcesTotal ?? 0) > (course.sources ?? 0);
+  const decks = whole ? course.decksTotal : course.decks, sources = whole ? course.sourcesTotal : course.sources;
+  const line = [decks ? counted(decks, '1 个题组', '{0} 个题组') : '', sources ? counted(sources, '1 份资料', '{0} 份资料') : ''].filter(Boolean).join(' · ');
+  return whole && line ? `${line} · ${ui('含子课程')}` : line;
+};
 
 const courseMeta = course => {
   const countdown = course.exam ? examCountdown(course.exam) : null;
@@ -83,7 +88,7 @@ function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMer
         {onMerge && <Button size="sm" variant="link" disabled={busy} onClick={() => onMerge(course.id, duplicates.map(item => item.id))}>{ui('合并到这里')}</Button>}
       </span>}
     </span>
-    <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>
+    {course.id && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>}
   </div>;
 }
 
@@ -111,7 +116,7 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
   const dupesOf = course => duplicates.get(course.id || course.name) || [];
   const toggle = name => setOpen(current => { const next = new Set(current); next.has(name) ? next.delete(name) : next.add(name); return next; });
   const activeKey = entries.map(entry => entry.type === 'group'
-    ? (entry.chapters.some(item => item.course.id === currentId) || entry.parent?.id === currentId) && entryKey(entry)
+    ? (entry.chapters.some(item => item.course.id === currentId) || (entry.parent.id && entry.parent.id === currentId)) && entryKey(entry)
     : entry.course.id === currentId && entryKey(entry)).find(Boolean) || undefined;
   const renderEntry = entry => {
     if (entry.type === 'course') return <CourseRow course={entry.course} duplicates={dupesOf(entry.course)} onOpen={onOpen} onMerge={onMerge} busy={busy}
@@ -121,8 +126,8 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
     const chapters = filtering && !words.every(word => entry.name.normalize('NFKC').toLowerCase().includes(word)) ? entry.chapters.filter(hit) : entry.chapters;
     const expanded = open.has(entry.name) || (filtering && chapters.length > 0);
     const flagged = new Set(entry.chapters.filter(item => dupesOf(item.course).length).map(item => courseNameKey(item.course))).size;
-    const sources = entry.chapters.reduce((sum, item) => sum + (item.course.sources || 0), 0);
-    const meta = [uiFormat('{0} 个章节', [entry.chapters.length]), sources ? counted(sources, '1 份资料', '{0} 份资料') : ''].filter(Boolean).join(' · ');
+    const sources = entry.parent.sourcesTotal ?? entry.chapters.reduce((sum, item) => sum + (item.course.sources || 0), entry.parent.sources || 0);
+    const meta = [uiFormat('{0} 个章节', [entry.chapters.length]), sources ? uiFormat('含子课程共 {0} 份资料', [sources]) : ''].filter(Boolean).join(' · ');
     return <div className="course-list__group">
       <div className="course-list__group-head">
         <button type="button" className="course-list__toggle" aria-expanded={expanded} onClick={() => toggle(entry.name)}>
@@ -132,10 +137,10 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
             <small>{meta}{flagged ? <span className="course-list__flag">{' · '}{uiFormat('{0} 处可能重复', [flagged])}</span> : null}</small>
           </span>
         </button>
-        {entry.parent && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(entry.parent.id)}>{ui('设置')}</Button>}
+        {entry.parent.id && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(entry.parent.id)}>{ui('设置')}</Button>}
       </div>
       {expanded && <ul className="course-list__chapters" aria-label={uiFormat('「{0}」的章节', [entry.name])}>
-        {chapters.map(item => <li key={item.course.id || item.course.name}>
+        {chapters.map(item => <li key={item.course.id || item.course.name} className={item.depth > 1 ? 'course-list__chapter--nested' : undefined} style={item.depth > 1 ? { '--depth': item.depth - 1 } : undefined}>
           <CourseRow course={item.course} label={item.chapter} duplicates={dupesOf(item.course)} onOpen={onOpen} onMerge={onMerge} busy={busy}
             current={item.course.id === currentId} />
         </li>)}

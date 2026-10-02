@@ -43,7 +43,7 @@ export default `:is(.study-app, .study-seat) .course-field { container: course-f
 :is(.study-app, .study-seat) .course-field__option.is-active { box-shadow: inset 0 0 0 1px var(--line-strong); }
 :is(.study-app, .study-seat) .course-field__option[aria-selected="true"] { color: var(--accent-text); }
 :is(.study-app, .study-seat) .course-field__option--group { color: var(--text); font-weight: 600; }
-:is(.study-app, .study-seat) .course-field__option--chapter { padding-left: calc(var(--space-3) + 20px); }
+:is(.study-app, .study-seat) .course-field__option--chapter { padding-left: calc(var(--space-3) + 20px * var(--depth, 1)); }
 :is(.study-app, .study-seat) .course-field__option-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :is(.study-app, .study-seat) .course-field__option small { flex: none; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 400; }
 :is(.study-app, .study-seat) .course-field__option .course-field__option-check { color: var(--accent-text); font-weight: 600; }

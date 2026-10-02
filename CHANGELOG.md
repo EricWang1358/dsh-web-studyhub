@@ -2,6 +2,17 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.3.0 — 2026-10-02
+
+- **Courses can contain courses.** A course name is a path: "Cloud Native Solution Design / 07 …" sits inside "Cloud Native Solution Design". Choosing the parent shows its own sources, decks, mistakes and statistics together with those of every chapter below it; choosing a chapter shows only that chapter. A slash without spaces counts as a separator only when the text before it is an existing course, so "TCP/IP" stays one name. Nothing is renamed or migrated; pickers show the chapters indented under their parent, and counts say "incl. sub-courses".
+- **A reader for sources.** The source preview is rebuilt as a reader: a table of contents, three views (typeset reading, the stored text line by line for checking citations, the original PDF when kept), search inside the text, and display settings (size, line width, typeface, paper tone). Selection, passage marks and card links work as before.
+- **A steadier sidebar.** The "back to the question" row no longer grows when a run is open, so nothing below it jumps; its progress is a count at the end of the row. One look for active (with `aria-current`), one for disabled, the same row height everywhere (including the language row and Settings), the active bar stays visible on narrow screens, and English labels no longer make the rail taller than the window.
+
+## 2.2.3 — 2026-10-02
+
+- **A working local MinerU is recognised as ready.** The 2.2.2 check still said "models not downloaded" on a machine where the service was running and set up: `mineru config get` answers with the whole line (`parse_server.local.mode = managed  [override]`), not the bare value, so the check never saw `managed`. It reads the real format now, and finds the model folders by the names the tool really uses (`MinerU-4_models_onnx`, `MinerU2.5-…-GGUF`) instead of the tier word. Checked against a real mineru 4.0.10: ready.
+- **Change a source's course right on its row.** A source created under the wrong course could only be fixed by opening "Organize courses", ticking it and applying, which is easy to miss. Every source row now has "Change course…" in its More menu: the same course field and the same action, for that one document.
+
 ## 2.2.2 — 2026-10-02
 
 - **下一题 no longer stalls for about two seconds now and then.** After every answer, reveal or move the panel's next poll rebuilt the whole library snapshot in one synchronous stretch that blocked the host for 2.5–3 s on a large library, and a click that arrived meanwhile waited for it. Two causes are removed: the course list re-read every card's citations once per course and source, and the library state was copied a second time on its way out. On a copy of a 94 MB library, clicks went from up to 4.4 s to 0.7 s at most (typically about 0.2 s) and the full snapshot from about 3.3 s to 0.6 s.

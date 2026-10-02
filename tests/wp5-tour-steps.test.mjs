@@ -70,7 +70,7 @@ test("the tour walks the key features in order: welcome → navigation → home 
   assert.equal(TOUR_STEPS.at(-1).final, true);
   for (const step of TOUR_STEPS) {
     if (step.page) assert.ok(PAGES.has(step.page), `${step.id}: unknown page ${step.page}`);
-    for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "draft-publish", "exam-case", "home-course"].includes(anchor),
+    for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "source-tools-toggle", "draft-publish", "exam-case", "home-course"].includes(anchor),
       `${step.id}: anchor ${anchor} is not in the plan's list`);
   }
 });

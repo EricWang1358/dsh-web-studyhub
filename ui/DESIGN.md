@@ -76,3 +76,20 @@ IMAGERY: none; the data is the visual subject.
 MOTION: no idle animation; keyboard and pointer interactions remain immediate.
 INTERACTION: inspect quota, enter a known Gemini RPD, choose independent proofreading/translation depth.
 RESTRAINT: no made-up balances, quality scores, chart libraries or decorative chart motion.
+
+# Source reader (资料预览)
+
+Audience: a learner reading a lecture, chapter, slide deck or transcript they imported, who wants to find a place, read comfortably and turn a passage into questions.
+Primary task: read and orient, then select a passage. Reference: the reading view of O'Reilly's learning platform.
+Composition: a fixed toolbar, then three areas that scroll on their own: outline (目录) | reading column | learning panel (学习). The dialog gives the reader its whole surface; the 1040px content cap does not apply to `.source-preview`.
+Views: 阅读 (typeset, with an outline; the default), 原文 (the stored text exactly, line for line, for checking a citation) and 原始 PDF (only when the retained file exists). Word and PowerPoint keep their download button. Never offer two views that show the same thing.
+Orientation: the toolbar names the current section; the outline marks it; a hairline of progress runs under the toolbar; previous / next section close the page. A source with nothing to navigate (plain text with no parts) shows no outline.
+Reading controls (Aa): size (never below 15px), line width, typeface, tone (follow the app, or a paper sheet on the desk). Kept per browser. Search is inside the text (Ctrl/⌘+F while the reader has focus) and paints with the Custom Highlight API, so the page is never changed.
+Colour: tokens only. The accent appears as the reading-progress line and the one primary button, nothing else. The paper tone re-scopes ink tokens to the `--paper-*` family inside the sheet.
+Narrow panes: below 900px of viewer width (`NARROW` in `DocumentViewer.jsx`, mirrored in `reader.css`) the outline and the learning panel slide over the text with a scrim; Esc closes them before it closes the dialog.
+Restraint: no helper sentence where the layout already says it (the related-questions heading appears only once something is linked); no boxed navigation.
+
+Contracts to keep when changing it:
+- The selection tools read the DOM: `[data-study-text]` around the text, `[data-study-page]` / `[data-study-source]` on a page, `data-study-marker` on the passage marks. Reading mode keeps them; search ignores marked text. A transcript part's 【】 stay in the text, hidden.
+- Rendered text keeps every character of the stored text. The backend compares whitespace-collapsed text, so a hard line break may be drawn without a gap (`.reader-join`, between two CJK characters) but must never be removed from the DOM.
+- Never call `setState` from an effect that runs after every commit, even with an updater that returns the same value: React 18, the DSH host's React, re-renders until it throws error #185 (see `ScrollWindow`, issue #19). Measure on scroll and resize, and only set state when the value changed.

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
-import { usePageScope } from "./PageScope.jsx";
+import { courseMatcher, usePageScope } from "./PageScope.jsx";
 import { createWriteQueue } from "./async.js";
 import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
@@ -203,8 +203,10 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
   // 模拟考试 owns the course scope and the header; used on its own the paper keeps its own scope.
   const [ownCourse] = usePageScope(data?.root, "exam", data?.focus?.course ?? "*");
   const course = courseProp ?? ownCourse;
-  const decks = useMemo(() => (data?.decks || []).filter((deck) => deck.format === "case-study" && !deck.archived &&
-    (course === "*" || (deck.course || "") === course)), [data, course]);
+  const decks = useMemo(() => {
+    const within = courseMatcher(data, course);
+    return (data?.decks || []).filter((deck) => deck.format === "case-study" && !deck.archived && within(deck.course || ""));
+  }, [data, course]);
   const [deckId, setDeckId] = useState("");
   const deck = decks.find((item) => item.id === deckId) || decks[0] || null;
   // The course profile (WP13) proposes the time model; the learner can override it for this paper.

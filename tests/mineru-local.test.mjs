@@ -86,6 +86,20 @@ test('service stopped, set up before (managed, models on disk): server-stopped, 
   assert.equal((await fake.state()).running, false, 'detection did not start it');
 });
 
+test('the models folder is recognised by the names the real tool gives its model folders, not by the tier word', async t => {
+  const fake = await fakeCli(t, { mode: 'disabled', tier: 'standard', running: true });
+  const home = join(fake.dir, 'home');
+  await mkdir(join(home, 'models', 'MinerU2.5-Pro-2605-1.2B-GGUF'), { recursive: true });
+  await writeFile(join(home, 'models', 'MinerU2.5-Pro-2605-1.2B-GGUF', '.mineru_complete'), '');
+  const standard = await detectLocal({ cli: fake.cli, home });
+  assert.deepEqual([standard.state, standard.next, standard.modelsDownloaded], ['needs-models', 'enable', true], 'the standard models are there: only enabling is left');
+  await fake.set({ tier: 'basic' });
+  const basic = await detectLocal({ cli: fake.cli, home });
+  assert.deepEqual([basic.next, basic.modelsDownloaded], ['download-models', false], 'the standard models do not stand in for the basic ones');
+  await mkdir(join(home, 'models', 'MinerU-4_models_onnx'), { recursive: true });
+  assert.equal((await detectLocal({ cli: fake.cli, home })).next, 'enable');
+});
+
 test('service stopped, never configured and no models: also server-stopped; after the start it says needs-models / download', async t => {
   const fake = await fakeCli(t, { mode: 'disabled', tier: 'flash', running: false });
   const before = await detectLocal({ cli: fake.cli, home: join(fake.dir, 'nohome') });

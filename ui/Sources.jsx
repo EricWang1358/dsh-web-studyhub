@@ -3,7 +3,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./AudioImport.jsx";
 import { PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
-import PageScope, { usePageScope } from './PageScope.jsx';
+import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
 import { Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
@@ -106,7 +106,7 @@ const pageLabel = (item, page) => item.format === 'pdf'
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
   const [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), row = useRef(null);
   const multi = item.pages.length > 1;
@@ -136,6 +136,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
         <div className="source-doc__actions">
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
+            {onChangeCourse && <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onChangeCourse(item); }}>{ui('改课程…')}</button>}
             <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onRemove(item); }}>{ui('移除')}</button>
           </details>
         </div>
@@ -166,6 +167,22 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
           retrieval={retrieval} onOpenSettings={onOpenSettings} call={call} courses={courses} defaultCourse={defaultCourse} onRetrieval={onRetrieval} />
       </Disclosure>}
     </article>
+  );
+}
+
+/** Fix where one document belongs, on its own row: the same field and the same source.courses.set as 整理课程归属, for one document. */
+export function CourseDialog({ item, items, byId, courses, busy, act, onClose }) {
+  const [text, setText] = useState(item.courses.join('; '));
+  return (
+    <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} onClose={() => { if (!busy) onClose(); }}
+      footer={<>
+        <Button variant="quiet" disabled={busy} onClick={onClose}>{ui("取消")}</Button>
+        <Button variant="primary" busy={busy} disabled={busy} onClick={() => act('source.courses.set', {
+          assignments: courseAssignments(items, [item.key], parseCourses(text), byId) }, onClose)}>{ui("保存课程")}</Button>
+      </>}>
+      <p className="muted">{ui('只更改归属，原文与引用保持不变。留空就是「未分类」。')}</p>
+      <CourseField value={text} onChange={setText} courses={courses} multiple disabled={busy} />
+    </Dialog>
   );
 }
 
@@ -202,7 +219,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const items = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
-  const filtered = useMemo(() => items.filter(item => inScope(item, scope)), [items, scope]);
+  const known = useMemo(() => courseNamesOf(data), [data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filtered = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
   // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
   const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
   const [retrieval, setRetrieval] = useState(null);
@@ -226,6 +244,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   const [organizing, setOrganizing] = useState(false), [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
   const [removing, setRemoving] = useState(null);
+  const [editingCourse, setEditingCourse] = useState(null);
   const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); };
   const toggle = group => {
@@ -313,7 +332,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
-                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving}
+                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse}
                   advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
                   call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>
@@ -321,6 +340,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
           })}
         </div>
       )}
+      {editingCourse && <CourseDialog item={editingCourse} items={items} byId={byId} courses={data.focus?.courses} busy={busy} act={act}
+        onClose={() => setEditingCourse(null)} />}
       {removing && <RemoveDialog item={removing} busy={busy} act={act} call={call} onClose={() => setRemoving(null)}
         onRemoved={item => { setRemoving(null); setNotice?.({ text: uiFormat("已移除「{0}」", [displayTitle(item.title)]), tone: "success" }); }} />}
     </section>

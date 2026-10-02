@@ -5,13 +5,13 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-const compiled = await build({ stdin: { contents: `export {default as Sources} from './ui/Sources.jsx';
+const compiled = await build({ stdin: { contents: `export {default as Sources, CourseDialog, courseAssignments} from './ui/Sources.jsx';
   export {default as Generate} from './ui/Generate.jsx'; export {default as PdfImport} from './ui/PdfImport.jsx';
   export {usePageScope} from './ui/PageScope.jsx'; export {setUiLanguage} from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Sources, Generate, PdfImport, usePageScope, setUiLanguage } = module.exports;
+const { Sources, CourseDialog, courseAssignments, Generate, PdfImport, usePageScope, setUiLanguage } = module.exports;
 const data = { root: 'library-A', decks: [], drafts: [], sources: [{ id: 'a', title: 'Database notes', text: 'Transactions keep changes consistent.', courses: ['Databases'], createdAt: '2026-09-30' }],
   focus: { course: 'Systems', courses: [{ name: 'Databases' }, { name: 'Systems' }] }, jobs: [], modelReady: true };
 const noop = () => {};
@@ -63,4 +63,33 @@ test('page scope remembers explicit all and unassigned per library while unset p
     assert.match(render({ root: 'B', fallback: 'Course B' }), /Course B/);
     assert.match(render({ root: 'A', fallback: 'Course A' }), /&quot;&quot;/);
   } finally { delete globalThis.sessionStorage; }
+});
+
+test('each source row offers 改课程 in its More menu, so a wrong course can be fixed where it is shown', () => {
+  try {
+    const here = { ...data, focus: { ...data.focus, course: 'Databases' } };
+    const zh = renderToStaticMarkup(React.createElement(Sources, { data: here, act: noop, setModal: noop }));
+    assert.match(zh, /<button[^>]*>改课程…<\/button>/);
+    setUiLanguage('en');
+    const en = renderToStaticMarkup(React.createElement(Sources, { data: here, act: noop, setModal: noop }));
+    assert.match(en, /<button[^>]*>Change course…<\/button>/);
+    assert.doesNotMatch(en, /[㐀-鿿]/);
+  } finally { setUiLanguage('zh'); }
+});
+
+test('the course dialog starts from the current course and applies it through the same source.courses.set as the organizer', () => {
+  try {
+    const item = { key: 'doc-1', title: 'PE1.m4a + 2', sourceIds: ['a', 'b'], courses: ['Cloud Native Solution Design / 07 微服务设计'], usedBy: [], pages: [] };
+    const byId = new Map([['a', { id: 'a', courses: ['Cloud Native Solution Design / 07 微服务设计'] }], ['b', { id: 'b' }]]);
+    const html = renderToStaticMarkup(React.createElement(CourseDialog, { item, items: [item], byId, courses: [{ name: 'Databases' }, { name: 'Systems' }], busy: false, act: noop, onClose: noop }));
+    assert.match(html, /修改「PE1\.m4a \+ 2」的课程/);
+    assert.match(html, /Cloud Native Solution Design \/ 07 微服务设计/);
+    assert.match(html, /保存课程/);
+    assert.deepEqual(courseAssignments([item], ['doc-1'], ['Databases'], byId),
+      [{ id: 'a', courses: ['Databases'], expectedCourses: ['Cloud Native Solution Design / 07 微服务设计'] }, { id: 'b', courses: ['Databases'], expectedCourses: [] }]);
+    setUiLanguage('en');
+    const en = renderToStaticMarkup(React.createElement(CourseDialog, { item: { ...item, title: 'PE1.m4a + 2', courses: [] }, items: [item], byId, courses: [{ name: 'Databases' }], busy: false, act: noop, onClose: noop }));
+    assert.match(en, /Save course/);
+    assert.doesNotMatch(en, /[㐀-鿿]/);
+  } finally { setUiLanguage('zh'); }
 });

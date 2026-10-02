@@ -61,38 +61,55 @@ const transcript = { id: 'audio-1', title: '第 3 讲 · 中英对照逐字稿',
 const pdfPage = { id: 'pdf-p1', title: 'slides.pdf · p.1', text: 'page one', document: { id: 'd', filename: 'slides.pdf', page: 1, format: 'pdf' }, courses: [] };
 const viewer = (source, props = {}, language) => render(h(DocumentViewer, { source, call: async () => ({}), data: { decks: [] }, ...props }), language);
 
-test('a transcript opens in the readable style, a PDF page in the layout style', () => {
+test('a transcript opens for reading with its stored text one tab away; a PDF page keeps its layout style in 原文', () => {
   const html = viewer(transcript);
-  assert.match(html, /<pre class="source-text source-text--reading"/);
-  assert.doesNotMatch(html, /pdf-extracted-text/);
-  const pdf = viewer(pdfPage);
-  assert.match(pdf, /source-text--pdf/);
+  assert.match(html, /<div class="reader-prose" data-study-text="true"><p class="reader-p reader-p--prose">/);
+  assert.doesNotMatch(html, /<pre/, 'the reading view sets paragraphs, not a preformatted block');
+  const text = viewer(transcript, { initialMode: 'text' });
+  assert.match(text, /<pre class="source-text source-text--reading"/);
+  assert.doesNotMatch(text, /pdf-extracted-text/);
+  assert.match(viewer(pdfPage, { initialMode: 'text' }), /source-text--pdf/);
+  assert.doesNotMatch(viewer(pdfPage), /source-text--pdf/, 'in 阅读 a PDF page is typeset like any other text');
+  assert.match(viewer(pdfPage), /data-study-page="1" data-study-source="pdf-p1"/, 'the page keeps the markers the selection tools read');
 });
 
-test('the viewer toolbar is one row: the mode switch on the left, generate as the primary action on the right', () => {
+test('a hard line break inside Chinese text stays in the text but is drawn without a gap', () => {
+  const wrapped = { ...pdfPage, text: '索引入门\n\n索引是一种额外维护的数据结构，它让数据库在查询时不必逐行扫\n描整张表。\n\nThe kubelet restarts\nthe container.' };
+  const html = viewer(wrapped);
+  assert.match(html, /逐行扫<span class="reader-join">\n<\/span>描整张表。/);
+  assert.match(html, /The kubelet restarts\nthe container\./, 'a Latin break stays an ordinary space');
+});
+
+test('the reader toolbar: the views on the left, find, display and study tools on the right, generate as the one primary button', () => {
   const html = viewer(transcript, { onGenerate() {} });
-  const toolbar = html.match(/<div class="study-document-toolbar">([\s\S]*?)<div class="study-document-notices"/)?.[1] || '';
-  assert.match(toolbar, /class="sh-seg[^"]*"[^>]*role="group"|role="group"[^>]*class="sh-seg/, 'the 排版/原文 switch is the shared SegmentedControl');
-  assert.match(toolbar, /aria-pressed="true"[^>]*>排版</);
-  assert.match(toolbar, /原文/);
+  const toolbar = html.match(/<div class="reader-toolbar">([\s\S]*?)<div class="reader-progress"/)?.[1] || '';
+  assert.match(toolbar, /<div role="group" aria-label="显示方式" class="sh-seg[^"]*"/, 'the views are the shared SegmentedControl');
+  assert.match(toolbar, /aria-pressed="true"[^>]*>阅读</);
+  assert.match(toolbar, />原文</);
+  assert.doesNotMatch(toolbar, /原始 PDF/, 'only a PDF has an original view');
+  for (const label of ['在文中查找', '显示设置', '学习工具']) assert.match(toolbar, new RegExp(`aria-label="${label}"`), label);
   assert.match(toolbar, /class="sh-btn sh-btn--primary[^"]*"[^>]*>[\s\S]*?从这份资料出题/, 'generate is the primary button inside the toolbar');
-  assert.ok(toolbar.indexOf('sh-seg') < toolbar.indexOf('从这份资料出题'), 'switch first, generate last');
+  assert.equal((toolbar.match(/sh-btn--primary/g) || []).length, 1, 'one primary button');
+  assert.ok(toolbar.indexOf('sh-seg') < toolbar.indexOf('从这份资料出题'), 'views first, generate last');
   assert.doesNotMatch(viewer(transcript), /从这份资料出题/, 'no generate button without onGenerate');
-  const pdf = viewer(pdfPage, { onGenerate() {} });
-  assert.match(pdf, /原始 PDF/);
-  assert.match(pdf, /可选中的提取文字/);
+  assert.match(viewer(pdfPage, { onGenerate() {} }), /disabled=""[^>]*>原始 PDF</, 'the original PDF view waits for the retained file');
   const en = viewer(transcript, { onGenerate() {} }, 'en');
   assert.match(en, /Generate from this source/);
-  assert.match(en, /Formatted/);
+  assert.match(en, /aria-pressed="true"[^>]*>Read</);
+  assert.match(en, /Find in text/);
+  assert.match(en, /Display settings/);
 });
 
-test('the selection panel keeps its buttons inside one bordered box, full width', () => {
+test('the learning panel keeps the selection tools together at full width, and no empty links heading', () => {
   const html = viewer(transcript, { onCaseFromPassage() {} });
-  const panel = html.match(/<div class="study-document-selection">([\s\S]*?)<\/div><h3/)?.[1] || '';
+  const panel = html.match(/<div class="study-document-selection">([\s\S]*?)<\/div><\/aside>/)?.[1] || '';
   assert.match(panel, /使用当前选区/);
   assert.match(panel, /围绕这段出案例题/);
   for (const label of ['使用当前选区', '围绕这段出案例题'])
     assert.match(panel, new RegExp(`class="sh-btn [^"]*study-document-wide[^"]*"[^>]*>(?:<[^>]+>)*${label}`), `${label} is a full-width shared button`);
+  assert.doesNotMatch(html, /原文关联题目与解析/, 'the related-questions heading appears once something is linked');
+  assert.match(html, /data-tour="source-tools"/, 'the tour anchors on the panel');
+  assert.match(html, /data-tour="source-tools-toggle"/, 'and on its toggle when the panel is closed');
 });
 
 /* ---------- 2 · course field ---------- */
@@ -170,7 +187,7 @@ test('a chapter as the value opens its parent chip with short chapter names; lon
   assert.match(chips[0].html, /aria-expanded="true"/);
   const row = html.match(/<div class="course-field__chapters"[\s\S]*?<\/div>/)?.[0] || '';
   assert.match(row, /aria-label="「Distributed Systems Engineering」的章节"/);
-  assert.equal((row.match(/<button/g) || []).length, 8);
+  assert.equal((row.match(/<button/g) || []).length, 9, 'the parent (here implicit: nothing is filed under it) and the eight chapters');
   assert.match(row, new RegExp(`aria-pressed="true"[^>]*title="${value}"|title="${value}"[^>]*aria-pressed="true"`));
   assert.match(row, />05 第 5 章：一个相当长的章节标题，用来测试截断与分组</, 'only the chapter part is shown');
   assert.match(row, new RegExp(`aria-label="${value}"`), 'the full name is the accessible name');
@@ -285,9 +302,10 @@ test('edgeTracker publishes the fade edges only when they change, so a per-commi
 
 test('splitCourseName reads "Course / Chapter" and leaves ordinary slashes alone', () => {
   assert.deepEqual(splitCourseName(`${CNSD} / 05 Kubernetes`), { parent: CNSD, chapter: '05 Kubernetes' });
-  assert.deepEqual(splitCourseName(`${CNSD}/01 云计算概览`), { parent: CNSD, chapter: '01 云计算概览' });
+  assert.equal(splitCourseName(`${CNSD}/01 云计算概览`), null, 'a slash without spaces needs a known course before it');
+  assert.deepEqual(splitCourseName(`${CNSD}/01 云计算概览`, [CNSD]), { parent: CNSD, chapter: '01 云计算概览' });
   assert.deepEqual(splitCourseName(`${CNSD} ／ 02 容器`), { parent: CNSD, chapter: '02 容器' }, 'full-width slash');
-  assert.equal(splitCourseName('TCP/IP Basics'), null, 'a one-word part before an unspaced slash is not a course');
+  assert.equal(splitCourseName('TCP/IP Basics'), null, 'a part before an unspaced slash that is no course stays part of the name');
   assert.equal(splitCourseName('Databases'), null);
   assert.equal(splitCourseName(' / x'), null);
 });
@@ -297,14 +315,15 @@ test('groupCourseNames groups chapters under their course, in order, without ren
   const cnsd = groups.find(entry => entry.type === 'group');
   assert.equal(cnsd.name, CNSD);
   assert.equal(cnsd.chapters.length, 8, 'seven chapters plus the unspaced duplicate');
-  assert.deepEqual(cnsd.chapters.map(item => item.course.name), cnsd.chapters.map(item => item.course.name).slice().sort((a, b) => splitCourseName(a).chapter.localeCompare(splitCourseName(b).chapter, undefined, { numeric: true })));
+  const known = courses.map(item => item.name);
+  assert.deepEqual(cnsd.chapters.map(item => item.course.name), cnsd.chapters.map(item => item.course.name).slice().sort((a, b) => splitCourseName(a, known).chapter.localeCompare(splitCourseName(b, known).chapter, undefined, { numeric: true })));
   assert.ok(cnsd.chapters.every(item => courses.includes(item.course)), 'the original records, untouched');
   assert.equal(cnsd.chapters.find(item => item.course === chapters[4]).chapter, '05 Kubernetes：对象、运行机制与故障诊断');
   assert.equal(groups.filter(entry => entry.type === 'course').length, 10);
   assert.equal(groups.indexOf(cnsd), 1, 'the group sits where its first chapter was');
   assert.ok(groups.some(entry => entry.type === 'course' && entry.course.name === 'TCP/IP Basics'));
   const alone = groupCourseNames([course('Physics / 01 Mechanics'), course('Chemistry')]);
-  assert.deepEqual(alone.map(entry => entry.type), ['course', 'course'], 'a single chapter is not a group');
+  assert.deepEqual(alone.map(entry => entry.type), ['group', 'course'], 'a parent with a single chapter is a group too (it is a scope of its own)');
   const parented = groupCourseNames([course('Physics'), course('Physics / 01 Mechanics'), course('Physics / 02 Waves')]);
   assert.equal(parented.length, 1);
   assert.equal(parented[0].parent.name, 'Physics', 'a course named like the group heads it');
@@ -419,8 +438,10 @@ test('office originals are downloaded, never decoded as text; office text reads 
   assert.equal(viewerFormat(null, transcript), 'txt');
   const html = viewer(slide(2));
   assert.match(html, /data-study-page="2"/, 'slides get page sections like PDF pages');
-  assert.match(html, /<pre class="source-text source-text--reading"/);
-  assert.doesNotMatch(html, /source-text--pdf/);
+  assert.match(html, /第 2 张/, 'a slide is labelled as a slide, not a page');
+  const text = viewer(slide(2), { initialMode: 'text' });
+  assert.match(text, /<pre class="source-text source-text--reading"/);
+  assert.doesNotMatch(text, /source-text--pdf/);
 });
 
 test('the picker labels Word and PowerPoint and groups a deck of slides', () => {

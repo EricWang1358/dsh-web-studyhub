@@ -178,19 +178,9 @@
 }
 
 /* ── Sidebar entry: shows on every page while 定制题 are ready ─────────── */
-.side-nav > .nav.coach-nav { color: var(--text); }
 .coach-nav .icon { color: var(--accent-soft); }
-.coach-nav .nav-label { display: grid; min-width: 0; text-align: left; font-weight: 600; }
-.coach-nav .nav-label small {
-  font-size: 15px;
-  font-weight: 400;
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 130px;
-}
 .nav-badge {
+  flex: none;
   margin-left: auto;
   min-width: 24px;
   padding: 0 7px;
@@ -204,7 +194,6 @@
   font-variant-numeric: tabular-nums;
 }
 /* On the collapsed rail the count folds into a dot on the icon. */
-.sidebar.is-narrow .coach-nav .nav-label small { display: none; }
 .sidebar.is-narrow .coach-nav .nav-badge {
   position: absolute;
   top: 6px;

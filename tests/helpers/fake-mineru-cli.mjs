@@ -31,8 +31,9 @@ else if (command === 'config' && sub === 'show') {
 } else if (command === 'config' && sub === 'get') {
   needService();
   const key = argv[2];
-  if (key === 'parse_server.local.mode') out(state.mode ?? 'disabled');
-  else if (key === 'parse_server.local.managed_tier') out(state.tier ?? 'flash');
+  // The real CLI prints the whole line, not the bare value: `parse_server.local.mode = managed  [override]` (or `[default]`).
+  if (key === 'parse_server.local.mode') out(`${key} = ${state.mode ?? 'disabled'}  [${state.mode === undefined ? 'default' : 'override'}]`);
+  else if (key === 'parse_server.local.managed_tier') out(`${key} = ${state.tier ?? 'flash'}  [${state.tier === undefined ? 'default' : 'override'}]`);
   else fail(`unknown key ${key}`);
 } else if (command === 'config' && sub === 'set') {
   needService();
