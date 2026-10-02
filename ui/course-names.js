@@ -1,7 +1,9 @@
 /* Course names as learners write them (WP14). Pure helpers, no renaming:
-   "Course / Chapter" names are grouped for display, and names that only differ
-   in spacing, character width or the spacing around "/" are flagged as
-   possible duplicates so the learner can merge them with a confirmation. */
+   a name is a path ("Course / Chapter / Part", lib/course-tree.js) and the
+   pickers show the tree; names that only differ in spacing, character width or
+   the spacing around "/" are flagged as possible duplicates so the learner can
+   merge them with a confirmation. */
+import { courseSegments, courseTree } from '../lib/course-tree.js';
 
 const nameOf = course => typeof course === 'string' ? course : String(course?.name || '');
 const PUNCTUATION = /\s*([/:;,.!?|·()[\]{}<>+&\-–—、，。：；！？（）【】《》])\s*/g;
@@ -12,58 +14,45 @@ export function courseNameKey(name) {
 }
 
 /**
- * "Course / Chapter" → { parent, chapter }; null for an ordinary name. A slash
- * without spaces only counts when the part before it is several words
- * ("Cloud Native Solution Design/01 …"), so "TCP/IP Basics" stays one course.
+ * "Course / Chapter" → { parent, chapter } (the parent path and the last segment); null for an ordinary name.
+ * A slash without spaces only counts when the part before it is a known course (`known`: the library's names),
+ * so "TCP/IP Basics" stays one course and "Cloud Native Solution Design/01 …" joins its parent.
  */
-export function splitCourseName(name) {
-  // Split the name as written (no NFKC on the parts: "：" stays "：").
-  const text = nameOf(name);
-  const at = text.search(/[/／]/);
-  if (at < 0) return null;
-  const before = text.slice(0, at), after = text.slice(at + 1);
-  const parent = before.replace(/\s+/g, ' ').trim(), chapter = after.replace(/\s+/g, ' ').trim();
-  if (!parent || !chapter) return null;
-  const spaced = /\s$/.test(before) || /^\s/.test(after);
-  if (!spaced && !/\s/.test(parent)) return null;
-  return { parent, chapter };
+export function splitCourseName(name, known = []) {
+  // Segments keep the name as written (no NFKC on the parts: "：" stays "：").
+  const segments = courseSegments(nameOf(name), known);
+  if (segments.length < 2) return null;
+  return { parent: segments.slice(0, -1).join(' / '), chapter: segments.at(-1) };
 }
 
-const byChapter = (a, b) => a.chapter.localeCompare(b.chapter, undefined, { numeric: true, sensitivity: 'base' });
-
 /**
- * Display entries for a course list, in the given order:
+ * Display entries for a course list: top-level names keep the given order, each parent is followed by its descendants
+ * in natural order ("01" before "10"):
  *   { type: 'course', course }
- *   { type: 'group', key, name, parent?: course, chapters: [{ course, chapter }] }
- * A group needs two or more chapters; a course named exactly like the group
- * heads it as `parent`. The records themselves are passed through untouched.
+ *   { type: 'group', key, name, parent, chapters: [{ course, chapter, depth, relative }] }
+ * A parent with at least one chapter is a group. `parent` is the record named like the group, or a synthetic
+ * `{ name, implicit: true }` when nothing is filed under it (it is still a scope). `chapter` is the last segment,
+ * `relative` the path below the group, `depth` 1 for direct chapters. The records themselves are passed through
+ * untouched; two spellings of one path stay two chapters, so both remain manageable.
  */
 export function groupCourseNames(courses = []) {
-  const parts = courses.map(course => ({ course, split: splitCourseName(course) }));
-  const members = new Map();
-  for (const { course, split } of parts) {
-    if (!split) continue;
-    const key = courseNameKey(split.parent);
-    if (!members.has(key)) members.set(key, { name: split.parent, chapters: [] });
-    members.get(key).chapters.push({ course, chapter: split.chapter });
-  }
-  for (const [key, group] of members) if (group.chapters.length < 2) members.delete(key);
-  const heads = new Map();
-  for (const { course, split } of parts) {
-    const key = courseNameKey(course);
-    if (!split && members.has(key) && !heads.has(key)) heads.set(key, course);
-  }
-  const entries = [], placed = new Set();
-  for (const { course, split } of parts) {
-    const key = split ? courseNameKey(split.parent) : courseNameKey(course);
-    const group = members.get(key);
-    if (group && (split || heads.get(key) === course)) {
-      if (placed.has(key)) continue;
-      placed.add(key);
-      const parent = heads.get(key);
-      entries.push({ type: 'group', key, name: parent ? nameOf(parent) : group.name, ...(parent ? { parent } : {}),
-        chapters: [...group.chapters].sort(byChapter) });
-    } else entries.push({ type: 'course', course });
+  const records = new Map();
+  for (const course of courses) { const name = nameOf(course).trim().replace(/\s+/g, ' '); if (name && !records.has(name)) records.set(name, course); }
+  const entries = [];
+  let group = null;
+  for (const row of courseTree([...records.keys()])) {
+    const members = row.names.length ? row.names.map(name => records.get(name)) : [{ name: row.name, implicit: true }];
+    if (row.depth === 0) {
+      group = null;
+      if (!row.childCount) { for (const course of members) entries.push({ type: 'course', course }); continue; }
+      const [parent, ...extra] = members;
+      group = { type: 'group', key: row.key, name: nameOf(parent), parent, chapters: [] };
+      entries.push(group);
+      for (const course of extra) group.chapters.push({ course, chapter: nameOf(course), depth: 1, relative: nameOf(course) });
+      continue;
+    }
+    const relative = row.path.slice(1).join(' / ');
+    for (const course of members) group.chapters.push({ course, chapter: row.label, depth: row.depth, relative });
   }
   return entries;
 }

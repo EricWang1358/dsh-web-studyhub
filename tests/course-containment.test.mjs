@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { sourceMatchesCourse } from '../lib/source-courses.js';
+import { sourceMatchesCourse, courseForSources } from '../lib/source-courses.js';
 import { learningScope } from '../lib/learning-scope.js';
 import { courseTopics } from '../lib/audio-job.js';
 import { weakTopicsFor } from '../lib/contexts/generation/suggest.js';
@@ -117,6 +117,19 @@ test('pure sites share the helper: sources, learning scope, vocabulary, weak top
   assert.equal(weakTopicsFor(state, P).length, 4);
   assert.equal(weakTopicsFor(state, C07).length, 1);
   assert.deepEqual(courseBatch({ ...state, attempts: [] }, { course: P }).fresh.map(item => item.deckId).slice(0, 3), ['dP', 'dP', 'd01']);
+});
+
+test('a new item takes the course of its sources, or the parent scope that holds them all (never a rewrite of a child)', async t => {
+  const service = await library(t);
+  const state = await service.call('export');
+  const known = [P, C01, C05, C07];
+  assert.equal(courseForSources(state, ['s05'], P, known), C05, 'all sources in one chapter: that chapter');
+  assert.equal(courseForSources(state, ['s05', 's07'], P, known), P, 'sources from several chapters: the parent scope');
+  assert.equal(courseForSources(state, ['s05', 's07'], C05, known), '', 'a chapter scope does not hold the other chapter: no default');
+  assert.equal(courseForSources(state, ['s05', 'sNative'], P, known), '', 'a source outside the scope: no default');
+  assert.equal(courseForSources(state, ['sTwo'], P, known), P, 'a source in two chapters');
+  assert.equal(courseForSources(state, ['sP'], P, known), P);
+  assert.equal(courseForSources(state, ['nothing'], P, known), P, 'no sources: the preferred scope as before');
 });
 
 test('the course list (settings) carries subtree totals next to its own counts', async t => {

@@ -25,7 +25,8 @@ test('the course switcher puts chapters in an optgroup under their course', () =
   const select = html.match(/<select aria-label="切换当前课程"[\s\S]*?<\/select>/)?.[0] || '';
   assert.match(select, new RegExp(`<optgroup label="${CNSD}">`));
   const group = select.match(/<optgroup[\s\S]*?<\/optgroup>/)[0];
-  assert.equal((group.match(/<option/g) || []).length, 3);
+  assert.equal((group.match(/<option/g) || []).length, 4, 'the parent (a scope of its own, nothing is filed under it) and three chapters');
+  assert.match(group, new RegExp(`<option value="${CNSD}">${CNSD} · 含子课程</option>`));
   assert.match(group, new RegExp(`<option value="${CNSD} / 01 云计算概览与参考架构">01 云计算概览与参考架构</option>`), 'the chapter is shown, the full name is the value');
   assert.match(group, new RegExp(`value="${CNSD} / 02 容器与镜像" selected="">02 容器与镜像<`));
   assert.match(select, /<option value="Databases">Databases<\/option>/);

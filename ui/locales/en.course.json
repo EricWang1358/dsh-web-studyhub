@@ -68,6 +68,8 @@
   "课程列表": "Course list",
   "筛选课程…": "Filter courses…",
   "{0} 章": "{0} ch.",
+  "含子课程": "Includes sub-courses",
+  "含子课程共 {0} 份资料": "{0} materials incl. sub-courses",
   "全部课程 ({0})": "All courses ({0})",
   "全部课程": "All courses",
   "显示 {0} / 共 {1} 门": "Showing {0} of {1}",

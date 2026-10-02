@@ -50,15 +50,15 @@ function listRows(entries, terms, openGroups) {
       rows.push({ key: entry.course.name, type: 'course', course: entry.course, label: entry.course.name, depth: 0 });
       continue;
     }
-    const members = [...(entry.parent ? [{ course: entry.parent, chapter: entry.parent.name }] : []), ...entry.chapters];
+    const members = [{ course: entry.parent, chapter: entry.parent.name, depth: 1 }, ...entry.chapters];
     const nameHit = filtering && hits(entry.name, terms);
     const shown = !filtering || nameHit ? members : members.filter(member => hits(member.course.name, terms));
     if (!shown.length) continue;
     matched += shown.length;
     const expanded = openGroups.has(entry.key) || filtering;
-    rows.push({ key: `group:${entry.key}`, type: 'group', entry, count: shown.length, expanded });
+    rows.push({ key: `group:${entry.key}`, type: 'group', entry, count: shown.filter(member => member.course !== entry.parent).length, expanded });
     if (expanded) for (const member of shown)
-      rows.push({ key: member.course.name, type: 'course', course: member.course, label: member.chapter, depth: 1 });
+      rows.push({ key: member.course.name, type: 'course', course: member.course, label: member.chapter, depth: member.depth || 1 });
   }
   return { rows, matched };
 }
@@ -82,7 +82,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
   const large = names.length > MAX_CHIPS;
   const lead = current ?? chosen[0];
   const entries = useMemo(() => large ? groupCourseNames(rankCourses({ courses: list, current: lead })) : [], [large, list, lead]);
-  const chosenGroup = entries.find(entry => entry.type === 'group' && entry.chapters.some(item => chosen.includes(item.course.name)))?.key ?? null;
+  const chosenGroup = entries.find(entry => entry.type === 'group' && (entry.chapters.some(item => chosen.includes(item.course.name)) || chosen.includes(entry.parent.name)))?.key ?? null;
   const [expanded, setExpanded] = useState(chosenGroup);
   const [open, setOpen] = useState(initialOpen && large);
   const [openGroups, setOpenGroups] = useState(() => new Set(chosenGroup ? [chosenGroup] : []));
@@ -122,11 +122,11 @@ export default function CourseField({ courses = [], value = '', onChange, multip
     title={course.name} aria-label={text === course.name ? undefined : course.name} disabled={disabled} onClick={() => pick(course.name)}>
     <span className="course-field__pick-name">{text}</span></button>;
   const groupChip = entry => {
-    const inside = entry.chapters.some(item => chosen.includes(item.course.name)) || (entry.parent && chosen.includes(entry.parent.name));
+    const inside = entry.chapters.some(item => chosen.includes(item.course.name)) || chosen.includes(entry.parent.name);
     const isOpen = expanded === entry.key;
     return <button type="button" key={`group:${entry.key}`} className={`course-field__pick course-field__pick--group${inside ? ' has-chosen' : ''}`}
       aria-expanded={isOpen} aria-controls={isOpen ? chaptersId : undefined} title={entry.name} disabled={disabled}
-      onClick={() => { if (entry.parent && !isOpen) pick(entry.parent.name); setExpanded(isOpen ? null : entry.key); }}>
+      onClick={() => { if (!isOpen) pick(entry.parent.name); setExpanded(isOpen ? null : entry.key); }}>
       <span className="course-field__pick-name">{entry.name}</span>
       <span className="course-field__pick-meta">{`· ${uiFormat('{0} 章', [entry.chapters.length])}`}</span>
     </button>;
@@ -159,8 +159,8 @@ export default function CourseField({ courses = [], value = '', onChange, multip
         {uiFormat('全部课程 ({0})', [names.length])}<span className="course-field__caret" aria-hidden="true" /></button>}
     </div>}
     {expandedEntry && !open && <div className="course-field__chapters" id={chaptersId} role="group" aria-label={uiFormat('「{0}」的章节', [expandedEntry.name])}>
-      {expandedEntry.parent && chip(expandedEntry.parent)}
-      {expandedEntry.chapters.map(item => chip(item.course, item.chapter))}
+      {chip(expandedEntry.parent)}
+      {expandedEntry.chapters.map(item => chip(item.course, item.relative))}
     </div>}
     {open && <div className="course-field__panel" id={panelId}>
       <div className="course-field__panel-head">
@@ -173,6 +173,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
         listProps={{ role: 'listbox', id: listboxId, 'aria-label': ui('全部课程'), 'aria-multiselectable': multiple || undefined }}
         itemProps={(row, index) => ({ role: 'option', id: `${listboxId}-${index}`,
           className: `course-field__option course-field__option--${row.type === 'group' ? 'group' : row.depth ? 'chapter' : 'course'}${index === activeIndex ? ' is-active' : ''}`,
+          ...(row.depth > 1 ? { style: { '--depth': row.depth } } : { style: { '--depth': 1 } }),
           'aria-selected': row.type === 'group' ? false : chosen.includes(row.course.name),
           ...(row.type === 'group' ? { 'aria-expanded': row.expanded } : {}),
           onMouseDown: event => event.preventDefault(), onClick: () => activate(row) })}

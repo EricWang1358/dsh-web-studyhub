@@ -3,7 +3,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./AudioImport.jsx";
 import { PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
-import PageScope, { usePageScope } from './PageScope.jsx';
+import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
 import { Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
@@ -219,7 +219,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const items = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
-  const filtered = useMemo(() => items.filter(item => inScope(item, scope)), [items, scope]);
+  const known = useMemo(() => courseNamesOf(data), [data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filtered = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
   // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
   const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
   const [retrieval, setRetrieval] = useState(null);

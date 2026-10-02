@@ -15,6 +15,8 @@ import CourseRoute from "./CourseRoute.jsx";
 import caseCss from "./case-study.css";
 import { ExamCountdown } from "./CourseSettings.jsx";
 import { groupCourseNames, rankCourses } from "./course-names.js";
+import { courseMatcher, courseNamesOf } from "./PageScope.jsx";
+import { courseOrder } from "../lib/course-tree.js";
 import { DraftTopUp, ShortfallReasons } from "./DraftShortfall.jsx";
 import { missingQuestions } from "./draft-shortfall.js";
 
@@ -240,12 +242,14 @@ export default function StudyMap({
     };
     const live = data.decks.filter((d) => !d.archived);
     const name = data.focus?.mode === "interview" ? null : data.focus?.course;
-    const inCourse = name != null ? live.filter((d) => !d.systemKind && d.course === name) : [];
+    // A parent course measures the courses inside it too.
+    const within = name != null ? courseMatcher(data, name) : null;
+    const inCourse = within ? live.filter((d) => !d.systemKind && within(d.course ?? d.folder ?? '')) : [];
     const course = inCourse.length ? measure(inCourse) : null;
     const whole = measure(live);
     const others = course && live.some((d) => !inCourse.includes(d) && progress[d.id]?.total);
     return { course, whole, name, others };
-  }, [data.decks, data.focus?.course, data.focus?.mode, progress]);
+  }, [data.decks, data.focus?.course, data.focus?.courses, data.focus?.mode, progress]); // eslint-disable-line react-hooks/exhaustive-deps
   const primary = mastery.course || mastery.whole;
   const runFor = (scope) =>
     runs.find((r) => r.mode === "path" && sameScope(r.scope, scope));
@@ -258,6 +262,9 @@ export default function StudyMap({
       .toLowerCase()
       .includes(query);
   });
+  // The current course is a scope: a parent includes the courses inside it, shown parent first and chapters in natural order.
+  const inFocus = useMemo(() => data.focus?.course == null ? () => false : courseMatcher(data, data.focus.course),
+    [data.focus?.course, data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps
   const folders = useMemo(() => {
     const groups = new Map();
     for (const d of visible) {
@@ -265,16 +272,16 @@ export default function StudyMap({
       if (!groups.has(course)) groups.set(course, []);
       groups.get(course).push(d);
     }
-    const current = groups.get(data.focus?.course);
-    current?.sort((a, b) => Date.parse(b.publishedAt || b.createdAt || 0) -
+    for (const [course, list] of groups) if (inFocus(course)) list.sort((a, b) => Date.parse(b.publishedAt || b.createdAt || 0) -
       Date.parse(a.publishedAt || a.createdAt || 0));
+    const order = courseOrder(courseNamesOf(data));
     return [...groups].sort(([left], [right]) =>
-      Number(right === data.focus?.course) - Number(left === data.focus?.course));
-  }, [visible, data.focus?.course]);
+      (Number(inFocus(right)) - Number(inFocus(left))) || (inFocus(left) && inFocus(right) ? order(left, right) : 0));
+  }, [visible, inFocus]); // eslint-disable-line react-hooks/exhaustive-deps
   const shownFolders = query || showArchived || showOtherCourses
-    ? folders : folders.filter(([course]) => course === data.focus?.course);
+    ? folders : folders.filter(([course]) => inFocus(course));
   const otherCourseCount = folders.length - shownFolders.length;
-  const singleCourse = shownFolders.length === 1 && shownFolders[0][0] === data.focus?.course;
+  const singleCourse = shownFolders.length === 1 && inFocus(shownFolders[0][0]);
 
   const toggleOpen = (id) =>
     setExpanded((v) => {
@@ -544,12 +551,11 @@ export default function StudyMap({
   /* A semester holds several courses and any of them may be the one left half
      done, so a run from outside the course in the heading names its course
      instead of being held back. System decks (为你定制) belong to no course. */
-  const focusCourse = interview ? null : data.focus?.course,
-    otherCourse = (r) => {
+  const otherCourse = (r) => {
       const courses = new Set((r.deckIds || [r.deckId]).map((id) => data.decks.find((d) => d.id === id))
         .filter((d) => d && !d.systemKind).map((d) => d.course));
       const [course] = courses;
-      return courses.size === 1 && course !== focusCourse ? course : "";
+      return courses.size === 1 && (interview || !inFocus(course ?? "")) ? course : "";
     };
   const baseLink = base.kind === "course" ? uiFormat("课程下一批 · {0} 题", [base.count])
     : base.kind === "fresh" ? uiFormat("学当前课程新题 · {0} 题", [base.count])
@@ -648,8 +654,8 @@ export default function StudyMap({
                 {/* Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names grouped (WP14). */}
                 {groupCourseNames(rankCourses({ courses: data.focus?.courses || [], current: data.focus?.course })).map((entry) => entry.type === "group"
                   ? <optgroup key={`group:${entry.key}`} label={entry.name}>
-                    {entry.parent && <option value={entry.parent.name}>{entry.parent.name}</option>}
-                    {entry.chapters.map(({ course, chapter }) => <option key={course.name} value={course.name}>{chapter}</option>)}
+                    <option value={entry.parent.name}>{entry.parent.name} · {ui("含子课程")}</option>
+                    {entry.chapters.map(({ course, chapter, depth }) => <option key={course.name} value={course.name}>{"\u00a0\u00a0".repeat(Math.max(0, depth - 1))}{chapter}</option>)}
                   </optgroup>
                   : <option key={entry.course.name} value={entry.course.name}>{entry.course.name || ui('未分类课程')}</option>)}
                 {onCourseSettings && data.focus?.courseId && <option value="@course-settings">{ui("课程设置…")}</option>}
@@ -889,7 +895,7 @@ export default function StudyMap({
             // The arrow alone opens and closes a course. When the course is the
             // only one on screen its header is hidden, so it is always open.
             const open = singleCourse || isOpen("folder:" + folder),
-              truncated = folder === data.focus?.course && !query && decks.length > 3,
+              truncated = inFocus(folder) && !query && decks.length > 3,
               shown = truncated && !showAllCurrent ? decks.slice(0, 3) : decks;
             return (
               <li

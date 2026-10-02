@@ -61,6 +61,7 @@
   background: color-mix(in srgb, var(--bg-sunken) 55%, transparent); }
 :is(.study-app, .study-seat) .course-list__chapters .course-list__item { min-height: 44px; padding-left: calc(var(--space-3) + 24px); }
 :is(.study-app, .study-seat) .course-list__chapters li + li .course-list__item { border-top: 1px solid var(--line-soft); }
+:is(.study-app, .study-seat) .course-list__chapters .course-list__chapter--nested .course-list__item { padding-left: calc(var(--space-3) + 24px + 16px * var(--depth, 1)); }
 
 /* Library heading: the countdown sits beside the course name. */
 :is(.study-app, .study-seat) .course-heading .course-heading-exam { flex: none; align-self: center; padding: 3px var(--space-2); border-radius: var(--radius-pill);
@@ -73,4 +74,5 @@
   :is(.study-app, .study-seat) .course-heading { flex-wrap: wrap; row-gap: var(--space-1); }
   :is(.study-app, .study-seat) .course-list__item { padding-left: var(--space-3); }
   :is(.study-app, .study-seat) .course-list__chapters .course-list__item { padding-left: calc(var(--space-2) + 20px); }
+  :is(.study-app, .study-seat) .course-list__chapters .course-list__chapter--nested .course-list__item { padding-left: calc(var(--space-2) + 20px + 12px * var(--depth, 1)); }
 }
