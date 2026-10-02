@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.2 — 2026-10-03
+
+- **Optional: see how you actually use StudyHub.** In Settings › Advanced you can turn on a **usage frequency record**. It is off by default and nothing is recorded, listened to or timed until you turn it on. It records which controls you use and how often (a stable control name, the page, the day and a count), never what you typed, read or answered, and never a course, file, source or card name. It stays on this computer (`study/usage-frequency.json` in the DSH home, not in your library, exports or backups), and you can look at it, pause it, export it or delete it at any time; StudyHub never sends it anywhere. **My usage report** shows the most used controls, usage by page and by tier (every day, periodic, once per course), a daily rhythm, controls you have never used, and up to six plain, rule-based observations (for example "used every week but sits in the quiet group: consider pinning it", "not used in 30 days: it can stay folded"). It can be exported as Markdown or JSON (aggregated counts only) if you want to share it with the developer. See docs/usage-frequency.md.
+- **The reader toolbar no longer overflows to the left in a narrow window.** In a phone-width reader the first button of the right-hand group ("Practise these pages") sat off-screen at a negative position and could not be reached; the group now wraps.
+
 ## 2.5.1 — 2026-10-03
 
 - **Changing the course of a big book works.** "Change course" on a converted book with more than 200 pages failed with "Choose 1–200 sources", because a book is one assignment per page. The ceiling is now 5000, and a failed save is shown inside the dialog instead of in a notice that landed on top of its own buttons. A long course path shows an ellipsis and the whole path as a tooltip.
