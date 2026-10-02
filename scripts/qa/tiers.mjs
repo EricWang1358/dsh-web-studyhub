@@ -96,8 +96,15 @@ async function measurePage(page) {
     // The rail must fit the window: the last row (Settings) ends inside it.
     const last = [...document.querySelectorAll(".sidebar-bottom .nav")].at(-1)?.getBoundingClientRect();
     const sidebarOverflow = last ? Math.max(0, Math.round(last.bottom - innerHeight)) : 0;
+    // Visible: has a box and is not inside a folded <details> (a folded one keeps stale boxes for its content).
+    const shown = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !el.closest("details:not([open])") ; };
+    const primary = [...document.querySelectorAll("main .sh-btn--primary, main button.primary")].filter(shown).map((el) => el.textContent.trim().replace(/\s+/g, " ").slice(0, 40));
+    // What the learner is asked to choose between at first sight: visible buttons and links of the home's hero, and rows of the rail.
+    const deskList = [...document.querySelectorAll(".desk button, .desk a, .welcome button, .welcome a")].filter((el) => !el.disabled && shown(el)).map((el) => el.textContent.trim().replace(/\s+/g, " ").slice(0, 28));
+    const deskActions = deskList.length;
+    const railRows = [...document.querySelectorAll(".sidebar button.nav")].filter((el) => !el.closest(".sidebar-bottom") && shown(el)).length;
     return {
-      overflowX, wide, sidebarOverflow,
+      overflowX, wide, sidebarOverflow, primary, deskActions, deskList, railRows,
       continueCards: count(".today-card"), recommendations: count(".desk-next"), coachOffers: count(".coach-offer"),
       checklist: count("[data-setup-checklist]"), checklistMode: document.querySelector("[data-setup-checklist]")?.getAttribute("data-mode") || null,
       groups: [...document.querySelectorAll(".sidebar [data-nav-group]")].map((el) => ({ id: el.getAttribute("data-nav-group"), open: el.getAttribute("data-open") })),

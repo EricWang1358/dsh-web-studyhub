@@ -68,6 +68,13 @@ test('the other ways to start sit under one folded line: new questions, due revi
   assert.doesNotMatch(render({ coach: { ready: 0 }, today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } }), /desk-more/);
 });
 
+test('a library with no questions yet keeps its way-ins in plain sight: JSON import is never hidden behind a fold', () => {
+  setUiLanguage('zh');
+  const html = render({ decks: [], progress: {}, today: { due: 0, weak: 0, new: 0, size: 0 }, next: null, coach: { ready: 0 }, focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } });
+  assert.doesNotMatch(html, /desk-more/, 'the first-run card is not folded');
+  assert.match(html, /<p class="desk-also">(?:<button[^>]*>[^<]*<\/button>)*<button[^>]*>已有题目？导入 JSON 题组<\/button>/);
+});
+
 test('every number has one plain label and a hover that says what it counts', () => {
   setUiLanguage('zh');
   const html = render();

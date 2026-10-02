@@ -736,7 +736,12 @@ export default function StudyMap({
               ? starter.next
               : ui("所有主题都已掌握，可以提前巩固。")}
           </p>
-          {alternatives.length > 0 && (
+          {plan.kind === "empty" && plan.also.length > 0 && (
+            <p className="desk-also">
+              {plan.also.map(([label, run]) => <button key={label} className="link-btn" disabled={busy} onClick={run}>{label}</button>)}
+            </p>
+          )}
+          {plan.kind !== "empty" && alternatives.length > 0 && (
             <details className="desk-more">
               <summary>{ui("其他开始方式")}</summary>
               <p className="desk-also">

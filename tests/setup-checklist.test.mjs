@@ -28,7 +28,7 @@ const render = (data, props = {}) => renderToStaticMarkup(h(SetupChecklist, { da
 const newCourseInUse = () => library({ focus: { mode: 'class', course: 'New course', courseId: 'course-2', courses: [{ name: COURSE }, { name: 'New course' }] },
   sources: [{ ...note('n1'), courses: ['New course'] }], decks: [deck()], progress: { d1: { total: 3, counts: { mastered: 0, familiar: 0, learning: 1, weak: 0, new: 2 } } } });
 
-test('a course being set up shows the card: n/m, the course, every step with its status, one primary button', () => {
+test('a course being set up shows the card: n/m, the course, every step with its status, the next step marked, no competing primary button', () => {
   setUiLanguage('zh');
   const markup = render(newCourseInUse());
   assert.match(markup, /data-setup-checklist="" data-mode="full"/);
@@ -37,7 +37,10 @@ test('a course being set up shows the card: n/m, the course, every step with its
   assert.match(markup, /1\/2/, 'one of two steps is done');
   assert.match(markup, /<li[^>]*data-step="materials"[^>]*data-status="done"/);
   assert.match(markup, /<li[^>]*data-step="deck"[^>]*data-status="todo"/);
-  assert.equal((markup.match(/sh-btn--primary/g) || []).length, 1, 'one primary action, the next one');
+  // The home's one filled button is its today card; the checklist marks its next step instead of adding a second one.
+  assert.equal((markup.match(/sh-btn--primary/g) || []).length, 0, 'no second primary action on the home');
+  assert.equal((markup.match(/data-next="true"/g) || []).length, 1, 'the next step is marked');
+  assert.match(markup, /<li[^>]*data-step="deck"[^>]*data-next="true"/);
   assert.match(markup, /用这门课的资料出题/);
   assert.match(markup, /稍后/);
   assert.doesNotMatch(markup, /aria-expanded/, 'the full card is not a disclosure');

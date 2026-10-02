@@ -80,11 +80,11 @@ function stepCopy(step) {
   }
 }
 
-function Step({ step, index, setup, on, busy, primary, onLater, onRestore }) {
+function Step({ step, index, setup, on, busy, next, onLater }) {
   const copy = stepCopy(step), action = stepAction(step, setup, on);
   const done = step.status === "done";
   return (
-    <li className="setup-step" data-step={step.id} data-status={step.status}>
+    <li className="setup-step" data-step={step.id} data-status={step.status} data-next={next ? "true" : undefined}>
       <span className="setup-mark" aria-hidden="true">{done ? <Icon name="check" size={14} /> : index + 1}</span>
       <div className="setup-body">
         <strong className="setup-title" title={copy.hint}>{copy.title}{copy.optional && <span className="setup-optional">{ui("可选")}</span>}</strong>
@@ -92,7 +92,7 @@ function Step({ step, index, setup, on, busy, primary, onLater, onRestore }) {
       </div>
       {!done && (
         <div className="setup-actions">
-          <Button size="sm" variant={primary ? "primary" : "secondary"} disabled={busy || action.disabled} onClick={action.run}>{action.label}</Button>
+          <Button size="sm" variant="secondary" disabled={busy || action.disabled} onClick={action.run}>{action.label}</Button>
           <Button size="sm" variant="link" onClick={() => onLater(step.id)}>{ui("稍后")}</Button>
         </div>
       )}
@@ -151,7 +151,7 @@ export default function SetupChecklist({ data, call, busy = false, on = {}, late
   const list = (
     <>
       <ol className="setup-steps">
-        {active.map((step, index) => <Step key={step.id} step={step} index={index} setup={setup} on={on} busy={busy} primary={step === first} onLater={putOff} />)}
+        {active.map((step, index) => <Step key={step.id} step={step} index={index} setup={setup} on={on} busy={busy} next={step === first} onLater={putOff} />)}
       </ol>
       {later.length > 0 && <p className="setup-later"><Button size="sm" variant="link" onClick={restore}>{uiFormat("恢复已推后的 {0} 项", [later.length])}</Button></p>}
     </>
