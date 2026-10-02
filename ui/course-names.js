@@ -74,6 +74,9 @@ export function findDuplicateCourses(courses = []) {
   return found;
 }
 
+/** A parked course (lib/course-active.js; the snapshot lists `active: false`): pickers offer it last. */
+export const isParkedCourse = course => typeof course === 'object' && course !== null && course.active === false;
+
 const usage = course => typeof course === 'string' ? 0
   : (course.count ?? course.decks ?? 0) + (course.sourceCount ?? course.sources ?? 0) + (course.drafts ?? 0);
 
@@ -81,15 +84,15 @@ const usage = course => typeof course === 'string' ? 0
  * Courses in the order pickers offer them (WP14): the current course first,
  * then the most recently used (`recent`: name → ISO time, or each course's
  * lastUsedAt), then the ones holding the most decks and materials, then the
- * given order. Accepts names or course objects; returns objects with a
+ * given order; parked (inactive) courses come after all the others. Accepts names or course objects; returns objects with a
  * `name` (the originals when objects were given).
  */
 export function rankCourses({ courses = [], current, recent } = {}) {
   const lookup = recent instanceof Map ? name => recent.get(name) : name => recent?.[name];
   return courses.map((course, index) => {
     const item = typeof course === 'string' ? { name: course } : course;
-    return { item, index, current: current !== undefined && current !== null && item.name === current,
+    return { item, index, current: current !== undefined && current !== null && item.name === current, parked: isParkedCourse(item),
       time: lookup(item.name) || item.lastUsedAt || '', used: usage(course) };
-  }).sort((a, b) => (b.current - a.current) || (a.time === b.time ? 0 : a.time < b.time ? 1 : -1) || (b.used - a.used) || (a.index - b.index))
+  }).sort((a, b) => (b.current - a.current) || (a.parked - b.parked) || (a.time === b.time ? 0 : a.time < b.time ? 1 : -1) || (b.used - a.used) || (a.index - b.index))
     .map(entry => entry.item);
 }

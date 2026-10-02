@@ -1,0 +1,42 @@
+/* 有效课程: the switch, the "未激活" chip and the lines pickers show for parked courses. Tokens only. */
+:is(.study-app, .study-seat) .course-active { display: grid; gap: var(--space-2); min-width: 0; }
+:is(.study-app, .study-seat) .course-active__row { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
+:is(.study-app, .study-seat) .course-active.is-compact .course-active__row { align-items: center; gap: var(--space-2); }
+:is(.study-app, .study-seat) .course-active__switch { position: relative; flex: none; width: 36px; height: 20px; margin-top: 2px; padding: 0; border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill); background: var(--bg-sunken); cursor: pointer; transition: background 0.15s var(--ease), border-color 0.15s var(--ease); }
+:is(.study-app, .study-seat) .course-active.is-compact .course-active__switch { margin-top: 0; }
+:is(.study-app, .study-seat) .course-active__switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--text-muted); transition: transform 0.15s var(--ease), background 0.15s var(--ease); }
+:is(.study-app, .study-seat) .course-active__switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+:is(.study-app, .study-seat) .course-active__switch[aria-checked="true"]::after { transform: translateX(16px); background: var(--accent-ink); }
+:is(.study-app, .study-seat) .course-active__switch:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+:is(.study-app, .study-seat) .course-active__switch:disabled { opacity: 0.55; cursor: default; }
+:is(.study-app, .study-seat) .course-active__text { display: grid; gap: 2px; min-width: 0; margin: 0; cursor: pointer; }
+:is(.study-app, .study-seat) .course-active__text strong { font-size: var(--fs-md); font-weight: 650; color: var(--text); }
+:is(.study-app, .study-seat) .course-active__text small,
+:is(.study-app, .study-seat) .course-active__result { font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
+:is(.study-app, .study-seat) .course-active__state { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
+:is(.study-app, .study-seat) .course-active.is-parked .course-active__state { color: var(--text-dim); }
+:is(.study-app, .study-seat) .course-active__confirm { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+
+:is(.study-app, .study-seat) .course-parked-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: 1px var(--space-2); border: 1px solid var(--line);
+  border-radius: var(--radius-pill); background: var(--bg-sunken); color: var(--text-dim); font-size: var(--fs-xs); font-weight: 500; line-height: 1.6; vertical-align: middle; }
+:is(.study-app, .study-seat) .course-parked-chip .link-btn { font-size: var(--fs-xs); }
+:is(.study-app, .study-seat) .course-parked-chip__error { color: var(--bad); }
+
+/* Page scope: the line under the picker. */
+:is(.study-app, .study-seat) .page-scope__note { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin-top: var(--space-1);
+  font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); font-weight: 400; }
+:is(.study-app, .study-seat) .page-scope__note .link-btn { font-size: var(--fs-sm); }
+:is(.study-app, .study-seat) .page-scope select option.is-parked { color: var(--text-muted); }
+
+/* The home: the current course is parked - say so under the heading, with the way back. */
+:is(.study-app, .study-seat) .course-parked-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: var(--space-1) 0 0; }
+:is(.study-app, .study-seat) .course-parked-line small { font-size: var(--fs-sm); color: var(--text-muted); }
+
+/* A parked course in a list: dimmed, still selectable. */
+:is(.study-app, .study-seat) .is-parked-row { opacity: 0.72; }
+:is(.study-app, .study-seat) .parked-courses { margin-top: var(--space-3); }
+:is(.study-app, .study-seat) .parked-courses > summary,
+:is(.study-app, .study-seat) .parked-toggle { cursor: pointer; color: var(--text-dim); font-size: var(--fs-sm); }
+:is(.study-app, .study-seat) .course-list__row-controls { display: flex; align-items: center; gap: var(--space-3); flex: none; }

@@ -14,6 +14,7 @@ import { groupPrompt } from "./topic-group-prompt.js";
 import CourseRoute from "./CourseRoute.jsx";
 import caseCss from "./case-study.css";
 import { ExamCountdown } from "./CourseSettings.jsx";
+import { ParkedChip, isParked } from "./CourseActive.jsx";
 import { groupCourseNames, rankCourses } from "./course-names.js";
 import { courseMatcher, courseNamesOf } from "./PageScope.jsx";
 import { courseOrder, courseRelative } from "../lib/course-tree.js";
@@ -179,6 +180,7 @@ export default function StudyMap({
   }, [reveal]); // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState(""),
     [showOtherCourses, setShowOtherCourses] = useState(false),
+    [showParked, setShowParked] = useState(false),
     [showAllCurrent, setShowAllCurrent] = useState(false),
     [roleDraft, setRoleDraft] = useState(data.focus?.role || ""),
     [jdDraft, setJdDraft] = useState(data.focus?.jd || ""),
@@ -218,6 +220,8 @@ export default function StudyMap({
     return () => document.removeEventListener("pointerdown", close);
   }, [menu]);
 
+  const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
+  const parkedChoices = (data.focus?.courses || []).filter(isParked);
   const progress = data.progress || EMPTY_PROGRESS,
     today = data.today || { due: 0, weak: 0, new: 0, size: 0 },
     runs = data.runs || [];
@@ -278,9 +282,15 @@ export default function StudyMap({
     return [...groups].sort(([left], [right]) =>
       (Number(inFocus(right)) - Number(inFocus(left))) || (inFocus(left) && inFocus(right) ? order(left, right) : 0));
   }, [visible, inFocus]); // eslint-disable-line react-hooks/exhaustive-deps
-  const shownFolders = query || showArchived || showOtherCourses
-    ? folders : folders.filter(([course]) => inFocus(course));
-  const otherCourseCount = folders.length - shownFolders.length;
+  // 未激活 (lib/course-active.js): parked courses are listed apart, collapsed, dimmed and still reachable; the current course stays where it is.
+  const parkedByName = useMemo(() => new Map((data.focus?.courses || []).filter(isParked).map((course) => [course.name, course])), [data.focus?.courses]);
+  const parkedFolders = folders.filter(([course]) => parkedByName.has(course) && !inFocus(course));
+  const liveFolders = folders.filter((entry) => !parkedFolders.includes(entry));
+  const shownLive = query || showArchived || showOtherCourses
+    ? liveFolders : liveFolders.filter(([course]) => inFocus(course));
+  const shownParked = query || showParked ? parkedFolders : [];
+  const shownFolders = [...shownLive, ...shownParked];
+  const otherCourseCount = liveFolders.length - shownLive.length;
   const singleCourse = shownFolders.length === 1 && inFocus(shownFolders[0][0]);
 
   const toggleOpen = (id) =>
@@ -547,7 +557,9 @@ export default function StudyMap({
   /* The run the learner was last inside (the rail's 回到题目) outranks a new
      batch: a deck, topic or 为你定制 run left half done must not sink into
      the fold below while the big button quietly starts something else. */
-  const lastOpen = data.decks.length ? runs.find((r) => r.id === data.lastRun?.id) : null;
+  const lastRunFound = data.decks.length ? runs.find((r) => r.id === data.lastRun?.id) : null;
+  // A half-done practice in a parked course is not pushed as 接着做; it stays in the list below with its state.
+  const lastOpen = lastRunFound && !lastRunFound.inactive ? lastRunFound : null;
   /* A semester holds several courses and any of them may be the one left half
      done, so a run from outside the course in the heading names its course
      instead of being held back. System decks (为你定制) belong to no course. */
@@ -653,18 +665,24 @@ export default function StudyMap({
                 onChange={(event) => event.target.value === "@course-settings"
                   ? onCourseSettings?.(data.focus?.courseId) : onFocus?.({ course: event.target.value })}>
                 {/* Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names grouped (WP14). */}
-                {groupCourseNames(rankCourses({ courses: data.focus?.courses || [], current: data.focus?.course })).map((entry) => entry.type === "group"
+                {groupCourseNames(rankCourses({ courses: (data.focus?.courses || []).filter((course) => !isParked(course)), current: data.focus?.course })).map((entry) => entry.type === "group"
                   ? <optgroup key={`group:${entry.key}`} label={entry.name}>
                     <option value={entry.parent.name}>{entry.parent.name} · {ui("含子课程")}</option>
                     {entry.chapters.map(({ course, chapter, depth }) => <option key={course.name} value={course.name}>{"\u00a0\u00a0".repeat(Math.max(0, depth - 1))}{chapter}</option>)}
                   </optgroup>
                   : <option key={entry.course.name} value={entry.course.name}>{entry.course.name || ui('未分类课程')}</option>)}
+                {/* Parked courses stay reachable, grouped apart; the heading's value may be one of them. */}
+                {parkedChoices.length > 0 && <optgroup label={uiFormat("未激活的课程 ({0})", [parkedChoices.length])}>
+                  {parkedChoices.map((course) => <option key={course.name} value={course.name}>{course.name}</option>)}
+                </optgroup>}
                 {onCourseSettings && data.focus?.courseId && <option value="@course-settings">{ui("课程设置…")}</option>}
               </select>
             </h1>
           ) : (
             <h1 className="course-heading">{headline}</h1>
           )}
+          {!interview && isParked(currentEntry) && <p className="course-parked-line"><ParkedChip course={currentEntry} />
+            <small>{ui("未激活的课程不进入到期复习和推荐；随时可以再激活")}</small></p>}
           {interview && <div className="role-prep">
             <details><summary>{ui("用岗位描述细化练习范围")}</summary>
               <textarea rows={4} value={jdDraft} placeholder={ui("需要时粘贴 JD；不贴也可按岗位方向匹配")}
@@ -734,7 +752,7 @@ export default function StudyMap({
                   <div className="resume-row" key={r.id}>
                     <button className="resume" disabled={busy} onClick={() => resume(r.id)}>
                       <span>
-                        <span className="eyebrow">{otherCourse(r) || ui("继续上次学习")}</span>
+                        <span className="eyebrow">{[otherCourse(r) || ui("继续上次学习"), r.inactive ? ui("未激活") : ""].filter(Boolean).join(" · ")}</span>
                         <strong>{r.title}</strong>
                       </span>
                       <span>
@@ -897,11 +915,12 @@ export default function StudyMap({
             // only one on screen its header is hidden, so it is always open.
             const open = singleCourse || isOpen("folder:" + folder),
               truncated = inFocus(folder) && !query && decks.length > 3,
-              shown = truncated && !showAllCurrent ? decks.slice(0, 3) : decks;
+              shown = truncated && !showAllCurrent ? decks.slice(0, 3) : decks,
+              parked = parkedByName.get(folder);
             return (
               <li
                 key={"folder:" + folder}
-                className={"map-folder" + (decks.some((d) => d.id === menu) ? " menu-open" : "")}
+                className={"map-folder" + (decks.some((d) => d.id === menu) ? " menu-open" : "") + (parked ? " is-parked-row" : "")}
               >
                 <div className="map-row folder-row">
                   <button
@@ -927,6 +946,7 @@ export default function StudyMap({
                     <strong title={folder}>{courseRelative(folder, data.focus?.course, courseNamesOf(data)) ?? folder}</strong>
                     <small>{decks.length}{ui(" 个题组")}</small>
                   </button>
+                  {parked && <ParkedChip course={parked} />}
                   <MasteryBar
                     node={mergeProgress(decks.map((d) => progress[d.id]).filter(Boolean))}
                   />
@@ -956,6 +976,8 @@ export default function StudyMap({
       )}
       {otherCourseCount > 0 && <button className="show-other-courses"
         onClick={() => setShowOtherCourses(true)}>{ui("查看其他课程 · ")}{otherCourseCount}</button>}
+      {parkedFolders.length > 0 && !query && <button className="show-other-courses parked-toggle" aria-expanded={showParked}
+        onClick={() => setShowParked((value) => !value)}>{showParked ? "▾ " : "▸ "}{uiFormat("未激活的课程 ({0})", [parkedFolders.length])}</button>}
 
       {/* Cross-workspace notebooks are for people with decks, or with notebooks elsewhere (P12). */}
       {showNotebooks && <NotebookDirectory

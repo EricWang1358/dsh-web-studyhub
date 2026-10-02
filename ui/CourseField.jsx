@@ -2,7 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { IconButton, ScrollWindow } from './components/index.js';
-import { groupCourseNames, rankCourses } from './course-names.js';
+import { groupCourseNames, isParkedCourse, rankCourses } from './course-names.js';
 import css from './course-field-css.js';
 
 export const parseCourses = value => [...new Set(String(value || '').split(/[;；\n]/).map(name => name.trim()).filter(Boolean))];
@@ -39,8 +39,19 @@ const uniqueCourses = courses => {
     .filter(course => course?.name && !seen.has(course.name) && seen.add(course.name));
 };
 
-/** The rows of the 全部课程 list: courses, collapsible course groups and their chapters, filtered by the typed text. */
-function listRows(entries, terms, openGroups) {
+/**
+ * The rows of the 全部课程 list: courses, collapsible course groups and their chapters, filtered by the typed text. Parked
+ * (inactive) courses follow under one collapsed heading, open while filtering or when one of them is chosen.
+ */
+function listRows(entries, terms, openGroups, parked = { entries: [], count: 0, open: false }) {
+  const live = rowsOf(entries, terms, openGroups), left = parked.entries.length ? rowsOf(parked.entries, terms, openGroups) : { rows: [], matched: 0 };
+  if (!left.matched) return live;
+  const expanded = parked.open || terms.length > 0;
+  return { rows: [...live.rows, { key: 'parked-head', type: 'parked-head', count: terms.length ? left.matched : parked.count, expanded }, ...(expanded ? left.rows : [])],
+    matched: live.matched + left.matched };
+}
+
+function rowsOf(entries, terms, openGroups) {
   const filtering = terms.length > 0, rows = [];
   let matched = 0;
   for (const entry of entries) {
@@ -75,13 +86,18 @@ export default function CourseField({ courses = [], value = '', onChange, multip
   const input = useRef(null), root = useRef(null);
   const list = useMemo(() => uniqueCourses(courses), [courses]);
   const names = list.map(course => course.name);
+  const parkedList = useMemo(() => list.filter(isParkedCourse), [list]);
+  const liveList = useMemo(() => list.filter(course => !isParkedCourse(course)), [list]);
   const chosen = multiple ? parseCourses(value) : [String(value || '').trim()].filter(Boolean);
   const query = courseQuery(value, multiple);
   const exact = !!query && names.includes(query);
   const filled = !!String(value || '').trim();
   const large = names.length > MAX_CHIPS;
   const lead = current ?? chosen[0];
-  const entries = useMemo(() => large ? groupCourseNames(rankCourses({ courses: list, current: lead })) : [], [large, list, lead]);
+  const entries = useMemo(() => large ? groupCourseNames(rankCourses({ courses: liveList, current: lead })) : [], [large, liveList, lead]);
+  const parkedEntries = useMemo(() => large ? groupCourseNames(rankCourses({ courses: parkedList, current: lead })) : [], [large, parkedList, lead]);
+  const parkedChosen = parkedList.some(course => chosen.includes(course.name));
+  const [parkedOpen, setParkedOpen] = useState(parkedChosen);
   const chosenGroup = entries.find(entry => entry.type === 'group' && (entry.chapters.some(item => chosen.includes(item.course.name)) || chosen.includes(entry.parent.name)))?.key ?? null;
   const [expanded, setExpanded] = useState(chosenGroup);
   const [open, setOpen] = useState(initialOpen && large);
@@ -89,8 +105,8 @@ export default function CourseField({ courses = [], value = '', onChange, multip
   const [active, setActive] = useState(0);
   const terms = exact ? [] : words(query);
   const termKey = terms.join(' ');
-  const { rows, matched } = useMemo(() => open ? listRows(entries, termKey ? termKey.split(' ') : [], openGroups) : { rows: [], matched: 0 },
-    [open, entries, termKey, openGroups]);
+  const { rows, matched } = useMemo(() => open ? listRows(entries, termKey ? termKey.split(' ') : [], openGroups, { entries: parkedEntries, count: parkedList.length, open: parkedOpen }) : { rows: [], matched: 0 },
+    [open, entries, termKey, openGroups, parkedEntries, parkedList, parkedOpen]);
   const activeIndex = Math.min(active, rows.length - 1), activeRow = rows[activeIndex];
   useEffect(() => { setActive(0); }, [query, open]);
   useEffect(() => {
@@ -103,6 +119,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
   const clear = () => { onChange(''); setExpanded(null); input.current?.focus(); };
   const activate = row => {
     if (!row) return;
+    if (row.type === 'parked-head') { setParkedOpen(value => !value); return; }
     if (row.type === 'group') {
       setOpenGroups(currentGroups => { const next = new Set(currentGroups); if (next.has(row.entry.key)) next.delete(row.entry.key); else next.add(row.entry.key); return next; });
       return;
@@ -118,7 +135,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
     else if (event.key === 'Enter' && open && activeRow) { event.preventDefault(); activate(activeRow); }
     else if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); }
   };
-  const chip = (course, text = course.name) => <button type="button" key={course.name} className="course-field__pick" aria-pressed={chosen.includes(course.name)}
+  const chip = (course, text = course.name) => <button type="button" key={course.name} className={`course-field__pick${isParkedCourse(course) ? ' is-parked' : ''}`} aria-pressed={chosen.includes(course.name)}
     title={course.name} aria-label={text === course.name ? undefined : course.name} disabled={disabled} onClick={() => pick(course.name)}>
     <span className="course-field__pick-name">{text}</span></button>;
   const groupChip = entry => {
@@ -134,7 +151,9 @@ export default function CourseField({ courses = [], value = '', onChange, multip
   const chips = large ? entries.slice(0, MAX_CHIPS) : [];
   const expandedEntry = entries.find(entry => entry.type === 'group' && entry.key === expanded);
   const hint = multiple ? ui('多门课程用分号分隔；留空为未分类。') : names.length ? ui('输入新课程名，或点下方已有课程直接切换；点 × 清空。') : '';
-  const renderRow = row => row.type === 'group'
+  const renderRow = row => row.type === 'parked-head'
+    ? <><span className="course-field__option-chevron" aria-hidden="true" /><span className="course-field__option-name">{uiFormat('未激活的课程 ({0})', [row.count])}</span></>
+    : row.type === 'group'
     ? <><span className="course-field__option-chevron" aria-hidden="true" /><span className="course-field__option-name">{row.entry.name}</span>
       <small>{uiFormat('{0} 章', [row.count])}</small></>
     : <><span className="course-field__option-name" title={row.course.name}>{row.label}</span>
@@ -153,7 +172,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
     </div>
     {hint && <small id={hintId} className="course-field__hint">{hint}</small>}
     {names.length > 0 && <div className="course-field__picks" role="group" aria-label={ui('已有课程')}>
-      {large ? chips.map(entry => entry.type === 'group' ? groupChip(entry) : chip(entry.course)) : list.map(course => chip(course))}
+      {large ? chips.map(entry => entry.type === 'group' ? groupChip(entry) : chip(entry.course)) : [...liveList, ...parkedList].map(course => chip(course))}
       {large && <button type="button" className="course-field__pick course-field__more" aria-expanded={open} aria-controls={panelId} disabled={disabled}
         onClick={() => { setOpen(state => !state); input.current?.focus(); }}>
         {uiFormat('全部课程 ({0})', [names.length])}<span className="course-field__caret" aria-hidden="true" /></button>}
@@ -172,10 +191,10 @@ export default function CourseField({ courses = [], value = '', onChange, multip
         activeKey={activeRow?.key} listClassName="course-field__options"
         listProps={{ role: 'listbox', id: listboxId, 'aria-label': ui('全部课程'), 'aria-multiselectable': multiple || undefined }}
         itemProps={(row, index) => ({ role: 'option', id: `${listboxId}-${index}`,
-          className: `course-field__option course-field__option--${row.type === 'group' ? 'group' : row.depth ? 'chapter' : 'course'}${index === activeIndex ? ' is-active' : ''}`,
+          className: `course-field__option course-field__option--${row.type !== 'course' ? 'group' : row.depth ? 'chapter' : 'course'}${index === activeIndex ? ' is-active' : ''}${row.course && isParkedCourse(row.course) ? ' is-parked' : ''}`,
           ...(row.depth > 1 ? { style: { '--depth': row.depth } } : { style: { '--depth': 1 } }),
-          'aria-selected': row.type === 'group' ? false : chosen.includes(row.course.name),
-          ...(row.type === 'group' ? { 'aria-expanded': row.expanded } : {}),
+          'aria-selected': row.type !== 'course' ? false : chosen.includes(row.course.name),
+          ...(row.type !== 'course' ? { 'aria-expanded': row.expanded } : {}),
           onMouseDown: event => event.preventDefault(), onClick: () => activate(row) })}
         empty={uiFormat('没有名为“{0}”的课程，保存时会新建这门课。', [query])} />
     </div>}

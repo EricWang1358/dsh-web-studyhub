@@ -3,6 +3,7 @@ import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Dialog, Disclosure, EmptyState, Icon, IconButton, InlineMessage, ScrollWindow, SegmentedControl } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
+import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { daysUntilExam, examProfile } from '../lib/courses.js';
 import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses } from './course-names.js';
 import css from './course-settings.css';
@@ -11,7 +12,7 @@ import css from './course-settings.css';
    the exam profile, focus topics and examiner-guidance materials, plus rename
    and merge. Reached from the library's course switcher and from Settings.
    Every action is one store transaction on the server (course.save,
-   course.rename, course.merge). */
+   course.rename, course.merge). 有效课程: a switch per course (course.setActive). */
 
 const FORMAT_LABELS = { 'open-book-case': '开卷案例', 'closed-book': '闭卷', mixed: '混合', other: '其他' };
 export const examFormatLabel = format => ui(FORMAT_LABELS[format] || FORMAT_LABELS.other);
@@ -76,9 +77,9 @@ const courseMeta = course => {
 };
 
 /** One compact course row: name, counts, a duplicate hint with its merge action, and 设置. */
-function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMerge, busy, current }) {
+function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMerge, busy, current, all = [] }) {
   const meta = courseMeta(course);
-  return <div className={`course-list__item${current ? ' is-current' : ''}`}>
+  return <div className={`course-list__item${current ? ' is-current' : ''}${isParked(course) ? ' is-parked-row' : ''}`}>
     <span className="course-list__text">
       <strong title={course.name}>{label}</strong>
       {(meta || current) && <small>{[current ? ui('当前课程') : '', meta].filter(Boolean).join(' · ')}</small>}
@@ -88,6 +89,7 @@ function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMer
         {onMerge && <Button size="sm" variant="link" disabled={busy} onClick={() => onMerge(course.id, duplicates.map(item => item.id))}>{ui('合并到这里')}</Button>}
       </span>}
     </span>
+    {course.id && <ActiveSwitch course={course} courses={all} compact disabled={busy} />}
     {course.id && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>}
   </div>;
 }
@@ -120,7 +122,7 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
     : entry.course.id === currentId && entryKey(entry)).find(Boolean) || undefined;
   const renderEntry = entry => {
     if (entry.type === 'course') return <CourseRow course={entry.course} duplicates={dupesOf(entry.course)} onOpen={onOpen} onMerge={onMerge} busy={busy}
-      current={entry.course.id === currentId} />;
+      current={entry.course.id === currentId} all={courses} />;
     const words = query.trim().normalize('NFKC').toLowerCase().split(/\s+/).filter(Boolean);
     const hit = item => words.every(word => item.course.name.normalize('NFKC').toLowerCase().includes(word));
     const chapters = filtering && !words.every(word => entry.name.normalize('NFKC').toLowerCase().includes(word)) ? entry.chapters.filter(hit) : entry.chapters;
@@ -137,12 +139,14 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
             <small>{meta}{flagged ? <span className="course-list__flag">{' · '}{uiFormat('{0} 处可能重复', [flagged])}</span> : null}</small>
           </span>
         </button>
+        {/* A parent nobody filed a deck under has no record yet: it is active until parked, and parking it creates its record. */}
+        <ActiveSwitch course={entry.parent.id ? entry.parent : { ...entry.parent, active: true }} courses={courses} compact disabled={busy} />
         {entry.parent.id && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(entry.parent.id)}>{ui('设置')}</Button>}
       </div>
       {expanded && <ul className="course-list__chapters" aria-label={uiFormat('「{0}」的章节', [entry.name])}>
         {chapters.map(item => <li key={item.course.id || item.course.name} className={item.depth > 1 ? 'course-list__chapter--nested' : undefined} style={item.depth > 1 ? { '--depth': item.depth - 1 } : undefined}>
           <CourseRow course={item.course} label={item.chapter} duplicates={dupesOf(item.course)} onOpen={onOpen} onMerge={onMerge} busy={busy}
-            current={item.course.id === currentId} />
+            current={item.course.id === currentId} all={courses} />
         </li>)}
       </ul>}
     </div>;
@@ -150,6 +154,7 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
   return <fieldset className="course-list settings-section">
     <legend className="settings-section__title">{ui('课程')}</legend>
     <p className="settings-section__lead">{ui('每门课可以记下考试形式、日期、分值和考官指引；改名或合并会同步更新所有题组和资料。')}</p>
+    <p className="settings-section__lead">{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</p>
     {courses.length ? <ScrollWindow className="course-list__window" label={ui('课程列表')} items={entries} itemKey={entryKey} match={entryText}
       renderItem={renderEntry} filterable={entries.length > 6 || filtering} filterPlaceholder={ui('筛选课程…')} query={query} onQueryChange={setQuery}
       activeKey={activeKey} maxHeight={400} listClassName="course-list__items" itemClassName="course-list__entry" />
@@ -265,6 +270,10 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
           {course.aliases?.length ? course.aliases.map(alias => <span key={alias} className="course-settings__alias">{alias}</span>)
             : <small>{ui('还没有别名')}</small>}
         </p>
+      </section>
+
+      <section className="course-settings__block" aria-label={ui('有效课程')}>
+        <ActiveSwitch course={course} courses={courses} disabled={disabled} />
       </section>
 
       <section className="course-settings__block" aria-labelledby="course-settings-exam">

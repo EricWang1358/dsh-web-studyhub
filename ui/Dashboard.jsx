@@ -5,7 +5,8 @@ import chartCss from "./charts/charts.css";
 import { useInjectCss } from "./shared.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
-import PageScope, { decksInCourse, usePageScope } from './PageScope.jsx';
+import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
+import { useCourseActive } from './CourseActive.jsx';
 import { ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
 import { ModelUsage } from "./TokenUsage.jsx";
@@ -20,6 +21,9 @@ function heatLevel(count, max) {
   if (!count) return 0;
   return Math.min(4, 1 + Math.floor(((count - 1) / Math.max(1, max)) * 4));
 }
+
+/* "Including inactive courses" only when parked courses exist inside the page's scope (the stats say `included` for any view that left nothing out). */
+const showsParked = (data, course) => (data?.focus?.courses || []).some((item) => item?.active === false && (item.count ?? 0) > 0) && course === "*";
 
 /* Weak-topic rows: the topic first; course (only when several courses are
    shown) and a shortened deck name as secondary text. Decks of one course
@@ -39,7 +43,7 @@ function weakRows(weak, course) {
   }));
 }
 
-export function StatsView({ stats, course, data, busy, localDecks = [], onStartScope, onLibrary, onCreate, onSources }) {
+export function StatsView({ stats, course, data, busy, localDecks = [], onStartScope, onLibrary, onCreate, onSources, onManageCourses }) {
   const totals = stats?.totals || {},
     heat = stats?.heatmap || [],
     trend = stats?.trend || [],
@@ -146,7 +150,7 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
 
         <div className="dash-charts" data-tour="dashboard-charts">
           <TrendPanel trend={trend} today={stats?.today} />
-          <ForecastPanel forecast={stats?.forecast} onStart={onStartScope} />
+          <ForecastPanel forecast={stats?.forecast} onStart={onStartScope} parked={{ included: stats?.inactive?.included === true && showsParked(data, course), onManage: onManageCourses }} />
           <MasteryPanel mastery={stats?.mastery} />
         </div>
       </div>
@@ -158,26 +162,29 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
   useInjectCss(css, "study-views");
   useInjectCss(chartCss, "study-dash-charts");
   const [course, setCourse] = usePageScope(data?.root, 'dashboard', data?.focus?.course ?? '*');
+  const [showInactive, setShowInactive] = useShowInactive(data?.root, 'dashboard');
+  const courseActive = useCourseActive();
+  const scopeKey = JSON.stringify(scopeArgs(course, showInactive));
   const [savedStats, setStats] = useState(null),
     [loading, setLoading] = useState(true),
     [err, setErr] = useState("");
   const seq = useRef(0);
-  const stats = savedStats?.course === course ? savedStats.value : null;
-  const localDecks = decksInCourse(data, course);
+  const stats = savedStats?.course === scopeKey ? savedStats.value : null;
+  const localDecks = decksInCourse(data, course, showInactive);
 
   const load = useCallback(async () => {
     const request = ++seq.current;
     setLoading(true);
     setErr("");
     try {
-      const value = await call('stats', { course });
-      if (request === seq.current) setStats({ course, value });
+      const value = await call('stats', scopeArgs(course, showInactive));
+      if (request === seq.current) setStats({ course: scopeKey, value });
     } catch (e) {
       if (request === seq.current) setErr(e.message || String(e));
     } finally {
       if (request === seq.current) setLoading(false);
     }
-  }, [call, course]);
+  }, [call, course, showInactive, scopeKey]);
   useEffect(() => {
     load();
   }, [load]);
@@ -187,7 +194,7 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
       <div className="page-heading">
         <div>
           <h1>{ui("学习统计")}</h1>
-          <PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} />
+          <PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} />
         </div>
         <button className="ghost-btn" onClick={load} disabled={loading}>
           {loading ? ui("统计中…") : ui("刷新")}
@@ -199,7 +206,7 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
 
       {stats && (
         <StatsView stats={stats} course={course} data={data} busy={busy} localDecks={localDecks}
-          onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} />
+          onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onManageCourses={courseActive?.manage} />
       )}
       {/* What the study model used, by feature (WP27); the library's own ledger, not the course view. */}
       <ModelUsage call={call} onAudio={onAudioUsage} />
