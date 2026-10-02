@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 const compiled = await build({ stdin: { contents: `
   export { default as Sources, RowMenuItems } from './ui/Sources.jsx';
+  export { documentSearchText } from './ui/SourcePicker.jsx';
   export { RenameField, ReaderHeading } from './ui/document-preview/RenameTitle.jsx';
   export * from './ui/document-preview/rename.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
@@ -80,6 +81,16 @@ test('the call carries what the person saw, names the document by its identity, 
   await assert.rejects(lib.renameDocument({ act: async () => undefined }, pasted, { title: 'x' }), /另一个操作还在进行/, 'a dropped (busy) action is said, not silent');
   assert.equal(lib.originalNote(item), '原名：lecture5.pdf');
   assert.equal(lib.originalNote(pasted), '');
+});
+
+test('the picker finds a renamed document by its new name, its file name and the name it had before', async () => {
+  const [item] = (await import('../lib/source-groups.js')).groupSourcesByDocument(data.sources);
+  const found = query => lib.documentSearchText(item).toLowerCase().includes(query);
+  assert.ok(found('databases lecture') && found('lecture5.pdf'));
+  assert.ok(found('lecture5'));
+  assert.equal(found('unrelated'), false);
+  const [plain] = (await import('../lib/source-groups.js')).groupSourcesByDocument([note]);
+  assert.doesNotMatch(lib.documentSearchText(plain), /undefined/);
 });
 
 /* ---------- the editor ---------- */
