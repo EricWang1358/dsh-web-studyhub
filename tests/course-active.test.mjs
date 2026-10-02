@@ -302,3 +302,14 @@ test('the global notebook list leaves parked courses out of "due today" and mark
   assert.equal(before.dueToday - after.dueToday, 22);
   assert.deepEqual(after.decks.filter(deck => deck.inactive).map(deck => deck.id).sort(), ['old1', 'old2']);
 });
+
+test('the oral mock leaves parked courses out of its default pool and still reads a parked course picked on purpose', async t => {
+  const service = await make(t);
+  await service.call('course.deactivate', { name: 'Cloud' });
+  const all = await service.call('oral.start', { count: 10 });
+  const stored = (await service.call('export')).oralRuns.find(run => run.id === all.id);
+  assert.ok(stored.entries.length > 0 && stored.entries.every(entry => !entry.deckId.startsWith('old')), 'the default pool is the active courses');
+  const picked = await service.call('oral.start', { count: 3, course: 'Cloud' });
+  const own = (await service.call('export')).oralRuns.find(run => run.id === picked.id);
+  assert.ok(own.entries.length > 0 && own.entries.every(entry => entry.deckId.startsWith('old')), 'the parked course read on purpose');
+});
