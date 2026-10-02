@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
-  export { default as ExtensionPanel } from './ui/ExtensionPanel.jsx';
+  export { default as ExtensionPanel, ExtensionUpdateNotice } from './ui/ExtensionPanel.jsx';
   export { default as LargeDocumentCard } from './ui/LargeDocumentCard.jsx';
   export { default as ExtensionsSettings } from './ui/ExtensionsSettings.jsx';
   export * from './ui/retrieval-extension-flow.js';
@@ -19,7 +19,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { ExtensionPanel, LargeDocumentCard, ExtensionsSettings, runInstall, runUninstall, startIndex, indexProgress, TOOLS, EXTENSION, setUiLanguage } = module.exports;
+const { ExtensionPanel, ExtensionUpdateNotice, LargeDocumentCard, ExtensionsSettings, runInstall, runUninstall, startIndex, indexProgress, TOOLS, EXTENSION, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const noop = () => {};
@@ -155,18 +155,18 @@ test('uninstall and start-index report their outcome without throwing', async ()
 const card = (props, language) => render(h(LargeDocumentCard, { reason: 'selection', detail: { chars: 700000 }, retrieval: fresh, call: noop, courses: ['操作系统'], ...props }), language);
 const at = (html, pattern) => html.search(pattern);
 
-test('the card leads with the one-click route and the GUI converter; the rest is under 高级', () => {
+test('the card leads with the one-click MinerU route that StudyHub runs; the desktop client and the rest are under 高级', () => {
   const html = card({ reason: 'pdf-size', detail: { name: 'book.pdf' } });
-  assert.match(html, /下载并安装 MinerU 客户端/);
-  assert.match(html, /导出/);
-  assert.match(html, /拖回/);
-  assert.match(html, /JSON/);
+  // The old primary card said "download and install the MinerU client, export, drag back"; that is now one of the manual routes.
+  assert.match(html, /用 MinerU 解析/);
+  assert.match(html, /选择 PDF…/);
+  assert.doesNotMatch(html, /下载并安装 MinerU 客户端/);
   assert.ok(at(html, /安装检索扩展/) > 0);
-  const advanced = at(html, /高级：命令行与 Docker/);
+  const advanced = at(html, /高级：其他方式（桌面客户端、命令行、Docker）/);
   assert.ok(advanced > 0, 'a disclosure holds the harder routes');
   assert.ok(at(html, /MinerU/) < advanced, 'MinerU comes first');
   assert.ok(at(html, /安装检索扩展/) < advanced, 'the one-click install comes before the advanced part');
-  for (const word of ['Docling', 'RAGFlow', 'mcp-local-rag']) assert.ok(at(html, new RegExp(word)) > advanced, `${word} is under 高级`);
+  for (const word of ['Docling', 'RAGFlow', 'mcp-local-rag', 'MinerU 桌面客户端 / 本地命令行']) assert.ok(at(html, new RegExp(word)) > advanced, `${word} is under 高级`);
   assert.match(html, /需要命令行/);
   assert.match(html, /需要 Docker/);
 });
@@ -204,7 +204,7 @@ test('the card in English', () => {
 
 test('the catalogue says what each route needs', () => {
   const need = id => TOOLS.find(tool => tool.id === id).needs;
-  assert.deepEqual([need('mineru'), need('docling'), need('ragflow'), need('mcp-local-rag')], ['download', 'command-line', 'docker', 'manual']);
+  assert.deepEqual([need('mineru-cloud'), need('mineru'), need('docling'), need('ragflow'), need('mcp-local-rag')], ['token', 'download', 'command-line', 'docker', 'manual']);
   assert.equal(EXTENSION.package, '@ericwang1358/studyhub-retrieval');
 });
 
@@ -217,4 +217,23 @@ test('Settings: the extension is the first thing in the section; the choice of o
   const withTool = render(h(ExtensionsSettings, { initialStatus: { ...fresh, hostCanSearch: true, providers: [{ id: 'mcp:mcp__rag__q', kind: 'mcp', label: 'q', server: 'rag' }] }, call: noop, courses: [] }));
   assert.ok(at(withTool, /<select/) > at(withTool, /高级/), 'the provider choice is an advanced setting');
   assert.doesNotMatch(render(h(ExtensionsSettings, { initialStatus: fresh, call: noop, courses: [] }), 'en'), han);
+});
+
+test('an outdated extension is said to be outdated and offers the update, not just an uninstall', () => {
+  const stale = { ...installed, extension: { ...installed.extension, version: '2.1.2', outdated: true, expected: '2.1.3' } };
+  const html = panel({ status: stale });
+  assert.match(html, /2\.1\.2/);
+  assert.match(html, /2\.1\.3/);
+  assert.match(html, /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?更新检索扩展/);
+  assert.doesNotMatch(panel({ status: installed }), /更新检索扩展/, 'a current extension has nothing to update');
+  const en = panel({ status: stale }, 'en');
+  assert.match(en, /Update the search extension/);
+  assert.doesNotMatch(en, han);
+});
+
+test('the update notice (used in About & updates too) shows only for an outdated extension', () => {
+  const stale = { ...installed, extension: { ...installed.extension, version: '2.1.2', outdated: true, expected: '2.1.3' } };
+  assert.match(render(h(ExtensionUpdateNotice, { call: noop, status: stale })), /更新检索扩展/);
+  assert.equal(render(h(ExtensionUpdateNotice, { call: noop, status: installed })), '');
+  assert.equal(render(h(ExtensionUpdateNotice, { call: noop, status: null })), '');
 });

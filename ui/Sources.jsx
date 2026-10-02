@@ -1,6 +1,7 @@
 import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./AudioImport.jsx";
+import { PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
@@ -288,6 +289,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
         {!filtered.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       </>}
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} />
+      <PdfConvertJobs data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} />
       {!items.length ? (
         <section className="sources-empty" data-tour="sources-list">
           <div className="sources-empty__intro">

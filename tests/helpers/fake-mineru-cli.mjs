@@ -1,0 +1,69 @@
+#!/usr/bin/env node
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+
+/* A stand-in for the local `mineru` command line (4.0.x), built from what was measured on a real install:
+   `mineru parse <pdf> --tier T --pages A-B --wait N --json -o out.md --force` writes Markdown whose pages are delimited by
+   `<!-- page N of TOTAL -->` (N is the original page number, even when --pages selects a range); the DEFAULT is only the
+   first 10 pages; without a running local service `parse` fails with "本地 mineru 服务未运行…"; `server status|start|stop`,
+   `config get|set`. Behaviour comes from the JSON file named by FAKE_MINERU_STATE (the tests edit it). Every call is logged to
+   the file named by FAKE_MINERU_LOG, one JSON line per call, so a test can see exactly what was run. This script never reads or
+   writes anything else. */
+
+const statePath = process.env.FAKE_MINERU_STATE, logPath = process.env.FAKE_MINERU_LOG;
+const state = JSON.parse(readFileSync(statePath, 'utf8'));
+const save = () => writeFileSync(statePath, JSON.stringify(state));
+const argv = process.argv.slice(2);
+if (logPath) appendFileSync(logPath, `${JSON.stringify({ argv, pid: process.pid })}\n`);
+const out = text => process.stdout.write(`${text}\n`);
+const fail = (text, code = 1) => { process.stderr.write(`${text}\n`); process.exit(code); };
+const flag = name => { const at = argv.indexOf(name); return at < 0 ? undefined : argv[at + 1]; };
+
+const [command, sub] = argv;
+if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
+else if (command === 'config' && sub === 'get') {
+  const key = argv[2];
+  if (key === 'parse_server.local.mode') out(state.mode ?? 'disabled');
+  else if (key === 'parse_server.local.managed_tier') out(state.tier ?? 'flash');
+  else fail(`unknown key ${key}`);
+} else if (command === 'config' && sub === 'set') {
+  const [key, value] = [argv[2], argv[3]];
+  if (key === 'parse_server.local.mode' && value === 'managed' && !state.modelsReady) fail(`Local managed tier '${state.tier}' requires model files that are not ready ... Run: mineru-kit models download --tier ${state.tier}`);
+  if (key === 'parse_server.local.mode') state.mode = value;
+  if (key === 'parse_server.local.managed_tier') state.tier = value;
+  save(); out('ok');
+} else if (command === 'server' && sub === 'status') {
+  if (state.running) {
+    out('┏━━━━━━━━━━┳━━━━━━━━━━┓\n┃ PID      ┃ 12345    ┃\n┃ Uptime   ┃ 2m       ┃\n┃ Version  ┃ 4.0.10   ┃\n┗━━━━━━━━━━┻━━━━━━━━━━┛');
+  } else fail('本地 mineru 服务未运行。', 1);
+} else if (command === 'server' && (sub === 'start' || sub === 'restart')) {
+  if (state.startFails) fail('服务启动失败：端口被占用');
+  state.running = true; save(); out('server started');
+} else if (command === 'server' && sub === 'stop') { state.running = false; save(); out('server stopped'); }
+else if (command === 'parse') {
+  if (!state.running) fail("本地 mineru 服务未运行。请先运行 'mineru server start'");
+  const pdf = argv[1], output = flag('-o');
+  const pages = state.ignorePages ? '1-10' : flag('--pages') ?? '1-10'; // the real default: only the first 10 pages (ignorePages: a CLI that does not honour --pages)
+  const range = /^(\d+)-(\d+)$/.exec(pages) ?? [null, pages, pages];
+  const [first, last] = [Number(range[1]), Math.min(Number(range[2]), state.total)];
+  if (state.failWindowsOnce?.includes(first)) { state.failWindowsOnce = state.failWindowsOnce.filter(item => item !== first); save(); fail('parse failed: model crashed', 2); }
+  if (state.dieOnFirst && first === state.dieOnFirst) { state.running = false; save(); fail('connection to the local server was lost'); }
+  const finish = () => {
+    const eol = state.crlf ? '\r\n' : '\n';
+    const parts = [];
+    for (let page = first; page <= last; page++) {
+      parts.push(`<!-- page ${page} of ${state.total} -->`);
+      if (state.blank?.includes(page)) continue;
+      parts.push(`## Chapter ${Math.ceil(page / 10)}: 简介 ${page}`, 'Chapter 1: Introduction', `${state.text ?? '这是第'} ${page} 页的正文。`,
+        `![Image block](doc:5008352/tier:${flag('--tier') ?? 'basic'}/page:${page}/block:1)`, '• 要点一', '• 要点二', `${page}`);
+    }
+    writeFileSync(output, `${parts.join(eol)}${eol}`, 'utf8');
+    if (argv.includes('--json')) out(JSON.stringify({ status: 'done', pdf, pages, output }));
+    process.exit(0);
+  };
+  if (state.delayMs) setTimeout(finish, state.delayMs); else finish();
+} else if (command === '--tier') { // the separate model downloader: mineru-models-download --tier T
+  out(`Downloading ${argv[1]} models ...`); out('50%');
+  if (state.downloadFails) fail('network error while downloading');
+  const finish = () => { state.modelsReady = true; save(); out('100% done'); process.exit(0); };
+  if (state.downloadDelayMs) setTimeout(finish, state.downloadDelayMs); else finish();
+} else fail(`unknown command ${argv.join(' ')}`);

@@ -4,24 +4,27 @@ import { useInjectCss } from './shared.js';
 import { Button, Disclosure, Icon } from './components/index.js';
 import { LARGE_DOCUMENT_LIMITS, TOOLS, VERIFIED_AT, mcpConfigSnippet } from '../lib/large-documents.js';
 import ExtensionPanel from './ExtensionPanel.jsx';
+import MineruRoute from './MineruRoute.jsx';
 import css from './large-documents.css';
 
 /* 大教材建议 (WP28, WP28b). StudyHub does not index a 1000-page textbook itself, and
-   the learner never edits a file or types a command: convert the PDF with MinerU's
-   desktop client (a normal app), drag the result back, and, for whole-book questions,
-   install StudyHub's search extension with one click and build the index of the
-   course with another. The command-line, Docker and hand-written configuration
+   the learner never edits a file or types a command: StudyHub converts the PDF with MinerU
+   itself (the learner's own free cloud token, or the local mineru when it is ready; big books
+   are cut into pieces and put back together), and, for whole-book questions, installs
+   StudyHub's search extension with one click and builds the index of the course with
+   another. The desktop client, the command line, Docker and hand-written configuration
    routes exist but live under 高级. It never claims a tool is installed: `retrieval`
    is what the host reported (retrieval.status). */
 
 const SUMMARY = {
-  mineru: () => ui('有图形界面的桌面客户端（Windows / macOS）：打开 PDF，导出带页码的 JSON。支持扫描件、公式、表格和中文。'),
+  'mineru-cloud': () => ui('用你自己的 MinerU 令牌在云端解析，StudyHub 全自动：分段上传、显示进度、合并。目前免费，规则可能变化；文档会上传到 MinerU。'),
+  mineru: () => ui('手动路线：有图形界面的桌面客户端（Windows / macOS），或本地命令行 mineru parse --pages。导出带页码的 JSON 再拖进来。'),
   docling: () => ui('开源（MIT），输出带页码的 JSON，适合愿意用命令行或 Python 的人。导入时选它输出的 .json。'),
   'mcp-local-rag': () => ui('在本机检索，文档不出电脑；读 PDF、Word、Markdown 和纯文本。默认的向量模型偏英文，中文教材要换多语言模型。'),
   ragflow: () => ui('完整的知识库应用（用 Docker 运行，建议 16 GB 内存），中文友好；通过 MCP 接口被 DSH 调用。'),
 };
 const KIND_LABEL = { official: () => ui('官方'), source: () => ui('源码'), package: () => ui('安装包'), mainland: () => ui('国内可用') };
-const NEEDS = { 'command-line': () => ui('需要命令行'), docker: () => ui('需要 Docker'), manual: () => ui('需要手动配置') };
+const NEEDS = { token: () => ui('需要免费令牌'), 'command-line': () => ui('需要命令行'), docker: () => ui('需要 Docker'), manual: () => ui('需要手动配置') };
 
 /** The one name for a provider: the tool and, for MCP, the server it comes from. */
 export function providerLabel(provider) {
@@ -44,11 +47,12 @@ function reasonText(reason, detail = {}) {
 }
 
 const STEPS = {
-  convert: [() => ui('下载并安装 MinerU 客户端（官网下载，Windows / macOS）。'), () => ui('在客户端里打开这份 PDF，导出带页码的 JSON（content_list.json）。'),
-    () => ui('把导出的文件拖回「添加资料」：StudyHub 按页保存，并按标题分出章节。'),
+  convert: [() => ui('点下面的「用 MinerU 解析」：本地 mineru 已就绪就用它（免费、不上传），否则用你自己的 MinerU 令牌（在 mineru.net 免费创建，只需粘贴一次）。'),
+    () => ui('StudyHub 自动分段、逐段解析、合并，进度显示在资料页；中途出错只重做出错的那一段。'),
+    () => ui('解析完成后按页保存，并按标题分出章节，不用再拖文件。'),
     () => ui('在「创建题组」里按章节勾选；整本书都要用时，点下面的「安装检索扩展」，再为这门课建立检索索引。')],
   select: [() => ui('在资料列表里点「选择章节」，只勾选这次要学的章节。'), () => ui('或者点下面的「安装检索扩展」，再为这门课建立检索索引。'),
-    () => ui('在「这次想练什么？」写下主题，StudyHub 只把检索到的页面发给 AI。'), () => ui('还没有转换过？先用 MinerU 客户端把 PDF 转成带页码的文字，再导入。')],
+    () => ui('在「这次想练什么？」写下主题，StudyHub 只把检索到的页面发给 AI。'), () => ui('还没有转换过？先点「用 MinerU 解析」把 PDF 转成带页码的文字，再导入。')],
 };
 
 /** One recommended tool: what it does, what it asks of you, licence, platforms, where to get it. */
@@ -56,13 +60,13 @@ export function ToolCard({ tool }) {
   return (
     <article className="large-doc__tool" data-tool={tool.id}>
       <header className="large-doc__tool-head">
-        <strong>{tool.name}</strong>
-        {tool.recommended && tool.needs === 'download' && <span className="large-doc__badge">{ui('推荐')}</span>}
+        <strong>{ui(tool.name)}</strong>
+        {tool.recommended && ['download', 'token'].includes(tool.needs) && <span className="large-doc__badge">{ui('推荐')}</span>}
         {NEEDS[tool.needs] && <span className="large-doc__needs">{NEEDS[tool.needs]()}</span>}
       </header>
       <p className="large-doc__summary">{SUMMARY[tool.id]()}</p>
-      <p className="large-doc__meta">{[tool.license, tool.platforms.join(' / '), ...(tool.outputs ? [tool.outputs.join(', ')] : [])].join(' · ')}</p>
-      <ul className="large-doc__channels" aria-label={uiFormat('{0} 的下载渠道', [tool.name])}>
+      <p className="large-doc__meta">{[ui(tool.license), tool.platforms.join(' / '), ...(tool.outputs ? [tool.outputs.join(', ')] : [])].join(' · ')}</p>
+      <ul className="large-doc__channels" aria-label={uiFormat('{0} 的下载渠道', [ui(tool.name)])}>
         {tool.channels.map(channel => <li key={channel.url}>
           <a href={channel.url} target="_blank" rel="noreferrer">{ui(channel.label)}<Icon name="external" size={13} /></a>
           <span className={`large-doc__kind large-doc__kind--${channel.kind}`}>{KIND_LABEL[channel.kind]()}</span>
@@ -74,13 +78,20 @@ export function ToolCard({ tool }) {
 
 const byId = id => TOOLS.find(tool => tool.id === id);
 
-/** The first converter: a desktop app. The export must carry page numbers, so the format is named. */
-export function ConverterMain() {
+/**
+ * The leading converter: StudyHub runs MinerU itself (local when ready, otherwise the learner's own cloud token, otherwise the
+ * setup gate). With `call` the whole flow is here; without it the card only explains. `file` is the PDF a too-large import was
+ * refused for (without one the learner picks a PDF), `onStarted` hears that a conversion began.
+ */
+export function ConverterMain({ call, file = null, courses = [], onOpenSettings, onStarted }) {
+  const [picked, setPicked] = useState(null);
   return (
     <div className="large-doc__group" data-role="converter">
       <h3 className="large-doc__group-title">{ui('转换：把 PDF 变成带页码的文字')}</h3>
-      <div className="large-doc__tools"><ToolCard tool={byId('mineru')} /></div>
-      <p className="large-doc__note">{ui('导出时选带页码的 JSON（content_list.json）。只有 Markdown 的话没有页码，StudyHub 就没法按页引用。')}</p>
+      {typeof call === 'function'
+        ? <MineruRoute compact file={file || picked} onFile={file ? undefined : setPicked} call={call} courses={courses} onOpenSettings={onOpenSettings} onStarted={onStarted} />
+        : <div className="large-doc__tools"><ToolCard tool={byId('mineru-cloud')} /></div>}
+      <p className="large-doc__note">{ui('转换结果带页码，StudyHub 才能按页引用；超过 200 页的书会自动分段处理。')}</p>
     </div>
   );
 }
@@ -107,8 +118,8 @@ function ManualConfig() {
 /** The routes that need a terminal, Docker or a configuration file: kept, but out of the way. */
 export function AdvancedTools() {
   return (
-    <Disclosure summary={ui('高级：命令行与 Docker')} meta={ui('给熟悉命令行的人')} className="large-doc__more large-doc__advanced">
-      <div className="large-doc__tools"><ToolCard tool={byId('docling')} /><ToolCard tool={byId('ragflow')} /></div>
+    <Disclosure summary={ui('高级：其他方式（桌面客户端、命令行、Docker）')} meta={ui('给熟悉命令行的人')} className="large-doc__more large-doc__advanced">
+      <div className="large-doc__tools"><ToolCard tool={byId('mineru')} /><ToolCard tool={byId('docling')} /><ToolCard tool={byId('ragflow')} /></div>
       <ManualConfig />
     </Disclosure>
   );
@@ -140,13 +151,13 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
 
 /**
  * Props: reason ('pdf-size' | 'pdf-pages' | 'text-chars' | 'selection' | 'long-document'),
- * detail ({ name?, chars?, pages? }), retrieval (retrieval.status, optional), onOpenSettings
+ * detail ({ name?, chars?, pages?, file? } — the File a too-large import was refused for), courseNames + onConversionStarted (the MinerU flow), retrieval (retrieval.status, optional), onOpenSettings
  * (shows the settings link), call + courses + defaultCourse + onRetrieval (the one-click
  * install and the index builder; without `call` the card only explains), initialPlan /
  * initialRun / initialApproval (previews and tests), className. Extra props land on the root.
  */
 export default function LargeDocumentCard({ reason, detail = {}, retrieval = null, onOpenSettings, call, courses = [], defaultCourse = '', onRetrieval,
-  initialPlan, initialRun, initialApproval, className, ...rest }) {
+  courseNames = [], onConversionStarted, initialPlan, initialRun, initialApproval, className, ...rest }) {
   useInjectCss(css, 'study-large-documents');
   const titleId = useId();
   const converting = reason === 'pdf-size' || reason === 'pdf-pages' || reason === 'text-chars';
@@ -169,11 +180,11 @@ export default function LargeDocumentCard({ reason, detail = {}, retrieval = nul
       </header>
       <ol className="large-doc__steps">{steps.map((step, index) => <li key={index} className="large-doc__step">{step()}</li>)}</ol>
       {converting ? <>
-        <ConverterMain />
+        <ConverterMain call={call} file={detail.file} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} />
         <Disclosure summary={ui('需要整本检索时')} meta={ui('可选')} className="large-doc__more" defaultOpen={retrieval?.extension?.installed === true}>{search}</Disclosure>
       </> : <>
         {search}
-        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain /></Disclosure>
+        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain call={call} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
       </>}
       <AdvancedTools />
       <DetectionLine retrieval={retrieval} onOpenSettings={onOpenSettings} />
