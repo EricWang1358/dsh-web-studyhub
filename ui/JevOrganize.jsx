@@ -41,8 +41,11 @@ export function JevRunNote({ jev }) {
 
 /** The button. `run(sourceIds)` starts the request (the page's own single-flight `act`), so busy states and errors are the page's. */
 export function JevSuggestButton({ enabled, disabled, onClick }) {
+  // Nothing at all (not even the stylesheet) is drawn unless the experiment is on.
+  return enabled ? <JevSuggestControl disabled={disabled} onClick={onClick} /> : null;
+}
+function JevSuggestControl({ disabled, onClick }) {
   useInjectCss(css, 'study-jev');
-  if (!enabled) return null;
   return <button type="button" className="jev-suggest-button" disabled={disabled} onClick={onClick} data-experimental="true">{ui('Jev 建议')}<span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span></button>;
 }
 

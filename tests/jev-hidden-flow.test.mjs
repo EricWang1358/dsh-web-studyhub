@@ -18,7 +18,6 @@ const compiled = await build({ stdin: { contents: `
   export { default as Sources } from './ui/Sources.jsx';
   export { default as Draft } from './ui/Draft.jsx';
   export { JevSettingsView, JevGuide, JevReplaceList } from './ui/JevSettings.jsx';
-  export { ExperimentalSection } from './ui/ExperimentalSettings.jsx';
   export { JevRunNote, JevDecidedBadge } from './ui/JevOrganize.jsx';
   export { JevDecidedNote } from './ui/JevBadge.jsx';
   export { experimentalShown } from './ui/experimental-flag.js';
@@ -27,7 +26,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { Settings, CourseList, OnboardingPanel, Sources, Draft, JevSettingsView, JevGuide, JevReplaceList, ExperimentalSection, JevRunNote, JevDecidedBadge, JevDecidedNote,
+const { Settings, CourseList, OnboardingPanel, Sources, Draft, JevSettingsView, JevGuide, JevReplaceList, JevRunNote, JevDecidedBadge, JevDecidedNote,
   experimentalShown, JEV_REPLACE_META, setupStep, privacyPoints, providerChoices, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
