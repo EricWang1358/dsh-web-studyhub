@@ -337,8 +337,10 @@ test('a plan for the preview: the adaptive numbers (and the first window) rather
 test('the wait asked of the CLI follows the machine: the first window gets the time to load the model, a slow pace gets a longer wait', async () => {
   const { waitSeconds } = await import('../lib/mineru-local.js');
   assert.equal(waitSeconds({ pages: 10 }), LOCAL.waitFloorSec);
-  assert.equal(waitSeconds({ pages: 10, first: true }), LOCAL.waitFloorSec + LOCAL.loadAllowanceSec);
+  assert.equal(waitSeconds({ pages: 10, first: true, pace: { secondsPerPage: 1 } }), LOCAL.waitFloorSec + LOCAL.loadAllowanceSec, 'a measured pace on a fast machine keeps the first window short');
   assert.equal(waitSeconds({ pages: 50 }), 50 * LOCAL.waitPerPageSec);
   assert.ok(waitSeconds({ pages: 20, pace: { secondsPerPage: 20 } }) >= 20 * 20 * 2, 'a machine at 20 s a page needs more than the fixed 8 s a page');
-  assert.equal(waitSeconds({ pages: 50, pace: { secondsPerPage: 600 } }), LOCAL.waitCeilSec, 'never above the ceiling');
+  assert.ok(LOCAL.waitCeilSec >= 6 * 3600, 'the ceiling is a runaway guard of hours, not a deadline a slow machine can hit');
+  assert.equal(waitSeconds({ pages: 50, pace: { secondsPerPage: 100 } }), 50 * 100 * 3, 'a very slow machine is given what its own pace says');
+  assert.equal(waitSeconds({ pages: 10, first: true }), LOCAL.waitCeilSec, 'before any window has been measured nothing is known about this machine: no guess, liveness and Stop decide');
 });
