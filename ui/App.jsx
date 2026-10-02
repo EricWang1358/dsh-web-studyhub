@@ -1900,18 +1900,6 @@ export default function App({ call: transportCall, host = {} }) {
               <SampleBanner sample={data.sample} busy={busy || sampleBusy} onTour={() => startTour({ restart: true })}
                 onRemove={() => setRemovingSample(true)} />
             )}
-            {page === "library" && !showWelcome && data.coach?.ready > 0 && (
-              <div className="coach-offer" role="status">
-                <span className="coach-offer-mark" aria-hidden="true"><NavGlyph name="coach" /></span>
-                <div>
-                  <span className="eyebrow">{ui("为你定制")}</span>
-                  <strong>
-                    {data.today?.ahead ? ui("今天的任务完成了。") : ""}{uiFormat("为你定制的 {0} 道题已备好", [data.coach.ready])}</strong>
-                  <small>{ui("从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。")}</small>
-                </div>
-                <button className="primary" disabled={busy} onClick={() => act("coach.practice", {}, enterRun)}>{uiFormat("刷 {0} 道定制题 →", [data.coach.ready])}</button>
-              </div>
-            )}
             {page === "library" && !showWelcome && (
               <StudyMap
                 data={data}
@@ -1953,6 +1941,8 @@ export default function App({ call: transportCall, host = {} }) {
                 generateFromSources={(ids) => { setSelectedSources(ids); setGen((current) => ({ ...current, course: undefined }));
                   setGenSource("files"); setPage("generate"); }}
                 setupHandlers={setupHandlers}
+                onCoachPractice={pageAvailable(data, 'review') ? onCoachPractice : undefined}
+                onWeakPoints={pageAvailable(data, 'wrongbook') ? () => setPage("wrongbook") : undefined}
                 openModelSettings={openModelSettings}
                 canChat={canChat}
                 reveal={revealHome}

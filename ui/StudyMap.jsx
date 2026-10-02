@@ -19,6 +19,8 @@ import { courseMatcher, courseNamesOf } from "./PageScope.jsx";
 import { courseOrder, courseRelative } from "../lib/course-tree.js";
 import { DraftTopUp, ShortfallReasons } from "./DraftShortfall.jsx";
 import SetupChecklist from "./SetupChecklist.jsx";
+import { TERMS, LEVEL_HINT } from "./mastery-terms.js";
+import tiersCss from "./home-tiers.css";
 import { missingQuestions } from "./draft-shortfall.js";
 
 /* After an import the new topics sit outside the topic groups until someone
@@ -163,6 +165,8 @@ export default function StudyMap({
   startCourseFlow,
   generateFromSources,
   setupHandlers,
+  onCoachPractice,
+  onWeakPoints,
   openModelSettings,
   canChat = false,
   reveal,
@@ -172,6 +176,7 @@ export default function StudyMap({
   useInjectCss(focusCss, "study-focus");
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(caseCss, "study-case-workspace");
+  useInjectCss(tiersCss, "study-home-tiers");
   const pageRef = useRef(null), activityRef = useRef(null);
   // After a generation starts, land with its progress card in view (P26).
   useEffect(() => {
@@ -342,7 +347,7 @@ export default function StudyMap({
             <strong>{d.title}{d.format === "case-study" && <span className="case-badge" title={ui("案例分析题组：长案例 + 开放题，按评分标准批改")}>
               {d.caseBest ? uiFormat("案例 · 最好 {0}/{1}", [d.caseBest.total, d.caseBest.max]) : uiFormat("案例 · {0} 分", [d.caseMarks])}</span>}</strong>
             <small>
-              {d.available}{ui(" 题")}{p?.due ? uiFormat(" · {0} 待复习", [p.due]) : ""}
+              {d.available}{ui(" 题")}{p?.due ? uiFormat(" · {0} 题到期", [p.due]) : ""}
               {d.wrong ? uiFormat(" · {0} 题待巩固", [d.wrong]) : ""}
               {d.uncheckedAtPublish ? uiFormat(" · {0} 题未自动审阅", [d.uncheckedAtPublish]) : ""}
               {d.selfCited ? uiFormat(" · {0} 题仅有导入题目引用", [d.selfCited]) : ""}
@@ -425,7 +430,7 @@ export default function StudyMap({
                   <span className="map-name">
                     <span>{t.name}</span>
                     <small>
-                      {t.total}{ui(" 题 · ")}{t.due ? uiFormat("{0} 待复习", [t.due]) : LEVEL_LABEL[level]}
+                      {t.total}{ui(" 题 · ")}{t.due ? uiFormat("{0} 题到期", [t.due]) : LEVEL_LABEL[level]}
                     </small>
                   </span>
                   <MasteryBar node={t} />
@@ -490,9 +495,9 @@ export default function StudyMap({
     : today.ahead
       ? ui("今天的任务都完成了")
       : [
-          today.due && uiFormat("{0} 道待复习", [today.due]),
-          today.weak && uiFormat("{0} 道薄弱", [today.weak]),
-          today.new && uiFormat("{0} 道新题", [today.new]),
+          today.due && uiFormat("{0} 题到期", [today.due]),
+          today.weak && uiFormat("{0} 题薄弱", [today.weak]),
+          today.new && uiFormat("{0} 题未学", [today.new]),
         ]
           .filter(Boolean)
           .join(" · ") || ui("暂无可学习的题目");
@@ -504,9 +509,9 @@ export default function StudyMap({
     todayLabel = new Intl.DateTimeFormat(uiLocale(), { month: "long", day: "numeric", weekday: "short" })
       .format(new Date()),
     breakdown = [
-      today.due && uiFormat("到期 {0}", [today.due]),
-      today.weak && uiFormat("薄弱 {0}", [today.weak]),
-      today.new && uiFormat("新题 {0}", [today.new]),
+      today.due && uiFormat("{0} 题到期", [today.due]),
+      today.weak && uiFormat("{0} 题薄弱", [today.weak]),
+      today.new && uiFormat("{0} 题未学", [today.new]),
     ].filter(Boolean).join(" · "),
     startFresh = () => start({ mode: "new", currentCourse: true, count: 10, fresh: true }),
     startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: "path" })),
@@ -572,6 +577,14 @@ export default function StudyMap({
     : base;
   const shownRun = plan === base ? courseRun || todayRun : lastOpen,
     otherRuns = runs.filter((r) => r !== shownRun);
+  /* The other ways to start (new questions, due review, the flow, personalised questions, weak points) sit under one folded
+     line: the card is the one thing to continue, the recommendation the one next step. */
+  const alternatives = [
+    ...plan.also.map(([label, run]) => [label, run]),
+    ...(data.coach?.ready > 0 && onCoachPractice ? [[uiFormat("刷 {0} 道为你定制的题", [data.coach.ready]), onCoachPractice,
+      ui("从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。")]] : []),
+    ...(today.weak > 0 && onWeakPoints ? [[uiFormat("{0} 题薄弱 · 看错题与待巩固", [today.weak]), onWeakPoints, ui(TERMS.weak.hint)]] : []),
+  ];
   // Cards visible behind the top one: the stack is as thick as the day.
   plan.depth = plan.kind === "empty" ? 0 : Math.min(2, Math.max(0, (plan.count || 0) - 1));
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks || []).some((n) => !n.current);
@@ -700,12 +713,12 @@ export default function StudyMap({
           </div>}
           {route && <CourseRoute route={route} busy={busy} onStartChapter={(deckId) => start({ mode: "course", deckId, fresh: true })} />}
           {primary && (
-            <div className="desk-mastery" title={mastery.course ? uiFormat("「{0}」课程掌握度 {1}%（{2} 题）", [mastery.name || ui('未分类课程'), mastery.course.value, mastery.course.cards]) : uiFormat("全学习区掌握度 {0}%", [primary.value])}>
+            <div className="desk-mastery" title={`${mastery.course ? uiFormat("「{0}」的掌握度 {1}%（{2} 题）", [mastery.name || ui('未分类课程'), mastery.course.value, mastery.course.cards]) : uiFormat("所有课程的掌握度 {0}%", [primary.value])}\n${ui(TERMS.mastery.hint)}\n${ui(TERMS.mastered.hint)}`}>
               <span className="desk-mastery-value">{primary.value}<small>%</small></span>
-              <span className="desk-mastery-label">{mastery.course ? ui("本课程掌握") : ui("整体掌握")}</span>
+              <span className="desk-mastery-label">{ui(TERMS.mastery.label)}</span>
               <MasteryBar node={primary.node} />
               {mastery.others && mastery.whole && (
-                <span className="desk-mastery-all" title={uiFormat("全部课程合计 {0} 题", [mastery.whole.cards])}>{ui("全学习区 ")}<strong>{mastery.whole.value}%</strong>
+                <span className="desk-mastery-all" title={uiFormat("全部课程合计 {0} 题", [mastery.whole.cards])}>{ui("所有课程 ")}<strong>{mastery.whole.value}%</strong>
                 </span>
               )}
             </div>
@@ -715,7 +728,7 @@ export default function StudyMap({
               <>
                 <span className="desk-next-label">{ui("推荐下一步")}</span>
                 <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>
-                  <small>{ui(" · 掌握 ")}{data.next.mastery}%</small></span>
+                  <small title={ui("按课程里题组和主题的顺序，这是第一个还没掌握的主题。")}>{uiFormat(" · 课程里下一个没掌握的主题 · 掌握 {0}%", [data.next.mastery])}</small></span>
                 <button className="link-btn" disabled={busy} onClick={() =>
                   start({ mode: "path", scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui("只学这个主题 →")}</button>
               </>
@@ -723,12 +736,15 @@ export default function StudyMap({
               ? starter.next
               : ui("所有主题都已掌握，可以提前巩固。")}
           </p>
-          {plan.also.length > 0 && (
-            <p className="desk-also">
-              {plan.also.map(([label, run]) => (
-                <button key={label} className="link-btn" disabled={busy} onClick={run}>{label}</button>
-              ))}
-            </p>
+          {alternatives.length > 0 && (
+            <details className="desk-more">
+              <summary>{ui("其他开始方式")}</summary>
+              <p className="desk-also">
+                {alternatives.map(([label, run, hint]) => (
+                  <button key={label} className="link-btn" disabled={busy} title={hint} onClick={run}>{label}</button>
+                ))}
+              </p>
+            </details>
           )}
           {otherRuns.length > 0 && (
             <details className="resume-list">
@@ -780,7 +796,7 @@ export default function StudyMap({
                 <span>{plan.unit}</span>
               </div>
             )}
-            {plan.detail && <p className="today-detail">{plan.detail}</p>}
+            {plan.detail && <p className="today-detail" title={plan.kind === "path" ? ui(TERMS.due.hint) : undefined}>{plan.detail}</p>}
             {plan.action && (
               <button className="primary today-go" disabled={busy || plan.action.disabled}
                 onClick={plan.action.run}>
@@ -885,7 +901,7 @@ export default function StudyMap({
           </div>
           <div className="map-legend" aria-label={ui("掌握程度图例")}>
             {BAR_ORDER.map((l) => (
-              <span key={l}>
+              <span key={l} title={ui(LEVEL_HINT[l])}>
                 <i className={"lv-" + l} />
                 {LEVEL_LABEL[l]}
               </span>

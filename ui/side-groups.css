@@ -95,7 +95,8 @@
 .study-app .sidebar.is-narrow .nav-group-chevron {
   display: none;
 }
-.study-app .sidebar.is-narrow .nav-group:first-child .nav-group-label {
+/* first-of-type, not first-child: the gliding highlight (a span) comes before the first group while a page of the rail is open. */
+.study-app .sidebar.is-narrow .nav-group:first-of-type .nav-group-label {
   display: none;
 }
 .study-app .sidebar.is-narrow .nav-group-items[hidden] {

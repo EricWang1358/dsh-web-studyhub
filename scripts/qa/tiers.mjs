@@ -90,8 +90,8 @@ async function measurePage(page) {
     const wide = [...document.querySelectorAll("main *")].filter((el) => {
       const r = el.getBoundingClientRect();
       return r.width > 0 && mainBox && (r.right > mainBox.right + 2 || r.left < mainBox.left - 2);
-    }).filter((el) => !el.closest(".map-menu, .selection-bar, dialog, [role=tooltip], .toast, .tour, .nav-mark")).slice(0, 5)
-      .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]}`);
+    }).filter((el) => !el.closest(".map-menu, .selection-bar, dialog, [role=tooltip], .toast, .tour, .nav-mark, pre")).slice(0, 5)
+      .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} in ${el.parentElement?.tagName.toLowerCase()}.${String(el.parentElement?.className).split(" ")[0]} (${(el.textContent || "").trim().slice(0, 30)})`);
     const count = (selector) => document.querySelectorAll(selector).length;
     // The rail must fit the window: the last row (Settings) ends inside it.
     const last = [...document.querySelectorAll(".sidebar-bottom .nav")].at(-1)?.getBoundingClientRect();
