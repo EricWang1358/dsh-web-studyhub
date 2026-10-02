@@ -219,10 +219,18 @@ export async function runTranslationQa(options) {
       await blockAfter(doc.p1).locator(".tr-block__text").waitFor();
     });
     await step("collapse-expand", async () => {
-      await blockAfter(doc.p1).getByRole("button", { name: t("收起译文", "Collapse translation") }).click();
-      await blockAfter(doc.p1).locator(".tr-block__preview").waitFor();
+      // The paragraph's own 译 folds the translation away completely: no frame, no bar, no preview (the owner's flow); clicking it again brings the block back.
+      await mark(doc.p1).click();
+      await blockAfter(doc.p1).waitFor({ state: "hidden" });
+      if (await viewer.locator(".tr-block__preview").count()) throw new Error("a collapsed translation still draws a preview");
+      if (await blockAfter(doc.p1).locator(".tr-block").count()) throw new Error("a collapsed translation still draws a frame");
       await shot("collapsed");
-      await blockAfter(doc.p1).getByRole("button", { name: t("展开译文", "Expand translation") }).click();
+      await mark(doc.p1).click();
+      await blockAfter(doc.p1).locator(".tr-block__text").waitFor();
+      // The fold handle in the block's own bar does the same.
+      await blockAfter(doc.p1).getByRole("button", { name: t("收起译文", "Collapse translation") }).click();
+      await blockAfter(doc.p1).waitFor({ state: "hidden" });
+      await mark(doc.p1).click();
       await blockAfter(doc.p1).locator(".tr-block__text").waitFor();
     });
     await step("selection-chip", async () => {

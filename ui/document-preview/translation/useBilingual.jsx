@@ -6,7 +6,7 @@ import { locateGroups } from '../links/link-ranges.js';
 import { captureSelection } from '../selection.js';
 import { createHost, createMark, paragraphAround, scanParagraphs } from './dom.js';
 import {
-  SIDE_MIN_COLUMN, blockState, buttonState, effectiveMode, initialState, isShown, jobActive, jobToShow, keyedParagraphs, loadTranslationSettings, passageOf, reducer, saveTranslationSettings,
+  SIDE_MIN_COLUMN, blockState, buttonState, effectiveMode, hostShown, initialState, isShown, jobActive, jobToShow, keyedParagraphs, loadTranslationSettings, passageOf, reducer, saveTranslationSettings,
 } from './model.js';
 import TranslationBlock from './TranslationBlock.jsx';
 import GlossaryDialog from './GlossaryDialog.jsx';
@@ -171,7 +171,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       button.title = words; button.setAttribute('aria-label', words);
       button.setAttribute('aria-pressed', current === 'has' || current === 'stale' ? String(isShown(state, key, mode)) : 'false');
     }
-    for (const [key, host] of own.hosts) host.dataset.shown = state.items[key] && !state.pending[key] ? String(blockState(state, key, mode) !== 'hidden') : 'true';
+    for (const [key, host] of own.hosts) host.dataset.shown = String(hostShown(state, key, mode));
     for (const paragraph of own.paragraphs) {
       const folded = mode === 'only' && state.items[paragraph.key] && isShown(state, paragraph.key, mode) && !own.origOpen.has(paragraph.key);
       if (folded) paragraph.element.dataset.trClamp = 'true'; else delete paragraph.element.dataset.trClamp;

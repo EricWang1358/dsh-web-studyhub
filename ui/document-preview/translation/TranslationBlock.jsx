@@ -101,6 +101,8 @@ export default function TranslationBlock({ state, item, target, open, pendingKin
   if (state === 'pending' && !item) return <div className="tr-block" role="status" data-state="pending">
     <div className="tr-block__bar"><span className="sh-spinner" aria-hidden="true" /><span className="tr-block__status">{ui('正在翻译…')}</span><span className="tr-block__bar-actions"><Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></span></div>
   </div>;
+  // Collapsed: no frame at all. The paragraph's own 译 (filled) opens it again.
+  if (!open) return null;
   const busy = state === 'pending';
   const copy = async () => { const ok = await onCopy?.(); setCopied(ok !== false); clearTimeout(timer.current); timer.current = setTimeout(() => setCopied(false), 1600); };
   const menu = <BlockMenu label={ui('这段译文的更多操作')} items={[
