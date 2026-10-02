@@ -91,3 +91,35 @@ test("STUDY_STORE_PRIVATE=1 turns the sharing off: every transaction parses priv
   }, null, { reads: ["decks"], writes: [] });
   assert.equal((await store.read()).decks[0].title, "Deck d1", "a change to a field the transaction does not write is not persisted");
 });
+
+test("a parsed shard's text is not kept in memory, and a transaction that copies the shard reads the file again", async (t) => {
+  const { root, store } = await seeded(t);
+  const entry = await store.load();
+  for (const field of Object.keys(entry.state)) void entry.state[field];
+  assert.ok(entry.files.size > 0);
+  assert.ok([...entry.files.values()].every((text) => text === null), "every shard was parsed and shared, so no text is held");
+  await store.update((state) => { state.runs[1].index = 4; }, { runs: new Set(["r2"]) }, { reads: ["runs"], writes: ["runs"] });
+  await store.update((state) => { state.decks[0].title = "renamed"; }, null, ["decks"]);
+  const after = await store.read();
+  assert.equal(after.runs[1].index, 4, "the copy was made from the file and committed");
+  assert.equal(after.decks[0].title, "renamed");
+  assert.equal(after.runs[0].index, 0);
+  assert.equal((await new Store(root).read()).decks[0].title, "renamed", "and it is what a fresh store reads");
+  // A rewrite that regenerates shard names the cache already holds (every run is serialised, one of them changed) keeps no text either.
+  await store.update((state) => { state.runs[2].index = 5; }, null, ["runs"]);
+  const rewritten = await store.load();
+  for (const field of Object.keys(rewritten.state)) void rewritten.state[field];
+  assert.ok([...rewritten.files.values()].every((text) => text === null), "no shard text stays in memory after the library is read");
+});
+
+test("a state read earlier stays complete after later commits replace and delete its shards", async (t) => {
+  const { store } = await seeded(t);
+  const before = await store.read();
+  await store.update((state) => { state.decks = [deck("d3")]; state.runs = []; }, null, ["decks", "runs"]);
+  assert.deepEqual(before.decks.map((item) => item.id), ["d1", "d2"], "the view taken earlier is untouched by what replaced it");
+  assert.deepEqual(before.runs.map((item) => item.id), ["r1", "r2", "r3"]);
+  assert.equal(before.decks[0].cards[0].prompt, "?");
+  const now = await store.read();
+  assert.deepEqual(now.decks.map((item) => item.id), ["d3"]);
+  assert.deepEqual(now.runs, []);
+});
