@@ -167,7 +167,7 @@ try {
         await target.locator('details.pdf-env-details > summary').click(); await settle(200);
         await target.locator('details.pdf-env__windows > summary').click(); await settle(200);
         const text = (await target.innerText()).replace(/\s+/g, ' ');
-        for (const pattern of lang === 'en' ? [/about [\d.]+ sec a page/i, /Time per window/] : [/这台电脑每页约 [\d.]+ 秒/, /各段用时/]) if (!pattern.test(text)) problems.push(`${label}: the row lacks ${pattern}: ${text.slice(0, 300)}`);
+        for (const pattern of lang === 'en' ? [/about [\d.]+ sec a page/i, /Time per piece/] : [/这台电脑每页约 [\d.]+ 秒/, /各段用时/]) if (!pattern.test(text)) problems.push(`${label}: the row lacks ${pattern}: ${text.slice(0, 300)}`);
         const path = join(out, `${label}.png`); await target.screenshot({ path }); shots.push(path);
         await audit(tab, label, { scopes: ['.pdf-history', '.pdf-history__row', '.pdf-env'] }); await noSpill(tab, label);
         if (lang === 'en') await hanOutsideData(tab, label, '.pdf-history');
