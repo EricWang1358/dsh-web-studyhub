@@ -2282,5 +2282,9 @@
   "音频上传跟不上，已停止实录。已收到的内容仍然保留，请检查连接后继续": "Live recording stopped because audio uploads could not keep up. Received content is saved. Check your connection before continuing.",
   "请先结束当前实录": "Finish the current live recording first.",
   "学习插件还没有就绪（宿主可能刚重启），正在重试…": "The study plugin is not ready yet (DSH may have just restarted). Retrying…",
-  "进行中": "In progress"
+  "进行中": "In progress",
+  "改课程…": "Change course…",
+  "修改「{0}」的课程": "Change the course of “{0}”",
+  "保存课程": "Save course",
+  "只更改归属，原文与引用保持不变。留空就是「未分类」。": "Only the course changes; the text and its citations stay as they are. Leave it blank for “Uncategorised”."
 }
