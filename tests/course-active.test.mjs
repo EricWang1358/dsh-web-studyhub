@@ -8,6 +8,7 @@ import { courseStatus, activeDecks, deckIsActive, inactiveSummary } from '../lib
 import { learningScope } from '../lib/learning-scope.js';
 import { decksInCourse } from '../lib/focus.js';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
+import { publishNotebook, listNotebooks } from '../lib/notebooks.js';
 
 /* "有效课程": a course the learner is not studying any more can be parked. Inactive courses stay out of everything that
    pushes review work (due counts, forecast, queue, recommendations, wrong book, exam pool) until they are activated again,
@@ -258,4 +259,46 @@ test('old libraries and the current course: no field, no change; the current cou
 
 test('the actions are contracts of the courses context', () => {
   for (const name of ['course.setActive', 'course.activate', 'course.deactivate']) assert.deepEqual(writesFor('courses', name), ['courses'], name);
+});
+
+test('the snapshot flags parked decks, their progress rows and a half-done run, so the desk does not offer it as 接着做', async t => {
+  const service = await make(t);
+  const run = await service.call('review.start', { mode: 'path', course: 'Cloud', fresh: true });
+  assert.equal((await service.call('snapshot')).lastRun.inactive, undefined, 'while the course counts, nothing is flagged');
+  await service.call('course.deactivate', { name: 'Cloud' });
+  const snapshot = await service.call('snapshot');
+  assert.deepEqual(snapshot.decks.filter(deck => deck.inactive).map(deck => deck.id).sort(), ['old1', 'old2']);
+  assert.equal(snapshot.progress.old1.inactive, true);
+  assert.equal(snapshot.progress.cur1.inactive, undefined);
+  assert.equal(snapshot.runs.find(item => item.id === run.id).inactive, true);
+  assert.equal(snapshot.lastRun.inactive, true);
+  assert.equal(snapshot.focus.courses.find(course => course.name === 'Cloud').active, false);
+  assert.equal(snapshot.courses.find(course => course.name === 'Cloud').active, false);
+  assert.equal(snapshot.focus.courses.find(course => course.name === 'Databases').active, true);
+});
+
+test('the course the learner has not chosen yet defaults to the first one that is not parked', async t => {
+  const service = await make(t);
+  await service.store.update(state => { delete state.focus; });
+  const first = (await service.call('snapshot')).focus.course;
+  await service.call('course.deactivate', { name: first });
+  const next = (await service.call('snapshot')).focus.course;
+  assert.notEqual(next, first, 'a parked course is not picked for the learner');
+  assert.notEqual(next, null);
+});
+
+test('the global notebook list leaves parked courses out of "due today" and marks their decks', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'study-active-home-'));
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = home;
+  t.after(async () => { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(home, { recursive: true, force: true }); });
+  const root = join(home, 'library');
+  const service = new StudyService(root);
+  await service.store.update(state => fill(state));
+  await publishNotebook(root, root);
+  const before = (await listNotebooks(root)).notebooks[0];
+  await service.call('course.deactivate', { name: 'Cloud' });
+  const after = (await listNotebooks(root)).notebooks[0];
+  assert.equal(before.dueToday - after.dueToday, 22);
+  assert.deepEqual(after.decks.filter(deck => deck.inactive).map(deck => deck.id).sort(), ['old1', 'old2']);
 });
