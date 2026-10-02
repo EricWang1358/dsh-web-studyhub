@@ -726,6 +726,25 @@ export default function App({ call: transportCall, host = {} }) {
       if (target.kind !== 'source') setFocusRequest({});
     } catch (error) { if (live()) { if (throwOnError) throw error; setError(error.message || String(error)); } }
   }
+  // 读 → 做这几页的题 → 回到阅读: practise exactly the questions of some pages. The run keeps where the learner was reading
+  // (lib/reading-return.js), so the way back is on the run itself and survives closing the app; nothing is held only in memory.
+  function practiceFromReading({ refs, reading }) {
+    if (!refs?.length || !reading) return;
+    return act("review.start", { mode: "path", scope: refs, fresh: true, reading: { ...reading, origin: { page } } },
+      (started) => { setModal(null); enterRun(started); setFocusRequest({}); });
+  }
+  // The existing generation entry, prefilled with the sources of the pages (the whole document for one text).
+  function generateFromPages(ids) {
+    rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined }));
+    setGenSource('files'); setModal(null); setPage('generate');
+  }
+  // Reopen the reader where the learner was: the section, the offset into it and the scroll position of the stored context.
+  function returnToReading(reading) {
+    const source = dataRef.current?.sources.find(item => item.id === reading?.sourceId);
+    if (!source) { setNotice({ text: ui('这份资料已不在资料库里，无法回到阅读。'), tone: 'warning' }); return; }
+    setPage(navLabels[reading.origin?.page] ? reading.origin.page : 'sources');
+    setModal({ type: 'source', source, resume: { ...reading, nonce: Date.now() } });
+  }
   function currentStudyReference() {
     const root = dataRef.current?.root;
     if (!root) return null;
@@ -2218,6 +2237,7 @@ export default function App({ call: transportCall, host = {} }) {
                 feedback={feedback}
                 contextReturnLabel={contextTrail.length ? contextLabel(contextTrail.at(-1)) : ''}
                 onReturnContext={returnFromContext}
+                onReturnToReading={returnToReading}
                 detour={detour && !(detour.runId === run.id && detour.index === run.index) ? detour : null}
                 onReturnFromDetour={returnFromDetour}
                 onCourseFlow={startCourseFlow}
@@ -2364,6 +2384,8 @@ export default function App({ call: transportCall, host = {} }) {
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
                       onOpenDeck={deckId => openLearningTarget({ kind: 'deck', id: deckId })}
                       onPractice={({ deckId, cardIds }) => openLearningTarget({ kind: 'cards', deckId, cardIds })}
+                      onPracticePages={practiceFromReading} onGeneratePages={generateFromPages} resume={modal.resume}
+                      backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? () => setModal(null) : undefined}
                       onStarted={started => { selectionJobs.current.set(started.jobId, 'active'); return refresh(); }} onNotice={setNotice}
                       onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
                         setGenSource('case'); setModal(null); setPage('generate'); }} />

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { Icon } from '../../components/index.js';
 import { defaultExpanded, filterOutline, outlineRows } from './outline.js';
+import { MasteryMark } from '../practice/MasteryMark.jsx';
 
 /* A filter box appears once the outline is too long to scan by eye. */
 const FILTER_FROM = 12;
@@ -11,7 +12,7 @@ const FILTER_FROM = 12;
  * (a button, so the keyboard reaches it); the current entry is marked, and when it is folded away its nearest open part is.
  * `footer` is the slot under the list (the "让 AI 帮你" flow). `initialOpen`: ids open at first (default: defaultExpanded).
  */
-export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, ...rest }) {
+export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, ...rest }) {
   const list = useRef(null), [query, setQuery] = useState(''), [toggled, setToggled] = useState(() => new Map());
   const signature = `${items.length}:${items[0]?.id ?? ''}:${items.at(-1)?.id ?? ''}`;
   useEffect(() => { setToggled(new Map()); setQuery(''); }, [signature]);
@@ -61,6 +62,8 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
               {item.title && <span className="reader-outline__title">{item.title}</span>}
               {filtering && item.trail?.length > 0 && <small className="reader-outline__trail">{item.trail.at(-1)}</small>}
             </button>
+            {/* 资料掌握度 of this entry (and what is below it); present only when the document has questions at all. */}
+            {meters && <span className="reader-outline__meter"><MasteryMark summary={meters.get(item.id) ?? null} title={name(item)} size={13} /></span>}
           </li>;
         })}
       </ol>

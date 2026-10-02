@@ -1,0 +1,97 @@
+/* The reading loop (读 → 做这几页的题 → 回到阅读 → 掌握度). Tokens only (ui/DESIGN.md). The mastery mark says its state by SHAPE
+   (dashed ring, ring, quarter, half, filled with a tick) and colour together, so it never depends on colour alone. */
+
+:is(.study-app, .study-seat) {
+  /* ── The mark ───────────────────────────────────────────────────────── */
+  .mastery-mark {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    color: var(--text-faint);
+    line-height: 0;
+    vertical-align: -2px;
+  }
+  .mastery-mark svg { display: block; }
+  .mastery-mark[data-state='learning'] { color: var(--warn); }
+  .mastery-mark[data-state='familiar'] { color: var(--text-dim); }
+  .mastery-mark[data-state='mastered'] { --mastery-ink: var(--bg-surface); color: var(--ok); }
+  .mastery-line { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+  .mastery-line[data-state='mastered'] { color: var(--ok); }
+  .mastery-line__text { min-width: 0; overflow-wrap: anywhere; }
+
+  /* ── In the outline: a mark after each entry ────────────────────────── */
+  .reader-outline__meter { display: grid; flex: none; place-items: center; width: 22px; }
+  .reader-outline li[data-minor] .reader-outline__meter { opacity: 0.7; }
+
+  /* ── In the toolbar: the mastery of the current section ─────────────── */
+  .reader-toolbar__mastery { flex: none; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── The control and its panel ──────────────────────────────────────── */
+  .reader-practice__panel { gap: var(--space-3); width: 320px; }
+  .reader-practice__panel p { margin: 0; }
+  .reader-practice__status { color: var(--text-muted); font-size: var(--fs-sm); }
+  .reader-practice__ranges { display: grid; gap: var(--space-1); min-width: 0; margin: 0; padding: 0; border: 0; }
+  .reader-practice__ranges legend { padding: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em; }
+  .reader-practice__range {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    padding: 4px var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+  .reader-practice__range input { width: 16px; height: 16px; min-height: 0; margin: 0; accent-color: var(--accent); }
+  .reader-practice__range small { color: var(--text-muted); font-size: var(--fs-xs); }
+  .reader-practice__range:hover { background: var(--bg-hover); }
+  .reader-practice__range[data-checked] { border-color: var(--line-strong); background: var(--bg-selected); }
+  .reader-practice__range:has(input:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+  .reader-practice__scope { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em; }
+  .reader-practice__counts { color: var(--text); font-size: var(--fs-md); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .reader-practice__mastery { display: flex; align-items: center; gap: var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+  .reader-practice__meaning { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+  .reader-practice__note { padding: var(--space-2) var(--space-3); border-left: 3px solid var(--warn); background: var(--bg-sunken); color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+  .reader-practice__none { display: flex; align-items: center; gap: var(--space-2); color: var(--text); font-size: var(--fs-md); font-weight: 650; }
+  .reader-practice__panel .sh-btn { justify-self: stretch; }
+
+  /* ── Coming back: the section the learner returns to is marked for a moment ── */
+  [data-returned='true'] { animation: reader-returned 2.4s var(--ease-out) 1; border-radius: var(--radius-sm); }
+  @keyframes reader-returned {
+    0%, 55% { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent); }
+    100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+  }
+  .reader-resume-note { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); }
+
+  /* ── The way back, on the practice page ─────────────────────────────── */
+  .reading-result {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-5);
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+  }
+  .reading-result[data-rose] { border-color: color-mix(in srgb, var(--ok) 55%, var(--line-strong)); }
+  .reading-result p { margin: 0; }
+  .reading-result__change { display: flex; align-items: center; gap: var(--space-2); font-size: var(--fs-lg, 1.1rem); font-variant-numeric: tabular-nums; }
+  .reading-result__meaning { font-size: var(--fs-xs); line-height: var(--lh-snug); }
+  .reading-result .reading-result__return { justify-self: start; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+  .reading-result__return small { font-size: var(--fs-xs); font-weight: 400; opacity: 0.85; }
+  .reading-source { margin-top: var(--space-2); }
+  .reader-back-to-question { color: var(--text); }
+
+  @container reader (max-width: 899.98px) {
+    .reader-toolbar__mastery { display: none; }
+  }
+  @container reader (max-width: 640px) {
+    .reader-practice__panel { width: min(320px, calc(100cqw - var(--space-6))); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-returned='true'] { animation: none; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  }
+}
