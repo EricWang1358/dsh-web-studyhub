@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.3.1 — 2026-10-02
+
+- **Updating the search extension no longer fails with "ambiguous-install".** With an older extension installed, DSH could not tell whether the new file was an update or a second copy, answered "ambiguous-install" and StudyHub showed an error even though the files were already in place. The update now removes the installed one first and then installs the new file, the same two steps you would take by hand. Any other failure is reported as before.
+- **Recommendations in the wrong book stay inside the page.** The "recommended for you" rows are single lines that end in an ellipsis, but their grid column grew to the length of the longest question, so the whole panel became wider than the page and the text ran off its right edge. The column can shrink now.
+
 ## 2.3.0 — 2026-10-02
 
 - **Courses can contain courses.** A course name is a path: "Cloud Native Solution Design / 07 …" sits inside "Cloud Native Solution Design". Choosing the parent shows its own sources, decks, mistakes and statistics together with those of every chapter below it; choosing a chapter shows only that chapter. A slash without spaces counts as a separator only when the text before it is an existing course, so "TCP/IP" stays one name. Nothing is renamed or migrated; pickers show the chapters indented under their parent, and counts say "incl. sub-courses".
