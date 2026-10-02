@@ -43,7 +43,7 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
             {enBusy ? "EN…" : "EN"}
           </button>
         )}
-        <button className="tool-action tool-help" data-tour="review-help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</button>
+        <button className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</button>
         <ReadingSettingsButton className="review-reading" />
         {thumbs}
       </div>
@@ -59,9 +59,9 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
           <button type="button" aria-expanded={assistMode === "improve"} onClick={(event) => { event.currentTarget.closest("details").open = false; onImprove(); }}>{ui("修题")}</button>
           <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onSlay(); }}>{ui("斩掉此题")}</button>
         </div></details>
-        <button className="pill" disabled={busy || run.index === 0} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
+        <button className="pill" data-usage="review.prev" disabled={busy || run.index === 0} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</button>
-        <button className="primary pill" disabled={nextBlocked}
+        <button className="primary pill" data-usage="review.next" disabled={nextBlocked}
           aria-describedby={needsAnswer && !busy ? NEXT_HINT_ID : undefined}
           title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: 1 })}>

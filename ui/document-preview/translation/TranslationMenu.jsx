@@ -65,7 +65,7 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
   const names = TARGET_NAMES();
   return <div className="reader-popover tr-popover" ref={root} onKeyDown={onKeyDown}>
     <Button size="sm" variant="quiet" className="tr-toolbar-button" aria-expanded={open} aria-controls={open ? panelId : undefined} aria-pressed={open} aria-busy={busy || undefined}
-      title={ui('中英对照翻译')} data-busy={busy ? 'true' : undefined} data-tour="translation-toggle" onClick={() => onOpenChange(!open)}>
+      title={ui('中英对照翻译')} data-busy={busy ? 'true' : undefined} data-tour="translation-toggle" data-usage="reader.translate" onClick={() => onOpenChange(!open)}>
       <span className="tr-toolbar-button__tag" aria-hidden="true">{target === 'en' ? 'EN' : ui('译')}</span><span className="tr-toolbar-button__label">{ui('翻译')}</span>
     </Button>
     {open && <div className="reader-popover__panel tr-panel" ref={panel} id={panelId} role="group" aria-label={ui('中英对照翻译')}>

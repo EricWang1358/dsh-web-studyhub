@@ -472,6 +472,7 @@
   }
   @container reader (max-width: 640px) {
     .reader-toolbar { flex-wrap: wrap; row-gap: var(--space-2); padding-inline: var(--space-3); }
+    .reader-toolbar__group--end { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; row-gap: var(--space-2); }
     .reader-page { padding: var(--space-6) var(--space-4) var(--space-8); }
     .study-document-viewer[data-tone='paper'] .reader-page { margin: 0; padding: 1.6em 1.3em 2em; border-radius: 0; box-shadow: none; }
     .reader-popover__panel { right: auto; left: 0; max-width: calc(100cqw - var(--space-6)); }

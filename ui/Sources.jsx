@@ -322,7 +322,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   };
   const allOpen = groups.length > 0 && groups.every(isOpen);
   const openSource = id => setModal({ type: "source", source: byId.get(id) });
-  const addButton = <Button variant="primary" icon="plus" data-tour="sources-add"
+  const addButton = <Button variant="primary" icon="plus" data-tour="sources-add" data-usage="import.add"
     onClick={() => setModal({ type: "add", course: scope === '*' ? '' : scope })}>{ui("添加资料")}</Button>;
   return (
     <section className="page sources-page">

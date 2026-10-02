@@ -213,7 +213,7 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
         <legend>{ui('实验功能开关')}</legend>
         {!ready && <p className="audio-provider-note">{ui('保存密钥并确认隐私说明之后才能打开。')}</p>}
         <label className="jev-switch jev-switch--master">
-          <input type="checkbox" checked={!!settings.enabled} onChange={event => onEnabled(event.target.checked)} />
+          <input type="checkbox" data-usage="settings.jev" checked={!!settings.enabled} onChange={event => onEnabled(event.target.checked)} />
           <span><strong>{ui('启用 Jev 实验功能（总开关）')}</strong><small>{ui('关掉它就停用下面所有功能，立即生效；各项开关的选择会保留。')}</small></span>
         </label>
         <p className="audio-provider-note jev-signals__note">{ui('下面这些只给出参考信号，不替换任何模型调用。')}</p>
