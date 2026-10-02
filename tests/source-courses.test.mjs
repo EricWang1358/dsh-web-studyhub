@@ -119,3 +119,14 @@ test('saving a reused transcript adds course relations without overwriting its t
   assert.deepEqual(reused.courses, ['A', 'B']);
   assert.equal(reused.text, text);
 });
+
+test('a converted book with hundreds of pages changes course in one call (the old cap of 200 broke "改课程" on any big book)', async () => {
+  const { assignSourceCourses } = await import('../lib/source-courses.js');
+  const pages = 650;
+  const state = { decks: [], drafts: [], sources: Array.from({ length: pages }, (_, index) => ({ id: `p${index}`, title: `Book · page ${index + 1}`, text, courses: ['Old'] })) };
+  const result = assignSourceCourses(state, state.sources.map(source => ({ id: source.id, courses: ['Cloud Native Solution Design / 07 微服务设计'] })));
+  assert.equal(result.updated, pages);
+  assert.ok(state.sources.every(source => source.courses[0] === 'Cloud Native Solution Design / 07 微服务设计'));
+  assert.throws(() => assignSourceCourses(state, []), /请选择/);
+  assert.throws(() => assignSourceCourses(state, Array.from({ length: 5001 }, (_, index) => ({ id: `x${index}`, courses: [] }))), /请选择/, 'a sanity ceiling remains');
+});
