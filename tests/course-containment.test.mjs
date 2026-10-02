@@ -118,3 +118,12 @@ test('pure sites share the helper: sources, learning scope, vocabulary, weak top
   assert.equal(weakTopicsFor(state, C07).length, 1);
   assert.deepEqual(courseBatch({ ...state, attempts: [] }, { course: P }).fresh.map(item => item.deckId).slice(0, 3), ['dP', 'dP', 'd01']);
 });
+
+test('the course list (settings) carries subtree totals next to its own counts', async t => {
+  const service = await library(t);
+  const { courses } = await service.call('course.list');
+  const byName = new Map(courses.map(course => [course.name, course]));
+  assert.deepEqual([byName.get(P).decks, byName.get(P).decksTotal, byName.get(P).sources, byName.get(P).sourcesTotal], [1, 4, 1, 5]);
+  assert.deepEqual([byName.get(C05).decks, byName.get(C05).decksTotal, byName.get(C05).sourcesTotal], [1, 1, 2]);
+  assert.equal(byName.get('Cloud Native').decksTotal, 1);
+});
