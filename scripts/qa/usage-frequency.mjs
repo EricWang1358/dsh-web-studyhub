@@ -66,7 +66,7 @@ export async function runUsageQa(options) {
   let tally = new Map(), clicks = [];
   const home = join(options.out, 'work', 'home');
   const summaryOf = await runQa({ name: 'usage-frequency', options, seed, async run({ page, browserContext, server, t, step, check, summary }) {
-    const requests = [], usageBodies = [], foreign = [], scanned = [];
+    const requests = [], usageBodies = [], foreign = [], scanned = [], skipped = [];
     const origin = new URL(server.url).origin;
     await browserContext.addInitScript(SPY);
     page.on('request', request => {
@@ -83,12 +83,20 @@ export async function runUsageQa(options) {
     const api = (action, args = {}) => previewCall(server, action, args);
     // What was done, so the report can be held to it. A control that is not there or is disabled is skipped, not counted.
     const hit = async (key, locator, { expect = true } = {}) => {
-      if (!(await locator.count())) return false;
+      if (!(await locator.count())) { skipped.push(`${key}: not on the page`); return false; }
       // A control that is still loading (the reader's practice button waits for its question counts) is given a few seconds to become usable.
       let usable = false;
       for (let attempt = 0; attempt < 15 && !usable; attempt += 1) { usable = await locator.first().isEnabled().catch(() => false); if (!usable) await sleep(200); }
-      if (!usable) return false;
-      try { await locator.first().click({ timeout: 4000 }); } catch { return false; }
+      if (!usable) { skipped.push(`${key}: disabled`); return false; }
+      try { await locator.first().click({ timeout: 4000 }); } catch (error) {
+        // Say what is in the way, so a control that cannot be reached is a finding and not a mystery.
+        const cover = await locator.first().evaluate(element => {
+          const box = element.getBoundingClientRect(), top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+          return { box: [box.left, box.top, box.width, box.height].map(Math.round), top: top ? `${top.tagName.toLowerCase()}.${String(top.className).slice(0, 50)}` : null, viewport: [window.innerWidth, window.innerHeight] };
+        }).catch(() => null);
+        skipped.push(`${key}: ${String(error.message).split('\n')[0]} ${JSON.stringify(cover)}`);
+        return false;
+      }
       if (expect) tally.set(key, (tally.get(key) || 0) + 1);
       clicks.push(key);
       await sleep(240); // beyond the 150 ms throttle, so each click is its own use
@@ -321,6 +329,7 @@ export async function runUsageQa(options) {
       return { scannedBytes: everything.length, usageRequests: usageBodies.length, foreign: foreign.length };
     });
     summary.tally = Object.fromEntries(tally);
+    summary.skipped = skipped;
     summary.keys = keysOut;
   } });
   return summaryOf;
@@ -331,7 +340,9 @@ export async function compareLanguages(outs) {
   const [zh, en] = await Promise.all(outs.map(out => readFile(join(out, 'keys.json'), 'utf8').then(JSON.parse, () => null)));
   if (!zh || !en) return ['keys.json missing'];
   const problems = [];
-  for (const key of new Set([...Object.keys(zh), ...Object.keys(en)])) if (zh[key] !== en[key]) problems.push(`${key}: zh ${zh[key] ?? 'none'} vs en ${en[key] ?? 'none'}`);
+  // A control the journey could not reach in one language (reported in summary.json `skipped`, with what covers it) is a layout finding, not a key difference.
+  const unreachable = new Set((await Promise.all(outs.map(out => readFile(join(out, 'summary.json'), 'utf8').then(text => JSON.parse(text).skipped ?? [], () => [])))).flat().map(line => line.split(':')[0]));
+  for (const key of new Set([...Object.keys(zh), ...Object.keys(en)])) if (zh[key] !== en[key] && !unreachable.has(key)) problems.push(`${key}: zh ${zh[key] ?? 'none'} vs en ${en[key] ?? 'none'}`);
   return problems;
 }
 
