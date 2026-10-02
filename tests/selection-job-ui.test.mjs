@@ -66,7 +66,7 @@ test('counts and elapsed time are honest: passed of requested, written candidate
   assert.equal(elapsedClock({ ...base, status: 'queued', runStartedAt: undefined }, at(65)), '', 'queue wait is not run time');
   assert.equal(elapsedClock(done(), at(9999)), '1:10', 'a finished job keeps the time it took');
   lib.setUiLanguage('en');
-  assert.equal(countsText(running({ written: 2 })), 'Wrote 2, waiting for independent review · passed 0 of 2');
+  assert.equal(countsText(running({ written: 2 })), 'Wrote 2, waiting for independent review · Passed 0 of 2');
   lib.setUiLanguage('zh');
 });
 
@@ -91,7 +91,7 @@ test('a running job shows its stage, counts, elapsed time, expected usage and a 
   assert.match(words, /正在出题/);
   assert.match(words, /已写出 2 题，等待独立审阅 · 已通过 0 \/ 共 2/);
   assert.match(words, /已用 0:42/);
-  assert.match(words, /预计 12\.0K–20\.0K tok · 3–4 次模型调用/);
+  assert.match(words, /预计 12K–20K tok · 3–4 次模型调用/);
   assert.match(markup, /role="status"/);
   assert.match(words, /停止/);
   assert.match(words, /Architecture includes the principles guiding design\./, 'the passage it works on');
@@ -111,7 +111,7 @@ test('a finished job says what was added and what did not pass, why, and jumps t
   assert.match(words, /打开题组/);
   assert.match(words, /查看这道题与解析/);
   assert.doesNotMatch(words, /草稿/, 'a deck supplement does not talk about drafts');
-  const full = text(render(SelectionJobCard, { job: done({ stageCode: 'done', savedCount: 2, passed: 2, rejected: [], publication: { deckId: 'd', added: 2, total: 3, cardIds: ['a', 'b'], firstCardId: 'a' } }), now: at(9999), canPractice: true }));
+  const full = text(render(SelectionJobCard, { job: done({ stageCode: 'done', savedCount: 2, passed: 2, rejected: [], publication: { deckId: 'd', added: 2, total: 3, cardIds: ['a', 'b'], firstCardId: 'a' } }), now: at(9999), canPractice: true, onPractice() {} }));
   assert.match(full, /已加入「Architecture basics」2 张/);
   assert.doesNotMatch(full, /未通过审阅/);
   assert.match(full, /马上练这 2 张/);
