@@ -47,7 +47,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
   const summary = selected?.summary, total = summary?.total || 0, ready = status === 'ready';
   return <div className="reader-popover reader-practice" ref={root} onKeyDown={onKeyDown} data-tour="reader-practice">
     <Button size="sm" variant="secondary" icon="success" className="reader-practice__button" aria-expanded={open} aria-controls={open ? panelId : undefined}
-      aria-haspopup="dialog" aria-keyshortcuts="P" title={ui('做这几页的题 · 快捷键 P')} onClick={() => setOpen(state => !state)}>
+      aria-haspopup="dialog" aria-keyshortcuts="P" data-usage="reader.practice" title={ui('做这几页的题 · 快捷键 P')} onClick={() => setOpen(state => !state)}>
       <span className="reader-practice__label">{ui('做这几页的题')}</span>
     </Button>
     {open && <div className="reader-popover__panel reader-practice__panel" ref={panel} id={panelId} role="dialog" aria-label={ui('做这几页的题')}>

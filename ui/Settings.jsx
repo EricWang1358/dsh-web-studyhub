@@ -5,6 +5,7 @@ import ExtensionsSettings from './ExtensionsSettings.jsx';
 import MineruSettings from './MineruSettings.jsx';
 import JevSettings from './JevSettings.jsx';
 import { ExperimentalSection } from './ExperimentalSettings.jsx';
+import UsageSettings from './UsageSettings.jsx';
 import { experimentalShown } from './experimental-flag.js';
 import { hasContext } from './capabilities.js';
 import { SETTINGS_GROUPS, SECTION_GROUP, settingsGroupState } from './settings-groups.js';
@@ -240,7 +241,7 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
           <p>{ui("下载一个完整的 JSON 备份：资料、题组、复习进度和作答记录都在里面。")}</p>
           <p className="settings-section__note">{ui("已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。")}</p>
           <p className="settings-section__note">{uiFormat("文件名形如 {0}，保存到浏览器的下载文件夹。", [backupFileName()])}</p>
-          <div className="settings-actions"><Button variant="primary" icon="download" disabled={busy} onClick={exportData}>{ui("导出学习库")}</Button></div>
+          <div className="settings-actions"><Button variant="primary" icon="download" data-usage="settings.export" disabled={busy} onClick={exportData}>{ui("导出学习库")}</Button></div>
         </section>
         <section className="backup-block" aria-labelledby={restoreId}>
           <h3 id={restoreId} className="settings-subtitle">{ui("恢复")}</h3>
@@ -411,9 +412,12 @@ export default function Settings({
         <BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} />
         <UpdateSettingsPanel call={call} host={host} notify={setNotice} />
       </>)}
-      {group("advanced", <ExperimentalSection enabled={experimentalShown(data)} busy={busy} onChange={(enabled) => act("experimental.set", { enabled })}>
-        {hasContext(data, 'system') && <JevSettings busy={busy} call={call} setNotice={setNotice} />}
-      </ExperimentalSection>)}
+      {group("advanced", <>
+        {hasContext(data, 'system') && <UsageSettings call={call} busy={busy} setNotice={setNotice} />}
+        <ExperimentalSection enabled={experimentalShown(data)} busy={busy} onChange={(enabled) => act("experimental.set", { enabled })}>
+          {hasContext(data, 'system') && <JevSettings busy={busy} call={call} setNotice={setNotice} />}
+        </ExperimentalSection>
+      </>)}
     </section>
   );
 }

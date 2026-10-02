@@ -821,7 +821,7 @@ export default function StudyMap({
             )}
             {plan.detail && <p className="today-detail" title={plan.kind === "path" ? ui(TERMS.due.hint) : undefined}>{plan.detail}</p>}
             {plan.action && (
-              <button className="primary today-go" disabled={busy || plan.action.disabled}
+              <button className="primary today-go" disabled={busy || plan.action.disabled} data-usage="home.start"
                 onClick={plan.action.run}>
                 {plan.action.label}<span aria-hidden="true">→</span>
               </button>

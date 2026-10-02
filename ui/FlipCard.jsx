@@ -29,6 +29,7 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
       className={"flashcard" + (showBack ? " flipped" : "")}
       disabled={busy && !run.revealed}
       aria-pressed={showBack}
+      data-usage="review.flip"
       aria-label={showBack ? ui("翻回题目") : ui("翻面查看答案")}
       onClick={flipCard}
     >

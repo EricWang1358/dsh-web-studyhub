@@ -35,6 +35,7 @@ import tiers from './locales/en.tiers.json';
 import translationCopy from './locales/en.translation.json';
 import jevCopy from './locales/en.jev.json';
 import loop from './locales/en.loop.json';
+import frequency from './locales/en.frequency.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -71,6 +72,7 @@ export const ENGLISH_SOURCES = {
   'en.translation.json': translationCopy,
   'en.jev.json': jevCopy,
   'en.loop.json': loop,
+  'en.frequency.json': frequency,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,
@@ -87,6 +89,8 @@ export function mergeCatalogues(sources) {
 }
 
 const english = mergeCatalogues(ENGLISH_SOURCES).catalogue;
+/** The whole zh → en catalogue, read-only. The usage frequency record (ui/usage/names.js) reverses it to key a control by the app's own copy. */
+export const uiCatalogue = () => english;
 const KEY = 'study-ui-language';
 const listeners = new Set();
 const browserLanguage = () => {

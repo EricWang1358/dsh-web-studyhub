@@ -330,7 +330,7 @@ export default function Generate({
                   : ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</p>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
                 <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked}
-                  data-tour="generate-submit">
+                  data-tour="generate-submit" data-usage="generate.submit">
                   {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
                 </Button>
               </> : (

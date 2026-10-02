@@ -57,6 +57,7 @@ import libraryChipCss from "./library-chip.css";
 import ReasoningEffortField from "./ReasoningEffortField.jsx";
 import LibraryUsage from "./LibraryUsage.jsx";
 import { useInjectCss } from "./shared.js";
+import { createUsageController } from "./usage/controller.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
 import { finishedNotice, isActive as isSelectionJobActive } from './document-preview/selection-job.js';
@@ -1127,6 +1128,17 @@ export default function App({ call: transportCall, host = {} }) {
       document.removeEventListener("focusin", engage, true);
     };
   }, []);
+  /* The usage frequency record (Settings › Advanced; docs/usage-frequency.md). Off by default: the controller asks the host once and installs
+     nothing, no listener and no timer, until the learner turns the record on. It lives outside React (ui/usage/*), so recording re-renders nothing. */
+  const usageCall = useRef(null);
+  useEffect(() => { usageCall.current = call; });
+  useEffect(() => {
+    const root = rootRef.current;
+    if (loading || !root) return undefined;
+    const controller = createUsageController({ root, call: (action, args) => usageCall.current(action, args) });
+    void controller.refresh();
+    return () => controller.dispose();
+  }, [loading]);
   // Practise the given prerequisites (learned ones included), then offer a way back to this question.
   function studyPrerequisites(list) {
     act(
@@ -1743,6 +1755,7 @@ export default function App({ call: transportCall, host = {} }) {
       data-theme={resolvedTheme}
       lang={language === 'en' ? 'en' : 'zh-CN'}
       ref={attachRoot}
+      data-usage-area={page}
       tabIndex={-1}
       onPointerDown={(e) => {
         if (!e.target.closest("button,input,textarea,select,a"))
@@ -1758,6 +1771,7 @@ export default function App({ call: transportCall, host = {} }) {
           <button
             type="button"
             className="collapse-toggle"
+            data-usage="nav.collapse"
             aria-label={sidebarNarrow ? ui("展开侧边栏") : ui("收起侧边栏")}
             aria-expanded={!sidebarNarrow}
             title={sidebarNarrow ? ui("展开侧边栏") : ui("收起侧边栏")}
@@ -1802,6 +1816,7 @@ export default function App({ call: transportCall, host = {} }) {
                       key={id}
                       {...navOrder.bind(id)}
                       data-tour={`nav-${id}`}
+                      data-usage={`nav.${id}`}
                       className={navOrder.lifted === id ? "is-dragging" : ""}
                       upkeep={group.id === "setup"}
                       active={navPage === id}
@@ -1835,7 +1850,7 @@ export default function App({ call: transportCall, host = {} }) {
         <div className="sidebar-bottom">
           <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
           {data && (
-            <NavItem className="tour-nav" data-tour="tour-reopen" icon={<TourGlyph />} label={ui("功能导览")} disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
+            <NavItem className="tour-nav" data-tour="tour-reopen" data-usage="nav.tour" icon={<TourGlyph />} label={ui("功能导览")} disabled={sampleBusy} aria-disabled={!!tourStep || undefined}
               hint={tourResume ? `${tourResume.index + 1}/${tourResume.total}` : undefined}
               title={ui("功能导览：切到每个关键功能，看看怎么用") + (tourResume ? "\n" + uiFormat("继续 {0}/{1}", [tourResume.index + 1, tourResume.total]) : "")}
               onClick={() => { if (!tourStep) startTour(); }} />
@@ -1850,6 +1865,7 @@ export default function App({ call: transportCall, host = {} }) {
             return (
               <NavItem
                 className="theme-cycle"
+                data-usage="nav.theme"
                 glyph={current}
                 label={`${ui("外观 · ")}${ui(label)}`}
                 title={uiFormat("主题：{0}（点击切换为{1}）", [ui(label), ui(nextLabel)])}
@@ -1865,6 +1881,7 @@ export default function App({ call: transportCall, host = {} }) {
             active={navPage === "settings"}
             title={ui("设置")}
             data-tour="nav-settings"
+            data-usage="nav.settings"
             onClick={() => switchPage("settings")}
           />
         </div>

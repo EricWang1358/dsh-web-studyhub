@@ -470,6 +470,7 @@ export default function Review({
                                 ? "selected"
                                 : "")
                           }
+                          data-usage="review.option"
                           onClick={() => choose(o.id)}
                         >
                           <span className="option-letter">
@@ -511,6 +512,7 @@ export default function Review({
                   {run.card.multiple && !run.feedback && (
                     <button
                       className="primary submit-answer"
+                      data-usage="review.submit"
                       disabled={busy || !selected.length}
                       onClick={() =>
                         reviewAct("review.answer", { selected })
@@ -550,6 +552,7 @@ export default function Review({
                   {!run.feedback && (
                     <button
                       className="primary submit-answer"
+                      data-usage="review.submit"
                       disabled={
                         busy ||
                         !Object.values(clozeValues).some((v) =>
@@ -610,6 +613,7 @@ export default function Review({
                             key={grade}
                             aria-label={uiFormat("{0} 分：{1}", [grade, label])}
                             aria-keyshortcuts={String(grade)}
+                            data-usage="review.grade"
                             title={uiFormat("快捷键 {0}：{1}", [grade, label])}
                             disabled={busy}
                             onClick={() =>

@@ -1,0 +1,59 @@
+/* Settings › Advanced › Usage frequency record and My usage report (ui/UsageSettings.jsx). Quiet by design: the section's own tokens only,
+   no motion, nothing floating. Injected as <style data-study-usage>. The bars are decoration: every number is also text. */
+:is(.study-app, .study-seat) .usage-settings { display: grid; gap: var(--space-3); }
+:is(.study-app, .study-seat) .usage-promises { display: grid; gap: var(--space-1); max-width: 72ch; margin: 0; padding-left: var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .usage-switch { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); max-width: 72ch; margin: 0; font-size: var(--fs-sm); cursor: pointer; }
+:is(.study-app, .study-seat) .usage-switch input[type="checkbox"] { display: inline-block; flex: none; width: auto; min-width: 0; height: auto; padding: 0; margin: 4px 0 0; }
+:is(.study-app, .study-seat) .usage-switch > span { display: grid; gap: 2px; min-width: 0; }
+:is(.study-app, .study-seat) .usage-switch small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .usage-status { margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .usage-settings[data-state="off"] .usage-status,
+:is(.study-app, .study-seat) .usage-settings[data-state="off-data"] .usage-status { color: var(--text-muted); }
+:is(.study-app, .study-seat) .usage-settings[data-state="paused"] .usage-status { color: var(--warn); }
+:is(.study-app, .study-seat) .usage-notice { color: var(--ok); }
+
+/* The report: folded until opened. */
+:is(.study-app, .study-seat) .usage-report { display: grid; gap: var(--space-4); min-width: 0; border-top: 1px solid var(--line-soft); padding-top: var(--space-2); }
+:is(.study-app, .study-seat) .usage-report__summary { padding: var(--space-2) 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; cursor: pointer; }
+:is(.study-app, .study-seat) .usage-report[open] > .usage-report__summary { margin-bottom: var(--space-3); }
+:is(.study-app, .study-seat) .usage-report__body { display: grid; gap: var(--space-5); min-width: 0; max-width: 780px; }
+:is(.study-app, .study-seat) .usage-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: var(--space-3); max-width: 480px; margin: 0; }
+:is(.study-app, .study-seat) .usage-summary > div { display: grid; gap: 2px; min-width: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); }
+:is(.study-app, .study-seat) .usage-summary dt { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .usage-summary dd { margin: 0; color: var(--text); font-size: var(--fs-xl); font-weight: 650; font-variant-numeric: tabular-nums; }
+:is(.study-app, .study-seat) .usage-block { display: grid; gap: var(--space-2); align-content: start; min-width: 0; }
+:is(.study-app, .study-seat) .usage-pair { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-5) var(--space-6); min-width: 0; }
+
+/* Ranked rows and share rows: name and numbers on one line, a thin bar under them. */
+:is(.study-app, .study-seat) .usage-rank,
+:is(.study-app, .study-seat) .usage-shares { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
+:is(.study-app, .study-seat) .usage-rank__row,
+:is(.study-app, .study-seat) .usage-share__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-3); align-items: baseline; min-width: 0; font-size: var(--fs-sm); }
+:is(.study-app, .study-seat) .usage-rank__name,
+:is(.study-app, .study-seat) .usage-share__name { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .usage-rank__num,
+:is(.study-app, .study-seat) .usage-share__num { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+:is(.study-app, .study-seat) .usage-meter { grid-column: 1 / -1; display: block; height: 5px; border-radius: 3px; background: var(--accent-text); opacity: 0.8; }
+
+/* The daily rhythm: one bar per day, the numbers are in the text under it and in each day's hidden label. */
+:is(.study-app, .study-seat) .usage-rhythm { display: flex; align-items: stretch; gap: 2px; height: 64px; margin: 0; padding: 0; list-style: none; min-width: 0; border-bottom: 1px solid var(--line); }
+:is(.study-app, .study-seat) .usage-rhythm__day { position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; }
+:is(.study-app, .study-seat) .usage-rhythm__bar { display: block; width: 100%; min-height: 0; border-radius: 2px 2px 0 0; background: var(--info); }
+:is(.study-app, .study-seat) .usage-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+:is(.study-app, .study-seat) .usage-never { min-width: 0; }
+:is(.study-app, .study-seat) .usage-never > summary { color: var(--text); font-size: var(--fs-md); font-weight: 650; cursor: pointer; padding: var(--space-1) 0; }
+:is(.study-app, .study-seat) .usage-never p { margin: var(--space-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .usage-never__group { color: var(--text-dim); }
+
+:is(.study-app, .study-seat) .usage-hints__list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; max-width: 72ch; }
+:is(.study-app, .study-seat) .usage-hints__list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); align-items: start; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+:is(.study-app, .study-seat) .usage-chip { display: inline-block; padding: 1px var(--space-2); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-body); white-space: nowrap; }
+:is(.study-app, .study-seat) .usage-actions { margin-top: var(--space-2); }
+:is(.study-app, .study-seat) .usage-file { overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  :is(.study-app, .study-seat) .usage-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :is(.study-app, .study-seat) .usage-summary > div { padding: var(--space-2); }
+  :is(.study-app, .study-seat) .usage-summary dd { font-size: var(--fs-lg); }
+}
