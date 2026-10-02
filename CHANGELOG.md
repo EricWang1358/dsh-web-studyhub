@@ -4,6 +4,7 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
 ## 2.3.1 — 2026-10-02
 
+- **The "More" chevron in the review toolbar is aligned.** It was the text character "⌄", which sits below the baseline and looked like a subscript; it is a drawn chevron now, centred on the label, and turns up while the menu is open.
 - **The source row menu works again.** "Change course…" (2.2.3) and "Remove" were both absolutely positioned at the same spot, so the open menu showed them drawn on top of each other ("移除程…"). The menu is one stacked list now.
 - **The course scope select shows the chosen course in full.** The tree indentation was made of spaces inside the labels, so the closed select showed a blank gap before the name, the select was capped at 340 px and the path under it was cut with an ellipsis. Indentation is padding in the open list only, the select can use up to 36 rem, and the path wraps.
 - **Updating the search extension no longer fails with "ambiguous-install".** With an older extension installed, DSH could not tell whether the new file was an update or a second copy, answered "ambiguous-install" and StudyHub showed an error even though the files were already in place. The update now removes the installed one first and then installs the new file, the same two steps you would take by hand. Any other failure is reported as before.

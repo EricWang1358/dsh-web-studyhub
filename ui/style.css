@@ -2172,12 +2172,19 @@
     outline: 2px solid var(--accent-soft);
     outline-offset: 2px;
   }
+  /* A drawn chevron: the "⌄" glyph sits below the baseline and read as a subscript. */
   .question-toolbar .review-more > summary::after {
-    content: "⌄";
-    margin-left: 5px;
-    color: var(--text-muted);
-    font-size: 15px;
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin: 0 0 3px 8px;
+    border-right: 1.5px solid var(--text-muted);
+    border-bottom: 1.5px solid var(--text-muted);
+    transform: rotate(45deg);
+    transition: transform 0.15s var(--ease);
   }
+  .question-toolbar .review-more[open] > summary::after { transform: translateY(3px) rotate(-135deg); }
   .question-toolbar .review-more-menu {
     position: absolute;
     z-index: 20;
