@@ -7,6 +7,9 @@ import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
 import { renderRubric } from "../lib/case-study.js";
+import { DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
+import { describeGenerationRecord, draftWork, missingQuestions } from "./draft-shortfall.js";
+import { modelReadiness } from "./generation-status.js";
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -25,6 +28,7 @@ export default function Draft({
   jsonMode,
   setJsonMode,
   openDraft,
+  continueDraft,
   onOpenPublished,
   onStartPublished,
   clearRecovery,
@@ -45,8 +49,12 @@ export default function Draft({
     audit && Array.isArray(audit.targets) && Array.isArray(audit.changes) && Array.isArray(audit.checks));
   const incomplete = Number.isInteger(draft.editorial?.completedParts) &&
     Number.isInteger(draft.editorial?.parts) && draft.editorial.completedParts < draft.editorial.parts;
-  const generating = incomplete && data.jobs?.some((j) => j.draftId === draft.id &&
-    ["queued", "running", "cancelling"].includes(j.status));
+  // Whatever is working on this draft right now (a top-up, the run still writing it, a repair, a publication check) owns it:
+  // saving or publishing over it would be overwritten or refused.
+  const work = draftWork(draft, data.jobs);
+  const generating = incomplete && ['topup', 'generating'].includes(work?.kind);
+  const missing = missingQuestions(draft);
+  const shortBlock = missing > 0 && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit;
   const availableSources = new Set(data.sources.map((source) => source.id));
   const untestedSourceIds = (draft.editorial?.coverage?.uncited || [])
     .map((source) => source.id).filter((id) => availableSources.has(id));
@@ -80,7 +88,7 @@ export default function Draft({
   const latestDraft = data.drafts.find((item) => item.id === draft.id);
   const missingDraft = draft.draftVersion > 0 && !latestDraft;
   const staleDraft = latestDraft && latestDraft.draftVersion !== draft.draftVersion;
-  const updatingDraft = generating || repairRunning || !!publishJob;
+  const updatingDraft = generating || repairRunning || !!publishJob || !!work;
   const unsavedDraft = JSON.stringify(draft) !== draftLoaded ||
     (jsonMode && draftText !== JSON.stringify(draft, null, 2));
   React.useEffect(() => {
@@ -219,6 +227,13 @@ export default function Draft({
       </p>}
       {activeReview && <p className="quality-note warning" role="status">{ui("原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。")}</p>}
       {rejectedCount > 0 && unsavedDraft && !staleDraft && <p className="quality-note warning" role="status">{ui("当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。")}</p>}
+      {shortBlock && <div className="quality-note warning draft-shortfall" role="status">
+        <strong>{uiFormat("比计划少 {0} 题", [missing])}</strong>
+        <ShortfallReasons draft={draft} />
+        <OmittedQuestions draft={draft} />
+        <DraftTopUp draft={draft} jobs={data.jobs} busy={busy || unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} call={call} onContinue={continueDraft} />
+        {unsavedDraft && <small className="muted">{ui("先保存草稿，再补题。")}</small>}
+      </div>}
       <details className="draft-generation-details">
         <summary>{ui("生成详情")}{draft.editorial?.failures?.length ? uiFormat(" · {0} 条生成记录", [draft.editorial.failures.length]) : ""}</summary>
       {draft.editorial && (
@@ -240,9 +255,7 @@ export default function Draft({
       {!draft.editorial && <p className="quality-note" role="status">{ui("这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。")}</p>}
       {selfCited > 0 && <p className="quality-note warning" role="status">
         {selfCited}{ui(" 道题只引用了导入的题目自身。模型可以检查题目是否自洽，但无法据此独立核实答案；如需事实依据，请把引用换成原始资料。")}</p>}
-      {draft.editorial?.requested && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit && <p>{ui("本次生成通过检查 ")}{draft.editorial.generated ?? draft.cards.length} / {draft.editorial.requested}{ui(" 题；当前草稿 ")}{draft.cards.length}{ui(" 题。")}{draft.editorial.generation?.sourceIds?.length && draft.cards.length < draft.editorial.requested &&
-          ui(" 可返回学习库点「继续补齐」，沿用原资料补题。")}
-      </p>}
+      {draft.editorial?.requested && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit && <p>{ui("本次生成通过检查 ")}{draft.editorial.generated ?? draft.cards.length} / {draft.editorial.requested}{ui(" 题；当前草稿 ")}{draft.cards.length}{ui(" 题。")}</p>}
       {incomplete && <p className="warning" role="status">
         {generating ? ui("仍在生成") : ui("本次生成已中断")}{ui("：已完成 ")}{draft.editorial.completedParts} / {draft.editorial.parts}{ui(" 批。当前草稿只包含已保存的题目；其余批次尚未完成检查。")}</p>}
       {audits.map((audit, i) => <details key={i}>
@@ -253,8 +266,9 @@ export default function Draft({
       </details>)}
       {draft.editorial?.failures?.length > 0 && <details className="warning">
         <summary>{ui("部分题目未生成成功，合格题目已保留")}</summary>
-        <ul>{draft.editorial.failures.map((failure, i) => <li key={i}>{failure}</li>)}</ul>
+        <ul>{draft.editorial.failures.map((failure, i) => <li key={i}>{describeGenerationRecord(failure)}</li>)}</ul>
       </details>}
+      {!shortBlock && <OmittedQuestions draft={draft} />}
       {rejectedCount > 0 && <div className="quality-note warning" role="status">
         <strong>{rejectedCount}{ui(" 道题待处理")}{retryPublishCount > 0 ? uiFormat(" · {0} 道待重新检查发布", [retryPublishCount]) : ""}</strong>
         <p>{draft.editorial?.partialEdit
@@ -289,7 +303,7 @@ export default function Draft({
       </div>}
       {draft.editorial?.previousFailures?.length > 0 && <details className="warning">
         <summary>{ui("之前未完成的批次")}</summary>
-        <ul>{draft.editorial.previousFailures.map((failure, i) => <li key={i}>{failure}</li>)}</ul>
+        <ul>{draft.editorial.previousFailures.map((failure, i) => <li key={i}>{describeGenerationRecord(failure)}</li>)}</ul>
       </details>}
       {draft.editorial?.coverage && <details>
         <summary>{ui("逐份资料出题记录 · 已引用 ")}{draft.editorial.coverage.cited} / {draft.editorial.coverage.selected}{ui(" 份")}</summary>

@@ -23,7 +23,7 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 ## 步骤
 
-1. 用 **MinerU 桌面客户端**转换 PDF（像普通软件一样下载安装，打开 PDF，导出带页码的 JSON，即 `content_list.json`）。Docling 是命令行的备选（见下，在「高级」里）。
+1. 用 **StudyHub 自己运行的 MinerU** 转换 PDF：在「添加资料」里选**用 MinerU 解析**（本地 `mineru` 就绪就用它，否则用你自己的免费 MinerU 令牌，只需在设置里粘贴一次）。超过 200 页的书会自动分段、逐段转换、再合并，详见[用 MinerU 转换 PDF](mineru-conversion.zh-CN.md)。MinerU 桌面客户端、`mineru parse --pages` 命令行和 Docling 是手动的备选（在「高级」里）：导出带页码的 JSON 再拖进来。
 2. 在**添加资料**里拖进导出的文件。StudyHub 按内容识别转换结果，一页保存为一份资料，并按标题把书分成章节。每一页保留页码，引用可以回到原页。
 3. 在**创建题组**里展开这本书，点**选择章节**，勾选要学的章节。一章就是一组页面；也可以点**改为按页选择**。
 4. 需要整本书出题时，点**安装检索扩展**（在卡片上，或在**设置 › 扩展：文档转换与检索**里），再点**为这门课建立检索索引**，然后在**这次想练什么？**写下主题。扩展的索引建好后，超过 15 万字符的选择会缩小到工具找到的页面（最多约 12 万字符）。点**预览会用到的页面**可以在生成前勾选或取消页面；**只用勾选的页面**会把选择换成这些页面。任务的执行过程里会写明用了哪些页面。
@@ -34,7 +34,7 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 | 工具 | 协议 | 平台 | MCP | StudyHub 读取的输出 | 说明 |
 |---|---|---|---|---|---|
-| **MinerU**（推荐；普通桌面软件） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表、带 `page_idx`；v2 按页分组）；Markdown 没有分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，客户端在官网提供。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
+| **MinerU**（推荐，由 StudyHub 自己运行：用你自己的令牌走云端，或用本地 `mineru`；桌面客户端和命令行是手动路线） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表、带 `page_idx`；v2 按页分组）；Markdown 没有分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，客户端在官网提供。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
 | **Docling**（高级：需要命令行） | MIT | Windows、macOS、Linux | `docling-mcp`（MIT；stdio、SSE、streamable HTTP） | JSON（`DoclingDocument`，`prov.page_no` 从 1 开始）；Markdown | 用命令行或 Python 运行：`docling file.pdf --to json`；OCR 引擎有 RapidOCR、EasyOCR、Tesseract（`--ocr-engine`、`--ocr-lang`）。没有桌面应用。 |
 
 也核对过、但**不推荐**：

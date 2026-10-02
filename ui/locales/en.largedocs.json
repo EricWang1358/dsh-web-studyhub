@@ -155,5 +155,8 @@
   "检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。": "The first time the search extension builds an index, it downloads the search model from this address. If the default address cannot be reached from your network, set another one; leave it empty for the default. Changes take effect after DSH restarts.",
   "保存下载地址": "Save download address",
   "正在准备检索模型（首次需要下载，可能要一两分钟）…": "Preparing the search model (the first time it is downloaded, which may take a minute or two)…",
-  "正在建立索引 {0} / {1} 页": "Building the index {0} / {1} pages"
+  "正在建立索引 {0} / {1} 页": "Building the index {0} / {1} pages",
+  "检索扩展需要更新": "The search extension needs updating",
+  "已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。": "The installed search extension is {0}, older than this StudyHub ({1}), so it may never start. Restart DSH after updating.",
+  "更新检索扩展": "Update the search extension"
 }

@@ -5,6 +5,7 @@ import { Button, FileDrop, Icon, InlineMessage, SegmentedControl } from './compo
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
+import MineruRoute from './MineruRoute.jsx';
 import { looksLikeConvertedJson } from '../lib/converted-document.js';
 import { classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
@@ -187,7 +188,7 @@ export function importSummary(results) {
 }
 
 /** The confirmation toast: “已导入「X」（N 页）” and what else happened. */
-export function importDoneMessage({ documents = [], decks = [], subtitles = [] } = {}) {
+export function importDoneMessage({ documents = [], decks = [], subtitles = [], conversions = [] } = {}) {
   const parts = [];
   if (documents.length === 1) {
     const [document] = documents;
@@ -197,6 +198,8 @@ export function importDoneMessage({ documents = [], decks = [], subtitles = [] }
   if (decks.length === 1) parts.push(uiFormat('题组「{0}」已存为草稿（{1} 题）', [decks[0].title, decks[0].cards?.length || 0]));
   else if (decks.length > 1) parts.push(uiFormat('{0} 个题组已存为草稿', [decks.length]));
   if (subtitles.length) parts.push(uiFormat('{0} 份字幕正在后台校对，完成后出现在资料页', [subtitles.length]));
+  if (conversions.length === 1) parts.push(uiFormat('「{0}」正在后台用 MinerU 解析（{1} 页），进度在资料页', [conversions[0].name, conversions[0].pages]));
+  else if (conversions.length > 1) parts.push(uiFormat('{0} 份 PDF 正在后台用 MinerU 解析，进度在资料页', [conversions.length]));
   return parts.join(ui('；'));
 }
 
@@ -336,6 +339,8 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
   // A file that is too large gets the 大教材建议 card; what DSH can search with is read once, then.
   const largeItem = items.find(item => item.status === 'error' && item.large);
   const [retrieval, setRetrieval] = useState(null);
+  // A PDF to turn into pages of text with MinerU (cloud or local): chosen with the picker, or the file a too-large import was refused for.
+  const [mineruOpen, setMineruOpen] = useState(false), [mineruFile, setMineruFile] = useState(null);
   useEffect(() => {
     if (!largeItem || retrieval || typeof call !== 'function') return undefined;
     let live = true;
@@ -353,6 +358,12 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
   }, []);
 
   const courses = parseCourses(courseText);
+  // The conversion runs in the background as a job (progress is on the Sources page); the hub reports it and closes.
+  async function conversionStarted(job) {
+    const summary = { done: 1, failed: 0, documents: [], decks: [], subtitles: [], sourceIds: [], conversions: [{ name: job.filename, pages: job.pages, route: job.route, jobId: job.jobId }] };
+    await onImported?.(summary);
+    if (alive.current) onComplete?.(summary);
+  }
   async function finish(summary, batchHasWork) {
     if (batchHasWork) await onImported?.(summary);
     if (!alive.current) return;
@@ -411,9 +422,13 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
             uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />
-        {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name }} retrieval={retrieval} onOpenSettings={onOpenSettings}
-          call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course} onRetrieval={setRetrieval} />}
-        {!items.length && <p className="import-hub__routes">{ui('PDF 太大或有几百页？先用转换工具处理，再把转换结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。')}</p>}
+        {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={onOpenSettings}
+          call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course} onRetrieval={setRetrieval}
+          courseNames={courses} onConversionStarted={conversionStarted} />}
+        {!largeItem && mineruOpen && <MineruRoute file={mineruFile} onFile={setMineruFile} call={call} courses={courses} onStarted={conversionStarted} onOpenSettings={onOpenSettings} />}
+        {!largeItem && !mineruOpen && !running && <p className="import-hub__routes import-hub__mineru" data-tour="import-mineru">{ui('扫描件、公式多，或超过 200 页的 PDF？')}{' '}
+          <Button variant="link" size="sm" onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button></p>}
+        {!items.length && <p className="import-hub__routes">{ui('PDF 太大或有几百页？点上面的「用 MinerU 解析」，会自动分段处理；也可以自己转换后，把结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。')}</p>}
         {!items.length && <p className="import-hub__routes">{audioOn
           ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')
           : ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿。')}</p>}

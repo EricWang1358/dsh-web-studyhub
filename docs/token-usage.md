@@ -48,7 +48,7 @@ StudyHub 使用你在 DSH 里选定的模型，不绑定某个模型。批量的
 
 | Feature | Stages | What each stage receives | Typical output |
 |---|---|---|---|
-| Create question set | 1 plan per chunk, 2 write-and-self-check per batch, 3 independent review per batch | 1 the whole chunk (at most 60,000 characters; a long source is cut, each PDF page is a source) plus your settings and already-covered objectives; 2 only the sources the plan picked (full text each), the plan and the quality criteria; 3 the same sources plus the candidate questions | plan about 100-180 tokens/question; writing about 160-480 tokens/question (flashcards shorter, choice questions with options longer); review about 60-100 tokens/question |
+| Create question set | 1 plan per chunk, 2 write-and-self-check per batch, 3 independent review per batch | 1 the whole chunk (at most 60,000 characters; a long source is cut, each PDF page is a source) plus your settings and the already-covered objectives (see below); 2 only the sources the plan picked (full text each), the plan and the quality criteria; 3 the same sources plus the candidate questions | plan about 100-180 tokens/question; writing about 160-480 tokens/question (flashcards shorter, choice questions with options longer); review about 60-100 tokens/question |
 | Case paper | 1 write the case and criteria; 2 independent review (one more write when the structure check fails) | 1 course materials (at most 40,000 characters in total, shared equally), a past-paper template (up to 12,000) and examiner guidance (up to 6,000); 2 the whole case and its questions | case 600-1,500 words (900-2,600 Chinese characters) plus criteria and model answers, about 3-5K tokens |
 | Case grading | 1 call per submission | the case, the rubric of the answered questions and your answer (up to 30,000 characters) | about 50-100 tokens per criterion |
 | Suggest a focus | 1 light call | material titles and headings (up to 3,000 characters), the course exam profile, up to 6 weak topics; never the full text | tens to about 200 tokens |
@@ -63,8 +63,17 @@ Transcription itself (Gemini, Groq, SiliconFlow) is not tokens; it is counted in
 - No model call, no network. Batching and chunking are the pipeline's own functions; the prompts are the strings the pipeline really sends; DSH's `tokenMeter` prices them when the host has it, otherwise the same rule (characters / 4 plus fixed framing).
 - The low end of every range is DSH's fixed estimate; the high end uses DeepSeek's published conversion (about 0.6 token per Chinese character, 0.3 per English character). DSH itself says its heuristic underprices Chinese, so for Chinese material the real number is usually near the high end.
 - What a model writes cannot be built in advance: output sizes are measured from the bundled sample course (questions, cases, gradings); case length is the length the prompt itself asks for.
-- Cache read starts at 0 (a first run may hit nothing); its high end is the system prompt and instructions repeated between calls. How much hits depends on the provider.
+- Cache read starts at 0 (a first run may hit nothing); its high end is the system prompt and instructions repeated between calls. How much hits depends on the provider. In practice every plan, writing and review step runs as its own one-off DSH session, and those did not share a cache: a measured 20-question run wrote 720,802 tokens to the cache and read none across 14 calls. The estimate does not count on a cache for its total, and a finished job says so when no call hit it.
+- A finished job whose actual usage passes the upper end of its estimate says by how much; the estimate counts the prompts, not the model's own tokenization, reasoning or retries.
 - A higher reasoning level means more reasoning tokens (counted in the output); they cannot be measured beforehand, so only a note is shown. Retries after an error add calls.
+
+### What "already covered" costs
+
+Plans and writing steps are told which learning targets already exist so they do not repeat them. They used to be sent the whole library: one measured library held 2,911 targets (about 55K tokens), repeated in 8 of the 14 calls of a 20-question run, more than half of the 765,472 tokens it used. A call now carries the targets of the deck or draft being added to or continued, plus up to 120 others that share wording with the chosen materials (a local comparison, no model call). The estimate prices exactly that list.
+
+### Short drafts and top-ups
+
+When review and the local checks drop questions, the draft keeps each dropped question's text and the reasons (`editorial.omitted`), shown on the job card, the draft card and the draft page as counts per reason and one line per question. **Continue generation** (the same button on the home card and the draft page) writes only the missing questions into the same draft from the same materials, keeps the approved ones, and shows its own estimate before it starts. It plans again, so a top-up of one question still reads the material once for the plan, once to write and once to review.
 
 ### With a lot of material
 

@@ -111,6 +111,9 @@ test("App wires every 知道了 and 全部知道了 through the light path, not 
 
 test("act itself still serialises heavy actions and keeps its busy flag", async () => {
   const app = await readFile("ui/App.jsx", "utf8");
-  assert.match(app, /async function act\(/);
-  assert.match(app, /if \(acting\.current\) return;/);
+  assert.match(app, /function act\(/);
+  assert.match(app, /createActRunner/, "App's act() is the single-flight runner (see tests/act-runner.test.mjs)");
+  const runner = await readFile("ui/act-runner.js", "utf8");
+  assert.match(runner, /if \(current\) return;/);
+  assert.match(runner, /setBusy\(true\)/);
 });

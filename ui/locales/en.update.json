@@ -59,5 +59,6 @@
   "下载的安装包没有通过 SHA-256 校验，已停止升级，没有做任何改动。": "The downloaded package failed its SHA-256 check. The upgrade stopped and nothing was changed.",
   "DSH 没能安装新版本，原来的版本保持不变。": "DSH did not install the new version; the current version stays as it was.",
   "升级没有完成。": "The upgrade did not finish.",
-  "StudyHub {0} 等待重启": "StudyHub {0} is waiting for a restart"
+  "StudyHub {0} 等待重启": "StudyHub {0} is waiting for a restart",
+  "StudyHub 本体已是最新，但检索扩展还是 {0}，需要更新到 {1}。": "StudyHub itself is up to date, but the search extension is still {0} and needs updating to {1}."
 }

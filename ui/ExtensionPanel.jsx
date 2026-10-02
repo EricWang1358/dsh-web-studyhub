@@ -28,6 +28,52 @@ function StartupWait({ refresh }) {
   return <p className="extension-panel__lead" role="status">{ui('检索扩展已安装。请手动重启 DSH 以应用。')}</p>;
 }
 
+/** Install (or update) the extension: the approval step, the busy state, the error. Shared by the panel and the update notice. */
+function useExtensionInstall({ call, onStatus, initialApproval = null }) {
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [approval, setApproval] = useState(initialApproval), [restart, setRestart] = useState(false);
+  async function install(approved) {
+    setBusy(true); setError('');
+    const result = await runInstall(call, approved);
+    setBusy(false);
+    if (result.phase === 'approval') { setApproval(result.pending); return; }
+    setApproval(null);
+    if (result.phase === 'error') { setError(result.message); return; }
+    setRestart(result.restartRequired);
+    if (result.status) onStatus?.(result.status);
+  }
+  return { busy, error, approval, restart, install, setApproval };
+}
+
+function ApprovalDialog({ approval, busy, install, close }) {
+  if (!approval) return null;
+  return <Dialog size="sm" title={ui('允许安装组件的脚本？')} onClose={() => { if (!busy) close(); }}
+    description={ui('检索扩展依赖的这些组件，安装时要运行自带的脚本（用来取得适合你电脑的运行文件）。DSH 默认会拦下它们，需要你确认。')}
+    footer={<>
+      <Button variant="quiet" disabled={busy} onClick={close}>{ui('取消')}</Button>
+      <Button variant="primary" busy={busy} onClick={() => install(approval)}>{ui('允许并继续')}</Button>
+    </>}>
+    <ul className="extension-panel__pending">{approval.map(name => <li key={name}><code>{name}</code>
+      <small className="extension-panel__purpose">{ui(COMPONENTS[name] || COMPONENT_UNKNOWN)}</small></li>)}</ul>
+    <p className="large-doc__note">{ui('这些都是常用的开源组件，脚本只在安装时运行一次。取消后不会安装检索扩展，其他功能不受影响。')}</p>
+  </Dialog>;
+}
+
+/** An installed extension older than this StudyHub (DSH's update of StudyHub does not touch it): say so, and update it in one click. */
+export function ExtensionUpdateNotice({ call, status, onStatus }) {
+  const flow = useExtensionInstall({ call, onStatus });
+  const extension = status?.extension;
+  if (!extension?.installed || !extension.outdated) return null;
+  return (
+    <div className="extension-panel__update">
+      <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>{uiFormat('已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。', [extension.version, extension.expected])}</InlineMessage>
+      <div><Button variant="primary" icon="download" busy={flow.busy} onClick={() => flow.install()}>{ui('更新检索扩展')}</Button></div>
+      {flow.error && <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>}
+      {flow.restart && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
+      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
+    </div>
+  );
+}
+
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
@@ -114,25 +160,16 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
  */
 export default function ExtensionPanel({ call, status, onStatus, courses = [], defaultCourse = '', initialApproval = null, initialPlan, initialRun }) {
   useInjectCss(css, 'study-large-documents');
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [approval, setApproval] = useState(initialApproval), [restart, setRestart] = useState(false), [confirmRemove, setConfirmRemove] = useState(false);
+  const { busy, error, approval, restart, install, setApproval } = useExtensionInstall({ call, onStatus, initialApproval });
+  const [removing, setRemoving] = useState(false), [removeError, setRemoveError] = useState(''), [confirmRemove, setConfirmRemove] = useState(false);
   const extension = status?.extension;
   if (!status || !extension) return null;
   const refresh = async next => { const value = next || await Promise.resolve(call('retrieval.status', {})).catch(() => null); if (value) onStatus?.(value); };
-  async function install(approved) {
-    setBusy(true); setError('');
-    const result = await runInstall(call, approved);
-    setBusy(false);
-    if (result.phase === 'approval') { setApproval(result.pending); return; }
-    setApproval(null);
-    if (result.phase === 'error') { setError(result.message); return; }
-    setRestart(result.restartRequired);
-    if (result.status) onStatus?.(result.status);
-  }
   async function remove() {
-    setBusy(true); setError(''); setConfirmRemove(false);
+    setRemoving(true); setRemoveError(''); setConfirmRemove(false);
     const result = await runUninstall(call);
-    setBusy(false);
-    if (result.phase === 'error') setError(result.message); else if (result.status) onStatus?.(result.status);
+    setRemoving(false);
+    if (result.phase === 'error') setRemoveError(result.message); else if (result.status) onStatus?.(result.status);
   }
   const running = status.companion?.running === true;
   return (
@@ -143,24 +180,16 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
         <div><Button variant="primary" icon="download" busy={busy} onClick={() => install()}>{ui('安装检索扩展')}</Button></div>
       </>}
       {extension.canInstall && extension.installed && <>
-        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p> : <StartupWait refresh={refresh} />}
+        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p> : extension.outdated ? null : <StartupWait refresh={refresh} />}
         {restart && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
+        {extension.outdated && <ExtensionUpdateNotice call={call} status={status} onStatus={onStatus} />}
       </>}
-      {error && <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>}
+      {(error || removeError) && <InlineMessage boxed title={ui('没能完成')}>{error || removeError}</InlineMessage>}
       {running && <IndexBuilder call={call} courses={courses} defaultCourse={defaultCourse} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
       {extension.canInstall && extension.installed && <div>
-        <Button size="sm" variant="quiet" disabled={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
+        <Button size="sm" variant="quiet" disabled={busy || removing} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}
-      {approval && <Dialog size="sm" title={ui('允许安装组件的脚本？')} onClose={() => { if (!busy) setApproval(null); }}
-        description={ui('检索扩展依赖的这些组件，安装时要运行自带的脚本（用来取得适合你电脑的运行文件）。DSH 默认会拦下它们，需要你确认。')}
-        footer={<>
-          <Button variant="quiet" disabled={busy} onClick={() => setApproval(null)}>{ui('取消')}</Button>
-          <Button variant="primary" busy={busy} onClick={() => install(approval)}>{ui('允许并继续')}</Button>
-        </>}>
-        <ul className="extension-panel__pending">{approval.map(name => <li key={name}><code>{name}</code>
-          <small className="extension-panel__purpose">{ui(COMPONENTS[name] || COMPONENT_UNKNOWN)}</small></li>)}</ul>
-        <p className="large-doc__note">{ui('这些都是常用的开源组件，脚本只在安装时运行一次。取消后不会安装检索扩展，其他功能不受影响。')}</p>
-      </Dialog>}
+      <ApprovalDialog approval={approval} busy={busy} install={install} close={() => setApproval(null)} />
       {confirmRemove && <Dialog size="sm" title={ui('卸载检索扩展？')} onClose={() => setConfirmRemove(false)}
         description={ui('检索扩展会从 DSH 移除。已建好的索引和下载的检索模型仍留在 DSH 主目录里，重新安装后可以继续用。')}
         footer={<>

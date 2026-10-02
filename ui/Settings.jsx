@@ -2,6 +2,7 @@ import { getUiLanguage, ui, uiFormat, uiLocale } from "./i18n.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import AudioSettings from "./AudioSettings.jsx";
 import ExtensionsSettings from './ExtensionsSettings.jsx';
+import MineruSettings from './MineruSettings.jsx';
 import { hasContext } from './capabilities.js';
 import { UpdateSettingsPanel } from './UpdateCenter.jsx';
 import { Button, Dialog, Icon, InlineMessage, formatBytes } from './components/index.js';
@@ -294,6 +295,7 @@ export default function Settings({
       </fieldset>
       {coursePanel}
       {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
+      {hasContext(data, 'audio') && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
       {hasContext(data, 'generation') && <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} />}
       {onboardingPanel}
       {profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}

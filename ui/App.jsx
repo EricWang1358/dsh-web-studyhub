@@ -38,6 +38,7 @@ import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
 import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
 import { mergeReviewPoll, reviewEntryKey } from "./async.js";
+import { createActRunner } from "./act-runner.js";
 import { isTransientStudyError } from "./transport.js";
 import ShortcutHelp from "./ShortcutHelp.jsx";
 import CourseSettings, { CourseList } from './CourseSettings.jsx';
@@ -76,7 +77,8 @@ export default function App({ call: transportCall, host = {} }) {
   useInjectCss(libraryChipCss, "study-library-chip");
   const rootRef = useRef(null),
     requestSequence = useRef(0),
-    acting = useRef(false),
+    actRunner = useRef(null),
+    actDeps = useRef(null),
     libraryEpoch = useRef(0),
     navigationRequest = useRef(0);
   /* 'auto' follows the OS (inside DSH, the host's appearance); explicit
@@ -311,7 +313,7 @@ export default function App({ call: transportCall, host = {} }) {
           libraryEpoch.current++;
           quick.reset();
           navigationRequest.current++;
-          acting.current = false;
+          actRunner.current?.reset();
           clearTimeout(leaveTimer.current);
           setPageTarget(null);
           setBusy(false);
@@ -560,28 +562,11 @@ export default function App({ call: transportCall, host = {} }) {
       previous?.focus?.();
     };
   }, [modal]);
-  async function act(action, args = {}, after, { refreshAfter = true, rethrow = false } = {}) {
-    if (acting.current) return;
-    const operation = {}, epoch = libraryEpoch.current;
-    acting.current = operation;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await call(action, args);
-      if (epoch !== libraryEpoch.current) return;
-      if (after) await after(result);
-      // Practice steps return the run they changed; the library snapshot
-      // (about 1MB with sources) catches up on the next poll instead of
-      // blocking every answer and every 下一题.
-      if (refreshAfter && epoch === libraryEpoch.current) await refresh();
-      return result;
-    } catch (e) {
-      if (epoch !== libraryEpoch.current) return;
-      if (rethrow) throw e;
-      setError(e.message || String(e));
-    } finally {
-      if (acting.current === operation) { acting.current = false; setBusy(false); }
-    }
+  // One write at a time (ui/act-runner.js); the library refresh that follows never keeps busy on for long.
+  actDeps.current = { call, refresh, epoch: () => libraryEpoch.current, setBusy, setError };
+  actRunner.current ||= createActRunner(() => actDeps.current);
+  function act(action, args = {}, after, options) {
+    return actRunner.current.act(action, args, after, options);
   }
   // A letter jumps to its card: the spot in an open run when there is one,
   // otherwise a one-card run that can return to the current question.
@@ -592,6 +577,12 @@ export default function App({ call: transportCall, host = {} }) {
       "inbox.open",
       { id: item.id, ...(fromReview ? { runId: from.runId } : {}) },
       (r) => {
+        if (r.kind === "pdf") {
+          rememberContext(from);
+          setPage("sources");
+          if (r.sourceIds?.length) openAudioSources(r.sourceIds);
+          return;
+        }
         if (r.kind === "audio") {
           rememberContext(from);
           setPage(r.sourceIds?.length ? "sources" : "audio");
@@ -798,11 +789,10 @@ export default function App({ call: transportCall, host = {} }) {
     [call],
   );
   const reviewAct = (action, args = {}) =>
-    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, async (result) => {
-      enterRun(result);
-      if (action === "review.move" && result.complete) await refresh();
-    },
-      { refreshAfter: !["review.answer", "review.move", "review.reveal"].includes(action) });
+    act(action, { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, ...args }, (result) => enterRun(result),
+      // Practice steps return the run they changed; the snapshot catches up on the next poll.
+      // Only a finished round reloads the library (its result page needs fresh counts).
+      { refreshAfter: (result) => action === "review.move" ? !!result.complete : action !== "review.answer" && action !== "review.reveal" });
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
   function resumeOrStart() {
@@ -1144,6 +1134,11 @@ export default function App({ call: transportCall, host = {} }) {
     setDraftText(JSON.stringify(d, null, 2));
     setJsonMode(false);
     setPage("draft");
+  }
+  /* The one 补题 action, for the home card and the draft page alike: it generates only the missing questions into the same draft. */
+  function continueDraft(draft) {
+    return act("generate", { resumeDraftId: draft.id, draftVersion: draft.draftVersion }, (job) =>
+      setNotice(uiFormat("已开始补齐「{0}」剩余 {1} 题；通过检查后会保存到同一份草稿。", [draft.title, job.missing])));
   }
   function blankCard() {
     return {
@@ -1913,8 +1908,8 @@ export default function App({ call: transportCall, host = {} }) {
                   })
                 }
                 openDraft={openDraft}
-                continueDraft={(draft) => act("generate", { resumeDraftId: draft.id, draftVersion: draft.draftVersion }, (job) =>
-                  setNotice(uiFormat("已开始补齐「{0}」剩余 {1} 题；通过检查后会保存到同一份草稿。",[draft.title,job.missing])))}
+                continueDraft={continueDraft}
+                call={call}
                 retryGeneration={(job) => {
                   const available = new Set(data.sources.map((source) => source.id));
                   setSelectedSources((job.sourceIds || []).filter((id) => available.has(id)));
@@ -2162,6 +2157,7 @@ export default function App({ call: transportCall, host = {} }) {
                 jsonMode={jsonMode}
                 setJsonMode={setJsonMode}
                 openDraft={openDraft}
+                continueDraft={continueDraft}
                 onOpenPublished={(id) => act("deck.get", { id }, (deck) => {
                   setManagedDeck(deck);
                   setFolderDraft(deck.folder || "");

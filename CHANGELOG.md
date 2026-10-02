@@ -2,6 +2,14 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.2.0 — 2026-10-02
+
+- **Convert a PDF with MinerU from inside StudyHub.** Paste a MinerU token once (Settings) and import a PDF: no desktop client to install, no files to drag in, no page ranges to type. StudyHub splits a long or large book into pieces of at most 200 pages and 180 MB, uploads them one at a time, shows real progress, resumes only the failed piece after an error and merges the result back with the original page numbers. The token is kept like the audio keys (never in the library, export or logs) and nothing is uploaded until you confirm once that the document goes to MinerU's cloud. The cloud route is free at the time of writing; MinerU may change that.
+- **Or use a MinerU you installed yourself.** StudyHub detects a local `mineru` (read-only), starts its service and downloads its models only when you click, and converts in windows of 50 pages with no upload and no page quota. The MinerU desktop client is now listed under Advanced.
+- **The search extension tells you when it is out of date.** The extension is installed once and StudyHub's own update never touched it, so an old one could sit at "installed" without ever running while About & updates said "up to date". Settings now offers "Update the search extension", and About & updates no longer claims the latest version while the extension is behind.
+- **Drafts say why questions were dropped, and top-ups are honest.** The home card and the draft page list each dropped question with its reasons, one 补题 button (same on both screens, with an estimate for the missing questions only) fills the gap, and the card follows the live draft. Generation no longer sends the whole library's existing objectives to every plan and author call (about 55K tokens each on a large library); usage notes say when actual use went above the estimate and when nothing hit the cache.
+- **下一题 no longer freezes.** A slow library refresh held the busy state, so 下一题, 继续学习 and 回到之前的第 N 题 stayed disabled until it returned. The lock now covers only the action itself, and a disabled 下一题 says why.
+
 ## 2.1.3 — 2026-10-02
 
 - **The search extension now actually starts.** Its search server needs `apache-arrow`, which a database component lists only as a peer; DSH's plugin installer does not add peers, so the server stopped at launch and the extension stayed "installed" without running. The extension now declares it itself. If you installed the 2.1.2 extension, upgrade and restart DSH.

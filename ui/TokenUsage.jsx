@@ -7,7 +7,7 @@ import css from './token-usage.css';
 import { totalTokens } from '../lib/token-usage.js';
 import {
   USAGE_FEATURE_ORDER, callsText, estimateRows, estimateSummary, estimateText, expectedText, featureLabel, joinRows, methodNote, noteText,
-  rangeTok, stageLabel, usageRows, usageText, usedCallsText,
+  rangeTok, stageLabel, usageNotes, usageRows, usageText, usedCallsText,
 } from './token-usage.js';
 
 /* Token usage the way DSH's session panel shows it (WP27): one layout for a job,
@@ -134,6 +134,7 @@ export function JobUsage({ job }) {
       <TokenUsage usage={job.tokenUsage} />
     </>}
     {job.estimate && <small className="job-usage__expected">{`${expectedText(job.estimate)} · ${callsText(job.estimate.calls)}`}</small>}
+    {usageNotes(job).map((note) => <small key={note} className="job-usage__note">{note}</small>)}
   </div>;
 }
 

@@ -8,6 +8,7 @@ import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat, uiLocale } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Dialog, Icon, InlineMessage } from './components/index.js';
+import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
 import css from './update.css';
 
 let snapshot = { update: null, checking: false };
@@ -204,14 +205,17 @@ export function UpdateDialog({ update, call, host, onClose, notify, initialPhase
 }
 
 /** Settings › 关于与更新. */
-export function UpdateSettings({ update, call, onOpen, checking = false }) {
+export function UpdateSettings({ update, call, onOpen, checking = false, extension, onExtension }) {
   useInjectCss(css, 'study-update');
   const [saving, setSaving] = useState(false);
+  // The check compares StudyHub only; the search extension is installed once and is not updated with it.
+  const staleExtension = extension?.installed && extension.outdated ? extension : null;
   const status = !update ? null
     : update.pendingRestart ? uiFormat('已安装 {0}，重启 DSH 后生效。', [update.pendingRestart])
       : update.newer ? null
         : update.error ? ui('暂时无法连接 GitHub 检查更新，稍后会自动重试。')
-          : update.checkedAt ? ui('已是最新版本。') : ui('还没有检查过更新。');
+          : staleExtension ? uiFormat('StudyHub 本体已是最新，但检索扩展还是 {0}，需要更新到 {1}。', [staleExtension.version, staleExtension.expected])
+            : update.checkedAt ? ui('已是最新版本。') : ui('还没有检查过更新。');
   async function toggle(event) {
     setSaving(true);
     try { await savePreferences(call, { autoCheck: event.target.checked }); } catch { /* keep the old value */ }
@@ -229,6 +233,7 @@ export function UpdateSettings({ update, call, onOpen, checking = false }) {
         <Button size="sm" variant="primary" onClick={onOpen}>{ui('查看升级')}</Button>
       </div>}
       {status && <p className="update-status" role="status">{status}</p>}
+      {staleExtension && <ExtensionUpdateNotice call={call} status={{ extension: staleExtension }} onStatus={onExtension} />}
       <div className="update-settings__actions">
         <Button size="sm" busy={checking} onClick={() => refreshUpdate(call, { force: true })}>{ui('检查更新')}</Button>
         <label className="inline-check">
@@ -247,10 +252,12 @@ export function UpdateSettings({ update, call, onOpen, checking = false }) {
 /** Connected settings section for the Settings page. */
 export function UpdateSettingsPanel({ call, host, notify }) {
   const { update, checking } = useUpdateStore();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false), [extension, setExtension] = useState();
   useEffect(() => { if (!snapshot.update && !snapshot.checking) refreshUpdate(call); }, [call]);
+  // Whether the search extension is behind this StudyHub rides along with the retrieval status.
+  useEffect(() => { let live = true; Promise.resolve(call('retrieval.status', {})).then(value => { if (live) setExtension(value?.extension); }, () => {}); return () => { live = false; }; }, [call]);
   return <>
-    <UpdateSettings update={update} call={call} checking={checking} onOpen={() => setOpen(true)} />
+    <UpdateSettings update={update} call={call} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setExtension(value?.extension)} />
     {open && update && <UpdateDialog update={update} call={call} host={host} notify={notify} onClose={() => setOpen(false)} />}
   </>;
 }

@@ -4,7 +4,7 @@ English · [简体中文](README.zh-CN.md)
 
 Turn your course materials, recordings and live classes into questions linked to their original sources. StudyHub keeps your library and review progress locally and supports English and Chinese interfaces.
 
-[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Download 2.1.3](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.3) · [Changelog](CHANGELOG.md)
+[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Download 2.2.0](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.2.0) · [Changelog](CHANGELOG.md)
 
 ## Quick start
 
@@ -27,16 +27,16 @@ Want the chat assistant to use only what you stored in StudyHub? Pick the **学�
 **Already using DSH on desktop or in a browser?** Open its plugin manager and add the complete StudyHub package:
 
 ```text
-https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.3/ericwang1358-dsh-daily-flashcard-2.1.3.tgz
+https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.2.0/ericwang1358-dsh-daily-flashcard-2.2.0.tgz
 ```
 
-Confirm version **2.1.3** and enable it. StudyHub opens by itself; afterwards use **StudyHub** in DSH’s left sidebar (the session tab and right sidebar also work). Existing web users only install the plugin; keep your current server, profile, model settings and workspace.
+Confirm version **2.2.0** and enable it. StudyHub opens by itself; afterwards use **StudyHub** in DSH’s left sidebar (the session tab and right sidebar also work). Existing web users only install the plugin; keep your current server, profile, model settings and workspace.
 
 **Updating.** DSH plugins do not update themselves, and restarting DSH alone keeps the installed version. From 2.1.2, StudyHub asks GitHub for a newer release (at most every 12 hours; switch it off in **Settings › About & updates**) and shows a chip in its sidebar. **Upgrade** downloads the release package, checks its SHA-256 against the release's `SHA256SUMS` file and installs it through DSH's plugin manager. On older versions, or a host without in-app installs, open **Plugins**, uninstall StudyHub, then **Add plugin** with the new release's package address. Either way, finish or cancel background tasks first and restart DSH afterwards: quit desktop DSH fully and reopen it, or restart your web service with its original profile. A browser refresh alone does not load new plugin code. Your library and settings are kept.
 
 **New to DSH?** Use the official [Windows x64 installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) or [macOS Apple silicon installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg). On Linux, or if you prefer a browser on any platform, install Node.js **22.19 or later** and run `npx @deepseek-ai/dsh web`. Desktop installers include their runtime.
 
-See the [installation and model setup guide](docs/install.md), or download the [English browser setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.3/StudyHub-2.1.3-Setup.html). A [Chinese guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.3/StudyHub-2.1.3-Setup.zh-CN.html) is also available. These are setup guides; DSH itself uses the official installers above.
+See the [installation and model setup guide](docs/install.md), or download the [English browser setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.2.0/StudyHub-2.2.0-Setup.html). A [Chinese guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.2.0/StudyHub-2.2.0-Setup.zh-CN.html) is also available. These are setup guides; DSH itself uses the official installers above.
 
 **Customize components** in DSH’s plugin manager. The complete package includes the workbench, runtime, materials, question bank, learning, generation and audio. Each capability can be enabled or disabled independently; saved data survives disabling. Generation requires materials, bank and generation; practice requires bank and learning. Disable every installation providing a capability to turn it off completely. Separate component archives are included in the release.
 
@@ -92,6 +92,6 @@ The host supplies optional DSH SDKs; tests requiring unavailable SDKs report an 
 - [Main conversation queries](docs/main-session-queries.md)
 - [Background jobs and sidebar](docs/generation-agents-sidebar.md)
 - [Library schema](references/library-schema.md)
-- [Verification records (Chinese)](https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.1.3/docs/verification.md)
+- [Verification records (Chinese)](https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.2.0/docs/verification.md)
 
 MIT License. See [LICENSE](LICENSE); learning-quality and scheduling references are in `references/`.

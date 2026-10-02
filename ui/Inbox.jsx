@@ -102,7 +102,7 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readErro
                     className={"inbox-item" + (m.read ? "" : " unread")}
                     disabled={busy || m.missing}
                     title={m.missing ? (m.kind === "note" ? ui("笔记已不存在") : ui("这道题已经不在题库里了"))
-                      : m.kind.startsWith('audio-') ? ui("打开音频转录结果") : m.kind === "note" ? ui("打开笔记草稿") : ui("跳到这道题")}
+                      : m.kind.startsWith('pdf-') ? ui("打开 PDF 转换结果") : m.kind.startsWith('audio-') ? ui("打开音频转录结果") : m.kind === "note" ? ui("打开笔记草稿") : ui("跳到这道题")}
                     onClick={() => {
                       setOpen(false);
                       onOpen(m);
