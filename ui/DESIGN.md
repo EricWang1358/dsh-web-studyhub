@@ -57,6 +57,16 @@ Open questions: none blocking; validate against mixed graphs and narrow viewport
 
 The default canvas stays on the shared graph. A compact node mode is automatic above 12 concepts; attributes are a reader-controlled option, never removed from details. Pane width determines orientation independently of browser width. Focus on narrow panes uses a vertical neighbourhood with side-routed long links. Small maps locate parts of the whole; search and the named component selector provide the textual navigation.
 
+# Learning spine (脉络)
+
+Audience: a learner who wants the skeleton's main line while reading a lesson, or the skeleton itself on the 知识骨架 step and page.
+Primary task: know which station of the line they are on, read it in full, move to the next, never lose the lesson below.
+Composition: a one-line stepper strip (numbered circles on one baseline, titles clamp to two lines with the full title in the tooltip), ONE detail pane for the current station (description, practice link, every point, nothing truncated; two columns of points where wide), and "展开全部" for a vertical accordion of every station. A column or row is never stretched to a taller sibling.
+Fold: where the lesson mounts it (`WorkflowPortal` `SpinePeek`) it is one folded line (title, "5 站 · 8 个要点", a current-station chip with previous / next); on the skeleton step it starts open. The fold is remembered per browser and per step type in `localStorage` (`study-spine-<step kind>`, always inside try/catch).
+Narrow panes (container below 820px): the strip keeps only the numbered circles so five stations fit a phone; the title is in the tooltip, the aria label and the detail pane heading.
+Semantics: strip = `tablist` / `tab` (roving tabindex, ← → Home End, focus follows selection) and the pane is its `tabpanel`; the fold toggle carries `aria-expanded` / `aria-controls`; the overview accordion marks the current station `aria-current="step"`.
+Contract: `tests/spine-layout.test.mjs` measures panel heights, clipping and the baseline in a real browser (`scripts/qa/spine-layout.mjs`); `tests/spine-markup.test.mjs` covers the markup in both languages.
+
 # Audio usage console
 
 DIRECTED: extend the existing warm ink study workspace.
