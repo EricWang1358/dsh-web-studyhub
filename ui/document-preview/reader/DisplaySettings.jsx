@@ -4,7 +4,7 @@ import { Button, IconButton, SegmentedControl } from '../../components/index.js'
 import { SIZES, stepSize } from './settings.js';
 
 /** The rows of the popover: size, measure, typeface, paper tone and the link underlines. */
-export function DisplayControls({ settings, onChange, onReset }) {
+export function DisplayControls({ settings, onChange, onReset, extra = null }) {
   const pick = key => value => onChange({ [key]: value });
   return <>
     <div className="reader-setting">
@@ -37,6 +37,7 @@ export function DisplayControls({ settings, onChange, onReset }) {
       <SegmentedControl size="sm" label={ui('下划线')} value={settings.underline} onChange={pick('underline')}
         options={[{ value: 'show', label: ui('显示') }, { value: 'hide', label: ui('隐藏') }]} />
     </div>
+    {extra}
     <Button size="sm" variant="quiet" className="reader-popover__reset" onClick={onReset}>{ui('恢复默认')}</Button>
   </>;
 }
@@ -44,7 +45,7 @@ export function DisplayControls({ settings, onChange, onReset }) {
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /** The Aa button and its popover. */
-export default function DisplaySettings({ settings, onChange, onReset }) {
+export default function DisplaySettings({ settings, onChange, onReset, extra = null }) {
   const [open, setOpen] = useState(false);
   const root = useRef(null), panel = useRef(null), panelId = useId();
   // On a narrow pane the Aa button can sit anywhere along the wrapped toolbar: slide the panel back inside the viewer (a style write, no state).
@@ -70,7 +71,7 @@ export default function DisplaySettings({ settings, onChange, onReset }) {
     <IconButton icon="type" label={ui('显示设置')} aria-expanded={open} aria-controls={open ? panelId : undefined} aria-pressed={open}
       onClick={() => setOpen(state => !state)} />
     {open && <div className="reader-popover__panel" ref={panel} id={panelId} role="group" aria-label={ui('显示设置')}>
-      <DisplayControls settings={settings} onChange={onChange} onReset={onReset} />
+      <DisplayControls settings={settings} onChange={onChange} onReset={onReset} extra={extra} />
     </div>}
   </div>;
 }
