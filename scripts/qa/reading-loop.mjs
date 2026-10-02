@@ -48,7 +48,7 @@ async function seed(root) {
   const pick = async (quote) => (await runtime.call("materials.selection.resolve", { documentId: notes.documentId, revision: notes.revision, quote })).selection;
   const hashSel = await pick("A hash index answers equality lookups quickly"), treeSel = await pick("The most common index structure is a balanced tree");
   runtime.dispose();
-  const [p1, p2, p3, p4] = pdf.sourceIds;
+  const [p1, p2, , p4] = pdf.sourceIds;
   const mastered = { repetitions: 4, interval_days: 30, due_at: iso(Date.now() + 20 * day), ease_factor: 2.6 };
   const overdueWeak = { repetitions: 1, interval_days: 1, due_at: iso(Date.now() - day), ease_factor: 2.3 };
   const store = new Store(root);
@@ -163,6 +163,16 @@ export async function runReadingLoopQa(options) {
     await step("practise-starts-review", async () => {
       await panel().getByRole("button", { name: zh ? /开始做这/ : /Practise this|Practise these/ }).click();
       await page.locator(".review-page").waitFor();
+      await page.getByRole("button", { name: t("回到原文", "Back to the text") }).waitFor();
+    });
+    await step("return-context-survives-reload", async () => {
+      // The app is closed and opened again mid-run: the run is resumed (S) and still knows where the learner was reading.
+      await page.reload();
+      await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
+      await sleep(1200);
+      await page.locator("main, body").first().click({ position: { x: Math.min(600, options.width - 40), y: 300 } }).catch(() => {});
+      await page.keyboard.press("s");
+      await page.locator(".review-page").waitFor({ timeout: 10000 });
       await page.getByRole("button", { name: t("回到原文", "Back to the text") }).waitFor();
     });
     await step("finish-and-see-mastery-change", async () => {
