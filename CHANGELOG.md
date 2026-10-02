@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.2.1 — 2026-10-02
+
+- **Upgrading StudyHub no longer breaks the search extension's installer.** After an upgrade, StudyHub deleted every other file in its download folder, including the search extension's installer, which DSH's profile still points at by path. From then on every plugin install, StudyHub's own upgrade included, failed with "DSH could not install the new version". Only older StudyHub packages are removed now.
+- **A missing extension installer is put back.** If an installed search extension's installer file is already gone (as after 2.1.3), the upgrade first downloads that exact version again from its release, checks it against the release's SHA-256, and then installs. Nothing has to be uninstalled by hand.
+
 ## 2.2.0 — 2026-10-02
 
 - **Convert a PDF with MinerU from inside StudyHub.** Paste a MinerU token once (Settings) and import a PDF: no desktop client to install, no files to drag in, no page ranges to type. StudyHub splits a long or large book into pieces of at most 200 pages and 180 MB, uploads them one at a time, shows real progress, resumes only the failed piece after an error and merges the result back with the original page numbers. The token is kept like the audio keys (never in the library, export or logs) and nothing is uploaded until you confirm once that the document goes to MinerU's cloud. The cloud route is free at the time of writing; MinerU may change that.
