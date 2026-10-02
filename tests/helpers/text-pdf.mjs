@@ -1,14 +1,16 @@
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFName, StandardFonts } from 'pdf-lib';
+import { randomBytes } from 'node:crypto';
 
 /* A generated PDF whose pages carry real text lines (ASCII, so no font files are needed).
    pages: an array of arrays of lines, or of strings (one line). Every line must hold at least a
-   few words so a page has enough text to be extracted as a source. */
-export async function makeTextPdf(pages) {
+   few words so a page has enough text to be extracted as a source. padBytes: incompressible bytes hidden in every page, to make a big file. */
+export async function makeTextPdf(pages, { padBytes = 0 } = {}) {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   for (const lines of pages) {
     const page = doc.addPage([612, 792]);
     [].concat(lines).forEach((line, index) => page.drawText(line, { x: 50, y: 720 - index * 22, size: 12, font }));
+    if (padBytes) page.node.set(PDFName.of('StudyhubPad'), doc.context.register(doc.context.flateStream(randomBytes(padBytes))));
   }
   return Buffer.from(await doc.save());
 }

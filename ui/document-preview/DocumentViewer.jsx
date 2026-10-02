@@ -85,7 +85,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
   const [headings, setHeadings] = useState([]);
   const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1);
-  const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0); // 补全原文件 (OriginalFile.jsx)
+  const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   const outlineId = useId(), toolsId = useId();
   useEffect(() => {
@@ -240,6 +240,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
 
   // The 原始 PDF tab without a file is not dead: it explains and offers 补全原文件.
   const chooseView = value => value === 'original' && !fileUrl ? (document && setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink')) : setMode(value);
+  if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
   const modes = [{ value: 'read', label: ui('阅读') }, { value: 'text', label: ui('原文') },
     ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), title: fileUrl ? undefined : ui('还没有原始 PDF，点击查看如何补全') }] : [])];
   const notices = [
@@ -329,7 +330,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         </>}
       </aside>
     </div>
-    {attaching && document && <OriginalDialog target={{ documentId: document.documentId || document.id, revision: document.revision, title: document.title || source.title, format }}
+    {attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
       call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;
 }

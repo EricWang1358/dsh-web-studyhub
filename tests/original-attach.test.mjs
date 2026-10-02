@@ -377,6 +377,28 @@ test('a library backup includes copies, says referenced originals are not includ
   assert.equal((await restored.call('materials.document.get', { sourceId: copySource.id })).original.mode, 'copy');
 });
 
+test('a copied original larger than the import limit still travels in a library backup', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'original-attach-large-')), outside = await mkdtemp(join(tmpdir(), 'original-attach-large-files-')), target = await mkdtemp(join(tmpdir(), 'original-attach-large-restored-'));
+  t.after(async () => { for (const dir of [root, outside, target]) await rm(dir, { recursive: true, force: true }); });
+  const service = new StudyService(root);
+  await service.call('materials.document.import', { dataBase64: (await makeTextPdf(LECTURE_PAGES)).toString('base64'), filename: 'lecture.pdf' });
+  await new Store(root).update(state => { state.documents = []; for (const source of state.sources) { delete source.document.materialId; delete source.document.materialRevision; delete source.document.format; } });
+  await rm(join(root, 'attachments'), { recursive: true, force: true });
+  const large = await makeTextPdf(LECTURE_PAGES, { padBytes: 3_200_000 }), file = join(outside, 'lecture.pdf');
+  assert.ok(large.length > 9 * 1024 * 1024, 'above the 8 MB import limit');
+  await writeFile(file, large);
+  const sourceId = (await new Store(root).read()).sources[0].id;
+  assert.equal((await service.call('materials.original.attach', { sourceId, path: file, mode: 'copy' })).status, 'attached');
+  const document = await service.call('materials.document.get', { sourceId });
+  assert.equal(document.original.status, 'ok'); assert.equal(document.original.bytes, large.length);
+  assert.deepEqual(Buffer.from((await service.call('materials.document.bytes', { sourceId })).dataBase64, 'base64'), large);
+  const backup = await service.call('export');
+  assert.equal(backup.portableMaterials.attachments[0].bytes, large.length);
+  const restored = new StudyService(target);
+  await restored.call('restore', { state: JSON.parse(JSON.stringify(backup)) });
+  assert.deepEqual(Buffer.from((await restored.call('materials.document.bytes', { sourceId })).dataBase64, 'base64'), large);
+});
+
 test('enrich no longer lists the original as missing once one is attached', async t => {
   const { call, sourceId, file } = await legacyLecture(t);
   assert.ok((await call('materials.enrich', { sourceIds: [sourceId] })).unresolved.some(item => item.fields.includes('original')));

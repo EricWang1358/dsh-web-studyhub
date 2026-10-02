@@ -4,7 +4,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, Dialog, FileDrop, Icon } from '../components/index.js';
 import css from './original-file.css';
-import { ORIGINAL_MAX_BYTES, sizeText, canAttach, defaultMode, explainFailure, isAbsolutePath, issueOf, modeOptions, originalLine, reportHeadline, reportLines, shortPath, unquotePath } from './original-file.js';
+import { ORIGINAL_MAX_BYTES, sizeText, canAttach, defaultMode, explainFailure, isAbsolutePath, issueOf, modeOptions, originalLine, reportHeadline, reportLines, unquotePath } from './original-file.js';
 
 /* 补全原文件: attach the ORIGINAL file to a document that only kept its text, by reference (the path is remembered, nothing
    is copied) or as a copy in the library. The host verifies the file against the stored text first (no model); nothing about
@@ -138,7 +138,6 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   const title = info && info.status !== 'none' ? uiFormat('原文件：{0}', [target.title]) : uiFormat('补全原文件：{0}', [target.title]);
   const options = picked ? modeOptions({ size: picked.size, hasPath: picked.kind === 'path' }) : [];
   const headline = report && reportHeadline(report), lines = report ? reportLines(report) : [];
-  const line = info && info.status !== 'none' ? originalLine(info) : null;
   const footer = done ? <Button variant="primary" onClick={onClose}>{ui('完成')}</Button>
     : <><Button variant="quiet" disabled={phase === 'attaching'} onClick={onClose}>{ui('取消')}</Button>
       {picked && <Button variant="primary" busy={phase === 'attaching'} disabled={!canAttach({ phase, report, picked, mode, confirmed })} onClick={attach}>{ui('附上原文件')}</Button>}
@@ -147,10 +146,10 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   return <Dialog size="md" className="original-dialog" title={title} onClose={() => { if (phase !== 'attaching') onClose?.(); }} footer={footer}>
     {!info && <p role="status" className="muted">{ui('正在读取原文件状态…')}</p>}
     {info && info.status === 'none' && !done && <p>{ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用；补上原文件后，还能对照原版排版和图表。已保存的文字、引用和题目不会变。')}</p>}
-    {done && <Status tone="ok"><strong>{ui('已附上原文件')}</strong><br />{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [shortPath(info?.path)])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [sizeText(info?.bytes)])}</span>}</Status>}
-    {!done && issue?.message && <Status tone="warn" alert>{issue.message}</Status>}
+    {done && <Status tone="ok"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [sizeText(info?.bytes)])}</span>}</Status>}
+    {!done && !report && issue?.message && <Status tone="warn" alert>{issue.message}</Status>}
     {!done && info && !issue && !choosing && <>
-      <Status tone="ok"><span title={info.path}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [sizeText(info.bytes)]) : line.text}</span></Status>
+      <Status tone="ok"><span title={info.path}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [sizeText(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Status>
       {info.mode === 'reference' && <div className="original-actions">
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{ui('重新指定…')}</Button>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => { setChoosing(true); void checkPath(info.path, 'copy'); }}>{ui('改为复制到资料库')}</Button>
