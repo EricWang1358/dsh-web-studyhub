@@ -3,6 +3,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import AudioSettings, { audioFocusPending } from "./AudioSettings.jsx";
 import ExtensionsSettings from './ExtensionsSettings.jsx';
 import MineruSettings from './MineruSettings.jsx';
+import JevSettings from './JevSettings.jsx';
 import { hasContext } from './capabilities.js';
 import { SETTINGS_GROUPS, SECTION_GROUP, settingsGroupState } from './settings-groups.js';
 import { UpdateSettingsPanel } from './UpdateCenter.jsx';
@@ -391,6 +392,7 @@ export default function Settings({
         {coursePanel}
         {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
         {hasContext(data, 'audio') && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
+        {hasContext(data, 'system') && <JevSettings busy={busy} call={call} setNotice={setNotice} />}
         {hasContext(data, 'generation') && <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} />}
         {onboardingPanel}
         {profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}

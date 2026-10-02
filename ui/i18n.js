@@ -31,6 +31,7 @@ import original from './locales/en.original.json';
 import links from './locales/en.links.json';
 import tiers from './locales/en.tiers.json';
 import translationCopy from './locales/en.translation.json';
+import jevCopy from './locales/en.jev.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -63,6 +64,7 @@ export const ENGLISH_SOURCES = {
   'en.links.json': links,
   'en.tiers.json': tiers,
   'en.translation.json': translationCopy,
+  'en.jev.json': jevCopy,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,
