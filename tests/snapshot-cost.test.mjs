@@ -72,7 +72,7 @@ async function clonesOf(marker, work) {
   return count;
 }
 
-test("a state read hands out one private copy of a collection, not a copy of the copy", async (t) => {
+test("review.get reads the committed library without copying it (it used to copy the collection, and the read again on its way out)", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-clone-count-"));
   const service = new StudyService(root);
   t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
@@ -84,6 +84,7 @@ test("a state read hands out one private copy of a collection, not a copy of the
   });
   const run = await service.call("review.start", { deckId: "live", mode: "flashcard" });
   const clones = await clonesOf("BULK-MARKER-DECK", () => service.call("review.get", { runId: run.id }));
-  // Before: the collection was copied for the reader and the whole read was copied again on its way out (2).
-  assert.equal(clones, 1, `the library was cloned ${clones} times for one review.get`);
+  // Before: the collection was copied for the reader and the whole read was copied again on its way out (2); then one private
+  // copy (1). review.get only looks, so it reads the store's frozen committed values (storagePort.view) and copies nothing.
+  assert.equal(clones, 0, `the library was cloned ${clones} times for one review.get`);
 });

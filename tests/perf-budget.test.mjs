@@ -128,6 +128,25 @@ test("course names are normalised once each, however often they are asked for", 
   assert.equal(courseKey(undefined), "");
 });
 
+test("opening a page does not copy the library to read it (read budget)", async (t) => {
+  const f = await fixture(t);
+  await f.service.call("snapshot");
+  const run = f.run;
+  const reads = [["map", {}], ["stats", {}], ["wrongbook", {}], ["graph", {}], ["inbox", {}], ["source.list", { limit: 100 }], ["source.get", { id: "src-0001" }],
+    ["course.route", {}], ["review.get", { runId: run.id }], ["skeleton.list", {}], ["workflow.list", {}]];
+  const report = [];
+  for (const [action, args] of reads) {
+    await f.service.call(action, args).catch(() => null);
+    const { value, counts } = await f.probe.measure(() => f.service.call(action, args));
+    const response = JSON.stringify(value ?? null).length;
+    report.push({ action, response, cloned: counts.structuredCloneChars });
+    // The answer itself is copied once on its way out; reading the library to build it must not be.
+    assert.ok(counts.structuredCloneChars <= response * 2 + f.libraryChars * 0.02,
+      `${action} copied ${counts.structuredCloneChars} chars with structuredClone for a ${response}-char answer over a ${f.libraryChars}-char library`);
+  }
+  t.diagnostic(`page reads: ${report.map((row) => `${row.action} ${row.cloned}/${row.response}`).join(", ")}`);
+});
+
 test("polling and clicking for a long time does not grow the heap (memory budget)", async (t) => {
   const f = await fixture(t);
   let fingerprint = (await f.service.call("snapshot")).fingerprint;
