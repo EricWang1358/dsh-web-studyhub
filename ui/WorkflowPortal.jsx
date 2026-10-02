@@ -120,7 +120,7 @@ const History = React.memo(function History({ session }) {
 
 /* The skeleton for a guided session that started without one: it can be
    drafted in the background and appears here, folded, once it is ready. */
-function SpinePeek({ session, resources, late, disabled, onGenerate }) {
+export function SpinePeek({ session, resources, late, disabled, onGenerate }) {
   const job = session.skeletonJob;
   if (resources.skeleton) return <details className="wf-spine-peek"><summary>{ui("本次脉络 · ")}{resources.skeleton.title}<span className="muted small">{job?.status === "done" ? ui("后台刚整理好，展开看看主线") : ui("展开看看主线")}</span></summary>
     {resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} /></details>;
