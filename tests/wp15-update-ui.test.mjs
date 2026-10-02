@@ -105,3 +105,15 @@ test('startUpgrade asks before stopping running jobs and reports the restart DSH
   assert.match(jobs, /2 个后台任务/);
   assert.match(jobs, /停止任务并升级/);
 });
+
+test('"已是最新版本" is not claimed while the search extension is behind', () => {
+  const stale = { canInstall: true, installed: true, enabled: true, version: '2.1.2', outdated: true, expected: '2.1.3' };
+  const html = render(h(UpdateSettings, { update: update({ newer: false, latest: '2.1.0' }), call: async () => ({}), onOpen() {}, extension: stale }));
+  assert.doesNotMatch(html, /已是最新版本/);
+  assert.match(html, /检索扩展/);
+  assert.match(html, /2\.1\.2/);
+  const current = render(h(UpdateSettings, { update: update({ newer: false, latest: '2.1.0' }), call: async () => ({}), onOpen() {}, extension: { ...stale, outdated: undefined } }));
+  assert.match(current, /已是最新版本/);
+  const en = render(h(UpdateSettings, { update: update({ newer: false, latest: '2.1.0' }), call: async () => ({}), onOpen() {}, extension: stale }), 'en');
+  assert.doesNotMatch(en, han);
+});

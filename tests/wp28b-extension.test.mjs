@@ -175,3 +175,13 @@ test('the status says the extension is running once DSH exposes its tools, and p
   assert.equal(status.effective, 'builtin', 'an empty index is not searched');
   assert.deepEqual(await readRetrievalSettings().then(s => s.explicit), undefined);
 });
+
+test('state: an extension older than this StudyHub is flagged outdated, so it can be updated instead of silently never starting', async () => {
+  const listing = version => managerOf(applied, [{ name: EXTENSION_PACKAGE, version, enabled: true, installed: true }]);
+  const ctx = version => ({ get: name => name === 'pluginManager' ? listing(version) : undefined });
+  assert.deepEqual(await extensionState(ctx('2.1.2'), '2.1.3'), { canInstall: true, installed: true, enabled: true, version: '2.1.2', desktop: false, outdated: true, expected: '2.1.3' });
+  assert.equal((await extensionState(ctx('2.1.3'), '2.1.3')).outdated, undefined, 'same version is current');
+  assert.equal((await extensionState(ctx('2.2.0'), '2.1.3')).outdated, undefined, 'a newer extension is never "outdated"');
+  assert.equal((await extensionState(ctx(undefined), '2.1.3')).outdated, undefined, 'an unknown version is not guessed at');
+  assert.equal((await extensionState(ctx('2.1.2'), 'not-a-version')).outdated, undefined, 'a bad host version is not guessed at');
+});
