@@ -5,7 +5,11 @@
    pin the cost by counting work, never by timing it. */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { courseIdsOf, courseIndex, courseList } from "../lib/courses.js";
+import { StudyService } from "../lib/service.js";
 
 /** A state whose card citations count how often they are read. */
 function library({ courses, sources, cardsPerDeck = 20 }) {
@@ -54,4 +58,32 @@ test("an inferred source's course ids follow its own name, its audio course and 
   // A source that is not (yet) in the library is still resolved from its own record.
   assert.deepEqual(courseIdsOf({ id: "s1", text: "t" }, index), [idOf("Course 1")]);
   assert.deepEqual(courseIdsOf({ id: "ghost", text: "t", course: "Course 1" }, index), [idOf("Course 1")]);
+});
+
+/** Run `work` while counting the structuredClone calls whose argument mentions `marker`. */
+async function clonesOf(marker, work) {
+  const real = globalThis.structuredClone;
+  let count = 0;
+  globalThis.structuredClone = (value, options) => {
+    try { if (JSON.stringify(value)?.includes(marker)) count++; } catch { /* not serialisable: not a library read */ }
+    return real(value, options);
+  };
+  try { await work(); } finally { globalThis.structuredClone = real; }
+  return count;
+}
+
+test("a state read hands out one private copy of a collection, not a copy of the copy", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-clone-count-"));
+  const service = new StudyService(root);
+  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
+  const card = (id) => ({ id, kind: "flashcard", topic: "t", prompt: `prompt ${id}`, answer: "a", citations: [] });
+  await service.store.update((s) => {
+    s.decks.push({ id: "live", title: "Live deck", cards: [card("c1"), card("c2")] });
+    // Nothing the review itself returns mentions this deck, so any clone containing it is a library read.
+    s.decks.push({ id: "bulk", title: "BULK-MARKER-DECK", cards: [card("b1")] });
+  });
+  const run = await service.call("review.start", { deckId: "live", mode: "flashcard" });
+  const clones = await clonesOf("BULK-MARKER-DECK", () => service.call("review.get", { runId: run.id }));
+  // Before: the collection was copied for the reader and the whole read was copied again on its way out (2).
+  assert.equal(clones, 1, `the library was cloned ${clones} times for one review.get`);
 });
