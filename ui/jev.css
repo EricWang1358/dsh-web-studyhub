@@ -13,6 +13,63 @@
 .study-app .jev-privacy__link a { color: var(--accent-text); text-underline-offset: 3px; }
 
 .study-app .jev-card { max-width: 640px; }
+/* The wide audio layout lays a provider card on six subgrid rows; this card has more parts (source row, notes, two forms), so it stacks. */
+.study-app .audio-provider-card.jev-card { display: flex; flex-direction: column; grid-row: auto; grid-template-rows: none; }
+.study-app .audio-provider-card.jev-card .audio-key-form { display: grid; grid-row: auto; grid-template-rows: none; }
+
+/* The walk-through. */
+.study-app .jev-guide { display: grid; gap: var(--space-2); max-width: 640px; min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: var(--radius-card); background: color-mix(in srgb, var(--accent) 5%, var(--bg-surface)); }
+.study-app .jev-guide--done { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-4); background: transparent; border-color: var(--line); color: var(--text-muted); font-size: var(--fs-sm); }
+.study-app .jev-guide--done > span { min-width: 0; overflow-wrap: anywhere; }
+.study-app .jev-guide__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
+.study-app .jev-guide__head h3 { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: 650; line-height: var(--lh-tight); }
+.study-app .jev-guide__head .jev-chip { margin-left: 0; }
+.study-app .jev-guide__count { margin-left: auto; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.study-app .jev-guide__site { margin: 0; color: var(--text); font-size: var(--fs-md, var(--fs-sm)); font-weight: 650; }
+.study-app .jev-guide__list { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: start; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+.study-app .jev-guide__list dt { color: var(--text-muted); font-weight: 600; }
+.study-app .jev-guide__list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.study-app .jev-guide__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+/* The per-site switches. */
+.study-app .jev-replace { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-4) var(--space-5); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--radius-card); background: var(--bg-surface); max-width: 640px; }
+.study-app .jev-replace > legend { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 650; }
+.study-app .jev-replace > legend .jev-chip { margin-left: 0; }
+.study-app .jev-replace .audio-provider-note { margin: 0; }
+.study-app .jev-replace__replaces { color: var(--text-dim, var(--text-muted)); }
+.study-app .jev-prereq { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line)); font-size: var(--fs-sm); }
+.study-app .jev-prereq p { margin: 0; overflow-wrap: anywhere; }
+.study-app .jev-prereq .sh-btn { justify-self: start; }
+.study-app .jev-prereq__blocked { margin: 0; color: color-mix(in srgb, var(--warn) 70%, var(--text)); font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
+.study-app .jev-signals__note { margin: 0; padding-top: var(--space-2); border-top: 1px solid var(--line-soft); }
+
+/* The custom endpoint form and the variable name form. */
+.study-app .jev-custom { display: grid; gap: var(--space-2); min-width: 0; max-width: 560px; }
+.study-app .jev-custom label, .study-app .jev-keyenv__label { margin: 0; color: var(--text); font-size: var(--fs-sm); }
+.study-app .jev-custom input[type="text"], .study-app .jev-keyenv input[type="text"] { width: 100%; min-width: 0; }
+
+/* "Show experimental features" (Settings › Advanced). */
+.study-app .experimental-settings { display: grid; gap: var(--space-4); }
+.study-app .experimental-switch { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); margin: 0; font-size: var(--fs-sm); cursor: pointer; }
+.study-app .experimental-switch input[type="checkbox"] { display: inline-block; flex: none; width: auto; min-width: 0; height: auto; padding: 0; margin: 4px 0 0; }
+.study-app .experimental-switch span { display: grid; gap: 2px; min-width: 0; }
+.study-app .experimental-switch small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+
+/* The provider selector and the key-source rows. */
+.study-app .jev-provider { display: grid; gap: var(--space-2); max-width: 640px; min-width: 0; }
+.study-app .jev-provider__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.study-app .jev-provider__label { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: 650; }
+.study-app .jev-provider .jev-chip { margin-left: 0; }
+.study-app .jev-provider__select { flex: 1 1 14em; min-width: 0; max-width: 100%; }
+.study-app .jev-provider .audio-provider-note, .study-app .jev-keysource__note { margin: 0; overflow-wrap: anywhere; }
+.study-app .jev-keyenv { display: grid; gap: var(--space-2); min-width: 0; }
+.study-app .jev-keyenv > summary { cursor: pointer; color: var(--text-dim); font-size: var(--fs-sm); }
+.study-app .jev-keyenv__form { display: grid; gap: var(--space-2); }
+.study-app .jev-keyenv__label { margin: 0; font-size: var(--fs-sm); color: var(--text); }
+.study-app .audio-key-state { overflow-wrap: anywhere; }
 
 .study-app .jev-switches { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
 .study-app .jev-switches > legend { padding: 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 650; }
@@ -77,6 +134,9 @@
 /* The draft: the badge on a card's summary line and the probabilities inside the opened card. */
 .study-app .jev-badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600;
   background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-text); }
+.study-app .jev-badge--decided { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.study-app .jev-decided-note, .study-app .jev-run-note { overflow-wrap: anywhere; }
+.study-app .jev-badge__exp { margin-left: 0; opacity: .85; font-weight: 500; white-space: pre; }
 .study-app .jev-badge--flagged { background: color-mix(in srgb, var(--warn) 18%, transparent); color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
 .study-app .jev-badge--clear { background: color-mix(in srgb, var(--ok) 14%, transparent); color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
 .study-app .jev-card-signals { display: grid; gap: var(--space-1); margin: var(--space-2) 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
@@ -86,6 +146,8 @@
 .study-app .jev-card-signals__head small, .study-app .jev-card-signals__note { color: var(--text-muted); font-size: var(--fs-xs); margin: 0; }
 
 @media (max-width: 480px) {
+  .study-app .jev-guide__list { grid-template-columns: minmax(0, 1fr); }
+  .study-app .jev-guide__list dd { margin-bottom: var(--space-2); }
   .study-app .jev-privacy, .study-app .jev-switches { padding: var(--space-4); }
   .study-app .jev-prob { grid-template-columns: minmax(0, 1fr) 3.5em; }
   .study-app .jev-prob__bar { grid-column: 1 / -1; grid-row: 2; }

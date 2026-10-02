@@ -6,9 +6,18 @@ import { createServer } from 'node:http';
    { type: 'score', score, legend, probabilities, confidence } }, usage: { input_tokens, output_tokens } }.
    Errors: 401 invalid or missing key, 422 validation, 429 rate limit, 529 overloaded. It validates requests the way the
    documentation describes (instructions required, at most 255 choices, 2 to 10 score levels), so a client that builds a request
-   the real service would refuse fails here too. Nothing in this file talks to the real service. */
+   the real service would refuse fails here too. Nothing in this file talks to the real service.
+
+   It answers on two paths, the way the two real endpoints are laid out: TypeSafe's own /v1/systemone (any model alias) and
+   OpenCode Zen's /zen/v1/systemone (https://opencode.ai/docs/zen/), where only the two model ids the Zen list shows are
+   accepted (jev-1.13, jev-1.13-free). Both enforce the Authorization header. How the real Zen endpoint words its errors is
+   NOT known, so the failure bodies a test queues are the fake's own invention. */
 
 export const FAKE_KEY = 'tsk_fake_JEV_key_0000000000000000000001';
+/** The paths this fake serves, and the models the Zen path accepts. */
+export const FAKE_PATHS = Object.freeze({ typesafe: '/v1/systemone', opencode: '/zen/v1/systemone' });
+/** Any other path ending in /systemone answers like TypeSafe's (a custom gateway endpoint of the same typed API). */
+export const ZEN_MODELS = Object.freeze(['jev-1.13', 'jev-1.13-free']);
 
 const json = (response, body, status = 200, headers = {}) => {
   response.writeHead(status, { 'content-type': 'application/json', ...headers });
@@ -80,9 +89,10 @@ export async function startFakeJev(options = {}) {
       const spec = typeof fail === 'number' ? { status: fail } : fail;
       return json(response, spec.body ?? { detail: `fake failure ${spec.status}` }, spec.status, spec.headers);
     }
-    if (entry.method !== 'POST' || entry.path !== '/v1/systemone') return json(response, { detail: 'not found' }, 404);
+    if (entry.method !== 'POST' || !entry.path.endsWith('/systemone')) return json(response, { detail: 'not found' }, 404);
     if (request.headers.authorization !== `Bearer ${key}`) return json(response, { detail: 'invalid or missing API key' }, 401);
     const problems = validationProblems(payload);
+    if (entry.path === FAKE_PATHS.opencode && !ZEN_MODELS.includes(payload?.model)) problems.push('model is not available on Zen');
     if (problems.length) return json(response, { detail: problems }, 422);
     const answers = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) =>
       [name, options.answer ? options.answer(name, question, payload.state, payload) : defaultAnswer(question)]));

@@ -40,7 +40,7 @@ test('the key is stored under the DSH home with owner-only access, trimmed, and 
   assert.equal(JSON.parse(await readFile(jevSettingsPath(), 'utf8')).key, KEY);
   if (process.platform !== 'win32') assert.equal((await stat(jevSettingsPath())).mode & 0o777, 0o600);
   const view = publicJevSettings(await readJevSettings());
-  assert.deepEqual(view.key, { set: true, hint: `••••${KEY.slice(-4)}`, source: 'file' });
+  assert.deepEqual(view.key, { set: true, hint: `••••${KEY.slice(-4)}`, source: 'file', envName: 'JEV_API_KEY', envFound: false });
   assert.ok(!JSON.stringify(view).includes(KEY));
   assert.ok(!JSON.stringify(view).includes(KEY.slice(0, 20)), 'not even a long prefix');
   assert.equal(view.noticeVersion, JEV_NOTICE_VERSION);
@@ -49,7 +49,7 @@ test('the key is stored under the DSH home with owner-only access, trimmed, and 
 test('JEV_API_KEY fills in a key the file lacks; the file wins when both exist', async t => {
   await withHome(t);
   process.env.JEV_API_KEY = `${KEY}-env`;
-  assert.deepEqual(publicJevSettings(await readJevSettings()).key, { set: true, hint: '••••-env', source: 'env' });
+  assert.deepEqual(publicJevSettings(await readJevSettings()).key, { set: true, hint: '', source: 'env', envName: 'JEV_API_KEY', envFound: true }, 'a key from the environment shows no character of its value');
   await saveJevSettings({ key: KEY });
   assert.equal(publicJevSettings(await readJevSettings()).key.source, 'file');
   assert.equal((await readJevSettings()).key, KEY);

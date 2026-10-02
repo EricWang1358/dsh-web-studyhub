@@ -32,8 +32,8 @@ const big = () => Array.from({ length: 320 }, (_, i) => ({ id: `b${i}`, title: `
 const data = (extra = {}) => ({ root: 'D:\\Study\\library', settings: { ...defaults }, sources: [], decks: [], drafts: [], courses: [], model: { ready: true }, focus: { mode: 'class', course: 'A', courses: [{ name: 'A' }] }, ...extra });
 const all = { audio: { configured: true }, mineru: { configured: true }, retrieval: { status: { extension: { installed: true, canInstall: true }, companion: { running: true } }, plan: null } };
 
-test('two groups, in this order, each with a plain title and one line about what it holds', () => {
-  assert.deepEqual(SETTINGS_GROUPS.map((group) => [group.id, group.title]), [['common', '常用'], ['once', '一次性设置']]);
+test('three groups, in this order, each with a plain title and one line about what it holds', () => {
+  assert.deepEqual(SETTINGS_GROUPS.map((group) => [group.id, group.title]), [['common', '常用'], ['once', '一次性设置'], ['advanced', '高级']]);
   for (const group of SETTINGS_GROUPS) assert.ok(group.lead && han.test(group.lead));
 });
 
@@ -96,6 +96,7 @@ test('English renders without Han, group titles and the missing marker included'
     assert.doesNotMatch(markup, han);
     assert.match(markup, /Everyday/);
     assert.match(markup, /Set up once/);
+    assert.match(markup, /Advanced/);
     assert.match(markup, /Not set up/);
   } finally { setUiLanguage('zh'); }
 });
@@ -104,12 +105,15 @@ const page = (props = {}) => renderToStaticMarkup(h(Settings, { data: data(), bu
   legacy: '', setLegacy: noop, workspacePanel: h('div', { className: 'binding-panel' }, 'library'), exportData: noop, onRestored: noop, coursePanel: h(CourseList, { courses: [] }),
   onboardingPanel: h(OnboardingPanel, { sample: null, onTour: noop }), initialProfile: { consent: true, goal: 'exam', summary: '', signals: {}, ready: 0 }, ...props }));
 
-test('the page is the two groups; the model and the language and appearance are in the common one, the rest in the one-time one', () => {
+test('the page is the three groups; the model and the language and appearance are in the common one, the rest in the one-time one, the experimental switch in the advanced one', () => {
   setUiLanguage('zh');
   const html = page({ appearance: { language: 'zh', onLanguage: noop, theme: 'dark', themes: [['auto', '跟随系统'], ['dark', '深色'], ['light', '浅色']], onTheme: noop } });
   const groups = html.split(/<details class="settings-group"/).slice(1);
-  assert.equal(groups.length, 2);
-  const [common, once] = groups;
+  assert.equal(groups.length, 3);
+  const [common, once, advanced] = groups;
+  assert.match(advanced, /data-settings-group="advanced"/);
+  assert.match(advanced, /name="show-experimental"/);
+  assert.doesNotMatch(advanced, /Jev|jev-/, 'only the switch, until it is turned on');
   assert.match(common, /data-settings-group="common"/);
   assert.match(common, /学习库与模型/);
   assert.match(common, /界面语言/);
@@ -126,7 +130,7 @@ test('the page is the two groups; the model and the language and appearance are 
 test('the tour opens every group so its anchors can be shown; a deep link opens the group it points into', () => {
   setUiLanguage('zh');
   const tour = page({ tourActive: true });
-  assert.equal((tour.match(/<details class="settings-group"[^>]*\sopen=""/g) || []).length, 2);
+  assert.equal((tour.match(/<details class="settings-group"[^>]*\sopen=""/g) || []).length, 3);
   const closed = page();
   assert.equal((closed.match(/<details class="settings-group"[^>]*\sopen=""/g) || []).length, 0, 'configured: both closed');
   const deep = page({ focusSection: 'settings-extensions' });
