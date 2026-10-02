@@ -3,7 +3,7 @@
    here; the layout is checked in the browser preview. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { READER_DEFAULTS, SIZES, READER_STORAGE_KEY, normalizeReaderSettings, stepSize, readerVars, loadReaderSettings, saveReaderSettings } from '../ui/document-preview/reader/settings.js';
+import { READER_DEFAULTS, SIZES, UNDERLINES, READER_STORAGE_KEY, normalizeReaderSettings, stepSize, readerVars, loadReaderSettings, saveReaderSettings, resetReaderSettings, underlineShown } from '../ui/document-preview/reader/settings.js';
 import { looksLikeHeading, classifyParagraph, splitParagraphs, splitSegments, readingSections, lineBreakPieces } from '../ui/document-preview/reader/text-sections.js';
 import { outlineFromSections, collectHeadings, pickActive, neighbours, readingProgress } from '../ui/document-preview/reader/outline.js';
 import { foldWithMap, foldQuery, matchOffsets, findRanges, paintMatches } from '../ui/document-preview/reader/find.js';
@@ -13,8 +13,8 @@ import { foldWithMap, foldQuery, matchOffsets, findRanges, paintMatches } from '
 test('reader settings: junk becomes the defaults, valid choices are kept', () => {
   assert.deepEqual(normalizeReaderSettings(undefined), READER_DEFAULTS);
   assert.deepEqual(normalizeReaderSettings('x'), READER_DEFAULTS);
-  assert.deepEqual(normalizeReaderSettings({ size: 99, width: 'huge', face: 'comic', tone: 'neon', outline: 'yes', tools: 1 }), READER_DEFAULTS);
-  const chosen = { size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: false };
+  assert.deepEqual(normalizeReaderSettings({ size: 99, width: 'huge', face: 'comic', tone: 'neon', outline: 'yes', tools: 1, underline: 'maybe' }), READER_DEFAULTS);
+  const chosen = { size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: false, underline: 'hide' };
   assert.deepEqual(normalizeReaderSettings(chosen), chosen);
   assert.deepEqual(normalizeReaderSettings({ size: '18' }), { ...READER_DEFAULTS, size: 18 }, 'a stored string size still counts');
 });
@@ -45,6 +45,34 @@ test('reader settings are remembered, and a blocked or corrupt store only costs 
   assert.deepEqual(loadReaderSettings(blocked), READER_DEFAULTS);
   assert.doesNotThrow(() => saveReaderSettings(READER_DEFAULTS, blocked));
   assert.deepEqual(loadReaderSettings(null), READER_DEFAULTS);
+});
+
+test('link underlines: shown by default, hidden only by an explicit choice, and an unknown or older stored value shows them', () => {
+  assert.deepEqual(UNDERLINES, ['show', 'hide']);
+  assert.equal(READER_DEFAULTS.underline, 'show');
+  assert.equal(normalizeReaderSettings({}).underline, 'show', 'settings saved before this option existed');
+  assert.equal(normalizeReaderSettings({ underline: 'hide' }).underline, 'hide');
+  for (const odd of ['SHOW', 'off', '', null, 0, false, true, {}]) assert.equal(normalizeReaderSettings({ underline: odd }).underline, 'show', String(odd));
+  assert.equal(underlineShown({ underline: 'show' }), true);
+  assert.equal(underlineShown({ underline: 'hide' }), false);
+  assert.equal(underlineShown(undefined), true);
+});
+
+test('link underlines are remembered per browser like the other settings, and an older stored object keeps its other choices', () => {
+  const store = new Map(), storage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) };
+  saveReaderSettings({ ...READER_DEFAULTS, underline: 'hide', size: 18 }, storage);
+  assert.equal(JSON.parse(store.get(READER_STORAGE_KEY)).underline, 'hide');
+  assert.deepEqual(loadReaderSettings(storage), { ...READER_DEFAULTS, underline: 'hide', size: 18 });
+  store.set(READER_STORAGE_KEY, JSON.stringify({ size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: true }));
+  assert.deepEqual(loadReaderSettings(storage), { size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: true, underline: 'show' });
+  store.set(READER_STORAGE_KEY, JSON.stringify({ underline: 'sideways' }));
+  assert.equal(loadReaderSettings(storage).underline, 'show');
+});
+
+test('restoring the defaults brings the underlines back and leaves the open panels as they are', () => {
+  const current = { size: 22, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: false, underline: 'hide' };
+  assert.deepEqual(resetReaderSettings(current), { ...READER_DEFAULTS, outline: false, tools: false });
+  assert.equal(resetReaderSettings(current).underline, 'show');
 });
 
 /* ---------- text sections ---------- */

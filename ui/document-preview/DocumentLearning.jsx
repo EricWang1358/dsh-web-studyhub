@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import Markdown from '../Markdown.jsx';
 import { ui } from '../i18n.js';
 import { selectionRequest } from './selection.js';
+import SaveAnswerAsCard from './links/SaveAnswerAsCard.jsx';
 
 const statusLabels = {
   ambiguous: '原文中有多处相同文字，请缩小选区或加入前后文后重新选择。',
@@ -106,6 +107,8 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
         <button type="submit" disabled={!!busy || !askReady || !question.trim()}>{busy === 'ask' ? ui('正在回答…') : ui('依据原文回答')}</button>
       </form>
       {answer && <div className="study-grounded-answer"><Markdown text={answer} /></div>}
+      {answer && <SaveAnswerAsCard key={answer} call={call} selection={resolution.selection} question={question} answer={answer} deckId={deckId} decks={decks}
+        ready={available('generation', 'selection.saveAnswer')} onSaved={onPublished} onOpenCard={onOpenCard} isCurrent={isCurrent} />}
       <form onSubmit={event => { event.preventDefault(); publish(); }}>
         <label>{ui('补充到现有题组')}<select value={deckId} required disabled={!!busy || !!operation.current}
           onChange={event => setDeckId(event.target.value)}><option value="">{ui('选择题组')}</option>
