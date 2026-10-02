@@ -225,17 +225,24 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
 }
 
 /** Fix where one document belongs, on its own row: the same field and the same source.courses.set as 整理课程归属, for one document. */
+/** Saves the courses of a document through act(). Resolves '' when it worked, else the plain reason, so the dialog can say it where the learner is looking instead of in a notice that lands on top of its own buttons. */
+export async function saveDocumentCourses(act, assignments, onDone) {
+  try { await act('source.courses.set', { assignments }, onDone, { rethrow: true }); return ''; }
+  catch (error) { return error?.message || String(error); }
+}
+
 export function CourseDialog({ item, items, byId, courses, busy, act, onClose }) {
-  const [text, setText] = useState(item.courses.join('; '));
+  const [text, setText] = useState(item.courses.join('; ')), [error, setError] = useState('');
+  const save = async () => setError(await saveDocumentCourses(act, courseAssignments(items, [item.key], parseCourses(text), byId), onClose));
   return (
     <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} onClose={() => { if (!busy) onClose(); }}
       footer={<>
         <Button variant="quiet" disabled={busy} onClick={onClose}>{ui("取消")}</Button>
-        <Button variant="primary" busy={busy} disabled={busy} onClick={() => act('source.courses.set', {
-          assignments: courseAssignments(items, [item.key], parseCourses(text), byId) }, onClose)}>{ui("保存课程")}</Button>
+        <Button variant="primary" busy={busy} disabled={busy} onClick={save}>{ui("保存课程")}</Button>
       </>}>
       <p className="muted">{ui('只更改归属，原文与引用保持不变。留空就是「未分类」。')}</p>
-      <CourseField value={text} onChange={setText} courses={courses} multiple disabled={busy} />
+      <CourseField value={text} onChange={value => { setText(value); setError(''); }} courses={courses} multiple disabled={busy} />
+      {error && <InlineMessage>{error}</InlineMessage>}
     </Dialog>
   );
 }
