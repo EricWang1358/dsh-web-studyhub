@@ -30,7 +30,6 @@ async function fixture(t) {
 const MD = Buffer.from('# Operating systems\n\nA process is the unit of resource allocation in an operating system.\n\nVirtual memory gives every process its own address space.\n');
 const importMd = (call, extra = {}) => call('materials.document.import', { dataBase64: MD.toString('base64'), filename: 'os-notes.md', ...extra });
 const importPdf = async call => call('materials.document.import', { dataBase64: (await makeTextPdf(LECTURE_PAGES)).toString('base64'), filename: 'lecture.pdf' });
-const titlesOf = async store => (await store.read()).sources.map(source => source.title);
 const frozen = sources => sources.map(({ id, text, document, createdAt, importedAt, courses }) => ({ id, text, createdAt, importedAt, courses, page: document?.page, materialId: document?.materialId, materialRevision: document?.materialRevision }));
 
 /* ---------- validation ---------- */

@@ -55,6 +55,7 @@ import { useInjectCss } from "./shared.js";
 import { hasUnsavedDraft, parseDraft } from "./draft-editor.js";
 import { ui, uiMessage, uiFormat, useUiLanguage, setUiLanguage, getUiLanguage } from './i18n.js';
 import { finishedNotice, isActive as isSelectionJobActive } from './document-preview/selection-job.js';
+import { ReaderHeading } from './document-preview/RenameTitle.jsx';
 import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
@@ -2302,7 +2303,9 @@ export default function App({ call: transportCall, host = {} }) {
                     ? ui("学习资料")
                     : modal.type === "flag"
                       ? ui("标记这道题")
-                      : (modal.source?.document ? modal.source.title.replace(/\s*·\s*p\.\d+$/, "") : modal.source?.title) || ui("资料不可用")}>
+                      : modal.source ? <ReaderHeading data={data} source={modal.source} act={act} call={call}
+                          onRenamed={done => setNotice({ text: done.status === 'renamed' ? uiFormat("已重命名为「{0}」", [done.title]) : ui("名称没有变化"), tone: "success" })} />
+                        : ui("资料不可用")}>
             {modal.type === "add" ? (
               sourceForm
             ) : modal.type === "sources" ? (

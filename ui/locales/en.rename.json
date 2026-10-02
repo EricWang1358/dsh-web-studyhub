@@ -1,0 +1,18 @@
+{
+  "重命名…": "Rename…",
+  "新名称": "New name",
+  "恢复原名": "Restore original name",
+  "原名：{0}": "Originally: {0}",
+  "重命名「{0}」": "Rename “{0}”",
+  "Enter 保存，Esc 取消。只改名称，原文、页码、引用和题目都不变。": "Enter saves, Esc cancels. Only the name changes: the text, pages, citations and questions stay as they are.",
+  "请输入名称": "Enter a name",
+  "名称最多 200 个字符": "The name can be at most 200 characters",
+  "名称里不能有控制字符": "The name cannot contain control characters",
+  "名称不能只有点号": "The name needs more than dots",
+  "这份资料的名称刚刚被改过，请关闭后重新打开再试。": "This material was renamed a moment ago. Close it, open it again and retry.",
+  "找不到这份资料，它可能已被移除。": "This material cannot be found; it may have been removed.",
+  "没能改名，请重试。": "The rename did not work. Please try again.",
+  "已重命名为「{0}」": "Renamed to “{0}”",
+  "已恢复原名「{0}」": "Original name restored: “{0}”",
+  "名称没有变化": "The name did not change"
+}
