@@ -2108,6 +2108,7 @@
   .question-toolbar .thumbs > .tool-icon { width: 38px; padding: 8px; }
   .question-toolbar .thumbs svg { display: block; width: 17px; height: 17px; }
   .question-navigation { margin-left: auto; }
+  .question-toolbar > .next-hint { flex: 1 0 100%; margin: 0; text-align: right; }
   .question-toolbar .question-navigation { gap: 7px; }
   .question-toolbar .question-navigation .pill { min-height: 38px; padding: 8px 12px; white-space: nowrap; }
   .question-toolbar .review-more { position: relative; }

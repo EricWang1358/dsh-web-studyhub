@@ -1,6 +1,8 @@
 import { ui } from "./i18n.js";
 import React from "react";
 
+const NEXT_HINT_ID = "review-next-hint";
+
 export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk, onImprove, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode }) {
   const moreRef = React.useRef(null);
   React.useEffect(() => {
@@ -20,6 +22,9 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, []);
+  // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
+  const needsAnswer = !run.feedback && run.mode !== "exam";
+  const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
   return (
     <div className="question-toolbar">
       <div className="question-tools">
@@ -52,13 +57,16 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
           <button type="button" aria-expanded={assistMode === "improve"} onClick={(event) => { event.currentTarget.closest("details").open = false; onImprove(); }}>{ui("修题")}</button>
           <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onSlay(); }}>{ui("斩掉此题")}</button>
         </div></details>
-        <button className="pill" disabled={busy || run.index === 0}
+        <button className="pill" disabled={busy || run.index === 0} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</button>
-        <button className="primary pill" disabled={busy || !!run.card?.publicationUngrable || (!run.feedback && run.mode !== "exam")}
+        <button className="primary pill" disabled={nextBlocked}
+          aria-describedby={needsAnswer && !busy ? NEXT_HINT_ID : undefined}
+          title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: 1 })}>
           {run.index === run.total - 1 ? ui("完成") : ui("下一题")} →
         </button>
       </div>
+      {needsAnswer && !busy && !run.card?.publicationUngrable && <p className="muted small next-hint" id={NEXT_HINT_ID}>{ui("请先作答，才能进入下一题")}</p>}
     </div>
   );
 }

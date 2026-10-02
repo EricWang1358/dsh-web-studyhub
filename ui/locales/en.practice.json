@@ -1,4 +1,6 @@
 {
+  "请先作答，才能进入下一题": "Answer first to continue to the next question",
+  "正在保存上一步，稍等一下": "Saving the previous step, one moment",
   "选择题笔试": "Multiple choice",
   "从勾选的题组里抽单选 / 多选题，先覆盖不同主题；交卷后统一判分。": "Draws single- and multiple-choice questions from the decks you tick, covering different topics first. Everything is graded when you hand in.",
   "勾选要考的题组，选好题型和题数。": "Tick the decks to be examined on, then choose the question types and how many questions.",
