@@ -220,9 +220,9 @@ test('the privacy confirmation is per provider: changing provider asks again, go
   assert.ok(settings.confirmedAt, 'and so is the free one');
   const file = JSON.parse(await readFile(jevSettingsPath(), 'utf8'));
   assert.equal(file.confirmedAt, typesafeAt, 'the TypeSafe confirmation stays in the legacy fields');
-  assert.equal(file.providers['opencode-zen-free'].noticeVersion, JEV_NOTICE_VERSION);
+  assert.equal(file.confirmations['opencode-zen-free'].noticeVersion, JEV_NOTICE_VERSION);
   // An older notice version for one provider voids only that provider.
-  file.providers['opencode-zen-free'].noticeVersion = JEV_NOTICE_VERSION - 1;
+  file.confirmations['opencode-zen-free'].noticeVersion = JEV_NOTICE_VERSION - 1;
   await writeFile(jevSettingsPath(), JSON.stringify(file));
   assert.equal((await readJevSettings()).confirmedAt, '');
   assert.equal((await saveJevSettings({ provider: 'typesafe' })).confirmedAt, typesafeAt);
@@ -330,9 +330,9 @@ test('every OpenCode failure is a plain sentence in both languages that names Op
   const bodyText = 'SECRET_RESPONSE_BODY sk-live-should-not-show';
   const cases = [[401, 'invalid-key'], [402, 'insufficient-balance'], [429, 'rate-limited'], [500, 'unavailable'], [503, 'unavailable'], [529, 'overloaded']];
   for (const [status, reason] of cases) {
-    fake.clearFailures();
-    fake.fail(...Array(5).fill({ status, body: { error: bodyText, detail: bodyText } }));
     for (const language of ['zh', 'en']) {
+      fake.clearFailures();
+      fake.fail(...Array(5).fill({ status, body: { error: bodyText, detail: bodyText } }));
       const result = await quiet(fake).test({ language });
       assert.deepEqual([result.ok, result.reason], [false, reason], `${status}/${language}`);
       assert.match(result.message, /OpenCode Zen/, `${status}/${language}`);
