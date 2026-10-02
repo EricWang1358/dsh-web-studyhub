@@ -20,7 +20,7 @@ import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
 import { dueSummary } from "../lib/board-model.js";
-import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
+import { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
 import sideGroupsCss from "./side-groups.css";
 import Sources from "./Sources.jsx";
