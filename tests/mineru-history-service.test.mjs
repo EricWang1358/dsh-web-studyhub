@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { prepareJob } from '../lib/mineru-job.js';
-import { HISTORY, closeRecord, historyDir, listRecords, openRecord } from '../lib/mineru-history.js';
+import { closeRecord, historyDir, listRecords, openRecord } from '../lib/mineru-history.js';
 import { FAKE_TOKEN, startFakeMineru } from './helpers/fake-mineru.mjs';
 import { makePdf } from './helpers/pdf.mjs';
 

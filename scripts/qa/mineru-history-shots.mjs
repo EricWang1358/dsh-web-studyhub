@@ -1,4 +1,4 @@
-/* global document, getComputedStyle */
+/* global document */
 /* node scripts/qa/mineru-history-shots.mjs [--out <dir>] [--quick]
    The conversion history (解析历史) and the 运行环境 block in the REAL app, in the browser preview, with an isolated library and nothing real:
    - the cloud is the fake MinerU server (tests/helpers/fake-mineru.mjs) and the local mineru a fake CLI (tests/helpers/fake-mineru-cli.mjs);
