@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EXTENSION_PACKAGE, extensionAssetName, extensionRelease, extensionState, installExtension, uninstallExtension } from '../lib/retrieval-extension.js';
+import { EXTENSION_PACKAGE, ensureExtensionPackage, extensionAssetName, extensionRelease, extensionState, installExtension, uninstallExtension } from '../lib/retrieval-extension.js';
 import { createHostHandler } from '../lib/host.js';
 import { INDEX_TOOLS } from '../lib/retrieval-index.js';
 import { RELEASE_DOWNLOAD_PREFIX } from '../lib/update-check.js';
@@ -184,4 +184,30 @@ test('state: an extension older than this StudyHub is flagged outdated, so it ca
   assert.equal((await extensionState(ctx('2.2.0'), '2.1.3')).outdated, undefined, 'a newer extension is never "outdated"');
   assert.equal((await extensionState(ctx(undefined), '2.1.3')).outdated, undefined, 'an unknown version is not guessed at');
   assert.equal((await extensionState(ctx('2.1.2'), 'not-a-version')).outdated, undefined, 'a bad host version is not guessed at');
+});
+
+test('ensure: an installed extension whose installer file went missing gets it back, verified, before anything else is installed', async t => {
+  const where = await dir(t);
+  const installed = managerOf(applied, [{ name: EXTENSION_PACKAGE, version: '2.1.2', enabled: true, installed: true }]);
+  const asset = extensionAssetName('2.1.2');
+  const { fetch, requested } = fetchOf({ sums: `${sha(bytes)}  ${asset}\n` });
+  assert.equal(await ensureExtensionPackage({ manager: installed, fetch, dir: where }), true);
+  assert.deepEqual(requested, [extensionRelease('2.1.2').sha256Url, extensionRelease('2.1.2').assetUrl], 'the release of the installed version, not of this StudyHub');
+  assert.deepEqual(await readFile(join(where, asset)), bytes);
+  const again = fetchOf({ sums: `${sha(bytes)}  ${asset}\n` });
+  assert.equal(await ensureExtensionPackage({ manager: installed, fetch: again.fetch, dir: where }), true);
+  assert.deepEqual(again.requested, [], 'a file that is there is left alone');
+  assert.deepEqual(installed.calls, [], 'it never installs or removes anything itself');
+});
+
+test('ensure: nothing installed means nothing to restore, and a failed restore never throws or leaves a bad file', async t => {
+  const where = await dir(t), none = fetchOf();
+  assert.equal(await ensureExtensionPackage({ manager: managerOf(applied, []), fetch: none.fetch, dir: where }), false);
+  assert.equal(await ensureExtensionPackage({ manager: { installBundle() {} }, fetch: none.fetch, dir: where }), false);
+  assert.deepEqual(none.requested, []);
+  const installed = managerOf(applied, [{ name: EXTENSION_PACKAGE, version: '2.1.2', enabled: true, installed: true }]);
+  assert.equal(await ensureExtensionPackage({ manager: installed, fetch: fetchOf({ missing: true }).fetch, dir: where }), false, 'offline or 404');
+  const tampered = fetchOf({ asset: Buffer.from('something else'), sums: `${sha(bytes)}  ${extensionAssetName('2.1.2')}\n` });
+  assert.equal(await ensureExtensionPackage({ manager: installed, fetch: tampered.fetch, dir: where }), false, 'a file that fails SHA-256 is refused');
+  await assert.rejects(readFile(join(where, extensionAssetName('2.1.2'))), { code: 'ENOENT' });
 });
