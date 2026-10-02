@@ -242,6 +242,9 @@ test('source.organize.jev through a service: probabilities back, nothing saved, 
   await service.store.update(s => {
     s.sources.push(source('db', 'Anchor DB', 'x', ['Databases']), source('os', 'Anchor OS', 'x', ['Operating Systems']), source('n', 'New lecture', 'Locks and transactions', []));
   });
+  // Hidden by default: experimental features have to be shown (Settings › Advanced) before any experiment answers.
+  await assert.rejects(service.call('source.organize.jev', { sourceIds: ['n'] }), /不会|没有打开|not shown/);
+  await service.call('experimental.set', { enabled: true });
   // Off by default: a plain note and no call.
   let result = await service.call('source.organize.jev', { sourceIds: ['n'] });
   assert.equal(result.unavailable.reason, 'off');
