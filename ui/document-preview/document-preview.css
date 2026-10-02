@@ -32,3 +32,40 @@
   :is(.study-app, .study-seat) .study-document-toolbar__actions { margin-left: 0; width: 100%; justify-content: stretch; }
   :is(.study-app, .study-seat) .study-document-toolbar__actions .sh-btn--primary { flex: 1; }
 }
+
+/* Passage supplements in the learning panel (SelectionJobs.jsx): a background job shown in place, never a blocked panel. */
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-jobs { display: grid; gap: var(--space-3, 12px); margin-top: var(--space-3, 12px); min-width: 0; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .study-document-learning .selection-job { display: grid; gap: var(--space-2, 8px); min-width: 0; padding: var(--space-3, 12px);
+  border: 1px solid var(--line, #8885); border-radius: var(--radius-sm, 8px); background: var(--bg-sunken, transparent); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job--done { border-color: color-mix(in srgb, var(--ok, #3a9a5b) 55%, var(--line, #8885)); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job--partial,
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job--conflict { border-color: color-mix(in srgb, var(--warn, #b8892f) 60%, var(--line, #8885)); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job--failed { border-color: color-mix(in srgb, var(--accent, #c93d22) 55%, var(--line, #8885)); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__head { display: flex; align-items: flex-start; gap: var(--space-2, 8px); min-width: 0; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__mark { display: inline-flex; flex: none; justify-content: center; width: 20px; padding-top: 2px; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__title { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-md, 14px); line-height: var(--lh-snug, 1.35); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .study-document-learning .selection-job__passage { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; margin: 0; padding: 0 0 0 var(--space-2, 8px); overflow: hidden;
+  border-left: 3px solid var(--line-strong, #8886); color: var(--text-muted, inherit); font-size: var(--fs-sm, 13px); line-height: 1.45; white-space: normal; max-height: none; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__live,
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__result,
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__failure { display: grid; gap: var(--space-2, 8px); min-width: 0; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job p,
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job small { margin: 0; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__stage { font-weight: 600; font-size: var(--fs-sm, 13px); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__meta { color: var(--text-muted, inherit); font-size: var(--fs-sm, 13px); font-variant-numeric: tabular-nums; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin: 0; padding: 0; list-style: none; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__phases li { min-width: 0; padding: 2px 0 0; border-top: 3px solid var(--line-strong, #8886); color: var(--text-muted, inherit);
+  font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__phases li[data-state="done"] { border-top-color: var(--ok, #3a9a5b); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__phases li[data-state="current"] { border-top-color: var(--accent, #c93d22); color: var(--text, inherit); font-weight: 600; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .study-document-learning .selection-job__actions button { width: auto; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__reasons { display: grid; gap: var(--space-1, 4px); font-size: var(--fs-sm, 13px); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__reasons ul,
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__trace ol { display: grid; gap: 2px; margin: var(--space-1, 4px) 0 0; padding-left: 1.2em; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__reasons li,
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__trace li { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__trace,
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__raw { font-size: var(--fs-sm, 13px); }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job summary { cursor: pointer; width: fit-content; max-width: 100%; }
+:is(.study-app, .study-seat, .study-document-native-dialog) .selection-job__raw code { display: block; margin-top: var(--space-1, 4px); overflow-wrap: anywhere; white-space: pre-wrap; }
