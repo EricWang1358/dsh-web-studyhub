@@ -150,6 +150,14 @@ test('the English page has no Han outside user data', () => {
   } finally { setUiLanguage('zh'); }
 });
 
+test('every "open settings" link that points at a one-time setting asks Settings to open its group', async () => {
+  const source = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
+  // The import hub's and the materials page's links (MinerU token, search settings) and the model link all name their section.
+  assert.ok((source.match(/setSettingsFocus\("settings-mineru"\)/g) || []).length >= 2, 'the import hub and the materials page open the one-time group');
+  assert.match(source, /setSettingsFocus\("settings-extensions"\)/, 'the checklist opens the search settings');
+  assert.match(source, /const openModelSettings = \(\) => \(host\.openModelSettings \? host\.openModelSettings\(\) : \(setSettingsFocus\("settings-model"\), setPage\("settings"\)\)\)/);
+});
+
 test('Settings keeps the shared-button rule and never nests a fieldset group', async () => {
   setUiLanguage('zh');
   const html = page({ tourActive: true });
