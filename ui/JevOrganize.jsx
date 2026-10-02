@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ui, uiMessage } from './i18n.js';
+import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { InlineMessage } from './components/index.js';
 import { lineText, percentText, probabilityRows } from './jev-flow.js';
@@ -19,6 +19,24 @@ export function useJevCourseSuggest(call, initial) {
     return () => { live = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return on;
+}
+
+/** "由 Jev 判定": on a course suggestion row that Jev answered instead of the model. */
+export function JevDecidedBadge() {
+  useInjectCss(css, 'study-jev');
+  return <small className="jev-badge jev-badge--decided" data-jev-decided="row">{ui('由 Jev 判定')}<span className="jev-badge__exp"> · {ui('实验性')}</span></small>;
+}
+
+/** One quiet line after a run in which Jev answered instead of the model: how many each took and, once, why the model took some. Nothing when the site is off. */
+export function JevRunNote({ jev }) {
+  useInjectCss(css, 'study-jev');
+  if (!jev?.enabled) return null;
+  return (
+    <p className="muted jev-run-note" data-jev-run>
+      {uiFormat('Jev（实验性）给出了 {0} 条建议，其余 {1} 条由模型给出。', [jev.jev, jev.model])}
+      {jev.fallback?.message ? ` ${jev.fallback.message}` : ''}
+    </p>
+  );
 }
 
 /** The button. `run(sourceIds)` starts the request (the page's own single-flight `act`), so busy states and errors are the page's. */

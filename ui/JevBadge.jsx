@@ -7,6 +7,25 @@ import css from './jev.css';
 /* EXPERIMENTAL 出题预审 in the draft: a small "Jev 预审" badge on a card's summary line and, inside the opened card, the probabilities Jev gave
    (the chance that each defect is present). It is a signal only: the independent review is what decided whether the card is here. */
 
+/** "由 Jev 判定": the small mark on a card whose independent review was replaced by Jev (editorial.jevDecided). EXPERIMENTAL, hidden unless experimental features are shown. */
+export function JevDecidedBadge() {
+  useInjectCss(css, 'study-jev');
+  return <small className="jev-badge jev-badge--decided" data-jev-decided="card">{ui('由 Jev 判定')}<span className="jev-badge__exp"> · {ui('实验性')}</span></small>;
+}
+
+/** One quiet paragraph above the cards: how many Jev judged and how many the independent model review did, and (once) why the model took some. */
+export function JevDecidedNote({ decided }) {
+  useInjectCss(css, 'study-jev');
+  if (!decided?.judged) return null;
+  return (
+    <p className="quality-note jev-decided-note" data-jev-decided="summary">
+      {uiFormat('Jev（实验性）判定了 {0} 题（通过 {1}，不通过 {2}）', [decided.judged, decided.accepted, decided.rejected])}
+      {decided.model > 0 ? uiFormat('，其余 {0} 题由独立模型复审。', [decided.model]) : ui('，没有调用独立模型复审。')}
+      {decided.fallback?.message ? ` ${decided.fallback.message}` : ''}
+    </p>
+  );
+}
+
 /** The badge for the card's summary line. Nothing when Jev did not look at this card. */
 export function JevCardBadge({ signal }) {
   useInjectCss(css, 'study-jev');

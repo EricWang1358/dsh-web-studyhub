@@ -108,7 +108,7 @@ test('card review replaced by Jev in a real job: no independent model review cal
   const jev = draft.editorial.jevDecided;
   assert.deepEqual([jev.site, jev.judged, jev.model, jev.accepted], ['cardReview', 2, 0, 2]);
   assert.deepEqual(Object.keys(jev.cards).sort(), draft.cards.map(item => item.id).sort());
-  assert.match(draft.editorial.summary, /Jev/);
+  assert.match(draft.editorial.summary, /experimental decision service/);
   assert.equal(draft.editorial.jev, undefined, 'the extra-signal pre-check stays off');
   const page = await h.call('jev.usage');
   assert.equal(page.usage.byFeature.cardReview.calls, 2);

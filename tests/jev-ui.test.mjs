@@ -200,7 +200,7 @@ test('the draft shows a small Jev pre-check badge and, inside the card, the chan
 });
 
 test('every Chinese sentence of the Jev screens has an English one', async () => {
-  const files = ['ui/JevSettings.jsx', 'ui/JevOrganize.jsx', 'ui/JevBadge.jsx', 'ui/jev-flow.js'];
+  const files = ['ui/JevSettings.jsx', 'ui/JevOrganize.jsx', 'ui/JevBadge.jsx', 'ui/jev-flow.js', 'ui/ExperimentalSettings.jsx'];
   const english = Object.assign({}, ...Object.values(ENGLISH_SOURCES));
   const missing = [];
   for (const file of files) {

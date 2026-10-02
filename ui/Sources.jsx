@@ -11,7 +11,8 @@ import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
-import { JevNote, JevProbabilities, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
+import { JevDecidedBadge, JevNote, JevProbabilities, JevRunNote, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
+import { experimentalShown } from './experimental-flag.js';
 import { noteText, startsIncluded } from './jev-flow.js';
 import { OriginalMenuEntry } from './document-preview/OriginalFile.jsx';
 import OutlineDialog from './document-preview/reader/OutlineDialog.jsx';
@@ -296,8 +297,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   }, [highlight?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   const [organizing, setOrganizing] = useState(false), [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
-  // EXPERIMENTAL (off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
-  const jevOn = useJevCourseSuggest(call), [jevNote, setJevNote] = useState('');
+  // EXPERIMENTAL (hidden unless "Show experimental features" is on, off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
+  const experimental = experimentalShown(data), jevOn = useJevCourseSuggest(call, experimental ? undefined : false), [jevNote, setJevNote] = useState(''), [jevRun, setJevRun] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
   const [segmenting, setSegmenting] = useState(null);
@@ -306,7 +307,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
     restore: async () => { const done = await renameDocument({ act, call }, item, { restore: true }); setNotice?.({ text: uiFormat('已恢复原名「{0}」', [done.title]), tone: 'success' }); },
   }) : undefined;
   const selectedItems = items.filter(item => selected.includes(item.key));
-  const finish = () => { setProposals(null); setSelected([]); };
+  const finish = () => { setProposals(null); setSelected([]); setJevRun(null); };
   const toggle = group => {
     const open = isOpen(group);
     setOpened(current => { const next = new Set(current); open ? next.delete(group.key) : next.add(group.key); return next; });
@@ -343,11 +344,14 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
               assignments: courseAssignments(items, selected, parseCourses(courseText), byId),
             }, finish)}>{ui('应用课程归属')}</button>
             <button disabled={busy || !data.modelReady || !selectedItems.length || selectedItems.length > 100}
-              onClick={() => act('source.organize.suggest', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result =>
+              onClick={() => act('source.organize.suggest', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
+                setJevRun(result.jev ?? null);
                 setProposals(result.proposals.map(proposal => {
                   const item = items.find(entry => entry.sourceIds.includes(proposal.id));
-                  return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: true, courseText: proposal.courses.join('; ') };
-                })))}>{ui('请 AI 建议')}</button>
+                  // A row Jev decided starts included only if it changes something, like the Jev button's rows; the model's rows start included.
+                  return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: proposal.decidedBy === 'jev' ? startsIncluded(proposal) : true, courseText: proposal.courses.join('; ') };
+                }));
+              })}>{ui('请 AI 建议')}</button>
             <JevSuggestButton enabled={jevOn} disabled={busy || !selectedItems.length || selectedItems.length > 100}
               onClick={() => { setJevNote(''); act('source.organize.jev', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
                 setJevNote(noteText(result));
@@ -357,7 +361,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 }));
               }); }} />
           </div>
-          <JevNote note={jevNote} />
+          {experimental && <JevNote note={jevNote} />}
+          {experimental && <JevRunNote jev={jevRun} />}
           {proposals && <div className="source-course-proposals">
             <p className="muted">{ui('建议尚未保存，可先修改课程，再确认应用。')}</p>
             {proposals.map(proposal => <div key={proposal.id}>
@@ -366,8 +371,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 {uiFormat('采用建议：{0}', [displayTitle(proposal.title)])}</label>
               <CourseField label={displayTitle(proposal.title)} value={proposal.courseText} multiple courses={data.focus?.courses}
                 onChange={courseText => setProposals(current => current.map(item => item.id === proposal.id ? { ...item, courseText } : item))} disabled={busy || !proposal.include} />
-              <p className="muted">{proposal.reason}</p>
-              <JevProbabilities jev={proposal.jev} />
+              <p className="muted">{proposal.reason}{experimental && proposal.decidedBy === 'jev' && <> <JevDecidedBadge /></>}</p>
+              {experimental && <JevProbabilities jev={proposal.jev} />}
             </div>)}
             <button disabled={busy || !proposals.some(proposal => proposal.include)} onClick={() => act('source.courses.set', {
               assignments: proposals.filter(proposal => proposal.include).flatMap(proposal =>

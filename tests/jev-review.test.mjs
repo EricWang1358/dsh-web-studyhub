@@ -99,11 +99,12 @@ test('the critique entries read like the model’s: pass/fail per dimension, a c
   assert.deepEqual(accepted.issues, []);
   for (const id of ['selfContained', 'answerLeak', 'learningValue', 'sourceSupport', 'explanationQuality']) assert.equal(accepted.check[id], 'pass', id);
   assert.equal(accepted.check.optionQuality, 'na');
-  assert.match(accepted.check.explanation, /Jev/);
+  assert.match(accepted.check.explanation, /experimental reviewer/);
+  assert.doesNotMatch(JSON.stringify(accepted), /Jev/, 'what stays with the draft never names Jev');
   assert.ok(!accepted.check.explanation.includes(DECK[0].prompt));
   const rejected = critiqueFor(DECK[0], readReview(DECK[0], answers({ answerLeak: 0.03 }), { threshold: 0.8 }).value, 'en');
   assert.equal(rejected.check.answerLeak, 'fail');
-  assert.ok(rejected.issues.some(issue => issue.startsWith('c1: answerLeak failed') && /Jev/.test(issue) && /97%/.test(issue)), rejected.issues.join('|'));
+  assert.ok(rejected.issues.some(issue => issue.startsWith('c1: answerLeak failed') && /experimental reviewer/.test(issue) && /97%/.test(issue)), rejected.issues.join('|'));
   assert.deepEqual(reviewIssues({ issues: accepted.issues, checks: [accepted.check] }, { cards: [DECK[0]] }), []);
   assert.ok(reviewIssues({ issues: rejected.issues, checks: [rejected.check] }, { cards: [DECK[0]] }).length >= 1);
 });
@@ -147,7 +148,8 @@ test('on, every card confident: no model review call at all, the draft says Jev 
   assert.deepEqual([jev.version, jev.site, jev.judged, jev.model, jev.accepted, jev.rejected, jev.fallback], [1, 'cardReview', 3, 0, 3, 0, null]);
   assert.deepEqual(Object.keys(jev.cards).sort(), draft.cards.map(item => item.id).sort());
   assert.ok(Object.values(jev.cards).every(entry => entry.verdict === 'accept'));
-  assert.match(draft.editorial.summary, /Jev/);
+  assert.match(draft.editorial.summary, /experimental decision service/);
+  assert.doesNotMatch(draft.editorial.summary, /Jev/, 'a draft read with experimental features hidden mentions no Jev');
   assert.match(draft.editorial.summary, /3/);
   assert.doesNotMatch(draft.editorial.summary, /^Independently approved/, 'the provenance is not rewritten as the model’s review');
   assert.equal(Object.keys(draft.editorial.reviewedCards).length, 3);
@@ -162,7 +164,7 @@ test('on, one card rejected with confidence: it is dropped like a model-rejected
   assert.equal(draft.cards.length, 2);
   assert.ok(!draft.cards.some(item => item.prompt.includes('[c2]')));
   assert.equal(draft.editorial.dropped, 1);
-  assert.match(draft.editorial.omitted[0].reasons.join(' '), /Jev/);
+  assert.match(draft.editorial.omitted[0].reasons.join(' '), /experimental reviewer/);
   const jev = draft.editorial.jevDecided;
   assert.deepEqual([jev.judged, jev.accepted, jev.rejected, jev.model], [3, 2, 1, 0]);
   assert.equal(Object.keys(jev.cards).length, 2, 'provenance is kept for the cards that are in the draft');
@@ -182,7 +184,7 @@ test('on, one card unsure: ONE model review runs over just that card, the others
   assert.deepEqual(jev.fallback && [jev.fallback.reason, jev.fallback.count], ['low-confidence', 1]);
   assert.match(jev.fallback.message, /Jev/);
   assert.equal(Object.keys(jev.cards).length, 2, 'the model-reviewed card is not marked as Jev’s');
-  assert.match(draft.editorial.summary, /Jev/);
+  assert.match(draft.editorial.summary, /experimental decision service/);
 });
 
 test('on, the model’s verdict still counts for the cards it reviews: a card it rejects is dropped', async t => {

@@ -3,7 +3,8 @@ import React from "react";
 import { kinds } from "./shared.js";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { readableQualityIssue } from "./quality.js";
-import { JevCardBadge, JevCardSignals } from "./JevBadge.jsx";
+import { JevCardBadge, JevCardSignals, JevDecidedBadge, JevDecidedNote } from "./JevBadge.jsx";
+import { experimentalShown } from "./experimental-flag.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
@@ -243,6 +244,7 @@ export default function Draft({
             <summary>{ui("生成审阅摘要 · 点击展开")}</summary>
             <p>{draft.editorial.summary}</p>
           </details>}
+          {experimentalShown(data) && <JevDecidedNote decided={draft.editorial.jevDecided} />}
           <p className="quality-note"><small>
               {reviewStatus
                 ? uiFormat("{0} / {1} 题与上次模型审阅时一致。", [reviewStatus.unchanged, reviewStatus.total])
@@ -359,9 +361,10 @@ export default function Draft({
                 {draft.editorial?.reviewedCards?.[q.id] !== reviewedCardFingerprint(q) &&
                   <small>{ui("未自动审阅")}</small>}
                 {selfCitedCardCount([q], data.sources) > 0 && <small>{ui("仅有导入题目引用")}</small>}
-                <JevCardBadge signal={draft.editorial?.jev?.signals?.[q.id]} />
+                {experimentalShown(data) && <JevCardBadge signal={draft.editorial?.jev?.signals?.[q.id]} />}
+                {experimentalShown(data) && draft.editorial?.jevDecided?.cards?.[q.id] && <JevDecidedBadge />}
               </summary>
-              <JevCardSignals signal={draft.editorial?.jev?.signals?.[q.id]} threshold={draft.editorial?.jev?.threshold} />
+              {experimentalShown(data) && <JevCardSignals signal={draft.editorial?.jev?.signals?.[q.id]} threshold={draft.editorial?.jev?.threshold} />}
               <label>{ui("问题")}<textarea
                   rows={3}
                   value={q.prompt}
