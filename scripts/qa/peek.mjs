@@ -3,7 +3,7 @@
    2000 px), next page, Esc and focus back, the cache hit on a page seen again, a reference-mode original that was moved, a document with
    no original (补全原文件 opens), a text whose page count differs from the file, and the memory of 30 peeks and of a 120-page book
    (JS heap after a forced GC, bitmaps kept and their bytes; native memory outside the JS heap is not measured here). */
-/* global document, window, performance, gc -- page.evaluate callbacks run in the browser */
+/* global document, performance, gc -- page.evaluate callbacks run in the browser */
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
