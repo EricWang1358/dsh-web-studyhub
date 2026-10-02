@@ -15,13 +15,13 @@ const compiled = await build({ stdin: { contents: `
   export * from './ui/SourcePicker.jsx'; export { default as SourcePicker } from './ui/SourcePicker.jsx';
   export { default as Sources, ChapterList, RowMenuItems } from './ui/Sources.jsx';
   export { SegmentPreview } from './ui/document-preview/reader/SegmentDialog.jsx';
-  export { OutlineDialogBody } from './ui/document-preview/reader/OutlineDialog.jsx';
+  export { OutlineDialogBody, changesLibrary } from './ui/document-preview/reader/OutlineDialog.jsx';
   export { structureOutline, chapterNeighbours } from './ui/document-preview/reader/outline.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { SourcePicker, Sources, ChapterList, RowMenuItems, chapterLabel, SegmentPreview, OutlineDialogBody, structureOutline, chapterNeighbours, setUiLanguage } = module.exports;
+const { SourcePicker, Sources, ChapterList, RowMenuItems, chapterLabel, SegmentPreview, OutlineDialogBody, changesLibrary, structureOutline, chapterNeighbours, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -154,6 +154,18 @@ test('the segmentation preview in English has no Chinese outside the learner’s
   assert.match(english, /starts mid-page/);
   for (const source of ['none', 'converted', 'segmentation']) assert.doesNotMatch(render(h(SegmentPreview, { preview: { ...preview, current: { count: 3, source } }, level: 1, onLevel() {} }), 'en'), han, source);
   for (const unit of ['part', 'text']) assert.doesNotMatch(render(h(SegmentPreview, { preview: { ...preview, unit }, level: 2, onLevel() {} }), 'en'), han, unit);
+});
+
+test('only saving, clearing and applying go through the page’s refreshing runner; asking, pricing and previews do not (they would collide with it)', () => {
+  assert.equal(changesLibrary('materials.outline.save', {}), true);
+  assert.equal(changesLibrary('materials.outline.clear', {}), true);
+  assert.equal(changesLibrary('materials.outline.segment', { level: 2 }), true);
+  assert.equal(changesLibrary('materials.outline.segment', { level: null }), true, 'restoring the automatic chapters');
+  assert.equal(changesLibrary('materials.outline.segment', { preview: true }), false);
+  assert.equal(changesLibrary('materials.outline.segment', { level: 1, preview: true }), false);
+  assert.equal(changesLibrary('materials.outline.suggest', { estimate: true }), false);
+  assert.equal(changesLibrary('materials.outline.suggest', {}), false, 'the model call is not a library change');
+  assert.equal(changesLibrary('materials.document.get', {}), false);
 });
 
 test('the dialog behind a row’s menu entry: what it will do, the two ways to ask, and that nothing in the text changes', () => {

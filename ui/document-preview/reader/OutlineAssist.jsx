@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } 
 import { ui, uiFormat } from '../../i18n.js';
 import { Button, Dialog } from '../../components/index.js';
 import { TokenEstimateView, TokenUsage } from '../../TokenUsage.jsx';
+import { useInjectCss } from '../../shared.js';
 import { ASSIST_IDLE, assistReducer, rejectionKind } from './ai-outline.js';
 import SegmentDialog from './SegmentDialog.jsx';
+import readerCss from './reader.css';
 
 /* The "让 AI 帮你" flow (materials.outline.*), one component wherever it is offered: under the reader's outline and in the
    dialog of a row on the 资料 page. It never starts a model call by itself: the learner sees what one call would cost first,
@@ -32,12 +34,14 @@ function EntryList({ rows, label }) {
 }
 
 /** The proposal beside the outline the reader has now, each with its count, and what the call cost. */
-export function ProposalPreview({ current, entries, usage, coverage, warnings = [] }) {
+export function ProposalPreview({ current, entries, usage, coverage, warnings = [], mode = 'outline' }) {
   const now = current.map(item => ({ title: item.title, depth: item.depth || 0, minor: item.minor }));
   const proposed = entries.map(entry => ({ title: entry.title, depth: entry.level - 1, kind: entry.kind }));
+  const chapters = mode === 'chapters';
   return <div className="reader-assist__preview">
     <div className="reader-assist__columns">
-      <section><h4>{uiFormat('当前目录 · {0} 项', [current.length])}</h4><EntryList rows={now} label={ui('当前目录')} /></section>
+      <section><h4>{uiFormat(chapters ? '当前章节 · {0} 项' : '当前目录 · {0} 项', [current.length])}</h4>
+        {current.length ? <EntryList rows={now} label={chapters ? ui('当前章节') : ui('当前目录')} /> : <p className="reader-assist__note">{chapters ? ui('这份资料现在没有章节。') : ui('现在没有解析出标题。')}</p>}</section>
       <section><h4>{uiFormat('AI 建议 · {0} 项', [entries.length])}</h4><EntryList rows={proposed} label={ui('AI 建议')} /></section>
     </div>
     <p className="reader-assist__note">{coverageText(coverage)}</p>
@@ -86,7 +90,7 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 
   </div>;
   return <div className="reader-assist" data-phase="idle">
     {saved && <>
-      <p className="reader-assist__note" role="status">{uiFormat('AI 目录 · {0} 项', [saved.entries.length])}</p>
+      <p className="reader-assist__note" role="status">{uiFormat(saved.mode === 'chapters' ? 'AI 章节 · {0} 项' : 'AI 目录 · {0} 项', [saved.entries.length])}</p>
       {missing > 0 && <p className="reader-assist__note is-warning">{uiFormat('有 {0} 项在当前版面里找不到，已略过。', [missing])}</p>}
       {segmentation && <p className="reader-assist__note" role="status">{uiFormat('已按第 {0} 级分成 {1} 章。', [segmentation.level, segmentation.chapters])}</p>}
       <div className="reader-assist__actions">
@@ -117,6 +121,7 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 
  * automatic one again. Extra props reach the segmentation step when the owner offers it.
  */
 export default function OutlineAssist({ call, target, current, saved, stale, missing, variant, onSaved, onCleared, onChanged }) {
+  useInjectCss(readerCss, 'study-reader'); // also offered outside the reader (the 资料 page's dialog)
   const [state, dispatch] = useReducer(assistReducer, ASSIST_IDLE);
   const [mode, setMode] = useState('outline'), [segmenting, setSegmenting] = useState(false), token = useRef(0);
   const { documentId, sourceId, revision, legacy } = target;
@@ -165,7 +170,7 @@ export default function OutlineAssist({ call, target, current, saved, stale, mis
       description={ui('预览：确认之前，资料和当前目录都不会改变。')}
       footer={<><Button variant="primary" onClick={accept} disabled={state.saving}>{mode === 'chapters' ? ui('采用这些章节') : ui('采用这个目录')}</Button>
         <Button variant="quiet" onClick={() => dispatch({ type: 'reset' })}>{ui('放弃')}</Button></>}>
-      <ProposalPreview current={current} entries={state.entries} usage={state.usage} coverage={state.coverage} warnings={state.warnings} />
+      <ProposalPreview current={current} entries={state.entries} usage={state.usage} coverage={state.coverage} warnings={state.warnings} mode={mode} />
     </Dialog>}
   </>;
 }

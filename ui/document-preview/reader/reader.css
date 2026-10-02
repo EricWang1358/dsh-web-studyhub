@@ -212,7 +212,7 @@
   /* ── "让 AI 帮你": the flow under the outline, and its preview ───────── */
   .reader-assist { display: grid; gap: var(--space-2); }
   .reader-assist__actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
-  .reader-assist__actions .sh-btn { white-space: normal; text-align: left; }
+  .reader-assist__actions .sh-btn { height: auto; padding-block: 5px; line-height: var(--lh-snug); white-space: normal; text-align: left; }
   .reader-assist__note, .reader-assist__status { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
   .reader-assist__note.is-warning { color: var(--warn-text, var(--text)); }
   .reader-assist__bar { position: relative; display: block; height: 3px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); }
@@ -222,12 +222,26 @@
   .reader-assist__columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
   .reader-assist__columns h4 { margin: 0 0 var(--space-2); font-size: var(--fs-sm); }
   .reader-assist__entries { max-height: 46vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-  .reader-assist__entries li { display: flex; gap: var(--space-2); align-items: baseline; padding: 3px 0 3px calc(var(--entry-depth, 0) * 16px); overflow-wrap: anywhere; }
+  .reader-assist__entries li { display: flex; gap: var(--space-2); align-items: baseline; padding: 3px var(--space-2) 3px calc(var(--space-2) + var(--entry-depth, 0) * 16px); overflow-wrap: anywhere; }
   .reader-assist__entries li[data-depth='1'] { --entry-depth: 1; }
   .reader-assist__entries li[data-depth='2'] { --entry-depth: 2; }
   .reader-assist__entries li[data-depth='3'] { --entry-depth: 3; }
   .reader-assist__entries li[data-minor] { color: var(--text-faint); }
   .reader-assist__tag { flex: none; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); }
+  /* Using the outline as chapters: the level, the chapters it gives, what a chapter inside a page means. */
+  .reader-segment { display: grid; gap: var(--space-3); }
+  .reader-segment__levels { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
+  .reader-segment__levels legend { width: 100%; margin: 0 0 var(--space-2); padding: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; }
+  .reader-segment__levels label { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; padding: 6px var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); cursor: pointer; }
+  .reader-segment__levels label:has(input:checked) { border-color: var(--accent); background: var(--bg-selected); }
+  .reader-segment__levels input { flex: none; width: auto; min-height: 0; margin: 0; accent-color: var(--accent); }
+  .reader-segment__chapters { max-height: 40vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+  .reader-segment__chapters li { display: flex; align-items: baseline; gap: var(--space-2); padding: 4px var(--space-2); }
+  .reader-segment__chapters li > span { min-width: 0; overflow-wrap: anywhere; }
+  .reader-segment__chapters li > small:last-child { flex: none; margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
+  .reader-assist-dialog { display: grid; gap: var(--space-3); }
+  .reader-assist-dialog > p { margin: 0; }
+  .reader-assist-dialog .reader-assist__actions .sh-btn { white-space: normal; }
   @container reader (max-width: 640px) { .reader-assist__columns { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 640px) { .reader-assist__columns { grid-template-columns: minmax(0, 1fr); } }
 

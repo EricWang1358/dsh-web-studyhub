@@ -8,7 +8,8 @@ import OutlineAssist from './OutlineAssist.jsx';
    makes are a view over the same text: they show on this page, in the picker and in the reader from then on. */
 
 const displayTitle = title => /^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(String(title)) ? String(title).replace(/^.*[\\/]/, '') : title;
-const MUTATIONS = /^materials\.outline\.(save|segment|clear)$/;
+/** Saving, clearing and applying (or restoring) a segmentation change the library; a preview and the asking do not. */
+export const changesLibrary = (action, args) => /^materials\.outline\.(save|clear)$/.test(action) || (action === 'materials.outline.segment' && args.level !== undefined && args.preview !== true);
 
 /** The dialog's content: what will happen, the flow, and the kept outline of this document when it has one. */
 export function OutlineDialogBody({ item, call }) {
@@ -31,7 +32,7 @@ export function OutlineDialogBody({ item, call }) {
 /** The dialog: `act` (the page's refreshing action runner) makes every change reach the 资料 page and the picker at once. */
 export default function OutlineDialog({ item, call, act, onClose }) {
   const refreshing = useMemo(() => async (action, args = {}) => {
-    if (!act || !MUTATIONS.test(action)) return call(action, args);
+    if (!act || !changesLibrary(action, args)) return call(action, args);
     const result = await act(action, args, undefined, { rethrow: true });
     if (result === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
     return result;

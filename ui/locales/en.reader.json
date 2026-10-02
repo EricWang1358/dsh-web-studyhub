@@ -102,5 +102,10 @@
   "这一章在同一页内，不能单独出题": "This chapter lies inside one page, so questions cannot be made from it alone",
   "{0} 部分 · {1} 字符": "{0} parts · {1} characters",
   "{0} 部分": "{0} parts",
-  "第 {0}–{1} 部分": "Parts {0}–{1}"
+  "第 {0}–{1} 部分": "Parts {0}–{1}",
+  "当前章节 · {0} 项": "Current chapters · {0}",
+  "当前章节": "Current chapters",
+  "这份资料现在没有章节。": "This document has no chapters now.",
+  "现在没有解析出标题。": "No headings were found now.",
+  "AI 章节 · {0} 项": "AI chapters · {0}"
 }

@@ -337,6 +337,10 @@ test('the preview fake model answers the outline prompt with an outline that pas
   assert.equal(checked.entries.length, 10, 'the title and nine parts');
   assert.deepEqual(checked.entries.map(entry => entry.level), [1, ...Array(9).fill(2)]);
   assert.equal(seen.length, 1);
+  const chapters = outlinePrompt(plan, { title: '平台经济课堂实录', mode: 'chapters' });
+  const checkedChapters = validateOutline(await createFakeModel()(chapters.system, chapters.prompt), plan, { mode: 'chapters' });
+  assert.equal(checkedChapters.ok, true, checkedChapters.message);
+  assert.deepEqual([checkedChapters.entries.length, [...new Set(checkedChapters.entries.map(entry => entry.level))]], [9, [1]], 'the nine parts, no title, one level');
 });
 
 /* ---------- through the runtime, as the panel and the tools call it ---------- */

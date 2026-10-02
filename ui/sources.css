@@ -31,6 +31,21 @@
     background: var(--bg-raised);
     box-shadow: var(--shadow-md);
   }
+  /* The 更多 menu: its entries stacked in one raised card (改课程…, AI 重新分段…, 移除). */
+  .source-doc__actions .source-row-actions[open] > .source-row-menu {
+    position: absolute;
+    right: 0;
+    z-index: 2;
+    display: grid;
+    min-width: max-content;
+    margin-top: 4px;
+    padding: var(--space-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow-md);
+  }
+  .source-row-menu > button { width: 100%; text-align: left; white-space: nowrap; }
   .source-doc__pages { margin: var(--space-2) 0 0 calc(var(--space-3) + 20px + var(--space-3)); }
   .source-doc__pages-toggle .sh-icon:last-child { transition: transform 0.18s var(--ease); }
   .source-doc__pages-toggle[aria-expanded="true"] .sh-icon:last-child { transform: rotate(90deg); }
@@ -50,6 +65,11 @@
   }
   .source-doc__page-list button:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
   .source-doc__page-list small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
+  /* A chapter row: the chapter opens on the left, its own 出题 button sits at the right (not a full-width second line). */
+  .source-doc__chapters li { display: flex; align-items: center; gap: var(--space-2); }
+  .source-doc__chapters li > button:first-child { flex: 1 1 auto; width: auto; min-width: 0; }
+  .source-doc__chapters li > .sh-btn { flex: none; width: auto; }
+  .source-doc__chapters li > button:first-child small { white-space: normal; text-align: right; }
   .source-doc.is-new {
     border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
     background: color-mix(in srgb, var(--accent) 4%, var(--bg-sunken));

@@ -132,11 +132,11 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId }) {
 /** The entries of a row's 更多 menu. */
 export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment }) {
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
-  return <>
+  return <div className="source-row-menu">
     {onChangeCourse && <button type="button" disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</button>}
     {onSegment && <button type="button" disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</button>}
     <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('移除')}</button>
-  </>;
+  </div>;
 }
 
 function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
