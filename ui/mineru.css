@@ -122,3 +122,31 @@
   .study-app .pdf-history .job.pdf-history__row { padding: var(--space-3); gap: var(--space-2); }
 }
 .study-app .sources-page .pdf-history { margin: var(--space-3) 0; }
+
+/* 运行环境: what does the work. One block on the live card and (collapsed) on the history rows. */
+.study-app .pdf-env { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 5%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+.study-app .pdf-env__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; }
+.study-app .pdf-env__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.study-app .pdf-env__list li { min-width: 0; overflow-wrap: anywhere; color: var(--text-dim); }
+.study-app .pdf-env__service { display: flex; align-items: baseline; gap: var(--space-2); }
+.study-app .pdf-env__dot { flex: none; width: 8px; height: 8px; margin-top: 1px; border-radius: 50%; background: var(--text-muted); transform: translateY(0); align-self: center; }
+.study-app .pdf-env__service[data-state="running"] { color: color-mix(in srgb, var(--ok) 75%, var(--text)); }
+.study-app .pdf-env__service[data-state="running"] .pdf-env__dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+.study-app .pdf-env__service[data-state="stopped"], .study-app .pdf-env__warning { color: color-mix(in srgb, var(--bad) 80%, var(--text)); font-weight: 600; }
+.study-app .pdf-env__service[data-state="stopped"] .pdf-env__dot { background: var(--bad); }
+.study-app .pdf-env__service[data-state="unknown"] .pdf-env__dot { background: var(--warn); }
+.study-app .pdf-env__hint { color: color-mix(in srgb, var(--bad) 70%, var(--text)); }
+.study-app .pdf-env__where summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
+.study-app .pdf-env__where summary:focus-visible, .study-app .pdf-env-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.study-app .pdf-env__where p { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+.study-app .pdf-env__where code { font-size: var(--fs-xs); overflow-wrap: anywhere; word-break: break-all; }
+.study-app .pdf-env-details { min-width: 0; max-width: 100%; font-size: var(--fs-xs); }
+.study-app .pdf-env-details > summary { cursor: pointer; width: fit-content; color: var(--accent-text); }
+.study-app .pdf-env-details .pdf-env { margin-top: var(--space-1); }
+/* The windows: they wrap INSIDE the card in even columns (never run off its edge), with a state each; many of them fold into one line and a toggle. */
+.study-app .pdf-chunks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 2px var(--space-3); min-width: 0; max-width: 100%; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
+.study-app .pdf-chunks li { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.study-app .pdf-chunks li.current::before { content: '▸ '; }
+.study-app .pdf-chunks__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.study-app .pdf-chunks__summary .sh-btn { margin: 0; }

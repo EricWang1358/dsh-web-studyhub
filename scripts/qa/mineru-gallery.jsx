@@ -58,11 +58,17 @@ const job = (extra = {}) => ({ id: `j${Math.random()}`, type: 'pdf-convert', rou
 /* The 解析历史: every state of a row (complete, local, failed, interrupted, cancelled, running, document deleted, a very long name), many days, the
    confirm to clear, the empty state, and the panel the "用 MinerU 解析" link opens. Fixed records, a fixed clock. */
 const HOUR = 3_600_000, NOW = Date.now(), MB = 1024 * 1024;
+/* What does the work (运行环境): captured when a conversion starts. */
+const LOCAL_ENV = { kind: 'local', mineruVersion: '4.0.10', tier: 'standard', model: 'MinerU2.5-Pro-2605-1.2B-GGUF', modelsPath: 'C:\\Users\\student\\.mineru\\models', modelsRealPath: 'E:\\mineru-models\\models', windows: { kind: 'fixed', pages: 50 } };
+const CLOUD_ENV = { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * MB, bookBytes: 96 * MB };
+const windows = count => Array.from({ length: count }, (_, i) => ({ index: i + 1, startPage: i * 50 + 1, endPage: Math.min(562, i * 50 + 50), pages: 50, state: i < 2 ? 'done' : 'planned' }));
+const up = { state: 'running', basis: 'window', at: new Date(Date.now() - 25_000).toISOString() };
 let recordNumber = 0;
 const ago = hours => new Date(NOW - hours * HOUR).toISOString();
 const row = (extra = {}) => { const started = extra.hours ?? 0.2; const { hours, ...rest } = extra; return { id: `job-${String(++recordNumber).padStart(4, '0')}`, version: 1, filename: 'Operating Systems.pdf', bytes: 96 * MB, pages: 422, pieces: 3,
   route: 'cloud', status: 'complete', phase: 'done', pagesDone: 422, attempts: 1, elapsedMs: 260_000, startedAt: ago(started + 0.08), finishedAt: ago(started), importedPages: 420, skippedPages: 2,
-  documentId: 'document-a-json', title: 'Operating Systems', canRetry: false, live: false, document: { exists: true, title: 'Operating Systems', pages: 420, sourceIds: ['s1'] }, ...rest }; };
+  documentId: 'document-a-json', title: 'Operating Systems', canRetry: false, live: false, document: { exists: true, title: 'Operating Systems', pages: 420, sourceIds: ['s1'] },
+  env: rest.route === 'local' ? { ...LOCAL_ENV, tier: rest.tier || 'basic', model: rest.tier === 'standard' ? LOCAL_ENV.model : 'MinerU-4_models_onnx', modelsPath: undefined, modelsRealPath: undefined } : CLOUD_ENV, ...rest }; };
 const gone = { documentId: undefined, importedPages: undefined, skippedPages: undefined, document: undefined };
 const historyRows = () => [
   row({ hours: 0.05, status: 'running', phase: 'parse', finishedAt: undefined, elapsedMs: 0, pagesDone: 211, live: true, ...gone, filename: 'Databases Lecture Notes.pdf', pages: 330, bytes: 18 * MB }),
@@ -148,6 +154,13 @@ function Scene() {
     <Section title="Failed (network) · resume"><PdfConvertJobs call={call} jobs={[job({ status: 'failed', retryable: true, errorCode: 'network', stage: '连不上 MinerU：请检查网络后重试（已完成的部分会保留）。', finishedAt: new Date().toISOString() })]} /></Section>
     <Section title="Failed: local service stopped"><PdfConvertJobs call={call} jobs={[job({ route: 'local', status: 'failed', retryable: true, errorCode: 'server-stopped', phase: 'local', stage: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。', finishedAt: new Date().toISOString() })]} /></Section>
     <Section title="Failed: token"><PdfConvertJobs call={call} onOpenSettings={noop} jobs={[job({ status: 'failed', retryable: true, errorCode: 'invalid-token', stage: 'MinerU 令牌无效：请到「设置 › MinerU 云端解析」重新粘贴一个有效的令牌。', finishedAt: new Date().toISOString() })]} /></Section>
+    <Section title="运行环境 · local standard, 12 windows folded, service up (confirmed by a finished window)"><PdfConvertJobs call={call} jobs={[job({ tier: 'standard', env: LOCAL_ENV, service: up, total: 562, done: 100, chunk: { index: 3, count: 12 }, chunks: windows(12), stage: '第 3/12 段 · 正在本地解析', phase: 'local', route: 'local' })]} /></Section>
+    <Section title="Same, all windows shown (wrap inside the card)"><PdfConvertJobs call={call} expandChunks jobs={[job({ tier: 'standard', env: LOCAL_ENV, service: up, total: 562, done: 100, chunk: { index: 3, count: 12 }, chunks: windows(12), stage: '第 3/12 段 · 正在本地解析', phase: 'local', route: 'local' })]} /></Section>
+    <Section title="Local basic with a device the CLI reported · 6 windows listed"><PdfConvertJobs call={call} jobs={[job({ tier: 'basic', env: { ...LOCAL_ENV, tier: 'basic', model: 'MinerU-4_models_onnx', device: 'cuda', modelsRealPath: undefined }, service: up, total: 300, done: 100, chunk: { index: 3, count: 6 }, chunks: windows(6), stage: '第 3/6 段 · 正在本地解析', phase: 'local', route: 'local' })]} /></Section>
+    <Section title="Service state not known (after a restart)"><PdfConvertJobs call={call} jobs={[job({ tier: 'standard', env: LOCAL_ENV, service: { state: 'unknown', basis: 'none', at: new Date().toISOString() }, route: 'local', chunks: windows(4), chunk: { index: 2, count: 4 }, phase: 'local', stage: '第 2/4 段 · 正在本地解析' })]} /></Section>
+    <Section title="Failed: the service stopped (warning + the existing restart action)"><PdfConvertJobs call={call} jobs={[job({ route: 'local', tier: 'standard', env: LOCAL_ENV, status: 'failed', retryable: true, errorCode: 'server-stopped', service: { state: 'stopped', basis: 'window', at: new Date().toISOString() }, phase: 'local', chunks: windows(12), chunk: { index: 3, count: 12 }, total: 562, done: 100,
+      stage: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。', finishedAt: new Date().toISOString() })]} /></Section>
+    <Section title="Cloud environment"><PdfConvertJobs call={call} jobs={[job({ env: CLOUD_ENV, service: undefined, route: 'cloud', tier: undefined })]} /></Section>
     <Section title="Cancelled · complete"><PdfConvertJobs call={call} onOpenSources={noop} jobs={[job({ status: 'cancelled', stage: '已取消；已解析好的段落会保留，再导入同一个文件不会重复解析', finishedAt: new Date().toISOString() }),
       job({ status: 'complete', phase: 'done', done: 422, sourceIds: Array.from({ length: 422 }, (_, i) => `s${i}`), finishedAt: new Date().toISOString(), warnings: ['Pages 12, 45 have no text in the converted output (pictures or blank pages) and were skipped.'] })]} /></Section>
   </div></main>;

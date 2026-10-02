@@ -21,7 +21,7 @@ const spent = ms => {
   return seconds < 90 ? uiFormat('{0} 秒', [seconds]) : uiFormat('{0} 分钟', [Math.round(seconds / 60)]);
 };
 
-function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) {
+function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, expandChunks }) {
   const running = active(job), [now, setNow] = useState(Date.now), [working, setWorking] = useState(''), [problem, setProblem] = useState('');
   useEffect(() => {
     if (!running) return undefined;
@@ -55,6 +55,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) 
       <div>
         <strong>{job.filename}</strong>
         <small>{title}{took !== null && (running || job.finishedAt) ? uiFormat(running ? ' · 已用 {0}' : ' · 用时 {0}', [spent(took)]) : ''}</small>
+        <ConversionEnvironment env={job.env} service={job.service} now={now} />
         {running && job.phase !== 'queued' && <div className="audio-progress">
           <div className="audio-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
             aria-label={uiFormat('已解析 {0}/{1} 页', [job.done, job.total])}><span style={{ width: `${percent}%` }} /></div>
@@ -65,10 +66,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) 
           {job.route === 'local' && count > 1 && <small className="muted">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</small>}
         </div>}
         {job.note && running && <small className="muted">{uiMessage(job.note)}</small>}
-        {count > 1 && job.chunks?.length > 1 && job.status !== 'complete' && <ol className="audio-steps" aria-label={ui('各段状态')}>
-          {job.chunks.map(chunk => <li key={chunk.index} className={chunk.state === 'done' ? 'done' : chunk.index === index && running ? 'current' : ''}>
-            {chunk.state === 'done' ? '✓ ' : ''}{uiFormat('第 {0} 段 · 第 {1} 页', [chunk.index, pageRange(chunk.startPage, chunk.endPage)])}</li>)}
-        </ol>}
+        {count > 1 && job.chunks?.length > 1 && job.status !== 'complete' && <ChunkList chunks={job.chunks} index={index} count={count} running={running} expanded={expandChunks} />}
         {job.status === 'failed' && <small className="warning">{uiMessage(job.stage)}</small>}
         {(job.warnings || []).map(warning => <small className="warning" key={warning}>{uiMessage(warning)}</small>)}
         {job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources && <Button variant="link" size="sm" onClick={() => onOpenSources(job.sourceIds)}>{ui('打开资料')}</Button>}
@@ -90,10 +88,74 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) 
  * The conversion jobs of the library: `data.jobs` (the snapshot) filtered to PDF conversions, or only `ids` of them.
  * `act(action, args)` (single-flight, from the app) or `call` sends the stop / retry / dismiss; `onChanged` refreshes the data afterwards.
  */
-export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOpenSettings, onChanged }) {
+export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOpenSettings, onChanged, expandChunks }) {
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
   const send = (action, args) => (act ? act(action, args) : call(action, args));
-  return list.length ? <div className="jobs audio-jobs pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} />)}</div> : null;
+  return list.length ? <div className="jobs audio-jobs pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} expandChunks={expandChunks} />)}</div> : null;
+}
+
+/* ---------- what does the work (运行环境) ---------- */
+
+const TIER_MEANING = { basic: () => ui('速度较快'), standard: () => ui('版面理解更好，稍慢') };
+const MB = 1024 * 1024;
+
+/**
+ * The 运行环境 of a conversion: WHAT is doing the work, so a slow or failed run is never a mystery. Local: the mineru version, the tier and what it means,
+ * the model folder in use (and where the models live, in a disclosure: the folder may be a link to another drive), a device only when the CLI said one,
+ * whether the service is up, and how pages are worked on. Cloud: MinerU, the model version and language, that the saved token is used (never shown), the
+ * piece limits and the size of the book. One component for the live card (`service`: the state kept honest while it runs) and the history rows
+ * (`bare`, no service, `stoppedAtFailure` from the record).
+ */
+export function ConversionEnvironment({ env, service, stoppedAtFailure = false, bare = false, now = Date.now() }) {
+  if (!env) return null;
+  const local = env.kind === 'local';
+  const meaning = local ? TIER_MEANING[env.tier]?.() : '';
+  const head = !local ? (env.modelVersion ? uiFormat('云端 MinerU · {0} 模型', [env.modelVersion]) : ui('云端 MinerU'))
+    : env.mineruVersion && env.tier ? (meaning ? uiFormat('本地 mineru {0} · {1} 档（{2}）', [env.mineruVersion, env.tier, meaning]) : uiFormat('本地 mineru {0} · {1} 档', [env.mineruVersion, env.tier]))
+      : env.tier ? uiFormat('本地 mineru · {0} 档', [env.tier]) : env.mineruVersion ? uiFormat('本地 mineru {0}', [env.mineruVersion]) : ui('本地 mineru');
+  const state = service?.state, confirmed = service?.at ? historyAgo(service.at, now) : '';
+  const serviceText = state === 'running' ? ui('本地服务运行中') : state === 'stopped' ? ui('本地服务已停止') : ui('无法确认本地服务是否在运行');
+  return (
+    <div className="pdf-env" role="group" aria-label={ui('运行环境')} data-route={local ? 'local' : 'cloud'}>
+      {!bare && <strong className="pdf-env__title">{ui('运行环境')}</strong>}
+      <ul className="pdf-env__list">
+        <li>{head}</li>
+        {local && env.model && <li>{uiFormat('模型：{0}', [env.model])}</li>}
+        {local && env.modelsPath && <li><details className="pdf-env__where"><summary>{ui('模型位置')}</summary>
+          <p><code>{env.modelsPath}</code></p>
+          {env.modelsRealPath && <p>{uiFormat('它是一个链接，实际在：{0}', [env.modelsRealPath])}</p>}
+        </details></li>}
+        {local && env.device && <li>{uiFormat('设备：{0}', [env.device])}</li>}
+        {!local && env.language && <li>{uiFormat('识别语言：{0}', [env.language])}</li>}
+        {!local && <li>{ui('使用你保存的令牌（令牌不会显示）')}</li>}
+        {!local && env.maxPages > 0 && env.maxBytes > 0 && <li>{Number.isFinite(env.bookBytes)
+          ? uiFormat('每段不超过 {0} 页 / {1} MB · 本书 {2}', [env.maxPages, Math.round(env.maxBytes / MB), formatBytes(env.bookBytes)])
+          : uiFormat('每段不超过 {0} 页 / {1} MB', [env.maxPages, Math.round(env.maxBytes / MB)])}</li>}
+        {local && env.windows?.kind === 'fixed' && env.windows.pages > 0 && <li>{uiFormat('每次 {0} 页，一段做完才前进', [env.windows.pages])}</li>}
+        {local && service && <li className={`pdf-env__service${state === 'stopped' ? ' pdf-env__warning' : ''}`} data-state={['running', 'stopped'].includes(state) ? state : 'unknown'}>
+          <span className="pdf-env__dot" aria-hidden="true" />{serviceText}{state === 'running' && confirmed ? ` ${uiFormat('（{0}确认）', [confirmed])}` : ''}</li>}
+        {local && state === 'stopped' && <li className="pdf-env__hint">{ui('点「重新启动本地服务并接着做」，已完成的段落会保留。')}</li>}
+        {local && !service && stoppedAtFailure && <li className="pdf-env__note">{ui('失败时本地服务已停止')}</li>}
+      </ul>
+    </div>
+  );
+}
+
+/** The windows (or pieces) of a conversion: they wrap inside the card, each with its pages and its state; more than eight collapse to "第 i/N 段" and a toggle. */
+function ChunkList({ chunks, index, count, running = false, expanded = false }) {
+  const [open, setOpen] = useState(expanded), done = chunks.filter(chunk => chunk.state === 'done').length, many = chunks.length > 8;
+  const list = <ol className="audio-steps pdf-chunks" aria-label={ui('各段状态')}>
+    {chunks.map(chunk => {
+      const label = uiFormat('第 {0} 段 · 第 {1} 页', [chunk.index, pageRange(chunk.startPage, chunk.endPage)]);
+      return <li key={chunk.index} className={chunk.state === 'done' ? 'done' : chunk.index === index && running ? 'current' : ''}>{chunk.state === 'done' ? `✓ ${label}` : label}</li>;
+    })}
+  </ol>;
+  if (!many) return list;
+  return <>
+    <p className="pdf-chunks__summary"><span>{uiFormat('第 {0}/{1} 段 · 已完成 {2} 段', [index || done, count || chunks.length, done])}</span>
+      <Button variant="link" size="sm" aria-expanded={open} onClick={() => setOpen(current => !current)}>{open ? ui('收起各段') : ui('展开各段')}</Button></p>
+    {open && list}
+  </>;
 }
 
 /* ---------- the conversion history (解析历史) ---------- */
@@ -172,6 +234,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
         {progress && <small>{progress}</small>}
         {stuck && <small className="muted">{ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。')}</small>}
+        {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'} /></details>}
         <div className="pdf-history__actions">
           {status === 'complete' && document?.exists && <Button variant="link" size="sm" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
           {status === 'running' && row.live && <Button variant="link" size="sm" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
