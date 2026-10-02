@@ -5,7 +5,9 @@ import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
    `mineru parse <pdf> --tier T --pages A-B --wait N --json -o out.md --force` writes Markdown whose pages are delimited by
    `<!-- page N of TOTAL -->` (N is the original page number, even when --pages selects a range); the DEFAULT is only the
    first 10 pages; without a running local service `parse` fails with "本地 mineru 服务未运行…"; `server status|start|stop`,
-   `config get|set`. Behaviour comes from the JSON file named by FAKE_MINERU_STATE (the tests edit it). Every call is logged to
+   `config get|show|set`. Like the real CLI, `config ...` is answered BY the running service (its settings live in the service's own
+   store, not in a file): with the service stopped every `config` call exits non-zero with only the Chinese error below, and
+   `server status` prints `服务未在运行。` (exit code 1, or 0 with `statusExitsZero`). Behaviour comes from the JSON file named by FAKE_MINERU_STATE (the tests edit it). Every call is logged to
    the file named by FAKE_MINERU_LOG, one JSON line per call, so a test can see exactly what was run. This script never reads or
    writes anything else. */
 
@@ -18,23 +20,31 @@ const out = text => process.stdout.write(`${text}\n`);
 const fail = (text, code = 1) => { process.stderr.write(`${text}\n`); process.exit(code); };
 const flag = name => { const at = argv.indexOf(name); return at < 0 ? undefined : argv[at + 1]; };
 
+const SERVICE_DOWN = "错误: 本地 mineru 服务未运行。请先运行 'mineru server start'。";
+const needService = () => { if (state.configFails) fail('unexpected failure while reading the config', 2); if (state.running) return; if (state.errorOnStdout) { out(SERVICE_DOWN); process.exit(1); } fail(SERVICE_DOWN); };
+
 const [command, sub] = argv;
 if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
-else if (command === 'config' && sub === 'get') {
+else if (command === 'config' && sub === 'show') {
+  needService();
+  out(`parse_server:\n  local:\n    mode: ${state.mode ?? 'disabled'}\n    managed_tier: ${state.tier ?? 'flash'}`);
+} else if (command === 'config' && sub === 'get') {
+  needService();
   const key = argv[2];
   if (key === 'parse_server.local.mode') out(state.mode ?? 'disabled');
   else if (key === 'parse_server.local.managed_tier') out(state.tier ?? 'flash');
   else fail(`unknown key ${key}`);
 } else if (command === 'config' && sub === 'set') {
+  needService();
   const [key, value] = [argv[2], argv[3]];
   if (key === 'parse_server.local.mode' && value === 'managed' && !state.modelsReady) fail(`Local managed tier '${state.tier}' requires model files that are not ready ... Run: mineru-kit models download --tier ${state.tier}`);
   if (key === 'parse_server.local.mode') state.mode = value;
   if (key === 'parse_server.local.managed_tier') state.tier = value;
   save(); out('ok');
 } else if (command === 'server' && sub === 'status') {
-  if (state.running) {
+  if (state.running || state.statusStuck) {
     out('┏━━━━━━━━━━┳━━━━━━━━━━┓\n┃ PID      ┃ 12345    ┃\n┃ Uptime   ┃ 2m       ┃\n┃ Version  ┃ 4.0.10   ┃\n┗━━━━━━━━━━┻━━━━━━━━━━┛');
-  } else fail('本地 mineru 服务未运行。', 1);
+  } else { out('服务未在运行。'); process.exit(state.statusExitsZero ? 0 : 1); }
 } else if (command === 'server' && (sub === 'start' || sub === 'restart')) {
   if (state.startFails) fail('服务启动失败：端口被占用');
   state.running = true; save(); out('server started');

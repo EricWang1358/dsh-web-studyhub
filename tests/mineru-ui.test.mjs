@@ -34,6 +34,9 @@ const states = {
   missing: { state: 'not-installed', next: 'install' },
   needs: { state: 'needs-models', next: 'download-models', tier: 'flash', modelsMbByTier: { basic: 800, standard: 1200 }, estimates: { basic: 1.6, standard: 2.5 } },
   stopped: { state: 'server-stopped', next: 'start-server', tier: 'basic', version: '4.0.10', estimates: { basic: 1.6, standard: 2.5 } },
+  // What the real CLI gives while its service is stopped: the version only, no settings (they live in the service).
+  stoppedUnknown: { state: 'server-stopped', next: 'start-server', version: '4.0.10', running: false, tier: '', mode: '', modelsDownloaded: null },
+  unknown: { state: 'unknown', next: 'recheck', version: '4.0.10', running: true },
   ready: { state: 'ready', next: null, tier: 'basic', version: '4.0.10', estimates: { basic: 1.6, standard: 2.5 }, windowPages: 50 },
 };
 const plan = { name: 'Book.pdf', pages: 450, bytes: 12 * 1024 * 1024, byChapters: false, maySplitFurther: false,
@@ -90,6 +93,18 @@ test('every state of the local mineru says one honest thing and offers one next 
   assert.match(panel(states.needs, { initialConfirm: true }), /将下载约 800 MB/);
   assert.match(panel(states.needs, { initialConfirm: true }), /确认下载/);
   assert.match(panel(states.stopped), /启动本地服务/);
+  for (const stopped of [states.stopped, states.stoppedUnknown]) {
+    const html = panel(stopped);
+    assert.match(html, /本地 mineru 已装好，服务没在运行/, 'says plainly it is installed and only the service is off');
+    assert.match(html, />启动本地服务</, 'with the start button');
+    assert.doesNotMatch(html, /还没有下载|下载模型并启用|name="mineru-tier"/, 'nothing about models: a stopped service cannot say');
+  }
+  const unknown = panel(states.unknown);
+  assert.match(unknown, /读不出它的设置/);
+  assert.match(unknown, />重新检测</);
+  assert.doesNotMatch(unknown, /还没有下载|下载模型并启用|>启动本地服务</, 'an unreadable config is not "models missing"');
+  assert.match(render(h(LocalMineruPanel, { call, status: states.stoppedUnknown, onStatus() {} }), 'en'), /already installed, but its service is not running/);
+  assert.doesNotMatch(render(h(LocalMineruPanel, { call, status: states.unknown, onStatus() {} }), 'en'), han, 'the unreadable state has an English form');
   const ready = panel(states.ready);
   assert.match(ready, /本地 mineru 可用（basic 档 · v4\.0\.10）/);
   assert.match(ready, /重新启动本地服务/);

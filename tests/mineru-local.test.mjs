@@ -52,8 +52,8 @@ test('not installed: nothing is run, and the next step is to install it', async 
   assert.equal(detected.next, 'install');
 });
 
-test('installed but never set up: models are needed, and the next step is to download them', async t => {
-  const fake = await fakeCli(t, { mode: 'disabled', tier: 'flash' });
+test('installed, service running, never set up: models are needed, and the next step is to download them', async t => {
+  const fake = await fakeCli(t, { mode: 'disabled', tier: 'flash', running: true });
   const detected = await detectLocal({ cli: fake.cli, home: join(fake.dir, 'nohome') });
   assert.equal(detected.state, 'needs-models');
   assert.equal(detected.next, 'download-models');
@@ -61,16 +61,78 @@ test('installed but never set up: models are needed, and the next step is to dow
   assert.equal(detected.modelsDownloaded, false);
 });
 
-test('only read-only commands are run to find out: --version, config get, server status', async t => {
+test('only read-only commands are run to find out: --version, server status first, then config get', async t => {
   const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: true });
   await detectLocal({ cli: fake.cli, home: fake.dir });
   const calls = (await fake.log()).map(entry => entry.argv.slice(0, 3).join(' '));
-  assert.deepEqual(calls.sort(), ['--version', 'config get parse_server.local.managed_tier', 'config get parse_server.local.mode', 'server status'].sort());
+  assert.deepEqual(calls.slice(0, 2), ['--version', 'server status'], 'whether the service runs is asked before its settings are');
+  assert.deepEqual([...calls].sort(), ['--version', 'config get parse_server.local.managed_tier', 'config get parse_server.local.mode', 'server status'].sort());
   assert.deepEqual((await fake.state()).running, true, 'nothing was started or changed');
 });
 
+/* The real CLI answers `config get` only through its running service: with the service stopped it exits non-zero with just
+   "错误: 本地 mineru 服务未运行。…" and `server status` says "服务未在运行。". A failed read is UNKNOWN, never "not set up". */
+
+test('service stopped, set up before (managed, models on disk): server-stopped, not "models missing"', async t => {
+  const fake = await fakeCli(t, { mode: 'managed', tier: 'standard', running: false });
+  const home = join(fake.dir, 'home'), elsewhere = join(fake.dir, 'F-drive-models');
+  await mkdir(join(elsewhere, 'standard'), { recursive: true }); await writeFile(join(elsewhere, 'standard', 'model.onnx'), 'x');
+  await mkdir(home, { recursive: true }); await symlink(elsewhere, join(home, 'models'), 'junction');
+  const detected = await detectLocal({ cli: fake.cli, home });
+  assert.deepEqual([detected.state, detected.next, detected.running, detected.version], ['server-stopped', 'start-server', false, '4.0.10']);
+  assert.notEqual(detected.modelsDownloaded, false, 'the models are not claimed missing: the settings could not be read');
+  const calls = (await fake.log()).map(entry => entry.argv.slice(0, 2).join(' '));
+  assert.ok(!calls.some(call => call.startsWith('config') || call === 'server start'), `nothing is read from or changed in a stopped service: ${calls}`);
+  assert.equal((await fake.state()).running, false, 'detection did not start it');
+});
+
+test('service stopped, never configured and no models: also server-stopped; after the start it says needs-models / download', async t => {
+  const fake = await fakeCli(t, { mode: 'disabled', tier: 'flash', running: false });
+  const before = await detectLocal({ cli: fake.cli, home: join(fake.dir, 'nohome') });
+  assert.deepEqual([before.state, before.next], ['server-stopped', 'start-server']);
+  const after = await startServer({ cli: fake.cli, home: join(fake.dir, 'nohome') });
+  assert.deepEqual([after.state, after.next, after.running], ['needs-models', 'download-models', true]);
+});
+
+test('service stopped, never configured, models already on disk: after the start the next step is only to enable', async t => {
+  const fake = await fakeCli(t, { mode: 'disabled', tier: 'basic', running: false });
+  const home = join(fake.dir, 'home');
+  await mkdir(join(home, 'models', 'basic'), { recursive: true }); await writeFile(join(home, 'models', 'basic', 'model.onnx'), 'x');
+  assert.equal((await detectLocal({ cli: fake.cli, home })).state, 'server-stopped');
+  const after = await startServer({ cli: fake.cli, home });
+  assert.deepEqual([after.state, after.next, after.modelsDownloaded], ['needs-models', 'enable', true]);
+});
+
+test('running and configured as managed: ready; running but switched off: needs-models', async t => {
+  const on = await fakeCli(t, { mode: 'managed', tier: 'standard', running: true });
+  assert.deepEqual(await detectLocal({ cli: on.cli, home: on.dir }).then(d => [d.state, d.next, d.running, d.tier, d.mode]), ['ready', null, true, 'standard', 'managed']);
+  const off = await fakeCli(t, { mode: 'disabled', tier: 'basic', running: true });
+  assert.deepEqual(await detectLocal({ cli: off.cli, home: off.dir }).then(d => [d.state, d.next, d.running]), ['needs-models', 'download-models', true]);
+});
+
+test('the stopped service is recognised however the CLI says it: on stdout or stderr, exit code 0 or 1', async t => {
+  for (const patch of [{}, { statusExitsZero: true }, { errorOnStdout: true }, { statusExitsZero: true, errorOnStdout: true }]) {
+    const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, ...patch });
+    const detected = await detectLocal({ cli: fake.cli, home: fake.dir });
+    assert.deepEqual([detected.state, detected.next], ['server-stopped', 'start-server'], JSON.stringify(patch));
+  }
+});
+
+test('if the status call looks fine but the settings call reports the service is not running, it is still server-stopped', async t => {
+  const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, statusStuck: true });
+  assert.equal((await detectLocal({ cli: fake.cli, home: fake.dir })).state, 'server-stopped');
+});
+
+test('an unreadable config of a running service is UNKNOWN: never "needs models", never ready', async t => {
+  const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: true, configFails: true });
+  const detected = await detectLocal({ cli: fake.cli, home: fake.dir });
+  assert.equal(detected.state, 'unknown');
+  assert.equal(detected.next, 'recheck');
+  assert.notEqual(detected.state, 'needs-models');
+});
+
 test('models on disk but the local mode is off: the next step is only to switch it on (the models folder may be a junction)', async t => {
-  const fake = await fakeCli(t, { mode: 'disabled', tier: 'basic' });
+  const fake = await fakeCli(t, { mode: 'disabled', tier: 'basic', running: true });
   const home = join(fake.dir, 'home'), elsewhere = join(fake.dir, 'D-drive-models');
   await mkdir(join(elsewhere, 'basic'), { recursive: true });
   await writeFile(join(elsewhere, 'basic', 'model.onnx'), 'x');
@@ -87,7 +149,7 @@ test('set up, but the service is stopped: the next step is to start it', async t
   const detected = await detectLocal({ cli: fake.cli, home: fake.dir });
   assert.equal(detected.state, 'server-stopped');
   assert.equal(detected.next, 'start-server');
-  assert.equal(detected.tier, 'basic');
+  assert.equal(detected.tier, '', 'the tier lives in the stopped service, so it is not known yet');
 });
 
 test('set up and running: ready, with the tier and the version', async t => {
