@@ -42,7 +42,7 @@ export function JevProbabilities({ jev }) {
   const rows = probabilityRows(jev);
   return (
     <div className="jev-probs" data-jev-probs data-filled={jev.filled ? 'true' : 'false'}>
-      <p className="jev-probs__head"><span className="audio-chip audio-chip--accent jev-chip">{ui('Jev 建议')}</span><small>{lineText(jev)} · {jev.filled ? ui('已填入') : ui('把握不够，没有填入')}</small></p>
+      <p className="jev-probs__head"><span className="audio-chip audio-chip--accent jev-chip">{ui('Jev 建议')}</span><small>{ui('实验性')} · {lineText(jev)} · {jev.filled ? ui('已填入') : ui('把握不够，没有填入')}</small></p>
       <ul className="jev-probs__list">
         {rows.map(row => <li key={row.id} className={`jev-prob${row.picked ? ' is-picked' : ''}${row.none ? ' is-none' : ''}`}>
           <span className="jev-prob__name">{row.label}</span>

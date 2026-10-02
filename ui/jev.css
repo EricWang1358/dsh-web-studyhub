@@ -14,6 +14,19 @@
 
 .study-app .jev-card { max-width: 640px; }
 
+/* The provider selector and the key-source rows. */
+.study-app .jev-provider { display: grid; gap: var(--space-2); max-width: 640px; min-width: 0; }
+.study-app .jev-provider__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.study-app .jev-provider__label { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: 650; }
+.study-app .jev-provider .jev-chip { margin-left: 0; }
+.study-app .jev-provider__select { flex: 1 1 14em; min-width: 0; max-width: 100%; }
+.study-app .jev-provider .audio-provider-note, .study-app .jev-keysource__note { margin: 0; overflow-wrap: anywhere; }
+.study-app .jev-keyenv { display: grid; gap: var(--space-2); min-width: 0; }
+.study-app .jev-keyenv > summary { cursor: pointer; color: var(--text-dim); font-size: var(--fs-sm); }
+.study-app .jev-keyenv__form { display: grid; gap: var(--space-2); }
+.study-app .jev-keyenv__label { margin: 0; font-size: var(--fs-sm); color: var(--text); }
+.study-app .audio-key-state { overflow-wrap: anywhere; }
+
 .study-app .jev-switches { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
 .study-app .jev-switches > legend { padding: 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 650; }
 .study-app .jev-switches:disabled { opacity: .6; }
@@ -77,6 +90,7 @@
 /* The draft: the badge on a card's summary line and the probabilities inside the opened card. */
 .study-app .jev-badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600;
   background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-text); }
+.study-app .jev-badge__exp { margin-left: 0; opacity: .85; font-weight: 500; white-space: pre; }
 .study-app .jev-badge--flagged { background: color-mix(in srgb, var(--warn) 18%, transparent); color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
 .study-app .jev-badge--clear { background: color-mix(in srgb, var(--ok) 14%, transparent); color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
 .study-app .jev-card-signals { display: grid; gap: var(--space-1); margin: var(--space-2) 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);

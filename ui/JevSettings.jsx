@@ -4,7 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Button, Icon, InlineMessage } from './components/index.js';
 import { TokenUsage } from './TokenUsage.jsx';
 import JevLevelCheck from './JevLevelCheck.jsx';
-import { JEV_FEATURE_META, dshUsage, failureCode, percentText, privacyPoints, setupStep, thresholdChoices } from './jev-flow.js';
+import { JEV_FEATURE_META, JEV_PROVIDER_META, dshUsage, failureCode, keySourceText, percentText, privacyPoints, providerChoices, providerOf, setupStep, thresholdChoices } from './jev-flow.js';
 import audioCss from './audio-settings.css';
 import css from './jev.css';
 
@@ -12,23 +12,24 @@ import css from './jev.css';
 
    Jev is TypeSafe AI's "System One" model: a cheap, fast classifier-shaped service. StudyHub uses it only for small judgements
    that it then treats as SIGNALS (which course, is this question flawed); it never writes anything by itself, and when Jev is
-   missing or failing everything works as before. Nothing is sent until ALL of these hold: a key is saved, the privacy note
-   below is confirmed, the master switch is on, and the individual experiment is switched on. The key is stored in the DSH
-   home (never in the library, an export or a backup) and shown back only as its last four characters. */
+   missing or failing everything works as before. Nothing is sent until ALL of these hold: a key is available, the privacy note
+   of the CHOSEN provider is confirmed, the master switch is on, and the individual experiment is switched on. A pasted key is
+   stored in the DSH home (never in the library, an export or a backup) and shown back only as its last four characters; a key
+   from an environment variable is never stored and only its variable's NAME is shown. Jev stays an experiment: opt-in, off by default. */
 
 const TEST_STATE = { valid: () => ui('可用：密钥有效，Jev 连得上') };
 
-/** The privacy note and the one-time confirmation: what is sent, where it goes, what the provider says (and does not say). */
-export function JevPrivacy({ confirmed, onChange, disabled, privacyUrl }) {
-  const id = useId();
+/** The privacy note and the one-time confirmation of ONE provider: what is sent, where it goes, what the provider says (and does not say). */
+export function JevPrivacy({ confirmed, onChange, disabled, privacyUrl, provider }) {
+  const id = useId(), chosen = providerOf({ provider });
   return (
-    <div className="jev-privacy" data-confirmed={confirmed ? 'true' : 'false'}>
+    <div className="jev-privacy" data-confirmed={confirmed ? 'true' : 'false'} data-provider={chosen}>
       <h3 className="jev-privacy__title">{ui('发送内容与隐私')}</h3>
-      <ul className="jev-privacy__list">{privacyPoints().map((text, index) => <li key={index}>{text}</li>)}</ul>
+      <ul className="jev-privacy__list">{privacyPoints(chosen).map((text, index) => <li key={index}>{text}</li>)}</ul>
       {privacyUrl && <p className="jev-privacy__link"><a href={privacyUrl} target="_blank" rel="noreferrer">{ui('查看服务商的隐私与数据说明')}<span className="sh-visually-hidden">{ui('（在新标签页打开）')}</span></a></p>}
       <label className="mineru-privacy__check" htmlFor={id}>
         <input id={id} type="checkbox" checked={!!confirmed} disabled={disabled} onChange={event => onChange?.(event.target.checked)} />
-        <span>{ui('我已阅读以上说明，同意把这些内容发送到 Jev（TypeSafe 云端）')}</span>
+        <span>{JEV_PROVIDER_META[chosen].confirmLabel()}</span>
       </label>
     </div>
   );
@@ -55,29 +56,43 @@ export function JevUsageView({ usage }) {
 }
 
 /** The controls of one saved state. `settings` is jev.settings.get, `usage` is jev.usage's `usage`; `failure` its last failure. */
-export function JevSettingsView({ call, settings, usage, failure, busy, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold }) {
-  const [value, setValue] = useState('');
-  const messageId = useId(), step = setupStep(settings), ready = step === 'ready';
+export function JevSettingsView({ call, settings, usage, failure, busy, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold, onProvider, onKeyEnv }) {
+  const [value, setValue] = useState(''), [envName, setEnvName] = useState(settings.keyEnv || '');
+  const messageId = useId(), providerId = useId(), step = setupStep(settings), ready = step === 'ready';
   const locked = busy || !!working;
+  const provider = providerOf(settings), meta = settings.providers?.find(item => item.id === provider);
+  const opencode = meta ? meta.family === 'opencode' : provider !== 'typesafe', source = keySourceText(settings), fromFile = settings.key.set && settings.key.source === 'file';
   const save = event => { event.preventDefault(); const key = value.trim(); if (key) { onKey(key); setValue(''); } };
-  const text = result && (result.ok ? TEST_STATE.valid() : uiMessage(result.message || failureCode('unexpected')));
+  const useVariable = event => { event.preventDefault(); onKeyEnv?.(envName.trim()); };
+  const text = result && (result.ok ? TEST_STATE.valid() : uiMessage(result.message || failureCode('unexpected', provider)));
   return (
     <>
-      <JevPrivacy confirmed={settings.confirmed} disabled={locked} onChange={onConfirm} privacyUrl={settings.privacyUrl} />
+      <div className="jev-provider" data-provider={provider}>
+        <div className="jev-provider__row">
+          <label className="jev-provider__label" htmlFor={providerId}>{ui('Jev 服务商')}</label>
+          <span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span>
+          <select id={providerId} name="jev-provider" className="jev-provider__select" value={provider} disabled={locked} aria-label={ui('Jev 服务商')} onChange={event => onProvider?.(event.target.value)}>
+            {providerChoices().map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}
+          </select>
+        </div>
+        {meta && <p className="audio-provider-note jev-provider__where">{uiFormat('发送到 {0}，模型 {1}。', [meta.host, meta.model])}</p>}
+        <p className="audio-provider-note">{ui('Jev 可以通过不同的服务商使用：TypeSafe 自己的接口，或 OpenCode Zen。换服务商要重新确认下面的隐私说明；同一个服务商的密钥不会发给另一个。')}</p>
+      </div>
+      <JevPrivacy confirmed={settings.confirmed} disabled={locked} onChange={onConfirm} privacyUrl={settings.privacyUrl} provider={provider} />
       <article className={`audio-provider-card jev-card${settings.key.set ? ' is-set' : ''}`}>
         <header className="audio-provider-card__head">
           <h3>{ui('Jev 密钥')}</h3>
           <span className="audio-provider-card__chips"><span className="audio-chip">{ui('文字内容会上传')}</span></span>
         </header>
-        <p className={`audio-key-state${settings.key.set ? ' is-set' : ''}`}>
+        <p className={`audio-key-state${settings.key.set ? ' is-set' : ''}`} data-key-source={source.state}>
           <Icon name={settings.key.set ? 'success' : 'key'} size={16} />
-          {settings.key.set ? uiFormat('已保存 {0}', [settings.key.hint]) : ui('未配置')}
-          {settings.key.source === 'env' && <span className="muted"> · {ui('来自环境变量')}</span>}
+          {source.text}
         </p>
+        {source.note && <p className="audio-provider-note jev-keysource__note">{source.note}</p>}
         <form className="audio-key-form" onSubmit={save}>
           <input name="jev-key" className="audio-key-input" type="password" autoComplete="off" spellCheck={false} value={value} disabled={locked}
             aria-label={ui('Jev 密钥')} aria-describedby={result ? messageId : undefined}
-            placeholder={settings.key.set ? uiFormat('已保存 {0}；粘贴新的会替换它', [settings.key.hint]) : ui('粘贴 TypeSafe 控制台里的 Jev 密钥')}
+            placeholder={fromFile ? uiFormat('已保存 {0}；粘贴新的会替换它', [settings.key.hint]) : opencode ? ui('OpenCode 密钥（可选，也可以只用环境变量）') : ui('粘贴 TypeSafe 控制台里的 Jev 密钥')}
             onChange={event => setValue(event.target.value)} />
           <div className="audio-key-actions">
             <Button type="submit" variant="primary" busy={working === 'save'} disabled={locked || !value.trim()}>{ui('保存 Jev 密钥')}</Button>
@@ -90,6 +105,16 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
             <p className="audio-provider-note">{ui('验证只发一句不含你内容的话；密钥只保存在 DSH 主目录里，不进学习库、备份或快照。')}</p>
           </div>
         </form>
+        {opencode && <details className="jev-keyenv">
+          <summary>{ui('更换环境变量名')}</summary>
+          <form className="audio-key-form jev-keyenv__form" onSubmit={useVariable}>
+            <label className="jev-keyenv__label" htmlFor={`${providerId}-env`}>{ui('存放密钥的环境变量名')}</label>
+            <input id={`${providerId}-env`} name="jev-key-env" className="audio-key-input" type="text" autoComplete="off" spellCheck={false} value={envName} disabled={locked}
+              placeholder={settings.keyEnvDefault || meta?.defaultKeyEnv || 'OPENCODE_GO_API_KEY_2'} onChange={event => setEnvName(event.target.value)} />
+            <div className="audio-key-actions"><Button type="submit" variant="secondary" size="sm" disabled={locked}>{ui('使用这个环境变量')}</Button></div>
+            <p className="audio-provider-note">{ui('只保存变量的名字，不保存它的值；留空就用默认名字。')}</p>
+          </form>
+        </details>}
       </article>
       <fieldset className="jev-switches" disabled={!ready || locked}>
         <legend>{ui('实验功能开关')}</legend>
@@ -110,7 +135,7 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
         </label>
       </fieldset>
       {settings.enabled && settings.features.levelCheck && ready && <details className="jev-dev"><summary>{ui('开发者面板：题目认知层次对照')}</summary><JevLevelCheck call={call} /></details>}
-      {failure && <InlineMessage tone="warning" className="jev-failure">{uiMessage(failureCode(failure.reason))}</InlineMessage>}
+      {failure && <InlineMessage tone="warning" className="jev-failure">{uiMessage(failureCode(failure.reason, failure.provider))}</InlineMessage>}
       <JevUsageView usage={usage} />
       {error && <InlineMessage tone="error">{uiMessage(error)}</InlineMessage>}
     </>
@@ -142,13 +167,15 @@ export default function JevSettings({ call, busy = false, setNotice, initial = n
   return (
     <fieldset className="audio-settings settings-section jev-settings" data-tour="settings-jev" data-experimental="true">
       <legend className="settings-section__title">{ui('实验性 · Jev 判断服务')}<span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span></legend>
-      <p className="settings-section__lead">{ui('Jev 是 TypeSafe AI 的「System One」模型：按服务商的说法又快又便宜（我们没有核实），擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。')}</p>
+      <p className="settings-section__lead">{ui('Jev 是 TypeSafe AI 的「System One」模型：按服务商的说法又快又便宜（我们没有核实），擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。它在本插件里始终只是实验功能，其他功能都不依赖它。')}</p>
       {!settings && !error && <p className="muted">{ui('正在读取 Jev 设置…')}</p>}
       {settings && <JevSettingsView call={call} settings={settings} usage={usage} failure={failure} busy={busy} working={working} result={result} error={error}
         onKey={key => change('save', { key }, async next => { setResult(null); if (next.confirmed) await verify(); })}
         onVerify={() => run('verify', verify)}
         onClearKey={() => change('clear', { key: '' }, async () => { setResult(null); })}
-        onConfirm={checked => change('confirm', { confirm: checked }, async () => { setNotice?.({ text: checked ? ui('已确认：Jev 功能会把所需内容发送到 TypeSafe 云端。') : ui('已撤回确认；之后使用 Jev 前会再问一次。'), tone: 'success' }); })}
+        onProvider={provider => change('provider', { provider }, async () => { setResult(null); })}
+        onKeyEnv={keyEnv => change('keyEnv', { keyEnv }, async () => { setResult(null); })}
+        onConfirm={checked => change('confirm', { confirm: checked }, async next => { setNotice?.({ text: checked ? (providerOf(next) === 'typesafe' ? ui('已确认：Jev 功能会把所需内容发送到 TypeSafe 云端。') : ui('已确认：Jev 功能会把所需内容发送到 OpenCode Zen 云端。')) : ui('已撤回确认；之后使用 Jev 前会再问一次。'), tone: 'success' }); })}
         onEnabled={checked => change('enabled', { enabled: checked })}
         onFeature={(id, checked) => change('feature', { features: { [id]: checked } })}
         onThreshold={threshold => change('threshold', { threshold })} />}

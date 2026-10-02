@@ -13,7 +13,7 @@ export function JevCardBadge({ signal }) {
   if (!signal) return null;
   const state = signal.rewritten ? 'rewritten' : signal.flagged ? 'flagged' : 'clear';
   const text = { rewritten: ui('Jev 预审 · 已改写'), flagged: ui('Jev 预审 · 有疑点'), clear: ui('Jev 预审 · 未见明显问题') }[state];
-  return <small className={`jev-badge jev-badge--${state}`} data-jev-badge={state}>{text}</small>;
+  return <small className={`jev-badge jev-badge--${state}`} data-jev-badge={state}>{text}<span className="jev-badge__exp"> · {ui('实验性')}</span></small>;
 }
 
 /** The probabilities behind the badge, shown inside the opened card. */
