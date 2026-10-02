@@ -1,6 +1,6 @@
 /* MinerU conversion gallery (QA only): every state of the settings section, the import route panel, the local setup panel and
    the job card, with fixed props (no backend), built and screenshotted by scripts/qa/mineru-shots.mjs.
-   Query: ?lang=zh|en&theme=dark|light&scene=settings|route|local|jobs|case|flow
+   Query: ?lang=zh|en&theme=dark|light&scene=settings|route|local|jobs|history|case|flow
    scene=case&case=<key>: ONE settings section in one state (the layout matrix, measured by scripts/qa/mineru-layout.mjs);
    scene=flow: the settings section with a stand-in backend that behaves like the real service, to click through start -> set up. */
 import React from 'react';
@@ -9,7 +9,7 @@ import styleCss from '../../ui/style.css';
 import { setUiLanguage } from '../../ui/i18n.js';
 import MineruSettings, { LocalMineruPanel } from '../../ui/MineruSettings.jsx';
 import MineruRoute from '../../ui/MineruRoute.jsx';
-import { PdfConvertJobs } from '../../ui/PdfConvertJob.jsx';
+import { PdfConvertHistory, PdfConvertJobs } from '../../ui/PdfConvertJob.jsx';
 import LargeDocumentCard from '../../ui/LargeDocumentCard.jsx';
 
 const params = new URLSearchParams(location.search);
@@ -55,6 +55,31 @@ const job = (extra = {}) => ({ id: `j${Math.random()}`, type: 'pdf-convert', rou
   chunk: { index: 2, count: 3 }, chunks: [{ index: 1, startPage: 1, endPage: 118, pages: 118, state: 'done' }, { index: 2, startPage: 119, endPage: 281, pages: 163, state: 'parsing' }, { index: 3, startPage: 282, endPage: 422, pages: 141, state: 'planned' }],
   stage: '第 2/3 段 · 正在解析', warnings: [], note: '', startedAt: new Date(Date.now() - 185_000).toISOString(), ...extra });
 
+/* The 解析历史: every state of a row (complete, local, failed, interrupted, cancelled, running, document deleted, a very long name), many days, the
+   confirm to clear, the empty state, and the panel the "用 MinerU 解析" link opens. Fixed records, a fixed clock. */
+const HOUR = 3_600_000, NOW = Date.now(), MB = 1024 * 1024;
+let recordNumber = 0;
+const ago = hours => new Date(NOW - hours * HOUR).toISOString();
+const row = (extra = {}) => { const started = extra.hours ?? 0.2; const { hours, ...rest } = extra; return { id: `job-${String(++recordNumber).padStart(4, '0')}`, version: 1, filename: 'Operating Systems.pdf', bytes: 96 * MB, pages: 422, pieces: 3,
+  route: 'cloud', status: 'complete', phase: 'done', pagesDone: 422, attempts: 1, elapsedMs: 260_000, startedAt: ago(started + 0.08), finishedAt: ago(started), importedPages: 420, skippedPages: 2,
+  documentId: 'document-a-json', title: 'Operating Systems', canRetry: false, live: false, document: { exists: true, title: 'Operating Systems', pages: 420, sourceIds: ['s1'] }, ...rest }; };
+const gone = { documentId: undefined, importedPages: undefined, skippedPages: undefined, document: undefined };
+const historyRows = () => [
+  row({ hours: 0.05, status: 'running', phase: 'parse', finishedAt: undefined, elapsedMs: 0, pagesDone: 211, live: true, ...gone, filename: 'Databases Lecture Notes.pdf', pages: 330, bytes: 18 * MB }),
+  row({ hours: 0.3 }),
+  row({ hours: 0.9, route: 'local', tier: 'basic', filename: 'Algorithms.pdf', pages: 120, pieces: 3, bytes: 7 * MB, elapsedMs: 310_000, importedPages: 120, skippedPages: 0, document: { exists: true, title: 'Algorithms', pages: 120, sourceIds: ['s2'] } }),
+  row({ hours: 2.5, status: 'failed', phase: 'parse', pagesDone: 200, elapsedMs: 600_000, ...gone, canRetry: true, failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' } }),
+  row({ hours: 3, status: 'failed', phase: 'upload', pagesDone: 0, elapsedMs: 4000, ...gone, canRetry: false, failure: { stage: 'upload', reason: '连不上 MinerU：请检查网络后重试（已完成的部分会保留）。' }, filename: 'Networks.pdf', pages: 88 }),
+  row({ hours: 4, status: 'failed', route: 'local', tier: 'basic', phase: 'local', pagesDone: 50, elapsedMs: 130_000, ...gone, canRetry: true, filename: 'Compilers.pdf', pages: 120, failure: { stage: 'local', piece: 2, code: 'server-stopped', reason: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。' } }),
+  row({ hours: 5, status: 'failed', phase: 'parse', pagesDone: 0, elapsedMs: 3000, ...gone, canRetry: true, failure: { stage: 'parse', code: 'invalid-token', reason: 'MinerU 令牌无效：请到「设置 › MinerU 云端解析」重新粘贴一个有效的令牌。' }, filename: 'Security.pdf' }),
+  row({ hours: 7, status: 'interrupted', phase: 'parse', finishedAt: undefined, elapsedMs: 0, pagesDone: 200, ...gone, canRetry: true, filename: 'Distributed Systems.pdf' }),
+  row({ hours: 8, status: 'interrupted', phase: 'parse', finishedAt: undefined, elapsedMs: 0, pagesDone: 0, ...gone, canRetry: false, filename: 'Old Notes.pdf', pages: 40 }),
+  row({ hours: 10, status: 'cancelled', phase: 'parse', pagesDone: 118, elapsedMs: 90_000, ...gone, filename: 'Machine Learning.pdf' }),
+  row({ hours: 26, document: { exists: false, title: 'Gone', pages: 0, sourceIds: [] }, filename: 'A very long file name that keeps going and going so that the row has to wrap somewhere sensible 2026 final FINAL (copy 3).pdf', elapsedMs: 4_000_000 }),
+  ...Array.from({ length: 12 }, (_, index) => row({ hours: 30 + index * 20, filename: `Chapter pack ${index + 1}.pdf`, route: index % 3 ? 'cloud' : 'local', tier: index % 3 ? undefined : 'standard', elapsedMs: 60_000 + index * 37_000 })),
+];
+const noFetch = async () => ({ records: [] });
+
 function Section({ title, children }) { return <section className="g-section"><h2>{title}</h2>{children}</section>; }
 const noop = () => {};
 
@@ -89,6 +114,14 @@ function Scene() {
     return <main><div className="page gallery"><MineruSettings call={call} initialSettings={settings} initialLocal={status} /></div></main>;
   }
   if (scene === 'flow') return <main><div className="page gallery"><MineruSettings call={flowCall()} /></div></main>;
+  if (scene === 'history') return <main><div className="page gallery">
+    <Section title="Many rows, every state (10 shown, the rest behind 显示更多)"><PdfConvertHistory call={noFetch} initialRecords={historyRows()} now={NOW} onOpenSources={noop} onOpenSettings={noop} /></Section>
+    <Section title="All shown"><PdfConvertHistory call={noFetch} initialRecords={historyRows()} initialShown={40} now={NOW} onOpenSources={noop} /></Section>
+    <Section title="Asking before clearing"><PdfConvertHistory call={noFetch} initialRecords={historyRows().slice(1, 5)} initialConfirmClear now={NOW} onOpenSources={noop} /></Section>
+    <Section title="Empty"><PdfConvertHistory call={noFetch} initialRecords={[]} now={NOW} /></Section>
+    <Section title="Inside the MinerU panel (opened from 用 MinerU 解析), cloud not set up"><MineruRoute call={call} onFile={noop} initialSettings={unset} initialLocal={local.missing} initialHistory={historyRows().slice(0, 4)} historyNow={NOW} historyOpen onOpenSources={noop} /></Section>
+    <Section title="Inside the MinerU panel, a PDF chosen, local ready"><MineruRoute file={file} call={call} initialSettings={unset} initialLocal={local.ready} initialPlan={plan} initialHistory={historyRows().slice(1, 3)} historyNow={NOW} historyOpen onOpenSources={noop} /></Section>
+  </div></main>;
   if (scene === 'settings') return <main><div className="page gallery">
     <Section title="No token · no local mineru"><MineruSettings call={call} initialSettings={unset} initialLocal={local.missing} /></Section>
     <Section title="Token saved · local ready"><MineruSettings call={call} initialSettings={saved} initialLocal={local.ready} /></Section>

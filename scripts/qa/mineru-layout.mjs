@@ -9,7 +9,7 @@
    The function is serialised into the page, so it must not use anything from this module's scope. */
 
 /** @param {{ scopes?: string[], maxGap?: number, tolerance?: number }} [options] @returns {{ problems: string[], cards: object[] }} */
-export function layoutAudit({ scopes = ['.audio-provider-card', '.mineru-route-panel'], maxGap = 48, tolerance = 2 } = {}) {
+export function layoutAudit({ scopes = ['.audio-provider-card', '.mineru-route-panel', '.pdf-history'], maxGap = 48, tolerance = 2 } = {}) {
   const problems = [], cards = [];
   const label = element => {
     const own = [...element.classList].filter(name => !/^is-/.test(name)).slice(0, 2).join('.');
