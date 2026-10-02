@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./AudioImport.jsx";
-import { PdfConvertJobs } from './PdfConvertJob.jsx';
+import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
@@ -309,6 +309,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
       </>}
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} />
       <PdfConvertJobs data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} />
+      <PdfConvertHistory data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
       {!items.length ? (
         <section className="sources-empty" data-tour="sources-list">
           <div className="sources-empty__intro">

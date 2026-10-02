@@ -68,6 +68,35 @@ export const pageRange = (start, end) => (start === end ? `${start}` : `${start}
 /** Whether a conversion job is the kind the card draws. */
 export const isConvertJob = job => job?.type === 'pdf-convert';
 
+/* ---------- the conversion history (解析历史) ---------- */
+
+/** How many rows the history shows at first; "显示更多" adds this many again. */
+export const HISTORY_PAGE = 10;
+
+const midnightOf = time => { const date = new Date(time); return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(); };
+
+/**
+ * The rows of the history grouped by the day they started, newest day first and newest row first inside it.
+ * Each group: { key, when: 'today' | 'yesterday' | 'date' | 'unknown', day (ms of that midnight, or null), rows }.
+ */
+export function groupHistoryByDay(records = [], now = Date.now()) {
+  const sorted = [...records].sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0));
+  const today = midnightOf(now), yesterday = midnightOf(today - 1), groups = [];
+  for (const row of sorted) {
+    const time = Date.parse(row.startedAt), day = Number.isFinite(time) ? midnightOf(time) : null, key = day === null ? 'unknown' : String(day);
+    let group = groups.find(item => item.key === key);
+    if (!group) { group = { key, when: day === null ? 'unknown' : day === today ? 'today' : day === yesterday ? 'yesterday' : 'date', day, rows: [] }; groups.push(group); }
+    group.rows.push(row);
+  }
+  return groups;
+}
+
+/**
+ * What makes the history worth asking the backend again: a conversion job appearing, or changing state (running, done, failed, stopped).
+ * Page-by-page progress does not change it, so the list is read when something ends, not on every tick.
+ */
+export const historyRefreshKey = jobs => (Array.isArray(jobs) ? jobs : []).filter(isConvertJob).map(job => `${job.id}:${job.status}`).sort().join('|');
+
 /** The phase codes the backend reports, in the order a conversion goes through them (the local route has just one). */
 export const CLOUD_PHASES = Object.freeze(['split', 'upload', 'parse', 'download', 'merge', 'save']);
 export const LOCAL_PHASES = Object.freeze(['local', 'merge', 'save']);

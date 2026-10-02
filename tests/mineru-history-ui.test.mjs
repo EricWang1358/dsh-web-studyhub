@@ -45,7 +45,7 @@ test('durations read like a person says them, and a missing one is never made up
   assert.equal(historyDuration(undefined), '');
   assert.equal(historyDuration(NaN), '');
   setUiLanguage('en');
-  assert.equal(historyDuration(260_000), '4 min 20 s');
+  assert.equal(historyDuration(260_000), '4 min 20 sec');
   assert.equal(historyDuration(3_900_000), '1 h 5 min');
   setUiLanguage('zh');
 });
@@ -55,12 +55,16 @@ test('"when" is relative within a day and a date after that', () => {
   assert.equal(historyAgo(at(0), NOW), '刚刚');
   assert.equal(historyAgo(at(3), NOW), '3 分钟前');
   assert.equal(historyAgo(at(125), NOW), '2 小时前');
+  assert.equal(historyAgo(at(1), NOW), '1 分钟前');
+  assert.equal(historyAgo(at(60), NOW), '1 小时前');
   assert.match(historyAgo(at(60 * 24 * 3), NOW), /\d/);
   assert.doesNotMatch(historyAgo(at(60 * 24 * 3), NOW), /前/);
   assert.equal(historyAgo(undefined, NOW), '');
   setUiLanguage('en');
-  assert.equal(historyAgo(at(3), NOW), '3 min ago');
-  assert.equal(historyAgo(at(125), NOW), '2 h ago');
+  assert.equal(historyAgo(at(3), NOW), '3 minutes ago');
+  assert.equal(historyAgo(at(125), NOW), '2 hours ago');
+  assert.equal(historyAgo(at(1), NOW), '1 minute ago');
+  assert.equal(historyAgo(at(60), NOW), '1 hour ago');
   setUiLanguage('zh');
 });
 
@@ -119,7 +123,7 @@ test('a local row names the tier; a document that was deleted says so and has no
 test('a failed row: the stage and the reason in plain words, and a retry that does not redo finished pieces', () => {
   const html = render(view([failed()]));
   assert.match(html, /没有完成/);
-  assert.match(html, /在「解析」阶段（第 2 段）没能完成/);
+  assert.match(html, /在「云端解析」阶段（第 2 段）没能完成/);
   assert.match(html, /MinerU 没能转换这一段文件/);
   assert.match(html, /已解析 200\/450 页/);
   assert.match(html, />接着做（不重复已完成的段落）</);
@@ -152,7 +156,7 @@ test('a cancelled row says what was kept; a running row links to its live card a
   assert.match(running, /进行中/);
   assert.match(running, />查看进度</);
   assert.match(running, /已解析 100\/450 页/);
-  assert.doesNotMatch(running, /删除记录/);
+  assert.doesNotMatch(running, />删除记录</);
   assert.doesNotMatch(running, /清空历史/, 'nothing that can be cleared');
 });
 
@@ -220,7 +224,8 @@ test('English: no Chinese outside file names and titles, in any state of the his
   const english = render(view([record(), failed()]), 'en');
   assert.match(english, /Conversion history/);
   assert.match(english, /Imported as “Databases” · 448 pages/);
-  assert.match(english, /3 min ago · took 4 min 20 s/);
+  assert.match(english, /3 minutes ago · took 4 min 20 sec/);
+  assert.match(english, /Did not finish at the “Cloud conversion” stage \(piece 2\)/);
   assert.match(english, /Open the material/);
   assert.match(english, /Resume \(finished pieces are not redone\)/);
   assert.match(english, /Clear history/);

@@ -1,7 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { ui, uiFormat, uiMessage } from './i18n.js';
-import { Button } from './components/index.js';
-import { pageRange, isConvertJob } from './mineru-flow.js';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ui, uiFormat, uiLocale, uiMessage } from './i18n.js';
+import { useInjectCss } from './shared.js';
+import { Button, Disclosure } from './components/index.js';
+import { formatBytes } from './components/FileDrop.jsx';
+import { HISTORY_PAGE, groupHistoryByDay, historyRefreshKey, pageRange, isConvertJob } from './mineru-flow.js';
+import css from './mineru.css';
 
 /* The progress card of a PDF conversion (cloud or local). It is the audio import card's markup and classes (.job, .audio-progress,
    .audio-bar, .audio-steps), so it looks and behaves like every other background job: real progress, one stop button, a retry
@@ -47,7 +50,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) 
   });
   const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
   return (
-    <div className={`job ${job.status}${job.leaving ? ' job-leaving' : ''}`} role="status" data-route={job.route || 'cloud'} aria-hidden={job.leaving ? 'true' : undefined} inert={job.leaving || undefined}>
+    <div id={`pdf-job-${job.id}`} tabIndex={-1} className={`job ${job.status}${job.leaving ? ' job-leaving' : ''}`} role="status" data-route={job.route || 'cloud'} aria-hidden={job.leaving ? 'true' : undefined} inert={job.leaving || undefined}>
       <span>{job.status === 'failed' ? '!' : job.status === 'cancelled' ? '×' : running ? '◌' : '✓'}</span>
       <div>
         <strong>{job.filename}</strong>
@@ -91,6 +94,190 @@ export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOp
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
   const send = (action, args) => (act ? act(action, args) : call(action, args));
   return list.length ? <div className="jobs audio-jobs pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} />)}</div> : null;
+}
+
+/* ---------- the conversion history (解析历史) ---------- */
+
+/** "4 分 20 秒", "45 秒", "1 小时 5 分": a duration in the words a person would say. Nothing for a missing one. */
+export function historyDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 1) return ui('不到 1 秒');
+  if (seconds < 60) return uiFormat('{0} 秒', [seconds]);
+  const minutes = Math.floor(seconds / 60), rest = seconds % 60;
+  if (minutes < 60) return rest ? uiFormat('{0} 分 {1} 秒', [minutes, rest]) : uiFormat('{0} 分钟', [minutes]);
+  const hours = Math.floor(minutes / 60), left = minutes % 60;
+  return left ? uiFormat('{0} 小时 {1} 分', [hours, left]) : uiFormat('{0} 小时', [hours]);
+}
+
+/** "刚刚", "3 分钟前", "2 小时前" within a day; a date and time after that. */
+export function historyAgo(iso, now = Date.now()) {
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return '';
+  const minutes = Math.floor((now - time) / 60_000);
+  if (minutes < 1) return ui('刚刚');
+  if (minutes < 60) return minutes === 1 ? ui('1 分钟前') : uiFormat('{0} 分钟前', [minutes]);
+  if (minutes < 24 * 60) return minutes < 120 ? ui('1 小时前') : uiFormat('{0} 小时前', [Math.floor(minutes / 60)]);
+  return new Date(time).toLocaleString(uiLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+const dayHeading = group => {
+  if (group.when === 'today') return ui('今天');
+  if (group.when === 'yesterday') return ui('昨天');
+  if (group.when === 'unknown') return ui('日期未知');
+  const date = new Date(group.day), sameYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
+};
+const STATUS_TEXT = { running: () => ui('进行中'), complete: () => ui('已完成'), failed: () => ui('没有完成'), cancelled: () => ui('已取消'), interrupted: () => ui('被中断') };
+const STATUS_TONE = { running: 'accent', complete: 'good', failed: 'bad', cancelled: '', interrupted: 'warn' };
+const STATUS_MARK = { running: '◌', complete: '✓', failed: '!', cancelled: '×', interrupted: '!' };
+const STAGE_TEXT = { start: () => ui('启动'), queued: () => ui('排队'), split: () => ui('切分 PDF'), upload: () => ui('上传'), parse: () => ui('云端解析'), local: () => ui('本地解析'),
+  download: () => ui('下载结果'), merge: () => ui('合并各段'), save: () => ui('保存为资料') };
+
+function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, onOpenSettings }) {
+  const status = row.status, finished = !!row.finishedAt && status !== 'running' && status !== 'interrupted';
+  const route = row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : ui('云端');
+  const size = Number.isFinite(row.bytes) ? formatBytes(row.bytes) : '', pages = Number.isFinite(row.pages) ? (row.pages === 1 ? ui('1 页') : uiFormat('{0} 页', [row.pages])) : '';
+  const facts = [size, pages].filter(Boolean).join(' · ');
+  const took = finished && Number.isFinite(row.elapsedMs) ? historyDuration(row.elapsedMs) : '';
+  const when = finished ? historyAgo(row.finishedAt, now) : uiFormat('开始于 {0}', [historyAgo(row.startedAt, now)]);
+  const timeLine = [when, took && uiFormat('用时 {0}', [took]), row.attempts > 1 && uiFormat('已尝试 {0} 次', [row.attempts])].filter(Boolean).join(' · ');
+  const document = row.document, imported = row.importedPages ?? document?.pages ?? 0;
+  const title = document?.title || row.title || row.filename;
+  const progress = ['failed', 'interrupted', 'cancelled', 'running'].includes(status) && row.pagesDone > 0 && row.pages > 0 ? uiFormat('已解析 {0}/{1} 页', [row.pagesDone, row.pages]) : '';
+  const stage = row.failure ? (row.failure.piece
+    ? uiFormat('在「{0}」阶段（第 {1} 段）没能完成', [(STAGE_TEXT[row.failure.stage] || STAGE_TEXT.start)(), row.failure.piece])
+    : uiFormat('在「{0}」阶段没能完成', [(STAGE_TEXT[row.failure.stage] || STAGE_TEXT.start)()])) : '';
+  const tokenProblem = status === 'failed' && ['invalid-token', 'expired'].includes(row.failure?.code);
+  const stuck = (status === 'failed' || status === 'interrupted') && !row.canRetry;
+  const busy = working === row.id;
+  return (
+    <li className={`job ${status} pdf-history__row`} data-route={row.route || 'cloud'} data-status={status}>
+      <span aria-hidden="true">{STATUS_MARK[status] || '•'}</span>
+      <div className="pdf-history__main">
+        <strong className="pdf-history__name">{row.filename}</strong>
+        <span className="pdf-history__chips">
+          <span className={`audio-chip${row.route === 'local' ? '' : ' audio-chip--accent'}`}>{route}</span>
+          <span className={`audio-chip${STATUS_TONE[status] ? ` audio-chip--${STATUS_TONE[status]}` : ''}`}>{(STATUS_TEXT[status] || STATUS_TEXT.failed)()}</span>
+        </span>
+        {facts && <small>{facts}</small>}
+        {timeLine && <small>{timeLine}</small>}
+        {status === 'complete' && (document?.exists
+          ? <small className="pdf-history__result">{imported === 1 ? uiFormat('已导入为「{0}」· 共 1 页', [title]) : uiFormat('已导入为「{0}」· 共 {1} 页', [title, imported])}</small>
+          : <small className="muted">{ui('已导入的资料已被删除')}</small>)}
+        {status === 'complete' && row.skippedPages > 0 && <small className="muted">{uiFormat('没有可读文字而跳过的页：{0}', [row.skippedPages])}</small>}
+        {stage && <small className="warning">{stage}</small>}
+        {row.failure?.reason && <small className="warning pdf-history__reason">{uiMessage(row.failure.reason)}</small>}
+        {status === 'interrupted' && <small>{ui('上次没有做完（应用被关闭，或意外中断）。')}</small>}
+        {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
+        {progress && <small>{progress}</small>}
+        {stuck && <small className="muted">{ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。')}</small>}
+        <div className="pdf-history__actions">
+          {status === 'complete' && document?.exists && <Button variant="link" size="sm" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
+          {status === 'running' && row.live && <Button variant="link" size="sm" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
+          {row.canRetry && !tokenProblem && <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])}
+            title={ui('已完成的段落会直接复用，不会重复上传或重复解析')} onClick={() => onRetry(row)}>
+            {status === 'failed' ? (row.failure?.code === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做（不重复已完成的段落）')) : ui('接着做')}</Button>}
+          {tokenProblem && onOpenSettings && <Button variant="primary" size="sm" onClick={onOpenSettings}>{ui('去设置里换一个令牌')}</Button>}
+          {status !== 'running' && <Button variant="quiet" size="sm" disabled={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * The 解析历史: one row per MinerU conversion (cloud and local), newest first, grouped by day: what was converted, which way, when and for how long,
+ * where the result went, and the one next step (open it, resume it, look at it running, delete the record). Reads `mineru.history.list` through
+ * `call`, again whenever a conversion job changes state (`jobs` / `data.jobs`, the snapshot the page already polls). Deleting a record or clearing
+ * the history never deletes an imported document.
+ * Props: call, act (single-flight, for resuming), data / jobs, onOpenSources(sourceIds), onOpenJob(row) (when the live card is not on this page),
+ * onOpenSettings, onChanged, collapsible + defaultOpen, hideWhenEmpty (the Sources page shows it only once there is something), and initialRecords /
+ * initialShown / initialConfirmClear / now (previews and tests).
+ */
+export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpenJob, onOpenSettings, onChanged, collapsible = false, defaultOpen = false, hideWhenEmpty = false,
+  initialRecords = null, initialShown, initialConfirmClear = false, now: fixedNow, className, ...rest }) {
+  useInjectCss(css, 'study-mineru');
+  const [records, setRecords] = useState(initialRecords), [readError, setReadError] = useState(''), [problem, setProblem] = useState('');
+  const [shown, setShown] = useState(initialShown ?? HISTORY_PAGE), [confirming, setConfirming] = useState(initialConfirmClear), [working, setWorking] = useState('');
+  const [clock, setClock] = useState(() => fixedNow ?? Date.now());
+  const alive = useRef(true), heading = useRef(null);
+  const key = historyRefreshKey(jobs ?? data?.jobs);
+  const send = (action, args) => (act ? act(action, args) : call(action, args));
+  const load = useCallback(async () => {
+    try {
+      const view = await call('mineru.history.list', {});
+      if (alive.current) { setRecords(Array.isArray(view?.records) ? view.records : []); setReadError(''); }
+    } catch (error) { if (alive.current) setReadError(uiMessage(String(error?.message || error))); }
+  }, [call]);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => { if (!initialRecords && typeof call === 'function') void load(); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const running = !!records?.some(row => row.status === 'running');
+  useEffect(() => {
+    if (initialRecords || fixedNow !== undefined || !records?.length) return undefined;
+    // Running rows are read again every few seconds; the times ("3 分钟前") are refreshed every half minute.
+    const timer = setInterval(() => { setClock(Date.now()); if (running && typeof call === 'function') void load(); }, running ? 5000 : 30_000);
+    return () => clearInterval(timer);
+  }, [running, !!records?.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const work = async (name, task) => {
+    if (working) return;
+    setWorking(name); setProblem('');
+    try { await task(); } catch (error) { setProblem(uiMessage(String(error?.message || error))); } finally { if (alive.current) setWorking(''); }
+  };
+  const toHeading = () => setTimeout(() => heading.current?.focus?.(), 0);
+  const remove = row => work(row.id, async () => { await call('mineru.history.remove', { id: row.id }); await load(); toHeading(); });
+  const clear = () => work('clear', async () => { await call('mineru.history.clear', { confirm: true }); setConfirming(false); await load(); toHeading(); });
+  const retry = row => work(row.id, async () => {
+    // A stopped local service is started again first, which is the usual reason a local window failed.
+    if (row.failure?.code === 'server-stopped') await send('mineru.local.start', { restart: true });
+    await send('mineru.retry', { jobId: row.id });
+    await load(); onChanged?.();
+  });
+  const showJob = row => {
+    const card = typeof document !== 'undefined' ? document.getElementById(`pdf-job-${row.id}`) : null;
+    if (card) { card.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); card.focus?.({ preventScroll: true }); } else onOpenJob?.(row);
+  };
+
+  if (hideWhenEmpty && (!records || !records.length)) return null;
+  const list = records || [], deletable = list.filter(row => row.status !== 'running');
+  const groups = groupHistoryByDay(list.slice().sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0)).slice(0, shown), clock);
+  const more = list.length - shown;
+  const body = <>
+    {records === null && !readError && <p className="pdf-history__note" role="status">{ui('正在读取解析历史…')}</p>}
+    {readError && <p className="job-error" role="alert">{uiFormat('没能读取解析历史：{0}', [readError])}</p>}
+    {records !== null && !list.length && <div className="pdf-history__empty">
+      <strong>{ui('还没有解析记录')}</strong>
+      <p>{ui('每次用 MinerU 解析 PDF（云端或本地）都会在这里留下一条记录：文件名、页数、用了哪种方式、花了多久、结果在哪里。不保存文档内容。')}</p>
+    </div>}
+    {list.length > 0 && <div className="pdf-history__bar">
+      <small>{uiFormat('{0} 条记录 · 保留最近 50 条，以及 90 天内的所有记录。删除记录不会删除已导入的资料。', [list.length])}</small>
+      {deletable.length > 0 && !confirming && <Button variant="quiet" size="sm" disabled={!!working} onClick={() => setConfirming(true)}>{ui('清空历史')}</Button>}
+    </div>}
+    {confirming && deletable.length > 0 && <div className="pdf-history__confirm" role="alertdialog" aria-label={uiFormat('清空这 {0} 条解析记录？', [deletable.length])}>
+      <p><strong>{uiFormat('清空这 {0} 条解析记录？', [deletable.length])}</strong> {ui('已导入的资料不会被删除。')}</p>
+      <div className="pdf-history__actions">
+        <Button variant="danger" size="sm" busy={working === 'clear'} disabled={!!working} onClick={clear}>{ui('确认清空')}</Button>
+        <Button variant="quiet" size="sm" disabled={!!working} onClick={() => setConfirming(false)}>{ui('取消')}</Button>
+      </div>
+    </div>}
+    {problem && <p className="job-error" role="alert">{uiFormat('没能完成：{0}', [problem])}</p>}
+    {groups.map(group => <div className="pdf-history__group" key={group.key}>
+      <h5 className="pdf-history__day">{dayHeading(group)}</h5>
+      <ul className="pdf-history__list">
+        {group.rows.map(row => <HistoryRow key={row.id} row={row} now={clock} working={working} onOpen={target => onOpenSources?.(target.document?.sourceIds || [])}
+          onShowJob={showJob} onRetry={retry} onRemove={remove} onOpenSettings={onOpenSettings} />)}
+      </ul>
+    </div>)}
+    {more > 0 && <Button variant="quiet" size="sm" onClick={() => setShown(current => current + HISTORY_PAGE)}>{uiFormat('显示更多（还有 {0} 条）', [more])}</Button>}
+  </>;
+  return (
+    <section className={`pdf-history${className ? ` ${className}` : ''}`} aria-label={ui('解析历史')} {...rest}>
+      {collapsible
+        ? <Disclosure summary={ui('解析历史')} meta={list.length || undefined} defaultOpen={defaultOpen} className="pdf-history__disclosure">{body}</Disclosure>
+        : <><h4 className="pdf-history__title" ref={heading} tabIndex={-1}>{ui('解析历史')}</h4>{body}</>}
+    </section>
+  );
 }
 
 export default PdfConvertJob;
