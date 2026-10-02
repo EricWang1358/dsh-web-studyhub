@@ -29,6 +29,7 @@ import reader from './locales/en.reader.json';
 import selectionCopy from './locales/en.selection.json';
 import original from './locales/en.original.json';
 import links from './locales/en.links.json';
+import translationCopy from './locales/en.translation.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -59,6 +60,7 @@ export const ENGLISH_SOURCES = {
   'en.selection.json': selectionCopy,
   'en.original.json': original,
   'en.links.json': links,
+  'en.translation.json': translationCopy,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

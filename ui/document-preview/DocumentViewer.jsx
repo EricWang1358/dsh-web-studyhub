@@ -12,6 +12,7 @@ import { captureSelection, groupPassageLinks, locateQuote, renderedPassageRange 
 import PassageLinksPanel, { linkTitleWords } from './links/PassageLinksPanel.jsx';
 import { buildLinkModel, groupTitle } from './links/link-model.js';
 import { usePassageLinkLayer } from './links/usePassageLinkLayer.js';
+import useBilingual from './translation/useBilingual.jsx';
 import { isOfficeFormat } from '../../lib/office/limits.js';
 import OutlinePanel from './reader/OutlinePanel.jsx';
 import OutlineAssist from './reader/OutlineAssist.jsx';
@@ -28,6 +29,7 @@ import { findRanges, paintMatches } from './reader/find.js';
 import css from './document-preview.css';
 import readerCss from './reader/reader.css';
 import linksCss from './links/links.css';
+import translationCss from './translation/translation.css';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -84,6 +86,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   useInjectCss(css, 'study-document-preview');
   useInjectCss(readerCss, 'study-reader');
   useInjectCss(linksCss, 'study-reader-links');
+  useInjectCss(translationCss, 'study-reader-translation');
   const [document, setDocument] = useState(null), [content, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
   const [error, setError] = useState(''), [loading, setLoading] = useState(true), [mode, setMode] = useState(initialMode);
   const [capture, setCapture] = useState(null), [links, setLinks] = useState([]), [focusedKey, setFocusedKey] = useState(null);
@@ -223,6 +226,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
   };
   usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle });
+  // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
+  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, onNotice });
   const quoteState = quote ? locateQuote(sources.find(item => item.id === source.id)?.text || content, quote, source.selection) : null;
   useEffect(() => {
     if (!reading || !quote || quoteState?.status !== 'resolved') return undefined;
@@ -287,6 +292,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     quoteState?.status === 'stale' && <p key="stale" className="is-warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</p>,
     source.selection && document?.currentRevision && document.currentRevision !== source.selection.revision
       && <p key="revision" className="is-warning">{ui('此引用来自较早版本，当前资料已有更新。')}</p>,
+    bilingual.notice,
   ].filter(Boolean);
   const pagerTitle = item => [itemLabel(item), item.title].filter(Boolean).join(' · ');
   const pageText = (section, index) => sources[index]?.text ?? '';
@@ -303,7 +309,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       <div className="reader-toolbar__group reader-toolbar__group--end">
         {view !== 'original' && <>
           <IconButton icon="search" label={ui('在文中查找')} aria-pressed={finding} onClick={() => finding ? closeFind() : openFind()} />
-          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} />
+          {bilingual.toolbar}
+          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} extra={bilingual.displayRow} />
         </>}
         <IconButton icon="panel" label={ui('学习工具')} aria-pressed={toolsOn} aria-controls={toolsId} data-tour="source-tools-toggle"
           data-attention={capture && !toolsOn ? 'true' : undefined} onClick={() => toggle('tools')}>
@@ -364,6 +371,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} />
       </aside>
     </div>
+    {bilingual.layer}
     {attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
       call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;

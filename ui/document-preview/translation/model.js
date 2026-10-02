@@ -80,6 +80,7 @@ export function reducer(state, action) {
     case 'undone': return { ...state, undo: without(state.undo, action.keys), items: { ...state.items, ...Object.fromEntries((action.items || []).map(item => [item.key, item])) } };
     case 'undo-expired': return { ...state, undo: without(state.undo, action.keys) };
     case 'show': return { ...state, shown: mark(state.shown, action.keys, action.value) };
+    case 'reset': return initialState;
     case 'dismiss-error': return { ...state, errors: without(state.errors, action.keys) };
     case 'glossary': return { ...state, glossary: action.glossary, ...(action.target ? { target: action.target, targetSource: 'document' } : {}) };
     default: return state;

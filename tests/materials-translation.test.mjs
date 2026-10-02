@@ -419,3 +419,18 @@ test('translations and the glossary travel in the full backup and come back iden
   assert.equal(after.stored.revision, revision);
   assert.equal(after.stored.items.find(entry => entry.version === 2).comment, 'Plainer.');
 });
+
+test('a call that names a requestId can be cancelled from outside: the model is told to stop, nothing is saved, the call rejects', async t => {
+  const model = fakeModel(); model.delay = 150;
+  const f = await fixture(t, { model }), { source, documentId } = await f.imported();
+  const running = f.call('translate', { documentId, requestId: 'r1', passages: [passage(source, A)] });
+  for (let i = 0; i < 100 && !model.calls.length; i += 1) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(model.calls.length, 1, 'the model was asked');
+  assert.equal((await f.call('cancel', { requestId: 'r1' })).cancelled, true);
+  assert.equal(model.calls[0].options.signal.aborted, true, 'the model call is aborted, not just ignored');
+  await assert.rejects(running, /cancelled/i);
+  assert.equal((await f.call('list', { documentId })).items.length, 0);
+  assert.equal((await f.call('cancel', { requestId: 'r1' })).cancelled, false, 'nothing is left to cancel');
+  const again = await f.call('translate', { documentId, requestId: 'r1', passages: [passage(source, A)] });
+  assert.equal(again.status, 'done', 'a request id can be used again once its call is over');
+});

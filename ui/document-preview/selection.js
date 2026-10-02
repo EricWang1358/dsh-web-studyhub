@@ -54,21 +54,46 @@ export function groupPassageLinks(links = []) {
   return [...groups.values()].map((group, index) => ({ ...group, number: index + 1 }));
 }
 
+/**
+ * The selected text and what surrounds it inside `owner`, without the text of the marks the reader adds (data-study-marker:
+ * the [n] passage marks, the 译 marks and the translation blocks), so a selection that crosses one still quotes the document.
+ * null when the walk finds none of the selection (a boundary outside `owner`).
+ */
+function selectionTexts(owner, range) {
+  const walker = owner.ownerDocument.createTreeWalker(owner, 1 | 4, { acceptNode: node => node.nodeType === 3 ? 1 : node.hasAttribute?.('data-study-marker') ? 2 : 3 });
+  let before = '', quote = '', after = '', node;
+  while ((node = walker.nextNode())) {
+    const data = node.data, starts = node === range.startContainer, ends = node === range.endContainer;
+    if (starts && ends) { before = (before + data.slice(0, range.startOffset)).slice(-80); quote += data.slice(range.startOffset, range.endOffset); after += data.slice(range.endOffset); }
+    else if (starts) { before = (before + data.slice(0, range.startOffset)).slice(-80); quote += data.slice(range.startOffset); }
+    else if (ends) { quote += data.slice(0, range.endOffset); after += data.slice(range.endOffset); }
+    else {
+      const side = range.comparePoint(node, 0);
+      if (side < 0) before = (before + data).slice(-80); else if (side > 0) after += data; else quote += data;
+    }
+    if (after.length >= 80) break;
+  }
+  return quote ? { quote, prefix: before, suffix: after.slice(0, 80) } : null;
+}
+
 /** Capture before a toolbar takes focus. Only the caller's own preview can supply selection. */
 export function captureSelection(container, selection = window.getSelection()) {
   if (!selection?.rangeCount || selection.isCollapsed) return null;
   const range = selection.getRangeAt(0);
   if (container && (!container.contains(range.startContainer) || !container.contains(range.endContainer))) return null;
+  // A translation block (data-tr-key) is not the document: text selected inside one is never a passage of it.
+  if (range.startContainer.parentElement?.closest('[data-tr-key]') || range.endContainer.parentElement?.closest('[data-tr-key]')) return null;
   const quote = range.toString();
   if (!quote.trim()) return null;
   const textOwner = range.startContainer.parentElement?.closest('[data-study-text]');
   const owner = textOwner?.contains(range.endContainer) ? textOwner : container || (range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement);
   if (!owner) return null;
+  const texts = selectionTexts(owner, range);
+  if (texts && !texts.quote.trim()) return null;
   const before = range.cloneRange(), after = range.cloneRange();
-  before.selectNodeContents(owner); before.setEnd(range.startContainer, range.startOffset);
-  after.selectNodeContents(owner); after.setStart(range.endContainer, range.endOffset);
+  if (!texts) { before.selectNodeContents(owner); before.setEnd(range.startContainer, range.startOffset); after.selectNodeContents(owner); after.setStart(range.endContainer, range.endOffset); }
   const pageElement = range.startContainer.parentElement?.closest('[data-study-page]');
-  return { quote, prefix: before.toString().slice(-80), suffix: after.toString().slice(0, 80),
+  return { quote: texts?.quote ?? quote, prefix: texts ? texts.prefix : before.toString().slice(-80), suffix: texts ? texts.suffix : after.toString().slice(0, 80),
     ...(pageElement ? { page: Number(pageElement.dataset.studyPage), sourceId: pageElement.dataset.studySource } : {}), range: range.cloneRange(), element: owner };
 }
 

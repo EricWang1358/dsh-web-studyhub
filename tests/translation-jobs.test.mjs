@@ -234,3 +234,19 @@ test('the jobs of one document are listed oldest first and carry what the reader
   assert.equal(listed[0].root, undefined, 'no library path leaves the backend');
   assert.equal((await f.runtime.call('generation.translation.status', { jobId: first.jobId })).job.id, first.jobId);
 });
+
+test('retranslating chosen passages is a job too: it sends them again even though they have a translation, and counts them', async t => {
+  const f = await fixture(t);
+  const some = [lines[1], lines[2]].map(text => ({ sourceId: f.source.id, text }));
+  await f.runtime.call('materials.translation.translate', { documentId: f.imported.documentId, passages: some });
+  const calls = f.model.calls.length;
+  const plain = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, passages: some });
+  assert.equal(plain.status, 'nothing', 'translated passages are not a job');
+  const started = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, passages: some, retranslate: true, comment: 'Plainer words.' });
+  assert.equal(started.job.total, 2);
+  const done = await wait(f, started.jobId);
+  assert.equal(done.status, 'complete');
+  assert.equal(f.model.calls.length, calls + 1);
+  assert.equal(f.model.calls.at(-1).learnerComment, 'Plainer words.');
+  assert.deepEqual((await f.list()).map(entry => entry.version), [2, 2]);
+});
