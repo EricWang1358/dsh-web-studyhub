@@ -21,6 +21,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JEV_FEATURES } from '../lib/jev-settings.js';
+import { JEV_REPLACE_SITES } from '../lib/jev-sites.js';
 import { createJevRuntime } from '../lib/jev-runtime.js';
 import { jevBaseUrl } from '../lib/jev.js';
 import { scriptKeySource } from '../lib/jev-providers.js';
@@ -55,7 +56,7 @@ catch (error) { stop(2, `The dataset could not be read (${error.code === 'ENOENT
 try { validateDataset(dataset); } catch (error) { stop(2, error.message); }
 
 const features = flag('features') ? flag('features').split(',').map(name => name.trim()).filter(Boolean) : undefined;
-if (features?.some(name => !JEV_FEATURES.includes(name))) stop(2, `Unknown feature in --features (expected ${JEV_FEATURES.join(', ')})`);
+if (features?.some(name => !JEV_FEATURES.includes(name) && !JEV_REPLACE_SITES.includes(name))) stop(2, `Unknown feature in --features (expected ${[...JEV_FEATURES, ...JEV_REPLACE_SITES].join(', ')})`);
 const threshold = flag('threshold') === undefined ? 0.8 : Number(flag('threshold'));
 if (!(threshold >= 0.5 && threshold <= 0.99)) stop(2, '--threshold must be a number from 0.5 to 0.99');
 
@@ -65,7 +66,7 @@ if (!resolve(path).startsWith(fixtures) && !has('yes'))
   stop(2, `This dataset (${items} items) is not the public example one, so its text would be sent to Jev (${provider.family === 'opencode' ? "OpenCode Zen's cloud, and its provider TypeSafe" : "TypeSafe's cloud"}, ${new URL(jevBaseUrl(provider)).host}; provider ${provider.id}) and may include your own material. Run it on a COPY you are happy to send, and add --yes to confirm.`);
 
 const meter = { record: async () => {} };
-const runtime = createJevRuntime({ usage: meter, settings: async () => ({ provider: provider.id, key, keySource: 'env', enabled: true, features: Object.fromEntries(JEV_FEATURES.map(name => [name, true])), threshold, confirmedAt: 'eval' }) });
+const runtime = createJevRuntime({ usage: meter, settings: async () => ({ provider: provider.id, key, keySource: 'env', enabled: true, features: Object.fromEntries(JEV_FEATURES.map(name => [name, true])), replace: Object.fromEntries(JEV_REPLACE_SITES.map(name => [name, true])), threshold, confirmedAt: 'eval' }) });
 console.log(`Experimental Jev evaluation: ${items} items against ${new URL(jevBaseUrl(provider)).host} (provider ${provider.id}, model ${provider.model}) ...`);
 const report = await evaluate({ dataset, runtime, threshold, features });
 console.log(`\n${formatReport(report)}`);

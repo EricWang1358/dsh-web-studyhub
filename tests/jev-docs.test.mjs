@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JEV_FEATURES } from '../lib/jev-settings.js';
+import { JEV_REPLACE_SITES } from '../lib/jev-sites.js';
 
 /* docs/jev-experimental.md says what the product guarantees. These tests keep its promises in step with the code. */
 
@@ -46,4 +47,21 @@ test('the providers section states the OpenCode facts exactly and what is unveri
   assert.match(doc, /Not verified/);
   assert.match(doc, /JEV_NOTICE_VERSION/);
   assert.match(doc, /--provider/);
+});
+
+test('the first paragraph says plainly that Jev is only ever an experimental feature, hidden unless shown, and promises nothing about its future', () => {
+  const first = doc.replace(/\r\n/g, '\n').split('\n\n')[1];
+  assert.match(first, /Jev is only ever an experimental feature of this plugin/);
+  assert.match(first, /opt-in, off by default, hidden until a learner turns on \*Show experimental\s+features\*/);
+  assert.match(first, /nothing in StudyHub depends on it/);
+  assert.doesNotMatch(doc, /for now|until stable|will become the default|recommended provider/i);
+});
+
+test('the audit lists every replaceable site and marks which are wired and which are audited only', () => {
+  for (const site of JEV_REPLACE_SITES) assert.ok(doc.includes(`**wired: \`${site}\``), `${site} is marked wired`);
+  const rows = doc.split('\n').filter(line => /^\| (G\d|F\d|V\d) \|/.test(line));
+  assert.ok(rows.length >= 18, `the audit has its rows (${rows.length})`);
+  assert.ok(rows.every(row => /wired|not replaceable|audited, not wired/.test(row)), 'every row has a status');
+  assert.match(doc, /Jev returns \*\*no free text\*\*/);
+  assert.match(doc, /byte-identical/);
 });

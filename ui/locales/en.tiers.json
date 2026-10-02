@@ -81,6 +81,5 @@
   "还没答过的题。": "Questions not answered yet.",
   "掌握度：把每道题按级别折算（未学 0、薄弱 15%、学习中 45%、熟悉 75%、已掌握 100%）再取平均，不是正确率。": "Mastery: each question is scored by level (not started 0, weak 15%, learning 45%, familiar 75%, mastered 100%) and averaged. It is not an accuracy rate.",
   " · {0} 题到期": " · {0} due",
-  "高级": "Advanced",
   "多数人用不到：实验性功能的开关。": "Rarely needed: the switch for experimental features."
 }
