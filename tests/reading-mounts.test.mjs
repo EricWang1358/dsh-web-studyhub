@@ -10,7 +10,6 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { spineFixture } from '../scripts/qa/spine-fixture.mjs';
 
-const han = /[㐀-鿿]/;
 const compiled = await build({ stdin: { contents: `
   export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx';
   export { TeachingArticle } from './ui/WorkflowLesson.jsx';
@@ -21,7 +20,6 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const lib = module.exports;
 const h = React.createElement;
-const text = html => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const inLanguage = (language, run) => { try { lib.setUiLanguage(language); return run(); } finally { lib.setUiLanguage('zh'); } };
 const noop = () => {};
 const source = async path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');

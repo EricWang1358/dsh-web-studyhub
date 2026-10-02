@@ -92,4 +92,5 @@
     background: var(--paper);
     color: var(--paper-ink);
   }
+  .study-reading[data-tone='paper'] :is(.md th, th) { background: var(--paper-rule); }
 }
