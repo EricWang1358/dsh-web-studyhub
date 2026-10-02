@@ -135,12 +135,14 @@ const review = kind => renderToStaticMarkup(h(pages.Review, { run: { id: 'r', in
 const settings = () => renderToStaticMarkup(h(pages.Settings, { data: { sources: [], contexts: ['system'], settings: {}, root: '/tmp/lib' }, busy: false, act: noop, call: async () => ({}), host: {}, setNotice: noop,
   settings: { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 }, setSettings: noop, legacy: '', setLegacy: noop, workspacePanel: null, coursePanel: null, onboardingPanel: null, exportData: noop, onRestored: noop, initialProfile: { consent: false, goal: '', summary: '', signals: {} } }));
 
-for (const [name, area, render] of [['home', 'library', home], ['practice (choice card)', 'review', () => review('quiz')], ['practice (flashcard)', 'review', () => review('flashcard')], ['settings', 'settings', settings], ['shortcut sheet', 'review', () => renderToStaticMarkup(h(pages.ShortcutHelp, { page: 'review', onClose: noop }))]]) {
+for (const [name, area, render, minimum = 3] of [['home', 'library', home], ['practice (choice card)', 'review', () => review('quiz')], ['practice (flashcard)', 'review', () => review('flashcard')], ['settings', 'settings', settings], ['shortcut sheet', 'review', () => renderToStaticMarkup(h(pages.ShortcutHelp, { page: 'review', onClose: noop })), 1]]) {
   test(`the ${name} page produces the same control keys in Chinese and in English`, () => {
     const zh = withLanguage('zh', () => keysOf(render(), area)), en = withLanguage('en', () => keysOf(render(), area));
-    assert.ok(zh.length >= 3, `${zh.length} controls`);
+    assert.ok(zh.length >= minimum, `${zh.length} controls`);
     assert.deepEqual(en, zh);
-    assert.ok(zh.every(key => typeof key === 'string' && key.length < 96 && !/[@\\?=&#%<>"]|\/\//.test(key)), JSON.stringify(zh));
+    // Only the usage section's own controls may be unkeyed: using that section is never counted.
+    assert.equal(zh.filter(key => key === null).length, name === 'settings' ? 1 : 0, JSON.stringify(zh));
+    assert.ok(zh.filter(key => key !== null).every(key => key.length < 96 && !/[@\\?=&#%<>"]|\/\//.test(key)), JSON.stringify(zh));
     assert.ok(zh.some(key => /\//.test(key) || /^[a-z]+\./.test(key)), 'some controls are named');
   });
 }

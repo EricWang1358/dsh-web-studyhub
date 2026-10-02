@@ -89,7 +89,7 @@ test('on with data: the report is there, folded until opened, with a period sele
   assert.match(html, /用过的控件/);
   assert.match(html, /最常用的控件/);
   // ranked rows: plain name, the count and the share as text, and a decorative bar
-  assert.match(html, /<li[^>]*class="[^"]*usage-rank__row[^"]*"[^]*?学习库[^]*?140[^]*?<span[^>]*class="[^"]*usage-bar[^"]*"[^>]*aria-hidden="true"/);
+  assert.match(html, /<li[^>]*class="[^"]*usage-rank__row[^"]*"[^]*?学习库[^]*?140[^]*?<span[^>]*class="[^"]*usage-meter[^"]*"[^>]*aria-hidden="true"/);
   assert.match(html, /\d+(\.\d)?%/);
   assert.match(html, /按页面/);
   assert.match(html, /按使用时机/);
@@ -192,7 +192,9 @@ test('Settings › Advanced holds the section whether or not experimental featur
 
 test('the section is quiet: no first-run banner, no badge on the sidebar, nothing added to the home page', async () => {
   const app = await readFile('ui/App.jsx', 'utf8');
-  assert.ok(!/usage-frequency|UsageSettings|usage\.frequency/.test(app.replace(/useUsageFrequency|data-usage-area|usage\/controller/g, '')), 'App only hosts the controller and the area marker');
+  assert.ok(!/UsageSettings|usage\.frequency\.|usage-frequency\.json/.test(app), 'App only hosts the controller and the area marker: the section and the operations are Settings\'');
+  assert.match(app, /createUsageController/);
+  assert.match(app, /data-usage-area=\{page\}/);
   const css = await readFile('ui/usage.css', 'utf8');
   assert.ok(!/position:\s*(fixed|sticky)/.test(css), 'no floating widget');
   assert.ok(!/@keyframes|animation:/.test(css), 'no motion');

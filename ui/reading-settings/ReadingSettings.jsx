@@ -78,7 +78,7 @@ export function DisplaySettings({ settings, onChange, onReset, underline = true,
     if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); }
   };
   return <div className={`reader-popover${className ? ` ${className}` : ''}`} ref={root} onKeyDown={onKeyDown}>
-    <IconButton icon="type" label={ui('显示设置')} aria-expanded={open} aria-controls={open ? panelId : undefined} aria-pressed={open}
+    <IconButton icon="type" label={ui('显示设置')} data-usage="reader.display" aria-expanded={open} aria-controls={open ? panelId : undefined} aria-pressed={open}
       onClick={() => setOpen(state => !state)} />
     {open && <div className="reader-popover__panel" ref={panel} id={panelId} role="group" aria-label={ui('显示设置')}>
       <DisplayControls settings={settings} onChange={onChange} onReset={onReset} underline={underline} extra={extra} />

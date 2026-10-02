@@ -31,7 +31,7 @@ export function NavGroup({ id, label, hint, collapsible = false, open = true, on
   return (
     <div className="nav-group" role="group" aria-labelledby={labelId} data-nav-group={id} data-open={open ? "true" : "false"}>
       {collapsible
-        ? <button type="button" className="nav-group-label" id={labelId} aria-expanded={open} aria-controls={itemsId} title={title} onClick={onToggle}>
+        ? <button type="button" className="nav-group-label" data-usage="nav.group" id={labelId} aria-expanded={open} aria-controls={itemsId} title={title} onClick={onToggle}>
           <span className="nav-group-text">{ui(label)}</span><span className="nav-group-chevron" aria-hidden="true" />
         </button>
         : <div className="nav-group-label is-static" id={labelId} title={title}><span className="nav-group-text">{ui(label)}</span></div>}
@@ -50,7 +50,7 @@ export function ResumeNavItem({ lastRun, hasDecks, ready = true, active = false,
         ? ui("没有进行中的练习，开始今日学习")
         : ui("还没有题目，先去创建题组");
   return (
-    <NavItem className="resume-nav" glyph="resume" label={ui("回到题目")} active={active} disabled={disabled} title={title} aria-keyshortcuts="S" onClick={onClick}
+    <NavItem className="resume-nav" data-usage="nav.resume" glyph="resume" label={ui("回到题目")} active={active} disabled={disabled} title={title} aria-keyshortcuts="S" onClick={onClick}
       hint={lastRun ? `${lastRun.index + 1}/${lastRun.total}` : undefined} hintClass="nav-count nav-progress" />
   );
 }
@@ -58,7 +58,7 @@ export function ResumeNavItem({ lastRun, hasDecks, ready = true, active = false,
 /** 为你定制: the prepared questions are ready; the count is the trailing badge. */
 export function CoachNavItem({ ready, disabled = false, onClick }) {
   return (
-    <NavItem className="coach-nav" glyph="coach" label={ui("为你定制")} disabled={disabled} onClick={onClick}
+    <NavItem className="coach-nav" data-usage="nav.coach" glyph="coach" label={ui("为你定制")} disabled={disabled} onClick={onClick}
       title={`${uiFormat("{0} 道题已备好", [ready])}\n${ui("开刷为你定制的题（这一轮会保留，可回来继续）")}`}
       hint={ready} hintClass="nav-badge" />
   );

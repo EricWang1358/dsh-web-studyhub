@@ -83,11 +83,12 @@ export function resolveUsageControl(target, { fallbackArea = 'other' } = {}) {
   for (let node = start, depth = 0; node && depth < MAX_DEPTH; node = node.parentElement, depth += 1) {
     if (typeof node.hasAttribute === 'function' && node.hasAttribute('data-usage-ignore')) return null;
     if (!area) area = attr(node, 'data-usage-area');
+    // The nearest data-usage above the click names it, even when the marked element is a small wrapper around the real control (a segmented switch).
+    const usage = explicit === null ? attr(node, 'data-usage') : null;
+    if (usage) explicit = usage;
     if (control) continue;
-    const usage = attr(node, 'data-usage');
-    if (usage) { explicit = usage; control = node; }
-    else if (isTextField(node)) { textField = true; control = node; }
-    else if (isControl(node)) control = node;
+    if (isTextField(node)) { textField = true; control = node; }
+    else if (usage || isControl(node)) control = node;
   }
   if (!control) return null;
   const where = USAGE_AREA_IDS.includes(area || fallbackArea) ? (area || fallbackArea) : 'other';

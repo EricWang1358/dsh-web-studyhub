@@ -83,7 +83,7 @@ test('a group is a labelled region: a button that folds it, the rows inside, the
   const row = h(NavItem, { glyph: 'exam', label: '模拟考试', 'data-tour': 'nav-exam', 'data-nav-id': 'exam' });
   const open = html(h(NavGroup, { id: 'periodic', label: '阶段性', hint: '隔一阵用一次', collapsible: true, open: true, onToggle() {} }, row));
   assert.match(open, /^<div class="nav-group" role="group" aria-labelledby="nav-group-periodic-label" data-nav-group="periodic" data-open="true">/);
-  assert.match(open, /<button type="button" class="nav-group-label" id="nav-group-periodic-label" aria-expanded="true" aria-controls="nav-group-periodic-items" title="隔一阵用一次">/);
+  assert.match(open, /<button type="button" class="nav-group-label" data-usage="nav.group" id="nav-group-periodic-label" aria-expanded="true" aria-controls="nav-group-periodic-items" title="隔一阵用一次">/);
   assert.match(open, /<span class="nav-group-text">阶段性<\/span>/);
   assert.match(open, /<div class="nav-group-items" id="nav-group-periodic-items">/);
   assert.match(open, /data-tour="nav-exam"/);

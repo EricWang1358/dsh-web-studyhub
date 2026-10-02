@@ -58,6 +58,15 @@ test('a click on something inside a control resolves to the control, and data-us
   assert.equal(m.resolveUsageControl(inner).key, 'review.next');
 });
 
+test('a small marked wrapper names the real controls inside it (a segmented switch), and the nearest mark wins', () => {
+  const page = tree('<div data-usage="nav.language"><button aria-pressed="true">中文</button><button>EN</button></div>');
+  assert.deepEqual(page.byTag('button').map(button => m.resolveUsageControl(button).key), ['nav.language', 'nav.language']);
+  const nested = tree('<div data-usage="outer.thing"><div data-usage="inner.thing"><button>x</button></div></div>');
+  assert.equal(m.resolveUsageControl(nested.byTag('button')[0]).key, 'inner.thing');
+  // a text box inside a marked wrapper is still only "text field"
+  assert.equal(m.resolveUsageControl(tree('<div data-usage="outer.thing"><input type="text"></div>').byTag('input')[0]).key, 'control.text-field');
+});
+
 test('then the control\'s own stable hooks: data-tour, data-testid, a stable id, a unique class hook; never from a container', () => {
   assert.equal(keyOf(tree('<button data-tour="generate-submit">x</button>')), 'tour.generate-submit');
   assert.equal(keyOf(tree('<button data-testid="export-all">x</button>')), 'testid.export-all');
@@ -358,6 +367,37 @@ test('ON: the controller installs the capture and the page-lifecycle flush; reco
   assert.equal(controller.active, false, 'paused records nothing and installs nothing');
   assert.equal(root.listeners.length, 0);
   controller.dispose();
+});
+
+test('a status that cannot be read yet (the host is still starting) is retried a few times, so a record that is on does not stay silently off; a disposed controller stops retrying', async () => {
+  const root = fakeRoot(), lifecycle = fakeRoot(), timers = fakeTimers(); let failures = 2; const calls = [];
+  const controller = m.createUsageController({ root, lifecycle, setTimer: timers.set, clearTimer: timers.clear,
+    call: async action => { calls.push(action); if (action !== 'usage.frequency.status') return { accepted: 0, enabled: true }; if (failures-- > 0) throw new Error('Study connection is unavailable'); return { enabled: true, paused: false }; } });
+  await controller.refresh();
+  assert.equal(controller.active, false);
+  assert.equal(timers.count(), 1, 'one retry is waiting');
+  assert.deepEqual(root.added, [], 'still nothing installed while the state is unknown');
+  timers.fire(); await new Promise(done => setImmediate(done));
+  assert.equal(controller.active, false);
+  assert.equal(timers.count(), 1, 'and another');
+  timers.fire(); await new Promise(done => setImmediate(done));
+  assert.equal(controller.active, true, 'the third read worked');
+  assert.equal(timers.count(), 0, 'no retry timer once the answer is known');
+  controller.dispose();
+  // a host that never answers: three retries, then it stops asking
+  const silent = fakeTimers(); let asked = 0;
+  const hopeless = m.createUsageController({ root: fakeRoot(), lifecycle: fakeRoot(), setTimer: silent.set, clearTimer: silent.clear, call: async () => { asked += 1; throw new Error('down'); } });
+  await hopeless.refresh();
+  for (let i = 0; i < 6; i += 1) { silent.fire(); await new Promise(done => setImmediate(done)); }
+  assert.equal(asked, 4, 'the first read and three retries');
+  assert.equal(silent.count(), 0);
+  hopeless.dispose();
+  const leaving = fakeTimers();
+  const gone = m.createUsageController({ root: fakeRoot(), lifecycle: fakeRoot(), setTimer: leaving.set, clearTimer: leaving.clear, call: async () => { throw new Error('down'); } });
+  await gone.refresh();
+  assert.equal(leaving.count(), 1);
+  gone.dispose();
+  assert.equal(leaving.count(), 0, 'disposing cancels the retry');
 });
 
 test('the page announces a change of the switch to every controller (Settings turning it on starts the capture without a reload)', async () => {

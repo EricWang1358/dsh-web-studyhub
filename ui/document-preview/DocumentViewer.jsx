@@ -322,7 +322,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
   const peekBytes = async () => fileUrl ? new Uint8Array(await (await fetch(fileUrl)).arrayBuffer()) : null;
 
-  return <div className="study-document-viewer reader" ref={root} data-mode={view} data-tone={settings.tone} data-face={settings.face}
+  return <div className="study-document-viewer reader" ref={root} data-usage-area="reader" data-mode={view} data-tone={settings.tone} data-face={settings.face}
     data-narrow={narrow || undefined} style={readerVars(settings)} onKeyDown={onKeyDown}>
     <div className="reader-toolbar">
       <div className="reader-toolbar__group">

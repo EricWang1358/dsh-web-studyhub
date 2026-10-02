@@ -20,8 +20,12 @@ const browserLifecycle = () => ({
   removeEventListener: (type, fn) => (type === 'visibilitychange' ? document : window).removeEventListener(type, fn),
 });
 
+// A status that cannot be read (the host is still starting) is asked again a few times; a record that is on must not stay silently off.
+const RETRY_MS = [3000, 10000, 30000];
+
 export function createUsageController({ root, call, lifecycle, keyScope, now = Date.now, setTimer, clearTimer } = {}) {
-  let collector = null, uninstall = null, queue = Promise.resolve(), disposed = false, flushHandler = null;
+  let collector = null, uninstall = null, queue = Promise.resolve(), disposed = false, flushHandler = null, retryTimer = null, attempts = 0;
+  const later = setTimer || ((fn, ms) => setTimeout(fn, ms)), cancel = clearTimer || (id => clearTimeout(id));
   const life = () => lifecycle || browserLifecycle();
   const scope = () => keyScope || (root && root.ownerDocument && typeof root.ownerDocument.addEventListener === 'function' ? root.ownerDocument : root);
   const timers = { ...(setTimer ? { setTimer } : {}), ...(clearTimer ? { clearTimer } : {}) };
@@ -48,8 +52,12 @@ export function createUsageController({ root, call, lifecycle, keyScope, now = D
     refresh() {
       queue = queue.then(async () => {
         if (disposed) return;
-        let status = null;
-        try { status = await call('usage.frequency.status', {}); } catch { status = null; }
+        let status = null, unreadable = false;
+        try { status = await call('usage.frequency.status', {}); attempts = 0; } catch { status = null; unreadable = true; }
+        if (retryTimer) { cancel(retryTimer); retryTimer = null; }
+        if (unreadable && attempts < RETRY_MS.length) retryTimer = later(() => { retryTimer = null; void api.refresh(); }, RETRY_MS[attempts++]);
+        // An unreadable answer changes nothing: what was running keeps running, what was not stays off until the host answers.
+        if (unreadable) return;
         const wanted = !!status && status.enabled === true && status.paused !== true;
         if (wanted && !api.active) start();
         else if (!wanted && api.active) await stop();
@@ -59,6 +67,7 @@ export function createUsageController({ root, call, lifecycle, keyScope, now = D
     flush: () => collector?.flush() ?? Promise.resolve(),
     dispose() {
       disposed = true;
+      if (retryTimer) { cancel(retryTimer); retryTimer = null; }
       unsubscribe();
       controllers.delete(api);
       void stop();

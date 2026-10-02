@@ -123,7 +123,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
           : { feature: "case", course, language: form.language, sourceIds, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
             ...(passage ? { focus: passage } : {}), ...(mode === "style" ? { styleText: form.styleText } : {}) }} />
         {model.ready ? (
-          <Button type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready} data-tour="generate-submit">
+          <Button type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready} data-tour="generate-submit" data-usage="generate.submit">
             {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}
           </Button>
         ) : (
