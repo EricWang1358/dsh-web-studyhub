@@ -5,6 +5,7 @@ import { TokenEstimate } from '../TokenUsage.jsx';
 import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
+import SaveAnswerAsCard from './links/SaveAnswerAsCard.jsx';
 
 const statusLabels = {
   ambiguous: '原文中有多处相同文字，请缩小选区或加入前后文后重新选择。',
@@ -33,7 +34,7 @@ export function PassageLinks({ groups = [], onOpenCard }) {
  */
 export function LearningPanel({ capture, resolution, resolving = false, error = '', question = '', answer = '', asking = false, deckId = '', count = 3, kind = 'flashcard',
   decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, jobs = [], now = Date.now(), call, sectionRef,
-  onQuestion, onAsk, onDeck, onCount, onKind, onStart, ...jobHandlers }) {
+  onQuestion, onAsk, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, ...jobHandlers }) {
   const resolved = resolution?.status === 'resolved';
   const blocking = resolved && deckId ? blockingJob(jobs, resolution.selection, deckId) : null;
   const list = <SelectionJobList jobs={jobs} now={now} {...jobHandlers} />;
@@ -55,6 +56,8 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
         <button type="submit" disabled={asking || !askReady || !question.trim()}>{asking ? ui('正在回答…') : ui('依据原文回答')}</button>
       </form>
       {answer && <div className="study-grounded-answer"><Markdown text={answer} /></div>}
+      {answer && <SaveAnswerAsCard key={answer} call={call} selection={resolution.selection} question={question} answer={answer} deckId={deckId} decks={decks}
+        ready={saveReady} onSaved={onSaved} onOpenCard={jobHandlers.onOpenCard} isCurrent={isCurrent} />}
       <form onSubmit={onStart}>
         <label>{ui('补充到现有题组')}<select value={deckId} required onChange={event => onDeck?.(event.target.value)}><option value="">{ui('选择题组')}</option>
           {decks.map(deck => <option key={deck.id} value={deck.id}>{deck.title}</option>)}
@@ -215,6 +218,7 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
   return <LearningPanel capture={capture} resolution={resolution} resolving={resolving} error={error} question={question} answer={answer} asking={asking}
     deckId={deckId} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}
     starting={starting} jobs={shown} now={now} call={call} sectionRef={sectionRef} canPractice={typeof onPractice === 'function'}
+    saveReady={available('generation', 'selection.saveAnswer')} onSaved={onPublished} isCurrent={isCurrent}
     onQuestion={setQuestion} onAsk={ask} onDeck={setDeckId} onCount={setCount} onKind={setKind} onStart={start}
     onCancel={cancel} onRetry={retry} onDismiss={job => setDismissed(current => new Set(current).add(job.operationId))}
     onPractice={onPractice} onOpenDeck={onOpenDeck} onOpenCard={onOpenCard} />;

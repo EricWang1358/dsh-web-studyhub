@@ -382,6 +382,7 @@ export default function Review({
                     </span>
                   )}
                   {run.card.importedFromJson && <span className="origin-tag">{ui("外部导入")}</span>}
+                  {run.card.sourceQa && <span className="origin-tag">{ui("问答")}</span>}
                   <span>{run.card.topic}</span>
                   {!!publicationIssues.length && !run.card.publicationUngrable &&
                     <details className="publication-mark">

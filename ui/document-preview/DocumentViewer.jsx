@@ -5,10 +5,13 @@ import { AudioCorrections } from '../AudioImport.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, IconButton, SegmentedControl } from '../components/index.js';
-import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
+import DocumentLearning from './DocumentLearning.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { issueOf } from './original-file.js';
-import { annotatePassages, captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
+import { captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
+import PassageLinksPanel, { linkTitleWords } from './links/PassageLinksPanel.jsx';
+import { buildLinkModel, groupTitle } from './links/link-model.js';
+import { usePassageLinkLayer } from './links/usePassageLinkLayer.js';
 import { isOfficeFormat } from '../../lib/office/limits.js';
 import OutlinePanel from './reader/OutlinePanel.jsx';
 import FindBar from './reader/FindBar.jsx';
@@ -16,12 +19,13 @@ import DisplaySettings from './reader/DisplaySettings.jsx';
 import ReadingSections from './reader/ReadingSections.jsx';
 import { useReaderSettings } from './reader/useReaderSettings.js';
 import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js';
-import { readerVars } from './reader/settings.js';
+import { readerVars, underlineShown } from './reader/settings.js';
 import { readingSections } from './reader/text-sections.js';
 import { outlineFromSections, collectHeadings, neighbours } from './reader/outline.js';
 import { findRanges, paintMatches } from './reader/find.js';
 import css from './document-preview.css';
 import readerCss from './reader/reader.css';
+import linksCss from './links/links.css';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -77,9 +81,10 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const language = useUiLanguage();
   useInjectCss(css, 'study-document-preview');
   useInjectCss(readerCss, 'study-reader');
+  useInjectCss(linksCss, 'study-reader-links');
   const [document, setDocument] = useState(null), [content, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
   const [error, setError] = useState(''), [loading, setLoading] = useState(true), [mode, setMode] = useState(initialMode);
-  const [capture, setCapture] = useState(null), [links, setLinks] = useState([]), [focusedGroup, setFocusedGroup] = useState(null);
+  const [capture, setCapture] = useState(null), [links, setLinks] = useState([]), [focusedKey, setFocusedKey] = useState(null);
   const [settings, updateSettings, resetSettings] = useReaderSettings();
   const [narrow, setNarrow] = useState(false), [overlay, setOverlay] = useState(null);
   const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
@@ -135,6 +140,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     } catch (e) { setError(e.message); }
   };
   const groups = useMemo(() => groupPassageLinks(links), [links]);
+  // Which passages are underlined (resolved links) and which must be selected again; notes follow their cards.
+  const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges }), [groups, data?.noteBadges]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
   const sources = useMemo(() => document?.sources || [source], [document, source]);
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderNoteMarkdown(content))
@@ -187,7 +194,14 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     }
     await onPublished?.(value);
   };
-  useEffect(() => annotatePassages(body.current, groups, setFocusedGroup, count => uiFormat('{0} 道相关题目与解析', [count])), [groups, html, content, view, sections, document, language]);
+  // Link layer: [n] markers, underlines (when shown) and their click. Ranges are located once per links/text change.
+  const rendered = useMemo(() => ({ html, content, view, sections, document, language }), [html, content, view, sections, document, language]);
+  const linkTitle = group => groupTitle(group, linkTitleWords());
+  const openGroup = group => {
+    setFocusedKey(group.key);
+    if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
+  };
+  usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle });
   const quoteState = quote ? locateQuote(sources.find(item => item.id === source.id)?.text || content, quote, source.selection) : null;
   useEffect(() => {
     if (!reading || !quote || quoteState?.status !== 'resolved') return undefined;
@@ -216,7 +230,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     ranges.current = finding && view !== 'original' && deferredQuery.trim() ? findRanges(body.current, deferredQuery) : [];
     setTotal(ranges.current.length);
     setMatch(0);
-  }, [finding, deferredQuery, view, html, sections, content, groups]);
+  }, [finding, deferredQuery, view, html, sections, content, model]);
   useEffect(() => {
     if (!total) return undefined;
     const index = Math.min(match, total - 1), clear = paintMatches(ranges.current, index);
@@ -324,11 +338,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
           {onCaseFromPassage && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
-        {groups.length > 0 && <>
-          <h3 className="study-document-links-heading">{ui('原文关联题目与解析')}</h3>
-          <PassageLinks groups={focusedGroup ? [focusedGroup] : groups} onOpenCard={onOpenCard} />
-          {focusedGroup && <Button size="sm" variant="quiet" onClick={() => setFocusedGroup(null)}>{ui('显示全部引用')}</Button>}
-        </>}
+        <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} />
       </aside>
     </div>
     {attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}

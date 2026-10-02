@@ -28,6 +28,7 @@ import mineruCopy from './locales/en.mineru.json';
 import reader from './locales/en.reader.json';
 import selectionCopy from './locales/en.selection.json';
 import original from './locales/en.original.json';
+import links from './locales/en.links.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -57,6 +58,7 @@ export const ENGLISH_SOURCES = {
   'en.reader.json': reader,
   'en.selection.json': selectionCopy,
   'en.original.json': original,
+  'en.links.json': links,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

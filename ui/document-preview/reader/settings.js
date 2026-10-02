@@ -8,8 +8,10 @@ export const SIZES = [15, 16, 17, 18, 20, 22, 24];
 export const WIDTHS = { narrow: 36, standard: 44, wide: 56 };
 export const FACES = ['sans', 'serif'];
 export const TONES = ['auto', 'paper'];
+/** Underlines on passages that have a question, a Q&A card or a note (2.3.2). 'hide' paints nothing; the links stay reachable. */
+export const UNDERLINES = ['show', 'hide'];
 
-export const READER_DEFAULTS = Object.freeze({ size: 16, width: 'standard', face: 'sans', tone: 'auto', outline: true, tools: true });
+export const READER_DEFAULTS = Object.freeze({ size: 16, width: 'standard', face: 'sans', tone: 'auto', underline: 'show', outline: true, tools: true });
 export const READER_STORAGE_KEY = 'study-reader-settings';
 
 const choice = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
@@ -23,10 +25,17 @@ export function normalizeReaderSettings(raw) {
     width: Object.hasOwn(WIDTHS, value.width) ? value.width : READER_DEFAULTS.width,
     face: choice(value.face, FACES, READER_DEFAULTS.face),
     tone: choice(value.tone, TONES, READER_DEFAULTS.tone),
+    underline: choice(value.underline, UNDERLINES, READER_DEFAULTS.underline),
     outline: typeof value.outline === 'boolean' ? value.outline : READER_DEFAULTS.outline,
     tools: typeof value.tools === 'boolean' ? value.tools : READER_DEFAULTS.tools,
   };
 }
+
+/** Whether linked passages are underlined; anything but an explicit 'hide' shows them. */
+export const underlineShown = settings => settings?.underline !== 'hide';
+
+/** The defaults, except what is open: restoring the display never closes a panel. */
+export const resetReaderSettings = current => ({ ...READER_DEFAULTS, outline: current.outline, tools: current.tools });
 
 /** The next size up (+1) or down (-1), stopping at the ends of the scale. */
 export function stepSize(size, direction) {
