@@ -45,12 +45,26 @@ async function fixture(t, options = {}) {
 
 const ratio = (value, whole) => Math.round((value / whole) * 1000) / 1000;
 
+test("a review click rewrites its own run, not the whole library (mutation budget)", async (t) => {
+  const f = await fixture(t);
+  await f.service.call("snapshot");
+  const { counts } = await f.probe.measure(() => f.next("reveal"));
+  const report = { parsed: ratio(counts.jsonParseChars, f.libraryChars), stringified: ratio(counts.jsonStringifyChars, f.libraryChars), cloned: ratio(counts.structuredCloneChars, f.libraryChars),
+    shardWrites: counts.shardWrites, writtenChars: ratio(counts.shardWriteBytes, f.libraryChars) };
+  t.diagnostic(`review.reveal: ${JSON.stringify(report)}`);
+  assert.ok(report.parsed <= 0.05, `review.reveal parsed ${JSON.stringify(report)} of the library; budget 5%`);
+  assert.ok(report.stringified <= 0.1, `review.reveal stringified ${JSON.stringify(report)} of the library; budget 10%`);
+  assert.ok(report.cloned <= 0.05, `review.reveal cloned ${JSON.stringify(report)} of the library; budget 5%`);
+  assert.ok(counts.shardWrites <= 2, `review.reveal wrote ${counts.shardWrites} shards; budget 2`);
+});
+
 test("an unchanged poll costs a stat, not a rebuild (poll budget)", async (t) => {
   const f = await fixture(t);
   const first = await f.service.call("snapshot");
   await f.probe.measure(() => f.service.call("snapshot", { since: first.fingerprint }));
   const { value, counts } = await f.probe.measure(() => f.service.call("snapshot", { since: first.fingerprint }));
   assert.equal(value.unchanged, true);
+  t.diagnostic(`unchanged poll: ${JSON.stringify(counts)}`);
   assert.equal(counts.jsonParseChars, 0, "an unchanged poll must not parse anything");
   assert.ok(counts.structuredCloneCalls <= 8, `an unchanged poll made ${counts.structuredCloneCalls} structuredClone calls; budget 8`);
   assert.ok(counts.jsonStringifyChars <= f.libraryChars * 0.002, `an unchanged poll stringified ${counts.jsonStringifyChars} chars`);
