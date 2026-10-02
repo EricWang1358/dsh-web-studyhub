@@ -47,6 +47,8 @@ test('the reading text never goes below 15px and the measure follows the size', 
   assert.equal(vars['--reader-measure'], '56em');
   assert.equal(vars['--reading-measure'], `${56 * 20}px`, 'the same measure for a block whose own font size is not the reading size');
   assert.equal(vars['--reader-leading'], '1.7');
+  assert.equal(vars['--reading-leading'], '1.55', 'study text is set a little tighter than the reader column');
+  assert.equal(shared.readingVars({ size: 16 })['--reading-leading'], '1.65');
   assert.equal(shared.readingVars({ size: 6 })['--reader-size'], '16px', 'a size outside the scale is the default, never smaller than 15px');
   assert.deepEqual(shared.readerVars({ size: 20, width: 'wide' }), { '--reader-size': '20px', '--reader-measure': '56em', '--reader-leading': '1.7' }, 'the reader keeps exactly its own variables');
 });
@@ -150,7 +152,9 @@ test('a reading block is a class, a face, a tone and variables on the long-form 
   const html = renderToStaticMarkup(h(lib.ReadingBlock, { className: 'explanation', as: 'section' }, h('p', null, 'text'), h('button', null, 'ok')));
   assert.match(html, /^<section class="study-reading explanation" data-face="sans" data-tone="auto" style="[^"]*--reader-size:16px/);
   assert.match(html, /<p>text<\/p><button>ok<\/button>/);
-  assert.match(renderToStaticMarkup(h(lib.ReadingBlock, { prose: true })), /class="study-reading study-reading--prose"/);
+  assert.match(renderToStaticMarkup(h(lib.ReadingBlock, { prose: true })), /class="study-reading study-reading--prose study-reading--measure"/, 'an article is held to the chosen text width');
+  assert.match(renderToStaticMarkup(h(lib.ReadingBlock, { measure: true, className: 'explanation' })), /class="study-reading study-reading--measure explanation"/);
+  assert.doesNotMatch(renderToStaticMarkup(h(lib.ReadingBlock, {})), /study-reading--measure/, 'a block laid out in columns keeps its own width');
   assert.match(renderToStaticMarkup(h(lib.ReadingBlock, { as: 'article', dangerouslySetInnerHTML: { __html: '<p>x</p>' } })), /^<article class="study-reading"[^>]*><p>x<\/p><\/article>$/);
 });
 

@@ -725,7 +725,7 @@ export default function Review({
               </p>
             )}
             {run.solution && (explain || !!run.feedback) && (
-              <ReadingBlock className="explanation">
+              <ReadingBlock measure className="explanation">
                 <h3>{ui("理解这道题")}</h3>
                 <Markdown text={run.solution.explanation} />
                 {enOn && enAnswer?.explanation && (
@@ -749,7 +749,7 @@ export default function Review({
             )}
             {teaching && <div className="teaching-panel">
               {teaching && (
-                <ReadingBlock as="section" className="explanation">
+                <ReadingBlock as="section" measure className="explanation">
                   <div className="eyebrow">
                     GUIDED UNDERSTANDING ·{" "}
                     {Math.min(teaching.index + 1, teaching.total)} /{" "}

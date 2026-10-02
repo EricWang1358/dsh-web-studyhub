@@ -39,7 +39,7 @@ test('generated native modules resolve through classic chunk factories and share
   const browser = { addEventListener() {}, removeEventListener() {},
     document: { compatMode: 'CSS1Compat', documentElement: { style: {} },
       createElement: () => ({ style: {}, remove() {} }), head: { append: node => styles.push(node), appendChild: node => styles.push(node) } } };
-  const context = vm.createContext({ window: browser, document: browser.document, console,
+  const context = vm.createContext({ window: browser, document: browser.document, console, TextDecoder, TextEncoder, URL,
     navigator: { platform: 'Win32', userAgent: 'test' },
     setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {} });
   browser.__ModuleLoader__ = { load({ id, chunk, factory }) {
@@ -104,7 +104,7 @@ test('generated native modules resolve through classic chunk factories and share
   }
   const notesEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/BlogNotes.jsx');
   assert.ok(notesEntry);
-  assert.equal(lazyLoads.length, 7);
+  assert.equal(lazyLoads.length, 8, 'the seven views and 看原页 (pdf.js)');
   await Promise.all(lazyLoads.map(load => load()));
   assert.equal(cache.size, files.size, 'every emitted module can materialize');
   const notes = cache.get(`${packageId}/${basename(notesEntry[0])}`);

@@ -37,7 +37,7 @@ test('the review toolbar has the Aa button beside 帮我弄懂, without the unde
 
 test('a lesson article is a reading block whose own size is the reading size, in both languages', () => {
   const html = renderToStaticMarkup(h(lib.TeachingArticle, { content: '## Heading\n\nSome **text**.' }));
-  assert.match(html, /<div class="study-reading study-reading--prose wf-prose"/);
+  assert.match(html, /<div class="study-reading study-reading--prose study-reading--measure wf-prose"/);
   assert.match(html, /data-face="sans"/);
   assert.match(html, /--reader-size:16px/);
 });

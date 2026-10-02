@@ -92,19 +92,20 @@ export function ReadingSettingsButton({ underline = false, className }) {
 }
 
 /** The props (class, face, tone, size variables) a long-form container carries; spread them on any element, or use <ReadingBlock>. */
-export function useReadingProps({ prose = false, className = '', style } = {}) {
+export function useReadingProps({ prose = false, measure = prose, className = '', style } = {}) {
   useInjectCss(css, 'study-reading');
   const [settings] = useReadingSettings();
   const own = readingProps(settings);
-  return { className: ['study-reading', prose ? 'study-reading--prose' : '', className].filter(Boolean).join(' '), 'data-face': own['data-face'], 'data-tone': own['data-tone'], style: { ...own.style, ...style } };
+  return { className: ['study-reading', prose ? 'study-reading--prose' : '', measure ? 'study-reading--measure' : '', className].filter(Boolean).join(' '), 'data-face': own['data-face'], 'data-tone': own['data-tone'], style: { ...own.style, ...style } };
 }
 
 /**
  * A long-form text container that follows the shared reading setting. `as`: the element (div by default). `prose`: the container
  * itself is the text (an article with no controls inside), so its own size is the reading size; without it only the text elements
- * inside (paragraphs, lists, tables, quotes) follow, and buttons, inputs and headings' roles stay as designed.
+ * inside (paragraphs, lists, tables, quotes) follow, and buttons, inputs and headings' roles stay as designed. `measure` (on for prose):
+ * the block is held to the chosen text width; a block laid out in columns (the skeleton spine) keeps its own width.
  */
-export function ReadingBlock({ as = 'div', prose = false, className, style, children, ...rest }) {
-  const props = useReadingProps({ prose, className, style });
+export function ReadingBlock({ as = 'div', prose = false, measure = prose, className, style, children, ...rest }) {
+  const props = useReadingProps({ prose, measure, className, style });
   return createElement(as, { ...rest, ...props }, children);
 }

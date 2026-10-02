@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { renderNoteMarkdown } from '../note-markdown.js';
 import { AudioCorrections } from '../AudioImport.jsx';
@@ -8,7 +8,6 @@ import { Button, IconButton, SegmentedControl } from '../components/index.js';
 import DocumentLearning from './DocumentLearning.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { issueOf } from './original-file.js';
-import PagePeek from './peek/PagePeek.jsx';
 import { peekStatus } from './peek/peek-logic.js';
 import { captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
 import PassageLinksPanel, { linkTitleWords } from './links/PassageLinksPanel.jsx';
@@ -32,6 +31,8 @@ import readerCss from './reader/reader.css';
 import linksCss from './links/links.css';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+// 看原页 (pdf.js and its worker) is fetched on the first peek, never with the reader.
+const PagePeek = lazy(() => import('./peek/PagePeek.jsx'));
 
 /** HTML is inert reading content: scripts, embedded browsing and external resource loads are removed. */
 export function safeDocumentHtml(text) {
@@ -373,8 +374,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} />
       </aside>
     </div>
-    {peek && canPeek && <PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
-      status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }} />}
+    {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
+      status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }} /></Suspense>}
     {attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
       call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;

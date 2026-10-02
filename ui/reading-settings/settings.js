@@ -56,7 +56,8 @@ export function readerVars(settings) {
  */
 export function readingVars(settings) {
   const { size, width } = normalizeReaderSettings(settings);
-  return { ...readerVars(settings), '--reading-measure': `${WIDTHS[width] * size}px` };
+  // Study text sits among controls and cards, so its leading is a little tighter than the reader's column.
+  return { ...readerVars(settings), '--reading-measure': `${WIDTHS[width] * size}px`, '--reading-leading': size <= 18 ? '1.65' : '1.55' };
 }
 
 /** What a long-form block carries: the typeface and tone as data attributes, the sizes as variables. */

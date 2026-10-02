@@ -43,16 +43,16 @@
     --reader-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
     --reader-face: var(--reader-sans);
     min-width: 0;
-    max-width: var(--reading-measure, none);
     overflow-wrap: anywhere;
   }
+  .study-reading--measure { max-width: var(--reading-measure, none); }
   .study-reading[data-face='serif'] { --reader-face: var(--reader-serif); }
 
   /* The text elements follow the reading size, leading and typeface. The doubled class outranks the page's own px sizes. */
   .study-reading.study-reading :is(p, li, blockquote, dd, dt, figcaption, .md) {
     font-family: var(--reader-face);
     font-size: var(--reader-size, 16px);
-    line-height: var(--reader-leading, 1.8);
+    line-height: var(--reading-leading, 1.65);
   }
   .study-reading.study-reading :is(td, th) {
     font-family: var(--reader-face);

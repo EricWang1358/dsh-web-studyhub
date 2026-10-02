@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const han = /[\u3400-\u9fff]/;
 const compiled = await build({ stdin: { contents: `
   export * from './ui/document-preview/peek/peek-logic.js';
-  export { PagePeekView } from './ui/document-preview/peek/PagePeek.jsx';
+  export { default as PagePeekView } from './ui/document-preview/peek/PagePeekView.jsx';
   export { default as ReadingSections } from './ui/document-preview/reader/ReadingSections.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });

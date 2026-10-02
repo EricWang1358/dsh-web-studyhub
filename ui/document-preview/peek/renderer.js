@@ -1,18 +1,15 @@
+import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
+import { WorkerMessageHandler } from 'pdfjs-dist/build/pdf.worker.mjs';
 import { peekCanvasSize } from './peek-logic.js';
 
-/* 看原页: pdf.js behind a tiny interface. pdf.js (about a megabyte) and its worker are loaded only when a peek is opened, never with
-   the reader, and the worker runs on the main thread (the page is a bundle with no worker file to point at). One document is open
+/* 看原页: pdf.js behind a tiny interface. This module (pdf.js, about a megabyte, and its worker) is only ever imported by PagePeek.jsx,
+   which the viewer loads lazily on the first peek, never with the reader; the worker runs on the main thread (the page is a bundle with no worker file to point at). One document is open
    at a time and is destroyed with its pages when the peek closes. A page is drawn into an offscreen canvas and handed back as an
    ImageBitmap (the offscreen canvas is emptied at once); the caller owns the bitmap and closes it. Nothing here keeps a page. */
 
-let loading = null;
 function loadPdfjs() {
-  loading ||= (async () => {
-    const [pdfjs, worker] = await Promise.all([import('pdfjs-dist/build/pdf.mjs'), import('pdfjs-dist/build/pdf.worker.mjs')]);
-    globalThis.pdfjsWorker = { WorkerMessageHandler: worker.WorkerMessageHandler };
-    return pdfjs;
-  })().catch(error => { loading = null; throw error; });
-  return loading;
+  globalThis.pdfjsWorker ||= { WorkerMessageHandler };
+  return pdfjs;
 }
 
 /** True when an error only says a render was cancelled (the page changed or the peek closed). */
@@ -23,8 +20,7 @@ export const isCancelled = error => error?.name === 'RenderingCancelledException
  * pageSize -> { width, height } in PDF units. render -> ImageBitmap no larger than 2000 px on its long edge.
  */
 export async function createPeekRenderer(bytes) {
-  const pdfjs = await loadPdfjs();
-  const task = pdfjs.getDocument({ data: bytes, isEvalSupported: false, useSystemFonts: true, enableXfa: false, verbosity: 0 });
+  const task = loadPdfjs().getDocument({ data: bytes, isEvalSupported: false, useSystemFonts: true, enableXfa: false, verbosity: 0 });
   let doc;
   try { doc = await task.promise; }
   catch (error) { await task.destroy().catch(() => {}); throw error; }
