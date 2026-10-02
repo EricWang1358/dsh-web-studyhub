@@ -339,3 +339,25 @@ test('direct assist honours its captured model route and correction works withou
   await complete.spawnCorrection('system', 'sentences', { signal: new AbortController().signal, reasoningEffort: 'low' });
   assert.equal(configs[1].provider, 'followed'); assert.equal(String(configs[1].reasoningEffort), 'low');
 });
+
+test('a request that carries only a signal (the answer about a selected passage) is a direct call, not a question-generation phase', async t => {
+  let modelCompletion;
+  try { ({ modelCompletion } = await import('../lib/index.js')); }
+  catch (error) {
+    if (error.code === 'ERR_MODULE_NOT_FOUND' && error.message.includes('@deepseek-ai')) {
+      t.skip('Host SDK absent; install DSH peers to run native check'); return;
+    }
+    throw error;
+  }
+  const configs = [];
+  const ctx = { get: () => undefined, llm: {
+    resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: 'low' }] } }),
+    resolveCallConfig: async config => { configs.push(config); return config; },
+    async *stream() { yield { type: 'text-delta', text: 'because of the platform' }; },
+  } };
+  const complete = modelCompletion(ctx, () => ({ provider: 'p', model: 'm' }), 'saved-session');
+  // materials.selection.ask calls model(system, prompt, { signal }); only generation phases carry a jobId.
+  assert.equal(await complete('system', 'question', { signal: new AbortController().signal }), 'because of the platform');
+  assert.equal(configs.length, 1);
+  await assert.rejects(complete('system', 'question', { signal: AbortSignal.abort(new Error('stopped')) }), /stop/i, 'the learner can still cancel it');
+});
