@@ -6,6 +6,8 @@ import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, IconButton, SegmentedControl } from '../components/index.js';
 import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
+import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
+import { issueOf } from './original-file.js';
 import { annotatePassages, captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
 import { isOfficeFormat } from '../../lib/office/limits.js';
 import OutlinePanel from './reader/OutlinePanel.jsx';
@@ -83,6 +85,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
   const [headings, setHeadings] = useState([]);
   const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1);
+  const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   const outlineId = useId(), toolsId = useId();
   useEffect(() => {
@@ -100,7 +103,13 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         if (original === 'download' || original === 'none') setContent(value.sources?.find(item => item.id === source.id)?.text || source.text);
         else {
           const bytes = await call('materials.document.bytes', { documentId: value.documentId || value.id, revision: value.revision });
-          if (!current || !bytes.dataBase64) return;
+          if (!current) return;
+          if (!bytes.dataBase64) {
+            // The original is not there (a referenced file moved or changed): say so, and keep reading the stored text.
+            setDocument({ ...value, originalAvailable: false, original: { ...value.original, status: bytes.reason === 'none' ? 'none' : bytes.reason === 'missing' || bytes.reason === 'unreadable' ? bytes.reason : 'changed', reason: bytes.reason, ...(bytes.path ? { path: bytes.path } : {}) } });
+            setContent(value.sources?.find(item => item.id === source.id)?.text || source.text);
+            return;
+          }
           const data = Uint8Array.from(atob(bytes.dataBase64), char => char.charCodeAt(0));
           if (value.format === 'pdf') {
             objectUrl = URL.createObjectURL(new Blob([data], { type: bytes.mime })); setFileUrl(objectUrl);
@@ -111,7 +120,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       } finally { if (current) setLoading(false); }
     })();
     return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [call, source.id, source.text, source.selection?.revision]);
+  }, [call, source.id, source.text, source.selection?.revision, reload]);
   const format = viewerFormat(document, source), paged = PAGED.has(format);
   const view = mode === 'original' && !(format === 'pdf' && fileUrl) ? 'read' : mode, reading = view === 'read';
   const downloadOriginal = async () => {
@@ -229,11 +238,14 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
   };
 
+  // The 原始 PDF tab without a file is not dead: it explains and offers 补全原文件.
+  const chooseView = value => value === 'original' && !fileUrl ? (document && setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink')) : setMode(value);
+  if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
   const modes = [{ value: 'read', label: ui('阅读') }, { value: 'text', label: ui('原文') },
-    ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), disabled: !fileUrl, title: fileUrl ? undefined : ui('没有保留原始 PDF') }] : [])];
+    ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), title: fileUrl ? undefined : ui('还没有原始 PDF，点击查看如何补全') }] : [])];
   const notices = [
     loading && <p key="loading" role="status">{ui('正在打开资料…')}</p>,
-    document && !document.originalAvailable && <p key="legacy">{ui('这份旧资料保存了提取文字，原始文件尚未保留；仍可提问、补题和查看引用。重新导入原文件可补全预览。')}</p>,
+    <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     view === 'original' && <p key="pdf">{ui('原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。')}</p>,
     error && <p key="error" className="is-warning" role="alert">{error}</p>,
     quoteState?.status === 'ambiguous' && <p key="ambiguous" className="is-warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</p>,
@@ -250,7 +262,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       <div className="reader-toolbar__group">
         {outline.length > 0 && <IconButton icon="list" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
           onClick={() => toggle('outline')} />}
-        <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={view} options={modes} onChange={setMode} />
+        <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
       </div>
       <p className="reader-toolbar__where" title={where || undefined}>{where}</p>
       <div className="reader-toolbar__group reader-toolbar__group--end">
@@ -319,5 +331,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         </>}
       </aside>
     </div>
+    {attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
+      call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;
 }

@@ -234,6 +234,7 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
         <section className="backup-block" aria-labelledby={exportId}>
           <h3 id={exportId} className="settings-subtitle">{ui("导出")}</h3>
           <p>{ui("下载一个完整的 JSON 备份：资料、题组、复习进度和作答记录都在里面。")}</p>
+          <p className="settings-section__note">{ui("已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。")}</p>
           <p className="settings-section__note">{uiFormat("文件名形如 {0}，保存到浏览器的下载文件夹。", [backupFileName()])}</p>
           <div className="settings-actions"><Button variant="primary" icon="download" disabled={busy} onClick={exportData}>{ui("导出学习库")}</Button></div>
         </section>

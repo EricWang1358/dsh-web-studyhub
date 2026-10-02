@@ -92,7 +92,9 @@ test('the reader toolbar: the views on the left, find, display and study tools o
   assert.equal((toolbar.match(/sh-btn--primary/g) || []).length, 1, 'one primary button');
   assert.ok(toolbar.indexOf('sh-seg') < toolbar.indexOf('从这份资料出题'), 'views first, generate last');
   assert.doesNotMatch(viewer(transcript), /从这份资料出题/, 'no generate button without onGenerate');
-  assert.match(viewer(pdfPage, { onGenerate() {} }), /disabled=""[^>]*>原始 PDF</, 'the original PDF view waits for the retained file');
+  const waiting = viewer(pdfPage, { onGenerate() {} });
+  assert.match(waiting, /title="还没有原始 PDF，点击查看如何补全"[^>]*>原始 PDF</, 'the original PDF view waits for the retained file and says how to add it when clicked');
+  assert.doesNotMatch(waiting, /disabled=""[^>]*>原始 PDF</, 'it is not a dead button: a click opens 补全原文件 (WP 补全原文件)');
   const en = viewer(transcript, { onGenerate() {} }, 'en');
   assert.match(en, /Generate from this source/);
   assert.match(en, /aria-pressed="true"[^>]*>Read</);

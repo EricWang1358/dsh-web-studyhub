@@ -10,6 +10,7 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
+import { OriginalMenuEntry } from './document-preview/OriginalFile.jsx';
 import css from "./sources.css";
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
@@ -137,6 +138,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
             <div className="source-row-menu">
+            <OriginalMenuEntry item={item} call={call} busy={busy} />
             {onChangeCourse && <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onChangeCourse(item); }}>{ui('改课程…')}</button>}
             <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onRemove(item); }}>{ui('移除')}</button>
             </div>
