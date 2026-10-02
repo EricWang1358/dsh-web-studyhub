@@ -1,5 +1,5 @@
 /* 看原页: the floating original-page panel and the buttons that open it. Tokens only. The panel sits in the reader (a fixed box inside the
-   viewer), can be dragged by its title and resized by its corner. */
+   viewer), can be dragged by its title and resized by its two corner grips. */
 :is(.study-app, .study-seat) {
   .reader-peek {
     display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 1px var(--space-2);
@@ -16,11 +16,11 @@
     position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 40;
     display: flex; flex-direction: column; box-sizing: border-box;
     width: min(560px, calc(100% - var(--space-4))); height: min(78%, 760px); min-width: 260px; min-height: 200px; max-width: calc(100% - 8px); max-height: calc(100% - 8px);
-    overflow: hidden; resize: both;
+    overflow: hidden;
     border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-raised); box-shadow: var(--shadow-lg); color: var(--text);
   }
   /* A message with a button needs no tall frame. */
-  .page-peek:not([data-phase='ready']) { height: auto; min-height: 0; resize: none; }
+  .page-peek:not([data-phase='ready']) { height: auto; min-height: 0; }
   .page-peek:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
   .page-peek__head {
     display: flex; flex: none; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
@@ -33,6 +33,17 @@
   .page-peek__zoom { min-width: 3.2em; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; text-align: center; }
   .page-peek__body { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
   .page-peek__scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--bg-sunken); }
+  /* Fitted to the width there is nothing to scroll sideways: a horizontal bar there is only a few pixels of rounding. */
+  .page-peek__scroll[data-fit='true'] { overflow-x: hidden; }
+  /* The resize handles: real, visible grips outside the scroll area (a native resize corner sat on the scrollbars and, with the panel docked bottom-right, moved the wrong way). */
+  .page-peek__foot { display: flex; flex: none; justify-content: flex-end; height: 14px; border-top: 1px solid var(--line); background: var(--bg-raised); }
+  .page-peek__grip { position: relative; flex: none; width: 18px; height: 14px; padding: 0; border: 0; background: transparent; color: var(--text-dim); touch-action: none; }
+  .page-peek__grip::before { content: ''; position: absolute; inset: 3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 2px 0; }
+  .page-peek__grip--se { cursor: nwse-resize; }
+  .page-peek__grip--nw { position: absolute; top: 0; left: 0; z-index: 1; width: 16px; height: 16px; cursor: nwse-resize; }
+  .page-peek__grip--nw::before { inset: 3px; border-right: 0; border-bottom: 0; border-left: 2px solid currentColor; border-top: 2px solid currentColor; border-radius: 2px 0 0 0; }
+  .page-peek__grip:hover, .page-peek__grip:focus-visible { color: var(--text); }
+  .page-peek__grip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
   .page-peek__canvas { display: block; margin: 0 auto; max-width: none; background: #fff; box-shadow: 0 0 0 1px var(--line); }
   .page-peek__state { display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-4); color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-snug); }
   .page-peek__state--note { flex-direction: column; align-items: flex-start; }

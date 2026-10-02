@@ -247,3 +247,42 @@ test('the viewer mounts the peek once, and the 原文 view has the same buttons'
   assert.match(viewer, /onPeek=/);
   assert.match(viewer, /data-peek-page/, 'the 原文 view page labels carry the button too');
 });
+
+/* ---------- moving and resizing the panel ---------- */
+
+test('the panel stays inside the window while it is moved, and a corner grip moves exactly the edges it sits on', () => {
+  const { clampTo, moveBox, resizeBox, PEEK_MIN } = lib;
+  const win = { width: 1000, height: 800 };
+  assert.equal(clampTo(5, 8, 100), 8);
+  assert.equal(clampTo(500, 8, 100), 100);
+  assert.equal(clampTo(50, 8, 100), 50);
+  const box = { left: 420, top: 100, width: 560, height: 600 };
+  // moved far right and down: held 8 px inside, the title bar always reachable
+  assert.deepEqual(moveBox(box, 900, 900, win), { ...box, left: 1000 - 8 - 560, top: 800 - 40 });
+  assert.deepEqual(moveBox(box, -900, -900, win), { ...box, left: 8, top: 8 });
+  // bottom-right grip: the top-left corner stays, the box grows towards the cursor, never past the window
+  assert.deepEqual(resizeBox('se', 10, 40, box, win), { left: 420, top: 100, width: 570, height: 640 });
+  assert.deepEqual(resizeBox('se', 400, 400, box, win), { left: 420, top: 100, width: 1000 - 8 - 420, height: 800 - 8 - 100 });
+  // top-left grip: the bottom-right corner stays; dragging up/left grows the box, which is the only way a bottom-right docked panel can grow
+  const grown = resizeBox('nw', -100, -150, box, win);
+  assert.equal(grown.left + grown.width, 980, 'the right edge did not move');
+  assert.equal(grown.top + grown.height, 700, 'the bottom edge did not move');
+  assert.ok(grown.top >= 8 && grown.left >= 8);
+  // never smaller than the minimum
+  const small = resizeBox('se', -5000, -5000, box, win);
+  assert.deepEqual([small.width, small.height], [PEEK_MIN.width, PEEK_MIN.height]);
+  const smallNw = resizeBox('nw', 5000, 5000, box, win);
+  assert.deepEqual([smallNw.width, smallNw.height], [PEEK_MIN.width, PEEK_MIN.height]);
+  assert.equal(smallNw.left + smallNw.width, 980);
+});
+
+test('the panel no longer uses the browser\'s own resize corner, which sat on the scrollbars and moved the wrong way when docked bottom-right', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../ui/document-preview/peek/peek.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /resize:\s*both/);
+  assert.match(css, /\.page-peek__grip--nw/);
+  assert.match(css, /\.page-peek__scroll\[data-fit='true'\]\s*\{[^}]*overflow-x:\s*hidden/, 'fitted to the width there is no sideways bar');
+  const view = readFileSync(new URL('../ui/document-preview/peek/PagePeekView.jsx', import.meta.url), 'utf8');
+  assert.match(view, /page-peek__grip--se/);
+  assert.match(view, /page-peek__grip--nw/);
+});

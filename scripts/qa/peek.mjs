@@ -63,6 +63,7 @@ export async function runPeekQa(options) {
     const openRow = async (title) => { await page.locator(".source-doc", { hasText: title }).locator(".source-main").click(); await viewer.waitFor(); await sleep(700); };
     const closeReader = async () => { await page.keyboard.press("Escape"); await sleep(300); if (await viewer.count()) { await dialog.getByRole("button", { name: t("关闭", "Close") }).first().click().catch(() => {}); } await sleep(400); };
     const drawn = async () => { await panel.waitFor(); await page.waitForFunction(() => { const c = document.querySelector(".page-peek canvas"); return !!c && c.width > 0 && !document.querySelector(".page-peek__busy"); }, null, { timeout: 30000 }); };
+    const scrollerOverflow = async () => page.evaluate(() => { const area = document.querySelector(".page-peek__scroll"); return area && area.scrollWidth > area.clientWidth + 1 ? { scrollWidth: area.scrollWidth, clientWidth: area.clientWidth } : null; });
     const heap = async () => page.evaluate(() => { try { gc(); } catch { /* not exposed */ } return performance.memory ? performance.memory.usedJSHeapSize : 0; });
     const mb = (bytes) => Math.round(bytes / 1048576 * 10) / 10;
 
@@ -94,6 +95,42 @@ export async function runPeekQa(options) {
       const probe = await page.evaluate(overflowProbe);
       if (probe.scrollWidth > probe.clientWidth + 1) throw new Error(`horizontal overflow ${JSON.stringify(probe)}`);
       return box;
+    });
+    await step("peek-move-and-resize", async () => {
+      const box = async () => panel.boundingBox();
+      const drag = async (from, to) => { await page.mouse.move(from.x, from.y); await page.mouse.down(); await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 4 }); await page.mouse.move(to.x, to.y, { steps: 4 }); await page.mouse.up(); };
+      const near = (a, b, what) => { if (Math.abs(a - b) > 3) throw new Error(`${what}: ${a} vs ${b}`); };
+      const sideways = await scrollerOverflow();
+      if (sideways) throw new Error(`a horizontal scrollbar at fit width: ${JSON.stringify(sideways)}`);
+      const start = await box();
+      // the top-left grip grows the panel up and left and keeps the bottom-right corner where it was
+      const nw = await panel.locator(".page-peek__grip--nw").boundingBox();
+      await drag({ x: nw.x + nw.width / 2, y: nw.y + nw.height / 2 }, { x: nw.x + nw.width / 2 - 60, y: nw.y + nw.height / 2 - 40 });
+      const grown = await box();
+      near(grown.x + grown.width, start.x + start.width, "right edge moved while resizing from the top-left");
+      near(grown.y + grown.height, start.y + start.height, "bottom edge moved while resizing from the top-left");
+      if (!(grown.width > start.width + 40 && grown.height > start.height + 25)) throw new Error(`did not grow: ${JSON.stringify({ start, grown })}`);
+      // the bottom-right grip keeps the top-left corner and follows the cursor
+      const se = await panel.locator(".page-peek__grip--se").boundingBox();
+      await drag({ x: se.x + se.width / 2, y: se.y + se.height / 2 }, { x: se.x + se.width / 2 - 50, y: se.y + se.height / 2 - 30 });
+      const shrunk = await box();
+      near(shrunk.x, grown.x, "left edge moved while resizing from the bottom-right");
+      near(shrunk.y, grown.y, "top edge moved while resizing from the bottom-right");
+      if (!(shrunk.width < grown.width - 40)) throw new Error(`did not shrink: ${JSON.stringify({ grown, shrunk })}`);
+      // the title moves the whole panel and the size is kept
+      const head = await panel.locator(".page-peek__title").boundingBox();
+      await drag({ x: head.x + 4, y: head.y + 4 }, { x: head.x + 4 - 120, y: head.y + 4 + 60 });
+      const moved = await box();
+      near(moved.width, shrunk.width, "size changed while moving"); near(moved.height, shrunk.height, "size changed while moving");
+      if (Math.abs(moved.x - (shrunk.x - 120)) > 3 || Math.abs(moved.y - (shrunk.y + 60)) > 3) throw new Error(`moved to the wrong place ${JSON.stringify({ shrunk, moved })}`);
+      const view = page.viewportSize();
+      await drag({ x: head.x + 4 - 120, y: head.y + 4 + 60 }, { x: view.width + 400, y: view.height + 400 });
+      const clamped = await box();
+      if (clamped.x + clamped.width > view.width || clamped.y > view.height - 20) throw new Error(`left the window ${JSON.stringify(clamped)}`);
+      // back where the following checks expect it
+      await drag({ x: clamped.x + 40, y: clamped.y + 12 }, { x: shrunk.x + 40, y: shrunk.y + 12 });
+      await tool("适合宽度", "Fit width").click(); await drawn();
+      return { start, grown, shrunk, moved, clamped };
     });
     await step("peek-zoom-in", async () => {
       const before = await canvas.evaluate((element) => element.getBoundingClientRect().width);

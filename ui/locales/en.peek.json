@@ -11,5 +11,7 @@
   "这一页没能显示：{0}": "This page could not be shown: {0}",
   "原文件里没有第 {0} 页": "The original file has no page {0}",
   "文字版不含图片：这里直接显示原文件的这一页。": "Figures are not kept in the text: this shows that page of the original file.",
-  "原文件第 {0} 页": "Page {0} of the original file"
+  "原文件第 {0} 页": "Page {0} of the original file",
+  "拖动调整大小（也可用方向键）": "Drag to resize (or use the arrow keys)",
+  "从左上角调整大小（也可用方向键）": "Resize from the top-left corner (or use the arrow keys)"
 }
