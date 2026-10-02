@@ -1,6 +1,8 @@
 /* MinerU conversion gallery (QA only): every state of the settings section, the import route panel, the local setup panel and
    the job card, with fixed props (no backend), built and screenshotted by scripts/qa/mineru-shots.mjs.
-   Query: ?lang=zh|en&theme=dark|light&scene=settings|route|local|jobs */
+   Query: ?lang=zh|en&theme=dark|light&scene=settings|route|local|jobs|case|flow
+   scene=case&case=<key>: ONE settings section in one state (the layout matrix, measured by scripts/qa/mineru-layout.mjs);
+   scene=flow: the settings section with a stand-in backend that behaves like the real service, to click through start -> set up. */
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import styleCss from '../../ui/style.css';
@@ -29,12 +31,17 @@ const call = async () => ({});
 const TOKEN_HINT = '••••sig-';
 const unset = { token: { set: false, hint: '' }, acknowledged: false, docsUrl: 'https://mineru.net/apiManage/docs', settingsFile: 'C:\\Users\\student\\.dsh\\study\\mineru.json' };
 const saved = { token: { set: true, hint: TOKEN_HINT, source: 'file' }, acknowledged: true, docsUrl: unset.docsUrl, settingsFile: unset.settingsFile };
+// The owner's state: a token saved (shown only as its last four characters), the privacy box not ticked yet.
+const savedOnly = { ...saved, token: { set: true, hint: '••••aBQb', source: 'file' }, acknowledged: false };
 const est = { basic: 1.6, standard: 2.5 };
 const local = {
   missing: { state: 'not-installed', next: 'install' },
   needs: { state: 'needs-models', next: 'download-models', tier: 'flash', modelsMbByTier: { basic: 800, standard: 1200 }, estimates: est },
   stopped: { state: 'server-stopped', next: 'start-server', tier: 'basic', version: '4.0.10', estimates: est },
   ready: { state: 'ready', next: null, tier: 'basic', version: '4.0.10', estimates: est, windowPages: 50 },
+  // What the real CLI gives while its service is stopped: only the version (the settings live in the service).
+  stoppedBlind: { state: 'server-stopped', next: 'start-server', version: '4.0.10', running: false, tier: '', mode: '', modelsDownloaded: null, estimates: est },
+  unknown: { state: 'unknown', next: 'recheck', version: '4.0.10', running: true, estimates: est },
   running: { state: 'needs-models', next: 'download-models', tier: 'flash', modelsMbByTier: { basic: 800, standard: 1200 }, estimates: est,
     setup: { status: 'running', step: 'download', tier: 'basic', modelsMb: 800, lastLine: 'Downloading basic/layout.onnx … 312 MB', startedAt: new Date(Date.now() - 95_000).toISOString() } },
 };
@@ -51,13 +58,44 @@ const job = (extra = {}) => ({ id: `j${Math.random()}`, type: 'pdf-convert', rou
 function Section({ title, children }) { return <section className="g-section"><h2>{title}</h2>{children}</section>; }
 const noop = () => {};
 
+/* The layout matrix: [cloud settings, local status, what to click first]. */
+const CASES = {
+  'none-missing': [unset, local.missing],
+  'saved-stopped': [savedOnly, local.stoppedBlind],
+  'ack-needs': [saved, local.needs],
+  'ack-needs-standard': [saved, local.needs, 'input[name="mineru-tier"][value="standard"]'],
+  'ack-needs-confirm': [saved, local.needs, 'button.sh-btn--primary'],
+  'ack-ready': [saved, local.ready],
+  'saved-running': [savedOnly, local.running],
+  'ack-unknown': [saved, local.unknown],
+};
+
+/* A stand-in for the service the panel talks to: the same answers the real one gives (see lib/contexts/audio/convert.js),
+   including "stopped: nothing about the settings is known until it is started". */
+function flowCall() {
+  const world = { running: false };
+  return async action => {
+    await new Promise(resolve => setTimeout(resolve, 150));
+    if (action === 'mineru.settings.get') return savedOnly;
+    if (action === 'mineru.local.status') return world.running ? local.needs : local.stoppedBlind;
+    if (action === 'mineru.local.start') { world.running = true; return local.needs; }
+    return {};
+  };
+}
+
 function Scene() {
+  if (scene === 'case') {
+    const [settings, status] = CASES[params.get('case')] || CASES['none-missing'];
+    return <main><div className="page gallery"><MineruSettings call={call} initialSettings={settings} initialLocal={status} /></div></main>;
+  }
+  if (scene === 'flow') return <main><div className="page gallery"><MineruSettings call={flowCall()} /></div></main>;
   if (scene === 'settings') return <main><div className="page gallery">
     <Section title="No token · no local mineru"><MineruSettings call={call} initialSettings={unset} initialLocal={local.missing} /></Section>
     <Section title="Token saved · local ready"><MineruSettings call={call} initialSettings={saved} initialLocal={local.ready} /></Section>
+    <Section title="Token saved (owner) · local service stopped"><MineruSettings call={call} initialSettings={savedOnly} initialLocal={local.stoppedBlind} /></Section>
   </div></main>;
   if (scene === 'local') return <main><div className="page gallery">
-    {Object.entries({ 'Not installed': local.missing, 'Needs models': local.needs, 'Download running': local.running, 'Service stopped': local.stopped, 'Ready': local.ready }).map(([title, status]) =>
+    {Object.entries({ 'Not installed': local.missing, 'Needs models': local.needs, 'Download running': local.running, 'Service stopped (settings known)': local.stopped, 'Service stopped (settings unknown, as the real CLI)': local.stoppedBlind, 'Settings unreadable': local.unknown, 'Ready': local.ready }).map(([title, status]) =>
       <Section key={title} title={title}><LocalMineruPanel call={call} status={status} onStatus={noop} /></Section>)}
     <Section title="Confirming the download"><LocalMineruPanel call={call} status={local.needs} onStatus={noop} initialConfirm /></Section>
   </div></main>;

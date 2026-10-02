@@ -52,6 +52,19 @@ test('daily use follows Pacific midnight, separates models, ignores old keys and
   assert.equal(usage.providers[2].today.audioSeconds, 120);
   assert.equal(usage.trend.at(-1).free, 2);
 });
+test('a rate-limited or unreachable attempt does not use up the daily quota, though it is still listed as a failure', () => {
+  const at = now - 60000;
+  const usage = summarizeAudioUsage([
+    request('free', at), request('free', at + 1), request('free', at + 2),
+    request('free', at + 3, { status: 429 }), request('free', at + 4, { status: 429 }), request('free', at + 5, { status: 429 }),
+    request('free', at + 6, { status: 0 }),
+  ], { ...settings, dailyLimits: { [settings.transcribeModel]: 25 } }, now);
+  const free = usage.providers[0], model = free.models.find(item => item.model === settings.transcribeModel);
+  assert.equal(model.used, 3, 'only the three that reached the model count against the 25');
+  assert.equal(model.remaining, 22);
+  assert.equal(free.today.requests, 7, 'every attempt is still shown');
+  assert.equal(free.today.limited, 3); assert.equal(free.today.failures, 4);
+});
 test('Groq response quota is distinguished from estimates and expires instead of claiming reset data', () => {
   const headers = new Headers({ 'x-ratelimit-limit-requests': '2000', 'x-ratelimit-remaining-requests': '1977', 'x-ratelimit-reset-requests': '2m59.56s' });
   const quota = rateHeaders(headers, now);

@@ -47,6 +47,18 @@
 .study-app .mineru-privacy__check input { flex: none; margin: 3px 0 0; }
 .study-app .mineru-settings__privacy { margin-top: var(--space-3); }
 
+/* The two cards of the settings section. audio-settings.css lays provider cards on shared subgrid rows (head, status, steps, input,
+   actions, note), which only works while every card has exactly those six parts. Here the cloud card has a seventh (the privacy box)
+   and the local card is one panel, so the shared rows stretched the "saved" line to the height of the whole local panel (a blank
+   band of 100-400 px above it) and pushed the privacy box up over the footnote. Each card is its own plain column instead; the
+   grid still stretches the two cards to one height, and the section is its own container, so two columns need 760 px of ITS width. */
+.study-app .mineru-settings .audio-provider-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: stretch; }
+.study-app .mineru-settings .audio-provider-card { display: flex; flex-direction: column; grid-row: auto; grid-template-rows: none; gap: var(--space-3); }
+.study-app .mineru-settings .audio-provider-card .audio-key-form { display: grid; grid-row: auto; grid-template-rows: none; row-gap: var(--space-3); }
+@container (min-width: 760px) {
+  .study-app .mineru-settings .audio-provider-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-4); row-gap: var(--space-4); }
+}
+
 .study-app .mineru-local { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
 .study-app .mineru-local .sh-btn, .study-app .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
 .study-app .mineru-local__summary { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }

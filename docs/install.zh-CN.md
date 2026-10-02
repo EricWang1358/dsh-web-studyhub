@@ -2,7 +2,7 @@
 
 [English](install.md) · 中文
 
-StudyHub 是 DSH 的学习插件。[下载浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.2.1/StudyHub-2.2.1-Setup.zh-CN.html)，选择符合当前环境的路径：
+StudyHub 是 DSH 的学习插件。[下载浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.2.2/StudyHub-2.2.2-Setup.zh-CN.html)，选择符合当前环境的路径：
 
 - **已有 DSH 桌面版或网页版：仅安装学习插件。** 在正在使用的 DSH 中打开「插件」页，按下方步骤安装全套插件。网页版无需安装客户端，也无需另建配置或迁移已有模型、资料。
 - **尚未安装 DSH：** Windows、Mac 可选择官方桌面安装器；Linux 或不希望安装客户端的用户可选择 DSH 网页版。
@@ -10,17 +10,17 @@ StudyHub 是 DSH 的学习插件。[下载浏览器安装引导](https://github.
 ## 已有 DSH：仅安装全套插件
 
 1. 在现有 DSH 桌面版或网页版中打开「插件」页，选择「添加插件」。
-2. 在安装地址中粘贴下方完整工作台包地址，完成安装后确认包名为 `@ericwang1358/dsh-daily-flashcard`、版本为 `2.2.1`。
+2. 在安装地址中粘贴下方完整工作台包地址，完成安装后确认包名为 `@ericwang1358/dsh-daily-flashcard`、版本为 `2.2.2`。
 3. 启用工作台及所需子插件；若提示重新加载，先等当前后台任务完成或取消，再重新加载配置。
 4. 启用后 StudyHub 会自动打开；之后从 DSH 左栏的「StudyHub」进入，不需要先建会话或发消息。学习库为空时，点「载入示例并开始导览」，约 3 分钟看完所有关键功能，不需要模型。
 
 **更新：** DSH 插件不会自动更新，只重启 DSH 不会换成新版本。从 2.1.2 起，StudyHub 会向 GitHub 查询新版本（最多每 12 小时一次，可在「设置 › 关于与更新」关闭），有新版本时在侧栏提示；点「一键升级」会下载发布页的安装包，按 `SHA256SUMS` 核对 SHA-256 后交给 DSH 插件管理安装。旧版本或不支持应用内安装的宿主：在「插件」里卸载 StudyHub，再点「添加插件」粘贴新版本的安装包地址。两种方式都要先结束或取消后台任务，装好后重启 DSH：桌面版完全退出后重新打开，网页版用原 profile 重启服务；仅刷新浏览器不会加载新的插件代码。学习库和设置会保留。
 
 ```text
-https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.2.1/ericwang1358-dsh-daily-flashcard-2.2.1.tgz
+https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.2.2/ericwang1358-dsh-daily-flashcard-2.2.2.tgz
 ```
 
-无法直接从 GitHub 安装时，可从 [2.2.1 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.2.1)下载 `.tgz`，再填写安装包的绝对路径。路径必须在 **DSH 运行的电脑或服务器上**：访问远程网页版时，自己电脑的下载路径不等于服务器路径，可优先使用上述 HTTPS 地址。浏览器刷新不会替换已安装的插件。
+无法直接从 GitHub 安装时，可从 [2.2.2 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.2.2)下载 `.tgz`，再填写安装包的绝对路径。路径必须在 **DSH 运行的电脑或服务器上**：访问远程网页版时，自己电脑的下载路径不等于服务器路径，可优先使用上述 HTTPS 地址。浏览器刷新不会替换已安装的插件。
 
 ### 高级自定义与后续启停
 
@@ -42,7 +42,7 @@ https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.2.1/ericwa
 | macOS，Apple silicon（M 系列） | [下载 .dmg](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg) | 打开磁盘映像，按提示把 DSH 放入「应用程序」，然后启动。 |
 | Linux，或任何平台希望仅用网页版 | [官方 npm 启动说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md#run) | 安装 Node.js 22.19 或以上，运行下方命令，再在网页版中安装学习插件。 |
 
-以上复用 [DSH 官方下载入口](https://www.deepseek.com/en/harness/)；安装器随官方版本更新，DSH 的版本号与学习插件的 2.2.1 不同。桌面版自带运行时，无需另装 Node.js。
+以上复用 [DSH 官方下载入口](https://www.deepseek.com/en/harness/)；安装器随官方版本更新，DSH 的版本号与学习插件的 2.2.2 不同。桌面版自带运行时，无需另装 Node.js。
 
 Windows、Mac 也可以使用以下网页版路径。这里只提供已核实的 Windows x64 与 Mac arm64 桌面安装器；Intel Mac、Windows ARM 用户请查看官方最新支持情况，或使用网页版。
 

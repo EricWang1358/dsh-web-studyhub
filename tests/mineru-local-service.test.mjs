@@ -70,13 +70,18 @@ async function filesUnder(directory) {
 test('mineru.local.status reports one honest state with its next step, from read-only calls', async t => {
   const missing = await harness(t, { noCli: true });
   assert.deepEqual(await missing.call('mineru.local.status').then(s => [s.state, s.next]), ['not-installed', 'install']);
-  const fresh = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false, modelsReady: false } });
+  const fresh = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: true, modelsReady: false } });
   const needs = await fresh.call('mineru.local.status');
   assert.deepEqual([needs.state, needs.next], ['needs-models', 'download-models']);
   assert.equal(needs.modelsMbByTier.basic, 800);
   assert.equal(needs.modelsMbByTier.standard, 1200);
   const stopped = await harness(t, { state: { running: false } });
   assert.deepEqual(await stopped.call('mineru.local.status').then(s => [s.state, s.next]), ['server-stopped', 'start-server']);
+  // A stopped service cannot say how it is configured, so a never-configured one is also just "stopped" until it is started.
+  const stoppedFresh = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false, modelsReady: false } });
+  assert.deepEqual(await stoppedFresh.call('mineru.local.status').then(s => [s.state, s.next]), ['server-stopped', 'start-server']);
+  const unread = await harness(t, { state: { running: true, configFails: true } });
+  assert.deepEqual(await unread.call('mineru.local.status').then(s => [s.state, s.next]), ['unknown', 'recheck']);
   const ready = await harness(t);
   const status = await ready.call('mineru.local.status');
   assert.deepEqual([status.state, status.tier, status.version], ['ready', 'basic', '4.0.10']);
@@ -96,6 +101,9 @@ test('starting the stopped service is an explicit step; its failure is a plain m
   assert.equal(started.state, 'ready');
   const broken = await harness(t, { state: { running: false, startFails: true } });
   await assert.rejects(broken.call('mineru.local.start', {}), /端口/);
+  const fresh = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false, modelsReady: false } });
+  const afterStart = await fresh.call('mineru.local.start', {});
+  assert.deepEqual([afterStart.state, afterStart.next], ['needs-models', 'download-models'], 'only with the service up can its settings be read');
   const english = await harness(t, { state: { running: false, startFails: true } }).then(e => e.call('mineru.local.start', { uiLanguage: 'en' }).catch(error => error.message));
   assert.match(english, /could not start/);
 });
@@ -111,8 +119,9 @@ test('setup is confirmed first, sized, runs in the background, and ends with a r
   const done = await h.until(async () => { const run = await h.call('mineru.local.setup.status'); return run.status === 'complete' ? run : null; }, 'the setup');
   assert.equal(done.state.state, 'ready');
   const calls = (await h.log()).map(entry => entry.argv.join(' '));
-  const download = calls.findIndex(call => call.startsWith('--tier basic')), tierSet = calls.findIndex(call => call.includes('managed_tier basic')), modeSet = calls.findIndex(call => call.includes('parse_server.local.mode managed')), start = calls.findIndex(call => call === 'server start');
-  assert.ok(download >= 0 && download < tierSet && tierSet < modeSet && modeSet < start, `models first, then the tier, then the mode, then the service: ${calls.join(' | ')}`);
+  const start = calls.findIndex(call => call === 'server start'), download = calls.findIndex(call => call.startsWith('--tier basic')), tierSet = calls.findIndex(call => call.includes('managed_tier basic')), modeSet = calls.findIndex(call => call.includes('parse_server.local.mode managed')), restart = calls.findIndex(call => call === 'server restart');
+  assert.ok(start >= 0 && start < tierSet, `settings live in the service, so a stopped one is started before any config set: ${calls.join(' | ')}`);
+  assert.ok(download >= 0 && download < tierSet && tierSet < modeSet && modeSet < restart, `models, then the tier, then the mode, then the service restarts to use it: ${calls.join(' | ')}`);
   assert.equal((await h.call('mineru.local.status')).state, 'ready');
 });
 
@@ -234,8 +243,12 @@ test('the local route is refused, before anything runs, unless it is ready', asy
   assert.deepEqual(await stopped.parses(), []);
   const none = await harness(t, { noCli: true });
   await assert.rejects(none.call('mineru.import', { uploadId: await none.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.notInstalled);
-  const fresh = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false } });
+  const fresh = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: true } });
   await assert.rejects(fresh.call('mineru.import', { uploadId: await fresh.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.setupNeedsModels);
+  const freshStopped = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false } });
+  await assert.rejects(freshStopped.call('mineru.import', { uploadId: await freshStopped.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.serverStopped, 'a stopped service is never reported as missing models');
+  const unread = await harness(t, { state: { running: true, configFails: true } });
+  await assert.rejects(unread.call('mineru.import', { uploadId: await unread.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.unreadable);
   await assert.rejects(fresh.call('mineru.import', { uploadId: await fresh.upload(await makePdf({ pages: 3 })), route: 'nonsense' }), /route/);
 });
 

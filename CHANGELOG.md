@@ -2,6 +2,14 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.2.2 — 2026-10-02
+
+- **下一题 no longer stalls for about two seconds now and then.** After every answer, reveal or move the panel's next poll rebuilt the whole library snapshot in one synchronous stretch that blocked the host for 2.5–3 s on a large library, and a click that arrived meanwhile waited for it. Two causes are removed: the course list re-read every card's citations once per course and source, and the library state was copied a second time on its way out. On a copy of a 94 MB library, clicks went from up to 4.4 s to 0.7 s at most (typically about 0.2 s) and the full snapshot from about 3.3 s to 0.6 s.
+- **"Answer from the source" works again.** Asking about a selected passage failed with "Cannot read properties of undefined (reading 'slice')": the model dispatcher sent every request that carried an options object to the question-generation worker, which expects a job id. Only generation phases go there now; this request is one plain call and can still be cancelled.
+- **Rate-limited audio attempts no longer use up the daily quota.** The audio dashboard counted every request of the day against the provider's daily limit (for example Gemini's 25), including attempts that were refused with "rate limited" or never reached the provider, so a burst of 429 replies made the quota look spent. Only requests that reached the model count now; the failed attempts are still listed as failures.
+- **A stopped local MinerU is no longer reported as "models not downloaded".** The `mineru` command can only read its settings while its service runs, so with the service stopped StudyHub read nothing and told you to download models you already had. It now asks the service first: stopped means "start the service" (one click), and only a running service is checked for models. A settings read that fails for another reason is shown as unknown with "Re-check", never as "not set up".
+- **The MinerU settings cards no longer stretch.** The two cards shared row heights with the audio-key cards, which left a blank band above "saved" and pushed the small print over the privacy box. Each card is its own column now.
+
 ## 2.2.1 — 2026-10-02
 
 - **Upgrading StudyHub no longer breaks the search extension's installer.** After an upgrade, StudyHub deleted every other file in its download folder, including the search extension's installer, which DSH's profile still points at by path. From then on every plugin install, StudyHub's own upgrade included, failed with "DSH could not install the new version". Only older StudyHub packages are removed now.

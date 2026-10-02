@@ -99,7 +99,8 @@ export function localSummary(status) {
   switch (status.state) {
     case 'not-installed': return ui('这台电脑上没有找到本地 mineru。');
     case 'needs-models': return ui('找到了本地 mineru，但还没有下载并启用解析模型。');
-    case 'server-stopped': return ui('本地 mineru 已设置好，但本地服务没有在运行。');
+    case 'server-stopped': return ui('本地 mineru 已装好，服务没在运行。点下面的按钮启动；启动后才查得出模型有没有准备好。');
+    case 'unknown': return ui('找到了本地 mineru，也在运行，但读不出它的设置。点「重新检测」再试一次。');
     case 'ready': return uiFormat('本地 mineru 可用（{0} 档{1}）。', [status.tier, status.version ? ` · v${status.version}` : '']);
     default: return ui('没有读到本地 mineru 的状态。');
   }
@@ -213,7 +214,7 @@ export default function MineruSettings({ call, busy = false, setNotice, initialS
     finally { setAcknowledging(false); }
   };
   return (
-    <fieldset className="settings-section mineru-settings" data-tour="settings-mineru">
+    <fieldset className="audio-settings settings-section mineru-settings" data-tour="settings-mineru">
       <legend className="settings-section__title">{ui('MinerU 云端解析')}</legend>
       <p className="settings-section__lead">{ui('把 PDF 转成带页码的文字：支持扫描件、公式、表格和中文，超过 200 页的书会自动分段处理。有两种用法，可以只用其中一种。')}</p>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}

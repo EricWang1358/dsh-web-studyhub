@@ -158,11 +158,16 @@ test('the token is in no snapshot, no export and no file of the library', async 
   const uploadId = await h.upload(await makePdf({ pages: 3 }));
   await h.call('mineru.import', { uploadId });
   await h.until(async () => (await h.jobs())[0]?.status === 'complete', 'the conversion');
+  await h.call('job.wait', { jobId: (await h.jobs())[0].id, timeoutSeconds: 10 });
   const snapshot = JSON.stringify(await h.call('snapshot'));
   assert.ok(!snapshot.includes(FAKE_TOKEN));
   const exported = JSON.stringify(await h.call('export', {}).catch(() => ({})));
   assert.ok(!exported.includes(FAKE_TOKEN));
-  for (const file of await filesUnder(h.root)) assert.ok(!(await readFile(file)).includes(FAKE_TOKEN), file);
+  // A background write (the inbox letter) may rename a shard between listing and reading it; a file that is gone holds nothing to find.
+  for (const file of await filesUnder(h.root)) {
+    const bytes = await readFile(file).catch(error => { if (error.code === 'ENOENT') return Buffer.alloc(0); throw error; });
+    assert.ok(!bytes.includes(FAKE_TOKEN), file);
+  }
   assert.ok((await readFile(join(h.home, 'study', 'mineru.json'), 'utf8')).includes(FAKE_TOKEN), 'only the DSH home file holds it');
   // The same text appears in no request body either: only the Authorization header carries it.
   assert.ok(h.fake.requests.every(request => !(request.body || '').includes(FAKE_TOKEN)));
