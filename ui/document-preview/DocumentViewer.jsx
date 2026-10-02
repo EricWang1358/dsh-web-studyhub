@@ -17,7 +17,7 @@ import { useReaderSettings } from './reader/useReaderSettings.js';
 import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js';
 import { readerVars } from './reader/settings.js';
 import { readingSections } from './reader/text-sections.js';
-import { outlineFromSections, collectHeadings, structureOutline, sectionNeighbours, outlinePath } from './reader/outline.js';
+import { outlineFromSections, collectHeadings, structureOutline, sectionNeighbours, chapterNeighbours, outlinePath } from './reader/outline.js';
 import { applyOutline, clearOutlineTags } from './reader/ai-outline.js';
 import { findRanges, paintMatches } from './reader/find.js';
 import css from './document-preview.css';
@@ -153,7 +153,9 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const outline = useMemo(() => structureOutline(outlineItems, { fold: !aiOn }), [outlineItems, aiOn]);
   const [position, jump] = useReadingPosition(scroller, outline, `${view}:${html.length}:${sections.length}:${aiItems.length}`);
   const activeId = view === 'original' ? textOutline.find(item => item.page === pdfPage)?.id ?? null : position.activeId;
-  const around = useMemo(() => sectionNeighbours(outline, activeId), [outline, activeId]);
+  // Previous / next walk the sections; once the learner has applied the outline as the document's chapters, they walk the chapters.
+  const chapterLevel = aiOn && aiOutline?.segmentation?.level;
+  const around = useMemo(() => chapterLevel ? chapterNeighbours(outline, activeId, chapterLevel) : sectionNeighbours(outline, activeId), [outline, activeId, chapterLevel]);
   const here = outline.find(item => item.id === activeId);
   const where = here ? [itemLabel(here), outlinePath(outline, here.id).join(' › ')].filter(Boolean).join(' · ') : '';
   const jumpTo = item => {
@@ -299,7 +301,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
       {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo}
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
-          missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} /> : null} />}
+          missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={ui('资料内容')} data-mode={view}>
         <div className="reader-page">
           <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select}>

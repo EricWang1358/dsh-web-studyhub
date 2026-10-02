@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../../i18n.js';
 import { Button, Dialog } from '../../components/index.js';
 import { TokenEstimateView, TokenUsage } from '../../TokenUsage.jsx';
 import { ASSIST_IDLE, assistReducer, rejectionKind } from './ai-outline.js';
+import SegmentDialog from './SegmentDialog.jsx';
 
 /* The "让 AI 帮你" flow (materials.outline.*), one component wherever it is offered: under the reader's outline and in the
    dialog of a row on the 资料 page. It never starts a model call by itself: the learner sees what one call would cost first,
@@ -46,12 +47,13 @@ export function ProposalPreview({ current, entries, usage, coverage, warnings = 
 }
 
 /**
- * What the flow shows for each state. `saved` is the kept outline of this revision (or null), `stale` a note that only an
- * older revision has one, `missing` how many kept entries could not be placed in what is drawn, `segmentation` the
- * chapters it defines (or null).
+ * What the flow shows for each state. `saved` is the kept outline of this revision (or null; its `segmentation` says it is
+ * applied as the document's chapters), `stale` a note that only an older revision has one, `missing` how many kept entries
+ * could not be placed in what is drawn. variant 'dialog' is the 资料 page's: the two ways to ask are the main buttons.
  */
-export function OutlineAssistView({ state, saved, stale, missing = 0, segmentation = null, onStart, onRun, onCancel, onDiscard, onRestore, onSegment, onRestoreSegmentation }) {
+export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 'inline', onStart, onRun, onCancel, onDiscard, onRestore, onSegment, onRestoreSegmentation }) {
   const { phase } = state;
+  const segmentation = saved?.segmentation ? { level: saved.segmentation.level, chapters: saved.entries.filter(entry => entry.level <= saved.segmentation.level).length } : null;
   if (phase === 'estimating') return <p className="reader-assist__status" role="status">{ui('正在估算用量…')}</p>;
   if (phase === 'ready') return <div className="reader-assist" data-phase="ready">
     <p className="reader-assist__note">{coverageText(state.coverage)}</p>
@@ -96,10 +98,15 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, segmentati
     </>}
     {!saved && <>
       {stale && <p className="reader-assist__note" role="status">{ui('这份资料已更新；之前为旧版本整理的 AI 目录不再适用。')}</p>}
-      <div className="reader-assist__actions">
-        <Button size="sm" variant="quiet" icon="sparkle" onClick={() => onStart('outline')}>{ui('对自动解析的标题不满意？让 AI 帮你')}</Button>
-        <Button size="sm" variant="quiet" onClick={() => onStart('chapters')} title={ui('只让 AI 找出章节的起点，比完整目录便宜')}>{ui('只分章节')}</Button>
-      </div>
+      {variant === 'dialog'
+        ? <div className="reader-assist__actions">
+          <Button variant="primary" icon="sparkle" onClick={() => onStart('chapters')} title={ui('只让 AI 找出章节的起点，比完整目录便宜')}>{ui('让 AI 找出章节（较省）')}</Button>
+          <Button variant="secondary" onClick={() => onStart('outline')}>{ui('让 AI 整理完整目录')}</Button>
+        </div>
+        : <div className="reader-assist__actions">
+          <Button size="sm" variant="quiet" icon="sparkle" onClick={() => onStart('outline')}>{ui('对自动解析的标题不满意？让 AI 帮你')}</Button>
+          <Button size="sm" variant="quiet" onClick={() => onStart('chapters')} title={ui('只让 AI 找出章节的起点，比完整目录便宜')}>{ui('只分章节')}</Button>
+        </div>}
     </>}
   </div>;
 }
@@ -109,9 +116,9 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, segmentati
  * outline the reader has now (structured); `onSaved(outline)` / `onCleared()` tell the owner to show the kept outline or the
  * automatic one again. Extra props reach the segmentation step when the owner offers it.
  */
-export default function OutlineAssist({ call, target, current, saved, stale, missing, segmentation, onSaved, onCleared, onSegment, onRestoreSegmentation }) {
+export default function OutlineAssist({ call, target, current, saved, stale, missing, variant, onSaved, onCleared, onChanged }) {
   const [state, dispatch] = useReducer(assistReducer, ASSIST_IDLE);
-  const [mode, setMode] = useState('outline'), token = useRef(0);
+  const [mode, setMode] = useState('outline'), [segmenting, setSegmenting] = useState(false), token = useRef(0);
   const { documentId, sourceId, revision, legacy } = target;
   const args = useMemo(() => ({ ...(documentId ? { documentId } : { sourceId }), ...(revision && !legacy ? { revision } : {}) }), [documentId, sourceId, revision, legacy]);
   useEffect(() => { token.current += 1; dispatch({ type: 'reset' }); }, [args]);
@@ -136,16 +143,24 @@ export default function OutlineAssist({ call, target, current, saved, stale, mis
         ...(mode === 'chapters' ? { segmentLevel: 1 } : {}) });
       dispatch({ type: 'reset' });
       onSaved?.(saving.outline, saving);
+      onChanged?.();
     } catch (error) { dispatch({ type: 'error', message: error.message }); }
   };
   const restore = async () => {
-    try { await call('materials.outline.clear', args); onCleared?.(); }
+    try { await call('materials.outline.clear', args); onCleared?.(); onChanged?.(); }
+    catch (error) { dispatch({ type: 'error', message: error.message }); }
+  };
+  const restoreSegmentation = async () => {
+    try { await call('materials.outline.segment', { ...args, level: null }); onSaved?.({ ...saved, segmentation: undefined }); onChanged?.(); }
     catch (error) { dispatch({ type: 'error', message: error.message }); }
   };
   const withMode = { ...state, mode };
   return <>
-    <OutlineAssistView state={withMode} saved={saved} stale={stale} missing={missing} segmentation={segmentation} onStart={start} onRun={run} onCancel={cancel}
-      onDiscard={() => dispatch({ type: 'reset' })} onRestore={restore} onSegment={onSegment} onRestoreSegmentation={onRestoreSegmentation} />
+    <OutlineAssistView state={withMode} saved={saved} stale={stale} missing={missing} variant={variant} onStart={start} onRun={run} onCancel={cancel}
+      onDiscard={() => dispatch({ type: 'reset' })} onRestore={restore} onSegment={() => setSegmenting(true)} onRestoreSegmentation={restoreSegmentation} />
+    {segmenting && saved && <SegmentDialog call={call} args={args} onClose={() => setSegmenting(false)}
+      onApplied={result => { onSaved?.({ ...saved, segmentation: { level: result.level, appliedAt: new Date().toISOString() } }); onChanged?.(); }}
+      onRestored={() => { onSaved?.({ ...saved, segmentation: undefined }); onChanged?.(); }} />}
     {state.phase === 'proposal' && <Dialog title={mode === 'chapters' ? ui('AI 建议的章节') : ui('AI 建议的目录')} size="lg" onClose={() => dispatch({ type: 'reset' })}
       description={ui('预览：确认之前，资料和当前目录都不会改变。')}
       footer={<><Button variant="primary" onClick={accept} disabled={state.saving}>{mode === 'chapters' ? ui('采用这些章节') : ui('采用这个目录')}</Button>

@@ -10,6 +10,7 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
+import OutlineDialog from './document-preview/reader/OutlineDialog.jsx';
 import css from "./sources.css";
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
@@ -106,7 +107,39 @@ const pageLabel = (item, page) => item.format === 'pdf'
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
+/**
+ * The chapters of one document, each with where it lies and its own 出题 button. A chapter that starts and ends inside one page holds
+ * no whole page, so generation cannot be scoped to it (the button is off); it still opens the document at its start.
+ */
+export function ChapterList({ item, busy, onOpen, onGenerate, listId }) {
+  return <ul id={listId} className="source-doc__page-list source-doc__chapters">
+    {item.chapters.map(chapter => {
+      const inside = chapter.sourceIds.length === 0, partial = chapter.partial && item.chapterUnit !== 'text';
+      return <li key={chapter.index} data-chapter-index={chapter.index}>
+        <button type="button" onClick={() => onOpen(chapter.startSourceId || chapter.sourceIds[0])}>
+          <span>{chapterLabel(chapter, item.chapterUnit)}</span>
+          <small>{[partial && (item.chapterUnit === 'part' ? ui('从文件中间开始') : ui('从页中间开始')),
+            item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, chapter.chars.toLocaleString(uiLocale())])].filter(Boolean).join(' · ')}</small>
+        </button>
+        {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy || inside}
+          title={inside ? (item.chapterUnit === 'text' ? ui('这份资料是一整段文字，出题仍以整份资料为单位') : ui('这一章在同一页内，不能单独出题')) : undefined}
+          onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
+      </li>;
+    })}
+  </ul>;
+}
+
+/** The entries of a row's 更多 menu. */
+export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment }) {
+  const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
+  return <>
+    {onChangeCourse && <button type="button" disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</button>}
+    {onSegment && <button type="button" disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</button>}
+    <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('移除')}</button>
+  </>;
+}
+
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
   const [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), row = useRef(null);
   const multi = item.pages.length > 1;
@@ -136,24 +169,16 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
         <div className="source-doc__actions">
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            {onChangeCourse && <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onChangeCourse(item); }}>{ui('改课程…')}</button>}
-            <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onRemove(item); }}>{ui('移除')}</button>
+            <RowMenuItems item={item} busy={busy} onChangeCourse={onChangeCourse} onRemove={onRemove} onSegment={onSegment} />
           </details>
         </div>
       </div>
-      {multi && <div className="source-doc__pages">
+      {(multi || chaptered) && <div className="source-doc__pages">
         <Button variant="quiet" size="sm" iconEnd="chevron" className="source-doc__pages-toggle" aria-expanded={pagesOpen} aria-controls={listId}
           onClick={() => setPagesOpen(open => !open)}>
           {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
         </Button>
-        {pagesOpen && chaptered && <ul id={listId} className="source-doc__page-list source-doc__chapters">
-          {item.chapters.map(chapter => <li key={chapter.index} data-chapter-index={chapter.index}>
-            <button type="button" onClick={() => onOpen(chapter.sourceIds[0])}>
-              <span>{chapterLabel(chapter)}</span><small>{uiFormat('{0} 页 · {1} 字符', [chapter.sourceIds.length, chapter.chars.toLocaleString(uiLocale())])}</small>
-            </button>
-            {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy} onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
-          </li>)}
-        </ul>}
+        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={onOpen} onGenerate={onGenerate} listId={listId} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list">
           {item.pages.map(page => <li key={page.sourceId}>
             <button type="button" onClick={() => onOpen(page.sourceId)}>
@@ -245,6 +270,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
+  const [segmenting, setSegmenting] = useState(null);
   const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); };
   const toggle = group => {
@@ -332,7 +358,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
-                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse}
+                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined}
                   advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
                   call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>
@@ -342,6 +368,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
       )}
       {editingCourse && <CourseDialog item={editingCourse} items={items} byId={byId} courses={data.focus?.courses} busy={busy} act={act}
         onClose={() => setEditingCourse(null)} />}
+      {segmenting && <OutlineDialog item={segmenting} call={call} act={act} onClose={() => setSegmenting(null)} />}
       {removing && <RemoveDialog item={removing} busy={busy} act={act} call={call} onClose={() => setRemoving(null)}
         onRemoved={item => { setRemoving(null); setNotice?.({ text: uiFormat("已移除「{0}」", [displayTitle(item.title)]), tone: "success" }); }} />}
     </section>

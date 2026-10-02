@@ -145,6 +145,19 @@ export function sectionNeighbours(tree, id) {
   return neighbours(sections, anchor);
 }
 
+/**
+ * Previous and next chapter around an entry when the learner has applied an outline as the document's chapters: the entries
+ * down to `level` are the chapters, and an entry deeper than that belongs to the last chapter above it.
+ */
+export function chapterNeighbours(tree, id, level) {
+  const at = tree.findIndex(node => node.id === id);
+  if (at < 0) return { previous: null, next: null };
+  const chapters = tree.filter(node => node.level <= level);
+  let here = -1;
+  for (let index = 0; index <= at; index += 1) if (tree[index].level <= level) here = chapters.indexOf(tree[index]);
+  return { previous: here > 0 ? chapters[here - 1] : null, next: here + 1 < chapters.length ? chapters[here + 1] : null };
+}
+
 /** Where an entry sits, for the toolbar: its title, a label's part first. */
 export function outlinePath(tree, id) {
   const node = tree.find(entry => entry.id === id);
