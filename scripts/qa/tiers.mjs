@@ -17,7 +17,7 @@
      - the checklist, when there is one, is inside the main column and never covers the question catalogue's first row.
    Screenshots go to <out>/<state>-<page>-<width>-<lang>-<theme>.png, the numbers to <out>/tiers.json.
    `--label` only prefixes the file names so a before and an after run can sit side by side. Exit code 1 on a violation. */
-/* global document, getComputedStyle, innerWidth */
+/* global document, innerWidth, innerHeight -- page.evaluate callbacks run in the browser */
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,8 +86,11 @@ async function measurePage(page) {
     }).filter((el) => !el.closest(".map-menu, .selection-bar, dialog, [role=tooltip], .toast, .tour, .nav-mark")).slice(0, 5)
       .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]}`);
     const count = (selector) => document.querySelectorAll(selector).length;
+    // The rail must fit the window: the last row (Settings) ends inside it.
+    const last = [...document.querySelectorAll(".sidebar-bottom .nav")].at(-1)?.getBoundingClientRect();
+    const sidebarOverflow = last ? Math.max(0, Math.round(last.bottom - innerHeight)) : 0;
     return {
-      overflowX, wide,
+      overflowX, wide, sidebarOverflow,
       continueCards: count(".today-card"), recommendations: count(".desk-next"), coachOffers: count(".coach-offer"),
       checklist: count("[data-setup-checklist]"), checklistMode: document.querySelector("[data-setup-checklist]")?.getAttribute("data-mode") || null,
       groups: [...document.querySelectorAll(".sidebar [data-nav-group]")].map((el) => ({ id: el.getAttribute("data-nav-group"), open: el.getAttribute("data-open") })),
@@ -137,6 +140,7 @@ async function openState({ browser, running, state, lang, theme, width, label, o
 export function checkRecord(record) {
   const problems = [], at = `${record.state} ${record.width}px ${record.lang} ${record.theme}`;
   for (const [name, facts] of Object.entries(record.pages)) {
+    if (facts.sidebarOverflow > 0) problems.push(`${at} ${name}: the sidebar is ${facts.sidebarOverflow}px taller than the window`);
     if (facts.overflowX > 1) problems.push(`${at} ${name}: the page scrolls sideways by ${facts.overflowX}px`);
     if (facts.wide.length) problems.push(`${at} ${name}: ${facts.wide.join(", ")} stick out of the main column`);
     if (facts.continueCards > 1) problems.push(`${at} ${name}: ${facts.continueCards} continue cards`);

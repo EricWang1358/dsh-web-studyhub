@@ -11,7 +11,7 @@ import StudyMap from "./StudyMap.jsx";
 import Welcome, { SampleBanner } from "./Welcome.jsx";
 import Tour from "./tour/Tour.jsx";
 import TourGlyph from "./tour/TourGlyph.jsx";
-import { NavItem, ResumeNavItem, CoachNavItem } from "./SideNav.jsx";
+import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from "./SideNav.jsx";
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from "./tour/steps.js";
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from "./tour/progress.js";
 import { OnboardingPanel, RemoveSampleDialog } from "./tour/SampleControls.jsx";
@@ -21,7 +21,8 @@ import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
 import { dueSummary } from "../lib/board-model.js";
 import NavGlyph, { BrandMark } from "./NavGlyph.jsx";
-import { useNavOrder, NAV_DEFAULTS } from "./nav-order.js";
+import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
+import sideGroupsCss from "./side-groups.css";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
 import Manage from "./Manage.jsx";
@@ -74,6 +75,7 @@ export default function App({ call: transportCall, host = {} }) {
     return localizeRunResponse(result);
   }, [transportCall]);
   useInjectCss(localeCss, 'study-language');
+  useInjectCss(sideGroupsCss, 'study-side-groups');
   useInjectCss(css, "study-coach");
   useInjectCss(libraryChipCss, "study-library-chip");
   const rootRef = useRef(null),
@@ -188,6 +190,7 @@ export default function App({ call: transportCall, host = {} }) {
     lastRunId = data?.lastRun?.id,
     lastRunIndex = data?.lastRun?.index;
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
+  const navGroups = useNavGroups();
   const navLabels = {
     library: ui("学习库"), workflows: ui("学习流"), live: language === "en" ? "Live class" : "课堂实录",
     audio: language === "en" ? "Audio transcription" : "音频转录", wrongbook: ui("错题与待巩固"), exam: ui("模拟考试"),
@@ -207,7 +210,7 @@ export default function App({ call: transportCall, host = {} }) {
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
     observer?.observe(nav);
     return () => observer?.disconnect();
-  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex, navOrder.order]);
+  }, [page, pageTarget, sidebarNarrow, loaded, lastRunId, lastRunIndex, navOrder.order, navGroups.folded]);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
@@ -1677,43 +1680,55 @@ export default function App({ call: transportCall, host = {} }) {
               style={{ transform: `translateY(${navMark.top}px)`, height: navMark.height }}
             />
           )}
-          <ResumeNavItem
-            lastRun={lastRun}
-            hasDecks={!!data?.decks.length}
-            ready={!!data}
-            active={navPage === "review"}
-            disabled={!data || busy || !pageAvailable(data, 'review')}
-            onClick={resumeOrStart}
-          />
-          {data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
-            <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={onCoachPractice} />
-          )}
-          {[...navOrder.order.main, ...navOrder.order.upkeep].filter(id => pageAvailable(data, id)).map((id) => {
-            const label = navLabels[id], upkeep = NAV_DEFAULTS.upkeep.includes(id);
-            const due = id === "board" && boardDue.overdue + boardDue.today > 0;
+          {NAV_GROUPS.map((group) => {
+            const ids = navOrder.order[group.id].filter(id => pageAvailable(data, id));
+            // A group whose pages are all switched off in the host is not drawn; the daily one always is (it holds 回到题目).
+            if (!ids.length && group.id !== "daily") return null;
             return (
-              <NavItem
-                key={id}
-                {...navOrder.bind(id)}
-                data-tour={`nav-${id}`}
-                className={navOrder.lifted === id ? "is-dragging" : ""}
-                upkeep={upkeep}
-                active={navPage === id}
-                glyph={id}
-                label={ui(label)}
-                title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
-                onClick={() => switchPage(id, () => {
-                  if (id === 'board') setBoardStudyRef(currentStudyReference());
-                  if (id === "exam") { setExamRunId(null); setExamKind('exam'); }
-                  if (id === "notes") setNoteInitialId("");
-                  if (id === 'graph') setGraphScope(null);
-                  setError("");
+              <NavGroup key={group.id} id={group.id} label={group.label} hint={group.hint} collapsible={group.collapsible}
+                open={groupIsOpen(group.id, navGroups.folded, navPage)} onToggle={() => navGroups.toggle(group.id)}>
+                {group.id === "daily" && (
+                  <ResumeNavItem
+                    lastRun={lastRun}
+                    hasDecks={!!data?.decks.length}
+                    ready={!!data}
+                    active={navPage === "review"}
+                    disabled={!data || busy || !pageAvailable(data, 'review')}
+                    onClick={resumeOrStart}
+                  />
+                )}
+                {group.id === "daily" && data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
+                  <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={onCoachPractice} />
+                )}
+                {ids.map((id) => {
+                  const label = navLabels[id];
+                  const due = id === "board" && boardDue.overdue + boardDue.today > 0;
+                  return (
+                    <NavItem
+                      key={id}
+                      {...navOrder.bind(id)}
+                      data-tour={`nav-${id}`}
+                      className={navOrder.lifted === id ? "is-dragging" : ""}
+                      upkeep={group.id === "setup"}
+                      active={navPage === id}
+                      glyph={id}
+                      label={ui(label)}
+                      title={`${ui(label)}\n${ui("长按并拖动可调整顺序（键盘：Alt+↑/↓）")}`}
+                      onClick={() => switchPage(id, () => {
+                        if (id === 'board') setBoardStudyRef(currentStudyReference());
+                        if (id === "exam") { setExamRunId(null); setExamKind('exam'); }
+                        if (id === "notes") setNoteInitialId("");
+                        if (id === 'graph') setGraphScope(null);
+                        setError("");
+                      })}
+                      disabled={!data && id !== "board"}
+                      hint={id === "board" ? boardCount : id === "sources" && data ? countDocuments(data.sources) : undefined}
+                      hintClass={due ? "nav-count is-due" : "nav-count"}
+                      hintTitle={due ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}
+                    />
+                  );
                 })}
-                disabled={!data && id !== "board"}
-                hint={id === "board" ? boardCount : id === "sources" && data ? countDocuments(data.sources) : undefined}
-                hintClass={due ? "nav-count is-due" : "nav-count"}
-                hintTitle={due ? uiFormat("{0} 项已逾期 · {1} 项今天截止", [boardDue.overdue, boardDue.today]) : undefined}
-              />
+              </NavGroup>
             );
           })}
           {navOrder.customized && !sidebarNarrow && (
