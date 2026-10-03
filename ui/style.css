@@ -2308,6 +2308,47 @@
     border-radius: 12px;
     background: var(--bg-surface);
   }
+  .teaching-progress {
+    display: block;
+    width: 100%;
+    height: 4px;
+    margin: 12px 0 18px;
+    border: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    appearance: none;
+    background: var(--line-soft);
+    color: var(--accent);
+  }
+  .teaching-progress::-webkit-progress-bar { background: var(--line-soft); }
+  .teaching-progress::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
+  .teaching-progress::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
+  .teaching-context {
+    display: grid;
+    gap: 10px;
+    margin: 16px 0;
+    padding: 14px 0;
+    border-top: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .teaching-context > div {
+    display: grid;
+    grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr);
+    gap: 14px;
+  }
+  .teaching-context dt { color: var(--text-muted); }
+  .teaching-context dd { margin: 0; min-width: 0; }
+  .teaching-context .md p { font-size: inherit; }
+  .teaching-panel form { display: grid; gap: 14px; margin-top: 18px; }
+  .teaching-panel form > label { display: grid; gap: 10px; }
+  .teaching-panel form > button { justify-self: end; }
+  @container study (max-width: 480px) {
+    .teaching-panel .explanation { padding: 16px; }
+    .teaching-context > div { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+    .teaching-panel form > button { width: 100%; }
+  }
   .teaching-feedback {
     margin: 0 0 14px;
     padding: 11px 14px;
@@ -2366,6 +2407,8 @@
      answer grows the card in step with the flip instead of in one frame. */
   .flip-inner {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
     transform-style: preserve-3d;
     transition:
       transform 0.6s cubic-bezier(0.3, 0.75, 0.2, 1),
@@ -2398,6 +2441,7 @@
   .flip-face {
     position: relative;
     grid-area: 1 / 1;
+    min-width: 0;
     min-height: 400px;
     padding: 76px 36px 28px;
     border: 0;
@@ -2445,34 +2489,72 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
-  .md-math { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; }
-  .md-math-display {
-    display: block;
+  .md-math {
+    display: inline-block;
+    max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 0.35em 0;
+    vertical-align: middle;
+    padding-block: 0.15em;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+    overscroll-behavior-x: contain;
+    line-height: normal;
+    letter-spacing: normal;
+  }
+  .md-math-display {
+    display: block;
+    margin: 0.75em 0;
+    padding: 0.8em 1em;
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    background: var(--bg-surface);
     text-align: center;
   }
-  .md-math math { font-size: 1em; }
+  /* Center fitting equations; oversized ones start at the scroll origin. */
+  .md-math-display > .md-math-content {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    justify-content: center;
+  }
+  .md-math-display:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
+  .md-math math { font-size: 1em; font-weight: 400; font-family: math, "Cambria Math", serif; }
   .md-math-source { white-space: pre-wrap; }
-  .md-image { display: inline-block; max-width: 100%; vertical-align: middle; }
-  .md-image img { display: block; max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: 8px; }
-  .md-image-open { max-width: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
-  .md-image-open:hover { background: transparent; }
-  .md-image-fallback { display: inline-block; font-size: 0.85em; color: var(--text-muted); }
-  .md-image-dialog {
-    max-width: min(94vw, 1200px);
-    max-height: 90vh;
-    padding: 16px;
+  .md-image { display: inline-block; max-width: 100%; margin-block: 0.5em; vertical-align: middle; }
+  .md-image img { display: block; max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: 6px; margin-inline: auto; }
+  .md-image-open, .md-image-static {
+    max-width: 100%;
+    padding: 8px;
     border: 1px solid var(--line);
     border-radius: 12px;
+    background: var(--bg-surface);
+  }
+  .md-image-open { display: block; cursor: zoom-in; text-align: left; }
+  .md-image-open:hover { background: var(--bg-hover); border-color: var(--line-strong); }
+  .md-image-info { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
+  .md-image-caption { display: block; min-width: 0; font-family: var(--font-ui); font-size: 13px; line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
+  .md-image-static > .md-image-caption { margin-top: 8px; }
+  .md-image-action { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--text); }
+  .md-image-fallback { display: inline-grid; gap: 3px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; font-size: 13px; color: var(--text-muted); }
+  .md-image-dialog {
+    max-width: min(94vw, 1200px);
+    min-width: min(360px, 90vw);
+    max-height: calc(100dvh - 32px);
+    padding: 20px;
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
     color: var(--text);
-    background: var(--paper);
+    background: var(--bg-surface);
     overflow: auto;
+    box-shadow: var(--shadow-lg);
   }
   .md-image-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-  .md-image-dialog img { display: block; max-width: 100%; max-height: 74vh; object-fit: contain; margin: auto; }
-  .md-image-close { display: block; margin: 0 0 12px auto; }
+  .md-image-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .md-image-dialog-header p { margin: 0; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; min-width: 0; }
+  .md-image-close { flex: none; min-height: 40px; }
+  .md-image-dialog-canvas { margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--bg-sunken); }
+  .md-image-dialog img { display: block; max-width: 100%; max-height: 70dvh; width: auto; height: auto; object-fit: contain; margin: auto; }
   .md > :first-child {
     margin-top: 0;
   }

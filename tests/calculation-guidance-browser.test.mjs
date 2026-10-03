@@ -64,6 +64,8 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   await page.getByRole('heading', { name: 'Known conditions and unknown quantity' }).waitFor();
   assert.equal((await page.locator('.teaching-panel').innerText()).includes('Secret scoring'), false);
   assert.equal((await page.locator('.teaching-panel').innerText()).includes('Work on stage 1'), false);
+  assert.equal(await page.locator('.teaching-context dt').count(), 3);
+  assert.equal(await page.locator('.teaching-progress').getAttribute('value'), '0');
   await answer.fill('wrong');
   await page.locator('.teaching-panel button.primary').click();
   await page.getByText('Try checking the time unit', { exact: true }).waitFor();
@@ -79,6 +81,7 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   await answer.fill('typed while checking');
   release.resolve();
   await page.getByRole('heading', { name: 'Formula and why it applies' }).waitFor();
+  assert.equal(await page.locator('.teaching-progress').getAttribute('value'), '1');
   assert.equal(await answer.inputValue(), 'typed while checking');
   await page.getByRole('button', { name: 'Guided understanding', exact: true }).click();
   await page.getByText('Generic current relationship', { exact: true }).waitFor();
@@ -87,8 +90,12 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   await page.getByRole('heading', { name: 'Formula and why it applies' }).waitFor();
   assert.equal(await answer.inputValue(), 'typed while checking');
   await page.screenshot({ path: resolve(screenshots, 'calculation-desktop.png'), fullPage: true });
+  await page.locator('.teaching-panel').screenshot({ path: resolve(screenshots, 'calculation-panel-desktop.png') });
   await page.setViewportSize({ width: 420, height: 900 });
   await page.screenshot({ path: resolve(screenshots, 'calculation-mobile.png'), fullPage: true });
+  await page.locator('.teaching-panel').screenshot({ path: resolve(screenshots, 'calculation-panel-mobile.png') });
+  assert.ok(await page.locator('.teaching-panel').evaluate(element => element.scrollWidth <= element.clientWidth + 1));
+  await page.setViewportSize({ width: 320, height: 900 });
   assert.ok(await page.locator('.teaching-panel').evaluate(element => element.scrollWidth <= element.clientWidth + 1));
   await page.evaluate(() => localStorage.setItem('study-ui-language', 'zh'));
   await page.addInitScript(() => localStorage.setItem('study-ui-language', 'zh'));

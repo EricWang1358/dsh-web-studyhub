@@ -13,6 +13,6 @@ export default React.memo(function StudyMath({ formula }) {
   const html = React.useMemo(() => renderer?.(formula.source, formula.display), [renderer, formula.source, formula.display]);
   return <span className={'md-math' + (formula.display ? ' md-math-display' : '')}
     tabIndex={formula.display ? 0 : undefined} onKeyDown={event => event.stopPropagation()}>
-    {html ? <span dangerouslySetInnerHTML={{ __html: html }} /> : <span className="md-math-source">{formula.raw}</span>}
+    {html ? <span className="md-math-content" dangerouslySetInnerHTML={{ __html: html }} /> : <span className="md-math-source">{formula.raw}</span>}
   </span>;
 });

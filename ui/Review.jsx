@@ -827,6 +827,8 @@ export default function Review({
                     {Math.min(teaching.index + 1, teaching.total)} /{" "}
                     {teaching.total}
                   </div>
+                  <progress className="teaching-progress" value={teaching.index} max={teaching.total}
+                    aria-label={teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解")} />
                   {teaching.mode === "calculation" && (
                     <p className="muted small">{ui("每次只练当前步骤。AI 反馈用于辅助学习，不能证明计算正确。")}</p>
                   )}
@@ -842,13 +844,17 @@ export default function Review({
                     <>
                       {teaching.mode === "calculation" && <>
                         <h3>{ui(CALCULATION_STAGE_LABELS[teaching.stage] || "计算题引导练习")}</h3>
-                        <h4>{ui("本步假设")}</h4><Markdown text={teaching.assumptions} />
-                        <h4>{ui("本步单位")}</h4><Markdown text={teaching.units} />
-                        <h4>{ui("精度与舍入")}</h4><Markdown text={teaching.rounding} />
+                      </>}
+                      <Markdown text={teaching.lesson} />
+                      {teaching.mode === "calculation" && <>
+                        <dl className="teaching-context">
+                          <div><dt>{ui("本步假设")}</dt><dd><Markdown text={teaching.assumptions} /></dd></div>
+                          <div><dt>{ui("本步单位")}</dt><dd><Markdown text={teaching.units} /></dd></div>
+                          <div><dt>{ui("精度与舍入")}</dt><dd><Markdown text={teaching.rounding} /></dd></div>
+                        </dl>
                         <CitationDisclosure card={teaching} sources={data.sources}
                           onOpenSource={(source, quote) => setModal({ type: "source", source, quote })} />
                       </>}
-                      <Markdown text={teaching.lesson} />
                       <form
                         onSubmit={(e) => {
                           e.preventDefault();
