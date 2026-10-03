@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Disclosure, InlineMessage } from './components/index.js';
@@ -23,12 +23,13 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
   const [status, setStatus] = useState(initialStatus);
   const [working, setWorking] = useState(false), [probe, setProbe] = useState(null), [error, setError] = useState('');
   const [endpoint, setEndpoint] = useState(initialStatus?.hfEndpoint || '');
+  const endpointEdited = useRef(false);
   const selectId = useId(), endpointId = useId();
   const accept = value => { if (!value) return; setStatus(value); onStatus?.(value); };
   useEffect(() => {
     if (initialStatus || typeof call !== 'function') { if (!initialStatus) setStatus(NOTHING); return undefined; }
     let live = true;
-    Promise.resolve(call('retrieval.status', {})).then(value => { if (live) { setStatus(value || NOTHING); setEndpoint(value?.hfEndpoint || ''); } }, () => { if (live) setStatus(NOTHING); });
+    Promise.resolve(call('retrieval.status', {})).then(value => { if (live) { setStatus(value || NOTHING); if (!endpointEdited.current) setEndpoint(value?.hfEndpoint || ''); } }, () => { if (live) setStatus(NOTHING); });
     return () => { live = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const current = status || NOTHING;
@@ -93,7 +94,7 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
           {probe && !probe.ok && probe.reason !== 'builtin' && <InlineMessage className="extensions-settings__result">{probe.message || ui('检索工具没有回应。')}</InlineMessage>}
           <div className="extensions-settings__endpoint">
             <label htmlFor={endpointId}>{ui('模型下载地址')}
-              <input id={endpointId} type="url" value={endpoint} placeholder="https://huggingface.co" disabled={working} onChange={event => setEndpoint(event.target.value)} />
+              <input id={endpointId} type="url" value={endpoint} placeholder="https://huggingface.co" disabled={working} onChange={event => { endpointEdited.current = true; setEndpoint(event.target.value); }} />
             </label>
             <p className="large-doc__note">{ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}</p>
             <Button size="sm" variant="secondary" busy={working} onClick={saveEndpoint}>{ui('保存下载地址')}</Button>

@@ -209,20 +209,29 @@ export function RestorePreview({ file, busy, onConfirm, onCancel }) {
 /** Export and restore as two blocks with the same shape: what it does, where the file goes, one action. */
 export function BackupSection({ root, busy, exportData, act, onRestored }) {
   const [file, setFile] = useState(null), [error, setError] = useState(""), [confirm, setConfirm] = useState(false), [working, setWorking] = useState(false);
-  const input = useRef(null);
+  const input = useRef(null), readRequest = useRef(0);
   const exportId = useId(), restoreId = useId();
   const folder = backupsFolder(root);
+  useEffect(() => {
+    readRequest.current += 1;
+    setFile(null); setError(""); setConfirm(false);
+    return () => { readRequest.current += 1; };
+  }, [root]);
   async function read(chosen) {
-    setFile(null); setError("");
+    const request = ++readRequest.current;
+    setFile(null); setError(""); setConfirm(false);
     if (!chosen) return;
     try {
-      const state = JSON.parse(await chosen.text());
+      const text = await chosen.text();
+      if (request !== readRequest.current) return;
+      const state = JSON.parse(text);
       if (!isFullBackup(state)) throw new Error(ui("这不是完整学习库备份"));
       setFile({ name: chosen.name, size: chosen.size, state });
     } catch (e) {
-      setError(uiFormat("无法读取备份：{0}", [e.message || String(e)]));
-    } finally { if (input.current) input.current.value = ""; }
+      if (request === readRequest.current) setError(uiFormat("无法读取备份：{0}", [e.message || String(e)]));
+    } finally { if (request === readRequest.current && input.current) input.current.value = ""; }
   }
+  function chooseBackup() { read(null); input.current?.click(); }
   async function restore() {
     setWorking(true); setError("");
     try {
@@ -248,9 +257,9 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
           <p>{ui("用一份完整备份替换当前学习库。替换前，当前数据会自动另存一份到：")}</p>
           <code className="backup-path" title={folder}>{folder || ui("当前学习库的 backups 文件夹")}</code>
           <input ref={input} type="file" hidden accept=".json,application/json" onChange={(e) => read(e.target.files?.[0])} />
-          {!file && <div className="settings-actions"><Button icon="upload" disabled={busy} onClick={() => input.current?.click()}>{ui("选择备份文件…")}</Button></div>}
+          {!file && <div className="settings-actions"><Button icon="upload" disabled={busy} onClick={chooseBackup}>{ui("选择备份文件…")}</Button></div>}
           {error && <InlineMessage>{error}</InlineMessage>}
-          {file && <RestorePreview file={file} busy={busy || working} onConfirm={() => setConfirm(true)} onCancel={() => { setFile(null); input.current?.click(); }} />}
+          {file && <RestorePreview file={file} busy={busy || working} onConfirm={() => setConfirm(true)} onCancel={chooseBackup} />}
         </section>
       </div>
       {confirm && file && <Dialog size="sm" title={ui("用此备份替换当前学习库？")} onClose={() => { if (!working) setConfirm(false); }}

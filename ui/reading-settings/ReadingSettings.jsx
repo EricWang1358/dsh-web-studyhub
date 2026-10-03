@@ -59,14 +59,28 @@ export function DisplaySettings({ settings, onChange, onReset, underline = true,
   const root = useRef(null), panel = useRef(null), panelId = useId();
   // On a narrow pane the Aa button can sit anywhere along a wrapped toolbar: slide the panel back inside its bounds (a style write, no state).
   useIsoLayoutEffect(() => {
-    const element = panel.current, viewer = root.current?.closest('.study-document-viewer');
-    if (!open || !element) return;
-    element.style.transform = '';
-    const box = element.getBoundingClientRect(), margin = 8;
-    const bounds = viewer ? viewer.getBoundingClientRect() : { left: 0, right: window.innerWidth };
-    let shift = Math.min(0, bounds.right - margin - box.right);
-    shift = Math.max(shift, bounds.left + margin - box.left);
-    if (shift) element.style.transform = `translateX(${Math.round(shift)}px)`;
+    const element = panel.current, anchor = root.current, viewer = anchor?.closest('.study-document-viewer');
+    if (!open || !element || !anchor) return;
+    const place = () => {
+      const bounds = viewer ? viewer.getBoundingClientRect() : { left: 0, right: window.innerWidth };
+      const box = element.getBoundingClientRect(), margin = 8;
+      // Bounds include interface zoom, while translateX uses the element's CSS pixels.
+      const scale = element.offsetWidth ? box.width / element.offsetWidth : 1;
+      // offsetLeft follows container reflow without including the previous translation.
+      const left = anchor.getBoundingClientRect().left + element.offsetLeft * scale;
+      let shift = Math.min(0, bounds.right - margin - left - box.width);
+      shift = Math.max(shift, bounds.left + margin - left);
+      element.style.transform = shift ? `translateX(${Math.round(shift / (scale || 1))}px)` : '';
+      const bottom = Math.min(bounds.bottom ?? window.innerHeight, window.innerHeight);
+      element.style.maxHeight = `${Math.max(0, Math.floor((bottom - box.top - margin) / (scale || 1)))}px`;
+    };
+    place();
+    window.addEventListener('resize', place);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
+    if (viewer) observer?.observe(viewer);
+    observer?.observe(anchor);
+    observer?.observe(element);
+    return () => { window.removeEventListener('resize', place); observer?.disconnect(); };
   }, [open]);
   useEffect(() => {
     if (!open) return undefined;

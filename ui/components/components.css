@@ -672,10 +672,10 @@
     box-sizing: border-box;
     position: fixed;
     inset: 0;
-    width: min(var(--sh-dialog-width), calc(100vw - 32px));
+    width: min(var(--sh-dialog-width), calc(100vw / var(--study-ui-scale, 1) - 32px));
     max-width: none;
     height: fit-content;
-    max-height: min(calc(100dvh - 48px), 960px);
+    max-height: min(calc(100dvh / var(--study-ui-scale, 1) - 48px), 960px);
     margin: auto;
     padding: 0;
     overflow: hidden;
@@ -699,8 +699,8 @@
   .sh-dialog--sm { --sh-dialog-width: 460px; }
   .sh-dialog--lg { --sh-dialog-width: 940px; }
   .sh-dialog--full {
-    width: 100vw;
-    height: 100dvh;
+    width: calc(100vw / var(--study-ui-scale, 1));
+    height: calc(100dvh / var(--study-ui-scale, 1));
     max-height: none;
     border: 0;
     border-radius: 0;
@@ -786,7 +786,7 @@
     .sh-setup { padding: var(--space-5); }
   }
   @media (max-width: 600px) {
-    .sh-dialog:not(.sh-dialog--full) { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: var(--radius); }
+    .sh-dialog:not(.sh-dialog--full) { width: calc(100vw / var(--study-ui-scale, 1) - 16px); max-height: calc(100dvh / var(--study-ui-scale, 1) - 16px); border-radius: var(--radius); }
     .sh-dialog__header { padding: var(--space-4) var(--space-3) var(--space-2) var(--space-4); }
     .sh-dialog__body { padding: var(--space-2) var(--space-4) var(--space-4); }
     .sh-dialog__footer { padding: var(--space-3) var(--space-4); }

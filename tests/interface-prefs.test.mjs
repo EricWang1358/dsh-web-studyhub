@@ -93,8 +93,9 @@ test('interface size and typeface: a fixed list of sizes up to 200%, three typef
 
 test('the stylesheet scales the whole interface with CSS zoom for each size and switches the typeface by attribute', () => {
   const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(css, /\.study-app\s*\{\s*zoom:\s*var\(--study-ui-scale,\s*1\)/, 'dialogs share the applied scale when converting viewport bounds');
   for (const scale of [90, 110, 125, 150, 175, 200])
-    assert.match(css, new RegExp(String.raw`\.study-app\[data-ui-scale='${scale}'\]\s*\{\s*zoom:\s*${scale / 100}`), `${scale}%`);
+    assert.match(css, new RegExp(String.raw`\.study-app\[data-ui-scale='${scale}'\]\s*\{\s*--study-ui-scale:\s*${scale / 100}`), `${scale}%`);
   assert.doesNotMatch(css, /data-ui-scale='100'/, 'the default needs no rule');
   assert.match(css, /\.study-app\[data-ui-font='serif'\][^{]*\{[^}]*--font-ui:/);
   assert.match(css, /\.study-app\[data-ui-font='mono'\][^{]*\{[^}]*--font-ui:/);

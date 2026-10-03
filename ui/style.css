@@ -4391,11 +4391,12 @@
 
 /* 界面大小 / 界面字体 (设置 › 界面): the whole interface scales with CSS zoom (text, controls and spacing together; the app box keeps filling the window), and the
    typeface of its text switches by attribute. 100% and the system typeface are the defaults and need no rule. Reading text keeps its own Aa settings. */
-.study-app[data-ui-scale='90'] { zoom: 0.9; }
-.study-app[data-ui-scale='110'] { zoom: 1.1; }
-.study-app[data-ui-scale='125'] { zoom: 1.25; }
-.study-app[data-ui-scale='150'] { zoom: 1.5; }
-.study-app[data-ui-scale='175'] { zoom: 1.75; }
-.study-app[data-ui-scale='200'] { zoom: 2; }
+.study-app { zoom: var(--study-ui-scale, 1); }
+.study-app[data-ui-scale='90'] { --study-ui-scale: 0.9; }
+.study-app[data-ui-scale='110'] { --study-ui-scale: 1.1; }
+.study-app[data-ui-scale='125'] { --study-ui-scale: 1.25; }
+.study-app[data-ui-scale='150'] { --study-ui-scale: 1.5; }
+.study-app[data-ui-scale='175'] { --study-ui-scale: 1.75; }
+.study-app[data-ui-scale='200'] { --study-ui-scale: 2; }
 .study-app[data-ui-font='serif'], .study-seat:has(> .study-app[data-ui-font='serif']) { --font-ui: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif; }
 .study-app[data-ui-font='mono'], .study-seat:has(> .study-app[data-ui-font='mono']) { --font-ui: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Microsoft YaHei UI", monospace; }
