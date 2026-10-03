@@ -49,6 +49,45 @@ test("继续课程 consolidates first, then goes on in order, and resumes an unf
   assert.deepEqual(other.navigation.map((n) => n.cardId).filter((id) => id.startsWith("b")), ["b1", "b2", "b3"], "a chapter can be started directly");
 });
 
+test("a fully introduced course still consolidates weak and due cards across its chapters", async (t) => {
+  const service = await setup(t);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString();
+  const yesterday = new Date(Date.now() - 86400000).toISOString();
+  await service.store.update((state) => {
+    for (const deck of state.decks.filter((item) => ["c1", "c2"].includes(item.id))) {
+      for (const card of deck.cards) {
+        const weak = card.id === "a2", due = card.id === "b8";
+        card.review = { repetitions: weak ? 0 : 2, interval_days: weak ? 1 : 6,
+          ease_factor: 2.5, due_at: due ? yesterday : tomorrow };
+        state.attempts.push({ deckId: deck.id, quiz_id: card.id, grade: weak ? 1 : 5 });
+      }
+    }
+  });
+  const route = await service.call("course.route");
+  assert.deepEqual([route.learned, route.cards, route.current, route.weak], [20, 20, null, 1]);
+  assert.deepEqual(route.next, { label: "巩固已学的题", fresh: 0, reviews: 2 });
+  const run = await service.call("review.start", { mode: "course" });
+  assert.deepEqual(new Set(run.navigation.map((item) => item.cardId)), new Set(["a2", "b8"]));
+  assert.equal(run.total, 2);
+  assert.equal(run.course.learned, 20);
+});
+
+test("a fully mastered course without due cards has no next batch", async (t) => {
+  const service = await setup(t);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString();
+  await service.store.update((state) => {
+    for (const deck of state.decks.filter((item) => ["c1", "c2"].includes(item.id))) {
+      for (const card of deck.cards) {
+        card.review = { repetitions: 2, interval_days: 6, ease_factor: 2.5, due_at: tomorrow };
+        state.attempts.push({ deckId: deck.id, quiz_id: card.id, grade: 5 });
+      }
+    }
+  });
+  const route = await service.call("course.route");
+  assert.deepEqual([route.learned, route.mastered, route.weak, route.next], [20, 20, 0, null]);
+  await assert.rejects(service.call("review.start", { mode: "course" }), /全部学完/);
+});
+
 test("先讲后练 opens a guided session on exactly the next batch", async (t) => {
   const service = await setup(t);
   const { session, resources, method } = await service.call("workflow.quickstart", { course: true, requestId: "course-1" });

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { validateDeck } from "../lib/domain.js";
 import { StudyService } from "../lib/service.js";
 import { wrongBook } from "../lib/insights.js";
+import { examReport } from "../lib/study-state.js";
 import { createWriteQueue, mergeReviewPoll } from "../ui/async.js";
 
 test("review polling accepts revised questions and sources without restoring stale answers", () => {
@@ -178,6 +179,30 @@ test("repeat exams use unseen questions before repeats and compare only matching
     const differentSize = await service.call("review.start", { mode: "exam", scope: [{ deckId: "repeat" }], count: 2 });
     assert.equal((await service.call("exam.submit", { runId: differentSize.id })).comparison, null);
   } finally { await close(root); }
+});
+
+const scoredCaseRun = (runId, points) => ({
+  id: runId, mode: 'exam', examKinds: 'case', deckId: 'case-deck',
+  startedAt: '2026-10-01T00:00:00Z', closedAt: '2026-10-01T00:10:00Z',
+  submittedAt: '2026-10-01T00:10:00Z',
+  entries: [{ card: { id: 'case-question', kind: 'open', prompt: 'Explain the case.', marks: 10 },
+    response: 'My case answer.',
+    ...(points === null ? {} : { feedback: { correct: true, rubric: { total: points, max: 10, criteria: [] } } }) }],
+});
+
+test('case exam improvement compares earned marks in both attempts', () => {
+  const previous = scoredCaseRun('previous', 6), current = scoredCaseRun('current', 8);
+  const report = examReport({ decks: [{ id: 'case-deck', title: 'Case' }], runs: [previous, current] }, current);
+  assert.equal(report.scorePct, 80);
+  assert.deepEqual(report.comparison, { runId: previous.id, scorePct: 60, deltaPct: 20 });
+});
+
+test('case exam comparison waits for grading and skips ungraded prior attempts', () => {
+  const previous = scoredCaseRun('previous', 6), pending = scoredCaseRun('pending', null), current = scoredCaseRun('current', 8);
+  const state = { decks: [], runs: [previous, pending, current] };
+  assert.equal(examReport(state, pending).comparison, null);
+  assert.deepEqual(examReport(state, current).comparison, { runId: previous.id, scorePct: 60, deltaPct: 20 });
+  assert.equal(examReport({ ...state, runs: [pending, current] }, current).comparison, null);
 });
 
 test("exam kind controls filter or balance real single and multiple choice cards", async () => {

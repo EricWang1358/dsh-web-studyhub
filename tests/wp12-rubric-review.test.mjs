@@ -55,6 +55,61 @@ async function library(t, options = {}) {
   return { service, root };
 }
 
+test("duplicate rubric grading is idempotent and a changed answer needs a new attempt", async (t) => {
+  const { service } = await library(t);
+  const run = await service.call("review.start", { mode: "path", scope: [{ deckId: "orchard", cardId: "q1" }], fresh: true });
+  const args = { runId: run.id, deckId: "orchard", cardId: "q1", answer };
+  const first = await service.call("card.grade", args);
+  const before = await service.call("export");
+  const repeated = await service.call("card.grade", args);
+  assert.deepEqual(repeated, first);
+  const after = await service.call("export");
+  assert.deepEqual(after.decks[0].cards[0].review, before.decks[0].cards[0].review);
+  assert.deepEqual(after.attempts, before.attempts);
+  assert.equal(after.inbox.length, before.inbox.length);
+  await assert.rejects(service.call("card.grade", { ...args, answer: `${answer}\nA different answer.` }), /already.*different|已.*不同/i);
+  assert.deepEqual((await service.call("export")).attempts, before.attempts);
+});
+
+test("concurrent rubric submissions only schedule one answer", async (t) => {
+  const { service } = await library(t);
+  const run = await service.call("review.start", { mode: "path", scope: [{ deckId: "orchard", cardId: "q1" }], fresh: true });
+  const args = { runId: run.id, deckId: "orchard", cardId: "q1", answer };
+  const results = await Promise.all([service.call("card.grade", args), service.call("card.grade", args)]);
+  assert.deepEqual(results[0], results[1]);
+  const state = await service.call("export");
+  assert.equal(state.attempts.length, 1);
+  assert.equal(state.decks[0].cards[0].review.repetitions, 1);
+});
+
+test("a specified rubric run must exist and contain the graded card", async (t) => {
+  const { service } = await library(t);
+  const run = await service.call("review.start", { mode: "path", scope: [{ deckId: "orchard", cardId: "q1" }], fresh: true });
+  await assert.rejects(service.call("card.grade", { runId: "missing", deckId: "orchard", cardId: "q1", answer }), /Review.*not found|练习.*不存在/i);
+  await assert.rejects(service.call("card.grade", { runId: run.id, deckId: "orchard", cardId: "q2", answer }), /does not belong|不在.*练习/i);
+  assert.equal((await service.call("export")).attempts.length, 0);
+});
+
+test("a rubric tail retry records practice without scheduling it twice", async (t) => {
+  const { service } = await library(t);
+  const run = await service.call("review.start", { mode: "path", scope: [{ deckId: "orchard", cardId: "q1" }], fresh: true });
+  await service.call("card.grade", { runId: run.id, deckId: "orchard", cardId: "q1", answer });
+  const before = await service.call("export");
+  await service.store.update((state) => {
+    const current = state.runs.find((item) => item.id === run.id);
+    current.entries.push({ deckId: "orchard", card: structuredClone(state.decks[0].cards[0]), retry: true,
+      startedAt: Date.now(), feedback: null, revealed: false });
+    current.index = 1;
+  });
+  const args = { runId: run.id, deckId: "orchard", cardId: "q1", answer: `${answer}\nI would check the sensors too.` };
+  const result = await service.call("card.grade", args);
+  assert.deepEqual(await service.call("card.grade", args), result);
+  const after = await service.call("export");
+  assert.equal(after.attempts.length, 2);
+  assert.equal(after.attempts[1].retry, true);
+  assert.deepEqual(after.decks[0].cards[0].review, before.decks[0].cards[0].review);
+});
+
 test("a rubric card shows its marks and criteria labels before answering, never its key points", () => {
   const view = publicCard(card("q1", 1, "Event-driven architecture"));
   assert.equal(view.marks, 6);

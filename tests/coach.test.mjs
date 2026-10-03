@@ -462,6 +462,10 @@ test("a background rewrite leaves the current unanswered question stable", async
   assert.deepEqual(state.decks[0].cards.find((card) => card.id === run.card.id).review, liveBefore.review,
     "an answer to the old version does not advance the rewritten card");
   assert.equal(state.attempts.at(-1).updatedAfterOpening, true);
+  assert.equal(answered.navigation.find((item) => item.cardId === run.card.id).level, "new",
+    "answering an old snapshot does not establish mastery of the corrected question");
+  const next = await service.call("review.start", { mode: "new", scope: [{ deckId: "d", cardId: run.card.id }], fresh: true });
+  assert.equal(next.card.id, run.card.id, "the corrected question remains available as a new question");
 });
 
 test("a 太难 scaffold becomes a prerequisite of its original and variants show where they came from", async (t) => {

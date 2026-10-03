@@ -4,6 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { emptyState } from '../lib/store.js';
+import { initialReview } from '../lib/domain.js';
+import { latestOutcomes } from '../lib/mastery.js';
+import { studyMap, studyStats, wrongBook } from '../lib/insights.js';
+import { recommendSimilar } from '../lib/recommend.js';
+import { wrongDetail } from '../lib/wrong-detail.js';
 
 const card = (id, kind = 'flashcard', topic = id) => ({ id, kind, topic, prompt: `${id}?`, answer: 'answer',
   ...(kind === 'quiz' ? { options: [{ id: 'yes', text: 'Yes', correct: true }, { id: 'no', text: 'No', correct: false }] } : {}) });
@@ -24,6 +30,43 @@ async function fixture(t) {
   });
   return service;
 }
+
+test('old snapshot grades stay in history without changing current learning projections', () => {
+  for (const grade of [1, 4, 5]) {
+    const state = emptyState();
+    state.decks = [{ id: 'd', title: 'Deck', course: 'C', cards: [card('mistake', 'quiz', 'Topic'),
+      { ...card('corrected', 'quiz', 'Topic'), review: initialReview(state.settings) }] }];
+    state.attempts = [{ deckId: 'd', quiz_id: 'mistake', assessment: 'graded', grade: 1, timestamp: '2026-10-02T01:00:00Z' },
+      { deckId: 'd', quiz_id: 'corrected', assessment: 'graded', grade, timestamp: '2026-10-02T02:00:00Z', updatedAfterOpening: true }];
+    assert.equal(latestOutcomes(Object.freeze(state.attempts))('d', 'corrected'), undefined);
+    const map = studyMap(state);
+    assert.equal(map.decks[0].counts.new, 1);
+    assert.equal(map.decks[0].counts.weak, 1);
+    assert.deepEqual(wrongBook(state).items.map(item => item.cardId), ['mistake']);
+    const stats = studyStats(state, {}, new Date('2026-10-03T01:00:00Z'));
+    assert.equal(stats.totals.weak, 1);
+    assert.equal(stats.weakTopics.reduce((sum, topic) => sum + topic.wrong, 0), 1);
+    assert.equal(stats.totals.attempts, 2, 'the old snapshot answer remains real study history');
+    assert.equal(stats.mastery.kinds.find(item => item.id === 'quiz').n, 1);
+    assert.equal(wrongDetail(state, { deckId: 'd', cardId: 'corrected' }).lastGrade, null);
+    const recommendations = recommendSimilar(state, { mistakes: [{ deckId: 'd', cardId: 'mistake' }], now: Date.parse('2026-10-03T01:00:00Z') });
+    assert.deepEqual(recommendations.items.map(item => item.cardId), ['corrected']);
+  }
+});
+
+test('an old snapshot outcome never overrides an earlier valid outcome', () => {
+  for (const [grade, staleGrade] of [[1, 5], [5, 1]]) {
+    const state = emptyState();
+    state.decks = [{ id: 'd', title: 'Deck', cards: [card('q', 'quiz')] }];
+    state.attempts = [{ deckId: 'd', quiz_id: 'q', grade, timestamp: '2026-10-01T01:00:00Z' },
+      { deckId: 'd', quiz_id: 'q', grade: staleGrade, timestamp: '2026-10-02T01:00:00Z', updatedAfterOpening: true }];
+    assert.equal(latestOutcomes(state.attempts)('d', 'q'), grade);
+    assert.equal(wrongBook(state).total, grade < 3 ? 1 : 0);
+    assert.equal(wrongDetail(state, { deckId: 'd', cardId: 'q' }).lastGrade, grade);
+    const stats = studyStats(state, {}, new Date('2026-10-03T01:00:00Z'));
+    assert.equal(stats.weakTopics.reduce((sum, topic) => sum + topic.wrong, 0), grade < 3 ? 1 : 0);
+  }
+});
 
 test('one course drives statistics, wrong-book evidence, graph and skeleton projections', async t => {
   const service = await fixture(t);
