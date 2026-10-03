@@ -9,7 +9,7 @@ import { mkdtemp, readFile, readdir, rm, mkdir, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { installUpdate, prepareVerifiedPackage, updateDownloadDir, pluginInstallSupport } from '../lib/update-install.js';
-import { readUpdateView, releaseFromGithub, installedVersion } from '../lib/update-check.js';
+import { readUpdateView, releaseFromGithub, installedVersion, updateView } from '../lib/update-check.js';
 import { createHostHandler } from '../lib/host.js';
 import { githubRelease } from './helpers/wp15-release.mjs';
 
@@ -58,6 +58,23 @@ test('a text-only HTTP helper (no arrayBuffer) is refused as a download failure 
   await home(t);
   const textOnly = async () => ({ ok: true, status: 200, text: async () => 'x', json: async () => ({}) });
   await assert.rejects(prepareVerifiedPackage({ view: view(), fetch: textOnly }), error => error.code === 'UPDATE_DOWNLOAD');
+});
+
+test('an already installed release is refused before downloads or job cancellation, but a later release can replace it', async t => {
+  await home(t);
+  const manager = pluginManager(), net = releaseHost();
+  let cancellations = 0;
+  const installed = updateView({ pending: '99.0.0', release: releaseFromGithub(githubRelease('v99.0.0')) }, '98.0.0', '98.0.0');
+  await assert.rejects(installUpdate({ view: installed, manager, fetch: net.fetch, activeJobs: 1, confirmJobs: true,
+    cancelJobs: async () => { cancellations++; } }), error => error.code === 'UPDATE_UNAVAILABLE');
+  assert.equal(cancellations, 0);
+  assert.equal(net.calls.length, 0);
+  assert.equal(manager.installs.length, 0);
+  const later = updateView({ pending: '98.0.1', release: releaseFromGithub(githubRelease('v99.0.0')) }, '98.0.0', '98.0.0');
+  const result = await installUpdate({ view: later, manager, fetch: net.fetch });
+  assert.equal(result.version, '99.0.0');
+  assert.equal(manager.installs.length, 1);
+  assert.equal((await readUpdateView({ current: '98.0.0' })).pendingRestart, '99.0.0');
 });
 
 test('addresses outside this repository\'s release downloads are refused before any request', async t => {
@@ -137,6 +154,11 @@ test('the host handler adds install support to update.check and installs through
   assert.equal(installed.value.status, 'installed');
   assert.equal(manager.installs.length, 1);
   assert.ok(net.calls.includes(checked.value.assetUrl));
+  const fetched = net.calls.length;
+  const repeated = await handle('call', { sessionId: 's', action: 'update.install', args: { version: checked.value.latest } });
+  assert.deepEqual(repeated.value, { status: 'failed', code: 'UPDATE_UNAVAILABLE' });
+  assert.equal(manager.installs.length, 1, 'the host refuses an already installed release');
+  assert.equal(net.calls.length, fetched, 'the refusal does not download any prerequisite package');
   const without = createHostHandler({ sessions: ctx.sessions, get: () => undefined }, { libraryRoot: join(dir, 'library') });
   assert.deepEqual((await without('call', { sessionId: 's', action: 'update.check', args: {} })).value.install, { available: false, desktop: false });
   const refused = await without('call', { sessionId: 's', action: 'update.install', args: { version: '99.0.0' } });
