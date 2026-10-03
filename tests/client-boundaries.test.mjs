@@ -48,21 +48,22 @@ test('generated native modules resolve through classic chunk factories and share
     assert.equal(factories.has(key), false, 'a module must register once');
     factories.set(key, factory);
   } };
+  async function asyncModule(spec) {
+    assert.match(spec, /^\.\/client\.[A-Za-z0-9][A-Za-z0-9._-]*\.js$/);
+    const name = spec.slice(2), key = `${packageId}/${name}`;
+    if (!factories.has(key)) {
+      assert.ok(files.has(name), `missing emitted chunk ${name}`);
+      arrivals.push(name);
+      vm.runInContext(files.get(name), context, { filename: name });
+    }
+    return materialize(key);
+  }
   function materialize(id) {
     if (id === 'react') return hostReact;
     if (cache.has(id)) return cache.get(id);
     assert.ok(factories.has(id), `missing registered module ${id}`);
     const require = spec => materialize(spec);
-    require.async = async spec => {
-      assert.match(spec, /^\.\/client\.[A-Za-z0-9][A-Za-z0-9._-]*\.js$/);
-      const name = spec.slice(2), key = `${packageId}/${name}`;
-      if (!factories.has(key)) {
-        assert.ok(files.has(name), `missing emitted chunk ${name}`);
-        arrivals.push(name);
-        vm.runInContext(files.get(name), context, { filename: name });
-      }
-      return materialize(key);
-    };
+    require.async = asyncModule;
     const exports = factories.get(id)(require);
     cache.set(id, exports); materialized.push(id);
     return exports;
@@ -88,6 +89,10 @@ test('generated native modules resolve through classic chunk factories and share
   assert.ok(slots.some(slot => slot.descriptor.key === 'study-html'), 'native selection preview must remain registered');
   assert.ok(effects.includes('study conversation panel bridge'));
   const loadedAtBoot = [...materialized];
+  const mathEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/study-math-render.js');
+  assert.ok(mathEntry, 'formulas must keep their own optional renderer boundary');
+  const mathName = basename(mathEntry[0]);
+  assert.ok(!loadedAtBoot.includes(`${packageId}/${mathName}`), 'the formula renderer must stay optional at host activation');
   const featureInputs = ['ui/BlogNotes.jsx', 'ui/Skeleton.jsx', 'ui/Workflows.jsx'];
   for (const input of featureInputs) {
     const output = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === input);
@@ -95,7 +100,7 @@ test('generated native modules resolve through classic chunk factories and share
     const name = basename(output[0]);
     assert.ok(!loadedAtBoot.includes(`${packageId}/${name}`), `${input} must stay optional at host activation`);
   }
-  // Execute the real React.lazy importers, including editor and math libraries.
+  // Execute the real React.lazy importers, including editor libraries.
   // A missing shared registration, or an incorrect async load order, fails here.
   for (const [, output] of Object.entries(result.metafile.outputs)) {
     for (const edge of output.imports.filter(edge => edge.kind === 'dynamic-import')) {
@@ -106,6 +111,13 @@ test('generated native modules resolve through classic chunk factories and share
   assert.ok(notesEntry);
   assert.equal(lazyLoads.length, 8, 'the seven views and 看原页 (pdf.js)');
   await Promise.all(lazyLoads.map(load => load()));
+  // StudyMath imports from its effect rather than React.lazy. Exercise that
+  // package-local factory path and its shared engine before counting modules.
+  const math = await asyncModule(`./${mathName}`);
+  assert.match(math.renderStudyFormula(String.raw`\frac{1}{2} + x_i^2`, true), /<math[\s>]/);
+  const reaction = math.renderStudyFormula(String.raw`\ce{2H2(g) + O2(g) -> 2H2O(l)}`, true);
+  assert.match(reaction, /<math[\s>]/);
+  assert.match(reaction, /<msub>/, 'native chemistry must use the registered mhchem engine');
   assert.equal(cache.size, files.size, 'every emitted module can materialize');
   const notes = cache.get(`${packageId}/${basename(notesEntry[0])}`);
   assert.equal(React.isValidElement(React.createElement(notes.default, {})), true);
