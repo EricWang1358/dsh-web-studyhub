@@ -108,12 +108,14 @@ try {
       const noJev = async (where, options) => { const hits = await jevTrace(tab, options); if (hits.length) problems.push(`${tag}: Jev is visible with experimental features hidden (${where}): ${hits.join(' | ')}`); };
       const pickLoose = async () => { await tab.getByLabel(/课程范围|Course scope/).selectOption(''); await settle(300); await tab.getByRole('button', { name: /选择当前范围|Select this scope/ }).click(); await settle(200); };
       const openPage = async nav => { await tab.locator(`[data-tour="nav-${nav}"]`).first().click(); await settle(); };
+      // Settings is a list of categories and one pane: the experimental switch (and the Jev block under it) is the 实验性功能 category.
       const advanced = async () => {
-        const group = tab.locator('[data-settings-group="advanced"]');
-        await group.waitFor({ timeout: 15000 });
-        if (!await group.evaluate(element => element.open)) await group.locator('summary').first().click();
-        await group.evaluate(element => element.scrollIntoView({ block: 'start' })); await settle(300);
-        return group;
+        const item = tab.locator('[data-category="experimental"]');
+        await item.waitFor({ timeout: 15000 });
+        if ((await item.getAttribute('aria-current')) !== 'page') await item.click();
+        const pane = tab.locator('.settings-pane');
+        await pane.evaluate(element => element.scrollIntoView({ block: 'start' })); await settle(300);
+        return pane;
       };
       const block = () => tab.locator('[data-tour="settings-jev"]');
       const fit = async where => { const overflow = await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth); if (overflow > 1) problems.push(`${tag}: horizontal overflow ${overflow}px (${where})`); };

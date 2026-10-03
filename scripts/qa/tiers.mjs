@@ -111,7 +111,7 @@ async function measurePage(page) {
       continueCards: count(".today-card"), recommendations: count(".desk-next"), coachOffers: count(".coach-offer"),
       checklist: count("[data-setup-checklist]"), checklistMode: document.querySelector("[data-setup-checklist]")?.getAttribute("data-mode") || null,
       groups: [...document.querySelectorAll(".sidebar [data-nav-group]")].map((el) => ({ id: el.getAttribute("data-nav-group"), open: el.getAttribute("data-open") })),
-      settingsGroups: [...document.querySelectorAll("[data-settings-group]")].map((el) => ({ id: el.getAttribute("data-settings-group"), open: el.open, missing: el.querySelector(".settings-group__missing")?.textContent || "" })),
+      settingsCategories: [...document.querySelectorAll(".settings-nav__item")].map((el) => ({ id: el.getAttribute("data-category"), selected: el.getAttribute("aria-current") === "page", todo: el.querySelector(".settings-nav__todo")?.textContent || "" })),
       title: document.querySelector("main h1, .crumb.current")?.textContent?.trim().slice(0, 60) || "",
     };
   });

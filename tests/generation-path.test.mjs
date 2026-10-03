@@ -78,3 +78,27 @@ test('a model refinement renames, reorders and tunes steps, but cannot add, drop
   assert.equal(applyPathRefinement(base.steps, null).source, 'local');
   assert.equal(applyPathRefinement(base.steps, { steps: 'nope' }).source, 'local');
 });
+
+test('a model that answers in a slightly different shape is still understood: a bare list, other field names, numeric or "step-n" ids, or no ids at all', () => {
+  const pages = Array.from({ length: 6 }, (_, i) => page(i + 1, 40_000));
+  const base = planGenerationPath([doc('b', pages, [chapter(1, '一', 1, 2, pages), chapter(2, '二', 3, 4, pages), chapter(3, '三', 5, 6, pages)])], { budget: 90_000 }).steps;
+  const ids = base.map(step => step.id);
+  // a bare array, other names for the same fields
+  const bare = applyPathRefinement(base, [{ id: ids[1], name: '先学二', practice: '概念', questions: 9, why: '基础' }, { id: ids[0], name: '再学一' }]);
+  assert.equal(bare.source, 'model');
+  assert.deepEqual([bare.steps[0].id, bare.steps[0].title, bare.steps[0].focus, bare.steps[0].count, bare.steps[0].reason], [ids[1], '先学二', '概念', 9, '基础']);
+  // numeric ids and "第 n 步" resolve to the step with that number
+  const numeric = applyPathRefinement(base, { steps: [{ id: 2, title: 'B' }, { id: '第 1 步', title: 'A' }, { step: 3, title: 'C' }] });
+  assert.deepEqual(numeric.steps.map(step => step.id), [ids[1], ids[0], ids[2]]);
+  assert.deepEqual(numeric.steps.map(step => step.title), ['B', 'A', 'C']);
+  // another wrapper
+  assert.equal(applyPathRefinement(base, { plan: { steps: [{ id: ids[0], title: 'x' }] } }).source, 'model');
+  // no ids, same number of items: by position
+  const positional = applyPathRefinement(base, { steps: [{ title: 'α' }, { title: 'β' }, { title: 'γ' }] });
+  assert.deepEqual(positional.steps.map(step => step.title), ['α', 'β', 'γ']);
+  assert.deepEqual(positional.steps.map(step => step.id), ids);
+  // no ids and a different number of items: nothing can be matched safely
+  assert.equal(applyPathRefinement(base, { steps: [{ title: 'only one' }] }).source, 'local');
+  // a title that matches a step title resolves it
+  assert.equal(applyPathRefinement(base, { steps: [{ title: base[2].title, focus: '重点' }] }).steps[0].id, ids[2]);
+});

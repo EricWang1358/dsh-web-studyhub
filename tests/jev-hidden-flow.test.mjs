@@ -60,20 +60,22 @@ test('experimental features are shown only for a literal true on the snapshot', 
   assert.equal(experimentalShown(undefined), false);
 });
 
-test('Settings › Advanced holds a single switch, off by default, with one line saying what turning it off does', () => {
-  const zh = render(settingsPage());
-  assert.match(zh, /data-settings-group="advanced"/);
-  assert.match(zh, /<summary[^>]*>[^]*?高级/);
-  assert.match(zh, /<legend[^>]*>实验性功能<\\?\/legend>|实验性功能/);
+const advancedPage = (extra = {}) => settingsPage(extra, { tourActive: false, focusSection: 'settings-experimental' });
+
+test('Settings › Advanced › Experimental features holds a single switch, off by default, with one line saying what turning it off does', () => {
+  const zh = render(advancedPage());
+  assert.match(zh, /<p class="settings-nav__label">高级<\/p>/);
+  assert.match(zh, /data-category="experimental"[^>]*aria-current="page"|aria-current="page"[^>]*data-category="experimental"/);
+  assert.match(zh, /实验性功能/);
   assert.match(zh, /<input[^>]*name="show-experimental"[^>]*type="checkbox"|<input[^>]*type="checkbox"[^>]*name="show-experimental"/);
   assert.doesNotMatch(zh.match(/<input[^>]*name="show-experimental"[^>]*>/)?.[0] ?? '', /checked/);
   assert.match(zh, /显示实验性功能/);
   assert.match(zh, /关掉后[^<]*隐藏[^<]*停止/);
-  const en = render(settingsPage(), 'en');
+  const en = render(advancedPage(), 'en');
   assert.match(en, /Show experimental features/);
   assert.match(en, /Advanced/);
   assert.ok(!han.test(en.replace(/C:\\Users[^<]*/g, '')), en.match(/.{0,30}[㐀-鿿]+.{0,30}/)?.[0]);
-  const on = render(settingsPage({ experimental: true }));
+  const on = render(advancedPage({ experimental: true }));
   assert.match(on.match(/<input[^>]*name="show-experimental"[^>]*>/)?.[0] ?? '', /checked/);
 });
 
@@ -87,11 +89,13 @@ test('Settings with the switch off draws no Jev at all, in either language (the 
   }
 });
 
-test('Settings with the switch on draws the experimental block in the Advanced group, and only there', () => {
-  const html = render(settingsPage({ experimental: true }));
-  const advanced = html.split(/<details class="settings-group"/).find(part => /data-settings-group="advanced"/.test(part)) ?? '';
-  assert.match(advanced, /data-tour="settings-jev"/);
-  assert.match(html.split(/<details class="settings-group"/).filter(part => !/data-settings-group="advanced"/.test(part)).join(''), /^(?![^]*jev-)[^]*$/, 'no Jev in the other groups');
+test('Settings with the switch on draws the experimental block in its own category, and only there', () => {
+  const html = render(advancedPage({ experimental: true }));
+  assert.match(html, /data-tour="settings-jev"/);
+  for (const anchor of ['settings-model', 'settings-update', 'settings-appearance']) {
+    const other = render(settingsPage({ experimental: true }, { tourActive: false, focusSection: anchor }));
+    assert.match(other, /^(?![^]*jev-)[^]*$/, `no Jev in the category of ${anchor}`);
+  }
 });
 
 test('the organizer and the draft draw no Jev with the switch off, even for a library that holds Jev traces (a draft decided by Jev, pre-check signals)', () => {

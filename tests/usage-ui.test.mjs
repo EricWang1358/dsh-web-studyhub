@@ -175,19 +175,19 @@ test('every new UI sentence has an English entry in the fragment, and the fragme
   for (const [key, value] of Object.entries(fragment)) { assert.ok(han.test(key), `${key}: the key is the Chinese source`); assert.ok(!han.test(value), `${key}: English without Han`); }
 });
 
-test('Settings › Advanced holds the section whether or not experimental features are shown; the group says so', () => {
+test('Settings › Advanced has a category for the usage record and one for the experimental switch, whether or not experimental features are shown; the group says so', () => {
   const advanced = SETTINGS_GROUPS.find(group => group.id === 'advanced');
   assert.match(advanced.lead, /使用频率/);
   const props = { data: { sources: [], contexts: ['system'], settings: {}, root: '/tmp/lib', experimental: false }, busy: false, act: noop, call: async () => ({}), host: {}, setNotice: noop,
     settings: { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 }, setSettings: noop, legacy: '', setLegacy: noop, workspacePanel: null, coursePanel: null, onboardingPanel: null, exportData: noop, onRestored: noop, initialProfile: { consent: false, goal: '', summary: '', signals: {} } };
   for (const experimental of [false, true]) {
-    const html = render(h(Settings, { ...props, data: { ...props.data, experimental } }));
-    const advancedHtml = html.slice(html.indexOf('data-settings-group="advanced"'));
-    assert.match(advancedHtml, /data-tour="settings-usage"/, `experimental ${experimental}`);
-    assert.match(advancedHtml, /data-tour="settings-experimental"/);
+    for (const [anchor, tour] of [['settings-usage', 'settings-usage'], ['settings-experimental', 'settings-experimental']]) {
+      const html = render(h(Settings, { ...props, focusSection: anchor, data: { ...props.data, experimental } }));
+      assert.match(html, new RegExp(`data-tour="${tour}"`), `experimental ${experimental}: ${anchor}`);
+    }
   }
-  const en = render(h(Settings, props), 'en');
-  assert.match(en.slice(en.indexOf('data-settings-group="advanced"')), /Usage frequency record/);
+  const en = render(h(Settings, { ...props, focusSection: 'settings-usage' }), 'en');
+  assert.match(en, /Usage frequency record/);
 });
 
 test('the section is quiet: no first-run banner, no badge on the sidebar, nothing added to the home page', async () => {

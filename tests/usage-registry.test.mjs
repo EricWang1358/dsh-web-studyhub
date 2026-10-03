@@ -140,8 +140,8 @@ for (const [name, area, render, minimum = 3] of [['home', 'library', home], ['pr
     const zh = withLanguage('zh', () => keysOf(render(), area)), en = withLanguage('en', () => keysOf(render(), area));
     assert.ok(zh.length >= minimum, `${zh.length} controls`);
     assert.deepEqual(en, zh);
-    // Only the usage section's own controls may be unkeyed: using that section is never counted.
-    assert.equal(zh.filter(key => key === null).length, name === 'settings' ? 1 : 0, JSON.stringify(zh));
+    // Only the usage section's own controls may be unkeyed (using that section is never counted); Settings shows one category at a time, and the first one is not that section.
+    assert.equal(zh.filter(key => key === null).length, 0, JSON.stringify(zh));
     assert.ok(zh.filter(key => key !== null).every(key => key.length < 96 && !/[@\\?=&#%<>"]|\/\//.test(key)), JSON.stringify(zh));
     assert.ok(zh.some(key => /\//.test(key) || /^[a-z]+\./.test(key)), 'some controls are named');
   });

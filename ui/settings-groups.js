@@ -23,6 +23,38 @@ export const SETTINGS_GROUPS = Object.freeze([
 /** Which group each deep-linkable section lives in. */
 export const SECTION_GROUP = Object.freeze({ 'settings-model': 'common' });
 
+/* The categories of the Settings page: a list on the left under the three group headings, and one category at a time on the right. `needs` is the component of
+   the host a category depends on (a host without it shows no such category); `anchors` are the data-tour ids inside it, which deep links and the tour use. */
+export const SETTINGS_CATEGORIES = Object.freeze([
+  { id: 'appearance', group: 'common', title: '界面', anchors: ['settings-appearance'] },
+  { id: 'model', group: 'common', title: '学习库与模型', anchors: ['settings-model'] },
+  { id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'] },
+  { id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio' },
+  { id: 'mineru', group: 'once', title: 'PDF 转换（MinerU）', anchors: ['settings-mineru'], needs: 'audio' },
+  { id: 'retrieval', group: 'once', title: '检索扩展', anchors: ['settings-extensions'], needs: 'generation' },
+  { id: 'profile', group: 'once', title: '学习画像与导览', anchors: ['settings-profile'] },
+  { id: 'data', group: 'once', title: '导入、计划与备份', anchors: ['settings-data'] },
+  { id: 'update', group: 'once', title: '关于与更新', anchors: ['settings-update'] },
+  { id: 'usage', group: 'advanced', title: '使用频率记录', anchors: ['settings-usage'], needs: 'system' },
+  { id: 'experimental', group: 'advanced', title: '实验性功能', anchors: ['settings-experimental', 'settings-jev'], needs: 'system' },
+]);
+
+/** The categories this host can show, in list order. `capabilities`: { audio, generation, system } booleans. */
+export const categoriesFor = (capabilities = {}) => SETTINGS_CATEGORIES.filter(category => !category.needs || capabilities[category.needs]);
+
+/** The category a deep link or a tour anchor (a data-tour id) lives in, or null. */
+export const categoryForAnchor = (anchor) => SETTINGS_CATEGORIES.find(category => category.anchors.includes(anchor))?.id ?? null;
+
+/** What starts selected: the deep link, else the first category (in list order) that needs attention, else the one used last, else the first. */
+export function initialCategory({ available, focusSection = '', missing = [], last = '' } = {}) {
+  const ids = (available ?? SETTINGS_CATEGORIES).map(category => category.id);
+  const linked = categoryForAnchor(focusSection);
+  if (linked && ids.includes(linked)) return linked;
+  const needing = ids.find(id => missing.includes(id));
+  if (needing) return needing;
+  return ids.includes(last) ? last : ids[0];
+}
+
 export function settingsGroupState({ data, status = {}, saved = {}, forceOpen = false } = {}) {
   const missing = { common: [], once: [], advanced: [] };
   const modelMissing = data?.model ? data.model.ready === false : data?.modelReady === false;

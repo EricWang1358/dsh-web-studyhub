@@ -15,9 +15,9 @@ export async function runInterfaceQa(options) {
       const choose = (label) => page.getByRole("button", { name: label, exact: true }).first();
       const open = async () => {
         await page.getByRole("button", { name: t("设置", "Settings"), exact: true }).first().click();
-        // The "common" group (language, appearance, model) is folded while everything is set up: open it.
-        await page.waitForSelector(".settings-group, .appearance-settings", { timeout: 15000 });
-        if (!(await page.locator(".appearance-settings").first().isVisible().catch(() => false))) await page.getByText(t("常用", "Everyday"), { exact: true }).first().click();
+        // Settings is a list of categories and one pane: the interface preferences are the 界面 category.
+        await page.waitForSelector(".settings-nav", { timeout: 15000 });
+        if (!(await page.locator(".appearance-settings").first().isVisible().catch(() => false))) await page.locator('[data-category="appearance"]').click();
         await page.locator(".appearance-settings").waitFor({ state: "visible", timeout: 15000 });
       };
       await step("settings-interface-section", async () => {

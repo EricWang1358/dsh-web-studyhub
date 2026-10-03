@@ -13,8 +13,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const han = /[㐀-鿿]/;
 const require = createRequire(import.meta.url);
 const compiled = await build({
-  stdin: { contents: `export { settingsGroupState, SETTINGS_GROUPS } from './ui/settings-groups.js';
-    export { default as Settings, SettingsGroup } from './ui/Settings.jsx';
+  stdin: { contents: `export { settingsGroupState, SETTINGS_GROUPS, categoriesFor, categoryForAnchor } from './ui/settings-groups.js';
+    export { default as Settings, SettingsNav } from './ui/Settings.jsx';
     export { CourseList } from './ui/CourseSettings.jsx';
     export { OnboardingPanel } from './ui/tour/SampleControls.jsx';
     export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
@@ -22,7 +22,7 @@ const compiled = await build({
 });
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, mod, mod.exports);
-const { settingsGroupState, SETTINGS_GROUPS, Settings, SettingsGroup, CourseList, OnboardingPanel, setUiLanguage } = mod.exports;
+const { settingsGroupState, SETTINGS_GROUPS, categoriesFor, categoryForAnchor, Settings, SettingsNav, CourseList, OnboardingPanel, setUiLanguage } = mod.exports;
 const h = React.createElement;
 const noop = () => {};
 const defaults = { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 };
@@ -73,31 +73,21 @@ test('a status that has not arrived yet marks nothing; the learner\'s own choice
   assert.equal(settingsGroupState({ data: data(), status: all, forceOpen: ['once'] }).common.open, false);
 });
 
-test('a group is a disclosure with a title, its one line and a marker when something is missing', () => {
+test('the category list sits under the three group headings, marks the selected one and says in words which need attention', () => {
   setUiLanguage('zh');
-  const closed = renderToStaticMarkup(h(SettingsGroup, { id: 'once', title: '一次性设置', lead: '第一次用某项功能时设一次', open: false, missing: [] }, h('p', null, 'inside')));
-  assert.match(closed, /<details class="settings-group"[^>]*data-settings-group="once"/);
-  assert.doesNotMatch(closed, /<details[^>]*\sopen=""/);
-  assert.match(closed, /<summary[^>]*class="settings-group__summary"/);
-  assert.match(closed, /一次性设置/);
-  assert.match(closed, /第一次用某项功能时设一次/);
-  assert.doesNotMatch(closed, /settings-group__missing/);
-  const open = renderToStaticMarkup(h(SettingsGroup, { id: 'once', title: '一次性设置', lead: 'x', open: true, missing: ['audio', 'mineru'] }, h('p', null, 'inside')));
-  assert.match(open, /<details[^>]*\sopen=""/);
-  assert.match(open, /settings-group__missing/);
-  assert.match(open, /未设置[^<]*音频转写[^<]*MinerU/);
-  assert.match(open, /inside/);
-});
-
-test('English renders without Han, group titles and the missing marker included', () => {
+  const available = categoriesFor({ audio: true, generation: true, system: true });
+  const html = renderToStaticMarkup(h(SettingsNav, { available, active: 'audio', missing: ['model', 'audio'], onSelect: noop }));
+  assert.match(html, /<nav class="settings-nav"[^>]*aria-label="设置分类"/);
+  for (const group of SETTINGS_GROUPS) assert.match(html, new RegExp(`<p class="settings-nav__label">${group.title}</p>`));
+  assert.equal((html.match(/class="settings-nav__item"/g) || []).length, 11);
+  assert.match(html, /data-category="audio"[^>]*aria-current="page"|aria-current="page"[^>]*data-category="audio"/);
+  assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
+  assert.equal((html.match(/class="settings-nav__todo">待设置</g) || []).length, 2, 'one marker per category that needs attention, in words');
   setUiLanguage('en');
   try {
-    const markup = SETTINGS_GROUPS.map((group) => renderToStaticMarkup(h(SettingsGroup, { id: group.id, title: group.title, lead: group.lead, open: true, missing: ['model', 'audio', 'mineru', 'retrieval'] }, null))).join('');
-    assert.doesNotMatch(markup, han);
-    assert.match(markup, /Everyday/);
-    assert.match(markup, /Set up once/);
-    assert.match(markup, /Advanced/);
-    assert.match(markup, /Not set up/);
+    const english = renderToStaticMarkup(h(SettingsNav, { available, active: 'model', missing: ['model'], onSelect: noop }));
+    assert.doesNotMatch(english, han);
+    for (const word of ['Everyday', 'Set up once', 'Advanced', 'To set up', 'Settings categories']) assert.match(english, new RegExp(word));
   } finally { setUiLanguage('zh'); }
 });
 
@@ -105,68 +95,63 @@ const page = (props = {}) => renderToStaticMarkup(h(Settings, { data: data(), bu
   legacy: '', setLegacy: noop, workspacePanel: h('div', { className: 'binding-panel' }, 'library'), exportData: noop, onRestored: noop, coursePanel: h(CourseList, { courses: [] }),
   onboardingPanel: h(OnboardingPanel, { sample: null, onTour: noop }), initialProfile: { consent: true, goal: 'exam', summary: '', signals: {}, ready: 0 }, ...props }));
 
-test('the page is the three groups; the model and the language and appearance are in the common one, the rest in the one-time one, the experimental switch in the advanced one', () => {
+test('the page is the category list and ONE category: the first one by default, the one a deep link points at, everything for the tour', () => {
   setUiLanguage('zh');
-  const html = page({ appearance: { language: 'zh', onLanguage: noop, theme: 'dark', themes: [['auto', '跟随系统'], ['dark', '深色'], ['light', '浅色']], onTheme: noop } });
-  const groups = html.split(/<details class="settings-group"/).slice(1);
-  assert.equal(groups.length, 3);
-  const [common, once, advanced] = groups;
-  assert.match(advanced, /data-settings-group="advanced"/);
-  assert.match(advanced, /name="show-experimental"/);
-  assert.doesNotMatch(advanced, /Jev|jev-/, 'only the switch, until it is turned on');
-  assert.match(common, /data-settings-group="common"/);
-  assert.match(common, /学习库与模型/);
-  assert.match(common, /界面语言/);
-  assert.match(common, /外观/);
-  assert.match(once, /data-settings-group="once"/);
-  for (const title of ['课程', '上手与示例', '陪学', '导入 study-lib-spar', '间隔复习 · SM-2', '数据备份与恢复'])
-    assert.match(once, new RegExp(`<legend class="settings-section__title">${title}</legend>`), title);
-  // (settings-audio draws once its settings arrive from the host; the anchor is checked in the source by tests/wp5-tour-steps.)
+  const appearance = { language: 'zh', onLanguage: noop, theme: 'dark', themes: [['auto', '跟随系统'], ['dark', '深色'], ['light', '浅色']], onTheme: noop };
+  const first = page({ appearance });
+  assert.match(first, /<div class="settings-layout">/);
+  assert.match(first, /class="settings-pane"/);
+  assert.match(first, /界面语言/, 'the first category is the interface');
+  assert.doesNotMatch(first, /数据备份与恢复|间隔复习 · SM-2/, 'the other categories are not on the page');
+  assert.doesNotMatch(first, /<details/, 'no folded groups any more');
+  const model = page({ focusSection: 'settings-model', appearance });
+  assert.match(model, /data-tour="settings-model"/);
+  assert.match(model, /aria-current="page"[^>]*data-category="model"|data-category="model"[^>]*aria-current="page"/);
+  const notACategory = page({ appearance, focusSection: 'settings-nowhere' });
+  assert.doesNotMatch(notACategory, /数据备份与恢复/, 'an anchor that is not a category does not open one');
+  const tour = page({ tourActive: true, appearance });
+  assert.doesNotMatch(tour, /settings-nav/, 'the tour shows the sections one after another, without the list');
+  for (const title of ['学习库与模型', '课程', '上手与示例', '陪学', '导入 study-lib-spar', '间隔复习 · SM-2', '数据备份与恢复'])
+    assert.match(tour, new RegExp(`<legend class="settings-section__title">${title}</legend>`), title);
   for (const anchor of ['settings-model', 'settings-extensions', 'settings-update', 'settings-sample'])
-    assert.match(html, new RegExp(`data-tour="${anchor}"`), `${anchor} stays`);
-  assert.match(common, /data-tour="settings-model"/);
+    assert.match(tour, new RegExp(`data-tour="${anchor}"`), `${anchor} stays`);
 });
 
-test('the tour opens every group so its anchors can be shown; a deep link opens the group it points into', () => {
-  setUiLanguage('zh');
-  const tour = page({ tourActive: true });
-  assert.equal((tour.match(/<details class="settings-group"[^>]*\sopen=""/g) || []).length, 3);
-  const closed = page();
-  assert.equal((closed.match(/<details class="settings-group"[^>]*\sopen=""/g) || []).length, 0, 'configured: both closed');
-  const deep = page({ focusSection: 'settings-extensions' });
-  assert.match(deep, /<details class="settings-group"[^>]*data-settings-group="once"[^>]*\sopen=""|<details class="settings-group"[^>]*\sopen=""[^>]*data-settings-group="once"/);
-  assert.equal((deep.match(/<details class="settings-group"[^>]*\sopen=""/g) || []).length, 1);
-});
-
-test('a missing model opens the common group on first render, with the marker', () => {
+test('a missing model: the list says so and the model category is the one on first render', () => {
   setUiLanguage('zh');
   const html = page({ data: data({ model: { ready: false } }) });
-  assert.match(html, /<details class="settings-group"[^>]*\sopen=""[^>]*data-settings-group="common"|<details class="settings-group"[^>]*data-settings-group="common"[^>]*\sopen=""/);
-  assert.match(html, /未设置[^<]*AI 模型/);
+  assert.match(html, /data-category="model"[^>]*>(?:(?!<\/button>).)*待设置/);
+  assert.match(html, /data-tour="settings-model"/, 'the model category is shown, not the first one');
+  assert.match(html, /aria-current="page"[^>]*data-category="model"|data-category="model"[^>]*aria-current="page"/);
 });
 
 test('the English page has no Han outside user data', () => {
   setUiLanguage('en');
   try {
-    const html = page({ tourActive: true, appearance: { language: 'en', onLanguage: noop, theme: 'dark', themes: [['auto', '跟随系统'], ['dark', '深色'], ['light', '浅色']], onTheme: noop } });
-    // The language names are written in their own language, on purpose (the sidebar's switch does the same).
-    assert.doesNotMatch(html.replace(/D:\\Study\\library/g, '').replace('>中文<', '><'), han);
+    const appearance = { language: 'en', onLanguage: noop, theme: 'dark', themes: [['auto', '跟随系统'], ['dark', '深色'], ['light', '浅色']], onTheme: noop };
+    for (const props of [{ tourActive: true, appearance }, { appearance }, { appearance, focusSection: 'settings-model' }]) {
+      const html = page(props);
+      // The language names are written in their own language, on purpose (the sidebar's switch does the same).
+      assert.doesNotMatch(html.replace(/D:\\Study\\library/g, '').replace('>中文<', '><'), han);
+    }
   } finally { setUiLanguage('zh'); }
 });
 
-test('every "open settings" link that points at a one-time setting asks Settings to open its group', async () => {
+test('every "open settings" link that points at a one-time setting names its section, and Settings turns the name into its category', async () => {
   const source = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
-  // The import hub's and the materials page's links (MinerU token, search settings) and the model link all name their section.
-  assert.ok((source.match(/setSettingsFocus\("settings-mineru"\)/g) || []).length >= 2, 'the import hub and the materials page open the one-time group');
-  assert.match(source, /setSettingsFocus\("settings-extensions"\)/, 'the checklist opens the search settings');
+  assert.ok((source.match(/setSettingsFocus\("settings-mineru"\)/g) || []).length >= 2, 'the import hub and the materials page point at MinerU');
+  assert.match(source, /setSettingsFocus\("settings-extensions"\)/, 'the checklist points at the search settings');
   assert.match(source, /const openModelSettings = \(\) => \(host\.openModelSettings \? host\.openModelSettings\(\) : \(setSettingsFocus\("settings-model"\), setPage\("settings"\)\)\)/);
+  for (const anchor of ['settings-mineru', 'settings-extensions', 'settings-model']) assert.ok(categoryForAnchor(anchor), anchor);
 });
 
-test('Settings keeps the shared-button rule and never nests a fieldset group', async () => {
+test('Settings keeps the shared-button rule outside the list and never nests a fieldset group', async () => {
   setUiLanguage('zh');
   const html = page({ tourActive: true });
   assert.deepEqual(html.match(/<button(?![^>]*class="sh-)[^>]*>/g) || [], [], 'every button is a shared Button');
   assert.doesNotMatch(html, /<fieldset[^>]*settings-group/);
+  const withList = page({});
+  assert.deepEqual((withList.match(/<button(?![^>]*class="sh-)[^>]*>/g) || []).filter((button) => !/class="settings-nav__item"/.test(button)), [], 'only the list items are plain buttons');
   const source = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
   assert.match(source, /focusSection=\{settingsFocus\}/);
   assert.match(source, /tourActive=\{!!tourStep\}/);

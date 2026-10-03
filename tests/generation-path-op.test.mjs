@@ -48,3 +48,19 @@ test('what is sent is bounded and validated: at most forty steps, titles clipped
   assert.ok((seen[0].match(/step-\d+/g) || []).length <= 40 + 3);
   await assert.rejects(s.call('generate.path.suggest', { steps: 'nope' }), /steps/);
 });
+
+test('an unusable first answer is retried once with the exact ids; a second one says what it looked like', async t => {
+  const seen = [];
+  const answers = ['{"note":"here you go"}', JSON.stringify({ steps: [{ id: 'step-1', title: '好了' }, { id: 'step-2' }] })];
+  const s = await service(t, { light: async (system, prompt) => { seen.push(prompt); return answers[Math.min(seen.length - 1, answers.length - 1)]; } });
+  const result = await s.call('generate.path.suggest', { steps });
+  assert.equal(seen.length, 2, 'exactly one retry');
+  assert.match(seen[1], /step-1/);
+  assert.match(seen[1], /could not be used|exact ids/i);
+  assert.equal(result.source, 'model');
+  const bad = await service(t, { light: async () => '{"note":"still not a plan"}' });
+  const failed = await bad.call('generate.path.suggest', { steps });
+  assert.deepEqual([failed.source, failed.unavailable.reason], ['local', 'nothing-usable']);
+  assert.match(failed.unavailable.sample, /still not a plan/, 'what the model said is returned so it can be shown and reported');
+  assert.ok(failed.unavailable.sample.length <= 220);
+});

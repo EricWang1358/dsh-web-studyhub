@@ -118,9 +118,11 @@ export async function runUsageQa(options) {
     const nav = id => page.locator(`[data-usage="nav.${id}"]`);
     const openAdvanced = async () => {
       if (!(await page.locator('.usage-settings').count())) await hit('nav.settings', nav('settings'));
-      const group = page.locator('[data-settings-group="advanced"]');
-      await group.waitFor({ timeout: 15000 });
-      if (!(await group.evaluate(element => element.open))) await group.locator('summary').first().click();
+      // The usage record is the 使用频率记录 category of Settings (a list on the left, one category on the right).
+      const item = page.locator('[data-category="usage"]');
+      await item.waitFor({ timeout: 15000 });
+      if ((await item.getAttribute('aria-current')) !== 'page') await item.click();
+      await page.locator('.usage-settings').waitFor({ timeout: 15000 });
       await page.locator('.usage-settings').scrollIntoViewIfNeeded();
       await sleep(300);
     };

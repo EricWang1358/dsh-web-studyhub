@@ -42,8 +42,13 @@ export default function GenerationPath({ sources, selectedIds, onUseStep, gen, c
     try {
       const result = await call('generate.path.suggest', { steps: base.steps.map(({ id, title, pages, chars }) => ({ id, title, pages, chars })), course, ...(goal ? { goal } : {}) });
       if (result?.source === 'model' && result.steps?.length) { setAi(result.steps); setAiState({ phase: 'done', message: '' }); }
-      else setAiState({ phase: 'unavailable', message: result?.unavailable?.reason === 'no-model' ? ui('还没有可用的 AI 模型，先用按章节做的路径。') : ui('AI 这次没有给出可用的建议，先用按章节做的路径。') });
-    } catch (error) { setAiState({ phase: 'unavailable', message: String(error?.message || error) }); }
+      else {
+        const reason = result?.unavailable?.reason;
+        setAiState({ phase: 'unavailable', sample: result?.unavailable?.sample || '', message: reason === 'no-model' ? ui('还没有可用的 AI 模型，先用按章节做的路径。')
+          : reason === 'failed' ? uiFormat('AI 调用没有成功：{0}。先用按章节做的路径，可以再试一次。', [result.unavailable.message || ui('没有说明原因')])
+            : ui('AI 的回答不是约定的格式，没能用上，先用按章节做的路径。可以再试一次。') });
+      }
+    } catch (error) { setAiState({ phase: 'unavailable', message: uiFormat('AI 调用没有成功：{0}。先用按章节做的路径，可以再试一次。', [String(error?.message || error)]) }); }
   }
   async function queue() {
     setQueueing(true); setReport(null);
@@ -63,11 +68,12 @@ export default function GenerationPath({ sources, selectedIds, onUseStep, gen, c
       </header>
       <div className="gen-path__actions">
         <Button size="sm" variant="secondary" icon="sparkle" busy={aiState.phase === 'loading'} disabled={disabled || typeof call !== 'function'} onClick={refine} data-usage="generate.path-refine">
-          {ai ? ui('重新让 AI 优化') : ui('让 AI 优化路径')}
+          {ai || aiState.phase === 'unavailable' ? ui('重新让 AI 优化') : ui('让 AI 优化路径')}
         </Button>
         {typeof askInChat === 'function' && <Button size="sm" variant="quiet" onClick={chat} data-usage="generate.path-chat">{ui('和 AI 聊聊怎么学')}</Button>}
       </div>
       {aiState.phase === 'unavailable' && <InlineMessage>{aiState.message}</InlineMessage>}
+      {aiState.phase === 'unavailable' && aiState.sample && <details className="gen-path__sample"><summary>{ui('看 AI 的回答（可以发给开发者）')}</summary><pre>{aiState.sample}</pre></details>}
       {aiState.phase === 'done' && <p className="muted small" role="status">{ui('AI 给了每一步的名称、重点和顺序；都可以改。页面范围不会变。')}</p>}
       <ol className="gen-path__steps">
         {steps.map(step => (
