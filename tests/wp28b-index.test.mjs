@@ -186,3 +186,25 @@ test('a failure is kept for the page to show, in words', async t => {
   assert.equal(failed.errorCode, 'retrieval-model-download');
   assert.match(failed.error, /检索模型/);
 });
+
+test('coverage: which pages are indexed, stale or missing, per source id, so every material row can say whether its index is built', async t => {
+  const { service } = await setup(t, { delay: 5 });
+  const before = await service.call('retrieval.index.coverage', {});
+  assert.equal(before.hasIndex, false, 'nothing built yet');
+  assert.equal(before.canIndex, true, 'the extension is running');
+  assert.deepEqual([before.indexed.length, before.stale.length], [0, 0]);
+  assert.equal(before.missing.length, 7, 'six pages of the book and the other course');
+  await service.call('retrieval.index.start', { course: '操作系统' });
+  await until(async () => (await service.call('retrieval.index.status', {})).status === 'complete');
+  const after = await service.call('retrieval.index.coverage', {});
+  assert.equal(after.hasIndex, true);
+  assert.deepEqual([after.indexed.length, after.stale.length, after.missing.length], [6, 0, 1], 'the course is indexed, the other course is not');
+  assert.equal(after.building, null);
+  // a page edited after it was indexed is stale, not indexed
+  const first = after.indexed[0];
+  await service.store.update(state => { state.sources.find(source => source.id === first).text += ' 改过的内容，索引里还是旧的。'; });
+  const edited = await service.call('retrieval.index.coverage', {});
+  assert.deepEqual([edited.indexed.length, edited.stale.length], [5, 1]);
+  assert.deepEqual(edited.stale, [first]);
+  assert.deepEqual(Object.keys(edited).sort(), ['building', 'canIndex', 'hasIndex', 'indexed', 'missing', 'stale']);
+});

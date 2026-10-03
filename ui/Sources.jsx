@@ -11,6 +11,9 @@ import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
+import IndexBadge from './IndexBadge.jsx';
+import { documentIndexState } from './index-coverage.js';
+import useIndexCoverage from './use-index-coverage.js';
 import { JevDecidedBadge, JevNote, JevProbabilities, JevRunNote, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
 import { experimentalShown } from './experimental-flag.js';
 import { noteText, startsIncluded } from './jev-flow.js';
@@ -149,7 +152,7 @@ export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSeg
   </div>;
 }
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, mastery, rename, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, mastery, rename, indexInfo = null, indexCoverage = null, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => () => clearTimeout(opening.current), []);
@@ -189,6 +192,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
             <small>{item.courses.join(' · ') || ui('未分类')}{item.coursesInferred ? ui(' · 推断归属') : ''}
               {item.usedBy.length ? uiFormat(' · 用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''}</small>
             <small>{details.join(" · ")}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
+            {indexInfo && <small className="source-doc__index"><IndexBadge info={indexInfo} coverage={indexCoverage} /></small>}
             {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}
             <MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={displayTitle(item.title)} />
             {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
@@ -285,6 +289,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
   const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
   const [retrieval, setRetrieval] = useState(null);
+  // Whether each material's search index is built (the rows say so); read once, and followed while a build runs.
+  const [indexCoverage] = useIndexCoverage(call);
   useEffect(() => {
     if (!bigKeys.size || retrieval || typeof call !== 'function') return undefined;
     let live = true;
@@ -416,7 +422,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
                   onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined} rename={renameFor}
-                  mastery={data.materialMastery?.[item.key]} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
+                  mastery={data.materialMastery?.[item.key]} indexInfo={documentIndexState(item, indexCoverage, { big: bigKeys.has(item.key) })} indexCoverage={indexCoverage} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
                   call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>
             );

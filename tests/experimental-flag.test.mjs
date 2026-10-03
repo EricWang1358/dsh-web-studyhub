@@ -48,3 +48,35 @@ test('the service exposes it as experimental.get / experimental.set and the snap
   // The library itself holds no trace of it (it is exported and backed up).
   assert.ok(!JSON.stringify(await service.call('export')).includes('experimental'));
 });
+
+test('an unchanged flag file is not read and parsed again on every poll (a stat is enough), and a change is still seen at once', async () => {
+  const { mkdtemp, rm, writeFile, utimes } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const home = await mkdtemp(join(tmpdir(), 'study-exp-cache-'));
+  const before = process.env.DSH_HOME;
+  process.env.DSH_HOME = home;
+  const { readExperimental, setExperimental } = await import('../lib/experimental.js');
+  const realParse = JSON.parse;
+  let parses = 0;
+  JSON.parse = (...args) => { parses += 1; return realParse(...args); };
+  try {
+    assert.equal(await readExperimental(), false, 'no file: off');
+    await setExperimental(true);
+    assert.equal(await readExperimental(), true);
+    parses = 0;
+    for (let i = 0; i < 20; i += 1) assert.equal(await readExperimental(), true);
+    assert.equal(parses, 0, 'twenty polls of an unchanged file parsed nothing');
+    await setExperimental(false);
+    assert.equal(await readExperimental(), false, 'a change is seen immediately');
+    // another process rewrote it (new content, new time): seen on the next read
+    const path = join(home, 'study', 'experimental.json');
+    await writeFile(path, '{"version":1,"enabled":true}\n');
+    await utimes(path, new Date(Date.now() + 5000), new Date(Date.now() + 5000));
+    assert.equal(await readExperimental(), true);
+  } finally {
+    JSON.parse = realParse;
+    if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before;
+    await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});

@@ -1,0 +1,11 @@
+/* The index chip on a material row: a quiet text label with a dot, shape and words (never colour alone). */
+:is(.study-app, .study-seat) {
+  .index-badge { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
+  .index-badge::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; box-sizing: border-box; }
+  .index-badge[data-state='indexed'] { color: var(--ok, var(--text-dim)); }
+  .index-badge[data-state='indexed']::before { background: currentColor; }
+  .index-badge[data-state='partial']::before, .index-badge[data-state='stale']::before { background: linear-gradient(90deg, currentColor 50%, transparent 50%); }
+  .index-badge[data-state='stale'], .index-badge[data-state='partial'] { color: var(--warn, var(--text-dim)); }
+  .index-badge[data-state='building']::before { border-style: dashed; }
+  .index-badge[data-state='missing'] { color: var(--text-muted); }
+}

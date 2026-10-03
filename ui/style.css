@@ -916,20 +916,19 @@
     margin: 0 auto;
     padding: 32px 36px 56px;
   }
-  /* Switching pages: the new page settles like ink — its first blocks rise
-     a few pixels and fade in, one after another. Transform and opacity only,
-     under half a second end to end. */
-  :is(.page, .review-page) > * {
-    animation: page-in 0.4s var(--ease-out) backwards;
+  /* Switching pages: the new page settles in as ONE block (opacity and a few
+     pixels of rise), 0.2s. It used to animate every child of the page with a
+     stagger: a composited layer per block while React was still mounting the
+     page, which is what made a heavy page (Generate, 资料) stutter on arrival. */
+  :is(.page, .review-page) {
+    animation: page-in 0.2s var(--ease-out) backwards;
   }
-  :is(.page, .review-page) > :nth-child(2) { animation-delay: 40ms; }
-  :is(.page, .review-page) > :nth-child(3) { animation-delay: 80ms; }
-  :is(.page, .review-page) > :nth-child(n + 4) { animation-delay: 120ms; }
-  /* Leaving: the current page lifts and fades for a beat before the switch. */
+  /* Leaving: the current page lifts and fades for a beat before the switch
+     (90ms: see leaveDelayMs in interface-prefs.js, which must match). */
   main > :is(.page, .review-page, .board-page) {
     transition:
-      opacity 0.14s ease-in,
-      transform 0.14s ease-in;
+      opacity 0.09s ease-in,
+      transform 0.09s ease-in;
   }
   main.is-leaving > :is(.page, .review-page, .board-page) {
     opacity: 0;
@@ -4398,3 +4397,37 @@
     transform: none;
   }
 }
+
+/* 动画 (设置 › 界面): the learner's motion choice is stamped on the app root (data-motion = full | reduced | off; "auto" resolves to one of them from the
+   system's reduce-motion setting). 'reduced' keeps short fades and drops movement; 'off' stops transitions and animations, except the ones that tell the
+   learner something is busy (spinners and progress shimmer). */
+.study-app[data-motion='reduced'] *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
+.study-app[data-motion='reduced'] *::before,
+.study-app[data-motion='reduced'] *::after {
+  animation-duration: 0.12s !important;
+  animation-delay: 0ms !important;
+  transition-duration: 0.12s !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+.study-app[data-motion='off'] *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
+.study-app[data-motion='off'] *::before,
+.study-app[data-motion='off'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* 界面大小 / 界面字体 (设置 › 界面): the whole interface scales with CSS zoom (text, controls and spacing together; the app box keeps filling the window), and the
+   typeface of its text switches by attribute. 100% and the system typeface are the defaults and need no rule. Reading text keeps its own Aa settings. */
+.study-app[data-ui-scale='90'] { zoom: 0.9; }
+.study-app[data-ui-scale='110'] { zoom: 1.1; }
+.study-app[data-ui-scale='125'] { zoom: 1.25; }
+.study-app[data-ui-scale='150'] { zoom: 1.5; }
+.study-app[data-ui-scale='175'] { zoom: 1.75; }
+.study-app[data-ui-scale='200'] { zoom: 2; }
+.study-app[data-ui-font='serif'], .study-seat:has(> .study-app[data-ui-font='serif']) { --font-ui: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif; }
+.study-app[data-ui-font='mono'], .study-seat:has(> .study-app[data-ui-font='mono']) { --font-ui: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Microsoft YaHei UI", monospace; }

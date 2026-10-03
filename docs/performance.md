@@ -183,3 +183,10 @@ Deterministic bounds on a seeded library (`scripts/qa/perf-seed.mjs`: 160 source
 - Client bundle (`npm run build`: 3.45 MB in 27 files; `client.workspace` 1.0 MB, KaTeX 628 KB, the English dictionary 563 KB load at start): KaTeX and the dictionary are candidates for lazy loading but sit in the reader and i18n code. The preview's `dist/app.js` is 6.7 MB unminified.
 - `content-visibility: auto` on source rows was rejected: its paint containment would clip the row's "more" menu and the new-import glow. The sources page with every group expanded is still 6 155 nodes.
 - A second hour-long growth run: the 10-minute loops show a flat heap, not a proof for a day.
+
+## UI smoothness: how to measure it (2.5.5)
+
+- `node scripts/qa/ui-motion.mjs --production` records frame times (requestAnimationFrame deltas), long tasks and the share of frames over 24 ms for the everyday interactions on a seeded heavy library (`--sources 300` by default): opening each page, going through a review (flip, next), opening the reader, scrolling the 资料 list. `--production` rebuilds `dist/` with React's production build first (the development build validates every prop and is several times slower: never judge speed on it); run `node scripts/build.mjs` afterwards to get the development preview back.
+- `node scripts/qa/ui-profile.mjs --page generate --production` is the companion: a CPU profile of a few visits to one page, printed as the functions with the most self time (says WHY, where ui-motion says WHICH).
+- Headless Chromium has no GPU compositor, so absolute numbers are pessimistic and noisy (a few ms either way); compare before and after on the same machine.
+- 2.5.5, production build, 300 materials, three visits per page: long tasks while opening Create deck 4 (259 ms) before and 1 (85 ms) after the page entrance became one animated block instead of a staggered layer per block; Sources 1 (59 ms) before, 0 after; review flip/next, reader open and list scroll showed no long tasks before or after.
