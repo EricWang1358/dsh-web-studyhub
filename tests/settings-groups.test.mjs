@@ -141,7 +141,7 @@ test('every "open settings" link that points at a one-time setting names its sec
   const source = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
   assert.ok((source.match(/setSettingsFocus\("settings-mineru"\)/g) || []).length >= 2, 'the import hub and the materials page point at MinerU');
   assert.match(source, /setSettingsFocus\("settings-extensions"\)/, 'the checklist points at the search settings');
-  assert.match(source, /const openModelSettings = \(\) => \(host\.openModelSettings \? host\.openModelSettings\(\) : \(setSettingsFocus\("settings-model"\), setPage\("settings"\)\)\)/);
+  assert.match(source, /const openModelSettings = \(\) => \(host\.openModelSettings \? host\.openModelSettings\(\) : \(setSettingsFocus\("settings-model"\), navigatePage\("settings"\)\)\)/);
   for (const anchor of ['settings-mineru', 'settings-extensions', 'settings-model']) assert.ok(categoryForAnchor(anchor), anchor);
 });
 

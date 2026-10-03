@@ -172,6 +172,7 @@ export const JOURNEY_STEPS = [
   } },
   { name: "audio-settings", run: async (j) => {
     await j.nav("settings");
+    await j.page.locator('.settings-nav__item[data-category="audio"]').click();
     const section = j.anchor("settings-audio");
     await section.waitFor({ timeout: 15000 });
     await section.scrollIntoViewIfNeeded();
@@ -266,6 +267,7 @@ export const JOURNEY_STEPS = [
     await j.page.keyboard.press("Escape");
     await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the add-material dialog closes");
     await j.nav("settings");
+    await j.page.locator('.settings-nav__item[data-category="courses"]').click();
     await j.page.locator(".course-list").scrollIntoViewIfNeeded();
     await j.settle();
     await j.shot("settings");

@@ -8,24 +8,26 @@
    disabled behind a slow snapshot ("有时候下一题点了会卡住"). */
 export const REFRESH_HOLD_MS = 800;
 
-/** `read()` returns { call, refresh, epoch, setBusy, setError, holdMs? } at call time. */
+/** `read()` returns { call, refresh, epoch, navigation?, setBusy, setError, holdMs? } at call time.
+ * `afterNavigation` keeps essential follow-up work running; its UI still uses the supplied `isCurrent` guard. */
 export function createActRunner(read) {
   let current = null;
-  async function act(action, args = {}, after, { refreshAfter = true, rethrow = false } = {}) {
+  async function act(action, args = {}, after, { refreshAfter = true, rethrow = false, afterNavigation = false } = {}) {
     if (current) return;
-    const deps = read(), operation = {}, epoch = deps.epoch();
+    const deps = read(), operation = {}, epoch = deps.epoch(), navigation = deps.navigation?.();
+    const isCurrent = () => epoch === deps.epoch() && navigation === deps.navigation?.();
     current = operation;
     deps.setBusy(true);
     deps.setError("");
     try {
       const result = await deps.call(action, args);
       if (epoch !== deps.epoch()) return;
-      if (after) await after(result);
+      if (after && (afterNavigation || isCurrent())) await after(result, { isCurrent });
       const reload = typeof refreshAfter === "function" ? refreshAfter(result) : refreshAfter;
       if (reload && epoch === deps.epoch()) {
         // The failure belongs to the sync, not to the action that already succeeded.
         const pending = Promise.resolve().then(() => deps.refresh()).catch((error) => {
-          if (epoch === deps.epoch()) deps.setError(error?.message || String(error));
+          if (isCurrent()) deps.setError(error?.message || String(error));
         });
         let timer;
         await Promise.race([pending, new Promise((done) => { timer = setTimeout(done, deps.holdMs ?? REFRESH_HOLD_MS); })]);
@@ -35,7 +37,7 @@ export function createActRunner(read) {
     } catch (error) {
       if (epoch !== deps.epoch()) return;
       if (rethrow) throw error;
-      deps.setError(error?.message || String(error));
+      if (isCurrent()) deps.setError(error?.message || String(error));
     } finally {
       if (current === operation) { current = null; deps.setBusy(false); }
     }

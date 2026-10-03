@@ -54,6 +54,42 @@ test("a running card names the step in progress, its batch and what is saved", (
   assert.match(label, /已保存 3\/10 题/);
 });
 
+test("saved progress distinguishes a draft's total from the questions requested by its top-up", () => {
+  const job = { status: "running", continued: true, draftId: "d", count: 21, savedCount: 4, requestedTotal: 25, stageCode: "planning" };
+  const progress = m.jobSavedProgress(job, [{ id: "d", cards: [{}, {}, {}, {}] }]);
+  assert.equal(progress.saved, 4);
+  assert.equal(progress.total, 25, "the denominator is the whole draft target, never this run's 21 questions");
+  assert.equal(progress.label, "草稿已保存");
+  assert.equal(progress.note, "本次计划补 21 题");
+  assert.equal(m.jobStageLabel(job, [], [], { includeSaved: false }), "正在规划考点");
+  const passage = m.jobSavedProgress({ status: "complete", type: "supplement", origin: "selection", savedCount: 2, requestedTotal: 3,
+    publication: { added: 2, total: 19 } });
+  assert.equal(passage.saved, 2);
+  assert.equal(passage.total, 3, "a passage's denominator is this addition, never the deck's 19 questions");
+  assert.equal(passage.label, "本次已补入");
+  assert.equal(passage.note, "题组现有 19 题");
+  assert.equal(m.jobSavedProgress({ type: "draft-repair", savedCount: 1, requestedTotal: 3 }), null, "repairs do not count as newly saved questions");
+});
+
+test("a source quotation mismatch directs the learner to verify the selected pages", () => {
+  const error = "Part 1: Assessment plan is not usable: Target 3: quote is not in source";
+  const failure = m.describeFailure(error);
+  assert.equal(failure.kind, "grounding");
+  assert.match(failure.hint, /所选页.*原文/);
+  assert.match(failure.hint, /重新选页/);
+  assert.doesNotMatch(failure.hint, /通常就行|已自动重试/);
+  assert.match(m.describeFailure(error, { hasDraft: true }).hint, /继续补齐/);
+  assert.doesNotMatch(inLanguage("en", () => m.describeFailure(error).hint), han);
+});
+
+test("identical batch errors share one cause while their full original log is retained", () => {
+  const cause = "Assessment plan is not usable: Target 3: quote is not in source";
+  const raw = [1, 2, 3, 4].map(part => `Part ${part}: ${cause}`).join("; ");
+  assert.deepEqual(m.repeatedJobFailure(raw), { count: 4, cause, raw });
+  assert.equal(m.repeatedJobFailure(`Part 1: ${cause}; Part 2: timed out`), null, "different failures must stay separate");
+  assert.equal(m.repeatedJobFailure(cause), null);
+});
+
 test("the copy after stopping depends on whether a draft was kept", () => {
   const drafts = [{ id: "d", title: "索引小测", cards: [{}, {}, {}] }];
   const withDraft = m.jobStageLabel({ status: "cancelled", stageCode: "cancelled", draftId: "d", savedCount: 3 }, drafts);
@@ -120,6 +156,20 @@ test("a started generation confirms with the deck name and resets the form", () 
 test("materials are counted per document, not per PDF page", () => {
   assert.equal(m.documentCount([{ id: "a", document: { id: "pdf", page: 1 } }, { id: "b", document: { id: "pdf", page: 2 } }, { id: "c" }]), 2);
   assert.equal(m.documentCount([]), 0);
+});
+
+test("generation material counts match the picker for refreshed PDFs and split text materials", () => {
+  const hash = "a".repeat(64);
+  const sources = [
+    { id: "a1", document: { id: hash, materialId: `document-${hash}-pdf`, page: 1 } },
+    { id: "a2", document: { id: hash, materialId: `document-${hash}-pdf`, page: 2 } },
+    { id: "b1", document: { id: hash, materialId: "document-independent-pdf", page: 1 } },
+    { id: "word1", document: { materialId: "document-word", format: "docx" } },
+    { id: "word2", document: { materialId: "document-word", format: "docx" } },
+  ];
+  assert.equal(m.documentCount(sources.slice(0, 3)), 2, "two logical PDFs can share the same bytes");
+  assert.equal(m.documentCount(sources.slice(3)), 1, "one Word material can have multiple source parts");
+  assert.equal(m.documentCount(sources), 3);
 });
 
 test("model readiness follows the host contract and the legacy flag", () => {

@@ -182,6 +182,13 @@ export default function App({ call: transportCall, host = {} }) {
   const [pageTarget, setPageTarget] = useState(null),
     leaveTimer = useRef(0), motionRef = useRef("full");
   motionRef.current = motion;
+  // A user navigation takes ownership immediately; asynchronous results only commit through setPage.
+  const navigatePage = useCallback((id) => {
+    navigationRequest.current++;
+    clearTimeout(leaveTimer.current);
+    setPageTarget(null);
+    setPage(id);
+  }, []);
   const switchPage = useCallback((id, prepare) => {
     clearTimeout(leaveTimer.current);
     navigationRequest.current++;
@@ -279,7 +286,7 @@ export default function App({ call: transportCall, host = {} }) {
       setNotice({ text: [note.text, note.detail].filter(Boolean).join(' '), tone: note.tone });
       return result;
     };
-    return { setActive, activate: (course) => setActive(course, true), manage: () => setPage('settings') };
+    return { setActive, activate: (course) => setActive(course, true), manage: () => navigatePage('settings') };
     // act / setPage / setNotice only reach for current state when called.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const onReviewState = host.onReviewState;
@@ -316,7 +323,7 @@ export default function App({ call: transportCall, host = {} }) {
   const [revealHome, setRevealHome] = useState(0);
   const canChat = host.capabilities?.chat ?? !!host.askInChat;
   // DSH's own model settings when the host offers them, else Study Settings (plan C3).
-  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : (setSettingsFocus("settings-model"), setPage("settings")));
+  const openModelSettings = () => (host.openModelSettings ? host.openModelSettings() : (setSettingsFocus("settings-model"), navigatePage("settings")));
   const [showBack, setShowBack] = useState(false),
     [settings, setSettings] = useState({}),
     [flag, setFlag] = useState(""),
@@ -646,10 +653,10 @@ export default function App({ call: transportCall, host = {} }) {
     };
   }, [modal]);
   // One write at a time (ui/act-runner.js); the library refresh that follows never keeps busy on for long.
-  actDeps.current = { call, refresh, epoch: () => libraryEpoch.current, setBusy, setError };
+  actDeps.current = { call, refresh, epoch: () => libraryEpoch.current, navigation: () => navigationRequest.current, setBusy, setError };
   actRunner.current ||= createActRunner(() => actDeps.current);
   function act(action, args = {}, after, options) {
-    return actRunner.current.act(action, args, after, options);
+    return actRunner.current.act(action, args, after, { afterNavigation: action === "restore", ...options });
   }
   // A letter jumps to its card: the spot in an open run when there is one,
   // otherwise a one-card run that can return to the current question.
@@ -695,13 +702,13 @@ export default function App({ call: transportCall, host = {} }) {
   async function returnFromDetour() {
     const back = detour;
     if (!back) return;
-    const epoch = libraryEpoch.current;
+    const epoch = libraryEpoch.current, request = ++navigationRequest.current;
     if (back.root !== dataRef.current?.root) { setDetour(null); return; }
     try {
       const next = await call('review.move', { runId: back.runId, index: back.index });
-      if (epoch !== libraryEpoch.current) return;
+      if (epoch !== libraryEpoch.current || request !== navigationRequest.current) return;
       enterRun(next, back.input); setDetour(null); setFocusRequest({ element: back.invoker });
-    } catch (error) { if (epoch === libraryEpoch.current) setError(error.message); }
+    } catch (error) { if (epoch === libraryEpoch.current && request === navigationRequest.current) setError(error.message); }
   }
   function enterRun(r, input) {
     if (!r) return;
@@ -792,13 +799,13 @@ export default function App({ call: transportCall, host = {} }) {
   // The existing generation entry, prefilled with the sources of the pages (the whole document for one text).
   function generateFromPages(ids) {
     rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined }));
-    setGenSource('files'); setModal(null); setPage('generate');
+    setGenSource('files'); setModal(null); navigatePage('generate');
   }
   // Reopen the reader where the learner was: the section, the offset into it and the scroll position of the stored context.
   function returnToReading(reading) {
     const source = dataRef.current?.sources.find(item => item.id === reading?.sourceId);
     if (!source) { setNotice({ text: ui('这份资料已不在资料库里，无法回到阅读。'), tone: 'warning' }); return; }
-    setPage(navLabels[reading.origin?.page] ? reading.origin.page : 'sources');
+    navigatePage(navLabels[reading.origin?.page] ? reading.origin.page : 'sources');
     setModal({ type: 'source', source, resume: { ...reading, nonce: Date.now() } });
   }
   function currentStudyReference() {
@@ -817,7 +824,7 @@ export default function App({ call: transportCall, host = {} }) {
   function openBoardWithContext() {
     const ref = currentStudyReference();
     if (ref) { rememberContext(); setBoardStudyRef(ref); }
-    setPage('board');
+    navigatePage('board');
   }
   async function openBoardReference(ref) {
     const sameRoot = (value) => String(value || '').replaceAll('\\', '/').toLowerCase();
@@ -907,7 +914,7 @@ export default function App({ call: transportCall, host = {} }) {
     else if (data?.decks.length) act("review.start", { mode: "path" }, enterRun);
     else {
       setGenSource("files");
-      setPage("generate");
+      navigatePage("generate");
     }
   }
   /* 自动驾驶 (a local preference): after a correct answer move on by itself,
@@ -1246,12 +1253,12 @@ export default function App({ call: transportCall, host = {} }) {
       setNotice({ text, persistent: true });
     }
   }
-  function openDraft(d) {
+  function openDraft(d, { navigation = false } = {}) {
     setDraft(structuredClone(d));
     setDraftLoaded(JSON.stringify(d));
     setDraftText(JSON.stringify(d, null, 2));
     setJsonMode(false);
-    setPage("draft");
+    if (navigation) navigatePage("draft"); else setPage("draft");
   }
   /* The one 补题 action, for the home card and the draft page alike: it generates only the missing questions into the same draft. */
   function continueDraft(draft) {
@@ -1359,7 +1366,7 @@ export default function App({ call: transportCall, host = {} }) {
   // WP3: one add-material entry (ImportHub) for the dialog and the empty Sources page.
   const [sourceHighlight, setSourceHighlight] = useState(null);
   useEffect(() => { if (page !== 'sources') setSourceHighlight(null); }, [page]);
-  const generateFromSources = ids => { rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined })); setGenSource('files'); setPage('generate'); };
+  const generateFromSources = ids => { rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined })); setGenSource('files'); navigatePage('generate'); };
   function finishImport(summary) {
     const outcome = importOutcome(summary, { page });
     setModal(null);
@@ -1377,9 +1384,9 @@ export default function App({ call: transportCall, host = {} }) {
   ) : (
     <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sourceFormCourse} onCourseChange={changeSourceFormCourse}
       pasteDraft={{ title: sourceTitle, text: sourceText }} onPasteDraftChange={draft => { setSourceTitle(draft.title); setSourceText(draft.text); }}
-      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setSettingsFocus("settings-mineru"); setPage('settings'); }}
-      onOpenSources={ids => { setPage('sources'); openAudioSources(ids); }}
-      audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); setPage('settings'); }} /> : undefined} />
+      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setSettingsFocus("settings-mineru"); navigatePage('settings'); }}
+      onOpenSources={ids => { navigatePage('sources'); openAudioSources(ids); }}
+      audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); navigatePage('settings'); }} /> : undefined} />
   );
   const modelGroups = host.modelGroups || [],
     followedModel =
@@ -1549,19 +1556,19 @@ export default function App({ call: transportCall, host = {} }) {
      创建题组 with the course filled in and the course's ordinary materials ticked (a long book is left for the chapter picker). */
   const setupHandlers = {
     import: (course) => setModal({ type: "add", course: course ?? "" }),
-    sources: () => setPage("sources"),
-    index: () => { setSettingsFocus("settings-extensions"); setPage("settings"); },
+    sources: () => navigatePage("sources"),
+    index: () => { setSettingsFocus("settings-extensions"); navigatePage("settings"); },
     generate: (course) => {
       const items = groupSourcesByDocument(data.sources.filter((source) => sourceMatchesCourse(source, course, courseNamesOf(data))));
       const long = new Set(bigDocuments(items).map((item) => item.key));
       setSelectedSources(items.filter((item) => !long.has(item.key)).flatMap((item) => item.sourceIds));
       setGen((current) => ({ ...current, course }));
       setGenSource("files");
-      setPage("generate");
+      navigatePage("generate");
     },
-    draft: (id) => { const found = data.drafts.find((item) => item.id === id); if (found) openDraft(found); },
+    draft: (id) => { const found = data.drafts.find((item) => item.id === id); if (found) openDraft(found, { navigation: true }); },
     course: setCourseSettings,
-    skeleton: () => setPage("skeleton"),
+    skeleton: () => navigatePage("skeleton"),
   };
   /** The tour switches pages at once: no leave animation, no stale context trail. */
   function showPage(id) {
@@ -1968,7 +1975,7 @@ export default function App({ call: transportCall, host = {} }) {
           <button type="button" disabled={busy} onClick={returnFromContext}>← {contextLabel(contextTrail.at(-1))}</button>
         </div>}
         {data && pageAvailable(data, 'live') && <LiveClass key={binding.root} data={data} call={call} visible={page === "live"}
-          onSettings={() => setPage("settings")} onSources={() => setPage("sources")}
+          onSettings={() => navigatePage("settings")} onSources={() => navigatePage("sources")}
           onJobs={() => { void refresh().catch((failure) => setError(failure.message)); }} />}
         {page === "board" ? (
           <Board state={boardState} library={data} onOrigin={host.openWorkspaceNotebook} studyRef={boardStudyRef}
@@ -2021,7 +2028,7 @@ export default function App({ call: transportCall, host = {} }) {
                     setPage("manage");
                   })
                 }
-                openDraft={openDraft}
+                openDraft={(d) => openDraft(d, { navigation: true })}
                 continueDraft={continueDraft}
                 call={call}
                 retryGeneration={(job) => {
@@ -2030,7 +2037,7 @@ export default function App({ call: transportCall, host = {} }) {
                   setGen((current) => ({ ...current, kind: job.kind || current.kind,
                     count: job.requestedTotal || job.count || current.count }));
                   setGenSource("files");
-                  setPage("generate");
+                  navigatePage("generate");
                   setNotice(ui("已带回可用资料、题型和题数；请核对学习目标后再生成。"));
                 }}
                 openAgent={host.openAgent}
@@ -2042,14 +2049,14 @@ export default function App({ call: transportCall, host = {} }) {
                     id: crypto.randomUUID(),
                     title: ui("新建闪卡题组"),
                     cards: [blankCard()],
-                  })
+                  }, { navigation: true })
                 }
-                importLibrary={() => { setGenSource("json"); setPage("generate"); }}
+                importLibrary={() => { setGenSource("json"); navigatePage("generate"); }}
                 generateFromSources={(ids) => { setSelectedSources(ids); setGen((current) => ({ ...current, course: undefined }));
-                  setGenSource("files"); setPage("generate"); }}
+                  setGenSource("files"); navigatePage("generate"); }}
                 setupHandlers={setupHandlers}
                 onCoachPractice={pageAvailable(data, 'review') ? onCoachPractice : undefined}
-                onWeakPoints={pageAvailable(data, 'wrongbook') ? () => setPage("wrongbook") : undefined}
+                onWeakPoints={pageAvailable(data, 'wrongbook') ? () => navigatePage("wrongbook") : undefined}
                 openModelSettings={openModelSettings}
                 canChat={canChat}
                 reveal={revealHome}
@@ -2067,7 +2074,7 @@ export default function App({ call: transportCall, host = {} }) {
                 onShowGraph={(scope, opts) => {
                   setGraphScope(scope ?? null);
                   setGraphCanvas(opts?.canvas !== false);
-                  setPage("graph");
+                  navigatePage("graph");
                 }}
                 onFocus={(next) => act("focus.set", next)}
                 onCourseSettings={setCourseSettings}
@@ -2086,7 +2093,7 @@ export default function App({ call: transportCall, host = {} }) {
                           data.drafts.find((item) => item.id === recovery.draft.id) || recovery.draft));
                         setDraftText(recovery.draftText);
                         setJsonMode(recovery.jsonMode);
-                        setPage("draft");
+                        navigatePage("draft");
                       }}
                     >{ui("继续编辑")}</button>
                     <button onClick={clearRecovery}>{ui("丢弃暂存")}</button>
@@ -2126,10 +2133,10 @@ export default function App({ call: transportCall, host = {} }) {
                 onStartScope={(scope) =>
                   act("review.start", { mode: "path", scope }, enterRun)
                 }
-                onLibrary={() => setPage("library")}
-                onCreate={() => { setGenSource("files"); setPage("generate"); }}
-                onSources={() => setPage("sources")}
-                onAudioUsage={() => setPage("audio")}
+                onLibrary={() => navigatePage("library")}
+                onCreate={() => { setGenSource("files"); navigatePage("generate"); }}
+                onSources={() => navigatePage("sources")}
+                onAudioUsage={() => navigatePage("audio")}
               />
             )}
             {page === "exam" && (
@@ -2141,12 +2148,12 @@ export default function App({ call: transportCall, host = {} }) {
                 data={data}
                 onLocation={location => { examLocation.current = location; }}
                 onStartRun={(next, origin) => { if (origin) rememberContext(captureContext({ page: 'exam', exam: origin })); enterRun(next); }}
-                onExit={() => setPage("library")}
+                onExit={() => navigatePage("library")}
                 onCreate={() => {
                   setGenSource("files");
-                  setPage("generate");
+                  navigatePage("generate");
                 }}
-                onCreateCase={() => { setGenSource("case"); setPage("generate"); }}
+                onCreateCase={() => { setGenSource("case"); navigatePage("generate"); }}
                 onSetupModel={openModelSettings}
                 onNotice={setNotice}
               />
@@ -2166,9 +2173,9 @@ export default function App({ call: transportCall, host = {} }) {
                   )
                 }
                 onStart={() => act("review.start", { mode: "path" }, enterRun)}
-                onLibrary={() => setPage("library")}
-                onCreate={() => { setGenSource("files"); setPage("generate"); }}
-                onSources={() => setPage("sources")}
+                onLibrary={() => navigatePage("library")}
+                onCreate={() => { setGenSource("files"); navigatePage("generate"); }}
+                onSources={() => navigatePage("sources")}
               />
             )}
             {page === "graph" && (
@@ -2179,7 +2186,7 @@ export default function App({ call: transportCall, host = {} }) {
                 library={data}
                 canvasWanted={graphCanvas}
                 onCanvasHandled={() => setGraphCanvas(false)}
-                onClose={() => setPage("library")}
+                onClose={() => navigatePage("library")}
                 onStudyCard={({ deckId, cardId }) =>
                   act(
                     "review.start",
@@ -2195,7 +2202,7 @@ export default function App({ call: transportCall, host = {} }) {
                 busy={busy}
                 act={act}
                 openDraft={openDraft}
-                setPage={setPage}
+                setPage={navigatePage}
                 setNotice={setNotice}
                 managedDeck={managedDeck}
                 decks={data.decks}
@@ -2219,17 +2226,17 @@ export default function App({ call: transportCall, host = {} }) {
                 highlight={sourceHighlight}
                 openAgent={host.openAgent}
                 onOpenSources={openAudioSources}
-                onLegacyRetry={job => { setLegacyAudioJobId(job.id); setPage('audio'); }}
-                onOpenSettings={() => { setSettingsFocus("settings-mineru"); setPage('settings'); }}
+                onLegacyRetry={job => { setLegacyAudioJobId(job.id); navigatePage('audio'); }}
+                onOpenSettings={() => { setSettingsFocus("settings-mineru"); navigatePage('settings'); }}
                 onGenerate={generateFromSources}
               />
             )}
             {page === "audio" && <section className="page">
               <div className="page-heading"><div><h1>{language === "en" ? "Audio transcription" : "音频转录"}</h1>
                 <p className="muted">{language === "en" ? "Import a recording. Transcription, proofreading and translation run in the background; updates arrive in your inbox." : "导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。"}</p></div>
-                <div className="section-heading-actions"><button onClick={() => setPage("settings")}>{language === "en" ? "Audio settings" : "音频设置"}</button>
-                  <button onClick={() => setPage("sources")}>{language === "en" ? "View sources" : "查看资料"}</button></div></div>
-              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => setPage('settings')}
+                <div className="section-heading-actions"><button onClick={() => navigatePage("settings")}>{language === "en" ? "Audio settings" : "音频设置"}</button>
+                  <button onClick={() => navigatePage("sources")}>{language === "en" ? "View sources" : "查看资料"}</button></div></div>
+              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => navigatePage('settings')}
                 recoveryJobId={legacyAudioJobId} onRecoveryChange={setLegacyAudioJobId} />
               <AudioDashboard call={call} />
             </section>}
@@ -2240,7 +2247,7 @@ export default function App({ call: transportCall, host = {} }) {
                 running={running}
                 act={act}
                 call={call}
-                setPage={setPage}
+                setPage={navigatePage}
                 setNotice={setNotice}
                 openDraft={openDraft}
                 genSource={genSource}
@@ -2282,7 +2289,7 @@ export default function App({ call: transportCall, host = {} }) {
                 })}
                 onStartPublished={enterRun}
                 clearRecovery={clearRecovery}
-                setPage={setPage}
+                setPage={navigatePage}
                 setNotice={setNotice}
                 setError={setError}
                 setModal={setModal}
@@ -2347,7 +2354,7 @@ export default function App({ call: transportCall, host = {} }) {
                 detour={detour && !(detour.runId === run.id && detour.index === run.index) ? detour : null}
                 onReturnFromDetour={returnFromDetour}
                 onCourseFlow={startCourseFlow}
-                onBackToWorkflow={(sessionId) => { setWorkflowReturn({ sessionId, nonce: Date.now() }); setPage("workflows"); }}
+                onBackToWorkflow={(sessionId) => { setWorkflowReturn({ sessionId, nonce: Date.now() }); navigatePage("workflows"); }}
                 onOpenNote={(noteId) => openLearningTarget({ kind: 'note', id: noteId })}
                 onMakeNote={() => { const origin = captureContext(); return act("note.create", {
                   title: uiFormat('学习笔记 · {0}', [new Date().toLocaleDateString(uiLocale())]),
@@ -2403,7 +2410,7 @@ export default function App({ call: transportCall, host = {} }) {
               initialId={noteInitialId} onSelect={setNoteInitialId}
               onOpenCard={ref => openLearningTarget({ kind: 'card', ...ref })}
               backLabel={contextTrail.length ? contextLabel(contextTrail.at(-1)) : ''}
-              onBack={contextTrail.length ? returnFromContext : () => { setNoteInitialId(""); setPage("library"); }} />}
+              onBack={contextTrail.length ? returnFromContext : () => { setNoteInitialId(""); navigatePage("library"); }} />}
           </>
         )}
       </main>
@@ -2487,7 +2494,7 @@ export default function App({ call: transportCall, host = {} }) {
                     <DocumentViewer source={modal.source} quote={modal.quote} call={call} data={data} host={host} generateDisabled={busy}
                       onGenerate={() => {
                         rememberContext(); setSelectedSources(documentSourceIds(data.sources, modal.source.id)); setGen(current => ({ ...current, course: undefined }));
-                        setGenSource('files'); setModal(null); setPage('generate');
+                        setGenSource('files'); setModal(null); navigatePage('generate');
                       }}
                       onPublished={() => refresh()} onOpenCard={ref => { setModal(null); openLearningTarget({ kind: 'card', ...ref }); }}
                       onOpenDeck={deckId => openLearningTarget({ kind: 'deck', id: deckId })}
@@ -2496,7 +2503,7 @@ export default function App({ call: transportCall, host = {} }) {
                       backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? () => setModal(null) : undefined}
                       onStarted={started => { selectionJobs.current.set(started.jobId, 'active'); return refresh(); }} onNotice={setNotice}
                       onCaseFromPassage={(passage) => { rememberContext(); setCaseInitial({ sourceIds: documentSourceIds(data.sources, modal.source.id), focus: passage.quote, nonce: Date.now() });
-                        setGenSource('case'); setModal(null); setPage('generate'); }} />
+                        setGenSource('case'); setModal(null); navigatePage('generate'); }} />
                   </>
                 ) : (
                   <p className="muted">{ui("无法找到此资料。")}</p>

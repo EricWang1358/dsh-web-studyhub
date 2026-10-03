@@ -137,6 +137,55 @@ test("view is stable between changes and reset forgets everything", async () => 
   assert.equal(quick.view(raw), raw);
 });
 
+test("an old library failure after reset cannot remove the new inbox write or its duplicate guard", async () => {
+  const old = deferred(), next = deferred();
+  const { quick, raw, calls } = setup(() => calls.length === 1 ? old.promise : next.promise, { timers: false });
+  const first = markInboxRead(quick);
+  quick.reset();
+  const newLibrary = { ...raw, root: "new-library" };
+  quick.view(newLibrary);
+  const second = markInboxRead(quick);
+  old.reject(new Error("Old library was disconnected"));
+  await first;
+  assert.equal(quick.view(newLibrary).inbox.unread, 0, "the new library's read patch still owns its key");
+  assert.deepEqual(quick.failures(), {}, "the old error cannot appear in the new library");
+  assert.equal(markInboxRead(quick), second, "a repeated click keeps the new request's duplicate guard");
+  assert.equal(calls.length, 2);
+  next.resolve({});
+  await second;
+});
+
+test("old success and failure completions after reset cannot change the new library", async () => {
+  for (const succeeds of [true, false]) {
+    const old = deferred();
+    const { quick, raw } = setup(() => old.promise, { timers: false });
+    const done = dismissJobs(quick, "a");
+    quick.reset();
+    const next = { ...raw, root: "new-library" };
+    quick.view(next);
+    const version = quick.version();
+    if (succeeds) old.resolve({}); else old.reject(new Error("Old library was disconnected"));
+    await done;
+    assert.equal(quick.version(), version, "a stale completion must not emit a visible change");
+    assert.equal(quick.view(next), next);
+    assert.deepEqual(quick.failures(), {});
+  }
+});
+
+test("an old failure timer cannot clear an identical error from the new library", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { quick, raw } = setup(async () => { throw new Error("offline"); }, { errorMs: 10000 });
+  await dismissJobs(quick, "a");
+  t.mock.timers.tick(1000);
+  quick.reset();
+  quick.view({ ...raw, root: "new-library" });
+  await dismissJobs(quick, "a");
+  t.mock.timers.tick(9000);
+  assert.equal(quick.failures().a, "offline", "the new library gets its complete error lifetime");
+  t.mock.timers.tick(1000);
+  assert.equal(quick.failures().a, undefined);
+});
+
 test("subscribers hear about each visible change", async () => {
   const { quick } = setup(async () => ({}));
   let heard = 0;

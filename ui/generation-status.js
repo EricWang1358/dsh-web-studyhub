@@ -4,6 +4,7 @@
 import { ui, uiFormat, getUiLanguage } from './i18n.js';
 import { stageCodeOf, stepStageCode } from '../lib/contexts/jobs/contracts.js';
 import { supplementJobLabel } from './job-visibility.js';
+import { countDocuments } from '../lib/source-groups.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
 export const GENERATION_DEFAULTS = Object.freeze({ kind: 'mixed', count: 10, difficulty: 'mixed', focus: '', role: '' });
@@ -22,8 +23,7 @@ export function modelReadiness(data) {
 }
 
 /** Materials as the learner counts them: a PDF is one material, not one per page. */
-export const documentCount = (sources = []) =>
-  new Set(sources.map((source) => source.document?.id ? `document:${source.document.id}` : `source:${source.id}`)).size;
+export const documentCount = countDocuments;
 
 const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 export const jobCode = (job) => (typeof job?.stageCode === 'string' && job.stageCode) || stageCodeOf(job);
@@ -101,6 +101,25 @@ function standing(job, draft) {
   return { requested, saved, missing: Math.max(0, requested - saved) };
 }
 
+/** Saved questions, with the denominator belonging to the same scope. A continued
+ * job's count is only this top-up; requestedTotal is the whole draft's target. */
+export function jobSavedProgress(job = {}, drafts = []) {
+  if (ownProse(job) || !(job.requestedTotal > 0)) return null;
+  const supplement = job.type === 'supplement', draft = draftOf(job, drafts);
+  const saved = supplement ? job.savedCount ?? 0 : Math.max(job.savedCount ?? 0, draft?.cards?.length ?? 0);
+  return { saved, total: job.requestedTotal,
+    label: supplement ? job.publication || job.origin === 'selection' ? ui('本次已补入') : ui('本次已保存') : ui('草稿已保存'),
+    note: supplement && job.publication?.total >= 0 ? uiFormat('题组现有 {0} 题', [job.publication.total])
+      : job.continued && job.count > 0 ? uiFormat('本次计划补 {0} 题', [job.count]) : '' };
+}
+
+/** Collapse only identical batch causes; callers keep the untouched log available. */
+export function repeatedJobFailure(text = '') {
+  const raw = String(text), parts = raw.split(/(?:;\s*|\n)(?=Part \d+:)/).map(line => /^Part \d+:\s*([\s\S]+)$/.exec(line.trim()));
+  if (parts.length < 2 || parts.some(part => !part || part[1] !== parts[0][1])) return null;
+  return { count: parts.length, cause: parts[0][1], raw };
+}
+
 /** The card's first line: what happened to which deck. */
 export function jobHeadline(job = {}, drafts = []) {
   const name = jobDeckName(job, drafts), named = (label) => uiFormat('{0} ·「{1}」', [label, name]);
@@ -139,7 +158,7 @@ export function jobHeadline(job = {}, drafts = []) {
 }
 
 /** The card's second line: the stage in plain words, its batch and what is saved. */
-export function jobStageLabel(job = {}, drafts = [], jobs = []) {
+export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved = true } = {}) {
   const code = jobCode(job), draft = draftOf(job, drafts);
   if (job.kind === 'case' && job.publication && code === 'done') return ui('批改结果已进信箱；这套案例在学习库里，可以随时再练。');
   // A passage supplement saves into the deck itself: there is no draft to check.
@@ -167,7 +186,7 @@ export function jobStageLabel(job = {}, drafts = [], jobs = []) {
   const stepCode = step && stepStageCode(step);
   let label = stageCodeLabel(code === 'authoring' && stepCode ? stepCode : code);
   if (stepCode && step.part && job.parts > 1) label = uiFormat('第 {0}/{1} 批 · {2}', [step.part, job.parts, label]);
-  if (job.savedCount > 0 && job.requestedTotal > 0) label = uiFormat('{0} · 已保存 {1}/{2} 题', [label, job.savedCount, job.requestedTotal]);
+  if (includeSaved && job.savedCount > 0 && job.requestedTotal > 0) label = uiFormat('{0} · 已保存 {1}/{2} 题', [label, job.savedCount, job.requestedTotal]);
   return label;
 }
 
@@ -209,7 +228,7 @@ export function describeFailure(text = '', { hasDraft = false } = {}) {
     case 'sources': return { kind, action: 'retry', title: ui('出题用的资料已被删除'), hint: ui('重新选择资料后再生成。') };
     case 'grounding': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('引用的原文在资料里找不到'),
       hint: hasDraft ? ui('AI 引用的句子和资料原文对不上；通过检查的题已保存在草稿里。打开草稿用「继续补齐」补上缺的题，不必重新选页。')
-        : ui('AI 引用的句子和资料原文对不上（可能是排版、断词或页码的差别），已自动重试过一次。直接再试一次通常就行；若仍然这样，可以少选几页或减少题数。') };
+        : ui('AI 引用的句子和资料原文对不上。请确认所选页包含要引用的原文；如果原文在相邻页，重新选页后再生成。') };
     case 'plan': return { kind, action: 'retry', title: ui('考点规划没有通过检查'),
       hint: ui('资料里能稳妥出题的内容可能不够。换几份内容更完整的资料，或减少题数再试。') };
     case 'quality': return { kind, action: 'retry', title: ui('没有题目通过检查'),

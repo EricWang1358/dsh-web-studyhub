@@ -165,6 +165,24 @@ test("home: English renders without Chinese", () => {
   assert.match(visible, /Continue generation for 10 questions/);
 });
 
+test("home: an active top-up exposes saved progress and stop while execution and usage start folded", () => {
+  const job = { id: "t", status: "running", stageCode: "planning", continued: true, draftId: "dr", count: 10, savedCount: 10,
+    requestedTotal: 20, generationTimeoutSeconds: 300, totalTimeoutSeconds: 1200,
+    estimate: { totalTokens: { low: 139000, high: 235000 }, calls: { low: 18, high: 22 } },
+    steps: [{ id: "s", stage: "Planning evidence and learning targets", stageCode: "planning", status: "running" }] };
+  const html = home({ drafts: [legacyDraft()], jobs: [job] });
+  assert.match(html, /class="job-progress"/);
+  assert.match(html, /aria-valuenow="10"[^>]*aria-valuemax="20"/);
+  assert.match(html, /本次计划补 10 题/);
+  assert.match(html, /当前阶段/);
+  assert.match(html, /class="[^"]*job-stop[^"]*"/);
+  assert.doesNotMatch(/<details[^>]*class="generation-trace"[^>]*>/.exec(html)?.[0] || "", /\bopen\b/);
+  assert.match(html, /生成方式、用量与技术详情/);
+  assert.doesNotMatch(html, /已保存 10 题到草稿；其余批次仍在生成/, "saved count belongs to the progress summary once");
+  const en = inLanguage("en", () => home({ drafts: [{ ...legacyDraft(), title: "CQRS" }], jobs: [{ ...job, deckTitle: "CQRS" }] }));
+  assert.doesNotMatch(en.replace(/<[^>]+>/g, " "), han);
+});
+
 function draftPage(draft, data = {}, props = {}) {
   return renderToStaticMarkup(React.createElement(map.Draft, { data: { sources: [{ id: "s", title: "S" }], decks: [], drafts: [draft], jobs: [], modelReady: true, runs: [], ...data },
     busy: false, act: noop, call: noop, draft, draftLoaded: JSON.stringify(draft), setDraft: noop, draftText: "", setDraftText: noop, jsonMode: false, setJsonMode: noop,

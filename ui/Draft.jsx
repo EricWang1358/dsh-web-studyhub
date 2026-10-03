@@ -165,23 +165,27 @@ export default function Draft({
               setError("JSON 格式不正确：" + e.message);
               return;
             }
-            await act("draft.save", { deck: d }, async (saved) => {
-              openDraft(saved);
+            await act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => {
+              if (isCurrent()) openDraft(saved);
               const published = await call("draft.publish.quick", {
                 id: saved.id,
                 draftVersion: saved.draftVersion,
               });
-              clearRecovery();
+              if (isCurrent()) clearRecovery();
               try {
                 const run = await call("review.start", { deckId: published.id,
                   mode: "new", count: 10, ordered: true, fresh: true });
-                onStartPublished(run);
-                setNotice(uiFormat("已发布，开始学习本轮 {0} 道新题。",[run.total]));
+                if (isCurrent()) {
+                  onStartPublished(run);
+                  setNotice(uiFormat("已发布，开始学习本轮 {0} 道新题。",[run.total]));
+                }
               } catch {
-                setPage("library");
-                setNotice(ui("题组已发布；当前没有可开始的新题。"));
+                if (isCurrent()) {
+                  setPage("library");
+                  setNotice(ui("题组已发布；当前没有可开始的新题。"));
+                }
               }
-            });
+            }, { afterNavigation: true });
           }}
         >
           {publicationLabel}

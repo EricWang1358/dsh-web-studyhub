@@ -14,13 +14,16 @@ import { isActiveJob } from "./job-visibility.js";
 
 export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorMs = 12000, timers = true } = {}) {
   const entries = new Map();
+  const failureTokens = new Map();
   const listeners = new Set();
   let failures = {}, current = null, stamp = 0, cache = null;
   const emit = () => { stamp++; cache = null; for (const listener of [...listeners]) listener(); };
   const later = (work, ms) => { if (timers) { const timer = setTimeout(work, ms); timer.unref?.(); } };
   const fail = (key, message) => {
+    const token = {};
+    failureTokens.set(key, token);
     failures = { ...failures, [key]: message };
-    later(() => { if (failures[key] === message) controller.clearFailure(key); }, errorMs);
+    later(() => { if (failureTokens.get(key) === token) controller.clearFailure(key); }, errorMs);
   };
 
   const controller = {
@@ -39,6 +42,7 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
     failures: () => failures,
     clearFailure(key) {
       if (!(key in failures)) return;
+      failureTokens.delete(key);
       const { [key]: dropped, ...rest } = failures;
       void dropped;
       failures = rest;
@@ -50,12 +54,13 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
       if (known) return known.promise;
       const entry = { patch, confirmed, settledAt: null, promise: null };
       entries.set(key, entry);
-      if (key in failures) { const { [key]: dropped, ...rest } = failures; void dropped; failures = rest; }
+      if (key in failures) { const { [key]: dropped, ...rest } = failures; void dropped; failures = rest; failureTokens.delete(key); }
       emit();
       entry.promise = (async () => {
         let result;
         try { result = await call(action, args); }
         catch (error) {
+          if (entries.get(key) !== entry) return { ok: false, error };
           if (!treatAsDone?.(error)) {
             entries.delete(key);
             fail(key, error?.message || String(error));
@@ -63,8 +68,9 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
             return { ok: false, error };
           }
         }
+        if (entries.get(key) !== entry) return { ok: true, result };
         entry.settledAt = now();
-        later(() => controller.reconcile(current), holdMs + 50);
+        later(() => { if (entries.get(key) === entry) controller.reconcile(current); }, holdMs + 50);
         return { ok: true, result };
       })();
       return entry.promise;
@@ -83,6 +89,7 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
     reset() {
       if (!entries.size && !Object.keys(failures).length) return;
       entries.clear();
+      failureTokens.clear();
       failures = {};
       emit();
     },

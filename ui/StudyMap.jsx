@@ -6,7 +6,7 @@ import { reviewedCardStatus } from "../lib/review-integrity.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import { useQuickActions } from "./quick-actions.js";
 import { Button, Disclosure, Icon, InlineMessage, SegmentedControl } from "./components/index.js";
-import { describeFailure, documentCount, jobCode, jobHeadline, jobStageLabel, modelReadiness } from "./generation-status.js";
+import { describeFailure, documentCount, jobCode, jobHeadline, jobSavedProgress, jobStageLabel, modelReadiness, repeatedJobFailure } from "./generation-status.js";
 import focusCss from "./focus.css";
 import homeCss from "./generate-home.css";
 import { useInjectCss } from "./shared.js";
@@ -1055,6 +1055,8 @@ function JobCard({ job: j, jobs = [], drafts, busy, openDraft, openAgent, cancel
   const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
   const generation = !["draft-publish", "draft-repair"].includes(j.type);
   const failure = code === "failed" && generation ? describeFailure(j.stage, { hasDraft: !!draft }) : null;
+  const progress = active && jobSavedProgress(j, drafts);
+  const repeatedFailure = failure && repeatedJobFailure(j.stage);
   const tone = code === "failed" || code === "partial" || code === "cancelled" ? code : active ? "running" : "complete";
   const mark = JOB_MARKS[code] || (active ? null : "success");
   return <article className={"job " + tone + (j.leaving ? " job-leaving" : "")} data-job-id={j.id}
@@ -1062,20 +1064,34 @@ function JobCard({ job: j, jobs = [], drafts, busy, openDraft, openAgent, cancel
     <span className="job-mark" aria-hidden="true">{mark ? <Icon name={mark} size={20} /> : <span className="sh-spinner" />}</span>
     <div className="job-content">
       <strong className="job-title">{jobHeadline(j, drafts)}</strong>
+      {progress && <div className="job-progress">
+        <div className="job-progress__line"><span>{progress.label}</span><strong>{uiFormat("{0}/{1} 题", [progress.saved, progress.total])}</strong></div>
+        <div className="job-progress__bar" role="progressbar" aria-label={progress.label} aria-valuemin={0}
+          aria-valuenow={Math.min(progress.saved, progress.total)} aria-valuemax={progress.total}>
+          <span style={{ width: `${Math.min(100, progress.saved / progress.total * 100)}%` }} />
+        </div>
+        {progress.note && <span className="job-progress__note">{progress.note}</span>}
+      </div>}
       {failure ? <div className="job-failure">
         <InlineMessage tone="error" title={failure.title}>{failure.hint}</InlineMessage>
         {/* The fix sits right under the reason, where the learner is reading. */}
         {failure.action === "settings" && openModelSettings &&
           <Button size="sm" variant="secondary" icon="model" onClick={openModelSettings}>{ui("去配置模型")}</Button>}
-        <Disclosure className="tech-details" summary={ui("技术详情")}><code className="job-raw">{j.stage}</code></Disclosure>
-      </div> : <small className="job-stage">{jobStageLabel(j, drafts, jobs)}</small>}
+        <Disclosure className="tech-details" summary={ui("技术详情")}>
+          {repeatedFailure ? <>
+            <p className="muted">{uiFormat("{0} 批发生同一问题", [repeatedFailure.count])}</p>
+            <code className="job-raw">{repeatedFailure.cause}</code>
+            <Disclosure summary={ui("原始错误记录")}><code className="job-raw">{repeatedFailure.raw}</code></Disclosure>
+          </> : <code className="job-raw">{j.stage}</code>}
+        </Disclosure>
+      </div> : <small className="job-stage">{progress && <span className="job-stage__label">{ui("当前阶段")}</span>}{jobStageLabel(j, drafts, jobs, { includeSaved: !progress })}</small>}
       {code === "partial" && draft && generation && j.type !== "supplement" && <ShortfallReasons draft={draft} compact />}
       {dismissFailure && <p className="job-error" role="alert">{uiFormat("没能移除这条记录：{0}", [dismissFailure])}</p>}
       {j.type !== "draft-publish" && <GenerationTrace job={j} openAgent={openAgent} />}
     </div>
     <div className="job-actions">
       {cancelJob && j.type !== "draft-publish" && ["running", "queued"].includes(j.status) &&
-        <Button size="sm" variant="quiet" disabled={busy} title={j.origin === "selection" ? ui("停止补题；题组不会有变化") : ui("停止生成；已保存的题留在草稿里")}
+        <Button size="sm" variant="secondary" icon="close" className="job-stop" disabled={busy} title={j.origin === "selection" ? ui("停止补题；题组不会有变化") : ui("停止生成；已保存的题留在草稿里")}
           onClick={() => cancelJob(j.id)}>{ui("停止")}</Button>}
       {draft && !active && <Button size="sm" variant="secondary" onClick={() => openDraft(draft)}>{ui("打开草稿")}</Button>}
       {/* A passage supplement jumps to where its questions went: practise exactly those, or open the deck. */}
