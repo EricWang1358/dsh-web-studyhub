@@ -204,3 +204,18 @@ test("each Q&A of a card offers 出成前置题 and 出成独立题; a failed �
   }));
   assert.match(typed, /<button[^>]*>改一改再提交<\/button>/, "a typed knowledge point can be edited first");
 });
+
+test("a stem that asks what the source says is called out with a one-click fix, and 修题 offers the usual problems as choices", () => {
+  const make = (prompt, assistMode, extra = {}) => renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "r", index: 0, total: 2, card: { id: "q", kind: "flashcard", topic: "API", prompt, options: [] }, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {}, ...extra }));
+  const bad = make("API 返回 4xx 与 5xx 时，资料用什么基本区别帮助开发者定位问题？");
+  assert.match(bad, /这道题在问「资料怎么说」/);
+  assert.match(bad, /data-usage="review\.voice-fix"[^>]*>改成概念或情景题</);
+  const good = make("4xx 与 5xx 有什么基本区别？");
+  assert.doesNotMatch(good, /在问「资料怎么说」/, "a normal question gets no hint");
+  const exam = renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "r", mode: "exam", index: 0, total: 2, card: { id: "q", kind: "flashcard", topic: "API", prompt: "资料说了什么？", options: [] }, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {} }));
+  assert.doesNotMatch(exam, /在问「资料怎么说」/, "no hint in an exam");
+});

@@ -46,7 +46,7 @@ async function harness(t, { serverOptions = {}, contexts, mineru = {} } = {}) {
     await new Promise(resolve => setTimeout(resolve, 20));
     service.dispose(); await fake.close();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    await rm(home, { recursive: true, force: true }); await rm(root, { recursive: true, force: true });
+    await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
   return h;
 }

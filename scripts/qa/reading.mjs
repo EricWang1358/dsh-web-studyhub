@@ -145,6 +145,17 @@ export async function runReadingQa(options) {
       if (state.failed && !(await page.getByRole("button", { name: t("重新提交", "Submit again"), exact: true }).count())) throw new Error(`a failed task has no resubmit button: ${state.text}`);
       return state;
     });
+    await step("improve-suggestions", async () => {
+      // 修题 offers the usual problems as choices: the learner does not have to know what to say.
+      await page.locator(".review-more > summary").first().click();
+      await page.getByRole("button", { name: t("修题", "Improve question"), exact: true }).click();
+      await page.locator(".assist-form textarea").waitFor();
+      const chip = page.getByRole("button", { name: t("让助教自己检查并修正", "Let the assistant check and fix it"), exact: true });
+      await chip.click();
+      const text = await page.locator(".assist-form textarea").inputValue();
+      if (text.length < 30) throw new Error(`the suggestion did not fill the box: ${text}`);
+      await page.getByRole("button", { name: t("取消", "Cancel"), exact: true }).first().click();
+    });
     await step("derive-from-more-menu", async () => {
       await page.locator(".review-more > summary").first().click();
       await page.getByRole("button", { name: t("出前置题…", "Make a prerequisite question…"), exact: true }).click();

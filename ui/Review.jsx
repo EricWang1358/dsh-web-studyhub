@@ -9,6 +9,7 @@ import SmoothHeight from "./SmoothHeight.jsx";
 import ReviewToolbar from "./ReviewToolbar.jsx";
 import CitationDisclosure from "./CitationDisclosure.jsx";
 import ExplanationFollowup from "./ExplanationFollowup.jsx";
+import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../lib/question-voice.js";
 import ChoiceFeedback from "./ChoiceFeedback.jsx";
 import CoachDebrief from "./CoachDebrief.jsx";
 import ThumbFeedback from "./ThumbFeedback.jsx";
@@ -17,6 +18,15 @@ import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
+
+/* 修题: the usual problems, as one click each. The text goes into the box (editable) and is sent as the learner's own feedback. */
+const IMPROVE_SUGGESTIONS = [
+  ["别问「资料说什么」", SOURCE_VOICE_FIX],
+  ["答案不准确或不完整", "答案可能不准确或不完整，请对照资料核实，必要时改正答案和解析。"],
+  ["题干不清楚，有歧义", "题干不清楚或有歧义，请补足必要条件，让题目只有一个合理答案。"],
+  ["太简单，没有区分度", "这道题太简单、没有区分度，请改得需要判断或应用，保持考点不变。"],
+  ["让助教自己检查并修正", "请你自己检查这道题的质量：题干是否独立可答、是否在问资料怎么说、答案是否准确且对应题干并与资料一致、选项是否清晰、解析是否讲清为什么；发现问题就改，没有问题就说明。"],
+];
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
 import { ReadingBackButton, ReadingResult, WrongAnswerSource } from "./document-preview/practice/ReadingReturn.jsx";
@@ -663,6 +673,13 @@ export default function Review({
               )}
             />
             {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
+            {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}
+            {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (
+              <p className="assist-status voice-hint" role="status">
+                {ui("这道题在问「资料怎么说」，考的是背资料的措辞，不是理解或应用。")}{" "}
+                <button type="button" className="link-btn" data-usage="review.voice-fix" disabled={busy} onClick={() => assistCard("improve", ui(SOURCE_VOICE_FIX))}>{ui("改成概念或情景题")}</button>
+              </p>
+            )}
             <SmoothHeight className="assist-area">
               {assistMode && (
                 <form
@@ -698,6 +715,13 @@ export default function Review({
                       <button type="button" key={value} role="radio" aria-checked={deriveRelation === value}
                         className={"pill" + (deriveRelation === value ? " pill-on" : "")} onClick={() => setDeriveRelation(value)}>{label}</button>)}
                   </div>}
+                  {assistMode === "improve" && <>
+                    <strong>{ui("不知道怎么说？点一个，或者让助教自己检查")}</strong>
+                    <div className="assist-quick-choices" role="group" aria-label={ui("常见的问题")}>
+                      {IMPROVE_SUGGESTIONS.map(([label, body]) =>
+                        <button type="button" key={label} className="pill" onClick={() => setAssistText(ui(body))}>{ui(label)}</button>)}
+                    </div>
+                  </>}
                   <label>
                     {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
                     <textarea
