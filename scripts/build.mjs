@@ -73,13 +73,15 @@ export async function buildHostClient({ outdir = resolve(root, 'lib'), write = t
   return result;
 }
 
-export async function buildPreview({ outdir = resolve(root, 'dist'), write = true } = {}) {
+/** `production`: minified with React's production build, the way the shipped client modules are built. The default stays the readable development build the journeys debug against; speed is measured with `production` (scripts/qa/ui-motion.mjs --production). */
+export async function buildPreview({ outdir = resolve(root, 'dist'), write = true, production = false } = {}) {
   // The local preview server exposes app.js/app.css only. Its single IIFE
   // includes the same authored lazy boundaries without extra HTTP resources.
   return build({
     absWorkingDir: root, entryPoints: ['ui/dev.jsx'], plugins: [shimJsxRuntime],
     bundle: true, outdir, write, entryNames: 'app', platform: 'browser',
-    format: 'iife', loader: { '.css': 'css' }, minify: false,
+    format: 'iife', loader: { '.css': 'css' }, minify: production,
+    ...(production ? { define: { 'process.env.NODE_ENV': '"production"' } } : {}),
   });
 }
 

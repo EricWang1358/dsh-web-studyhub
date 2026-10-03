@@ -309,6 +309,23 @@ function AppearanceSection({ appearance }) {
         <SegmentedControl label={ui("外观")} value={appearance.theme} onChange={appearance.onTheme}
           options={(appearance.themes || []).map(([value, label]) => ({ value, label: ui(label) }))} />
       </div>
+      {appearance.onScale && <div className="settings-field">
+        <span>{ui("界面大小")}</span>
+        <SegmentedControl label={ui("界面大小")} value={appearance.scale} onChange={appearance.onScale}
+          options={[90, 100, 110, 125, 150, 175, 200].map((value) => ({ value, label: `${value}%` }))} />
+        <small className="muted">{ui("放大整个界面（文字、按钮和间距一起），最大 200%。阅读和做题页另有 Aa 可以单独调字号和宽度。")}</small>
+      </div>}
+      {appearance.onFont && <div className="settings-field">
+        <span>{ui("界面字体")}</span>
+        <SegmentedControl label={ui("界面字体")} value={appearance.font} onChange={appearance.onFont}
+          options={[{ value: "system", label: ui("系统默认") }, { value: "serif", label: ui("衬线") }, { value: "mono", label: ui("等宽") }]} />
+      </div>}
+      {appearance.onMotion && <div className="settings-field">
+        <span>{ui("动画")}</span>
+        <SegmentedControl label={ui("动画")} value={appearance.motion} onChange={appearance.onMotion}
+          options={[{ value: "auto", label: ui("跟随系统") }, { value: "full", label: ui("标准") }, { value: "reduced", label: ui("减弱") }, { value: "off", label: ui("无动画") }]} />
+        <small className="muted">{ui("减弱只保留很短的淡入淡出；无动画则不再有页面切换和卡片动画（转圈提示仍会转）。页面切换卡顿时可以试试。")}</small>
+      </div>}
     </fieldset>
   );
 }

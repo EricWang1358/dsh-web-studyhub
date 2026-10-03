@@ -22,6 +22,7 @@ import Board, { useBoard } from "./Board.jsx";
 import { dueSummary } from "../lib/board-model.js";
 import { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
+import { loadInterface, saveInterface, effectiveMotion, leaveDelayMs } from "./interface-prefs.js";
 import sideGroupsCss from "./side-groups.css";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
@@ -116,6 +117,17 @@ export default function App({ call: transportCall, host = {} }) {
     return () => query.removeEventListener?.("change", sync);
   }, []);
   const resolvedTheme = theme === "auto" ? (systemLight ? "light" : "dark") : theme;
+  /* 界面 preferences (how much the interface moves). 'auto' follows the system's reduce-motion setting; the resolved value is stamped on the root. */
+  const [interfacePrefs, setInterfacePrefs] = useState(loadInterface);
+  useEffect(() => { saveInterface(interfacePrefs); }, [interfacePrefs]);
+  const [systemReducesMotion, setSystemReducesMotion] = useState(() => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const query = matchMedia("(prefers-reduced-motion: reduce)"), sync = (event) => setSystemReducesMotion(event.matches);
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, []);
+  const motion = effectiveMotion(interfacePrefs.motion, systemReducesMotion);
   /* Sidebar collapse. The manual choice is persisted; a narrow workspace
      forces the icon rail regardless of the stored preference. */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -168,13 +180,14 @@ export default function App({ call: transportCall, host = {} }) {
   /* Sidebar page switches: the current page lifts away briefly, then the new
      one settles in (its entrance lives in CSS). The highlight moves on click. */
   const [pageTarget, setPageTarget] = useState(null),
-    leaveTimer = useRef(0);
+    leaveTimer = useRef(0), motionRef = useRef("full");
+  motionRef.current = motion;
   const switchPage = useCallback((id, prepare) => {
     clearTimeout(leaveTimer.current);
     navigationRequest.current++;
     setContextTrail([]);
-    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (id === page || reduce) {
+    const delay = leaveDelayMs(motionRef.current);
+    if (id === page || !delay) {
       prepare?.();
       setPageTarget(null);
       setPage(id);
@@ -185,7 +198,7 @@ export default function App({ call: transportCall, host = {} }) {
       prepare?.();
       setPage(id);
       setPageTarget(null);
-    }, 140);
+    }, delay);
   }, [page]);
   useEffect(() => () => clearTimeout(leaveTimer.current), []);
   const navPage = pageTarget || page;
@@ -1755,6 +1768,9 @@ export default function App({ call: transportCall, host = {} }) {
     <div
       className="study-app"
       data-theme={resolvedTheme}
+      data-motion={motion}
+      data-ui-scale={interfacePrefs.scale}
+      data-ui-font={interfacePrefs.font}
       lang={language === 'en' ? 'en' : 'zh-CN'}
       ref={attachRoot}
       data-usage-area={page}
@@ -2297,7 +2313,10 @@ export default function App({ call: transportCall, host = {} }) {
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
-                appearance={{ language, onLanguage: setUiLanguage, theme, themes: THEMES, onTheme: setTheme }}
+                appearance={{ language, onLanguage: setUiLanguage, theme, themes: THEMES, onTheme: setTheme,
+                  motion: interfacePrefs.motion, onMotion: (value) => setInterfacePrefs((current) => ({ ...current, motion: value })),
+                  scale: interfacePrefs.scale, onScale: (value) => setInterfacePrefs((current) => ({ ...current, scale: value })),
+                  font: interfacePrefs.font, onFont: (value) => setInterfacePrefs((current) => ({ ...current, font: value })) }}
                 tourActive={!!tourStep}
                 focusSection={settingsFocus}
                 onFocused={() => setSettingsFocus("")}
