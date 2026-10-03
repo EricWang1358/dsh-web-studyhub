@@ -27,6 +27,7 @@ export const SECTION_GROUP = Object.freeze({ 'settings-model': 'common' });
    the host a category depends on (a host without it shows no such category); `anchors` are the data-tour ids inside it, which deep links and the tour use. */
 export const SETTINGS_CATEGORIES = Object.freeze([
   { id: 'appearance', group: 'common', title: '界面', anchors: ['settings-appearance'] },
+  { id: 'science', group: 'common', title: '公式、图片与计算工具', anchors: ['settings-science'] },
   { id: 'model', group: 'common', title: '学习库与模型', anchors: ['settings-model'] },
   { id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation'], needs: 'generation' },
   { id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'] },

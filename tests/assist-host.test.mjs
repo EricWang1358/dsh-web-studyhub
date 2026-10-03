@@ -14,6 +14,23 @@ import { backgroundCapability, startBoundedChild } from '../lib/host-capabilitie
 import { createAssistChildren } from '../lib/assist-child.js';
 
 const evidence = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
+test('native initial and reused help omit embedded raster bytes without changing the saved card', async t => {
+  const f = await fixture(t, async () => { throw new Error('unexpected direct call'); });
+  const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN1kAAAAASUVORK5CYII=';
+  await f.service.store.update(s => { s.decks[0].cards[0].prompt += ` ![diagram](${image})`; });
+  const { ctx, calls } = reusableHost(f.root);
+  await f.start(ctx); await until(() => f.task().status !== 'running');
+  assert.equal(f.task().status, 'done', f.task().message);
+  const first = calls.started[0].prompt[0].text;
+  assert.doesNotMatch(first, /iVBOR|data:image/); assert.match(first, /do not infer/);
+  await f.start(ctx, { text: `Explain this ![diagram](${image})` });
+  await until(() => f.task().status !== 'running');
+  assert.equal(f.task().status, 'done', f.task().message);
+  assert.equal(calls.followups.length, 1);
+  const followup = JSON.stringify(calls.followups[0]);
+  assert.doesNotMatch(followup, /iVBOR|data:image/); assert.match(followup, /omitted/);
+  assert.ok((await f.service.store.read()).decks[0].cards[0].prompt.includes(image));
+});
 const card = { id: 'c', kind: 'flashcard', topic: 'Bridge', objective: 'Explain Bridge', prompt: 'What does Bridge separate?', answer: 'Abstraction and implementation.', hint: 'Two dimensions.', explanation: 'Both vary independently.', misconception: 'It adapts interfaces.', citations: [{ sourceId: 's', quote: evidence }] };
 const gate = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 const until = async predicate => { for (let i = 0; i < 200; i++) { if (await predicate()) return; await new Promise(r => setTimeout(r, 5)); } throw new Error('Task did not settle'); };

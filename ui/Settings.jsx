@@ -7,6 +7,7 @@ import JevSettings from './JevSettings.jsx';
 import { ExperimentalSection } from './ExperimentalSettings.jsx';
 import UsageSettings from './UsageSettings.jsx';
 import GenerationSettings from './GenerationSettings.jsx';
+import ScienceSettings from './ScienceSettings.jsx';
 import { experimentalShown } from './experimental-flag.js';
 import { hasContext } from './capabilities.js';
 import { SETTINGS_GROUPS, categoriesFor, categoryForAnchor, initialCategory, settingsGroupState } from './settings-groups.js';
@@ -460,6 +461,7 @@ export default function Settings({
   const pane = (id) => {
     switch (id) {
       case "appearance": return <AppearanceSection appearance={appearance} />;
+      case "science": return <ScienceSettings onChange={appearance?.onScience} />;
       case "model": return (
         <fieldset className="settings-section" data-tour="settings-model">
           <legend className="settings-section__title">{ui("学习库与模型")}</legend>

@@ -38,6 +38,7 @@ import loop from './locales/en.loop.json';
 import frequency from './locales/en.frequency.json';
 import generationSettings from './locales/en.generation-settings.json';
 import calculation from './locales/en.calculation.json';
+import science from './locales/en.science.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -77,6 +78,7 @@ export const ENGLISH_SOURCES = {
   'en.frequency.json': frequency,
   'en.generation-settings.json': generationSettings,
   'en.calculation.json': calculation,
+  'en.science.json': science,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

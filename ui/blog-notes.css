@@ -15,7 +15,9 @@
 .note-preview pre { padding: 12px; overflow: auto; border-radius: 7px; background: var(--bg-sunken); }
 .note-preview table { border-collapse: collapse; }
 .note-preview th, .note-preview td { border: 1px solid var(--line); padding: 5px 9px; }
-.note-preview math { font-size: 1.14em; }
+.note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
+.note-preview section:has(> eqn) { overflow-x: auto; max-width: 100%; }
+.note-preview section > eqn { display: flex; width: max-content; min-width: 100%; justify-content: var(--study-formula-align, center); }
 .note-linking, .note-publish { margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
 .note-linking summary, .note-publish summary { cursor: pointer; }
 .note-card-search { display: flex; gap: 8px; margin: 10px 0; }

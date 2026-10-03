@@ -142,3 +142,18 @@
   :is(.study-app, .study-seat) .backup-block { padding: var(--space-4); }
   :is(.study-app, .study-seat) .coach-stats__ready { margin-left: 0; }
 }
+/* Local science preferences and bounded tools share the settings layout. */
+.science-settings .inline-check { margin-block: 10px; }
+.science-preview { padding: 16px; margin-block: 20px; border: 1px solid var(--line-soft); border-radius: 10px; }
+.science-tool { padding-block: 20px; border-top: 1px solid var(--line-soft); }
+.science-tool form { display: grid; gap: 12px; }
+.science-tool form > button { justify-self: start; }
+.science-tool label { display: grid; gap: 8px; min-width: 0; }
+.science-tool input { width: 100%; min-width: 0; }
+.science-result { margin-top: 16px; overflow-wrap: anywhere; }
+.science-result code { display: block; margin-top: 5px; white-space: pre-wrap; }
+.science-result details { margin-top: 12px; }
+.science-result li { overflow-wrap: anywhere; }
+@container study (max-width: 480px) {
+  .science-tool .two-col { grid-template-columns: minmax(0, 1fr); }
+}

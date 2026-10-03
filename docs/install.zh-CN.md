@@ -2,7 +2,7 @@
 
 [English](install.md) · 中文
 
-StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面应用，也可以在浏览器里以网页版运行。先装好 DSH，再在 DSH 的插件管理里添加 StudyHub，最后配一个模型用来出题。想在浏览器里对照着装，可以下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/StudyHub-2.5.10-Setup.zh-CN.html)。
+StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面应用，也可以在浏览器里以网页版运行。先装好 DSH，再在 DSH 的插件管理里添加 StudyHub，最后配一个模型用来出题。想在浏览器里对照着装，可以下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.11/StudyHub-2.5.11-Setup.zh-CN.html)。
 
 | 你的情况 | 从这里开始 |
 | --- | --- |
@@ -12,7 +12,7 @@ StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面�
 
 **需要准备**
 
-- **DSH 0.2**：StudyHub 2.5.10 要求 DSH `>=0.2.0-rc.2 <0.3`。DSH 和 StudyHub 的版本号各自独立。
+- **DSH 0.2**：StudyHub 2.5.11 要求 DSH `>=0.2.0-rc.2 <0.3`。DSH 和 StudyHub 的版本号各自独立。
 - **能装 DSH 的电脑**：本文提供的桌面安装器适用于 Windows x64 和 Apple 芯片（M 系列）的 Mac。其他电脑先查看 DSH 官网，或用 DSH 网页版（需要 Node.js 22.19 或以上）。
 - **模型，只在用 AI 功能时需要**：出题和讲解要用模型，见[配置模型服务商](#配置模型服务商)。安装、示例导览、浏览资料和练习已有题组都不需要模型。
 
@@ -44,10 +44,10 @@ DSH 默认在 `http://127.0.0.1:3080` 打开。使用期间保持这个进程运
 2. 粘贴完整安装包地址：
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/ericwang1358-dsh-daily-flashcard-2.5.10.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.11/ericwang1358-dsh-daily-flashcard-2.5.11.tgz
    ```
 
-3. 安装完成后，确认包名是 `@ericwang1358/dsh-daily-flashcard`，版本是 2.5.10。
+3. 安装完成后，确认包名是 `@ericwang1358/dsh-daily-flashcard`，版本是 2.5.11。
 4. 为 StudyHub 和你需要的组件点「启用」。如果 DSH 提示重新加载，先等后台任务完成或取消它们。
 5. 第一次启用后，StudyHub 会自动打开。之后从 DSH 左栏的「StudyHub」进入，不用先发消息。每个会话里和 DSH 右侧栏也有「StudyHub」标签。
 
@@ -57,7 +57,7 @@ StudyHub 的学习库放在当前 DSH 会话的工作区文件夹里。如果看
 
 ### DSH 无法从 GitHub 下载时
 
-1. 从 [2.5.10 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.10)下载 `ericwang1358-dsh-daily-flashcard-2.5.10.tgz`。同一页的 `SHA256SUMS-2.5.10.txt` 列有校验值。
+1. 从 [2.5.11 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.11)下载 `ericwang1358-dsh-daily-flashcard-2.5.11.tgz`。同一页的 `SHA256SUMS-2.5.11.txt` 列有校验值。
 2. 在「添加插件」里填这个文件的绝对路径，代替上面的地址。
 
 文件必须放在**运行 DSH 的电脑或服务器上**。访问远程网页版时，你自己电脑上的下载路径在服务器上并不存在：先把文件传到服务器，或者直接用上面的 HTTPS 地址。

@@ -24,6 +24,8 @@ import { dueSummary } from "../lib/board-model.js";
 import { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
 import { loadInterface, saveInterface, effectiveMotion, leaveDelayMs } from "./interface-prefs.js";
+import { loadScienceSettings, saveScienceSettings, normalizeScienceSettings, scienceVars } from './science-settings.js';
+import { SciencePreferencesContext } from './SciencePreferences.jsx';
 import sideGroupsCss from "./side-groups.css";
 import Sources from "./Sources.jsx";
 import ModalFrame from "./ModalFrame.jsx";
@@ -123,6 +125,8 @@ export default function App({ call: transportCall, host = {} }) {
   const resolvedTheme = theme === "auto" ? (systemLight ? "light" : "dark") : theme;
   /* 界面 preferences (how much the interface moves). 'auto' follows the system's reduce-motion setting; the resolved value is stamped on the root. */
   const [interfacePrefs, setInterfacePrefs] = useState(loadInterface);
+  const [sciencePrefs, setSciencePrefs] = useState(loadScienceSettings);
+  useEffect(() => { saveScienceSettings(sciencePrefs); }, [sciencePrefs]);
   useEffect(() => { saveInterface(interfacePrefs); }, [interfacePrefs]);
   const [systemReducesMotion, setSystemReducesMotion] = useState(() => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
   useEffect(() => {
@@ -1811,6 +1815,7 @@ export default function App({ call: transportCall, host = {} }) {
   const feedback = <ActionFeedback error={error} notice={notice} busy={busy}
     onCloseError={() => setError("")} onCloseNotice={() => setNotice("")} />;
   return (
+    <SciencePreferencesContext.Provider value={sciencePrefs}>
     <QuickActionsContext.Provider value={quickApi}>
     <CourseActiveProvider value={courseActiveApi}>
     <div
@@ -1819,6 +1824,7 @@ export default function App({ call: transportCall, host = {} }) {
       data-motion={motion}
       data-ui-scale={interfacePrefs.scale}
       data-ui-font={interfacePrefs.font}
+      style={scienceVars(sciencePrefs)}
       lang={language === 'en' ? 'en' : 'zh-CN'}
       ref={attachRoot}
       data-usage-area={page}
@@ -2359,6 +2365,7 @@ export default function App({ call: transportCall, host = {} }) {
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
                 appearance={{ language, onLanguage: setUiLanguage, theme, themes: THEMES, onTheme: setTheme,
+                  onScience: (value) => setSciencePrefs(normalizeScienceSettings(value)),
                   motion: interfacePrefs.motion, onMotion: (value) => setInterfacePrefs((current) => ({ ...current, motion: value })),
                   scale: interfacePrefs.scale, onScale: (value) => setInterfacePrefs((current) => ({ ...current, scale: value })),
                   font: interfacePrefs.font, onFont: (value) => setInterfacePrefs((current) => ({ ...current, font: value })) }}
@@ -2553,6 +2560,7 @@ export default function App({ call: transportCall, host = {} }) {
     </div>
     </CourseActiveProvider>
     </QuickActionsContext.Provider>
+    </SciencePreferencesContext.Provider>
   );
 }
 

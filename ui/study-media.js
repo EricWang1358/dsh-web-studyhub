@@ -1,4 +1,5 @@
 import { unescapeModelText } from '../lib/model-text.js';
+import { safeRasterDataUri } from '../lib/study-image-policy.js';
 
 export const STUDY_IMAGE_PATTERN = /!\[([^\]\n]*)\]\((?:<([^>\n]+)>|([^\s)]+))(?:\s+"[^"\n]*")?\)/;
 
@@ -74,9 +75,11 @@ export function prepareStudyMath(source) {
   return { value, formulas };
 }
 
-/** No browser-relative or filesystem paths: the card schema has no trusted asset base. */
+/** Embedded raster content is portable; ambient filesystem/browser paths remain refused. */
 export function safeStudyImage(src) {
-  if (!src || /[\s\u0000-\u001f\u007f]/.test(src)) return null;
+  if (typeof src !== 'string' || !src) return null;
+  if (src.startsWith('data:')) return safeRasterDataUri(src);
+  if (/[\s\u0000-\u001f\u007f]/.test(src)) return null;
   try {
     const url = new URL(src);
     return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null;
