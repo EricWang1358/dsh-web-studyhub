@@ -121,7 +121,7 @@ test('the assistant button prevents duplicate opens and recovers after a visible
     t.skip('Chromium unavailable'); return;
   }
   t.after(() => browser.close());
-  const page = await browser.newPage();
+  const page = await browser.newPage({ locale: 'zh-CN' });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.setContent('<main id="root"></main>');
