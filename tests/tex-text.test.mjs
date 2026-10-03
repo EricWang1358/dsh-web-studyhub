@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { repairTexEscapes, restoreTexControlChars, bareMath, TEX_COMMANDS } from '../lib/tex-text.js';
 import { parseJson } from '../lib/generation.js';
 import { prepareJsonImport } from '../lib/json-import.js';
+import { normalizeImportText } from '../lib/bulk-import.js';
 import { formulaIssues } from '../lib/assessment-quality.js';
 
 /* ---------- JSON escapes ---------- */
@@ -55,12 +56,49 @@ test('JSON import repairs LaTeX the way a model writes it and still reports real
   const body = prompt => `{"title":"t","cards":[{"kind":"flashcard","topic":"x","objective":"y","prompt":${prompt},"answer":"a","hint":"h","explanation":"e","misconception":"m"}]}`;
   const prompts = text => prepareJsonImport(text, []).deck.cards.map(card => card.prompt);
   assert.deepEqual(prompts(body(String.raw`"算 \(a^{l-1}\) 与 \alpha"`)), [String.raw`算 \(a^{l-1}\) 与 \alpha`], 'invalid escapes');
-  assert.deepEqual(prompts(body(String.raw`"算 $\theta + \frac{a}{b}$"`)), [String.raw`算 $\theta + \frac{a}{b}$`], 'valid but wrong escapes');
+  assert.deepEqual(prompts(body(String.raw`"算 $\theta + \frac{a}{b}$"`)), ['算 $\theta + \frac{a}{b}$'], 'valid JSON is preserved even when the author may have intended TeX');
   assert.deepEqual(prompts(body(String.raw`"算 $\\theta$"`)), [String.raw`算 $\theta$`], 'correct JSON is untouched');
-  const imported = prepareJsonImport(body(String.raw`"算 $\theta$"`), []);
+  const imported = prepareJsonImport(body(String.raw`"算 $\\theta$"`), []);
   assert.match(imported.source.text, /\\theta/, 'the provenance copy holds the repaired formula');
   assert.throws(() => prepareJsonImport(body(String.raw`"A\qB"`), []), /JSON 格式错误/);
   assert.throws(() => prepareJsonImport('{"title": ', []), /JSON 格式错误/);
+});
+
+test('valid manual and bulk imports preserve code, currency, tabs and exact evidence', () => {
+  const prompt = 'Price $5\nu and $10\n```text\n$column\theta$\n```';
+  const quote = 'Price $5\nu and $10: a verbatim source passage';
+  const raw = JSON.stringify({ title: 'Original', cards: [{ kind: 'flashcard', topic: 'x', objective: 'y',
+    prompt, answer: 'a', hint: 'h', explanation: 'e', misconception: 'm',
+    source: [{ sourceId: 's', quote }] }] });
+  assert.equal(prepareJsonImport(raw, []).deck.cards[0].prompt, prompt);
+  const bulk = JSON.parse(normalizeImportText(raw, 'original.json'));
+  assert.equal(bulk.cards[0].prompt, prompt);
+  assert.equal(bulk.cards[0].source[0].quote, quote);
+});
+
+test('model recovery shields currency, code, addresses and verbatim source fields', () => {
+  for (const literal of ['Price $5\nu and $10', '`$column\theta$`', '````text\n$column\theta$\n````',
+    '```text\n$column\theta$', '![caption $\theta$](https://example.org/img.png)',
+    'https://example.org/$\theta$', '[label](https://example.org/$\theta$)'])
+    assert.equal(restoreTexControlChars(literal), literal, JSON.stringify(literal));
+  const quote = '$\theta$ was printed literally in the reference';
+  const input = { prompt: '$\theta$', source: [{ quote }], citations: [{ quote }], quote, sources: [{ text: quote }] };
+  const fixed = restoreTexControlChars(input);
+  assert.equal(fixed.prompt, '$\\theta$');
+  assert.deepEqual(fixed.source, input.source);
+  assert.deepEqual(fixed.citations, input.citations);
+  assert.deepEqual(fixed.sources, input.sources);
+  assert.equal(fixed.quote, quote);
+});
+
+test('formula checks ignore image and link destinations but still inspect visible link labels', () => {
+  for (const literal of ['![diagram](https://example.org/x_{id}.png)',
+    '![diagram a^{l-1}](https://example.org/diagram.png)',
+    '[diagram](https://example.org/x_{id}.png)', 'https://example.org/x_{id}.png',
+    '````text\nx_{id}\n````', '```text\nx_{id}'])
+    assert.deepEqual(bareMath(literal), [], literal);
+  assert.deepEqual(bareMath('[x_{id}](https://example.org/diagram.png)'), ['x_{id}']);
+  assert.equal(formulaIssues({ cards: [{ prompt: '看 ![diagram](https://example.org/x_{id}.png)' }] }).length, 0);
 });
 
 /* ---------- formulas without delimiters ---------- */
