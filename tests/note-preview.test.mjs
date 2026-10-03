@@ -9,3 +9,11 @@ test("local note preview renders Markdown and LaTeX without executable HTML", ()
   assert.doesNotMatch(html, /<script>/);
   assert.match(html, /&lt;script&gt;/);
 });
+
+test("local note preview supports the same chemistry notation as study cards", () => {
+  const html = renderNoteMarkdown(String.raw`$\ce{2H2(g) + O2(g) -> 2H2O(l)}$ and $\pu{1.5 mol L-1}$`);
+  assert.equal((html.match(/<math/g) || []).length, 2);
+  assert.match(html, /<msub>/);
+  assert.match(html, /→/);
+  assert.doesNotMatch(html, /katex-error|<script|<img|<link/);
+});

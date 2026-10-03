@@ -25,44 +25,45 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
   }, [showBack, run.solution]);
 
   return (
-    <button
+    <div
       className={"flashcard" + (showBack ? " flipped" : "")}
-      disabled={busy && !run.revealed}
-      aria-pressed={showBack}
-      data-usage="review.flip"
-      aria-label={showBack ? ui("翻回题目") : ui("翻面查看答案")}
-      onClick={flipCard}
     >
+      <button type="button" className="flip-control"
+        disabled={busy && !run.revealed} aria-pressed={showBack}
+        data-usage="review.flip" aria-label={showBack ? ui("翻回题目") : ui("翻面查看答案")}
+        onClick={flipCard} />
       <div className="flip-inner" style={height == null ? undefined : { height }}>
-        <div ref={front} className="flip-face flip-front" aria-hidden={showBack}>
+        <div ref={front} className="flip-face flip-front" aria-hidden={showBack} inert={showBack}>
           <Markdown
             links={false}
+            mediaInteractive
             className={"flash-prompt" + (run.card.prompt.length > 90 ? " long" : "")}
             text={run.card.prompt}
           />
           {enOn && run.card.translation?.prompt && (
             <div className="en-block">
               <span className="en-tag">EN</span>
-              <Markdown links={false} className="md-compact" text={run.card.translation.prompt} />
+              <Markdown links={false} mediaInteractive className="md-compact" text={run.card.translation.prompt} />
             </div>
           )}
           <span className="flip-label">
             {run.revealed ? ui("点击看答案 · Space") : ui("点击翻面 · Space")}
           </span>
         </div>
-        <div ref={back} className="flip-face flip-back" aria-hidden={!showBack}>
-          <Markdown links={false} className="flip-question" text={run.card.prompt} />
+        <div ref={back} className="flip-face flip-back" aria-hidden={!showBack} inert={!showBack}>
+          <Markdown links={false} mediaInteractive className="flip-question" text={run.card.prompt} />
           {run.solution ? (
             <>
               <Markdown
                 links={false}
+                mediaInteractive
                 className={"flash-prompt" + ((run.solution.answer || "").length > 120 ? " long" : "")}
                 text={run.solution.answer}
               />
               {enOn && run.solution.translation?.answer && (
                 <div className="en-block">
                   <span className="en-tag">EN</span>
-                  <Markdown links={false} className="md-compact" text={run.solution.translation.answer} />
+                  <Markdown links={false} mediaInteractive className="md-compact" text={run.solution.translation.answer} />
                 </div>
               )}
             </>
@@ -74,6 +75,6 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
           <span className="flip-label">{ui("参考答案 · 再点翻回题目")}</span>
         </div>
       </div>
-    </button>
+    </div>
   );
 }

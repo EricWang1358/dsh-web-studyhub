@@ -1,6 +1,7 @@
 import MarkdownIt from "markdown-it";
 import texmath from "markdown-it-texmath";
-import katex from "katex";
+import katex from "katex/dist/katex.js";
+import "katex/dist/contrib/mhchem.js";
 
 // Parser and math renderer are bundled locally. MathML avoids a font/CDN
 // dependency and uses the host browser's native math layout.

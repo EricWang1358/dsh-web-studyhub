@@ -1,10 +1,12 @@
 import { ui } from "./i18n.js";
 import React from "react";
-import { unescapeModelText } from "../lib/model-text.js";
+import { prepareStudyMath, STUDY_IMAGE_PATTERN } from "./study-media.js";
+import StudyMath from "./StudyMath.jsx";
+import StudyImage from "./StudyImage.jsx";
 
 /**
- * Safe Markdown for study text: builds React elements only (no HTML is ever
- * parsed or injected), so source and model text cannot execute markup.
+ * Safe Markdown for study text: builds React elements (source HTML is never
+ * parsed or injected). Formula markup comes only from local untrusted KaTeX.
  * Single newlines are line breaks, matching chat-style model output.
  */
 const COLOR_OPEN = "c",
@@ -12,6 +14,8 @@ const COLOR_OPEN = "c",
   COLOR_CLOSE = "/c";
 const INLINE = [
   ["code", /`([^`\n]+)`/],
+  ["math", /\uE000(\d+)\uE001/],
+  ["image", STUDY_IMAGE_PATTERN],
   ["color", /c(#[0-9a-fA-F]{3,8})([\s\S]*?)\/c/],
   ["strong", /\*\*(?=\S)([\s\S]*?\S)\*\*/],
   ["strong", /__(?=\S)([\s\S]*?\S)__/],
@@ -53,7 +57,7 @@ function tidyHtml(line) {
     .join("");
 }
 
-function inline(text, links, key = "i") {
+function inline(text, options, key = "i") {
   const out = [];
   let rest = text.replace(//g, " "),
     n = 0;
@@ -71,19 +75,21 @@ function inline(text, links, key = "i") {
       k = `${key}.${n++}`;
     if (m.index) out.push(rest.slice(0, m.index));
     if (type === "code") out.push(<code key={k}>{m[1]}</code>);
+    else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} />);
+    else if (type === "image") out.push(<StudyImage key={k} alt={m[1]} src={m[2] || m[3]} interactive={options.mediaInteractive} />);
     else if (type === "color")
       out.push(
         <span key={k} className="md-color" style={{ color: m[1] }}>
-          {inline(m[2], links, k)}
+          {inline(m[2], options, k)}
         </span>,
       );
     else if (type === "strong" || type === "em" || type === "del")
-      out.push(React.createElement(type, { key: k }, inline(m[1], links, k)));
+      out.push(React.createElement(type, { key: k }, inline(m[1], options, k)));
     else {
-      const label = type === "link" ? inline(m[1], links, k) : m[0],
+      const label = type === "link" ? inline(m[1], options, k) : m[0],
         href = safeHref(type === "link" ? m[2] : m[0]);
       out.push(
-        links && href ? (
+        options.links && href ? (
           <a key={k} href={href} target="_blank" rel="noopener noreferrer">
             {label}
           </a>
@@ -98,14 +104,14 @@ function inline(text, links, key = "i") {
   }
   return out;
 }
-function lines(text, links, key) {
+function lines(text, options, key) {
   // Newlines and <br> (marked ) are both line breaks inside a block.
   return text
     .split(/[\n]/)
     .flatMap((line, i) =>
       i
-        ? [<br key={`${key}.br${i}`} />, ...inline(line, links, `${key}.${i}`)]
-        : inline(line, links, `${key}.${i}`),
+        ? [<br key={`${key}.br${i}`} />, ...inline(line, options, `${key}.${i}`)]
+        : inline(line, options, `${key}.${i}`),
     );
 }
 
@@ -132,7 +138,7 @@ function prepare(src) {
     });
 }
 
-function blocks(rows, links) {
+function blocks(rows, options) {
   const out = [];
   let i = 0;
   while (i < rows.length) {
@@ -169,8 +175,8 @@ function blocks(rows, links) {
       i++;
       out.push(
         <details key={key} className="md-details">
-          <summary>{inline(summary || ui("详情"), links, key + "s")}</summary>
-          {blocks(body, links)}
+          <summary>{inline(summary || ui("详情"), options, key + "s")}</summary>
+          {blocks(body, options)}
         </details>,
       );
       continue;
@@ -186,7 +192,7 @@ function blocks(rows, links) {
         React.createElement(
           "h" + level,
           { key, className: "md-heading" },
-          inline(heading[2], links, key),
+          inline(heading[2], options, key),
         ),
       );
       i++;
@@ -208,7 +214,7 @@ function blocks(rows, links) {
             <thead>
               <tr>
                 {head.map((c, j) => (
-                  <th key={j}>{inline(c, links, `${key}.h${j}`)}</th>
+                  <th key={j}>{inline(c, options, `${key}.h${j}`)}</th>
                 ))}
               </tr>
             </thead>
@@ -216,7 +222,7 @@ function blocks(rows, links) {
               {body.map((r, y) => (
                 <tr key={y}>
                   {head.map((_, j) => (
-                    <td key={j}>{inline(r[j] || "", links, `${key}.${y}.${j}`)}</td>
+                    <td key={j}>{inline(r[j] || "", options, `${key}.${y}.${j}`)}</td>
                   ))}
                 </tr>
               ))}
@@ -230,7 +236,7 @@ function blocks(rows, links) {
       const body = [];
       for (; i < rows.length && /^\s*>/.test(rows[i]); i++)
         body.push(rows[i].replace(/^\s*>\s?/, ""));
-      out.push(<blockquote key={key}>{blocks(body, links)}</blockquote>);
+      out.push(<blockquote key={key}>{blocks(body, options)}</blockquote>);
       continue;
     }
     if (LIST.test(row)) {
@@ -242,7 +248,7 @@ function blocks(rows, links) {
           items.at(-1).text += "\n" + rows[i].trim();
         else break;
       }
-      out.push(list(items, links, key));
+      out.push(list(items, options, key));
       continue;
     }
     const para = [];
@@ -257,11 +263,11 @@ function blocks(rows, links) {
       i++
     )
       para.push(rows[i]);
-    out.push(<p key={key}>{lines(para.join("\n"), links, key)}</p>);
+    out.push(<p key={key}>{lines(para.join("\n"), options, key)}</p>);
   }
   return out;
 }
-function list(items, links, key) {
+function list(items, options, key) {
   const base = items[0].indent,
     Tag = items[0].ordered ? "ol" : "ul",
     children = [];
@@ -274,8 +280,8 @@ function list(items, links, key) {
     <Tag key={key}>
       {children.map(({ item, nested }, y) => (
         <li key={y}>
-          {lines(item.text, links, `${key}.${y}`)}
-          {nested.length > 0 && list(nested, links, `${key}.${y}n`)}
+          {lines(item.text, options, `${key}.${y}`)}
+          {nested.length > 0 && list(nested, options, `${key}.${y}n`)}
         </li>
       ))}
     </Tag>
@@ -283,8 +289,10 @@ function list(items, links, key) {
 }
 
 /** Renders study text as Markdown; `links={false}` inside clickable surfaces such as cards and options. */
-export default function Markdown({ text, links = true, className = "" }) {
-  // Repairs answers already saved with double-escaped newlines, wherever shown.
-  const value = typeof text === "string" ? unescapeModelText(text) : "";
-  return <div className={("md " + className).trim()}>{blocks(prepare(value), links)}</div>;
+export default function Markdown({ text, links = true, mediaInteractive = links, className = "" }) {
+  const content = React.useMemo(() => {
+    const { value, formulas } = prepareStudyMath(typeof text === "string" ? text : "");
+    return blocks(prepare(value), { links, mediaInteractive, formulas });
+  }, [text, links, mediaInteractive]);
+  return <div className={("md " + className).trim()}>{content}</div>;
 }
