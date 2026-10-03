@@ -36,7 +36,7 @@ test('it documents the seam, the outline hook and the evaluation commands that r
 });
 
 test('the providers section states the OpenCode facts exactly and what is unverified', () => {
-  for (const id of ['typesafe', 'opencode-zen-free', 'opencode-zen']) assert.match(doc, new RegExp(`\`${id}\``), id);
+  for (const id of ['typesafe', 'opencode-go', 'opencode-zen-free', 'opencode-zen']) assert.match(doc, new RegExp(`\`${id}\``), id);
   assert.match(doc, /https:\/\/opencode\.ai\/zen\/v1\/systemone/);
   assert.match(doc, /`jev-1\.13-free`/);
   assert.match(doc, /`jev-1\.13`/);

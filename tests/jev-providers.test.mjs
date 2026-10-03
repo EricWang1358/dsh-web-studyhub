@@ -39,7 +39,10 @@ const open = (extra = {}) => saveJevSettings({ confirm: true, enabled: true, fea
 /* ---- the preset table ------------------------------------------------------------------------------------------------- */
 
 test('the preset table: TypeSafe stays the default and the two OpenCode Zen presets point at the Zen endpoint with their model ids', () => {
-  assert.deepEqual(JEV_PROVIDER_IDS, ['typesafe', 'opencode-zen-free', 'opencode-zen', 'custom']);
+  assert.deepEqual(JEV_PROVIDER_IDS, ['typesafe', 'opencode-go', 'opencode-zen-free', 'opencode-zen', 'custom']);
+  const go = JEV_PROVIDERS['opencode-go'];
+  assert.equal(`${go.baseUrl}${go.path}`, 'https://opencode.ai/zen/go/v1/systemone', 'OpenCode Go has its own route, not the Zen one');
+  assert.deepEqual([go.model, go.family, go.defaultKeyEnv, go.brand], ['jev-1.13', 'opencode', 'OPENCODE_GO_API_KEY_2', 'OpenCode Go']);
   assert.equal(DEFAULT_JEV_PROVIDER, 'typesafe');
   const typesafe = JEV_PROVIDERS.typesafe, free = JEV_PROVIDERS['opencode-zen-free'], paid = JEV_PROVIDERS['opencode-zen'];
   assert.deepEqual([typesafe.baseUrl, typesafe.path, typesafe.model, typesafe.defaultKeyEnv], [JEV.baseUrl, JEV.path, JEV.model, 'JEV_API_KEY']);

@@ -67,7 +67,7 @@ test('live check without the variable does nothing and names the variable it loo
   assert.match(typesafe.out, /JEV_API_KEY is not set: nothing was done/);
   const unknown = await run(live, ['--provider', 'nope'], { JEV_API_KEY: FAKE_KEY, JEV_BASE_URL: fake.baseUrl });
   assert.equal(unknown.code, 2);
-  assert.match(unknown.out, /typesafe, opencode-zen-free, opencode-zen/);
+  assert.match(unknown.out, /typesafe, opencode-go, opencode-zen-free, opencode-zen/);
   assert.equal(fake.requests.length, 0);
 });
 

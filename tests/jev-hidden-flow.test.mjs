@@ -261,5 +261,5 @@ test('the custom endpoint asks for an address, a model id and a key variable nam
   setUiLanguage('zh');
   assert.ok(!han.test(en), en);
   assert.match(en, /unverified/i);
-  assert.deepEqual(providerChoices().map(choice => choice.id), ['typesafe', 'opencode-zen-free', 'opencode-zen', 'custom']);
+  assert.deepEqual(providerChoices().map(choice => choice.id), ['typesafe', 'opencode-go', 'opencode-zen-free', 'opencode-zen', 'custom']);
 });

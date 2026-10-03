@@ -21,6 +21,7 @@ export const JEV_REPLACE_META = [
 /** The providers the selector offers: id, plain label, and the name of the cloud the content goes to (for the confirmation). */
 export const JEV_PROVIDER_META = {
   typesafe: { label: () => ui('TypeSafe（官方）'), confirmLabel: () => ui('我已阅读以上说明，同意把这些内容发送到 Jev（TypeSafe 云端）') },
+  'opencode-go': { label: () => ui('OpenCode Go · Jev'), confirmLabel: () => ui('我已阅读以上说明，同意把这些内容发送到 Jev（OpenCode Go 云端）') },
   'opencode-zen-free': { label: () => ui('OpenCode Zen · Jev 免费'), confirmLabel: () => ui('我已阅读以上说明，同意把这些内容发送到 Jev（OpenCode Zen 云端）') },
   'opencode-zen': { label: () => ui('OpenCode Zen · Jev'), confirmLabel: () => ui('我已阅读以上说明，同意把这些内容发送到 Jev（OpenCode Zen 云端）') },
   custom: { label: () => ui('自定义端点'), confirmLabel: () => ui('我已阅读以上说明，同意把这些内容发送到我填写的自定义端点') },
@@ -63,7 +64,9 @@ export function privacyPoints(providerId, { host = '' } = {}) {
   ];
   return [
     what,
-    ui('发送到 OpenCode 的 Zen 服务（opencode.ai），再由它转给提供 Jev 的 TypeSafe AI；不经过你的学习模型。'),
+    provider.brand === 'OpenCode Go'
+      ? ui('发送到 OpenCode 的 Go 服务（opencode.ai），再由它转给提供 Jev 的 TypeSafe AI；不经过你的学习模型。')
+      : ui('发送到 OpenCode 的 Zen 服务（opencode.ai），再由它转给提供 Jev 的 TypeSafe AI；不经过你的学习模型。'),
     ui('OpenCode 的文档说明，它的服务商总体上遵循零数据保留（zero retention），数据也不用于训练模型。这是 OpenCode 的说法，我们没有独立核实。'),
     ...(provider.free ? [ui('但对 Jev 1.13 Free，OpenCode 的文档只写了「限时提供」，没有说明提示词是否会被保留、是否会被用于训练，请把这一点当作未知。免费模型只在限定的一段时间内提供。请不要用保密资料。')] : []),
     ui('价格、免费期限和速率限制以 OpenCode 的说明为准；这里不显示价格，只统计用掉的 token。'),

@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { jevMessage } from '../lib/jev-messages.js';
 
 /* The provider selector, the key-source row and the per-provider privacy note of the Jev settings section, zh and en.
    The key itself is never in the markup; a key from an environment variable shows only the variable's NAME. */
@@ -16,7 +17,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { JevSettingsView, JevPrivacy, privacyPoints, providerChoices, keySourceText, setUiLanguage } = module.exports;
+const { JevSettingsView, JevPrivacy, privacyPoints, providerChoices, keySourceText, JEV_PROVIDER_META, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -34,9 +35,9 @@ const noop = () => {};
 const view = (settings, extra = {}) => h(JevSettingsView, { settings, usage: null, failure: null, busy: false, working: '', result: null, error: '', onKey: noop, onVerify: noop, onClearKey: noop, onConfirm: noop, onEnabled: noop, onFeature: noop, onThreshold: noop, onProvider: noop, onKeyEnv: noop, ...extra });
 const noHan = (html, where) => assert.ok(!han.test(html.replace(/C:\\Users[^<]*/g, '')), `${where}: ${html.match(/.{0,30}[㐀-鿿]+.{0,30}/)?.[0]}`);
 
-test('the selector offers the three providers with plain labels, marks the chosen one and calls onProvider with its id', () => {
-  assert.deepEqual(providerChoices().map(choice => choice.id), ['typesafe', 'opencode-zen-free', 'opencode-zen', 'custom']);
-  assert.deepEqual(providerChoices().map(choice => choice.label), ['TypeSafe（官方）', 'OpenCode Zen · Jev 免费', 'OpenCode Zen · Jev', '自定义端点']);
+test('the selector offers the providers with plain labels, marks the chosen one and calls onProvider with its id', () => {
+  assert.deepEqual(providerChoices().map(choice => choice.id), ['typesafe', 'opencode-go', 'opencode-zen-free', 'opencode-zen', 'custom']);
+  assert.deepEqual(providerChoices().map(choice => choice.label), ['TypeSafe（官方）', 'OpenCode Go · Jev', 'OpenCode Zen · Jev 免费', 'OpenCode Zen · Jev', '自定义端点']);
   const html = render(view(zenFree));
   assert.match(html, /<select[^>]*name="jev-provider"/);
   assert.match(html, /<option value="typesafe">TypeSafe（官方）<\/option>/);
@@ -166,4 +167,16 @@ test('a failure of an OpenCode provider is shown with its own sentence in both l
   const en = render(view({ ...zenFound, confirmed: true }, { failure: { feature: 'courseSuggest', reason: 'rate-limited', provider: 'opencode-zen', at: 'x' } }), 'en');
   assert.match(en, /OpenCode Zen/);
   noHan(en, 'failure');
+});
+
+test('the OpenCode Go preset is named Go everywhere it speaks (label, privacy line, failures), never Zen', () => {
+  assert.equal(JEV_PROVIDER_META['opencode-go'].label(), 'OpenCode Go · Jev');
+  const zh = text('opencode-go', 'zh');
+  assert.match(zh, /Go 服务/);
+  assert.doesNotMatch(zh, /Zen/);
+  for (const code of ['no-key', 'invalid-key', 'rate-limited']) {
+    assert.match(jevMessage(code, 'zh', 'opencode-go'), /OpenCode Go/);
+    assert.doesNotMatch(jevMessage(code, 'en', 'opencode-go'), /Zen/);
+  }
+  assert.match(jevMessage('rate-limited', 'en', 'opencode-zen'), /OpenCode Zen/, 'the Zen sentences are unchanged');
 });
