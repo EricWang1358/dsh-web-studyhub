@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.6 — 2026-10-04
+
+- **A big book can be worked through step by step.** When the selection on Create deck is too big for one generation ("the selected material is too large…"), a **Step-by-step path** appears under the list: the book cut into steps from its chapters (or its pages), in book order, each small enough to generate and review well and each with a suggested number of questions. **Let the AI refine the path** names the steps, says what each one practises and suggests an order, from titles and sizes only (never the text); the pages of a step never change. Edit what each step should practise, untick steps you do not want, **Use only this step** to generate one step by hand, or **Generate step by step** to queue one generation job per step, in order, so the first finished step can be practised while the others are still being written.
+- **Shape the chapters in the conversation.** **Talk it over with the AI** opens the main conversation with the plan, your course and goal (and, when the search index is built, tells the AI to pick pages by topic with `source.search` instead of reading whole chapters). It asks what you need, proposes changed steps, generates nothing until you confirm, and then generates each step. When the index of the selected materials is built, the panel says so.
+
 ## 2.5.5 — 2026-10-03
 
 - **Every material row says whether its search index is built.** On the 资料 page and in the picker of 创建题组 a quiet chip shows "Index built · 404 pages", "Index partly built · 120 / 404 pages", "Index needs an update · 3 pages edited", "Building the index…" or, for a big book, "Not indexed yet" (with "install the search extension first" when it is not installed). A small note that simply has no index says nothing: only books need one, and a "not indexed" on every row would be noise. The state follows a running build.

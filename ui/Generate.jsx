@@ -8,6 +8,7 @@ import CourseField from './CourseField.jsx';
 import { courseNamesOf, usePageScope } from './PageScope.jsx';
 import SourcePicker from './SourcePicker.jsx';
 import useIndexCoverage from './use-index-coverage.js';
+import GenerationPath from './GenerationPath.jsx';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
 import { Banner, Button, Disclosure, EmptyState, PageHeader, SegmentedControl, SetupRequired } from './components/index.js';
@@ -247,6 +248,11 @@ export default function Generate({
                 call={call} courses={data.focus?.courses} defaultCourse={generationCourse} onRetrieval={setRetrieval} />}
               {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel call={call} advice={advice} sourceIds={selectedSources}
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
+              {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
+              <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal} call={call} askInChat={askInChat}
+                indexCoverage={indexCoverage} disabled={busy || !model.ready} setNotice={setNotice}
+                onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
+                onQueued={() => { setGen(freshGeneration); setPage("library"); }} />
             </fieldset>
             <fieldset className="generate-form" data-tour="generate-options">
               <legend>{ui("02 / 学习方式")}</legend>
