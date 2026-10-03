@@ -24,8 +24,15 @@
 :is(.study-app, .study-seat) .course-parked-chip .link-btn { font-size: var(--fs-xs); }
 :is(.study-app, .study-seat) .course-parked-chip__error { color: var(--bad); }
 
-/* Page scope: the line under the picker. */
-:is(.study-app, .study-seat) .page-scope__note { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin-top: var(--space-1);
+/* Page scope (ui/PageScope.jsx): one compact control on every page. The label is a small muted line above one fixed-width
+   select (it never grows with the page or the chosen course), the path and the notes sit under it in one small style. */
+:is(.study-app, .study-seat) .page-scope { display: grid; gap: var(--space-1); align-content: start; width: 20rem; max-width: 100%; margin: 0; flex: 0 1 auto;
+  font-size: var(--fs-sm); font-weight: 600; line-height: var(--lh-snug); color: var(--text-muted); }
+:is(.study-app, .study-seat) .page-scope select { width: 100%; max-width: 100%; min-height: 38px; font-size: var(--fs-md); font-weight: 400; text-overflow: ellipsis; }
+/* A chosen sub-course shows its whole path under the select (the list itself shows only the last segment, indented). */
+:is(.study-app, .study-seat) .page-scope__path { display: block; margin: 0; font-size: var(--fs-sm); font-weight: 400; line-height: var(--lh-snug); color: var(--text-muted); overflow-wrap: anywhere; }
+/* Page scope: the notes under the picker. */
+:is(.study-app, .study-seat) .page-scope__note { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0;
   font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); font-weight: 400; }
 :is(.study-app, .study-seat) .page-scope__note .link-btn { font-size: var(--fs-sm); }
 :is(.study-app, .study-seat) .page-scope select option.is-parked { color: var(--text-muted); }
