@@ -8,11 +8,14 @@ import { renderNoteMarkdown } from "./note-markdown.js";
 import PageScope, { courseMatcher, usePageScope } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
+import LocalImagePicker from './LocalImagePicker.jsx';
+import { useSciencePreferences } from './SciencePreferences.jsx';
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
 
 export default function BlogNotes({ data, call, act, initialId, onSelect, onBack, backLabel, onOpenCard, theme = "dark" }) {
+  const science = useSciencePreferences();
   useInjectCss(noteCss, "study-blog-notes");
   const [rememberedId, rememberId] = usePageScope(data.root, 'notes-open', '');
   const [id, changeId] = useState(initialId || rememberedId), [note, setNote] = useState(null);
@@ -61,7 +64,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     call('note.get', { id }).then(next => { if (identity.current === token) restore(next); })
       .catch(error => { if (identity.current === token) setMessage(error.message); });
   }, [call, id, note?.generation?.status, note?.status, summary?.generation?.status, summary?.status, summary?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
-  const preview = useMemo(() => renderNoteMarkdown(note?.markdown || ""), [note?.markdown]);
+  const preview = useMemo(() => renderNoteMarkdown(note?.markdown || "", { imageCaptions: science.imageCaptions }), [note?.markdown, science.imageCaptions]);
   const within = courseMatcher(data, course);
   const notes = (data.notes || []).filter(item => course === '*' || (course === '' ? !item.courses?.length : (item.courses || []).some(within)));
   function edit(patch) {
@@ -198,6 +201,8 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       <p className="muted">{ui("公开文章请使用通用案例，不写课程、PPT 或个人信息。原题关联只保存在学习库。")}</p>
       {note.status === "draft" && <div className="note-editor">
         <div className="note-edit-pane"><strong>{ui("编辑 Markdown")}</strong>
+          {science.localImages && <LocalImagePicker key={JSON.stringify([data.root, note.id])} disabled={publishing || note.generation?.status === 'running'}
+            onInsert={markdown => { if (current.current?.id === note.id && current.current.status === 'draft') edit({ markdown: current.current.markdown + '\n\n' + markdown }); }} />}
           <CodeMirror value={note.markdown} height="560px" theme={theme === "light" ? "light" : "dark"} extensions={editorExtensions}
             editable={!publishing && note.status !== "published" && note.generation?.status !== "running"} onChange={(value) => edit({ markdown: value })} /></div>
         <div className="note-preview-pane"><strong>{ui("实时预览")}</strong>

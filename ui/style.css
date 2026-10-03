@@ -2490,6 +2490,7 @@
     overflow-wrap: anywhere;
   }
   .md-math {
+    font-size: calc(1em * var(--study-formula-scale, 1));
     display: inline-block;
     max-width: 100%;
     overflow-x: auto;
@@ -2516,13 +2517,14 @@
     display: flex;
     width: max-content;
     min-width: 100%;
-    justify-content: center;
+    justify-content: var(--study-formula-align, center);
   }
   .md-math-display:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
   .md-math math { font-size: 1em; font-weight: 400; font-family: math, "Cambria Math", serif; }
+  .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
   .md-math-source { white-space: pre-wrap; }
   .md-image { display: inline-block; max-width: 100%; margin-block: 0.5em; vertical-align: middle; }
-  .md-image img { display: block; max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: 6px; margin-inline: auto; }
+  .md-image img { display: block; max-width: 100%; max-height: var(--study-image-height, 360px); width: auto; height: auto; object-fit: contain; border-radius: 6px; margin-inline: auto; }
   .md-image-open, .md-image-static {
     max-width: 100%;
     padding: 8px;

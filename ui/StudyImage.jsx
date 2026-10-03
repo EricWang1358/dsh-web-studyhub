@@ -2,8 +2,11 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { useUiLanguage } from './i18n.js';
 import { safeStudyImage } from './study-media.js';
+import { useSciencePreferences } from './SciencePreferences.jsx';
 
 export default function StudyImage({ src, alt, interactive }) {
+  const preferences = useSciencePreferences();
+  interactive = interactive && preferences.imageEnlarge;
   const language = useUiLanguage(), en = language === 'en';
   const [failed, setFailed] = React.useState(false), [open, setOpen] = React.useState(false);
   const dialog = React.useRef(null), trigger = React.useRef(null);
@@ -22,7 +25,7 @@ export default function StudyImage({ src, alt, interactive }) {
   </span>;
   const image = <img src={safe} alt={alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => { setFailed(true); setOpen(false); }} />;
   const host = typeof document === 'undefined' ? null : document.querySelector('.study-app') || document.body;
-  const caption = alt && <span className="md-image-caption">{alt}</span>;
+  const caption = alt && preferences.imageCaptions && <span className="md-image-caption">{alt}</span>;
   return <span className={'md-image' + (interactive ? '' : ' md-image-static')}>
     {interactive ? <button ref={trigger} type="button" className="md-image-open" aria-label={`${en ? 'Enlarge image' : '放大图片'}${alt ? ': ' + alt : ''}`} onClick={event => { stop(event); setOpen(true); }} onKeyDown={stop}>
       {image}<span className="md-image-info">{caption}<span className="md-image-action" aria-hidden="true">{en ? 'Enlarge' : '放大'}</span></span>

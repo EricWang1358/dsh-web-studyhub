@@ -118,6 +118,16 @@ test('generated native modules resolve through classic chunk factories and share
   const reaction = math.renderStudyFormula(String.raw`\ce{2H2(g) + O2(g) -> 2H2O(l)}`, true);
   assert.match(reaction, /<math[\s>]/);
   assert.match(reaction, /<msub>/, 'native chemistry must use the registered mhchem engine');
+  for (const [input, verify] of [
+    ['lib/chemistry-balance.js', module => assert.equal(module.balanceEquation('H2 + O2 -> H2O').equation, '2 H2 + O2 -> 2 H2O')],
+    ['lib/symbolic-proof.js', module => assert.equal(module.proveIdentity('(x+1)^2', 'x^2+2*x+1').status, 'proved')],
+  ]) {
+    const output = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === input);
+    assert.ok(output, `missing optional local tool boundary for ${input}`);
+    const name = basename(output[0]);
+    assert.ok(!loadedAtBoot.includes(`${packageId}/${name}`), `${input} stays optional at activation`);
+    verify(await asyncModule(`./${name}`));
+  }
   assert.equal(cache.size, files.size, 'every emitted module can materialize');
   const notes = cache.get(`${packageId}/${basename(notesEntry[0])}`);
   assert.equal(React.isValidElement(React.createElement(notes.default, {})), true);

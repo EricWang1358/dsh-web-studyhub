@@ -12,6 +12,8 @@ import { renderRubric } from "../lib/case-study.js";
 import { DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
 import { describeGenerationRecord, draftWork, missingQuestions } from "./draft-shortfall.js";
 import { modelReadiness } from "./generation-status.js";
+import LocalImagePicker from './LocalImagePicker.jsx';
+import { useSciencePreferences } from './SciencePreferences.jsx';
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -45,6 +47,9 @@ export default function Draft({
   parseDraft,
 }) {
   const [deleteArmedId, setDeleteArmedId] = React.useState(null);
+  const science = useSciencePreferences();
+  const appendImage = (cardId, key, markdown) => setDraft(current => current.id !== draft.id ? current : ({ ...current, cards: current.cards.map(card =>
+    card.id === cardId ? { ...card, [key]: (card[key] || '') + '\n\n' + markdown } : card) }));
   const deleteArmed = deleteArmedId === draft.id;
   const rawAudits = draft.editorial?.audits ?? [draft.editorial?.audit];
   const audits = (Array.isArray(rawAudits) ? rawAudits : []).filter((audit) =>
@@ -360,7 +365,7 @@ export default function Draft({
             <details className="draft-card" key={q.id}>
               <summary>
                 <span>{String(i + 1).padStart(2, "0")}</span>
-                {q.prompt}
+                {q.prompt.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, '[$1]')}
                 <small>{kinds[q.kind]}</small>
                 {draft.editorial?.reviewedCards?.[q.id] !== reviewedCardFingerprint(q) &&
                   <small>{ui("未自动审阅")}</small>}
@@ -377,6 +382,7 @@ export default function Draft({
                   }
                 />
               </label>
+              {science.localImages && <LocalImagePicker key={JSON.stringify([data.root, draft.id, q.id, 'prompt'])} disabled={busy} onInsert={markdown => appendImage(q.id, 'prompt', markdown)} />}
               <div className="two-col">
                 <label>{ui("主题")}<input
                     value={q.topic}
@@ -400,7 +406,7 @@ export default function Draft({
                 "misconception",
                 ...(q.kind === "open" && !q.rubricCriteria ? ["rubric"] : []),
               ].map((key) => (
-                <label key={key}>
+                <React.Fragment key={key}><label>
                   {
                     {
                       answer: ui("答案"),
@@ -418,6 +424,8 @@ export default function Draft({
                     }
                   />
                 </label>
+                {science.localImages && ['answer', 'explanation'].includes(key) && <LocalImagePicker key={JSON.stringify([data.root, draft.id, q.id, key])} disabled={busy} onInsert={markdown => appendImage(q.id, key, markdown)} />}
+                </React.Fragment>
               ))}
               {q.rubricCriteria && <CriteriaEditor criteria={q.rubricCriteria} onChange={(criteria) => {
                 // Case questions (WP12): marks follow the criteria; the plain rubric text is rewritten for older readers.
