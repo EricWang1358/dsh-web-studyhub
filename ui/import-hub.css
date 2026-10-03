@@ -16,6 +16,12 @@
   .import-hub__files { display: grid; gap: var(--space-3); min-width: 0; }
   .import-hub__routes { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
   .import-hub__summary { margin: 0; }
+  .import-hub__marker { display: grid; gap: var(--space-3); min-width: 0; }
+  .import-hub__marker p { margin: 0; }
+  .import-hub__marker ol { margin: 0; padding-inline-start: 24px; }
+  .import-hub__marker li + li { margin-top: var(--space-2); }
+  .import-hub__marker pre { max-width: 100%; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .import-hub__marker-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
   .import-hub__stray {
     display: flex;
     align-items: center;
