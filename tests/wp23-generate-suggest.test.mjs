@@ -140,7 +140,93 @@ test("a failing or unreadable model falls back to local suggestions and keeps th
   const garbage = await library(t, { light: reply("I cannot help with that") });
   const two = await garbage.service.call("generate.suggest", { sourceIds: garbage.ids, course: "SWE5001" });
   assert.equal(two.source, "local");
-  assert.equal(two.unavailable.reason, "failed");
+  assert.equal(two.unavailable.reason, "nothing-usable", "an answer that cannot be read is not a failed call: it is shown, not guessed at");
+  assert.match(two.unavailable.sample, /I cannot help with that/);
+  assert.ok(two.focus.length > 0, "the local suggestions are still there");
+});
+
+/* ---------- 2.5.8: a reply in another shape, one exact-format retry, and what is shown when it still fails ---------- */
+
+test("normalizeSuggestion understands the common other shapes of the same answer", () => {
+  assert.deepEqual(normalizeSuggestion(["Raft", "Paxos"]).focus, ["Raft", "Paxos"], "a bare list");
+  assert.deepEqual(normalizeSuggestion({ result: { suggestion: { focus: ["Raft"] } } }).focus, ["Raft"], "wrapped twice");
+  assert.deepEqual(normalizeSuggestion({ suggestions: [{ topic: "Raft vs Paxos" }, { title: "Sharding" }, { name: "Caching" }, { text: "CAP" }] }).focus,
+    ["Raft vs Paxos", "Sharding", "Caching", "CAP"], "a list of objects, whatever the field is called");
+  assert.deepEqual(normalizeSuggestion({ focusAreas: "1. Raft\n2. Paxos; Sharding" }).focus, ["Raft", "Paxos", "Sharding"], "one string with separators and numbering");
+  assert.deepEqual(normalizeSuggestion({ topics: ["Raft"] }).focus, ["Raft"]);
+  const settings = normalizeSuggestion({ focus: ["A"], questions: "8 questions", level: "Hard", kind: "Flashcards", reason: "weak on A" });
+  assert.deepEqual([settings.count, settings.difficulty, settings.kind, settings.why], [8, "advanced", "flashcard", "weak on A"]);
+  assert.equal(normalizeSuggestion({ focus: ["A"], numQuestions: 12 }).count, 12);
+  assert.throws(() => normalizeSuggestion({ note: "here you go" }), /focus/);
+  assert.throws(() => normalizeSuggestion({ focus: [{ nothing: 1 }] }), /focus/);
+});
+
+test("an unreadable first answer is retried once with the exact format; a good second answer is used", async (t) => {
+  const seen = [];
+  const answers = ['{"note":"here you go"}', JSON.stringify({ focus: ["Replication"], count: 6, why: "ok" })];
+  const { service, ids } = await library(t, { light: async (system, prompt) => { seen.push({ system, prompt }); return answers[Math.min(seen.length - 1, answers.length - 1)]; } });
+  const result = await service.call("generate.suggest", { sourceIds: ids, course: "SWE5001" });
+  assert.equal(seen.length, 2, "exactly one retry");
+  assert.match(seen[1].prompt, /could not be used/i);
+  assert.match(seen[1].prompt, /"focus"/, "the reminder shows the shape");
+  assert.equal(result.source, "model");
+  assert.deepEqual(result.focus, ["Replication"]);
+  assert.equal(result.unavailable, undefined);
+});
+
+test("text that is not JSON gets the same single retry (not one hidden retry inside another)", async (t) => {
+  const seen = [];
+  const { service, ids } = await library(t, { light: async (system, prompt) => { seen.push(prompt); return "Sorry, I cannot do that."; } });
+  const result = await service.call("generate.suggest", { sourceIds: ids, course: "SWE5001" });
+  assert.equal(seen.length, 2);
+  assert.deepEqual([result.source, result.unavailable.reason], ["local", "nothing-usable"]);
+  assert.match(result.unavailable.sample, /Sorry, I cannot do that/);
+});
+
+test("what the model said is returned, clipped, so it can be shown and reported", async (t) => {
+  const { service, ids } = await library(t, { light: reply({ note: "x".repeat(2000) }) });
+  const result = await service.call("generate.suggest", { sourceIds: ids, course: "SWE5001" });
+  assert.equal(result.unavailable.reason, "nothing-usable");
+  assert.ok(result.unavailable.sample.length > 0 && result.unavailable.sample.length <= 220);
+});
+
+test("a failing call is not retried and keeps its short error", async (t) => {
+  let calls = 0;
+  const { service, ids } = await library(t, { light: async () => { calls += 1; throw new Error("Provider said: model_not_found"); } });
+  const result = await service.call("generate.suggest", { sourceIds: ids, course: "SWE5001" });
+  assert.equal(calls, 1);
+  assert.deepEqual([result.source, result.unavailable.reason], ["local", "failed"]);
+  assert.match(result.unavailable.message, /model_not_found/);
+});
+
+test("a 422-page PDF with a long outline sends a bounded, evenly sampled payload", async (t) => {
+  const prompts = [];
+  const root = await mkdtemp(join(tmpdir(), "study-wp23-big-"));
+  const service = new StudyService(root, { light: async (system, prompt) => { prompts.push(prompt); return JSON.stringify({ focus: ["A"] }); } });
+  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
+  const hash = "b".repeat(64), ids = [];
+  await service.store.update((state) => {
+    for (let page = 1; page <= 422; page += 1) {
+      const id = `big-${page}`; ids.push(id);
+      state.sources.push({ id, title: `Operating Systems.pdf · p.${page}`, courses: ["OS"], createdAt: "2026-10-01T00:00:00Z",
+        text: Array.from({ length: 20 }, (_, i) => `${page}.${i + 1} Section heading number ${page}-${i + 1} about scheduling and memory`).join("\n") + "\n" + "body ".repeat(500),
+        document: { id: hash, format: "pdf", page, filename: "Operating Systems.pdf" } });
+    }
+  });
+  const result = await service.call("generate.suggest", { sourceIds: ids, course: "OS" });
+  assert.equal(result.source, "model");
+  assert.equal(prompts.length, 1);
+  assert.ok(prompts[0].length < 4500, `the payload stays small for 422 pages (${prompts[0].length})`);
+  const sent = JSON.parse(prompts[0]).sources;
+  assert.equal(sent.length, 1, "one document");
+  assert.equal(sent[0].pages, 422, "its size is sent");
+  assert.ok(sent[0].headings.length <= SUGGEST_LIMITS.headingsPerSource);
+  const firstPage = Number(sent[0].headings[0].match(/^(\d+)\./)?.[1]), lastPage = Number(sent[0].headings.at(-1).match(/^(\d+)\./)?.[1]);
+  assert.ok(lastPage - firstPage > 200, "headings are sampled across the whole document, not taken from its first pages");
+  assert.ok(!prompts[0].includes("body body"), "no body text");
+  // The same size of selection as separate materials is capped too.
+  const outlines = sourceOutlines(ids.map((id, i) => ({ id: `m${i}`, title: `Material ${i}`, text: `## Topic ${i}\n## Another ${i}` })));
+  assert.ok(JSON.stringify(outlines).length <= SUGGEST_LIMITS.outlineChars + 200);
 });
 
 test("the action is read-only and validates its input", async (t) => {
