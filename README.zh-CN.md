@@ -75,7 +75,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 **大教材**（超过 8 MB 或 200 页）：
 
 - 在导入窗口点「用 MinerU 解析」。PDF 最大 800 MB，转换后作为一份分页文档导入，可以按章节选择。
-- 装了本地 `mineru` 就在本地解析；否则用你自己的 MinerU 令牌走云端解析，令牌在 mineru.net 创建，账户和收费规则以 MinerU 当前说明为准。云端解析会把 PDF 上传到 MinerU，所以开始前会先征得你同意。
+- 优先使用本地 `mineru`：先安装，再在设置中下载并启用解析模型，PDF 不上传。**云端暂不可用，优先使用本地模型。** 云端入口保留供恢复后手动选择；使用时需要你自己的 MinerU 令牌和上传确认。
 - 想整本书出题，可以用检索扩展，或在「创建题组」用「分步生成路径」。
 
 详见[大教材](docs/large-documents.zh-CN.md)和[用 MinerU 转换 PDF](docs/mineru-conversion.zh-CN.md)。
@@ -233,12 +233,18 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 
 - **安装**：[安装与模型配置](docs/install.zh-CN.md)
 - **资料**：[PDF 出测验与闪卡](docs/pdf-workflow.zh-CN.md) · [大教材](docs/large-documents.zh-CN.md) · [用 MinerU 转换 PDF](docs/mineru-conversion.zh-CN.md) · [JSON 题组导入](docs/json-import.zh-CN.md)
-- **题目**：[出题与质量检查](docs/assessment-quality.zh-CN.md) · [向已有题组补题](docs/supplementation.zh-CN.md) · [斩题](docs/slay.zh-CN.md) · [题目英文对照](docs/translate-en.zh-CN.md) · [Token 用量与估算](docs/token-usage.md)
+- **题目**：[出题与质量检查](docs/assessment-quality.zh-CN.md) · [自己的参考样题](docs/reference-questions.zh-CN.md) · [向已有题组补题](docs/supplementation.zh-CN.md) · [斩题](docs/slay.zh-CN.md) · [题目英文对照](docs/translate-en.zh-CN.md) · [Token 用量与估算](docs/token-usage.md)
 - **学习**：[学习流](docs/study-workflows.zh-CN.md) · [陪学、自动驾驶与定制题](docs/coach.zh-CN.md) · [讲解追问](docs/followup.zh-CN.md)
 - **音频**：[音频导入](docs/audio-import.zh-CN.md) · [课堂实录](docs/live-class.zh-CN.md)
 - **对话与任务**：[在主对话里查询资料与题组](docs/main-session-queries.zh-CN.md) · [后台任务与侧栏](docs/generation-agents-sidebar.zh-CN.md)
 - **可选功能**：[使用频率记录](docs/usage-frequency.zh-CN.md) · [Jev 决策层（实验性，英文）](docs/jev-experimental.md)
 - **开发者**：[架构与扩展](docs/architecture.md) · [开发验证记录（英文）](docs/verification.md) · [SM-2 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
+
+## 参与项目
+
+对 StudyHub 的开发、测试、文档或使用反馈感兴趣，欢迎加入 QQ 群交流。用 QQ 扫描下方二维码；也可以[打开原图](docs/assets/studyhub-qq-group.jpg)后扫码。
+
+<img src="docs/assets/studyhub-qq-group.jpg" alt="StudyHub 项目交流群 QQ 入群二维码" width="360">
 
 ## 反馈与许可证
 

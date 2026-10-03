@@ -15,6 +15,8 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 - 手动路线的工具（MinerU 桌面客户端、Docling、RAGFlow、手动配置的检索服务器）都由你自己安装和运行。
 - 只有 DeepSeek Harness（DSH）确实报告了某个检索工具，StudyHub 才会说它可用。
 
+**云端暂不可用，优先使用本地 MinerU 和下载的模型。** 先自行安装，再在设置里确认模型下载；已保存云端令牌不会自动选择云端解析。桌面客户端目前也反馈不可用，保留为恢复后的高级备选。
+
 ## 什么时候会给出建议
 
 | 限制 | 数值 | 在哪里看到建议 |
@@ -97,7 +99,7 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 | 工具 | 协议 | 平台 | MCP | StudyHub 读取的输出 | 说明 |
 |---|---|---|---|---|---|
-| **MinerU**（推荐；由 StudyHub 运行：用你自己的令牌走云端，或用本地 `mineru`。桌面客户端和命令行是手动路线） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表，带 `page_idx`；v2 按页分组）。它的 Markdown 不带 `<!-- page: N -->` 分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，没有介绍客户端。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
+| **MinerU**（推荐；由 StudyHub 运行：优先使用本地 `mineru` 和下载的模型；云端暂不可用。桌面客户端和命令行是手动路线） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表，带 `page_idx`；v2 按页分组）。它的 Markdown 不带 `<!-- page: N -->` 分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，没有介绍客户端。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
 | **Docling**（高级：需要命令行） | MIT | Windows、macOS、Linux | `docling-mcp`（MIT；stdio、SSE、streamable HTTP） | JSON（`DoclingDocument`，`prov.page_no` 从 1 开始）；Markdown | 用命令行或 Python 运行：`docling file.pdf --to json`。OCR 引擎有 RapidOCR、EasyOCR、Tesseract（`--ocr-engine`、`--ocr-lang`）。没有桌面应用。 |
 
 也核对过、但**不推荐**：

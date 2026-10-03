@@ -9,7 +9,7 @@ import css from './large-documents.css';
 
 /* 大教材建议 (WP28, WP28b). StudyHub does not index a 1000-page textbook itself, and
    the learner never edits a file or types a command: StudyHub converts the PDF with MinerU
-   itself (the learner's own free cloud token, or the local mineru when it is ready; big books
+   itself (local mineru and its models first, or an explicitly chosen cloud route after it recovers; big books
    are cut into pieces and put back together), and, for whole-book questions, installs
    StudyHub's search extension with one click and builds the index of the course with
    another. The desktop client, the command line, Docker and hand-written configuration
@@ -17,8 +17,9 @@ import css from './large-documents.css';
    is what the host reported (retrieval.status). */
 
 const SUMMARY = {
-  'mineru-cloud': () => ui('用你自己的 MinerU 令牌在云端解析，StudyHub 全自动：分段上传、显示进度、合并。目前免费，规则可能变化；文档会上传到 MinerU。'),
-  mineru: () => ui('手动路线：有图形界面的桌面客户端（Windows / macOS），或本地命令行 mineru parse --pages。导出带页码的 JSON 再拖进来。'),
+  'mineru-local': () => ui('优先安装本地 mineru 并下载模型，在「设置 › PDF 转换（MinerU）」完成检测和启用。解析不会上传文档；模型下载需先确认。'),
+  'mineru-cloud': () => ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。'),
+  mineru: () => <>{ui('桌面客户端目前也反馈不可用，优先使用上面的本地模型；客户端恢复后可再尝试。')}{' '}{ui('手动路线：有图形界面的桌面客户端（Windows / macOS），或本地命令行 mineru parse --pages。导出带页码的 JSON 再拖进来。')}</>,
   docling: () => ui('开源（MIT），输出带页码的 JSON，适合愿意用命令行或 Python 的人。导入时选它输出的 .json。'),
   'mcp-local-rag': () => ui('在本机检索，文档不出电脑；读 PDF、Word、Markdown 和纯文本。默认的向量模型偏英文，中文教材要换多语言模型。'),
   ragflow: () => ui('完整的知识库应用（用 Docker 运行，建议 16 GB 内存），中文友好；通过 MCP 接口被 DSH 调用。'),
@@ -47,7 +48,7 @@ function reasonText(reason, detail = {}) {
 }
 
 const STEPS = {
-  convert: [() => ui('点下面的「用 MinerU 解析」：本地 mineru 已就绪就用它（免费、不上传），否则用你自己的 MinerU 令牌（在 mineru.net 免费创建，只需粘贴一次）。'),
+  convert: [() => ui('点下面的「用 MinerU 解析」：优先使用本地 mineru（免费、不上传）。尚未就绪时，先安装并下载模型；云端暂不可用。'),
     () => ui('StudyHub 自动分段、逐段解析、合并，进度显示在资料页；中途出错只重做出错的那一段。'),
     () => ui('解析完成后按页保存，并按标题分出章节，不用再拖文件。'),
     () => ui('在「创建题组」里按章节勾选；整本书都要用时，点下面的「安装检索扩展」，再为这门课建立检索索引。')],
@@ -61,7 +62,7 @@ export function ToolCard({ tool }) {
     <article className="large-doc__tool" data-tool={tool.id}>
       <header className="large-doc__tool-head">
         <strong>{ui(tool.name)}</strong>
-        {tool.recommended && ['download', 'token'].includes(tool.needs) && <span className="large-doc__badge">{ui('推荐')}</span>}
+        {tool.recommended && (tool.id === 'mineru-local' || ['download', 'token'].includes(tool.needs)) && <span className="large-doc__badge">{ui('推荐')}</span>}
         {NEEDS[tool.needs] && <span className="large-doc__needs">{NEEDS[tool.needs]()}</span>}
       </header>
       <p className="large-doc__summary">{SUMMARY[tool.id]()}</p>
@@ -79,8 +80,8 @@ export function ToolCard({ tool }) {
 const byId = id => TOOLS.find(tool => tool.id === id);
 
 /**
- * The leading converter: StudyHub runs MinerU itself (local when ready, otherwise the learner's own cloud token, otherwise the
- * setup gate). With `call` the whole flow is here; without it the card only explains. `file` is the PDF a too-large import was
+ * The leading converter: StudyHub runs local MinerU or shows its setup. With `call` the whole flow is here;
+ * without it the card explains local model setup. `file` is the PDF a too-large import was
  * refused for (without one the learner picks a PDF), `onStarted` hears that a conversion began.
  */
 export function ConverterMain({ call, file = null, courses = [], onOpenSettings, onStarted }) {
@@ -90,7 +91,7 @@ export function ConverterMain({ call, file = null, courses = [], onOpenSettings,
       <h3 className="large-doc__group-title">{ui('转换：把 PDF 变成带页码的文字')}</h3>
       {typeof call === 'function'
         ? <MineruRoute compact file={file || picked} onFile={file ? undefined : setPicked} call={call} courses={courses} onOpenSettings={onOpenSettings} onStarted={onStarted} />
-        : <div className="large-doc__tools"><ToolCard tool={byId('mineru-cloud')} /></div>}
+        : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /><p className="large-doc__note">{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</p></div>}
       <p className="large-doc__note">{ui('转换结果带页码，StudyHub 才能按页引用；超过 200 页的书会自动分段处理。')}</p>
     </div>
   );

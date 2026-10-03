@@ -36,13 +36,11 @@ export async function uploadPdf(call, file, { onProgress, signal } = {}) {
 }
 
 /**
- * The route to lead with: the local mineru when it is ready (free, nothing uploaded), else the cloud when a token is set,
- * else 'gate' (the setup gate). `local` is mineru.local.status, `settings` is mineru.settings.get; either may be null (not read yet).
+ * Lead with local conversion and its setup, even when a cloud token is saved. Cloud conversion remains an explicit choice.
+ * This only chooses the panel: installation, downloads and conversion still require the learner's confirmation.
  */
-export function chooseRoute({ local, settings } = {}) {
-  if (local?.state === 'ready') return 'local';
-  if (settings?.token?.set) return 'cloud';
-  return 'gate';
+export function chooseRoute() {
+  return 'local';
 }
 
 /** Whole minutes for a duration in seconds, at least 1 (an estimate is never shown as "0 minutes"). */

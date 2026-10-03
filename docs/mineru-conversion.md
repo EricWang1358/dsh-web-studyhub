@@ -19,8 +19,9 @@ MinerU conversion belongs to the **StudyHub · Audio** component. When that comp
 When you convert, StudyHub picks the route to lead with:
 
 1. the local route, when it is ready;
-2. otherwise the cloud route, when a token is set;
-3. otherwise the setup for the cloud route.
+2. otherwise local setup: install mineru, start its service and confirm the model download as needed.
+
+**Cloud conversion is temporarily unavailable. Use local models first.** A saved token does not change the default route or prove that the service is available. The cloud route remains a manual choice for when service recovers.
 
 You can switch routes before you start. Nothing is uploaded and nothing starts until a route is set up and you click its start button.
 
@@ -36,21 +37,6 @@ You can switch routes before you start. Nothing is uploaded and nothing starts u
 The result is imported like any converted document: one source per page, chapters from the headings, and the same citations as a MinerU file you drag in by hand. There is no file to drag in. StudyHub keeps the text and image captions; the pictures themselves are not imported.
 
 To convert by hand instead, open **Advanced: desktop client and command line** and drag the result into **Add source**. See [Large textbooks](large-documents.md) for the formats StudyHub reads.
-
-## Set up the cloud route
-
-1. Open **Settings › PDF conversion (MinerU)**. The section is called **MinerU cloud conversion**.
-2. Under **Cloud (MinerU token)**, open MinerU's API management page and create a token. Check MinerU’s current account, region and billing requirements.
-3. Paste the token and click **Save and verify**. Verifying sends one request that contains no document.
-
-The answer says the token works, is invalid or has expired, or that MinerU could not be reached or is temporarily unavailable.
-
-Where the token is kept:
-
-- It is stored in `<DSH home>/study/mineru.json` (the home folder of DeepSeek Harness, DSH), or read from the `MINERU_API_KEY` environment variable when the file has none.
-- It is never in the study library, an export, a backup or a snapshot, and it appears in no log.
-- Settings show only its last four characters. **Clear the saved token** removes it.
-- Never paste the token into the chat.
 
 ## Set up the local route
 
@@ -72,6 +58,21 @@ The tiers:
 The speeds shown (about 1.6 seconds per page for `basic`, about 2.5 for `standard`) were measured once, on one laptop using only its CPU. They are always labelled as estimates.
 
 StudyHub detects the local `mineru` with read-only calls: `mineru --version`, `mineru config get …` and `mineru server status`.
+
+## Set up the cloud route
+
+1. Open **Settings › PDF conversion (MinerU)**. The section is called **PDF conversion (MinerU)**; local setup comes first.
+2. Under **Cloud (MinerU token)**, open MinerU's API management page and create a token. Check MinerU’s current account, region and billing requirements.
+3. Paste the token and click **Save and verify**. Verifying sends one request that contains no document.
+
+The answer says the token works, is invalid or has expired, or that MinerU could not be reached or is temporarily unavailable.
+
+Where the token is kept:
+
+- It is stored in `<DSH home>/study/mineru.json` (the home folder of DeepSeek Harness, DSH), or read from the `MINERU_API_KEY` environment variable when the file has none.
+- It is never in the study library, an export, a backup or a snapshot, and it appears in no log.
+- Settings show only its last four characters. **Clear the saved token** removes it.
+- Never paste the token into the chat.
 
 ## Follow a conversion
 
@@ -132,7 +133,7 @@ What to do on **No response**: wait a little longer. If nothing changes, click *
   - A stopped service is named, with **Restart the local service and resume**.
 - **The PDF itself.**
   - A password-protected PDF cannot be cut or uploaded: save a copy without the password first.
-  - For the cloud, a single page over the size limit cannot be cut smaller: compress its images, or use the desktop client.
+  - For the cloud, a single page over the size limit cannot be cut smaller: compress its images, or use local mineru.
 
 ## Conversion history
 

@@ -60,8 +60,8 @@ test('the catalogue states what is true and checkable: licence, platforms, downl
   for (const tool of TOOLS.filter(entry => entry.recommended))
     assert.ok(tool.channels.some(channel => channel.kind === 'mainland'), `${tool.id} is reachable from mainland China`);
   const recommended = role => TOOLS.filter(tool => tool.role === role && tool.recommended).map(tool => tool.id);
-  // The leading converter is MinerU's cloud route that StudyHub runs itself; the desktop client / command line (id 'mineru') is kept but demoted.
-  assert.deepEqual(recommended('converter'), ['mineru-cloud', 'docling']);
+  // Local MinerU models lead; cloud and the desktop export route remain optional.
+  assert.deepEqual(recommended('converter'), ['mineru-local', 'docling']);
   assert.equal(TOOLS.find(tool => tool.id === 'mineru').recommended, false);
   assert.deepEqual(recommended('retrieval'), ['mcp-local-rag', 'ragflow']);
   assert.equal(TOOLS.find(tool => tool.id === 'mineru').studyhubFormat, 'mineru-content-list');

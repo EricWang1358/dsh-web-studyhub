@@ -27,9 +27,11 @@ const render = (selectedSources = []) => renderToStaticMarkup(React.createElemen
 test('the generation form lists documents and counts documents', () => {
   setUiLanguage('zh');
   const html = render([page(1).id, page(2).id, page(3).id, page(4).id]);
-  assert.equal((html.match(/data-document-key="/g) || []).length, 2, 'a 4-page PDF and a Markdown file');
-  assert.match(html, /已选择 1 \/ 2 份资料/);
-  assert.match(html, /PDF · 4 页/);
+  const evidencePicker = html.match(/<fieldset data-tour="generate-sources">([\s\S]*?)<\/fieldset>/)?.[1];
+  assert.ok(evidencePicker, 'the factual material picker is present');
+  assert.equal((evidencePicker.match(/data-document-key="/g) || []).length, 2, 'a 4-page PDF and a Markdown file in factual selection');
+  assert.match(evidencePicker, /已选择 1 \/ 2 份资料/);
+  assert.match(evidencePicker, /PDF · 4 页/);
   assert.doesNotMatch(html, /slides\.pdf · p\.3|排版提取|旧版提取/);
   assert.match(html, /导入资料/, 'adding material still goes through the shared import dialog');
 });
