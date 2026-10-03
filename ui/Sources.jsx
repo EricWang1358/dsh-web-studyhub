@@ -222,7 +222,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
       </div>}
       {advice && <Disclosure className="source-doc__advice" summary={uiFormat('这份资料有 {0} 页，建议按章节使用', [Math.max(item.pages.length, item.totalPages || 0)])} meta={ui('大教材建议')}>
         <LargeDocumentCard reason="long-document" detail={{ name: displayTitle(item.title), pages: Math.max(item.pages.length, item.totalPages || 0) }}
-          retrieval={retrieval} onOpenSettings={onOpenSettings} call={call} courses={courses} defaultCourse={defaultCourse} onRetrieval={onRetrieval} />
+          retrieval={retrieval} onOpenSettings={onOpenSettings} call={call} courses={courses} defaultCourse={item.courses?.[0] || defaultCourse} onRetrieval={onRetrieval} />
       </Disclosure>}
     </article>
   );
