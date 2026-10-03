@@ -44,7 +44,13 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   await buildPreview({ outdir: distDir });
   const server = await createPreviewServer({ libraryRoot, home: join(root, 'home'), port: 0, model, distDir });
   t.after(() => server.close());
-  const browser = await launchChromium();
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
+    t.skip(`Chromium unavailable: ${String(error.message).split('\n')[0]}`);
+    return;
+  }
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = [];
