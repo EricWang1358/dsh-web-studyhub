@@ -43,6 +43,46 @@ async function fixture(t) {
   return { root, runtime, imported, p1, p2, p3, store, documentId: imported.documentId };
 }
 
+async function refreshedTextFixture(t) {
+  const root = await mkdtemp(join(tmpdir(), 'material-refreshed-pages-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  const first = await runtime.call('materials.document.import', { filename: 'lesson.txt',
+    dataBase64: Buffer.from('An original cited claim.').toString('base64') });
+  await new Store(root).update(state => state.decks.push({ id: 'history', title: 'Historical questions', cards: [
+    { id: 'old-card', kind: 'flashcard', prompt: 'Original question?', answer: 'Original answer.',
+      citations: [{ sourceId: first.sourceIds[0], quote: 'An original cited claim.' }],
+      review: { repetitions: 3, interval_days: 30, due_at: iso(future), ease_factor: 2.5 } },
+  ] }));
+  const current = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt',
+    dataBase64: Buffer.from('The revised material needs new questions.').toString('base64') });
+  return { runtime, first, current };
+}
+
+test('a refreshed material does not inherit the mastery of questions citing its retained old revision', async t => {
+  const { runtime } = await refreshedTextFixture(t);
+  const snapshot = await runtime.call('snapshot');
+  assert.deepEqual(snapshot.materialMastery, {}, 'current material has no linked questions even when its old revision was mastered');
+});
+
+test('page-card links default to current evidence while an explicitly opened old source reads only its retained revision', async t => {
+  const { runtime, first, current } = await refreshedTextFixture(t);
+  const currentCards = await runtime.call('materials.pages.cards', { documentId: first.documentId });
+  assert.equal(currentCards.status, 'ok');
+  assert.deepEqual(currentCards.sourceIds, current.sourceIds);
+  assert.deepEqual(currentCards.cards, [], 'old questions never appear beside the revised claims');
+  const oldCards = await runtime.call('materials.pages.cards', { documentId: first.documentId, sourceId: first.sourceIds[0] });
+  assert.equal(oldCards.status, 'ok');
+  assert.deepEqual(oldCards.sourceIds, first.sourceIds);
+  assert.deepEqual(oldCards.cards.map(item => item.cardId), ['old-card']);
+  assert.equal(oldCards.summary.state, 'mastered');
+  const oldSourceOnly = await runtime.call('materials.pages.cards', { sourceId: first.sourceIds[0] });
+  assert.deepEqual(oldSourceOnly.sourceIds, first.sourceIds);
+  const oldRange = await runtime.call('materials.pages.cards', { sourceIds: first.sourceIds });
+  assert.deepEqual(oldRange.cards.map(item => item.cardId), ['old-card']);
+});
+
 test('materials.pages.cards lists the cards that point into the document with level, due and where they point; suspended cards are left out', async t => {
   const f = await fixture(t);
   const result = await f.runtime.call('materials.pages.cards', { documentId: f.documentId });

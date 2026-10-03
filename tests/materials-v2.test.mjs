@@ -73,6 +73,134 @@ test('material document filters inherit legacy citation courses while explicit u
   assert.equal((await standalone.call('materials.document.list', {})).total, 3, 'materials remain readable without a bank or library context');
 });
 
+test('refreshed material listings and the picker show only current evidence while historical citations stay readable', async t => {
+  const { root, store } = await fixture(t);
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  const first = await runtime.call('materials.document.import', { filename: 'old-lesson.txt',
+    dataBase64: Buffer.from('Obsolete alpha evidence.').toString('base64'), courses: ['Old course'] });
+  const current = await runtime.call('materials.document.import', { documentId: first.documentId, filename: 'new-lesson.txt',
+    title: 'Current lesson', dataBase64: Buffer.from('Current beta evidence.').toString('base64'), courses: ['New course'] });
+  const snapshot = await runtime.call('snapshot');
+  const [item] = groupSourcesByDocument(snapshot.sources);
+  assert.deepEqual(item.sourceIds, current.sourceIds, 'the current document never selects an obsolete revision');
+  assert.equal(item.title, 'Current lesson');
+  assert.equal(item.excerpt, 'Current beta evidence.');
+  assert.deepEqual(item.courses, ['New course']);
+  assert.ok(snapshot.sources.some(source => source.id === first.sourceIds[0]), 'citation lookup retains historical summaries');
+  assert.deepEqual((await runtime.call('source.list', {})).sources.map(source => source.id), current.sourceIds);
+  assert.equal((await runtime.call('source.list', { course: 'Old course' })).total, 0);
+  assert.equal((await runtime.call('source.search', { query: 'Obsolete' })).matchedSources, 0);
+  assert.deepEqual((await runtime.call('source.list', { sourceIds: first.sourceIds })).sources.map(source => source.id), first.sourceIds,
+    'an explicit source request can inspect historical evidence');
+  assert.equal((await runtime.call('source.get', { id: first.sourceIds[0] })).text, 'Obsolete alpha evidence.');
+  assert.equal((await runtime.call('materials.document.get', { documentId: first.documentId, revision: first.revision })).sources[0].text, 'Obsolete alpha evidence.');
+  assert.equal((await store.read()).sources.find(source => source.id === first.sourceIds[0]).historical, undefined, 'the display marker never alters stored evidence');
+});
+
+test('refreshing a PDF keeps its current pages as one picker item without offering retained old pages', async t => {
+  const { root } = await fixture(t);
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  const first = await runtime.call('materials.document.import', { filename: 'lecture.pdf',
+    dataBase64: pdfBytes('Old PDF evidence.').toString('base64'), courses: ['Old course'] });
+  const current = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lecture.pdf',
+    dataBase64: pdfBytes('Current PDF evidence.').toString('base64'), courses: ['New course'] });
+  const items = groupSourcesByDocument((await runtime.call('snapshot')).sources);
+  assert.equal(items.length, 1, 'a refreshed PDF does not appear as two materials');
+  assert.deepEqual(items[0].sourceIds, current.sourceIds);
+  assert.deepEqual(items[0].courses, ['New course']);
+  assert.equal((await runtime.call('source.get', { id: first.sourceIds[0] })).text, 'Old PDF evidence.');
+});
+
+test('removing current material sources preserves readable cited history without dangling version members or reviving it', async t => {
+  const { root, store } = await fixture(t);
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  const first = await runtime.call('materials.document.import', { filename: 'lesson.txt',
+    dataBase64: Buffer.from('Historical quoted evidence.').toString('base64'), courses: ['Course'] });
+  await store.update(state => state.decks.push({ id: 'history', title: 'Saved questions', cards: [
+    { id: 'q', citations: [{ sourceId: first.sourceIds[0], quote: 'Historical quoted evidence.' }] },
+  ] }));
+  const revisedBytes = Buffer.from('Unreferenced current evidence.').toString('base64');
+  const current = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt', dataBase64: revisedBytes });
+  await runtime.call('source.remove', { id: current.sourceIds[0] });
+  const after = await runtime.call('materials.document.get', { documentId: first.documentId });
+  assert.deepEqual(after.sourceIds, [], 'deleted projections are removed from every version member list');
+  assert.deepEqual(after.sources, []);
+  assert.equal(after.currentRevision, current.revision, 'deleting the current pages does not silently switch to older evidence');
+  assert.equal((await runtime.call('materials.document.list', {})).total, 0);
+  assert.equal((await runtime.call('source.list', {})).total, 0);
+  assert.equal(groupSourcesByDocument((await runtime.call('snapshot')).sources).length, 0);
+  assert.equal((await runtime.call('source.get', { id: first.sourceIds[0] })).text, 'Historical quoted evidence.');
+  assert.equal((await runtime.call('materials.document.get', { documentId: first.documentId, revision: first.revision })).sources[0].text, 'Historical quoted evidence.');
+  await assert.rejects(runtime.call('source.remove', { id: first.sourceIds[0] }), /referenced/);
+  const restored = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt', dataBase64: revisedBytes });
+  assert.deepEqual(restored.sourceIds, current.sourceIds, 'explicitly importing the deleted revision restores its original identity');
+  assert.equal((await runtime.call('materials.document.list', {})).total, 1);
+});
+
+test('removing an unreferenced historical projection removes its version membership and leaves current material readable', async t => {
+  const { root } = await fixture(t);
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  const first = await runtime.call('materials.document.import', { filename: 'lesson.txt', dataBase64: Buffer.from('Old evidence.').toString('base64') });
+  const current = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt', dataBase64: Buffer.from('Current evidence.').toString('base64') });
+  await runtime.call('source.remove', { id: first.sourceIds[0] });
+  const old = await runtime.call('materials.document.get', { documentId: first.documentId, revision: first.revision });
+  assert.deepEqual(old.sourceIds, []);
+  assert.deepEqual(old.sources, []);
+  assert.deepEqual((await runtime.call('materials.document.get', { documentId: first.documentId })).sourceIds, current.sourceIds);
+  assert.equal((await runtime.call('materials.document.list', {})).total, 1);
+});
+
+test('renaming a refreshed material checks its current title and preserves course edits and all version evidence', async t => {
+  const { root, store } = await fixture(t);
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  const first = await runtime.call('materials.document.import', { filename: 'old.txt',
+    dataBase64: Buffer.from('Old quoted evidence.').toString('base64'), courses: ['Old course'] });
+  const current = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'new.txt',
+    title: 'Current lesson', dataBase64: Buffer.from('Current quoted evidence.').toString('base64'), courses: ['New course'] });
+  await runtime.call('source.courses.set', { assignments: current.sourceIds.map(id => ({ id, courses: ['Edited course'], expectedCourses: ['New course'] })) });
+  const before = await store.read();
+  const renamed = await runtime.call('materials.document.rename', { documentId: first.documentId, revision: current.revision,
+    expectedTitle: 'Current lesson', title: 'Renamed lesson' });
+  assert.equal(renamed.status, 'renamed');
+  assert.equal(renamed.previousTitle, 'Current lesson');
+  const after = await store.read();
+  assert.deepEqual(after.sources.map(({ id, text, courses, document }) => ({ id, text, courses, document })),
+    before.sources.map(({ id, text, courses, document }) => ({ id, text, courses, document })), 'rename only changes title fields');
+  assert.deepEqual(after.documents[0].versions, before.documents[0].versions);
+  const [item] = groupSourcesByDocument((await runtime.call('snapshot')).sources);
+  assert.equal(item.title, 'Renamed lesson');
+  assert.deepEqual(item.courses, ['Edited course']);
+  assert.deepEqual(item.sourceIds, current.sourceIds);
+  assert.equal((await runtime.call('materials.document.get', { documentId: first.documentId, revision: first.revision })).sources[0].text, 'Old quoted evidence.');
+});
+
+test('opening an old citation by source id reads its retained revision while explicit revisions keep their contract', async t => {
+  const { root } = await fixture(t);
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  const firstBytes = Buffer.from('The original cited claim.').toString('base64');
+  const first = await runtime.call('materials.document.import', { filename: 'lesson.txt', dataBase64: firstBytes });
+  const selected = (await runtime.call('materials.selection.resolve', { documentId: first.documentId, revision: first.revision,
+    quote: 'original cited claim' })).selection;
+  const current = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt',
+    dataBase64: Buffer.from('The revised claim has different facts.').toString('base64') });
+  const opened = await runtime.call('materials.document.get', { sourceId: first.sourceIds[0] });
+  assert.equal(opened.revision, first.revision);
+  assert.deepEqual(opened.sourceIds, first.sourceIds);
+  assert.equal(opened.sources[0].text, 'The original cited claim.');
+  assert.equal((await runtime.call('materials.document.bytes', { documentId: opened.id, revision: opened.revision })).dataBase64, firstBytes);
+  assert.equal((await runtime.call('materials.document.get', { sourceId: current.sourceIds[0] })).revision, current.revision);
+  assert.equal((await runtime.call('materials.document.get', { sourceId: first.sourceIds[0], revision: current.revision })).revision,
+    current.revision, 'an explicitly requested revision stays authoritative');
+  await assert.rejects(runtime.call('materials.document.get', { sourceId: first.sourceIds[0], revision: 'unknown-revision' }), /revision not found/);
+  assert.equal((await runtime.call('materials.selection.resolve', selected)).status, 'stale', 'historical reading never makes an old selection current');
+});
+
 test('materials retains original TXT bytes and resolves whitespace to authoritative offsets', async t => {
   const { root, call } = await fixture(t);
   const original = 'Title\r\nA  precise\tpassage.\r\n';
