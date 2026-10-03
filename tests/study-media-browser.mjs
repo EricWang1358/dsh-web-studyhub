@@ -28,10 +28,10 @@ test('fake-library math/media browser smoke at desktop and narrow widths', { tim
   try {
     server = await createPreviewServer({ libraryRoot, home, distDir, port: 0, model: 'fake', fakeLatencyMs: 0 });
     browser = await launchChromium();
-    for (const width of [1280, 390]) {
+    for (const width of [1280, 390, 320]) {
       await previewCall(server, 'review.start', { deckId: 'math', mode: 'path', fresh: true });
       const context = await browser.newContext({ viewport: { width, height: 900 }, locale: 'en-US' });
-      await context.addInitScript(() => { localStorage.setItem('study-ui-language', 'en');  });
+      await context.addInitScript(dark => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-theme', dark ? 'dark' : 'light'); }, width === 320);
       const page = await context.newPage(), errors = [], external = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.route('**/*', async route => {
@@ -48,9 +48,19 @@ test('fake-library math/media browser smoke at desktop and narrow widths', { tim
       await page.keyboard.press('s');
 
       await page.locator('.flip-front math').first().waitFor();
+      const faceFits = await page.locator('.flip-front').evaluate(face => {
+        const card = face.closest('.flashcard').getBoundingClientRect(), bounds = face.getBoundingClientRect();
+        return bounds.left >= card.left - 1 && bounds.right <= card.right + 1;
+      });
+      assert.equal(faceFits, true, 'long formulas must not stretch the card face beyond its container');
+      await page.screenshot({ path: join(out, `${width}-front.png`), animations: 'disabled' });
       if (width < 700) {
         const formula = page.locator('.flip-front .md-math-display');
         assert.equal(await formula.evaluate(el => el.scrollWidth > el.clientWidth), true);
+        assert.ok(await formula.evaluate(el => {
+          const equation = el.querySelector('math').getBoundingClientRect();
+          return equation.left >= el.getBoundingClientRect().left - 1;
+        }), 'the beginning of a centered long equation must remain reachable');
         await formula.focus();
         await page.keyboard.press('ArrowRight');
         await page.waitForFunction(() => globalThis.document.querySelector('.flip-front .md-math-display').scrollLeft > 0);
@@ -66,6 +76,11 @@ test('fake-library math/media browser smoke at desktop and narrow widths', { tim
       await page.locator('.flip-front .md-image-open').focus();
       await page.keyboard.press('Enter');
       await page.locator('dialog[open]').waitFor();
+      assert.ok(await page.locator('dialog[open]').evaluate(el => {
+        const bounds = el.getBoundingClientRect();
+        const viewport = el.ownerDocument.defaultView;
+        return bounds.left >= 0 && bounds.right <= viewport.innerWidth + 1 && bounds.top >= 0 && bounds.bottom <= viewport.innerHeight + 1;
+      }));
       await page.screenshot({ path: join(out, `${width}-image.png`), animations: 'disabled' });
       assert.equal(await page.locator('.flashcard.flipped').count(), 0);
       await page.keyboard.press('Escape');
