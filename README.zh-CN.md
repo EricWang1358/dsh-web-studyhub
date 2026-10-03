@@ -75,7 +75,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 **大教材**（超过 8 MB 或 200 页）：
 
 - 在导入窗口点「用 MinerU 解析」。PDF 最大 800 MB，转换后作为一份分页文档导入，可以按章节选择。
-- 装了本地 `mineru` 就在本地解析；否则用你自己的 MinerU 令牌走云端解析，令牌在 mineru.net 创建，账户和收费规则以 MinerU 当前说明为准。云端解析会把 PDF 上传到 MinerU，所以开始前会先征得你同意。
+- 优先使用本地 `mineru`：先安装，再在设置中下载并启用解析模型，PDF 不上传。**云端暂不可用，优先使用本地模型。** 云端入口保留供恢复后手动选择；使用时需要你自己的 MinerU 令牌和上传确认。
 - 想整本书出题，可以用检索扩展，或在「创建题组」用「分步生成路径」。
 
 详见[大教材](docs/large-documents.zh-CN.md)和[用 MinerU 转换 PDF](docs/mineru-conversion.zh-CN.md)。

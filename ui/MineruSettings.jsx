@@ -195,7 +195,7 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
   );
 }
 
-/** 设置 › MinerU 解析: the cloud token and the local mineru, side by side. `initialSettings` / `initialLocal` skip the first read (previews, tests). */
+/** 设置 › MinerU 解析: local model setup first, then the optional cloud token. `initialSettings` / `initialLocal` skip the first read (previews, tests). */
 export default function MineruSettings({ call, busy = false, setNotice, initialSettings = null, initialLocal = null }) {
   useInjectCss(audioCss, 'study-audio-settings');
   useInjectCss(css, 'study-mineru');
@@ -215,15 +215,24 @@ export default function MineruSettings({ call, busy = false, setNotice, initialS
   };
   return (
     <fieldset className="audio-settings settings-section mineru-settings" data-tour="settings-mineru">
-      <legend className="settings-section__title">{ui('MinerU 云端解析')}</legend>
+      <legend className="settings-section__title">{ui('PDF 转换（MinerU）')}</legend>
       <p className="settings-section__lead">{ui('把 PDF 转成带页码的文字：支持扫描件、公式、表格和中文，超过 200 页的书会自动分段处理。有两种用法，可以只用其中一种。')}</p>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <div className="audio-provider-grid">
+        <article className={`audio-provider-card${local?.state === 'ready' ? ' is-set' : ''}`} data-route="local">
+          <header className="audio-provider-card__head">
+            <h3>{ui('本地（mineru 命令行）')}</h3>
+            <span className="audio-chip">{ui('推荐')}</span>
+            <span className="audio-provider-card__chips"><span className="audio-chip audio-chip--good">{ui('免费 · 不上传')}</span></span>
+          </header>
+          <LocalMineruPanel call={call} status={local} onStatus={setLocal} busy={busy} />
+        </article>
         <article className={`audio-provider-card${settings?.token?.set ? ' is-set' : ''}`} data-route="cloud">
           <header className="audio-provider-card__head">
             <h3>{ui('云端（MinerU 令牌）')}</h3>
             <span className="audio-provider-card__chips"><span className="audio-chip audio-chip--good">{ui('目前免费')}</span><span className="audio-chip">{ui('文档会上传')}</span></span>
           </header>
+          <InlineMessage tone="warning">{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</InlineMessage>
           <p className={`audio-key-state${settings?.token?.set ? ' is-set' : ''}`}>
             <Icon name={settings?.token?.set ? 'success' : 'key'} size={16} />{settings?.token?.set ? uiFormat('已保存 {0}', [settings.token.hint]) : ui('未配置')}
           </p>
@@ -236,13 +245,6 @@ export default function MineruSettings({ call, busy = false, setNotice, initialS
           <div className="mineru-settings__privacy">
             <PrivacyConfirm checked={!!settings?.acknowledged} disabled={busy || acknowledging || !settings} onChange={acknowledge} />
           </div>
-        </article>
-        <article className={`audio-provider-card${local?.state === 'ready' ? ' is-set' : ''}`} data-route="local">
-          <header className="audio-provider-card__head">
-            <h3>{ui('本地（mineru 命令行）')}</h3>
-            <span className="audio-provider-card__chips"><span className="audio-chip audio-chip--good">{ui('免费 · 不上传')}</span></span>
-          </header>
-          <LocalMineruPanel call={call} status={local} onStatus={setLocal} busy={busy} />
         </article>
       </div>
       {settings?.settingsFile && <p className="audio-settings-path">{uiFormat('令牌保存在 {0}，不在学习库里，也不会出现在导出或备份中。', [settings.settingsFile])}</p>}

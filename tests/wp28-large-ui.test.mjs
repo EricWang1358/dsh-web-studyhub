@@ -35,6 +35,7 @@ test('too-large PDF: a calm card with the recommended converters, download chann
   assert.match(html, /8 MB/);
   for (const name of ['MinerU', 'Docling']) assert.match(html, new RegExp(name));
   assert.match(html, /href="https:\/\/mineru\.net\/client"/);
+  assert.match(html, /桌面客户端目前也反馈不可用/, 'the standalone advanced tools also warn about the client');
   assert.match(html, /href="https:\/\/www\.modelscope\.cn\/organization\/OpenDataLab"/);
   assert.match(html, /国内可用/);
   assert.match(html, /MIT/);

@@ -75,7 +75,7 @@ Old .doc and .ppt files (and .wps, .key, .pages) are not read. Save them as .doc
 **Large textbooks** (over 8 MB or 200 pages):
 
 - Click **Convert with MinerU** in the import window. StudyHub converts PDFs up to 800 MB and imports the result as one paged book that you can choose by chapter.
-- It uses a local `mineru` if one is installed. Otherwise it uses MinerU's cloud with your own MinerU token from mineru.net. Check MinerU’s current account and billing requirements. Cloud conversion uploads the PDF to MinerU, so StudyHub asks you to agree first.
+- Start with local `mineru`: install it, then download and enable the parsing models in Settings. The PDF stays on your computer. **Cloud conversion is temporarily unavailable; use local models first.** The cloud option remains available for manual selection after service recovers; it requires your own MinerU token and upload consent.
 - To practise across a whole book, use the search extension or the **Step-by-step path** on **Create deck**.
 
 See [large textbooks](docs/large-documents.md) and [MinerU conversion](docs/mineru-conversion.md).
