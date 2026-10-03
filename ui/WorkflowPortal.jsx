@@ -2,6 +2,7 @@ import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
+import { Button, PageHeader } from "./components/index.js";
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
 import { ModelError, Readings, ScopeBar } from "./WorkflowScope.jsx";
 import { useInjectCss } from "./shared.js";
@@ -372,7 +373,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
     }
   });
 
-  if (!session) return <section className="page workflow-page"><button type="button" onClick={onBack}>{ui("← 学习流工作台")}</button><h1>{ui("学习 Portal")}</h1>{error ? <><p className="wf-error" role="alert">{error}</p><button type="button" onClick={refresh}>{ui("重新读取")}</button></> : <p className="muted" role="status">{ui("正在恢复学习进度…")}</p>}</section>;
+  if (!session) return <section className="page workflow-page"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack}>{ui("← 学习流工作台")}</Button></div><PageHeader title={ui("学习 Portal")} />{error ? <><p className="wf-error" role="alert">{error}</p><Button onClick={refresh}>{ui("重新读取")}</Button></> : <p className="muted" role="status">{ui("正在恢复学习进度…")}</p>}</section>;
   const step = session.template.steps.find((item) => item.id === session.currentStepId);
   const index = session.template.steps.indexOf(step), record = session.records[step.id] || {};
   const dirty = output !== savedOutput(session), busy = !!pending, active = session.status === "active", completed = session.status === "completed";
@@ -399,8 +400,12 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
     return session.template.steps.find((item) => item.id === edge)?.title;
   };
   return <section className="page workflow-page wf-portal">
-    <div className="wf-topline"><button type="button" disabled={busy || !!remote} onClick={leave}>{ui("← 保存并返回工作台")}</button><span className="muted small">{completed ? ui("本次学习已结束") : active ? ui("学习中") : ui("已暂停")}</span></div>
-    <header className="wf-heading" ref={headingRef}><div><p className="wf-eyebrow">{session.template.title}</p><h1>{session.topic}</h1><p className="muted">{completed ? ui("保留这次学习的记录，下一次可以换一种学习方式。") : uiFormat("第 {0} / {1} 步 · {2}", [index + 1, session.template.steps.length, step.title])}</p><ScopeBar session={session} resources={resources} disabled={busy || !!remote || !active} onRescope={rescope} onStartNew={startInCourse} /></div>{!completed && <button type="button" disabled={busy || !!remote} onClick={() => changeStatus(active ? "paused" : "active")}>{active ? ui("保存并暂停") : ui("继续学习")}</button>}</header>
+    <div className="wf-topline"><Button variant="link" size="sm" disabled={busy || !!remote} onClick={leave}>{ui("← 保存并返回工作台")}</Button><span className="muted small">{completed ? ui("本次学习已结束") : active ? ui("学习中") : ui("已暂停")}</span></div>
+    <PageHeader className="wf-heading" ref={headingRef} eyebrow={session.template.title} title={session.topic}
+      description={completed ? ui("保留这次学习的记录，下一次可以换一种学习方式。") : uiFormat("第 {0} / {1} 步 · {2}", [index + 1, session.template.steps.length, step.title])}
+      actions={!completed && <Button disabled={busy || !!remote} onClick={() => changeStatus(active ? "paused" : "active")}>{active ? ui("保存并暂停") : ui("继续学习")}</Button>}>
+      <ScopeBar session={session} resources={resources} disabled={busy || !!remote || !active} onRescope={rescope} onStartNew={startInCourse} />
+    </PageHeader>
     {error && <div className="wf-error" role="alert"><ModelError text={error} /><p>{ui(" 你的输入仍保留在此设备。")}</p><button type="button" disabled={busy} onClick={refresh}>{ui("核对最新进度")}</button></div>}
     {remote && <div className="wf-notice" role="status"><p>{ui("这次学习在其他地方有了更新。你的文字已保留，请选择怎样继续。")}</p>
       {savedOutput(remote.session) && <details><summary>{ui("查看学习库中的最新回答")}</summary><Markdown text={savedOutput(remote.session)} /></details>}
