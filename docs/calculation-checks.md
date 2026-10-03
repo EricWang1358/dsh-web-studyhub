@@ -87,7 +87,8 @@ variables, 16 sequential steps, 32-character ASCII names, 64 unit characters,
 16 unit factors, unit powers `[-8, 8]`, combined dimension exponents
 `[-16, 16]`. Every numerical input/intermediate/scale must be finite, with
 nonzero magnitude between `1e-100` and `1e100`. Division by zero, undefined
-zero powers, complex/fractional powers, overflow and exhausted budgets are
+zero powers, complex/fractional powers, overflow, nonzero-base power underflow
+to zero, and exhausted budgets are
 `not_checked`. Chemistry equation balance, reaction validity, symbolic
 identities, proofs and subject-matter correctness are unsupported.
 

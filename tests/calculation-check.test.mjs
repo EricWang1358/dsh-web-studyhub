@@ -53,3 +53,10 @@ test('unsupported and adversarial evidence never claims arithmetic agreement', (
   assert.equal(checkCalculation(undefined, { answer: '5' }).status, 'not_checked');
   assert.equal(check('1', 2, '', { status: 'agreement', verified: true, tolerance: 100 }).status, 'mismatch');
 });
+
+test('power underflow cannot claim agreement with zero for a nonzero base', () => {
+  for (const expression of ['1e-100^12', '(-1e-100)^11', '(-1e-100)^12'])
+    assert.equal(check(expression, 0).status, 'not_checked', expression);
+  for (const expression of ['0^2', '0^12', '(-0)^11'])
+    assert.equal(check(expression, 0).status, 'agreement', expression);
+});
