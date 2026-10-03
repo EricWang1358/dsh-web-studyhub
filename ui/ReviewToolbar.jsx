@@ -4,7 +4,7 @@ import { ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
 const NEXT_HINT_ID = "review-next-hint";
 
-export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk, onImprove, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode }) {
+export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode }) {
   const moreRef = React.useRef(null);
   React.useEffect(() => {
     const closeOutside = (event) => {
@@ -57,6 +57,7 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
           <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onNote(); }}>{ui("写笔记")}</button>
           {onTask && <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onTask(); }}>{ui("记待办")}</button>}
           <button type="button" aria-expanded={assistMode === "improve"} onClick={(event) => { event.currentTarget.closest("details").open = false; onImprove(); }}>{ui("修题")}</button>
+          {onDerive && <button type="button" data-usage="review.derive" aria-expanded={assistMode === "derive"} onClick={(event) => { event.currentTarget.closest("details").open = false; onDerive(); }}>{ui("出前置题…")}</button>}
           <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onSlay(); }}>{ui("斩掉此题")}</button>
         </div></details>
         <button className="pill" data-usage="review.prev" disabled={busy || run.index === 0} title={busy ? ui("正在保存上一步，稍等一下") : undefined}

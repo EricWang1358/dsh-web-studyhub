@@ -2,7 +2,7 @@ import { ui } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 
-export default function ExplanationFollowup({ run, call, readOnly = false }) {
+export default function ExplanationFollowup({ run, call, readOnly = false, onDerive, deriving = false }) {
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);
@@ -80,6 +80,11 @@ export default function ExplanationFollowup({ run, call, readOnly = false }) {
           <summary><span className="en-tag">Q&amp;A</span><h4>{item.question}</h4></summary>
           <Markdown text={item.answer} />
           {/* A long answer can be folded from its end, landing back on its question. */}
+          {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}
+          {onDerive && <div className="followup-derive" role="group" aria-label={ui("用这个问答出题")}>
+            <button type="button" className="link-btn" data-usage="review.derive-prereq" disabled={deriving} onClick={() => onDerive(item.id, "prerequisite")}>{ui("出成前置题")}</button>
+            <button type="button" className="link-btn" data-usage="review.derive-standalone" disabled={deriving} onClick={() => onDerive(item.id, "standalone")}>{ui("出成独立题")}</button>
+          </div>}
           <button type="button" className="link-btn followup-fold" onClick={(event) => {
             const summary = event.currentTarget.closest("details")?.querySelector("summary");
             toggle(item.id, false);

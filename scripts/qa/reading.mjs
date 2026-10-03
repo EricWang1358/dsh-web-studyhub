@@ -134,6 +134,27 @@ export async function runReadingQa(options) {
       return face;
     });
 
+    await step("derive-from-qa", async () => {
+      // 出成题: the Q&A of the card can become a question; the request reaches the host and a background task shows up (the preview's fake model may refuse the reply, which must show the failed state with 重新提交).
+      const link = page.getByRole("button", { name: t("出成前置题", "Make a prerequisite question"), exact: true }).first();
+      await link.waitFor({ timeout: 15000 });
+      await link.click();
+      await page.locator(".assist-status").first().waitFor({ timeout: 20000 });
+      await page.waitForFunction(() => { const status = document.querySelector(".assist-status"); return !!status && !status.querySelector(".assist-spin"); }, null, { timeout: 60000 });
+      const state = await page.locator(".assist-status").first().evaluate(element => ({ failed: element.classList.contains("failed"), text: element.textContent.slice(0, 160) }));
+      if (state.failed && !(await page.getByRole("button", { name: t("重新提交", "Submit again"), exact: true }).count())) throw new Error(`a failed task has no resubmit button: ${state.text}`);
+      return state;
+    });
+    await step("derive-from-more-menu", async () => {
+      await page.locator(".review-more > summary").first().click();
+      await page.getByRole("button", { name: t("出前置题…", "Make a prerequisite question…"), exact: true }).click();
+      await page.locator(".assist-form textarea").waitFor();
+      await page.getByRole("radio", { name: t("一道独立的新题", "A separate new question") }).click();
+      if ((await page.getByRole("radio", { name: t("一道独立的新题", "A separate new question") }).getAttribute("aria-checked")) !== "true") throw new Error("the relation choice did not stick");
+      await page.locator(".assist-form textarea").fill(t("什么是聚合根", "What is an aggregate root"));
+      await page.getByRole("button", { name: t("提交到后台", "Send to background assistant"), exact: true }).click();
+      await page.locator(".assist-status").first().waitFor({ timeout: 20000 });
+    });
     // The same setting in another open page of the same browser (the storage event).
     const other = await browserContext.newPage();
     await other.goto(page.url());

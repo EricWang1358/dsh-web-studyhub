@@ -455,6 +455,32 @@ test('修题 never turns a plain question into a half cloze: a stem with {{blank
   }
 });
 
+test('出成题: a Q&A or a typed knowledge point becomes one new question, as a prerequisite (linked) or on its own, validated like every other card', async t => {
+  const spec = { ...card, prompt: 'Which two dimensions can vary independently in Bridge?', objective: 'Name independent dimensions' }; delete spec.id;
+  const asked = [];
+  const cases = [
+    ['from a Q&A, as a prerequisite', { derive: { relation: 'prerequisite', followupId: 'fu1' }, text: '' }, { card: spec }, 'done', 2, true],
+    ['from a typed point, standalone', { derive: { relation: 'standalone' }, text: 'Why does Bridge help?' }, { card: spec }, 'done', 2, false],
+    ['a duplicate of the current question is refused', { derive: { relation: 'standalone' }, text: 'x' }, { card: { ...spec, prompt: card.prompt } }, 'failed', 1, false],
+    ['a stem with blank markers is refused', { derive: { relation: 'standalone' }, text: 'x' }, { card: { ...spec, prompt: 'Two are {{blank}}.' } }, 'failed', 1, false],
+    ['a vague point is answered with noChange and nothing is created', { derive: { relation: 'prerequisite' }, text: 'stuff' }, { noChange: 'The point is too vague to make a question.' }, 'done', 1, false],
+  ];
+  for (const [name, args, reply, status, cards, linked] of cases) {
+    const f = await fixture(t, async (system, payload) => { asked.push(payload); return JSON.stringify(reply); });
+    await f.service.store.update(s => { s.decks[0].cards[0].followups = [{ id: 'fu1', question: 'What is a bridge?', answer: 'It separates two dimensions so each varies independently.', digest: undefined }]; });
+    const digestFix = await f.service.store.read();
+    await f.start({}, { mode: 'derive', helpChoices: [], ...args });
+    await until(() => f.task().status !== 'running');
+    const state = await f.service.store.read();
+    assert.equal(f.task().status, status, `${name}: ${f.task().message}`);
+    assert.equal(state.decks[0].cards.length, cards, `${name}: cards`);
+    assert.equal(Boolean(state.decks[0].cards[0].requires?.length), linked, `${name}: link`);
+    if (status === 'done' && cards === 2) assert.equal(state.decks[0].cards[1].prompt, spec.prompt);
+    assert.ok(digestFix);
+  }
+  assert.match(asked[0], /What is a bridge\?/, 'the Q&A reaches the model as the basis');
+});
+
 test('the task remembers what was asked (choices and the learner own question) so a failed one can be sent again or edited', async t => {
   const f = await fixture(t, async () => '{"answer":"x"}');
   await f.start({}, { helpChoices: ['example', 'prerequisite'], text: 'Why does retry amplify load?' });
