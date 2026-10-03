@@ -1,3 +1,4 @@
+/* global document, window */
 /* "查看后台助手" / "查看子代理": the panel opens a DSH subagent's session. The click must always say
    what happened: the host function resolves or rejects with a reason, the button waits and
    shows the reason, and the top-level page reveals the conversation the assistant opens in. */
@@ -7,6 +8,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { launchChromium } from '../scripts/qa/browser.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -46,11 +48,29 @@ test('openBackgroundAgent never stays silent: no id, no host support, or a host 
   finally { setUiLanguage('zh'); }
 });
 
-test('a failed open does not switch the page, and a failing page switch does not fail the open', async () => {
+test('a failed open does not switch the page, and a failing page switch explains the partial success', async () => {
   let revealed = 0;
   await rejects(() => openBackgroundAgent(host({ sessions: { open: async () => { throw new Error('x'); } } }), 'child-1', { reveal: () => { revealed++; } }), /没能打开/);
   assert.equal(revealed, 0);
-  await openBackgroundAgent(host({ sessions: { open: async () => {} } }), 'child-1', { reveal: () => { throw new Error('layout gone'); } });
+  for (const reveal of [() => { throw new Error('layout gone'); }, () => Promise.reject(new Error('layout gone'))])
+    await rejects(() => openBackgroundAgent(host({ sessions: { open: async () => {} } }), 'child-1', { reveal }),
+      /后台助手已打开，但未能切换到对话区：layout gone/);
+  setUiLanguage('en');
+  try {
+    await rejects(() => openBackgroundAgent(host({ sessions: { open: async () => {} } }), 'child-1',
+      { reveal: () => Promise.reject(null) }), /The assistant opened.*Open the assistant from the session list/);
+  } finally { setUiLanguage('zh'); }
+});
+
+test('opening waits for an asynchronous page switch before reporting success', async () => {
+  let finish, resolved = false;
+  const opening = openBackgroundAgent(host({ sessions: { open: async () => {} } }), 'child-1',
+    { reveal: () => new Promise(done => { finish = done; }) }).then(() => { resolved = true; });
+  await new Promise(done => setImmediate(done));
+  assert.equal(resolved, false);
+  finish();
+  await opening;
+  assert.equal(resolved, true);
 });
 
 test('attemptOpen returns an empty string on success and the reason on failure', async () => {
@@ -81,4 +101,44 @@ test('the generation trace offers the assistant of a step only when the host can
   const trace = props => renderToStaticMarkup(h(GenerationTrace, { job, ...props }));
   assert.equal((trace({ openAgent() {} }).match(/查看后台助手/g) || []).length, 1, 'one button, for the step that has a child');
   assert.doesNotMatch(trace({}), /查看后台助手/);
+});
+
+test('the assistant button prevents duplicate opens and recovers after a visible failure', { timeout: 60000 }, async t => {
+  const browserBundle = await build({ stdin: { contents: `
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import AgentLink from './ui/AgentLink.jsx';
+    window.opens = 0;
+    const openAgent = () => { window.opens++; return new Promise((resolve, reject) => {
+      window.finishOpen = resolve; window.failOpen = reject;
+    }); };
+    createRoot(document.getElementById('root')).render(<AgentLink childId="child-1" openAgent={openAgent} label="查看后台助手" />);
+  `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', logLevel: 'silent' });
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
+    t.skip('Chromium unavailable'); return;
+  }
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setContent('<main id="root"></main>');
+  await page.addScriptTag({ content: browserBundle.outputFiles[0].text });
+  const button = page.getByRole('button');
+  await button.click();
+  await page.waitForFunction(() => document.querySelector('button')?.disabled === true);
+  assert.equal(await button.innerText(), '正在打开…');
+  await button.dispatchEvent('click');
+  assert.equal(await page.evaluate(() => window.opens), 1);
+  await page.evaluate(() => window.failOpen(new Error('host refused')));
+  await page.waitForFunction(() => document.querySelector('[role="alert"]')?.textContent === 'host refused');
+  assert.equal(await button.isEnabled(), true);
+  await button.click();
+  await page.waitForFunction(() => window.opens === 2 && !document.querySelector('[role="alert"]'));
+  await page.evaluate(() => window.finishOpen());
+  await page.waitForFunction(() => !document.querySelector('button').disabled);
+  assert.equal(await button.innerText(), '查看后台助手');
+  assert.deepEqual(errors, []);
 });

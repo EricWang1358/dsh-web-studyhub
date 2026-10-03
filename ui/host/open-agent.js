@@ -17,5 +17,9 @@ export async function openBackgroundAgent(ctx, id, { reveal } = {}) {
   } catch (error) {
     throw new Error(uiFormat('没能打开后台助手：{0}', [error?.message || ui('DSH 没有说明原因，助手可能已经结束。')]));
   }
-  try { reveal?.(); } catch { /* the assistant is open; only the page switch failed */ }
+  try { await reveal?.(); }
+  catch (error) {
+    throw new Error(uiFormat('后台助手已打开，但未能切换到对话区：{0}',
+      [error?.message || ui('请从会话列表打开助手。')]));
+  }
 }

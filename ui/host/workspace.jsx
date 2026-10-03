@@ -177,7 +177,11 @@ export function apply(ctx, registerDocumentLearning) {
         sessionModel: current?.current || catalog?.value?.default,
         // The top-level page covers the conversation, where the assistant opens: reveal it, as askInChat does.
         openAgent: (id) => openBackgroundAgent(ctx, id,
-          { reveal: placement === "page" ? () => ctx.get("layout")?.selectPanel?.(null) : undefined }),
+          { reveal: placement === "page" ? () => {
+            const layout = ctx.get("layout");
+            if (typeof layout?.selectPanel !== "function") throw new Error(ui("请从会话列表打开助手。"));
+            return layout.selectPanel(null);
+          } : undefined }),
         // WP15: DSH's plugin manager page, scrolled to StudyHub when the host offers that.
         openPluginManager: ctx.get("layout")?.selectPanel
           ? () => {

@@ -9,5 +9,7 @@
   "没能打开后台助手：{0}": "Could not open the background assistant: {0}",
   "DSH 没有说明原因，助手可能已经结束。": "DSH gave no reason; the assistant may have finished.",
   "没能打开后台助手。": "Could not open the background assistant.",
-  "正在打开…": "Opening…"
+  "正在打开…": "Opening…",
+  "后台助手已打开，但未能切换到对话区：{0}": "The assistant opened, but the conversation could not be shown: {0}",
+  "请从会话列表打开助手。": "Open the assistant from the session list."
 }
