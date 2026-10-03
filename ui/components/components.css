@@ -404,7 +404,7 @@
     .sh-toast__close { grid-column: 3; grid-row: 1; }
     .sh-toast__action { grid-column: 2 / -1; grid-row: 2; justify-self: start; min-width: 0; max-width: 100%; margin: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
   }
-  /* Page placement: a zero-height sticky rail under the top bar, so a toast is
+  /* Wide page placement: a zero-height sticky rail under the top bar, so a toast is
      visible wherever the learner has scrolled and never shifts the page. */
   :is(.sh-toasts--page, .sh-toasts--auto) {
     position: sticky;
@@ -419,6 +419,22 @@
     width: min(560px, calc(100% - 2 * var(--space-4)));
     transform: translateX(-50%);
     pointer-events: none;
+  }
+  /* In a compact Study viewport, readable notices need their own space:
+     an overlay can cover the next control even when the message wraps well. */
+  @container study (max-width: 720px) {
+    :is(.sh-toasts--page, .sh-toasts--auto):not(.action-feedback-slot .sh-toasts--auto) {
+      position: static;
+      height: auto;
+    }
+    :is(.sh-toasts--page, .sh-toasts--auto):not(.action-feedback-slot .sh-toasts--auto) > .sh-toasts__inner {
+      position: static;
+      margin-inline: auto;
+      transform: none;
+    }
+    :is(.sh-toasts--page, .sh-toasts--auto):not(.action-feedback-slot .sh-toasts--auto) > .sh-toasts__inner:has(.sh-toast) {
+      padding-block: var(--space-3);
+    }
   }
   /* Inline placement: in flow beside the control (review's action slot). */
   :is(.sh-toasts--inline, .action-feedback-slot .sh-toasts--auto) {
