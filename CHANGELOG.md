@@ -2,6 +2,14 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.12 — 2026-10-04
+
+- **External Marker conversion.** Installation guides, a downloadable user-run Python helper and a paginated Markdown result picker are available in Add materials. StudyHub does not install or run Marker or include its models. Separate model licences and inference prerequisites still apply; real OCR quality has not been benchmarked.
+- **Background assistant feedback.** Opening an assistant now reports progress and failures and brings its conversation forward when StudyHub occupies the main page. Failed opens can be retried.
+- **Renderable generated formulas.** Authoring guidance requires math delimiters and valid JSON escapes. Import and generation repair recoverable TeX escapes; unsupported bare formulas are rejected with a reason. Existing stored cards are not rewritten, and original evidence is preserved.
+- **Image and Windows compatibility checks.** Added card image rendering, unsafe address and fallback coverage. Marker helper tests handle Windows short temporary paths while retaining exact filename and argument checks.
+- **Release packages.** Download links and bilingual setup guides now point to 2.5.12. The release includes the complete plugin, six capability plugins, retrieval extension, two setup guides and SHA-256 checksums.
+
 ## 2.5.11 — 2026-10-03
 
 - **Study images and formulas.** Cards render Markdown images, LaTeX and chemical notation, with accessible image enlargement and readable scrolling for long formulas on narrow screens. Drafts and notes accept local PNG/JPEG/WebP/GIF images up to 2 MiB, embedded in the library and backups. Text-only assistants omit image bytes and do not infer their contents.

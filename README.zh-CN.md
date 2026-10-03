@@ -6,7 +6,7 @@ StudyHub 把你的课程资料变成能追溯原文的练习题。导入 PDF、P
 
 StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)的插件。DSH 是 AI 助手应用，可以装成桌面版，也可以在自己电脑上以网页版运行；StudyHub 就在 DSH 里打开使用。
 
-[在线体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [安装指南](docs/install.zh-CN.md) · [发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.11) · [更新日志](CHANGELOG.zh-CN.md)
+[在线体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [安装指南](docs/install.zh-CN.md) · [发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.12) · [更新日志](CHANGELOG.zh-CN.md)
 
 在线体验直接在浏览器里打开，用示例题和预置的 AI 回复演示，不用安装，也不用 Key；体验进度只保存在当前浏览器。
 
@@ -16,7 +16,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 - **要花钱吗**：StudyHub 本身免费开源（MIT）。浏览资料、做题和安排复习都免费，不调用模型。出题和 AI 讲解按你的模型服务商计费。每次出题前，StudyHub 会显示预计 Token 用量，出题后显示实际用量；「统计」里还能看近 7 天或近 30 天的合计。
 - **网络与费用**：可用地区、免费额度和收费规则以各服务商的当前说明为准。从 GitHub 地址装不上插件时，见[快速上手](#快速上手)后面的备用办法。
 - **什么电脑能用**：下方提供 Windows 64 位和 Apple 芯片 Mac 的 DSH 安装入口。其他系统请查看 DSH 官方支持情况，或使用需要 Node.js 22.19 或以上的网页版。
-- **版本要求**：需要 DSH 0.2（0.2.0-rc.2 或以上，低于 0.3）。StudyHub 当前版本是 [2.5.11](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.11)。
+- **版本要求**：需要 DSH 0.2（0.2.0-rc.2 或以上，低于 0.3）。StudyHub 当前版本是 [2.5.12](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.12)。
 - **资料会上传吗**：学习库是你电脑上的一个文件夹。只有用到相应功能时，所选内容才会发给对应的服务，详见[数据与隐私](#数据与隐私)。
 
 ## 能做什么
@@ -40,10 +40,10 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 2. **安装 StudyHub**：在 DSH 打开「插件」，点「添加插件」，粘贴下面的地址，装好后点「启用」：
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.11/ericwang1358-dsh-daily-flashcard-2.5.11.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.12/ericwang1358-dsh-daily-flashcard-2.5.12.tgz
    ```
 
-   确认包名是 `@ericwang1358/dsh-daily-flashcard`、版本是 2.5.11。启用后 StudyHub 会自动打开；以后从 DSH 左栏的「StudyHub」进入（会话里的「StudyHub」标签和右侧栏也可以），不需要先发消息。
+   确认包名是 `@ericwang1358/dsh-daily-flashcard`、版本是 2.5.12。启用后 StudyHub 会自动打开；以后从 DSH 左栏的「StudyHub」进入（会话里的「StudyHub」标签和右侧栏也可以），不需要先发消息。
 3. **看一遍示例（可选，约 3 分钟）**：在欢迎页点「载入示例并开始导览」。21 步导览会依次带你看资料、出题、练习、错题、考试和统计，直接指向真实的按钮。示例不调用模型，可以一键移除。
 4. **配置模型**：在 DSH 的「设置 › 模型」粘贴 API Key，再在会话里选一个模型。配置好之前，凡是需要模型的步骤，StudyHub 都会先显示「打开模型设置」，不会让你点了之后再失败。
 5. **用自己的资料开始**：点「添加资料」，一次拖入多个 PDF、PPT 或笔记，然后「用资料出题」→ 检查草稿 → 发布 → 开始练习。
@@ -51,9 +51,9 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 安装补充说明：
 
 - **已经在用 DSH**：只装插件即可。桌面版或网页版、原来的 profile、模型设置和工作区都不用动。
-- **GitHub 地址装不上**：先用浏览器从[发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.11)下载 `.tgz`，再在「添加插件」里填它的绝对路径。文件必须放在运行 DSH 的那台电脑或服务器上。
+- **GitHub 地址装不上**：先用浏览器从[发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.12)下载 `.tgz`，再在「添加插件」里填它的绝对路径。文件必须放在运行 DSH 的那台电脑或服务器上。
 - **发布页文件很多，下哪个**：只需要完整包 `ericwang1358-dsh-daily-flashcard-<版本号>.tgz`，而且一般不用下载，按第 2 步粘贴地址就行。其余文件是 6 个可单独安装的组件、检索扩展（点「安装检索扩展」时由 StudyHub 安装）、校验值清单和两份安装引导。
-- 命令行安装等更多方式见[安装与模型配置](docs/install.zh-CN.md)。也可以下载能在浏览器里打开的[安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.11/StudyHub-2.5.11-Setup.zh-CN.html)（[English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.11/StudyHub-2.5.11-Setup.html)）。DSH 本身只从第 1 步的官方渠道获取。
+- 命令行安装等更多方式见[安装与模型配置](docs/install.zh-CN.md)。也可以下载能在浏览器里打开的[安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.12/StudyHub-2.5.12-Setup.zh-CN.html)（[English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.12/StudyHub-2.5.12-Setup.html)）。DSH 本身只从第 1 步的官方渠道获取。
 
 ## 使用 StudyHub
 
