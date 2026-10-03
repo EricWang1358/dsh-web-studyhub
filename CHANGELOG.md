@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.4 — 2026-10-03
+
+- **No more questions that ask what the material says.** Questions such as "What does the material use to tell 4xx from 5xx?" test memory of a document's wording, not the concept or how to act in a situation. Generation now forbids them at every step: the planning, writing and independent review prompts all carry an explicit rule (ask about the concept itself, or put the learner in a concrete situation with the facts needed), and a deterministic check rejects stems such as "资料说…", "文中提到…", "根据资料…", "资料用什么…" and "what does the text say…", asking for a rewrite as a concept or scenario question.
+- **Fixing a bad question no longer needs you to know what to say.** On the review page, a question that asks what the source says is called out with a one-click **Rewrite as a concept or scenario question**. **Improve question** offers the usual problems as choices (don't ask what the source says, inaccurate answer, unclear stem, too easy) and **Let the assistant check and fix it**. A 👎 on such a stem picks the reason "Only asks what the source says" by itself, there is a seventh reason (key 7) for it, and even a bare 👎 or "this question has a problem" tells the rewrite what is wrong.
+
 ## 2.5.3 — 2026-10-03
 
 - **The review page follows the reading size and width.** The Aa popover (text size, text width, typeface, background) now changes the whole question page, not only the explanation under it: the card's question, options and flashcard face scale with the size, and the column (card, toolbar, explanation) follows the width instead of being a fixed 700px, so "Wide" really is wider and "Narrow" narrower. The standard size and width look exactly as before.

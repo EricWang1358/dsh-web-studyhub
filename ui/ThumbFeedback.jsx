@@ -1,5 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
+import { asksWhatTheSourceSays } from "../lib/question-voice.js";
 
 /* 👍/👎 一键反馈。👎 立即记录并展开标签，停手 1.2 秒把新选的标签一次提交，
    服务端据此在后台改题或备更难/更基础的题。G/B 与标签数字键由这里自己处理，
@@ -12,6 +13,7 @@ const TAGS = [
   ["too-hard", "太难"],
   ["wrong-answer", "答案有误"],
   ["unclear-explanation", "解析不清"],
+  ["source-recall", "只问资料怎么说"],
 ];
 const IDLE_MS = 1200;
 function ThumbGlyph({ down = false }) {
@@ -105,6 +107,8 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
       timer.current = setTimeout(fallback, IDLE_MS);
     }
     post({ vote: next, tags: [] });
+    // A stem that asks what the source says is already known to be the problem: the reason is picked for the learner (it can still be unpicked before it is sent).
+    if (next === "down" && asksWhatTheSourceSays(run.card?.prompt) && !sent.current.has("source-recall") && !submitting.current.has("source-recall") && !tagsRef.current.includes("source-recall")) toggle("source-recall");
   }
   const tagsRef = useRef(tags);
   tagsRef.current = tags;
@@ -147,7 +151,7 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
         e.preventDefault();
         if (open) setOpen(false);
         else thumb("down");
-      } else if (open && /^[1-6]$/.test(e.key)) {
+      } else if (open && /^[1-7]$/.test(e.key)) {
         // Capture phase: the tray owns digits while it is open.
         e.preventDefault();
         e.stopImmediatePropagation();

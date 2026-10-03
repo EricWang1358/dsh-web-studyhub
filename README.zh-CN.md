@@ -6,7 +6,7 @@
 
 [交互体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [下载安装包](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) · [版本记录](CHANGELOG.zh-CN.md)
 
-**当前版本**：[2.5.3](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.3) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。全套安装后可在 DSH 插件管理器中分别启停组件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
+**当前版本**：[2.5.4](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.4) 提供完整工作台及可独立安装的题库、资料、学习、生成、音频和运行时子插件。全套安装后可在 DSH 插件管理器中分别启停组件。组件通过公开 API 协作，插件开发说明见 [架构与扩展](docs/architecture.md)。
 
 ## 五分钟上手
 
@@ -35,9 +35,9 @@
 
 ## 安装与更新
 
-**已有 DSH 桌面版或网页版？** 在当前 DSH 中打开「插件 → 添加插件」，粘贴[完整工作台安装包地址](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.3/ericwang1358-dsh-daily-flashcard-2.5.3.tgz)，安装后确认包名、版本并启用。仅安装插件，网页版无需下载客户端，继续使用原配置与模型。
+**已有 DSH 桌面版或网页版？** 在当前 DSH 中打开「插件 → 添加插件」，粘贴[完整工作台安装包地址](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.4/ericwang1358-dsh-daily-flashcard-2.5.4.tgz)，安装后确认包名、版本并启用。仅安装插件，网页版无需下载客户端，继续使用原配置与模型。
 
-**还没有 DSH？** 可选择官方桌面安装器：[Windows 64 位（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) · [macOS Apple silicon（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。Linux 或不想安装客户端的用户，可安装 Node.js **22.19 或以上**，运行 `npx @deepseek-ai/dsh web` 使用网页版。桌面版自带运行时。完整步骤见[安装与模型配置](docs/install.zh-CN.md)，也可下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.3/StudyHub-2.5.3-Setup.zh-CN.html)。
+**还没有 DSH？** 可选择官方桌面安装器：[Windows 64 位（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) · [macOS Apple silicon（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。Linux 或不想安装客户端的用户，可安装 Node.js **22.19 或以上**，运行 `npx @deepseek-ai/dsh web` 使用网页版。桌面版自带运行时。完整步骤见[安装与模型配置](docs/install.zh-CN.md)，也可下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.4/StudyHub-2.5.4-Setup.zh-CN.html)。
 
 **高级自定义**：全套安装后，在 DSH 自带插件管理器选择各组件的开关；后续添加独立子插件也使用该管理器。停用所需组件时，学习界面会隐藏对应入口或提示功能已停用，已保存的数据保留。生题需要资料、题库和生成，答题需要题库和学习；多个安装来源提供同一能力时，需停用所有来源才能完全关闭。[详细说明](docs/install.zh-CN.md#高级自定义与后续启停)
 
