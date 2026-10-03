@@ -1,12 +1,9 @@
-.study-app .live-class { min-width: 0; max-width: 1060px; margin: 0 auto; padding: 24px 20px 40px; box-sizing: border-box; }
+/* The page frame (padding, left edge, header) is the shared .page and PageHeader; this only lets the feed shrink. */
+.study-app .live-class { min-width: 0; }
 .study-app .live-class[hidden] { display: none; }
-.study-app .live-heading, .study-app .live-history-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.study-app .live-heading h1 { margin: 4px 0 10px; font-size: clamp(26px, 4cqi, 42px); }
-.study-app .live-heading p, .study-app .live-selection p { margin: 4px 0; }
-.study-app .live-heading.compact { margin-bottom: 4px; }
-.study-app .live-heading.compact h1 { margin: 0; font-size: 22px; }
-.study-app .live-heading.compact .eyebrow, .study-app .live-heading.compact .muted { display: none; }
-.study-app .live-heading > div, .study-app .live-history-row > div { min-width: 0; overflow-wrap: anywhere; }
+.study-app .live-history-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.study-app .live-selection p { margin: 4px 0; }
+.study-app .live-history-row > div { min-width: 0; overflow-wrap: anywhere; }
 
 /* Setup */
 .study-app .live-setup { margin: 24px 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
@@ -124,7 +121,6 @@
 .study-app .live-history-confirm p { overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .study-app .live-state.ok i { animation: none; } }
 @container study (max-width: 640px) {
-  .study-app .live-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
   .study-app .live-fields { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .study-app .live-history-row { flex-direction: column; align-items: flex-start; gap: 10px; }
   .study-app .live-setup { padding: 14px; }

@@ -4,7 +4,7 @@ import LiveAudioMonitor from './LiveAudioMonitor.jsx';
 import LiveNotes from './LiveNotes.jsx';
 import LiveHistory from './LiveHistory.jsx';
 import { getUiLanguage, ui, useUiLanguage, uiMessage } from './i18n.js';
-import { SetupRequired } from './components/index.js';
+import { Button, PageHeader, SetupRequired } from './components/index.js';
 import { requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
@@ -140,10 +140,10 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
     const ids = [...feed.current.querySelectorAll('[data-segment-id]')].filter((node) => range.intersectsNode(node)).map((node) => Number(node.dataset.segmentId));
     if (ids.length) { setSelected(new Set(ids)); setFollow(false); }
   }
-  return <section className="live-class" hidden={!visible} aria-label={t('课堂实录', 'Live class')}>
-    <header className={`live-heading${session ? ' compact' : ''}`}><div><p className="eyebrow">{t('听课 · 理解 · 练习', 'LISTEN · UNDERSTAND · PRACTISE')}</p>
-      <h1>{t('课堂实录', 'Live class')}</h1><p className="muted">{t('边听边看简体中文，选中重点就能出题。', 'Follow along in Simplified Chinese and turn key passages into questions.')}</p></div>
-      <button className="ghost-btn" onClick={onSettings}>{t('音频设置', 'Audio settings')}</button></header>
+  return <section className="page live-class" hidden={!visible} aria-label={t('课堂实录', 'Live class')}>
+    <PageHeader title={t('课堂实录', 'Live class')}
+      description={session ? undefined : t('边听边看简体中文，选中重点就能出题。', 'Follow along in Simplified Chinese and turn key passages into questions.')}
+      actions={<Button variant="quiet" onClick={onSettings}>{t('音频设置', 'Audio settings')}</Button>} />
     {error && <p className="alert error" role="alert">{uiMessage(error)}</p>}
     {notice && <p className="alert" role="status">{notice}</p>}
     {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={onSettings} />}
