@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StudyHub 2.5.10 — 自己的资料，扎实地学</title>
+<meta name="description" content="自己的资料、课堂录音和已有题目，变成能核对原文的练习。DSH 学习插件 · 2.5.10 本地预览。">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Tokens — borrowed from the product itself (ui/style.css), so the
+   page and the app speak one visual language.
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --bg:#14171a;
+  --bg-deep:#101316;
+  --surface:#1d2126;
+  --glass:#242930d9;
+
+  --line-soft:#ffffff10;
+  --line:#2f353d;
+  --line-strong:#454c56;
+
+  --text:#e8eaed;
+  --dim:#b6bcc6;
+  --muted:#8b929c;
+  --faint:#7d8592;
+
+  --accent:#6d72ff;
+  --accent-soft:#8b8bff;
+  --accent-glow:#6d72ff40;
+
+  /* mastery scale — used only where mastery is being explained */
+  --ok:#4fb287;
+  --info:#61a8dd;
+  --warn:#deb05a;
+  --bad:#e0736a;
+  --none:#5b626c;
+
+  /* type scale, ratio 1.25 */
+  --t-xs:.75rem; --t-sm:.875rem; --t-base:1rem; --t-md:1.25rem;
+  --t-2xl:2.441rem; --t-3xl:3.052rem;
+
+  --radius:14px; --radius-sm:10px;
+  --ease:cubic-bezier(.2,.7,.3,1);
+  --shadow:0 28px 64px -28px #000000e6;
+
+  --rail:190px;      /* the thread owns a real column, labels have a lane */
+  --rail-x:58px;     /* where the line sits inside that column */
+  --rail-amp:13px;   /* how far the thread bows out; labels clear this */
+
+  --sans:"Inter","PingFang SC","Microsoft YaHei","Noto Sans SC","Hiragino Sans GB",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:var(--t-base);
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,p,figure{margin:0}
+/* A long unbroken token (a URL, an identifier) must wrap, not widen its card. */
+h1,h2,p,figcaption,.opt,.step-d,.step-t,.rail-label{overflow-wrap:anywhere}
+/* height:auto is load-bearing: with width/height attributes set, omitting it
+   pins the rendered height to the attribute while max-width shrinks the width,
+   which stretches every screenshot vertically. */
+img{display:block;max-width:100%;height:auto}
+a{color:inherit}
+::selection{background:var(--accent-glow);color:#fff}
+
+
+
+/* ── The evidence thread: progress, navigation, and the page's spine ── */
+.rail{
+  position:fixed; left:0; top:0; bottom:0; width:var(--rail);
+  z-index:40; pointer-events:none;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+/* The thread is drawn, not ruled: a single path the whole page hangs from,
+   with the traversed part growing along it and a head that marks "here". */
+/* An <svg> is a replaced element: top+bottom will not stretch it, it falls back
+   to its 300x150 intrinsic box. Give it an explicit height matching .rail-nodes. */
+.rail-svg{position:absolute;top:8vh;left:0;width:100%;height:calc(100% - 16vh);overflow:visible}
+.rail-base{fill:none;stroke:var(--line);stroke-width:1}
+.rail-glow{fill:none;stroke:var(--accent);stroke-width:6;opacity:.16;filter:blur(4px)}
+.rail-prog{fill:none;stroke:url(#railGrad);stroke-width:1.6;stroke-linecap:round}
+
+.rail-nodes{
+  position:absolute; left:0; right:0; top:8vh; bottom:8vh;
+  display:flex; flex-direction:column; justify-content:space-between;
+  pointer-events:auto;
+}
+.rail-node{
+  appearance:none; border:0; background:none; padding:7px 0;
+  display:flex; align-items:center; cursor:pointer;
+  position:relative; text-align:left; flex:1 1 0; min-height:0;
+}
+.rail-dot{
+  position:absolute; left:var(--rail-x); transform:translateX(-50%);
+  width:9px; height:9px; border-radius:50%;
+  border:1px solid var(--line-strong); background:var(--bg);
+  transition:all .45s var(--ease);
+}
+.rail-label{
+  margin-left:calc(var(--rail-x) + var(--rail-amp) + 16px);
+  font-size:10px; letter-spacing:.15em; font-weight:600;
+  color:var(--faint); white-space:nowrap;
+  opacity:.45;
+  transition:opacity .4s var(--ease),color .4s var(--ease);
+}
+/* passed */
+.rail-node.is-past .rail-dot{background:var(--accent);border-color:var(--accent);opacity:.55}
+.rail-node.is-past .rail-label{opacity:.7;color:var(--muted)}
+/* here */
+.rail-node.is-active .rail-dot{
+  background:var(--accent-soft); border-color:var(--accent-soft);
+  transform:translateX(-50%) scale(1.35);
+  box-shadow:0 0 0 5px var(--accent-glow);
+}
+.rail-node.is-active .rail-label{opacity:1;color:var(--text)}
+.rail-node:hover .rail-label,
+.rail-node:focus-visible .rail-label{opacity:1;color:var(--dim)}
+.rail-node:focus-visible{outline:2px solid var(--accent-soft);outline-offset:4px;border-radius:4px}
+
+/* Convinced early? Don't make them scroll five screens to act on it. */
+.jump{
+  position:fixed; top:calc(26px + env(safe-area-inset-top,0px)); right:28px; z-index:50;
+  appearance:none; cursor:pointer; font:inherit;
+  font-size:var(--t-xs); font-weight:600; letter-spacing:.06em;
+  color:var(--dim); background:var(--glass); backdrop-filter:blur(14px);
+  border:1px solid var(--line-strong); border-radius:999px; padding:9px 18px;
+  display:inline-flex; align-items:center; gap:8px;
+  opacity:0; transform:translateY(-8px); pointer-events:none;
+  transition:opacity .45s var(--ease),transform .45s var(--ease),
+             border-color .3s var(--ease),color .3s var(--ease);
+}
+.jump.on{opacity:1;transform:none;pointer-events:auto}
+.jump:hover{border-color:var(--accent-soft);color:var(--text)}
+.jump:focus-visible{outline:2px solid var(--accent-soft);outline-offset:3px}
+.jump span{color:var(--accent-soft)}
+@media (max-width:520px){.jump{top:calc(16px + env(safe-area-inset-top,0px));right:16px;padding:8px 14px}}
+
+/* ── Section shell ── */
+main{position:relative;z-index:1;padding-left:var(--rail)}
+.sec{
+  min-height:100svh;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:11vh clamp(24px,3vw,48px) 11vh 0;
+  max-width:1180px;
+  position:relative;
+}
+/* Sections with a tall figure may exceed a screen, but never fall short of one:
+   one claim per screen is the whole pacing rule, and a short section lets the
+   next heading bleed into the frame. */
+.sec--auto{padding-top:13vh;padding-bottom:13vh}
+.sec--wide{max-width:1320px}
+
+.eyebrow{
+  display:flex; align-items:center; gap:12px;
+  font-size:11px; letter-spacing:.2em; font-weight:600;
+  color:var(--muted); margin-bottom:22px;
+}
+.eyebrow b{color:var(--accent-soft);font-weight:600;font-variant-numeric:tabular-nums}
+@media (min-width:1101px){.eyebrow em{display:none}}
+.eyebrow em{font-style:normal}
+.eyebrow::after{content:"";flex:0 0 48px;height:1px;background:var(--line-strong)}
+
+h2{
+  font-size:clamp(1.85rem,4.2vw,var(--t-3xl));
+  line-height:1.2; font-weight:700; letter-spacing:-.015em;
+  max-width:19ch;
+}
+.lede{
+  margin-top:24px; max-width:54ch;
+  font-size:clamp(1rem,1.5vw,var(--t-md));
+  color:var(--dim); line-height:1.8;
+}
+.note{margin-top:20px;max-width:54ch;font-size:var(--t-sm);color:var(--muted);line-height:1.8}
+.hi{color:var(--text);font-weight:600}
+code{
+  font-family:var(--mono); font-size:.86em;
+  background:#ffffff0d; border:1px solid var(--line);
+  border-radius:6px; padding:.15em .45em; color:var(--dim);
+}
+
+/* Text column + evidence column */
+.split{
+  display:grid; gap:clamp(28px,3.5vw,56px);
+  grid-template-columns:minmax(0,44ch) minmax(0,1fr);
+  align-items:start;
+}
+.split .col-b{padding-top:clamp(4px,2.5vw,36px)}
+/* A screenshot is evidence, not a backdrop: keep it a contained object whose
+   UI type does not outrank the page's own body copy. */
+.split .col-b figure{max-width:760px}
+.split figure{margin-top:0}
+@media (max-width:1100px){
+  .split{grid-template-columns:1fr}
+  .split .col-b{padding-top:8px}
+}
+
+/* ── Hero ── */
+.hero{min-height:100svh;max-width:none;justify-content:center}
+.hero-grid{
+  display:grid; gap:clamp(32px,4vw,72px);
+  grid-template-columns:minmax(0,500px) minmax(0,1fr);
+  align-items:center;
+}
+.hero-mark{
+  display:inline-flex;align-items:center;gap:12px;
+  font-size:11px;letter-spacing:.2em;font-weight:600;color:var(--muted);
+  margin-bottom:32px;
+}
+
+.hero h1{
+  font-size:clamp(2.5rem,6.6vw,4.9rem);
+  line-height:1.06; font-weight:700; letter-spacing:-.03em;
+}
+.hero-lede{margin-top:28px;max-width:46ch;font-size:clamp(1rem,1.6vw,1.22rem);color:var(--dim);line-height:1.75}
+.hero-meta{
+  margin-top:38px; display:flex; flex-wrap:wrap; gap:10px 24px;
+  font-size:var(--t-sm); color:var(--muted);
+}
+.hero-meta i{font-style:normal;color:var(--faint)}
+.scroll-cue{
+  margin-top:34px; display:flex; align-items:center; gap:10px;
+  font-size:11px; letter-spacing:.16em; color:var(--faint);
+}
+.scroll-cue::before{
+  content:""; width:1px; height:24px;
+  background:linear-gradient(180deg,var(--line-strong),transparent);
+}
+
+/* ── The evidence pair: source → question, shown not described ── */
+.pair{display:grid;gap:0;max-width:600px}
+.pair-card{
+  background:var(--glass); border:1px solid var(--line);
+  border-radius:var(--radius); padding:clamp(18px,1.8vw,24px);
+  backdrop-filter:blur(14px);
+}
+.pair-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  font-size:var(--t-xs);color:var(--muted);letter-spacing:.05em;
+  padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line-soft);
+}
+.pair-head b{font-weight:600;color:var(--dim)}
+.pair-text{font-size:var(--t-sm);line-height:2;color:var(--muted)}
+.pair-q{font-size:var(--t-sm);font-weight:600;line-height:1.65;margin-bottom:14px;color:var(--text)}
+.pair-link{
+  display:flex;flex-direction:column;align-items:center;gap:0;
+  padding:0;height:66px;justify-content:center;position:relative;
+}
+.pair-link::before,.pair-link::after{
+  content:"";position:absolute;left:50%;width:1px;
+  background:linear-gradient(180deg,var(--accent-soft),var(--accent-glow));
+}
+.pair-link::before{top:0;height:16px}
+.pair-link::after{bottom:0;height:16px;background:linear-gradient(180deg,var(--accent-glow),var(--accent-soft))}
+.pair-chip{
+  font-size:10px;letter-spacing:.12em;font-weight:600;
+  color:var(--accent-soft);background:#6d72ff14;
+  border:1px solid #6d72ff40;border-radius:999px;padding:5px 13px;
+  white-space:nowrap;
+}
+
+/* A citation mark that can never be mistaken for a text selection. */
+mark{
+  background:#6d72ff1f; color:var(--text);
+  border-left:2px solid var(--accent-soft);
+  padding:2px 5px 2px 7px; border-radius:0 4px 4px 0;
+  -webkit-box-decoration-break:clone; box-decoration-break:clone;
+  transition:background .55s var(--ease),color .55s var(--ease),border-color .55s var(--ease);
+}
+mark.dim{background:transparent;color:var(--muted);border-left-color:transparent}
+
+/* ── Figures ── */
+figure{margin:clamp(36px,4vw,56px) 0 0}
+.shot{
+  border-radius:var(--radius); border:1px solid var(--line);
+  box-shadow:var(--shadow); overflow:hidden; background:var(--surface);
+}
+.shot img{width:100%}
+/* Crops the app's own modal chrome out of a screenshot used as evidence. */
+.band{max-height:270px;overflow:hidden;position:relative}
+.band img{margin-top:-52px;margin-bottom:-40px}
+.band::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:56px;
+  background:linear-gradient(180deg,transparent,#1d2126);
+}
+.real{display:inline-block;margin-right:10px;padding:2px 8px;border:1px solid var(--line-strong);border-radius:999px;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62ch;line-height:1.7}
+
+/* ── Citation demo ── */
+.demo{
+  margin-top:clamp(36px,4vw,56px);
+  display:grid; gap:20px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  align-items:start;
+}
+@media (max-width:900px){.demo{grid-template-columns:1fr}}
+.card{
+  background:var(--glass); border:1px solid var(--line);
+  border-radius:var(--radius); padding:clamp(20px,2.2vw,28px);
+  backdrop-filter:blur(14px);
+}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  font-size:var(--t-xs);color:var(--muted);letter-spacing:.06em;
+  padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid var(--line-soft);
+}
+.card-head b{font-weight:600;color:var(--dim)}
+.src-body p{font-size:var(--t-sm);line-height:2.05;color:var(--muted)}
+.src-body .ctx{transition:opacity .55s var(--ease)}
+.src-body.is-lit .ctx{opacity:.32}
+.loc{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;
+  color:var(--faint);border:1px solid transparent;border-radius:999px;
+  padding:3px 9px;transition:color .5s var(--ease),border-color .5s var(--ease),background .5s var(--ease);
+}
+.loc.on{color:var(--accent-soft);border-color:#6d72ff45;background:#6d72ff14}
+.q{font-size:var(--t-base);font-weight:600;line-height:1.6;margin-bottom:18px}
+.opt{
+  display:flex;gap:12px;padding:11px 14px;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  margin-bottom:9px;font-size:var(--t-sm);color:var(--dim);
+}
+.opt i{font-style:normal;color:var(--faint);font-family:var(--mono);font-size:var(--t-xs);padding-top:3px}
+.opt-why{display:block;margin-top:5px;font-size:var(--t-xs);color:var(--faint);line-height:1.7}
+.opt.correct{border-color:#4fb28766;background:#4fb2870f;color:var(--text)}
+.opt.correct i{color:var(--ok)}
+
+.cite{
+  margin-top:16px;display:inline-flex;align-items:center;gap:9px;
+  appearance:none;cursor:pointer;
+  background:#6d72ff14;border:1px solid #6d72ff45;color:var(--accent-soft);
+  border-radius:999px;padding:8px 16px;font:inherit;font-size:var(--t-xs);
+  font-weight:600;letter-spacing:.03em;
+  transition:background .3s var(--ease),border-color .3s var(--ease),transform .2s var(--ease);
+}
+.cite:hover{background:#6d72ff26;border-color:var(--accent-soft)}
+.cite:active{transform:translateY(1px)}
+.cite:focus-visible{outline:2px solid var(--accent-soft);outline-offset:3px}
+.cite-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.demo-hint{margin-top:14px;font-size:var(--t-xs);color:var(--accent-soft);line-height:1.7}
+.demo-hint.off{color:var(--faint)}
+
+/* The ungrounded question, section 01: deliberately inert and unverifiable. */
+.card--void{border-style:dashed;background:#1d212680;backdrop-filter:none}
+.void-q{color:var(--muted);font-weight:600}
+.void-opt{border-style:dashed;color:var(--muted);margin-bottom:0}
+.void-opt i{color:var(--faint)}
+.void-src{
+  margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);
+  font-size:var(--t-xs);color:var(--faint);font-style:italic;
+}
+
+/* ── Facts ── */
+.facts{
+  margin-top:clamp(36px,4vw,52px);
+  display:grid;gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+}
+.fact{background:var(--surface);padding:26px clamp(18px,2vw,28px)}
+.fact-n{
+  font-size:clamp(1.7rem,3.2vw,var(--t-2xl));font-weight:700;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15;
+}
+.fact-n small{font-size:.42em;font-weight:600;color:var(--muted);margin-left:5px;letter-spacing:0}
+.fact-k{margin-top:8px;font-size:var(--t-xs);color:var(--muted);letter-spacing:.04em}
+.facts-cap{
+  margin-top:16px;font-size:var(--t-xs);color:var(--faint);
+  font-family:var(--mono);line-height:1.9;
+}
+.facts-cap s{color:#5a616b}
+
+/* ── Mastery legend, SM-2, heatmap ── */
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:26px;font-size:var(--t-xs);color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend b{width:8px;height:8px;border-radius:50%;display:inline-block}
+.sm2 svg{width:100%;height:auto;max-width:540px;display:block}
+.sm2-bar{
+  display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;
+  margin-top:18px;max-width:540px;
+}
+.sm2-btns{display:flex;gap:8px}
+.pill{
+  appearance:none;cursor:pointer;font:inherit;
+  font-size:var(--t-xs);font-weight:600;letter-spacing:.03em;
+  padding:8px 16px;border-radius:999px;
+  border:1px solid var(--line-strong);background:transparent;color:var(--dim);
+  transition:border-color .25s var(--ease),background .25s var(--ease),
+             color .25s var(--ease),transform .15s var(--ease);
+}
+.pill:hover{color:var(--text)}
+.pill:active{transform:translateY(1px)}
+.pill:focus-visible{outline:2px solid var(--accent-soft);outline-offset:3px}
+@media (pointer:coarse){
+  .pill,.jump,.cite{min-height:44px;padding-top:12px;padding-bottom:12px}
+}
+.pill--ok:hover{border-color:var(--ok);background:#4fb2871a}
+.pill--bad:hover{border-color:var(--bad);background:#e0736a1a}
+.pill--ghost{color:var(--faint);border-color:var(--line)}
+.sm2-read{display:flex;align-items:center;gap:10px;font-size:var(--t-sm);color:var(--muted)}
+.sm2-next b{color:var(--text)}
+.chip{
+  font-size:10px;font-weight:600;letter-spacing:.08em;
+  padding:4px 10px;border-radius:999px;border:1px solid;
+  transition:color .35s var(--ease),border-color .35s var(--ease),background .35s var(--ease);
+}
+.chip[data-level="none"]{color:var(--none);border-color:#5b626c55;background:#5b626c14}
+.chip[data-level="bad"]{color:var(--bad);border-color:#e0736a55;background:#e0736a14}
+.chip[data-level="warn"]{color:var(--warn);border-color:#deb05a55;background:#deb05a14}
+.chip[data-level="info"]{color:var(--info);border-color:#61a8dd55;background:#61a8dd14}
+.chip[data-level="ok"]{color:var(--ok);border-color:#4fb28755;background:#4fb28714}
+/* Bars grow from their baseline, so the state change is a motion, not a redraw. */
+.sm2-bar-rect{transform-box:fill-box;transform-origin:bottom;transition:transform .45s var(--ease),fill .35s var(--ease),opacity .35s var(--ease)}
+.sm2-label{transition:fill .35s var(--ease),opacity .35s var(--ease)}
+.fig-cap{margin-top:12px;font-size:var(--t-xs);color:var(--faint);max-width:44ch;line-height:1.7}
+.graph-fig svg{width:100%;height:auto;max-width:620px;display:block}
+.graph-bar{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.graph-say{
+  margin-top:14px;max-width:52ch;font-size:var(--t-sm);
+  color:var(--muted);line-height:1.75;min-height:2.6em;
+}
+.graph-say b{color:var(--text);font-weight:600}
+.graph-node,.graph-edge{transition:opacity .4s var(--ease)}
+.graph-dot{transition:fill .5s var(--ease),r .5s var(--ease)}
+.graph-box{transition:stroke .5s var(--ease),fill .5s var(--ease)}
+.graph-sub{transition:fill .4s var(--ease)}
+.graph-edge--pre{stroke-dasharray:4 4}
+.graph-edge--fire{animation:preFlow 1.1s var(--ease) forwards}
+@keyframes preFlow{from{stroke-dashoffset:24;opacity:.3}to{stroke-dashoffset:0;opacity:1}}
+@media (prefers-reduced-motion:reduce){.graph-edge--fire{animation:none;opacity:1}}
+
+/* ── Steps, CTA ── */
+.steps{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.step{background:var(--surface);padding:22px clamp(18px,2.2vw,26px);display:flex;gap:18px;align-items:baseline}
+.step-n{font-family:var(--mono);font-size:var(--t-xs);color:var(--accent-soft);flex:0 0 auto;padding-top:2px}
+.step-t{font-weight:600;font-size:var(--t-sm)}
+.step-d{margin-top:6px;font-size:var(--t-sm);color:var(--muted);line-height:1.75}
+.step-d code{font-size:.82em}
+.cmd{
+  margin-top:clamp(28px,3vw,40px);max-width:600px;
+  background:var(--bg-deep);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;
+}
+.cmd-bar{
+  display:flex;align-items:center;gap:8px;padding:12px 16px;
+  border-bottom:1px solid var(--line-soft);
+  font-size:var(--t-xs);color:var(--faint);letter-spacing:.06em;
+}
+.cmd-bar i{width:9px;height:9px;border-radius:50%;background:var(--line-strong);display:inline-block}
+.cmd pre{margin:0;padding:18px 16px;overflow-x:auto;font-family:var(--mono);font-size:var(--t-sm);line-height:2;color:var(--dim)}
+.cmd pre b{color:var(--accent-soft);font-weight:500;-webkit-user-select:none;user-select:none}
+.links{margin-top:30px;display:flex;flex-wrap:wrap;gap:12px}
+.btn{
+  display:inline-flex;align-items:center;gap:10px;padding:13px 24px;
+  border-radius:999px;font-size:var(--t-sm);font-weight:600;text-decoration:none;
+  border:1px solid var(--line-strong);color:var(--text);
+  transition:border-color .3s var(--ease),background .3s var(--ease),transform .2s var(--ease);
+}
+.btn:hover{border-color:var(--accent-soft);background:#6d72ff12}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:3px}
+.btn--go{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn--go:hover{background:var(--accent-soft);border-color:var(--accent-soft)}
+
+footer{
+  padding:44px clamp(24px,3vw,48px) 60px 0;
+  border-top:1px solid var(--line-soft);
+  margin-left:var(--rail);
+  display:flex;flex-wrap:wrap;gap:12px 28px;
+  font-size:var(--t-xs);color:var(--faint);
+  position:relative;z-index:1;
+}
+
+/* ── Entrances ──
+   At rest the page is fully visible. Only once JS has taken over (and can
+   guarantee it will reveal them again) do sections start hidden — so a
+   thumbnail, a no-JS reader or a failed script still sees the whole page. */
+.js-anim .rise{opacity:0;transform:translateY(20px)}
+.js-anim .rise.in{opacity:1;transform:none;transition:opacity .8s var(--ease),transform .8s var(--ease)}
+.js-anim .rise.in.d1{transition-delay:.07s}
+.js-anim .rise.in.d2{transition-delay:.14s}
+.js-anim .rise.in.d3{transition-delay:.21s}
+
+/* ── Responsive ── */
+@media (max-width:1100px){
+  :root{--rail:30px;--rail-x:15px;--rail-amp:4px}
+  .rail-label{display:none}
+  .rail-node{padding:5px 0}
+  .rail-dot{width:7px;height:7px}
+  .sec{padding:10vh 24px 10vh 0}
+  footer{padding-left:0}
+  h2{max-width:none}
+  .hero-grid{grid-template-columns:1fr;gap:clamp(36px,6vw,52px)}
+  .pair{max-width:none}
+}
+@media (max-width:1100px){
+  .scroll-cue{display:none}
+  .src-body .ctx{display:none}
+  .src-body p::before{content:"…… ";color:var(--faint)}
+  .demo .opt-why{display:none}
+}
+@media (max-width:520px){
+  .hero-meta{gap:8px 18px}
+  .facts{grid-template-columns:1fr}
+  .step{flex-direction:column;gap:8px}
+  .pair-link{height:54px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  .rise{opacity:1;transform:none}
+}
+.language-switch{position:fixed;top:24px;left:var(--rail);z-index:60;font-size:var(--t-xs);color:var(--dim);text-decoration:none;background:var(--surface);border:1px solid var(--line-strong);border-radius:999px;padding:7px 14px}
+.language-switch:focus-visible,.skip-link:focus-visible,a:focus-visible{outline:2px solid var(--accent-soft);outline-offset:4px}
+.skip-link{position:fixed;top:12px;left:12px;z-index:100;padding:8px 14px;background:var(--surface);transform:translateY(-150%)}
+.skip-link:focus{transform:none}
+.btn,.pill{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.col-b,.step>div,.sm2-read{min-width:0}
+.graph-say,figcaption,.fig-cap,.note{overflow-wrap:anywhere}
+@media(prefers-reduced-transparency:reduce){.jump{background:var(--surface);backdrop-filter:none}}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">跳到正文</a>
+<a class="language-switch" href="en.html" hreflang="en">English</a>
+
+<button class="jump" id="jump" type="button" disabled>安装 <span>↓</span></button>
+
+<nav class="rail" aria-label="章节导航">
+  <svg class="rail-svg" id="railSvg" aria-hidden="true" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="railGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#8b8bff"></stop>
+        <stop offset="1" stop-color="#6d72ff"></stop>
+      </linearGradient>
+    </defs>
+    <path class="rail-base" id="railBase"></path>
+    <path class="rail-glow" id="railGlow"></path>
+    <path class="rail-prog" id="railProg"></path>
+  </svg>
+  <div class="rail-nodes" id="railNodes"></div>
+</nav>
+
+<main id="main">
+  <section class="sec hero" id="hero" data-stage="INTRO">
+    <div class="hero-grid"><div>
+      <div class="hero-mark rise">StudyHub · 2.5.10 本地预览</div>
+      <h1 class="rise d1">自己的资料，<br>扎实地学</h1>
+      <p class="hero-lede rise d2">把课程资料、课堂录音和已有题目，变成<span class="hi">能回到原文核对</span>的练习。读资料、检查草稿、答题和复习，在 DeepSeek Harness（DSH）里连起来。</p>
+      <div class="hero-meta rise d3"><span>MIT · 开源</span><span>桌面 / 网页 DSH</span><span>SM-2</span><span>English / 中文</span></div>
+      <div class="links rise d3"><a class="btn btn--go" href="#start">安装与配置 →</a><a class="btn" href="https://daily-flashcard-demo.ziangw1358.chatgpt.site" target="_blank" rel="noopener">试用静态演示</a></div>
+      <p class="note rise">演示用示例资料和预置回复，无需模型密钥；它不是你的真实学习库。</p>
+      <div class="scroll-cue rise d3">向下滚动 · 或按 ↓</div>
+    </div><div class="pair rise d2">
+      <div class="pair-card"><div class="pair-head"><b>示例资料 · 设计模式</b><span>原文片段</span></div><p class="pair-text">Caretaker 保管快照，不读取也不修改内容。<mark>保管历史与恢复状态，需要不同的访问权限。</mark></p></div>
+      <div class="pair-link"><span class="pair-chip">这段证据 → 这道题</span></div>
+      <div class="pair-card"><div class="pair-head"><b>理解与迁移</b><span>单选示例</span></div><p class="pair-q">为什么 Caretaker 和 Originator 需要不同的快照访问权限？</p><div class="opt correct"><i>C</i><span>分离快照保管与状态恢复的访问需要</span></div></div>
+    </div></div>
+  </section>
+  <section class="sec" id="problem" data-stage="EVIDENCE">
+    <div class="eyebrow rise"><b>01</b><em>EVIDENCE</em></div><h2 class="rise d1">先看依据，<br>再相信答案</h2>
+    <div class="split"><div><p class="lede rise d2">AI 可以写出看似合理的题目。StudyHub 把选中的资料、考点、题目和审阅结果连在一起，让你检查答案为什么成立。</p><p class="note rise d3">程序检查引用位置、题目结构和部分质量问题；模型审阅内容。<span class="hi">这能发现一些缺陷，不能保证每个答案正确。</span>草稿显示遗漏原因，资料不足时不会凭空补足数量。</p></div>
+    <div class="col-b"><figure class="rise d3"><div class="card card--void"><div class="card-head"><b>模糊的来源</b><span>无法核对</span></div><p class="q void-q">为什么快照的保管者不应读取内容？</p><div class="opt void-opt"><i>?</i><span>一个听起来合理的答案</span></div><p class="void-src">来源：根据相关资料整理</p></div><figcaption>“相关资料”是哪一句？下一个示例把依据摆在答案旁边。</figcaption></figure></div></div>
+  </section>
+  <section class="sec sec--auto" id="capture" data-stage="MATERIALS">
+    <div class="eyebrow rise"><b>02</b><em>MATERIALS</em></div><h2 class="rise d1">课件、笔记、录音，<br>放进同一门课</h2>
+    <div class="split"><div><p class="lede rise d2">导入 PDF、Word（.docx）、PowerPoint（.pptx）、Markdown、HTML 或 TXT；已有题目可以用 JSON 导入。按文档、页或章节选出题范围，课程设置保存评分说明、重点主题和考试时间。</p>
+    <p class="note rise d2">普通 PDF 入口限 8 MB / 200 页，Word 和 PowerPoint 限 40 MB 且只提取文字。大书可用 MinerU 转换或导入转换结果；云端转换会上传 PDF，需先同意。图片、扫描件和复杂排版要核对提取结果。</p>
+    <p class="note rise d3">录音和字幕走音频组件；实时课堂转录目前需要 Gemini。转录、校对和翻译是不同步骤，密钥与收费由对应服务商决定。 <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/audio-import.md" target="_blank" rel="noopener">录音说明 ↗</a></p></div>
+    <div class="col-b"><figure class="rise d3"><div class="shot"><img src="assets/shot-import-960.webp" srcset="assets/shot-import-960.webp 960w, assets/shot-import-1600.webp 1600w" sizes="(max-width:1100px) 90vw, 45vw" alt="示例库的录音转录与资料导入面板" loading="lazy" width="1600" height="1295"></div><figcaption>现有应用 · 示例资料</figcaption></figure></div></div>
+  </section>
+  <section class="sec sec--auto sec--wide" id="grounded" data-stage="QUESTIONS">
+    <div class="eyebrow rise"><b>03</b><em>QUESTIONS</em></div><h2 class="rise d1">从原文到练习，<br>每一步可检查</h2>
+    <p class="lede rise d2">闪卡、单选、多选、填空、开放问答，还有带评分标准的案例分析。常规出题会规划考点、分批写题、独立审阅，并保留通过的结果；审阅失败、资料不足或时间用完，都会报告实际完成数量。</p>
+    <div class="demo" id="demo"><div class="card rise d2"><div class="card-head"><b>示例原文 · 设计模式</b><span class="loc" id="loc">第 1 段</span></div><div class="src-body" id="srcBody"><p><span class="ctx">快照保存对象过去的状态。 </span><mark>Caretaker 保管快照，不读取也不修改内容。</mark> <mark>Originator 读取快照，恢复自身状态。</mark></p></div></div>
+    <div class="card rise d3"><div class="card-head"><b>单选示例</b><span>理解与迁移</span></div><p class="q">为什么 Caretaker 和 Originator 需要不同的快照访问权限？</p><div class="opt correct"><i>C</i><span>分离快照保管与状态恢复的访问需要</span></div><button class="cite" id="citeBtn" type="button"><span class="cite-dot"></span>查看引用来源</button><p class="demo-hint" id="citeHint">点一下，查看这道题的依据</p></div></div>
+    <p class="note rise">这是可操作的机制示例，不读取你的文件。真实引用能打开相应原文与位置；资料更新后，当前列表使用新版，带旧来源或版本的历史引用仍可读旧文。</p>
+    <p class="note rise">草稿默认“保存并发布”不等待新的模型审阅，未审阅题会标明状态；需要严格检查时使用审阅发布。补题保留既有进度，有缺陷的题留在草稿中，可继续生成或后台修复。 <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/assessment-quality.md" target="_blank" rel="noopener">审阅与发布说明 ↗</a></p>
+  </section>
+  <section class="sec sec--auto" id="coach" data-stage="LEARNING">
+    <div class="eyebrow rise"><b>04</b><em>LEARNING</em></div><h2 class="rise d1">答完题，<br>把没懂的地方弄清楚</h2>
+    <div class="split"><div><p class="lede rise d2">客观题按规则判分，案例题按评分标准调用模型批改。读解析、打开原文，或点“帮我弄懂”请陪学助手给出解释、例子和小检查；学习流把短讲解与练习排在一起。</p><p class="note rise d2">错题与待巩固、统计和模拟考试帮助找薄弱点。模拟考试包含客观题卷、案例卷和口头面试；案例时间默认继承课程设置，也可按本次练习调整。</p><p class="note rise d3">陪学、追问、改题和变式会调用模型。改题可能改变学习目标与评分依据，进度是否保留取决于内容变化；先看改动和结果，再继续练习。</p></div>
+    <div class="col-b"><figure class="rise d3"><div class="shot"><img src="assets/shot-explain-960.webp" srcset="assets/shot-explain-960.webp 960w, assets/shot-explain-1470.webp 1470w" sizes="(max-width:1100px) 90vw, 45vw" alt="示例题的作答反馈与解析" loading="lazy" width="1470" height="1180"></div><figcaption>现有应用 · 示例题反馈</figcaption></figure></div></div>
+  </section>
+  <section class="sec sec--auto" id="structure" data-stage="CONNECTIONS">
+    <div class="eyebrow rise"><b>05</b><em>CONNECTIONS</em></div><h2 class="rise d1">一门课的资料与题，<br>能互相找到</h2>
+    <div class="split"><div><p class="lede rise d2">课程组织资料与题组；原文中的段落和表格可以找到关联题目与讲解。知识骨架、笔记和任务保存学习过程，前置题关系把一个问题拆成可练的步骤。</p><p class="note rise d2">前置关系可编辑，循环会被拒绝。通过一道题时，两层内符合条件的前置题会得到一次通过记录；尚未到期且不薄弱的题不动。下面只展示这条规则，不代表真实学习成绩。</p></div>
+    <div class="col-b"><figure class="graph-fig rise d2"><svg id="graphsvg" viewBox="0 0 620 286" role="img" aria-label="前置题关联示例：两道前置题连到一个目标题"></svg><div class="graph-bar"><button type="button" class="pill pill--ok" id="graphPlay">答对右边这道题 →</button><button type="button" class="pill pill--ghost" id="graphReset">重来</button></div><p class="graph-say" id="graphSay" aria-live="polite"></p><figcaption>示例关系图 · 在真实知识骨架里查看与编辑关联。</figcaption></figure></div></div>
+  </section>
+  <section class="sec sec--auto" id="retention" data-stage="REVIEW">
+    <div class="eyebrow rise"><b>06</b><em>REVIEW</em></div><h2 class="rise d1">什么时候再练，<br>由作答与设置决定</h2>
+    <div class="split"><div><p class="lede rise d2">SM-2 用作答评分、间隔和难度系数安排复习。今日学习优先考虑到期与薄弱题，再加入新题；课程路径、复习、模拟考试各有自己的选题方式，轮次与新题上限可配置。</p><p class="note rise d2">掌握度从复习状态和有效作答推算，不是考试认证。常规题间隔达到 6 天显示“熟悉”、21 天显示“已掌握”；自评 5 分可立即标为已掌握，仍按间隔复习。</p><div class="legend rise d3"><span><b style="background:var(--bad)"></b>薄弱</span><span><b style="background:var(--warn)"></b>学习中</span><span><b style="background:var(--info)"></b>熟悉</span><span><b style="background:var(--ok)"></b>已掌握</span><span><b style="background:var(--none)"></b>未学</span></div></div>
+    <div class="col-b"><div class="sm2 rise d2"><svg id="sm2svg" viewBox="0 0 520 108" role="img" aria-label="默认 SM-2 复习间隔的交互示例"></svg><div class="sm2-bar"><div class="sm2-btns"><button type="button" class="pill pill--ok" data-sm2="pass">答对</button><button type="button" class="pill pill--bad" data-sm2="fail">答错</button><button type="button" class="pill pill--ghost" data-sm2="reset">重来</button></div><p class="sm2-read" id="sm2Read" aria-live="polite"><span class="sm2-next" id="sm2Next">还没学过</span><b class="chip" id="sm2Chip" data-level="none">未学</b></p></div><p class="fig-cap">使用产品的默认排期函数：答对计 4 分，答错计 1 分。仅存在网页内存中。</p></div></div></div>
+  </section>
+  <section class="sec sec--auto" id="speed" data-stage="DATA & COST">
+    <div class="eyebrow rise"><b>07</b><em>DATA & COST</em></div><h2 class="rise d1">资料存在哪里，<br>费用花在哪里</h2>
+    <div class="facts rise d2"><div class="fact"><div class="fact-n">MIT</div><div class="fact-k">StudyHub 免费开源</div></div><div class="fact"><div class="fact-n">0<small> 次模型调用</small></div><div class="fact-k">浏览资料、客观题判分与排期</div></div><div class="fact"><div class="fact-n">API</div><div class="fact-k">生成与 AI 辅助按服务商计费</div></div></div>
+    <p class="lede rise d2">学习库存为运行 DSH 的电脑或服务器上的文件夹。选中的资料、题目与作答会在对应 AI 功能中发给模型；音频发给转录服务，选择 MinerU 云转换时 PDF 发给 MinerU。<span class="hi">本地存储不等于所有处理都离线。</span></p>
+    <p class="note rise">生成前的 token 估算在本地计算，完成后显示能取得的实际用量；推理程度、重试、分批与服务商缓存都会影响费用。Claude、ChatGPT 或 Codex 订阅不能直接当成 DSH 的 API 密钥；Coding Plan 是否允许学习用途，要看服务商条款。</p>
+    <p class="note rise">备份包含资料、题目与复习记录；按引用附加的外部原文件不会被复制进备份。转录密钥放在学习库外，不进入导出。可选检索扩展使用本地索引。 <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/README.md#data-and-privacy" target="_blank" rel="noopener">数据与隐私 ↗</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/token-usage.md" target="_blank" rel="noopener">用量说明 ↗</a></p>
+    <p class="note rise">浏览资料、客观题判分和复习排期无需等待模型。出题在后台进行，通过检查的结果会保留；速度取决于设备、资料规模和模型响应。</p>
+  </section>
+  <section class="sec sec--auto" id="start" data-stage="INSTALL">
+    <div class="eyebrow rise"><b>08</b><em>INSTALL</em></div><h2 class="rise d1">先装 DSH，<br>再启用 StudyHub</h2>
+    <div class="split"><div><p class="lede rise d2">已有 DSH 就只装插件，保留现有会话、模型、工作区和配置。StudyHub 使用 DSH 0.2（≥0.2.0-rc.2，&lt;0.3）；DSH 与 StudyHub 的版本号不同。</p>
+    <p class="note rise d2">桌面安装包：Windows x64、macOS Apple silicon。其他平台查看 DSH 当前支持，或用 Node.js ≥22.19 启动网页 DSH；桌面安装包自带运行时。 <a href="https://www.deepseek.com/en/harness/" target="_blank" rel="noopener">DSH 官方页面 ↗</a></p>
+    <div class="cmd rise d2"><div class="cmd-bar"><i></i>仅网页 DSH 需要此命令</div><pre>npx @deepseek-ai/dsh web</pre></div>
+    <div class="links rise d3"><a class="btn btn--go" href="https://github.com/EricWang1358/dsh-web-studyhub/releases/latest" target="_blank" rel="noopener">查看已发布安装包 →</a><a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/install.md" target="_blank" rel="noopener">完整安装说明</a><a class="btn" href="https://github.com/EricWang1358/dsh-web-studyhub" target="_blank" rel="noopener">GitHub</a></div>
+    <p class="note rise">本页对应本地待发布的 2.5.10。下载链接指向最近已发布版本；只有发布完成后才会提供 2.5.10 包。</p></div>
+    <div class="col-b"><div class="steps rise d3"><div class="step"><div class="step-n">01</div><div><div class="step-t">插件 › 添加插件 › 启用</div><div class="step-d">在发布页选择完整 .tgz 包，把下载地址或本机绝对路径交给 DSH 插件管理器。完整包包含主包与六个组件，组件可独立开关；已有数据保留。</div></div></div>
+    <div class="step"><div class="step-n">02</div><div><div class="step-t">打开 StudyHub，先试示例</div><div class="step-d">从 DSH 左侧入口、会话标签或支持的右栏打开。示例与导览不调用模型；之后添加课程资料，检查引用并开始练习。</div></div></div>
+    <div class="step"><div class="step-n">03</div><div><div class="step-t">只为需要的 AI 功能配置服务</div><div class="step-d">模型密钥放在 DSH 设置 › 模型。StudyHub 默认跟随会话模型，也可在设置里另选生成模型；音频转录在自己的设置里配置。主对话通过 study_workspace 访问学习库。</div></div></div></div></div></div>
+  </section>
+</main>
+
+<footer><span>StudyHub · @ericwang1358/dsh-daily-flashcard</span><span>2.5.10 local preview · MIT</span><span>示例截图来自现有应用；交互图在浏览器中演示机制，不读取真实学习库。</span></footer>
+
+<script src="assets/site-demo.js"></script>
+<script>
+(function(){
+  "use strict";
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var sections = Array.prototype.slice.call(document.querySelectorAll(".sec"));
+  var NS = "http://www.w3.org/2000/svg";
+
+  /* ── Rail ── */
+  var nodesWrap = document.getElementById("railNodes");
+  var nodeEls = sections.map(function(sec, i){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "rail-node";
+    b.setAttribute("aria-label", "跳到 " + sec.dataset.stage);
+    b.innerHTML = '<span class="rail-dot"></span><span class="rail-label">' + sec.dataset.stage + "</span>";
+    b.addEventListener("click", function(){ goTo(i); });
+    nodesWrap.appendChild(b);
+    return b;
+  });
+
+  var lenis = null;
+  if (!reduced && window.Lenis) {
+    lenis = new Lenis({ duration: 1.1, smoothWheel: true });
+    if (window.gsap && window.ScrollTrigger) {
+      lenis.on("scroll", ScrollTrigger.update);
+      gsap.ticker.add(function(t){ lenis.raf(t * 1000); });
+      gsap.ticker.lagSmoothing(0);
+    } else {
+      var raf = function(t){ lenis.raf(t); requestAnimationFrame(raf); };
+      requestAnimationFrame(raf);
+    }
+  }
+  function goTo(i){
+    var el = sections[i];
+    if (!el) return;
+    if (lenis) lenis.scrollTo(el, { offset: 0 });
+    else el.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
+  }
+
+  /* The thread's geometry. One curve function serves the drawn path, the node
+     dots that sit on it, and the head that marks the reading position, so they
+     can never drift apart. */
+  var railSvg = document.getElementById("railSvg");
+  var railBase = document.getElementById("railBase");
+  var railGlow = document.getElementById("railGlow");
+  var railProg = document.getElementById("railProg");
+  var railLen = 0, railH = 0, railCx = 58, railAmp = 13;
+
+  function railX(t){ return railCx + railAmp * Math.sin(t * Math.PI * 1.6); }
+
+  function drawRail(){
+    var box = railSvg.getBoundingClientRect();
+    railH = box.height;
+    if (!railH) return;
+    var cs = getComputedStyle(document.documentElement);
+    railCx = parseFloat(cs.getPropertyValue("--rail-x")) || 58;
+    railAmp = parseFloat(cs.getPropertyValue("--rail-amp")) || 13;
+
+    var d = "", steps = 48;
+    for (var i = 0; i <= steps; i++){
+      var t = i / steps, y = t * railH;
+      d += (i ? " L" : "M") + railX(t).toFixed(2) + " " + y.toFixed(2);
+    }
+    railBase.setAttribute("d", d);
+    railGlow.setAttribute("d", d);
+    railProg.setAttribute("d", d);
+    railLen = railProg.getTotalLength();
+    railProg.style.strokeDasharray = railLen;
+    railGlow.style.strokeDasharray = railLen;
+
+    // Seat every node dot on the curve at its own height.
+    for (var n = 0; n < nodeEls.length; n++){
+      var btn = nodeEls[n];
+      var cy = btn.offsetTop + btn.offsetHeight / 2;
+      var dot = btn.querySelector(".rail-dot");
+      if (dot) dot.style.left = railX(railH ? cy / railH : 0).toFixed(2) + "px";
+    }
+  }
+
+  function setRailProgress(p){
+    if (!railLen) return;
+    var off = railLen * (1 - p);
+    railProg.style.strokeDashoffset = off;
+    railGlow.style.strokeDashoffset = off;
+
+  }
+
+  var current = -1;
+  function onScroll(){
+    var y = window.scrollY, h = window.innerHeight;
+    var best = 0, bestD = Infinity;
+    for (var i = 0; i < sections.length; i++){
+      var d = Math.abs(sections[i].offsetTop - y);
+      if (d < bestD){ bestD = d; best = i; }
+    }
+    if (best !== current){
+      current = best;
+      for (var j = 0; j < nodeEls.length; j++){
+        nodeEls[j].classList.toggle("is-active", j === current);
+        nodeEls[j].classList.toggle("is-past", j < current);
+      }
+    }
+    var max = document.documentElement.scrollHeight - h;
+    setRailProgress(max > 0 ? Math.min(1, y / max) : 0);
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", function(){ drawRail(); onScroll(); });
+  drawRail();
+  onScroll();
+  // Fonts land after first paint and move the node rows; re-seat them once.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function(){ drawRail(); onScroll(); });
+  }
+
+  document.addEventListener("keydown", function(e){
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target;
+    if (t && (t.closest("button, a, input, textarea, select") || t.isContentEditable)) return;
+    if (e.key === "ArrowDown" || e.key === "PageDown" || (e.key === " " && !e.shiftKey)){
+      e.preventDefault(); goTo(Math.min(current + 1, sections.length - 1));
+    } else if (e.key === "ArrowUp" || e.key === "PageUp"){
+      e.preventDefault(); goTo(Math.max(current - 1, 0));
+    } else if (e.key === "Home"){ e.preventDefault(); goTo(0); }
+    else if (e.key === "End"){ e.preventDefault(); goTo(sections.length - 1); }
+  });
+
+  /* ── Entrances ── */
+  var rises = document.querySelectorAll(".rise");
+  function revealAll(){
+    for (var i = 0; i < rises.length; i++) rises[i].classList.add("in");
+  }
+  if (reduced || !("IntersectionObserver" in window)){
+    revealAll();
+  } else {
+    document.documentElement.classList.add("js-anim");
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); }
+      });
+    }, { rootMargin: "0px 0px -10% 0px", threshold: 0.1 });
+    for (var m = 0; m < rises.length; m++) io.observe(rises[m]);
+    // Safety net: nothing stays hidden if the observer never fires.
+    setTimeout(revealAll, 2500);
+  }
+
+  /* ── Counters ── */
+  var counted = new WeakSet();
+  function runCount(el){
+    if (counted.has(el)) return;
+    counted.add(el);
+    var target = parseInt(el.dataset.count, 10);
+    if (reduced){ el.textContent = target; return; }
+    var t0 = null, dur = 1000;
+    function step(ts){
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  var counters = document.querySelectorAll("[data-count]");
+  if ("IntersectionObserver" in window){
+    var cio = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if (en.isIntersecting) runCount(en.target); });
+    }, { threshold: 0.5 });
+    for (var n = 0; n < counters.length; n++) cio.observe(counters[n]);
+  } else {
+    for (var q = 0; q < counters.length; q++) runCount(counters[q]);
+  }
+
+  /* ── Citation: fires on scroll, so it also lands in a recording.
+        The button undoes it, which demonstrates the claim a second time. ── */
+  var citeBtn = document.getElementById("citeBtn");
+  var citeHint = document.getElementById("citeHint");
+  var marks = document.querySelectorAll("#demo mark");
+  var lit = false;
+  var srcBody = document.getElementById("srcBody");
+  var loc = document.getElementById("loc");
+  function setLit(on){
+    lit = on;
+    for (var i = 0; i < marks.length; i++) marks[i].classList.toggle("dim", !on);
+    // Reveal by subtraction: the rest of the paragraph recedes, which reads at
+    // a glance where a tint on the sentence does not.
+    srcBody.classList.toggle("is-lit", on);
+    loc.classList.toggle("on", on);
+    loc.textContent = on ? "第 1 段 · 引用片段" : "原文";
+    citeHint.textContent = on ? "这就是这道题的依据 —— 在原文里的位置" : "点一下，看看这道题的依据在原文哪里";
+    citeHint.classList.toggle("off", !on);
+    citeBtn.innerHTML = '<span class="cite-dot"></span>' + (on ? "收起引用" : "查看引用来源");
+  }
+  setLit(false);
+  citeBtn.addEventListener("click", function(){ setLit(!lit); });
+  // Arrival, not history: the section lands un-lit and resolves once it settles,
+  // so the beat happens on screen — including in a scroll recording.
+  var demo = document.getElementById("demo");
+  if ("IntersectionObserver" in window){
+    var dio = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting) return;
+        setTimeout(function(){ setLit(true); }, reduced ? 0 : 1100);
+        dio.disconnect();
+      });
+    }, { rootMargin: "-25% 0px -25% 0px", threshold: 0 });
+    dio.observe(demo);
+  } else { setLit(true); }
+  if (window.matchMedia("(max-width: 1100px)").matches) setLit(true);
+
+  /* ── A route to install from anywhere past the hero ── */
+  var jump = document.getElementById("jump");
+  jump.addEventListener("click", function(){ goTo(sections.length - 1); });
+  var jumpOn = false;
+  window.addEventListener("scroll", function(){
+    var on = window.scrollY > window.innerHeight * 0.6 &&
+             window.scrollY < document.documentElement.scrollHeight - window.innerHeight * 1.4;
+    if (on !== jumpOn){ jumpOn = on; jump.classList.toggle("on", on); jump.disabled = !on; }
+  }, { passive: true });
+
+  /* ── Prerequisite graph: the mechanism, at a readable size ── */
+  (function(){
+    var svg = document.getElementById("graphsvg");
+    if (!svg) return;
+    function add(tag, attrs, text){
+      var el = document.createElementNS(NS, tag);
+      for (var k in attrs) el.setAttribute(k, attrs[k]);
+      if (text != null) el.textContent = text;
+      svg.appendChild(el);
+      return el;
+    }
+    var defs = document.createElementNS(NS, "defs");
+    defs.innerHTML =
+      '<marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
+      '<path d="M0 0 L8 4 L0 8 z" fill="#8b8bff"></path></marker>';
+    svg.appendChild(defs);
+
+    // node: x, y, w, label, color, sub
+    var nodes = [
+      { id:"g",  x:8,   y:118, w:118, label:"设计模式 · 第 4 章", color:"var(--accent)",   kind:"group" },
+      { id:"p1", x:186, y:34,  w:150, label:"不透明对象与封装",   color:"var(--ok)",   sub:"已掌握" },
+      { id:"p2", x:186, y:118, w:150, label:"快照由谁保管",       color:"var(--bad)",  sub:"薄弱" },
+      { id:"p3", x:186, y:202, w:150, label:"为什么需要撤销",     color:"var(--none)", sub:"未学" },
+      { id:"t",  x:404, y:118, w:200, label:"Caretaker 的访问边界", color:"var(--warn)", sub:"学习中 · 你卡住的这道" }
+    ];
+    var H = 46;
+    var by = {};
+    nodes.forEach(function(n){ by[n.id] = n; });
+    function cx(n){ return n.x + n.w / 2; }
+    function cy(n){ return n.y + H / 2; }
+
+    // belongs-to (solid)
+    ["p1","p2","p3"].forEach(function(id){
+      var a = by.g, b = by[id];
+      var mx = (a.x + a.w + b.x) / 2;
+      add("path", {
+        d: "M" + (a.x + a.w) + " " + cy(a) + " C" + mx + " " + cy(a) + "," + mx + " " + cy(b) + "," + b.x + " " + cy(b),
+        fill: "none", stroke: "var(--line-strong)", "stroke-width": "1"
+      });
+    });
+
+    // prerequisite (dashed, arrow points at the blocked question)
+    var preEdges = ["p1","p2"].map(function(id){
+      var a = by[id], b = by.t;
+      var mx = (a.x + a.w + b.x) / 2;
+      return add("path", {
+        "class": "graph-edge graph-edge--pre",
+        d: "M" + (a.x + a.w) + " " + cy(a) + " C" + mx + " " + cy(a) + "," + mx + " " + cy(b) + "," + (b.x - 9) + " " + cy(b),
+        fill: "none", stroke: "var(--accent-soft)", "stroke-width": "1.2",
+        "marker-end": "url(#ar)", opacity: ".85"
+      });
+    });
+
+    var el = {};
+    nodes.forEach(function(n){
+      var box = add("rect", {
+        "class":"graph-box",
+        x:n.x, y:n.y, width:n.w, height:H, rx:9,
+        fill: n.kind === "group" ? "#6d72ff1a" : "var(--surface)",
+        stroke: n.kind === "group" ? "#6d72ff59" : "var(--line)",
+        "stroke-width":"1"
+      });
+      var dot = null;
+      if (n.kind !== "group"){
+        dot = add("circle", { "class":"graph-dot", cx:n.x + 14, cy:n.y + H/2, r:4, fill:n.color });
+      }
+      add("text", {
+        x: n.kind === "group" ? n.x + 13 : n.x + 26,
+        y: n.sub ? n.y + 20 : n.y + 27,
+        fill:"var(--text)", "font-size":"12", "font-weight":"600"
+      }, n.label);
+      var sub = null;
+      if (n.sub){
+        sub = add("text", {
+          "class":"graph-sub",
+          x:n.x + 26, y:n.y + 35, fill:"var(--faint)", "font-size":"10"
+        }, n.sub);
+      }
+      el[n.id] = { box: box, dot: dot, sub: sub, def: n };
+    });
+
+    var counter = add("text", { x:404, y:104, fill:"var(--accent-soft)", "font-size":"10",
+      "font-family":"var(--mono)", "letter-spacing":".08em" }, "前置题 2 · 已掌握 1");
+
+    /* Answering the blocked question also credits its due-or-weak prerequisites
+       within two levels — and leaves the ones that are not due alone. That rule
+       is a paragraph to read and two seconds to watch. */
+    var say = document.getElementById("graphSay");
+    var playBtn = document.getElementById("graphPlay");
+    var resetBtn = document.getElementById("graphReset");
+    var REST = "实线是所属关系，虚线箭头是前置，节点颜色即掌握度。";
+    var played = false;
+
+    function reset(){
+      played = false;
+      nodes.forEach(function(n){
+        var e = el[n.id];
+        if (e.dot) e.dot.style.fill = n.color;
+        if (e.sub) e.sub.textContent = n.sub;
+        e.box.style.stroke = n.kind === "group" ? "#6d72ff59" : "var(--line)";
+      });
+      preEdges.forEach(function(p){ p.classList.remove("graph-edge--fire"); });
+      counter.textContent = "前置题 2 · 已掌握 1";
+      say.textContent = REST;
+      playBtn.disabled = false;
+      playBtn.textContent = "答对右边这道题 →";
+    }
+
+    function play(){
+      if (played) return;
+      played = true;
+      playBtn.disabled = true;
+      playBtn.textContent = "已通过";
+      preEdges.forEach(function(p){ p.classList.add("graph-edge--fire"); });
+
+      // The question itself: one pass recorded.
+      el.t.box.style.stroke = "#4fb28777";
+      el.t.sub.textContent = "✓ 记一次通过";
+
+      // p2 was weak and due — it is credited too, so it leaves 薄弱.
+      el.p2.dot.style.fill = "var(--warn)";
+      el.p2.sub.textContent = "✓ 一并记一次通过";
+      el.p2.box.style.stroke = "#4fb28755";
+
+      // p1 is already mastered and not due — untouched, on purpose.
+      el.p1.sub.textContent = "未到期 · 不动";
+
+      counter.textContent = "前置题 2 · 记通过 1";
+      say.innerHTML = "答对这道题，<b>两层内到期、薄弱或没学过的前置题一并记一次通过</b> —— " +
+        "「快照由谁保管」不再是薄弱；「不透明对象与封装」尚未到期，不动。";
+    }
+
+    playBtn.addEventListener("click", play);
+    resetBtn.addEventListener("click", reset);
+  })();
+
+  /* Default SM-2 demo: the built script exports the product's pure scheduler. */
+  (function(){
+    var svg = document.getElementById("sm2svg"), rules = window.STUDY_DEMO;
+    if (!svg || !rules) return;
+    var nextEl = document.getElementById("sm2Next"), chipEl = document.getElementById("sm2Chip");
+    var days = [0].concat(rules.intervals), review = rules.initialReview(), grade = null;
+    var at = "2026-01-01T00:00:00.000Z";
+    var palette = { weak:"#e0736a", learning:"#deb05a", familiar:"#61a8dd", mastered:"#4fb287", new:"#5b626c" };
+    var levelKeys = { weak:"bad", learning:"warn", familiar:"info", mastered:"ok", new:"none" };
+    var levelText = { weak:"薄弱", learning:"学习中", familiar:"熟悉", mastered:"已掌握", new:"未学" };
+    var W = 520, base = 74, padL = 22, padR = 22, bars = [], labels = [];
+    var track = document.createElementNS(NS, "line");
+    track.setAttribute("x1", 14); track.setAttribute("y1", base); track.setAttribute("x2", 506); track.setAttribute("y2", base);
+    track.setAttribute("stroke", "var(--line)"); svg.appendChild(track);
+    days.forEach(function(d, i){
+      var x = padL + i * (W - padL - padR) / (days.length - 1), h = 8 + i * 44 / (days.length - 1);
+      var bar = document.createElementNS(NS, "rect");
+      bar.setAttribute("class", "sm2-bar-rect"); bar.setAttribute("x", x - 4); bar.setAttribute("y", base - h);
+      bar.setAttribute("width", 8); bar.setAttribute("height", h); bar.setAttribute("rx", 4); svg.appendChild(bar); bars.push(bar);
+      var tx = document.createElementNS(NS, "text"); tx.setAttribute("class", "sm2-label"); tx.setAttribute("x", x);
+      tx.setAttribute("y", base + 20); tx.setAttribute("text-anchor", "middle"); tx.setAttribute("font-size", "10.5");
+      tx.setAttribute("font-family", "var(--mono)"); tx.textContent = i === 0 ? "答错" : d + " 天"; svg.appendChild(tx); labels.push(tx);
+    });
+    function render(){
+      var level = rules.cardLevel({ review: review }, grade === null ? undefined : grade), index = -1;
+      if (grade !== null) { index = 0; if (grade >= 3) for (var n = 1; n < days.length; n++) if (review.interval_days >= days[n]) index = n; }
+      bars.forEach(function(bar, i){ var active = index >= 0 && i <= index; bar.style.fill = active ? palette[level] : "#2f353d";
+        bar.style.opacity = active ? "1" : ".55"; bar.style.transform = "scaleY(" + (active ? 1 : 0.35) + ")";
+        labels[i].style.fill = i === index ? "var(--text)" : "var(--faint)";
+      });
+      nextEl.innerHTML = grade === null ? "还没学过" : grade < 3 ? "答错了 · 明天再复习" : "下次复习 · <b>" + review.interval_days + " 天后</b>";
+      chipEl.dataset.level = levelKeys[level]; chipEl.textContent = levelText[level];
+    }
+    svg.parentNode.addEventListener("click", function(e){
+      var action = e.target.closest("[data-sm2]")?.dataset.sm2;
+      if (!action) return;
+      if (action === "reset") { review = rules.initialReview(); grade = null; at = "2026-01-01T00:00:00.000Z"; }
+      else { grade = action === "pass" ? 4 : 1; review = rules.schedule(review, grade, at); at = review.due_at; }
+      render();
+    });
+    render();
+  })();
+})();
+</script>
+</body>
+</html>

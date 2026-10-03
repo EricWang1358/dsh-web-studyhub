@@ -2,78 +2,207 @@
 
 [中文](mineru-conversion.zh-CN.md)
 
-StudyHub can turn a PDF into pages of text (scanned pages, formulas, tables and Chinese included) by running MinerU itself. You do not install a desktop client, drag files around or type page ranges.
+StudyHub can run MinerU for you to turn a PDF into pages of text. Use it for scanned PDFs, books with many formulas or tables, Chinese textbooks and books over 200 pages. You do not install a desktop client, drag files around or type page ranges.
+
+MinerU conversion belongs to the **StudyHub · Audio** component. When that component is off, only the manual routes under **Advanced** are available.
+
+## Choose a route
 
 | | Local `mineru` | Cloud (your own MinerU token) |
 |---|---|---|
-| Cost | free | free **for now**; MinerU's rules may change |
-| Leaves your computer | nothing | **the PDF is uploaded to MinerU's cloud** (StudyHub says so and asks once before the first use) |
-| Needs | `mineru` installed (`uv tool install "mineru>=4.0,<5"`), models downloaded | a token created at <https://mineru.net/apiManage/docs>, pasted once into **Settings → MinerU cloud conversion** |
-| Big books | page windows sized from this computer's measured speed (`--pages a-b`, 5 to 50 pages), no cutting of the PDF | pieces of at most 200 pages and 180 MB, cut at chapter bookmarks when the PDF has them |
-| Progress | pieces done ("piece 3 of 9"); no fake percentage inside a window | pages MinerU reports as extracted, over the pages of the book |
+| Cost | Uses your own machine | MinerU’s current account terms |
+| What leaves your computer | Nothing | **The PDF is uploaded to MinerU's cloud.** StudyHub says so and asks once before the first use. |
+| What you need | `mineru` installed (`uv tool install "mineru>=4.0,<5"`) and its models downloaded | A token from [mineru.net](https://mineru.net/apiManage/docs), pasted once into **Settings › PDF conversion (MinerU)** |
+| How a big book is cut | Pieces of 5–50 pages, sized to this computer's measured speed. The PDF itself is not cut (`--pages a-b`). | Pieces of at most 200 pages and 180 MB, cut at chapter bookmarks when the PDF has them |
+| Progress | Pieces done ("piece 3/9"); no made-up percentage inside a piece | Pages MinerU reports as converted, out of the book's pages |
 
-**Add material → Convert with MinerU** shows both. The local route leads when it is ready; otherwise the cloud route leads when a token is set; otherwise the same entry shows the setup. Nothing is uploaded and nothing is started until you set a route up and press the start button. The desktop client and the `mineru parse --pages` command line stay available under **Advanced** (the result goes in through the ordinary import).
+When you convert, StudyHub picks the route to lead with:
 
-## What happens to a book
+1. the local route, when it is ready;
+2. otherwise the cloud route, when a token is set;
+3. otherwise the setup for the cloud route.
 
-1. **Plan** (nothing leaves your computer): the PDF is read to count its pages, and StudyHub tells you *how many pieces* the book will be processed in.
-2. **Cloud**, for each piece, one at a time: cut (pdf-lib; a PDF that already fits is not rewritten) → ask for an upload address → upload → poll every few seconds → download → keep the piece's `content_list.json`. A piece whose file is over 180 MB is halved until it fits; one page that is too big on its own is a named error.
-   **Local**, for each window (see *Local windows* below): `mineru parse --tier <tier> --pages a-b --wait <seconds> --json -o <file> --force`. `--pages` is always given (the CLI's default is only the first 10 pages). The Markdown's `<!-- page N of TOTAL -->` markers are checked (as many as the window has pages, each inside it, TOTAL equal to the PDF's page count) and read into the same page model.
-3. **Merge**: each piece's pages are moved to their place in the book (`page_idx + start − 1`), image names get a per-piece prefix so they cannot collide, reading order is kept, and the book keeps the **original page count** (a missing piece is a clear message naming its pages).
-4. **Import** through the ordinary document import, as a converted document: one source per page, chapters from the headings, the same citations as a MinerU file dragged in by hand.
+You can switch routes before you start. Nothing is uploaded and nothing starts until a route is set up and you click its start button.
 
-It is one job in the same list as audio imports: real progress, **Stop**, **Resume** (a finished piece is never uploaded or parsed again), **Got it** (removes the card and its temporary files), and a letter in the inbox when it ends.
+## Convert a PDF
 
-## Resilience
+1. Open **Add source**. On the **Files** tab, next to "A scanned PDF, one with many formulas, or one over 200 pages?", click **Convert with MinerU**. If a PDF was refused as too large, the **Large textbooks** card under it offers the same conversion for that file.
+2. Click **Choose a PDF**. The file is read on this computer only. StudyHub shows its pages and size and how the book will be cut, for example "This book will be processed in 3 pieces".
+3. Under **How to convert it**, choose **Local mineru** or **Use MinerU cloud conversion**.
+4. The first time you use the cloud route, tick "I understand the document is uploaded to MinerU's cloud, and I agree to use cloud conversion". You are asked once; you can withdraw the consent in Settings.
+5. Click **Start local conversion** or **Start cloud conversion**. The dialog closes, and the conversion runs in the background as a job.
+6. Follow it on the **Sources** page. When it ends, a letter arrives in the **Inbox** (unless you stopped it yourself).
 
-- Per-piece state is saved in the DSH home (`study/tmp/pdf-convert/…`), not in your study library. A restart shows an interrupted conversion as a failed job you can resume.
-- A cancelled conversion removes its temporary files but keeps each finished piece's result (small, keyed by the file's hash), so importing the same PDF again does not convert those pieces twice. Pieces and files are forgotten after 7 days.
-- Rate limits are waited out, short network failures are retried with growing waits, a queue that stays long is shown as "slower than usual, not a failure". An invalid or expired token stops the job at once and points to Settings. A stopped local service is named, with a **Restart the local service** button.
-- The token is stored in `<DSH home>/study/mineru.json` (or `MINERU_API_KEY`), never in the study library, an export, a backup or a snapshot, and appears in no log. Settings show only its last four characters.
+The result is imported like any converted document: one source per page, chapters from the headings, and the same citations as a MinerU file you drag in by hand. There is no file to drag in. StudyHub keeps the text and image captions; the pictures themselves are not imported.
+
+To convert by hand instead, open **Advanced: desktop client and command line** and drag the result into **Add source**. See [Large textbooks](large-documents.md) for the formats StudyHub reads.
+
+## Set up the cloud route
+
+1. Open **Settings › PDF conversion (MinerU)**. The section is called **MinerU cloud conversion**.
+2. Under **Cloud (MinerU token)**, open MinerU's API management page and create a token. Check MinerU’s current account, region and billing requirements.
+3. Paste the token and click **Save and verify**. Verifying sends one request that contains no document.
+
+The answer says the token works, is invalid or has expired, or that MinerU could not be reached or is temporarily unavailable.
+
+Where the token is kept:
+
+- It is stored in `<DSH home>/study/mineru.json` (the home folder of DeepSeek Harness, DSH), or read from the `MINERU_API_KEY` environment variable when the file has none.
+- It is never in the study library, an export, a backup or a snapshot, and it appears in no log.
+- Settings show only its last four characters. **Clear the saved token** removes it.
+- Never paste the token into the chat.
+
+## Set up the local route
+
+StudyHub never installs `mineru` for you.
+
+1. In a terminal, run `uv tool install "mineru>=4.0,<5"`. You need uv first.
+2. Open **Settings › PDF conversion (MinerU)**. Under **Local (mineru command line)**, click **Check again**. StudyHub reports one state: not installed, needs models, service stopped, or ready.
+3. If the service is stopped, click **Start the local service**. Only then does StudyHub run `mineru server start`.
+4. If models are missing, choose a tier under **Choose a tier**, then click **Download the models and switch on local conversion**.
+   - The size is shown first: about 800 MB for `basic`, about 1.2 GB for `standard`.
+   - Nothing downloads until you click **Confirm the download**. You can cancel at any time.
+   - When it finishes, StudyHub sets the tier and `managed` mode and starts the service.
+
+The tiers:
+
+- `basic` is faster and suits books that are mostly text.
+- `standard` understands layout better and is a little slower.
+
+The speeds shown (about 1.6 seconds per page for `basic`, about 2.5 for `standard`) were measured once, on one laptop using only its CPU. They are always labelled as estimates.
+
+StudyHub detects the local `mineru` with read-only calls: `mineru --version`, `mineru config get …` and `mineru server status`.
+
+## Follow a conversion
+
+The conversion is one job in the same list as audio imports, with its card on the **Sources** page.
+
+- **Buttons.**
+  - **Stop (pieces already converted are kept)**.
+  - **Resume (finished pieces are not redone)**: a finished piece is never uploaded or converted again.
+  - **Got it** removes the card and its temporary files.
+- **Progress.** Cloud: pages converted out of the book's pages. Local: the piece in hand (its pages, how long it has run and how long it should take), the finished pieces with their times, and the size of the next piece. A local piece shows no finer progress while it runs; that does not mean it is stuck.
+- **Time left.** It is hidden until a piece has finished, then says "about". It is one figure when the pieces agree, and a range ("About 15 min to 40 min left") while the speed is not steady.
+- **Many pieces.** A card with more than eight pieces shows a summary, such as "Piece 13 · 12 done", and a **Show all windows** toggle. The list wraps inside the card.
+- **Environment.** The card and every history row can show an **Environment** block, captured read-only when the conversion starts:
+  - Local: the mineru version; the tier and what it means; and the model folder of that tier as the tool names it (for example `MinerU-4_models_onnx`). The live card also says where the models live (a folder that links to another drive says where it really is); a history row never shows that location.
+  - Local, continued: a device only if `mineru server status` or `mineru config show` reports one, otherwise no GPU or CPU label; how pieces are sized; and whether the local service is running.
+  - Cloud: MinerU, the model version (`vlm`) and the recognition language; that your saved token is used (it is never shown); the limits a piece is cut to (200 pages / 180 MB); and the size of the book.
+- **Service state, honestly.**
+  - "Running" is shown after the read-only check before work starts and after each finished piece.
+  - "Stopped" is shown after a piece found the service stopped, with **Restart the local service and resume**.
+  - "Cannot confirm" is shown after an app restart, until you resume.
+  - A conversion never starts, stops or reconfigures the service by itself.
+
+### While a local piece runs
+
+`mineru parse --wait` prints nothing until it ends. A long piece can look stuck for minutes, especially the first piece of a scanned PDF: the model loads, and every page is read by text recognition. A slower computer takes proportionally longer.
+
+So while a piece runs, StudyHub asks the **service**, never the parse itself, with read-only commands, one at a time:
+
+- `mineru server status --json` reports the workers and the health of the parse server. When it says something is busy, `mineru list parses --status pending|parsing --json` is matched to the piece by tier and page range.
+- It asks every 20 seconds, the first time after 5 seconds, and only while a piece runs.
+- A question that fails means "unknown", never "stuck".
+
+The card then shows one of these, with the time of the last signal:
+
+- **Queued**
+- **Converting**
+- **The service is starting**
+- **Converting (the service has not reported this piece yet)**
+- **No response (nothing new for 3 min)**, with the real number of minutes
+- **Service stopped**
+- **Unknown (the service status cannot be read)**
+
+**No response** appears only in two cases: the service reported nothing parsing or queued in three answers in a row and nothing was heard for two minutes, or the parse server reports itself unhealthy. A service busy with another parse, or a failed question, never leads to it.
+
+What to do on **No response**: wait a little longer. If nothing changes, click **Stop**, then choose the same PDF again. Finished pieces are reused and only that piece is redone. StudyHub never stops anything by itself.
+
+## When something goes wrong
+
+- **Restart.** The state of each piece is saved in the DSH home (`study/tmp/pdf-convert/…`), not in your study library. After a restart, an interrupted conversion shows as a failed job that you can resume.
+- **Cancelling.** A cancelled conversion removes its temporary files but keeps each finished piece's result, small and keyed by the file's hash. Converting the same PDF again does not convert those pieces twice. Unfinished work and kept pieces are removed after 7 days.
+- **Cloud.**
+  - Rate limits are waited out, and short network failures are retried with growing waits.
+  - A queue that stays long is shown as "slower than usual", not as a failure.
+  - An invalid or expired token stops the job at once and points to Settings (**Replace the token in Settings**).
+- **Local.**
+  - A piece that fails or times out is retried at half the size (20, then 10, then 5 pages), and the run goes on when a smaller piece works.
+  - At the minimum size the job stops with the reason, and **Resume** retries only that piece.
+  - A stopped service is named, with **Restart the local service and resume**.
+- **The PDF itself.**
+  - A password-protected PDF cannot be cut or uploaded: save a copy without the password first.
+  - For the cloud, a single page over the size limit cannot be cut smaller: compress its images, or use the desktop client.
 
 ## Conversion history
 
-Every conversion, cloud or local, leaves a record that survives the job card being dismissed and the app being restarted. It is in **Add material → "Convert with MinerU" → Conversion history** (also the **Conversion history** link beside it) and on the **Sources** page under the running cards.
+Every conversion, cloud or local, leaves a record that survives dismissing the card and restarting the app. Open it with **Conversion history** next to **Convert with MinerU** in **Add source**. It also appears on the **Sources** page, under the running cards.
 
-- **A row says**: the file name, its size and pages, the route (cloud, or local with its tier), the status (running / finished / did not finish / cancelled / interrupted), when it ended and how long it took ("3 minutes ago · took 4 min 20 s"), and the result ("Imported as “…” · 448 pages"). A conversion is **finished only when the document was really imported**; one whose import step failed is "did not finish" at the *save* stage. A conversion a restart or crash cut off is **interrupted**, with no end time and no duration, because nobody measured it.
-- **What you can do from a row**: open the imported material (it jumps to it); **Resume** a failed or interrupted conversion (only the unfinished pieces are redone, while their cached results exist; the row stays the same record and counts its attempts); see a running one (it scrolls to its live card); **Delete record**; **Clear history** (asks first). Deleting a record or clearing the history **never deletes an imported document**.
-- **Where it is kept**: one small file per conversion in `<library>/conversion-history/` (next to `audio-batches/`, the library's other job records), not in the DSH home's cleaned `study/tmp`, and not in the library's exported state or backups (job records are not part of those). A record holds the file name and size, page counts, route and tier, times, status, a plain reason and the stage a failure happened in, the id and title of the imported document, the environment (below), and the pieces of the book with their pages and state. It never holds document text, the token, a folder or a temporary path.
-- **How long**: the latest 50 records and everything younger than 90 days, whichever is more; older ones are removed when a new record is written.
+- **A row shows:**
+  - the file name, its size and pages, and the route (cloud, or local with its tier);
+  - the status: **In progress**, **Completed**, **Did not finish**, **Cancelled** or **Interrupted**;
+  - when it ended and how long it took ("3 minutes ago · took 4 min 20 s"); a conversion that is still running, or was interrupted, shows when it started;
+  - the result: the title it was imported as and its page count.
+- **Completed means imported.** A conversion counts as **Completed** only when the document was really imported. One whose import failed **Did not finish** at the saving stage. A conversion that a restart or crash cut off is **Interrupted**, with no end time and no duration, because nobody measured it.
+- **What you can do from a row:**
+  - open the imported material;
+  - **Resume** a failed or interrupted conversion: only unfinished pieces are redone while their cached results exist, and the row stays the same record and counts its attempts;
+  - see the progress of a running one;
+  - **Delete record**, or **Clear history** (it asks first).
 
-## What is doing the work
+  Deleting a record or clearing the history **never deletes an imported document**.
+- **Where it is kept:**
+  - One small file per conversion in `<library>/conversion-history/`, next to `audio-batches/`, the library's other job records.
+  - Not in the DSH home's `study/tmp` (which is cleaned), and not in the library's exported state or backups (job records are not part of those).
+- **What a record holds:** the file name and size, page counts, the route and tier, times, the status, a plain reason and the stage where a failure happened, the id and title of the imported document, the environment, the pieces of the book with their pages, state and measured seconds, and for a local conversion the pace of this computer. It never holds document text, the token, a folder or a temporary path.
+- **How long:** the latest 50 records and everything younger than 90 days, whichever is more. Older ones are removed when a new record is written.
 
-The live card and every history row can show an **Environment** block, captured when the conversion starts (read-only) and kept with the record.
+## How a book is converted
 
-- **Local**: the mineru version, the tier and what it means (`standard`: better layout understanding, a little slower; `basic`: faster), the model folder of that tier (as the real tool names it, for example `MinerU-4_models_onnx` or `MinerU2.5-Pro-…-GGUF`), where the models live (a folder that is a link to another drive says where it really is), a **device only if `mineru server status` or `mineru config show` reports one** (otherwise no GPU/CPU label), how pages are worked on ("windows follow the speed of this computer: 10 pages first, then about 75 s per window (5–50 pages)"; with fixed windows, "50 pages at a time; progress moves when a window is done"), and whether the local service is up.
-- **Cloud**: MinerU, the model version (`vlm`) and the language, that your saved token is used (it is never shown), the limits a piece is cut to (200 pages / 180 MB) and the size of the book.
-- **The service state is honest**: *running* is shown after the read-only check before the work starts and after each finished window; *stopped* after a window found it stopped (with the existing **Restart the local service and resume** button); *not known* after an app restart, until you resume. While one window runs it can also be asked (read-only, see *What a running window says*), and **a conversion never starts, stops or reconfigures the service by itself**.
-- A card with more than eight windows shows "window 13 · 12 done" and a **Show all windows** toggle; the list wraps inside the card.
+1. **Plan.** Nothing leaves your computer. The PDF is read to count its pages. For the cloud route and for fixed local pieces, StudyHub says how many pieces the book will be processed in; the default local plan says that pieces follow the computer's speed.
+2. **Cloud, one piece at a time:**
+   1. Cut the piece with pdf-lib; a PDF that already fits is not rewritten.
+   2. Ask for an upload address, then upload.
+   3. Poll every few seconds, then download the result.
+   4. Keep the piece's `content_list.json`.
 
-## Local windows
+   A piece whose file is over 180 MB is halved until it fits; a single page that is too big on its own is a named error.
+3. **Local, one piece at a time.** StudyHub runs `mineru parse --tier <tier> --pages a-b --wait <seconds> --json -o <file> --force`.
+   - `--pages` is always given, because the command line converts only the first 10 pages by default.
+   - The Markdown's `<!-- page N of TOTAL -->` markers are checked: as many as the piece has pages, each inside it, and TOTAL equal to the PDF's page count. They are then read into the same page model.
+4. **Merge.**
+   - Each piece's pages move to their place in the book (`page_idx + start − 1`).
+   - Image names get a per-piece prefix so they cannot collide, and reading order is kept.
+   - The book keeps its **original page count**. A missing piece is a clear message naming its pages.
+5. **Import** through the ordinary document import, as a converted document.
 
-The local route does not cut the book up in advance. It decides one window at a time, from the speed this computer actually has:
+### How local pieces are sized
 
-- The first windows are **10, 20 and 20 pages**, so the first progress, the first measured pace and the first estimate arrive quickly. After that every window is sized so that it lasts about **75 seconds** at the pace measured on the latest windows (a first window that was much slower per page, because it also loaded the model, is left out), never fewer than **5** and never more than **50** pages. A slow machine or a scanned book keeps small windows (the bar moves about once a minute); a fast one grows to 50. The last window takes the remainder, so the tail is never a few lonely pages.
-- A window that fails or times out is retried **halved** (20 → 10 → 5 pages) and the run goes on when a smaller piece works; windows after it stay smaller than the one that failed. At the minimum the job stops with the reason, and **Resume** retries just that piece. A stopped service, a missing command or your own Stop is never "fixed" by cutting the window up.
-- **Finished pages are never converted twice, whatever plan cut them.** A window's result is kept under the file's hash, the tier and the pages it covers (with the seconds it took, so a restored window still tells the pace of this computer). Resuming or converting the same file again reads those ranges from the cache and plans only what is left (a cached range that no longer reads is converted again; one overlapping a longer finished range is ignored). A result file in the job folder is named by its pages (`local-11-30.result.json`), not by its position.
-- The `--wait` given to the command grows with the machine: at least 120 s, `8 s × pages` or three times the measured seconds per page, and 180 s more for the first window of a run (the model loads). Before any window has been measured nothing is known about the machine, so the first window is not cut off by a guess: the liveness state and Stop decide, and only a 12-hour runaway guard applies.
-- Through the seam `limits.windowPages` (tests and previews) the old behaviour is available: fixed windows of that many pages, decided up front, never halved. The manifest's `plan` says which: `{kind: 'adaptive', firstPages, rampPages, targetSeconds, minPages, maxPages}` or `{kind: 'fixed', windowPages}`.
+The local route does not cut the book up in advance. It decides one piece at a time, from the speed this computer actually has.
 
-The card shows the window in hand (its pages, how long it has run and how long it should take), the windows done with their seconds, pending ones, and **the size of the next window**. The estimate of what is left is hidden until a window has finished, then says "about", as one figure when the windows agree and as a range ("about 15 min to 40 min") while the speed is not steady. The history row keeps the real seconds per window and the pace of the computer.
+- **Size.**
+  - The first pieces are **10, 20 and 20 pages**, so the first progress, the first measured pace and the first estimate arrive quickly.
+  - After that, each piece is sized to last about **75 seconds** at the pace measured on the latest pieces, never fewer than **5** and never more than **50** pages. A first piece that was much slower per page (it also loaded the model) is left out of the pace.
+  - A slow computer or a scanned book keeps small pieces, so the bar moves about once a minute; a fast one grows to 50. The last piece takes the remainder, so the book never ends in a few lonely pages.
+- **Retries.** A piece that fails or times out is retried halved (20 → 10 → 5 pages). Later pieces stay smaller than the one that failed. A stopped service, a missing command or your own Stop is never "fixed" by cutting the piece up.
+- **No page is converted twice, whatever plan cut it.**
+  - A piece's result is kept under the file's hash, the tier and the pages it covers, with the seconds it took, so a restored piece still tells the pace of this computer.
+  - Resuming, or converting the same file again, reads those ranges from the cache and plans only what is left. A cached range that no longer reads is converted again; one that overlaps a longer finished range is ignored.
+  - A result file in the job folder is named by its pages (`local-11-30.result.json`), not by its position.
+- **The wait given to the command** grows with the computer:
+  - at least 120 seconds;
+  - 8 seconds per page, or three times the measured seconds per page when that is more;
+  - 180 seconds more for the first piece of a run, while the model loads.
 
-## What a running window says
+  Before any piece has been measured, nothing is known about the computer, so the first piece is not cut off by a guess: the liveness state and **Stop** decide, and only a 12-hour runaway guard applies.
 
-`mineru parse --wait` prints nothing until it ends, so a long window can look stuck for minutes (especially the first window of a scanned PDF: the model loads and every page is read by text recognition; a slow machine takes proportionally longer). While a window runs StudyHub therefore asks **the service**, never the parse itself, with **read-only** commands, at most one at a time:
+## Development
 
-- `mineru server status --json` (workers: `parse_running`, `parse_queue_length`; the parse server's `healthy` / `starting`) and, when it says something is busy, `mineru list parses --status pending|parsing --json`, matched to the window by its tier and page range.
-- Every 20 s (the first time after 5 s), only while a window runs: not before the job, not between windows, not after it. An idle service costs one command per question. Any failed question means *unknown*, never *stuck*.
-- The card says one of: **Queued**, **Converting**, **The service is starting**, **Converting (the service has not reported this window yet)**, **No response (nothing new for N min)**, **Service stopped**, **Unknown**, with the time of the last signal. **No response** is said only when the service reports nothing parsing or queued in three answers in a row and nothing was heard for two minutes, or when its parse server reports itself unhealthy; a service busy with another parse, or a question that failed, never gives it. It tells you what to do (wait; if nothing changes, **Stop** and select the same PDF again: finished windows are reused, only that one is redone), and never stops anything by itself.
-- **Not verified against a real CLI**: that these read-only commands are safe to run while the CLI parses, and the exact field names beyond `workers.parse_running`, `parse_queue_length`, `parse_server.local.healthy/starting` and `parses[].tier/page_range/status` (as found in a first investigation). The question can be switched off with the seam `limits.livenessMs: 0`; the numbers are in `LOCAL` (`livenessMs`, `livenessFirstMs`, `silentMs`, `idleProbes`) in `lib/mineru-local.js`.
-
-## Setting up the local mineru
-
-StudyHub detects it with read-only calls (`mineru --version`, `mineru config get …`, `mineru server status`) and reports one state: not installed / needs models / service stopped / ready. It never installs anything. **Start the local service** runs `mineru server start` when you press it. **Download the models and switch on local conversion** shows the size first (about 800 MB for `basic`, about 1.2 GB for `standard`), downloads only after you confirm, can be cancelled, and then sets the tier and `managed` mode and starts the service. The speeds shown (about 1.6 s per page for `basic`, about 2.5 s for `standard`) were measured once on one CPU-only laptop and are always labelled estimates.
-
-## Checking the cloud route with a real token
-
-`MINERU_API_KEY=<token> node scripts/mineru-live-check.mjs` makes one real round trip with a tiny generated PDF and reports each assumption StudyHub makes about the API; `--check-only` only checks the token. Without the variable it does nothing.
+- **Seams for tests and previews.**
+  - `limits.windowPages` restores the old behaviour: fixed pieces of that many pages, decided up front and never halved. The manifest's `plan` says which plan a job follows: `{kind: 'adaptive', firstPages, rampPages, targetSeconds, minPages, maxPages}` or `{kind: 'fixed', windowPages}`.
+  - `limits.livenessMs: 0` switches off the questions to the service.
+  - The numbers live in `LOCAL` in `lib/mineru-local.js` (`livenessMs`, `livenessFirstMs`, `silentMs`, `idleProbes` and the sizing values).
+- **Not verified against a real CLI:**
+  - that these read-only commands are safe to run while the CLI parses;
+  - the exact field names beyond `workers.parse_running`, `parse_queue_length`, `parse_server.local.healthy/starting` and `parses[].tier/page_range/status`, as found in a first investigation.
+- **Check the cloud route with a real token.** `MINERU_API_KEY=<token> node scripts/mineru-live-check.mjs` makes one real round trip with a generated two-page PDF and reports each assumption StudyHub makes about the API. `--check-only` checks only the token. Without the variable, it does nothing.

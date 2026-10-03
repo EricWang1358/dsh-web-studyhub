@@ -1,51 +1,151 @@
 # Question generation and quality checks
 
-[中文 and historical verification records](assessment-quality.zh-CN.md)
+[中文](assessment-quality.zh-CN.md)
 
-Built-in source generation and explicitly reviewed publication have quality checks. The current draft interface defaults to quick publication without model review; do not apply model-review guarantees to every external JSON import or default publish action.
+This page explains which checks run when StudyHub writes questions from your sources, what publishing a draft does and does not check, and where the limits are.
 
-## Current generation pipeline
+In short:
 
-Quiz, multi-select, flashcard, open-answer, cloze, and mixed source generation, including PDF conversion, use batches of up to five questions. The separate case-paper workflow is unchanged. Up to three batches can run concurrently after shared extraction:
+- **Generate from sources** (on the **Create deck** page) runs every question through evidence extraction, answer preparation, writing with a self-check and one independent review. Only questions that pass reach the draft.
+- **Save & publish** on the draft page publishes at once with structural checks only. It does not wait for a model review. Questions without a current review record are marked **Not automatically reviewed**.
+- [JSON decks you import](json-import.md) and questions saved through `ingest` do not go through this pipeline.
+- A passed review does not prove a question is factually correct. Check the sources before you rely on it.
 
-1. Extract valuable knowledge points and verbatim supporting passages once per source group. This stage does not design questions, scenarios, or distractors. Local validation confirms quotations exist within the selected sources before any later stage uses them. Fewer supported points are allowed; the requested count is a ceiling, not a quota.
-2. Prepare a concrete answer and checkable derivation for each verified point, then the necessary scenario conditions and kind-specific options, rubric, or cloze. Constructed scenarios must supply explicit hypothetical assumptions without inventing subject-matter facts. Unsupported applications are narrowed or omitted. Local validation checks the answer structure before writing starts.
-3. Write questions and perform author self-check in the same author task. Each question must identify its verified target. The program binds its objective, citations, answer, and kind-specific scoring fields to the prepared records; missing, unknown, or duplicate target links cannot pass. Structure, citation locations, answer leakage, and learner-visible context are checked locally.
-4. Run **one independent editorial review** against the material, knowledge points, answer plans, and candidate questions. Required per-question checks include self-contained context, answer leakage, option quality, learning value, evidence support, and explanation quality. The reviewer must check whether the cited passage actually supports the answer and decisive scenario conditions. Explanations must teach reasoning and error boundaries, rather than merely restating the answer.
-5. Retain only accepted candidates and record omissions and rejected candidates with reasons. Neither normal generation nor supplementation automatically repairs, repeats independent review, or generates more merely to reach the requested count. Unreadable or incomplete review output is a protocol failure rather than permission to review again.
+## How generation works
 
-Author self-assessment is never independent approval. Type errors affect the corresponding candidate. Recoverable complete questions in damaged author JSON still require independent review. A batch-level problem that cannot be attributed safely is not ignored.
+The pipeline covers **Quiz + flashcards**, **Single choice**, **Multiple choice**, **Flashcard**, **Open response** and **Fill in the blank**, including questions written from converted PDFs. **Case paper** has its own workflow, which this pipeline does not change.
 
-Normal model work comprises one extraction request per source group and three requests per batch: answer preparation, writing/self-check, and independent review. Extraction and answer preparation each allow one correction, retaining valid subsets when possible. Format recovery for authors remains bounded; it is separate from repeating editorial review. Execution records show native subagents when supported and actual direct calls otherwise. The plugin collects stage output internally and sends final notifications rather than flooding the main conversation with stage JSON.
+StudyHub splits a request into batches of up to 5 questions by default. Knowledge extraction runs once for each group of selected pages. After that, up to 3 batches run at the same time by default. Adjust [question defaults and generation pace](generation-agents-sidebar.md#what-a-generation-task-does) in **Settings › Question defaults**.
 
-For supplementation, budget expiry can merge saved questions with unchanged valid review evidence without another model request, while reporting the shortfall. Cancellation, version conflicts, target archival, and subsequent edits continue to block affected publication.
+1. **Extract knowledge points.** The model finds valuable facts, rules, mechanisms or boundaries and quotes the passages that support them, word for word. It does not design questions, scenarios or distractors at this stage. Code confirms that every quote exists in the selected sources before any later stage uses it. If the sources support fewer points than you asked for, the valid ones are kept: the requested count is a ceiling, not a quota.
+2. **Prepare answers.** For each verified point, the model first gives a concrete answer and a derivation that can be checked. Then it adds the scenario conditions the question needs, plus the options, rubric or blanks for the question type. A constructed scenario must state its assumptions and must not invent subject-matter facts. If an application is not supported, it is narrowed to a supported recall question or dropped. Code checks the answer structure before writing starts.
+3. **Write and self-check.** One author call writes the stem, hint and explanation and revises them. Each question must name the verified point it tests. Code then copies that point's objective, citations, answer and scoring fields onto the question; a missing, unknown or duplicate link fails. Code also checks structure, citation locations, answer leakage and whether the learner can see all the context the question needs.
+4. **Review independently.** A separate call sees the material, the knowledge points, the answer plans and the candidate questions. It checks each question for self-contained context, answer leakage, option quality, learning value, evidence support and explanation quality. It also checks that the cited passage really supports the answer and the decisive scenario conditions. An explanation must show how the conditions lead to the answer and where the common mistakes lie. Restating the answer, or option notes that only say true or false, fails. A question without a complete check record, or with any failed dimension, does not pass.
+5. **Keep what passed.** Only accepted questions stay. Reasons for omitted points and rejected candidates are recorded.
 
-## Publication and explicit repair
+Rules that hold across these stages:
 
-Generated questions record reviewed-content fingerprints. Editing invalidates that review. Incomplete content can stay in drafts; publication validates structure question by question.
+- The author's self-check is never an approval. Only the independent review approves a question.
+- A defect counts against the question it belongs to. A batch-level problem that cannot be pinned on a question is not ignored.
+- If the author's JSON is damaged, complete questions recovered from it still need the independent review.
+- Neither normal generation nor [supplementation](supplementation.md) repairs questions automatically, reviews them a second time or writes extra questions to reach the requested count. An unreadable or incomplete review is a protocol failure, not a reason to review again.
+- If you turned on the experimental Jev review replacement (off by default), Jev may judge some candidates in place of the model review, and the draft records which ones. See [Jev](jev-experimental.md).
 
-The explicit reviewed-publication route can independently check modified, new, or older questions lacking fingerprints when a model is available. If a batch failure cannot be attributed, it may review questions individually. Accepted questions publish while confirmed defects stay pending. A failed per-question model request means incomplete review; structurally valid content can publish with a **Not automatically reviewed** marker. Offline publication remains possible with visible unreviewed counts.
+### Model calls
 
-Users can explicitly request background repair and independent review, then publish accepted repairs into the original deck. Missing citations use original generation sources, or the single source of a single-source draft. If none is available, select material first. Repairs consider the target's existing objectives and cannot introduce duplicates. Unsaved page edits are not submitted to background repair. Saving a manually edited pending question clears its old failure verdict; the new content is checked when published.
+| Stage | Calls | Retries |
+| --- | --- | --- |
+| Extract knowledge points | 1 per page group | 1 correction; valid points are kept |
+| Prepare answers | 1 per batch | 1 correction; valid items are kept |
+| Write and self-check | 1 per batch | 1 retry for malformed JSON; complete questions are recovered from damaged output |
+| Independent review | 1 per batch | None |
 
-These explicit publication/repair capabilities are separate from the one-round generation policy above. Default quick publication does not wait for them.
+Extraction and answer preparation also re-ask once when a reply is not JSON at all.
 
-## Evidence, privacy, and limits
+### What the draft records
 
-Checks address implausible distractors, leaked answers, dependence on invisible slides or recordings, meaningless diagram-position questions, and unsupported distinctions disguised as application problems. Concise foundational flashcards remain valid without an invented scenario. PDF text coordinates do not prove diagram semantics.
+- The knowledge points, answer plans, reasons for omissions, the author's revisions and each question's review record.
+- **Source coverage**: for each selected source, how many targets were planned and how many questions passed. Questions from a source do not mean the whole page or every point on it is covered.
+- A batch that fails does not discard the questions from batches that passed.
 
-Before answering, public card data hides learning objectives and rubrics that could reveal answers. Original metadata remains stored; rubrics become available after reveal. `ingest` preserves existing questions rather than rewriting them. Do not generate in the conversation and then use ingest to bypass generation checks. Existing questions are not automatically rewritten after an update.
+### Progress and notifications
 
-Generation-stage calls have a ten-minute limit across direct, one-shot, and communicating-subagent execution; ordinary teaching calls retain their separate limits. Timeout is not a content-quality rejection and does not guarantee the requested count.
+The job record shows each stage. Where DSH supports native subagents, the stages appear as subagents; otherwise the record shows the direct model calls (see [Background tasks](generation-agents-sidebar.md)). Stage output stays inside StudyHub. The main chat gets one final notification instead of stage JSON.
 
-After revealing an explanation, **Explain again clearly** generates and saves a supplementary explanation without first requesting follow-up suggestions or changing review progress. It must acknowledge insufficient evidence or an erroneous original question rather than invent reasons to defend an answer.
+### Time limits
 
-Automated fixtures verify sequencing, selected-source quotation checks, stable target binding, answer preparation, context checks, per-question review records, explanation quality, accepted subsets, protocol failures, cancellation, and answer hiding. Browser fixtures verify explanation/retry interactions. No real-model first-pass benchmark has been measured for this workflow; these tests and independent review do not prove factual correctness or real teaching effectiveness.
+- Each generation-stage call: 10 minutes, whether it runs as a direct call, a one-shot subagent or a communicating subagent. Ordinary teaching calls keep their own limits.
+- A whole generation job: 20 minutes of running time by default, adjustable to 5–60 minutes in **Settings › Question defaults**. Time waiting in the queue does not count. Questions that already passed are kept.
+- A timeout is not a quality rejection, and it does not guarantee the requested count.
 
-## Planned curriculum coverage and learning evidence
+In supplementation, when the time budget runs out, saved questions whose review records are still valid can be published without another model call. The job reports the shortfall. Cancellation, version conflicts, an archived target deck and later edits still block publishing the affected questions.
 
-Question validity, curriculum coverage, and learner competence are separate conclusions. A reviewed question does not prove the course is complete or the learner can transfer knowledge.
+## Publish a draft
 
-The proposed evidence system is not delivered. It would bind tasks to stable concepts and objective versions, mandatory rubric criteria, and task families; track hint/answer exposure; and credit demonstrated dimensions only. Self-ratings, repetitions, keyword-based application labels, indirect prerequisite credit, and generated notes would not independently certify a concept. Missing model results would remain unassessed. Delayed recall would account for the concept's latest teaching, hint, or practice across questions.
+Each generated question stores a fingerprint of the content that was reviewed. Editing the question invalidates that review, and the draft shows **Not automatically reviewed** for it. Incomplete questions can stay in the draft; **Save & validate** saves without publishing.
 
-See the [Evidence Policy and implementation units](https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.0.3/docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) and [proposed workflow](study-workflows.md#proposed-system-learning). Historical audits remain in the Chinese companion.
+### Quick publication (the default)
+
+The draft page's main button is **Save & publish**. It reads **Save & update deck** when you edit a deck, and **Save & add to original deck** after a repair. Clicking it:
+
+1. saves the draft and checks its structure question by question;
+2. publishes every question, without a model review;
+3. marks questions without a current review record **Not automatically reviewed**;
+4. opens a practice round of up to 10 new questions from the deck.
+
+Questions with structural problems still publish. During practice they carry a **Needs verification** mark that lists the problems and offers **Send for background repair**. A question with nothing to grade can be skipped without recording a result.
+
+### Reviewed publication
+
+[Supplementation](supplementation.md) always publishes this way, and the main chat can use it for a draft (`draft.publish`). It runs these checks:
+
+- **Local checks first**: structure, duplicates within the draft and against the target deck, dependence on slides or notes the learner cannot see, stems that ask what the source says, explanations that only repeat the answer, and answers leaked in the topic or hint.
+- **Then an independent review** of every question that is new, edited or has no review record, in groups of 5. If a group's review raises a problem it cannot pin on one question, or the group request fails, the questions are reviewed one at a time, so one question cannot hold back the rest.
+- Accepted questions publish. Questions with confirmed defects stay behind in a draft of pending questions, linked to the published deck.
+- If one question's review request fails, its review is incomplete. A structurally valid question then publishes with **Not automatically reviewed**. In supplementation it is not added; it stays in the draft.
+- Without a model, publication still works. The number of unreviewed questions is shown and kept. Running reviewed publication again once a model is available completes the review.
+
+### Background repair
+
+A draft with pending questions offers **Send for background repair**. It fixes the questions one at a time:
+
+- Each question gets a repair call that uses only its sources, then the local checks, then an independent review. If either finds a problem, the question gets one more attempt with those specific problems, and the second version also needs the review. A question that still fails stays in the draft.
+- Sources come from the question's own citations. Without citations, the repair uses the sources the draft was generated from or, if your library has only one source, that source. If none applies, add a citation first.
+- The repair sees the target deck's existing questions and must not duplicate an objective or a stem.
+- Save first: the button is disabled while the draft has unsaved edits. Saving a pending question you edited by hand clears its earlier failure; the new content is checked when you publish.
+- **Stop repairs & keep draft** stops the job and keeps the questions already fixed. Repairs have the same 20-minute limit.
+- When it finishes, click **Save & add to original deck** (or **Save & update deck** for an edited deck) to publish the accepted questions.
+
+Reviewed publication and repair are separate from the one-round generation policy above. Quick publication does not wait for either.
+
+## What the checks look for
+
+The rules come from real failures:
+
+- distractors on a different axis from the correct answer, or plainly absurd ones;
+- answers given away in the stem, topic or hint;
+- questions that depend on a slide, diagram, recording or notes the learner cannot see;
+- questions about where something sits on a diagram;
+- stems that ask what the material, text or notes say instead of testing the concept;
+- distinctions the source does not support, dressed up as application questions;
+- explanations that only restate the answer.
+
+A short foundational flashcard can stay a simple recall question; it does not need an invented scenario. PDF text positions do not prove what a diagram means.
+
+## Answer hiding and imported questions
+
+- Before you answer, the question data sent to the panel leaves out the learning objective and rubric, because they could reveal the answer. Both stay stored; the rubric is shown after you reveal the answer.
+- `ingest` keeps the wording of existing questions and does not rewrite them. Do not write questions in the conversation and save them with `ingest` to skip these checks.
+- Updating StudyHub never rewrites questions you already have. Fix them one by one if needed.
+
+## Explain more clearly
+
+After you reveal an explanation, **Explain more clearly** next to **Ask a follow-up?** asks for a fuller explanation and saves it on the question as a follow-up answer. It does not wait for suggested follow-ups and does not change your review progress. If the evidence is thin or the original question is wrong, the new explanation must say so instead of inventing reasons for the answer. See [Follow-up questions](followup.md).
+
+## What has been verified
+
+Automated tests cover stage order, quote checks limited to the selected sources, stable target binding, answer preparation, context checks, per-question review records, explanation quality, keeping accepted subsets, protocol failures, cancellation and answer hiding. The model outputs in these tests are scripted. Browser tests cover the explanation and retry interactions.
+
+No first-pass success rate with a real model has been measured for this workflow. Neither the tests nor the independent review prove factual correctness or real teaching effectiveness.
+
+## History
+
+- **2026-09-14.** Three generation runs had stopped at about 180 seconds, each time from the generation stage's own timeout. Generation calls now have a 10-minute limit, the same for one-shot subagents, communicating subagents and direct calls; ordinary teaching calls are unchanged. A timeout is not treated as a quality failure. At that time, reviewing a repaired subset cost at most one extra model call and still did not guarantee the requested count.
+- **2026-09-20.** A repairer's own approval stopped counting; review records moved to version 3 and must include `explanationQuality`. Generation started rejecting explanations that only repeat the answer. The independent review now receives the requested role, difficulty and focus. Old questions are not rewritten automatically; after revealing an explanation, **Explain more clearly** writes and saves a supplementary explanation. Verification at the time: two regression tests failed before the fix and passed after it; 218 automated tests, the build and ESLint on the changed files passed; a 360 px browser check covered direct re-explanation, error messages, a successful retry and no horizontal overflow, using stubbed replies rather than real teaching samples. No blocking defect was found; teaching quality with real models and real weak questions had not been evaluated. These changes shipped in 0.9.0.
+
+The Chinese page keeps the full verification record.
+
+## Planned: curriculum coverage and learning evidence (not built)
+
+A valid question, complete coverage of the material and a learner's competence are three separate conclusions. A question that passed review does not prove the course has no gaps, or that you can transfer the knowledge.
+
+The proposed evidence system is not built. It would:
+
+- bind tasks to stable concepts and objective versions, required rubric criteria and task families;
+- record when a hint or the answer was shown, and credit only the dimensions you actually demonstrated;
+- not let self-ratings, repeats of the same question, keyword-based "application" labels, indirect prerequisite credit or generated notes certify a concept on their own;
+- record missing or insufficient model results as not assessed, never as a default pass or fail;
+- compare real-model samples with a human standard and count false passes and false rejections separately. A substantive false pass confirmed by blind human review would have to be fixed and rechecked on the original failure and on independent samples; until then, the affected grading path could give only candidate or supporting feedback, never certified evidence;
+- check delayed recall against the concept's latest teaching, hint or practice across questions, so a correct answer right after relearning does not count as retention.
+
+See the [Evidence Policy and implementation units](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) (U1, U5, U6 and U8; coverage in R2–R4 and U3; pilot thresholds in R16 and the Verification Contract) and the [proposed workflow](study-workflows.md#proposed-system-learning).

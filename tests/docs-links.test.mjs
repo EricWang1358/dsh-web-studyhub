@@ -63,3 +63,23 @@ test('the Chinese README links to Chinese documents when a translation exists', 
   }
   assert.deepEqual(english, []);
 });
+
+test('relative documentation links remain available inside the installed package', async () => {
+  const { files: packaged } = JSON.parse(await readFile('package.json', 'utf8'));
+  const included = path => packaged.some(entry => path === entry || path.startsWith(`${entry}/`));
+  const queue = packaged.filter(path => path.endsWith('.md'));
+  const seen = new Set(), missing = [];
+  while (queue.length) {
+    const file = queue.shift();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const prose = (await readFile(file, 'utf8')).replace(/```[\s\S]*?```/g, '');
+    for (const [, target] of prose.matchAll(/\]\(([^)\s]+)\)/g)) {
+      if (/^(?:[a-z]+:|\/\/|#)/i.test(target)) continue;
+      const path = normalize(join(dirname(file), decodeURIComponent(target.split('#')[0]))).replaceAll('\\', '/');
+      if (!included(path)) missing.push(`${file}: ${target}`);
+      if (path.endsWith('.md')) queue.push(path);
+    }
+  }
+  assert.deepEqual(missing, [], 'documentation dependencies must also ship');
+});

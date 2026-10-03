@@ -4,13 +4,13 @@ created_at: "2026-09-27T12:07:58.2527921Z"
 title: "零基础系统学习工作流：设计与开发计划交接"
 summary: "已完成八步学习流程、新旧对比和分阶段开发计划；用户确定首版接入外部实操与成果验收，代码尚未实现。"
 keywords: ["StudyHub", "platform-engineering", "learning-workflow", "core-coverage", "prerequisites", "external-practice", "evidence"]
-cwd: "D:/A/1NUS/1Sem/dsh-daily-flashcard"
+cwd: "."
 resume_focus: "理解已定学习工作流与证据规则；后续开发以统一计划 U1–U9 及当前用户授权为准。"
 repository: "dsh-daily-flashcard"
 repo_root_sha: "f19192d5e3e91e93a78501e007d48abfee6699b6"
 branch: "codex/assessment-teaching-quality"
 head: "b9b98f694abb68e9d6b1958627568c31cf203e97"
-worktree_path: "D:/A/1NUS/1Sem/dsh-daily-flashcard"
+worktree_path: "."
 ---
 
 # Learning Workflow Redesign Handoff

@@ -57,7 +57,7 @@
 - 使用隔离临时学习库和实际预览页面，以受控网络响应替代付费助教请求。桌面 1440×1000、深色窄屏 390×844 均验证长题底部提交：反馈可见、无横向溢出、反馈与题卡/工具栏边界不重叠；错误时焦点仍在提交按钮。
 - 浏览器时钟验证普通提示约 5 秒清理、4.5 秒后同文案重新提交不被旧计时器清除；错误超过 6 秒仍在。真实临时题卡斩题后撤销入口超过 6 秒仍可用，撤销成功后的普通确认按时清理。
 - 通过设置页将临时学习库从原路径切到另一临时路径，旧错误清除，新的切库确认保留。未改用户学习数据，未调用真实模型。
-- 截图保存在本机临时验收目录 `C:/Users/Eric1/AppData/Local/Temp/quiet-integration-qa-yxiUCF/`：`feedback-desktop-success.png`、`feedback-desktop-error.png`、`feedback-mobile-success.png`、`feedback-mobile-error.png`。最终全链验收仍在 U7 执行。
+- 截图保存在本机临时验收目录 隔离的临时验收目录：`feedback-desktop-success.png`、`feedback-desktop-error.png`、`feedback-mobile-success.png`、`feedback-mobile-error.png`。最终全链验收仍在 U7 执行。
 
 ## U2：有序多音频
 

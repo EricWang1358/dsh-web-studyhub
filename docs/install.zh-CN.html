@@ -31,12 +31,12 @@
 </head>
 <body>
 <main>
-  <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.8/StudyHub-2.5.8-Setup.html">English setup guide</a> · 中文</p>
-  <p class="muted">STUDYHUB · 学习插件 2.5.8</p>
+  <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/StudyHub-2.5.10-Setup.html">English setup guide</a> · 中文</p>
+  <p class="muted">STUDYHUB 2.5.10 · 安装引导</p>
   <h1>从安装开始，到自己的学习库</h1>
-  <p>已有 DeepSeek Harness（DSH）桌面版或网页版，可直接安装全套学习插件。首次使用再选择桌面安装器或网页版，配置模型后开始学习。</p>
-  <p class="note"><strong>已在使用 DSH 网页版？</strong>保留当前网页版和配置，<a href="#plugin">仅安装学习插件 ↓</a>，无需下载客户端。</p>
-  <p><a href="#plugin">已有桌面版：仅安装插件</a> · <a href="#web">首次使用：只用网页版</a></p>
+  <p>StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面应用，也可以在浏览器里以网页版运行。先装好 DSH，再在 DSH 的插件管理里添加 StudyHub，最后配一个模型用来出题。</p>
+  <p class="note"><strong>已经在用 DSH 桌面版或网页版？</strong>保留现有的 DSH、模型和配置，直接<a href="#plugin">在 DSH 中安装 StudyHub</a>。网页版不用下载客户端。</p>
+  <p><a href="#plugin">在 DSH 中安装 StudyHub</a> · <a href="#web">在浏览器里运行 DSH</a> · <a href="#provider">配置模型</a> · <a href="#update">更新 StudyHub</a></p>
   <div class="platforms" aria-label="选择电脑平台">
     <article class="card" id="windows">
       <h2>Windows</h2>
@@ -48,57 +48,75 @@
       <h2>Linux</h2>
       <p>官方 npm 网页版 · 无需客户端</p>
       <a class="download" href="#web">使用 Linux 网页版</a>
-      <p><small>安装 Node.js 22.19 或以上，启动 DSH 后在浏览器中添加学习插件。</small></p>
+      <p><small>安装 Node.js 22.19 或以上，启动 DSH 后在浏览器里添加 StudyHub。</small></p>
     </article>
     <article class="card" id="macos">
       <h2>macOS</h2>
-      <p>Apple silicon（M 系列）· 官方 .dmg 安装器</p>
+      <p>Apple 芯片（M 系列）· 官方 .dmg 安装器</p>
       <a class="download" href="https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg">下载 macOS 安装器</a>
-      <p><small>打开磁盘映像，按提示把 DSH 放入「应用程序」，然后启动。无需单独安装 Node.js。</small></p>
+      <p><small>打开磁盘映像，按提示把 DSH 放进「应用程序」，然后启动。不用另装 Node.js。</small></p>
     </article>
   </div>
-  <p class="muted">以上链接来自 <a href="https://www.deepseek.com/en/harness/">DSH 官网</a>，下载的是 DSH 官方宿主，学习插件在下一步安装。Intel Mac 或 Windows ARM 请查看官方支持情况，或使用 <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md#run">npm 启动方式</a>。</p>
+  <p class="muted">以上链接来自 <a href="https://www.deepseek.com/en/harness/">DSH 官网</a>，下载的是 DSH 本身，StudyHub 在下一步安装。Intel 芯片的 Mac 或 Windows ARM 电脑，请查看官网的支持情况，或改用<a href="#web">网页版</a>。StudyHub 2.5.10 适用于 DSH 0.2（0.2.0-rc.2 起，0.3 之前）；DSH 和 StudyHub 的版本号各自独立。</p>
   <section id="plugin">
-    <h2>已有 DSH：仅安装全套插件</h2>
-    <p>以下步骤适用于正在使用的桌面版和网页版。在现有 DSH 的插件管理器安装，继续使用原来的模型与工作区。</p>
+    <h2>在 DSH 中安装 StudyHub</h2>
+    <p>以下步骤桌面版和网页版通用，原有的模型、工作区和配置都不用动。</p>
     <ol>
-      <li>打开 DSH「插件 → 添加插件」。</li>
-      <li>复制下方地址到安装输入框，安装完成后确认包名 <code>@ericwang1358/dsh-daily-flashcard</code>、版本 <code>2.5.8</code>，启用工作台和所需组件。</li>
-      <li>启用后 StudyHub 会自动打开；之后从 DSH 左栏的「StudyHub」进入，不需要先建会话或发消息。学习库为空时点「载入示例并开始导览」，约 3 分钟看完关键功能，不需要模型。</li>
+      <li>在 DSH 打开「插件」页，点「添加插件」。</li>
+      <li>粘贴下方地址。安装完成后，确认包名是 <code>@ericwang1358/dsh-daily-flashcard</code>，版本是 <code>2.5.10</code>。</li>
+      <li>点「启用」，启用 StudyHub 和你需要的组件。如果 DSH 提示重新加载，先等后台任务完成或取消它们。</li>
+      <li>第一次启用后，StudyHub 会自动打开；之后从 DSH 左栏的「StudyHub」进入，不用先发消息。学习库为空时，点「载入示例并开始导览」，会载入一门示例课程并开始约 3 分钟的导览，不需要模型。</li>
     </ol>
-    <p><strong>更新：</strong>DSH 插件不会自动更新，只重启不会换成新版本。从 2.1.2 起，GitHub 有新版本时 StudyHub 会在侧栏提示；点「一键升级」会核对安装包的 SHA-256 后交给 DSH 插件管理安装（可在「设置 › 关于与更新」关闭检查）。旧版本：在「插件」里卸载 StudyHub，再「添加插件」粘贴新版本的安装包地址。先结束后台任务，装好后<strong>重启 DSH</strong>：桌面版完全退出后重新打开，网页版用原配置重启服务。仅刷新浏览器不够。</p>
-    <code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.8/ericwang1358-dsh-daily-flashcard-2.5.8.tgz</code>
-    <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.8">查看 2.5.8 安装包与校验值</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.8/ericwang1358-dsh-daily-flashcard-2.5.8.tgz">直接下载学习插件</a></p>
-    <p class="muted">无法直接安装时，可先下载 .tgz，再填写文件绝对路径。访问远程网页版时，文件须在 DSH 服务器上；自己电脑的路径不等于服务器路径，可优先使用上方 HTTPS 地址。</p>
+    <code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/ericwang1358-dsh-daily-flashcard-2.5.10.tgz</code>
+    <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.10">查看 2.5.10 安装包与校验值</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/ericwang1358-dsh-daily-flashcard-2.5.10.tgz">直接下载 StudyHub 安装包</a></p>
+    <p class="muted">DSH 无法从 GitHub 下载时，先下载 .tgz，再在「添加插件」里填这个文件的绝对路径。文件必须放在运行 DSH 的电脑或服务器上：访问远程网页版时，你自己电脑上的路径在服务器上并不存在。也可以直接用上方的 HTTPS 地址。</p>
     <details>
-      <summary>高级自定义：按需安装、启用或停用组件</summary>
-      <p>全套包含工作台、运行时、资料、题库、学习、生成和音频。在 DSH 自带插件管理器展开安装包，选择所需组件；以后仍在这里启停。发布页也提供独立子插件安装包。</p>
-      <p>生题需要资料、题库和生成；答题与考试需要题库和学习。停用所需组件后，对应入口隐藏或提示功能已停用。停用前先结束相关任务，已保存的资料、题组和进度会保留。</p>
-      <p>删除资料前须启用题库和学习，以检查已保存题目、草稿与学习记录的引用。</p>
-      <p>若同一能力由多个安装包提供，需停用所有来源才能完全关闭。旧完整工作台仍提供整套能力，升级后再自定义。</p>
+      <summary>高级：自定义组件</summary>
+      <p>完整安装包包含 7 个组件：StudyHub、StudyHub · 核心、StudyHub · 资料、StudyHub · 题库、StudyHub · 出题、StudyHub · 练习与复习、StudyHub · 音频转写。在 <strong>DSH 自带的插件管理</strong>里启用或停用。发布页也提供每个组件的独立安装包。</p>
+      <p>「创建题组」需要资料、题库和出题；练习、「错题与待巩固」「模拟考试」和「统计」需要题库和练习与复习。页面所需的组件停用后，StudyHub 会隐藏这个页面，或提示功能已停用。已保存的资料、题组和学习进度都会保留。停用前先结束相关的后台任务。</p>
+      <p>删除资料前，先启用题库和练习与复习，StudyHub 才能检查引用了这份资料的题目、草稿和学习记录。如果同一组件由多个已安装的包提供，要在所有包里都停用才算关闭。旧版完整包仍提供全部功能，先升级再自定义。</p>
+      <p>在终端安装时沿用原来的配置名（<code>dsh web</code> 的配置名是 <code>web</code>）：<code>dsh plugin --profile web add &lt;安装包地址或绝对路径&gt;</code>。桌面版请用插件管理安装；命令行安装必须先完全退出桌面版（包括托盘图标）。</p>
     </details>
   </section>
   <section id="web">
-    <h2>首次使用：只用 DSH 网页版</h2>
-    <p>适用于 Linux，也适用于不希望安装客户端的 Windows、Mac 用户。安装 Node.js 22.19 或以上，然后在终端运行：</p>
+    <h2>在浏览器里运行 DSH</h2>
+    <p>适用于 Linux，也适用于不想装客户端的 Windows、Mac 用户。安装 Node.js 22.19 或以上，然后在终端运行：</p>
     <code class="address">npx @deepseek-ai/dsh web</code>
-    <p>保持进程运行，默认打开 <code>http://127.0.0.1:3080</code>。随后在网页中<a href="#plugin">安装学习插件</a>。已有网页版可直接跳过这一步。</p>
-    <p><a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md#run">DSH 官方网页版启动说明</a> · Linux 当前使用官方 npm 路径。</p>
+    <p>DSH 默认在 <code>http://127.0.0.1:3080</code> 打开。保持进程运行，然后<a href="#plugin">安装 StudyHub</a>。已经在用网页版的话，跳过这一步。</p>
+    <p><a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md#run">DSH 官方网页版启动说明</a></p>
   </section>
   <section id="provider">
-    <h2>首次使用：配置模型 Provider</h2>
-    <p class="note">在 DSH「设置 → 模型」保存 API Key，然后在会话中选择模型。生成、讲解、校对与翻译需要模型；安装插件、查看资料和复习已有题组可以先开始。</p>
+    <h2>配置模型服务商</h2>
+    <p class="note">在 DSH「设置 › 模型」保存 API Key，然后在会话里选择模型。出题、讲解、「帮我弄懂」、校对和翻译需要模型；示例导览、浏览资料和练习已有题组不需要。</p>
     <h3>日常使用：DeepSeek 官方 API</h3>
-    <p>在 <a href="https://platform.deepseek.com/">DeepSeek 开放平台</a>创建 API Key，确认账户可调用模型；在 DSH 模型设置的 DeepSeek 卡片输入并保存。内置配置无需手工填写 API 地址。</p>
-    <h3>用量较大：考虑兼容的 Coding Plan</h3>
-    <p>选择提供 API Key、且允许 DSH 与学习用途的套餐。购买前确认适用工具、用途、专用 API 地址、模型、并发限制和额度规则。有 Key 不等于允许任意应用使用；<a href="https://docs.bigmodel.cn/cn/coding-plan/faq">有些套餐仅限指定工具</a>。</p>
-    <p>获准的第三方套餐可在「添加模型提供商」配置；自定义端点需填写地址、协议、Key 和模型 ID。参见 <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/providers.zh.md">DSH 模型配置指南</a>。</p>
-    <h3>Claude／Codex 订阅不能直接当作 API Key</h3>
-    <p>DSH 当前不支持 Codex 等 OAuth 订阅接入。Claude Pro／Max、ChatGPT／Codex 的订阅额度不能直接填入这里；Anthropic 和 OpenAI 的独立付费 API 可以作为第三方 Provider，费用与订阅分开。</p>
+    <p>在 <a href="https://platform.deepseek.com/">DeepSeek 开放平台</a>创建 API Key，确认账户可以调用模型，再在 DSH「设置 › 模型」的 DeepSeek 卡片填入并保存。内置的 DeepSeek 卡片不用填写接口地址。StudyHub 默认用会话里选的模型出题；想让出题和讲解单独用另一个模型，在 StudyHub「设置 › 学习库与模型」的「生成模型」里选择。</p>
+    <h3>用量大时：先核对 Coding Plan</h3>
+    <p>只选提供 API Key、并且允许在 DSH 里用于学习的套餐。购买前确认适用工具和用途、专用 Base URL、模型 ID、并发限制和额度重置规则。能创建 Key 不等于允许任意应用调用；<a href="https://docs.bigmodel.cn/cn/coding-plan/faq">有些套餐只支持指定的编程工具</a>。</p>
+    <p>接入获准的套餐，在 DSH「设置 › 模型」选择「添加模型提供商」。其他接口选「自定义模型 API」，填写 Base URL、API 协议、Key 和模型 ID。套餐的专用接口和普通 API 接口可能扣不同的额度。参见 <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/providers.zh.md">DSH 模型配置指南</a>。</p>
+    <h3>Claude、ChatGPT 订阅不是 API Key</h3>
+    <p>DSH 目前不支持 Codex 这类 OAuth 订阅登录。Claude Pro／Max、ChatGPT／Codex 的订阅额度不能当作 API Key 填进来；Anthropic 和 OpenAI 单独付费的 API 可以作为第三方服务商添加，费用与订阅分开计算。</p>
     <p><a href="https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console">Claude 计费说明</a> · <a href="https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform">OpenAI 计费说明</a></p>
-    <p class="muted">本页不收集密钥，请只在 DSH 模型设置中保存。音频原始转写还需在学习插件「设置 → 音频转写」配置 Gemini 或 Groq，后续校对和翻译使用上述 Provider。</p>
+    <h3>录音：另配转写服务</h3>
+    <p>把录音转成文字要另配转写服务，在 StudyHub「设置 › 音频转写」里填密钥。支持硅基流动 SenseVoice、Gemini 和 Groq；可用地区、额度和收费以各服务商的当前说明为准。「课堂实录」的实时转写只支持 Gemini。转写之后的校对和翻译默认使用你在 DSH 会话里选的模型。</p>
+    <p class="muted">本页不收集密钥。模型的 API Key 只保存在 DSH「设置 › 模型」，转写密钥只保存在 StudyHub「设置 › 音频转写」。不要把密钥贴到对话、资料或题组里。</p>
   </section>
-  <footer>下载入口核实于 2026-10-01 · DSH 宿主与学习插件版本独立 · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.5.8/docs/install.zh-CN.md">详细安装说明</a></footer>
+  <section id="update">
+    <h2>更新 StudyHub</h2>
+    <p>DSH 插件不会自动更新，只重启 DSH 也不会换成新版本。学习库和设置都会保留。</p>
+    <ol>
+      <li>从 2.1.2 起，GitHub 有新版本时，StudyHub 侧栏会出现「有新版本 x.y.z」提示。点它，再点「一键升级到 x.y.z」和「确认升级」。</li>
+      <li>有后台任务在运行时，点「停止任务并升级」会先停止这些任务，已完成的部分会保留；也可以等任务结束后再升级。</li>
+      <li>StudyHub 按 <code>SHA256SUMS-x.y.z.txt</code> 核对安装包的 SHA-256，再交给 DSH 插件管理安装。</li>
+      <li><strong>重启 DSH</strong>：桌面版完全退出（包括托盘图标）后重新打开；网页版按原来的方式（同一个配置）重启服务，再刷新页面。只刷新浏览器不够。</li>
+    </ol>
+    <p>2.1.2 之前的版本，或一键升级失败时：在 DSH 的「插件」页「卸载」StudyHub，再「添加插件」粘贴新版本的安装包地址，点「启用」后重启 DSH。开始前先等后台任务完成或取消它们。</p>
+    <p class="muted">StudyHub 最多每 12 小时向 GitHub 查询一次新版本，不发送任何学习数据。可在 StudyHub「设置 › 关于与更新」关闭。</p>
+  </section>
+  <section>
+    <h2>选择中文或英文界面</h2>
+    <p>第一次打开时，StudyHub 跟随浏览器的首选语言：中文浏览器显示中文，其他显示英文。在 StudyHub 侧栏底部的「语言」切换，这个浏览器会记住你的选择。切换界面语言不会翻译已保存的资料、题目、笔记或文件名。</p>
+  </section>
+  <footer>DSH 与 StudyHub 版本号各自独立 · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.5.10/docs/install.zh-CN.md">详细安装说明</a></footer>
 </main>
 </body>
 </html>

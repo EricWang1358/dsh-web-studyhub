@@ -1,75 +1,188 @@
-# Install StudyHub and configure a model
+# Install StudyHub and set up a model
 
 English · [简体中文](install.zh-CN.md)
 
-StudyHub is a plugin for DeepSeek Harness (DSH). Download the [English browser setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.8/StudyHub-2.5.8-Setup.html), or follow the steps below.
+StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app or as a web page in your browser. You install DSH, add StudyHub through DSH's plugin manager, then connect a model for question generation. For a one-page version to open in your browser, download the [English setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/StudyHub-2.5.10-Setup.html).
 
-## Already using DSH: install only the plugins
+| Your situation | Start here |
+| --- | --- |
+| No DSH yet | [Install DSH](#install-dsh), then [install StudyHub in DSH](#install-studyhub-in-dsh) |
+| DSH desktop or web is already running | [Install StudyHub in DSH](#install-studyhub-in-dsh). Your models, workspace and profile stay as they are |
+| An older StudyHub is installed | [Update StudyHub](#update-studyhub) |
 
-These steps work in your existing **desktop or web** DSH installation. Web users do not need a desktop client or a new configuration.
+**What you need**
 
-1. Open DSH’s **Plugins → Add plugin**.
-2. Paste the complete package URL below. Confirm the name `@ericwang1358/dsh-daily-flashcard` and version **2.5.8** after installation.
-3. Enable the workbench and desired components. If reloading is requested, finish or cancel background tasks first.
-4. StudyHub opens by itself after enabling. Later, open **StudyHub** from DSH’s left sidebar; no session or chat message is needed first. On an empty library, **Load the sample and start the tour** shows every key feature in about three minutes without a model.
-
-```text
-https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.8/ericwang1358-dsh-daily-flashcard-2.5.8.tgz
-```
-
-**Updating.** DSH plugins do not update themselves, and restarting DSH alone keeps the installed version. From 2.1.2, StudyHub asks GitHub for a newer release (at most every 12 hours; switch it off in **Settings › About & updates**) and shows a chip in its sidebar. **Upgrade** downloads the release package, checks its SHA-256 against the release's `SHA256SUMS` file and installs it through DSH's plugin manager. On older versions, or a host without in-app installs, open **Plugins**, uninstall StudyHub, then **Add plugin** with the new release's package address. Either way, finish or cancel background tasks first and restart DSH afterwards: quit desktop DSH fully and reopen it, or restart your web service with its original profile. A browser refresh alone does not load new plugin code. Your library and settings are kept.
-
-If GitHub URL installation is unavailable, download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.8) and supply its absolute path. The file must be on the **computer or server running DSH**. Your laptop’s download path is not a remote web server’s path; prefer the HTTPS URL above.
-
-### Advanced installation and component switches
-
-The complete package installs the workbench, runtime, materials, bank, learning, generation and audio. Use **DSH’s own plugin manager** to enable or disable individual components and to add standalone component packages later.
-
-- Generation needs materials, bank and generation; practice, mistakes and exams need bank and learning. Unavailable capabilities hide their UI entries or show a disabled message.
-- Enable bank and learning before deleting a material, so saved questions, drafts and learning records can be checked for citations.
-- Finish related tasks before disabling a component. Saved sources, decks and progress remain; enabling the component restores access.
-- If several installations provide the same capability, disable all providers to turn it off. An old complete workbench still provides all capabilities; update before customizing.
-
-If managing an existing web profile by CLI, keep that profile name:
-
-```sh
-dsh plugin --profile web add <package-URL-or-absolute-path>
-```
-
-Replace `web` with your existing custom profile if applicable. Prefer the bundled plugin manager for desktop DSH.
+- **DSH 0.2.** StudyHub 2.5.10 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
+- **A supported computer.** The desktop installers in this guide are for Windows x64 and Macs with Apple silicon. On any other system, check the official DSH site or use the DSH web version with Node.js 22.19 or later.
+- **A model, only for AI features.** Generation and explanations need one; see [Configure a model provider](#configure-a-model-provider). Installing, the sample tour, browsing sources and practising existing decks do not.
 
 ## Install DSH
 
-| Platform | Official route |
-| --- | --- |
-| Windows x64 | [Download the .exe installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe), install and open DeepSeek Harness. |
-| macOS Apple silicon | [Download the .dmg installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg), copy DSH into Applications as prompted and open it. |
-| Linux, or browser-only on any platform | Install Node.js **22.19 or later**, then start the official npm web version below. |
+Skip this section if DSH already runs on your computer or server.
 
-Desktop installers include their runtime. For Intel Macs or Windows ARM, check the [official DSH site](https://www.deepseek.com/en/harness/) for current support or use the web route.
+| Platform | Route |
+| --- | --- |
+| Windows x64 | [Download the .exe installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe), run it and open DeepSeek Harness. |
+| macOS, Apple silicon | [Download the .dmg installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg), copy DSH into **Applications** as prompted and open it. |
+| Linux, or browser only on any system | Install Node.js 22.19 or later, then start the web version below. |
+
+The desktop installers come from the [official DSH site](https://www.deepseek.com/en/harness/) and include their own runtime, so they need no Node.js. This guide links only these two verified installers. For an Intel Mac or Windows on ARM, check the official site for current support, or use the web version.
+
+To start the web version, run this in a terminal:
 
 ```sh
 npx @deepseek-ai/dsh web
 ```
 
-Keep the process running. The default local address is `http://127.0.0.1:3080`. Install StudyHub through that web page’s plugin manager. Existing web users skip this first-time startup step. Linux uses the official npm route; this release does not supply an unverified Linux desktop installer.
+DSH opens at `http://127.0.0.1:3080` by default. Keep the process running while you use DSH. If you already run DSH web, skip this step. The [official run instructions](https://github.com/deepseek-ai/deepseek-harness/blob/master/README.md#run) have the details.
+
+## Install StudyHub in DSH
+
+These steps work in desktop and web DSH. Web users need no desktop client and no new profile.
+
+1. In DSH, open **Plugins › Add plugin**.
+2. Paste the complete package address:
+
+   ```text
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/ericwang1358-dsh-daily-flashcard-2.5.10.tgz
+   ```
+
+3. After it installs, check that the package is `@ericwang1358/dsh-daily-flashcard`, version 2.5.10.
+4. Click **Enable** for StudyHub and the components you want. If DSH asks to reload, finish or cancel background tasks first.
+5. StudyHub opens by itself the first time. Later, open **StudyHub** from DSH's left sidebar; you do not need to send a chat message first. StudyHub is also a tab in each session and in DSH's right sidebar.
+
+On an empty library, the welcome page leads with **Import my first source**. To look around first, click **Load the sample and start the tour**. It loads a sample course (one lecture handout, nine cited questions and three weeks of practice history) and starts a tour of about 3 minutes. Neither needs a model, and **Remove sample data** clears the sample whenever you like.
+
+StudyHub keeps your library in the workspace folder of the current DSH session. If it shows **Open a session first**, start or open a session in DSH.
+
+### If DSH cannot download from GitHub
+
+1. Download `ericwang1358-dsh-daily-flashcard-2.5.10.tgz` from the [2.5.10 release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.10). The same page lists the checksums in `SHA256SUMS-2.5.10.txt`.
+2. In **Add plugin**, enter the absolute path of that file instead of the address.
+
+The file must be on the **computer or server that runs DSH**. With a remote DSH web server, a download path on your laptop does not exist on the server. Copy the file to the server, or use the HTTPS address above.
 
 ## Configure a model provider
 
-Question generation, explanations, proofreading and translation need a usable model provider. Installation, material browsing and review of existing decks do not. DSH manages models and credentials.
+Question generation, explanations, **Help me understand**, proofreading and translation call a model. Installing, the sample tour, browsing sources and practising existing decks do not. DSH stores the model keys, and StudyHub uses the models you configure there. Model use is billed by your provider.
 
-**For everyday use, start with the official DeepSeek API.** Create a key at the [DeepSeek platform](https://platform.deepseek.com/) and ensure the account can call models. Open **DSH Settings → Models**, save the key on the DeepSeek provider card, then choose a model in your session. Built-in DeepSeek configuration does not require a manually entered endpoint. For custom integration, use `https://api.deepseek.com` and supported model IDs from the [official API documentation](https://api-docs.deepseek.com/).
+### Start with the official DeepSeek API
 
-**For high usage, consider a compatible Coding Plan.** It must provide an API key and allow DSH and the intended study workload. Before purchasing, check supported tools and uses, dedicated base URL, model IDs, concurrency and quota resets. A key alone does not make a plan compatible with arbitrary applications. Some plans restrict tools or coding workloads; StudyHub does not promise that any particular plan permits learning, batch generation or audio proofreading.
+1. Create an API key on the [DeepSeek platform](https://platform.deepseek.com/) and check that the account can call models. Check the provider’s current region and account requirements.
+2. In DSH, open **Settings › Models**, enter the key on the DeepSeek card and save it.
+3. Choose a model in your session's model picker.
 
-Configure an eligible third-party provider under **Add model provider**. For custom endpoints, select **Custom model API** and supply the provider’s endpoint, protocol, key and model ID. Use a protocol the endpoint actually supports. A plan’s dedicated endpoint and its ordinary API may bill different quotas.
+The built-in DeepSeek card needs no endpoint. For a custom integration, use `https://api.deepseek.com` and a supported model ID from the [DeepSeek API documentation](https://api-docs.deepseek.com/).
 
-**Claude/Codex subscriptions are not providers in this setup.** DSH’s current model configuration does not accept Codex-style OAuth subscriptions. Claude Pro/Max and ChatGPT/Codex subscription allowances are not a general API key to paste into DSH. Separately paid Anthropic and OpenAI APIs can be configured as third-party providers; their billing is separate. See [Claude’s subscription/API billing explanation](https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console) and [OpenAI’s separate API billing explanation](https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform).
+By default StudyHub generates with the model selected in the chat input (**Follow current session**). To use a different configured model for questions and explanations only, open StudyHub **Settings › Library & model** and choose a **Generation model**. The chat model stays unchanged.
 
-Save API keys only in DSH’s model settings, never in a setup guide, source material or deck. Original audio transcription separately needs a transcription provider in **Study Settings → Audio transcription** (SiliconFlow SenseVoice is free and reachable from mainland China; Gemini and Groq are also supported); the model provider handles subsequent proofreading, translation and learning help.
+Until a model is ready, StudyHub shows a setup card with **Open model settings** wherever a step needs one, instead of letting the step fail.
 
-## Interface language and original content
+### For heavier use, check a Coding Plan first
 
-The workbench chooses English for first-time browsers whose preferred language is not Chinese. Use its language switch to select English or Chinese; the saved choice takes priority. Changing the interface does not rewrite saved sources, questions, notes or filenames. Select the desired generation language or explicitly request question translation when needed.
+A Coding Plan can suit heavy use, but only if it gives you an API key and its terms allow DSH and your study use. Before you buy, check:
 
-Official routes and provider rules were checked on **2026-10-01**; their current official documentation governs future changes.
+- which tools and uses the plan permits;
+- its dedicated base URL and model IDs;
+- its concurrency limits and when the quota resets.
+
+A key alone does not make a plan usable from any application. Some plans allow only named coding tools; the [GLM Coding Plan FAQ](https://docs.bigmodel.cn/cn/coding-plan/faq) (in Chinese) is one example. StudyHub does not promise that any particular plan permits study use, batch generation or audio proofreading.
+
+To add a permitted plan or another provider:
+
+1. In DSH **Settings › Models**, choose **Add model provider**.
+2. Pick a provider DSH already lists, enter its key and save. For any other endpoint, choose **Custom model API** and enter the provider's base URL, API protocol, key and model ID.
+3. Choose the protocol the endpoint actually supports.
+
+A plan's dedicated endpoint and its ordinary API may draw on different quotas. DSH's [model configuration guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/providers.md) covers the fields.
+
+### Claude and ChatGPT subscriptions are not API keys
+
+DSH's model settings do not accept OAuth subscriptions such as Codex. A Claude Pro/Max or ChatGPT/Codex subscription is not a general API key you can paste into DSH. You can add the separately paid Anthropic or OpenAI API as a third-party provider; it is billed separately from the subscription. See [Claude's explanation of subscription and API billing](https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console) and [OpenAI's explanation of separate API billing](https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform).
+
+### Set up transcription for recordings
+
+Turning recordings into text needs a transcription provider of its own. Add its key in StudyHub **Settings › Audio transcription**:
+
+- **SiliconFlow SenseVoice** supports recording transcription.
+- **Gemini** and **Groq** are also supported. Availability, allowances and pricing depend on each provider’s current terms.
+
+Real-time transcription in **Live class** works only with Gemini. After transcription, proofreading and translation use your DSH session model by default, billed by your provider. See [Audio import](audio-import.md) and [Live class](live-class.md).
+
+### Keep keys out of your study files
+
+- Save model keys only in DSH **Settings › Models**.
+- Save transcription keys only in StudyHub **Settings › Audio transcription**. StudyHub stores them outside the library, so they never appear in exports or backups.
+- Never paste a key into a chat, a source, a deck or a setup guide. This guide collects no keys.
+
+## Choose English or Chinese
+
+- On first use, StudyHub follows your browser: Chinese if its preferred language is Chinese, English otherwise.
+- Switch with **Language** at the bottom of StudyHub's sidebar. This browser remembers your choice.
+- Switching does not translate saved sources, questions, notes or file names. New explanations and feedback follow the interface language.
+- For a new deck, set the question language in the **Language** field of **Create deck**. To show English under a Chinese question while you practise, use the **EN** button on the practice toolbar ([details](translate-en.md)).
+
+## Update StudyHub
+
+DSH plugins do not update themselves, and restarting DSH alone keeps the installed version. Your library and settings stay through every update.
+
+### Upgrade in one click (2.1.2 and later)
+
+StudyHub asks GitHub for a newer release at most once every 12 hours and sends no study data. When there is one, a **Version x.y.z available** chip appears in StudyHub's sidebar, where x.y.z is the new version.
+
+1. Click the chip, then **Upgrade to x.y.z** and **Upgrade now**.
+2. If background tasks are running, StudyHub says how many. **Stop tasks and upgrade** stops them and keeps the parts already finished. You can also wait until they are done.
+3. StudyHub downloads the package from the GitHub release, checks its SHA-256 against `SHA256SUMS-x.y.z.txt` and hands it to DSH's plugin manager. You can keep studying until you restart.
+4. Restart DSH:
+   - **Desktop:** quit DSH fully, including the tray icon, and open it again.
+   - **Web:** stop the DSH service, start it again the way you usually do (same profile), then reload the page.
+
+Reloading the browser alone does not load new plugin code.
+
+**Remind me later** hides the chip for that version. You can still upgrade from **Settings › About & updates**, where **Check for updates** checks at once and **Check for updates automatically** turns the 12-hour check off. If GitHub cannot be reached, StudyHub tries again later.
+
+### Upgrade manually
+
+Use these steps before 2.1.2, when DSH cannot install plugins from inside the app, or after a failed upgrade (the dialog then offers **Upgrade manually instead**). Finish or cancel background tasks first.
+
+1. Copy the new release's package address from the upgrade dialog or the release page.
+2. Open DSH's **Plugins** page, find StudyHub and click **Uninstall**.
+3. On the same page, click **Add plugin**, paste the address and click **Enable** once it installs.
+4. Restart DSH as described above.
+
+If you installed the search extension, **Settings › About & updates** also tells you when it needs updating and offers **Update the search extension**. Restart DSH after that update too.
+
+## Customise components
+
+The complete package installs seven components. Turn them on or off in **DSH's own plugin manager**; StudyHub has no separate component manager.
+
+| Component in DSH's plugin manager | Provides |
+| --- | --- |
+| StudyHub | The main package: the StudyHub page and the features every page shares |
+| StudyHub · Core | The library runtime that every component shares |
+| StudyHub · Materials | **Sources**: PDFs, notes and web pages imported as citable sources |
+| StudyHub · Question bank | Decks and questions, with their edit history |
+| StudyHub · Question generation | Cited, reviewed questions generated from your sources |
+| StudyHub · Practice & review | Spaced review, mock exams and **Mistakes & weak points** |
+| StudyHub · Audio | **Audio transcription** and **Live class** |
+
+- **Create deck** needs Materials, Question bank and Question generation.
+- Practice, **Mistakes & weak points**, **Mock exam** and **Statistics** need Question bank and Practice & review.
+- When a page's components are off, StudyHub hides the page or says the feature is off. Saved sources, decks and progress stay and come back when you turn the component on again.
+- Finish related background tasks before you turn a component off.
+- Turn on Question bank and Practice & review before you delete a source, so StudyHub can check the saved questions, drafts and study records that cite it.
+- If more than one installed package provides a component, turn it off in all of them. An old complete package still provides everything, so update it before you customise.
+
+The release page also has each component as a standalone package. Add one through the same plugin manager.
+
+### Install from the command line
+
+If you manage a DSH web profile from a terminal, keep its profile name. `dsh web` uses the profile `web`:
+
+```sh
+dsh plugin --profile web add <package-URL-or-absolute-path>
+```
+
+Replace `web` with your own profile name if you use a custom one. For desktop DSH, use the plugin manager. A command-line install works only after desktop DSH is fully quit, including the tray icon.
+
+Use the linked official documentation for current download routes, model availability and account requirements.

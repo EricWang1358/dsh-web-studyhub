@@ -8,7 +8,7 @@ StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (T
 
 | 功能 | 调用哪些阶段 | 每个阶段收到什么 | 典型输出 |
 |---|---|---|---|
-| 创建题组 | ① 规划考点：每个分块 1 次 ② 出题与自查：每批 1 次 ③ 独立审阅：每批 1 次 | ① 整个分块（一个分块最多 6 万字符，长资料会被切开；一页 PDF 是一份资料）＋你的设置＋已有题目的考点 ② 只有规划选中的资料（每份全文）＋规划结果＋质量标准 ③ 同样的资料＋候选题 | 规划约 100–180 token/题；出题约 160–480 token/题（闪卡较短、单选带选项较长）；审阅约 60–100 token/题 |
+| 创建题组 | ① 提取证据：每组资料 1 次 ② 确定答案：每批 1 次 ③ 写题与自查：每批 1 次 ④ 独立审阅：每批 1 次 | ① 所选分组全文（每组最多 6 万字符）＋设置＋已有考点 ② 已核验的知识点及其选中资料 ③ 相同资料＋知识点＋具体答案方案 ④ 相同依据＋候选题及质量标准 | 按题型和实际批次估算各阶段输出；界面显示运行前的范围，任务结束后以实际用量为准 |
 | 案例分析题 | ① 写案例和评分标准 1 次 ② 独立审阅 1 次（结构检查不过时再写 1 次） | ① 课程资料（合计最多 4 万字符，平均分给每份）＋真题模板（≤1.2 万字符）＋评分说明（≤6000 字符） ② 整套案例和题目 | 案例 600–1500 词（中文 900–2600 字）＋每题评分标准、参考答案，约 3–5 千 token |
 | 案例批改 | 每次提交批改 1 次 | 案例原文＋所答题的评分标准＋你的回答（≤3 万字符） | 每个评分项约 50–100 token |
 | 帮我想想 | 1 次轻量调用 | 资料标题和目录（≤3000 字符）、课程考试设置、≤6 个薄弱主题；不发送资料全文 | 几十到约 200 token |
@@ -16,7 +16,7 @@ StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (T
 | 音频文本步骤 | 校对：每 6000 字符 1 次；翻译：每 3500 字符 1 次；起标题 1 次 | 对应窗口的转写稿＋术语 | 校对很短；翻译约等于原文长度（换成另一种语言） |
 | 陪学 | 每次提示、追问、改题、变式各 1 次轻量调用 | 一张卡片的摘要＋学习者画像（变式一次带多张卡和 ≤6000 字符依据） | 输出有上限：提示 450、追问 320、改题 1600 token |
 
-转写本身（Gemini、Groq、SiliconFlow）不是 token，按音频分钟计，见「音频转录」页的「用量与额度」。
+转写本身（Gemini、Groq、SiliconFlow）不是 token，按音频分钟计，见「音频转写」页的「用量与额度」。
 
 ### 估算怎么来的
 
@@ -29,12 +29,12 @@ StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (T
 ### 资料很多时
 
 - 一次最多处理 60 万字符的资料（约 200 页普通 PDF）；超过会被拒绝，表单会直接告诉你「选了几份、最多能选前几份」，并给出最多能选的资料的用量。
-- 规划阶段会把每个分块完整读一遍（所以资料越多，规划越贵）；之后每一批只带上规划选中的页。**缩小页码范围**是减少用量最有效的办法；题数少于页数时也不可能逐页考查。
-- 单次调用的输入最大约 1.6–2.4 万 token（一个 6 万字符的分块加提示词），上下文窗口 32K 以上的模型都够用。
+- 提取证据会把每组资料完整读一遍（所以资料越多，这一步越贵）；之后每一批只带上考点选中的页。**缩小页码范围**是减少用量最有效的办法；题数少于页数时也不可能逐页考查。
+- 单次调用的输入最大约 1.6–2.4 万 token（一个 6 万字符的分块加提示词），应按界面显示的最大单次输入选择有足够上下文容量的模型。
 
 ### 选什么模型和推理程度
 
-StudyHub 使用你在 DSH 里选定的模型，不绑定某个模型。批量的记忆类题目用低档推理即可（更快、更省）；应用分析和案例题用高档（更慢、更耗额度，推理更严谨）。在「设置 › 生成模型」旁的推理程度里调整。
+StudyHub 使用你在 DSH 里选定的模型，不绑定某个模型。批量的记忆类题目用低档推理即可（更快、更省）；应用分析和案例题用高档（更慢、更耗额度，推理更严谨）。在「设置 › 学习库与模型」的「生成模型」旁的推理程度里调整。
 
 ### 实际用量记在哪
 
@@ -48,7 +48,7 @@ StudyHub 使用你在 DSH 里选定的模型，不绑定某个模型。批量的
 
 | Feature | Stages | What each stage receives | Typical output |
 |---|---|---|---|
-| Create question set | 1 plan per chunk, 2 write-and-self-check per batch, 3 independent review per batch | 1 the whole chunk (at most 60,000 characters; a long source is cut, each PDF page is a source) plus your settings and the already-covered objectives (see below); 2 only the sources the plan picked (full text each), the plan and the quality criteria; 3 the same sources plus the candidate questions | plan about 100-180 tokens/question; writing about 160-480 tokens/question (flashcards shorter, choice questions with options longer); review about 60-100 tokens/question |
+| Create question set | 1 evidence extraction per source group; 1 answer preparation, 1 write-and-self-check and 1 independent review per batch | Extraction: the full group (at most 60,000 characters), settings and existing objectives. Later stages: selected source text, verified targets and answer blueprints; review also receives candidate questions and quality criteria | Output is estimated by question type and actual batching. The UI shows a range before running; use recorded usage after the job |
 | Case paper | 1 write the case and criteria; 2 independent review (one more write when the structure check fails) | 1 course materials (at most 40,000 characters in total, shared equally), a past-paper template (up to 12,000) and examiner guidance (up to 6,000); 2 the whole case and its questions | case 600-1,500 words (900-2,600 Chinese characters) plus criteria and model answers, about 3-5K tokens |
 | Case grading | 1 call per submission | the case, the rubric of the answered questions and your answer (up to 30,000 characters) | about 50-100 tokens per criterion |
 | Suggest a focus | 1 light call | material titles and headings (up to 3,000 characters), the course exam profile, up to 6 weak topics; never the full text | tens to about 200 tokens |
@@ -73,17 +73,17 @@ Plans and writing steps are told which learning targets already exist so they do
 
 ### Short drafts and top-ups
 
-When review and the local checks drop questions, the draft keeps each dropped question's text and the reasons (`editorial.omitted`), shown on the job card, the draft card and the draft page as counts per reason and one line per question. **Continue generation** (the same button on the home card and the draft page) writes only the missing questions into the same draft from the same materials, keeps the approved ones, and shows its own estimate before it starts. It plans again, so a top-up of one question still reads the material once for the plan, once to write and once to review.
+When review and the local checks drop questions, the draft keeps each dropped question's text and the reasons (`editorial.omitted`), shown on the job card, the draft card and the draft page as counts per reason and one line per question. **Continue generation** (the same button on the home card and the draft page) writes only the missing questions into the same draft from the same materials, keeps the approved ones, and shows its own estimate before it starts. It plans again, so a top-up of one question still reads the material once for evidence extraction, once for answer preparation, once to write and once to review.
 
 ### With a lot of material
 
 - One run takes at most 600,000 characters of material (about 200 ordinary PDF pages). More is refused; the form says how many sources you picked, how many fit, and prices the largest selection that fits.
 - Planning reads every chunk in full (more material costs more there); after that each batch carries only the pages the plan picked. **Narrowing the page range** is the most effective way to use fewer tokens; fewer questions than pages cannot cover every page anyway.
-- One call's input tops out around 16-24K tokens (a 60,000-character chunk plus prompts), so a model with a 32K or larger context window is enough.
+- One call's input tops out around 16-24K tokens (a 60,000-character chunk plus prompts), so check the largest estimated input against your model’s context capacity.
 
 ### Which model and reasoning level
 
-StudyHub uses the model you chose in DSH; it is not tied to one. Low reasoning is enough for batches of recall questions (faster, cheaper); use a high level for application questions and case papers (slower, more tokens, more careful reasoning). Change it under Settings, next to Generation model.
+StudyHub uses the model you chose in DSH; it is not tied to one. Low reasoning is enough for batches of recall questions (faster, cheaper); use a high level for application questions and case papers (slower, more tokens, more careful reasoning). Change it next to **Generation model** in **Settings › Library & model**.
 
 ### Where actual usage is recorded
 

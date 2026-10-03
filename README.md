@@ -1,97 +1,247 @@
-# StudyHub for DeepSeek Harness
+# StudyHub
 
 English · [简体中文](README.zh-CN.md)
 
-Turn your course materials, recordings and live classes into questions linked to their original sources. StudyHub keeps your library and review progress locally and supports English and Chinese interfaces.
+StudyHub turns your course materials into practice questions that show where each answer comes from. Add PDFs, slides, notes or lecture recordings. StudyHub drafts questions that cite the source passage, and you review and publish them. SM-2 spaced repetition (the algorithm behind Anki's classic scheduler) then brings each question back when it is due. Your library stays on your computer, and the interface is in English or Chinese.
 
-[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Download 2.5.8](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.8) · [Changelog](CHANGELOG.md)
+StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/harness/), an AI agent app. DSH runs as a desktop app or as a web page served from your own computer, and StudyHub opens inside it.
+
+[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Install guide](docs/install.md) · [Release 2.5.10](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.10) · [Changelog](CHANGELOG.md)
+
+The demo runs in your browser with sample questions and prepared AI replies. It needs no install and no key, and your progress there stays in that browser.
+
+## At a glance
+
+- **Made for:** students who learn from slides, PDFs, notes and recorded lectures, in English or Chinese.
+- **Cost:** StudyHub is free and open source (MIT). Browsing sources, answering questions and review scheduling are free, with no model calls. Generating questions and AI help are billed by your model provider. StudyHub shows the estimated tokens before a generation run and the actual tokens after it, and **Statistics** totals the last 7 or 30 days.
+- **Network and cost:** supported regions, free allowances and pricing depend on each provider’s current terms. If installing from the GitHub address fails, see the notes under [Quick start](#quick-start).
+- **Computers:** the install links below cover Windows x64 and macOS on Apple silicon. For other systems, check current DSH support or use the web version with Node.js 22.19 or later.
+- **Requires:** DSH 0.2 (0.2.0-rc.2 or later, below 0.3).
+- **Your data:** the library is a folder on your computer. [Data and privacy](#data-and-privacy) lists what is sent where.
+
+## What you can do
+
+- **Make questions from your own sources.** Pick pages or chapters and generate flashcards, single- or multiple-choice, open-response or fill-in-the-blank questions. Every question cites its passage, and you review the draft before you publish it.
+- **Move between questions and sources.** A citation opens the passage it came from. In a source, paragraph and table markers lead to the questions and explanations linked to them.
+- **Practise and review.** Start today's study from the **Study library**, follow a **Learning flow** (a short lesson, then practice), click **Help me understand** on any question, and let SM-2 schedule your reviews.
+- **Find weak points.** Use **Mistakes & weak points**, **Statistics** and **Mock exam**, which offers a multiple-choice paper, a case paper or an oral interview.
+- **Turn recordings into text.** Import a lecture recording, or transcribe a **Live class** as it happens, and get a Chinese–English transcript you can generate questions from.
+- **Read and organise.** The reader has a table of contents, search, **Translate this page** and **Practise these pages**. Courses, **Study notes**, **Tasks** and a **Knowledge outline** keep a term's work together.
 
 ## Quick start
 
 | You want to | You need | Cost |
 | --- | --- | --- |
-| Take the sample course and feature tour, browse sources, practise existing questions | The plugin only | Free, no model calls |
-| Generate questions from your sources, explanations, "Help me understand" | One AI model key (DSH **Settings → Models**) | Billed by your model provider, e.g. the [DeepSeek API](https://platform.deepseek.com/) |
-| Turn recordings into text | One transcription key (StudyHub **Settings → Audio transcription**) | SiliconFlow SenseVoice is free and reachable from mainland China; Gemini and Groq have free tiers but need an overseas network there |
+| Take the sample course and tour, browse sources, practise existing questions | StudyHub only | Free, no model calls |
+| Generate questions, explanations and **Help me understand** | A model provider key in DSH **Settings › Models** | Billed by your provider, for example the [DeepSeek API](https://platform.deepseek.com/) |
+| Turn recordings into text | A transcription key in StudyHub **Settings › Audio transcription** | SiliconFlow SenseVoice supports recording transcription. Gemini and Groq availability and allowances depend on the provider |
 
-1. **Install DSH** (skip if you have it): use the official Windows / macOS installers below, or install Node.js 22.19+ and run `npx @deepseek-ai/dsh web`.
-2. **Install StudyHub**: in DSH open **Plugins → Add plugin**, paste the package address from *Install or update* below, then click DSH's enable button. StudyHub opens by itself; afterwards use **StudyHub** in DSH's left sidebar — no chat message needed.
-3. **Take the tour (optional, about 3 minutes)**: on the welcome page choose **Load the sample and start the tour**. The 21-step tour switches between sources, generation, practice, mistakes, exams and statistics and points at the real controls. The sample makes no model calls and can be removed with one click.
-4. **Add an AI model**: paste a key in DSH **Settings → Models**. Until then StudyHub tells you right where a model is needed instead of letting a request fail later.
-5. **Start with your own material**: click **Add source**, drop several PDFs, slides or notes at once (each PDF is kept as one document), then **Generate from sources** → review the draft → publish → practise.
+1. **Install DSH** (skip this if you have it). Use the official [Windows x64 installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) or [macOS Apple silicon installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg). On any other computer, install Node.js 22.19 or later and run `npx @deepseek-ai/dsh web`.
+2. **Install StudyHub.** In DSH, open **Plugins**, click **Add plugin**, paste this address and click **Enable**:
 
-Want the chat assistant to use only what you stored in StudyHub? Pick the **学习模式 · StudyHub** agent preset for a new session: it treats "materials", "my notes" or "this lecture" as your StudyHub library, asks when a request is ambiguous, and never runs commands or edits your files.
+   ```text
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/ericwang1358-dsh-daily-flashcard-2.5.10.tgz
+   ```
 
-## Install or update
+   Check that the package is `@ericwang1358/dsh-daily-flashcard`, version **2.5.10**. StudyHub then opens by itself. Later, open it from **StudyHub** in DSH's left sidebar (the session tab and the right sidebar also work); you do not need to send a chat message first.
+3. **Take the tour (optional, about 3 minutes).** On the welcome page, click **Load the sample and start the tour**. The 21-step tour moves through sources, generation, practice, mistakes, exams and statistics and points at the real controls. The sample makes no model calls and can be removed with one click.
+4. **Add a model.** Paste a key in DSH **Settings › Models** and choose a model in your session. Until then, StudyHub shows **Open model settings** wherever a step needs a model, instead of letting the step fail later.
+5. **Start with your own material.** Click **Add source** and drop several PDFs, slides or notes at once. Then use **Generate from sources**, review the draft, publish it and practise.
 
-**Already using DSH on desktop or in a browser?** Open its plugin manager and add the complete StudyHub package:
+Notes on installing:
 
-```text
-https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.8/ericwang1358-dsh-daily-flashcard-2.5.8.tgz
-```
+- **Already use DSH?** Install only the plugin. Keep your current desktop app or web server, profile, model settings and workspace.
+- **GitHub address does not work?** Download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.10) in your browser and give **Add plugin** its absolute path. The file must be on the computer or server that runs DSH.
+- **Which file on the release page?** Only the complete package, `ericwang1358-dsh-daily-flashcard-<version>.tgz`, and you normally do not need to download it: step 2 pastes its address. The other files are the six separate components, the search extension (StudyHub installs it when you click **Install the search extension**), the checksum list and two setup guides.
+- More options, including the command line: [installation and model setup guide](docs/install.md). Setup guides you can open in a browser: [English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/StudyHub-2.5.10-Setup.html) · [Chinese](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/StudyHub-2.5.10-Setup.zh-CN.html). DSH itself comes only from the official sources in step 1.
 
-Confirm version **2.5.8** and enable it. StudyHub opens by itself; afterwards use **StudyHub** in DSH’s left sidebar (the session tab and right sidebar also work). Existing web users only install the plugin; keep your current server, profile, model settings and workspace.
+## Use StudyHub
 
-**Updating.** DSH plugins do not update themselves, and restarting DSH alone keeps the installed version. From 2.1.2, StudyHub asks GitHub for a newer release (at most every 12 hours; switch it off in **Settings › About & updates**) and shows a chip in its sidebar. **Upgrade** downloads the release package, checks its SHA-256 against the release's `SHA256SUMS` file and installs it through DSH's plugin manager. On older versions, or a host without in-app installs, open **Plugins**, uninstall StudyHub, then **Add plugin** with the new release's package address. Either way, finish or cancel background tasks first and restart DSH afterwards: quit desktop DSH fully and reopen it, or restart your web service with its original profile. A browser refresh alone does not load new plugin code. Your library and settings are kept.
+### Add sources
 
-**New to DSH?** Use the official [Windows x64 installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) or [macOS Apple silicon installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg). On Linux, or if you prefer a browser on any platform, install Node.js **22.19 or later** and run `npx @deepseek-ai/dsh web`. Desktop installers include their runtime.
+Click **Add source**, choose the course, then drop several files at once or paste text. Recordings go in the **Audio / recording** tab of the same window.
 
-See the [installation and model setup guide](docs/install.md), or download the [English browser setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.8/StudyHub-2.5.8-Setup.html). A [Chinese guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.8/StudyHub-2.5.8-Setup.zh-CN.html) is also available. These are setup guides; DSH itself uses the official installers above.
+| Format | Limit | Notes |
+| --- | --- | --- |
+| PDF | 8 MB, 200 pages | Kept as one document that you expand to pages. For bigger books, see below |
+| Word (.docx), PowerPoint (.pptx) | 40 MB | Only text is read. Pictures, charts and SmartArt are skipped, and so are Word text boxes, headers and footers. A .pptx keeps one page per slide, with its speaker notes |
+| Markdown, HTML, TXT | 8 MB | |
+| JSON deck | 2 MB | Questions you already have, or ones written elsewhere ([format](docs/json-import.md)) |
+| Subtitles (.srt, .vtt) | 8 MB | Needs the audio component |
+| Audio (MP3, WAV, M4A, AAC, OGG, FLAC, OPUS, WEBM, AIFF) | 512 MB, 8 hours | See [Transcribe recordings](#transcribe-recordings) |
 
-**Customize components** in DSH’s plugin manager. The complete package includes the workbench, runtime, materials, question bank, learning, generation and audio. Each capability can be enabled or disabled independently; saved data survives disabling. Generation requires materials, bank and generation; practice requires bank and learning. Disable every installation providing a capability to turn it off completely. Separate component archives are included in the release.
+Old .doc and .ppt files (and .wps, .key, .pages) are not read. Save them as .docx, .pptx or PDF first.
 
-## Start learning
+**Large textbooks** (over 8 MB or 200 pages):
 
-1. Click **Add source**, choose the course first, then drop several PDF, Word (.docx), PowerPoint (.pptx), Markdown, HTML, TXT, JSON-deck or subtitle files at once (PDF and text up to 8 MB, Word and PowerPoint up to 40 MB; old .doc/.ppt files need to be saved as .docx/.pptx or PDF first), or paste text; recordings use the **Audio / recording** tab of the same window. Each PDF is kept as one document you can expand to pages, and each PowerPoint file keeps one page per slide with its speaker notes. A big textbook (over 8 MB or 200 pages) is converted first with a recommended tool and imported as one paged document you can choose by chapter; see [large textbooks](docs/large-documents.md).
-2. In **Create deck**, choose sources by document, generate questions, review their draft and citations, then publish. If you already have questions (or ones generated elsewhere), import a JSON deck from the second tab. Choose an existing deck to add approved questions without replacing old questions or review progress.
-3. Practice from the library or follow a study workflow. Read explanations after answering, ask for help on the current question, and use SM-2 spaced review to revisit it later.
-4. Use the mistakes list, statistics, exams and oral practice to identify topics needing more work.
+- Click **Convert with MinerU** in the import window. StudyHub converts PDFs up to 800 MB and imports the result as one paged book that you can choose by chapter.
+- It uses a local `mineru` if one is installed. Otherwise it uses MinerU's cloud with your own MinerU token from mineru.net. Check MinerU’s current account and billing requirements. Cloud conversion uploads the PDF to MinerU, so StudyHub asks you to agree first.
+- To practise across a whole book, use the search extension or the **Step-by-step path** on **Create deck**.
 
-Courses label materials and decks; folders organize the deck display. Actions use your explicitly selected courses, sources and decks. Question generation performs one independent review per batch, keeps accepted questions and reports any shortfall. Adding to an existing deck saves reviewed results even when the generation budget expires.
+See [large textbooks](docs/large-documents.md) and [MinerU conversion](docs/mineru-conversion.md).
 
-Materials retain original files and historical versions. Select a passage to ask a question or generate candidates, then review and add them to an existing JSON deck. Paragraph and table markers link to related questions and explanations; citations lead back to the source. Uncertain or outdated positions require relocation rather than guessing.
+### Generate a deck
 
-## English and Chinese
+1. Open **Create deck**. On the **Generate from sources** tab, choose sources by document (or by chapter for a big book), then the question type, count and difficulty. Not sure what to focus on? **Suggest a focus** proposes topics from your source titles and headings, without sending the full text.
+2. Click **Generate & check deck**. The job runs in the background; you can keep studying.
+3. Review the draft and its citations, then publish it. Publishing checks every question again; questions with a problem stay in the draft. Drafts stay separate from published questions.
 
-First-time users get English when their browser’s preferred language is not Chinese. Use the language switch in the workbench to choose English or Chinese; your explicit choice is remembered. UI controls, application errors, background progress, notifications and conversation handoffs follow that choice. New generation requests default to the interface language unless a content language is explicitly configured.
+To add to an existing deck, choose that deck: approved questions are added, and the old questions and their review progress stay. To bring in questions you already have, use the **Import JSON deck** tab.
 
-Switching the interface does **not** translate saved sources, filenames, questions, notes or provider responses. Those remain in their original language. Use the explicit question translation action when you want an English question version. Audio’s bilingual transcript feature also keeps its explicit source/translation targets.
+<details>
+<summary>How generation checks questions</summary>
 
-## Models and audio
+- Each batch gets one independent review. Questions that pass are kept, and any shortfall is reported. Version 2.5.8 introduced one citation repair; the current workflow verifies knowledge points and answers first, corrects those preparation stages when needed, then writes and independently reviews questions without a candidate repair loop.
+- When you add to an existing deck, reviewed questions are saved even if the generation budget runs out, with no second publish step.
+- Citations and question structure are checked in code. The content itself can still be wrong, so read the draft. More in [question quality checks](docs/assessment-quality.md).
+- Source text is given to the model as evidence, never as instructions to follow.
+- Courses label sources and decks; folders only group decks for display. Every action uses only the courses, sources and decks you selected.
 
-Generation, explanations and learning help need a model provider configured in **DSH Settings → Models**, with a model selected in the session. Browsing materials and reviewing existing questions work without a model. Credentials are managed by DSH.
+</details>
 
-For everyday use, start with the [official DeepSeek API](https://platform.deepseek.com/). For higher usage, consider a Coding Plan only if it provides an API key and permits DSH and your actual study use; verify tools, endpoint, models, concurrency and quota rules before purchasing. Claude Pro/Max and ChatGPT/Codex subscriptions do not supply a general API key for this setup. Separately billed Anthropic or OpenAI APIs can be configured as third-party providers. See the [provider setup guide](docs/install.md#configure-a-model-provider).
+Save a default question type, count, content language, difficulty and focus in **Settings › Question defaults**; each new request can override them. Questions per batch, parallel batches and the time budget are there too, initially 5, 3 and 20 minutes. Started tasks and continued drafts keep their original choices. See [Generation pace](docs/generation-agents-sidebar.md#what-a-generation-task-does).
 
-Original audio transcription needs a transcription provider in **Study Settings → Audio transcription**. SiliconFlow SenseVoice is free and reachable from mainland China; Gemini and Groq are also supported. With several keys the route tries Gemini free, SiliconFlow, Groq, then Gemini paid; individual imports can request paid keys only. Until a provider is set, the import page asks you to configure one before any upload starts. M4A recordings over an hour can be split losslessly with one click. Credentials stay in DSH’s settings directory, with only configured status and the final four characters displayed; they are excluded from library exports and conversations.
+### Practise and review
 
-Recordings are processed sequentially, with proofreading and translation windows concurrent within a recording. Completed windows are checkpointed; retry reuses them. The usage dashboard records this plugin’s requests, retries, tokens and transcription duration. Other applications’ requests and live-stream/DSH model tokens are outside that local accounting. Reasoning strength is selectable separately for proofreading and translation; unsupported settings fall back to the provider default.
+- Answer, then read the explanation. **Help me understand** asks a tutor about the current question.
+- Rate flashcards and open answers from 0 to 5; SM-2 picks the next review date. Answering and scheduling make no model calls.
+- **Mistakes & weak points** groups wrong answers by topic and can **Generate variants**. **Mock exam** and **Statistics** show what still needs work.
 
-See [audio import](docs/audio-import.md) and [live classes](docs/live-class.md).
+<details>
+<summary>How Help me understand keeps context</summary>
 
-## Data and compatibility
+When DSH supports local subagents, repeated **Help me understand** on the same question keeps the same tutor and its conversation, and follow-ups sent together are answered in order. Moving to another question, editing the question or switching model starts a new tutor. A tutor is released after 2 idle minutes or 8 rounds; a new one receives the last 3 answered exchanges. Earlier answers stay saved with the question.
 
-The local library stores materials, JSON decks, attempts and review schedules in shards. Export a JSON backup from Settings; restoration first backs up the current library. Full 2.0 backups include retained original material files. Older libraries with missing optional fields remain usable; older text-only materials show extracted text until an original file is reimported. Unknown extension data is preserved even when its plugin is absent.
+</details>
 
-Audio usage and credentials live outside library backups. Usage records retain the latest 31 days. Clearing completed task cards keeps generated materials and questions. Source citations and structure are validated in code; model-generated content can still be wrong. Published questions and unpublished drafts remain separate. Source text is evidence, never an instruction to execute.
+### Read your sources
+
+- Sources keep their original file and earlier versions, and open full screen.
+- **Original page** shows the PDF page behind a citation, **Translate this page** adds a translation, and **Practise these pages** (shortcut P) quizzes you on the pages you are reading.
+- Select a passage to ask about it, or to generate candidate questions that you review and add to an existing deck.
+- A source imported as text only can get its original back with **Add the original file**, with no reimport.
+- When a source changes and a linked position is no longer certain, StudyHub asks you to relocate it instead of guessing.
+- Explanations, notes, **Tasks** and the **Inbox** link back to the question or source they are about. The reader and question links help you return to the current question.
+- Press `?` to see every keyboard shortcut.
+
+## Choose a model
+
+Generation, explanations and learning help use the model selected in your DSH session. To use a different model for StudyHub, open **Settings › Library & model** and change **Generation model** from **Follow current session**. DSH stores the model credentials.
+
+- **Everyday use:** the [official DeepSeek API](https://platform.deepseek.com/).
+- **Heavy use:** a Coding Plan, but only if it gives you an API key and allows DSH and your actual study use. Before you buy, check its supported tools, endpoint, models, concurrency and quota rules.
+- **Subscriptions are not keys:** Claude Pro/Max and ChatGPT/Codex subscriptions do not provide a general API key for DSH. Separately billed Anthropic or OpenAI APIs can be added as third-party providers.
+
+Setup steps: [configure a model provider](docs/install.md#configure-a-model-provider). For how many tokens each feature uses, see [token usage and estimates](docs/token-usage.md).
+
+## Transcribe recordings
+
+1. Open **Settings › Audio transcription** and add a key. SiliconFlow SenseVoice supports recording transcription. Gemini (Google AI Studio) and Groq are also supported.
+2. Open **Audio transcription**, click **Add audio** and then **Start import**. Nothing is uploaded until a provider is set up.
+3. The transcript is saved as a source. Generate questions from it like any other source.
+
+Only transcription uses these keys. Proofreading and translation use your DSH model by default, so their tokens are billed by your model provider and appear under **Model usage** in **Statistics**. **Live class** transcribes in real time and supports only Gemini.
+
+<details>
+<summary>More about audio</summary>
+
+- With several keys, StudyHub tries Gemini free, then SiliconFlow, Groq and Gemini paid. A single import can be set to use paid keys only.
+- M4A recordings over 1 hour can be split losslessly with one click.
+- Recordings are processed one at a time; within a recording, 2–3 proofreading and translation windows run in parallel. Finished windows are checkpointed, and a retry reuses them.
+- The **Proofreading & translation** panel sets the reasoning level for each step: Low, Medium, High or Model default. Higher levels take longer and do not guarantee better accuracy. A level the model does not support falls back to its default. Only high-confidence corrections that pass the source-location check rewrite the text; the rest are left as suggestions for you to check.
+- The **Usage console** on the audio page records this plugin's requests to the transcription providers (failures and retries included), tokens and audio minutes. It shows free and paid keys separately, with a 7-day trend, and keeps 31 days. Groq's remaining daily quota comes from its responses; for Gemini, you can enter the daily limit shown in AI Studio to get an estimate. Requests from other apps, live-class streams and DSH model tokens are not counted there.
+- Keys are stored in `study/audio.json` in your DSH home (by default `~/.dsh/study/audio.json`), outside the library. The interface shows only whether a key is set and its last 4 characters. Keys never enter library exports or chats. The environment variables `GEMINI_FREE_API_KEY`, `GEMINI_PAID_API_KEY`, `GROQ_API_KEY` and `SILICONFLOW_API_KEY` fill in a key that is not saved.
+
+</details>
+
+See [audio import](docs/audio-import.md) and [live class](docs/live-class.md).
+
+## Use StudyHub from the DSH chat
+
+- **Study mode preset.** For a new session, pick the agent preset **学习模式 · StudyHub** (Study mode; the label is in Chinese in both languages). The assistant then takes "materials", "my notes" or "this lecture" to mean your StudyHub library, asks when a request is ambiguous, and never runs commands or edits your files.
+- **Ask about your library** in the main chat: see [query sources and decks from the main chat](docs/main-session-queries.md).
+- **Save a question you could not answer.** Type `/study-spar <your question>` in a DSH chat. StudyHub files it in your question bank as a flashcard. Add `--mq` for single choice or `--multi` for multiple choice; start with `--pre` to file it as a prerequisite of the question you are working on.
+- **Follow background tasks** in DSH's sidebar: see [background tasks and the sidebar](docs/generation-agents-sidebar.md).
+
+## Update StudyHub
+
+DSH plugins do not update themselves, and restarting DSH alone keeps the old version.
+
+- **2.1.2 and later:** StudyHub asks GitHub for a new release at most every 12 hours. When there is one, a **Version x.y.z available** chip appears in its sidebar, where x.y.z is the new version. Click it, then **Upgrade to x.y.z** and **Upgrade now**. StudyHub downloads the package, checks it against the release's `SHA256SUMS-x.y.z.txt` and hands it to DSH's plugin manager. If background tasks are running, **Stop tasks and upgrade** stops them and keeps their finished parts. The check sends no study data; switch it off in **Settings › About & updates**.
+- **Older versions, or a DSH that cannot install from inside the app:** finish or cancel background tasks, open **Plugins**, uninstall StudyHub, then use **Add plugin** with the new release's package address.
+
+Then restart DSH. Quit the desktop app fully (including the tray icon) and reopen it, or restart the web service with its original profile and reload the page. A browser refresh alone does not load new plugin code. Your library and settings are kept.
+
+## Data and privacy
+
+**Stays on your computer**
+
+- The library: sources and their original files, decks, answers and review schedules, saved in shards. By default it is in the DSH session's workspace folder; choose another folder in **Settings › Library & model**.
+- Transcription keys and the MinerU token, in `study/` in your DSH home (by default `~/.dsh/study/`). They never enter the library, exports or backups. DSH keeps the model keys.
+- The usage frequency record, if you turn it on in **Settings › Usage frequency record**. It is off by default, and StudyHub never sends it anywhere ([details](docs/usage-frequency.md)).
+
+**Leaves your computer only when you use the feature**
+
+- Generating questions or asking for help sends the selected source text to your model provider through DSH. **Suggest a focus** sends only titles and headings.
+- Recordings go to your transcription provider. MinerU cloud conversion uploads the PDF to MinerU after you agree.
+- The update check asks GitHub for the latest version and sends no study data.
+
+**Backups and older libraries**
+
+- In **Settings › Import, schedule and backup**, **Backup & restore** exports one JSON file with your sources, decks, review progress and answers. Original files that were copied into the library are included; originals attached by reference are only listed.
+- A restore first saves the current library under `backups/`. It is refused while a generation job is running.
+- An older library is migrated on its first write, and its original file is backed up. Libraries missing newer optional fields stay usable, and data from a plugin that is not installed is kept.
+- To import a library from the older `study-lib-spar` tool, use the same Settings category and choose the folder that holds `study-lib.json`, `nodes/` and `quizzes/` (not the tool's source code). The import only reads those files, keeps the due dates, intervals and sources it can parse, and importing again does not overwrite existing progress.
+- Clearing finished task cards keeps the sources and questions they produced. Audio usage records and keys are not part of library backups.
+
+## Interface language
+
+The interface starts in Chinese when your browser's first preferred language is Chinese, and in English otherwise. Switch it with **Language** at the bottom of the sidebar; StudyHub remembers your choice. Buttons, errors, background progress, notifications, messages handed to the chat and new AI explanations follow it.
+
+Switching does not translate what you saved: sources, file names, questions, notes and provider replies stay in their original language. New questions use the interface language unless you choose another in the **Language** field of **Create deck**. To read English under a Chinese question while you practise, click **EN** on the practice toolbar ([details](docs/translate-en.md)). Audio transcripts keep their own source and translation languages.
+
+## Choose components
+
+The complete package installs seven components. DSH's own plugin manager lists them as **StudyHub** (the main package), **StudyHub · Core**, **StudyHub · Materials**, **StudyHub · Question bank**, **StudyHub · Question generation**, **StudyHub · Practice & review** and **StudyHub · Audio**. Turn each one on or off there. Saved data is kept while a component is off.
+
+- **Create deck** needs Materials, Question bank and Question generation. Practice, **Mistakes & weak points**, **Mock exam** and **Statistics** need Question bank and Practice & review.
+- A component that is off hides its pages or says that it is turned off.
+- If several installed packages provide the same component, turn all of them off to switch it off.
+- The release page also has each component as a separate package.
+
+Details and safe source deletion: [customise components](docs/install.md#customise-components). Command-line installs: [install from the command line](docs/install.md#install-from-the-command-line).
 
 ## Development
 
+StudyHub is an ES-module DSH plugin built on Cordis, with a React interface bundled by esbuild. Its seven components work together through public plugin APIs; see [architecture](docs/architecture.md). The package is named `@ericwang1358/dsh-daily-flashcard`; the product name is StudyHub.
+
 ```sh
 npm install --legacy-peer-deps
-npm run verify
-npm run build:demo
-npm run release:pack
+npm run verify         # lint, tests and build
+npm run dev            # preview at http://127.0.0.1:4178 (after a build)
+npm run build:demo     # static demo in output/static-demo-site/dist
+npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output/release-<version>
 ```
 
-The host supplies optional DSH SDKs; tests requiring unavailable SDKs report an explicit skip. Local development needs an explicit library root. The static demo uses public examples and prepared replies rather than live models.
+- `npm run dev` needs `npm run build` (or `npm run verify`) first, because it serves `dist/`. It uses a throwaway library in `output/preview-library` and keeps global study files in `output/preview-home`, never in `~/.dsh`. Add `-- --library=<dir>` to open another library, and set `STUDY_FAKE_MODEL=1` for a deterministic fake model.
+- `npm run release:pack` does not build; run `npm run verify` first.
+- The host supplies the DSH SDKs `@deepseek-ai/dsh-tools` and `@deepseek-ai/dsh-llm` (optional peers, `>=0.2.0-rc.2 <0.3`). Tests that need a missing SDK report an explicit skip.
+- CI runs `npm ci --legacy-peer-deps` and `npm run verify` on Node 22, on Ubuntu and Windows, for every pull request.
+- The [static demo](docs/static-demo.md) (in Chinese) runs the real interface with public examples and prepared replies instead of a live model.
 
-- [Architecture and public plugin APIs](docs/architecture.md)
-- [Study workflows](docs/study-workflows.md)
-- [JSON deck import](docs/json-import.md)
-- [Main conversation queries](docs/main-session-queries.md)
-- [Background jobs and sidebar](docs/generation-agents-sidebar.md)
-- [Library schema](references/library-schema.md)
-- [Verification records (Chinese)](https://github.com/EricWang1358/dsh-web-studyhub/blob/v2.5.8/docs/verification.md)
+## Documentation
 
-MIT License. See [LICENSE](LICENSE); learning-quality and scheduling references are in `references/`.
+- **Install:** [installation and model setup](docs/install.md)
+- **Sources:** [PDF to quizzes and flashcards](docs/pdf-workflow.md) · [large textbooks](docs/large-documents.md) · [MinerU conversion](docs/mineru-conversion.md) · [JSON deck import](docs/json-import.md)
+- **Questions:** [quality checks](docs/assessment-quality.md) · [adding questions to a deck](docs/supplementation.md) · [retiring a question](docs/slay.md) · [showing questions in English](docs/translate-en.md) · [token usage](docs/token-usage.md)
+- **Studying:** [learning flows](docs/study-workflows.md) · [coaching and personalised questions](docs/coach.md) · [follow-up questions](docs/followup.md)
+- **Audio:** [audio import](docs/audio-import.md) · [live class](docs/live-class.md)
+- **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
+- **Optional:** [usage frequency record](docs/usage-frequency.md) · [Jev decision layer (experimental)](docs/jev-experimental.md)
+- **Developers:** [architecture](docs/architecture.md) · [verification records](docs/verification.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
+
+## Feedback and license
+
+Report a bug or ask a question in [GitHub Issues](https://github.com/EricWang1358/dsh-web-studyhub/issues).
+
+MIT License; see [LICENSE](LICENSE). The learning-quality and scheduling references are in [`references/`](references/).

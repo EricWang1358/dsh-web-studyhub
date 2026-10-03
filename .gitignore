@@ -18,3 +18,10 @@ playwright-report/
 # scratch probe/snapshot scripts
 scripts/probe*.mjs
 scripts/snap-*.mjs
+
+# HyperFrames video projects (recordings, renders, caches)
+videos/
+
+# Source captures for the intro site; the cropped production assets stay tracked.
+site/assets/_src/
+site/assets/shots/
