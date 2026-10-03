@@ -84,3 +84,9 @@ test('the 资料 page folds a book into chapters, each with its own 出题 butto
   assert.match(advice, /大教材建议/);
   assert.match(advice, /320 页/);
 });
+
+test('the large-book advice builds the index for the document’s own course, not for whatever course the page is focused on', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = (await readFile(new URL('../ui/Sources.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
+  assert.match(source, /<LargeDocumentCard reason="long-document"[^]*?defaultCourse=\{item\.courses\?\.\[0\] \|\| defaultCourse\}/);
+});

@@ -43,6 +43,7 @@ id, the default key variable and the words differ.
 | Provider id | Endpoint | Model | Default key variable | Notes |
 |---|---|---|---|---|
 | `typesafe` (default) | `https://api.typesafe.ai/v1/systemone` | `jev-latest` | `JEV_API_KEY` | TypeSafe's own API. Behaviour unchanged by the presets. |
+| `opencode-go` | `https://opencode.ai/zen/go/v1/systemone` | `jev-1.13` | `OPENCODE_GO_API_KEY_2` | OpenCode Go (the subscription DSH shows as "OpenCode Go 2"). **Not verified**: the route exists (an unauthenticated POST answers 401, an unknown path 404) but OpenCode's public Go model list names no Jev model, so whether a Go key is accepted here is unknown. If it is not, use `custom` with the address you know. |
 | `opencode-zen-free` | `https://opencode.ai/zen/v1/systemone` | `jev-1.13-free` | `OPENCODE_GO_API_KEY_2` | OpenCode Zen's limited-time free Jev model. |
 | `opencode-zen` | `https://opencode.ai/zen/v1/systemone` | `jev-1.13` | `OPENCODE_GO_API_KEY_2` | OpenCode Zen's paid Jev model (OpenCode's docs state about $0.042 per 1M input tokens, output free; the product shows tokens only, never a price). |
 | `custom` | the address the learner enters | the model id the learner enters | `JEV_CUSTOM_API_KEY` | For another gateway that offers the same typed API. OpenRouter, AIML and Netlify AI Gateway were reported to list Jev, but **their wire formats are not verified**; the preset only assumes the same `POST { model, state, questions }` with a bearer key. |

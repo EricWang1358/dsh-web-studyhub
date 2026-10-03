@@ -250,7 +250,7 @@ export default function Generate({
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
               <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal} call={call} askInChat={askInChat}
-                indexCoverage={indexCoverage} disabled={busy || !model.ready} setNotice={setNotice}
+                indexCoverage={indexCoverage} disabled={busy || !model.ready} setNotice={setNotice} onSettings={openSettings}
                 onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
                 onQueued={() => { setGen(freshGeneration); setPage("library"); }} />
             </fieldset>
@@ -304,7 +304,7 @@ export default function Generate({
                   <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
                     estimate={<TokenEstimate call={call} enabled={model.ready && selectedSources.length > 0}
                       request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
-                    onAsk={askAssist}
+                    onAsk={askAssist} onSettings={openSettings}
                     onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
                     onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
                 </FormRow>

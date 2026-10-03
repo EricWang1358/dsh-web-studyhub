@@ -173,7 +173,7 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
           <p className="audio-provider-note">{ui('只会发送到这个地址。需要 https（本机可以用 http）；地址里不要带用户名、密码或查询参数。')}</p>
           {settings.custom?.host && <p className="audio-provider-note jev-provider__where">{uiFormat('当前发送到 {0}，模型 {1}。', [settings.custom.host, settings.custom.model])}</p>}
         </form>}
-        <p className="audio-provider-note">{ui('Jev 有多个服务商可以配置：TypeSafe 自己的接口；OpenCode Zen（付费的 jev-1.13，以及限时免费的 jev-1.13-free）；也可以填一个自定义端点（接口地址、模型名、存放密钥的环境变量名），给提供同样接口的其他网关用。据报道 OpenRouter、AIML、Netlify AI Gateway 也提供 Jev，但它们的接口格式我们没有核实（未验证）。服务商和密钥来源由你选，我们不推荐其中某一家；免费模型 jev-1.13-free 是否保留提示词或用于训练，OpenCode 的文档没有说明。换服务商要重新确认下面的隐私说明；一个服务商的密钥不会发给另一个。')}</p>
+        <p className="audio-provider-note">{ui('Jev 有多个服务商可以配置：TypeSafe 自己的接口；OpenCode Go（订阅，jev-1.13，接口地址和 Go 的模型列表没有核实是否包含 Jev，未验证）；OpenCode Zen（付费的 jev-1.13，以及限时免费的 jev-1.13-free）；也可以填一个自定义端点（接口地址、模型名、存放密钥的环境变量名），给提供同样接口的其他网关用。据报道 OpenRouter、AIML、Netlify AI Gateway 也提供 Jev，但它们的接口格式我们没有核实（未验证）。服务商和密钥来源由你选，我们不推荐其中某一家；免费模型 jev-1.13-free 是否保留提示词或用于训练，OpenCode 的文档没有说明。换服务商要重新确认下面的隐私说明；一个服务商的密钥不会发给另一个。')}</p>
       </div>
       <JevPrivacy confirmed={settings.confirmed} disabled={locked} onChange={onConfirm} privacyUrl={settings.privacyUrl} provider={provider} host={custom ? settings.custom?.host : ''} />
       <article className={`audio-provider-card jev-card${settings.key.set ? ' is-set' : ''}`}>
@@ -276,7 +276,7 @@ export default function JevSettings({ call, busy = false, setNotice, initial = n
         onProvider={provider => change('provider', { provider }, async () => { setResult(null); })}
         onKeyEnv={keyEnv => change('keyEnv', { keyEnv }, async () => { setResult(null); })}
         onCustom={patch => change('custom', patch, async () => { setResult(null); })}
-        onConfirm={checked => change('confirm', { confirm: checked }, async next => { setNotice?.({ text: checked ? (providerOf(next) === 'typesafe' ? ui('已确认：Jev 功能会把所需内容发送到 TypeSafe 云端。') : providerOf(next) === 'custom' ? ui('已确认：Jev 功能会把所需内容发送到你填写的自定义端点。') : ui('已确认：Jev 功能会把所需内容发送到 OpenCode Zen 云端。')) : ui('已撤回确认；之后使用 Jev 前会再问一次。'), tone: 'success' }); })}
+        onConfirm={checked => change('confirm', { confirm: checked }, async next => { setNotice?.({ text: checked ? (providerOf(next) === 'typesafe' ? ui('已确认：Jev 功能会把所需内容发送到 TypeSafe 云端。') : providerOf(next) === 'custom' ? ui('已确认：Jev 功能会把所需内容发送到你填写的自定义端点。') : (providerOf(next) === 'opencode-go' ? ui('已确认：Jev 功能会把所需内容发送到 OpenCode Go 云端。') : ui('已确认：Jev 功能会把所需内容发送到 OpenCode Zen 云端。'))) : ui('已撤回确认；之后使用 Jev 前会再问一次。'), tone: 'success' }); })}
         onEnabled={checked => change('enabled', { enabled: checked })}
         onFeature={(id, checked) => change('feature', { features: { [id]: checked } })}
         onReplace={(site, checked) => change('replace', { replace: { [site]: checked }, ...(checked && !settings.enabled ? { enabled: true } : {}) },

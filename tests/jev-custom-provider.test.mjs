@@ -27,7 +27,7 @@ async function withHome(t) {
 }
 
 test('the preset exists as the last choice and has no address of its own', () => {
-  assert.deepEqual(JEV_PROVIDER_IDS, ['typesafe', 'opencode-zen-free', 'opencode-zen', 'custom']);
+  assert.deepEqual(JEV_PROVIDER_IDS, ['typesafe', 'opencode-go', 'opencode-zen-free', 'opencode-zen', 'custom']);
   const custom = JEV_PROVIDERS.custom;
   assert.deepEqual([custom.family, custom.defaultKeyEnv, custom.baseUrl, custom.model], ['custom', 'JEV_CUSTOM_API_KEY', '', '']);
   assert.equal(jevProvider('custom').id, 'custom');

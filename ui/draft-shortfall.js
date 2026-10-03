@@ -123,7 +123,24 @@ export function shortfall(draft) {
     if (part) partFailures.push({ part: Number(part[1]), ...describeFailure(part[2]) });
   }
   const reasons = [...counts].map(([code, count]) => ({ code, count, label: reasonLabel(code) })).sort((a, b) => b.count - a.count);
-  return { missing: missingQuestions(draft), records: found, reasons, partFailures, duplicates };
+  return { missing: missingQuestions(draft), records: found, reasons, partFailures, duplicates, report: describePartReport(editorial.partReport) };
+}
+
+/**
+ * What happened to the parts of the run, in the UI language: `{ lead, reasons }` from the draft's `editorial.partReport` (lib/generation-report.js),
+ * or null for a draft that has none. `reasons` is one plain sentence per reason, for example "5 个部分的引用在资料里找不到".
+ */
+export function describePartReport(report) {
+  if (!report || !(report.total > 0) || report.passed === report.total) return null;
+  const reasons = report.reasons || {}, line = {
+    quote: (n) => uiFormat('{0} 个部分的引用在资料里找不到', [n]),
+    plan: (n) => uiFormat('{0} 个部分的考点规划没有通过检查', [n]),
+    quality: (n) => uiFormat('{0} 个部分的题没有通过质量审阅', [n]),
+    other: (n) => uiFormat('{0} 个部分因其他原因没有完成', [n]),
+  };
+  return { lead: uiFormat('共 {0} 个部分：{1} 个全部通过，{2} 个只保留了部分题，{3} 个没有出题。', [report.total, report.passed, report.partial, report.failed]),
+    reasons: Object.entries(reasons).filter(([, count]) => count > 0).map(([code, count]) => (line[code] || line.other)(count)),
+    ...(report.citationsRepaired ? { repaired: uiFormat('已自动重试并修正了 {0} 道题的引用。', [report.citationsRepaired]) } : {}) };
 }
 
 /** A generation record kept on the draft by the backend (English prose with a part number), as a sentence in the UI language. */

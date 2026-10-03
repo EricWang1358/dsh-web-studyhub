@@ -86,5 +86,18 @@
   "还没答过的题。": "Questions not answered yet.",
   "掌握度：把每道题按级别折算（未学 0、薄弱 15%、学习中 45%、熟悉 75%、已掌握 100%）再取平均，不是正确率。": "Mastery: each question is scored by level (not started 0, weak 15%, learning 45%, familiar 75%, mastered 100%) and averaged. It is not an accuracy rate.",
   " · {0} 题到期": " · {0} due",
-  "多数人用不到：实验性功能的开关。": "Rarely needed: the switch for experimental features."
+  "多数人用不到：实验性功能的开关。": "Rarely needed: the switch for experimental features.",
+  "可选 · 默认跳过（{0}）": "Optional · skipped by default ({0})",
+  "{0}，默认不出题；勾选就会包含这一步。": "{0}: no questions by default. Tick the box to include this step.",
+  "目录页": "Table of contents",
+  "版权页": "Copyright page",
+  "献词": "Dedication",
+  "前言或序": "Preface or foreword",
+  "致谢": "Acknowledgments",
+  "索引": "Index",
+  "版记": "Colophon",
+  "作者介绍": "About the author",
+  "附录": "Appendix",
+  "参考文献": "Bibliography",
+  "空白页": "Blank pages"
 }

@@ -733,11 +733,11 @@ test("generation rejects a broken citation without starting a repair loop", asyn
   await assert.rejects(generateDeck(
     withQualityStages(async () =>
       JSON.stringify(
-        [bad, { issues: ["unsupported quote"] }, deck(), { issues: [] }][calls++],
+        [bad, { cards: [] }, { issues: ["unsupported quote"] }, deck(), { issues: [] }][calls++],
       )),
     { count: 1, kind: "flashcard", sources: [source] },
   ), /unsupported quote/);
-  assert.equal(calls, 2, "author and one independent review");
+  assert.equal(calls, 3, "author, the ONE citation repair (which here fixes nothing) and one independent review: no loop");
 });
 test("an unattributed editorial complaint stops the batch after one review", async () => {
   let calls = 0;

@@ -7,7 +7,7 @@ import { StudyService } from "../../lib/service.js";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
 
 const PAGES = 60;
-const book = () => Array.from({ length: PAGES }, (_, i) => `<!-- page: ${i + 1} -->\n${i % 12 === 0 ? `# 第 ${i / 12 + 1} 章 章节标题 ${i / 12 + 1}\n` : ""}${`第 ${i + 1} 页讲的是进程、线程和内存管理的一个方面。`.repeat(300)}`).join("\n\n");
+const book = () => Array.from({ length: PAGES }, (_, i) => `<!-- page: ${i + 1} -->\n${i % 12 === 0 ? `# 第 ${i / 12 + 1} 章 章节标题 ${i / 12 + 1}\n` : i === 54 ? "# 索引\n" : ""}${`第 ${i + 1} 页讲的是进程、线程和内存管理的一个方面。`.repeat(300)}`).join("\n\n");
 
 const api = (page, action, args = {}) => page.evaluate(async ([name, body]) => {
   const response = await fetch("/api/call", { method: "POST", headers: { "content-type": "application/json", "x-study-token": window.STUDY_TOKEN }, body: JSON.stringify({ action: name, args: body }) });
@@ -41,6 +41,16 @@ export async function runPathQa(options) {
         if (pages !== PAGES) throw new Error(`the steps cover ${pages} pages, not ${PAGES}`);
         const probe = await page.evaluate(overflowProbe);
         if (probe.scrollWidth > probe.clientWidth + 1) throw new Error(`horizontal overflow ${JSON.stringify(probe)}`);
+      });
+      await step("back-matter-is-an-optional-step", async () => {
+        // The index at the end of the book is a step of its own: labelled in words, off by default, and the checkbox includes it.
+        const optional = page.locator(".gen-path__step[data-optional='true']");
+        if ((await optional.count()) !== 1) throw new Error(`expected one optional step, found ${await optional.count()}`);
+        const label = await optional.first().innerText();
+        if (!label.includes(t("可选 · 默认跳过", "Optional · skipped by default"))) throw new Error("the optional step does not say so in words");
+        if (await optional.first().locator("input[type=checkbox]").isChecked()) throw new Error("the optional step is on by default");
+        await optional.first().scrollIntoViewIfNeeded();
+        return label.split("\n").slice(0, 3).join(" | ");
       });
       await step("ai-refine", async () => {
         await page.getByRole("button", { name: t("让 AI 优化路径", "Let the AI refine the path"), exact: true }).click();

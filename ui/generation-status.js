@@ -180,6 +180,7 @@ const FAILURES = [
   ['network', /fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket hang up|connection (error|reset|refused|closed|terminated)|network|连不上|网络/i],
   ['unavailable', /overloaded|\b5\d\d\b|unavailable|暂时不可用/i],
   ['sources', /资料[^；;。]*(删除|缺失)|Select at least one source/i],
+  ['grounding', /is not in source|quote must match|unknown source|not one of the provided sources|引用的原文/i],
   ['plan', /Assessment plan is not usable/i],
   ['quality', /Quality gate failed|Editorial review still found issues|No questions were generated|Author returned no questions|insufficient evidence|没有题目通过/i],
 ];
@@ -206,6 +207,9 @@ export function describeFailure(text = '', { hasDraft = false } = {}) {
     case 'network': return { kind, action: 'retry', title: ui('连不上模型服务'), hint: ui('检查网络连接后重新生成。') };
     case 'unavailable': return { kind, action: 'retry', title: ui('模型服务暂时不可用'), hint: ui('稍后再重新生成。') };
     case 'sources': return { kind, action: 'retry', title: ui('出题用的资料已被删除'), hint: ui('重新选择资料后再生成。') };
+    case 'grounding': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('引用的原文在资料里找不到'),
+      hint: hasDraft ? ui('AI 引用的句子和资料原文对不上；通过检查的题已保存在草稿里。打开草稿用「继续补齐」补上缺的题，不必重新选页。')
+        : ui('AI 引用的句子和资料原文对不上（可能是排版、断词或页码的差别），已自动重试过一次。直接再试一次通常就行；若仍然这样，可以少选几页或减少题数。') };
     case 'plan': return { kind, action: 'retry', title: ui('考点规划没有通过检查'),
       hint: ui('资料里能稳妥出题的内容可能不够。换几份内容更完整的资料，或减少题数再试。') };
     case 'quality': return { kind, action: 'retry', title: ui('没有题目通过检查'),

@@ -94,6 +94,16 @@ StudyHub 通过 DSH 使用检索：DSH 的 MCP 客户端会把已配置的 MCP �
 
 RAGFlow 则用 `transport: streamable-http` 和 `url: "http://127.0.0.1:9380/api/v1/mcp"`，不写 `command`、`args`、`env`。StudyHub 只看得到为整个 DSH 配置文件配置的服务器；只挂在某个智能体预设里的服务器看不到。
 
+## 分步出题路径（2.5.8）
+
+选择太大、一次生成不下时，应用按书的顺序把它切成若干步（`lib/generation-path.js`、`ui/GenerationPath.jsx`）；每一步是一个出题任务，也可以先和聊天里的 AI 一起商量整条路径。2.5.8 起：
+
+- **一步既要字符少，也要页数少。** 一次 generate 大约 20 页、15 题以内写得好、审得好（`CALL_PAGES`、`CALL_QUESTIONS`，和 `STEP_CHARS` 放在一起；`STEP_PAGES` 等于 `CALL_PAGES`）。超过任一上限的章节或页段会被均匀切开（81 页切成 17+16+16+16+16，而不是 20+20+20+20+1），一步建议的题数最多 `CALL_QUESTIONS`。取舍：没有降低步的字符预算，也没有再做一套规划器；页数上限只是同一遍“切开再合并”里多一个界限。`MAX_STEPS`（40）仍然有意义：书太长、需要超过 40 步时（约 800 页以上），字符上限和页数上限一起放宽，不丢页面，brief 会让 AI 把这样的步拆成几次 generate。
+- **步的名字来自目录**（文档的章节：学习者保留的目录，或转换器识别的标题）。被截断的名字（单个字母，比如索引的字母标题；末尾悬着的连字符或省略号；纯数字或罗马数字）绝不会用；没有可用名字的步就叫它的页码（“第 69–137 页”），名字只盖住一步的一部分时，会补上页码范围。
+- **前后附文可选。** 标题是 Index、Colophon、About the Author、Acknowledgments、Table of Contents、Copyright、Dedication、Preface/Foreword、Appendix、Bibliography（和对应的中文，如索引、版记、作者介绍、致谢、目录、版权页、前言、附录、参考文献）的部分，第一章之前的页面，后半本书里连续的单字母章节（索引）以及索引/版记/作者介绍标题之后的所有页面，书末的空白页，各自单独成步。这些步默认不勾选，用文字标明（“可选 · 默认跳过（索引）”），勾上就包含；brief 里会写“建议跳过”。选中的全是附文时，什么都不跳过。
+- **每一步写明它覆盖的页**（每本书按 PDF 页码连续成段；页面标题里 `p.` 后面的数字），面板里和给聊天 AI 的 brief 里都有；brief 还说明怎么取一段自定义页码的 sourceIds（`source.list`，`groupBy: "document"`，加 `memberOffset`/`memberLimit`）。
+- **AI 能看到任务。** `job.status { jobId? }` 只读、马上返回（状态、阶段、`finished`、已存和要求的题数、草稿）；不带 `jobId` 时列出这个库的任务。`job.wait` 仍然是等一小会儿（最多 60 秒）。brief 让 AI 等上一步任务结束后再开始下一步，并且不要承诺之后自己汇报：两条消息之间它看不到任务。
+
 ## StudyHub 读取的转换结果
 
 在**添加资料**里拖进文件即可，格式按内容识别。页码从 1 开始。
