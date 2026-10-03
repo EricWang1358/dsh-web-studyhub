@@ -2,7 +2,7 @@
 
 English · [简体中文](install.zh-CN.md)
 
-StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app or as a web page in your browser. You install DSH, add StudyHub through DSH's plugin manager, then connect a model for question generation. For a one-page version to open in your browser, download the [English setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/StudyHub-2.5.10-Setup.html).
+StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app or as a web page in your browser. You install DSH, add StudyHub through DSH's plugin manager, then connect a model for question generation. For a one-page version to open in your browser, download the [English setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.11/StudyHub-2.5.11-Setup.html).
 
 | Your situation | Start here |
 | --- | --- |
@@ -12,7 +12,7 @@ StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app
 
 **What you need**
 
-- **DSH 0.2.** StudyHub 2.5.10 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
+- **DSH 0.2.** StudyHub 2.5.11 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
 - **A supported computer.** The desktop installers in this guide are for Windows x64 and Macs with Apple silicon. On any other system, check the official DSH site or use the DSH web version with Node.js 22.19 or later.
 - **A model, only for AI features.** Generation and explanations need one; see [Configure a model provider](#configure-a-model-provider). Installing, the sample tour, browsing sources and practising existing decks do not.
 
@@ -44,10 +44,10 @@ These steps work in desktop and web DSH. Web users need no desktop client and no
 2. Paste the complete package address:
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.10/ericwang1358-dsh-daily-flashcard-2.5.10.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.5.11/ericwang1358-dsh-daily-flashcard-2.5.11.tgz
    ```
 
-3. After it installs, check that the package is `@ericwang1358/dsh-daily-flashcard`, version 2.5.10.
+3. After it installs, check that the package is `@ericwang1358/dsh-daily-flashcard`, version 2.5.11.
 4. Click **Enable** for StudyHub and the components you want. If DSH asks to reload, finish or cancel background tasks first.
 5. StudyHub opens by itself the first time. Later, open **StudyHub** from DSH's left sidebar; you do not need to send a chat message first. StudyHub is also a tab in each session and in DSH's right sidebar.
 
@@ -57,7 +57,7 @@ StudyHub keeps your library in the workspace folder of the current DSH session. 
 
 ### If DSH cannot download from GitHub
 
-1. Download `ericwang1358-dsh-daily-flashcard-2.5.10.tgz` from the [2.5.10 release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.10). The same page lists the checksums in `SHA256SUMS-2.5.10.txt`.
+1. Download `ericwang1358-dsh-daily-flashcard-2.5.11.tgz` from the [2.5.11 release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.5.11). The same page lists the checksums in `SHA256SUMS-2.5.11.txt`.
 2. In **Add plugin**, enter the absolute path of that file instead of the address.
 
 The file must be on the **computer or server that runs DSH**. With a remote DSH web server, a download path on your laptop does not exist on the server. Copy the file to the server, or use the HTTPS address above.

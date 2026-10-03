@@ -2,6 +2,14 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.11 — 2026-10-03
+
+- **Study images and formulas.** Cards render Markdown images, LaTeX and chemical notation, with accessible image enlargement and readable scrolling for long formulas on narrow screens. Drafts and notes accept local PNG/JPEG/WebP/GIF images up to 2 MiB, embedded in the library and backups. Text-only assistants omit image bytes and do not infer their contents.
+- **Custom display and local science tools.** Settings now controls formula scale/alignment, image height/captions/enlargement and separate tool switches. Choices apply immediately, persist per browser and can be reset. Exact neutral-species balancing returns minimal positive integer coefficients; exact polynomial identity proofs show canonical forms, steps and assumptions. Unsupported ionic reactions, variable denominators, functions and general proofs remain unchecked.
+- **Calculation learning and checks.** Calculation questions can reveal guidance one step at a time. Supported numeric answers receive a bounded arithmetic check before authoring; unsupported expressions are not treated as verified. Guidance is more compact on small screens.
+- **Reference questions for generation.** Select your own reference questions separately from knowledge evidence, configure their context budget and format adherence, and retain the selection for supplementation. References guide question structure without supplying factual authority or adding a model workflow step.
+- **PDF conversion and packaged guides.** Prefer ready local MinerU models and explain unavailable cloud conversion. Installation links, package versions, bilingual release notes and the new feature guides are aligned with this release.
+
 ## 2.5.10 — 2026-10-03
 
 This release integrates the fixes, documentation and introduction site since 2.5.8. The new application-page design proposals remain unapplied.
