@@ -8,6 +8,9 @@
   .gen-path__steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin: 0; padding: 0; list-style: none; max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
   .gen-path__step { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); min-width: 0; }
   .gen-path__step[data-included='false'] { opacity: 0.55; }
+  /* A step that is optional by nature (index, colophon, …) is labelled in words, so it stays readable while it is off. */
+  .gen-path__step[data-optional='true'][data-included='false'] { opacity: 0.85; border-style: dashed; }
+  .gen-path__tag { justify-self: start; padding: 1px var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text-muted); font-size: var(--fs-xs); font-style: normal; }
   /* The page's own label rule makes a label a grid: this one is a checkbox beside its text. */
   .gen-path .gen-path__step label.gen-path__title { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-2); cursor: pointer; min-width: 0; }
   .gen-path .gen-path__title input[type='checkbox'] { flex: none; margin: 3px 0 0; }
@@ -17,5 +20,7 @@
   .gen-path__edit { display: flex; gap: var(--space-2); align-items: center; min-width: 0; }
   .gen-path__edit input { flex: 1 1 auto; min-width: 0; margin: 0; }
   .gen-path__go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+  /* A long label (in English, with the number of steps) wraps inside the card instead of running out of it. */
+  .gen-path__go > .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: start; }
   @media (max-width: 640px) { .gen-path__edit { flex-wrap: wrap; } }
 }
