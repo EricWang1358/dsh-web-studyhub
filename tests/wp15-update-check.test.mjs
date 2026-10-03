@@ -199,6 +199,31 @@ test('package files on disk newer than the running code mean a restart is pendin
   assert.equal(updateView({}, '2.1.1', '2.1.0').pendingRestart, null);
 });
 
+test('a pending restart separates running, installed and available versions without reinstalling the same release', async () => {
+  const { updateView } = await import('../lib/update-check.js');
+  const state = { pending: '2.5.10', release: releaseFromGithub(githubRelease('v2.5.11')) };
+  const next = updateView(state, '2.5.8', '2.5.10');
+  assert.equal(next.current, '2.5.8');
+  assert.equal(next.installed, '2.5.10');
+  assert.equal(next.latest, '2.5.11');
+  assert.equal(next.pendingRestart, '2.5.10');
+  assert.equal(next.upgradeAvailable, true);
+  for (const latest of ['2.5.9', '2.5.10']) {
+    const waiting = updateView({ ...state, release: releaseFromGithub(githubRelease('v' + latest)) }, '2.5.8', '2.5.10');
+    assert.equal(waiting.newer, true, 'newer still compares the release with running code');
+    assert.equal(waiting.upgradeAvailable, false, 'already installed or older releases cannot be installed again');
+  }
+  const remembered = updateView(state, '2.5.8', '2.5.8');
+  assert.equal(remembered.installed, '2.5.10', 'a recorded install survives the old package path');
+  const replaced = updateView(state, '2.5.8', '2.5.11');
+  assert.equal(replaced.installed, '2.5.11');
+  assert.equal(replaced.upgradeAvailable, false);
+  const restarted = updateView(state, '2.5.11', '2.5.11');
+  assert.equal(restarted.pendingRestart, null);
+  assert.equal(restarted.installed, '2.5.11');
+  assert.equal(restarted.upgradeAvailable, false);
+});
+
 test('a loopback QA feed (STUDYHUB_QA_UPDATE_FEED) may stand in for GitHub; any other address is ignored', async t => {
   await home(t);
   const previous = process.env.STUDYHUB_QA_UPDATE_FEED;

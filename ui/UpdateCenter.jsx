@@ -9,6 +9,7 @@ import { ui, uiFormat, uiLocale } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Dialog, Icon, InlineMessage } from './components/index.js';
 import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
+import { isNewerVersion } from '../lib/semver.js';
 import css from './update.css';
 
 let snapshot = { update: null, checking: false };
@@ -37,11 +38,16 @@ async function savePreferences(call, preferences) {
   return update;
 }
 
+// Accept older hosts' views too, while avoiding reinstalling a pending release.
+const canUpgrade = update => !!update && (update.upgradeAvailable ??
+  (update.newer && isNewerVersion(update.latest, update.pendingRestart || update.installed || update.current)));
+
 /** null | 'new' | 'restart': what the sidebar chip should say. */
 export function chipState(update) {
   if (!update) return null;
+  if (canUpgrade(update) && update.autoCheck !== false && !update.snoozed) return 'new';
   if (update.pendingRestart) return 'restart';
-  return update.newer && update.autoCheck !== false && !update.snoozed ? 'new' : null;
+  return null;
 }
 
 /** Plain-language reasons for the refusals update.install answers with. */
@@ -147,9 +153,16 @@ function Installed({ phase, host }) {
 /** The upgrade dialog: version, release notes, and one-click or guided upgrade. */
 export function UpdateDialog({ update, call, host, onClose, notify, initialPhase = null }) {
   useInjectCss(css, 'study-update');
-  // Already installed and waiting for a restart (perhaps answered before DSH reloaded this page).
-  const [phase, setPhase] = useState(initialPhase || (update.pendingRestart
+  const available = canUpgrade(update);
+  // A pending install is complete only for that version; a later release stays actionable.
+  const [savedPhase, setPhase] = useState(initialPhase || (update.pendingRestart && !available
     ? { phase: 'installed', version: update.pendingRestart, restartRequired: true, desktop: !!update.install?.desktop } : { phase: 'idle' }));
+  let phase = savedPhase.phase === 'installed' && available && isNewerVersion(update.latest, savedPhase.version)
+    ? { phase: 'idle' } : savedPhase;
+  if (update.pendingRestart && !available && phase.phase !== 'working' &&
+      (phase.phase !== 'installed' || isNewerVersion(update.pendingRestart, phase.version))) {
+    phase = { phase: 'installed', version: update.pendingRestart, restartRequired: true, desktop: !!update.install?.desktop };
+  }
   const [guided, setGuided] = useState(false);
   const inApp = update.install?.available === true && !guided && !!update.assetUrl;
   const working = phase.phase === 'working';
@@ -184,6 +197,7 @@ export function UpdateDialog({ update, call, host, onClose, notify, initialPhase
     <Dialog title={phase.phase === 'installed' ? uiFormat('StudyHub {0} 等待重启', [phase.version]) : uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" onClose={onClose} footer={footer}
       className="update-dialog" bodyLabel={ui('升级说明')}>
       {phase.phase === 'installed' ? <Installed phase={phase} host={host} /> : <>
+        {update.pendingRestart && available && <p className="update-lead">{uiFormat('已安装 {0}，尚未重启。可以直接安装 {1}，然后重启一次 DSH。', [update.pendingRestart, update.latest])}</p>}
         {update.notes && <section className="update-notes-wrap" aria-label={ui('更新内容')}>
           <h3>{ui('更新内容')}</h3>
           <div className="update-notes">{update.notes}</div>
@@ -210,10 +224,10 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
   const [saving, setSaving] = useState(false);
   // The check compares StudyHub only; the search extension is installed once and is not updated with it.
   const staleExtension = extension?.installed && extension.outdated ? extension : null;
+  const available = canUpgrade(update);
   const status = !update ? null
     : update.pendingRestart ? uiFormat('已安装 {0}，重启 DSH 后生效。', [update.pendingRestart])
-      : update.newer ? null
-        : update.error ? ui('暂时无法连接 GitHub 检查更新，稍后会自动重试。')
+      : available || update.error ? null
           : staleExtension ? uiFormat('StudyHub 本体已是最新，但检索扩展还是 {0}，需要更新到 {1}。', [staleExtension.version, staleExtension.expected])
             : update.checkedAt ? ui('已是最新版本。') : ui('还没有检查过更新。');
   async function toggle(event) {
@@ -226,13 +240,17 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
       <legend className="settings-section__title">{ui('关于与更新')}</legend>
       <dl className="update-facts">
         <div><dt>{ui('当前版本')}</dt><dd>{update?.current || '—'}</dd></div>
+        <div><dt>{ui('已安装版本')}</dt><dd>{update?.installed || update?.pendingRestart || update?.current || '—'}</dd></div>
+        <div><dt>{ui('最新已知版本')}</dt><dd>{update?.latest || '—'}</dd></div>
         <div><dt>{ui('上次检查')}</dt><dd>{update?.checkedAt ? formatTime(update.checkedAt) : ui('尚未检查')}</dd></div>
       </dl>
-      {update?.newer && !update.pendingRestart && <div className="update-available">
+      {update?.pendingRestart && <p className="update-status">{ui('当前版本是正在运行的代码；已安装版本在重启 DSH 后生效。')}</p>}
+      {available && <div className="update-available">
         <Icon name="sparkle" size={16} /><span>{uiFormat('有新版本 {0}', [update.latest])}</span>
         <Button size="sm" variant="primary" onClick={onOpen}>{ui('查看升级')}</Button>
       </div>}
       {status && <p className="update-status" role="status">{status}</p>}
+      {update?.error && <p className="update-status" role="status">{ui('暂时无法连接 GitHub 检查更新，稍后会自动重试。')}</p>}
       {staleExtension && <ExtensionUpdateNotice call={call} status={{ extension: staleExtension }} onStatus={onExtension} />}
       <div className="update-settings__actions">
         <Button size="sm" busy={checking} onClick={() => refreshUpdate(call, { force: true })}>{ui('检查更新')}</Button>
@@ -241,7 +259,7 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
           {ui('自动检查更新')}
         </label>
       </div>
-      <p className="settings-section__lead">{ui('每 12 小时最多向 GitHub 查询一次最新版本，不发送任何学习数据。')}</p>
+      <p className="settings-section__lead">{ui('自动检查通常间隔 12 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
     </fieldset>
   );
 }

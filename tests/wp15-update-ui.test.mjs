@@ -7,6 +7,8 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { updateView, releaseFromGithub } from '../lib/update-check.js';
+import { githubRelease } from './helpers/wp15-release.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -116,4 +118,48 @@ test('"已是最新版本" is not claimed while the search extension is behind',
   assert.match(current, /已是最新版本/);
   const en = render(h(UpdateSettings, { update: update({ newer: false, latest: '2.1.0' }), call: async () => ({}), onOpen() {}, extension: stale }), 'en');
   assert.doesNotMatch(en, han);
+});
+
+test('an older pending install never hides the later release in settings, the chip or the upgrade dialog', () => {
+  const pending = { ...updateView({ pending: '2.5.10', release: releaseFromGithub(githubRelease('v2.5.11')) }, '2.5.8', '2.5.10'),
+    install: { available: true, desktop: false } };
+  const props = { update: pending, call: async () => ({}), onOpen() {}, onClose() {} };
+  const settings = render(h(UpdateSettings, props));
+  assert.match(settings, /有新版本 2\.5\.11/, 'the later release remains visible before restarting');
+  for (const text of ['2.5.8', '已安装版本', '2.5.10', '最新已知版本', '2.5.11', '有新版本 2.5.11', '查看升级'])
+    assert.ok(settings.includes(text), text);
+  assert.match(settings, /已安装 2\.5\.10，重启 DSH 后生效/);
+  assert.equal(chipState(pending), 'new');
+  assert.match(render(h(UpdateChip, props)), /有新版本 2\.5\.11/);
+  const dialog = render(h(UpdateDialog, props));
+  assert.match(dialog, /一键升级到 2\.5\.11/);
+  assert.match(dialog, /已安装 2\.5\.10/);
+  assert.doesNotMatch(dialog, /StudyHub 2\.5\.10 等待重启/);
+  const refreshed = render(h(UpdateDialog, { ...props, initialPhase: { phase: 'installed', version: '2.5.10', restartRequired: true } }));
+  assert.match(refreshed, /一键升级到 2\.5\.11/, 'an already open restart dialog also offers the later release');
+  assert.doesNotMatch(render(h(UpdateDialog, { ...props, initialPhase: { phase: 'installed', version: '2.5.11', restartRequired: true } })), /一键升级/);
+  for (const Component of [UpdateChip, UpdateSettings, UpdateDialog])
+    assert.doesNotMatch(render(h(Component, props), 'en'), han, Component.name);
+  for (const quiet of [{ snoozed: true }, { autoCheck: false }]) {
+    assert.equal(chipState({ ...pending, ...quiet }), 'restart');
+    assert.match(render(h(UpdateSettings, { ...props, update: { ...pending, ...quiet } })), /查看升级/);
+  }
+});
+
+test('pending restart instructions remain visible alongside a failed latest check, without duplicate upgrades', () => {
+  const pending = { ...updateView({ pending: '2.5.10', error: 'network', release: releaseFromGithub(githubRelease('v2.5.10')) }, '2.5.8', '2.5.10'),
+    install: { available: true } };
+  const props = { update: pending, call: async () => ({}), onOpen() {}, onClose() {} };
+  const settings = render(h(UpdateSettings, props));
+  assert.match(settings, /已安装 2\.5\.10/);
+  assert.match(settings, /暂时无法连接 GitHub/);
+  assert.doesNotMatch(settings, /查看升级|已是最新版本/);
+  assert.doesNotMatch(render(h(UpdateDialog, props)), /一键升级/);
+  const peerInstalled = { ...pending, installed: '2.5.11', pendingRestart: '2.5.11', latest: '2.5.11' };
+  for (const initialPhase of [{ phase: 'idle' }, { phase: 'installed', version: '2.5.10' }]) {
+    const dialog = render(h(UpdateDialog, { ...props, update: peerInstalled, initialPhase }));
+    assert.match(dialog, /已安装 2\.5\.11/, 'another seat completing an install refreshes the open dialog');
+    assert.doesNotMatch(dialog, /一键升级/);
+  }
+  assert.match(settings, /手动检查立即查询/);
 });
