@@ -34,6 +34,7 @@ import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import { syncScheduleSettings } from './schedule-settings.js';
 import ImportHub, { importOutcome } from './ImportHub.jsx';
+import { importedReferences } from './reference-questions.js';
 import { parseCourses } from './CourseField.jsx';
 import { countDocuments, documentSourceIds, groupSourcesByDocument } from '../lib/source-groups.js';
 import { sourceMatchesCourse } from '../lib/source-courses.js';
@@ -1397,6 +1398,17 @@ export default function App({ call: transportCall, host = {} }) {
   useEffect(() => { if (page !== 'sources') setSourceHighlight(null); }, [page]);
   const generateFromSources = ids => { rememberContext(); setSelectedSources(ids); setGen(current => ({ ...current, course: undefined })); setGenSource('files'); navigatePage('generate'); };
   function finishImport(summary) {
+    if (modal?.referenceQuestions && summary?.sourceIds?.length) {
+      const ids = summary.sourceIds;
+      if (modal.onReferenceImported) modal.onReferenceImported(ids);
+      else {
+        setGen(current => ({ ...current, referenceSourceIds: importedReferences(current.referenceSourceIds, ids).referenceSourceIds }));
+        setSelectedSources(current => importedReferences([], ids, current).sourceIds);
+      }
+      setModal(null);
+      setNotice({ text: ui('参考样题已保存到资料库并选中。请确认样题范围，再开始生成。'), tone: 'success' });
+      return;
+    }
     const outcome = importOutcome(summary, { page });
     setModal(null);
     if (!outcome) return;

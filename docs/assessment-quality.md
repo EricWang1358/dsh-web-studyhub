@@ -23,6 +23,8 @@ StudyHub splits a request into batches of up to 5 questions by default. Knowledg
 4. **Review independently.** A separate call sees the material, the knowledge points, the answer plans and the candidate questions. It checks each question for self-contained context, answer leakage, option quality, learning value, evidence support and explanation quality. It also checks that the cited passage really supports the answer and the decisive scenario conditions. An explanation must show how the conditions lead to the answer and where the common mistakes lie. Restating the answer, or option notes that only say true or false, fails. A question without a complete check record, or with any failed dimension, does not pass.
 5. **Keep what passed.** Only accepted questions stay. Reasons for omitted points and rejected candidates are recorded.
 
+Answer preparation, writing and independent review share clear-expression guidance for Chinese, English and bilingual content. They prefer short, direct sentences, explicit conditions, stable technical terms and comparable option wording. Explanations connect the conclusion to the cited rule, scenario conditions and relevant mistakes. Negation, exceptions, units and necessary reasoning take priority over brevity. Quotes stay verbatim, and writing or reviewing cannot replace verified answer fields. This borrows clarity principles from controlled technical writing; it does not impose the ASD-STE100 English dictionary or hard word limits. It adds no model call and does not guarantee factual correctness or a higher acceptance rate.
+
 Rules that hold across these stages:
 
 - The author's self-check is never an approval. Only the independent review approves a question.

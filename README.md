@@ -75,7 +75,7 @@ Old .doc and .ppt files (and .wps, .key, .pages) are not read. Save them as .doc
 **Large textbooks** (over 8 MB or 200 pages):
 
 - Click **Convert with MinerU** in the import window. StudyHub converts PDFs up to 800 MB and imports the result as one paged book that you can choose by chapter.
-- It uses a local `mineru` if one is installed. Otherwise it uses MinerU's cloud with your own MinerU token from mineru.net. Check MinerU’s current account and billing requirements. Cloud conversion uploads the PDF to MinerU, so StudyHub asks you to agree first.
+- Start with local `mineru`: install it, then download and enable the parsing models in Settings. The PDF stays on your computer. **Cloud conversion is temporarily unavailable; use local models first.** The cloud option remains available for manual selection after service recovers; it requires your own MinerU token and upload consent.
 - To practise across a whole book, use the search extension or the **Step-by-step path** on **Create deck**.
 
 See [large textbooks](docs/large-documents.md) and [MinerU conversion](docs/mineru-conversion.md).
@@ -233,12 +233,18 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 
 - **Install:** [installation and model setup](docs/install.md)
 - **Sources:** [PDF to quizzes and flashcards](docs/pdf-workflow.md) · [large textbooks](docs/large-documents.md) · [MinerU conversion](docs/mineru-conversion.md) · [JSON deck import](docs/json-import.md)
-- **Questions:** [quality checks](docs/assessment-quality.md) · [adding questions to a deck](docs/supplementation.md) · [retiring a question](docs/slay.md) · [showing questions in English](docs/translate-en.md) · [token usage](docs/token-usage.md)
+- **Questions:** [quality checks](docs/assessment-quality.md) · [your own reference questions](docs/reference-questions.md) · [adding questions to a deck](docs/supplementation.md) · [retiring a question](docs/slay.md) · [showing questions in English](docs/translate-en.md) · [token usage](docs/token-usage.md)
 - **Studying:** [learning flows](docs/study-workflows.md) · [coaching and personalised questions](docs/coach.md) · [follow-up questions](docs/followup.md)
 - **Audio:** [audio import](docs/audio-import.md) · [live class](docs/live-class.md)
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
 - **Optional:** [usage frequency record](docs/usage-frequency.md) · [Jev decision layer (experimental)](docs/jev-experimental.md)
 - **Developers:** [architecture](docs/architecture.md) · [verification records](docs/verification.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
+
+## Join the project
+
+Interested in contributing code, testing, improving documentation or sharing feedback? Join the StudyHub QQ group to discuss the project. Scan the code below with QQ, or [open the full-size image](docs/assets/studyhub-qq-group.jpg).
+
+<img src="docs/assets/studyhub-qq-group.jpg" alt="QR code for joining the StudyHub project group on QQ" width="360">
 
 ## Feedback and license
 

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Disclosure, Icon, InlineMessage, SetupRequired } from './components/index.js';
-import { LocalMineruPanel, MineruTokenForm, PrivacyConfirm, DOCS_URL } from './MineruSettings.jsx';
+import { LocalMineruPanel, MineruTokenForm, PrivacyConfirm, privacyNote, DOCS_URL } from './MineruSettings.jsx';
 import { chooseRoute, localEstimate, minutesOf, pageRange, uploadPdf } from './mineru-flow.js';
 import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
@@ -10,8 +10,8 @@ import css from './mineru.css';
 
 /* The one entry for turning a PDF into pages of text with MinerU, wherever the learner meets it: the import hub and the
    "大教材建议" card both show this component. It reads the file locally (nothing is sent), says how the book will be
-   processed ("这本书会分 N 段处理"), leads with the local mineru when it is ready (free, nothing uploaded), otherwise with the
-   learner's own MinerU token, and otherwise with the setup gate. The cloud needs a one-time confirmation that the document
+   processed ("这本书会分 N 段处理"), leads with local mineru or local setup (free, nothing uploaded). Cloud is an explicit choice
+   with a temporary availability warning. It needs a one-time confirmation that the document
    goes to MinerU; the server refuses to upload without it. The desktop client and the command line stay under 高级. */
 
 const ACCEPT = '.pdf,application/pdf';
@@ -84,7 +84,7 @@ export default function MineruRoute({ file = null, call, courses = [], onStarted
   }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const auto = chooseRoute({ local, settings });
-  const route = choice || (auto === 'gate' ? 'cloud' : auto);
+  const route = choice || auto;
   const localReady = local?.state === 'ready', cloudSet = !!settings?.token?.set;
   const usable = route === 'local' ? localReady : cloudSet;
   const acknowledged = !!settings?.acknowledged || agreed;
@@ -168,14 +168,15 @@ export default function MineruRoute({ file = null, call, courses = [], onStarted
         <fieldset className="mineru-routes" disabled={starting}>
           <legend>{ui('用哪种方式解析')}</legend>
           <RouteCard id={`${radioId}-local`} value="local" current={route} onSelect={setChoice} title={ui('本地 mineru')}
-            chips={<>{chip(ui('免费 · 不上传'), 'good')}{localReady ? chip(ui('可用'), 'accent') : chip(local ? ui('需要设置') : ui('检测中…'))}</>}>
+            chips={<>{chip(ui('推荐'))}{chip(ui('免费 · 不上传'), 'good')}{localReady ? chip(ui('可用'), 'accent') : chip(local ? ui('需要设置') : ui('检测中…'))}</>}>
             <small>{localReady
               ? (estimate ? uiFormat('约 {0} 分钟（估算：{1} 档每页约 {2} 秒，实际取决于这台电脑）', [minutesOf(estimate), local.tier, local.estimates?.[local.tier]]) : ui('文档不会离开这台电脑。'))
               : ui('文档不会离开这台电脑；需要本机装好 mineru 并下载模型。')}</small>
           </RouteCard>
           <RouteCard id={`${radioId}-cloud`} value="cloud" current={route} onSelect={setChoice} title={ui('用 MinerU 云端解析')}
-            chips={<>{chip(ui('目前免费'), 'good')}{cloudSet ? chip(ui('令牌已设置'), 'accent') : chip(ui('需要令牌'))}</>}>
-            <small>{ui('文档会上传到 MinerU 的云端解析，目前不收费，规则可能变化。不用装任何软件。')}</small>
+            chips={<>{chip(ui('暂不可用'))}{cloudSet ? chip(ui('令牌已设置'), 'accent') : chip(ui('需要令牌'))}</>}>
+            <small>{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</small>
+            <small>{privacyNote()}</small>
           </RouteCard>
         </fieldset>
 
@@ -198,6 +199,7 @@ export default function MineruRoute({ file = null, call, courses = [], onStarted
         onOpenSources={onOpenSources} onOpenJob={onOpenJob} onOpenSettings={onOpenSettings} onChanged={onChanged} className="mineru-history" />}
 
       <Disclosure summary={ui('高级：桌面客户端和命令行')} meta={ui('手动')} className="mineru-advanced">
+        <p>{ui('桌面客户端目前也反馈不可用，优先使用上面的本地模型；客户端恢复后可再尝试。')}</p>
         <p>{ui('也可以自己转换，再把结果拖进「添加资料」：用 MinerU 桌面客户端导出带页码的 JSON（content_list.json）；或在终端用 mineru parse 文件.pdf --pages 1-200 -o 结果.md（一定要写 --pages，默认只解析前 10 页），Markdown 里要有 <!-- page: N --> 分页标记。')}</p>
         <p><a href="https://mineru.net/client" target="_blank" rel="noreferrer">{ui('MinerU 桌面客户端')}<Icon name="external" size={13} /></a></p>
       </Disclosure>

@@ -239,5 +239,11 @@
   "各段用时": "Time per piece",
   "分段会按这台电脑的速度调整": "The pieces are sized to the speed of this computer",
   "先做 {0} 页看一看这台电脑有多快，再按它的速度调整每段的页数（每段约 {1} 秒，{2}–{3} 页）。": "It starts with {0} pages to see how fast this computer is, then sizes each piece to its speed (about {1} sec per piece, {2}–{3} pages).",
-  "预计还需不到 1 分钟": "Less than a minute left"
+  "预计还需不到 1 分钟": "Less than a minute left",
+  "暂不可用": "Temporarily unavailable",
+  "桌面客户端目前也反馈不可用，优先使用上面的本地模型；客户端恢复后可再尝试。": "The desktop client is also currently reported unavailable. Use the local models above first; try the client again after it recovers.",
+  "云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。": "Cloud conversion is temporarily unavailable. Use local models first. You can choose cloud conversion after it recovers; a saved token does not mean the service is available.",
+  "本地 MinerU（下载模型）": "Local MinerU (download models)",
+  "优先安装本地 mineru 并下载模型，在「设置 › PDF 转换（MinerU）」完成检测和启用。解析不会上传文档；模型下载需先确认。": "Install local mineru and download its models first, then check and enable it in Settings › PDF conversion (MinerU). Conversion does not upload documents; model downloads require confirmation.",
+  "点下面的「用 MinerU 解析」：优先使用本地 mineru（免费、不上传）。尚未就绪时，先安装并下载模型；云端暂不可用。": "Select Convert with MinerU below: use local mineru first (free, no upload). If it is not ready, install it and download its models first; cloud conversion is temporarily unavailable."
 }

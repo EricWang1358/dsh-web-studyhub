@@ -53,6 +53,57 @@ async function setup(t, { coach = true, latencyMs = 0 } = {}) {
 const tasks = (log, word) => log.filter((x) => x.prompt.includes(word)).length;
 const settle = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 
+test("forget discards an older debrief summary even after restoring the same goal", async (t) => {
+  const { service, light } = await setup(t);
+  await service.call("coach.goal", { goal: "work" });
+  let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  while (!run.complete) {
+    run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options.find((o) => o.text === "Caretaker").id] });
+    run = await service.call("review.move", { runId: run.id, direction: 1 });
+  }
+  const started = Promise.withResolvers(), release = Promise.withResolvers();
+  service.light = async (...args) => { started.resolve(); await release.promise; return light(...args); };
+  const pending = service.call("coach.debrief", { runId: run.id });
+  await started.promise;
+  try {
+    await service.call("coach.forget");
+    await service.call("coach.goal", { goal: "work" });
+    await service.store.update((s) => { s.learner.summary = "New learner profile"; });
+  } finally { release.resolve(); }
+  const result = await pending;
+  assert.equal(result.version, 2, "the round's debrief remains available");
+  assert.equal((await service.call("coach.profile")).summary, "New learner profile", "old completion neither restores forgotten memory nor clears new memory");
+});
+
+for (const change of ["forget", "revoke", "revoke-and-reenable"]) {
+  test(`preparation discards old results after ${change}, and a new service can still prepare`, async (t) => {
+    const { service, light, root } = await setup(t);
+    await service.call("coach.consent", { prep: true });
+    const started = Promise.withResolvers(), release = Promise.withResolvers();
+    service.light = async (...args) => { started.resolve(); await release.promise; return light(...args); };
+    service.queuePrep({ deckId: "d", cardId: "q1", reason: "wrong" });
+    const pending = service.call("coach.prepare");
+    await started.promise;
+    try {
+      if (change === "forget") {
+        await service.call("coach.forget");
+        await service.call("coach.consent", { prep: true });
+      } else {
+        await service.call("coach.consent", { prep: false });
+        if (change === "revoke-and-reenable") await service.call("coach.consent", { prep: true });
+      }
+      await service.call("coach.goal", { goal: "interview" });
+    } finally { release.resolve(); }
+    await pending;
+    assert.equal((await service.call("coach.profile")).ready, 0, "a stale response cannot repopulate the ready pool");
+    assert.equal((await service.call("coach.profile")).goal, "interview", "new learner state survives discarding old work");
+    const reopened = new StudyService(root, { complete: light, completeLight: light, coach: true });
+    await reopened.call("coach.consent", { prep: true });
+    reopened.queuePrep({ deckId: "d", cardId: "q1", reason: "wrong" });
+    assert.equal((await reopened.call("coach.prepare")).ready, 1, "current authorized work still succeeds after reopening");
+  });
+}
+
 test("concurrent confused replies share one explanation without consuming both followup slots", async (t) => {
   const { service, log } = await setup(t, { latencyMs: 20 });
   const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
