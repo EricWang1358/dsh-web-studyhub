@@ -2,18 +2,20 @@ import React from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { kinds } from './shared.js';
 import { Button } from './components/index.js';
-import { describeFailure } from './generation-status.js';
+import AiHelperNote from './AiHelperNote.jsx';
 import { DIFFICULTIES, focusIncludes, hasSettings } from './generate-form.js';
 
 /* The 帮我想想 assist under 这次想练什么 (WP23). It only presents: Generate.jsx
    asks `generate.suggest` and keeps the result. With a model the button says
    what is sent (titles and outlines, never full text); without one, or after
    a failure, the same button answers from the learner's own wrong answers and
-   material outlines. Failures read as one quiet sentence, never a banner. */
-export default function GenerateAssist({ ready = false, phase = 'idle', result = null, focus = '', applied = false, disabled = false, estimate = null, onAsk, onPick, onApply }) {
+   material outlines. A failure says why in one quiet line (AiHelperNote: no model, the
+   call's error, or an answer that could not be read, with 再试一次), never a banner. */
+export default function GenerateAssist({ ready = false, phase = 'idle', result = null, focus = '', applied = false, disabled = false, estimate = null, onAsk, onPick, onApply, onSettings }) {
   const loading = phase === 'loading';
   const local = result?.source === 'local';
-  const failed = local && result?.unavailable?.reason === 'failed';
+  // A learner who knowingly has no model is told by the button itself; the line is for a helper that was expected to work.
+  const why = local && (ready || result?.unavailable?.reason !== 'no-model') ? result?.unavailable : null;
   const items = Array.isArray(result?.focus) ? result.focus : [];
   const settings = [Number.isInteger(result?.count) ? uiFormat('{0} 题', [result.count]) : '',
     DIFFICULTIES.find((item) => item.value === result?.difficulty)?.label || '',
@@ -30,7 +32,7 @@ export default function GenerateAssist({ ready = false, phase = 'idle', result =
       {phase === 'done' && result && (
         <div className="generate-assist__result" aria-live="polite">
           {local && <p className="generate-assist__label">{ui('来自你的错题与资料目录')}</p>}
-          {failed && <p className="generate-assist__note">{uiFormat('{0}，先给你来自本地数据的建议。', [describeFailure(result.unavailable.message).title])}</p>}
+          {why && <AiHelperNote unavailable={why} fallback="先给你来自本地数据的建议" onRetry={onAsk} onSettings={onSettings} />}
           {items.length ? (
             <div className="generate-chips" role="group" aria-label={ui('练习重点建议')}>
               {items.map((item) => (
