@@ -8,6 +8,7 @@ import audioDashboardCss from '../audio-dashboard.css';
 import hostCss from './studyhub.css';
 import { createStudyCall } from "../transport.js";
 import { sessionFileAddress } from '../document-preview/selection.js';
+import { openBackgroundAgent } from './open-agent.js';
 import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
 // The top-level DSH page (root `main` panel) and its sidebar entry share one key.
 export const STUDYHUB_PANEL = "studyhub";
@@ -174,7 +175,13 @@ export function apply(ctx, registerDocumentLearning) {
           : undefined,
         modelGroups: catalog?.value?.groups,
         sessionModel: current?.current || catalog?.value?.default,
-        openAgent: (id) => ctx.get("sessions")?.open(id),
+        // The top-level page covers the conversation, where the assistant opens: reveal it, as askInChat does.
+        openAgent: (id) => openBackgroundAgent(ctx, id,
+          { reveal: placement === "page" ? () => {
+            const layout = ctx.get("layout");
+            if (typeof layout?.selectPanel !== "function") throw new Error(ui("请从会话列表打开助手。"));
+            return layout.selectPanel(null);
+          } : undefined }),
         // WP15: DSH's plugin manager page, scrolled to StudyHub when the host offers that.
         openPluginManager: ctx.get("layout")?.selectPanel
           ? () => {

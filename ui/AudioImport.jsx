@@ -5,6 +5,7 @@ import { Button, FileDrop, InlineMessage } from './components/index.js';
 import { AudioSetupGate, requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import { TokenEstimate } from './TokenUsage.jsx';
+import AgentLink from './AgentLink.jsx';
 import { dismissJobs, useQuickActions } from './quick-actions.js';
 import settingsCss from './audio-settings.css';
 
@@ -114,9 +115,8 @@ export function audioProgress(job, now = Date.now()) {
 }
 
 function OpenAgent({ task, openAgent }) {
-  return task.childId && openAgent
-    ? <button type="button" className="link-btn" aria-label={uiFormat('查看子代理：{0}', [taskLabel(task)])}
-      onClick={() => openAgent(task.childId)}>{ui("查看子代理")}</button> : null;
+  return <AgentLink childId={task.childId} openAgent={openAgent} className="link-btn"
+    ariaLabel={uiFormat('查看子代理：{0}', [taskLabel(task)])} label={ui("查看子代理")} />;
 }
 
 function AudioTasks({ job, now, openAgent }) {

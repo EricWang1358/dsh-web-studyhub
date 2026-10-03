@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useState } from "react";
 import { Disclosure } from "./components/index.js";
+import AgentLink from "./AgentLink.jsx";
 import { legacyStageText, stepLabel } from "./generation-status.js";
 import { JobUsage } from "./TokenUsage.jsx";
 import { formatExactTokens, totalTokens } from "../lib/token-usage.js";
@@ -36,7 +37,7 @@ export default function GenerationTrace({ job, openAgent }) {
         {step.startedAt && (step.finishedAt ? uiFormat(" · {0} 秒", [seconds(step.startedAt, Date.parse(step.finishedAt))])
           : uiFormat(" · 已等待 {0} 秒", [seconds(step.startedAt, now)]))}
       </small>
-      {step.childId && openAgent && <button type="button" onClick={() => openAgent(step.childId)}>{ui("查看后台助手")}</button>}
+      <AgentLink childId={step.childId} openAgent={openAgent} label={ui("查看后台助手")} />
     </li>)}</ol>}
     {!!job.messages?.length && <details><summary>{uiFormat("补充要求 · {0} 条", [job.messages.length])}</summary>
       <ul>{job.messages.map((message) => <li key={message.id}>{message.text}

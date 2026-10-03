@@ -72,6 +72,21 @@ must link to the consolidated node and retain teaching provenance.
 An evidence-based quiz must identify the supporting source or passage in its
 prompt or explanation and explain how that evidence supports the answer.
 
+## Mathematical notation
+
+Put every formula that needs typesetting inside math delimiters: `$…$` inline,
+`$$…$$` for a displayed equation. This covers variables with subscripts or
+superscripts, Greek letters, fractions, sums, and chemical or physical
+expressions. Never leave a formula as plain text such as `a^{l-1}` or
+`\frac{a}{b}`; the learner would see the raw characters. Use the same delimiters
+in the stem, every option, the hint and the explanation, so one formula looks the
+same everywhere. Ordinary prose, code (in backticks) and currency ("$5") are not
+formulas and need no delimiters.
+
+Inside JSON, write each backslash twice: `"$\\frac{a}{b}$"`, `"$\\sigma(z^l)$"`. A
+single backslash silently turns `\beta`, `\frac`, `\theta` or `\nabla` into control
+characters. A card whose formula is outside the delimiters is rejected.
+
 ## Recruitment Extension
 
 When recruitment mode is active, read `references/recruitment-prep.md` and
