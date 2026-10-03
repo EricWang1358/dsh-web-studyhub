@@ -2327,6 +2327,7 @@
     margin-top: 56px;
   }
   .flashcard {
+    position: relative;
     display: block;
     width: 100%;
     border: 0;
@@ -2342,9 +2343,25 @@
     border: 0;
     opacity: 1;
   }
-  .flashcard:focus-visible {
+  .flip-control:focus-visible {
     outline-offset: 6px;
   }
+  .flip-control {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+  }
+  .flip-control:hover:not(:disabled), .flip-control:disabled {
+    background: transparent;
+    border: 0;
+    opacity: 1;
+  }
+  .flashcard .flip-inner { pointer-events: none; }
+  .flashcard .flip-face:not([aria-hidden="true"]) :is(.md-image-open, .md-math, .md-code, .md-details > summary) { pointer-events: auto; }
   /* FlipCard sets an explicit height from the face that is up, so a longer
      answer grows the card in step with the flip instead of in one frame. */
   .flip-inner {
@@ -2428,6 +2445,34 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  .md-math { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; }
+  .md-math-display {
+    display: block;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.35em 0;
+    text-align: center;
+  }
+  .md-math math { font-size: 1em; }
+  .md-math-source { white-space: pre-wrap; }
+  .md-image { display: inline-block; max-width: 100%; vertical-align: middle; }
+  .md-image img { display: block; max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: 8px; }
+  .md-image-open { max-width: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
+  .md-image-open:hover { background: transparent; }
+  .md-image-fallback { display: inline-block; font-size: 0.85em; color: var(--text-muted); }
+  .md-image-dialog {
+    max-width: min(94vw, 1200px);
+    max-height: 90vh;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--text);
+    background: var(--paper);
+    overflow: auto;
+  }
+  .md-image-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+  .md-image-dialog img { display: block; max-width: 100%; max-height: 74vh; object-fit: contain; margin: auto; }
+  .md-image-close { display: block; margin: 0 0 12px auto; }
   .md > :first-child {
     margin-top: 0;
   }
