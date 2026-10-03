@@ -13,9 +13,17 @@ interpretation.
 
 ## Quiz
 
-Before writing new questions, plan one useful target per card and identify the
-exact passage supporting its answer boundary. A source saying two concepts are
-different does not justify inventing a precise distinction absent from it.
+Prepare new source-based questions in separate stages. First extract valuable
+knowledge points and their verbatim supporting passages, without designing
+questions or scenarios. Use only selected material; retain fewer points when
+there is insufficient evidence instead of inventing targets to fill a quota.
+Next derive a concrete answer and checkable reasoning from each verified point,
+then any necessary scenario conditions and options or scoring criteria. Finally
+write and self-check the question using that bound knowledge point and answer
+plan; do not replace its quotations or answer with newly invented content.
+A source saying two concepts are different does not justify inventing a precise
+distinction absent from it. Constructed scenarios may add explicit hypothetical
+assumptions, but cannot introduce unsupported subject-matter facts.
 
 After drafting, check and improve every card before independent review:
 

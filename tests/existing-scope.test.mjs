@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { scopeExisting, EXISTING_LIMIT } from "../lib/existing-scope.js";
 import { generateBatched, planGeneration } from "../lib/batch.js";
 import { estimateRun } from "../lib/token-estimate.js";
-import { qualityPlan, qualityReview } from "./helpers/assessment.mjs";
+import { authored, qualityPlan, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
 
 /* One real library held 2,900 learning targets (about 55K tokens). Every plan
    and author call of a 20-question run repeated all of them: 8 of the 14 calls
@@ -49,21 +49,25 @@ function recordingModel(requests) {
     }
     if (system.startsWith("Act as a strict assessment editor")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
     const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    if (system.startsWith('Prepare supported answers')) {
+      requests.push({ stage: 'blueprint', existing: request.alreadyCovered });
+      return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, { cards: request.assessmentPlan.targets.map(() => ({ answer: 'a', explanation: 'because of the decisive condition in the source' })) }));
+    }
     requests.push({ stage: "author", existing: request.alreadyCovered });
     const cards = Array.from({ length: request.count }, (_, i) => ({ id: `q${i + 1}`, kind: request.kind, topic: "t", objective: `New objective ${requests.length} ${i}`,
       prompt: `Question ${requests.length} ${i}?`, answer: "a", hint: "h", explanation: "because of the decisive condition in the source",
       misconception: "m", citations: [{ sourceId: "s1", quote: material.text.slice(0, 30) }] }));
     const deck = { title: "D", cards };
-    return JSON.stringify({ deck, changes: [], checks: qualityReview(deck).checks });
+    return JSON.stringify(authored(deck, [], request.assessmentPlan));
   };
 }
 
-test("generation sends each plan and author call only the targets that matter", async () => {
+test("generation sends each evidence, answer and author call only the targets that matter", async () => {
   const requests = [];
   const library = [...unrelated(500), ...related];
   await generateBatched(recordingModel(requests), { count: 3, kind: "flashcard", sources: [material], existing: library,
     pinnedExisting: ["Pinned: from the draft being continued"] });
-  assert.ok(requests.some((r) => r.stage === "plan") && requests.some((r) => r.stage === "author"));
+  for (const stage of ['plan', 'blueprint', 'author']) assert.ok(requests.some(request => request.stage === stage), stage);
   for (const { stage, existing } of requests) {
     assert.ok(existing.length < 60, `${stage} carried ${existing.length} targets`);
     assert.ok(existing.includes("Pinned: from the draft being continued"), stage);

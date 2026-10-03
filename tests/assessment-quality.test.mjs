@@ -7,8 +7,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { StudyService } from "../lib/service.js";
-import { authored, qualityPlan, qualityReview } from "./helpers/assessment.mjs";
-import { reviewIssues, explanationIssues, answerLeakIssues, planIssues, learnerContextIssues } from "../lib/assessment-quality.js";
+import { authored, qualityPlan, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
+import { reviewIssues, explanationIssues, answerLeakIssues, planIssues, learnerContextIssues, blueprintAssessment, blueprintPrompts } from "../lib/assessment-quality.js";
 import { reviewedCardFingerprint } from "../lib/review-integrity.js";
 
 const source = { id: "s", title: "Course notes", text: "Architecture includes the principles guiding a system's design and evolution." };
@@ -46,6 +46,150 @@ const typedCandidate = (kind) => {
   return deck;
 };
 
+test('verified evidence precedes concrete answers and scenarios, and authors cannot replace their basis', async () => {
+  const req = { ...request, kind: 'quiz' }, input = typedCandidate('quiz');
+  input.cards[0].targetId = 'target-1';
+  const planned = qualityPlan(req), original = structuredClone(input.cards[0]);
+  const blueprint = { items: [{ targetId: 'target-1', answer: original.answer,
+    reasoning: 'The recorded principle constrains later design and evolution decisions.',
+    scenario: { kind: 'constructed', facts: ['A team considers a change that violates its recorded architectural principle.'],
+      decisiveConditions: ['The proposed change conflicts with the recorded principle.'] },
+    comparisonAxis: 'What governs the design decision', options: original.options }] };
+  const calls = [];
+  const result = await generateDeck(async (system, prompt) => {
+    if (system.startsWith('Plan')) { calls.push('evidence'); return JSON.stringify(planned); }
+    if (system.startsWith('Prepare supported answers')) { calls.push('blueprint'); return JSON.stringify(blueprint); }
+    if (system.startsWith('You author')) {
+      calls.push('author');
+      assert.equal(calls.includes('blueprint'), true, 'the author needs concrete answers and scenario facts first');
+      const payload = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      assert.deepEqual(payload.answerBlueprint.items[0].scenario, blueprint.items[0].scenario);
+      // An author may neither substitute an invented citation nor silently change the answer key.
+      input.cards[0].citations = [{ sourceId: source.id, quote: 'Invented subject matter that was never in the selected source.' }];
+      input.cards[0].answer = 'A fabricated answer';
+      input.cards[0].options[0].correct = false;
+      return JSON.stringify(authored(input));
+    }
+    calls.push('review');
+    const reviewInput = JSON.parse(prompt);
+    assert.deepEqual(reviewInput.assessmentPlan.targets[0].citations, planned.targets[0].citations);
+    assert.deepEqual(reviewInput.answerBlueprint.items, blueprint.items);
+    return JSON.stringify(qualityReview(reviewInput.candidate));
+  }, req);
+  assert.deepEqual(calls, ['evidence', 'blueprint', 'author', 'review']);
+  assert.deepEqual(result.cards[0].citations, planned.targets[0].citations);
+  assert.equal(result.cards[0].answer, original.answer);
+  assert.deepEqual(result.cards[0].options, original.options);
+});
+
+test('a missing author target reference cannot receive another knowledge point by position', async () => {
+  const input = candidate(), plan = qualityPlan(request);
+  const blueprint = { items: [{ targetId: 'target-1', answer: card.answer, reasoning: card.explanation,
+    scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'The role of architectural principles' }] };
+  await assert.rejects(generateDeck(async (system, prompt) => {
+    if (system.startsWith('Plan')) return JSON.stringify(plan);
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(blueprint);
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify({ deck: input, changes: [], checks: [] });
+  }, request), /targetId/);
+});
+
+test('a source with fewer supported knowledge points keeps its actual evidence instead of inventing targets', async () => {
+  const req = { ...request, count: 3 }, input = candidate(); input.cards[0].targetId = 'target-1';
+  const plan = qualityPlan({ ...request, count: 1 });
+  const blueprint = { items: [{ targetId: 'target-1', answer: card.answer, reasoning: card.explanation,
+    scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'The role of architectural principles' }] };
+  const result = await generateBatched(async (system, prompt) => {
+    if (system.startsWith('Plan')) return JSON.stringify(plan);
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(blueprint);
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(authored(input));
+  }, req);
+  assert.equal(result.cards.length, 1);
+  assert.equal(result.editorial.coverage.sources[0].planned, 1);
+  assert.equal(result.editorial.requested, 3);
+  assert.match(result.editorial.failures.join(), /1\/3|insufficient|fewer/);
+});
+
+test('concrete answer preparation requires explained choices and real scenario conditions before authoring', async () => {
+  const req = { ...request, kind: 'quiz' }, plan = qualityPlan(req), valid = qualityBlueprint(req, plan, typedCandidate('quiz'));
+  const badAnswers = [
+    { ...valid, items: {} },
+    { ...valid, items: [{ ...valid.items[0], targetId: 'not-selected' }] },
+    { ...valid, items: [{ ...valid.items[0], scenario: { kind: 'constructed', facts: [], decisiveConditions: [] } }] },
+    { ...valid, items: [{ ...valid.items[0], options: valid.items[0].options.map(option => ({ ...option, explanation: '' })) }] },
+    { ...valid, items: [{ ...valid.items[0], options: valid.items[0].options.map(option => ({ ...option, correct: true })) }] },
+  ];
+  for (const bad of badAnswers) {
+    let calls = 0;
+    await assert.rejects(blueprintAssessment(async () => { calls++; return bad; }, req, plan), /Answer blueprint is not usable/);
+    assert.equal(calls, 2, 'a concrete defect receives only one focused correction');
+  }
+  const { prompt } = blueprintPrompts(req, plan);
+  assert.match(prompt, /hypothetical assumptions, not new subject-matter rules/);
+  assert.match(prompt, /specific explanation for EACH correct and incorrect option/);
+  assert.match(prompt, /concrete answer FIRST/);
+});
+
+test('answer preparation examples satisfy the requested kind without contradicting choice counts', () => {
+  for (const kind of ['flashcard', 'quiz', 'multi', 'open', 'cloze']) {
+    const req = { ...request, kind };
+    const { prompt } = blueprintPrompts(req, qualityPlan(req));
+    const example = JSON.parse(prompt.split('Return ')[1].split('. Do not write the final question')[0]).items[0];
+    assert.equal(Object.hasOwn(example, 'options'), ['quiz', 'multi'].includes(kind), kind);
+    assert.equal(Object.hasOwn(example, 'rubric'), kind === 'open', kind);
+    assert.equal(Object.hasOwn(example, 'cloze'), kind === 'cloze', kind);
+    if (example.options) {
+      assert.ok(example.options.length >= 3 && example.options.length <= 6, kind);
+      const correct = example.options.filter(option => option.correct).length;
+      assert.ok(kind === 'quiz' ? correct === 1 : correct >= 1 && correct < example.options.length, kind);
+      assert.ok(example.options.every(option => option.explanation.trim()), kind);
+    }
+  }
+});
+
+test('a concrete answer correction keeps valid items while unsupported answers remain visible as omissions', async () => {
+  const req = { ...request, count: 2 }, plan = qualityPlan(req), input = candidate();
+  input.cards.push({ ...structuredClone(card), id: 'q2', answer: '' });
+  const reply = qualityBlueprint(req, plan, input); reply.items[1].answer = '';
+  const result = await blueprintAssessment(async () => reply, req, plan);
+  assert.deepEqual(result.items.map(item => item.targetId), ['target-1']);
+  assert.equal(result.omitted[0].targetId, 'target-2');
+  assert.match(result.omitted[0].reason, /concrete answer|answer is required/);
+});
+
+test('a rewrite of a known card keeps its original evidence binding by id even when the replacement omits targetId', async () => {
+  const input = candidate(), plan = qualityPlan(request), replies = [plan, qualityBlueprint(request, plan, input), authored(input)];
+  const result = await generateDeck(async (system, prompt) => {
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(replies.shift());
+  }, { ...request, preReview: async ({ draft }) => {
+    const replacement = { ...draft.cards[0], answer: 'An unsupported changed answer', citations: [] };
+    delete replacement.targetId;
+    return { draft: { ...draft, cards: [replacement] } };
+  } });
+  assert.equal(result.cards[0].targetId, 'target-1');
+  assert.equal(result.cards[0].answer, card.answer);
+  assert.deepEqual(result.cards[0].citations, plan.targets[0].citations);
+});
+
+test('author cards in a different order bind by explicit target reference rather than their position', async () => {
+  const req = { ...request, count: 2 }, plan = qualityPlan(req), input = candidate();
+  input.cards.push({ ...structuredClone(card), id: 'q2', prompt: 'Which rule guides a proposed system evolution?', answer: 'Second concrete answer' });
+  const blueprint = qualityBlueprint(req, plan, input);
+  const reply = authored(input); reply.deck.cards.reverse();
+  const result = await generateDeck(async (system, prompt) => {
+    if (system.startsWith('Plan')) return JSON.stringify(plan);
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(blueprint);
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(reply);
+  }, req);
+  assert.equal(result.cards[0].targetId, 'target-2');
+  assert.equal(result.cards[0].answer, 'Second concrete answer');
+  assert.equal(result.cards[0].objective, plan.targets[1].objective);
+  assert.equal(result.cards[1].answer, card.answer);
+});
+
 test("author examples include only the fields of the requested question kind", () => {
   for (const kind of ["flashcard", "quiz", "multi", "open", "cloze"]) {
     const { prompt } = authorPrompts({ ...request, kind }, qualityPlan({ ...request, kind }));
@@ -74,6 +218,7 @@ test("approved generated cards with non-applicable null fields save as editable 
       if (!Object.hasOwn(input.cards[0], field)) input.cards[0][field] = null;
     const deck = await generateDeck(async (system, prompt) => {
       if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
+      if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(req, qualityPlan(req), input));
       if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
       return JSON.stringify(authored(input));
     }, req);
@@ -107,9 +252,10 @@ test("invalid optional field shapes are rejected consistently before generated c
     const req = { ...request, kind };
     await assert.rejects(generateDeck(async (system, prompt) => {
       if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
+      if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(req, qualityPlan(req), input));
       if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
       return JSON.stringify(authored(input));
-    }, req), /Quality gate failed/);
+    }, req), /Quality gate failed|Answer blueprint is not usable/);
   }
 });
 
@@ -140,6 +286,7 @@ test("generated drafts preserve valid non-null attributes outside their active a
     rubric: "An extra non-null field", custom: { note: "Keep this metadata" } });
   const deck = await generateDeck(async (system, prompt) => {
     if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(request));
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, qualityPlan(request), input));
     if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
     return JSON.stringify(authored(input));
   }, request);
@@ -159,6 +306,7 @@ test("duplicate temporary author ids are distinct during independent review and 
   const req = { ...request, count: 2 }, seen = [];
   const complete = async (system, prompt) => {
     if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(req, qualityPlan(req), input));
     if (system.startsWith("Act as")) {
       const reviewed = JSON.parse(prompt).candidate;
       seen.push(...reviewed.cards.map(card => card.id));
@@ -194,6 +342,7 @@ test("missing or invalid temporary author ids are normalized before the independ
     const req = { ...request, count: 2 };
     const deck = await generateDeck(async (system, prompt) => {
       if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
+      if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(req, qualityPlan(req), input));
       if (system.startsWith("Act as")) {
         const reviewed = JSON.parse(prompt).candidate;
         assert.ok(reviewed.cards.every(card => typeof card.id === "string" && card.id.trim()));
@@ -216,7 +365,7 @@ test('one independent review keeps approved questions without repair or a second
   const req = { ...request, count: 2 }, review = qualityReview(deck);
   review.checks[1].answerLeak = 'fail';
   review.summary = 'The second card leaks its answer.';
-  const replies = [qualityPlan(req), authored(deck), review], systems = [];
+  const replies = [qualityPlan(req), qualityBlueprint(req, qualityPlan(req), deck), authored(deck), review], systems = [];
   const result = await generateDeck(async system => {
     systems.push(system);
     assert.ok(replies.length, 'must not launch another repair/audit');
@@ -234,7 +383,7 @@ test('a requested-kind mismatch costs only that candidate instead of the approve
   const quiz = { ...structuredClone(card), id: 'wrong-kind', kind: 'quiz', prompt: 'A different target?', objective: 'Different target',
     options: ['a', 'b', 'c'].map(id => ({ id, text: `Option ${id}`, correct: id === 'a', explanation: `Why ${id}` })) };
   deck.cards.push(quiz);
-  const req = { ...request, count: 2 }, replies = [qualityPlan(req), authored(deck), qualityReview(deck)];
+  const req = { ...request, count: 2 }, replies = [qualityPlan(req), qualityBlueprint(req, qualityPlan(req), deck), authored(deck), qualityReview(deck)];
   const result = await generateDeck(async () => JSON.stringify(replies.shift()), req);
   assert.equal(result.cards.length, 1);
   assert.equal(result.cards[0].kind, 'flashcard');
@@ -256,6 +405,7 @@ test('an empty notes-dependent stem is rejected even when the model reviewer mar
   bad.cards[0].prompt = '这份口述笔记把建筑的电气图、管道图对应到 IT 的哪些视角？';
   await assert.rejects(generateDeck(async (system, prompt) => {
     if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(request));
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, qualityPlan(request), bad));
     if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
     return JSON.stringify(authored(bad));
   }, request), /Quality gate failed.*unavailable lecture notes/);
@@ -264,7 +414,7 @@ test('an empty notes-dependent stem is rejected even when the model reviewer mar
 test('single-round approved cards checkpoint with stable identities and rejection reasons', async () => {
  const deck=candidate(); deck.cards.push({...structuredClone(card),id:'bad',prompt:'Another question?',objective:'Another target'});
  const req={...request,count:2,title:'One requested deck'}, failed=qualityReview(deck);failed.checks[1].answerLeak='fail';
- const replies=[qualityPlan(req),authored(deck),failed],saved=[];
+ const replies=[qualityPlan(req),qualityBlueprint(req, qualityPlan(req), deck), authored(deck),failed],saved=[];
  const result=await generateBatched(async()=>{assert.ok(replies.length);return JSON.stringify(replies.shift());},req,()=>{},async value=>saved.push(structuredClone(value)));
  assert.equal(result.cards.length,1);assert.equal(result.cards[0].id,saved[0].cards[0].id);assert.equal(result.title,req.title);
  assert.match(result.editorial.failures.join(),/answerLeak/);
@@ -272,12 +422,12 @@ test('single-round approved cards checkpoint with stable identities and rejectio
 });
 
 test('malformed author arrays salvage only complete objects and still require independent review', async () => {
-  const good = JSON.stringify(card);
+  const good = JSON.stringify({ ...card, targetId: 'target-1' });
   const malformed = `{"deck":{"cards":[${good},{"kind":"flashcard","prompt":"broken" "answer":"bad"},{"kind":`;
-  assert.deepEqual(salvageAuthoredCards(malformed).deck.cards, [card]);
+  assert.deepEqual(salvageAuthoredCards(malformed).deck.cards, [{ ...card, targetId: 'target-1' }]);
   assert.equal(salvageAuthoredCards('{"checks":[{"cardId":"q"}]}'), null);
   const req = { ...request, count: 2 };
-  const responses = [JSON.stringify(qualityPlan(req)), malformed, JSON.stringify(qualityReview(candidate()))];
+  const responses = [JSON.stringify(qualityPlan(req)), JSON.stringify(qualityBlueprint(req, qualityPlan(req), candidate())), malformed, JSON.stringify(qualityReview(candidate()))];
   const result = await generateDeck(async () => responses.shift(), req);
   assert.equal(result.cards.length, 1);
   assert.equal(responses.length, 0);
@@ -307,7 +457,7 @@ test('planning rejects impossible list discrimination but permits scoped foundat
   plan.targets[0].answerability.mode = 'recall';
   assert.deepEqual(planIssues(plan, request), []);
   delete plan.targets[0].answerability;
-  assert.match(planIssues(plan, request).join(), /infeasible/);
+  assert.deepEqual(planIssues(plan, request), [], 'the evidence-only stage defers task feasibility to concrete answer preparation');
 });
 
 test('total-budget cancellation retains the saved single-round approved subset', async () => {
@@ -315,9 +465,11 @@ test('total-budget cancellation retains the saved single-round approved subset',
  const result=generateBatched(async(system,prompt)=>{
   if(system.startsWith('Plan')) return JSON.stringify(qualityPlan(req));
   if(system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
-  const n=JSON.parse(prompt.split('REQUEST DATA:\n')[1]).count;
+  const part=JSON.parse(prompt.split('REQUEST DATA:\n')[1]),n=part.count;
+  const deck={title:'Architecture',cards:Array.from({length:n},(_,i)=>({...structuredClone(card),id:'q'+i,targetId:part.assessmentPlan.targets[i].targetId,prompt:'Distinct question '+i,objective:'Distinct target '+i}))};
+  if(system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(part,part.assessmentPlan,deck));
   if(n===1) return new Promise((resolve,reject)=>controller.signal.addEventListener('abort',()=>reject(controller.signal.reason),{once:true}));
-  return JSON.stringify(authored({title:'Architecture',cards:Array.from({length:n},(_,i)=>({...structuredClone(card),id:'q'+i,prompt:'Distinct question '+i,objective:'Distinct target '+i}))}));
+  return JSON.stringify(authored(deck,[],part.assessmentPlan));
  },{...req,signal:controller.signal},()=>{},async value=>{saved.push(structuredClone(value));controller.abort(new Error('total budget reached'));});
  await assert.rejects(result,/total budget reached/);assert.equal(saved.at(-1).cards.length,5);
 });
@@ -325,7 +477,7 @@ test('total-budget cancellation retains the saved single-round approved subset',
 test('card-number findings reject only their assigned candidate in the single review', async () => {
  const deck=candidate();deck.cards.push({...structuredClone(card),id:'q2',prompt:'Another question?',objective:'Another target'});
  const req={...request,count:2},review=qualityReview(deck,['Card 2: leaks the answer']);
- const replies=[qualityPlan(req),authored(deck),review];
+ const replies=[qualityPlan(req),qualityBlueprint(req, qualityPlan(req), deck), authored(deck),review];
  const result=await generateDeck(async()=>JSON.stringify(replies.shift()),req);
  assert.equal(result.cards.length,1);assert.equal(result.cards[0].prompt,card.prompt);assert.equal(replies.length,0);
 });
@@ -333,14 +485,14 @@ test('card-number findings reject only their assigned candidate in the single re
 test('a failed card is dropped after the single audit while approved cards are kept',async()=>{
  const deck=candidate();deck.cards.push({...structuredClone(card),id:'q2',prompt:'Another question?',objective:'Another target'});
  const req={...request,count:2},review=qualityReview(deck);review.checks[1].answerLeak='fail';
- const replies=[qualityPlan(req),authored(deck),review],phases=[];
+ const replies=[qualityPlan(req),qualityBlueprint(req, qualityPlan(req), deck), authored(deck),review],phases=[];
  const result=await generateDeck(async()=>JSON.stringify(replies.shift()),req,stage=>phases.push(stage));
  assert.equal(replies.length,0);assert.equal(result.cards.length,1);assert.equal(result.editorial.dropped,1);
  assert.equal(result.editorial.audit.checks[0].cardId,result.cards[0].id);assert.ok(phases.some(s=>/Dropping 1/.test(s)));
 });
 
 test('a partial author response finishes after one audit without filling missing candidates',async()=>{
- const req={...request,count:2},replies=[qualityPlan(req),authored(candidate()),qualityReview(candidate())];
+ const req={...request,count:2},replies=[qualityPlan(req),qualityBlueprint(req, qualityPlan(req), candidate()), authored(candidate()),qualityReview(candidate())];
  const result=await generateDeck(async()=>{assert.ok(replies.length);return JSON.stringify(replies.shift());},req);
  assert.equal(result.cards.length,1);assert.equal(result.editorial.reviewRounds,1);assert.equal(replies.length,0);
 });
@@ -349,7 +501,7 @@ test('an unusable single-round review is a protocol failure without extra model 
  const badId=qualityReview(candidate());badId.checks[0].cardId='unknown';
  const missing=qualityReview(candidate());delete missing.checks[0].sourceSupport;
  for(const bad of [{issues:[]},badId,missing,'{"issues":']){
-  const replies=[qualityPlan(request),authored(candidate()),bad];
+  const replies=[qualityPlan(request),qualityBlueprint(request, qualityPlan(request), candidate()), authored(candidate()),bad];
   await assert.rejects(generateDeck(async()=>{assert.ok(replies.length);const value=replies.shift();return typeof value==='string'?value:JSON.stringify(value);},request),/Review (?:JSON )?protocol failed/);
   assert.equal(replies.length,0);
  }
@@ -360,14 +512,15 @@ test("authoring and self-improvement happen in one call before an independent re
   improved.cards[0].prompt = "A team records a rule that every new service must use the shared access layer. What role does this rule play when later changes are proposed?";
   improved.cards[0].explanation += " The access-layer rule is a constructed example, not a quotation from the course.";
   const responses = [qualityPlan(request),
-    authored(improved, [{ cardId: "q", summary: "Replaced the answer-bearing stem with a self-contained constraint scenario." }]),
+    qualityBlueprint(request, qualityPlan(request), improved), authored(improved, [{ cardId: "q", summary: "Replaced the answer-bearing stem with a self-contained constraint scenario." }]),
     qualityReview(improved)];
   const phases = [], systems = [];
   const deck = await generateDeck(async (system) => { systems.push(system); return JSON.stringify(responses.shift()); }, request, (stage) => phases.push(stage));
-  assert.equal(responses.length, 0, "three model calls: plan, author+self-check, review");
+  assert.equal(responses.length, 0, "four model calls: evidence, concrete answers, author+self-check, review");
   assert.match(systems[0], /^Plan/);
-  assert.match(systems[1], /^You author/);
-  assert.match(systems[2], /^Act as a strict/);
+  assert.match(systems[1], /^Prepare supported answers/);
+  assert.match(systems[2], /^You author/);
+  assert.match(systems[3], /^Act as a strict/);
   assert.notEqual(deck.cards[0].prompt, original.cards[0].prompt);
   assert.equal(deck.cards[0].prompt, improved.cards[0].prompt);
   assert.equal(deck.editorial.audit.changes.length, 1);
@@ -395,7 +548,7 @@ test("a plan whose quote only lost an emoji bullet is accepted without a retry",
   const plan = qualityPlan(req);
   plan.targets[0].citations = [{ sourceId: "e", quote: "吞吐量提升\n\t\t 服务器升级\n\t\t 缓存命中率提升" }];
   const deck = { title: "性能", cards: [{ ...structuredClone(card), citations: [{ sourceId: "e", quote: "缓存命中率提升，减少处理时间" }] }] };
-  const replies = [plan, authored(deck), qualityReview(deck)];
+  const replies = [plan, qualityBlueprint(req, plan, deck), authored(deck), qualityReview(deck)];
   const out = await generateDeck(async () => JSON.stringify(replies.shift()), req);
   assert.equal(out.cards.length, 1);
   assert.equal(replies.length, 0, "no corrective round was needed");
@@ -411,13 +564,13 @@ test("an empty issues list cannot approve missing or failed per-card checks", ()
 
 test('a batch with no independently approved candidates fails without repair',async()=>{
  const review=qualityReview(candidate());review.checks[0].answerLeak='fail';
- const replies=[qualityPlan(request),authored(candidate()),review];
+ const replies=[qualityPlan(request),qualityBlueprint(request, qualityPlan(request), candidate()), authored(candidate()),review];
  await assert.rejects(generateDeck(async()=>JSON.stringify(replies.shift()),request),/Quality gate failed.*answerLeak/);assert.equal(replies.length,0);
 });
 
 test("invisible slide dependency remains blocked even when all model checks claim pass", async () => {
   const deck = candidate(); deck.cards[0].prompt = "根据该幻灯片，架构的原则是什么？";
-  const responses = [qualityPlan(request), authored(deck), qualityReview(deck), authored(deck), qualityReview(deck)];
+  const responses = [qualityPlan(request), qualityBlueprint(request, qualityPlan(request), deck), authored(deck), qualityReview(deck), authored(deck), qualityReview(deck)];
   await assert.rejects(generateDeck(async () => JSON.stringify(responses.shift()), request), /Quality gate failed:.*unavailable/);
 });
 
@@ -440,14 +593,14 @@ test("an independent explanation-quality failure cannot be ignored", () => {
 test('approved cards retain receipts when another candidate fails its one review',async()=>{
  const deck=candidate();deck.cards.push({...structuredClone(card),id:'q2',prompt:'Another question?',objective:'Another target'});
  const req={...request,count:2},review=qualityReview(deck);review.checks[1].explanationQuality='fail';
- const replies=[qualityPlan(req),authored(deck),review];
+ const replies=[qualityPlan(req),qualityBlueprint(req, qualityPlan(req), deck), authored(deck),review];
  const result=await generateDeck(async()=>JSON.stringify(replies.shift()),req);
  assert.equal(result.cards.length,1);assert.equal(result.editorial.reviewedCards[result.cards[0].id],reviewedCardFingerprint(result.cards[0]));assert.equal(replies.length,0);
 });
 
 test('author self approval cannot replace the single independent acceptance',async()=>{
  const review=qualityReview(candidate());review.checks[0].learningValue='fail';const systems=[];
- const replies=[qualityPlan(request),authored(candidate()),review];
+ const replies=[qualityPlan(request),qualityBlueprint(request, qualityPlan(request), candidate()), authored(candidate()),review];
  await assert.rejects(generateDeck(async system=>{systems.push(system);return JSON.stringify(replies.shift());},request),/Quality gate failed/);
  assert.equal(systems.filter(s=>s.startsWith('Act as a strict')).length,1);assert.equal(replies.length,0);
 });
@@ -456,13 +609,13 @@ test("answer restatements are rejected locally even if the editor approves", asy
   const deck = candidate();
   deck.cards[0].explanation = deck.cards[0].answer;
   assert.match(explanationIssues(deck).join(), /only repeats/);
-  const responses = [qualityPlan(request), authored(deck), qualityReview(deck), authored(deck), qualityReview(deck)];
+  const responses = [qualityPlan(request), qualityBlueprint(request, qualityPlan(request), deck), authored(deck), qualityReview(deck), authored(deck), qualityReview(deck)];
   await assert.rejects(generateDeck(async () => JSON.stringify(responses.shift()), request), /Quality gate failed.*only repeats/);
 });
 
 test("the independent editor receives the recruiting role and intended difficulty", async () => {
   const deck = candidate();
-  const responses = [qualityPlan(request), authored(deck), qualityReview(deck)];
+  const responses = [qualityPlan(request), qualityBlueprint(request, qualityPlan(request), deck), authored(deck), qualityReview(deck)];
   let review;
   await generateDeck(async (system, prompt) => {
     if (system.startsWith("Act as a strict")) review = JSON.parse(prompt);

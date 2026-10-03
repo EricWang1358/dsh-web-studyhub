@@ -48,12 +48,12 @@ export default function GenerationTrace({ job, openAgent }) {
     <Disclosure className="tech-details" summary={ui("生成方式、用量与技术详情")}>
       <JobUsage job={job} />
       {job.origin === "selection"
-        ? <p className="muted">{ui("先规划考点，再出题并自查，最后由另一位助手独立审阅；只有通过审阅的题才会保存到题组。")}</p>
-        : <p className="muted">{job.concurrency ? ui("先统一规划考点，再分批同时出题；") : ""}{ui("每批最多 5 题，先出题并自查，再由另一位助手独立审阅；没通过的题不会进入草稿。")}</p>}
+        ? <p className="muted">{ui("先提取知识点和逐字原文，再确定答案与必要情景，然后出题、自查并独立审阅；只有通过审阅的题才会保存到题组。")}</p>
+        : <p className="muted">{ui("先提取知识点和逐字原文，再确定答案、必要情景和选项依据；每批最多 5 题，出题与自查后独立审阅，通过的题保留在草稿。")}</p>}
       {job.totalTimeoutSeconds > 0 && <p className="muted">{job.origin === "selection"
         ? uiFormat("最长 {0} 分钟（不算排队）；到时会停止，题组不会有变化。", [Math.round(job.totalTimeoutSeconds / 60)])
         : uiFormat("最长 {0} 分钟（不算排队）；到时会停止，已通过检查的题保留在草稿里。", [Math.round(job.totalTimeoutSeconds / 60)])}</p>}
-      <p className="muted">{ui("出题、自查和审阅各是一次模型调用；在 DSH 里由一次性的子代理执行。引用、题型和答案泄露检查在本地完成，不调用模型。")}</p>
+      <p className="muted">{ui("每组资料提取一次知识点；每批分别确定答案与情景、出题与自查、独立审阅。引用核验和已验证内容的绑定在本地完成。")}</p>
       {job.generationTimeoutSeconds
         ? <p className="muted">{uiFormat("每个阶段最多等待 {0} 分钟。", [Math.round(job.generationTimeoutSeconds / 60)])}</p>
         : active && <p className="muted">{ui("此任务未报告新版后端时间上限，不能确认已应用更新。刷新界面不会替换正在运行的后端；重启会丢失当前未完成的内存队列。")}</p>}

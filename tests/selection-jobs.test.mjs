@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { reportUsage } from '../lib/usage-scope.js';
-import { authored, qualityPlan, qualityReview } from './helpers/assessment.mjs';
+import { authored, qualityPlan, qualityBlueprint, qualityReview } from './helpers/assessment.mjs';
 
 /* Selected-passage supplementation is an ordinary background job (the reader's learning panel, "阻塞了"):
    starting answers at once with a job handle, the job shows stage / counts / usage while it runs, can be stopped,
@@ -22,11 +22,11 @@ async function waitFor(check, label = 'condition') {
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-/** A model that answers plan / author / review like the real pipeline, with per-stage gates and flags. */
+/** The four-stage model keeps a separate cancellation gate for every phase. */
 function gatedModel() {
   const control = { calls: [], gates: {}, signals: [], flagged: new Set(), reviewError: null, usage: false, authorCards: null };
   control.complete = async (system, prompt, options = {}) => {
-    const stage = system.startsWith('Plan a source-grounded') ? 'plan' : system.startsWith('Act as a strict') ? 'review' : 'author';
+    const stage = system.startsWith('Plan a source-grounded') ? 'plan' : system.startsWith('Prepare supported answers') ? 'blueprint' : system.startsWith('Act as a strict') ? 'review' : 'author';
     control.calls.push(stage); control.signals.push(options.signal);
     const gate = control.gates[stage];
     if (gate) await new Promise((resolve, reject) => {
@@ -42,13 +42,15 @@ function gatedModel() {
       return report(JSON.stringify(qualityReview(candidate, candidate.cards.filter(card => control.flagged.has(card.id)).map(card => `${card.id}: answerLeak failed`))));
     }
     const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]), source = data.sources[0];
-    const cards = Array.from({ length: control.authorCards ?? data.count }, (_, index) => ({ id: `q${index + 1}`, kind: 'flashcard',
+    const cards = Array.from({ length: stage === 'blueprint' ? data.assessmentPlan.targets.length : control.authorCards ?? data.count }, (_, index) => ({ id: `q${index + 1}`, kind: 'flashcard',
       topic: `Topic ${index} of ${source.text.slice(0, 12)}`, objective: `Explain angle ${index} of ${source.text.slice(0, 20)}`,
       prompt: `Why does angle ${index} matter for ${source.text.slice(0, 18).toLowerCase()} decisions?`,
       answer: `Angle ${index} constrains later choices.`, hint: 'Compare a description with a rule for permitted changes.',
       explanation: `The evidence ties angle ${index} to design and later change, so it constrains the choices made afterwards.`,
       misconception: 'It only names existing parts.', citations: [{ sourceId: source.id, quote: source.text.slice(0, 40) }] }));
-    return report(JSON.stringify(authored({ title: 'Selection', cards })));
+    const deck = { title: 'Selection', cards };
+    if (stage === 'blueprint') return report(JSON.stringify(qualityBlueprint(data, data.assessmentPlan, deck)));
+    return report(JSON.stringify(authored(deck, [], data.assessmentPlan)));
   };
   return control;
 }
@@ -114,7 +116,7 @@ test('a running job reports its stage, the counts and the model steps in place',
   const model = gatedModel(); model.gates.author = deferred(); model.gates.review = deferred();
   const f = await fixture(t, { model });
   const started = await f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'progress', count: 2 }));
-  const planning = await waitFor(async () => { const job = await f.status('progress'); return job.steps?.length >= 2 && job; }, 'author step');
+  const planning = await waitFor(async () => { const job = await f.status('progress'); return job.stageCode === 'authoring' && job; }, 'author step');
   assert.equal(planning.requestedTotal, 2);
   assert.equal(planning.count, 2);
   assert.equal(planning.stageCode, 'authoring');
@@ -123,7 +125,7 @@ test('a running job reports its stage, the counts and the model steps in place',
   const reviewing = await waitFor(async () => { const job = await f.status('progress'); return job.stageCode === 'reviewing' && job; }, 'review stage');
   assert.equal(reviewing.written, 2, 'written candidates are counted before the review verdict');
   assert.equal(reviewing.savedCount, 0, 'nothing counts as saved before the review');
-  assert.equal(reviewing.steps.length, 3);
+  assert.equal(reviewing.steps.length, 4);
   f.model.gates.review.release();
   const done = await wait(f, started.jobId);
   assert.equal(done.status, 'complete', done.stage);
@@ -165,6 +167,20 @@ test('only questions that pass the independent review are saved; the rest are li
   assert.match(done.rejected[0].prompt, /angle 1/);
   assert.match(done.rejected[0].reasons.join(' '), /answerLeak/);
   assert.equal((await f.deck()).cards.length, 2);
+});
+
+test('stopping during the concrete-answer phase prevents authoring and publication', async t => {
+  const model = gatedModel(); model.gates.blueprint = deferred();
+  const f = await fixture(t, { model });
+  const started = await f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'stop-blueprint' }));
+  await waitFor(() => model.calls.includes('blueprint'), 'concrete-answer call');
+  await f.runtime.call('job.cancel', { jobId: started.jobId });
+  const done = await wait(f, started.jobId);
+  assert.equal(done.status, 'cancelled');
+  assert.equal(model.signals.at(-1).aborted, true);
+  assert.deepEqual(model.calls, ['plan', 'blueprint']);
+  assert.deepEqual((await f.deck()).cards, [f.old]);
+  assert.equal((await f.runtime.call('materials.links.list', { documentId: f.imported.documentId })).links.length, 0);
 });
 
 test('a failed review saves nothing; starting again with the same operationId reuses the candidates and saves once', async t => {
@@ -293,9 +309,9 @@ test('the job is in the global job list, tallies usage, keeps its estimate and f
   assert.ok((await f.runtime.call('snapshot')).jobs.some(job => job.id === started.jobId && job.origin === 'selection'), 'listed like other generation jobs');
   const done = await wait(f, started.jobId);
   assert.equal(done.status, 'complete', done.stage);
-  assert.equal(done.tokenUsage.calls, 3);
-  assert.equal(done.tokenUsage.uncachedInputTokens, 300);
-  assert.ok(done.estimate.totalTokens.low > 0 && done.estimate.calls.low === 3);
+  assert.equal(done.tokenUsage.calls, 4);
+  assert.equal(done.tokenUsage.uncachedInputTokens, 400);
+  assert.ok(done.estimate.totalTokens.low > 0 && done.estimate.calls.low === 4);
   assert.equal(notices.length, 1);
   assert.match(notices[0].summary, /Architecture basics/);
   const inbox = (await f.runtime.call('snapshot')).inbox;
@@ -339,7 +355,7 @@ test('usage.estimate prices a passage supplement before it starts, in the same f
   const f = await fixture(t);
   const estimate = await f.runtime.call('usage.estimate', { feature: 'selection', selection: f.a, deckId: 'd', count: 4, kind: 'flashcard', language: 'English' });
   assert.equal(estimate.feature, 'generate');
-  assert.equal(estimate.calls.low, 3, 'plan, write and review: one call each');
+  assert.equal(estimate.calls.low, 4, 'evidence, concrete answers, author and review: one call each');
   assert.ok(estimate.totalTokens.low > 0 && estimate.totalTokens.high >= estimate.totalTokens.low);
   const started = await f.runtime.call('generation.selection.start', f.args(f.a, { operationId: 'est', count: 4 }));
   assert.deepEqual(started.job.estimate.calls, estimate.calls);

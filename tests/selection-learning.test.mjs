@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createSelectionOperations } from '../lib/contexts/generation/selection.js';
-import { authored, qualityPlan, qualityReview } from './helpers/assessment.mjs';
+import { authored, qualityPlan, qualityBlueprint, qualityReview } from './helpers/assessment.mjs';
 
 const quote = "Architecture includes the principles guiding a system's design and evolution.";
 const selection = { sourceId: 's', documentId: 'doc', revision: 'rev1', start: 0, end: quote.length, quote, prefix: '', suffix: '' };
@@ -25,6 +25,10 @@ async function fixture(t, { reviewFails = false, conflict = false } = {}) {
   const complete = async (system, prompt) => {
     calls++;
     if (system.startsWith('Plan a source-grounded')) return JSON.stringify(qualityPlan(JSON.parse(prompt.split('REQUEST DATA:\n')[1])));
+    if (system.startsWith('Prepare supported answers')) {
+      const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, { cards: [card] }));
+    }
     if (system.startsWith('Act as a strict')) {
       if (reviewFails) throw new Error('Reviewer unavailable');
       return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
@@ -66,7 +70,7 @@ test('selected evidence generates, independently reviews and appends once while 
   assert.deepEqual((await f.store.read()).decks[0].cards[1].selections, [selection]);
   const again = await f.operations['generation.selection.supplement'](args, {});
   assert.deepEqual(again.receipt, result.receipt);
-  assert.deepEqual(f.metrics(), { calls: 3, appends: 1 });
+  assert.deepEqual(f.metrics(), { calls: 4, appends: 1 });
   await assert.rejects(f.operations['generation.selection.supplement']({ ...args, count: 2 }, {}), /operation|Operation/);
 });
 

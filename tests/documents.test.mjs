@@ -127,7 +127,7 @@ function card(n, kind = "flashcard") {
     ...(kind === "quiz" ? { options: ["a", "b", "c"].map((id) => ({ id, text: `${id} option ${n}`, correct: id === "a", explanation: `Reason ${id}` })) } : {}) };
 }
 
-test("a fabricated citation costs its own card, and the sound ones are kept", async () => {
+test("an author cannot replace a verified original passage with a fabricated citation", async () => {
   const bad = card(2); bad.citations[0].quote = "A fabricated passage not present in this source.";
   let calls = 0;
   const complete = async (system) => {
@@ -135,9 +135,10 @@ test("a fabricated citation costs its own card, and the sound ones are kept", as
     return JSON.stringify(system.includes("editor") ? { issues: [] } : { title: "Lecture", cards: [card(1), bad] });
   };
   const result = await generateDeck(withQualityStages(complete), { count: 2, kind: "flashcard", sources: [source], allowPartial: true });
-  assert.equal(result.cards.length, 1, "the card whose quote is not in the source is dropped");
-  assert.equal(result.editorial.dropped, 1);
-  assert.equal(calls, 3, "author, ONE citation repair for the quote that cannot be found, and one independent review; passing cards finish immediately");
+  assert.equal(result.cards.length, 2, "both answers stay bound to their already verified evidence");
+  assert.equal(result.editorial.dropped || 0, 0);
+  assert.ok(result.cards.every(card => card.citations[0].quote === source.text.slice(0, 40)));
+  assert.equal(calls, 2, "one fixture deck supplies answers and authoring; only the independent review grants approval, with no citation repair");
 
   // Unattributed defects cannot be safely assigned to a passing card.
   await assert.rejects(generateDeck(

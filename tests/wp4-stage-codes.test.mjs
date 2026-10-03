@@ -13,8 +13,14 @@ import { JOB_STAGE_CODES, GENERATION_STAGE_TEXT, stageCodeOf, stepStageCode } fr
 
 const text = "数据库索引用额外的数据结构加快查找，但每次写入都要同步维护索引，所以写多读少的表不宜建太多索引。".repeat(6);
 
+test("preparing supported answers and scenarios has a distinct public stage", () => {
+  const stage = "Preparing supported answers and scenarios";
+  assert.equal(stageCodeOf({ status: "running", stage }), "blueprinting");
+  assert.equal(stepStageCode({ stage: `Part 2/3 · ${stage}` }), "blueprinting");
+});
+
 test("every job state maps to one of the published stage codes", () => {
-  assert.deepEqual([...JOB_STAGE_CODES].sort(), ["authoring", "cancelled", "cancelling", "done", "failed", "partial",
+  assert.deepEqual([...JOB_STAGE_CODES].sort(), ["authoring", "blueprinting", "cancelled", "cancelling", "done", "failed", "partial",
     "planning", "publishing", "queued", "repairing", "reviewing"].sort());
   const cases = [
     [{ status: "queued", stage: "Waiting for the previous generation" }, "queued"],
@@ -62,7 +68,8 @@ test("snapshot jobs and their steps carry stage codes, including the requested d
   assert.equal(done.stageCode, "done");
   assert.ok(done.steps.length >= 2);
   // Steps keep their prose untouched; the same contract classifies them.
-  for (const step of done.steps) assert.ok(["planning", "authoring", "reviewing"].includes(stepStageCode(step)), `${step.stage} → ${stepStageCode(step)}`);
+  for (const step of done.steps) assert.ok(["planning", "blueprinting", "authoring", "reviewing"].includes(stepStageCode(step)), `${step.stage} → ${stepStageCode(step)}`);
+  assert.ok(done.steps.some((step) => stepStageCode(step) === "blueprinting"));
   assert.ok(done.steps.some((step) => stepStageCode(step) === "reviewing"));
 });
 

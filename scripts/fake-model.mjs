@@ -53,7 +53,7 @@ function quoteFor(source, index) {
 }
 const topicOf = (source, english) => clip(String(source?.title || "").replace(/\.(md|pdf|txt)$/i, ""), 40) || (english ? "Key idea" : "要点");
 
-/* ---------- generation: plan, author, review, repair ---------- */
+/* ---------- generation: evidence, concrete answers, author, review ---------- */
 
 function planTargets(request, nextNumber) {
   const sources = Array.isArray(request.sources) && request.sources.length ? request.sources : [];
@@ -72,7 +72,7 @@ function planTargets(request, nextNumber) {
       } while (covered.has(norm(objective)));
       covered.add(norm(objective));
       return {
-        objective, answerBoundary: "Only the selected evidence", comparisonAxis: "Role and conditions of the idea",
+        objective, knowledge: quote, answerBoundary: "Only the selected evidence", comparisonAxis: "Role and conditions of the idea",
         misconception: "Confusing the idea with a neighbouring one", contextNeeded: "The named idea and its conditions",
         answerability: { mode: "recall", requiredContextAvailable: true, answerOnlyInSourceList: false, criteriaWouldRevealAnswer: false },
         citations: [{ sourceId: source.id, quote }],
@@ -143,7 +143,7 @@ function authorDeck(request) {
     const english = englishContent(request.language, quote);
     const copy = COPY[english ? "en" : "zh"];
     const topic = topicOf(sources.find((source) => source.id === citation.sourceId), english);
-    const common = { id: `q${index + 1}`, kind, topic, objective: target?.objective || `#${n}`, hint: copy.hint,
+    const common = { id: `q${index + 1}`, targetId: target?.targetId, kind, topic, objective: target?.objective || `#${n}`, hint: copy.hint,
       explanation: copy.explanation(topic, quote), misconception: copy.misconception, citations: [{ sourceId: citation.sourceId, quote }] };
     if (kind === "flashcard") return { ...common, prompt: copy.flashcard(n, topic, quote), answer: quote };
     if (kind === "open") return { ...common, prompt: copy.open(n, topic, quote), answer: copy.openAnswer(quote), rubric: copy.rubric };
@@ -177,6 +177,14 @@ function editorReview(candidate) {
     learningValue: "pass", sourceSupport: "pass", explanationQuality: "pass",
     explanation: "Preview fixture accepted this card; no real model judgment was made.",
   })) };
+}
+
+function answerBlueprint(request) {
+  const cards = authorDeck(request).deck.cards;
+  return { items: cards.map(card => ({ targetId: card.targetId, answer: card.answer, reasoning: card.explanation,
+    scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'The specific role and condition of the quoted statement',
+    ...(card.options ? { options: card.options } : {}), ...(card.rubric ? { rubric: card.rubric } : {}),
+    ...(card.cloze ? { cloze: card.cloze } : {}) })) };
 }
 
 /* ---------- case-study papers (WP12): author, review, criteria, grading ---------- */
@@ -356,6 +364,8 @@ function gradeCaseAnswers(input, english) {
 const HANDLERS = [
   { name: "generation.plan", slow: true, match: (s) => s.startsWith("Plan a source-grounded assessment"),
     reply: ({ prompt, nextNumber }) => planTargets(after(prompt, "REQUEST DATA:\n"), nextNumber) },
+  { name: 'generation.blueprint', slow: true, match: (s) => s.startsWith('Prepare supported answers'),
+    reply: ({ prompt }) => answerBlueprint(after(prompt, 'REQUEST DATA:\n')) },
   { name: "generation.author", slow: true, match: (s) => s.startsWith("You author rigorous study material"),
     reply: ({ prompt }) => authorDeck(after(prompt, "REQUEST DATA:\n")) },
   { name: "generation.review", slow: true, match: (s) => s.startsWith("Act as a strict assessment editor"),

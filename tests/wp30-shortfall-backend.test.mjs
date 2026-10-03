@@ -8,7 +8,7 @@ import { generateBatched } from "../lib/batch.js";
 import { StudyService } from "../lib/service.js";
 import { estimateFromState } from "../lib/token-estimate.js";
 import { missingQuestions, canContinueDraft, continuationKindCounts } from "../lib/draft-continuation.js";
-import { authored, qualityPlan, qualityReview, withQualityStages } from "./helpers/assessment.mjs";
+import { authored, qualityPlan, qualityBlueprint, qualityReview, withQualityStages } from "./helpers/assessment.mjs";
 
 /* A real run asked for 20 questions and kept 10. The other ten were dropped by
    the review and the local checks and the learner was only told "少了 10 题".
@@ -24,7 +24,9 @@ test("a dropped candidate is kept on the draft with its prompt and the reasons i
   const deck = { title: "Architecture", cards: [card(1), card(2), card(3)] };
   const review = qualityReview(deck, ["q2 的提示直接给出了答案的核心区分，与正确选项几乎同义。"]);
   review.checks[1].answerLeak = "fail";
-  const replies = [qualityPlan({ count: 3, kind: "flashcard", sources: [source] }), authored(deck), review];
+  const request = { count: 3, kind: 'flashcard', sources: [source] }, plan = qualityPlan(request);
+  plan.targets.forEach((target, index) => { target.objective = deck.cards[index].objective; });
+  const replies = [plan, qualityBlueprint(request, plan, deck), authored(deck, [], plan), review];
   const result = await generateDeck(async () => JSON.stringify(replies.shift()), { count: 3, kind: "flashcard", sources: [source] });
   assert.equal(result.cards.length, 2);
   assert.equal(result.editorial.omitted.length, 1);
@@ -36,12 +38,14 @@ test("a dropped candidate is kept on the draft with its prompt and the reasons i
   assert.ok(omitted.reasons.every((reason) => !/^q[13]\b/.test(reason)), "only this card's reasons are attached to it");
 });
 
-test("a candidate dropped only because the batch was already full says so", async () => {
+test("an extra candidate without a planned knowledge point is omitted with its binding defect", async () => {
   const deck = { title: "Architecture", cards: [card(1), card(2)] };
-  const replies = [qualityPlan({ count: 1, kind: "flashcard", sources: [source] }), authored(deck), qualityReview(deck)];
+  const request = { count: 1, kind: 'flashcard', sources: [source] }, plan = qualityPlan(request);
+  const replies = [plan, qualityBlueprint(request, plan, deck), authored(deck, [], plan), qualityReview(deck)];
   const result = await generateDeck(async () => JSON.stringify(replies.shift()), { count: 1, kind: "flashcard", sources: [source] });
   assert.equal(result.cards.length, 1);
-  assert.deepEqual(result.editorial.omitted.map((item) => item.reasons), [["over-count"]]);
+  assert.equal(result.editorial.omitted.length, 1);
+  assert.match(result.editorial.omitted[0].reasons.join(' '), /unknown.*targetId|targetId.*verified knowledge/);
 });
 
 test("the batched draft collects every part's dropped questions with their part number", async () => {
@@ -54,7 +58,8 @@ test("the batched draft collects every part's dropped questions with their part 
     }
     const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
     const deck = { title: "D", cards: Array.from({ length: request.count }, (_, i) => card(i + 1, { objective: `Part ${request.alreadyCovered.length} target ${i}`, prompt: `Question ${request.alreadyCovered.length} ${i}?` })) };
-    return JSON.stringify(authored(deck));
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, deck));
+    return JSON.stringify(authored(deck, [], request.assessmentPlan));
   };
   const result = await generateBatched(model, { count: 3, kind: "flashcard", sources: [source] });
   assert.equal(result.cards.length, 2);
@@ -102,7 +107,7 @@ test("the estimate before a top-up prices only the missing questions", () => {
       generation: { sourceIds: ["s"], kind: "flashcard", language: "English" } } }] };
   const topUp = estimateFromState("generate", { resumeDraftId: "d" }, state, {});
   const whole = estimateFromState("generate", { sourceIds: ["s"], count: 6, kind: "flashcard", language: "English" }, state, {});
-  assert.ok(topUp.calls.low >= 3, "plan, author and review of the missing batch");
+  assert.ok(topUp.calls.low >= 4, "evidence, concrete answers, author and review of the missing batch");
   const authorStage = (estimate) => estimate.stages.find((stage) => stage.id === "author");
   assert.ok(authorStage(topUp).outputTokens.high < authorStage(whole).outputTokens.high, "five missing questions are written, not six");
   const none = estimateFromState("generate", { resumeDraftId: "d" }, { ...state, drafts: [{ ...state.drafts[0], editorial: { ...state.drafts[0].editorial, requested: 1 } }] }, {});

@@ -1,4 +1,4 @@
-import { withQualityStages } from "./helpers/assessment.mjs";
+import { authored, qualityPlan, qualityBlueprint, qualityReview, withQualityStages } from "./helpers/assessment.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
@@ -726,47 +726,50 @@ test("legacy import preserves original files and scheduling, repeated import is 
     true,
   );
 });
-test("generation rejects a broken citation without starting a repair loop", async () => {
-  let calls = 0;
+test("generation restores the verified evidence when the author invents a different citation", async () => {
+  const request = { count: 1, kind: 'flashcard', sources: [source] }, plan = qualityPlan(request);
   const bad = deck();
   bad.cards[0].citations[0].quote = "fabricated quote";
-  await assert.rejects(generateDeck(
-    withQualityStages(async () =>
-      JSON.stringify(
-        [bad, { cards: [] }, { issues: ["unsupported quote"] }, deck(), { issues: [] }][calls++],
-      )),
-    { count: 1, kind: "flashcard", sources: [source] },
-  ), /unsupported quote/);
-  assert.equal(calls, 3, "author, the ONE citation repair (which here fixes nothing) and one independent review: no loop");
+  const replies = [plan, qualityBlueprint(request, plan, deck()), authored(bad, [], plan), qualityReview(deck())], systems = [];
+  const result = await generateDeck(async system => { systems.push(system); return JSON.stringify(replies.shift()); }, request);
+  assert.equal(result.cards.length, 1);
+  assert.deepEqual(result.cards[0].citations, plan.targets[0].citations);
+  assert.equal(systems.length, 4, 'evidence, concrete answers, author and one independent review');
+  assert.equal(systems.filter(system => system.startsWith('Repair')).length, 0, 'the author cannot displace verified evidence');
 });
 test("an unattributed editorial complaint stops the batch after one review", async () => {
+  const request = { count: 1, kind: 'flashcard', sources: [source] }, plan = qualityPlan(request);
+  const replies = [plan, qualityBlueprint(request, plan, deck()), authored(deck(), [], plan), qualityReview(deck(), ['ambiguous'])];
   let calls = 0;
   await assert.rejects(generateDeck(
-    withQualityStages(async () => JSON.stringify([deck(), { issues: ["ambiguous"] }, deck(), { issues: [] }][calls++])),
-    { count: 1, kind: "flashcard", sources: [source] },
+    async () => { calls++; return JSON.stringify(replies.shift()); }, request,
   ), /ambiguous/);
-  assert.equal(calls, 2, "no repair or second independent review");
+  assert.equal(calls, 4, "four stages, no repair or second independent review");
 });
 
 test("a defect the local gate can prove still costs the card, however the editor votes", async () => {
   const broken = deck();
-  broken.cards[0].citations[0].quote = "fabricated quote";
+  broken.cards[0].hint = broken.cards[0].answer;
   await assert.rejects(
     generateDeck(withQualityStages(async () => JSON.stringify(broken)), { count: 1, kind: "flashcard", sources: [source] }),
     /Quality gate failed/,
   );
 });
 test("generation rejects wrong question kind even when model editor approves", async () => {
+  const request = { count: 1, kind: 'quiz', sources: [source] }, plan = qualityPlan(request);
+  const valid = deck();
+  valid.cards[0].kind = 'quiz';
+  valid.cards[0].options = ['a', 'b', 'c'].map(id => ({ id, text: `Distinct option ${id}`, correct: id === 'a', explanation: `The supported distinction rules ${id === 'a' ? 'in' : 'out'} this option.` }));
+  const replies = [plan, qualityBlueprint(request, plan, valid), authored(deck(), [], plan), qualityReview(deck())];
   let calls = 0;
   await assert.rejects(
     () =>
       generateDeck(
-        withQualityStages(async () => JSON.stringify([deck(), { issues: [] }, deck(), { issues: [] }][calls++])),
-        { count: 1, kind: "quiz", sources: [source] },
+        async () => { calls++; return JSON.stringify(replies.shift()); }, request,
       ),
     /requested kind/,
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, 4, 'the approved review cannot override the requested kind');
 });
 test("teaching stores conclusions only and cannot advance a failed check or add SM2 attempts", async () => {
   const service = await ready();
@@ -1071,13 +1074,14 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   const first = await service.call("job.wait", { jobId: quiz.jobId });
   assert.equal(first.status, "complete");
   assert.equal(first.draft.cards, 6);
-  // Three parts x three phases: plan, author+self-check, independent review.
-  // Every extra phase used to mean another child and another cold start.
-  assert.equal(first.steps.length, 9);
+  // Three parts x four phases: verified evidence, concrete answers, author and review.
+  assert.equal(first.steps.length, 12);
   assert.ok(first.steps.every((step) => step.status === "complete" && step.startedAt && step.finishedAt));
   assert.match(first.steps[0].stage, /Planning evidence/);
   assert.ok(first.steps.slice(0, 3).every((step) => step.stage.includes("Planning evidence")));
-  assert.match(first.steps[3].stage, /Writing and self-checking questions/);
+  assert.match(first.steps[3].stage, /Preparing supported answers and scenarios/);
+  assert.equal(first.steps.filter(step => step.stage.includes('Preparing supported answers and scenarios')).length, 3);
+  assert.equal(first.steps.filter(step => step.stage.includes('Writing and self-checking questions')).length, 3);
   const second = await service.call("job.wait", { jobId: cards.jobId });
   assert.equal(second.status, "complete");
   assert.equal(second.draft.failures.length, 1);

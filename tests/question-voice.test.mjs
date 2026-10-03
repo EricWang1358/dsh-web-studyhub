@@ -43,14 +43,18 @@ test('the generation check turns it into a precise, actionable issue per card', 
   assert.match(issues[0], /concept|scenario/i, 'it says what to do instead');
 });
 
-test('generation prompts forbid it: the planning, authoring and review prompts all carry the source-voice rule', async () => {
+test('all four generation stages carry the source-voice rule without making the document the learning target', async () => {
   const { QUALITY_CRITERIA } = await import('../lib/assessment-quality.js');
   assert.match(QUALITY_CRITERIA, /Source voice/);
   assert.match(QUALITY_CRITERIA, /never ask what 'the material'/i);
-  const { planPrompts } = await import('../lib/assessment-quality.js');
+  const { planPrompts, blueprintPrompts } = await import('../lib/assessment-quality.js');
   const plan = planPrompts({ count: 2, sources: [], level: 'x' });
   assert.match(plan.prompt, /Source voice/, 'the plan is made under the rule');
-  const { reviewPrompts } = await import('../lib/generation.js');
+  const blueprint = blueprintPrompts({ count: 2, sources: [], kind: 'flashcard' }, { targets: [] });
+  assert.match(blueprint.prompt, /Source voice/, 'the answer and scenario stage keeps the same boundary');
+  const { authorPrompts, reviewPrompts } = await import('../lib/generation.js');
+  const author = authorPrompts({ count: 2, sources: [], kind: 'flashcard' }, { targets: [] }, { items: [] });
+  assert.match(author.prompt, /Source voice/, 'the author keeps the same boundary');
   const review = reviewPrompts({ sources: [], deck: { title: 't', cards: [] }, kind: 'flashcard', count: 0 });
   assert.match(review.payload, /Source voice/, 'the independent review checks it');
 });

@@ -36,18 +36,18 @@ test('an estimate has the DSH fields as ranges and never a price', () => {
   assert.doesNotMatch(JSON.stringify(result), /price|cost|usd|cny|rmb|currency|\$|¥|元/i);
 });
 
-test('question generation follows the real batching: plan per chunk, author and review per batch', () => {
+test('question generation prices evidence per group and answer design, authoring and review per batch', () => {
   const sources = pdf(30);
   const result = estimateRun('generate', { ...base, sources });
   const planned = planGeneration({ sources, count: 10, kind: 'mixed' });
   const groups = new Set(planned.map((part) => part.sources)).size;
   assert.equal(groups, 2, '90 000 characters make two chunks of at most 60 000');
-  assert.equal(result.calls.low, groups + 2 * planned.length, 'one plan per chunk, an author and a review per batch');
+  assert.equal(result.calls.low, groups + 3 * planned.length, 'evidence per group, answer design, author and review per batch');
   const quiz = estimateRun('generate', { ...base, kind: 'quiz', sources });
-  assert.equal(quiz.calls.low, 8, 'ten quiz questions: two plans, three batches of at most five, three reviews');
-  assert.equal(result.calls.high, result.calls.low + groups, 'a planning round may be asked again');
+  assert.equal(quiz.calls.low, 11, 'two evidence groups and three batches with answer design, authoring and review');
+  assert.equal(result.calls.high, result.calls.low + groups + planned.length, 'evidence and answer design may each receive one correction');
   const ids = result.stages.map((stage) => stage.id);
-  assert.deepEqual([...new Set(ids)].sort(), ['author', 'plan', 'review']);
+  assert.deepEqual([...new Set(ids)].sort(), ['author', 'blueprint', 'plan', 'review']);
   assert.equal(result.stages.find((stage) => stage.id === 'plan').calls, groups);
 });
 

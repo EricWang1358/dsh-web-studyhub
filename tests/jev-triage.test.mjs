@@ -9,7 +9,7 @@ import { saveJevSettings } from '../lib/jev-settings.js';
 import { createJevRuntime } from '../lib/jev-runtime.js';
 import { createJevUsage } from '../lib/jev-usage.js';
 import { TRIAGE_CHECKS, buildTriageRequest, createPreReview, readTriage, rewriteFlagged, triageDeck } from '../lib/jev-triage.js';
-import { authored, qualityPlan, qualityReview } from './helpers/assessment.mjs';
+import { authored, qualityPlan, qualityReview, withQualityStages } from './helpers/assessment.mjs';
 import { startFakeJev } from './helpers/fake-jev.mjs';
 
 /* 出题预审: a cheap Jev pass over each candidate card BEFORE the one independent review. A confident failure sends the card back for
@@ -136,7 +136,7 @@ test('generateDeck: Jev flags a card, it is rewritten once BEFORE the review, an
   const req = { count: 2, kind: 'flashcard', sources: [source], preReview: createPreReview({ runtime: h.runtime, threshold: 0.8 }) };
   const calls = [];
   const rewritten = flash('bad', 'A question that does not give itself away?', { objective: 'Another objective' });
-  const result = await generateDeck(async (system, prompt) => {
+  const result = await generateDeck(withQualityStages(async (system, prompt) => {
     calls.push(system);
     if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(req));
     if (system.startsWith('Act as a strict assessment editor')) {
@@ -146,7 +146,7 @@ test('generateDeck: Jev flags a card, it is rewritten once BEFORE the review, an
     }
     if (system.startsWith('Rewrite')) return JSON.stringify({ cards: [rewritten] });
     return JSON.stringify(authored(deck));
-  }, req);
+  }), req);
   assert.equal(calls.filter(system => system.startsWith('Act as a strict')).length, 1, 'the independent review ran once, over both cards');
   assert.equal(h.fake.requests.length, 2, 'one tiny Jev call per card');
   assert.equal(result.cards.length, 2);
@@ -166,12 +166,12 @@ test('a Jev that is off, failing or throwing changes nothing: the same calls, th
   const run = async preReview => {
     const calls = [], d = deck();
     const req = { count: 2, kind: 'flashcard', sources: [source], ...(preReview ? { preReview } : {}) };
-    const result = await generateDeck(async (system, prompt) => {
+    const result = await generateDeck(withQualityStages(async (system, prompt) => {
       calls.push(system.slice(0, 24));
       if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(req));
       if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
       return JSON.stringify(authored(d));
-    }, req);
+    }), req);
     return { calls, result };
   };
   const plain = await run();
@@ -195,12 +195,12 @@ test('batches: the signals of every part are collected into the one draft', asyn
   const plan = request => qualityPlan(request);
   let n = 0;
   const sources = Array.from({ length: 2 }, (_, index) => ({ id: `s${index}`, title: `Notes ${index}`, text: `Unique source number ${index}. ${'Architecture includes the principles guiding a system. '.repeat(2000)}` }));
-  const result = await generateBatched(async (system, prompt) => {
+  const result = await generateBatched(withQualityStages(async (system, prompt) => {
     if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(plan(JSON.parse(prompt.split('REQUEST DATA:\n')[1])));
     if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
     const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]), id = ++n;
-    return JSON.stringify(authored({ title: 'T', cards: Array.from({ length: request.count }, (_, k) => ({ ...flash(`x${id}-${k}`, `Distinct question ${id}-${k}?`, { objective: `Objective ${id}-${k}`, citations: [{ sourceId: request.sources[0].id, quote: request.sources[0].text.trim().slice(0, 40) }] }) })) }));
-  }, { count: 4, kind: 'flashcard', sources, preReview: createPreReview({ runtime: h.runtime, threshold: 0.8 }) });
+    return JSON.stringify(authored({ title: 'T', cards: Array.from({ length: request.count }, (_, k) => ({ ...flash(`x${id}-${k}`, `Distinct question ${id}-${k}?`, { objective: `Objective ${id}-${k}`, citations: [{ sourceId: request.sources[0].id, quote: request.sources[0].text.trim().slice(0, 40) }] }) })) }, [], request.assessmentPlan));
+  }), { count: 4, kind: 'flashcard', sources, preReview: createPreReview({ runtime: h.runtime, threshold: 0.8 }) });
   const signals = result.editorial.jev?.signals ?? {};
   assert.equal(Object.keys(signals).length, result.cards.length);
   assert.ok(result.cards.every(card => signals[card.id]));
@@ -211,11 +211,11 @@ test('the signals hold ids and numbers only: nothing of the card text is stored 
   await h.open();
   const deck = { title: 'D', cards: [flash('ok', 'Fine question?')] };
   const req = { count: 1, kind: 'flashcard', sources: [source], preReview: createPreReview({ runtime: h.runtime, threshold: 0.8 }) };
-  const result = await generateDeck(async (system, prompt) => {
+  const result = await generateDeck(withQualityStages(async (system, prompt) => {
     if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(req));
     if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
     return JSON.stringify(authored(deck));
-  }, req);
+  }), req);
   const dump = JSON.stringify(result.editorial.jev);
   assert.ok(!dump.includes('Fine question'), 'no card text in the signals');
   assert.ok(!han.test(dump));

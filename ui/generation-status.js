@@ -34,7 +34,8 @@ const ownProse = (job) => job?.type === 'draft-publish' || job?.type === 'draft-
 export function stageCodeLabel(code) {
   return ({
     queued: ui('排队中，前面的任务完成后开始'),
-    planning: ui('正在规划考点'),
+    planning: ui('正在提取知识点与原文'),
+    blueprinting: ui('正在确定答案与情景'),
     authoring: ui('正在出题'),
     reviewing: ui('正在审阅题目'),
     repairing: ui('正在修复没通过的题'),
@@ -50,7 +51,8 @@ export function stageCodeLabel(code) {
 /** One finished or running model step, as a noun for the execution list. */
 function stepCodeLabel(code) {
   return ({
-    planning: ui('规划考点'),
+    planning: ui('提取知识点与原文'),
+    blueprinting: ui('确定答案与情景'),
     authoring: ui('出题与自查'),
     reviewing: ui('独立审阅'),
     repairing: ui('修复题目'),
@@ -67,6 +69,7 @@ export function legacyStageText(stage = '') {
     .replace(/Group (\d+)\/(\d+)/g, '第 $1/$2 组')
     .replace('Parallel generation · up to 3 batches', '并行生成 · 最多 3 批同时进行')
     .replace('Planning evidence and learning targets', '生成前：规划考点与证据边界')
+    .replace('Preparing supported answers and scenarios', '确定答案与情景')
     .replace('Self-checking and improving every question', '生成后：逐题自查与改写')
     .replace('Writing and self-checking questions', '出题与自查')
     .replace('Writing source-grounded questions', '出题')
@@ -201,6 +204,7 @@ const FAILURES = [
   ['sources', /资料[^；;。]*(删除|缺失)|Select at least one source/i],
   ['grounding', /is not in source|quote must match|unknown source|not one of the provided sources|引用的原文/i],
   ['plan', /Assessment plan is not usable/i],
+  ['blueprint', /Answer blueprint/i],
   ['quality', /Quality gate failed|Editorial review still found issues|No questions were generated|Author returned no questions|insufficient evidence|没有题目通过/i],
 ];
 
@@ -231,6 +235,9 @@ export function describeFailure(text = '', { hasDraft = false } = {}) {
         : ui('AI 引用的句子和资料原文对不上。请确认所选页包含要引用的原文；如果原文在相邻页，重新选页后再生成。') };
     case 'plan': return { kind, action: 'retry', title: ui('考点规划没有通过检查'),
       hint: ui('资料里能稳妥出题的内容可能不够。换几份内容更完整的资料，或减少题数再试。') };
+    case 'blueprint': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('答案与情景设计没有通过检查'),
+      hint: hasDraft ? ui('已通过的题保存在草稿里。其余考点还没有形成可靠的答案与情景，可以打开草稿后调整范围继续。')
+        : ui('考点已找到，但答案、情景或选项依据还不完整。可选择更聚焦的资料，或减少题数后重试。') };
     case 'quality': return { kind, action: 'retry', title: ui('没有题目通过检查'),
       hint: ui('资料可能太短，或缺少可以考的内容。换几份内容更完整的资料，或减少题数再试。') };
     default: return { kind, action: 'retry', title: ui('生成没有完成'), hint: ui('可以按原资料重新设置后再试。') };

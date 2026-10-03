@@ -12,7 +12,7 @@ new Function("require", "module", "exports", compiled.outputFiles[0].text)(creat
 const m = module.exports;
 const han = /[㐀-鿿]/;
 const latinWord = /[A-Za-z]{3,}/;
-const CODES = ["queued", "planning", "authoring", "reviewing", "repairing", "publishing", "cancelling", "cancelled", "done", "partial", "failed"];
+const CODES = ["queued", "planning", "blueprinting", "authoring", "reviewing", "repairing", "publishing", "cancelling", "cancelled", "done", "partial", "failed"];
 
 function inLanguage(language, fn) {
   m.setUiLanguage(language);
@@ -61,7 +61,7 @@ test("saved progress distinguishes a draft's total from the questions requested 
   assert.equal(progress.total, 25, "the denominator is the whole draft target, never this run's 21 questions");
   assert.equal(progress.label, "草稿已保存");
   assert.equal(progress.note, "本次计划补 21 题");
-  assert.equal(m.jobStageLabel(job, [], [], { includeSaved: false }), "正在规划考点");
+  assert.equal(m.jobStageLabel(job, [], [], { includeSaved: false }), "正在提取知识点与原文");
   const passage = m.jobSavedProgress({ status: "complete", type: "supplement", origin: "selection", savedCount: 2, requestedTotal: 3,
     publication: { added: 2, total: 19 } });
   assert.equal(passage.saved, 2);
@@ -111,6 +111,15 @@ test("job cards name their deck", () => {
   assert.match(m.jobHeadline({ status: "complete", deckTitle: "索引小测", savedCount: 4, requestedTotal: 4 }, drafts), /「索引小测」草稿已生成/);
   assert.match(m.jobHeadline({ status: "complete", deckTitle: "X", savedCount: 9, requestedTotal: 12 }, drafts), /草稿待补齐 · 9\/12 题/);
   assert.match(inLanguage("en", () => m.jobHeadline({ status: "failed", deckTitle: "Indexes" }, drafts)), /Indexes/);
+});
+
+test("answer design failures name their stage and preserve the route to a saved draft", () => {
+  const text = "Answer blueprint is not usable: Target target-1: needs a concrete answer";
+  const result = m.describeFailure(text, { hasDraft: true });
+  assert.equal(result.kind, "blueprint");
+  assert.equal(result.action, "open-draft");
+  assert.match(result.title, /答案与情景/);
+  assert.doesNotMatch(inLanguage("en", () => m.describeFailure(text).title), han);
 });
 
 test("generation failures become plain language with a fix", () => {

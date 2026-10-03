@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { StudyService } from "../lib/service.js";
 import { createJobNotifier } from "../lib/runtime/job-notice.js";
 import { describePartReport, failureReason, summarizePartOutcomes } from "../lib/generation-report.js";
-import { withQualityStages } from "./helpers/assessment.mjs";
+import { authored, qualityPlan, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
 
 /* The owner's report: a 36-page generation said "5 parts failed because the quoted source text could not be found", and the agent
    advised retrying by hand with fewer pages. The job and the draft now say how many parts passed or failed and why, in the learner's
@@ -44,13 +44,18 @@ async function runJob(t, { invent }) {
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root);
   for (const page of pages) await service.call("source.add", page);
-  service.complete = withQualityStages(async (system, prompt) => {
-    if (system.startsWith("Repair the source citations")) return JSON.stringify({ cards: [] });
-    if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
-    return JSON.stringify({ title: "T", cards: request.assessmentPlan.targets.map((target, i) => flashcard(i + 1, [{ sourceId: target.citations[0].sourceId,
-      quote: invent && i === 0 ? "A passage about caching that this page never contained at all" : target.citations[0].quote }])) });
-  });
+  service.complete = async (system, prompt) => {
+    if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1].split('\n\nYour previous plan was rejected')[0]);
+    if (system.startsWith('Plan a source-grounded')) {
+      const plan = qualityPlan(request);
+      if (invent) plan.targets[0].citations[0].quote = 'A passage about caching that this page never contained at all';
+      return JSON.stringify(plan);
+    }
+    const deck = { title: 'T', cards: request.assessmentPlan.targets.map((target, i) => ({ ...flashcard(i + 1, target.citations), targetId: target.targetId })) };
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, deck));
+    return JSON.stringify(authored(deck, [], request.assessmentPlan));
+  };
   const started = await service.call("generate", { sourceIds: pages.map((page) => page.id), count: 3, kind: "flashcard" });
   const done = await service.call("job.wait", { jobId: started.jobId });
   return { service, done };

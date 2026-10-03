@@ -6,17 +6,17 @@ Built-in source generation and explicitly reviewed publication have quality chec
 
 ## Current generation pipeline
 
-Source generation, including PDF-to-quiz/flashcard, uses batches of up to five questions. Shared evidence planning assigns objectives across source blocks, and up to three batches can run concurrently. Within each batch:
+Quiz, multi-select, flashcard, open-answer, cloze, and mixed source generation, including PDF conversion, use batches of up to five questions. The separate case-paper workflow is unchanged. Up to three batches can run concurrently after shared extraction:
 
-1. Plan evidence, answer boundaries, comparison dimensions, misconceptions, and required prompt context. Local validation confirms planned quotations exist in selected sources.
-2. Write questions and perform author self-check in the same author task, returning revised complete candidates and brief changes.
-3. Validate structure, citation locations, answer leakage, and learner-visible context.
-4. Run **one independent editorial review** against material and candidate questions. Required per-question checks include self-contained context, answer leakage, option quality, learning value, evidence support, and explanation quality. Explanations must connect conditions to the answer and teach reasoning and error boundaries, rather than merely restating the answer.
-5. Retain only accepted candidates and record rejected candidates with reasons. Since 1.4.6, neither normal generation nor supplementation automatically repairs, repeats independent review, or generates more merely to reach the requested count. Unreadable or incomplete review output is a protocol failure rather than permission to review again.
+1. Extract valuable knowledge points and verbatim supporting passages once per source group. This stage does not design questions, scenarios, or distractors. Local validation confirms quotations exist within the selected sources before any later stage uses them. Fewer supported points are allowed; the requested count is a ceiling, not a quota.
+2. Prepare a concrete answer and checkable derivation for each verified point, then the necessary scenario conditions and kind-specific options, rubric, or cloze. Constructed scenarios must supply explicit hypothetical assumptions without inventing subject-matter facts. Unsupported applications are narrowed or omitted. Local validation checks the answer structure before writing starts.
+3. Write questions and perform author self-check in the same author task. Each question must identify its verified target. The program binds its objective, citations, answer, and kind-specific scoring fields to the prepared records; missing, unknown, or duplicate target links cannot pass. Structure, citation locations, answer leakage, and learner-visible context are checked locally.
+4. Run **one independent editorial review** against the material, knowledge points, answer plans, and candidate questions. Required per-question checks include self-contained context, answer leakage, option quality, learning value, evidence support, and explanation quality. The reviewer must check whether the cited passage actually supports the answer and decisive scenario conditions. Explanations must teach reasoning and error boundaries, rather than merely restating the answer.
+5. Retain only accepted candidates and record omissions and rejected candidates with reasons. Neither normal generation nor supplementation automatically repairs, repeats independent review, or generates more merely to reach the requested count. Unreadable or incomplete review output is a protocol failure rather than permission to review again.
 
 Author self-assessment is never independent approval. Type errors affect the corresponding candidate. Recoverable complete questions in damaged author JSON still require independent review. A batch-level problem that cannot be attributed safely is not ignored.
 
-Normal model work comprises shared planning and one author plus one editor request per batch. Format recovery for authors remains bounded; it is separate from repeating editorial review. Execution records show native subagents when supported and actual direct calls otherwise. The plugin collects stage output internally and sends final notifications rather than flooding the main conversation with stage JSON.
+Normal model work comprises one extraction request per source group and three requests per batch: answer preparation, writing/self-check, and independent review. Extraction and answer preparation each allow one correction, retaining valid subsets when possible. Format recovery for authors remains bounded; it is separate from repeating editorial review. Execution records show native subagents when supported and actual direct calls otherwise. The plugin collects stage output internally and sends final notifications rather than flooding the main conversation with stage JSON.
 
 For supplementation, budget expiry can merge saved questions with unchanged valid review evidence without another model request, while reporting the shortfall. Cancellation, version conflicts, target archival, and subsequent edits continue to block affected publication.
 
@@ -40,7 +40,7 @@ Generation-stage calls have a ten-minute limit across direct, one-shot, and comm
 
 After revealing an explanation, **Explain again clearly** generates and saves a supplementary explanation without first requesting follow-up suggestions or changing review progress. It must acknowledge insufficient evidence or an erroneous original question rather than invent reasons to defend an answer.
 
-Automated fixtures verify sequencing, evidence and context checks, per-question review records, explanation quality, accepted subsets, protocol failures, and answer hiding. Browser fixtures verify explanation/retry interactions. These tests and repeated review do not prove factual correctness or real teaching effectiveness.
+Automated fixtures verify sequencing, selected-source quotation checks, stable target binding, answer preparation, context checks, per-question review records, explanation quality, accepted subsets, protocol failures, cancellation, and answer hiding. Browser fixtures verify explanation/retry interactions. No real-model first-pass benchmark has been measured for this workflow; these tests and independent review do not prove factual correctness or real teaching effectiveness.
 
 ## Planned curriculum coverage and learning evidence
 

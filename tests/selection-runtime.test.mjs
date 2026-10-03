@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
-import { authored, qualityPlan, qualityReview } from './helpers/assessment.mjs';
+import { authored, qualityPlan, qualityBlueprint, qualityReview } from './helpers/assessment.mjs';
 
 const passage = "Architecture includes the principles guiding a system's design and evolution.";
 
@@ -52,11 +52,13 @@ async function fixture(t) {
     }
     if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
     const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
-    return JSON.stringify(authored({ title: 'Selection', cards: [{ id: 'q', kind: 'flashcard', topic: 'Architecture decisions',
+    const deck = { title: 'Selection', cards: [{ id: 'q', kind: 'flashcard', topic: 'Architecture decisions',
       objective: 'Explain architectural principles', prompt: 'Why do architectural principles guide design and evolution?',
       answer: 'They constrain design decisions and subsequent changes.', hint: 'Compare a current description with a rule for permitted changes.',
       explanation: 'The evidence includes principles governing both design and evolution, so those principles constrain initial choices and later changes.',
-      misconception: 'Architecture only names existing components.', citations: [{ sourceId: data.sources[0].id, quote: passage }] }] }));
+      misconception: 'Architecture only names existing components.', citations: [{ sourceId: data.sources[0].id, quote: passage }] }] };
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(data, data.assessmentPlan, deck));
+    return JSON.stringify(authored(deck, [], data.assessmentPlan));
   };
   const runtime = createStudyRuntime(root, { contexts: ['bank', 'materials', 'generation'], complete });
   t.after(() => runtime.dispose());
@@ -96,7 +98,7 @@ test('the real versioned APIs append to an old version-zero deck and return a va
   const replayWithoutModel = await disconnected.call('generation.selection.supplement', args);
   assert.deepEqual(replayWithoutModel.receipt, result.receipt);
   assert.equal((await disconnected.call('generation.selection.supplement', { ...args, operationId: 'new-without-model' })).reason, 'model_unavailable');
-  assert.equal(f.calls(), 3);
+  assert.equal(f.calls(), 4, 'replay does not extract evidence, prepare answers, author or review again');
 });
 
 test('a changed material cannot receive fresh additions, but an existing receipt remains replayable', async t => {

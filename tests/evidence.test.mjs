@@ -61,9 +61,16 @@ test("a rejected plan is corrected once, and names the quote that failed", async
 
   const stubborn = async () => replies[0];
   await assert.rejects(planAssessment(stubborn, request), /Assessment plan is not usable: Target 1: quote .* is not in source s1/);
-  assert.deepEqual(planIssues({ targets: [] }, request), ["Return exactly 1 targets (got 0)"]);
+  assert.deepEqual(planIssues({ targets: [] }, request), ["Return 1–1 supported targets (got 0); do not invent targets to fill the count"]);
   assert.deepEqual(
     planIssues({ targets: [{ ...target, citations: [{ sourceId: "nope", quote: "扫描代码效率 识别低效区域" }] }] }, request),
     ["Target 1: sourceId nope is not one of the provided sources"],
   );
+});
+
+test('a malformed evidence target list receives its focused correction instead of crashing the workflow', async () => {
+  let calls = 0;
+  await assert.rejects(planAssessment(async () => { calls++; return { targets: {} }; }, { count: 1, sources: [source] }),
+    /Assessment plan is not usable: Return 1–1 supported targets/);
+  assert.equal(calls, 2);
 });

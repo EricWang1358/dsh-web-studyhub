@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { quoteFound, validateDeck } from "../lib/domain.js";
 import { citationCheck, reattributeCitations, quotePages } from "../lib/quote-match.js";
 import { planAssessment, planIssues } from "../lib/assessment-quality.js";
+import { generateDeck } from '../lib/generation.js';
 import { generateBatched, planGeneration, MAX_PLAN_TARGETS, CHUNK_CHARS } from "../lib/batch.js";
-import { authored, qualityReview } from "./helpers/assessment.mjs";
+import { authored, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
 
 /* A real run: 36 MinerU pages of one book, 25 questions, 4 passed and "5 parts failed because the quoted source text could not
    be found". MinerU markdown and what a model echoes back differ in ways that carry no meaning: line-end hyphenation, markup,
@@ -152,8 +153,8 @@ test("one long page is never cut only because many questions were asked, and a t
 
 /** The REQUEST DATA of a prompt (a corrective round appends prose after it). */
 const requestOf = (prompt) => JSON.parse(prompt.split("REQUEST DATA:\n")[1].split("\n\nYour previous plan was rejected")[0]);
-const bookRun = ({ mangle, replies } = {}) => {
-  const calls = { author: [], review: [], repair: [], plan: 0 };
+const bookRun = ({ mangle } = {}) => {
+  const calls = { blueprint: [], author: [], review: [], repair: [], plan: 0 };
   const model = async (system, prompt) => {
     if (system.startsWith("Plan a source-grounded assessment")) {
       calls.plan++;
@@ -162,11 +163,16 @@ const bookRun = ({ mangle, replies } = {}) => {
     }
     if (system.startsWith("Act as a strict assessment editor")) { calls.review.push(prompt); return JSON.stringify(qualityReview(JSON.parse(prompt).candidate)); }
     const request = requestOf(prompt);
-    if (system.startsWith("Repair the source citations")) { calls.repair.push(prompt); return JSON.stringify(replies?.repair?.(request, prompt) ?? { cards: [] }); }
-    calls.author.push({ prompt, request });
+    if (system.startsWith("Repair the source citations")) { calls.repair.push(prompt); return JSON.stringify({ cards: [] }); }
     const cards = request.assessmentPlan.targets.map((target, i) => card(`${request.sources[0].id}-${i}`, [{ sourceId: target.citations[0].sourceId, quote: (mangle || ((q) => q))(target.citations[0].quote, i) }],
-      { objective: target.objective, prompt: `Which tactic of ${target.objective} keeps the budget?` }));
-    return JSON.stringify(authored({ title: "Book", cards }));
+      { targetId: target.targetId, objective: target.objective, prompt: `Which tactic of ${target.objective} keeps the budget?` }));
+    const deck = { title: 'Book', cards };
+    if (system.startsWith('Prepare supported answers')) {
+      calls.blueprint.push({ prompt, request });
+      return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, deck));
+    }
+    calls.author.push({ prompt, request });
+    return JSON.stringify(authored(deck, [], request.assessmentPlan));
   };
   return { model, calls };
 };
@@ -183,31 +189,40 @@ test("36 pages of MinerU markdown: quotes that differ only in markup and typogra
   assert.ok(calls.plan >= 3);
 });
 
-test("a part whose only problem is a quote that cannot be found gets one repair that is given the exact quote and the page ids", async () => {
+test("an author cannot replace a verified passage with its own altered quote", async () => {
   const wrong = "Page 20 explains tactic number 20 and also says something the book never wrote down";
-  const { model, calls } = bookRun({
-    mangle: (quote, i) => (quote.includes("Page 20 ") ? wrong : quote),
-    replies: { repair: (request, prompt) => {
-      assert.ok(prompt.includes(wrong), "the quote that was not found is in the repair prompt");
-      assert.ok(request.sources.some((source) => prompt.includes(source.id)), "so are the page ids it may quote from");
-      return { cards: request.cards.map((c) => ({ id: c.id, citations: [{ sourceId: c.citations[0].sourceId, quote: sentence(request.sources.find((s) => s.id === c.citations[0].sourceId) || request.sources[0]) }] })) };
-    } },
-  });
+  const { model, calls } = bookRun({ mangle: quote => quote.includes('Page 20 ') ? wrong : quote });
   const result = await generateBatched(model, { count: 25, kind: "flashcard", sources: book });
   assert.equal(result.cards.length, 25, JSON.stringify(result.editorial.failures));
-  assert.equal(calls.repair.length, 1, "one repair, once");
+  assert.equal(calls.repair.length, 0, 'the verified evidence is bound by targetId before citation checks');
+  assert.ok(result.cards.every(c => c.citations.every(ref => quoteFound(book.find(source => source.id === ref.sourceId).text, ref.quote))));
   assert.deepEqual(result.editorial.failures, []);
 });
 
-test("a quote that stays invented after the repair is dropped, the passing questions are kept and the report says why", async () => {
+test('a real quote from an unselected page cannot reach the answer or author phases', async () => {
+  const selected = page('book-p57', 'The selected page explains the scope of an architecture definition.'),
+    unselected = page('book-p58', 'Preserving good modularity exemplifies our definition of an implicit architecture characteristic.');
+  assert.equal(quoteFound(unselected.text, unselected.text), true);
+  assert.equal(quoteFound(selected.text, unselected.text), false);
+  const calls = [];
+  await assert.rejects(generateDeck(async system => {
+    calls.push(system);
+    assert.ok(system.startsWith('Plan a source-grounded'), 'no later phase may use evidence outside the selection');
+    return JSON.stringify({ targets: [planTarget(unselected.text, selected.id)] });
+  }, { count: 1, kind: 'flashcard', sources: [selected] }), /Assessment plan is not usable:.*quote/);
+  assert.equal(calls.length, 2, 'one evidence extraction and one correction, no answer, author or review call');
+});
+
+test("an invented author quote cannot displace the verified evidence or cost a supported question", async () => {
   const invented = "The book contains a passage that nobody ever wrote about this tactic";
-  const { model } = bookRun({ mangle: (quote) => (quote.includes("Page 20 ") ? invented : quote), replies: { repair: (request) => ({ cards: request.cards.map((c) => ({ id: c.id, citations: [{ sourceId: c.citations[0].sourceId, quote: invented }] })) }) } });
+  const { model, calls } = bookRun({ mangle: (quote) => (quote.includes("Page 20 ") ? invented : quote) });
   const result = await generateBatched(model, { count: 25, kind: "flashcard", sources: book });
-  assert.ok(result.cards.length >= 20 && result.cards.length < 25);
+  assert.equal(result.cards.length, 25);
   const report = result.editorial.partReport;
   assert.equal(report.total, report.passed + report.partial + report.failed);
-  assert.ok(report.partial + report.failed >= 1);
-  assert.ok(report.reasons.quote >= 1, JSON.stringify(report));
+  assert.equal(report.partial + report.failed, 0);
+  assert.equal(calls.repair.length, 0);
+  assert.ok(result.cards.every(c => c.citations.every(ref => ref.quote !== invented)));
   assert.ok(result.cards.every((c) => c.citations.every((ref) => quoteFound(book.find((s) => s.id === ref.sourceId).text, ref.quote))));
 });
 
@@ -221,7 +236,9 @@ test("when the plan of a group cannot be grounded at all, only that group's part
     }
     if (system.startsWith("Act as a strict assessment editor")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
     const request = requestOf(prompt);
-    return JSON.stringify(authored({ title: "B", cards: request.assessmentPlan.targets.map((target, i) => card(`${target.objective}`, [target.citations[0]], { objective: target.objective, prompt: `Question about ${target.objective}?` })) }));
+    const deck = { title: 'B', cards: request.assessmentPlan.targets.map(target => card(target.objective, [target.citations[0]], { targetId: target.targetId, objective: target.objective, prompt: `Question about ${target.objective}?` })) };
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, deck));
+    return JSON.stringify(authored(deck, [], request.assessmentPlan));
   };
   const result = await generateBatched(model, { count: 25, kind: "flashcard", sources: book });
   const report = result.editorial.partReport;
