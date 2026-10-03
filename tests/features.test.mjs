@@ -55,7 +55,7 @@ const quiz = (id, topic) => ({
 const clozeCard = () => ({
   id: "c1",
   kind: "cloze",
-  topic: "Caretaker",
+  topic: "Snapshot management",
   objective: "Recall who manages snapshot history",
   prompt: "The {{b1}} manages snapshot history.",
   answer: "The Caretaker manages snapshot history.",
@@ -608,7 +608,7 @@ test("notebook.search spans published libraries read-only", async () => {
     await b.call("draft.publish", { id: "d2" });
     await publishNotebook(a.root, a.root);
     await publishNotebook(bRoot, bRoot);
-    const hits = await searchNotebooks("caretaker");
+    const hits = await searchNotebooks("snapshot management");
     assert.equal(hits.items.length, 1);
     assert.equal(hits.items[0].deckId, "d2");
     assert.equal(hits.items[0].cardId, "c1");

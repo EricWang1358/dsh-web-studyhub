@@ -55,6 +55,155 @@ async function library(t, options = {}) {
   return { service, root };
 }
 
+const ref = { deckId: "orchard", cardId: "q1" };
+async function keptOpenSnapshot(service) {
+  const prompt = "Applying event-driven architecture, how should Orchard react to missing temperature readings? Justify.";
+  await service.call("card.update", { ...ref, patch: { prompt, answer: "Use event-driven alerts when expected readings stop." } });
+  const run = await service.call("review.start", { mode: "path", scope: [ref], fresh: true });
+  await service.call("card.revert", ref);
+  assert.equal((await service.call("review.get", { runId: run.id })).card.prompt, prompt, "the open question keeps its old snapshot");
+  return { run, prompt };
+}
+
+test("rubric grading marks the open snapshot without advancing the rewritten live question", async t => {
+  const fake = createFakeModel(), payloads = [];
+  const { service } = await library(t, { complete: async (system, prompt) => {
+    if (system.startsWith("You grade")) payloads.push(JSON.parse(prompt));
+    return fake(system, prompt);
+  } });
+  const { run, prompt } = await keptOpenSnapshot(service);
+  const before = await service.call("export");
+  await service.call("card.grade", { ...ref, runId: run.id, answer });
+  assert.equal(payloads[0].questions[0].prompt, prompt);
+  const after = await service.call("export"), entry = after.runs.find(item => item.id === run.id).entries[0];
+  assert.deepEqual(after.decks[0].cards[0].review, before.decks[0].cards[0].review);
+  assert.equal(entry.feedback.updatedAfterOpening, true);
+  assert.equal(after.attempts[0].updatedAfterOpening, true);
+  assert.deepEqual(after.attempts[0].before, after.attempts[0].after);
+  const viewed = await service.call("review.get", { runId: run.id });
+  assert.equal(viewed.navigation[0].level, "new");
+  const fresh = await service.call("review.start", { mode: "path", scope: [ref], fresh: true });
+  assert.equal(fresh.lastRubric, undefined, "the old snapshot grade is not the new question's last grading");
+});
+
+test("an old rubric snapshot does not add a review plan to a legacy card that has none", async t => {
+  const { service } = await library(t);
+  await service.store.update(state => {
+    const snapshot = structuredClone(state.decks[0].cards[0]);
+    snapshot.prompt = "Applying event-driven architecture, how should Orchard react to missing temperature readings? Justify.";
+    state.runs.push({ id: "legacy-rubric-run", deckId: "orchard", mode: "path", scope: [ref], index: 0,
+      startedAt: new Date().toISOString(), entries: [{ deckId: "orchard", card: snapshot, keepSnapshot: true,
+        startedAt: Date.now(), feedback: null, revealed: false }] });
+  });
+  const before = await service.call("export");
+  assert.equal(Object.hasOwn(before.decks[0].cards[0], "review"), false);
+  await service.call("card.grade", { ...ref, runId: "legacy-rubric-run", answer });
+  const after = await service.call("export");
+  assert.equal(Object.hasOwn(after.decks[0].cards[0], "review"), false);
+  assert.equal(after.attempts[0].updatedAfterOpening, true);
+});
+
+test("a question changed during card.grade refuses the outdated model result", async t => {
+  const fake = createFakeModel();
+  let markStarted, release;
+  const started = new Promise(resolve => { markStarted = resolve; }), resumed = new Promise(resolve => { release = resolve; });
+  t.after(() => release());
+  const { service } = await library(t, { complete: async (system, prompt) => {
+    if (system.startsWith("You grade")) { markStarted(); await resumed; }
+    return fake(system, prompt);
+  } });
+  const run = await service.call("review.start", { mode: "path", scope: [ref], fresh: true });
+  const result = service.call("card.grade", { ...ref, runId: run.id, answer });
+  await started;
+  await service.call("card.update", { ...ref, patch: { prompt: "How should Orchard's monitoring platform detect the loss of temperature events?" } });
+  const before = await service.call("export");
+  release();
+  await assert.rejects(result, /题目已更新|Question changed/i);
+  const after = await service.call("export");
+  assert.deepEqual(after.decks[0].cards[0].review, before.decks[0].cards[0].review);
+  assert.equal(after.attempts.length, 0);
+  assert.equal((await service.call("review.get", { runId: run.id })).feedback, null);
+});
+
+test("a standalone rubric call detects marks and criteria edited while the model is grading", async t => {
+  const fake = createFakeModel();
+  let markStarted, release;
+  const started = new Promise(resolve => { markStarted = resolve; }), resumed = new Promise(resolve => { release = resolve; });
+  t.after(() => release());
+  const { service } = await library(t, { complete: async (system, prompt) => {
+    if (system.startsWith("You grade")) { markStarted(); await resumed; }
+    return fake(system, prompt);
+  } });
+  const grading = service.call("card.grade", { ...ref, answer });
+  await started;
+  const draft = await service.call("deck.edit", { id: "orchard" }), edited = draft.cards.find(card => card.id === "q1");
+  edited.marks = 7; edited.rubricCriteria[0].marks = 4; edited.rubric = renderRubric(edited.rubricCriteria, "en");
+  await service.call("draft.save", { deck: draft });
+  const publication = await service.call("draft.publish", { id: draft.id });
+  assert.equal(publication.id, "orchard");
+  const before = await service.call("export");
+  assert.equal(before.decks[0].cards[0].marks, 7);
+  release();
+  await assert.rejects(grading, /题目已更新/);
+  const after = await service.call("export");
+  assert.deepEqual(after.decks[0].cards[0].review, before.decks[0].cards[0].review);
+  assert.equal(after.attempts.length, 0);
+  const current = await service.call("card.grade", { ...ref, answer });
+  assert.equal(current.max, 7, "standalone practice can still grade the current question");
+});
+
+test("background rubric help also grades the open snapshot and leaves the current schedule unchanged", async t => {
+  const fake = createFakeModel(), payloads = [];
+  const { service, root } = await library(t, { complete: async (system, prompt) => {
+    if (system.startsWith("You grade")) payloads.push(JSON.parse(prompt));
+    return fake(system, prompt);
+  } });
+  const { run, prompt } = await keptOpenSnapshot(service), before = await service.call("export");
+  const assist = createAssistService(); t.after(() => assist.dispose());
+  const snapshot = before.runs.find(item => item.id === run.id).entries[0].card;
+  await assist.startAssist({}, { root, service, sessionId: "panel", mode: "grade", ref, runId: run.id,
+    text: answer, card: snapshot, deckTitle: "Orchard case", language: "en" });
+  for (let i = 0; i < 200 && assist.assistView(root).tasks.at(-1).status === "running"; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  const done = assist.assistView(root).tasks.at(-1);
+  assert.equal(done.status, "done", done.message);
+  assert.equal(payloads[0].questions[0].prompt, prompt);
+  const after = await service.call("export");
+  assert.deepEqual(after.decks[0].cards[0].review, before.decks[0].cards[0].review);
+  assert.equal(after.attempts[0].updatedAfterOpening, true);
+});
+
+test("case exam grading waits for submission and keeps the submitted answers immutable", async t => {
+  let calls = 0;
+  const fake = createFakeModel(), { service } = await library(t, { complete: async (system, prompt) => {
+    if (system.startsWith("You grade")) calls++;
+    return fake(system, prompt);
+  } });
+  const run = await service.call("review.start", { mode: "exam", examKinds: "case", deckId: "orchard", fresh: true });
+  await service.call("review.answer", { runId: run.id, cardId: "q1", response: answer });
+  await assert.rejects(service.call("card.grade", { ...ref, runId: run.id, answer }), /Submit|交卷/);
+  assert.equal(calls, 0, "grading is refused before a model call");
+  await service.call("exam.submit", { runId: run.id });
+  await assert.rejects(service.call("card.grade", { ...ref, runId: run.id, answer: answer + "\nA revised answer after submission." }), /submitted answer|交卷.*答案/i);
+  await assert.rejects(service.call("card.grade", { deckId: "orchard", cardId: "q2", runId: run.id, answer }), /submitted answer|交卷.*答案/i);
+  assert.equal(calls, 0);
+  const before = await service.call("exam.report", { runId: run.id });
+  assert.deepEqual(before.case.questions.map(question => question.status), ["pending", "unanswered"]);
+  const graded = await service.call("card.grade", { ...ref, runId: run.id, answer });
+  assert.deepEqual(await service.call("card.grade", { ...ref, runId: run.id, answer }), graded);
+  assert.equal((await service.call("export")).attempts.length, 1);
+});
+
+test("a submitted case paper cannot be regraded with a different first answer", async t => {
+  const { service } = await library(t);
+  const run = await service.call("review.start", { mode: "exam", examKinds: "case", deckId: "orchard", fresh: true });
+  await service.call("review.answer", { runId: run.id, cardId: "q1", response: answer });
+  await service.call("exam.submit", { runId: run.id });
+  await assert.rejects(service.call("card.grade", { ...ref, runId: run.id, answer: answer + "\nThis was added after submission." }), /submitted answer|交卷.*答案/i);
+  const after = await service.call("export");
+  assert.equal(after.runs.find(item => item.id === run.id).entries[0].response, answer);
+  assert.equal(after.attempts.length, 0);
+});
+
 test("duplicate rubric grading is idempotent and a changed answer needs a new attempt", async (t) => {
   const { service } = await library(t);
   const run = await service.call("review.start", { mode: "path", scope: [{ deckId: "orchard", cardId: "q1" }], fresh: true });

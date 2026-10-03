@@ -386,6 +386,86 @@ test("background repair can restore a missing citation from the draft's original
   assert.deepEqual({ accepted: second.accepted, rejected: second.rejected }, { accepted: 1, rejected: 0 });
 });
 
+test("background repair checks literal answer leaks before accepting a reviewed replacement", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-repair-answer-leak-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  let repairs = 0;
+  const service = new StudyService(root, { complete: async (system, prompt) => {
+    const input = JSON.parse(prompt);
+    if (system.startsWith("Repair one draft card")) {
+      repairs++;
+      if (repairs === 2) assert.match(input.issues.join(), /answerLeak in hint/);
+      return JSON.stringify({ card: { ...input.card,
+        hint: repairs === 1 ? "The answer is architectural principles." : "Think of design constraints.",
+        explanation: "Fixed: principles constrain later design and changes, so they guide system evolution." } });
+    }
+    const review = qualityReview(input.candidate);
+    if (!input.candidate.cards[0].explanation.startsWith("Fixed:")) review.checks[0].explanationQuality = "fail";
+    return JSON.stringify(review);
+  } });
+  await service.call("source.add", source);
+  const saved = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card()] } });
+  const rejected = await service.call("draft.publish", { id: saved.id, draftVersion: saved.draftVersion });
+  const started = await service.call("draft.repair", { id: rejected.rejectedDraft.id,
+    draftVersion: rejected.rejectedDraft.draftVersion });
+  const job = await service.call("job.wait", { jobId: started.jobId });
+  assert.equal(job.status, "complete");
+  assert.equal(repairs, 2, "a model's pass cannot override an answer printed in the hint");
+  const repaired = (await service.call("export")).drafts[0];
+  assert.equal(repaired.cards[0].hint, "Think of design constraints.");
+});
+
+test("reviewed publication enforces the saved answer-hiding constraints", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-publish-answer-leak-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root, { complete: async (_system, prompt) =>
+    JSON.stringify(qualityReview(JSON.parse(prompt).candidate)) });
+  await service.call("source.add", source);
+  const leaking = { ...card(), hint: "The answer is architectural principles." };
+  for (const allow of [false, true]) {
+    const saved = await service.call("draft.save", { deck: { id: `d-${allow}`, title: "Architecture", cards: [leaking],
+      editorial: { reviewedCards: { q: reviewedCardFingerprint(leaking) },
+        generation: { constraints: { hintNoAnswer: !allow } } } } });
+    const result = await service.call("draft.publish", { id: saved.id, draftVersion: saved.draftVersion });
+    assert.equal(result.accepted, allow ? 1 : 0);
+    if (!allow) assert.match(result.rejectedDraft.editorial.rejectedIssues.q.join(), /answerLeak in hint/);
+  }
+});
+
+for (const stopAt of ["repair", "review"]) {
+  test(`cancelling during ${stopAt} ignores a late model response and preserves the draft`, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "study-repair-cancel-late-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    let entered, release, repairing = false;
+    const startedCall = new Promise(resolve => { entered = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    t.after(() => release());
+    const service = new StudyService(root, { complete: async (system, prompt) => {
+      const input = JSON.parse(prompt);
+      const repairCall = system.startsWith("Repair one draft card");
+      if (repairing && repairCall === (stopAt === "repair")) { entered(); await gate; }
+      if (repairCall) return JSON.stringify({ card: { ...input.card,
+        explanation: "Fixed: principles constrain later decisions and guide design changes." } });
+      const review = qualityReview(input.candidate);
+      if (!input.candidate.cards[0].explanation.startsWith("Fixed:")) review.checks[0].explanationQuality = "fail";
+      return JSON.stringify(review);
+    } });
+    await service.call("source.add", source);
+    const saved = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card()] } });
+    const rejected = await service.call("draft.publish", { id: saved.id, draftVersion: saved.draftVersion });
+    const before = structuredClone(rejected.rejectedDraft);
+    repairing = true;
+    const started = await service.call("draft.repair", { id: before.id, draftVersion: before.draftVersion });
+    await startedCall;
+    await service.call("job.cancel", { jobId: started.jobId });
+    release();
+    const job = await service.call("job.wait", { jobId: started.jobId });
+    assert.equal(job.status, "cancelled");
+    assert.equal(job.savedCount, 0);
+    assert.deepEqual((await service.call("export")).drafts[0], before);
+  });
+}
+
 test("a source chosen for missing-citation repair cannot disappear during that job", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-repair-source-race-"));
   t.after(() => rm(root, { recursive: true, force: true }));
