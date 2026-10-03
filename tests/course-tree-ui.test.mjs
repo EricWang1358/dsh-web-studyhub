@@ -162,7 +162,7 @@ test('PageScope: a closed select shows the chosen course without indentation spa
   assert.match(child.attrs, /style="[^"]*padding-inline-start:\s*1\.\d+em/, 'a child is indented by padding, which only the open list uses');
   const root = options.find(option => /^全部课程$/.test(option.text));
   assert.doesNotMatch(root.attrs, /padding/);
-  const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../ui/course-active.css', import.meta.url), 'utf8');
   const pathRule = /\.page-scope__path\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
   assert.doesNotMatch(pathRule, /white-space:\s*nowrap/, 'the whole path is shown, wrapped');
   assert.doesNotMatch(pathRule, /text-overflow:\s*ellipsis/);

@@ -1302,10 +1302,7 @@
   .generation-jobs .job-actions { margin-left: auto; }
   .generation-jobs .job button { margin-left: 0; }
   .jobs-actions:empty, .job-actions:empty { display: none; }
-  .page-scope { max-width: min(100%, 36rem); }
-  .page-scope select { max-width: 100%; text-overflow: ellipsis; }
-  /* A chosen sub-course shows its whole path under the select (the list itself shows only the last segment, indented). */
-  .page-scope__path { display: block; margin-top: 4px; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 400; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+  /* .page-scope (the course-scope control): ui/course-active.css, so every page shows it the same. */
   .source-organize { margin: 16px 0; }
   .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
   .source-organize > label { max-width: 560px; }
@@ -2976,7 +2973,7 @@
     align-items: baseline;
     gap: 12px;
     max-width: 100%;
-    margin: 22px 0 34px;
+    margin: 0;
     font-size: clamp(26px, 3.2cqi, 36px);
     font-weight: 700;
     letter-spacing: -0.025em;
@@ -3012,7 +3009,7 @@
   }
   .course-heading-input {
     display: block;
-    margin: 22px 0 30px;
+    margin: 0;
     padding: 4px 0 8px;
     max-width: 520px;
     border: 0;
@@ -3184,25 +3181,7 @@
     color: var(--paper-dim);
   }
   .today-card-head time { font-variant-numeric: tabular-nums; }
-  .today-count {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    margin: 28px 0 8px;
-  }
-  .today-count strong {
-    font-family: var(--font-display);
-    font-size: 124px;
-    font-weight: 250;
-    line-height: 0.82;
-    letter-spacing: -0.06em;
-    font-variant-numeric: tabular-nums;
-  }
-  .today-count span {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--paper-dim);
-  }
+  /* .today-count (the number and its caption): ui/home-tiers.css */
   .today-detail {
     margin: 0 0 22px;
     font-size: 15px;
@@ -3239,19 +3218,8 @@
       padding-top: 18px;
       gap: 0;
     }
-    /* Narrow: heading, then the card, then the details. */
-    .desk-intro { display: contents; }
-    .focus-switch { order: 0; justify-self: start; }
-    .course-heading,
-    .course-heading-input { order: 1; margin-bottom: 22px; }
-    .role-prep { order: 2; }
-    .today-stack { order: 3; justify-self: stretch; max-width: none; margin: 0 14px 34px 0; }
-    .desk-mastery { order: 4; }
-    .desk-next { order: 5; }
-    .desk-also { order: 6; }
+    /* Narrow: tabs, heading, the card, then the details (the order of every part: ui/home-tiers.css). */
     .today-card { min-height: 0; }
-    .today-count { margin-top: 22px; }
-    .today-count strong { font-size: 84px; }
   }
 
   /* Other open runs: a short list inside the desk, under its links. */
