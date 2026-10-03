@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { SETTINGS_CATEGORIES, SETTINGS_GROUPS, categoriesFor, categoryForAnchor, initialCategory, settingsGroupState } from '../ui/settings-groups.js';
+
+/* Settings is a list of categories on the left and ONE category on the right, instead of one long page of folded groups and sections of different shapes.
+   The pure part: which categories exist for this library, where a deep link or the tour points, what starts selected and which ones need attention. */
+
+const full = { audio: true, generation: true, system: true };
+
+test('eleven categories under the three group headings, each with a plain title', () => {
+  assert.deepEqual(SETTINGS_GROUPS.map(group => group.id), ['common', 'once', 'advanced']);
+  assert.deepEqual(SETTINGS_CATEGORIES.map(category => category.id),
+    ['appearance', 'model', 'courses', 'audio', 'mineru', 'retrieval', 'profile', 'data', 'update', 'usage', 'experimental']);
+  for (const category of SETTINGS_CATEGORIES) {
+    assert.ok(SETTINGS_GROUPS.some(group => group.id === category.group), `${category.id} sits in a group`);
+    assert.ok(category.title && /[㐀-鿿]/.test(category.title), `${category.id} has a Chinese title`);
+  }
+  assert.equal(new Set(SETTINGS_CATEGORIES.map(category => category.id)).size, SETTINGS_CATEGORIES.length);
+});
+
+test('a host without a component shows no category for it', () => {
+  const ids = capabilities => categoriesFor(capabilities).map(category => category.id);
+  assert.deepEqual(ids(full), SETTINGS_CATEGORIES.map(category => category.id));
+  assert.ok(!ids({ generation: true, system: true }).includes('audio'));
+  assert.ok(!ids({ generation: true, system: true }).includes('mineru'));
+  assert.ok(!ids({ audio: true, system: true }).includes('retrieval'));
+  assert.ok(!ids({ audio: true, generation: true }).includes('usage'));
+  assert.ok(!ids({ audio: true, generation: true }).includes('experimental'));
+  assert.deepEqual(ids({}).slice(0, 3), ['appearance', 'model', 'courses'], 'the basics are always there');
+});
+
+test('every deep link and tour anchor lands on its category', () => {
+  const expected = { 'settings-model': 'model', 'settings-audio': 'audio', 'settings-mineru': 'mineru', 'settings-extensions': 'retrieval', 'settings-update': 'update', 'settings-usage': 'usage', 'settings-experimental': 'experimental', 'settings-jev': 'experimental' };
+  for (const [anchor, id] of Object.entries(expected)) assert.equal(categoryForAnchor(anchor), id, anchor);
+  assert.equal(categoryForAnchor('settings-nowhere'), null);
+  assert.equal(categoryForAnchor(''), null);
+});
+
+test('what starts selected: the deep link, else the first category that needs attention, else the one the learner used last, else the first', () => {
+  const available = categoriesFor(full);
+  assert.equal(initialCategory({ available, focusSection: 'settings-mineru', missing: ['model'], last: 'update' }), 'mineru');
+  assert.equal(initialCategory({ available, missing: ['audio', 'model'], last: 'update' }), 'model', 'the first in the list that is missing');
+  assert.equal(initialCategory({ available, missing: [], last: 'update' }), 'update');
+  assert.equal(initialCategory({ available, missing: [], last: 'gone' }), 'appearance');
+  assert.equal(initialCategory({ available: categoriesFor({}), missing: ['audio'], last: 'audio' }), 'appearance', 'a category the host does not have cannot be selected');
+});
+
+test('what needs attention is still read from the library (the group state keeps working and names the categories)', () => {
+  const state = settingsGroupState({ data: { modelReady: false, sources: [], jobs: [] }, status: {} });
+  assert.deepEqual(state.common.missing, ['model']);
+  assert.equal(state.common.open, true);
+});

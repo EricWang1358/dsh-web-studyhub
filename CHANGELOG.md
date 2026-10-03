@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.7 — 2026-10-04
+
+- **Settings is a list and one page, not one long scroll.** The page used to stack three folded groups with a dozen sections of different shapes. It is now a list of categories on the left under the three headings (Everyday: Interface, Library & model; Set up once: Courses, Audio transcription, PDF conversion, Search extension, Study profile and tour, Import/schedule/backup, About and updates; Advanced: Usage frequency record, Experimental features), and only the selected category on the right. A category that needs attention says "To set up" in words; the one you used last (or the one a link such as "open the model settings" points at, or the first that needs attention) starts selected. On a narrow window the list becomes a row of pills above the page. The tour still shows every section in turn.
+- **The AI refinement of a step path works with real models.** "Let the AI refine the path" said "the AI gave nothing usable" without saying why. It now understands the common shapes a model answers in (a bare list, other field names, numeric or "step 2" ids, no ids at all when it returns one item per step), asks once more with the exact ids when the first answer cannot be used, and when it still fails says whether the call failed (with the reason) or the answer was in the wrong format (with the answer itself to look at or send to the developer).
+
 ## 2.5.6 — 2026-10-04
 
 - **A big book can be worked through step by step.** When the selection on Create deck is too big for one generation ("the selected material is too large…"), a **Step-by-step path** appears under the list: the book cut into steps from its chapters (or its pages), in book order, each small enough to generate and review well and each with a suggested number of questions. **Let the AI refine the path** names the steps, says what each one practises and suggests an order, from titles and sizes only (never the text); the pages of a step never change. Edit what each step should practise, untick steps you do not want, **Use only this step** to generate one step by hand, or **Generate step by step** to queue one generation job per step, in order, so the first finished step can be practised while the others are still being written.

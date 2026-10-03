@@ -44,7 +44,8 @@ const settingsPage = (language, props = {}) => render(h(Settings, { data, busy: 
 /* ---------- one left edge, one header style ---------- */
 
 test('every Settings section is a settings-section with the same title treatment', () => {
-  const html = settingsPage('zh');
+  // The tour shows every category one after another (no list), which is where every section can be checked at once.
+  const html = settingsPage('zh', { tourActive: true });
   assert.match(html, /<section class="page settings-page"/);
   const fieldsets = html.match(/<fieldset[^>]*>/g) || [];
   assert.ok(fieldsets.length >= 7, `sections: ${fieldsets.length}`);

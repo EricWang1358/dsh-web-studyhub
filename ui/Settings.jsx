@@ -8,7 +8,7 @@ import { ExperimentalSection } from './ExperimentalSettings.jsx';
 import UsageSettings from './UsageSettings.jsx';
 import { experimentalShown } from './experimental-flag.js';
 import { hasContext } from './capabilities.js';
-import { SETTINGS_GROUPS, SECTION_GROUP, settingsGroupState } from './settings-groups.js';
+import { SETTINGS_GROUPS, categoriesFor, categoryForAnchor, initialCategory, settingsGroupState } from './settings-groups.js';
 import { UpdateSettingsPanel } from './UpdateCenter.jsx';
 import { Button, Dialog, Icon, InlineMessage, SegmentedControl, formatBytes } from './components/index.js';
 import { useInjectCss } from './shared.js';
@@ -265,31 +265,36 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
   );
 }
 
-/* ---------- groups: 常用 / 一次性设置 ---------- */
+/* ---------- categories: a list on the left, one category on the right ---------- */
 
-/** What can be reported "not set up", in plain words. */
-const MISSING_LABEL = { model: "AI 模型", audio: "音频转写", mineru: "MinerU", retrieval: "检索扩展" };
-const GROUPS_KEY = "study-settings-groups";
-const readGroups = () => {
-  try {
-    const value = JSON.parse(localStorage.getItem(GROUPS_KEY));
-    return value && typeof value === "object" ? Object.fromEntries(SETTINGS_GROUPS.filter(({ id }) => typeof value[id] === "boolean").map(({ id }) => [id, value[id]])) : {};
-  } catch { return {}; }
-};
-const writeGroups = (value) => { try { localStorage.setItem(GROUPS_KEY, JSON.stringify(value)); } catch { /* the group still opens and closes this session */ } };
+const CATEGORY_KEY = "study-settings-category";
+const readCategory = () => { try { return localStorage.getItem(CATEGORY_KEY) || ""; } catch { return ""; } };
+const writeCategory = (value) => { try { localStorage.setItem(CATEGORY_KEY, value); } catch { /* the choice still applies this session */ } };
 
-/** One group of settings: a disclosure with its title, one line about what it holds and, when something is missing, which. */
-export function SettingsGroup({ id, title, lead, open, missing = [], onToggle, children }) {
+/** The list of categories under the three group headings; the selected one is marked, and one that needs attention says so in words (not by colour alone). */
+export function SettingsNav({ available, active, missing, onSelect }) {
   return (
-    <details className="settings-group" data-settings-group={id} open={open} onToggle={onToggle ? (event) => onToggle(event.currentTarget.open) : undefined}>
-      <summary className="settings-group__summary">
-        <Icon name="chevron" size={16} className="settings-group__chevron" />
-        <span className="settings-group__title">{ui(title)}</span>
-        {missing.length > 0 && <span className="settings-group__missing">{uiFormat("未设置：{0}", [missing.map((name) => ui(MISSING_LABEL[name] || name)).join(ui("、"))])}</span>}
-        <span className="settings-group__lead">{ui(lead)}</span>
-      </summary>
-      <div className="settings-group__body">{children}</div>
-    </details>
+    <nav className="settings-nav" aria-label={ui("设置分类")}>
+      {SETTINGS_GROUPS.map((group) => {
+        const items = available.filter((category) => category.group === group.id);
+        if (!items.length) return null;
+        return (
+          <div className="settings-nav__group" key={group.id}>
+            <p className="settings-nav__label">{ui(group.title)}</p>
+            <ul>
+              {items.map((category) => (
+                <li key={category.id}>
+                  <button type="button" className="settings-nav__item" data-category={category.id} aria-current={active === category.id ? "page" : undefined} onClick={() => onSelect(category.id)}>
+                    <span>{ui(category.title)}</span>
+                    {missing.includes(category.id) && <span className="settings-nav__todo">{ui("待设置")}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -378,63 +383,74 @@ export default function Settings({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The groups the learner opened or folded are remembered. A deep link (the audio key, the search extension) and the
-  // tour open what they point at, once; the learner's first click on a group lets go of that.
-  const [saved, setSaved] = useState(readGroups);
-  const [pinned, setPinned] = useState(() => focusSection ? [SECTION_GROUP[focusSection] || "once"] : audioFocusPending() ? ["once"] : []);
-  const groups = settingsGroupState({ data, status, saved, forceOpen: tourActive || pinned });
-  const toggle = (id) => (open) => {
-    setPinned([]);
-    setSaved((current) => { const next = { ...current, [id]: open }; writeGroups(next); return next; });
-  };
+  // What the host can show, what needs attention, and which category is selected: a deep link (the audio key, the search extension, the model) or the tour
+  // points at one; otherwise the first that needs attention, otherwise the one used last.
+  const capabilities = { audio: hasContext(data, "audio"), generation: hasContext(data, "generation"), system: hasContext(data, "system") };
+  const available = categoriesFor(capabilities);
+  const missing = settingsGroupState({ data, status }).common.missing.concat(settingsGroupState({ data, status }).once.missing);
+  const [category, setCategory] = useState(() => initialCategory({ available, focusSection: focusSection || (audioFocusPending() ? "settings-audio" : ""), missing, last: readCategory() }));
+  const select = (id) => { setCategory(id); writeCategory(id); };
   useEffect(() => {
     if (!focusSection) return;
-    document.querySelector(`[data-tour="${focusSection}"]`)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    const linked = categoryForAnchor(focusSection);
+    if (linked && available.some((item) => item.id === linked)) setCategory(linked);
+    // The pane for the linked category renders on the next frame: scroll to the section then.
+    const frame = requestAnimationFrame(() => document.querySelector(`[data-tour="${focusSection}"]`)?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
     onFocused?.();
+    return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);
-  const group = (id, children) => {
-    const spec = SETTINGS_GROUPS.find((item) => item.id === id);
-    return <SettingsGroup id={id} title={spec.title} lead={spec.lead} open={groups[id].open} missing={groups[id].missing} onToggle={toggle(id)}>{children}</SettingsGroup>;
-  };
-  return (
-    <section className="page settings-page">
-      <h1>{ui("工作区设置")}</h1>
-      <p className="muted">{ui("资料、题库、调度与模型，由你掌控。")}</p>
-      {group("common", <>
-        <AppearanceSection appearance={appearance} />
+  const legacyPanel = (
+    <fieldset className="settings-section">
+      <legend className="settings-section__title">{ui("导入 study-lib-spar")}</legend>
+      <p className="settings-section__lead">{ui("从已有本地学习库导入，保留可迁移的复习记录。")}</p>
+      <label className="settings-field">{ui("原学习库路径")}<input value={legacy} onChange={(e) => setLegacy(e.target.value)} /></label>
+      <div className="settings-actions">
+        <Button disabled={busy || !legacy} onClick={() =>
+          act("legacy.import", { path: legacy }, (r) =>
+            setNotice(r.reused ? ui("该学习库已导入") : uiFormat("已导入 {0} 道题。{1}", [r.count, (r.warnings || []).join("；")])))}>{ui("导入学习库")}</Button>
+      </div>
+    </fieldset>
+  );
+  const pane = (id) => {
+    switch (id) {
+      case "appearance": return <AppearanceSection appearance={appearance} />;
+      case "model": return (
         <fieldset className="settings-section" data-tour="settings-model">
           <legend className="settings-section__title">{ui("学习库与模型")}</legend>
           {workspacePanel}
         </fieldset>
-      </>)}
-      {group("once", <>
-        {coursePanel}
-        {hasContext(data, 'audio') && <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} />}
-        {hasContext(data, 'audio') && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
-        {hasContext(data, 'generation') && <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} />}
-        {onboardingPanel}
-        {profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}
-        <fieldset className="settings-section">
-          <legend className="settings-section__title">{ui("导入 study-lib-spar")}</legend>
-          <p className="settings-section__lead">{ui("从已有本地学习库导入，保留可迁移的复习记录。")}</p>
-          <label className="settings-field">{ui("原学习库路径")}<input value={legacy} onChange={(e) => setLegacy(e.target.value)} /></label>
-          <div className="settings-actions">
-            <Button disabled={busy || !legacy} onClick={() =>
-              act("legacy.import", { path: legacy }, (r) =>
-                setNotice(r.reused ? ui("该学习库已导入") : uiFormat("已导入 {0} 道题。{1}", [r.count, (r.warnings || []).join("；")])))}>{ui("导入学习库")}</Button>
-          </div>
-        </fieldset>
-        <ScheduleSection settings={settings} saved={data.settings} setSettings={setSettings} act={act} busy={busy} setNotice={setNotice} />
-        <BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} />
-        <UpdateSettingsPanel call={call} host={host} notify={setNotice} />
-      </>)}
-      {group("advanced", <>
-        {hasContext(data, 'system') && <UsageSettings call={call} busy={busy} setNotice={setNotice} />}
+      );
+      case "courses": return coursePanel;
+      case "audio": return capabilities.audio ? <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} /> : null;
+      case "mineru": return capabilities.audio ? <MineruSettings busy={busy} call={call} setNotice={setNotice} /> : null;
+      case "retrieval": return capabilities.generation ? <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} /> : null;
+      case "profile": return <>{onboardingPanel}{profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}</>;
+      case "data": return <>{legacyPanel}<ScheduleSection settings={settings} saved={data.settings} setSettings={setSettings} act={act} busy={busy} setNotice={setNotice} /><BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} /></>;
+      case "update": return <UpdateSettingsPanel call={call} host={host} notify={setNotice} />;
+      case "usage": return capabilities.system ? <UsageSettings call={call} busy={busy} setNotice={setNotice} /> : null;
+      case "experimental": return capabilities.system ? (
         <ExperimentalSection enabled={experimentalShown(data)} busy={busy} onChange={(enabled) => act("experimental.set", { enabled })}>
-          {hasContext(data, 'system') && <JevSettings busy={busy} call={call} setNotice={setNotice} />}
+          <JevSettings busy={busy} call={call} setNotice={setNotice} />
         </ExperimentalSection>
-      </>)}
+      ) : null;
+      default: return null;
+    }
+  };
+  const selected = available.some((item) => item.id === category) ? category : available[0]?.id;
+  return (
+    <section className="page settings-page">
+      <h1>{ui("工作区设置")}</h1>
+      <p className="muted">{ui("资料、题库、调度与模型，由你掌控。")}</p>
+      {tourActive ? (
+        /* The tour points at sections anywhere on the page: show every category, one after another. */
+        <div className="settings-all">{available.map((item) => <React.Fragment key={item.id}>{pane(item.id)}</React.Fragment>)}</div>
+      ) : (
+        <div className="settings-layout">
+          <SettingsNav available={available} active={selected} missing={missing} onSelect={select} />
+          <div className="settings-pane" role="region" aria-label={ui(available.find((item) => item.id === selected)?.title || "")}>{pane(selected)}</div>
+        </div>
+      )}
     </section>
   );
 }

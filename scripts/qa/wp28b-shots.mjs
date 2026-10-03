@@ -66,8 +66,8 @@ async function main() {
         // 2. Settings › 扩展: the install, its confirmation, then ready to index.
         await nav("settings");
         const section = page.locator('[data-tour="settings-extensions"]');
-        // The extensions live in the 一次性设置 group, folded while nothing there is missing: open it.
-        if (!(await section.isVisible().catch(() => false))) await page.getByText(/^(一次性设置|One-time setup)$/).first().click().catch(() => {});
+        // The extensions are the 检索扩展 category of Settings (a list on the left, one category on the right).
+        if (!(await section.isVisible().catch(() => false))) await page.locator('[data-category="retrieval"]').click().catch(() => {});
         await section.waitFor({ state: "visible", timeout: 15000 });
         const toSection = () => section.evaluate((element) => element.scrollIntoView({ block: "start" }));
         await toSection(); await settle(400);
