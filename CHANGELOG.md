@@ -2,6 +2,13 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.5 — 2026-10-03
+
+- **Every material row says whether its search index is built.** On the 资料 page and in the picker of 创建题组 a quiet chip shows "Index built · 404 pages", "Index partly built · 120 / 404 pages", "Index needs an update · 3 pages edited", "Building the index…" or, for a big book, "Not indexed yet" (with "install the search extension first" when it is not installed). A small note that simply has no index says nothing: only books need one, and a "not indexed" on every row would be noise. The state follows a running build.
+- **The interface can be scaled and restyled** (Settings › Everyday › Interface). **Interface size** 90% to 200% scales the whole interface (text, buttons and spacing together); **Interface typeface** (system, serif, monospace); **Animation** (follow the system, standard, reduced, off). Reading and review pages keep their own Aa for text size and width.
+- **Switching pages is lighter.** The new page used to animate every block in it with a stagger while it was still being built, a composited layer per block: the likely cause of the stutter when opening a heavy page such as Create deck or Sources. It now settles in as one block (0.2 s), and the 140 ms wait before a switch is 90 ms (none with reduced animation). On a library of 300 materials in a production build the long tasks while opening Create deck fell from 4 (259 ms) to 1 (85 ms) over three visits, and the worst frame from 104 ms to 83 ms. `scripts/qa/ui-motion.mjs` and `ui-profile.mjs` measure frames, long tasks and where the time goes; docs/performance.md says how.
+- **A small poll cost is gone:** the experimental-features flag is no longer read and parsed on every refresh when its file has not changed.
+
 ## 2.5.4 — 2026-10-03
 
 - **No more questions that ask what the material says.** Questions such as "What does the material use to tell 4xx from 5xx?" test memory of a document's wording, not the concept or how to act in a situation. Generation now forbids them at every step: the planning, writing and independent review prompts all carry an explicit rule (ask about the concept itself, or put the learner in a concrete situation with the facts needed), and a deterministic check rejects stems such as "资料说…", "文中提到…", "根据资料…", "资料用什么…" and "what does the text say…", asking for a rewrite as a concept or scenario question.
