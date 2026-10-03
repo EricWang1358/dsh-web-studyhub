@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createMarkerConversionScript, MARKER_SCRIPT_FILENAME } from '../lib/marker-external.js';
@@ -11,7 +11,8 @@ const python = ['python3', 'python'].find(command => spawnSync(command, ['--vers
 const outputDirectories = dir => readdirSync(dir, { withFileTypes: true }).filter(entry => entry.isDirectory() && entry.name.startsWith('studyhub-marker-'));
 
 function fixture(t, { mode = 'success', filename = process.platform === 'win32' ? '资料 & $(touch surprise); quoted.pdf' : '资料 & $(touch surprise); "quoted".pdf' } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'studyhub-marker-test-'));
+  // Python resolves Windows 8.3 aliases before passing the PDF to Marker.
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'studyhub-marker-test-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const script = join(dir, MARKER_SCRIPT_FILENAME);
   writeFileSync(script, createMarkerConversionScript());
