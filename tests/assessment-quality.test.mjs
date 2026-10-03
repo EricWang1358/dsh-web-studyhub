@@ -199,7 +199,7 @@ test("unsupported planning evidence stops generation before an author writes que
   // a model that repeats it never reaches an author.
   await assert.rejects(
     generateDeck(async (_system, prompt) => { prompts.push(prompt); return JSON.stringify(plan); }, request),
-    /plan is not usable: Target 1: quote "This distinction was never in the .*…" is not in source s/,
+    /plan is not usable: Target 1: quote "This distinction was never in the supplied notes." is not in source s/,
   );
   assert.equal(prompts.length, 2);
   assert.match(prompts[1], /Your previous plan was rejected/);
