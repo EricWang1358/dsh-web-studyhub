@@ -452,6 +452,32 @@ test('an empty notes-dependent stem is rejected even when the model reviewer mar
   }, request), /Quality gate failed.*unavailable lecture notes/);
 });
 
+const generateWith = (deck, raw = JSON.stringify) => generateDeck(async (system, prompt) => {
+  if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(request));
+  if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, qualityPlan(request), deck));
+  if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+  return raw(authored(deck));
+}, request);
+
+test('a formula written outside math delimiters is rejected instead of shown as raw text', async () => {
+  const bare = candidate();
+  bare.cards[0].prompt += ' Take z^l = W^l a^{l-1} + b^l as the layer rule.';
+  await assert.rejects(generateWith(bare), /Quality gate failed.*formula outside math delimiters/);
+  const delimited = candidate();
+  delimited.cards[0].prompt += ' Take $z^l = W^l a^{l-1} + b^l$ as the layer rule.';
+  const result = await generateWith(delimited);
+  assert.match(result.cards[0].prompt, /\$z\^l = W\^l a\^\{l-1\} \+ b\^l\$/);
+});
+
+test('a delimited formula whose backslashes the model forgot to double still arrives intact', async () => {
+  const deck = candidate();
+  deck.cards[0].prompt += ' Take $\\theta = \\beta \\frac{1}{2}$ as the layer rule.';
+  // JSON.stringify doubles every backslash; a careless model writes the TeX as is, which JSON reads as a tab, a backspace and a form feed.
+  const careless = reply => JSON.stringify(reply).replaceAll('\\\\theta', '\\theta').replaceAll('\\\\beta', '\\beta').replaceAll('\\\\frac', '\\frac');
+  const result = await generateWith(deck, careless);
+  assert.ok(result.cards[0].prompt.endsWith(' Take $\\theta = \\beta \\frac{1}{2}$ as the layer rule.'), result.cards[0].prompt);
+});
+
 test('single-round approved cards checkpoint with stable identities and rejection reasons', async () => {
  const deck=candidate(); deck.cards.push({...structuredClone(card),id:'bad',prompt:'Another question?',objective:'Another target'});
  const req={...request,count:2,title:'One requested deck'}, failed=qualityReview(deck);failed.checks[1].answerLeak='fail';
