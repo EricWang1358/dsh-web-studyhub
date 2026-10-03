@@ -4,6 +4,7 @@ import { BlogNotes, Skeleton, Workflows, Graph, AudioDashboard, DocumentViewer, 
 import { languageSystem } from "../lib/language.js";
 import { localizeRunResponse, localizedRun } from "./run-titles.js";
 import { submitAssist } from "./assist-request.js";
+import { readTeachingDraft, saveTeachingDraft } from "./teaching-draft.js";
 import { hasContext, pageAvailable } from './capabilities.js';
 import { uiLocale } from "./i18n.js";
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
@@ -331,6 +332,11 @@ export default function App({ call: transportCall, host = {} }) {
     [flag, setFlag] = useState(""),
     [teaching, setTeaching] = useState(null),
     [teachAnswer, setTeachAnswer] = useState("");
+  const teachAnswerRef = useRef(teachAnswer);
+  teachAnswerRef.current = teachAnswer;
+  useEffect(() => {
+    saveTeachingDraft(data?.root, teaching, teachAnswer);
+  }, [data?.root, teaching, teachAnswer]);
   const [notebooks, setNotebooks] = useState(null),
     [notebookError, setNotebookError] = useState("");
   const boardState = useBoard(call, page === "board");
@@ -747,7 +753,7 @@ export default function App({ call: transportCall, host = {} }) {
     setResponse(restored?.response || '');
     setClozeValues(restored?.clozeValues || {});
     setTeaching(r.teaching || null);
-    setTeachAnswer(restored?.teachAnswer || '');
+    setTeachAnswer(readTeachingDraft(dataRef.current?.root, r.teaching) || restored?.teachAnswer || '');
   }
   function captureContext(overrides = {}) {
     return { root: dataRef.current?.root, page, runId: page === 'review' ? run?.id : undefined,
@@ -1025,6 +1031,7 @@ export default function App({ call: transportCall, host = {} }) {
   async function teachingAct(action, args = {}) {
     const origin = runRef.current;
     const key = reviewEntryKey(origin);
+    const draftAtStart = teachAnswerRef.current;
     if (!key || teachingInFlight.current.has(key)) return;
     teachingInFlight.current.add(key);
     setTeachingPending((all) => ({ ...all, [key]: true }));
@@ -1033,7 +1040,10 @@ export default function App({ call: transportCall, host = {} }) {
       const next = await call(action, { runId: origin.id, cardId: origin.card.id, index: origin.index, queueVersion: origin.queueVersion || 0, ...args });
       if (isCurrent()) {
         setTeaching(next);
-        if (action === "teach.answer") setTeachAnswer((value) => value === args.answer ? "" : value);
+        if (action === "teach.start") setTeachAnswer((value) => value === draftAtStart
+          ? readTeachingDraft(dataRef.current?.root, next) : value);
+        if (action === "teach.answer" && next.index > args.stepIndex)
+          setTeachAnswer((value) => value === args.answer ? "" : value);
       }
     } catch (e) {
       if (isCurrent()) setError(e.message || String(e));

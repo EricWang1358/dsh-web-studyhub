@@ -1,0 +1,16 @@
+{
+  "引导学习方式": "Guided learning mode",
+  "逐步理解": "Guided understanding",
+  "计算题引导练习": "Guided calculation",
+  "正在准备当前步骤…": "Preparing the current step…",
+  "每次只练当前步骤。AI 反馈用于辅助学习，不能证明计算正确。": "Practise one step at a time. AI feedback supports learning; it does not prove the calculation is correct.",
+  "已知条件与未知量": "Known conditions and unknown quantity",
+  "公式与适用理由": "Formula and why it applies",
+  "代入与单位": "Substitution and units",
+  "中间计算": "Intermediate computation",
+  "结果检查与舍入": "Result checks and rounding",
+  "本步假设": "Assumptions for this step",
+  "本步单位": "Units for this step",
+  "精度与舍入": "Precision and rounding",
+  "当前步骤的回答": "Answer to the current step"
+}
