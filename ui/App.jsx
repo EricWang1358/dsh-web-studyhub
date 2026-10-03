@@ -38,6 +38,7 @@ import { sourceMatchesCourse } from '../lib/source-courses.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { usePageScope, courseNamesOf } from './PageScope.jsx';
 import AudioImport from "./AudioImport.jsx";
+import { AudioPageHeader } from "./AudioPageHeader.jsx";
 import Draft from "./Draft.jsx";
 import Review from "./Review.jsx";
 import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
@@ -2232,11 +2233,8 @@ export default function App({ call: transportCall, host = {} }) {
               />
             )}
             {page === "audio" && <section className="page">
-              <div className="page-heading"><div><h1>{language === "en" ? "Audio transcription" : "音频转录"}</h1>
-                <p className="muted">{language === "en" ? "Import a recording. Transcription, proofreading and translation run in the background; updates arrive in your inbox." : "导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。"}</p></div>
-                <div className="section-heading-actions"><button onClick={() => navigatePage("settings")}>{language === "en" ? "Audio settings" : "音频设置"}</button>
-                  <button onClick={() => navigatePage("sources")}>{language === "en" ? "View sources" : "查看资料"}</button></div></div>
-              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => navigatePage('settings')}
+              <AudioPageHeader onSettings={() => navigatePage("settings")} onSources={() => navigatePage("sources")} />
+              <AudioImport data={data} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => setPage('settings')}
                 recoveryJobId={legacyAudioJobId} onRecoveryChange={setLegacyAudioJobId} />
               <AudioDashboard call={call} />
             </section>}
