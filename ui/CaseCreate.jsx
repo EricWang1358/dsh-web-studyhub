@@ -26,10 +26,12 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
   const [course, setCourse] = useState(initial.course ?? (data.focus?.course && data.focus.course !== "*" ? data.focus.course : ""));
   const [sourceIds, setSourceIds] = useState(initial.sourceIds || []);
   const [referenceSourceIds, setReferenceSourceIds] = useState(initial.referenceSourceIds || []);
+  const [referenceLimits, setReferenceLimits] = useState(initial.referenceLimits);
+  const [referenceFormat, setReferenceFormat] = useState(initial.referenceFormat);
   // The course profile (WP13) from the snapshot's course records; guidance and focus topics are the course's.
   const profile = useMemo(() => courseProfileFromState({ courses: data.courses }, course), [data.courses, course]);
   const evidenceIds = [...sourceIds, ...profile.guidanceSourceIds];
-  const referenceState = referenceSelection(data.sources, referenceSourceIds, evidenceIds);
+  const referenceState = referenceSelection(data.sources, referenceSourceIds, evidenceIds, referenceLimits, referenceFormat);
   const defaults = { totalMarks: profile.exam.totalMarks || 20, language: generationFormDefaults(data.settings?.generation).language };
   const [form, setForm] = useState(() => ({ questions: 2, ...defaults, title: "", styleText: "" }));
   const inherited = useRef({ course, ...defaults });
@@ -54,7 +56,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
       ? { ...shared, title: pasted.title.trim() || undefined, scenario: pasted.scenario, sourceIds,
         questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })),
         answers: pasted.questions.map((question) => question.answer) }
-      : { ...shared, title: form.title.trim() || undefined, sourceIds, referenceSourceIds, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
+      : { ...shared, title: form.title.trim() || undefined, sourceIds, referenceSourceIds, referenceLimits, referenceFormat, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
         ...(mode === "style" ? { styleText: form.styleText } : {}) };
     act("generate", args, () => {
       setNotice({ tone: "success", text: mode === "import"
@@ -90,6 +92,8 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
         </div>}
       </fieldset>
       {mode !== 'import' && <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={evidenceIds}
+        limits={referenceLimits} onLimitsChange={setReferenceLimits}
+        format={referenceFormat} onFormatChange={setReferenceFormat}
         courses={data.focus?.courses} busy={busy} onChange={setReferenceSourceIds}
         onImport={() => openReferenceImport?.(ids => {
           setReferenceSourceIds(current => importedReferences(current, ids).referenceSourceIds);
@@ -138,7 +142,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
         <TokenEstimate call={call} enabled={ready} request={mode === "import"
           ? { feature: "case", course, language: form.language, sourceIds, scenario: pasted.scenario,
             questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })) }
-          : { feature: "case", course, language: form.language, sourceIds, referenceSourceIds, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
+          : { feature: "case", course, language: form.language, sourceIds, referenceSourceIds, referenceLimits, referenceFormat, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
             ...(passage ? { focus: passage } : {}), ...(mode === "style" ? { styleText: form.styleText } : {}) }} />
         {model.ready ? (
           <Button type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready} data-tour="generate-submit" data-usage="generate.submit">

@@ -64,7 +64,7 @@ export default function Generate({
   const known = courseNamesOf(data);
   const visibleSources = data.sources.filter(source => sourceMatchesCourse(source, sourceScope, known));
   const referenceSourceIds = gen.referenceSourceIds || [];
-  const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources);
+  const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources, gen.referenceLimits, gen.referenceFormat);
   const evidenceSources = data.sources.filter(source => !referenceSourceIds.includes(source.id));
   const generationCourse = gen.course ?? courseForSources({ sources: data.sources }, selectedSources, sourceScope === '*' ? '' : sourceScope, known);
   const stats = React.useMemo(() => selectionStats(data.sources, selectedSources), [data.sources, selectedSources]);
@@ -317,6 +317,8 @@ export default function Generate({
                 </FormRow>
               </div>
               <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={selectedSources}
+                limits={gen.referenceLimits} onLimitsChange={referenceLimits => setGen({ ...gen, referenceLimits })}
+                format={gen.referenceFormat} onFormatChange={referenceFormat => setGen({ ...gen, referenceFormat })}
                 onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
                 courses={data.focus?.courses} busy={busy} />
               {selectedPdfPages > Number(gen.count) && <p className="warning" role="status">{ui("已选 ")}{selectedPdfPages}{ui(" 页 PDF，计划生成 ")}{gen.count}{ui(" 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。")}</p>}
@@ -340,8 +342,8 @@ export default function Generate({
               </div>
               {summary && <p className="generate-summary" role="status">{summary}</p>}
               {/* What the run is expected to use, from the real prompts of the pipeline (WP27). */}
-              <TokenEstimate call={call} enabled={selectedSources.length > 0}
-                request={{ feature: 'generate', sourceIds: selectedSources, referenceSourceIds, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
+              <TokenEstimate call={call} enabled={selectedSources.length > 0 && !referenceState.reason}
+                request={{ feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
                   course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
