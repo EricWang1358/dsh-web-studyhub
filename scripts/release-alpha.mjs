@@ -37,16 +37,18 @@ const archives = [await pack(root)];
 await mkdir(join(target, 'packages'), { recursive: true });
 for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'audio']) {
   const staging = await mkdtemp(join(target, 'packages', `${domain}-`));
-  for (const path of ['lib', 'references', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md'])
+  for (const path of ['lib', 'references', 'locale', 'presets', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md'])
     await cp(join(root, path), join(staging, path), { recursive: true });
   await mkdir(join(staging, 'docs'), { recursive: true });
-  for (const path of manifest.files.filter(path => path.startsWith('docs/')))
+  for (const path of manifest.files.filter(path => path.startsWith('docs/'))) {
+    await mkdir(dirname(join(staging, path)), { recursive: true });
     await cp(join(root, path), join(staging, path));
+  }
   const name = `@ericwang1358/dsh-study-${domain}`;
   const entry = `./lib/plugins/${domain}.js`;
   await writeFile(join(staging, 'package.json'), JSON.stringify({
     name, version: manifest.version, description: `StudyHub ${domain} capability plugin for DSH`,
-    type: 'module', main: entry, exports: { '.': entry, './runtime': './lib/runtime.js', './package.json': './package.json' },
+    type: 'module', main: entry, exports: { '.': entry, './runtime': './lib/runtime.js', './locale/*': `./locale/plugins/${domain}/*`, './package.json': './package.json' },
     files: manifest.files,
     author: manifest.author, license: manifest.license, engines: manifest.engines, dependencies: manifest.dependencies,
     peerDependencies: manifest.peerDependencies, peerDependenciesMeta: manifest.peerDependenciesMeta,
