@@ -51,6 +51,10 @@ const HELP_CHOICES = [
   { id: "prerequisite", label: "补前置知识" },
   { id: "mistake", label: "分析我错在哪" },
 ];
+const CALCULATION_STAGE_LABELS = {
+  conditions: "已知条件与未知量", formula: "公式与适用理由", substitution: "代入与单位",
+  computation: "中间计算", verification: "结果检查与舍入",
+};
 
 export default function Review({
   run,
@@ -804,14 +808,28 @@ export default function Review({
                   onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask} />}
               </ReadingBlock>
             )}
+            {run.feedback && run.mode !== "exam" && (
+              <div className="assist-actions" aria-label={ui("引导学习方式")}>
+                <button type="button" className="pill" disabled={teachingBusy}
+                  aria-pressed={teaching?.mode === "understanding"}
+                  onClick={() => teachingAct("teach.start", { mode: "understanding", language: uiLocale().startsWith("en") ? "en" : "zh" })}>{ui("逐步理解")}</button>
+                <button type="button" className="pill" disabled={teachingBusy}
+                  aria-pressed={teaching?.mode === "calculation"}
+                  onClick={() => teachingAct("teach.start", { mode: "calculation", language: uiLocale().startsWith("en") ? "en" : "zh" })}>{ui("计算题引导练习")}</button>
+                {teachingBusy && <span role="status">{ui("正在准备当前步骤…")}</span>}
+              </div>
+            )}
             {teaching && <div className="teaching-panel">
               {teaching && (
                 <ReadingBlock as="section" measure className="explanation">
                   <div className="eyebrow">
-                    GUIDED UNDERSTANDING ·{" "}
+                    {teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解")} ·{" "}
                     {Math.min(teaching.index + 1, teaching.total)} /{" "}
                     {teaching.total}
                   </div>
+                  {teaching.mode === "calculation" && (
+                    <p className="muted small">{ui("每次只练当前步骤。AI 反馈用于辅助学习，不能证明计算正确。")}</p>
+                  )}
                   {teaching.feedback && (
                     <Markdown className="teaching-feedback" text={teaching.feedback} />
                   )}
@@ -822,13 +840,21 @@ export default function Review({
                     </>
                   ) : (
                     <>
+                      {teaching.mode === "calculation" && <>
+                        <h3>{ui(CALCULATION_STAGE_LABELS[teaching.stage] || "计算题引导练习")}</h3>
+                        <h4>{ui("本步假设")}</h4><Markdown text={teaching.assumptions} />
+                        <h4>{ui("本步单位")}</h4><Markdown text={teaching.units} />
+                        <h4>{ui("精度与舍入")}</h4><Markdown text={teaching.rounding} />
+                        <CitationDisclosure card={teaching} sources={data.sources}
+                          onOpenSource={(source, quote) => setModal({ type: "source", source, quote })} />
+                      </>}
                       <Markdown text={teaching.lesson} />
                       <form
                         onSubmit={(e) => {
                           e.preventDefault();
                           teachingAct(
                             "teach.answer",
-                            { id: teaching.id, answer: teachAnswer },
+                            { id: teaching.id, stepIndex: teaching.index, answer: teachAnswer },
                           );
                         }}
                       >
@@ -838,6 +864,7 @@ export default function Review({
                             required
                             maxLength={10000}
                             rows={3}
+                            aria-label={ui("当前步骤的回答")}
                             value={teachAnswer}
                             onChange={(e) =>
                               setTeachAnswer(e.target.value)
