@@ -87,7 +87,8 @@ test("a running top-up is called a top-up, in both languages, and a plan failure
   assert.match(m.jobHeadline(job, []), /正在补齐「索引小测」/);
   assert.match(m.jobHeadline({ ...job, continued: false }, []), /正在生成「索引小测」/);
   assert.equal(inLanguage("en", () => m.jobHeadline(job, [])), 'Adding questions to "索引小测"', "the deck's own title is the learner's data and stays as written");
-  assert.match(inLanguage("zh", () => m.describeGenerationRecord("Part 2: Assessment plan is not usable: Target 3: quote is not in source")), /第 2 批没有完成：考点规划没有通过检查/);
+  assert.match(inLanguage("zh", () => m.describeGenerationRecord("Part 2: Assessment plan is not usable: Return exactly 5 targets (got 3)")), /第 2 批没有完成：考点规划没有通过检查/);
+  assert.match(inLanguage("zh", () => m.describeGenerationRecord("Part 2: Assessment plan is not usable: Target 3: quote is not in source")), /第 2 批没有完成：引用的原文在资料里找不到/, "a quote that is not on its page is not called a plan problem");
   assert.doesNotMatch(inLanguage("en", () => m.describeGenerationRecord("Part 2: Assessment plan is not usable: x")), han);
 });
 
