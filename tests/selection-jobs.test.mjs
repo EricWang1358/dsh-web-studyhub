@@ -380,6 +380,27 @@ test('the status of a finished operation survives a restart even though the in-m
   await assert.rejects(restarted.call('generation.selection.status', { operationId: 'never-started' }), /does not exist|不存在/);
 });
 
+test('a finished operation checks its request before replaying its receipt after a restart', async t => {
+  const f = await fixture(t);
+  const args = f.args(f.a, { operationId: 'persisted-request' });
+  const done = await wait(f, (await f.runtime.call('generation.selection.start', args)).jobId);
+  const restarted = createStudyRuntime(f.root, { complete: f.model.complete });
+  t.after(() => restarted.dispose());
+  const calls = f.model.calls.length;
+  for (const changed of [
+    { deckId: 'e' }, { count: 2 }, { kind: 'open' }, { focus: 'A different learning target' },
+    { selection: f.b }, { selection: { ...f.a, sourceId: 'another-source' } },
+  ]) {
+    await assert.rejects(restarted.call('generation.selection.start', { ...args, ...changed }), /different request/);
+  }
+  const replay = await restarted.call('generation.selection.start', { ...args, expectedVersion: 99 });
+  assert.equal(replay.status, 'complete', 'a receipt remains replayable after the target version changes');
+  assert.deepEqual(replay.job.publication.cardIds, done.publication.cardIds);
+  assert.equal(f.model.calls.length, calls, 'neither rejected reuse nor legitimate replay calls the model');
+  assert.equal((await f.deck()).cards.length, 2, 'the original append is retained once');
+  assert.equal((await f.deck('e')).cards.length, 0, 'a changed destination never receives a replay');
+});
+
 test('the job list of one document names its running and recent supplements', async t => {
   const model = gatedModel(); model.gates.plan = deferred();
   const f = await fixture(t, { model });

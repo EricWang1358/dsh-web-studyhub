@@ -60,6 +60,35 @@ test('one damaged shard leaves healthy content readable and blocks destructive p
   assert.equal((await service.call('snapshot')).sources.length, 3);
 });
 
+test('one missing shard keeps healthy material readable, blocks writes and recovers after repair', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-missing-shard-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const sources = [
+    { id: 'healthy', title: 'Healthy', text: 'Readable material.' },
+    { id: 'missing', title: 'Recovered', text: 'Restored material.' },
+  ];
+  await mkdir(join(root, 'shards', 'sources'), { recursive: true });
+  await writeFile(join(root, 'shards', 'sources', 'healthy.json'), JSON.stringify(sources[0]));
+  const manifest = { ...emptyState(), format: 'study-sharded',
+    shards: { sources: ['sources/healthy.json', 'sources/missing.json'] } };
+  const originalManifest = JSON.stringify(manifest);
+  await writeFile(join(root, 'study-workspace.json'), originalManifest);
+  const service = new StudyService(root);
+  const snapshot = await service.call('snapshot');
+  assert.deepEqual(snapshot.sources.map(source => source.id), ['healthy']);
+  assert.equal(snapshot.storageIssues.length, 1);
+  assert.equal(snapshot.storageIssues[0].file, 'shards/sources/missing.json');
+  await assert.rejects(service.call('source.add', { title: 'Unsafe', text: 'Must not overwrite missing records.' }), /损坏文件/);
+  await assert.rejects(service.call('export'), /损坏文件/);
+  assert.equal(await readFile(service.store.path, 'utf8'), originalManifest);
+  await writeFile(join(root, 'shards', 'sources', 'missing.json'), JSON.stringify(sources[1]));
+  const repaired = await service.call('snapshot', { since: snapshot.fingerprint });
+  assert.equal(repaired.unchanged, undefined);
+  assert.deepEqual(repaired.sources.map(source => source.id), ['healthy', 'missing']);
+  assert.deepEqual(repaired.storageIssues, []);
+  await service.call('source.add', { title: 'After repair', text: 'Writable again.' });
+});
+
 test("a full export restores the library and preserves the replaced state", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-restore-"));
   t.after(() => rm(root, { recursive: true, force: true }));

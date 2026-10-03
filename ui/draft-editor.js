@@ -1,4 +1,4 @@
-import { fillMissingDraftText } from "../lib/draft-fields.js";
+import { fillMissingDraftText, omitInapplicableNullFields } from "../lib/draft-fields.js";
 import { ui } from "./i18n.js";
 
 export function hasUnsavedDraft({ draft, draftText, jsonMode, draftLoaded } = {}) {
@@ -18,7 +18,7 @@ export function parseDraft(raw) {
     !d.cards.length
   )
     throw new Error(ui("题组需要 title 和非空 cards 数组"));
-  d.cards = d.cards.map(fillMissingDraftText);
+  d.cards = d.cards.map(card => fillMissingDraftText(omitInapplicableNullFields(card)));
   for (const q of d.cards) {
     if (!q || typeof q !== "object") throw new Error(ui("每道题必须是一个对象"));
     for (const key of [

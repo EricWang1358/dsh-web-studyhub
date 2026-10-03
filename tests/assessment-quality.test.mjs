@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateDeck, salvageAuthoredCards, parseJson } from "../lib/generation.js";
+import { generateDeck, salvageAuthoredCards, parseJson, authorPrompts } from "../lib/generation.js";
 import { generateBatched } from "../lib/batch.js";
-import { publicCard } from "../lib/domain.js";
+import { publicCard, draftShapeErrors, validateDeck } from "../lib/domain.js";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { StudyService } from "../lib/service.js";
 import { authored, qualityPlan, qualityReview } from "./helpers/assessment.mjs";
 import { reviewIssues, explanationIssues, answerLeakIssues, planIssues, learnerContextIssues } from "../lib/assessment-quality.js";
 import { reviewedCardFingerprint } from "../lib/review-integrity.js";
@@ -25,6 +29,186 @@ const card = { id: "q", kind: "flashcard", topic: "Architecture decisions", obje
   prompt: "Why does architecture contain principles guiding design and evolution?", answer: "Principles guide subsequent design choices and changes.",
   hint: "Compare a current-state description with a constraint on permitted changes.", explanation: "The quoted definition explicitly includes principles governing design and evolution.", misconception: "Architecture only describes current components.", citations: [{ sourceId: "s", quote: source.text }] };
 const candidate = () => ({ title: "Architecture", cards: [structuredClone(card)] });
+
+const typedCandidate = (kind) => {
+  const deck = candidate(), next = deck.cards[0];
+  next.kind = kind;
+  if (["quiz", "multi"].includes(kind)) next.options = [
+    { id: "a", text: "Principles govern later design choices.", correct: true, explanation: "The definition includes principles governing design and evolution." },
+    { id: "b", text: "Rules guide the permitted changes.", correct: kind === "multi", explanation: "Evolution is guided by the stated principles rather than a frozen component list." },
+    { id: "c", text: "Architecture records only components.", correct: false, explanation: "This omits the principles in the quoted definition." },
+  ];
+  if (kind === "open") next.rubric = "Award credit for explaining how principles guide both design and evolution.";
+  if (kind === "cloze") {
+    next.prompt = "Architecture includes {{b1}} guiding a system's design and evolution.";
+    next.cloze = { text: next.prompt, answers: [{ id: "b1", value: "principles" }] };
+  }
+  return deck;
+};
+
+test("author examples include only the fields of the requested question kind", () => {
+  for (const kind of ["flashcard", "quiz", "multi", "open", "cloze"]) {
+    const { prompt } = authorPrompts({ ...request, kind }, qualityPlan({ ...request, kind }));
+    const example = JSON.parse(prompt.split("Match this JSON structure: ")[1].split("\n\nThen revisit")[0]).cards[0];
+    assert.equal(example.kind, kind);
+    assert.equal(Object.hasOwn(example, "options"), ["quiz", "multi"].includes(kind), kind);
+    assert.equal(Object.hasOwn(example, "rubric"), kind === "open", kind);
+    assert.equal(Object.hasOwn(example, "cloze"), kind === "cloze", kind);
+    if (example.options) {
+      assert.equal(example.options.length, 3);
+      assert.equal(new Set(example.options.map(option => option.id)).size, 3);
+      assert.equal(example.options.filter(option => option.correct).length, kind === "multi" ? 2 : 1);
+    }
+    if (kind === "cloze") assert.equal(example.prompt, example.cloze.text);
+  }
+});
+
+test("approved generated cards with non-applicable null fields save as editable drafts", async t => {
+  const root = await mkdtemp(join(tmpdir(), "study-generation-protocol-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", source);
+  for (const kind of ["flashcard", "quiz", "multi", "open", "cloze"]) await t.test(kind, async () => {
+    const req = { ...request, kind }, input = typedCandidate(kind);
+    for (const field of ["options", "rubric", "cloze"])
+      if (!Object.hasOwn(input.cards[0], field)) input.cards[0][field] = null;
+    const deck = await generateDeck(async (system, prompt) => {
+      if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
+      if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+      return JSON.stringify(authored(input));
+    }, req);
+    const saved = await service.call("draft.save", { deck });
+    assert.deepEqual(draftShapeErrors(input), []);
+    assert.deepEqual(validateDeck(input, [source]).errors, []);
+    assert.deepEqual(saved.quality.errors, []);
+    assert.deepEqual(draftShapeErrors(saved), []);
+    assert.equal(saved.editorial.reviewedCards[saved.cards[0].id], reviewedCardFingerprint(saved.cards[0]));
+    for (const field of ["options", "rubric", "cloze"])
+      if (input.cards[0][field] === null) assert.equal(Object.hasOwn(saved.cards[0], field), false, field);
+    const directlySaved = await service.call("draft.save", { deck: input });
+    for (const field of ["options", "rubric", "cloze"])
+      if (input.cards[0][field] === null) assert.equal(Object.hasOwn(directlySaved.cards[0], field), false, field);
+  });
+});
+
+test("invalid optional field shapes are rejected consistently before generated cards can be saved", async () => {
+  const cases = [
+    ["flashcard", "rubric", false, /rubric must be text/],
+    ["flashcard", "options", {}, /options have an invalid shape/],
+    ["flashcard", "cloze", { text: "unused", answers: null }, /cloze has an invalid shape/],
+    ["quiz", "options", null, /options have an invalid shape/],
+    ["open", "rubric", null, /rubric must be text/],
+    ["cloze", "cloze", null, /cloze has an invalid shape/],
+  ];
+  for (const [kind, field, value, issue] of cases) {
+    const input = typedCandidate(kind); input.cards[0][field] = value;
+    assert.match(draftShapeErrors(input).join(), issue);
+    assert.match(validateDeck(input, [source]).errors.join(), issue);
+    const req = { ...request, kind };
+    await assert.rejects(generateDeck(async (system, prompt) => {
+      if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
+      if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+      return JSON.stringify(authored(input));
+    }, req), /Quality gate failed/);
+  }
+});
+
+test("unused answer attributes do not create leaks while each active answer kind stays checked", () => {
+  const unused = typedCandidate("flashcard");
+  unused.cards[0].hint = "Compare responsibility separation with a connected software architecture.";
+  unused.cards[0].cloze = { text: "An unused {{b1}} attribute", answers: [{ id: "b1", value: "connected software architecture" }] };
+  unused.cards[0].options = [{ id: "a", text: "connected software architecture", correct: true, explanation: "An unused choice attribute." }];
+  unused.cards[0].rubric = "Preserve this unrelated non-null field.";
+  assert.deepEqual(answerLeakIssues(unused), []);
+  for (const kind of ["flashcard", "open", "quiz", "multi", "cloze"]) {
+    const input = typedCandidate(kind);
+    input.cards[0].hint = kind === "cloze" ? "The missing term is principles." :
+      ["quiz", "multi"].includes(kind) ? input.cards[0].options[0].text : input.cards[0].answer;
+    assert.match(answerLeakIssues(input).join(), /answerLeak in hint/, kind);
+  }
+});
+
+test("generated drafts preserve valid non-null attributes outside their active answer kind", async t => {
+  const root = await mkdtemp(join(tmpdir(), "study-generation-extra-fields-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", source);
+  const input = candidate();
+  Object.assign(input.cards[0], { hint: "Compare responsibility separation with a connected software architecture.",
+    options: [{ id: "a", text: "connected software architecture", correct: true, explanation: "An unused option attribute." }],
+    cloze: { text: "An unused {{b1}} attribute", answers: [{ id: "b1", value: "connected software architecture" }] },
+    rubric: "An extra non-null field", custom: { note: "Keep this metadata" } });
+  const deck = await generateDeck(async (system, prompt) => {
+    if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(request));
+    if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(authored(input));
+  }, request);
+  const saved = await service.call("draft.save", { deck });
+  for (const field of ["options", "cloze", "rubric", "custom"]) assert.deepEqual(saved.cards[0][field], input.cards[0][field]);
+  assert.equal(saved.editorial.reviewedCards[saved.cards[0].id], reviewedCardFingerprint(saved.cards[0]));
+});
+
+test("duplicate temporary author ids are distinct during independent review and draft saving", async t => {
+  const root = await mkdtemp(join(tmpdir(), "study-generation-identities-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", source);
+  const input = candidate();
+  input.cards.push({ ...structuredClone(card), objective: "Apply an architectural principle to a proposed change",
+    prompt: "A design change violates the recorded architectural principle. What guides the team's decision?" });
+  const req = { ...request, count: 2 }, seen = [];
+  const complete = async (system, prompt) => {
+    if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
+    if (system.startsWith("Act as")) {
+      const reviewed = JSON.parse(prompt).candidate;
+      seen.push(...reviewed.cards.map(card => card.id));
+      return JSON.stringify(qualityReview(reviewed));
+    }
+    return JSON.stringify(authored(input));
+  };
+  const deck = await generateDeck(complete, req);
+  assert.equal(new Set(seen).size, 2);
+  assert.equal(new Set(deck.cards.map(card => card.id)).size, 2);
+  const saved = await service.call("draft.save", { deck });
+  assert.equal(saved.cards.length, 2);
+  assert.deepEqual(saved.quality.errors, []);
+  const duplicateSaved = structuredClone(saved); duplicateSaved.cards[1].id = duplicateSaved.cards[0].id;
+  await assert.rejects(service.call("draft.save", { deck: duplicateSaved }), /id must be unique/);
+  await assert.rejects(generateDeck(async (system, prompt) => {
+    if (!system.startsWith("Act as")) return complete(system, prompt);
+    const review = qualityReview(JSON.parse(prompt).candidate);
+    review.checks[1].cardId = review.checks[0].cardId;
+    return JSON.stringify(review);
+  }, req), /Review protocol failed/);
+});
+
+test("missing or invalid temporary author ids are normalized before the independent review", async t => {
+  const root = await mkdtemp(join(tmpdir(), "study-generation-missing-identities-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.call("source.add", source);
+  for (const temporaryId of [undefined, "", "  ", 42, null]) {
+    const input = candidate();
+    input.cards.push({ ...structuredClone(card), id: temporaryId, objective: "Apply an architectural principle to a proposed change",
+      prompt: "A design change violates the recorded architectural principle. What guides the team's decision?" });
+    const req = { ...request, count: 2 };
+    const deck = await generateDeck(async (system, prompt) => {
+      if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
+      if (system.startsWith("Act as")) {
+        const reviewed = JSON.parse(prompt).candidate;
+        assert.ok(reviewed.cards.every(card => typeof card.id === "string" && card.id.trim()));
+        assert.equal(new Set(reviewed.cards.map(card => card.id)).size, 2);
+        return JSON.stringify(qualityReview(reviewed));
+      }
+      return JSON.stringify(authored(input));
+    }, req);
+    const saved = await service.call("draft.save", { deck });
+    assert.equal(saved.cards.length, 2);
+    assert.deepEqual(saved.quality.errors, []);
+    const invalidSaved = structuredClone(saved); invalidSaved.cards[1].id = temporaryId;
+    await assert.rejects(service.call("draft.save", { deck: invalidSaved }), /id must be|id is required/);
+  }
+});
 
 test('one independent review keeps approved questions without repair or a second audit', async () => {
   const deck = candidate();

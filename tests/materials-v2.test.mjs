@@ -7,6 +7,7 @@ import { Store } from '../lib/store.js';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { createMaterialsOperations, validateSelection } from '../lib/contexts/materials/operations.js';
 import { exportAttachments, importAttachments } from '../lib/contexts/materials/files.js';
+import { groupSourcesByDocument } from '../lib/source-groups.js';
 
 function pdfBytes(text) {
   const stream = `BT /F1 12 Tf 40 700 Td (${text.replace(/[()\\]/g, '\\$&')}) Tj ET`;
@@ -41,6 +42,35 @@ test('materials-only runtime exposes unavailable links without invoking an absen
   assert.equal(result.status, 'unavailable');
   assert.equal(result.capability, 'bank');
   assert.deepEqual(result.links, []);
+});
+
+test('material document filters inherit legacy citation courses while explicit unassigned sources stay unassigned', async t => {
+  const { root, store } = await fixture(t);
+  await store.update(state => {
+    state.sources.push({ id: 'legacy-deck', title: 'Published evidence', text: 'Published course evidence.' },
+      { id: 'legacy-draft', title: 'Draft evidence', text: 'Draft course evidence.' },
+      { id: 'explicit-empty', title: 'Unassigned evidence', text: 'Explicitly unassigned evidence.', courses: [] });
+    state.decks.push({ id: 'deck', title: 'Week 1', course: 'Databases / Week 1', cards: [
+      { id: 'q1', citations: [{ sourceId: 'legacy-deck', quote: 'Published course evidence.' }] },
+      { id: 'q2', citations: [{ sourceId: 'explicit-empty', quote: 'Explicitly unassigned evidence.' }] },
+    ] });
+    state.drafts.push({ id: 'draft', title: 'Week 2', course: 'Databases / Week 2', cards: [
+      { id: 'q3', citations: [{ sourceId: 'legacy-draft', quote: 'Draft course evidence.' }] },
+    ] });
+  });
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  const sourceIds = (await runtime.call('source.list', { course: 'Databases' })).sources.map(source => source.id).sort();
+  assert.deepEqual(sourceIds, ['legacy-deck', 'legacy-draft']);
+  const documents = await runtime.call('materials.document.list', { course: 'Databases' });
+  assert.deepEqual(documents.documents.flatMap(document => document.sourceIds).sort(), sourceIds);
+  assert.deepEqual((await runtime.call('materials.document.list', { course: '' })).documents.flatMap(document => document.sourceIds), ['explicit-empty']);
+  assert.equal((await runtime.call('materials.document.list', { course: 'Databases / Week 1' })).total, 1);
+  assert.equal((await runtime.call('materials.document.list', { course: 'Other course' })).total, 0);
+  assert.equal((await store.read()).sources.find(source => source.id === 'legacy-deck').courses, undefined, 'derived filters never persist course metadata');
+  const standalone = createStudyRuntime(root, { contexts: ['materials'] });
+  t.after(() => standalone.dispose());
+  assert.equal((await standalone.call('materials.document.list', {})).total, 3, 'materials remain readable without a bank or library context');
 });
 
 test('materials retains original TXT bytes and resolves whitespace to authoritative offsets', async t => {
@@ -92,6 +122,53 @@ test('materials retains original PDF bytes and maps a visible page selection', a
   assert.equal(original.mime, 'application/pdf'); assert.equal(original.dataBase64, bytes.toString('base64'));
   const selected = await call('materials.selection.resolve', { documentId: document.id, revision: document.revision, page: 1, quote: 'Public APIs preserve independent ownership' });
   assert.equal(selected.status, 'resolved'); assert.equal(selected.selection.page, 1);
+});
+
+test('refreshing a PDF from another document retains separate page ownership and historical citations', async t => {
+  const { call, store } = await fixture(t);
+  const alphaText = 'Original alpha evidence preserves learning history.';
+  const betaText = 'Original beta evidence belongs to another material.';
+  const alphaBytes = pdfBytes(alphaText).toString('base64'), betaBytes = pdfBytes(betaText).toString('base64');
+  const alpha = await call('materials.document.import', { filename: 'alpha.pdf', dataBase64: alphaBytes, courses: ['Alpha'] });
+  const beta = await call('materials.document.import', { filename: 'beta.pdf', dataBase64: betaBytes, courses: ['Beta'] });
+  const betaSource = structuredClone((await store.read()).sources.find(source => source.id === beta.sourceIds[0]));
+  const selectedBeta = (await call('materials.selection.resolve', { documentId: beta.documentId, revision: beta.revision, page: 1, quote: betaText })).selection;
+  const citations = [{ sourceId: alpha.sourceIds[0], quote: alphaText }, { sourceId: beta.sourceIds[0], quote: betaText }];
+  await store.update(state => state.decks.push({ id: 'history', title: 'Historical references', cards: [{ id: 'q', citations }] }));
+  const refreshed = await call('materials.document.import', { documentId: alpha.documentId, filename: 'alpha.pdf', dataBase64: betaBytes });
+  assert.notEqual(refreshed.sourceIds[0], beta.sourceIds[0], 'different document owners need separate projections');
+  assert.deepEqual((await store.read()).sources.find(source => source.id === beta.sourceIds[0]), betaSource, 'refreshing Alpha never rewrites Beta metadata or courses');
+  const repeated = await call('materials.document.import', { documentId: alpha.documentId, filename: 'alpha.pdf', dataBase64: betaBytes });
+  assert.equal(repeated.added, 0);
+  assert.deepEqual(repeated.sourceIds, refreshed.sourceIds, 'the same document revision remains idempotent');
+  const sharedBytes = (await store.read()).sources.filter(source => source.document?.id === betaSource.document.id);
+  assert.deepEqual(groupSourcesByDocument(sharedBytes).map(group => group.documentId).sort(), [alpha.documentId, beta.documentId].sort(), 'the picker keeps the document owners separate');
+  await call('materials.document.import', { documentId: alpha.documentId, filename: 'alpha.pdf', dataBase64: pdfBytes('Updated alpha evidence includes different learning claims.').toString('base64') });
+  const state = await store.read();
+  assert.deepEqual(validateSelection(state, selectedBeta), selectedBeta, 'Alpha revisions never stale a current Beta selection');
+  assert.deepEqual(state.decks.find(deck => deck.id === 'history').cards[0].citations, citations);
+  assert.equal((await call('materials.document.get', { documentId: alpha.documentId, revision: alpha.revision })).sources[0].text, alphaText);
+  assert.equal((await call('materials.selection.resolve', { sourceId: beta.sourceIds[0], quote: betaText })).selection.documentId, beta.documentId);
+});
+
+test('a current selection chooses its explicit document when old PDF versions already share a page', async t => {
+  const { call, store } = await fixture(t);
+  const alpha = await call('materials.document.import', { filename: 'alpha.pdf', dataBase64: pdfBytes('Alpha historical evidence stays readable.').toString('base64') });
+  const betaBytes = pdfBytes('Beta current evidence remains independently selectable.').toString('base64');
+  const beta = await call('materials.document.import', { filename: 'beta.pdf', dataBase64: betaBytes });
+  await store.update(state => {
+    const a = state.documents.find(document => document.id === alpha.documentId), b = state.documents.find(document => document.id === beta.documentId);
+    a.versions.push(structuredClone(b.versions[0]));
+    state.sources.find(source => source.id === beta.sourceIds[0]).document.materialId = a.id;
+  });
+  const selected = (await call('materials.selection.resolve', { documentId: beta.documentId, revision: beta.revision, page: 1, quote: 'Beta current evidence' })).selection;
+  assert.deepEqual(validateSelection(await store.read(), selected), selected);
+  const repeated = await call('materials.document.import', { documentId: beta.documentId, filename: 'beta.pdf', dataBase64: betaBytes });
+  assert.equal(repeated.added, 0, 'an existing shared revision keeps its historical source identity');
+  assert.deepEqual(repeated.sourceIds, beta.sourceIds);
+  assert.equal((await call('materials.document.get', { documentId: alpha.documentId, revision: beta.revision })).sources[0].id, beta.sourceIds[0]);
+  const state = await store.read();
+  assert.throws(() => validateSelection(state, { ...selected, documentId: alpha.documentId }), /stale/);
 });
 
 test('duplicate quotes require context or checked offsets and changed revisions remain stale', async t => {
