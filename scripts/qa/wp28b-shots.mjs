@@ -66,7 +66,9 @@ async function main() {
         // 2. Settings › 扩展: the install, its confirmation, then ready to index.
         await nav("settings");
         const section = page.locator('[data-tour="settings-extensions"]');
-        await section.waitFor({ timeout: 15000 });
+        // The extensions live in the 一次性设置 group, folded while nothing there is missing: open it.
+        if (!(await section.isVisible().catch(() => false))) await page.getByText(/^(一次性设置|One-time setup)$/).first().click().catch(() => {});
+        await section.waitFor({ state: "visible", timeout: 15000 });
         const toSection = () => section.evaluate((element) => element.scrollIntoView({ block: "start" }));
         await toSection(); await settle(400);
         await shot("2-install-available");
@@ -89,6 +91,17 @@ async function main() {
         await page.locator(".extension-panel__index .sh-inline--success, .extension-panel__index [class*=success]").first().waitFor({ timeout: 60000 }).catch(() => {});
         await settle(700); await toSection(); await sleep(300);
         await shot("7-index-done");
+        // 4. Every material row says where its index stands: the 资料 page and the picker of 创建题组.
+        await page.locator('[data-nav-id="sources"]').first().click();
+        await page.locator(".source-doc").first().waitFor({ timeout: 20000 });
+        await page.locator(".source-doc .index-badge").first().waitFor({ timeout: 20000 });
+        const states = await page.locator(".source-doc .index-badge").evaluateAll((items) => items.map((item) => `${item.dataset.state}:${item.textContent}`));
+        if (!states.some((value) => value.startsWith("indexed:"))) throw new Error(`no row says its index is built: ${JSON.stringify(states)}`);
+        await shot("8-sources-index-badge");
+        await page.locator('[data-nav-id="generate"]').first().click();
+        await page.locator(".source-picker__item").first().waitFor({ timeout: 20000 });
+        await page.locator(".source-picker .index-badge").first().waitFor({ timeout: 20000 });
+        await shot("9-picker-index-badge");
         if (errors.length) console.log(`page errors at ${width}px:`, errors);
         await context.close();
       } finally { await server.close(); }

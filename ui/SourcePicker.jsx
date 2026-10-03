@@ -5,6 +5,9 @@ import { Button, EmptyState, ScrollWindow, filterItems } from './components/inde
 import PageScope from './PageScope.jsx';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
 import { courseScope } from '../lib/course-tree.js';
+import { bigDocuments } from '../lib/large-documents.js';
+import IndexBadge from './IndexBadge.jsx';
+import { documentIndexState } from './index-coverage.js';
 import css from './source-picker.css';
 
 /* Choosing material for generation (P18, P22). One row per document: a PDF is
@@ -99,7 +102,7 @@ const pageLabel = (item, page) => item.format === 'pdf' || item.format === 'pptx
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : page.title;
 
-function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false }) {
+function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false, indexCoverage = null, big = false }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), chaptersId = useId();
   const chaptered = chosenByChapters(item);
@@ -107,6 +110,7 @@ function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false }
   const chosen = new Set(selected);
   const multi = item.pages.length > 1;
   const picked = item.sourceIds.filter(id => chosen.has(id)).length;
+  const indexInfo = documentIndexState(item, indexCoverage, { big });
   const meta = [sourceFormatLabel(item), item.courses.join(' · ') || ui('未分类'),
     uiFormat('{0} 字符', [item.chars.toLocaleString(uiLocale())]), ...documentNotes(item)];
   return (
@@ -119,6 +123,7 @@ function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false }
           <span className="source-picker__text">
             <strong title={item.title}>{item.title}</strong>
             <small>{meta.join(' · ')}{item.coursesInferred ? ui(' · 推断归属') : ''}</small>
+            {indexInfo && <small className="source-picker__index"><IndexBadge info={indexInfo} coverage={indexCoverage} /></small>}
             {state === 'some' && <small className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>
         </label>
@@ -178,10 +183,11 @@ function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false }
  * hundreds of materials never pushes the page down.
  */
 export default function SourcePicker({ sources = [], selected = [], onChange, courses = [], scope = '*', onScopeChange, disabled = false,
-  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, ...rest }) {
+  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, ...rest }) {
   useInjectCss(css, 'study-source-picker');
   const [query, setQuery] = useState(defaultQuery);
   const items = useMemo(() => groupSourcesByDocument(sources), [sources]);
+  const bigKeys = useMemo(() => new Set(indexCoverage ? bigDocuments(items).map(item => item.key) : []), [items, indexCoverage]);
   const effectiveScope = onScopeChange ? scope : '*';
   const known = useMemo(() => courses.map(course => typeof course === 'string' ? course : course?.name).filter(Boolean), [courses]);
   const visible = items.filter(item => inScope(item, effectiveScope, known));
@@ -213,7 +219,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
         match={documentSearchText} query={query} onQueryChange={setQuery} filterable={visible.length > FILTER_AFTER || filtering}
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} listClassName="source-picker__list" itemClassName="source-picker__entry"
         empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
-        renderItem={item => <DocumentRow item={item} selected={selected} onChange={change} disabled={disabled} defaultOpen={item.key === defaultOpenKey} />} />
+        renderItem={item => <DocumentRow item={item} selected={selected} onChange={change} disabled={disabled} defaultOpen={item.key === defaultOpenKey} indexCoverage={indexCoverage} big={bigKeys.has(item.key)} />} />
         : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {onAdd && <Button variant="quiet" size="sm" icon="plus" className="source-picker__add" disabled={disabled} onClick={onAdd}>{ui('添加资料')}</Button>}
     </div>
