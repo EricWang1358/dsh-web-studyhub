@@ -12,28 +12,31 @@ import { makePdf } from './helpers/pdf.mjs';
 
 const FAKE = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));
 
-async function harness(t, { cliState = {}, limits = {}, pages = 10 } = {}) {
+async function harness(t, { cliState = {}, limits = {}, pages = 10, holdFinish = false } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'study-live-home-'));
   const root = await mkdtemp(join(tmpdir(), 'study-live-lib-'));
   const work = await mkdtemp(join(tmpdir(), 'study-live-fake-'));
   const before = { DSH_HOME: process.env.DSH_HOME, MINERU_API_KEY: process.env.MINERU_API_KEY, MINERU_BIN: process.env.MINERU_BIN };
   process.env.DSH_HOME = home; delete process.env.MINERU_API_KEY; delete process.env.MINERU_BIN;
   await mkdir(join(work, 'models', 'MinerU-4_models_onnx'), { recursive: true });
-  const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl');
-  await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: pages, modelsReady: true, ...cliState })); await writeFile(logPath, '');
+  const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl'), finishSignal = join(work, 'finish.signal');
+  await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: pages, modelsReady: true,
+    ...(holdFinish ? { finishSignal } : {}), ...cliState })); await writeFile(logPath, '');
   const cli = { file: process.execPath, prefix: [FAKE], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } };
   const service = new StudyService(root, { mineru: { limits, local: { cli, home: work, modelsCli: { ...cli } } } });
   const h = {
     service, work, root,
     call: (action, args) => service.call(action, args),
     set: async patch => writeFile(statePath, JSON.stringify({ ...JSON.parse(await readFile(statePath, 'utf8')), ...patch })),
+    release: () => writeFile(finishSignal, 'ready'),
     log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line).argv.join(' ')),
     job: async () => (await service.call('snapshot')).jobs.find(job => job.type === 'pdf-convert'),
     /** Watch the card until the job ends: every liveness state it showed, in order, and the job as it ended. */
-    watch: async (also = () => {}) => {
+    watch: async (also = () => {}, { timeoutMs } = {}) => {
       const seen = [];
+      const deadline = timeoutMs ? Date.now() + timeoutMs : Infinity;
       let job;
-      for (let i = 0; i < 1000; i++) {
+      for (let i = 0; i < 1000 && Date.now() < deadline; i++) {
         job = await h.job();
         const state = job?.liveness?.state;
         if (state && seen.at(-1) !== state) { seen.push(state); await also(state, job); }
@@ -51,8 +54,9 @@ async function harness(t, { cliState = {}, limits = {}, pages = 10 } = {}) {
     },
   };
   t.after(async () => {
+    if (holdFinish) await h.release();
     await new Promise(resolve => setTimeout(resolve, 30));
-    service.dispose();
+    await service.dispose();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
@@ -72,14 +76,27 @@ test('a window waiting in the service queue is "queued", then "converting", and 
   assert.equal(job.liveness, undefined, 'a finished job does not keep claiming something is converting');
 });
 
-test('while the service reports a window, the card has when it last heard from it', async t => {
-  const h = await harness(t, { cliState: { trackParses: true, delayMs: 2000 }, limits: quick });
-  await h.start();
-  let heard;
-  await h.watch((state, job) => { if (state === 'parsing') heard = job.liveness; });
-  assert.ok(Date.parse(heard.lastSignalAt) > 0 && Date.parse(heard.at) > 0);
-  assert.ok(Date.parse(heard.at) <= Date.now());
-});
+for (const probeDelayMs of [0, 1100]) {
+  test(`while the service reports a window, the card has when it last heard from it${probeDelayMs ? ', even with delayed probes' : ''}`, async t => {
+    // A complete probe takes three CLI processes. Hold the fake parse until the public snapshot actually reports it,
+    // rather than assuming that this machine can ask and sample it within the parse's old two-second window.
+    const h = await harness(t, { cliState: { trackParses: true, probeDelayMs }, limits: quick, holdFinish: true });
+    await h.start();
+    let heard;
+    try {
+      const { seen, job } = await h.watch(async (state, job) => {
+        if (state !== 'parsing' || heard) return;
+        heard = job.liveness;
+        assert.ok(Date.parse(heard.lastSignalAt) > 0 && Date.parse(heard.at) > 0);
+        assert.ok(Date.parse(heard.at) <= Date.now());
+        await h.release();
+      }, { timeoutMs: 30_000 });
+      assert.ok(heard, `No parsing signal before the job ended or the deadline. States: ${seen.join(', ')}; CLI: ${(await h.log()).join('; ')}`);
+      assert.equal(job.status, 'complete');
+      assert.equal(job.liveness, undefined, 'the released window finishes without retaining liveness');
+    } finally { await h.release(); }
+  });
+}
 
 test('a service that reports nothing for a window that runs is "no response" only after several quiet answers and the threshold; the job is not failed and goes on', async t => {
   const h = await harness(t, { cliState: { idleParses: true, delayMs: 2800 }, limits: { ...quick, silentMs: 400, idleProbes: 2 } });

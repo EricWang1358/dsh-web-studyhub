@@ -13,8 +13,15 @@ const card = (id, sourceId = 'json') => ({ id, kind: 'flashcard', topic: 'Bridge
   misconception: 'A subclass for every combination causes a cross product.', citations: [{ sourceId, quote: evidence }] });
 async function fixture(t, complete) {
   const root = await mkdtemp(join(tmpdir(), 'study-main-context-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  const previousHome = process.env.DSH_HOME;
+  // Library-only fixtures must not activate the learner's machine-wide model experiments.
+  process.env.DSH_HOME = join(root, 'home');
   const service = new StudyService(root, { complete });
+  t.after(async () => {
+    await service.dispose();
+    if (previousHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previousHome;
+    await rm(root, { recursive: true, force: true });
+  });
   await service.store.update(s => {
     s.sources.push(
       { id: 'p1', title: 'Lecture page 1', text: evidence, courses: ['A'], createdAt: '2026-09-28T20:00:00.000Z', document: { id: 'pdf', page: 1 } },

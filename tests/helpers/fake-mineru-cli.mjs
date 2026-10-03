@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { appendFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 /* A stand-in for the local `mineru` command line (4.0.x), built from what was measured on a real install:
    `mineru parse <pdf> --tier T --pages A-B --wait N --json -o out.md --force` writes Markdown whose pages are delimited by
@@ -8,15 +8,15 @@ import { appendFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs
    `config get|show|set`. Like the real CLI, `config ...` is answered BY the running service (its settings live in the service's own
    store, not in a file): with the service stopped every `config` call exits non-zero with only the Chinese error below, and
    `server status` prints `服务未在运行。` (exit code 1, or 0 with `statusExitsZero`). Behaviour comes from the JSON file named by FAKE_MINERU_STATE (the tests edit it). Every call is logged to
-   the file named by FAKE_MINERU_LOG, one JSON line per call, so a test can see exactly what was run. This script never reads or
-   writes anything else.
+   the file named by FAKE_MINERU_LOG, one JSON line per call, so a test can see exactly what was run. An optional synthetic `finishSignal`
+   file holds parse completion until the test has observed the running window. No real configuration or material is read.
 
    Timing (all optional, in the state file): `perPageMs` per page, `overheadMs` per call, `firstCallMs` once (the model load of the first parse),
    `delayMs` flat; the parse record the service would show for the run is visible to `list parses --json [--status S]` while it runs
    when `trackParses: true` (`queueMs`: first "pending", then "parsing"; `idleParses: true`: the service never reports it; `listFails: true`: the command fails), and
    `device` is shown by `server status` and `config show` the way a CLI that exposes it would. `failStarts: [page, ...]` fails every window starting there.
    `server status --json` answers the way the real one is understood to (`workers.parse_running`, `parse_queue_length`, `parse_server.local.healthy|starting`; `unhealthy`, `starting`, `statusJsonFails`
-   shape it), and `slowFromPage` + `slowMs` make every window starting at or after that page take that much longer (QA). */
+   shape it), `probeDelayMs` delays each read-only status/list answer (busy CLI startup), and `slowFromPage` + `slowMs` make every window starting at or after that page take that much longer (QA). */
 
 const statePath = process.env.FAKE_MINERU_STATE, logPath = process.env.FAKE_MINERU_LOG;
 const state = JSON.parse(readFileSync(statePath, 'utf8'));
@@ -33,6 +33,8 @@ const SERVICE_DOWN = "错误: 本地 mineru 服务未运行。请先运行 'mine
 const needService = () => { if (state.configFails) fail('unexpected failure while reading the config', 2); if (state.running) return; if (state.errorOnStdout) { out(SERVICE_DOWN); process.exit(1); } fail(SERVICE_DOWN); };
 
 const [command, sub] = argv;
+if (state.probeDelayMs && ((command === 'server' && sub === 'status' && argv.includes('--json')) || (command === 'list' && sub === 'parses')))
+  await new Promise(resolve => setTimeout(resolve, state.probeDelayMs));
 if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
 else if (command === 'config' && sub === 'show') {
   needService();
@@ -104,7 +106,11 @@ else if (command === 'list' && sub === 'parses') {
     if (argv.includes('--json')) out(JSON.stringify({ status: 'done', pdf, pages, output }));
     process.exit(0);
   };
-  if (delay) setTimeout(finish, delay); else finish();
+  const finishWhenReleased = () => {
+    if (state.finishSignal && !existsSync(state.finishSignal)) { setTimeout(finishWhenReleased, 25); return; }
+    finish();
+  };
+  if (delay) setTimeout(finishWhenReleased, delay); else finishWhenReleased();
 } else if (command === '--tier') { // the separate model downloader: mineru-models-download --tier T
   out(`Downloading ${argv[1]} models ...`); out('50%');
   if (state.downloadFails) fail('network error while downloading');

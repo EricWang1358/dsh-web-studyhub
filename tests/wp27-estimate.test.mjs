@@ -36,6 +36,16 @@ test('an estimate has the DSH fields as ranges and never a price', () => {
   assert.doesNotMatch(JSON.stringify(result), /price|cost|usd|cny|rmb|currency|\$|¥|元/i);
 });
 
+test('mixed generation estimates keep explicit kind counts and the configured batch size', () => {
+  const args = { ...base, sourceIds: [note.id], count: 6, kindCounts: { quiz: 0, flashcard: 6 }, performance: { batchSize: 2 } };
+  const state = { sources: [note], decks: [], drafts: [], settings: { generation: { batchSize: 5 } } };
+  const publicEstimate = estimateFromState('generate', args, state);
+  const direct = estimateRun('generate', { ...args, sources: [note], existing: [] });
+  assert.deepEqual(publicEstimate.calls, direct.calls);
+  assert.deepEqual(publicEstimate.totalTokens, direct.totalTokens);
+  assert.equal(publicEstimate.calls.low, 10, 'one evidence call plus three stages for each of three flashcard batches');
+});
+
 test('question generation prices evidence per group and answer design, authoring and review per batch', () => {
   const sources = pdf(30);
   const result = estimateRun('generate', { ...base, sources });

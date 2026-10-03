@@ -1,4 +1,4 @@
-import { withQualityStages } from "./helpers/assessment.mjs";
+import { withQualityStages, qualityPlan, qualityBlueprint, authored, qualityReview } from "./helpers/assessment.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -447,4 +447,118 @@ test("PDF workflow guidance does not instruct repeated waits or external extract
   assert.ok(studyUsagePrompt.includes("PDF uses source.import"));
   assert.ok(libraryContracts.imports.includes("Lecture material always uses generate"));
   assert.ok(!text.includes("then call job.wait for each"));
+});
+
+// Model-stage fixtures keep every actual call visible to concurrency tests;
+// the compatibility fixture adapter combines answer/author calls internally.
+function batchStageModel(before = async () => {}) {
+  return async (system, prompt, context) => {
+    const stage = system.startsWith('Plan ') ? 'planning' : system.startsWith('Prepare supported') ? 'blueprinting'
+      : system.startsWith('You author') ? 'authoring' : 'reviewing';
+    const request = JSON.parse(stage === 'reviewing' ? prompt : prompt.split('REQUEST DATA:\n')[1]);
+    await before(stage, request, context);
+    if (stage === 'planning') return JSON.stringify(qualityPlan(request));
+    if (stage === 'reviewing') return JSON.stringify(qualityReview(request.candidate));
+    const deck = { title: 'Pipeline fixture', cards: request.assessmentPlan.targets.map((target, index) => ({
+      ...card(index + 1, request.kind), id: `q${index + 1}`, targetId: target.targetId,
+      prompt: `Explain the supported distinction for ${target.objective}`, objective: target.objective,
+    })) };
+    return JSON.stringify(stage === 'blueprinting' ? qualityBlueprint(request, request.assessmentPlan, deck)
+      : authored(deck, [], request.assessmentPlan));
+  };
+}
+
+const batchSources = () => Array.from({ length: 3 }, (_, index) => ({ id: `pipeline-${index}`, title: `Material ${index}`,
+  text: `Rule ${index} requires its stated condition before the corresponding action is valid.\n`.repeat(450) }));
+
+test('a verified first group checkpoints while the next serial plan is still waiting', { timeout: 5000 }, async () => {
+  let releasePlan, planStarted, checkpointed, plans = 0, released = false;
+  const slowPlan = new Promise(resolve => { releasePlan = () => { released = true; resolve(); }; });
+  const started = new Promise(resolve => { planStarted = resolve; });
+  const saved = new Promise(resolve => { checkpointed = resolve; });
+  const snapshots = [], reservations = [];
+  const pending = generateBatched(batchStageModel(async (stage, request) => {
+    if (stage === 'planning') {
+      reservations.push(request.existing);
+      if (++plans === 2) { planStarted(); await slowPlan; }
+    }
+  }), { sources: batchSources(), count: 6, kind: 'flashcard', performance: { concurrency: 2 } }, () => {}, async deck => {
+    snapshots.push(structuredClone(deck)); checkpointed();
+  });
+  try {
+    await started; await saved;
+    assert.equal(released, false, 'first reviewed output cannot wait for all source groups');
+    assert.equal(snapshots[0].cards.length, 2);
+    assert.equal(reservations[1].length, 2, 'the later plan sees every earlier reserved objective');
+  } finally { releasePlan(); }
+  const result = await pending;
+  assert.equal(result.cards.length, 6);
+  for (const initial of snapshots[0].cards) assert.ok(result.cards.some(item => item.id === initial.id));
+  assert.deepEqual(result.editorial.audits.map(item => item.part), [1, 2, 3]);
+});
+
+test('planning and dependent stages share concurrency 1, 2 and 6, with serialized checkpoints', { timeout: 5000 }, async t => {
+  for (const concurrency of [1, 2, 6]) await t.test(String(concurrency), async () => {
+    let active = 0, peak = 0, saving = 0, savePeak = 0;
+    const stages = new Set();
+    const model = batchStageModel(async stage => {
+      stages.add(stage); active++; peak = Math.max(peak, active);
+      await new Promise(resolve => setTimeout(resolve, 3)); active--;
+    });
+    const result = await generateBatched(model,
+      { sources: batchSources(), count: 12, kind: 'flashcard', performance: { concurrency, batchSize: 1 } }, () => {}, async () => {
+        saving++; savePeak = Math.max(savePeak, saving);
+        await new Promise(resolve => setTimeout(resolve, 1)); saving--;
+      });
+    assert.equal(result.cards.length, 12);
+    assert.equal(peak, concurrency, 'the budget applies to planning as well as blueprint/author/review');
+    assert.equal(savePeak, 1);
+    assert.deepEqual([...stages], ['planning', 'blueprinting', 'authoring', 'reviewing']);
+  });
+});
+
+test('batch sizes 1, 2 and 5 preserve mixed kind counts and stable reviewed identities', async t => {
+  for (const batchSize of [1, 2, 5]) await t.test(String(batchSize), async () => {
+    const request = { sources: [source], count: 7, kind: 'mixed', kindCounts: { quiz: 4, flashcard: 3 },
+      performance: { concurrency: 2, batchSize } };
+    const parts = planGeneration(request), saved = [];
+    assert.ok(parts.every(part => part.count <= batchSize));
+    const result = await generateBatched(batchStageModel(), request, () => {}, async deck => saved.push(structuredClone(deck)));
+    assert.equal(result.cards.filter(item => item.kind === 'quiz').length, 4);
+    assert.equal(result.cards.filter(item => item.kind === 'flashcard').length, 3);
+    assert.equal(result.editorial.parts, parts.length);
+    for (const snapshot of saved) for (const item of snapshot.cards) {
+      assert.ok(result.cards.some(final => final.id === item.id));
+      assert.ok(result.editorial.reviewedCards[item.id]);
+    }
+    assert.equal(saved.length, parts.length * 2, 'protected and completed checkpoint states both remain');
+  });
+});
+
+test('cancellation removes queued model calls before they can reach the provider', { timeout: 5000 }, async () => {
+  const controller = new AbortController();
+  let calls = 0, release, entered;
+  const blocked = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { entered = resolve; });
+  const pending = generateBatched(batchStageModel(async stage => {
+    calls++;
+    if (stage === 'blueprinting') { entered(); await blocked; }
+  }), { sources: batchSources(), count: 6, kind: 'flashcard', signal: controller.signal,
+    performance: { concurrency: 1, batchSize: 1 } });
+  await started;
+  assert.equal(calls, 2, 'one plan and the first answer call entered; other calls are queued');
+  controller.abort(new Error('cancel queued work')); release();
+  await assert.rejects(pending, /cancel queued work/);
+  assert.equal(calls, 2, 'no queued answer, author or review call starts after cancellation');
+});
+
+test('a later planning failure preserves the earlier independently reviewed checkpoint', async () => {
+  const saved = [];
+  const result = await generateBatched(batchStageModel(async (stage, request) => {
+    if (stage === 'planning' && request.sources[0].id === 'pipeline-1') throw new Error('unsupported second group');
+  }), { sources: batchSources(), count: 6, kind: 'flashcard', performance: { concurrency: 2 } }, () => {}, async deck => saved.push(deck));
+  assert.equal(result.cards.length, 4);
+  assert.match(result.editorial.failures.join('; '), /unsupported second group/);
+  assert.ok(saved.some(deck => deck.cards.length > 0));
+  assert.deepEqual(result.editorial.audits.map(item => item.part), [1, 3]);
 });

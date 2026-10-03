@@ -1078,8 +1078,9 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   assert.equal(first.steps.length, 12);
   assert.ok(first.steps.every((step) => step.status === "complete" && step.startedAt && step.finishedAt));
   assert.match(first.steps[0].stage, /Planning evidence/);
-  assert.ok(first.steps.slice(0, 3).every((step) => step.stage.includes("Planning evidence")));
-  assert.match(first.steps[3].stage, /Preparing supported answers and scenarios/);
+  assert.equal(first.steps.filter(step => step.stage.includes("Planning evidence")).length, 3);
+  assert.ok(first.steps.findIndex(step => step.stage.includes("Preparing supported answers and scenarios")) <
+    first.steps.findLastIndex(step => step.stage.includes("Planning evidence")), 'verified parts start before every group has been planned');
   assert.equal(first.steps.filter(step => step.stage.includes('Preparing supported answers and scenarios')).length, 3);
   assert.equal(first.steps.filter(step => step.stage.includes('Writing and self-checking questions')).length, 3);
   const second = await service.call("job.wait", { jobId: cards.jobId });
