@@ -317,6 +317,22 @@ test("background help grades in mode 'grade' through the same commit", async (t)
   assert.ok((await service.store.read()).attempts.some((item) => item.assessment === "rubric" && item.runId === run.id));
 });
 
+test("case exam timing preserves the valid pace and reading time saved in its course profile", async t => {
+  const { service } = await library(t);
+  for (const minutesPerMark of [0.25, 15]) {
+    await service.call("course.save", { name: "Cloud Native", exam: { format: "open-book-case", minutesPerMark, readingMinutes: 90 } });
+    const profile = await service.call("course.profile", { name: "Cloud Native" });
+    const run = await service.call("review.start", { mode: "exam", examKinds: "case", deckId: "orchard", fresh: true,
+      paper: { minutesPerMark: profile.exam.minutesPerMark, readingMinutes: profile.exam.readingMinutes } });
+    assert.equal(run.paper.minutesPerMark, minutesPerMark, "a valid course pace must not silently become 3 minutes per mark");
+    assert.equal(run.paper.readingMinutes, 90, "a valid course reading period must not become the short default");
+    assert.equal(run.paper.writingMinutes, 10 * minutesPerMark);
+    assert.equal(run.paper.limitMs, (90 + run.paper.writingMinutes + 2) * 60000);
+    const stored = (await service.store.read()).runs.find(item => item.id === run.id);
+    assert.deepEqual(stored.paper, run.paper, "actual exam timing uses the same chosen values");
+  }
+});
+
 test("a case paper is an exam run with its own time limit, typed answers, highlights, pacing and a per-question report", async (t) => {
   const { service } = await library(t);
   const run = await service.call("review.start", { mode: "exam", examKinds: "case", scope: [{ deckId: "orchard" }], fresh: true,

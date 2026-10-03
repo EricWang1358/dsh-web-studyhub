@@ -176,7 +176,8 @@ test('the stats section lists the features that have usage, in the order of the 
   assert.match(body, /输出 9,000 tok/);
   assert.match(html, /aria-pressed="true"[^>]*>近 7 天</);
   assert.match(html, />近 30 天</);
-  assert.match(body, /音频转录/, 'transcription minutes live on the audio page');
+  assert.match(body, /音频转写按分钟计，不在这里；见「音频转写」页的「用量与额度」/, 'transcription minutes live on the audio page');
+  assert.match(html, />打开音频转写</, 'the link uses the current audio page name');
   assert.doesNotMatch(html, /[¥$￥]|价格|费用/);
   setUiLanguage('en');
   const english = text(render(React.createElement(ModelUsageView, { state: { status: 'ready', summary: summary(30) }, days: 30, onDays() {}, onAudio() {} })));

@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createStudyRuntime } from '../lib/runtime/builtins.js';
 
 // Exercise the components' event handlers and effect lifetimes without a DOM renderer.
 // The separate public-UI browser check covers layout and the native file input.
@@ -10,6 +14,7 @@ let active;
 const realRequire = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export { BackupSection } from './ui/Settings.jsx';
+  export { default as CourseSettings } from './ui/CourseSettings.jsx';
   export { default as ExtensionsSettings } from './ui/ExtensionsSettings.jsx';
   export { DisplaySettings } from './ui/reading-settings/ReadingSettings.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
@@ -25,10 +30,13 @@ const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = hook(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
   useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `test-${active.cursor}`)[1],
+  useMemo: (create, deps) => { const [, slot] = hook(() => ({ deps: undefined, value: undefined }));
+    if (!slot.deps || !deps || deps.some((value, i) => value !== slot.deps[i])) { slot.value = create(); slot.deps = deps; }
+    return slot.value; },
   useEffect: effect, useLayoutEffect: effect,
 };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : realRequire(name), module, module.exports);
-const { BackupSection, ExtensionsSettings, DisplaySettings } = module.exports;
+const { BackupSection, CourseSettings, ExtensionsSettings, DisplaySettings } = module.exports;
 function renderHook(component, props) {
   const owner = { cursor: 0, slots: [], effects: [] };
   return {
@@ -49,6 +57,54 @@ const file = (name, read) => ({ name, size: state.length, text: read || (() => P
 const backup = () => renderHook(BackupSection, { root: '/temporary/library', busy: false, act() {}, exportData() {} });
 const inputOf = tree => find(tree, node => node.type === 'input' && node.props.type === 'file');
 const chosenOf = tree => find(tree, node => node.type?.name === 'RestorePreview')?.props.file;
+
+async function mergePanel(t) {
+  const root = await mkdtemp(join(tmpdir(), 'course-profile-panel-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const runtime = createStudyRuntime(root);
+  t.after(() => runtime.dispose());
+  await runtime.call('source.add', { id: 'guide-a', title: 'Guide A', text: 'Examiner A guidance.' });
+  await runtime.call('source.add', { id: 'guide-b', title: 'Guide B', text: 'Examiner B guidance.' });
+  const target = await runtime.call('course.save', { name: 'Target', guidanceSourceIds: ['guide-a'], focusTopics: ['Target topic'] });
+  const from = await runtime.call('course.save', { name: 'Duplicate', guidanceSourceIds: ['guide-b'], focusTopics: ['Merged topic'],
+    exam: { format: 'closed-book', totalMarks: 100, writingMinutes: 90, readingMinutes: 0 } });
+  let data = await runtime.call('snapshot');
+  const view = renderHook(CourseSettings, { data, courseId: target.id, mergeFrom: [from.id], onClose() {},
+    act: async (action, args, done) => { const result = await runtime.call(action, args); data = await runtime.call('snapshot'); await done?.(result); } });
+  return { runtime, target, view, render: () => view.render({ data }) };
+}
+
+test('saving a course after merging preserves the merged exam, focus topics and examiner guidance', async t => {
+  const { runtime, target, render } = await mergePanel(t);
+  await find(render(), node => node.props?.children === '确认合并').props.onClick();
+  const merged = render();
+  assert.equal(find(merged, node => node.props?.['aria-label'] === '重点知识点').props.value, 'Target topic; Merged topic');
+  assert.equal(find(merged, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.value, '100');
+  await find(merged.props.footer, node => node.props?.children === '保存课程信息').props.onClick();
+  const saved = await runtime.call('course.get', { id: target.id });
+  assert.deepEqual(saved.guidanceSourceIds, ['guide-a', 'guide-b']);
+  assert.deepEqual(saved.focusTopics, ['Target topic', 'Merged topic']);
+  assert.deepEqual(saved.exam, { format: 'closed-book', totalMarks: 100, writingMinutes: 90, readingMinutes: 0, sections: [] });
+});
+
+test('merging course profiles keeps pending local edits while adding the newly merged topics and guidance', async t => {
+  const { runtime, target, render } = await mergePanel(t);
+  const initial = render();
+  find(initial, node => node.props?.['aria-label'] === '重点知识点').props.onChange({ target: { value: 'Local topic' } });
+  find(initial, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.onChange('45');
+  find(initial, node => node.type?.name === 'SourcePicker').props.onChange([]);
+  await find(render(), node => node.props?.children === '确认合并').props.onClick();
+  const merged = render();
+  assert.equal(find(merged, node => node.props?.['aria-label'] === '重点知识点').props.value, 'Local topic; Merged topic');
+  assert.equal(find(merged, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.value, '45');
+  await find(merged.props.footer, node => node.props?.children === '保存课程信息').props.onClick();
+  const saved = await runtime.call('course.get', { id: target.id });
+  assert.deepEqual(saved.guidanceSourceIds, ['guide-b'], 'a deliberate local deselection is not restored by the merge');
+  assert.deepEqual(saved.focusTopics, ['Local topic', 'Merged topic']);
+  assert.equal(saved.exam.totalMarks, 45);
+  assert.equal(saved.exam.writingMinutes, 90);
+  assert.equal(saved.exam.format, 'closed-book');
+});
 
 test('the most recently selected backup owns the preview, even when an older file reads last', async () => {
   const view = backup(), old = deferred(), input = inputOf(view.render());

@@ -158,6 +158,47 @@ test('a concrete answer correction keeps valid items while unsupported answers r
   assert.match(result.omitted[0].reason, /concrete answer|answer is required/);
 });
 
+test('a focused answer correction cannot erase the valid answer already prepared for another target', async () => {
+  const req = { ...request, count: 2 }, plan = qualityPlan(req), input = candidate();
+  input.cards.push({ ...structuredClone(card), id: 'q2', answer: 'A second concrete answer' });
+  const first = qualityBlueprint(req, plan, input); first.items[1].answer = '';
+  const second = { items: first.items.map(item => ({ ...item, answer: '' })) };
+  const replies = [first, second], prompts = [];
+  const result = await blueprintAssessment(async (_system, prompt) => { prompts.push(prompt); return replies.shift(); }, req, plan);
+  assert.deepEqual(result.items, [first.items[0]]);
+  assert.equal(result.omitted[0].targetId, 'target-2');
+  assert.match(prompts[1], new RegExp(first.items[0].answer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    'the focused correction includes the concrete answer that is already valid');
+});
+
+test('an honest answer-stage refusal preserves the answer that already passed structural checks', async () => {
+  const req = { ...request, count: 2 }, plan = qualityPlan(req), input = candidate();
+  input.cards.push({ ...structuredClone(card), id: 'q2', answer: 'A second answer' });
+  const first = qualityBlueprint(req, plan, input); first.items[1].answer = '';
+  const replies = [first, { error: 'No supported answer is available for the remaining target.' }];
+  const result = await blueprintAssessment(async () => replies.shift(), req, plan);
+  assert.deepEqual(result.items, [first.items[0]]);
+  assert.equal(result.omitted[0].targetId, 'target-2');
+  assert.match(result.omitted[0].reason, /No supported answer is available/);
+});
+
+test('a known-card rewrite may reorder candidates without moving a binding rejection onto a sound question', async () => {
+  const req = { ...request, count: 2 }, plan = qualityPlan(req), input = candidate();
+  input.cards[0].targetId = 'target-1';
+  input.cards.push({ ...structuredClone(card), id: 'missing-target', prompt: 'A different question?', objective: 'Another target' });
+  const blueprint = qualityBlueprint(req, plan, input);
+  const result = await generateDeck(async (system, prompt) => {
+    if (system.startsWith('Plan')) return JSON.stringify(plan);
+    if (system.startsWith('Prepare supported answers')) return JSON.stringify(blueprint);
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify({ deck: input, changes: [], checks: [] });
+  }, { ...req, preReview: async ({ draft }) => ({ draft: { ...draft, cards: [...draft.cards].reverse() } }) });
+  assert.equal(result.cards.length, 1);
+  assert.equal(result.cards[0].targetId, 'target-1');
+  assert.equal(result.cards[0].prompt, card.prompt);
+  assert.equal(result.editorial.omitted[0].prompt, 'A different question?');
+});
+
 test('a rewrite of a known card keeps its original evidence binding by id even when the replacement omits targetId', async () => {
   const input = candidate(), plan = qualityPlan(request), replies = [plan, qualityBlueprint(request, plan, input), authored(input)];
   const result = await generateDeck(async (system, prompt) => {

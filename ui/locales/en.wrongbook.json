@@ -43,7 +43,7 @@
   "一次最多 {0} 题 · 约 1 次轻量模型调用/题": "Up to {0} per batch · about 1 light model call per question",
   "先确认是否备变式题": "Confirm variant generation",
   "要让 AI 为错题备变式题吗？": "Let AI prepare variant questions for your mistakes?",
-  "生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在 设置 › 陪学 里关闭。": "Generating variants makes a few light model calls in the background: about one per question, rewritten from your original question and its source quote. Finished questions go into \"Personalised\". You can turn this off any time in Settings › Coach.",
+  "生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在「设置 › 学习画像与导览」里的「陪学」关闭。": "Generating variants makes a few light model calls in the background: about one per question, rewritten from your original question and its source quote. Finished questions go into \"Personalised\". Turn this off under Study coach in Settings › Study profile and tour.",
   "同意并生成": "Agree and generate",
   "暂不": "Not now",
   "已开始为 {0} 道题生成变式，通常一两分钟；写好后这里会出现「去练」。": "Started generating variants for {0} questions. It usually takes a minute or two; \"Practise\" appears here when they are ready.",

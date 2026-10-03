@@ -310,7 +310,7 @@ export function WrongBookView({
       {ask && canGenerate && (
         <div className="wb-consent" ref={consentRef} role="group" aria-label={ui("先确认是否备变式题")}>
           <strong>{ui("要让 AI 为错题备变式题吗？")}</strong>
-          <p>{ui("生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在 设置 › 陪学 里关闭。")}</p>
+          <p>{ui("生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在「设置 › 学习画像与导览」里的「陪学」关闭。")}</p>
           <div className="wb-consent-actions">
             <Button variant="secondary" icon="sparkle" busy={working} disabled={!ask.cards.length}
               onClick={() => run(ask.cards, true)}>{ui("同意并生成")}</Button>

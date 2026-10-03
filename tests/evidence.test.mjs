@@ -74,3 +74,75 @@ test('a malformed evidence target list receives its focused correction instead o
     /Assessment plan is not usable: Return 1–1 supported targets/);
   assert.equal(calls, 2);
 });
+
+test('an evidence correction cannot erase knowledge whose original quote already passed verification', async () => {
+  const first = { targets: [
+    { objective: 'Identify the code scan action', knowledge: 'The scan identifies inefficient regions.',
+      citations: [{ sourceId: source.id, quote: '扫描代码效率\n\t\t\t识别低效区域\n\t\t\t优化建议' }] },
+    { objective: 'Identify a cache effect', knowledge: 'Cache hits reduce processing time.',
+      citations: [{ sourceId: source.id, quote: '缓存命中率提升，减少服务时间' }] },
+  ] };
+  const responses = [first, { targets: [first.targets[1]] }], prompts = [];
+  const result = await planAssessment(async (_system, prompt) => { prompts.push(prompt); return responses.shift(); },
+    { count: 2, sources: [source], existing: [] }, { salvage: true });
+  assert.equal(result.targets.length, 1);
+  assert.deepEqual(result.targets[0].citations, first.targets[0].citations);
+  assert.equal(result.targets[0].objective, first.targets[0].objective);
+  assert.equal(result.dropped.length, 1);
+  assert.equal(result.dropped[0].index, 1, 'the missing knowledge point keeps its original target slot');
+  assert.match(prompts[1], /Identify the code scan action/, 'the correction sees the already verified evidence it must keep');
+});
+
+test('a narrower corrected knowledge point can fill its failed slot while the verified point stays unchanged', async () => {
+  const valid = { objective: 'Identify the scan action', knowledge: 'The scan identifies inefficient regions.',
+    citations: [{ sourceId: source.id, quote: '扫描代码效率\n\t\t\t识别低效区域\n\t\t\t优化建议' }] };
+  const unsupported = { objective: 'List unsupported effects', knowledge: 'An unsupported claim.',
+    citations: [{ sourceId: source.id, quote: 'Another invented claim that does not occur in these notes.' }] };
+  const narrowed = { objective: 'Identify the stated cache effect', knowledge: 'Cache hits reduce processing time.',
+    citations: [{ sourceId: source.id, quote: '缓存命中率提升，减少处理时间' }] };
+  const replies = [{ targets: [valid, unsupported] }, { targets: [narrowed] }];
+  const result = await planAssessment(async () => replies.shift(), { count: 2, sources: [source], existing: [] }, { salvage: true });
+  assert.deepEqual(result.targets.map(target => target.targetId), ['target-1', 'target-2']);
+  assert.deepEqual(result.targets.map(target => target.objective), [valid.objective, narrowed.objective]);
+  assert.deepEqual(result.targets[0].citations, valid.citations);
+  assert.equal(result.dropped?.length || 0, 0);
+});
+
+test('an honest no-more-evidence reply preserves a previously verified knowledge point', async () => {
+  const valid = { objective: 'Identify the code scan action', knowledge: 'The scan identifies inefficient regions.',
+    citations: [{ sourceId: source.id, quote: '扫描代码效率\n\t\t\t识别低效区域\n\t\t\t优化建议' }] };
+  const first = { targets: [valid, { ...valid, objective: 'An unsupported extension', citations: [{ sourceId: source.id, quote: 'This new extension was not in the original selected material.' }] }] };
+  const replies = [first, { error: 'No additional point has supporting original text.' }];
+  const result = await planAssessment(async () => replies.shift(), { count: 2, sources: [source] }, { salvage: true });
+  assert.equal(result.targets.length, 1);
+  assert.equal(result.targets[0].objective, valid.objective);
+  assert.match(result.dropped[0].issues.join(), /No additional point/);
+});
+
+test('invalid new targets cannot consume the slot of a corrected known target in either reply order', async t => {
+  const valid = { objective: 'Identify the scan action', knowledge: 'The scan identifies inefficient regions.',
+    citations: [{ sourceId: source.id, quote: '扫描代码效率\n\t\t\t识别低效区域\n\t\t\t优化建议' }] };
+  const pending = { objective: 'Identify the cache effect', knowledge: 'Cache hits reduce processing time.', citations: [] };
+  const corrected = { ...pending, citations: [{ sourceId: source.id, quote: '缓存命中率提升，减少处理时间' }] };
+  const invalidNew = { objective: 'Another unsupported extension', knowledge: 'An invented effect.', citations: [] };
+  for (const [label, targets] of [['invalid first', [invalidNew, corrected]], ['invalid last', [corrected, invalidNew]]]) {
+    await t.test(label, async () => {
+      let calls = 0;
+      const replies = [{ targets: [valid, pending] }, { targets }];
+      const result = await planAssessment(async () => { calls++; return replies.shift(); }, { count: 2, sources: [source] }, { salvage: true });
+      assert.equal(calls, 2);
+      assert.deepEqual(result.targets.map(target => target.targetId), ['target-1', 'target-2']);
+      assert.deepEqual(result.targets.map(target => target.objective), [valid.objective, pending.objective]);
+      assert.deepEqual(result.targets[0].citations, valid.citations);
+      assert.deepEqual(result.targets[1].citations, corrected.citations);
+      assert.equal(result.dropped?.length || 0, 0);
+    });
+  }
+  await t.test('a known corrected target keeps priority over a valid new alternative', async () => {
+    const alternative = { ...corrected, objective: 'A new alternative about cache processing time' };
+    const replies = [{ targets: [valid, pending] }, { targets: [alternative, corrected] }];
+    const result = await planAssessment(async () => replies.shift(), { count: 2, sources: [source] }, { salvage: true });
+    assert.deepEqual(result.targets.map(target => target.targetId), ['target-1', 'target-2']);
+    assert.deepEqual(result.targets.map(target => target.objective), [valid.objective, pending.objective]);
+  });
+});

@@ -198,6 +198,17 @@ test('documented shortcuts are keyed from the key and the page, and only where t
 
 /* ---------- the collector ---------- */
 
+test('P counts inside the reader dialog, but not on Sources, in editors or in unrelated dialogs', () => {
+  const press = target => m.shortcutKeyFor({ key: 'p', target });
+  const reader = dom('<dialog><div data-usage-area="reader" data-mode="reading"><p>Page</p><input></div></dialog>');
+  assert.equal(press(reader.byTag('p')[0]), 'shortcut.practice');
+  assert.equal(press(reader.byTag('input')[0]), null);
+  assert.equal(press(dom('<main data-usage-area="sources"><p>List</p></main>').byTag('p')[0]), null);
+  assert.equal(press(dom('<dialog><p>Confirm</p></dialog>').byTag('p')[0]), null);
+  assert.equal(press(dom('<dialog><div data-usage-area="reader" data-mode="original"><p>PDF</p></div></dialog>').byTag('p')[0]), null);
+  assert.equal(m.shortcutKeyFor({ key: 's', target: reader.byTag('p')[0] }), null, 'global shortcuts do not act inside the reader dialog');
+});
+
 const day = '2026-10-03';
 const clock = () => { let at = new Date(`${day}T12:00:00`).getTime(); return { now: () => at, advance: ms => { at += ms; } }; };
 

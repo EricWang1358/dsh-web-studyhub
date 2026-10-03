@@ -25,7 +25,7 @@ export const NAV_DEFAULTS = Object.freeze({
 export const NAV_GROUPS = Object.freeze([
   { id: "daily", label: "每天", hint: "每天都会用：今日学习、加资料、出题、错题、学习流、笔记、待办", collapsible: false },
   { id: "periodic", label: "阶段性", hint: "隔一阵用一次：模拟考试、统计", collapsible: true },
-  { id: "setup", label: "课程准备与管理", hint: "每门课开头做一次或按需用：知识骨架、录音转写、课堂实录", collapsible: true },
+  { id: "setup", label: "课程准备与管理", hint: "每门课开头做一次或按需用：知识骨架、音频转写、课堂实录", collapsible: true },
 ]);
 const HOLD_MS = 350; // the item lifts only after this long, so an ordinary click or a slip never reorders
 const SLOP = 6; // moving further than this before the hold ends means the press was something else

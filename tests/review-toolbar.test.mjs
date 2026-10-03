@@ -82,7 +82,7 @@ test("the More menu has 出前置题… next to 修题 (only when the page can s
   setUiLanguage("en");
   try {
     const english = render({ feedback: null }, { onDerive() {} });
-    assert.match(english, />Make a prerequisite question…</);
+    assert.match(english, />Generate a prerequisite question…</);
     assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
   } finally { setUiLanguage("zh"); }
 });

@@ -157,6 +157,18 @@ test("open runs sync the English like any other fix: no answer reset, answer sid
   assert.ok(graded.solution.translation.options.find((o) => o.id === "a").explanation);
 });
 
+test("editing a translated question hides its stale English before the next translation request", async t => {
+  const { service } = await library(t, async () => JSON.stringify(enFor(flashcard())));
+  await service.call('card.translate', { deckId: 'd1', cardId: 'f1' });
+  const run = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'd1', cardId: 'f1' }] });
+  assert.ok(run.card.translation);
+  await service.call('card.update', { deckId: 'd1', cardId: 'f1', patch: { explanation: 'Updated explanation.' }, reason: 'clarify' });
+  const updated = await service.call('review.get', { runId: run.id });
+  assert.equal(updated.card.translation, undefined, 'the English toggle must see that a fresh translation is needed');
+  await service.call('review.reveal', { runId: run.id, cardId: 'f1' });
+  assert.equal((await service.call('review.get', { runId: run.id })).solution.translation, undefined);
+});
+
 test("cloze translations must keep every {{id}} marker; a bad reply gets one corrective retry", async (t) => {
   let calls = 0;
   const { service } = await library(t, async () => {

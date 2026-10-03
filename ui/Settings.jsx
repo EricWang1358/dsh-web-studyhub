@@ -14,6 +14,7 @@ import { UpdateSettingsPanel } from './UpdateCenter.jsx';
 import { Button, Dialog, Icon, InlineMessage, SegmentedControl, formatBytes } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { previewSchedule } from '../lib/sm2.js';
+import { syncScheduleSettings } from './schedule-settings.js';
 import css from './settings.css';
 
 const GOALS = [["", "未设定"], ["exam", "应付考试"], ["interview", "面试求职"], ["work", "工作中落地"], ["explore", "兴趣拓展"]];
@@ -141,15 +142,48 @@ function SchedulePreview({ good, hard }) {
 }
 
 /** SM-2 parameters: one compact row of number fields, a live preview and save/undo. */
-export function ScheduleSection({ settings = {}, saved = {}, setSettings, act, busy, setNotice }) {
-  const dirty = SM2_FIELDS.some(([key]) => Number(settings[key]) !== Number(saved?.[key]));
+export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, act, busy, setNotice }) {
+  const savedKey = JSON.stringify(numbers(saved));
+  const [baseline, setBaseline] = useState(() => numbers(saved));
+  const [working, setWorking] = useState(false), [error, setError] = useState('');
+  const previousSaved = useRef({ root, key: savedKey, values: numbers(saved) });
+  const scope = useRef({ root, live: true }), pending = useRef(null);
+  useEffect(() => {
+    const owner = { root, live: true }; scope.current = owner; pending.current = null;
+    setWorking(false); setError('');
+    return () => { owner.live = false; };
+  }, [root]);
+  useEffect(() => {
+    const before = previousSaved.current;
+    if (before.root === root && before.key === savedKey) return;
+    const incoming = JSON.parse(savedKey);
+    previousSaved.current = { root, key: savedKey, values: incoming };
+    setBaseline(incoming);
+    setSettings(current => before.root === root ? syncScheduleSettings(current, before.values, incoming) : { ...current, ...incoming });
+  }, [root, savedKey, setSettings]);
+  const dirty = SM2_FIELDS.some(([key]) => Number(settings[key]) !== baseline[key]);
   const current = numbers(settings);
   const good = previewSchedule(current, { grade: 4, reviews: 6 }), hard = good && previewSchedule(current, { grade: 3, reviews: 6 });
+  const save = async event => {
+    event.preventDefault();
+    if (busy || pending.current || !dirty || !good) return;
+    const changes = Object.fromEntries(SM2_FIELDS.filter(([key]) => current[key] !== baseline[key]).map(([key]) => [key, current[key]]));
+    const owner = scope.current, operation = {};
+    pending.current = operation; setWorking(true); setError('');
+    const isCurrent = () => owner.live && owner.root === root && scope.current === owner && pending.current === operation;
+    try {
+      await act('settings', changes, (result, context) => {
+        if (!isCurrent() || context?.isCurrent?.() === false) return;
+        const next = numbers(result);
+        setBaseline(next);
+        setSettings(previous => syncScheduleSettings(previous, current, next));
+        setNotice?.({ text: ui('复习调度已保存'), tone: 'success' });
+      }, { rethrow: true });
+    } catch (cause) { if (isCurrent()) setError(cause?.message || String(cause)); }
+    finally { if (isCurrent()) { pending.current = null; setWorking(false); } }
+  };
   return (
-    <form className="settings-form" onSubmit={(e) => {
-      e.preventDefault();
-      act("settings", settings, () => setNotice?.({ text: ui("复习调度已保存"), tone: "success" }));
-    }}>
+    <form className="settings-form" onSubmit={save}>
       <fieldset className="settings-section sm2-settings">
         <legend className="settings-section__title">{ui("间隔复习 · SM-2")}</legend>
         <p className="settings-section__lead">{ui("答对时，下一次复习的间隔逐次拉长；答错时回到 1 天。")}</p>
@@ -158,16 +192,17 @@ export function ScheduleSection({ settings = {}, saved = {}, setSettings, act, b
             <span>{ui(label)}</span>
             <span className="sm2-input">
               <input type="number" required min={min} max="365" step={step} value={settings[key] ?? ""} disabled={busy}
-                onChange={(e) => setSettings({ ...settings, [key]: Number(e.target.value) })} />
+                onChange={(e) => { const value = Number(e.target.value); setError(''); setSettings(current => ({ ...current, [key]: value })); }} />
               {unit && <span className="sm2-unit">{ui(unit)}</span>}
             </span>
           </label>)}
         </div>
         <p className="settings-section__note">{ui("熟练系数越大，间隔增长越快；答得吃力时会下降，但不低于最低系数。")}</p>
         <SchedulePreview good={good} hard={hard} />
+        {error && <p className="settings-section__note" role="alert">{error}</p>}
         <div className="settings-actions">
-          <Button type="submit" variant="primary" disabled={busy || !dirty}>{ui("保存复习设置")}</Button>
-          <Button variant="quiet" disabled={busy || !dirty} onClick={() => setSettings({ ...saved })}>{ui("撤销未保存修改")}</Button>
+          <Button type="submit" variant="primary" busy={working} disabled={busy || !dirty || !good}>{ui("保存复习设置")}</Button>
+          <Button variant="quiet" disabled={busy || working || !dirty} onClick={() => { setError(''); setSettings(current => ({ ...current, ...baseline })); }}>{ui("撤销未保存修改")}</Button>
         </div>
       </fieldset>
     </form>
@@ -437,7 +472,7 @@ export default function Settings({
       case "mineru": return capabilities.audio ? <MineruSettings busy={busy} call={call} setNotice={setNotice} /> : null;
       case "retrieval": return capabilities.generation ? <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} /> : null;
       case "profile": return <>{onboardingPanel}{profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}</>;
-      case "data": return <>{legacyPanel}<ScheduleSection settings={settings} saved={data.settings} setSettings={setSettings} act={act} busy={busy} setNotice={setNotice} /><BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} /></>;
+      case "data": return <>{legacyPanel}<ScheduleSection key={data.root} root={data.root} settings={settings} saved={data.settings} setSettings={setSettings} act={act} busy={busy} setNotice={setNotice} /><BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} /></>;
       case "update": return <UpdateSettingsPanel call={call} host={host} notify={setNotice} />;
       case "usage": return capabilities.system ? <UsageSettings call={call} busy={busy} setNotice={setNotice} /> : null;
       case "experimental": return capabilities.system ? (

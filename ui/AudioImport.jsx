@@ -376,10 +376,12 @@ export function preflightNotes(files, checks = {}, confirmed = new Set()) {
     else if (check.checking) notes[file.key] = { kind: 'checking', text: ui('正在检查…') };
     else if (check.blocked) notes[file.key] = { kind: 'blocked', text: uiMessage(check.issue?.message || ui('这个文件不能导入')) };
     else if (check.issue?.code === 'long-split') {
-      const { minutes, parts, requests } = check.issue;
+      const { minutes, parts, requests, partMinutes } = check.issue;
       notes[file.key] = confirmed.has(file.key)
         ? { kind: 'split-confirmed', text: uiFormat('将无损分成 {0} 段转写（占用 {1} 次请求）', [parts, requests ?? parts]) }
-        : { kind: 'split', text: uiFormat('约 {0} 分钟，超过单次 1 小时上限 → 无损分成 {1} 段转写（占用 {2} 次请求）', [minutes, parts, requests ?? parts]) };
+        : { kind: 'split', text: Number.isFinite(partMinutes)
+          ? uiFormat('约 {0} 分钟，按每次最多 {1} 分钟 → 无损分成 {2} 段转写（占用 {3} 次请求）', [minutes, partMinutes, parts, requests ?? parts])
+          : uiFormat('约 {0} 分钟 → 无损分成 {1} 段转写（占用 {2} 次请求）', [minutes, parts, requests ?? parts]) };
     } else if (blocker) notes[file.key] = { kind: 'held', text: uiFormat('因「{0}」未通过预检尚未开始', [blocker.name]) };
     else if (pending) notes[file.key] = { kind: 'waiting', text: uiFormat('等待「{0}」处理', [pending.name]) };
     else notes[file.key] = { kind: 'ok', text: check.seconds ? uiFormat('约 {0} 分钟 · {1} 次转写请求', [Math.max(1, Math.round(check.seconds / 60)), check.requests || 1]) : ui('可以导入') };
@@ -631,7 +633,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
       <strong>{ui("音频 / 录音 → 中英对照逐字稿")}</strong>
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
         <button type="button" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</button></p>}
-      <p className="muted">{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「生成」里另选。")}</p>
+      <p className="muted">{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</p>
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${[...EXTENSIONS, ...SUBTITLES].join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings}

@@ -350,14 +350,22 @@
 /* ---------- creating a case set ---------- */
 .case-create {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
+  overflow-wrap: anywhere;
 }
 .case-create fieldset {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   border: 0;
   padding: 0;
   margin: 0;
+}
+:is(.study-app, .study-seat) .case-create button {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
 }
 .case-create legend {
   font-weight: 600;

@@ -160,7 +160,7 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
           <Button variant="secondary" size="sm" disabled={busy || !!working} onClick={onPause}>{status.paused ? ui('继续记录') : ui('暂停记录')}</Button>
         </div>
       )}
-      {(state === 'on' || state === 'paused' || state === 'off-data') && (
+      {status.hasData && (
         <details className="usage-report" onToggle={event => onReportToggle?.(event.currentTarget.open)}>
           <summary className="usage-report__summary">{ui('我的使用报告')}</summary>
           {report ? <UsageReportView report={report} period={period} onPeriod={onPeriod} language={language} />

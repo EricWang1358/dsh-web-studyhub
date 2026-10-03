@@ -228,6 +228,19 @@ test("创建题组 offers 案例分析题, and its form starts with the course, 
   assert.match(render(Generate, { ...props, genSource: "case", data: { ...props.data, model: { ready: false, reason: "no-route" } } }), /先配置一个 AI 模型/);
 });
 
+test("case creation honours the saved output language independently of the interface language", () => {
+  const props = { data: { ...data, settings: { generation: { language: "English" } } }, genSource: "case", busy: false,
+    act: noop, call: async () => ({}), setNotice: noop, setPage: noop, setGenSource: noop, gen: {}, setGen: noop,
+    selectedSources: [], setSelectedSources: noop, setModal: noop, openModelSettings: noop };
+  try {
+    for (const [interfaceLanguage, language] of [["zh", "English"], ["en", "中文"], ["zh", "中英双语"]]) {
+      setUiLanguage(interfaceLanguage);
+      const html = render(Generate, { ...props, data: { ...props.data, settings: { generation: { language } } } });
+      assert.match(html, new RegExp(`<option[^>]*value="${language}"[^>]*selected=""`), `${interfaceLanguage} interface must retain ${language} as the selected output language`);
+    }
+  } finally { setUiLanguage("zh"); }
+});
+
 test("模拟考试 offers 案例分析卷; its setup lists case sets with the time model and paper practice", () => {
   const examData = { ...data, decks: [{ id: "orchard", title: "Orchard case", format: "case-study", caseMarks: 10, count: 2, caseBest: { total: 7, max: 10 }, course: "" }],
     runs: [], exams: [], focus: { courses: [] } };

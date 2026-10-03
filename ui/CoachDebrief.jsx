@@ -153,7 +153,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       </div>
       {askConsent && (
         <div className="coach-card coach-consent">
-          <p>{ui("要按这一轮给你备几道变式题和应用场景题吗？开启后，答错、自评没掌握或一轮结束时，后台会少量调用模型备题。")}</p>
+          <p>{ui("要给你备几道变式题和应用场景题吗？开启时会从最近的错题中选最多 4 道备题；之后点「生成变式」或标记「太简单 / 太难」时，也会在后台少量调用模型备题。本轮回顾发现还缺应用练习时，也会准备应用题。")}</p>
           <div className="coach-options">
             <button className="coach-chip coach-yes" disabled={consent.busy} onClick={() => answerConsent(true)}>{ui("好，帮我备题")}</button>
             <button className="coach-chip" disabled={consent.busy} onClick={() => answerConsent(false)}>{ui("先不用")}</button>
@@ -166,12 +166,12 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
           {status?.preparing
             ? ui("正在按这一轮备题，备好后这里会出现开刷按钮。")
             : status?.tasks?.findLast((t) => t.kind === "prep")?.status === "failed"
-              ? ui("这次备题没成功，之后答错或一轮结束时会再试。")
-              : ui("这一轮没有要变式的题。之后答错、自评没掌握或标记太简单/太难时，会在后台备好。")}
+              ? ui("这次备题没成功，可以在「错题与待巩固」选择题目，再点「生成变式」重试。")
+              : ui("这次没有要变式的题。之后可以点「生成变式」，或标记「太简单 / 太难」来备题。")}
         </p>
       )}
       {consent.answer === false && (
-        <p className="coach-consent-note" role="status">{ui("好的，不备题。想开启时去 设置 › 陪学。")}</p>
+        <p className="coach-consent-note" role="status">{ui("好的，不备题。想开启时去「设置 › 学习画像与导览」里的「陪学」。")}</p>
       )}
     </ReadingBlock>
   );

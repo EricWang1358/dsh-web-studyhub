@@ -31,6 +31,7 @@ import Settings, { backupFileName } from "./Settings.jsx";
 import UpdateCenter from "./UpdateCenter.jsx";
 import Generate from "./Generate.jsx";
 import { GENERATION_DEFAULTS, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
+import { syncScheduleSettings } from './schedule-settings.js';
 import ImportHub, { importOutcome } from './ImportHub.jsx';
 import { parseCourses } from './CourseField.jsx';
 import { countDocuments, documentSourceIds, groupSourcesByDocument } from '../lib/source-groups.js';
@@ -221,7 +222,7 @@ export default function App({ call: transportCall, host = {} }) {
   const navGroups = useNavGroups();
   const navLabels = {
     library: ui("学习库"), workflows: ui("学习流"), live: language === "en" ? "Live class" : "课堂实录",
-    audio: language === "en" ? "Audio transcription" : "音频转录", wrongbook: ui("错题与待巩固"), exam: ui("模拟考试"),
+    audio: language === "en" ? "Audio transcription" : "音频转写", wrongbook: ui("错题与待巩固"), exam: ui("模拟考试"),
     dashboard: ui("统计"), sources: ui("资料"), generate: ui("创建题组"), skeleton: ui("知识骨架"), notes: ui("学习笔记"), board: ui("待办"),
   };
   useLayoutEffect(() => {
@@ -410,9 +411,7 @@ export default function App({ call: transportCall, host = {} }) {
         dataRef.current = shared.value;
         snapshotKey.current = shared.texts;
         setData(shared.value);
-        setSettings((current) =>
-          Object.keys(current).length ? current : next.settings,
-        );
+        setSettings(current => syncScheduleSettings(current, cur?.settings, next.settings));
         result = shared.value;
       } else result = cur;
     }
@@ -1764,7 +1763,7 @@ export default function App({ call: transportCall, host = {} }) {
           skeleton: ui("知识骨架"),
           workflows: ui("学习流"),
           live: language === "en" ? "Live class" : "课堂实录",
-          audio: language === "en" ? "Audio transcription" : "音频转录",
+          audio: language === "en" ? "Audio transcription" : "音频转写",
           notes: ui("学习笔记"),
         }[page];
   const coachProps = data && {

@@ -44,7 +44,7 @@ export default function CourseRoute({ route, busy, onStartChapter }) {
             </li>
           ))}
         </ol>
-        <p className="muted small">{ui("章的顺序就是学习库里题组的顺序，可以在「整理与添加」里调整。")}</p>
+        <p className="muted small">{ui("章的顺序就是学习库里题组的顺序，可以在「管理题组」用「上移题组 / 下移题组」调整。")}</p>
       </details>
     </div>
   );

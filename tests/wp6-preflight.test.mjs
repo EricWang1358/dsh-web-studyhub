@@ -93,12 +93,22 @@ test("each file is checked: format, length, how many requests, and a lossless sp
   const [pe1, a, bad] = result.files;
   assert.deepEqual([pe1.name, pe1.format, pe1.blocked, pe1.parts], ["PE1.m4a", "m4a", false, 2]);
   assert.ok(Math.abs(pe1.seconds - 76 * 60) < 2);
-  assert.deepEqual(pe1.issue, { code: "long-split", minutes: 76, parts: 2, requests: 2 });
+  assert.deepEqual(pe1.issue, { code: "long-split", minutes: 76, parts: 2, requests: 2, partMinutes: 59 });
   assert.deepEqual([a.name, a.blocked, a.issue, a.parts], ["A.wav", false, null, 1]);
   assert.equal(bad.blocked, true);
   assert.equal(bad.issue.code, "AUDIO_CORRUPT");
   assert.match(bad.issue.message, /MP3/);
   assert.equal(result.blockedBy, 2);
+});
+
+test('preflight carries the configured request limit when a recording below one hour needs splitting', async t => {
+  const { service, file, calls } = await fixture(t, { keys: { siliconflowKey: SF } });
+  await service.call('audio.settings.set', { partMinutes: 20 });
+  const path = await file('lecture.m4a', longM4a(45));
+  const result = await service.call('audio.preflight', { files: [{ path }] });
+  assert.equal(result.files[0].issue.partMinutes, 20);
+  assert.equal(result.files[0].parts, 3);
+  assert.equal(calls.length, 0);
 });
 
 test("uploads are checked by their upload id without being claimed", async (t) => {

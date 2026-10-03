@@ -45,7 +45,7 @@ export const Sentence = memo(function Sentence({ segment, selected, generated, c
       aria-label={`${language === 'en' ? 'Select sentence' : '选择句子'} ${segment.id}`} />
       <time>{time(segment.t)}</time></label>
     <div className="live-words"><p lang="en">{segment.en}</p>
-      <p className="live-chinese" lang="zh-Hans">{segment.zh || (segment.zhState === 'error' ? t('译文暂不可用，可重试', 'Translation unavailable; retry below') : t('正在翻译…', 'Translating…'))}</p>
+      <p className="live-chinese" lang="zh-Hans">{segment.zh || (segment.zhState === 'error' ? t('译文暂不可用，可重试', 'Translation unavailable; use Retry failed translations') : t('正在翻译…', 'Translating…'))}</p>
       {segment.correctedAt && <details className="live-correction-original"><summary>{t('查看识别原稿', 'View original recognition')}</summary>
         <p>{segment.originalEn}</p>{segment.correctionReason && <small>{segment.correctionReason}</small>}
       </details>}
@@ -61,7 +61,7 @@ export const Sentence = memo(function Sentence({ segment, selected, generated, c
  */
 function LiveSetup({ onSettings }) {
   return <SetupRequired className="live-setup-gate" icon="audio" title={ui('课堂实录需要 Gemini 密钥')}
-    why={ui('边听边转写只支持 Google Gemini 的实时接口（需要海外网络）。硅基流动和 Groq 只用于导入录音文件：课后可以在「音频转录」里导入录音。')}
+    why={ui('边听边转写只支持 Google Gemini 的实时接口（需要海外网络）。硅基流动和 Groq 只用于导入录音文件：课后可以在「音频转写」里导入录音。')}
     steps={[{ text: ui('用 Google 账号登录 AI Studio'), href: 'https://aistudio.google.com' },
       { text: ui('在「Get API key」页创建一个密钥（这个项目不要开通计费）'), href: 'https://aistudio.google.com/apikey' },
       { text: ui('在音频设置的 Google Gemini 卡片里粘贴，点「保存并验证」') }]}

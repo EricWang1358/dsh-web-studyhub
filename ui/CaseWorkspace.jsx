@@ -7,6 +7,7 @@ import { createWriteQueue } from "./async.js";
 import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
+import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
 import { Button, Dialog, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, SetupRequired } from "./components/index.js";
 import { ExamSetupCard } from "./ExamShell.jsx";
 import {
@@ -526,12 +527,12 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
         {deck && <div className="es-section">
           <div className="es-times">
             <label>{ui("阅读时间（分钟）")}
-              <input type="number" min={0} max={60} value={reading}
-                onChange={(event) => setSettings({ ...settings, readingMinutes: Math.min(60, Math.max(0, Math.round(Number(event.target.value) || 0))) })} />
+              <input type="number" min={EXAM_SETTING_LIMITS.readingMinutes.min} max={EXAM_SETTING_LIMITS.readingMinutes.max} value={reading}
+                onChange={(event) => setSettings({ ...settings, readingMinutes: Math.min(EXAM_SETTING_LIMITS.readingMinutes.max, Math.max(EXAM_SETTING_LIMITS.readingMinutes.min, Math.round(Number(event.target.value) || 0))) })} />
             </label>
             <label>{ui("每分用时（分钟）")}
-              <input type="number" min={0.5} max={10} step={0.5} value={settings.minutesPerMark}
-                onChange={(event) => setSettings({ ...settings, minutesPerMark: Math.min(10, Math.max(0.5, Number(event.target.value) || DEFAULT_MINUTES_PER_MARK)) })} />
+              <input type="number" min={EXAM_SETTING_LIMITS.minutesPerMark.min} max={EXAM_SETTING_LIMITS.minutesPerMark.max} step="any" value={settings.minutesPerMark}
+                onChange={(event) => setSettings({ ...settings, minutesPerMark: Math.min(EXAM_SETTING_LIMITS.minutesPerMark.max, Math.max(EXAM_SETTING_LIMITS.minutesPerMark.min, Number(event.target.value) || DEFAULT_MINUTES_PER_MARK)) })} />
             </label>
           </div>
           {examFormatName && <small className="es-hint">{uiFormat("来自课程「{0}」的考试设置：{1}（可在课程设置里修改）", [course, examFormatName])}</small>}

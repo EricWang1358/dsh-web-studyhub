@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 import { resolveWorkspacePath, scanAudioFiles, resolveAudioImportPaths } from "../lib/audio-files.js";
 import { MAX_AUDIO_BYTES } from "../lib/audio-file.js";
+import { domainTool } from "../lib/runtime/tools.js";
 
 const KEY = "AIzaUploadTestKey_000000000000001";
 const frame = Buffer.alloc(417);
@@ -81,6 +82,26 @@ test("importing an upload keeps the original name and removes the copy when the 
   assert.match(source.text, /《SQL技术特性与应用讨论\.mp3》全量中英对照逐字稿/);
   assert.ok(!(await uploadFolders(root)).includes(id), "the uploaded copy is gone once the import has finished");
   await assert.rejects(service.call("audio.import", { uploadId: id }), /已经失效/);
+});
+
+test("the typed audio tool imports an upload and an ordered batch through the public runtime", async t => {
+  const { root, service } = await fixture(t);
+  const tool = domainTool('audio', { resolveWorkspace: async () => root, requestServices: async () => ({ fetch: gemini }), forLibrary: () => service.runtime });
+  assert.equal(tool.parameters.properties.uploadId?.type, 'string');
+  assert.equal(tool.parameters.properties.files?.type, 'array');
+  const first = await upload(service, 'tool-single.mp3', mp3);
+  const single = await tool.execute({ operation: 'audio.import', uploadId: first, terms: 'partition' }, {});
+  const singleDone = await tool.execute({ operation: 'job.wait', jobId: single.jobId, timeoutSeconds: 30 }, {});
+  assert.equal(singleDone.status, 'complete', singleDone.stage);
+  assert.equal(singleDone.filename, 'tool-single.mp3');
+  const second = await upload(service, 'tool-batch-upload.mp3', mp3);
+  const path = join(root, 'tool-batch-path.mp3');
+  await writeFile(path, Buffer.concat([mp3, frame]));
+  const batch = await tool.execute({ operation: 'audio.import', files: [{ uploadId: second }, { path }], title: 'Tool batch', terms: ['partition'] }, {});
+  const batchDone = await tool.execute({ operation: 'job.wait', jobId: batch.jobId, timeoutSeconds: 30 }, {});
+  assert.equal(batchDone.status, 'complete', batchDone.stage);
+  assert.deepEqual(batchDone.members.map(file => file.filename), ['tool-batch-upload.mp3', 'tool-batch-path.mp3']);
+  assert.equal(tool.parameters.properties.paths, undefined, 'the tool does not advertise an ignored paths argument');
 });
 
 test("an import that fails to start keeps the upload so the learner can fix the form and retry", async (t) => {

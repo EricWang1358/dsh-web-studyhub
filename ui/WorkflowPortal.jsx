@@ -299,7 +299,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
     const saved = await persist(), step = saved.template.steps.find((item) => item.id === saved.currentStepId);
     await askInChat(uiFormat("请帮助我学习「{0}」的「{1}」这一步。{2}\n", [saved.topic, step.title, wish.trim() ? uiFormat('我的要求：{0}', [wish.trim()]) : ui((HANDOFF[step.kind] || HANDOFF.lesson).ask)]) +
       uiFormat("先用 study_workspace 的 workflow.context，payload 为 {0}，读取本次学习、当前步骤、这一步已有的材料、我的笔记和可用资料。当前看到的 version 是 {1}，保存前以重新读取的最新版本为准。\n", [JSON.stringify({ sessionId: saved.id }), saved.version]) +
-      ui("必要时用 source.search 查证，区分已有资料与补充知识。用 workflow.session.material 保存到这一步：默认 mode 为 append，追加在已有材料之后，不要重复已有内容；要改已有段落用 mode \"edit\" 和 edits:[{find,replace}]（find 是原文中唯一的一段）；除非我明确要求重写，不要用 replace。旧版本都会保留。不能写我的回答、代我完成步骤或评定我是否掌握。称呼步骤用标题，不要用 step-2 这类内部 ID。\n") +
+      ui("必要时用 source.search 查证，区分已有资料与补充知识。用 workflow.session.material 保存到这一步：默认 mode 为 append，追加在已有材料之后，不要重复已有内容；要改已有段落用 mode \"edit\" 和 edits:[{find,replace}]（find 是原文中唯一的一段）；除非我明确要求重写，不要用 replace。最近 10 版会保留。不能写我的回答、代我完成步骤或评定我是否掌握。称呼步骤用标题，不要用 step-2 这类内部 ID。\n") +
       (step.kind === "recall" ? ui("当前是主动复述：先以问题指出缺口，不要直接给出完整参考答案。补充内容会由我主动展开。") : ui("内容请连起概念、例子和条件，避免只罗列名词。缺少依据时明确说明。")));
     setNotice(ui("请求已准备好，请在主对话确认发送。补充材料保存后会在这里显示。"));
   });

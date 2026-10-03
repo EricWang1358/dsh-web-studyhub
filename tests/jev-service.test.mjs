@@ -56,6 +56,33 @@ test('the key reaches neither the snapshot, nor an export, nor any file of the l
   assert.ok((await filesUnder(h.home)).some(file => file.endsWith('jev.json')), 'the key is in the DSH home');
 });
 
+test('the public settings operation retains custom endpoint and model, with validation and recipient confirmation intact', async t => {
+  const h = await harness(t);
+  const endpoint = `${h.fake.baseUrl}/gw/v1/systemone`;
+  const saved = await h.call('jev.settings.set', { provider: 'custom', customEndpoint: endpoint,
+    customModel: 'gateway/jev-1', key: h.fake.key, confirm: true, enabled: true,
+    features: { preReview: true }, replace: { cardReview: true }, threshold: 0.9 });
+  assert.deepEqual(saved.custom, { endpoint, model: 'gateway/jev-1', host: new URL(endpoint).host });
+  assert.deepEqual([saved.provider, saved.confirmed, saved.enabled, saved.features.preReview, saved.replace.cardReview, saved.threshold],
+    ['custom', true, true, true, true, 0.9]);
+  assert.ok(!JSON.stringify(saved).includes(h.fake.key));
+  assert.deepEqual((await h.call('jev.settings.get')).custom, saved.custom);
+  const tested = await h.call('jev.test');
+  assert.equal(tested.ok, true);
+  assert.equal(h.fake.requests[0].path, '/gw/v1/systemone');
+  assert.equal(h.fake.requests[0].payload.model, 'gateway/jev-1');
+  for (const customEndpoint of ['http://remote.example.com/jev', 'https://user:password@example.com/jev', 'https://example.com/jev?key=secret'])
+    await assert.rejects(h.call('jev.settings.set', { customEndpoint }), error => /Jev/.test(error.message) && !error.message.includes(customEndpoint));
+  await assert.rejects(h.call('jev.settings.set', { customModel: 'two words' }), /Jev/);
+  assert.deepEqual((await h.call('jev.settings.get')).custom, saved.custom, 'a refused change keeps the previous settings');
+  const changed = await h.call('jev.settings.set', { customEndpoint: `${h.fake.baseUrl}/new/v1/systemone` });
+  assert.equal(changed.confirmed, false, 'a different recipient needs a new confirmation');
+  assert.equal((await h.call('jev.test')).state, 'not-confirmed');
+  assert.equal(h.fake.requests.length, 1);
+  const cleared = await h.call('jev.settings.set', { customEndpoint: '', customModel: '' });
+  assert.deepEqual(cleared.custom, { endpoint: '', model: '', host: '' });
+});
+
 test('the key test needs the confirmation, makes one tiny call, and reports the state in plain words', async t => {
   const h = await harness(t);
   let result = await h.call('jev.test');

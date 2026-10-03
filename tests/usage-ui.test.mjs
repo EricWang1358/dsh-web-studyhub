@@ -124,6 +124,13 @@ test('unregistered controls are named by the page from their key, in the page la
   assert.equal(usageRowName({ key: 'tour.generate-submit', name: null, registered: false }, 'en'), 'tour.generate-submit', 'a developer hook is shown as it is');
 });
 
+test('paused with no data: resume remains available and no report waits forever', () => {
+  const html = view({ status: { ...base.status, enabled: true, paused: true } });
+  assert.match(html, /继续记录/);
+  assert.doesNotMatch(html, /我的使用报告|正在整理报告/);
+  assert.doesNotMatch(view({ status: { ...base.status, enabled: true, paused: true } }, 'en'), /My usage report|Preparing the report/);
+});
+
 test('paused: no recording, says so, and offers to resume; the report stays', () => {
   const html = view(withData('zh', { status: { ...base.status, enabled: true, paused: true, hasData: true, daysWithData: 8, since: at(30) } }));
   assert.match(html, /data-state="paused"/);

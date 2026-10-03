@@ -167,7 +167,7 @@ export default function LargeDocumentCard({ reason, detail = {}, retrieval = nul
     {typeof call === 'function'
       ? <ExtensionPanel call={call} status={retrieval} onStatus={onRetrieval} courses={courses} defaultCourse={defaultCourse}
         initialPlan={initialPlan} initialRun={initialRun} initialApproval={initialApproval} />
-      : <p className="large-doc__note">{ui('在「设置 › 扩展」里一键安装检索扩展，再为这门课建立检索索引。')}</p>}
+      : <p className="large-doc__note">{ui('在「设置 › 检索扩展」里一键安装检索扩展，再为这门课建立检索索引。')}</p>}
   </div>;
   return (
     <section className={`large-doc${className ? ` ${className}` : ''}`} aria-labelledby={titleId} data-reason={reason} {...rest}>

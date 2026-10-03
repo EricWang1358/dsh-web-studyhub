@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ui, uiFormat, getUiLanguage } from "./i18n.js";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
 import { Button, SegmentedControl, SetupRequired, IconButton } from "./components/index.js";
-import { modelReadiness } from "./generation-status.js";
+import { modelReadiness, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords } from "../lib/case-study.js";
 import css from "./case-study.css";
@@ -23,13 +23,20 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
   const [mode, setMode] = useState(initial.mode || "new");
   const [course, setCourse] = useState(initial.course ?? (data.focus?.course && data.focus.course !== "*" ? data.focus.course : ""));
   const [sourceIds, setSourceIds] = useState(initial.sourceIds || []);
-  const [form, setForm] = useState({ questions: 2, totalMarks: 20, language: getUiLanguage() === "en" ? "English" : "中文", title: "", styleText: "" });
-  const [pasted, setPasted] = useState({ title: "", scenario: "", questions: [blankQuestion()] });
   // The course profile (WP13) from the snapshot's course records; guidance and focus topics are the course's.
   const profile = useMemo(() => courseProfileFromState({ courses: data.courses }, course), [data.courses, course]);
+  const defaults = { totalMarks: profile.exam.totalMarks || 20, language: generationFormDefaults(data.settings?.generation).language };
+  const [form, setForm] = useState(() => ({ questions: 2, ...defaults, title: "", styleText: "" }));
+  const inherited = useRef({ course, ...defaults });
+  const [pasted, setPasted] = useState({ title: "", scenario: "", questions: [blankQuestion()] });
   const courseRecord = (data.courses || []).find((item) => item.name === course);
   const [passage, setPassage] = useState(initial.focus || "");
-  useEffect(() => { if (profile.exam.totalMarks) setForm((current) => ({ ...current, totalMarks: profile.exam.totalMarks })); }, [profile.exam.totalMarks]);
+  useEffect(() => {
+    const before = inherited.current;
+    inherited.current = { course, ...defaults };
+    // Selecting a course adopts its marks; a later snapshot only updates untouched defaults.
+    setForm(current => syncGenerationDefaults(before.course === course ? current : { ...current, totalMarks: defaults.totalMarks }, before, defaults));
+  }, [course, defaults.totalMarks, defaults.language]); // eslint-disable-line react-hooks/exhaustive-deps
   const answered = pasted.questions.filter((question) => question.answer.trim()).length;
   const ready = mode === "import"
     ? countWords(pasted.scenario) >= 40 && pasted.questions.every((question) => question.prompt.trim().length >= 5 && Number(question.marks) > 0)
@@ -107,7 +114,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
             <label>{ui("题数")}<input type="number" min={1} max={5} value={form.questions} onChange={(event) => setForm({ ...form, questions: event.target.value })} /></label>
             <label>{ui("总分")}<input type="number" min={4} max={100} value={form.totalMarks} onChange={(event) => setForm({ ...form, totalMarks: event.target.value })} /></label>
             <label>{ui("语言")}<select value={form.language} onChange={(event) => setForm({ ...form, language: event.target.value })}>
-              <option value="中文">{ui("中文")}</option><option>English</option></select></label>
+              <option value="中文">{ui("中文")}</option><option value="English">English</option><option value="中英双语">{ui("中英双语")}</option></select></label>
           </div>
           <label>{ui("题组名称（可选）")}<input value={form.title} maxLength={120} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
           <p className="muted">{uiFormat("按每分约 {0} 分钟，这套题建议作答 {1} 分钟。", [profile?.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,

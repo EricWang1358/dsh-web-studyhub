@@ -44,11 +44,12 @@ test('snapshots and job.wait translate owned progress while preserving saved sou
     members: [{ filename: '读取音频.mp3', stage: '校对 1/3', error: 'Provider says: 服务暂不可用' }], startedAt: new Date().toISOString() };
   service.runtime.work.jobs.set(job.id, job);
   const en = await service.call('snapshot', { uiLanguage: 'en' });
-  assert.equal(en.jobs[0].stage, 'The previous import was interrupted. Completed work is saved; select Resume to continue');
+  assert.equal(en.jobs[0].stage, 'The previous import was interrupted. Completed work is saved; select Continue (nothing is paid for twice)');
   assert.equal(en.jobs[0].members[0].stage, 'Proofreading 1/3');
   assert.equal(en.jobs[0].members[0].filename, '读取音频.mp3');
   assert.equal(en.sources[0].title, '读取音频');
   assert.equal(en.jobs[0].warnings[1], 'Provider says: 服务暂不可用');
+  assert.equal(en.jobs[0].warnings[0], 'The inbox notification could not be saved. View the task result in Audio transcription.');
   assert.equal((await service.store.read()).sources[0].text, '排队中：这是用户保存的原文。');
   assert.equal(job.stage, '上次导入已中断；已完成的部分已保存，点「接着做」继续');
   const waited = await service.call('job.wait', { jobId: job.id, uiLanguage: 'en' });
@@ -56,6 +57,34 @@ test('snapshots and job.wait translate owned progress while preserving saved sou
   const zh = await service.call('snapshot', { uiLanguage: 'zh' });
   assert.equal(zh.jobs[0].stage, job.stage);
   assert.notEqual(en.fingerprint, zh.fingerprint);
+});
+
+test('English views localize generated title labels while preserving user titles and saved source text', async t => {
+  const service = await library(t);
+  const saved = {
+    sources: [
+      { id: 'json', title: 'JSON 导入：用户题目', provenance: 'json-card-self-reference', text: 'JSON 原文' },
+      { id: 'live', title: '用户课堂 · 片段 00:05–00:12', text: '课堂原文', live: { sessionId: 'recording', segmentIds: [1, 2] } },
+      { id: 'user', title: 'JSON 导入：我的标题 · 片段 00:05–00:12', text: '用户原文' },
+    ],
+    decks: [
+      { id: 'coach', title: '为你定制', systemKind: 'coach', cards: [] },
+      { id: 'user-deck', title: '为你定制', cards: [] },
+    ],
+  };
+  await service.store.update(state => { state.sources = structuredClone(saved.sources); state.decks = structuredClone(saved.decks); });
+  const en = await service.call('snapshot', { uiLanguage: 'en' });
+  assert.deepEqual(en.sources.map(source => source.title), ['JSON import: 用户题目', '用户课堂 · Excerpt 00:05–00:12', saved.sources[2].title]);
+  assert.deepEqual(en.decks.map(deck => deck.title), ['Personalised', '为你定制']);
+  assert.equal((await service.call('source.get', { id: 'json', uiLanguage: 'en' })).title, en.sources[0].title);
+  assert.equal((await service.call('source.get', { id: 'live', uiLanguage: 'en' })).title, en.sources[1].title);
+  assert.equal((await service.call('deck.get', { id: 'coach', uiLanguage: 'en' })).title, 'Personalised');
+  assert.deepEqual((await service.call('source.list', { uiLanguage: 'en' })).sources.map(source => source.title), en.sources.map(source => source.title));
+  const zh = await service.call('snapshot', { uiLanguage: 'zh' });
+  assert.deepEqual(zh.sources.map(source => source.title), saved.sources.map(source => source.title));
+  const retained = await service.store.read();
+  assert.deepEqual(retained.sources.map(source => [source.title, source.text]), saved.sources.map(source => [source.title, source.text]));
+  assert.deepEqual(retained.decks.map(deck => deck.title), saved.decks.map(deck => deck.title));
 });
 
 test('English background job notifications retain user titles and describe retained work in English', () => {

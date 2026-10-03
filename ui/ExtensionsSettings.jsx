@@ -8,7 +8,7 @@ import css from './large-documents.css';
 
 export { providerLabel };
 
-/* 设置 › 扩展：文档转换与检索 (WP28, WP28b). The way to search a big textbook is one
+/* 设置 › 检索扩展 (WP28, WP28b). The way to search a big textbook is one
    click: convert with a desktop app, install the search extension, build the index of
    a course. Choosing another search tool that DSH exposes, the model download address
    and the hand-made routes are under 高级. Nothing is said to be installed unless the

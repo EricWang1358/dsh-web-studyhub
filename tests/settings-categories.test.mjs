@@ -37,6 +37,11 @@ test('every deep link and tour anchor lands on its category', () => {
   assert.equal(categoryForAnchor(''), null);
 });
 
+test('the tour finish selects the profile category that owns the sample controls', () => {
+  assert.equal(categoryForAnchor('settings-sample'), 'profile');
+  assert.equal(initialCategory({ available: categoriesFor(full), focusSection: 'settings-sample', last: 'retrieval' }), 'profile');
+});
+
 test('what starts selected: the deep link, else the first category that needs attention, else the one the learner used last, else the first', () => {
   const available = categoriesFor(full);
   assert.equal(initialCategory({ available, focusSection: 'settings-mineru', missing: ['model'], last: 'update' }), 'mineru');

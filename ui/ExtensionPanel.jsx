@@ -147,7 +147,7 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
       {run?.status === 'cancelled' && <InlineMessage tone="info">{ui('已停止。建好的部分会保留，下次接着建。')}</InlineMessage>}
       {run?.status === 'failed' && <InlineMessage tone="error" boxed title={ui('索引没有建完')}>
         {run.error}
-        {run.errorCode === 'retrieval-model-download' && ` ${ui('也可以在「设置 › 扩展」的高级选项里填写模型下载地址。')}`}
+        {run.errorCode === 'retrieval-model-download' && ` ${ui('也可以在「设置 › 检索扩展」的高级选项里填写模型下载地址。')}`}
       </InlineMessage>}
     </div>
   );

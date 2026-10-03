@@ -4,7 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Button, Dialog, Disclosure, EmptyState, Icon, IconButton, InlineMessage, ScrollWindow, SegmentedControl } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
-import { daysUntilExam, examProfile } from '../lib/courses.js';
+import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
 import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses } from './course-names.js';
 import css from './course-settings.css';
 
@@ -43,6 +43,18 @@ export function payloadFromDraft(course, draft) {
   return { id: course.id, name: course.name,
     ...(stated ? { exam: { format: draft.format, ...numbers, ...(draft.date ? { date: draft.date } : {}), sections } } : {}),
     guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics) };
+}
+
+/** Bring merged profile fields into the open form without replacing edits made before the merge. */
+function draftAfterMerge(course, draft, mergedCourse) {
+  const before = draftFromCourse(course), after = draftFromCourse(mergedCourse), next = { ...draft };
+  for (const key of Object.keys(after))
+    if (JSON.stringify(draft[key]) === JSON.stringify(before[key])) next[key] = after[key];
+  const topicsBefore = new Set(splitTopics(before.focusTopics));
+  next.focusTopics = [...new Set([...splitTopics(draft.focusTopics), ...splitTopics(after.focusTopics).filter(topic => !topicsBefore.has(topic))])].join('; ');
+  const guidanceBefore = new Set(before.guidanceSourceIds);
+  next.guidanceSourceIds = [...new Set([...draft.guidanceSourceIds, ...after.guidanceSourceIds.filter(id => !guidanceBefore.has(id))])];
+  return next;
 }
 
 /** "距考试 N 天" for the library heading; null without a date or once the exam is past. */
@@ -162,11 +174,11 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
   </fieldset>;
 }
 
-function NumberField({ label, value, placeholder, onChange, min = 0, step = 1, disabled, suffix }) {
+function NumberField({ label, value, placeholder, onChange, min = 0, max, step = 1, disabled, suffix }) {
   return <label className="course-settings__field">
     <span>{label}</span>
     <span className="course-settings__number">
-      <input type="number" inputMode="decimal" min={min} step={step} value={value} placeholder={String(placeholder)} disabled={disabled}
+      <input type="number" inputMode="decimal" min={min} max={max} step={step} value={value} placeholder={String(placeholder)} disabled={disabled}
         onChange={event => onChange(event.target.value)} />
       {suffix && <small>{suffix}</small>}
     </span>
@@ -237,6 +249,7 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
     setNotice?.({ text: uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]), tone: 'success' });
   });
   const merge = () => run('course.merge', { from: mergeIds, into: course.id }, result => {
+    if (result?.course) setDraft(current => draftAfterMerge(course, current, result.course));
     setConfirm(null); setMergeIds([]);
     setNotice?.({ text: uiFormat('已把 {0} 门课程并入「{1}」', [result?.merged?.length || mergeIds.length, course.name]), tone: 'success' });
   });
@@ -284,10 +297,10 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
             onChange={format => change({ format })} />
         </div>
         <div className="course-settings__grid">
-          <NumberField label={ui('总分')} value={draft.totalMarks} placeholder={defaults.totalMarks} min={1} disabled={disabled} onChange={totalMarks => change({ totalMarks })} />
-          <NumberField label={ui('作答时间')} suffix={ui('分钟')} value={draft.writingMinutes} placeholder={defaults.writingMinutes} min={1} disabled={disabled} onChange={writingMinutes => change({ writingMinutes })} />
-          <NumberField label={ui('阅读时间')} suffix={ui('分钟')} value={draft.readingMinutes} placeholder={defaults.readingMinutes} disabled={disabled} onChange={readingMinutes => change({ readingMinutes })} />
-          <NumberField label={ui('每分用时')} suffix={ui('分钟')} value={draft.minutesPerMark} placeholder={defaults.minutesPerMark} min={0.1} step={0.1} disabled={disabled} onChange={minutesPerMark => change({ minutesPerMark })} />
+          <NumberField label={ui('总分')} value={draft.totalMarks} placeholder={defaults.totalMarks} {...EXAM_SETTING_LIMITS.totalMarks} disabled={disabled} onChange={totalMarks => change({ totalMarks })} />
+          <NumberField label={ui('作答时间')} suffix={ui('分钟')} value={draft.writingMinutes} placeholder={defaults.writingMinutes} {...EXAM_SETTING_LIMITS.writingMinutes} disabled={disabled} onChange={writingMinutes => change({ writingMinutes })} />
+          <NumberField label={ui('阅读时间')} suffix={ui('分钟')} value={draft.readingMinutes} placeholder={defaults.readingMinutes} {...EXAM_SETTING_LIMITS.readingMinutes} disabled={disabled} onChange={readingMinutes => change({ readingMinutes })} />
+          <NumberField label={ui('每分用时')} suffix={ui('分钟')} value={draft.minutesPerMark} placeholder={defaults.minutesPerMark} {...EXAM_SETTING_LIMITS.minutesPerMark} step="any" disabled={disabled} onChange={minutesPerMark => change({ minutesPerMark })} />
           <label className="course-settings__field"><span>{ui('考试日期')}</span>
             <input type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></label>
         </div>

@@ -5,7 +5,7 @@ import { useInjectCss } from "../shared.js";
 import css from "./onboarding.css";
 
 /**
- * Settings › 上手与示例: start or resume the feature tour, and load or remove
+ * Settings › 学习画像与导览 › 上手与示例: start or resume the feature tour, and load or remove
  * the sample course. `progress` is the paused tour position ({ index, total }).
  */
 export function OnboardingPanel({ sample, progress, busy = false, onTour, onRestart, onLoad, onRemove }) {
@@ -38,7 +38,7 @@ export function RemoveSampleDialog({ busy = false, onConfirm, onClose }) {
         <Button variant="quiet" disabled={busy} onClick={() => onClose("button")}>{ui("取消")}</Button>
         <Button variant="danger" busy={busy} onClick={onConfirm}>{ui("移除示例数据")}</Button>
       </>}>
-      <p className="muted">{ui("示例课程以后还可以在 设置 › 上手与示例 里重新载入。")}</p>
+      <p className="muted">{ui("示例课程以后还可以在「设置 › 学习画像与导览」的「上手与示例」里重新载入。")}</p>
     </Dialog>
   );
 }

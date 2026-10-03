@@ -72,10 +72,22 @@ const longSplit = { name: "PE1.m4a", format: "m4a", seconds: 4560, parts: 2, req
 const fine = (name) => ({ name, format: "mp3", seconds: 1800, parts: 1, requests: 1, blocked: false, issue: null });
 const broken = { name: "PE1.m4a", blocked: true, issue: { code: "AUDIO_UNSPLITTABLE", message: "这份 M4A 是分片格式（fragmented MP4），不能在本地无损切分" } };
 
+test('pre-flight notes show the configured request duration for recordings below one hour', () => {
+  const check = { ...longSplit, issue: { code: 'long-split', minutes: 45, parts: 3, requests: 3, partMinutes: 20 } };
+  const zh = preflightNotes(files, { pe1: check }).pe1.text;
+  assert.match(zh, /20/);
+  assert.doesNotMatch(zh, /1 小时/);
+  inLanguage('en', () => {
+    const en = preflightNotes(files, { pe1: check }).pe1.text;
+    assert.match(en, /20/);
+    assert.doesNotMatch(en, /one.hour|1 hour/);
+  });
+});
+
 test("pre-flight notes: a long recording offers a lossless split, its siblings say what they wait for", () => {
   const notes = preflightNotes(files, { pe1: longSplit, a: fine("A.mp3"), b: fine("B.mp3") }, new Set());
   assert.equal(notes.pe1.kind, "split");
-  assert.equal(notes.pe1.text, "约 76 分钟，超过单次 1 小时上限 → 无损分成 2 段转写（占用 2 次请求）");
+  assert.equal(notes.pe1.text, "约 76 分钟 → 无损分成 2 段转写（占用 2 次请求）");
   assert.deepEqual([notes.a.kind, notes.a.text], ["waiting", "等待「PE1.m4a」处理"]);
   const confirmed = preflightNotes(files, { pe1: longSplit, a: fine("A.mp3"), b: fine("B.mp3") }, new Set(["pe1"]));
   assert.equal(confirmed.pe1.kind, "split-confirmed");
@@ -97,7 +109,7 @@ test("the chosen files show their pre-flight with one-click fixes, in both langu
   assert.match(held, /因「PE1.m4a」未通过预检尚未开始/);
   inLanguage("en", () => {
     const english = html(AudioImport, { ...props, initialChecks: { pe1: longSplit, a: fine("A.mp3"), b: fine("B.mp3") } }).replace(/PE1\.m4a|A\.mp3|B\.mp3/g, "");
-    assert.match(english, /about 76 min, over the one-hour limit per request → split losslessly into 2 parts \(2 requests\)/);
+    assert.match(english, /about 76 min → split losslessly into 2 parts \(2 requests\)/);
     assert.match(english, /Split and continue/);
     assert.doesNotMatch(english, HAN);
     const blocked = html(AudioImport, { ...props, initialChecks: { pe1: broken, a: fine("A.mp3"), b: fine("B.mp3") } }).replace(/PE1\.m4a|A\.mp3|B\.mp3/g, "");
