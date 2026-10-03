@@ -72,3 +72,17 @@ test('the More chevron is drawn, not a text glyph: the "⌄" character sits belo
   const open = /\.question-toolbar \.review-more\[open\] > summary::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
   assert.match(open, /rotate\(-135deg\)/, 'it turns up while the menu is open');
 });
+
+test("the More menu has 出前置题… next to 修题 (only when the page can start it), in both languages", () => {
+  setUiLanguage("zh");
+  const withIt = render({ feedback: null }, { onDerive() {} });
+  assert.match(withIt, /<button[^>]*data-usage="review\.derive"[^>]*>出前置题…<\/button>/);
+  assert.ok(withIt.indexOf("修题") < withIt.indexOf("出前置题…") && withIt.indexOf("出前置题…") < withIt.indexOf("斩掉此题"), "between 修题 and 斩掉此题");
+  assert.doesNotMatch(render({ feedback: null }), /出前置题/, "no handler, no entry");
+  setUiLanguage("en");
+  try {
+    const english = render({ feedback: null }, { onDerive() {} });
+    assert.match(english, />Make a prerequisite question…</);
+    assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
+  } finally { setUiLanguage("zh"); }
+});

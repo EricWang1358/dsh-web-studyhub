@@ -1857,7 +1857,8 @@
     font-size: 15px;
   }
   .question-area {
-    width: min(700px, calc(100% - 48px));
+    /* 700px at the standard reading width and size (44em of 16px); 窄 / 宽 and a larger size change it. */
+    width: min(var(--review-column, 700px), calc(100% - 48px));
     margin: 34px auto 56px;
   }
   .question-area:not(.flash-area) .question-card {
@@ -1936,7 +1937,7 @@
   }
   .question {
     font-family: var(--font-display);
-    font-size: 21px;
+    font-size: calc(21px * var(--card-scale, 1));
     font-weight: 600;
     letter-spacing: -0.005em;
     line-height: 1.7;
@@ -1994,7 +1995,7 @@
     background: transparent;
     border-radius: 0;
     padding: 15px 10px;
-    font-size: 16.5px;
+    font-size: calc(16.5px * var(--card-scale, 1));
     line-height: 1.6;
     width: 100%;
     transition: background 0.15s var(--ease);
@@ -2409,7 +2410,7 @@
   }
   .flash-prompt {
     font-family: var(--font-display);
-    font-size: 27px;
+    font-size: calc(27px * var(--card-scale, 1));
     font-weight: 500;
     letter-spacing: -0.01em;
     line-height: 1.55;
@@ -2419,7 +2420,7 @@
   }
   .flash-prompt.long,
   .flip-back .flash-prompt.long {
-    font-size: 18px;
+    font-size: calc(18px * var(--card-scale, 1));
     line-height: 1.75;
   }
   .md,
@@ -2691,7 +2692,7 @@
     line-height: 1.8;
   }
   .flip-back .flash-prompt {
-    font-size: 23px;
+    font-size: calc(23px * var(--card-scale, 1));
     color: var(--text);
   }
   .flip-question {
@@ -3785,7 +3786,7 @@
       min-height: 380px;
     }
     .flash-prompt {
-      font-size: 25px;
+      font-size: calc(25px * var(--card-scale, 1));
     }
   }
 
@@ -3896,7 +3897,7 @@
       margin-top: 34px;
     }
     .question {
-      font-size: 17px;
+      font-size: calc(17px * var(--card-scale, 1));
       margin-left: 4px;
       margin-right: 4px;
     }
@@ -3927,10 +3928,10 @@
       padding: 72px 22px 22px;
     }
     .flash-prompt {
-      font-size: 23px;
+      font-size: calc(23px * var(--card-scale, 1));
     }
     .flip-back .flash-prompt {
-      font-size: 21px;
+      font-size: calc(21px * var(--card-scale, 1));
     }
     .grade-scale {
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4298,6 +4299,9 @@
 .followup-item[open] > summary::after { content: "收起"; }
 .followup-item > summary h4 { flex: 1; min-width: 0; margin: 0; font-size: 16px; font-weight: 600; line-height: 1.6; color: var(--text); }
 .followup-item .followup-fold { display: block; margin: 6px 0 0 auto; font-size: 15px; color: var(--text-muted); }
+.followup-item .followup-derive { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; font-size: 15px; }
+.followup-item .followup-derive .link-btn { color: var(--accent-text, var(--accent)); }
+.followup-item .followup-derive .link-btn:disabled { color: var(--text-muted); cursor: default; }
 .followup-item:not([open]) > summary h4 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .followup-item > summary:hover h4 { text-decoration: underline; text-decoration-color: var(--accent-soft); text-underline-offset: 4px; }
 .followup-item[open] > summary { margin-bottom: 10px; }

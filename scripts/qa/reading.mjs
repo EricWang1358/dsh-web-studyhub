@@ -91,6 +91,22 @@ export async function runReadingQa(options) {
       if ((await stored()).size !== 20) throw new Error("the choice is not stored under the reader key");
       return after;
     });
+    await step("width-changes-the-column", async () => {
+      // 版心宽度 must change the whole review column (card, toolbar, explanation), not only the text inside a fixed one.
+      const column = () => page.locator(".review-body .question-area").first().evaluate(element => element.getBoundingClientRect().width);
+      const standard = await column();
+      await panelButton(t("窄", "Narrow")).click(); await sleep(250);
+      const narrow = await column();
+      await panelButton(t("宽", "Wide")).click(); await sleep(250);
+      const wide = await column();
+      await panelButton(t("标准", "Standard")).click(); await sleep(250);
+      const back = await column();
+      const room = page.viewportSize().width - 48;
+      if (standard > 640 && !(narrow < standard - 20)) throw new Error(`narrow did not narrow the column: ${narrow} vs ${standard}`);
+      if (standard > 640 && room > standard + 60 && !(wide > standard + 20)) throw new Error(`wide did not widen the column: ${wide} vs ${standard}`);
+      if (Math.abs(back - standard) > 2) throw new Error(`standard did not come back: ${back} vs ${standard}`);
+      return { narrow, standard, wide };
+    });
     await check("controls-untouched", async () => {
       const sizes = await page.evaluate(() => [...document.querySelectorAll(".question-toolbar button, .explanation button, .explanation summary, .explanation textarea, .explanation input")]
         .map(element => parseFloat(getComputedStyle(element).fontSize)));
@@ -111,12 +127,34 @@ export async function runReadingQa(options) {
       if (probe.scrollWidth > probe.clientWidth + 1) throw new Error(`overflow ${JSON.stringify(probe)}`);
       return probe;
     });
-    await check("card-face-unchanged", async () => {
+    await check("card-face-follows-size", async () => {
+      // The card's own type scales with the chosen size (16px is the designed size): at 20px it is 1.25 times what it was.
       const face = await size(".question-card .flash-prompt, .question-card .question, .question-card .md");
-      if (face !== before.face) throw new Error(`the card face followed the reading size: ${before.face} -> ${face}`);
+      if (!(face > before.face * 1.15)) throw new Error(`the card face did not follow the reading size: ${before.face} -> ${face}`);
       return face;
     });
 
+    await step("derive-from-qa", async () => {
+      // 出成题: the Q&A of the card can become a question; the request reaches the host and a background task shows up (the preview's fake model may refuse the reply, which must show the failed state with 重新提交).
+      const link = page.getByRole("button", { name: t("出成前置题", "Make a prerequisite question"), exact: true }).first();
+      await link.waitFor({ timeout: 15000 });
+      await link.click();
+      await page.locator(".assist-status").first().waitFor({ timeout: 20000 });
+      await page.waitForFunction(() => { const status = document.querySelector(".assist-status"); return !!status && !status.querySelector(".assist-spin"); }, null, { timeout: 60000 });
+      const state = await page.locator(".assist-status").first().evaluate(element => ({ failed: element.classList.contains("failed"), text: element.textContent.slice(0, 160) }));
+      if (state.failed && !(await page.getByRole("button", { name: t("重新提交", "Submit again"), exact: true }).count())) throw new Error(`a failed task has no resubmit button: ${state.text}`);
+      return state;
+    });
+    await step("derive-from-more-menu", async () => {
+      await page.locator(".review-more > summary").first().click();
+      await page.getByRole("button", { name: t("出前置题…", "Make a prerequisite question…"), exact: true }).click();
+      await page.locator(".assist-form textarea").waitFor();
+      await page.getByRole("radio", { name: t("一道独立的新题", "A separate new question") }).click();
+      if ((await page.getByRole("radio", { name: t("一道独立的新题", "A separate new question") }).getAttribute("aria-checked")) !== "true") throw new Error("the relation choice did not stick");
+      await page.locator(".assist-form textarea").fill(t("什么是聚合根", "What is an aggregate root"));
+      await page.getByRole("button", { name: t("提交到后台", "Send to background assistant"), exact: true }).click();
+      await page.locator(".assist-status").first().waitFor({ timeout: 20000 });
+    });
     // The same setting in another open page of the same browser (the storage event).
     const other = await browserContext.newPage();
     await other.goto(page.url());

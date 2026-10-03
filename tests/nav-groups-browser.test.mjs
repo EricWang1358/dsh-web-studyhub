@@ -61,18 +61,18 @@ test('the grouped sidebar: all twelve pages reachable, folding remembered, keybo
     assert.equal((await state()).setup.open, 'false', 'the group is still folded after a reload');
     await page.locator('#nav-group-setup-label').click();
     await page.waitForTimeout(300);
-    assert.equal((await state()).setup.shown, 5);
+    assert.equal((await state()).setup.shown, 3);
     assert.equal(await page.evaluate(() => localStorage.getItem('study-nav-groups')), null, 'nothing folded, nothing kept');
 
     // A keyboard move stays inside the group: the last row of the daily group cannot go down into the next group.
     await page.locator('[data-nav-id="board"]').focus();
     await page.keyboard.press('Alt+ArrowDown');
     await page.waitForTimeout(200);
-    assert.deepEqual((await state()).daily.ids, ['library', 'wrongbook', 'workflows', 'notes', 'board']);
+    assert.deepEqual((await state()).daily.ids, ['library', 'sources', 'generate', 'wrongbook', 'workflows', 'notes', 'board']);
     await page.locator('[data-nav-id="board"]').focus();
     await page.keyboard.press('Alt+ArrowUp');
     await page.waitForTimeout(300);
-    assert.deepEqual((await state()).daily.ids, ['library', 'wrongbook', 'workflows', 'board', 'notes']);
+    assert.deepEqual((await state()).daily.ids, ['library', 'sources', 'generate', 'wrongbook', 'workflows', 'board', 'notes']);
     assert.deepEqual(errors, []);
   } finally {
     await context.close().catch(() => {});

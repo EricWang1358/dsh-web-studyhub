@@ -1166,14 +1166,16 @@ export default function App({ call: transportCall, host = {} }) {
     );
   }
   /* 学习帮助交给后台，完成后由信箱交付；宿主暂不支持时直接提示。 */
-  async function assistCard(mode, text, helpChoices = []) {
-    if (!run?.card || (!text.trim() && !(mode === "ask" && helpChoices.length))) return false;
+  async function assistCard(mode, text, helpChoices = [], derive = undefined) {
+    if (!run?.card || (!text.trim() && !(mode === "ask" && helpChoices.length) && !(mode === "derive" && derive?.followupId))) return false;
     try {
       await submitAssist(call, { deckId: run.deckId, cardId: run.card.id, runId: run.id,
-        mode, text: text.trim(), helpChoices, uiLanguage: getUiLanguage() });
+        mode, text: text.trim(), helpChoices, ...(derive ? { derive } : {}), uiLanguage: getUiLanguage() });
       setNotice(
         mode === "ask"
           ? ui("后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。")
+          : mode === "derive"
+            ? ui("后台助教正在出题，完成后新题会放进同一题组，并进信箱。")
           : mode === "grade"
             ? { text: ui("已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，也会进信箱。"), tone: "success" }
             : ui("后台助教正在改这道题，改完会进信箱，可一步撤销。"),

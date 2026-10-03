@@ -48,20 +48,20 @@ const PAGES = new Set(["library", "sources", "generate", "draft", "review", "wro
 
 test("navigation is grouped by when a page is used: every day, now and then, once per course", () => {
   assert.deepEqual(NAV_DEFAULTS, {
-    daily: ["library", "wrongbook", "workflows", "notes", "board"],
+    daily: ["library", "sources", "generate", "wrongbook", "workflows", "notes", "board"],
     periodic: ["exam", "dashboard"],
-    setup: ["sources", "generate", "skeleton", "audio", "live"],
+    setup: ["skeleton", "audio", "live"],
   });
   // A learner's saved order still applies; pages it does not mention join at the end of their group.
   const saved = { daily: ["board", "library"], setup: ["live", "audio"] };
   assert.deepEqual(mergeOrder(saved, NAV_DEFAULTS), {
-    daily: ["board", "library", "wrongbook", "workflows", "notes"],
+    daily: ["board", "library", "sources", "generate", "wrongbook", "workflows", "notes"],
     periodic: ["exam", "dashboard"],
-    setup: ["live", "audio", "sources", "generate", "skeleton"],
+    setup: ["live", "audio", "skeleton"],
   });
   // An order saved before the regrouping (main / upkeep) keeps working: its order is applied inside the new groups.
   assert.deepEqual(mergeOrder({ main: ["library", "workflows", "live", "audio"], upkeep: ["sources", "generate", "skeleton"] }, NAV_DEFAULTS).setup,
-    ["live", "audio", "sources", "generate", "skeleton"]);
+    ["live", "audio", "skeleton"]);
 });
 
 test("the tour walks the key features in order: welcome → navigation → home → materials → … → settings → finish", () => {

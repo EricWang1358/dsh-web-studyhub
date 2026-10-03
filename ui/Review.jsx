@@ -15,7 +15,7 @@ import ThumbFeedback from "./ThumbFeedback.jsx";
 import { reviewEntryKey } from "./async.js";
 import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
-import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
+import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
@@ -151,6 +151,7 @@ export default function Review({
   const [assistMode, setAssistMode] = React.useState("");
   const [assistText, setAssistText] = React.useState("");
   const [helpChoices, setHelpChoices] = React.useState([]);
+  const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
   React.useEffect(() => {
     setAssistMode("");
     setAssistText("");
@@ -159,6 +160,11 @@ export default function Review({
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
+  // The question column follows the chosen reading width (the card, the toolbar and the explanation share it), not a fixed 700px: 窄 / 标准 / 宽 in the Aa popover.
+  const readingStyle = useReadingProps().style || {};
+  const readingMeasure = readingStyle["--reading-measure"];
+  // The card's own type (stem, options, flashcard faces) scales with the chosen size too: 16px is the designed size, so 1.0.
+  const cardScale = Math.round((parseFloat(readingStyle["--reader-size"]) / 16 || 1) * 100) / 100;
   // Case questions (WP12): the scenario sits above the question; its highlights belong to this run.
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
@@ -364,6 +370,7 @@ export default function Review({
               (!choice && !isCloze && !rubricCard ? "flash-area" : "") +
               (caseSource ? " has-case" : "")
             }
+            style={readingMeasure ? { "--reading-measure": readingMeasure, "--review-column": "calc(var(--reading-measure) - 4px)", "--card-scale": cardScale } : undefined}
           >
             {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}
             {caseSource && <ScenarioPanel className="case-review-scenario" title={caseSource.title} text={caseSource.text}
@@ -644,6 +651,7 @@ export default function Review({
               onToggleHelp={() => run.revealed ? setExplain(!explain) : setHint(!hint)}
               onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
               onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
+              onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
               onSlay={slayCard} onReviewAction={reviewAct}
               onNote={onMakeNote}
               onTask={onMakeTask}
@@ -663,7 +671,7 @@ export default function Review({
                     event.preventDefault();
                     const mode = assistMode;
                     if (!assistText.trim() && !(mode === "ask" && helpChoices.length)) return;
-                    if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [])) {
+                    if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], mode === "derive" ? { relation: deriveRelation } : undefined)) {
                       if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length)
                         studyPrerequisites(run.prerequisites);
                       setAssistMode("");
@@ -685,14 +693,19 @@ export default function Review({
                         </button>)}
                     </div>
                   </>}
+                  {assistMode === "derive" && <div className="assist-quick-choices" role="radiogroup" aria-label={ui("出成什么题")}>
+                    {[["prerequisite", ui("这道题的前置题")], ["standalone", ui("一道独立的新题")]].map(([value, label]) =>
+                      <button type="button" key={value} role="radio" aria-checked={deriveRelation === value}
+                        className={"pill" + (deriveRelation === value ? " pill-on" : "")} onClick={() => setDeriveRelation(value)}>{label}</button>)}
+                  </div>}
                   <label>
-                    {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
+                    {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
                     <textarea
                       autoFocus
                       rows={2}
                       value={assistText}
                       maxLength={1000}
-                      placeholder={assistMode === "ask" ? ui("例如：不懂为什么重试会放大负载") : ui("例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错")}
+                      placeholder={assistMode === "ask" ? ui("例如：不懂为什么重试会放大负载") : assistMode === "derive" ? ui("例如：什么是聚合根；为什么重试要幂等") : ui("例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错")}
                       onChange={(event) => setAssistText(event.target.value)}
                     />
                   </label>
@@ -707,7 +720,7 @@ export default function Review({
               )}
               {runningTask && (
                 <p className="assist-status" role="status">
-                  <i className="assist-spin" aria-hidden="true" />{ui("后台助教正在")}{runningTask.mode === "ask" ? ui("解答") : ui("改题")}：{runningTask.text}
+                  <i className="assist-spin" aria-hidden="true" />{ui("后台助教正在")}{runningTask.mode === "ask" ? ui("解答") : runningTask.mode === "derive" ? ui("出新题") : ui("改题")}：{runningTask.text}
                 </p>
               )}
               {!runningTask && lastTask?.status === "failed" && (
@@ -716,9 +729,10 @@ export default function Review({
                   {/* "可以重新提交" used to be only a sentence: the buttons send the same request again, or open the form with it filled in to change first. */}
                   <div className="assist-actions">
                     <button type="button" className="primary pill" disabled={busy}
-                      onClick={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [])}>{ui("重新提交")}</button>
-                    {(lastTask.mode === "ask" || lastTask.mode === "improve") && <button type="button" className="pill"
-                      onClick={() => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); }}>{ui("改一改再提交")}</button>}
+                      onClick={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
+                        lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}>{ui("重新提交")}</button>
+                    {(lastTask.mode === "ask" || lastTask.mode === "improve" || (lastTask.mode === "derive" && !lastTask.followupId)) && <button type="button" className="pill"
+                      onClick={() => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); if (lastTask.mode === "derive") setDeriveRelation(lastTask.relation || "prerequisite"); }}>{ui("改一改再提交")}</button>}
                   </div>
                 </div>
               )}
@@ -762,7 +776,8 @@ export default function Review({
                 )}
                 <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
                   onOpenSource={(source, quote) => setModal({ type: "source", source, quote })} />
-                {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} call={call} readOnly />}
+                {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} call={call} readOnly
+                  onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask} />}
               </ReadingBlock>
             )}
             {teaching && <div className="teaching-panel">

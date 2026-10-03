@@ -3,10 +3,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 /* The sidebar's pages, grouped by WHEN a page is used (docs/feature-tiers.md), and their order, set by holding an item
    with the left button and dragging it.
 
-   - 每天 (daily): what a learner opens every session;
+   - 每天 (daily): what a learner opens every session, including adding the week's material and making questions from it
+     (a new lecture arrives every week, so 资料 and 创建题组 are part of the daily loop, not a once-per-course step);
    - 阶段性 (periodic): what is opened now and then (a mock exam, the statistics);
-   - 课程准备与管理 (setup): what is done once at the start of a course (add materials, make the first questions, draw
-     the skeleton, transcribe the lectures) and when a course is looked after.
+   - 课程准备与管理 (setup): what is done once at the start of a course (draw the skeleton) or only by those who record
+     their classes (audio transcription, class recordings), and when a course is looked after.
 
    Items are reordered inside their own group, so the labels between the groups stay where they are. The order and which
    groups are folded are per-viewer conveniences kept in localStorage; pages added later go last in their group and pages
@@ -16,15 +17,15 @@ const KEY = "study-nav-order";
 const GROUPS_KEY = "study-nav-groups";
 /** The sidebar's default order: the pages of every day, then those of now and then, then the once-per-course ones. */
 export const NAV_DEFAULTS = Object.freeze({
-  daily: ["library", "wrongbook", "workflows", "notes", "board"],
+  daily: ["library", "sources", "generate", "wrongbook", "workflows", "notes", "board"],
   periodic: ["exam", "dashboard"],
-  setup: ["sources", "generate", "skeleton", "audio", "live"],
+  setup: ["skeleton", "audio", "live"],
 });
 /** The groups as drawn: a plain label, one line saying what they hold, and whether the learner can fold them. */
 export const NAV_GROUPS = Object.freeze([
-  { id: "daily", label: "每天", hint: "每天都会用：今日学习、错题、学习流、笔记、待办", collapsible: false },
+  { id: "daily", label: "每天", hint: "每天都会用：今日学习、加资料、出题、错题、学习流、笔记、待办", collapsible: false },
   { id: "periodic", label: "阶段性", hint: "隔一阵用一次：模拟考试、统计", collapsible: true },
-  { id: "setup", label: "课程准备与管理", hint: "每门课开头做一次：加资料、出题、知识骨架、录音转写", collapsible: true },
+  { id: "setup", label: "课程准备与管理", hint: "每门课开头做一次或按需用：知识骨架、录音转写、课堂实录", collapsible: true },
 ]);
 const HOLD_MS = 350; // the item lifts only after this long, so an ordinary click or a slip never reorders
 const SLOP = 6; // moving further than this before the hold ends means the press was something else

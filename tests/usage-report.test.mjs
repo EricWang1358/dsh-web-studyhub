@@ -22,7 +22,7 @@ function seeded() {
   const controls = {
     'nav.library': control(every(9, 0, 5)),                  // 10 days x 5 = 50, every day, daily tier
     'review.grade': control({ 0: 10, 1: 10, 2: 10, 3: 10 }), // 40
-    'nav.sources': control(every(6, 0, 4)),                  // 7 days x 4 = 28 in the quiet group 课程准备与管理
+    'nav.skeleton': control(every(6, 0, 4)),                 // 7 days x 4 = 28 in the quiet group 课程准备与管理
     'nav.exam': control({ 40: 3 }),                          // last used 40 days ago
     'nav.resume': control({ 0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2 }), // 12 clicks
     'shortcut.resume': control({ 0: 1 }),
@@ -53,7 +53,7 @@ test('the summary counts days with data, interactions and distinct controls in t
 test('the ranking is by count, with the plain registry name in the report language, a share, and unregistered keys marked as such', () => {
   const state = seeded();
   const en = buildReport(state, { period: 7, today: TODAY, language: 'en' });
-  assert.deepEqual(en.ranking.slice(0, 3).map(row => row.key), ['review.grade', 'nav.library', 'nav.sources']);
+  assert.deepEqual(en.ranking.slice(0, 3).map(row => row.key), ['review.grade', 'nav.library', 'nav.skeleton']);
   assert.equal(en.ranking[0].name, 'Grade yourself (0–5)');
   assert.equal(en.ranking[1].name, 'Study library');
   assert.equal(en.ranking[1].count, 35, 'only the last 7 days of nav.library: 7 x 5');
@@ -115,9 +115,9 @@ test('observations are rule-based and each explains itself: a busy control in a 
   const report = buildReport(state, { period: 30, today: TODAY, language: 'en' });
   const byId = Object.fromEntries(report.observations.map(item => [item.id, item]));
   assert.ok(report.observations.length >= 3 && report.observations.length <= 6, `${report.observations.length} observations`);
-  assert.ok(byId['quiet-busy'], 'Sources is used about every day but sits in the quiet group');
-  assert.equal(byId['quiet-busy'].key, 'nav.sources');
-  assert.match(byId['quiet-busy'].text, /Sources/);
+  assert.ok(byId['quiet-busy'], 'Knowledge outline is used about every day but sits in the quiet group');
+  assert.equal(byId['quiet-busy'].key, 'nav.skeleton');
+  assert.match(byId['quiet-busy'].text, /Knowledge outline/);
   assert.match(byId['quiet-busy'].text, /Setup & manage/);
   assert.match(byId['quiet-busy'].text, /Every day/);
   assert.ok(byId['idle-fold'], 'Mock exam was last used 40 days ago');
@@ -132,7 +132,7 @@ test('observations are rule-based and each explains itself: a busy control in a 
     assert.ok(!/score|index|metric|coefficient|z-?value/i.test(item.text), 'no scoring jargon');
   }
   const zh = buildReport(state, { period: 30, today: TODAY, language: 'zh' });
-  assert.match(zh.observations.find(item => item.id === 'quiet-busy').text, /资料.*课程准备与管理.*每天/);
+  assert.match(zh.observations.find(item => item.id === 'quiet-busy').text, /知识骨架.*课程准备与管理.*每天/);
   assert.deepEqual(zh.observations.map(item => item.id), report.observations.map(item => item.id), 'the same observations in both languages');
 });
 

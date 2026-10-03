@@ -163,3 +163,44 @@ test("a failed background assist offers 重新提交 and 改一改再提交 butt
   }));
   assert.doesNotMatch(grade, /重新提交/, "a grading task has its own flow");
 });
+
+test("the review page's column follows the shared reading width, so 版心宽度 changes the card and the explanation, not only the text inside a fixed 700px column", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = render("quiz", true);
+  const area = /<div class="question-area[^"]*"[^>]*style="([^"]*)"/.exec(html)?.[1] ?? "";
+  assert.match(area, /--reading-measure:\s*\d+px/, "the reading measure reaches the column");
+  assert.match(area, /--review-column:\s*calc\(var\(--reading-measure\)\s*-\s*4px\)/);
+  assert.match(area, /--card-scale:\s*1(;|$)/, "16px is the designed size: scale 1");
+  const css = readFileSync(new URL("../ui/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.question-area\s*\{[^}]*width:\s*min\(var\(--review-column,\s*700px\),\s*calc\(100% - 48px\)\)/, "the column is no longer a fixed 700px");
+  for (const [name, pattern] of [
+    ["the stem", /\.question \{[^}]*font-size:\s*calc\(21px \* var\(--card-scale, 1\)\)/],
+    ["the options", /\.option \{[^}]*font-size:\s*calc\(16\.5px \* var\(--card-scale, 1\)\)/],
+    ["the flashcard face", /\.flash-prompt \{[^}]*font-size:\s*calc\(27px \* var\(--card-scale, 1\)\)/],
+  ]) assert.match(css, pattern, `${name} follows the reading size`);
+});
+
+test("each Q&A of a card offers 出成前置题 and 出成独立题; a failed 出成题 task can be sent again as it was", () => {
+  const followups = [{ id: "f0", question: "什么是桥接？", answer: "它把两个维度分开。" }];
+  const solution = { answer: "Payment System", explanation: "Explanation", followups };
+  const html = render("quiz", true, { solution }, {});
+  // the Q&A list is read-only in the page, but the derive links are actions on each item
+  assert.match(html, /出成前置题/);
+  const withHandler = renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "r", index: 0, total: 2, card: { id: "q", kind: "quiz", topic: "Context", prompt: "P?", options: [{ id: "a", text: "A" }] }, revealed: true,
+      feedback: { correct: true, details: [] }, solution },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {},
+    assistTasks: [{ id: "t", cardId: "q", mode: "derive", status: "failed", message: "新题和当前这道题重复，没有保存", question: "", relation: "prerequisite", followupId: "f0" }],
+  }));
+  assert.match(withHandler, /data-usage="review\.derive-prereq"[^>]*>出成前置题</);
+  assert.match(withHandler, /data-usage="review\.derive-standalone"[^>]*>出成独立题</);
+  assert.match(withHandler, /后台助教没能完成：新题和当前这道题重复，没有保存/);
+  assert.match(withHandler, /<button[^>]*>重新提交<\/button>/);
+  assert.doesNotMatch(withHandler, /改一改再提交/, "a Q&A-based task has nothing to edit: only a typed knowledge point does");
+  const typed = renderToStaticMarkup(React.createElement(Review, {
+    run: { id: "r", index: 0, total: 2, card: { id: "q", kind: "quiz", topic: "Context", prompt: "P?", options: [{ id: "a", text: "A" }] }, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {},
+    assistTasks: [{ id: "t", cardId: "q", mode: "derive", status: "failed", message: "x", question: "什么是聚合根", relation: "standalone" }],
+  }));
+  assert.match(typed, /<button[^>]*>改一改再提交<\/button>/, "a typed knowledge point can be edited first");
+});
