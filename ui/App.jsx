@@ -30,7 +30,7 @@ import Manage from "./Manage.jsx";
 import Settings, { backupFileName } from "./Settings.jsx";
 import UpdateCenter from "./UpdateCenter.jsx";
 import Generate from "./Generate.jsx";
-import { GENERATION_DEFAULTS } from "./generation-status.js";
+import { GENERATION_DEFAULTS, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import ImportHub, { importOutcome } from './ImportHub.jsx';
 import { parseCourses } from './CourseField.jsx';
 import { countDocuments, documentSourceIds, groupSourcesByDocument } from '../lib/source-groups.js';
@@ -391,7 +391,7 @@ export default function App({ call: transportCall, host = {} }) {
           setGraphScope(null);
           setGraphCanvas(false);
           setSelectedSources([]);
-          setGen(current => ({ ...current, course: undefined }));
+          setGen({ ...generationFormDefaults(next.settings?.generation), title: '', course: undefined });
           setTeaching(null);
           setModal(null);
           setPage("library");
@@ -400,6 +400,12 @@ export default function App({ call: transportCall, host = {} }) {
           setNotebookError("");
           setSettings(next.settings);
           setBinding((b) => ({ ...b, root: next.root }));
+        }
+        if (!cur || cur.root === next.root && cur.settings !== shared.value.settings) {
+          const before = cur ? generationFormDefaults(cur.settings?.generation)
+            : { ...GENERATION_DEFAULTS, language: host.defaultContentLanguage || (getUiLanguage() === 'en' ? 'English' : '中文') };
+          const after = generationFormDefaults(next.settings?.generation);
+          setGen(current => syncGenerationDefaults(current, before, after));
         }
         dataRef.current = shared.value;
         snapshotKey.current = shared.texts;
@@ -411,11 +417,14 @@ export default function App({ call: transportCall, host = {} }) {
       } else result = cur;
     }
     return result;
-  }, [call, quick, setNotice]);
+  }, [call, quick, setNotice, host.defaultContentLanguage]);
   const previousLanguage = useRef(language);
   useEffect(() => {
     if (previousLanguage.current === language) return;
+    const before = generationFormDefaults(dataRef.current?.settings?.generation, previousLanguage.current);
     previousLanguage.current = language;
+    const after = generationFormDefaults(dataRef.current?.settings?.generation, language);
+    setGen(current => syncGenerationDefaults(current, before, after));
     setRun(current => localizedRun(current));
     void refresh().catch(error => setError(error.message));
   }, [language, refresh]);
@@ -575,6 +584,7 @@ export default function App({ call: transportCall, host = {} }) {
     if (!binding.root) return;
     let stopped = false,
       pending = false,
+      wakeRequested = false,
       unchanged = 0,
       timer;
     const tick = async () => {
@@ -596,7 +606,11 @@ export default function App({ call: transportCall, host = {} }) {
           pending = false;
         }
       }
-      if (!stopped) timer = setTimeout(tick, pollDelay({ unchanged, running: workingRef.current }));
+      if (!stopped) {
+        const immediate = wakeRequested && !document.hidden;
+        wakeRequested = false;
+        timer = setTimeout(tick, immediate ? 0 : pollDelay({ unchanged, running: workingRef.current }));
+      }
     };
     timer = setTimeout(tick, POLL_FAST_MS);
     // Activity in the panel, or coming back to it, restores the quick rhythm at once.
@@ -605,6 +619,11 @@ export default function App({ call: transportCall, host = {} }) {
       if (document.hidden || stopped) return;
       unchanged = 0;
       clearTimeout(timer);
+      // Let the pending request own the next timer, while remembering the refresh intent.
+      if (pending) {
+        wakeRequested = true;
+        return;
+      }
       timer = setTimeout(tick, 0);
     };
     window.addEventListener("pointerdown", wake, true);

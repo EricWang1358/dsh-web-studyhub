@@ -135,7 +135,7 @@ export default function Generate({
       // Confirm with the deck's name, start the next deck from a clean form (P27),
       // and land where the progress card is (P26).
       setNotice(generationStartedNotice(job, gen, materials));
-      setGen(freshGeneration);
+      setGen(current => freshGeneration(current, data.settings?.generation));
       if (onStarted) onStarted(job);
       else setPage("library");
     });
@@ -252,7 +252,7 @@ export default function Generate({
               <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal} call={call} askInChat={askInChat}
                 indexCoverage={indexCoverage} disabled={busy || !model.ready} setNotice={setNotice} onSettings={openSettings}
                 onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
-                onQueued={() => { setGen(freshGeneration); setPage("library"); }} />
+                onQueued={() => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); }} />
             </fieldset>
             <fieldset className="generate-form" data-tour="generate-options">
               <legend>{ui("02 / 学习方式")}</legend>

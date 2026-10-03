@@ -6,6 +6,7 @@ import MineruSettings from './MineruSettings.jsx';
 import JevSettings from './JevSettings.jsx';
 import { ExperimentalSection } from './ExperimentalSettings.jsx';
 import UsageSettings from './UsageSettings.jsx';
+import GenerationSettings from './GenerationSettings.jsx';
 import { experimentalShown } from './experimental-flag.js';
 import { hasContext } from './capabilities.js';
 import { SETTINGS_GROUPS, categoriesFor, categoryForAnchor, initialCategory, settingsGroupState } from './settings-groups.js';
@@ -430,6 +431,7 @@ export default function Settings({
           {workspacePanel}
         </fieldset>
       );
+      case "generation": return capabilities.generation ? <GenerationSettings root={data.root} saved={data.settings?.generation} busy={busy} act={act} setNotice={setNotice} /> : null;
       case "courses": return coursePanel;
       case "audio": return capabilities.audio ? <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} /> : null;
       case "mineru": return capabilities.audio ? <MineruSettings busy={busy} call={call} setNotice={setNotice} /> : null;

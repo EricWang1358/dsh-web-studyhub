@@ -157,9 +157,29 @@ test("a started generation confirms with the deck name and resets the form", () 
   assert.match(queued.text, /「索引小测」/);
   assert.match(queued.text, /前面还有 1 个/);
   assert.match(m.generationStartedNotice({ status: "running" }, { ...gen, title: "" }, 2).text, /已开始用 2 份资料出题/);
-  assert.deepEqual(m.freshGeneration(gen), { kind: "mixed", count: 10, title: "", focus: "", language: "English",
+  assert.deepEqual(m.freshGeneration(gen), { kind: "quiz", count: 10, title: "", focus: "", language: "English",
     difficulty: "advanced", role: "后端", course: undefined });
-  assert.deepEqual({ kind: m.GENERATION_DEFAULTS.kind, count: m.GENERATION_DEFAULTS.count }, { kind: "mixed", count: 10 });
+  assert.deepEqual({ kind: m.GENERATION_DEFAULTS.kind, count: m.GENERATION_DEFAULTS.count }, { kind: "quiz", count: 10 });
+});
+
+test("saved generation defaults populate and reset forms without carrying worker overrides", () => {
+  const saved = { kind: 'open', count: 7, language: 'auto', difficulty: 'application', focus: 'Explain the tradeoff', concurrency: 1, batchSize: 2 };
+  const defaults = m.generationFormDefaults(saved, 'en');
+  assert.deepEqual(defaults, { kind: 'open', count: 7, language: 'English', difficulty: 'application', focus: 'Explain the tradeoff', role: '' });
+  const reset = m.freshGeneration({ ...defaults, title: 'One deck', course: 'Old course', role: 'Engineer', count: 2 }, saved, 'en');
+  assert.deepEqual(reset, { ...defaults, role: 'Engineer', title: '', course: undefined });
+  assert.equal(m.generationFormDefaults(saved, 'zh').language, '中文');
+});
+
+test("settings snapshots update inherited choices while preserving the typed generation form", () => {
+  const before = m.generationFormDefaults({}, 'zh');
+  const current = { ...before, count: '4', focus: 'My input', title: 'My title', course: 'CS' };
+  const after = m.generationFormDefaults({ kind: 'cloze', count: 8, language: 'English', focus: 'New saved focus' });
+  assert.equal(m.syncGenerationDefaults(current, before, before), current, 'unchanged defaults retain the form reference');
+  assert.deepEqual(m.syncGenerationDefaults(current, before, after), {
+    ...after, count: '4', focus: 'My input', title: 'My title', course: 'CS',
+  });
+  assert.equal(m.legacyStageText('Parallel generation · up to 6 batches'), '并行生成 · 最多 6 批同时进行');
 });
 
 test("materials are counted per document, not per PDF page", () => {

@@ -49,7 +49,7 @@ export default function GenerationTrace({ job, openAgent }) {
       <JobUsage job={job} />
       {job.origin === "selection"
         ? <p className="muted">{ui("先提取知识点和逐字原文，再确定答案与必要情景，然后出题、自查并独立审阅；只有通过审阅的题才会保存到题组。")}</p>
-        : <p className="muted">{ui("先提取知识点和逐字原文，再确定答案、必要情景和选项依据；每批最多 5 题，出题与自查后独立审阅，通过的题保留在草稿。")}</p>}
+        : <p className="muted">{uiFormat("先提取知识点和逐字原文，再确定答案、必要情景和选项依据；每批最多 {0} 题，出题与自查后独立审阅，通过的题保留在草稿。", [job.batchSize || 5])}</p>}
       {job.totalTimeoutSeconds > 0 && <p className="muted">{job.origin === "selection"
         ? uiFormat("最长 {0} 分钟（不算排队）；到时会停止，题组不会有变化。", [Math.round(job.totalTimeoutSeconds / 60)])
         : uiFormat("最长 {0} 分钟（不算排队）；到时会停止，已通过检查的题保留在草稿里。", [Math.round(job.totalTimeoutSeconds / 60)])}</p>}

@@ -28,6 +28,7 @@ export const SECTION_GROUP = Object.freeze({ 'settings-model': 'common' });
 export const SETTINGS_CATEGORIES = Object.freeze([
   { id: 'appearance', group: 'common', title: '界面', anchors: ['settings-appearance'] },
   { id: 'model', group: 'common', title: '学习库与模型', anchors: ['settings-model'] },
+  { id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation'], needs: 'generation' },
   { id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'] },
   { id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio' },
   { id: 'mineru', group: 'once', title: 'PDF 转换（MinerU）', anchors: ['settings-mineru'], needs: 'audio' },

@@ -5,13 +5,32 @@ import { ui, uiFormat, getUiLanguage } from './i18n.js';
 import { stageCodeOf, stepStageCode } from '../lib/contexts/jobs/contracts.js';
 import { supplementJobLabel } from './job-visibility.js';
 import { countDocuments } from '../lib/source-groups.js';
+import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/generation-settings.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
-export const GENERATION_DEFAULTS = Object.freeze({ kind: 'mixed', count: 10, difficulty: 'mixed', focus: '', role: '' });
+export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, count: GENERATION_SETTINGS_DEFAULTS.count,
+  difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, role: '' });
 
-/** Clear what belongs to one deck (title, focus, course); keep the learner's standing preferences. */
-export const freshGeneration = (gen = {}) => ({ ...gen, kind: GENERATION_DEFAULTS.kind, count: GENERATION_DEFAULTS.count,
-  title: '', focus: '', course: undefined });
+export function generationFormDefaults(saved, language = getUiLanguage()) {
+  const { performance: _performance, ...content } = resolveGenerationRequest(saved, {}, { language });
+  return { ...GENERATION_DEFAULTS, ...content };
+}
+
+/** Only inherited defaults follow a settings update; typed choices stay put. */
+export function syncGenerationDefaults(current, before, after) {
+  let next = current;
+  for (const [key, value] of Object.entries(current)) {
+    if (!Object.hasOwn(after, key) || value !== before[key] || Object.is(value, after[key])) continue;
+    if (next === current) next = { ...current };
+    next[key] = after[key];
+  }
+  return next;
+}
+
+/** Start another deck with saved content defaults and the learner's role. */
+export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => ({ ...gen,
+  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, count: GENERATION_DEFAULTS.count, focus: '' }
+    : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined });
 
 /** Plan contract C3 first (`data.model`), then the legacy `modelReady` flag. */
 export function modelReadiness(data) {
@@ -67,7 +86,7 @@ export function legacyStageText(stage = '') {
     .replace(/Generation reached its (\d+)-minute total budget; approved questions were retained/, '已达到 $1 分钟执行时限；已验收题目已保留')
     .replace(/Draft ready with (\d+)\/(\d+) questions; (\d+) part\(s\) failed/, '草稿已保留 $1/$2 题；$3 批未完成')
     .replace(/Group (\d+)\/(\d+)/g, '第 $1/$2 组')
-    .replace('Parallel generation · up to 3 batches', '并行生成 · 最多 3 批同时进行')
+    .replace(/Parallel generation · up to (\d+) batches/, '并行生成 · 最多 $1 批同时进行')
     .replace('Planning evidence and learning targets', '生成前：规划考点与证据边界')
     .replace('Preparing supported answers and scenarios', '确定答案与情景')
     .replace('Self-checking and improving every question', '生成后：逐题自查与改写')

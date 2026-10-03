@@ -79,7 +79,7 @@ test('the category list sits under the three group headings, marks the selected 
   const html = renderToStaticMarkup(h(SettingsNav, { available, active: 'audio', missing: ['model', 'audio'], onSelect: noop }));
   assert.match(html, /<nav class="settings-nav"[^>]*aria-label="设置分类"/);
   for (const group of SETTINGS_GROUPS) assert.match(html, new RegExp(`<p class="settings-nav__label">${group.title}</p>`));
-  assert.equal((html.match(/class="settings-nav__item"/g) || []).length, 11);
+  assert.equal((html.match(/class="settings-nav__item"/g) || []).length, available.length);
   assert.match(html, /data-category="audio"[^>]*aria-current="page"|aria-current="page"[^>]*data-category="audio"/);
   assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
   assert.equal((html.match(/class="settings-nav__todo">待设置</g) || []).length, 2, 'one marker per category that needs attention, in words');
@@ -132,7 +132,8 @@ test('the English page has no Han outside user data', () => {
     for (const props of [{ tourActive: true, appearance }, { appearance }, { appearance, focusSection: 'settings-model' }]) {
       const html = page(props);
       // The language names are written in their own language, on purpose (the sidebar's switch does the same).
-      assert.doesNotMatch(html.replace(/D:\\Study\\library/g, '').replace('>中文<', '><'), han);
+      assert.doesNotMatch(html.replace(/D:\\Study\\library/g, '').replaceAll('>中文<', '><')
+        .replace(/\bvalue="(?:中文|中英双语)"/g, ''), han);
     }
   } finally { setUiLanguage('zh'); }
 });

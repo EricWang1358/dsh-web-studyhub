@@ -8,6 +8,7 @@
   "确定答案与情景": "Prepare answers and scenarios",
   "先提取知识点和逐字原文，再确定答案与必要情景，然后出题、自查并独立审阅；只有通过审阅的题才会保存到题组。": "Extract knowledge and verbatim passages, prepare answers and necessary context, then write, self-check and independently review questions. Only independently approved questions are saved to the deck.",
   "先提取知识点和逐字原文，再确定答案、必要情景和选项依据；每批最多 5 题，出题与自查后独立审阅，通过的题保留在草稿。": "Extract knowledge and verbatim passages, then prepare supported answers, necessary scenarios and option rationales. Batches of up to 5 questions are written, self-checked and independently reviewed; passing questions are kept in the draft.",
+  "先提取知识点和逐字原文，再确定答案、必要情景和选项依据；每批最多 {0} 题，出题与自查后独立审阅，通过的题保留在草稿。": "Extract knowledge and verbatim passages, then prepare supported answers, necessary scenarios and option rationales. Batches of up to {0} questions are written, self-checked and independently reviewed; passing questions are kept in the draft.",
   "每组资料提取一次知识点；每批分别确定答案与情景、出题与自查、独立审阅。引用核验和已验证内容的绑定在本地完成。": "Knowledge is extracted once per source group. Each batch then prepares answers and scenarios, writes and self-checks questions, and receives an independent review. Citation checks and binding verified content run locally.",
   "用资料出题": "Generate from sources",
   "本次已补入": "Added this time",

@@ -7,10 +7,10 @@ import { SETTINGS_CATEGORIES, SETTINGS_GROUPS, categoriesFor, categoryForAnchor,
 
 const full = { audio: true, generation: true, system: true };
 
-test('eleven categories under the three group headings, each with a plain title', () => {
+test('settings categories under the three group headings, each with a plain title', () => {
   assert.deepEqual(SETTINGS_GROUPS.map(group => group.id), ['common', 'once', 'advanced']);
   assert.deepEqual(SETTINGS_CATEGORIES.map(category => category.id),
-    ['appearance', 'model', 'courses', 'audio', 'mineru', 'retrieval', 'profile', 'data', 'update', 'usage', 'experimental']);
+    ['appearance', 'model', 'generation', 'courses', 'audio', 'mineru', 'retrieval', 'profile', 'data', 'update', 'usage', 'experimental']);
   for (const category of SETTINGS_CATEGORIES) {
     assert.ok(SETTINGS_GROUPS.some(group => group.id === category.group), `${category.id} sits in a group`);
     assert.ok(category.title && /[㐀-鿿]/.test(category.title), `${category.id} has a Chinese title`);
@@ -24,13 +24,14 @@ test('a host without a component shows no category for it', () => {
   assert.ok(!ids({ generation: true, system: true }).includes('audio'));
   assert.ok(!ids({ generation: true, system: true }).includes('mineru'));
   assert.ok(!ids({ audio: true, system: true }).includes('retrieval'));
+  assert.ok(!ids({ audio: true, system: true }).includes('generation'));
   assert.ok(!ids({ audio: true, generation: true }).includes('usage'));
   assert.ok(!ids({ audio: true, generation: true }).includes('experimental'));
   assert.deepEqual(ids({}).slice(0, 3), ['appearance', 'model', 'courses'], 'the basics are always there');
 });
 
 test('every deep link and tour anchor lands on its category', () => {
-  const expected = { 'settings-model': 'model', 'settings-audio': 'audio', 'settings-mineru': 'mineru', 'settings-extensions': 'retrieval', 'settings-update': 'update', 'settings-usage': 'usage', 'settings-experimental': 'experimental', 'settings-jev': 'experimental' };
+  const expected = { 'settings-model': 'model', 'settings-generation': 'generation', 'settings-audio': 'audio', 'settings-mineru': 'mineru', 'settings-extensions': 'retrieval', 'settings-update': 'update', 'settings-usage': 'usage', 'settings-experimental': 'experimental', 'settings-jev': 'experimental' };
   for (const [anchor, id] of Object.entries(expected)) assert.equal(categoryForAnchor(anchor), id, anchor);
   assert.equal(categoryForAnchor('settings-nowhere'), null);
   assert.equal(categoryForAnchor(''), null);
