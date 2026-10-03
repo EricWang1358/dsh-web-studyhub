@@ -43,9 +43,9 @@ function gatedModel() {
 
 async function fixture(t, { model = gatedModel(), notices = [], language = 'zh', noModel = false, body = markdown } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'translation-jobs-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   const runtime = createStudyRuntime(root, { ...(noModel ? {} : { complete: model.complete }), notify: message => notices.push(message), language });
-  t.after(() => runtime.dispose());
+  // The runtime is disposed first (a stopped job may still be writing a shard), then the folder goes, with retries for a slow filesystem.
+  t.after(async () => { await runtime.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   const imported = await runtime.call('materials.document.import', { filename: 'notes.md', dataBase64: Buffer.from(body).toString('base64') });
   const source = imported.document.sources[0];
   const scope = { sourceIds: [source.id] };
