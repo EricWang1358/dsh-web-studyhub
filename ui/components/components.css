@@ -392,10 +392,18 @@
   .sh-toast__action { align-self: center; margin: 0 var(--space-1); color: var(--text); font-weight: 600; }
   .sh-toast__close { align-self: flex-start; margin: -4px 0 -4px -4px; color: var(--text-muted); }
 
-  .sh-toasts__inner { display: flex; flex-direction: column; }
+  .sh-toasts__inner { display: flex; flex-direction: column; container: toasts / inline-size; }
   .sh-toasts__stack { display: flex; flex-direction: column; gap: var(--space-2); }
   .sh-toasts__stack[role="alert"] { order: -1; }
   .sh-toasts__stack[role="status"]:not(:empty) + .sh-toasts__stack[role="alert"]:not(:empty) { margin-bottom: var(--space-2); }
+  /* Let a narrow card keep its message readable even when its action label is long. */
+  @container toasts (max-width: 400px) {
+    .sh-toast { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: var(--space-2) var(--space-3); }
+    .sh-toast__icon { grid-column: 1; grid-row: 1; }
+    .sh-toast__text { grid-column: 2; grid-row: 1; }
+    .sh-toast__close { grid-column: 3; grid-row: 1; }
+    .sh-toast__action { grid-column: 2 / -1; grid-row: 2; justify-self: start; min-width: 0; max-width: 100%; margin: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+  }
   /* Page placement: a zero-height sticky rail under the top bar, so a toast is
      visible wherever the learner has scrolled and never shifts the page. */
   :is(.sh-toasts--page, .sh-toasts--auto) {
