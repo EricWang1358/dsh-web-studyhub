@@ -436,6 +436,25 @@ test('a reply the validator refuses is sent back once with the reason and fixed 
   }
 });
 
+test('修题 never turns a plain question into a half cloze: a stem with {{blank}} markers on a non-cloze card is refused, repaired once, and the card stays a plain question', async t => {
+  const broken = { patch: { prompt: 'Bridge separates two things. The two are {{blank}}.', answer: 'Abstraction and implementation.' }, reason: 'Turned the question into a fill-in' };
+  const fixed = { patch: { prompt: 'Which two dimensions does Bridge separate, and why does that help?', answer: 'Abstraction and implementation, so each varies independently.' }, reason: 'Made the stem a complete question' };
+  for (const [name, replies, status] of [['repaired on the second reply', [broken, fixed], 'done'], ['refused twice', [broken, broken], 'failed']]) {
+    const seen = [];
+    const f = await fixture(t, async (system, payload) => { seen.push({ system, payload }); return JSON.stringify(replies[Math.min(seen.length - 1, replies.length - 1)]); });
+    await f.start({}, { mode: 'improve', helpChoices: [], text: 'Make the question clearer' });
+    await until(() => f.task().status !== 'running');
+    const state = await f.service.store.read();
+    assert.equal(f.task().status, status, `${name}: ${f.task().message}`);
+    assert.doesNotMatch(state.decks[0].cards[0].prompt, /\{\{/, `${name}: the stored stem has no blank markers`);
+    assert.equal(state.decks[0].cards[0].kind, 'flashcard');
+    assert.match(seen[0].system, /Never convert|do not convert/i, 'the instruction forbids changing the kind');
+    assert.match(seen[0].system, /\{\{/, 'and names the marker so the model knows what is refused');
+    if (status === 'done') assert.match(state.decks[0].cards[0].prompt, /Which two dimensions/);
+    else assert.equal(state.decks[0].cards[0].prompt, card.prompt, `${name}: nothing was changed`);
+  }
+});
+
 test('the task remembers what was asked (choices and the learner own question) so a failed one can be sent again or edited', async t => {
   const f = await fixture(t, async () => '{"answer":"x"}');
   await f.start({}, { helpChoices: ['example', 'prerequisite'], text: 'Why does retry amplify load?' });
