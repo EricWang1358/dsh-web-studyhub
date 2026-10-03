@@ -1475,6 +1475,7 @@
   }
   .generation-trace { margin-top: 10px; overflow-wrap: anywhere; }
   .generation-trace ol { padding-left: 20px; }
+  .agent-link__error { display: block; margin-top: 2px; color: color-mix(in srgb, var(--bad) 85%, var(--text)); font-size: var(--fs-xs); line-height: var(--lh-snug); }
   .generation-trace li { margin: 12px 0; }
   .generation-trace small { display: block; }
   .pdf-import details {

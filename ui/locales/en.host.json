@@ -3,5 +3,11 @@
   "StudyHub 的学习库存放在会话的工作区里。新建或打开一个会话后，这里会直接显示你的学习库。": "StudyHub keeps its library in a session's workspace folder. Start or open a session and your library appears right here.",
   "新建会话": "New session",
   "学习库：{0}": "Library: {0}",
-  "学习库位置：{0}。打开设置可更改": "Library location: {0}. Open Settings to change it"
+  "学习库位置：{0}。打开设置可更改": "Library location: {0}. Open Settings to change it",
+  "这一步没有可打开的后台助手。": "This step has no background assistant to open.",
+  "当前 DSH 版本不能从这里打开后台助手。": "This DSH version cannot open background assistants from here.",
+  "没能打开后台助手：{0}": "Could not open the background assistant: {0}",
+  "DSH 没有说明原因，助手可能已经结束。": "DSH gave no reason; the assistant may have finished.",
+  "没能打开后台助手。": "Could not open the background assistant.",
+  "正在打开…": "Opening…"
 }
