@@ -279,12 +279,53 @@ test("local suggestions are labelled as coming from the learner's own data, with
   assert.equal([...html.matchAll(/generate-suggestion/g)].length, 2);
 });
 
-test("a model failure is mapped to plain words next to the local fallback", () => {
+test("a model failure says why in plain words next to the local fallback, with a retry", () => {
   const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "429 Too Many Requests: rate limit" } } });
-  assert.match(html, /模型服务太忙了/);
-  assert.match(html, /来自你的错题与资料目录/);
-  assert.doesNotMatch(html, /429|rate limit/, "raw provider text is never shown");
+  assert.match(html, /AI 调用没有成功/);
+  assert.match(html, /模型当前限流/);
+  assert.match(html, /先给你来自本地数据的建议/);
+  assert.match(html, /来自你的错题与资料目录/, "the suggestions that remain are labelled as local");
+  assert.match(html, />再试一次<\/button>/);
   assert.doesNotMatch(html, /role="alert"/);
+  assert.doesNotMatch(html, /生成没有完成/, "the generic generation-failure line is gone");
+});
+
+test("an unknown error shows its short text instead of a generic line", () => {
+  const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "model_not_found: deepseek-x" } } });
+  assert.match(text(html), /AI 调用没有成功：model_not_found: deepseek-x/);
+  assert.doesNotMatch(html, /生成没有完成/);
+});
+
+test("an answer in the wrong format says so and offers to show the answer", () => {
+  const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "nothing-usable", sample: '{"note":"here you go"}' } } });
+  assert.match(html, /AI 的回答不是约定的格式/);
+  assert.match(html, /<details[^>]*>.*看 AI 的回答.*<pre>[^<]*here you go/s);
+  assert.match(html, />再试一次<\/button>/);
+});
+
+test("with no model the line offers the model settings, and the retry button asks again", () => {
+  const html = assist({ ready: true, phase: "done", onSettings: noop, result: { source: "local", focus: ["Sharding"], unavailable: { reason: "no-model" } } });
+  assert.match(text(html), /还没有可用的 AI 模型/);
+  assert.match(html, /打开模型设置/);
+  assert.doesNotMatch(html, />再试一次<\/button>/, "retrying cannot help before a model exists");
+  const quiet = assist({ ready: false, phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "no-model" } } });
+  assert.doesNotMatch(quiet, /还没有可用的 AI 模型/, "a learner who knowingly has no model is not nagged: the button already says it is local");
+});
+
+test("the failure line has the retry as an sh- button and no Han in English", () => {
+  const asks = [];
+  const element = React.createElement(GenerateAssist, { ready: true, phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "boom" } }, focus: "", onAsk: () => asks.push(1), onPick: noop, onApply: noop });
+  const html = renderToStaticMarkup(element);
+  assert.match(html, /<button[^>]*class="[^"]*sh-btn[^"]*"[^>]*>再试一次<\/button>/);
+  setUiLanguage("en");
+  try {
+    for (const unavailable of [{ reason: "failed", message: "boom" }, { reason: "failed", message: "429 rate limit" }, { reason: "nothing-usable", sample: "{}" }, { reason: "no-model" }]) {
+      const english = renderToStaticMarkup(React.createElement(GenerateAssist, { ready: true, phase: "done", onSettings: noop, result: { source: "local", focus: ["Sharding"], unavailable }, focus: "", onAsk: noop, onPick: noop, onApply: noop }));
+      assert.doesNotMatch(english, han, `English line for ${unavailable.reason}`);
+    }
+    assert.match(text(renderToStaticMarkup(element)), /The AI call did not succeed: boom\. Showing suggestions from your own data instead; you can try again\./);
+    assert.match(renderToStaticMarkup(element), />Try again</);
+  } finally { setUiLanguage("zh"); }
 });
 
 test("nothing to suggest says so quietly, and the button shows its busy state", () => {

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat, uiLocale, getUiLanguage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, InlineMessage } from './components/index.js';
+import AiHelperNote from './AiHelperNote.jsx';
 import { applyPathRefinement, planGenerationPath, STEP_CHARS } from '../lib/generation-path.js';
 import { pathBrief, queueSteps, selectedItems } from './generation-path-flow.js';
 import css from './generation-path.css';
@@ -20,16 +21,16 @@ export function stepTitle(step) {
   return parts.length === 1 ? name(parts[0]) : parts.length === 2 ? `${name(parts[0])}, ${name(parts[1])}` : `${name(parts[0])} … ${name(parts.at(-1))}`;
 }
 
-export default function GenerationPath({ sources, selectedIds, onUseStep, gen, course = '', goal = '', call, askInChat, indexCoverage = null, disabled = false, onQueued, setNotice }) {
+export default function GenerationPath({ sources, selectedIds, onUseStep, gen, course = '', goal = '', call, askInChat, indexCoverage = null, disabled = false, onQueued, setNotice, onSettings }) {
   useInjectCss(css, 'study-generation-path');
   const items = useMemo(() => selectedItems(sources, selectedIds), [sources, selectedIds]);
   const total = items.reduce((sum, item) => sum + (item.chars || 0), 0);
   const base = useMemo(() => planGenerationPath(items), [items]);
   const signature = base.steps.map(step => `${step.id}:${step.chars}`).join('|');
-  const [ai, setAi] = useState(null), [aiState, setAiState] = useState({ phase: 'idle', message: '' });
+  const [ai, setAi] = useState(null), [aiState, setAiState] = useState({ phase: 'idle' });
   const [edits, setEdits] = useState({}), [queueing, setQueueing] = useState(false), [report, setReport] = useState(null);
   // A different selection is a different plan: nothing of the old one carries over.
-  useEffect(() => { setAi(null); setEdits({}); setAiState({ phase: 'idle', message: '' }); setReport(null); }, [signature]);
+  useEffect(() => { setAi(null); setEdits({}); setAiState({ phase: 'idle' }); setReport(null); }, [signature]);
   const ordered = ai ? applyPathRefinement(base.steps, { steps: ai }).steps : base.steps;
   const steps = ordered.map(step => ({ ...step, ...(edits[step.id] || {}) }));
   const included = steps.filter(step => step.included !== false);
@@ -38,17 +39,12 @@ export default function GenerationPath({ sources, selectedIds, onUseStep, gen, c
   const patch = (id, change) => setEdits(current => ({ ...current, [id]: { ...(current[id] || {}), ...change } }));
 
   async function refine() {
-    setAiState({ phase: 'loading', message: '' });
+    setAiState({ phase: 'loading' });
     try {
       const result = await call('generate.path.suggest', { steps: base.steps.map(({ id, title, pages, chars }) => ({ id, title, pages, chars })), course, ...(goal ? { goal } : {}) });
-      if (result?.source === 'model' && result.steps?.length) { setAi(result.steps); setAiState({ phase: 'done', message: '' }); }
-      else {
-        const reason = result?.unavailable?.reason;
-        setAiState({ phase: 'unavailable', sample: result?.unavailable?.sample || '', message: reason === 'no-model' ? ui('还没有可用的 AI 模型，先用按章节做的路径。')
-          : reason === 'failed' ? uiFormat('AI 调用没有成功：{0}。先用按章节做的路径，可以再试一次。', [result.unavailable.message || ui('没有说明原因')])
-            : ui('AI 的回答不是约定的格式，没能用上，先用按章节做的路径。可以再试一次。') });
-      }
-    } catch (error) { setAiState({ phase: 'unavailable', message: uiFormat('AI 调用没有成功：{0}。先用按章节做的路径，可以再试一次。', [String(error?.message || error)]) }); }
+      if (result?.source === 'model' && result.steps?.length) { setAi(result.steps); setAiState({ phase: 'done' }); }
+      else setAiState({ phase: 'unavailable', unavailable: result?.unavailable || { reason: 'nothing-usable' } });
+    } catch (error) { setAiState({ phase: 'unavailable', unavailable: { reason: 'failed', message: String(error?.message || error) } }); }
   }
   async function queue() {
     setQueueing(true); setReport(null);
@@ -72,8 +68,7 @@ export default function GenerationPath({ sources, selectedIds, onUseStep, gen, c
         </Button>
         {typeof askInChat === 'function' && <Button size="sm" variant="quiet" onClick={chat} data-usage="generate.path-chat">{ui('和 AI 聊聊怎么学')}</Button>}
       </div>
-      {aiState.phase === 'unavailable' && <InlineMessage>{aiState.message}</InlineMessage>}
-      {aiState.phase === 'unavailable' && aiState.sample && <details className="gen-path__sample"><summary>{ui('看 AI 的回答（可以发给开发者）')}</summary><pre>{aiState.sample}</pre></details>}
+      {aiState.phase === 'unavailable' && <AiHelperNote unavailable={aiState.unavailable} fallback="先用按章节做的路径" onSettings={onSettings} />}
       {aiState.phase === 'done' && <p className="muted small" role="status">{ui('AI 给了每一步的名称、重点和顺序；都可以改。页面范围不会变。')}</p>}
       <ol className="gen-path__steps">
         {steps.map(step => (

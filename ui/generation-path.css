@@ -16,8 +16,6 @@
   .gen-path__title small, .gen-path__reason { color: var(--text-muted); font-size: var(--fs-xs); }
   .gen-path__edit { display: flex; gap: var(--space-2); align-items: center; min-width: 0; }
   .gen-path__edit input { flex: 1 1 auto; min-width: 0; margin: 0; }
-  .gen-path__sample summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-sm); }
-  .gen-path__sample pre { margin: var(--space-2) 0 0; padding: var(--space-2); max-width: 100%; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-xs); }
   .gen-path__go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
   @media (max-width: 640px) { .gen-path__edit { flex-wrap: wrap; } }
 }
