@@ -240,6 +240,12 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 - **可选功能**：[使用频率记录](docs/usage-frequency.zh-CN.md) · [Jev 决策层（实验性，英文）](docs/jev-experimental.md)
 - **开发者**：[架构与扩展](docs/architecture.md) · [开发验证记录（英文）](docs/verification.md) · [SM-2 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
 
+## 参与项目
+
+对 StudyHub 的开发、测试、文档或使用反馈感兴趣，欢迎加入 QQ 群交流。用 QQ 扫描下方二维码；也可以[打开原图](docs/assets/studyhub-qq-group.jpg)后扫码。
+
+<img src="docs/assets/studyhub-qq-group.jpg" alt="StudyHub 项目交流群 QQ 入群二维码" width="360">
+
 ## 反馈与许可证
 
 遇到问题或有建议，请在 [GitHub Issues](https://github.com/EricWang1358/dsh-web-studyhub/issues) 提出。
