@@ -115,5 +115,21 @@
   "资料列表": "Materials",
   "没有匹配“{0}”的资料": "No materials match “{0}”",
   "显示方式": "View",
-  "下载原文件": "Download the original"
+  "下载原文件": "Download the original",
+  "Marker：在本机外部转换": "Marker: convert outside StudyHub",
+  "在自己电脑上安装并运行 Marker，再选择转换结果。StudyHub 只提供脚本与结果导入，不会安装或启动 Marker。": "Install and run Marker on your computer, then select its output. StudyHub provides a script and imports the result; it does not install or start Marker.",
+  "按官方指南准备 Python 环境并安装 marker-pdf。建议使用独立虚拟环境，核对当前版本的系统与硬件要求。": "Follow the official guide to prepare Python and install marker-pdf. Use a separate virtual environment and check the system and hardware requirements for your chosen version.",
+  "Marker 安装指南": "Marker installation guide",
+  "一键下载转换脚本，保存后在该 Python 环境中运行以下命令，按提示选择本地 PDF。": "Download the conversion script, save it, and run this command in that Python environment. Follow its prompt to select a local PDF.",
+  "转换结束后，脚本会显示结果文件路径。点击下面的按钮，在文件选择器中找到该路径下的分页 Markdown；不会扫描你的电脑。": "After conversion, the script shows the output file path. Use the button below to find its paginated Markdown in the file picker; your computer is not scanned.",
+  "首次运行可能下载模型，需要网络、磁盘空间与等待时间。脚本只调用本地转换，不启用 LLM 增强，也不读取 StudyHub 的模型配置。": "The first run may download models and needs a network connection, disk space and time. The script runs local conversion, leaves LLM enhancement off, and does not read StudyHub model settings.",
+  "Marker 代码采用 Apache-2.0，模型权重有独立许可与使用条件；仅提供脚本并不免除这些要求，使用前请核对。": "Marker code uses Apache-2.0. Model weights have separate licenses and usage conditions; using a script does not remove these requirements. Check them before use.",
+  "查看代码与模型许可": "Check code and model licenses",
+  "与 MinerU 的效果因资料而异；本地转换耗时和内存取决于设备。导入后请核对公式、表格、阅读顺序与页码，图片文件不会随 Markdown 自动导入。": "Results compared with MinerU depend on the document; local conversion time and memory depend on your device. Check formulas, tables, reading order and page numbers after import. Image files are not imported automatically with Markdown.",
+  "下载 Marker 转换脚本": "Download Marker conversion script",
+  "Marker 2 的 OCR 后端还需按官方指南准备 Docker / NVIDIA 或 llama-server 等依赖；只安装 Python 包可能不足以运行。若已有远程推理配置，请先检查，转换工具可能将资料发送到该服务。": "Marker 2 OCR also needs backend dependencies such as Docker / NVIDIA or llama-server; follow the official guide. Installing the Python package alone may not be enough. Check any existing remote inference configuration, as the converter may send documents to that service.",
+  "选择 Marker 转换后的文件": "Choose a file converted by Marker",
+  "请选择 Marker 转换后的 .md 或 .markdown 文件，不是原 PDF 或 JSON。": "Choose Marker's converted .md or .markdown file, rather than the original PDF or JSON.",
+  "没有找到 Marker 分页标记。请用下载的脚本重新转换，或运行 Marker 时加上 --paginate_output。": "No Marker page markers were found. Convert again with the downloaded script, or add --paginate_output when running Marker.",
+  "脚本下载失败，请重试，或按官方指南手动运行 Marker。": "Script download failed. Try again or run Marker manually using its official guide."
 }

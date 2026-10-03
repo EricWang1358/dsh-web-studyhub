@@ -104,7 +104,7 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 也核对过、但**不推荐**：
 
-- **Marker**：代码是 Apache-2.0，但模型权重使用改良的 OpenRAIL-M 协议，限制商业使用（研究、个人和融资不超过 500 万美元的初创团队免费）。StudyHub 仍能读取它的 `--paginate_output` Markdown（见[StudyHub 读取的转换结果](#studyhub-读取的转换结果)），已有的输出照常可用。
+- **Marker**：代码是 Apache-2.0，但模型权重使用改良的 OpenRAIL-M 协议，限制商业使用（研究、个人和符合条件的初创团队免费，以官方许可为准）。StudyHub 能读取它的 `--paginate_output` Markdown（见[StudyHub 读取的转换结果](#studyhub-读取的转换结果)）。添加资料中提供可选的结果文件选择入口和外部转换脚本下载，详见[安装与外部转换指南](marker-external.zh-CN.md)。
 - **MarkItDown**（微软，MIT）：把多种格式转成给大模型用的 Markdown，但文档没有说明分页标记，扫描件要靠视觉模型插件或云服务。不适合需要按页引用的教材。
 
 ### 下载渠道

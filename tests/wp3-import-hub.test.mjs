@@ -145,9 +145,10 @@ test('the dialog asks for the course first and offers one drop zone for every fi
   const course = html.indexOf('这些资料属于哪门课'), drop = html.indexOf('data-tour="import-drop"');
   assert.ok(course >= 0 && drop > course, 'the course field sits above the controls it affects');
   assert.match(html, /value="操作系统"/);
-  assert.equal(html.match(/type="file"/g).length, 1, 'one file input for documents, decks and subtitles');
-  assert.match(html, /accept="[^"]*\.pdf[^"]*\.json[^"]*\.srt/);
-  assert.match(html, /multiple/);
+  const ordinaryInputs = [...html.matchAll(/<input[^>]*type="file"[^>]*>/g)].map(match => match[0]).filter(input => /accept="[^"]*\.pdf/.test(input));
+  assert.equal(ordinaryInputs.length, 1, 'one shared file input for documents, decks and subtitles; external converters have separate result pickers');
+  assert.match(ordinaryInputs[0], /accept="[^"]*\.pdf[^"]*\.json[^"]*\.srt/);
+  assert.match(ordinaryInputs[0], /multiple/);
   assert.match(html, /aria-pressed="true"[^>]*>(?:<svg[\s\S]*?<\/svg>)?文件/);
   assert.match(html, /粘贴文本/);
   assert.match(html, /音频/);

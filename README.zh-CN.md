@@ -80,6 +80,8 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 详见[大教材](docs/large-documents.zh-CN.md)和[用 MinerU 转换 PDF](docs/mineru-conversion.zh-CN.md)。
 
+也可以在「添加资料」查看 [Marker 外部转换指南](docs/marker-external.zh-CN.md)，下载转换脚本自行运行，再选择生成的分页 Markdown 导入。Marker 和模型需自行安装；代码与模型许可分别适用。
+
 ### 出题
 
 1. 打开「创建题组」，在「用资料出题」标签按文档（大教材可按章节）选资料，再选题型、题数和难度。不确定练什么，可以点「帮我想想」：它只根据资料标题和目录推荐主题，不发送全文。

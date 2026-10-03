@@ -80,6 +80,8 @@ Old .doc and .ppt files (and .wps, .key, .pages) are not read. Save them as .doc
 
 See [large textbooks](docs/large-documents.md) and [MinerU conversion](docs/mineru-conversion.md).
 
+For another route, open the [external Marker guide](docs/marker-external.md) from Add material, download a script to run yourself, then choose its paginated Markdown output. Install Marker and its models separately; code and model licences apply separately.
+
 ### Generate a deck
 
 1. Open **Create deck**. On the **Generate from sources** tab, choose sources by document (or by chapter for a big book), then the question type, count and difficulty. Not sure what to focus on? **Suggest a focus** proposes topics from your source titles and headings, without sending the full text.

@@ -6,6 +6,7 @@ import CourseField, { parseCourses } from './CourseField.jsx';
 import { sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import MineruRoute from './MineruRoute.jsx';
+import MarkerExternal from './MarkerExternal.jsx';
 import { looksLikeConvertedJson } from '../lib/converted-document.js';
 import { classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
@@ -381,7 +382,7 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
     await finish(summary, summary.done > 0);
   }
   function add(files) {
-    if (!files.length || running) return;
+    if (!files.length || busy || running) return;
     const names = new Set(files.map(file => file.name));
     const batch = files.map(file => ({ id: `file-${++nextId.current}`, file, name: file.name, kind: routeImportFile(file, { audio: audioOn }), status: 'pending' }));
     // A file dropped again replaces its failed attempt.
@@ -432,6 +433,7 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
         {!largeItem && !mineruOpen && !running && <p className="import-hub__routes import-hub__mineru" data-tour="import-mineru">{ui('扫描件、公式多，或超过 200 页的 PDF？')}{' '}
           <Button variant="link" size="sm" onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button>{' '}<span aria-hidden="true">·</span>{' '}
           <Button variant="link" size="sm" onClick={() => { setMineruHistory(true); setMineruOpen(true); }}>{ui('解析历史')}</Button></p>}
+        <MarkerExternal disabled={busy || running} onFiles={add} />
         {!items.length && <p className="import-hub__routes">{ui('PDF 太大或有几百页？点上面的「用 MinerU 解析」，会自动分段处理；也可以自己转换后，把结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。')}</p>}
         {!items.length && <p className="import-hub__routes">{audioOn
           ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')
