@@ -233,7 +233,7 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 
 - **安装**：[安装与模型配置](docs/install.zh-CN.md)
 - **资料**：[PDF 出测验与闪卡](docs/pdf-workflow.zh-CN.md) · [大教材](docs/large-documents.zh-CN.md) · [用 MinerU 转换 PDF](docs/mineru-conversion.zh-CN.md) · [JSON 题组导入](docs/json-import.zh-CN.md)
-- **题目**：[出题与质量检查](docs/assessment-quality.zh-CN.md) · [向已有题组补题](docs/supplementation.zh-CN.md) · [斩题](docs/slay.zh-CN.md) · [题目英文对照](docs/translate-en.zh-CN.md) · [Token 用量与估算](docs/token-usage.md)
+- **题目**：[出题与质量检查](docs/assessment-quality.zh-CN.md) · [自己的参考样题](docs/reference-questions.zh-CN.md) · [向已有题组补题](docs/supplementation.zh-CN.md) · [斩题](docs/slay.zh-CN.md) · [题目英文对照](docs/translate-en.zh-CN.md) · [Token 用量与估算](docs/token-usage.md)
 - **学习**：[学习流](docs/study-workflows.zh-CN.md) · [陪学、自动驾驶与定制题](docs/coach.zh-CN.md) · [讲解追问](docs/followup.zh-CN.md)
 - **音频**：[音频导入](docs/audio-import.zh-CN.md) · [课堂实录](docs/live-class.zh-CN.md)
 - **对话与任务**：[在主对话里查询资料与题组](docs/main-session-queries.zh-CN.md) · [后台任务与侧栏](docs/generation-agents-sidebar.zh-CN.md)

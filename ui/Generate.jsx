@@ -25,6 +25,8 @@ import {
 import homeCss from './generate-home.css';
 import formCss from './generate-form.css';
 import CaseCreate from './CaseCreate.jsx';
+import ReferenceQuestions from './ReferenceQuestions.jsx';
+import { referenceSelection } from './reference-questions.js';
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
    importing questions that already exist is the second way in. Generation is
@@ -61,6 +63,9 @@ export default function Generate({
   const [indexCoverage] = useIndexCoverage(call);
   const known = courseNamesOf(data);
   const visibleSources = data.sources.filter(source => sourceMatchesCourse(source, sourceScope, known));
+  const referenceSourceIds = gen.referenceSourceIds || [];
+  const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources);
+  const evidenceSources = data.sources.filter(source => !referenceSourceIds.includes(source.id));
   const generationCourse = gen.course ?? courseForSources({ sources: data.sources }, selectedSources, sourceScope === '*' ? '' : sourceScope, known);
   const stats = React.useMemo(() => selectionStats(data.sources, selectedSources), [data.sources, selectedSources]);
   const selectedPdfPages = stats.pages;
@@ -102,10 +107,12 @@ export default function Generate({
     if (token === assistToken.current) setAssist({ phase: 'done', result, applied: false });
   }
   const openImport = () => setModal({ type: "add", course: sourceScope === '*' ? '' : sourceScope });
+  const openReferenceImport = onReferenceImported => setModal({ type: 'add', course: generationCourse,
+    referenceQuestions: true, ...(onReferenceImported ? { onReferenceImported } : {}) });
   const openSettings = () => (openModelSettings ? openModelSettings() : setPage?.("settings"));
   // With a single document (one PDF is several page sources) there is nothing to choose; don't make the learner tick it.
   React.useEffect(() => {
-    const documents = groupSourcesByDocument(visibleSources);
+    const documents = groupSourcesByDocument(visibleSources.filter(source => !referenceSourceIds.includes(source.id)));
     if (documents.length === 1 && !selectedSources.length)
       setSelectedSources(documents[0].sourceIds);
     // Only on entering the page, so 清空选择 still sticks.
@@ -129,7 +136,7 @@ export default function Generate({
   }
   function submit(event) {
     event.preventDefault();
-    if (!model.ready || busy || !selectedSources.length || advice.blocked) return;
+    if (!model.ready || busy || !selectedSources.length || advice.blocked || referenceState.reason) return;
     const materials = documentCount(data.sources.filter((source) => selectedSources.includes(source.id)));
     act("generate", { ...gen, course: generationCourse, count: Number(gen.count), sourceIds: selectedSources }, (job) => {
       // Confirm with the deck's name, start the next deck from a clean form (P27),
@@ -176,7 +183,7 @@ export default function Generate({
       {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={setNotice} openImport={openImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={setNotice} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
@@ -238,7 +245,7 @@ export default function Generate({
             <fieldset data-tour="generate-sources">
               <legend>{ui("01 / 选择资料")}</legend>
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
-              <SourcePicker sources={data.sources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage}
+              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage}
                 courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} />
               <div className="generate-sources-actions">
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
@@ -250,7 +257,7 @@ export default function Generate({
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
               <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal} call={call} askInChat={askInChat}
-                indexCoverage={indexCoverage} disabled={busy || !model.ready} setNotice={setNotice} onSettings={openSettings}
+                indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} setNotice={setNotice} onSettings={openSettings}
                 onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
                 onQueued={() => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); }} />
             </fieldset>
@@ -309,6 +316,9 @@ export default function Generate({
                     onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
                 </FormRow>
               </div>
+              <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={selectedSources}
+                onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
+                courses={data.focus?.courses} busy={busy} />
               {selectedPdfPages > Number(gen.count) && <p className="warning" role="status">{ui("已选 ")}{selectedPdfPages}{ui(" 页 PDF，计划生成 ")}{gen.count}{ui(" 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。")}</p>}
               <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
                 <div className="generate-rows">
@@ -331,14 +341,14 @@ export default function Generate({
               {summary && <p className="generate-summary" role="status">{summary}</p>}
               {/* What the run is expected to use, from the real prompts of the pipeline (WP27). */}
               <TokenEstimate call={call} enabled={selectedSources.length > 0}
-                request={{ feature: 'generate', sourceIds: selectedSources, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
+                request={{ feature: 'generate', sourceIds: selectedSources, referenceSourceIds, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
                   course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
                 {advice.blocked && <p className="warning" role="status">{advice.needsTopic ? ui("所选资料太大。先在「这次想练什么？」写下主题，再生成。")
                   : ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</p>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
-                <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked}
+                <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason}
                   data-tour="generate-submit" data-usage="generate.submit">
                   {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
                 </Button>

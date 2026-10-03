@@ -233,7 +233,7 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 
 - **Install:** [installation and model setup](docs/install.md)
 - **Sources:** [PDF to quizzes and flashcards](docs/pdf-workflow.md) · [large textbooks](docs/large-documents.md) · [MinerU conversion](docs/mineru-conversion.md) · [JSON deck import](docs/json-import.md)
-- **Questions:** [quality checks](docs/assessment-quality.md) · [adding questions to a deck](docs/supplementation.md) · [retiring a question](docs/slay.md) · [showing questions in English](docs/translate-en.md) · [token usage](docs/token-usage.md)
+- **Questions:** [quality checks](docs/assessment-quality.md) · [your own reference questions](docs/reference-questions.md) · [adding questions to a deck](docs/supplementation.md) · [retiring a question](docs/slay.md) · [showing questions in English](docs/translate-en.md) · [token usage](docs/token-usage.md)
 - **Studying:** [learning flows](docs/study-workflows.md) · [coaching and personalised questions](docs/coach.md) · [follow-up questions](docs/followup.md)
 - **Audio:** [audio import](docs/audio-import.md) · [live class](docs/live-class.md)
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)

@@ -3,6 +3,8 @@ import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
+import ReferenceQuestions from './ReferenceQuestions.jsx';
+import { importedReferences, referenceSelection } from './reference-questions.js';
 import { Button, SegmentedControl, SetupRequired, IconButton } from "./components/index.js";
 import { modelReadiness, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
@@ -17,14 +19,17 @@ import css from "./case-study.css";
 
 const blankQuestion = () => ({ prompt: "", marks: 10, answer: "" });
 
-export default function CaseCreate({ data, busy, act, call, setNotice, onStarted, openImport, openSettings, onCourseSettings, initial = {} }) {
+export default function CaseCreate({ data, busy, act, call, setNotice, onStarted, openImport, openReferenceImport, openSettings, onCourseSettings, initial = {} }) {
   useInjectCss(css, "study-case-workspace");
   const model = modelReadiness(data);
   const [mode, setMode] = useState(initial.mode || "new");
   const [course, setCourse] = useState(initial.course ?? (data.focus?.course && data.focus.course !== "*" ? data.focus.course : ""));
   const [sourceIds, setSourceIds] = useState(initial.sourceIds || []);
+  const [referenceSourceIds, setReferenceSourceIds] = useState(initial.referenceSourceIds || []);
   // The course profile (WP13) from the snapshot's course records; guidance and focus topics are the course's.
   const profile = useMemo(() => courseProfileFromState({ courses: data.courses }, course), [data.courses, course]);
+  const evidenceIds = [...sourceIds, ...profile.guidanceSourceIds];
+  const referenceState = referenceSelection(data.sources, referenceSourceIds, evidenceIds);
   const defaults = { totalMarks: profile.exam.totalMarks || 20, language: generationFormDefaults(data.settings?.generation).language };
   const [form, setForm] = useState(() => ({ questions: 2, ...defaults, title: "", styleText: "" }));
   const inherited = useRef({ course, ...defaults });
@@ -40,7 +45,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
   const answered = pasted.questions.filter((question) => question.answer.trim()).length;
   const ready = mode === "import"
     ? countWords(pasted.scenario) >= 40 && pasted.questions.every((question) => question.prompt.trim().length >= 5 && Number(question.marks) > 0)
-    : sourceIds.length > 0 && (mode !== "style" || form.styleText.trim().length >= 80);
+    : sourceIds.length > 0 && !referenceState.reason && (mode !== "style" || form.styleText.trim().length >= 80);
   function submit(event) {
     event.preventDefault();
     if (!model.ready || busy || !ready) return;
@@ -49,7 +54,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
       ? { ...shared, title: pasted.title.trim() || undefined, scenario: pasted.scenario, sourceIds,
         questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })),
         answers: pasted.questions.map((question) => question.answer) }
-      : { ...shared, title: form.title.trim() || undefined, sourceIds, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
+      : { ...shared, title: form.title.trim() || undefined, sourceIds, referenceSourceIds, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
         ...(mode === "style" ? { styleText: form.styleText } : {}) };
     act("generate", args, () => {
       setNotice({ tone: "success", text: mode === "import"
@@ -75,7 +80,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
             ? <Button size="sm" variant="link" onClick={() => onCourseSettings(courseRecord.id)}>{ui("修改课程的考试设置、评分说明和重点主题")}</Button>
             : <small className="muted">{ui("选好课程后，可以在课程设置里指定评分说明资料和重点主题。")}</small>}
         </div>
-        <SourcePicker sources={data.sources.filter((source) => !/^(案例：|Case: )/.test(source.title || ""))} selected={sourceIds} onChange={setSourceIds}
+        <SourcePicker sources={data.sources.filter((source) => !referenceSourceIds.includes(source.id) && !/^(案例：|Case: )/.test(source.title || ""))} selected={sourceIds} onChange={setSourceIds}
           courses={data.focus?.courses} onAdd={openImport} disabled={busy} />
         <p className="muted">{mode === "import" ? ui("可选：勾选课程资料，评分标准会用到其中的概念。") : ui("勾选要考查的课程资料；案例和题目都基于这些概念。")}</p>
         {passage && mode !== "import" && <div className="case-create__passage">
@@ -84,6 +89,12 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
           <Button size="sm" variant="quiet" onClick={() => setPassage("")}>{ui("不限定段落")}</Button>
         </div>}
       </fieldset>
+      {mode !== 'import' && <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={evidenceIds}
+        courses={data.focus?.courses} busy={busy} onChange={setReferenceSourceIds}
+        onImport={() => openReferenceImport?.(ids => {
+          setReferenceSourceIds(current => importedReferences(current, ids).referenceSourceIds);
+          setSourceIds(current => importedReferences([], ids, current).sourceIds);
+        })} />}
       {mode === "import" ? (
         <fieldset>
           <legend>{ui("02 / 案例与题目")}</legend>
@@ -127,7 +138,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
         <TokenEstimate call={call} enabled={ready} request={mode === "import"
           ? { feature: "case", course, language: form.language, sourceIds, scenario: pasted.scenario,
             questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })) }
-          : { feature: "case", course, language: form.language, sourceIds, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
+          : { feature: "case", course, language: form.language, sourceIds, referenceSourceIds, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
             ...(passage ? { focus: passage } : {}), ...(mode === "style" ? { styleText: form.styleText } : {}) }} />
         {model.ready ? (
           <Button type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready} data-tour="generate-submit" data-usage="generate.submit">
