@@ -104,7 +104,7 @@ Checked on 2026-10-01 against each project's own pages. Licences and features ca
 
 Also checked and **not** recommended:
 
-- **Marker**: the code is Apache-2.0, but the model weights use a modified OpenRAIL-M licence that limits commercial use (free for research, personal use and startups under USD 5M). StudyHub still reads its `--paginate_output` Markdown (see [What StudyHub reads](#what-studyhub-reads)), so existing output works.
+- **Marker**: the code is Apache-2.0, but the model weights use a modified OpenRAIL-M licence that limits commercial use (free for research, personal use and startups under USD 5M). StudyHub reads its `--paginate_output` Markdown (see [What StudyHub reads](#what-studyhub-reads)). Add material includes an optional result picker and downloadable external conversion script; see the [installation and external-conversion guide](marker-external.md).
 - **MarkItDown** (Microsoft, MIT): converts many formats to Markdown for language models, but its documentation describes no page markers, and scanned PDFs depend on a vision-model plug-in or a cloud service. It does not suit page-cited textbooks.
 
 ### Download channels
