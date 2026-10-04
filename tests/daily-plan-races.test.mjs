@@ -185,7 +185,7 @@ test('related workflow tasks follow the actual portal, disappear on back, and fo
   assert.equal(find(tree, node => node.type === 'aside'), null);
   assert.deepEqual(related, ['first']);
   const second = find(tree, node => node.type === 'li' && find(node, child => child.type === 'strong' && child.props.children === 'Second'));
-  find(second, node => node.type === 'button' && node.props.children === '查看记录').props.onClick();
+  find(second, node => node.props?.children === '查看记录' && node.props.onClick).props.onClick();
   tree = view.render();
   assert.equal(find(tree, node => node.type === 'aside').props['data-session'], 'second');
 });

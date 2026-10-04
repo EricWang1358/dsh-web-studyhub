@@ -41,7 +41,7 @@ test('one continue card and one recommendation, however many ways there are to s
     render({ focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] }, today: { due: 0, weak: 0, new: 0, size: 0 }, coach: { ready: 0 } })]) {
     assert.equal(count(html, /class="today-card"/g), 1, 'one card');
     assert.equal(count(html, /class="desk-next"/g), 1, 'one recommendation');
-    assert.equal(count(html, /class="primary today-go"/g), 1, 'one primary button');
+    assert.equal(count(html, /class="sh-btn sh-btn--primary sh-btn--md today-go"/g), 1, 'one primary button');
   }
 });
 

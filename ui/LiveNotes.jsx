@@ -1,10 +1,11 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
+import { Button } from './components/index.js';
 
 export default function LiveNotes({ correction, onSentence, onRetry, disabled }) {
   const { memory, notes = [], background = {} } = correction;
-  const references = ids => <div className="live-note-refs">{(ids || []).map(id => <button key={id} className="link-btn" onClick={() => onSentence(id)}>
-    {uiFormat('句 {0}', [id])}</button>)}</div>;
+  const references = ids => <div className="live-note-refs">{(ids || []).map(id => <Button variant="link" size="sm" key={id} onClick={() => onSentence(id)}>
+    {uiFormat('句 {0}', [id])}</Button>)}</div>;
   return <details className="live-notes">
     <summary>{uiFormat('查看课堂笔记 · {0} 条', [notes.length])}</summary>
     <p className="muted">{ui('每批校正后更新；下一批参考累计摘要与最近笔记。点句子编号可回看原文。')}</p>
@@ -23,7 +24,7 @@ export default function LiveNotes({ correction, onSentence, onRetry, disabled })
     {(background.tasks || []).map(task => <details key={task.id} className="live-note-task"><summary>{({ queued: ui('排队中'), running: ui('后台处理中'), done: ui('已完成'), failed: ui('待重试') })[task.status]} · {task.reason}</summary>
       {references(task.ids)}{task.error && <p>{task.error}</p>}
     </details>)}
-    {background.failed > 0 && <button disabled={disabled || background.running} onClick={onRetry}>{ui('重试历史歧义校正')}</button>}
+    {background.failed > 0 && <Button disabled={disabled || background.running} onClick={onRetry}>{ui('重试历史歧义校正')}</Button>}
     <small className="muted">{ui('保存为资料时，会另外保存一份课堂笔记，包含摘要、分批记录和引用。')}</small>
   </details>;
 }

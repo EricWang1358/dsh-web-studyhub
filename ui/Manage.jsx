@@ -103,7 +103,7 @@ export default function Manage({
             onChange={(e) => setFolderDraft(e.target.value)}
             placeholder={ui("所在目录，例如：设计模式 / 第 4 章（留空为顶层）")}
           />
-          <button disabled={busy || folderDraft === (managedDeck.folder || "")}>{ui("保存目录")}</button>
+          <Button disabled={busy || folderDraft === (managedDeck.folder || "")} type="submit">{ui("保存目录")}</Button>
         </div>
       </form>
       {!managedDeck.systemKind && !managedDeck.archived && <Panel className="manage-panel" title={ui("整理题组")}
@@ -111,8 +111,8 @@ export default function Manage({
         <div className="manage-section">
           <span className="manage-label">{ui("题组顺序")}</span>
           <div className="manage-row manage-row--pair">
-            <button type="button" disabled={busy || siblingIndex <= 0} onClick={() => moveOrder(-1)}>{ui("上移题组")}</button>
-            <button type="button" disabled={busy || siblingIndex < 0 || siblingIndex >= siblings.length - 1} onClick={() => moveOrder(1)}>{ui("下移题组")}</button>
+            <Button disabled={busy || siblingIndex <= 0} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
+            <Button disabled={busy || siblingIndex < 0 || siblingIndex >= siblings.length - 1} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
           </div>
         </div>
         <form className="manage-section" onSubmit={(e) => {
@@ -125,7 +125,7 @@ export default function Manage({
               <option value="">{ui("选择合并目标")}</option>
               {peers.map((d) => <option key={d.id} value={d.id}>{d.title}（{d.folder || ui("顶层")}）</option>)}
             </select>
-            <button disabled={busy || !targetId}>{ui("合并到目标题组")}</button>
+            <Button disabled={busy || !targetId} type="submit">{ui("合并到目标题组")}</Button>
           </div>
         </form>
         {topics.length > 1 && <form className="manage-section" onSubmit={(e) => {
@@ -147,7 +147,7 @@ export default function Manage({
           </label>)}</div>
           <div className="manage-row">
             <input aria-label={ui("新题组名称")} value={splitTitle} onChange={(e) => setSplitTitle(e.target.value)} placeholder={ui("新题组名称")} />
-            <button disabled={busy || !splitReady}>{ui("拆出所选主题")}</button>
+            <Button disabled={busy || !splitReady} type="submit">{ui("拆出所选主题")}</Button>
           </div>
         </form>}
       </Panel>}
@@ -175,15 +175,15 @@ export default function Manage({
               {card.slain && <p className="muted">{ui("原题组：")}{card.slain.deckTitle} · {new Date(card.slain.at).toLocaleDateString(uiLocale())}</p>}
             </div>
             <div className="manage-card__actions">
-              <button disabled={busy} onClick={() => act(
+              <Button disabled={busy} onClick={() => act(
                 slainView ? "card.restore" : "card.slay",
                 { deckId: managedDeck.id, cardId: card.id },
                 async (result) => {
                   setManagedDeck(await call("deck.get", { id: managedDeck.id }));
                   toast.success(slainView ? uiFormat("已恢复到「{0}」",[result.title]) : ui("已移入斩题组，不再参与复习，可在斩题组恢复。"));
                 },
-              )}>{slainView ? ui("恢复原题组") : ui("斩")}</button>
-              <button
+              )}>{slainView ? ui("恢复原题组") : ui("斩")}</Button>
+              <Button
                 disabled={busy || slainView}
                 onClick={() =>
                   act(
@@ -201,9 +201,9 @@ export default function Manage({
                 }
               >
                 {card.suspended ? ui("恢复学习") : ui("暂停此题")}
-              </button>
+              </Button>
               {card.flag && (
-                <button
+                <Button
                   disabled={busy}
                   onClick={() =>
                     act(
@@ -221,7 +221,7 @@ export default function Manage({
                         ),
                     )
                   }
-                >{ui("清除标记")}</button>
+                >{ui("清除标记")}</Button>
               )}
             </div>
           </Panel>

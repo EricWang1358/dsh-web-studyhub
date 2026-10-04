@@ -59,5 +59,9 @@
   "下一步：{0} →": "Next: {0} →",
   "原来的那一轮已经结束或不存在了，回到学习路径继续。": "The round you came from has ended or no longer exists, so you are going back to the learning path.",
   "自动驾驶：{0} 秒后执行 ·": "Autopilot: acting in {0} s ·",
-  "自动驾驶：{0} 秒后{1} ·": "Autopilot: {1} in {0} s ·"
+  "自动驾驶：{0} 秒后{1} ·": "Autopilot: {1} in {0} s ·",
+  "自己拼一条": "Build my own",
+  "添加选项（{0}/6）": "Add option ({0}/6)",
+  "添加原文引用": "Add source citation",
+  "添加闪卡": "Add flashcard"
 }

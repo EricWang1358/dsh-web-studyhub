@@ -31,7 +31,7 @@ function render(patch = {}) {
     askInChat: noop, notebooks: [], onFocus: noop,
   })));
 }
-const primaries = (html) => (html.match(/class="primary[^"]*"/g) || []).length;
+const primaries = (html) => (html.match(/class="[^"]*sh-btn--primary[^"]*"/g) || []).length;
 const count = (html) => html.match(/<div class="today-count"><strong>(\d+)<\/strong><span>([^<]*)<\/span>/)?.slice(1);
 
 test("the home card offers exactly one primary action in every state", () => {
@@ -50,7 +50,7 @@ test("the home card offers exactly one primary action in every state", () => {
   assert.deepEqual(count(states.fresh), ["10", "道新题"]);
   assert.match(states.fresh, /到期复习与巩固 · 3 题/, "the other start stays reachable as a link");
   assert.match(states.clear, /今天已经清空/);
-  assert.match(states.clear, /class="primary today-go" disabled/);
+  assert.match(states.clear, /class="sh-btn sh-btn--primary sh-btn--md today-go" disabled/);
   assert.match(states.empty, /导入 JSON 题组/);
   assert.doesNotMatch(states.empty, /today-count/);
 });
@@ -64,7 +64,7 @@ test("the run the learner was last inside takes the card, and a new start stays 
   assert.equal(primaries(html), 1);
   assert.deepEqual(count(html), ["6", "题未完成"]);
   assert.match(html, /行为型模式 · 已做到第 5 \/ 10 题/);
-  assert.match(html, /接着做<span aria-hidden="true">→<\/span>/);
+  assert.match(html, /接着做<svg/);
   assert.match(html, /到期复习与巩固 · 3 题/, "what the card would have started becomes a link");
   assert.match(html, /<summary>另有 1 组练习未完成<\/summary>/, "the card's run is not listed again in the fold");
 });

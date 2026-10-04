@@ -9,7 +9,7 @@ import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import { designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
+import { Button, ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
 import migrationCss from "./panel-migrations.css";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 
@@ -381,12 +381,10 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
             </div>
           )}
           <div className="sk-actions">
-            <button type="button" disabled={!picked.size || !!pending} onClick={runLint}>
+            <Button disabled={!picked.size || !!pending} onClick={runLint}>
               {pending === "lint" ? ui("检测中…") : ui("质量检测")}
-            </button>
-            <button
-              type="button"
-              className="primary"
+            </Button>
+            <Button variant="primary"
               disabled={!picked.size || pickedCards > 200}
               title={pickedCards > 200 ? ui("一次最多 200 道题") : ui("在对话里设计骨架并修题")}
               onClick={() => {
@@ -394,7 +392,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 askInChat(designSkeletonPrompt({ scope, lint, topics: pickedTopics }));
                 setSent(true);
               }}
-            >{ui("在对话中生成骨架")}</button>
+            >{ui("在对话中生成骨架")}</Button>
           </div>
           {pickedCards > 200 && <p className="sk-warn">{ui("一次最多 200 道题，请少选几个主题。")}</p>}
           {sent && (
@@ -470,18 +468,15 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
               <header className="sk-view-head">
                 <h3>{viewing.title}</h3>
                 <div className="sk-actions">
-                  <button
-                    type="button"
-                    className="primary"
+                  <Button variant="primary"
                     disabled={busy}
                     onClick={() => onPractice(viewing.nodes.flatMap((n) => n.cards))}
-                  >{ui("练整个骨架")}</button>
-                  <button
-                    type="button"
+                  >{ui("练整个骨架")}</Button>
+                  <Button
                     onClick={() =>
                       askInChat(designSkeletonPrompt({ scope: viewing.scope, lint: null, topics: [...new Set(viewing.scope.map((x) => x.topic).filter(Boolean))], update: viewing }))
                     }
-                  >{ui("在对话中更新")}</button>
+                  >{ui("在对话中更新")}</Button>
                   <button
                     type="button"
                     className="sk-danger"
@@ -520,7 +515,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                   placeholder={ui("告诉对话怎么扩展，例如：加上 CAP 定理，并和 BASE 对比；为 RPO/RTO 补两道计算题")}
                   aria-label={ui("在对话中扩展这个骨架")}
                 />
-                <button type="submit" disabled={!extendText.trim()}>{ui("✦ 发到对话")}</button>
+                <Button type="submit" disabled={!extendText.trim()}>{ui("✦ 发到对话")}</Button>
               </form>
               {/* 脉络 reads in learning order; 结构图 keeps every relation. */}
               <SegmentedControl size="sm" className="sk-view-switch" label={ui("骨架视图")} value={skView} onChange={setSkView}

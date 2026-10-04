@@ -105,12 +105,12 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery })
     {item.chapters.map(chapter => {
       const inside = chapter.sourceIds.length === 0, partial = chapter.partial && item.chapterUnit !== 'text';
       return <li key={chapter.index} data-chapter-index={chapter.index}>
-        <button type="button" onClick={() => onOpen(chapter.startSourceId || chapter.sourceIds[0])}>
+        <Button onClick={() => onOpen(chapter.startSourceId || chapter.sourceIds[0])}>
           <span>{chapterLabel(chapter, item.chapterUnit)}</span>
           <small>{[partial && (item.chapterUnit === 'part' ? ui('从文件中间开始') : ui('从页中间开始')),
             item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, formatNumber(chapter.chars)])].filter(Boolean).join(' · ')}</small>
           <MasteryLine className="source-doc__mastery" summary={mastery?.chapters?.[chapter.index] ?? null} title={chapterLabel(chapter, item.chapterUnit)} />
-        </button>
+        </Button>
         {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy || inside}
           title={inside ? (item.chapterUnit === 'text' ? ui('这份资料是一整段文字，出题仍以整份资料为单位') : ui('这一章在同一页内，不能单独出题')) : undefined}
           onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
@@ -124,11 +124,11 @@ export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSeg
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
     {call && <OriginalMenuEntry item={item} call={call} busy={busy} />}
-    {onRename && <button type="button" disabled={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</button>}
-    {onChangeCourse && <button type="button" disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</button>}
-    {onSegment && <button type="button" disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</button>}
-    {onArchive && <button type="button" disabled={busy} onClick={event => { close(event); onArchive(item); }}>{item.archived ? ui('恢复资料') : ui('归档')}</button>}
-    {item.archived && onRemove && <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('永久删除')}</button>}
+    {onRename && <Button disabled={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
+    {onChangeCourse && <Button disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</Button>}
+    {onSegment && <Button disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</Button>}
+    {onArchive && <Button disabled={busy} onClick={event => { close(event); onArchive(item); }}>{item.archived ? ui('恢复资料') : ui('归档')}</Button>}
+    {item.archived && onRemove && <Button disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('永久删除')}</Button>}
   </div>;
 }
 
@@ -182,7 +182,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           {item.archived && <>
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => onArchive(item)}>{ui('恢复资料')}</Button>
-            <Button size="sm" variant="quiet" className="danger-text" disabled={busy} onClick={() => onRemove(item)}>{ui('永久删除')}</Button>
+            <Button size="sm" variant="danger" disabled={busy} onClick={() => onRemove(item)}>{ui('永久删除')}</Button>
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
             <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse}
@@ -198,10 +198,10 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
         {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={onOpen} onGenerate={onGenerate} listId={listId} mastery={mastery} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
-            <button type="button" onClick={() => onOpen(page.sourceId)}>
+            <Button onClick={() => onOpen(page.sourceId)}>
               <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [formatNumber(page.chars)])}</small>
               <MasteryLine className="source-doc__mastery" summary={mastery?.pages?.[page.sourceId] ?? null} title={pageLabel(item, page)} />
-            </button>
+            </Button>
           </li>)}
         </ul>}
       </div>}
@@ -329,15 +329,15 @@ export default function Sources({ data, busy, act, call, setModal, sourceForm, o
           <summary>{ui('整理课程归属')}</summary>
           <p className="muted">{ui('勾选资料后统一整理。只更改归属，原文与引用保持不变。')}</p>
           <p>{uiFormat('已选择 {0} 份资料', [selectedItems.length])}{' '}
-            <button type="button" onClick={() => { setSelected(filtered.map(item => item.key)); setProposals(null); }}>{ui('选择当前范围')}</button>{' '}
-            {selected.length > 0 && <button type="button" onClick={finish}>{ui('清空选择')}</button>}
+            <Button onClick={() => { setSelected(filtered.map(item => item.key)); setProposals(null); }}>{ui('选择当前范围')}</Button>{' '}
+            {selected.length > 0 && <Button onClick={finish}>{ui('清空选择')}</Button>}
           </p>
           <CourseField value={courseText} onChange={setCourseText} courses={data.focus?.courses} multiple disabled={busy} />
           <div className="source-organization-actions">
-            <button disabled={busy || !selectedItems.length} onClick={() => act('source.courses.set', {
+            <Button disabled={busy || !selectedItems.length} onClick={() => act('source.courses.set', {
               assignments: courseAssignments(items, selected, parseCourses(courseText), byId),
-            }, finish)}>{ui('应用课程归属')}</button>
-            <button disabled={busy || !data.modelReady || !selectedItems.length || selectedItems.length > 100}
+            }, finish)}>{ui('应用课程归属')}</Button>
+            <Button disabled={busy || !data.modelReady || !selectedItems.length || selectedItems.length > 100}
               onClick={() => act('source.organize.suggest', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
                 setJevRun(result.jev ?? null);
                 setProposals(result.proposals.map(proposal => {
@@ -345,7 +345,7 @@ export default function Sources({ data, busy, act, call, setModal, sourceForm, o
                   // A row Jev decided starts included only if it changes something, like the Jev button's rows; the model's rows start included.
                   return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: proposal.decidedBy === 'jev' ? startsIncluded(proposal) : true, courseText: proposal.courses.join('; ') };
                 }));
-              })}>{ui('请 AI 建议')}</button>
+              })}>{ui('请 AI 建议')}</Button>
             <JevSuggestButton enabled={jevOn} disabled={busy || !selectedItems.length || selectedItems.length > 100}
               onClick={() => { setJevNote(''); act('source.organize.jev', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
                 setJevNote(noteText(result));
@@ -368,10 +368,10 @@ export default function Sources({ data, busy, act, call, setModal, sourceForm, o
               <p className="muted">{proposal.reason}{experimental && proposal.decidedBy === 'jev' && <> <JevDecidedBadge /></>}</p>
               {experimental && <JevProbabilities jev={proposal.jev} />}
             </div>)}
-            <button disabled={busy || !proposals.some(proposal => proposal.include)} onClick={() => act('source.courses.set', {
+            <Button disabled={busy || !proposals.some(proposal => proposal.include)} onClick={() => act('source.courses.set', {
               assignments: proposals.filter(proposal => proposal.include).flatMap(proposal =>
                 courseAssignments(items, [proposal.key], parseCourses(proposal.courseText), byId)),
-            }, finish)}>{ui('确认应用建议')}</button>
+            }, finish)}>{ui('确认应用建议')}</Button>
           </div>}
         </details>
         {!filtered.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}

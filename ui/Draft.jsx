@@ -148,7 +148,7 @@ export default function Draft({
       {!jsonMode && draft.format === "case-study" && <CaseDraftHeader draft={draft} data={data} />}
       <p className="draft-count">{uiRich("当前草稿 {0} 题", <strong>{draft.cards.length}</strong>)}{unsavedDraft && <><span aria-hidden="true"> · </span><span>{ui("有未保存修改")}</span></>}</p>
       <div className="sticky-actions" data-tour="draft-publish">
-        <button
+        <Button
           disabled={busy || updatingDraft || staleDraft || missingDraft}
           onClick={() => {
             let d;
@@ -160,9 +160,8 @@ export default function Draft({
             }
             act("draft.save", { deck: d }, openDraft);
           }}
-        >{ui("保存并校验")}</button>
-        <button
-          className="primary"
+        >{ui("保存并校验")}</Button>
+        <Button variant="primary"
           disabled={busy || updatingDraft || staleDraft || missingDraft || activeReview}
           title={activeReview ? ui("先完成或结束原题组的学习") : undefined}
           onClick={async () => {
@@ -197,9 +196,8 @@ export default function Draft({
           }}
         >
           {publicationLabel}
-        </button>
-        <button
-          className="danger-text"
+        </Button>
+        <Button variant="danger"
           disabled={busy || missingDraft}
           onBlur={() => setDeleteArmedId(null)}
           onClick={() => {
@@ -221,7 +219,7 @@ export default function Draft({
           {deleteArmed
             ? updatingDraft ? ui("确认删除并停止任务（无法撤销）") : ui("确认删除草稿（无法撤销）")
             : updatingDraft ? ui("删除草稿并停止任务") : ui("删除草稿")}
-        </button>
+        </Button>
       </div>
       <div className="draft-notices">
         {staleDraft && unsavedDraft && <Banner tone="warning" role="status" title={ui("草稿已在后台更新")}
@@ -342,7 +340,7 @@ export default function Draft({
         <div><h2>{ui("题目")}</h2><span>{uiFormat("{0} 题 · 按需展开编辑", [draft.cards.length])}</span></div>
         <details className="draft-advanced">
           <summary>{ui("高级编辑")}</summary>
-          <button type="button" onClick={toggleJsonMode}>{ui("JSON 编辑")}</button>
+          <Button onClick={toggleJsonMode}>{ui("JSON 编辑")}</Button>
         </details>
       </div>}
       {jsonMode ? (
@@ -474,16 +472,16 @@ export default function Draft({
                       )
                     }
                   />
-                  <button type="button" className="danger-text"
-                    onClick={() => patchCard(i, "options", q.options.filter((_, index) => index !== oi))}>{ui("删除这个选项")}</button>
+                  <Button variant="danger"
+                    onClick={() => patchCard(i, "options", q.options.filter((_, index) => index !== oi))}>{ui("删除这个选项")}</Button>
                 </div>
               ))}
-              {["quiz", "multi"].includes(q.kind) && <button type="button"
+              {["quiz", "multi"].includes(q.kind) && <Button icon="plus"
                 disabled={(q.options?.length || 0) >= 6}
                 onClick={() => patchCard(i, "options", [...(q.options || []),
-                  { id: crypto.randomUUID(), text: "", correct: false, explanation: "" }])}>{uiFormat("＋ 添加选项（{0}/6）", [q.options?.length || 0])}
-              </button>}
-              <button
+                  { id: crypto.randomUUID(), text: "", correct: false, explanation: "" }])}>{uiFormat("添加选项（{0}/6）", [q.options?.length || 0])}
+              </Button>}
+              <Button
                 disabled={draft.cards.length <= 1}
                 onClick={() =>
                   setDraft({
@@ -493,7 +491,7 @@ export default function Draft({
                     ),
                   })
                 }
-              >{ui("从草稿移除此题")}</button>
+              >{ui("从草稿移除此题")}</Button>
               <div className="citations">
                 {q.citations?.map((c, j) => (
                   <div key={j}>
@@ -541,7 +539,7 @@ export default function Draft({
                         placeholder={ui("从原文复制能支持答案的段落")}
                       />
                     </label>
-                    <button
+                    <Button
                       onClick={() =>
                         setModal({
                           type: "source",
@@ -556,26 +554,26 @@ export default function Draft({
                       {data.sources.find((s) => s.id === c.sourceId)
                         ?.title || ui("原文")}
                       <blockquote>{c.quote}</blockquote>
-                    </button>
-                    <button type="button" className="danger-text"
-                      onClick={() => patchCard(i, "citations", q.citations.filter((_, index) => index !== j))}>{ui("删除这条引用")}</button>
+                    </Button>
+                    <Button variant="danger"
+                      onClick={() => patchCard(i, "citations", q.citations.filter((_, index) => index !== j))}>{ui("删除这条引用")}</Button>
                   </div>
                 ))}
-                <button type="button" disabled={!data.sources.length}
+                <Button icon="plus" disabled={!data.sources.length}
                   onClick={() => patchCard(i, "citations", [...(q.citations || []),
-                    { sourceId: data.sources[0].id, quote: "" }])}>{ui("＋ 添加原文引用")}</button>
+                    { sourceId: data.sources[0].id, quote: "" }])}>{ui("添加原文引用")}</Button>
               </div>
             </Panel>
           ))}
-          <button
-            disabled={draft.cards.length >= 100}
+          <Button
+            icon="plus" disabled={draft.cards.length >= 100}
             onClick={() =>
               setDraft({
                 ...draft,
                 cards: [...draft.cards, blankCard()],
               })
             }
-          >{ui("＋ 添加闪卡")}</button>
+          >{ui("添加闪卡")}</Button>
         </>
       )}
     </section>

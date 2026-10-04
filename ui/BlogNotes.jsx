@@ -200,17 +200,17 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
         <div className="note-card-search"><input value={query} placeholder={ui("搜索题目或知识点")}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => { if (event.key === "Enter") addCard(); }} />
-          <button onClick={addCard}>{ui("搜索题目")}</button></div>
+          <Button onClick={addCard}>{ui("搜索题目")}</Button></div>
         {results.map((item) => <label key={item.cardId} className="note-search-result">
           <input type="checkbox" checked={picked.some((ref) => ref.cardId === item.cardId)}
             onChange={(event) => setPicked(event.target.checked
               ? [...picked, { deckId: item.deckId, cardId: item.cardId }]
               : picked.filter((ref) => ref.cardId !== item.cardId))} />
           {item.prompt}</label>)}
-        <button className="primary" disabled={!newTitle.trim() || !picked.length}
+        <Button variant="primary" disabled={!newTitle.trim() || !picked.length}
           onClick={() => act("note.create", { title: newTitle, cards: picked }, (created) => {
             setId(created.id); setPicked([]); setNewTitle(""); setResults([]);
-          })}>{uiFormat("创建笔记草稿 · {0} 题", [picked.length])}</button>
+          })}>{uiFormat("创建笔记草稿 · {0} 题", [picked.length])}</Button>
       </details>
       {notes.length ? notes.map((item) => <button key={item.id} className={isDailyNote(item) ? 'note-daily-item' : ''} onClick={() => setId(item.id)}>
         <span><strong>{item.title}</strong>{isDailyNote(item) && <small className="note-daily-date">{item.kind === 'daily-recap-history' ? ui('课程合并前的学习总结') : item.daily?.day === today ? ui('今日学习总结') : item.daily?.day}</small>}</span>
@@ -239,13 +239,13 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       <div className="note-reuse-actions">
       {note.markdown && <details className="note-linking"><summary>{ui('转成资料')}</summary>
         <p className="muted">{ui('把当前内容单独存入资料库，之后可复用资料页的阅读和学习功能。合集继续保留；以后更新合集不会改动这份资料。')}</p>
-        <button disabled={busy || saving || materialSaved || note.generation?.status === 'running'} onClick={saveMaterial}>{ui(materialSaved ? '已保存为资料' : '保存当前内容为资料')}</button>
+        <Button disabled={busy || saving || materialSaved || note.generation?.status === 'running'} onClick={saveMaterial}>{ui(materialSaved ? '已保存为资料' : '保存当前内容为资料')}</Button>
       </details>}
       <details className="note-publish"><summary>{ui('公开成文与 CSDN 发布')}</summary>
         {daily && <p className="muted">{ui('链接只关联公开文章；更新本地合集不会自动修改 CSDN 正文。')}</p>}
         <p className="muted">{ui("公开文章请使用通用案例，不写课程、PPT 或个人信息。原题关联只保存在学习库。")}</p>
         <div className="note-actions">
-        {note.status === "draft" && !daily && <button disabled={saving || note.generation?.status === "running"}
+        {note.status === "draft" && !daily && <Button disabled={saving || note.generation?.status === "running"}
           onClick={() => perform(async live => {
               const saved = await persistCurrent();
               if (!live()) return;
@@ -254,8 +254,8 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
                 applyNote({ ...current.current, generation: { status: 'running' } });
                 toast.info(ui("正在后台起草；完成后会进入信箱，你可以继续学习。"));
               });
-          })}>{ui("AI 起草解析")}</button>}
-        {writable && <button disabled={saving || note.generation?.status === "running"} onClick={() => perform(async live => {
+          })}>{ui("AI 起草解析")}</Button>}
+        {writable && <Button disabled={saving || note.generation?.status === "running"} onClick={() => perform(async live => {
           const editorTab = window.open("", "_blank");
           try {
             const saved = await persistCurrent();
@@ -269,30 +269,30 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
             else window.open(csdnEditor, "_blank", "noopener,noreferrer");
             if (live()) toast.success(uiFormat("草稿已保存，Markdown 已复制；请在 CSDN 审阅并发布。{0}",[lookupHint]));
           } catch (error) { editorTab?.close(); throw error; }
-        })}>{ui("复制内容并打开 CSDN")}</button>}
-        {writable && <button disabled={saving} onClick={findPublished}>{ui("查找已发布文章")}</button>}
+        })}>{ui("复制内容并打开 CSDN")}</Button>}
+        {writable && <Button disabled={saving} onClick={findPublished}>{ui("查找已发布文章")}</Button>}
       </div>
         <div className="note-card-search"><input value={home} placeholder={ui("https://blog.csdn.net/用户名")}
           onChange={(event) => setHome(event.target.value)} />
-          <button onClick={() => act("note.home", { home }, () => toast.success(ui("公开主页已保存")))}>{ui("保存主页")}</button></div>
+          <Button onClick={() => act("note.home", { home }, () => toast.success(ui("公开主页已保存")))}>{ui("保存主页")}</Button></div>
         {lookup?.reason && <p>{lookup.reason}</p>}
-        {lookup?.matches?.map((url) => <button key={url} onClick={() => linkArticle(url)}>{uiFormat("确认这篇文章 · {0}", [url])}</button>)}
+        {lookup?.matches?.map((url) => <Button key={url} onClick={() => linkArticle(url)}>{uiFormat("确认这篇文章 · {0}", [url])}</Button>)}
         {note.publicUrl && <p><a href={note.publicUrl} target="_blank" rel="noopener noreferrer">{ui("打开已发布文章 ↗")}</a></p>}
         {writable && <div className="note-card-search"><input value={link}
           placeholder={ui("找不到时粘贴文章链接")} onChange={(event) => setLink(event.target.value)} />
-          <button disabled={saving || !link.trim()} onClick={() => linkArticle(link)}>{ui("手动关联")}</button></div>}
+          <Button disabled={saving || !link.trim()} onClick={() => linkArticle(link)}>{ui("手动关联")}</Button></div>}
       </details>
       </div>
       <details className="note-linking"><summary>{uiFormat("关联题目 · {0} 题", [note.cards.length])}</summary>
         <ul>{note.cards.map((ref) => <li key={ref.cardId}>
-          <button disabled={ref.missing || !onOpenCard} onClick={() => onOpenCard(ref)}>{ref.missing ? ui('原题已移除') : ref.prompt || ui('查看原题')}</button>
+          <Button disabled={ref.missing || !onOpenCard} onClick={() => onOpenCard(ref)}>{ref.missing ? ui('原题已移除') : ref.prompt || ui('查看原题')}</Button>
           {ref.deckTitle && <small className="muted">{ref.deckTitle}</small>}
-          {editing && note.status === "draft" && !daily && <button onClick={() => edit({
-            cards: note.cards.filter((item) => item.cardId !== ref.cardId) })}>{ui("移除")}</button>}</li>)}</ul>
+          {editing && note.status === "draft" && !daily && <Button onClick={() => edit({
+            cards: note.cards.filter((item) => item.cardId !== ref.cardId) })}>{ui("移除")}</Button>}</li>)}</ul>
         {editing && note.status === "draft" && !daily && <><div className="note-card-search"><input value={query}
           placeholder={ui("搜索题目或知识点")} onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => { if (event.key === "Enter") addCard(); }} />
-          <button onClick={addCard}>{ui("搜索题目")}</button></div>
+          <Button onClick={addCard}>{ui("搜索题目")}</Button></div>
           {results.map((item) => <button key={item.cardId} className="note-search-result"
             disabled={note.cards.some((ref) => ref.cardId === item.cardId)}
             onClick={() => edit({ cards: [...note.cards, { deckId: item.deckId, cardId: item.cardId, prompt: item.prompt }] })}>

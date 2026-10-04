@@ -68,7 +68,7 @@ test('the home has one h1, one primary button, and the mode tabs sit before the 
   setUiLanguage('zh');
   for (const html of [home(), home([{ id: 'r', mode: 'path', scope: [], index: 1, total: 4, title: 'Today' }])]) {
     assert.equal((html.match(/<h1/g) || []).length, 1);
-    assert.equal((html.match(/class="primary today-go"/g) || []).length, 1);
+    assert.equal((html.match(/class="sh-btn sh-btn--primary sh-btn--md today-go"/g) || []).length, 1);
     assert.ok(html.indexOf('focus-switch') < html.indexOf('<h1'), 'tabs come before the title in reading order');
   }
   setUiLanguage('en');

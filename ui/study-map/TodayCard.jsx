@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui } from '../i18n.js';
-import { Icon } from '../components/index.js';
+import { Button, Icon } from '../components/index.js';
 import { TERMS } from '../mastery-terms.js';
 
 /** The right of the home desk: the one card with today's count (or the newcomer's three steps) and its one action. */
@@ -31,9 +31,9 @@ export default function TodayCard({ plan, todayLabel, busy }) {
         )}
         {plan.detail && <p className="today-detail" title={plan.kind === 'path' ? ui(TERMS.due.hint) : undefined}>{plan.detail}</p>}
         {plan.action && (
-          <button className="primary today-go" disabled={busy || plan.action.disabled} data-usage="home.start" onClick={plan.action.run}>
-            {plan.action.label}<span aria-hidden="true">→</span>
-          </button>
+          <Button variant="primary" className="today-go" iconEnd="arrow-right" disabled={busy || plan.action.disabled} data-usage="home.start" onClick={plan.action.run}>
+            {plan.action.label}
+          </Button>
         )}
       </div>
     </div>
