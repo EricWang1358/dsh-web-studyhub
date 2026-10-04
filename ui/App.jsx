@@ -26,7 +26,7 @@ import { useDailyPlan, useStudyReferenceHandoff } from './daily-plan.js';
 import { dueSummary } from "../lib/board-model.js";
 import { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
-import { APPEARANCE_LABELS, THEME_CYCLE, exportAppearance, importAppearance, leaveDelayMs } from "./appearance-prefs.js";
+import { APPEARANCE_LABELS, THEME_CYCLE, appearanceStyle, exportAppearance, importAppearance, leaveDelayMs } from "./appearance-prefs.js";
 import { useAppearance, useAppearanceAttrs } from "./use-appearance.js";
 import { loadScienceSettings, saveScienceSettings, normalizeScienceSettings, scienceVars } from './science-settings.js';
 import { SciencePreferencesContext } from './SciencePreferences.jsx';
@@ -1809,7 +1809,7 @@ export default function App({ call: transportCall, host = {} }) {
     <div
       className="study-app"
       {...appearanceAttrs}
-      style={scienceVars(sciencePrefs)}
+      style={{ ...scienceVars(sciencePrefs), ...appearanceStyle(appearance) }}
       lang={language === 'en' ? 'en' : 'zh-CN'}
       ref={attachRoot}
       data-usage-area={page}
@@ -2364,6 +2364,8 @@ export default function App({ call: transportCall, host = {} }) {
                   onRadius: (value) => updateAppearance({ radius: value }),
                   onScale: (value) => updateAppearance({ scale: value }),
                   onFont: (value) => updateAppearance({ font: value }),
+                  onFontTitle: (value) => updateAppearance({ fontTitle: value }),
+                  onFontCustom: (value) => updateAppearance({ fontCustom: value }),
                   onAccent: (value) => updateAppearance({ accent: value }),
                   onReset: resetAppearance, onExport: () => exportAppearance(appearance),
                   onImport: (text) => { const imported = importAppearance(text); if (imported) updateAppearance(imported); return !!imported; } }}

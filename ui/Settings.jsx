@@ -13,6 +13,7 @@ import ScienceSettings from './ScienceSettings.jsx';
 import { experimentalShown } from './experimental-flag.js';
 import { hasContext } from './capabilities.js';
 import { APPEARANCE_LABELS, APPEARANCE_OPTIONS } from './appearance-prefs.js';
+import { FONT_NAME_MAX, cleanFontName } from './font-presets.js';
 import { SETTINGS_GROUPS, categoriesFor, categoryForAnchor, initialCategory, settingsGroupState } from './settings-groups.js';
 import { UpdateSettingsPanel } from './UpdateCenter.jsx';
 import { Button, Dialog, Icon, InlineMessage, SegmentedControl, formatBytes } from './components/index.js';
@@ -353,6 +354,20 @@ const appearanceOptions = (kind) => APPEARANCE_OPTIONS[kind].map((value) => {
   return { value, label: label ? ui(label) : kind === "scale" ? `${value}%` : String(value) };
 });
 
+/** The name of a font installed on this computer (the `custom` typeface), typed. Only a name that passes cleanFontName is applied; anything
+ *  else says so and changes nothing. */
+function CustomFontField({ value, onChange }) {
+  const [draft, setDraft] = useState(value), clean = cleanFontName(draft), invalid = draft.trim() && !clean;
+  useEffect(() => { setDraft((text) => (cleanFontName(text) === value ? text : value)); }, [value]);
+  return (
+    <div className="custom-font">
+      <input value={draft} maxLength={FONT_NAME_MAX + 8} spellCheck={false} aria-label={ui("本机字体")} aria-invalid={invalid || undefined}
+        onChange={(event) => { setDraft(event.target.value); if (!event.target.value.trim() || cleanFontName(event.target.value)) onChange(cleanFontName(event.target.value)); }} />
+      <small className="muted">{invalid ? ui("字体名只能含文字、数字、空格和连字符。") : ui("填已安装的字体名，找不到会用系统字体。")}</small>
+    </div>
+  );
+}
+
 /** 恢复默认外观, and the whole look as one small piece of text to carry to another computer: export fills the box, import reads it back
  *  through the same whitelist. */
 function AppearanceBackup({ appearance }) {
@@ -399,6 +414,11 @@ function AppearanceSection({ appearance }) {
       {appearance.onFont && <div className="settings-field">
         <span>{ui("界面字体")}</span>
         <SegmentedControl label={ui("界面字体")} value={appearance.font} onChange={appearance.onFont} options={appearanceOptions("font")} />
+        {appearance.font === "custom" && appearance.onFontCustom && <CustomFontField value={appearance.fontCustom || ""} onChange={appearance.onFontCustom} />}
+      </div>}
+      {appearance.onFontTitle && <div className="settings-field">
+        <span>{ui("标题字体")}</span>
+        <SegmentedControl label={ui("标题字体")} value={appearance.fontTitle} onChange={appearance.onFontTitle} options={appearanceOptions("fontTitle")} />
       </div>}
       {appearance.onMotion && <div className="settings-field">
         <span>{ui("动画")}</span>

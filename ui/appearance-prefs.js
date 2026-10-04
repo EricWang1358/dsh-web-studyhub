@@ -5,6 +5,8 @@
    one saved: the theme alone in `study-theme` (a plain string), everything else as one small JSON object in `study-interface`.
    To add a setting (accent colour, density...): give it a default and its allowed values below, and its labels; nothing else changes.
    The allowed values are also the whitelist for what an import may set. */
+import { FONT_IDS, FONT_PRESETS, TITLE_MODES, cleanFontName, customFontStack } from './font-presets.js';
+
 export const THEME_KEY = 'study-theme';
 export const INTERFACE_KEY = 'study-interface';
 /** oled and paper are chosen in Settings; they sit on a base mode (oled on dark, paper on light), so everything that only knows dark/light keeps working. */
@@ -19,18 +21,22 @@ export const RADII = Object.freeze(['sharp', 'standard', 'soft']);
 export const MOTIONS = Object.freeze(['auto', 'full', 'reduced', 'off']);
 /** The sizes of the whole interface, in percent (CSS zoom on the app: text, controls and spacing scale together), and the typefaces of its text. */
 export const SCALES = Object.freeze([90, 100, 110, 125, 150, 175, 200]);
-export const FONTS = Object.freeze(['system', 'serif', 'mono']);
+/** The presets of ui/font-presets.js, then `custom`: the name of an installed font typed in `fontCustom` (gated by cleanFontName). */
+export const FONTS = Object.freeze([...FONT_IDS, 'custom']);
 /** The accent colours (强调色, ui/accent.css): cinnabar is the default and needs no override; there is no free colour picker, so contrast stays verifiable. */
 export const ACCENTS = Object.freeze(['cinnabar', 'jade', 'ochre', 'graphite', 'plum']);
-export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', scale: 100, font: 'system', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard' });
+export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard' });
 /** Per setting, its allowed values (in display order): the whitelist and the option list of the settings page. */
-export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, scale: SCALES, font: FONTS, accent: ACCENTS, contrast: CONTRASTS, density: DENSITIES, radius: RADII });
+export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, scale: SCALES, font: FONTS, fontTitle: TITLE_MODES, accent: ACCENTS, contrast: CONTRASTS, density: DENSITIES, radius: RADII });
+/** A setting that is typed, not picked: its own gate instead of a list of values. */
+const GATES = Object.freeze({ fontCustom: cleanFontName });
 /** The zh label of each value, passed through ui() where shown; a scale shows as its percent, a value with no label as itself. */
 export const APPEARANCE_LABELS = Object.freeze({
   theme: { auto: '跟随系统', dark: '深色', light: '浅色', oled: '纯黑 OLED', paper: '护眼纸色' },
   motion: { auto: '跟随系统', full: '标准', reduced: '减弱', off: '无动画' },
+  font: { ...Object.fromEntries(FONT_IDS.map(id => [id, FONT_PRESETS[id].label])), custom: '本机字体' },
+  fontTitle: { follow: '跟随正文', system: '保持系统' },
   accent: { cinnabar: '朱砂', jade: '青玉', ochre: '赭石', graphite: '墨灰', plum: '梅紫' },
-  font: { system: '系统默认', serif: '衬线', mono: '等宽' },
   contrast: { auto: '跟随系统', standard: '标准', high: '高对比' },
   density: { compact: '紧凑', standard: '标准', comfortable: '宽松' },
   radius: { sharp: '利落', standard: '标准', soft: '圆润' },
@@ -44,6 +50,7 @@ export function normalizeAppearance(value) {
   const stored = value && typeof value === 'object' ? value : {};
   const out = {};
   for (const key of KEYS) {
+    if (GATES[key]) { out[key] = GATES[key](stored[key]); continue; }
     const choice = APPEARANCE_OPTIONS[key].find(option => typeof option === 'number' ? option === Number(stored[key]) : option === stored[key]);
     out[key] = choice ?? APPEARANCE_DEFAULTS[key];
   }
@@ -84,12 +91,20 @@ export function appearanceAttrs(value, system = systemNow()) {
     'data-palette': BASE_MODE[prefs.theme] ? prefs.theme : 'standard',
     'data-motion': effectiveMotion(prefs.motion, system.reducedMotion),
     'data-ui-scale': prefs.scale,
-    'data-ui-font': prefs.font,
+    // `custom` with no valid name is the system typeface, so the DOM never names a typeface it cannot show.
+    'data-ui-font': prefs.font === 'custom' && !prefs.fontCustom ? 'system' : prefs.font,
+    'data-ui-title': prefs.fontTitle,
     'data-contrast': prefs.contrast === 'auto' ? (system.contrast ? 'high' : 'standard') : prefs.contrast,
     'data-density': prefs.density,
     'data-radius': prefs.radius,
     'data-accent': prefs.accent,
   };
+}
+
+/** The one inline CSS variable of the app root: the typed font name as `"Name", <system stack>` (only while the typeface is custom). */
+export function appearanceStyle(value) {
+  const prefs = normalizeAppearance(value), stack = prefs.font === 'custom' ? customFontStack(prefs.fontCustom) : '';
+  return stack ? { '--font-custom': stack } : {};
 }
 
 export const LIGHT_QUERY = '(prefers-color-scheme: light)';

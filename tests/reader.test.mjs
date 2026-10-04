@@ -13,8 +13,8 @@ import { foldWithMap, foldQuery, matchOffsets, findRanges, paintMatches } from '
 test('reader settings: junk becomes the defaults, valid choices are kept', () => {
   assert.deepEqual(normalizeReaderSettings(undefined), READER_DEFAULTS);
   assert.deepEqual(normalizeReaderSettings('x'), READER_DEFAULTS);
-  assert.deepEqual(normalizeReaderSettings({ size: 99, width: 'huge', face: 'comic', tone: 'neon', outline: 'yes', tools: 1, underline: 'maybe' }), READER_DEFAULTS);
-  const chosen = { size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: false, underline: 'hide' };
+  assert.deepEqual(normalizeReaderSettings({ size: 99, width: 'huge', face: 'comic', tone: 'neon', outline: 'yes', tools: 1, underline: 'maybe', weight: 'heavy', leading: 1, gap: '2em' }), READER_DEFAULTS);
+  const chosen = { ...READER_DEFAULTS, size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: false, underline: 'hide', weight: 'bold', leading: 'loose', gap: 'tight' };
   assert.deepEqual(normalizeReaderSettings(chosen), chosen);
   assert.deepEqual(normalizeReaderSettings({ size: '18' }), { ...READER_DEFAULTS, size: 18 }, 'a stored string size still counts');
 });
@@ -64,7 +64,7 @@ test('link underlines are remembered per browser like the other settings, and an
   assert.equal(JSON.parse(store.get(READER_STORAGE_KEY)).underline, 'hide');
   assert.deepEqual(loadReaderSettings(storage), { ...READER_DEFAULTS, underline: 'hide', size: 18 });
   store.set(READER_STORAGE_KEY, JSON.stringify({ size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: true }));
-  assert.deepEqual(loadReaderSettings(storage), { size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: true, underline: 'show' });
+  assert.deepEqual(loadReaderSettings(storage), { ...READER_DEFAULTS, size: 20, width: 'wide', face: 'serif', tone: 'paper', outline: false, tools: true, underline: 'show' });
   store.set(READER_STORAGE_KEY, JSON.stringify({ underline: 'sideways' }));
   assert.equal(loadReaderSettings(storage).underline, 'show');
 });

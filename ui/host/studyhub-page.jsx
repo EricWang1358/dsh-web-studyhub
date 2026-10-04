@@ -1,6 +1,7 @@
 import React from "react";
 import { ui } from "../i18n.js";
 import { useAppearance, useAppearanceAttrs } from "../use-appearance.js";
+import { appearanceStyle } from "../appearance-prefs.js";
 
 /** The StudyHub mark for DSH's own sidebar, where the study tokens are absent. */
 export function StudyHubGlyph({ size = 16 }) {
@@ -18,10 +19,10 @@ export function StudyHubGlyph({ size = 16 }) {
 /** The page before DSH has selected any session: the library lives in a session's workspace. */
 export function NoSessionNotice({ onStart }) {
   /* The same preferences and attributes as App's root: the theme (following the OS live), size, typeface and motion. */
-  const attrs = useAppearanceAttrs(useAppearance()[0]);
+  const prefs = useAppearance()[0], attrs = useAppearanceAttrs(prefs);
   return (
     <div className="study-seat">
-      <div className="study-app" {...attrs}>
+      <div className="study-app" {...attrs} style={appearanceStyle(prefs)}>
         <div className="studyhub-page-empty">
           <StudyHubGlyph size={40} />
           <h1>{ui("先打开一个会话")}</h1>
