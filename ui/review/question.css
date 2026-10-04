@@ -2,18 +2,6 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .tag {
-      border: 1px solid var(--line);
-      border-radius: var(--radius-card);
-      padding: var(--space-1) var(--space-2);
-      color: var(--text-dim);
-      font-size: var(--fs-md);
-      display: inline-block;
-    }
-    .tag.bad {
-      border-color: var(--bad);
-      color: var(--bad);
-    }
     .quality-note {
       display: flex;
       gap: 14px;
@@ -866,7 +854,7 @@
     .summary-topics h3 {
       font-size: var(--fs-md);
     }
-    .summary-topics .tag {
+    .summary-topics .summary-topic {
       margin: 0 6px 6px 0;
     }
     /* Feedback occupies its own space, beside the action on a question

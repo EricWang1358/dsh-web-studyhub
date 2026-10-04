@@ -8,7 +8,7 @@ import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
-import { Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, Spinner, useToast } from "./components/index.js";
+import { Badge, Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, Spinner, useToast } from "./components/index.js";
 import ModelSetupGate, { gateTitle } from "./ModelSetupGate.jsx";
 import { formatClock } from "./format.js";
 import { useExamRun } from "./exam/useExamRun.js";
@@ -149,10 +149,10 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, busy, 
     <div className="rubric-answer" data-tour="case-practice">
       <div className="question" role="heading" aria-level={2}><Markdown text={card.prompt} /></div>
       <div className="rubric-answer__meta">
-        <span className="case-chip">{uiFormat("{0} 分", [marks])}</span>
-        <span className="case-chip">{uiFormat("建议用时约 {0} 分钟", [questionMinutes(marks)])}</span>
-        <span className="case-chip">{lengthHintLabel(marks)}</span>
-        {run.lastRubric && !rubric && <span className="case-chip">{uiFormat("上次批改 {0}/{1} 分", [run.lastRubric.total, run.lastRubric.max])}</span>}
+        <Badge size="sm">{uiFormat("{0} 分", [marks])}</Badge>
+        <Badge size="sm">{uiFormat("建议用时约 {0} 分钟", [questionMinutes(marks)])}</Badge>
+        <Badge size="sm">{lengthHintLabel(marks)}</Badge>
+        {run.lastRubric && !rubric && <Badge size="sm">{uiFormat("上次批改 {0}/{1} 分", [run.lastRubric.total, run.lastRubric.max])}</Badge>}
       </div>
       {card.rubricCriteria?.length > 0 && !rubric && <details className="rubric-dims">
         <summary>{ui("评分维度")}</summary>
@@ -391,8 +391,8 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRun
             <Panel as="article" key={card.id} className={"case-question" + (activeId === card.id ? " is-active" : "")}>
               <header className="case-question__head">
                 <strong>{uiFormat("第 {0} 题", [index + 1])}</strong>
-                <span className="case-chip">{uiFormat("{0} 分", [card.marks])}</span>
-                <span className={"case-chip" + (spent > budget ? " is-over" : "")}>{uiFormat("{0}/{1} 分钟", [Math.round(spent / 60000), Math.round(budget / 60000)])}</span>
+                <Badge size="sm">{uiFormat("{0} 分", [card.marks])}</Badge>
+                <Badge size="sm" tone={spent > budget ? "warning" : "neutral"}>{uiFormat("{0}/{1} 分钟", [Math.round(spent / 60000), Math.round(budget / 60000)])}</Badge>
               </header>
               <Markdown text={card.prompt} />
               <p className="case-question__hint">{lengthHintLabel(card.marks)}</p>
@@ -423,7 +423,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRun
             <strong>{phaseLabel(currentPhase, session.handwriting)}</strong>
           </div>
           {["reading", "writing"].includes(currentPhase) && <span className="case-paper__clock" aria-live="off">{formatClock(remaining)}</span>}
-          {pace && <span className={`case-chip pace-${pace}`}>{paceLabel(pace)}</span>}
+          {pace && <Badge size="sm" tone={pace === "behind" ? "warning" : pace === "ahead" ? "success" : "neutral"}>{paceLabel(pace)}</Badge>}
           <div className="case-paper__bar-actions">
             {currentPhase === "reading" && <Button size="sm" variant="secondary" onClick={() => setSession({ ...session, readingEndedAt: new Date().toISOString() })}>{ui("提前开始作答")}</Button>}
             {currentPhase === "writing" && session.handwriting && <Button size="sm" variant="secondary" onClick={() => setSession({ ...session, writingEndedAt: new Date().toISOString() })}>{ui("我写完了，开始录入")}</Button>}

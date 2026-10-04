@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { LEVEL_LABEL } from '../shared.js';
-import { DisclosureToggle, Icon, Menu, foldLabel } from '../components/index.js';
+import { Badge, DisclosureToggle, Icon, Menu, foldLabel } from '../components/index.js';
 import ArchivedDeckRow from '../ArchivedDeckRow.jsx';
 import MasteryBar from './MasteryBar.jsx';
 import { dotLevel, topicKey } from './map-model.js';
@@ -36,8 +36,8 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
           onChange={(event) => tree.toggleSelect([key], event.target.checked)} />
         <span className={`map-dot lv-${p ? dotLevel(p) : 'new'}`} />
         <button className="map-name" onClick={() => tree.toggleOpen(d.id)}>
-          <strong>{d.title}{d.format === 'case-study' && <span className="case-badge" title={ui('案例分析题组：长案例 + 开放题，按评分标准批改')}>
-            {d.caseBest ? uiFormat('案例 · 最好 {0}/{1}', [d.caseBest.total, d.caseBest.max]) : uiFormat('案例 · {0} 分', [d.caseMarks])}</span>}</strong>
+          <strong>{d.title}{d.format === 'case-study' && <Badge size="sm" tone="info" className="deck-case-mark" title={ui('案例分析题组：长案例 + 开放题，按评分标准批改')}>
+            {d.caseBest ? uiFormat('案例 · 最好 {0}/{1}', [d.caseBest.total, d.caseBest.max]) : uiFormat('案例 · {0} 分', [d.caseMarks])}</Badge>}</strong>
           <small>
             {[uiFormat('{0} 题', [d.available]), p?.due ? uiFormat('{0} 题到期', [p.due]) : ''].filter(Boolean).join(' · ')}
             {d.wrong ? uiFormat(' · {0} 题待巩固', [d.wrong]) : ''}

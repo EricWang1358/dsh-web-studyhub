@@ -256,18 +256,6 @@
     }
     .case-report__detail { margin-top: var(--space-4); }
     .case-report__detail h3 { font-size: var(--fs-md); margin: 0 0 var(--space-2); }
-    .case-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-1);
-      padding: var(--space-half) var(--space-2);
-      border-radius: var(--radius-pill);
-      border: 1px solid var(--line);
-      background: var(--bg-raised);
-      color: var(--text-dim);
-      font-size: var(--fs-xs);
-      white-space: nowrap;
-    }
     /* skills over time */
     .rubric-skills__list {
       list-style: none;

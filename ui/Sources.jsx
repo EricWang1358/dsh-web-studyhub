@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader, useToast } from "./components/index.js";
+import { Badge, Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader, useToast } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
@@ -15,7 +15,8 @@ import LargeDocumentCard from './LargeDocumentCard.jsx';
 import IndexBadge from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
 import useIndexCoverage from './use-index-coverage.js';
-import { JevDecidedBadge, JevNote, JevProbabilities, JevRunNote, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
+import { JevNote, JevProbabilities, JevRunNote, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
+import { JevDecidedBadge } from './JevBadge.jsx';
 import { experimentalShown } from './experimental-flag.js';
 import { noteText, startsIncluded } from './jev-flow.js';
 import { OriginalMenuEntry } from './document-preview/OriginalFile.jsx';
@@ -362,7 +363,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                 {uiFormat('采用建议：{0}', [displayTitle(proposal.title)])}</label>
               <CourseField label={displayTitle(proposal.title)} value={proposal.courseText} multiple courses={data.focus?.courses}
                 onChange={courseText => setProposals(current => current.map(item => item.id === proposal.id ? { ...item, courseText } : item))} disabled={busy || !proposal.include} />
-              <p className="muted">{proposal.reason}{experimental && proposal.decidedBy === 'jev' && <> <JevDecidedBadge /></>}</p>
+              <p className="muted">{proposal.reason}{experimental && proposal.decidedBy === 'jev' && <> <JevDecidedBadge scope="row" /></>}</p>
               {experimental && <JevProbabilities jev={proposal.jev} />}
             </div>)}
             <Button disabled={busy || !proposals.some(proposal => proposal.include)} onClick={() => act('source.courses.set', {
@@ -393,7 +394,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                 <button className="source-group-head" aria-expanded={expanded} onClick={() => toggle(g)}>
                   <Icon name="caret" size={14} className="sh-caret" />
                   <strong>{dayLabel(g.key)}</strong>
-                  {g.inferred && <span className="source-group-tag" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</span>}
+                  {g.inferred && <Badge size="sm" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</Badge>}
                   <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
                 </button>
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}

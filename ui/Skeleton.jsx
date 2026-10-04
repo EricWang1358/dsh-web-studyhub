@@ -9,7 +9,7 @@ import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import { designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
+import { Badge, Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 import { useStudy } from "./study-context.jsx";
 
@@ -225,7 +225,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
             onClick={() => toggleFold(t.key)}
           >
             <span className="sk-topic-title">{t.topic}</span>
-            {t.decks.length > 1 && <span className="sk-badge">{uiFormat("跨 {0} 个题组", [t.decks.length])}</span>}
+            {t.decks.length > 1 && <Badge tone="info">{uiFormat("跨 {0} 个题组", [t.decks.length])}</Badge>}
             <small>{uiFormat("{0} 题", [t.count])}</small>
           </button>
         </div>
@@ -340,7 +340,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                         onClick={() => toggleFold("g:" + g.id)}
                       >
                         <span className="sk-topic-title sk-group-title">{g.title}</span>
-                        <span className="sk-badge dim">{uiFormat("{0} 个主题", [g.members.length])}</span>
+                        <Badge>{uiFormat("{0} 个主题", [g.members.length])}</Badge>
                         <small>{uiFormat("{0} 题", [cards])}</small>
                       </button>
                     </div>
@@ -375,9 +375,9 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
           {pickedTopics.length > 0 && (
             <div className="sk-chips">
               {pickedTopics.slice(0, 12).map((t) => (
-                <span key={t} className="sk-chip">{t}</span>
+                <Badge key={t} tone="info">{t}</Badge>
               ))}
-              {pickedTopics.length > 12 && <span className="sk-chip dim">+{pickedTopics.length - 12}</span>}
+              {pickedTopics.length > 12 && <Badge>+{pickedTopics.length - 12}</Badge>}
             </div>
           )}
           <div className="sk-actions">

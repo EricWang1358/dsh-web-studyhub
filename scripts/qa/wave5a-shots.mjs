@@ -92,6 +92,18 @@ export async function runShots(options) {
       await go("nav.resume");
       await step("review-ungrable", async () => { await page.locator(".review-ungrable").waitFor({ timeout: 8000 }); });
     }
+    if (surfaces.has("chips")) {
+      await previewCall(server, "sample.load", { uiLanguage: options.lang });
+      await page.reload();
+      await page.locator("aside, nav").first().waitFor();
+      await narrowMenu();
+      await go("nav.skeleton");
+      await step("skeleton-chips", async () => {});
+      await go("nav.exam");
+      await step("exam-setup", async () => {});
+      await go("nav.library");
+      await step("library-deck-rows", async () => {});
+    }
     if (surfaces.has("dashboard")) {
       await previewCall(server, "sample.load", { uiLanguage: options.lang });
       await page.reload();

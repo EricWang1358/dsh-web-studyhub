@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from './i18n.js';
-import { Button, ConfirmDialog, Hint, InlineMessage, SegmentedControl, SettingsSection, Switch, useToast } from './components/index.js';
+import { Badge, Button, ConfirmDialog, Hint, InlineMessage, SegmentedControl, SettingsSection, Switch, useToast } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { USAGE_AREAS, USAGE_GROUPS, usageArea } from './usage/registry.js';
 import { displayName } from './usage/names.js';
@@ -118,7 +118,7 @@ export function UsageReportView({ report, period, onPeriod, language = getUiLang
       <section className="usage-block usage-hints">
         <h4 className="settings-subtitle">{ui('小提示')}</h4>
         <Hint>{ui('这些只是提示，每一条都可以不管。')}</Hint>
-        <ul className="usage-hints__list">{report.observations.map(item => <li key={`${item.id}-${item.key || ''}`}><span className="usage-chip">{ui('可选')}</span><span>{item.text}</span></li>)}</ul>
+        <ul className="usage-hints__list">{report.observations.map(item => <li key={`${item.id}-${item.key || ''}`}><Badge size="sm">{ui('可选')}</Badge><span>{item.text}</span></li>)}</ul>
       </section>
     </div>
   );

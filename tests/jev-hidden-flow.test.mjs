@@ -19,8 +19,8 @@ const compiled = await build({ stdin: { contents: `
   export { default as Sources } from './ui/Sources.jsx';
   export { default as Draft } from './ui/Draft.jsx';
   export { JevSettingsView, JevGuide, JevReplaceList } from './ui/JevSettings.jsx';
-  export { JevRunNote, JevDecidedBadge } from './ui/JevOrganize.jsx';
-  export { JevDecidedNote } from './ui/JevBadge.jsx';
+  export { JevRunNote } from './ui/JevOrganize.jsx';
+  export { JevDecidedNote, JevDecidedBadge } from './ui/JevBadge.jsx';
   export { experimentalShown } from './ui/experimental-flag.js';
   export { JEV_REPLACE_META, setupStep, providerChoices, privacyPoints } from './ui/jev-flow.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
@@ -134,8 +134,8 @@ test('the pieces that mark Jev’s decisions are experimental-labelled and plain
   assert.match(en, /Jev \(experimental\) judged 5/);
   assert.ok(!han.test(en));
   assert.equal(render(h(JevDecidedNote, { decided: { ...decided, judged: 0 } })), '', 'nothing to say when Jev decided nothing');
-  assert.match(render(h(JevDecidedBadge, {})), /由 Jev 判定/);
-  assert.match(render(h(JevDecidedBadge, {}), 'en'), /Decided by Jev/);
+  assert.match(render(h(JevDecidedBadge, { scope: 'row' })), /由 Jev 判定/);
+  assert.match(render(h(JevDecidedBadge, { scope: 'row' }), 'en'), /Decided by Jev/);
   assert.match(render(h(JevRunNote, { jev: { enabled: true, jev: 2, model: 2, fallback: { reason: 'low-confidence', count: 2, message: 'two went to the model' } } })), /Jev（实验性）给出了 2 条建议，其余 2 条由模型给出/);
   assert.equal(render(h(JevRunNote, { jev: undefined })), '');
   assert.equal(render(h(JevRunNote, { jev: { enabled: false, jev: 0, model: 3, fallback: null } })), '', 'a switched-off site leaves no note');

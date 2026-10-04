@@ -2,7 +2,7 @@ import React from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
-import { Button, Disclosure, InlineMessage, Panel, Spinner } from "./components/index.js";
+import { Badge, Button, Disclosure, InlineMessage, Panel, Spinner } from "./components/index.js";
 import { rubricSkills } from "../lib/case-study.js";
 import css from "./case-result.css";
 
@@ -109,7 +109,7 @@ export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, on
             return <li key={question.cardId} className={`is-${question.status}`}>
               <span className="case-report__n">{uiFormat("第 {0} 题", [question.n])}</span>
               <span className="case-report__prompt">{question.prompt}</span>
-              <span className="case-chip">{statusLabel(question.status)}</span>
+              <Badge size="sm">{statusLabel(question.status)}</Badge>
               <span className="case-report__marks">{question.total === null ? "—" : marks(question.total)}<small>{uiFormat("/{0}", [marks(question.marks)])}</small></span>
               {pace && <small className={"case-report__pace" + (pace.status === "over" ? " is-over" : "")}>
                 {uiFormat("用时 {0}/{1} 分钟", [minutes(pace.spentMs), minutes(pace.budgetMs)])}</small>}

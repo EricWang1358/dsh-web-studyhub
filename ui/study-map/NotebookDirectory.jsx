@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, DisclosureToggle, Hint, InlineMessage, LoadingState, foldLabel } from '../components/index.js';
+import { Badge, Button, DisclosureToggle, Hint, InlineMessage, LoadingState, foldLabel } from '../components/index.js';
 import { EMPTY_NOTEBOOKS } from './map-model.js';
 
 const OPEN_KEY = 'study-nb-dir-open';
@@ -113,7 +113,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
             <ul className="nb-list">
               {current?.publishedAt && (
                 <li className="nb-row current" title={current.workspace}>
-                  <span className="nb-chip">{ui('本工作区')}</span>
+                  <Badge tone="info">{ui('本工作区')}</Badge>
                   <span className="nb-main"><strong>{current.title}</strong><small>{topics(current) || stats(current)}</small></span>
                   <span className="nb-stats">{stats(current)}</span>
                 </li>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { plainPrompt } from '../shared.js';
-import { Button, ErrorState, PageHeader } from '../components/index.js';
+import { Badge, Button, ErrorState, PageHeader } from '../components/index.js';
 import { formatDuration } from '../format.js';
 import ResultBreakdown from '../ResultBreakdown.jsx';
 import { ReadingBlock, ReadingSettingsButton } from '../reading-settings/ReadingSettings.jsx';
@@ -30,9 +30,9 @@ function QuestionList({ title, items, empty }) {
       {items.length ? (
         <ul>{items.map((item) => (
           <li key={item.deckId + ':' + item.cardId} className="exam-wrong-row">
-            <span className="exam-chip">{item.topic || ui('未分类')}</span>
+            <Badge tone="info">{item.topic || ui('未分类')}</Badge>
             <span className="exam-wrong-prompt" title={plainPrompt(item.prompt)}>{plainPrompt(item.prompt)}</span>
-            <span className="exam-chip dim">{kindName(item.kind)}</span>
+            <Badge>{kindName(item.kind)}</Badge>
           </li>
         ))}</ul>
       ) : <p className="muted">{empty}</p>}

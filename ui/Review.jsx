@@ -289,9 +289,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <div className="summary-topics">
             <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
             {(run.weakTopics || []).slice(0, 3).map((t) => (
-              <span className="tag" key={t}>
-                {t}
-              </span>
+              <Badge className="summary-topic" key={t}>{t}</Badge>
             ))}
             {!run.weakTopics?.length && (
               <p className="muted">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
