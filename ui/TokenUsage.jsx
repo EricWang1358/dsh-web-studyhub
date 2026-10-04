@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
+import { useStudy } from './study-context.jsx';
 import { Button, IconButton, LoadingState, Panel, ProgressBar } from './components/index.js';
 import css from './token-usage.css';
 import { totalTokens } from '../lib/token-usage.js';
@@ -115,7 +116,8 @@ export function useUsageEstimate(call, request, { enabled = true, delay = 450 } 
 }
 
 /** The estimate line, connected: `request` is what `usage.estimate` takes (with `feature`); `action` overrides the action name. */
-export function TokenEstimate({ call, request, action, enabled = true }) {
+export function TokenEstimate({ request, action, enabled = true }) {
+  const { call } = useStudy();
   const state = useUsageEstimate(call, action ? { action, args: request } : request, { enabled });
   if (!enabled) return null;
   return <TokenEstimateView state={state} />;

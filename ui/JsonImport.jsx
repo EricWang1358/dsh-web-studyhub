@@ -5,8 +5,10 @@ import { importExample, importPrompt } from "./json-prompts.js";
 import CourseField from './CourseField.jsx';
 import { Button, FileDrop, InlineMessage, useToast } from './components/index.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
+import { useStudy } from './study-context.jsx';
 
-export default function JsonImport({ data, busy, act, call, openDraft }) {
+export default function JsonImport({ data, openDraft }) {
+  const { busy, act, call } = useStudy();
   const toast = useToast();
   const [text, setText] = useState("");
   const [kind, setKind] = useState("mixed");

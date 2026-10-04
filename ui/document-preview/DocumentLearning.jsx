@@ -72,7 +72,7 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
           <label>{ui('题数')}<input type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
         </div>
         <p className="muted">{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</p>
-        {generateReady && deckId && typeof call === 'function' && <TokenEstimate call={call} enabled
+        {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled
           request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: getUiLanguage() === 'en' ? 'English' : '中文' }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}
         <Button type="submit" variant="primary" busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>

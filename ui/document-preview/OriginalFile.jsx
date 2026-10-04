@@ -9,6 +9,7 @@ import { formatBytes } from '../format.js';
 import { toBase64 } from '../upload.js';
 import { isAbsolutePath, unquotePath } from '../paths.js';
 import { baseName } from '../file-names.js';
+import { useStudy } from '../study-context.jsx';
 
 /* 补全原文件: attach the ORIGINAL file to a document that only kept its text, by reference (the path is remembered, nothing
    is copied) or as a copy in the library. The host verifies the file against the stored text first (no model); nothing about
@@ -193,7 +194,8 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
  * The 资料 row's menu entry: a one-line status and one button that opens the dialog. The status is read when the menu opens.
  * item: a grouped document (sourceIds, format, title). `initial` seeds the status (tests).
  */
-export function OriginalMenuEntry({ item, call, busy = false, host, initial }) {
+export function OriginalMenuEntry({ item, host, initial }) {
+  const { call, busy } = useStudy();
   useInjectCss(css, 'study-original-file');
   const [info, setInfo] = useState(initial ?? null), [portal, setPortal] = useState(null), anchor = useRef(null);
   const sourceId = item?.sourceIds?.[0];

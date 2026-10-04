@@ -25,7 +25,13 @@ export const RULES = {
   rawColor: { issue: '#156', why: 'raw #hex / rgb() / hsl() outside token definitions', fix: 'use a colour token or color-mix() of tokens (only #000 inside mask-image is allowed)' },
   spacingPx: { issue: '#148', why: 'raw px padding/margin/gap', fix: 'use var(--space-*)' },
   longLine: { issue: '#156', why: 'CSS line longer than 400 characters (minified)', fix: 'format the stylesheet (one declaration per line)' },
+  serviceHandoff: { issue: '#113', why: 'call / act / askInChat / busy handed to a child component as a prop (busy on Button, Dialog and the like is a display prop and not counted)',
+    fix: 'read it with useStudy() (ui/study-context.jsx) in the component that uses it' },
 };
+
+/* `busy={busy}` on these is the component's own "working" look, not the study services being threaded down. */
+const DISPLAY_BUSY_TAGS = new Set(['Button', 'IconButton', 'Dialog', 'ConfirmDialog', 'PermanentDeleteDialog']);
+const HANDOFF = /\b(call|act|askInChat|busy)=\{(?:call|act|askInChat|busy|core\.call|core\.act|core\.busy)\}/g;
 
 /* Hard rules: allow-listed exceptions live here with the issue that removes them. */
 export const ALLOW = {
@@ -209,6 +215,12 @@ function scanJsxFile(file, source, metrics, found) {
   }
   const glyph = new RegExp(`>\\s*(?:[${ICON_GLYPHS}]|\\{\\s*['"\`][${ICON_GLYPHS}]['"\`]\\s*\\})\\s*<`, 'g');
   bump('glyphIcon', (text.match(glyph) || []).length);
+  let handoffs = 0;
+  for (const match of text.matchAll(HANDOFF)) {
+    if (match[1] === 'busy' && DISPLAY_BUSY_TAGS.has(/^<([\w.]+)/.exec(text.slice(text.lastIndexOf('<', match.index)))?.[1])) continue;
+    handoffs++;
+  }
+  bump('serviceHandoff', handoffs);
 }
 
 function scanJsFile(file, source, found) {

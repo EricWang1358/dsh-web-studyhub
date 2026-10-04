@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { Button, Icon } from "./components/index.js";
+import { useStudy } from "./study-context.jsx";
 import { useInjectCss } from "./shared.js";
 import { SETUP_STEP_IDS, courseSetup, hasBigBook } from "../lib/course-setup.js";
 import css from "./setup-checklist.css";
@@ -103,11 +104,12 @@ function Step({ step, index, setup, on, busy, next, onLater }) {
 
 /**
  * @param data      the library snapshot
- * @param call      host call, only used to read what the search extension reports (when the course has a big book)
+ * It reads `call` (only to ask what the search extension reports, when the course has a big book) and `busy` from useStudy().
  * @param on        { import(course), sources(), index(), generate(course), draft(id), course(id), skeleton() }
  * For previews and tests: later, initialOpen, doneSeen, retrieval.
  */
-export default function SetupChecklist({ data, call, busy = false, on = {}, later: laterProp, initialOpen = false, doneSeen: doneSeenProp, retrieval: retrievalProp = null }) {
+export default function SetupChecklist({ data, on = {}, later: laterProp, initialOpen = false, doneSeen: doneSeenProp, retrieval: retrievalProp = null }) {
+  const { call, busy } = useStudy();
   useInjectCss(css, "study-setup-checklist");
   const root = data?.root, course = data?.focus?.course;
   const [later, setLater] = useState(() => laterProp ?? readSetupLater(root, course));

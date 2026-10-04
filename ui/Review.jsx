@@ -543,7 +543,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 </>
               ) : rubricCard ? (
                 <>
-                  <RubricAnswer run={run} data={data} call={call} value={response} onChange={actions.setResponse} busy={busy} task={gradeTask}
+                  <RubricAnswer run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask}
                     onSubmit={(text) => assistCard("grade", text)} onSetupModel={() => navigate("settings")} />
                   {prereqStrip}
                 </>
@@ -750,7 +750,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 )}
                 <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
                   onOpenSource={(source, quote) => openModal({ type: "source", source, quote })} />
-                {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} call={call} readOnly
+                {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
                   onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask} />}
               </ReadingBlock>
             )}

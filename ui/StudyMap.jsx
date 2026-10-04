@@ -99,11 +99,11 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   return (
     <section className="page library-page map-page" ref={pageRef}>
       {children}
-      <HomeActivity sectionRef={activityRef} jobs={visibleJobs} drafts={drafts} data={data} busy={busy} modelReady={modelReadiness(data).ready} call={call}
+      <HomeActivity sectionRef={activityRef} jobs={visibleJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
         start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
         retryGeneration={retryGeneration} openModelSettings={openModelSettings} continueDraft={continueDraft} />
       {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after. */}
-      <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} call={call} busy={busy} on={setupHandlers} />
+      <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />
       <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <DeskIntro data={data} home={home} mastery={mastery} role={role} busy={busy} start={start} resume={resume} endRun={endRun}
           onFocus={onFocus} onCourseSettings={onCourseSettings} suggestRole={suggestRole} />

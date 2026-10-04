@@ -2,8 +2,10 @@ import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import { Button, InlineMessage } from "./components/index.js";
+import { useStudy } from "./study-context.jsx";
 
-export default function ExplanationFollowup({ run, call, readOnly = false, onDerive, deriving = false }) {
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, deriving = false }) {
+  const { call } = useStudy();
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);

@@ -3,6 +3,7 @@ import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Hint, InlineMessage } from './components/index.js';
 import { formatNumber } from './format.js';
+import { useStudy } from './study-context.jsx';
 import css from './large-documents.css';
 
 /* On 创建题组 (WP28): with a retrieval tool chosen, a big selection is narrowed to
@@ -14,7 +15,8 @@ import css from './large-documents.css';
  * Props: call, advice (generateAdvice), sourceIds (the selection), focus (the topic),
  * course, onApply(ids), disabled, initialPreview (retrieval.preview result; tests and previews).
  */
-export default function RetrievalPanel({ call, advice, sourceIds = [], focus = '', course, onApply, disabled = false, initialPreview = null }) {
+export default function RetrievalPanel({ advice, sourceIds = [], focus = '', course, onApply, disabled = false, initialPreview = null }) {
+  const { call } = useStudy();
   useInjectCss(css, 'study-large-documents');
   const [preview, setPreview] = useState(initialPreview);
   const [checked, setChecked] = useState(() => new Set((initialPreview?.pages || []).map(page => page.sourceId)));

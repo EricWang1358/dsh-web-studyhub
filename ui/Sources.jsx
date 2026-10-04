@@ -123,10 +123,11 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery })
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSegment, onRename, onArchive }) {
+export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, onRename, onArchive }) {
+  const { call } = useStudy();
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
-    {call && <OriginalMenuEntry item={item} call={call} busy={busy} />}
+    {call && <OriginalMenuEntry item={item} />}
     {onRename && <Button disabled={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
     {onChangeCourse && <Button disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</Button>}
     {onSegment && <Button disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</Button>}
@@ -135,7 +136,8 @@ export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSeg
   </div>;
 }
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onArchive, onChangeCourse, onSegment, mastery, rename, indexInfo = null, indexCoverage = null, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse }) {
+function DocumentRow({ item, source, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onArchive, onChangeCourse, onSegment, mastery, rename, indexInfo = null, indexCoverage = null, advice = false, retrieval = null, onOpenSettings, courses, defaultCourse }) {
+  const { busy, call } = useStudy();
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => () => clearTimeout(opening.current), []);
@@ -188,7 +190,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
             <Button size="sm" variant="danger" disabled={busy} onClick={() => onRemove(item)}>{ui('永久删除')}</Button>
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse}
+            <RowMenuItems item={item} busy={busy} onChangeCourse={onChangeCourse}
               onArchive={item.archived ? undefined : onArchive} onSegment={onSegment} onRename={editor ? startEditing : undefined} />
           </details>
         </div>
@@ -223,7 +225,8 @@ export async function saveDocumentCourses(act, assignments, onDone) {
   catch (error) { return error?.message || String(error); }
 }
 
-export function CourseDialog({ item, items, byId, courses, busy, act, onClose }) {
+export function CourseDialog({ item, items, byId, courses, onClose }) {
+  const { busy, act } = useStudy();
   const [text, setText] = useState(item.courses.join('; ')), [error, setError] = useState('');
   const save = async () => setError(await saveDocumentCourses(act, courseAssignments(items, [item.key], parseCourses(text), byId), onClose));
   return (
@@ -239,7 +242,8 @@ export function CourseDialog({ item, items, byId, courses, busy, act, onClose })
   );
 }
 
-export function RemoveDialog({ item, busy, act, onClose, onRemoved }) {
+export function RemoveDialog({ item, onClose, onRemoved }) {
+  const { busy, act } = useStudy();
   const blocked = item.usedBy.length > 0 || !item.archived;
   async function confirm() {
     const result = await removeDocument(item, { act });
@@ -397,22 +401,22 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                   {g.inferred && <Badge size="sm" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</Badge>}
                   <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
                 </button>
-                {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}
+                {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
                   onOpen={openSource} onGenerate={showArchived ? undefined : onGenerate} onRemove={setRemoving}
                   onArchive={item => act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived })} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined} rename={renameFor}
                   mastery={data.materialMastery?.[item.key]} indexInfo={documentIndexState(item, indexCoverage, { big: bigKeys.has(item.key) })} indexCoverage={indexCoverage} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
-                  call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} />)}
+                  courses={data.focus?.courses} defaultCourse={data.focus?.course} />)}
               </div>
             );
           })}
         </div>
       )}
-      {editingCourse && <CourseDialog item={editingCourse} items={items} byId={byId} courses={data.focus?.courses} busy={busy} act={act}
+      {editingCourse && <CourseDialog item={editingCourse} items={items} byId={byId} courses={data.focus?.courses}
         onClose={() => setEditingCourse(null)} />}
-      {segmenting && <OutlineDialog item={segmenting} call={call} act={act} onClose={() => setSegmenting(null)} />}
-      {removing && <RemoveDialog item={removing} busy={busy} act={act} onClose={() => setRemoving(null)}
+      {segmenting && <OutlineDialog item={segmenting} onClose={() => setSegmenting(null)} />}
+      {removing && <RemoveDialog item={removing} onClose={() => setRemoving(null)}
         onRemoved={item => { setRemoving(null); toast.success(uiFormat("已移除「{0}」", [displayTitle(item.title)])); }} />}
     </section>
   );
