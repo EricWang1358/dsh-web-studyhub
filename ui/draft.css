@@ -67,7 +67,6 @@
       width: fit-content;
       max-width: 100%;
       background: var(--bg-glass-strong);
-      backdrop-filter: blur(var(--glass-blur));
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       box-shadow: var(--shadow-sm);

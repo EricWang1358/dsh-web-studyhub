@@ -56,7 +56,6 @@
 
     --shadow-card: 0 0 0 1px var(--paper-rule), 0 2px 4px #00000026, var(--shadow-lg);
     --radius-card: 16px;
-    --glass-blur: 0px;
     --glass-sheen: #fff4e30a;
     --shadow-sm: 0 1px 2px #0000004d, 0 2px 8px -4px #00000080;
     --shadow-md: 0 14px 34px -20px #000000d9;

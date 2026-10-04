@@ -32,11 +32,6 @@
       width: max-content;
       max-width: min(360px, 80cqi);
       padding: 10px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--line);
-      background: var(--bg-glass-strong);
-      backdrop-filter: blur(var(--glass-blur));
-      box-shadow: var(--shadow-md);
       animation: coach-pop 160ms var(--ease) both;
     }
     .thumb-tray small { width: 100%; color: var(--text-faint); font-size: var(--fs-md); }
