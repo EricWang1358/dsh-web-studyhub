@@ -56,6 +56,46 @@ test('#77 no panel is glass: backdrop-filter exists only on a dialog ::backdrop,
   for (const old of ['.map-menu {', '.review-more-menu {', '.publication-mark-popover {', '.inbox-panel {', '.board-menu {', '.tr-menu__list {', '.skc-layout-menu > div']) assert.ok(!all.includes(old), old);
 });
 
+/** The opening tags `<Name ...>` of a JSX source, braces and quotes respected (an attribute may hold `=>` or `>`). */
+function openingTags(source, names) {
+  const tags = [];
+  for (const start of source.matchAll(new RegExp(`<(?:${names.join('|')})(?=[\\s/>])`, 'g'))) {
+    let depth = 0, quote = '';
+    for (let i = start.index + 1; i < source.length; i += 1) {
+      const char = source[i];
+      if (quote) { if (char === quote) quote = ''; continue; }
+      if (char === '"' || char === "'") { if (depth === 0) quote = char; continue; }
+      if (char === '{') depth += 1;
+      else if (char === '}') depth -= 1;
+      else if (char === '>' && depth === 0) { tags.push(source.slice(start.index, i + 1)); break; }
+    }
+  }
+  return tags;
+}
+
+test('#82 no trigger carries both aria-pressed and aria-expanded', () => {
+  const bad = [];
+  let scanned = 0, pressed = 0;
+  for (const file of walk('ui', '.jsx')) for (const tag of openingTags(read(file), ['button', 'Button', 'IconButton', 'Chip', 'summary'])) {
+    scanned += 1;
+    if (/aria-pressed/.test(tag)) pressed += 1;
+    if (/aria-pressed/.test(tag) && /aria-expanded/.test(tag)) bad.push(`${file}: ${tag.slice(0, 60)}`);
+  }
+  assert.ok(scanned > 300 && pressed > 5, `the scan sees the buttons (${scanned} tags, ${pressed} with aria-pressed)`);
+  assert.deepEqual(bad, []);
+});
+
+test('#82 a role="dialog" panel that is not a Dialog or a Popover moves focus in and gives it back', () => {
+  const panels = walk('ui', '.jsx').filter(file => !/ui\/components\/(Dialog|Popover)\.jsx$/.test(file) && /role="dialog"/.test(read(file)));
+  assert.ok(panels.length >= 3, panels.join(', '));
+  const bad = panels.filter(file => {
+    const dir = file.slice(0, file.lastIndexOf('/'));
+    const own = read(file), sibling = readdirSync(new URL(`../${dir}`, import.meta.url)).filter(name => /^(PagePeek|Tour)\.jsx$/.test(name)).map(name => read(`${dir}/${name}`)).join('\n');
+    return !/\.focus\(/.test(own) && !/\.focus\(/.test(sibling);
+  });
+  assert.deepEqual(bad, []);
+});
+
 test('#76 both themes define --scrim and --scrim-strong', () => {
   const tokens = read('ui/tokens.css');
   const light = tokens.slice(tokens.indexOf('light-dark(') > -1 ? tokens.indexOf('--scrim: light-dark(') : 0);
