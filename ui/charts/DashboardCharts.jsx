@@ -138,7 +138,7 @@ export function TrendPanel({ trend = [], today }) {
         )}
       </div>
       {studied.length > 0 && (
-        <table className="dash-sr">
+        <table className="sh-visually-hidden">
           <caption>{ui('每日平均分（客观判分与自评）')}</caption>
           <tbody>
             <tr><th scope="col">{ui('日期')}</th><th scope="col">{ui('客观判分')}</th><th scope="col">{ui('次数')}</th><th scope="col">{ui('自评')}</th><th scope="col">{ui('次数')}</th></tr>
@@ -242,7 +242,7 @@ export function ForecastPanel({ forecast, onStart, parked }) {
       {scopeNote && <p className="dash-scope-note">{scopeNote}
         {parkedCount > 0 && parked?.onManage && <> <Button variant="link" size="sm" onClick={parked.onManage}>{ui('管理课程')}</Button></>}</p>}
       {total > 0 && (
-        <table className="dash-sr">
+        <table className="sh-visually-hidden">
           <caption>{ui('未来 14 天到期复习')}</caption>
           <tbody>
             <tr><th scope="col">{ui('日期')}</th><th scope="col">{ui('题数')}</th></tr>

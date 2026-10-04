@@ -74,7 +74,7 @@ function Rhythm({ rhythm, period }) {
       <ol className="usage-rhythm" aria-label={uiFormat('每天的互动次数（{0}）', [ui(PERIODS.find(([value]) => value === period)?.[1] || '')])}>
         {rhythm.map(day => <li key={day.day} className="usage-rhythm__day" title={`${day.day}: ${day.n}`}>
           <span className="usage-rhythm__bar" aria-hidden="true" style={{ height: `${day.n > 0 ? Math.max(6, Math.round((day.n / top) * 100)) : 0}%` }} />
-          <span className="usage-sr">{`${day.day}: ${day.n}`}</span>
+          <span className="sh-visually-hidden">{`${day.day}: ${day.n}`}</span>
         </li>)}
       </ol>
       <Hint>{peak.n > 0 ? uiFormat('最忙的一天：{0}（{1} 次）', [peak.day, peak.n]) : ui('这段时间没有记录。')}</Hint>

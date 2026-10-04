@@ -69,9 +69,6 @@
         background 0.18s var(--ease),
         color 0.18s var(--ease);
     }
-    .collapse-toggle:not(.sh-btn) {
-      border: none;
-    }
     .collapse-toggle:hover {
       background: var(--bg-hover);
       color: var(--text);

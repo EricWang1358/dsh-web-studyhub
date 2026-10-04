@@ -9,8 +9,8 @@
      through --sh-tone; --sh-tone-ink nudges the tone toward the text colour so
      coloured words on tinted backgrounds keep AA contrast in both themes. */
   :is(.study-app, .study-seat) {
-    /* The one visually-hidden utility (#158). The aliases are the older names still in markup; delete one when its last user moves to .sh-visually-hidden. */
-    .sh-visually-hidden, .sr-only, .usage-sr, .dash-sr {
+    /* The one visually-hidden utility (#158). */
+    .sh-visually-hidden {
       position: absolute;
       width: 1px;
       height: 1px;

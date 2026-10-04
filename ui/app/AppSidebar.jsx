@@ -105,7 +105,7 @@ export default function AppSidebar() {
           );
         })}
         {navOrder.customized && !sidebarNarrow && <Button variant="link" size="sm" className="nav-reset" onClick={navOrder.reset}>{ui('恢复默认顺序')}</Button>}
-        <span className="sr-only" role="status" aria-live="polite">
+        <span className="sh-visually-hidden" role="status" aria-live="polite">
           {announced && uiFormat('{0} 已移到第 {1} 位，共 {2} 项', [ui(announced.label), navOrder.announce.position, navOrder.announce.count])}
         </span>
       </nav>

@@ -6,17 +6,18 @@
        quiet rows; the graph and question components retain their own visual rules. */
     /* The page frame (width, left edge, padding) is the shared .page; the header is the shared PageHeader. */
     .workflow-page { container-type: inline-size; min-width: 0; }
-    .workflow-page :is(button:not(.sh-btn), input, select, textarea) { font: inherit; }
-    .workflow-page button:not(.sh-btn) { min-height: 36px; }
+    /* The raw (custom-geometry) buttons of the flow pages, named here instead of "every button that is not a Button". */
+    .workflow-page :is(input, select, textarea, .wf-step-toggle, .wf-route-link, .wf-undo) { font: inherit; }
+    .workflow-page :is(.wf-step-toggle, .wf-route-link, .wf-undo) { min-height: 36px; }
     .workflow-page :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
       width: 100%; min-width: 0; box-sizing: border-box; padding: 10px var(--space-3);
       color: var(--text); background: var(--bg-sunken); border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
     }
     .workflow-page textarea { resize: vertical; line-height: 1.65; }
-    .workflow-page :is(input, select, textarea, button:not(.sh-btn)):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
+    .workflow-page :is(input, select, textarea, .wf-step-toggle, .wf-route-link, .wf-undo):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
     .workflow-page :is(input[type="checkbox"], input[type="radio"]) { flex: 0 0 auto; width: 17px; height: 17px; accent-color: var(--accent); }
     .workflow-page fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
-    .workflow-page button:disabled:not(.sh-btn) {
+    .workflow-page :is(.wf-step-toggle, .wf-route-link, .wf-undo):disabled {
       cursor: not-allowed;
     }
     .wf-eyebrow { font-size: var(--fs-md); letter-spacing: .08em; font-weight: var(--fw-strong); color: var(--text-muted); }

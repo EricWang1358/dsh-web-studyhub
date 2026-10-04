@@ -344,7 +344,8 @@
     /* A formula, one look for text and Markdown sources (formula.js): its stored text is the hidden source, the drawing a marker beside it.
        Inline sits on the baseline; display is a centred block of the document that scrolls sideways when it is wide. */
     .reader-math { position: relative; }
-    .reader-math__source { position: absolute; inset-inline-start: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: pre; }
+    /* The source carries .sh-visually-hidden; it only keeps its line breaks. */
+    .reader-math__source { white-space: pre; }
     .reader-math__view math { font-family: math, "Cambria Math", serif; font-size: 1em; font-weight: var(--fw-regular); }
     /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
     .reader-math__view math:has(mphantom) { padding-inline-end: 0.2em; }

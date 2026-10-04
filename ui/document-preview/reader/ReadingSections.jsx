@@ -10,7 +10,7 @@ import { formulaClass, formulaViewHtml } from './formula.js';
  * decides the drawing, so a re-render of the page (a selection, a find) never draws it again. */
 const ReaderFormula = React.memo(function ReaderFormula({ formula }) {
   return <span className={formulaClass(formula.display)}>
-    <span className="reader-math__source" aria-hidden="true">{formula.raw}</span>
+    <span className="sh-visually-hidden reader-math__source" aria-hidden="true">{formula.raw}</span>
     <span className="reader-math__view" data-study-marker="true" dangerouslySetInnerHTML={{ __html: formulaViewHtml(formula) }} />
   </span>;
 }, (before, after) => before.formula.raw === after.formula.raw);

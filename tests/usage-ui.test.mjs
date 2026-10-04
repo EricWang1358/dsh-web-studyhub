@@ -109,7 +109,7 @@ test('the daily rhythm and every bar carry their numbers as text, not only as co
   const rhythm = html.match(/<ol[^>]*class="[^"]*usage-rhythm[^"]*"[\s\S]*?<\/ol>/)?.[0] || '';
   assert.ok(rhythm.length > 0);
   assert.equal((rhythm.match(/<li/g) || []).length, 30);
-  assert.match(rhythm, /<span class="sr-only">2026-10-03[^<]*140?[^<]*<\/span>|2026-10-03[^<]*\d/);
+  assert.match(rhythm, /<span class="sh-visually-hidden">2026-10-03[^<]*140?[^<]*<\/span>|2026-10-03[^<]*\d/);
   for (const row of html.match(/<li[^>]*usage-rank__row[\s\S]*?<\/li>/g) || []) assert.match(row, /\d+<|\d+ [^<]*|\d+%/, 'each ranked row has numbers in text');
 });
 

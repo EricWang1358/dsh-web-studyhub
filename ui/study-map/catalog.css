@@ -26,17 +26,6 @@
     .section-heading button {
       font-size: var(--fs-md);
     }
-    .section-heading button:not([class^="sh-"], [class*=" sh-"]) {
-      border: 0;
-      padding: 7px var(--space-3);
-      color: var(--text-dim);
-      background: transparent;
-    }
-    .section-heading button:hover:not(:disabled):not([class^="sh-"], [class*=" sh-"]) {
-      background: var(--bg-hover);
-      color: var(--text);
-      border-color: transparent;
-    }
     .lv-new { background: color-mix(in srgb, var(--text) 22%, transparent); }
     .lv-weak { background: var(--bad); }
     .lv-learning { background: var(--warn); }
