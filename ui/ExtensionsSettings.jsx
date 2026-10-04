@@ -1,7 +1,7 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Disclosure, InlineMessage } from './components/index.js';
+import { Button, Disclosure, Field, InlineMessage, Select, SettingsSection, TextInput } from './components/index.js';
 import { AdvancedTools, ConverterMain, DetectionLine, providerLabel } from './LargeDocumentCard.jsx';
 import ExtensionPanel from './ExtensionPanel.jsx';
 import { useAsyncAction } from './use-async.js';
@@ -26,7 +26,6 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
   const { run, working, error } = useAsyncAction({ exclusive: true });
   const [endpoint, setEndpoint] = useState(initialStatus?.hfEndpoint || '');
   const endpointEdited = useRef(false);
-  const selectId = useId(), endpointId = useId();
   const accept = value => { if (!value) return; setStatus(value); onStatus?.(value); };
   useEffect(() => {
     if (initialStatus || typeof call !== 'function') { if (!initialStatus) setStatus(NOTHING); return undefined; }
@@ -47,9 +46,8 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
   const mcpOthers = current.otherTools || [];
   const canChoose = current.providers.length > 0 || mcpOthers.length > 0;
   return (
-    <fieldset className="settings-section extensions-settings" data-tour="settings-extensions">
-      <legend className="settings-section__title">{ui('扩展：文档转换与检索')}</legend>
-      <p className="settings-section__lead">{ui('大教材（上百页的 PDF）按三步用：先把 PDF 转成带页码的文字，导入后按章节选；整本书都要用时，安装检索扩展并为课程建立索引，出题时只用相关页面。StudyHub 不会替你改任何配置文件。')}</p>
+    <SettingsSection className="extensions-settings" tour="settings-extensions" title={ui('扩展：文档转换与检索')}
+      lead={ui('大教材（上百页的 PDF）按三步用：先把 PDF 转成带页码的文字，导入后按章节选；整本书都要用时，安装检索扩展并为课程建立索引，出题时只用相关页面。StudyHub 不会替你改任何配置文件。')}>
       <ConverterMain />
       <div className="large-doc__group" data-role="retrieval">
         <h3 className="large-doc__group-title">{ui('检索：只让 AI 看相关页面')}</h3>
@@ -62,15 +60,15 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
       <Disclosure summary={ui('高级')} meta={ui('其他检索工具 · 模型下载地址 · 手动配置')} defaultOpen={!!current.missing}>
         <div className="extensions-settings__advanced">
           {canChoose && <div className="extensions-settings__choice">
-            <label htmlFor={selectId}>{ui('用哪个工具检索')}
-              <select id={selectId} value={current.effective} disabled={!!working} onChange={event => choose(event.target.value)}>
+            <Field label={ui('用哪个工具检索')}>
+              <Select value={current.effective} disabled={!!working} onChange={event => choose(event.target.value)}>
                 <option value="builtin">{ui('不使用检索（把选中的资料全部交给 AI）')}</option>
                 {current.providers.map(provider => <option key={provider.id} value={provider.id}>{providerLabel(provider)}</option>)}
                 {mcpOthers.length > 0 && <optgroup label={ui('其他 MCP 工具')}>
                   {mcpOthers.map(tool => <option key={tool.name} value={`mcp:${tool.name}`}>{providerLabel({ kind: 'mcp', label: tool.label, server: tool.server })}</option>)}
                 </optgroup>}
-              </select>
-            </label>
+              </Select>
+            </Field>
             <Button variant="secondary" busy={working === 'test'} disabled={!!working || current.effective === 'builtin'} onClick={test}>{ui('测试')}</Button>
           </div>}
           {error && <InlineMessage className="extensions-settings__result">{error}</InlineMessage>}
@@ -81,15 +79,15 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
           </InlineMessage>}
           {probe && !probe.ok && probe.reason !== 'builtin' && <InlineMessage className="extensions-settings__result">{probe.message || ui('检索工具没有回应。')}</InlineMessage>}
           <div className="extensions-settings__endpoint">
-            <label htmlFor={endpointId}>{ui('模型下载地址')}
-              <input id={endpointId} type="url" value={endpoint} placeholder="https://huggingface.co" disabled={!!working} onChange={event => { endpointEdited.current = true; setEndpoint(event.target.value); }} />
-            </label>
-            <p className="large-doc__note">{ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}</p>
+            <Field label={ui('模型下载地址')} width="full"
+              hint={ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}>
+              <TextInput type="url" value={endpoint} placeholder="https://huggingface.co" disabled={!!working} onChange={event => { endpointEdited.current = true; setEndpoint(event.target.value); }} />
+            </Field>
             <Button size="sm" variant="secondary" busy={working === 'endpoint'} disabled={!!working} onClick={saveEndpoint}>{ui('保存下载地址')}</Button>
           </div>
           <AdvancedTools />
         </div>
       </Disclosure>
-    </fieldset>
+    </SettingsSection>
   );
 }

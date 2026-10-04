@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { IconButton, ScrollWindow, useDismiss } from './components/index.js';
+import { Field, IconButton, ScrollWindow, TextInput, useDismiss } from './components/index.js';
 import { groupCourseNames, isParkedCourse, rankCourses } from './course-names.js';
 import css from './course-field-css.js';
 
@@ -82,7 +82,7 @@ function rowsOf(entries, terms, openGroups) {
    全部课程 (N) opens a list filtered by the input (↑/↓, Enter, Esc). */
 export default function CourseField({ courses = [], value = '', onChange, multiple = false, disabled, label = ui('课程归属'), current, initialOpen = false }) {
   useInjectCss(css, 'study-course-field');
-  const id = useId(), inputId = useId(), hintId = useId(), panelId = useId(), listboxId = useId(), chaptersId = useId();
+  const id = useId(), panelId = useId(), listboxId = useId(), chaptersId = useId();
   const input = useRef(null), root = useRef(null);
   const list = useMemo(() => uniqueCourses(courses), [courses]);
   const names = list.map(course => course.name);
@@ -155,18 +155,18 @@ export default function CourseField({ courses = [], value = '', onChange, multip
     : <><span className="course-field__option-name" title={row.course.name}>{row.label}</span>
       {chosen.includes(row.course.name) && <small className="course-field__option-check">{ui('已选')}</small>}</>;
   return <div className="course-field" ref={root}>
-    <label className="course-field__label" htmlFor={inputId}>{label}</label>
-    <div className={`course-field__control${filled ? ' has-value' : ''}`}>
-      <input ref={input} id={inputId} value={value} title={value || undefined} disabled={disabled} maxLength={multiple ? 6000 : 200} autoComplete="off"
-        list={large || exact ? undefined : id} aria-describedby={hint ? hintId : undefined}
-        {...(large ? { role: 'combobox', 'aria-expanded': open, 'aria-controls': listboxId, 'aria-autocomplete': 'list',
-          'aria-activedescendant': open && activeRow ? `${listboxId}-${activeIndex}` : undefined } : {})}
-        onChange={event => { onChange(event.target.value); if (large) setOpen(true); }} onKeyDown={onKeyDown}
-        placeholder={ui('留空为未分类')} />
-      {!large && !exact && <datalist id={id}>{names.map(name => <option key={name} value={name} />)}</datalist>}
-      {filled && <IconButton icon="close" size="sm" className="course-field__clear" label={ui('清空课程')} disabled={disabled} onClick={clear} />}
-    </div>
-    {hint && <small id={hintId} className="course-field__hint">{hint}</small>}
+    <Field label={label} hint={hint || undefined} width="full">
+      {({ id: inputId, describedBy }) => <div className={`course-field__control${filled ? ' has-value' : ''}`}>
+        <TextInput ref={input} id={inputId} value={value} title={value || undefined} disabled={disabled} maxLength={multiple ? 6000 : 200} autoComplete="off"
+          list={large || exact ? undefined : id} aria-describedby={describedBy}
+          {...(large ? { role: 'combobox', 'aria-expanded': open, 'aria-controls': listboxId, 'aria-autocomplete': 'list',
+            'aria-activedescendant': open && activeRow ? `${listboxId}-${activeIndex}` : undefined } : {})}
+          onChange={event => { onChange(event.target.value); if (large) setOpen(true); }} onKeyDown={onKeyDown}
+          placeholder={ui('留空为未分类')} />
+        {!large && !exact && <datalist id={id}>{names.map(name => <option key={name} value={name} />)}</datalist>}
+        {filled && <IconButton icon="close" size="sm" className="course-field__clear" label={ui('清空课程')} disabled={disabled} onClick={clear} />}
+      </div>}
+    </Field>
     {names.length > 0 && <div className="course-field__picks" role="group" aria-label={ui('已有课程')}>
       {large ? chips.map(entry => entry.type === 'group' ? groupChip(entry) : chip(entry.course)) : [...liveList, ...parkedList].map(course => chip(course))}
       {large && <button type="button" className="course-field__pick course-field__more" aria-expanded={open} aria-controls={panelId} disabled={disabled}

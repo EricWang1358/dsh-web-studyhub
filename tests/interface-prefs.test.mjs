@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { INTERFACE_DEFAULTS, MOTIONS, normalizeInterface, loadInterface, saveInterface, effectiveMotion, leaveDelayMs, INTERFACE_KEY } from '../ui/interface-prefs.js';
@@ -61,6 +62,7 @@ test('the Animation setting is in 设置 › 界面 with its four choices, in bo
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', out.outputFiles[0].text)(createRequire(import.meta.url), mod, mod.exports);
   const { Settings, setUiLanguage } = mod.exports;
+  await warmSettingsPanes(Settings);
   const noop = () => {};
   const render = () => renderToStaticMarkup(React.createElement(Settings, { data: { settings: {}, focus: { courses: [] }, sources: [], decks: [], root: 'r' }, busy: false, act: noop, call: noop, host: {}, setNotice: noop,
     settings: {}, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop, workspacePanel: null, coursePanel: null, onboardingPanel: null,

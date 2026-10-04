@@ -3,6 +3,7 @@
    study-interface), so an old choice survives and an older version still reads what a newer one saved; a change in one open panel or tab
    reaches the others; 恢复默认外观 and a tiny export/import go through the same whitelist. The real layout is checked in the browser. */
 import test from 'node:test';
+import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -217,7 +218,7 @@ test('the empty page before a session wears the same attributes as the app, read
 });
 
 test('App and the empty page no longer read or write the theme by hand, and Settings builds its choices from the module', async () => {
-  const [page, settings] = await Promise.all(['ui/host/studyhub-page.jsx', 'ui/Settings.jsx'].map(file => readFile(new URL(`../${file}`, import.meta.url), 'utf8'))), app = await readAppSource();
+  const [page, settings] = await Promise.all(['ui/host/studyhub-page.jsx', 'ui/settings/AppearanceSection.jsx'].map(file => readFile(new URL(`../${file}`, import.meta.url), 'utf8'))), app = await readAppSource();
   for (const [name, source] of [['App', app], ['studyhub-page', page]]) {
     assert.doesNotMatch(source, /["']study-theme["']/, `${name} goes through appearance-prefs`);
     assert.match(source, /useAppearance/, name);
@@ -231,6 +232,7 @@ test('App and the empty page no longer read or write the theme by hand, and Sett
 
 test('设置 › 界面 offers 恢复默认外观 and export / import, in both languages, next to the existing choices', async () => {
   const { Settings, setUiLanguage } = await bundle("export { default as Settings } from './ui/Settings.jsx'; export { setUiLanguage } from './ui/i18n.js';");
+  await warmSettingsPanes(Settings);
   const noop = () => {};
   const render = extra => renderToStaticMarkup(React.createElement(Settings, { data: { settings: {}, focus: { courses: [] }, sources: [], decks: [], root: 'r' }, busy: false, act: noop, call: noop, host: {}, setNotice: noop,
     settings: {}, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop, workspacePanel: null, coursePanel: null, onboardingPanel: null,

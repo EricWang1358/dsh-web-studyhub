@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
@@ -25,6 +26,7 @@ new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(requi
 const { settingsGroupState, SETTINGS_GROUPS, categoriesFor, categoryForAnchor, Settings, SettingsNav, CourseList, OnboardingPanel, setUiLanguage } = mod.exports;
 const h = React.createElement;
 const noop = () => {};
+await warmSettingsPanes(Settings);
 const defaults = { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 };
 
 const big = () => Array.from({ length: 320 }, (_, i) => ({ id: `b${i}`, title: `Book · p.${i + 1}`, text: 'x', courses: ['A'],

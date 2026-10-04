@@ -21,7 +21,7 @@
 .study-app .mineru-plan__why { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
 .study-app .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .study-app .mineru-routes { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
-.study-app .mineru-routes > legend, .study-app .mineru-tier > legend { padding: 0; margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+.study-app .mineru-routes > legend { padding: 0; margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
 .study-app .mineru-route { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; }
 .study-app .mineru-route:hover { border-color: var(--line-strong); }
@@ -42,22 +42,6 @@
 
 .study-app .mineru-privacy { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--warn) 10%, transparent); }
-.study-app .mineru-privacy__note { margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-.study-app .mineru-privacy__check { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--fs-sm); cursor: pointer; }
-.study-app .mineru-privacy__check input { flex: none; margin: 3px 0 0; }
-.study-app .mineru-settings__privacy { margin-top: var(--space-3); }
-
-/* The two cards of the settings section. audio-settings.css lays provider cards on shared subgrid rows (head, status, steps, input,
-   actions, note), which only works while every card has exactly those six parts. Here the cloud card has a seventh (the privacy box)
-   and the local card is one panel, so the shared rows stretched the "saved" line to the height of the whole local panel (a blank
-   band of 100-400 px above it) and pushed the privacy box up over the footnote. Each card is its own plain column instead; the
-   grid still stretches the two cards to one height, and the section is its own container, so two columns need 760 px of ITS width. */
-.study-app .mineru-settings .audio-provider-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: stretch; }
-.study-app .mineru-settings .audio-provider-card { display: flex; flex-direction: column; grid-row: auto; grid-template-rows: none; gap: var(--space-3); }
-.study-app .mineru-settings .audio-provider-card .sh-secret { display: grid; grid-row: auto; grid-template-rows: none; row-gap: var(--space-3); }
-@container (min-width: 760px) {
-  .study-app .mineru-settings .audio-provider-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-4); row-gap: var(--space-4); }
-}
 
 .study-app .mineru-local { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
 .study-app .mineru-local .sh-btn, .study-app .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
@@ -67,11 +51,6 @@
 .study-app .mineru-local__actions .sh-btn { margin: 0; }
 .study-app .mineru-local__steps { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
 .study-app .mineru-local__setup { display: grid; gap: var(--space-3); }
-.study-app .mineru-tier { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
-.study-app .mineru-tier__option { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-2); font-size: var(--fs-sm); cursor: pointer; }
-.study-app .mineru-tier__option input { margin: 3px 0 0; }
-.study-app .mineru-tier__option span, .study-app .mineru-tier__option small { min-width: 0; overflow-wrap: anywhere; }
-.study-app .mineru-tier__option small { grid-column: 2; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
 .study-app .mineru-progress { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .study-app .mineru-progress p { margin: 0; font-size: var(--fs-sm); }
 .study-app .mineru-progress__line { color: var(--text-muted); font-size: var(--fs-xs); font-family: var(--font-mono, ui-monospace, monospace); overflow-wrap: anywhere; }
@@ -81,9 +60,17 @@
   .study-app .mineru-route { padding: var(--space-3); }
 }
 
-/* The app's global input rules make radios and checkboxes full-width blocks; keep them beside their text. */
-.study-app .mineru-route input[type="radio"], .study-app .mineru-privacy__check input[type="checkbox"], .study-app .mineru-tier__option input[type="radio"] { display: inline-block; width: auto; min-width: 0; height: auto; padding: 0; }
-.study-app .mineru-route, .study-app .mineru-privacy__check { flex-direction: row; }
+/* The global input rules make radios full-width blocks; keep the route's radio beside its text (MineruRoute, not yet a RadioCard). */
+.study-app .mineru-route input[type="radio"] { display: inline-block; width: auto; min-width: 0; height: auto; padding: 0; }
+.study-app .mineru-route { flex-direction: row; }
+
+/* Legacy chip of the conversion card and history rows (PdfConversion, PdfConvertJob). They move to Badge in the import work package; delete this block then. */
+.study-app .audio-chip { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1.6; white-space: nowrap; }
+.study-app .audio-chip--good { background: color-mix(in srgb, var(--ok) 16%, transparent); color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
+.study-app .audio-chip--accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); }
+/* The only definition left of the old provider note: PdfConversion still writes it. It becomes a Hint there; delete this rule then. */
+.study-app .audio-provider-note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
 
 /* The conversion history (解析历史): the rows are the conversion job card's own markup (.job), so they look like every other background job;
    only what a finished record needs is added here. It sits in the MinerU panel and under the running cards on the Sources page. */

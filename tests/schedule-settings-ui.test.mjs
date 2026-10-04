@@ -11,7 +11,7 @@ import { defaults } from '../lib/sm2.js';
 import { syncScheduleSettings } from '../ui/schedule-settings.js';
 
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: "export { ScheduleSection } from './ui/Settings.jsx';", resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: "export { ScheduleSection } from './ui/settings/ScheduleSection.jsx';", resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 let active;
 const slot = initial => { const index = active.cursor++; if (!(index in active.slots)) active.slots[index] = initial(); return [index, active.slots[index]]; };
@@ -44,7 +44,7 @@ function editor(overrides = {}) {
     settings: () => current.settings,
   };
 }
-const input = (view, key) => findAll(view.render(), node => node.type === 'input')[keys.indexOf(key)];
+const input = (view, key) => findAll(view.render(), node => node.props?.max === '365')[keys.indexOf(key)];
 const edit = (view, key, value) => input(view, key).props.onChange({ target: { value } });
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };

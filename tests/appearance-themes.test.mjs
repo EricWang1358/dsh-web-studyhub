@@ -3,6 +3,7 @@
    block is allowed to touch, that "standard" has no rule at all so it renders exactly as before, the size budget), that both hosts load it, and
    the Settings page. Contrast ratios of the new colours live in tests/wp1-tokens.test.mjs; the real layout is checked in the browser. */
 import test from 'node:test';
+import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -238,6 +239,7 @@ async function bundle(contents) {
 
 test('设置 › 界面 offers the new themes, contrast, density and corner style in both languages', async () => {
   const { Settings, setUiLanguage, ui } = await bundle("export { default as Settings } from './ui/Settings.jsx'; export { setUiLanguage, ui } from './ui/i18n.js';");
+  await warmSettingsPanes(Settings);
   const noop = () => {};
   const render = extra => renderToStaticMarkup(React.createElement(Settings, { data: { settings: {}, focus: { courses: [] }, sources: [], decks: [], root: 'r' }, busy: false, act: noop, call: noop, host: {}, setNotice: noop,
     settings: {}, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop, workspacePanel: null, coursePanel: null, onboardingPanel: null,

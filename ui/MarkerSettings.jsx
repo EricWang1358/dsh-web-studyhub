@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiMessage } from './i18n.js';
 import { downloadMarkerScript } from './marker-script.js';
-import { Button, Disclosure, InlineMessage } from './components/index.js';
+import { Button, Disclosure, Field, Hint, InlineMessage, TextInput } from './components/index.js';
 
 export default function MarkerSettings({ call, disabled = false, available = true }) {
   const alive = useRef(true), revision = useRef(0), saving = useRef(false);
@@ -37,10 +37,11 @@ export default function MarkerSettings({ call, disabled = false, available = tru
   return <div className="marker-settings">
     <p>{ui('选好 PDF 后，StudyHub 会调用本机 Marker，显示进度并自动导入结果。')}</p>
     {!available && <InlineMessage tone="info">{ui('此安装未启用 PDF 解析组件。启用 StudyHub 的音频组件后可在应用内解析；也可用下面的脚本手动转换。')}</InlineMessage>}
-    <label className="field"><span>{ui('Marker 程序路径')}</span><input type="text" value={command} placeholder="marker_single" disabled={disabled || working || loading || !available} onChange={event => { ++revision.current; setStatus(null); setError(''); setCommand(event.target.value); }} /></label>
-    <p className="muted small">{ui('留空会自动查找 marker_single。也可以填写虚拟环境中该程序的完整路径。')}</p>
+    <Field label={ui('Marker 程序路径')} hint={ui('留空会自动查找 marker_single。也可以填写虚拟环境中该程序的完整路径。')}>
+      <TextInput value={command} placeholder="marker_single" disabled={disabled || working || loading || !available} onChange={event => { ++revision.current; setStatus(null); setError(''); setCommand(event.target.value); }} />
+    </Field>
     <Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('保存并检测')}</Button>
-    <p className="muted small">{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用；模型和 OCR 后端会在实际解析时检查。')}</p>
+    <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用；模型和 OCR 后端会在实际解析时检查。')}</Hint>
     {status && <p role="status">{status.state === 'ready' ? ui('Marker 程序已找到') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     <Disclosure summary={ui('安装与使用说明')}>
@@ -49,7 +50,7 @@ export default function MarkerSettings({ call, disabled = false, available = tru
       <p>{ui('Marker 2 的 OCR 后端还需按官方指南准备 Docker / NVIDIA 或 llama-server 等依赖；只安装 Python 包可能不足以运行。若已有远程推理配置，请先检查，转换工具可能将资料发送到该服务。')}</p>
       <p><a href="https://github.com/datalab-to/marker#commercial-usage" target="_blank" rel="noreferrer">{ui('查看代码与模型许可')}</a></p>
       <Button size="sm" disabled={disabled} onClick={() => { try { downloadMarkerScript(); } catch { setError(ui('脚本下载失败，请重试，或按官方指南手动运行 Marker。')); } }}>{ui('下载 Marker 转换脚本')}</Button>
-      <p className="muted small">{ui('需要手动转换时可用这个脚本。完成后把分页 Markdown 拖进「添加资料」。')}</p>
+      <Hint>{ui('需要手动转换时可用这个脚本。完成后把分页 Markdown 拖进「添加资料」。')}</Hint>
     </Disclosure>
   </div>;
 }

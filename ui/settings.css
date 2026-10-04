@@ -1,40 +1,8 @@
-/* Settings page (WP14): one left edge, one section-title style and token
-   spacing for every section, including those rendered by other modules
-   (course list, audio, onboarding). Injected as <style data-study-settings>. */
-:is(.study-app, .study-seat) .settings-page .settings-section {
-  display: grid;
-  gap: var(--space-3);
-  align-content: start;
-  min-width: 0;
-  margin: var(--space-7) 0 0;
-  padding: var(--space-5) 0 0;
-  border: 0;
-  border-top: 1px solid var(--line);
-}
-/* A floated legend is laid out as ordinary content: the title sits under the rule, at the section's edge. */
-:is(.study-app, .study-seat) .settings-page .settings-section__title {
-  float: left;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  color: var(--text);
-  font-size: var(--fs-lg);
-  font-weight: 650;
-  line-height: var(--lh-tight);
-}
-:is(.study-app, .study-seat) .settings-page .settings-section > :is(p, label, small) { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .settings-section__lead { max-width: 70ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-:is(.study-app, .study-seat) .settings-page .settings-section__note { margin: 0; max-width: 72ch; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .settings-page .settings-subtitle,
-:is(.study-app, .study-seat) .settings-page .audio-paid h4,
-:is(.study-app, .study-seat) .settings-page .audio-preset__label { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; line-height: var(--lh-tight); }
+/* Settings page layout and the sections that are specific to it (陪学, SM-2, backup). The section shell, the fields and the notes are shared
+   components (ui/components/fields.css). Injected as <style data-study-settings>. */
+:is(.study-app, .study-seat) .settings-page .settings-subtitle { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; line-height: var(--lh-tight); }
 :is(.study-app, .study-seat) .settings-page .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 :is(.study-app, .study-seat) .settings-page .settings-actions .sh-btn { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .settings-field { display: grid; gap: var(--space-1); max-width: 560px; margin: 0; }
-:is(.study-app, .study-seat) .settings-page .settings-field small { color: var(--text-muted); font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .settings-page .settings-field > label { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .custom-font { display: grid; justify-items: start; gap: var(--space-2); }
-:is(.study-app, .study-seat) .settings-page .custom-font > input { width: 100%; margin: 0; }
 :is(.study-app, .study-seat) .settings-page .settings-form { margin: 0; }
 :is(.study-app, .study-seat) .settings-page .binding-panel { margin: 0; }
 
@@ -43,10 +11,6 @@
 :is(.study-app, .study-seat) .settings-page .settings-disclosure > .sh-disclosure__summary { padding: var(--space-3) 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; }
 :is(.study-app, .study-seat) .settings-page .settings-disclosure > .sh-disclosure__body { display: grid; gap: var(--space-5); padding: var(--space-1) 0 var(--space-4); }
 :is(.study-app, .study-seat) .settings-page .settings-disclosure > .sh-disclosure__body > * { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .audio-settings-lead,
-:is(.study-app, .study-seat) .settings-page .audio-settings-empty,
-:is(.study-app, .study-seat) .settings-page .audio-settings-path { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .audio-expert .audio-field { margin: 0; }
 :is(.study-app, .study-seat) .settings-page .audio-expert > .sh-disclosure__body { gap: var(--space-4); }
 :is(.study-app, .study-seat) .settings-page .course-list__window { margin: 0; }
 
@@ -65,11 +29,7 @@
 :is(.study-app, .study-seat) .coach-stats__ready { margin-left: auto; }
 
 /* SM-2 */
-:is(.study-app, .study-seat) .sm2-fields { display: grid; grid-template-columns: repeat(4, max-content); gap: var(--space-3) var(--space-5); }
-:is(.study-app, .study-seat) .sm2-field { display: grid; gap: var(--space-1); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .sm2-input { display: inline-flex; align-items: center; gap: var(--space-2); }
-:is(.study-app, .study-seat) .sm2-input input { width: 7em; min-height: 40px; margin: 0; padding: 6px var(--space-3); font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .sm2-unit { color: var(--text-muted); }
+:is(.study-app, .study-seat) .sm2-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 14rem)); gap: var(--space-3) var(--space-5); }
 :is(.study-app, .study-seat) .sm2-preview { display: grid; gap: var(--space-2); max-width: 720px; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft);
   border-radius: var(--radius); background: var(--bg-surface); }
 :is(.study-app, .study-seat) .sm2-preview svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -119,6 +79,8 @@
 /* The first section of a pane sits at its top: no rule above it. */
 :is(.study-app, .study-seat) .settings-page .settings-pane > :first-child.settings-section, :is(.study-app, .study-seat) .settings-page .settings-pane > :first-child { margin-top: 0; }
 :is(.study-app, .study-seat) .settings-page .settings-pane > :first-child.settings-section { border-top: 0; padding-top: 0; }
+/* A pane that is one form (出题偏好, 每日合集, 复习调度) starts at its top as well. */
+:is(.study-app, .study-seat) .settings-page .settings-pane > .settings-form:first-child > .settings-section { margin-top: 0; padding-top: 0; border-top: 0; }
 :is(.study-app, .study-seat) .settings-all { min-width: 0; }
 @container study (max-width: 860px) {
   :is(.study-app, .study-seat) .settings-page .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
@@ -129,32 +91,25 @@
   :is(.study-app, .study-seat) .settings-nav li { flex: none; }
   :is(.study-app, .study-seat) .settings-nav__item { width: auto; border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
 }
-:is(.study-app, .study-seat) .appearance-settings .sh-seg { justify-self: start; }
+:is(.study-app, .study-seat) .settings-page .appearance-backup { display: grid; gap: var(--space-2); }
+/* The retrieval tool picker and its test button share a row; the button lines up with the select, not the label. */
+:is(.study-app, .study-seat) .settings-page .extensions-settings__choice { align-items: flex-end; }
 
-@container study (max-width: 900px) {
-  :is(.study-app, .study-seat) .sm2-fields { grid-template-columns: repeat(2, max-content); }
-}
 @container study (max-width: 520px) {
-  :is(.study-app, .study-seat) .settings-page .settings-section { margin-top: var(--space-6); }
   /* The library row stacks: path and usage get the full width, 更换目录… goes below. */
   :is(.study-app, .study-seat) .settings-page .binding-row { flex-direction: column; align-items: stretch; }
   :is(.study-app, .study-seat) .settings-page .binding-actions { justify-content: flex-start; }
-  :is(.study-app, .study-seat) .sm2-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  :is(.study-app, .study-seat) .sm2-input input { width: 100%; min-width: 0; }
   :is(.study-app, .study-seat) .backup-block { padding: var(--space-4); }
   :is(.study-app, .study-seat) .coach-stats__ready { margin-left: 0; }
 }
 /* Local science preferences and bounded tools share the settings layout. */
-.science-settings .inline-check { margin-block: 10px; }
-.science-preview { padding: 16px; margin-block: 20px; border: 1px solid var(--line-soft); border-radius: 10px; }
-.science-tool { padding-block: 20px; border-top: 1px solid var(--line-soft); }
-.science-tool form { display: grid; gap: 12px; }
+.science-preview { padding: var(--space-4); margin-block: var(--space-5); border: 1px solid var(--line-soft); border-radius: var(--radius); }
+.science-tool { padding-block: var(--space-5); border-top: 1px solid var(--line-soft); }
+.science-tool form { display: grid; gap: var(--space-3); }
 .science-tool form > button { justify-self: start; }
-.science-tool label { display: grid; gap: 8px; min-width: 0; }
-.science-tool input { width: 100%; min-width: 0; }
-.science-result { margin-top: 16px; overflow-wrap: anywhere; }
-.science-result code { display: block; margin-top: 5px; white-space: pre-wrap; }
-.science-result details { margin-top: 12px; }
+.science-result { margin-top: var(--space-4); overflow-wrap: anywhere; }
+.science-result code { display: block; margin-top: var(--space-1); white-space: pre-wrap; }
+.science-result details { margin-top: var(--space-3); }
 .science-result li { overflow-wrap: anywhere; }
 @container study (max-width: 480px) {
   .science-tool .two-col { grid-template-columns: minmax(0, 1fr); }

@@ -2,15 +2,10 @@
    no motion, nothing floating. Injected as <style data-study-usage>. The bars are decoration: every number is also text. */
 :is(.study-app, .study-seat) .usage-settings { display: grid; gap: var(--space-3); }
 :is(.study-app, .study-seat) .usage-promises { display: grid; gap: var(--space-1); max-width: 72ch; margin: 0; padding-left: var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .usage-switch { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); max-width: 72ch; margin: 0; font-size: var(--fs-sm); cursor: pointer; }
-:is(.study-app, .study-seat) .usage-switch input[type="checkbox"] { display: inline-block; flex: none; width: auto; min-width: 0; height: auto; padding: 0; margin: 4px 0 0; }
-:is(.study-app, .study-seat) .usage-switch > span { display: grid; gap: 2px; min-width: 0; }
-:is(.study-app, .study-seat) .usage-switch small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
 :is(.study-app, .study-seat) .usage-status { margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
 :is(.study-app, .study-seat) .usage-settings[data-state="off"] .usage-status,
 :is(.study-app, .study-seat) .usage-settings[data-state="off-data"] .usage-status { color: var(--text-muted); }
 :is(.study-app, .study-seat) .usage-settings[data-state="paused"] .usage-status { color: var(--warn); }
-:is(.study-app, .study-seat) .usage-notice { color: var(--ok); }
 
 /* The report: folded until opened. */
 :is(.study-app, .study-seat) .usage-report { display: grid; gap: var(--space-4); min-width: 0; border-top: 1px solid var(--line-soft); padding-top: var(--space-2); }
