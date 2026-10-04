@@ -91,17 +91,19 @@ function ProviderCard({ provider, state, call, busy, onSaved, recommended }) {
  * The gate shown INSTEAD of the audio drop zone while no transcription provider is configured: why, the three steps of
  * the provider that suits the learner's language (with the key field right there), and the way to the full settings.
  */
+const GATE_COPY = Object.freeze({
+  groq: { why: '录音要先转成文字。推荐 Groq：有免费额度，注册后马上能用。', other: { text: '也可以用 Google Gemini 的免费额度（需海外网络）', tier: 'free', label: '获取 Gemini 密钥' } },
+  siliconflow: { why: '录音要先转成文字。推荐硅基流动 SenseVoice：免费 · 国内直连，注册后马上能用。', other: { text: '在海外网络下也可以用 Groq 或 Google Gemini 的免费额度', tier: 'groq', label: '获取 Groq 密钥' } },
+});
+
 export function AudioSetupGate({ language = getUiLanguage(), call, onOpenSettings, onSaved, reason = 'no-provider' }) {
   useInjectCss(css, 'study-audio-settings');
-  const provider = PROVIDERS[language === 'en' ? 'groq' : 'siliconflow'];
-  const others = language === 'en'
-    ? { text: '也可以用 Google Gemini 的免费额度（需海外网络）', href: providerOf('free').keyUrl, label: '获取 Gemini 密钥' }
-    : { text: '在海外网络下也可以用 Groq 或 Google Gemini 的免费额度', href: providerOf('groq').keyUrl, label: '获取 Groq 密钥' };
+  const lead = providerOrder(language)[0], provider = PROVIDERS[lead], copy = GATE_COPY[lead];
+  const others = { text: copy.other.text, href: providerOf(copy.other.tier).keyUrl, label: copy.other.label };
   return (
     <SetupRequired className="audio-setup" icon="audio" title={ui('转写服务还没配置 · 约 2 分钟')}
       why={reason === 'paid-missing' ? ui('选择了「只用付费密钥」，但还没有配置 Gemini 付费密钥。去掉这个勾选，或在音频设置的「高级」里填写付费密钥。')
-        : language === 'en' ? ui('录音要先转成文字。推荐 Groq：有免费额度，注册后马上能用。')
-          : ui('录音要先转成文字。推荐硅基流动 SenseVoice：免费 · 国内直连，注册后马上能用。')}
+        : ui(copy.why)}
       steps={reason === 'paid-missing' ? [] : provider.steps.map((step) => ({ text: ui(step.text), href: step.href }))}
       secondary={onOpenSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onOpenSettings } : undefined}>
       {reason !== 'paid-missing' && <>
