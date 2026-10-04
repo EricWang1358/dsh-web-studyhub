@@ -29,7 +29,7 @@
     .desk > .desk-intro > .desk-next { margin-top: var(--space-2); }
     /* The card's number and its caption are one line, on one baseline. */
     .today-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); margin: var(--space-4) 0 var(--space-2); }
-    .today-count strong { font-family: var(--font-display); font-size: var(--fs-3xl); font-weight: var(--fw-light); line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+    .today-count strong { font-family: var(--font-display); font-size: var(--fs-8xl); font-weight: var(--fw-light); line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
     .today-count span { font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); color: var(--paper-dim); }
     .today-card-head { align-items: baseline; }
     .today-card-head > span { min-width: 0; }
@@ -54,7 +54,7 @@
       .today-card-head { flex-wrap: wrap; column-gap: var(--space-3); }
       .today-card-head time { margin-left: auto; }
       .today-count { margin-top: var(--space-3); }
-      .today-count strong { font-size: var(--fs-3xl); }
+      .today-count strong { font-size: var(--fs-7xl); }
     }
   }
 }
