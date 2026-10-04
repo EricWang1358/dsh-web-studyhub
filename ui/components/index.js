@@ -12,3 +12,4 @@ export { default as FileDrop, partitionFiles, formatBytes, describeAccept, creat
 export { default as Dialog } from './Dialog.jsx';
 export { useTopDialog } from './dialog-stack.js';
 export { default as ScrollWindow, filterItems, scrollWindowCount, scrollEdges, edgeTracker } from './ScrollWindow.jsx';
+export { default as SecretKeyForm } from './SecretKeyForm.jsx';

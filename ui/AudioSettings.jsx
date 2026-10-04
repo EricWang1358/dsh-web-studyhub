@@ -1,7 +1,8 @@
 import { getUiLanguage, ui, uiFormat, uiMessage, useUiLanguage } from "./i18n.js";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import AudioReasoning from './AudioReasoning.jsx';
-import { Button, Disclosure, Icon, InlineMessage, SegmentedControl, SetupRequired } from './components/index.js';
+import { Disclosure, Icon, SecretKeyForm, SegmentedControl, SetupRequired } from './components/index.js';
+import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
 
@@ -10,26 +11,24 @@ import css from './audio-settings.css';
    付费密钥、模型、并发和推理强度放在「高级」里，用「更快 / 均衡 / 更准」三个预设代替矩阵。
    密钥只写入用户目录下的 audio.json，不进学习库、备份或快照；这里只能看到「已保存」和末四位。 */
 
-/** One transcription provider: what it is, where to get a key, and the three steps. */
-export const PROVIDERS = Object.freeze({
-  siliconflow: { tier: 'siliconflow', field: 'siliconflowKey', name: '硅基流动 SenseVoice', badge: '免费 · 国内直连', tone: 'good',
-    steps: [{ text: '打开硅基流动，用手机号注册并登录', href: 'https://cloud.siliconflow.cn' },
-      { text: '在「API 密钥」页新建一个密钥并复制', href: 'https://cloud.siliconflow.cn/account/ak' },
-      { text: '粘贴到下面，点「保存并验证」' }],
+/* The card copy that is about this page, not the provider: the three steps (a step links to the provider's console or key page, from
+   lib/audio-providers.js), the field's placeholder and a note. Names, badges and every link come from the registry. */
+const CARD_COPY = Object.freeze({
+  siliconflow: { steps: [{ text: '打开硅基流动，用手机号注册并登录', link: 'consoleUrl' }, { text: '在「API 密钥」页新建一个密钥并复制', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
     placeholder: '粘贴硅基流动的 API 密钥（sk-…）', note: '只用于转写；校对和翻译仍由 DSH 的模型完成。' },
-  groq: { tier: 'groq', field: 'groqKey', name: 'Groq Whisper', badge: '免费额度 · 需海外网络',
-    steps: [{ text: '在 Groq 控制台注册并登录', href: 'https://console.groq.com' },
-      { text: '在「API Keys」页创建一个密钥并复制', href: 'https://console.groq.com/keys' },
-      { text: '粘贴到下面，点「保存并验证」' }],
+  groq: { steps: [{ text: '在 Groq 控制台注册并登录', link: 'consoleUrl' }, { text: '在「API Keys」页创建一个密钥并复制', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
     placeholder: '粘贴 Groq 的 API 密钥（gsk_…）', note: '每分钟和每天都有免费上限，用完会自动换下一个服务。' },
-  free: { tier: 'free', field: 'freeKey', name: 'Google Gemini', badge: '免费额度 · 需海外网络',
-    steps: [{ text: '用 Google 账号登录 AI Studio', href: 'https://aistudio.google.com' },
-      { text: '在「Get API key」页创建一个密钥（这个项目不要开通计费）', href: 'https://aistudio.google.com/apikey' },
-      { text: '粘贴到下面，点「保存并验证」' }],
+  free: { steps: [{ text: '用 Google 账号登录 AI Studio', link: 'consoleUrl' }, { text: '在「Get API key」页创建一个密钥（这个项目不要开通计费）', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
     placeholder: '粘贴 AI Studio 的 API 密钥', note: '课堂实录只支持 Gemini。免费额度下 Google 可能用内容改进产品；欧盟、瑞士、英国地区不可用。' },
 });
+/** One transcription provider: what it is, where to get a key, and the three steps. */
+export const PROVIDERS = Object.freeze(Object.fromEntries(Object.entries(CARD_COPY).map(([tier, copy]) => {
+  const provider = providerOf(tier);
+  return [tier, { tier, field: provider.keyField, name: provider.name, badge: provider.badge, tone: provider.tone || undefined,
+    steps: copy.steps.map(({ text, link }) => (link ? { text, href: provider[link] } : { text })), placeholder: copy.placeholder, note: copy.note }];
+})));
 /** Cards in the order a learner should consider them: mainland China first gets the provider that works there. */
-export const providerOrder = (language) => (language === 'en' ? ['groq', 'free', 'siliconflow'] : ['siliconflow', 'groq', 'free']);
+export const providerOrder = (language) => providersFor(language).map((provider) => provider.tier);
 
 /** Proofreading and translation depth as three plain choices; "balanced" is the default. */
 export const PRESETS = Object.freeze({
@@ -51,44 +50,16 @@ export const audioFocusPending = () => focusRequested;
 const RESULT = (result) => (result.ok ? ui('可用：密钥有效，网络也连得上') : uiFormat('不可用：{0}', [uiMessage(result.message || ui('没有返回原因'))]));
 
 /**
- * One key: paste, save and verify (the check never transcribes), verify a saved key, or clear it.
- * Three rows (WP14), so cards can line them up: the key input at full width,
- * the actions, then the result message and an optional footnote.
- * `initialResult` shows a check result on first render (previews and tests).
+ * One provider's key: paste, save and verify (the check never transcribes), verify a saved key, or clear it. The form is the
+ * shared SecretKeyForm: the key input at full width, the actions, then the result message and an optional footnote (rows
+ * that cards can line up). `initialResult` shows a check result on first render (previews and tests).
  */
 export function ProviderKeyForm({ provider, state, call, busy = false, primary = true, onSaved, label, footnote, initialResult = null }) {
-  const [value, setValue] = useState(''), [working, setWorking] = useState(''), [result, setResult] = useState(initialResult);
-  const messageId = useId();
-  const run = async (kind, work) => {
-    if (!call || working) return;
-    setWorking(kind); setResult(null);
-    try { await work(); } catch (error) { setResult({ ok: false, message: String(error?.message || error) }); } finally { setWorking(''); }
-  };
-  const verify = () => call('audio.test', { tier: provider.tier }).then((report) => setResult(report?.[provider.tier] || { ok: false }));
-  const save = (event) => {
-    event.preventDefault();
-    const key = value.trim();
-    if (!key) return;
-    void run('save', async () => { onSaved?.(await call('audio.settings.set', { [provider.field]: key })); setValue(''); await verify(); });
-  };
-  return (
-    <form className="audio-key-form" onSubmit={save}>
-      <input name="audio-key" className="audio-key-input" type="password" autoComplete="off" spellCheck={false} value={value} disabled={busy || !!working}
-        aria-label={label || uiFormat('{0} 的 API 密钥', [ui(provider.name)])} aria-describedby={result ? messageId : undefined}
-        placeholder={state?.set ? uiFormat('已保存 {0}；粘贴新的会替换它', [state.hint]) : ui(provider.placeholder)}
-        onChange={(event) => setValue(event.target.value)} />
-      <div className="audio-key-actions">
-        <Button type="submit" variant={primary ? 'primary' : 'secondary'} busy={working === 'save'} disabled={busy || !!working || !value.trim()}>{ui('保存并验证')}</Button>
-        {state?.set && <Button variant="secondary" busy={working === 'verify'} disabled={busy || !!working} onClick={() => void run('verify', verify)}>{ui('验证')}</Button>}
-        {state?.set && <Button variant="quiet" size="sm" className="audio-key-clear" disabled={busy || !!working}
-          onClick={() => void run('clear', async () => { onSaved?.(await call('audio.settings.set', { [provider.field]: '' })); })}>{ui('清除已保存的密钥')}</Button>}
-      </div>
-      <div className="audio-key-foot">
-        {result && <InlineMessage id={messageId} tone={result.ok ? 'success' : 'error'}>{RESULT(result)}</InlineMessage>}
-        {footnote}
-      </div>
-    </form>
-  );
+  const set = (patch) => Promise.resolve(call('audio.settings.set', patch)).then((next) => onSaved?.(next));
+  return <SecretKeyForm name="audio-key" label={label || uiFormat('{0} 的 API 密钥', [ui(provider.name)])} placeholder={ui(provider.placeholder)}
+    saved={state} busy={busy || !call} primary={primary} footnote={footnote} initialResult={initialResult} resultText={RESULT}
+    onSave={(key) => set({ [provider.field]: key })} onClear={() => set({ [provider.field]: '' })}
+    onVerify={() => Promise.resolve(call('audio.test', { tier: provider.tier })).then((report) => report?.[provider.tier] || { ok: false })} />;
 }
 
 /* A card's rows (head, saved status, steps, key input, actions, message/footnote)
@@ -124,8 +95,8 @@ export function AudioSetupGate({ language = getUiLanguage(), call, onOpenSetting
   useInjectCss(css, 'study-audio-settings');
   const provider = PROVIDERS[language === 'en' ? 'groq' : 'siliconflow'];
   const others = language === 'en'
-    ? { text: '也可以用 Google Gemini 的免费额度（需海外网络）', href: 'https://aistudio.google.com/apikey', label: '获取 Gemini 密钥' }
-    : { text: '在海外网络下也可以用 Groq 或 Google Gemini 的免费额度', href: 'https://console.groq.com/keys', label: '获取 Groq 密钥' };
+    ? { text: '也可以用 Google Gemini 的免费额度（需海外网络）', href: providerOf('free').keyUrl, label: '获取 Gemini 密钥' }
+    : { text: '在海外网络下也可以用 Groq 或 Google Gemini 的免费额度', href: providerOf('groq').keyUrl, label: '获取 Groq 密钥' };
   return (
     <SetupRequired className="audio-setup" icon="audio" title={ui('转写服务还没配置 · 约 2 分钟')}
       why={reason === 'paid-missing' ? ui('选择了「只用付费密钥」，但还没有配置 Gemini 付费密钥。去掉这个勾选，或在音频设置的「高级」里填写付费密钥。')
@@ -168,7 +139,7 @@ export default function AudioSettings({ busy, act, call, setNotice, initialView 
       onBlur={(event) => event.target.value.trim() !== view[field] && save({ [field]: event.target.value.trim() })} />
   </label>;
   const preset = presetOf(view);
-  const configured = ['freeKey', 'siliconflowKey', 'groqKey', 'paidKey'].filter((field) => view[field]?.set).length;
+  const configured = KEY_FIELDS.filter((field) => view[field]?.set).length;
   return (
     <fieldset className="audio-settings settings-section" data-tour="settings-audio" ref={section}>
       <legend className="settings-section__title">{ui("音频转写")}</legend>
@@ -189,7 +160,7 @@ export default function AudioSettings({ busy, act, call, setNotice, initialView 
         <div className="audio-paid">
           <h4>{ui("Gemini 付费密钥（可选）")}</h4>
           <p className="audio-provider-note">{ui("来自另一个开通计费并充值的 Google 项目，免费额度都用完时才用；导入时勾选「只用付费密钥」可以完全不经过免费服务。余额用完时请求会失败，不会自动降回免费。")}</p>
-          <ProviderKeyForm provider={{ tier: 'paid', field: 'paidKey', name: 'Gemini 付费密钥', placeholder: '粘贴付费项目的 AI Studio 密钥' }}
+          <ProviderKeyForm provider={{ tier: 'paid', field: providerOf('paid').keyField, name: providerOf('paid').name, placeholder: '粘贴付费项目的 AI Studio 密钥' }}
             state={view.paidKey} call={call} busy={busy} primary={false} onSaved={saved} />
         </div>
         <Disclosure className="audio-expert settings-disclosure" summary={ui("专家选项")} meta={ui("模型、并发、推理强度")}>

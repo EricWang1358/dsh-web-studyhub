@@ -72,28 +72,28 @@ test('provider cards: the same rows in the same order, the key input full width,
   const cards = html.match(/<article class="audio-provider-card[\s\S]*?<\/article>/g) || [];
   assert.equal(cards.length, 3);
   for (const card of cards) {
-    const order = ['audio-provider-card__head', 'audio-key-state', 'audio-provider-steps', 'audio-key-input', 'audio-key-actions', 'audio-key-foot'].map(name => card.indexOf(name));
+    const order = ['audio-provider-card__head', 'audio-key-state', 'audio-provider-steps', 'sh-secret__input', 'sh-secret__actions', 'sh-secret__foot'].map(name => card.indexOf(name));
     assert.ok(order.every(at => at > 0), `all rows present: ${order}`);
     assert.deepEqual([...order].sort((a, b) => a - b), order, 'rows in the shared order');
-    assert.match(card, /<form class="audio-key-form"/);
+    assert.match(card, /<form class="sh-secret"/);
     assert.doesNotMatch(card, /audio-key-row/, 'no input and buttons squeezed into one row');
     assert.match(card, /audio-provider-note/);
   }
   const saved = cards.find(card => card.includes('••••mtzj'));
-  const actions = saved.match(/<div class="audio-key-actions">[\s\S]*?<\/div>/)[0];
+  const actions = saved.match(/<div class="sh-secret__actions">[\s\S]*?<\/div>/)[0];
   assert.match(actions, /sh-btn--primary[^>]*>[\s\S]*?保存并验证/);
   assert.match(actions, /sh-btn--secondary[^>]*>[\s\S]*?验证/);
-  assert.match(actions, /audio-key-clear[^>]*>[\s\S]*?清除已保存的密钥/);
+  assert.match(actions, /sh-secret__clear[^>]*>[\s\S]*?清除已保存的密钥/);
   assert.match(saved, /class="audio-key-state is-set"/);
 });
 
 test('a failed check shows an inline message under the actions', () => {
   const provider = PROVIDERS.siliconflow;
   const html = render(h(ProviderKeyForm, { provider, state: view.siliconflowKey, call: noop, initialResult: { ok: false, message: 'HTTP 401: Invalid API key' } }));
-  const foot = html.match(/<div class="audio-key-foot">[\s\S]*$/)?.[0] || '';
+  const foot = html.match(/<div class="sh-secret__foot">[\s\S]*$/)?.[0] || '';
   assert.match(foot, /sh-inline--error/);
   assert.match(foot, /不可用：HTTP 401: Invalid API key/);
-  assert.ok(html.indexOf('audio-key-actions') < html.indexOf('sh-inline--error'));
+  assert.ok(html.indexOf('sh-secret__actions') < html.indexOf('sh-inline--error'));
   assert.match(html, /aria-describedby="[^"]+"/, 'the input points at the message');
 });
 

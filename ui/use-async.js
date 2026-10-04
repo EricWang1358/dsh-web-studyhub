@@ -8,7 +8,7 @@ import { uiMessage } from './i18n.js';
 const messageOf = (failure) => uiMessage(String(failure?.message || failure || ''));
 
 /** The state machine behind useAsyncAction: no React, so it runs (and is tested) on its own. */
-export function createAsyncRunner({ onChange = () => {}, toMessage = messageOf } = {}) {
+export function createAsyncRunner({ onChange = () => {}, toMessage = messageOf, exclusive = false } = {}) {
   const inflight = new Map();
   let error = '', attached = true;
   const latest = () => [...inflight.keys()].pop() ?? null;
@@ -18,6 +18,7 @@ export function createAsyncRunner({ onChange = () => {}, toMessage = messageOf }
     state,
     run(kind, fn) {
       if (inflight.has(kind)) return inflight.get(kind);
+      if (exclusive && inflight.size) return [...inflight.values()][0];
       let settled = false;
       error = '';
       const promise = (async () => {
@@ -37,11 +38,14 @@ export function createAsyncRunner({ onChange = () => {}, toMessage = messageOf }
   };
 }
 
-/** `{ run(kind, fn), working, error, clearError }`: `working` is the kind that is running, or null. */
-export function useAsyncAction() {
+/**
+ * `{ run(kind, fn), working, error, clearError }`: `working` is the kind that is running, or null. `exclusive: true` also
+ * turns away a run of another kind while one is in flight (a form whose buttons must not overlap).
+ */
+export function useAsyncAction({ exclusive = false } = {}) {
   const [view, setView] = useState({ working: null, error: '' });
   const runner = useRef(null);
-  if (!runner.current) runner.current = createAsyncRunner({ onChange: setView });
+  if (!runner.current) runner.current = createAsyncRunner({ onChange: setView, exclusive });
   useEffect(() => {
     runner.current.attach();
     return () => runner.current.detach();

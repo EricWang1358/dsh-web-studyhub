@@ -82,6 +82,20 @@ test('different kinds may be in flight together; working names the latest one', 
   assert.equal(runner.state().working, null);
 });
 
+test('exclusive: a run of another kind is turned away while one is in flight', async () => {
+  const { runner } = watch({ exclusive: true });
+  const gate = deferred();
+  let other = 0;
+  const first = runner.run('save', () => gate.promise);
+  const second = runner.run('verify', () => { other += 1; });
+  gate.resolve('saved');
+  assert.equal(await first, 'saved');
+  assert.equal(await second, 'saved', 'the caller joins the run already going');
+  assert.equal(other, 0);
+  await runner.run('verify', () => { other += 1; });
+  assert.equal(other, 1, 'free again once the first one is done');
+});
+
 test('the hook starts idle', () => {
   const Probe = () => { const { working, error } = m.useAsyncAction(); return React.createElement('i', null, `${working === null}|${error === ''}`); };
   assert.match(renderToStaticMarkup(React.createElement(Probe)), /true\|true/);
