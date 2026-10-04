@@ -7,7 +7,7 @@ import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
 import { formatClock } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
-import { Button, PageHeader, SetupRequired } from './components/index.js';
+import { Button, IconButton, InlineMessage, PageHeader, SetupRequired, useToast } from './components/index.js';
 import { requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
@@ -77,7 +77,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const [sessions, setSessions] = useState([]), [title, setTitle] = useState(''), [subject, setSubject] = useState('');
   const [terms, setTerms] = useState(''), [kind, setKind] = useState('microphone'), [paidOnly, setPaidOnly] = useState(false);
   const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [working, setWorking] = useState(false);
-  const [notice, setNotice] = useState(''), [follow, setFollow] = useState(true);
+  const toast = useToast();
+  const [follow, setFollow] = useState(true);
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
   const [readiness, setReadiness] = useState(initialReadiness);
@@ -108,7 +109,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   }, [visible, follow, session?.revision, session?.interim]);
   const perform = async (action) => {
     if (operation.current) return;
-    operation.current = true; setWorking(true); setNotice(''); client.update({ error: '' });
+    operation.current = true; setWorking(true); client.update({ error: '' });
     try { await action(); } catch (failure) { client.fail(failure); }
     finally { operation.current = false; setWorking(false); }
   };
@@ -136,8 +137,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
     <PageHeader title={ui('课堂实录')}
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
       actions={<Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>} />
-    {error && <p className="alert error" role="alert">{uiMessage(error)}</p>}
-    {notice && <p className="alert" role="status">{notice}</p>}
+    {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
     {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={onSettings} />}
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); void perform(async () => { setSelected(new Set()); await client.start(kind, { title, course, subject, terms, paidOnly }); await refresh(); });
@@ -212,13 +212,13 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
             <button disabled={!selected.size} onClick={() => setSelected(new Set())}>{ui('清空')}</button>
             <div className="live-count" role="group" aria-label={ui('题数')}>
               <span className="live-count-label">{ui('题数')}</span>
-              <button type="button" aria-label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))}>−</button>
+              <IconButton icon="minus" size="sm" label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))} />
               <output aria-live="polite">{count}</output>
-              <button type="button" aria-label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))}>+</button></div>
+              <IconButton icon="plus" size="sm" label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))} /></div>
             <button className="primary" disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
               onClick={() => void perform(async () => {
                 const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: GENERATION_LANGUAGE[language] });
-                setNotice(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));
+                toast.success(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));
                 setSelected(new Set()); await client.poll(); onJobs?.(result);
               })}>{ui('选中内容出题')}</button></div></div>
       </div>
@@ -229,9 +229,9 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       }} onRetry={() => void perform(async () => { client.accept(await call('live.correct.background', { id: session.id })); })} />}
       <footer className="live-footer"><p className="muted">{ui('付费转写估算')} ${session.usage?.estimatedPaidUsd || 0} · {ui('不含翻译费用')}</p>
         {!active(session) && segments.length > 0 && <div className="live-actions"><button disabled={disabled || session.translating > 0 || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
-          await call('live.save', { id: session.id }); setNotice(ui('已保存中英对照资料与课堂笔记（如有）。')); onJobs?.();
+          await call('live.save', { id: session.id }); toast.success(ui('已保存中英对照资料与课堂笔记（如有）。')); onJobs?.();
         })}>{ui('保存为资料')}</button><button disabled={disabled || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
-          await call('live.save', { id: session.id, proofread: true, paidOnly }); setNotice(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
+          await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
         })}>{ui('校对后保存')}</button><button className="link-btn" onClick={onSources}>{ui('打开资料')}</button></div>}</footer>
     </>}
     <LiveHistory sessions={sessions} disabled={disabled} capturing={capturing}

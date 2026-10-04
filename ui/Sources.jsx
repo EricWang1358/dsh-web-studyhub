@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader } from "./components/index.js";
+import { Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader, useToast } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
@@ -256,8 +256,9 @@ export function RemoveDialog({ item, busy, act, onClose, onRemoved }) {
   );
 }
 
-export default function Sources({ data, busy, act, call, setModal, setNotice, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
+export default function Sources({ data, busy, act, call, setModal, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
   useInjectCss(css, "study-sources");
+  const toast = useToast();
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const [showArchived, setShowArchived] = useState(false);
   const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
@@ -295,8 +296,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
   const [editingCourse, setEditingCourse] = useState(null);
   const [segmenting, setSegmenting] = useState(null);
   const renameFor = (act || call) ? item => ({
-    save: async title => { await renameDocument({ act, call }, item, { title }); setNotice?.({ text: uiFormat('已重命名为「{0}」', [title]), tone: 'success' }); },
-    restore: async () => { const done = await renameDocument({ act, call }, item, { restore: true }); setNotice?.({ text: uiFormat('已恢复原名「{0}」', [done.title]), tone: 'success' }); },
+    save: async title => { await renameDocument({ act, call }, item, { title }); toast.success(uiFormat('已重命名为「{0}」', [title])); },
+    restore: async () => { const done = await renameDocument({ act, call }, item, { restore: true }); toast.success(uiFormat('已恢复原名「{0}」', [done.title])); },
   }) : undefined;
   const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); setJevRun(null); };
@@ -393,7 +394,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
             return (
               <div key={g.key} className={"source-group" + (expanded ? " open" : "")}>
                 <button className="source-group-head" aria-expanded={expanded} onClick={() => toggle(g)}>
-                  <span className="source-group-caret" aria-hidden="true">▸</span>
+                  <Icon name="caret" size={14} className="sh-caret" />
                   <strong>{dayLabel(g.key)}</strong>
                   {g.inferred && <span className="source-group-tag" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</span>}
                   <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
@@ -414,7 +415,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
         onClose={() => setEditingCourse(null)} />}
       {segmenting && <OutlineDialog item={segmenting} call={call} act={act} onClose={() => setSegmenting(null)} />}
       {removing && <RemoveDialog item={removing} busy={busy} act={act} onClose={() => setRemoving(null)}
-        onRemoved={item => { setRemoving(null); setNotice?.({ text: uiFormat("已移除「{0}」", [displayTitle(item.title)]), tone: "success" }); }} />}
+        onRemoved={item => { setRemoving(null); toast.success(uiFormat("已移除「{0}」", [displayTitle(item.title)])); }} />}
     </section>
   );
 }

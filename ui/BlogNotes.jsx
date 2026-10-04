@@ -14,7 +14,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
-import { Button } from './components/Button.jsx';
+import { Button, PageHeader, useToast } from './components/index.js';
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
@@ -23,6 +23,7 @@ const writingStamp = note => JSON.stringify([note?.title, note?.markdown, isDail
 
 export default function BlogNotes({ data, call, act, initialId, onSelect, onBack, backLabel, onOpenCard, onRecapSettings, onModelSettings, busy = false, theme = "dark" }) {
   const science = useSciencePreferences();
+  const toast = useToast();
   useInjectCss(noteCss, "study-blog-notes");
   const [rememberedId, rememberId] = usePageScope(data.root, 'notes-open', '');
   const [id, changeId] = useState(initialId || rememberedId), [note, setNote] = useState(null);
@@ -34,8 +35,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
   const [lookup, setLookup] = useState(null), [link, setLink] = useState("");
   const [query, setQuery] = useState(""), [results, setResults] = useState([]);
   const [picked, setPicked] = useState([]), [newTitle, setNewTitle] = useState("");
-  const [message, setMessage] = useState("");
-  const [editing, setEditing] = useState(false), [materialSaved, setMaterialSaved] = useState(false);
+    const [editing, setEditing] = useState(false), [materialSaved, setMaterialSaved] = useState(false);
   const [savedWriting, setSavedWriting] = useState('');
   useEffect(() => { if (initialId) changeId(initialId); }, [initialId]);
   useEffect(() => { rememberId(id); onSelect?.(id); }, [id, data.root, onSelect]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -55,15 +55,15 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     const recovery = readDraft(key);
     setServerVersion(recovery && recovery.value.baseRevision !== next.revision ? next : null);
     applyNote(recovery ? { ...next, ...recovery.value, revision: next.revision } : next);
-    if (recovery) setMessage(ui('已恢复尚未保存的输入'));
+    if (recovery) toast.info(ui('已恢复尚未保存的输入'));
   }
   useEffect(() => {
     const token = { root: data.root, id };
     identity.current = token;
     current.current = null;
-    setNote(null); setLookup(null); setMessage(''); setSaving(false); setPublishing(false); setServerVersion(null); setEditing(false); setMaterialSaved(false); setSavedWriting(''); pending.current = false;
+    setNote(null); setLookup(null); setSaving(false); setPublishing(false); setServerVersion(null); setEditing(false); setMaterialSaved(false); setSavedWriting(''); pending.current = false;
     if (id) call('note.get', { id }).then(next => { if (identity.current === token) restore(next); })
-      .catch(error => { if (identity.current === token) setMessage(error.message); });
+      .catch(error => { if (identity.current === token) toast.error(error); });
     return () => { if (identity.current === token) identity.current = null; };
   }, [call, data.root, id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Published longform is kept at the public article, including recovery copies.
@@ -75,7 +75,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     if (!id || !summary || !(note?.generation?.status === 'running' && summary.generation?.status !== 'running' || summary.status === 'published' && note?.status !== 'published' || note?.kind === 'daily-recap' && summary.updatedAt !== note.updatedAt)) return;
     const token = identity.current;
     call('note.get', { id }).then(next => { if (identity.current === token) restore(next); })
-      .catch(error => { if (identity.current === token) setMessage(error.message); });
+      .catch(error => { if (identity.current === token) toast.error(error); });
   }, [call, id, note?.generation?.status, note?.status, summary?.generation?.status, summary?.status, summary?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const daily = isDailyNote(note), writable = note?.status === 'draft' || daily;
   const dirty = writable && writingStamp(note) !== savedWriting;
@@ -89,7 +89,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     applyNote(next);
     try { writeDraft(draftKey(data.root, 'note', next.id), { title: next.title, markdown: next.markdown,
       cards: next.cards, baseRevision: next.revision }); }
-    catch { setMessage(ui('浏览器暂存不可用，请及时保存草稿。')); }
+    catch { toast.warning(ui('浏览器暂存不可用，请及时保存草稿。')); }
   }
   async function persistCurrent() {
     const token = identity.current, submitted = current.current;
@@ -116,17 +116,17 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     pending.current = true; setSaving(true); setPublishing(lockEditing);
     const live = () => identity.current === token;
     try { await work(live); }
-    catch (error) { if (live()) setMessage(ui(error.message)); }
+    catch (error) { if (live()) toast.error(ui(error.message)); }
     finally { if (live()) { pending.current = false; setSaving(false); setPublishing(false); } }
   }
   async function save() {
-    return perform(async live => { await persistCurrent(); if (live()) setMessage(ui(daily ? '合集已保存' : '草稿已保存')); });
+    return perform(async live => { await persistCurrent(); if (live()) toast.success(ui(daily ? '合集已保存' : '草稿已保存')); });
   }
   async function returnToReading() {
     if (!dirty) { setEditing(false); return; }
     return perform(async live => {
       await persistCurrent();
-      if (live()) { setEditing(false); setMessage(ui(daily ? '合集已保存' : '草稿已保存')); }
+      if (live()) { setEditing(false); toast.success(ui(daily ? '合集已保存' : '草稿已保存')); }
     }, { lockEditing: true });
   }
   async function findPublished() {
@@ -137,7 +137,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       if (!live()) return;
       if (result.linked) {
         restore(result.linked); setLookup(null);
-        setMessage(ui("已找到新发布的公开文章，并关联到所选题目"));
+        toast.success(ui("已找到新发布的公开文章，并关联到所选题目"));
       } else setLookup(result);
     }, { lockEditing: true });
   }
@@ -146,7 +146,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     const token = identity.current;
     try { const result = await call('card.search', { query, limit: 20, course });
       if (identity.current === token) setResults(result.results); }
-    catch (error) { if (identity.current === token) setMessage(error.message); }
+    catch (error) { if (identity.current === token) toast.error(error); }
   }
   const linkArticle = async (url) => {
     return perform(async live => {
@@ -155,7 +155,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       await act('note.link', { id: submitted.id, url, expectedRevision: submitted.revision }, (saved) => {
         clearDraft(draftKey(data.root, 'note', saved.id));
         if (!live()) return;
-        applyNote(saved); setLookup(null); setMessage(ui("公开文章已关联到所选题目"));
+        applyNote(saved); setLookup(null); toast.success(ui("公开文章已关联到所选题目"));
       });
     }, { lockEditing: true });
   };
@@ -174,25 +174,25 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
           if (!await existingNoteMaterial(call, material)) throw error;
         }
       }
-      if (live()) { setMaterialSaved(true); setMessage(ui(existing ? '这份内容已经保存为资料。' : '已单独保存为资料，可在资料页阅读和复习。')); }
+      if (live()) { setMaterialSaved(true); toast.success(ui(existing ? '这份内容已经保存为资料。' : '已单独保存为资料，可在资料页阅读和复习。')); }
     });
   }
   return <section className="page blog-notes-page">
-    <header className={`section-heading note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}><div className="note-heading-title">
-      {note && <Button size="sm" variant="link" onClick={() => { setId(''); setLookup(null); }}>{ui('全部笔记')}</Button>}
-      <h1 tabIndex={-1} data-context-heading>{note?.title || ui('学习笔记')}</h1>
-      {daily && <p className="note-daily-meta">{note.daily?.day} · {note.daily?.course} · {uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [note.daily?.answeredCount, note.daily?.wrongCount])}</p>}
+    <PageHeader className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
+      back={note ? { label: ui('全部笔记'), onClick: () => { setId(''); setLookup(null); } } : undefined}
+      title={note?.title || ui('学习笔记')} titleProps={{ tabIndex: -1, 'data-context-heading': true }}
+      scope={!note ? <PageScope courses={data.focus?.courses} value={course} onChange={setCourse} /> : undefined}
+      description={daily ? <span className="note-daily-meta">{note.daily?.day} · {note.daily?.course} · {uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [note.daily?.answeredCount, note.daily?.wrongCount])}</span> : undefined}
+      actions={<>
+        {!note && <ReadingSettingsButton />}
+        {note && writable && <Button aria-pressed={editing} disabled={saving || publishing || note.generation?.status === 'running'}
+          onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
+        {editing && writable && <Button variant="primary" disabled={saving || !dirty || note.generation?.status === 'running'} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
+        <Button onClick={onBack}>{backLabel || ui('返回学习库')}</Button>
+      </>}>
       {dirty && <span className="note-unsaved">{ui('有未保存的修改')}</span>}
-    </div><div className="note-header-tools">
-      {!note && <ReadingSettingsButton />}
-      {note && writable && <Button aria-pressed={editing} disabled={saving || publishing || note.generation?.status === 'running'}
-        onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
-      {editing && writable && <Button variant="primary" disabled={saving || !dirty || note.generation?.status === 'running'} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
-      <Button onClick={onBack}>{backLabel || ui('返回学习库')}</Button>
-    </div></header>
-    {message && <p role="status" className="muted">{message}</p>}
+    </PageHeader>
     {!note && <div className="note-list">
-      <PageScope courses={data.focus?.courses} value={course} onChange={setCourse} />
       <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} call={call} act={act} busy={busy} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
       <details className="note-linking"><summary>{ui("＋ 挑题成文")}</summary>
         <label>{ui("笔记标题")}<input value={newTitle} placeholder={ui("写一个可公开的知识点标题")}
@@ -214,7 +214,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       </details>
       {notes.length ? notes.map((item) => <button key={item.id} className={isDailyNote(item) ? 'note-daily-item' : ''} onClick={() => setId(item.id)}>
         <span><strong>{item.title}</strong>{isDailyNote(item) && <small className="note-daily-date">{item.kind === 'daily-recap-history' ? ui('课程合并前的学习总结') : item.daily?.day === today ? ui('今日学习总结') : item.daily?.day}</small>}</span>
-        <small>{isDailyNote(item) ? uiFormat('已练习 {0} 题', [item.daily?.answeredCount ?? item.cardCount]) : <>{item.cardCount}{ui(" 题 · ")}{item.status === "published" ? ui("已发布笔记") : ui("笔记草稿")}</>}</small>
+        <small>{isDailyNote(item) ? uiFormat('已练习 {0} 题', [item.daily?.answeredCount ?? item.cardCount]) : <>{uiFormat("{0} 题", [item.cardCount])}{" · "}{item.status === "published" ? ui("已发布笔记") : ui("笔记草稿")}</>}</small>
       </button>) : <p className="muted">{ui("做题时选择“写笔记”，或在这里搜索并挑选题目。")}</p>}
     </div>}
     {note && <>
@@ -252,7 +252,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
               await act('note.generate', { id: saved.id, expectedRevision: saved.revision }, () => {
                 if (!live()) return;
                 applyNote({ ...current.current, generation: { status: 'running' } });
-                setMessage(ui("正在后台起草；完成后会进入信箱，你可以继续学习。"));
+                toast.info(ui("正在后台起草；完成后会进入信箱，你可以继续学习。"));
               });
           })}>{ui("AI 起草解析")}</button>}
         {writable && <button disabled={saving || note.generation?.status === "running"} onClick={() => perform(async live => {
@@ -267,16 +267,16 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
             await navigator.clipboard.writeText(saved.markdown);
             if (editorTab) { editorTab.opener = null; editorTab.location.href = csdnEditor; }
             else window.open(csdnEditor, "_blank", "noopener,noreferrer");
-            if (live()) setMessage(uiFormat("草稿已保存，Markdown 已复制；请在 CSDN 审阅并发布。{0}",[lookupHint]));
+            if (live()) toast.success(uiFormat("草稿已保存，Markdown 已复制；请在 CSDN 审阅并发布。{0}",[lookupHint]));
           } catch (error) { editorTab?.close(); throw error; }
         })}>{ui("复制内容并打开 CSDN")}</button>}
         {writable && <button disabled={saving} onClick={findPublished}>{ui("查找已发布文章")}</button>}
       </div>
         <div className="note-card-search"><input value={home} placeholder={ui("https://blog.csdn.net/用户名")}
           onChange={(event) => setHome(event.target.value)} />
-          <button onClick={() => act("note.home", { home }, () => setMessage(ui("公开主页已保存")))}>{ui("保存主页")}</button></div>
+          <button onClick={() => act("note.home", { home }, () => toast.success(ui("公开主页已保存")))}>{ui("保存主页")}</button></div>
         {lookup?.reason && <p>{lookup.reason}</p>}
-        {lookup?.matches?.map((url) => <button key={url} onClick={() => linkArticle(url)}>{ui("确认这篇文章 · ")}{url}</button>)}
+        {lookup?.matches?.map((url) => <button key={url} onClick={() => linkArticle(url)}>{uiFormat("确认这篇文章 · {0}", [url])}</button>)}
         {note.publicUrl && <p><a href={note.publicUrl} target="_blank" rel="noopener noreferrer">{ui("打开已发布文章 ↗")}</a></p>}
         {writable && <div className="note-card-search"><input value={link}
           placeholder={ui("找不到时粘贴文章链接")} onChange={(event) => setLink(event.target.value)} />

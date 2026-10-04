@@ -6,7 +6,8 @@ import { uiRich } from "./i18n-rich.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
-import { Banner, Button, Disclosure, InlineMessage, PageHeader, ProgressBar } from "./components/index.js";
+import { Banner, Button, Disclosure, InlineMessage, PageHeader, ProgressBar, useToast } from "./components/index.js";
+import { WORKFLOW_HANDOFF as HANDOFF, workflowStepPrompt } from "./agent-prompts/workflow.js";
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
 import { Readings, ScopeBar } from "./WorkflowScope.jsx";
 import ModelErrorNote, { ModelSettingsContext } from "./ModelErrorNote.jsx";
@@ -20,15 +21,6 @@ const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navig
 const prefersReducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const coarsePointer = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 
-// What each kind of step asks the main chat for; a goal step wants goal options, not an audit.
-const HANDOFF = {
-  overview: { label: "请主对话帮我把目标说具体", ask: "请帮我把这次的学习目标说具体：结合本次范围，给我 2–3 个可选的目标句（学完后我能说清或做到什么），每句配一个适合当主攻的例子，由我挑选或改写。不要替我写进回答，也不要做覆盖检查或列清单。" },
-  skeleton: { label: "请主对话帮我理清概念关系", ask: "请帮我理清本次范围里概念之间的关系：一条先学后学的主线、谁属于谁、因果和容易混淆的对比，写成能顺着读的结构说明。" },
-  lesson: { label: "请主对话帮我讲清楚", ask: "请提供清楚、连贯的讲解和一个可以推演的例子。" },
-  recall: { label: "请主对话通过追问帮我补全", ask: "请检查我的复述是否漏了关键条件，用追问引导我自己补全。" },
-  practice: { label: "请主对话帮我弄懂做错的题", ask: "请帮我弄懂本步练习里做错或拿不准的题：为什么是这个答案，容易错在哪里。" },
-  reflection: { label: "请主对话帮我回顾", ask: "请根据本次学习记录帮我回顾：哪些已经讲清、哪些还需要补、下次先做什么。由我决定写进回顾的内容。" },
-};
 const stamp = (at) => formatDateTime(at, "stamp");
 const preview = (text) => { const s = String(text || "").replace(/[#>*_`-]+/g, " ").replace(/\s+/g, " ").trim(); return s.length > 90 ? s.slice(0, 89) + "…" : s; };
 
@@ -145,7 +137,8 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
   useInjectCss(skeletonCss, "study-skeleton");
   const [session, setSession] = useState(null), [resources, setResources] = useState({ readings: [], sources: [], cardCount: 0 });
   const [output, setOutput] = useState(""), [remote, setRemote] = useState(null);
-  const [pending, setPending] = useState(""), [error, setError] = useState(""), [notice, setNotice] = useState("");
+  const toast = useToast();
+  const [pending, setPending] = useState(""), [error, setError] = useState("");
   const [showRecallMaterial, setShowRecallMaterial] = useState(false), [wish, setWish] = useState("");
   const current = useRef(null), outputRef = useRef(""), lock = useRef(false), live = useRef(true), pollToken = useRef(0);
   const transition = useRef(null), reading = useRef(null);
@@ -195,7 +188,7 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
   }, [refresh, revision, invalidateReads]);
   usePolling(() => refresh({ automatic: true }), { intervalMs: 8000 });
   const changeOutput = (value) => {
-    outputRef.current = value; setOutput(value); setNotice("");
+    outputRef.current = value; setOutput(value);
     keepDraft(current.current, value, libraryKey);
     transition.current = null;
   };
@@ -209,18 +202,18 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
   }
   async function act(name, action) {
     if (lock.current || remote) return;
-    lock.current = true; ++pollToken.current; setPending(name); setError(""); setNotice("");
+    lock.current = true; ++pollToken.current; setPending(name); setError("");
     try { await action(current.current); }
     catch (err) { if (live.current) setError(err.message); }
     finally { lock.current = false; if (live.current) setPending(""); }
   }
-  const save = () => act("save", async () => { await persist(); setNotice(ui("回答和笔记已保存到学习库。")); });
+  const save = () => act("save", async () => { await persist(); toast.success(ui("回答和笔记已保存到学习库。")); });
   const leave = () => act("leave", async (before) => { if (before.status === "active") await persist(); onBack(); });
   const changeStatus = (status) => act("status", async (before) => {
     const saved = before.status === "active" ? await persist() : before;
     const next = await call("workflow.session.status", { id, version: saved.version, status });
     adopt(next, { keepOutput: true });
-    setNotice(status === "paused" ? ui("已保存并暂停，可以随时回来继续。") : ui("已继续这次学习。"));
+    toast.success(status === "paused" ? ui("已保存并暂停，可以随时回来继续。") : ui("已继续这次学习。"));
   });
   const advance = (outcome) => act(outcome, async (before) => {
     // Preserve the operation ID across a network retry, so a committed move is
@@ -230,7 +223,7 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
     const next = await call("workflow.session.advance", { id, version: before.version, outcome, output: outputRef.current, requestId: transition.current.requestId });
     clearDraft(before, libraryKey); transition.current = null;
     adopt(next, { restore: next.currentStepId !== before.currentStepId });
-    setNotice(outcome === "needs_work" ? ui("已记录需要巩固，按这条流程的回补安排继续。") : outcome === "skipped" ? ui("已如实记录跳过。") : ui("本步活动已记录。"));
+    toast.success(outcome === "needs_work" ? ui("已记录需要巩固，按这条流程的回补安排继续。") : outcome === "skipped" ? ui("已如实记录跳过。") : ui("本步活动已记录。"));
   });
   // Practice runs in the ordinary review page, with every aid it has; this step
   // starts or resumes the round there and shows its progress when we come back.
@@ -248,7 +241,7 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
     adopt(next, { restore: true });
     const title = next.template.steps.find((item) => item.id === stepId)?.title || ui("这一步");
     const resume = next.template.steps.find((item) => item.id === next.resumeStepId)?.title;
-    setNotice(resume ? uiFormat("已回到「{0}」，之前的记录都在。看完点上方的「{1}」回到进度。", [title, resume]) : uiFormat("已回到「{0}」。", [title]));
+    toast.success(resume ? uiFormat("已回到「{0}」，之前的记录都在。看完点上方的「{1}」回到进度。", [title, resume]) : uiFormat("已回到「{0}」。", [title]));
   });
   // A session from the course route hands on to the route's next batch.
   const continueCourse = (flow) => act("course", async () => {
@@ -266,7 +259,7 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
     const result = await call("workflow.rescope", { id, version: saved.version, course, requestId: crypto.randomUUID() });
     if (!live.current) return;
     adopt(result.session, { resources: result.resources, keepOutput: true });
-    setNotice(uiFormat("已换到「{0}」课程，重新选了学习范围；之前写的笔记都保留着。", [course || ui("未分类课程")]));
+    toast.success(uiFormat("已换到「{0}」课程，重新选了学习范围；之前写的笔记都保留着。", [course || ui("未分类课程")]));
   });
   // Practice answers are on record: this session stays as it is and a new one starts in the other course.
   const startInCourse = (course) => act("rescope", async (before) => {
@@ -287,26 +280,23 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
     const latest = await prepareTeaching();
     if (!latest) return;
     const result = await call("workflow.teaching.start", { id, version: latest.version, stepId: latest.currentStepId, mode, ...(request ? { request } : {}) });
-    if (live.current) { adopt(result.session, { resources: result.resources, keepOutput: true }); setNotice(""); }
+    if (live.current) { adopt(result.session, { resources: result.resources, keepOutput: true }); }
   });
   const undoTeaching = () => act("teaching", async () => {
     const latest = await prepareTeaching();
     if (!latest) return;
     const result = await call("workflow.teaching.undo", { id, version: latest.version, stepId: latest.currentStepId });
-    if (live.current) { adopt(result.session, { resources: result.resources, keepOutput: true }); setNotice(ui("已恢复上一次讲解。")); }
+    if (live.current) { adopt(result.session, { resources: result.resources, keepOutput: true }); toast.success(ui("已恢复上一次讲解。")); }
   });
   const ask = () => act("chat", async () => {
     const saved = await persist(), step = saved.template.steps.find((item) => item.id === saved.currentStepId);
-    await askInChat(uiFormat("请帮助我学习「{0}」的「{1}」这一步。{2}\n", [saved.topic, step.title, wish.trim() ? uiFormat('我的要求：{0}', [wish.trim()]) : ui((HANDOFF[step.kind] || HANDOFF.lesson).ask)]) +
-      uiFormat("先用 study_workspace 的 workflow.context，payload 为 {0}，读取本次学习、当前步骤、这一步已有的材料、我的笔记和可用资料。当前看到的 version 是 {1}，保存前以重新读取的最新版本为准。\n", [JSON.stringify({ sessionId: saved.id }), saved.version]) +
-      ui("必要时用 source.search 查证，区分已有资料与补充知识。用 workflow.session.material 保存到这一步：默认 mode 为 append，追加在已有材料之后，不要重复已有内容；要改已有段落用 mode \"edit\" 和 edits:[{find,replace}]（find 是原文中唯一的一段）；除非我明确要求重写，不要用 replace。最近 10 版会保留。不能写我的回答、代我完成步骤或评定我是否掌握。称呼步骤用标题，不要用 step-2 这类内部 ID。\n") +
-      (step.kind === "recall" ? ui("当前是主动复述：先以问题指出缺口，不要直接给出完整参考答案。补充内容会由我主动展开。") : ui("内容请连起概念、例子和条件，避免只罗列名词。缺少依据时明确说明。")));
-    setNotice(ui("请求已准备好，请在主对话确认发送。补充材料保存后会在这里显示。"));
+    await askInChat(workflowStepPrompt({ session: saved, step, wish: wish.trim() }));
+    toast.info(ui("请求已准备好，请在主对话确认发送。补充材料保存后会在这里显示。"));
   });
   const restoreMaterial = (index) => act("restore", async () => {
     const saved = await persist();
     const next = await call("workflow.session.material.restore", { id, version: saved.version, stepId: saved.currentStepId, index });
-    if (live.current) { adopt(next, { keepOutput: true }); setNotice(ui("已恢复这一版材料；换下来的版本也留在「之前的版本」里。")); }
+    if (live.current) { adopt(next, { keepOutput: true }); toast.success(ui("已恢复这一版材料；换下来的版本也留在「之前的版本」里。")); }
   });
   const reconcile = (keepLocal) => {
     if (!remote) return;
@@ -318,7 +308,7 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
       if (!keepLocal) clearDraft(before, libraryKey);
       adopt(remote.session, { resources: remote.resources, restore: false });
     }
-    setError(""); setNotice(keepLocal ? ui("已载入最新内容，本地草稿已保留。") : ui("已使用学习库中的最新记录。"));
+    setError(""); toast.success(keepLocal ? ui("已载入最新内容，本地草稿已保留。") : ui("已使用学习库中的最新记录。"));
   };
 
   const generateSkeleton = () => act("skeleton", async () => {
@@ -408,7 +398,6 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
       secondary={{ label: ui("使用最新记录"), onClick: () => reconcile(false) }}>
       {savedOutput(remote.session) && <Disclosure summary={ui("查看学习库中的最新回答")}><Markdown text={savedOutput(remote.session)} /></Disclosure>}
     </Banner>}
-    {notice && <p className="wf-status" role="status">{notice}</p>}
     <ol className="wf-portal-route" aria-label={ui("学习步骤")}>{session.template.steps.map((item, stepIndex) => {
       const outcome = session.records[item.id]?.outcome, resume = item.id === session.resumeStepId;
       const body = <><span>{formatNumber(stepIndex + 1, { minimumIntegerDigits: 2 })}</span><strong>{item.title}</strong>{resume ? <small className="wf-route-resume">{ui("当前进度 · 回到这里")}</small> : outcome && <small>{ui(OUTCOME[outcome])}</small>}</>;
@@ -438,7 +427,7 @@ function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession,
         <textarea ref={outputField} rows={step.kind === "recall" || step.kind === "reflection" ? 7 : 4} maxLength={20000} value={output} disabled={!active || busy} onChange={(e) => changeOutput(e.target.value)}
           onKeyDown={(e) => { if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey)) return; e.preventDefault(); if (askable) askFeedback(); else if (dirty && !remote) save(); }} placeholder={step.kind === "recall" ? ui("不用追求标准措辞。写清核心机制、一个例子，以及什么时候不适用。") : step.kind === "reflection" ? ui("写下收获、还卡住的地方，以及下次准备做什么。") : ui("写下思路、观察到的关系，或想继续追问的问题。")} />
       </label>
-      <div className="wf-output-save"><button type="button" disabled={!active || busy || !!remote || !dirty} onClick={save}>{pending === "save" ? ui("保存中…") : ui("保存回答与笔记")}</button><small className="muted">{dirty ? ui("继续下一步时也会一起保存") : ui("已保存在本次学习中")}{step.kind === "recall" && resources.modelReady ? uiFormat(" · {0} + Enter 请 AI 查看", [MOD_KEY]) : uiFormat(" · {0} + Enter 保存", [MOD_KEY])}</small></div>
+      <div className="wf-output-save"><button type="button" disabled={!active || busy || !!remote || !dirty} onClick={save}>{pending === "save" ? ui("保存中…") : ui("保存回答与笔记")}</button><small className="muted">{dirty ? ui("继续下一步时也会一起保存") : ui("已保存在本次学习中")}{" · "}{step.kind === "recall" && resources.modelReady ? uiFormat("{0} + Enter 请 AI 查看", [MOD_KEY]) : uiFormat("{0} + Enter 保存", [MOD_KEY])}</small></div>
       </details>
       {lastFeedback && <section className={`wf-retell${stale ? " is-stale" : ""}`} aria-label={ui("AI 对复述的反馈")}>
         <p className="wf-eyebrow">{stale ? ui("AI 对上一版复述的反馈") : ui("AI 看了你的复述")}</p>

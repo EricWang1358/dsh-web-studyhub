@@ -1,4 +1,5 @@
 import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
+import { uiRich } from "./i18n-rich.jsx";
 import React, { useEffect, useMemo, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonCanvas from "./SkeletonCanvas.jsx";
@@ -6,8 +7,10 @@ import SkeletonSpine from "./SkeletonSpine.jsx";
 import css from "./skeleton.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
+import { designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { ConfirmDialog, DisclosureToggle, InlineMessage, SegmentedControl, foldLabel } from "./components/index.js";
+import { ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
+import migrationCss from "./panel-migrations.css";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
@@ -33,49 +36,6 @@ const ago = (at) => {
   return Number.isFinite(d.getTime()) ? d.toLocaleString(uiLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 };
 
-const EXTEND_ASK = {
-  contrast: (term, text) => uiFormat("把概念「{0}」和「{1}」做对比，讲清它们的关键差异和容易混淆的地方。", [term, text]),
-  enrich: (term, text) => uiFormat("补充或修正概念「{0}」{1}", [term, text ? `: ${text}` : ui("：含义、关键特征和它与其他概念的关系是否准确、完整。")]),
-  cards: (term, text) => uiFormat("为概念「{0}」补能真正练到它的题{1}", [term, text ? `: ${text}` : ui("（理解、辨析或场景应用，不要只背名词）。")]),
-};
-
-/** Ask the conversation to extend one skeleton incrementally (new concepts, relations, cards). */
-function extendPrompt({ skeleton, nodeId, term, intent, text }) {
-  const want = intent && EXTEND_ASK[intent] ? EXTEND_ASK[intent](term, text) : text;
-  return (
-    uiFormat("请扩展知识骨架「{0}」（id: {1}）{2}：\n{3}\n\n", [skeleton.title, skeleton.id, nodeId ? uiFormat('，从节点 {0}「{1}」出发', [nodeId, term]) : "", want]) +
-    ui("做法：\n") +
-    ui("1. 用 study_workspace 的 skeleton.get（payload 为 {\"id\": \"") + skeleton.id + ui("\"}）读当前骨架；需要的概念已经在骨架里就复用它的节点。\n") +
-    ui("2. 不在骨架里的概念：先用 card.search 查题库有没有相关题，用 source.search 查资料依据；再用 skeleton.patch 的 node.add 加节点（meaning 依据资料，资料里没有的明确写是补充知识），挂到合适的上位概念（parent），用 attributes 写 2–5 条关键特征，让差异在类图里一眼可见。\n") +
-    ui("3. 用 relation.add 加关系（对比用 contrasts，note 写一句最关键的差异；因果用 causes，前置用 prerequisite）。有动态过程的差异可以用 sequence.add 补一条时序。\n") +
-    ui("4. 题库里没有能练到这个概念或这层关系的题时补题：用 capture 加题（对比、辨析优先 kind: \"quiz\"，deckId 用骨架里相关题所在的题组），再用 skeleton.patch 的 node.cards 把新题挂到对应节点；有前置关系的题用 card.link 关联。\n") +
-    ui("5. 骨架的所有修改都用 skeleton.patch 增量提交（ops 可以一次提交多步，note 写一句这次改了什么），不要整份重写；面板会实时刷新并高亮变化。最后用几句话告诉我加了什么、补了哪些题。")
-  );
-}
-
-function chatPrompt({ scope, lint, topics, update }) {
-  const counts = lint
-    ? Object.entries(lint.counts).filter(([, n]) => n).map(([code, n]) => uiFormat("{0} {1} 题", [lint.labels[code], n])).join("；") || ui("没有发现散装问题")
-    : ui("（还没做质量检测，skeleton.context 会带上每道题的检测结果）");
-  return (
-    (update ? uiFormat("请更新知识骨架「{0}」（id: {1}），", [update.title, update.id]) : ui("请为下面这组题做一份「知识骨架」，")) +
-    ui("把散装的名词串成结构，并修掉只能死记的题：\n") +
-    uiFormat("主题：{0}\n", [topics.join("、")]) +
-    uiFormat("范围 scope：{0}\n", [JSON.stringify(scope)]) +
-    uiFormat("质量检测：{0}\n\n", [counts]) +
-    ui("步骤：\n") +
-    ui("1. 用 study_workspace 的 skeleton.context（payload 为 {\"scope\": 上面的 scope}）读题目、每题的检测结果和引用原文片段；需要更多依据时用 source.search，不要逐份翻资料。\n") +
-    ui("2. 设计一份骨架，会画成可交互的 UML 类图 + 时序图，并配文字阐述：\n") +
-    ui("   · 类图（nodes + relations）：每个名词是一个类，写一句含义 meaning 和 2–5 条关键特征 attributes；「是一种」用 parent（泛化），「是…的组成部分」用 part-of，「导致」用 causes，「学它之前要懂」用 prerequisite，「是…的例子」用 example-of，容易混的用 contrasts。不同题组里的同一个名词合并成一个节点，节点挂上对应题目的 {deckId, cardId}。classNote 用文字讲清这张结构图怎么读。\n") +
-    ui("   · 时序图（sequences，最多 4 条）：把动态过程画出来，比如故障如何一步步传导、请求如何流转、机制如何生效。participants 是参与者（能对应节点就填 node），steps 按时间顺序写 from→to 的 message，kind 取 call / return / async；每条写 explanation 讲清因果。纯静态的概念可以不画时序图。\n") +
-    ui("   · 学习脉络：nodes 的顺序就是学习顺序。没有 parent 的顶层概念按先学后学排列，会画成一条从左到右的主线；每个顶层概念下用 parent 挂 3–6 个要点，要点下可以再挂细节。题多时（例如一个题组 90 题）先抓 6–12 个顶层概念，不要把所有名词平铺在顶层。\n") +
-    ui("   · overview 写一段总览和一条好记的主线，把两张图串起来。\n") +
-    uiFormat("3. 用 skeleton.save 保存（payload 为 {\"skeleton\": {{0}title, scope, overview, classNote, nodes, relations, sequences}}）。\n", [update ? `"id": "${update.id}", ` : ""]) +
-    ui("4. 按检测结果修题：只重复选项文字的解析改成「是什么 + 和谁有关、为什么对/错」；考课件页码或列表归属的题干改成考含义或关系；用 card.update 保存并写清 reason。有因果或前置关系的题用 card.link 关联。不要改动原文不支持的答案。\n") +
-    ui("5. 最后用几句话告诉我骨架的主线，以及改了哪些题。")
-  );
-}
-
 function NodeTree({ skeleton, onPractice }) {
   const children = useMemo(() => {
     const map = new Map();
@@ -94,7 +54,7 @@ function NodeTree({ skeleton, onPractice }) {
           <span className="sk-node-meaning">{n.meaning}</span>
         </div>
         {n.cards.length > 0 && (
-          <button type="button" className="sk-mini" onClick={() => onPractice(n.cards)} title={ui("练这个节点关联的题")}>{ui("练 ")}{n.cards.length}{ui(" 题")}</button>
+          <button type="button" className="sk-mini" onClick={() => onPractice(n.cards)} title={ui("练这个节点关联的题")}>{uiFormat("练 {0} 题", [n.cards.length])}</button>
         )}
         {children.has(n.id) && <ul className="sk-tree">{render(n.id, depth + 1)}</ul>}
       </li>
@@ -104,6 +64,7 @@ function NodeTree({ skeleton, onPractice }) {
 
 export default function Skeleton({ call, data, busy, askInChat, onPractice, focusId, onFocus }) {
   useInjectCss(css, "study-skeleton");
+  useInjectCss(migrationCss, "study-panel-migrations");
   const [course, setCourse] = usePageScope(data?.root, 'skeleton', data?.focus?.course ?? '*');
   const [saved, setSaved] = useState(null);
   const [topics, setTopics] = useState(null),
@@ -264,8 +225,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
             onClick={() => toggleFold(t.key)}
           >
             <span className="sk-topic-title">{t.topic}</span>
-            {t.decks.length > 1 && <span className="sk-badge">{ui("跨 ")}{t.decks.length}{ui(" 个题组")}</span>}
-            <small>{t.count}{ui(" 题")}</small>
+            {t.decks.length > 1 && <span className="sk-badge">{uiFormat("跨 {0} 个题组", [t.decks.length])}</span>}
+            <small>{uiFormat("{0} 题", [t.count])}</small>
           </button>
         </div>
         {expanded && (
@@ -277,7 +238,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                   <label>
                     <input type="checkbox" checked={picked.has(key)} onChange={(e) => toggle([key], e.target.checked)} />
                     <span>{d.folder ? `${d.folder} / ` : ""}{d.deckTitle}</span>
-                    <small>{d.count}{ui(" 题")}</small>
+                    <small>{uiFormat("{0} 题", [d.count])}</small>
                   </label>
                 </li>
               );
@@ -292,20 +253,15 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
 
   return (
     <section className="page skeleton-page">
-      <div className="page-heading">
-        <div>
-          <h1>{ui("知识骨架")}</h1>
-          <PageScope courses={data?.focus?.courses} value={course} onChange={chooseCourse} />
-          <p className="muted">{ui("同一个主题常常散在好几个题组里。选好主题，先做质量检测，再交给对话把名词串成结构、修掉只能死记的题。")}</p>
-        </div>
-      </div>
+      <PageHeader title={ui("知识骨架")} description={ui("同一个主题常常散在好几个题组里。选好主题，先做质量检测，再交给对话把名词串成结构、修掉只能死记的题。")}
+        scope={<PageScope courses={data?.focus?.courses} value={course} onChange={chooseCourse} />} />
       {error && (
         <InlineMessage tone="error" boxed className="sk-msg" action={{ label: ui("重试"), onClick: () => { setError(""); setReload((n) => n + 1); } }}>{error}</InlineMessage>
       )}
       {stale && !error && <p className="muted small sk-stale" role="status">{ui("之前打开的骨架已删除或不在这门课程中。")}</p>}
 
       <div className="sk-layout">
-        <div className="sk-panel sk-picker">
+        <Panel as="div" density="compact" className="sk-panel sk-picker">
           <div className="sk-panel-head">
             <strong>{ui("选择主题")}</strong>
             <small className="muted">
@@ -331,7 +287,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 type="button"
                 className="sk-mini sk-ai"
                 onClick={() => askInChat(groupPrompt({ mode: "merge", ungrouped: groupView.ungrouped.length, course }, getUiLanguage()))}
-              >{ui("✦ 归并新增 ")}{groupView.ungrouped.length}{ui(" 个")}</button>
+              >{uiFormat("归并新增 {0} 个", [groupView.ungrouped.length])}</button>
             )}
             {groups.length > 0 && (
               <button
@@ -384,8 +340,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                         onClick={() => toggleFold("g:" + g.id)}
                       >
                         <span className="sk-topic-title sk-group-title">{g.title}</span>
-                        <span className="sk-badge dim">{g.members.length}{ui(" 个主题")}</span>
-                        <small>{cards}{ui(" 题")}</small>
+                        <span className="sk-badge dim">{uiFormat("{0} 个主题", [g.members.length])}</span>
+                        <small>{uiFormat("{0} 题", [cards])}</small>
                       </button>
                     </div>
                     {expanded && (
@@ -404,9 +360,9 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
             </ul>
             )
           )}
-        </div>
+        </Panel>
 
-        <div className="sk-panel sk-work">
+        <Panel as="div" density="compact" className="sk-panel sk-work">
           <div className="sk-panel-head">
             <strong>{ui("已选")}</strong>
             <small className="muted">
@@ -435,7 +391,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
               title={pickedCards > 200 ? ui("一次最多 200 道题") : ui("在对话里设计骨架并修题")}
               onClick={() => {
                 setStale(false);
-                askInChat(chatPrompt({ scope, lint, topics: pickedTopics }));
+                askInChat(designSkeletonPrompt({ scope, lint, topics: pickedTopics }));
                 setSent(true);
               }}
             >{ui("在对话中生成骨架")}</button>
@@ -449,14 +405,14 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
             <div className="sk-lint">
               <div className="sk-lint-summary">
                 <span>
-                  {lint.flagged ? <><strong>{lint.flagged}</strong> / {lint.total}{ui(" 道题有散装问题")}</> : uiFormat("{0} 道题都没发现散装问题", [lint.total])}
+                  {lint.flagged ? uiRich("{0} / {1} 道题有散装问题", <strong>{lint.flagged}</strong>, lint.total) : uiFormat("{0} 道题都没发现散装问题", [lint.total])}
                 </span>
                 {lint.flagged > 0 && (
                   <button type="button" className="sk-mini" disabled={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</button>
                 )}
               </div>
               <div className="sk-filters" role="group" aria-label={ui("按问题筛选")}>
-                <button type="button" className={"sk-filter" + (!issueFilter ? " on" : "")} onClick={() => setIssueFilter("")}>{ui("全部问题 ")}{lint.flagged}
+                <button type="button" className={"sk-filter" + (!issueFilter ? " on" : "")} onClick={() => setIssueFilter("")}>{uiFormat("全部问题 {0}", [lint.flagged])}
                 </button>
                 {Object.entries(lint.counts).map(([code, n]) => (
                   <button
@@ -482,15 +438,15 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                     </span>
                   </li>
                 ))}
-                {lintCards.length > 60 && <li className="muted small">{ui("还有 ")}{lintCards.length - 60}{ui(" 道…")}</li>}
+                {lintCards.length > 60 && <li className="muted small">{uiFormat("还有 {0} 道…", [lintCards.length - 60])}</li>}
               </ul>
             </div>
           )}
-        </div>
+        </Panel>
       </div>
 
       <div className="section-heading">
-        <h2>{ui("已保存的骨架 ")}<span>{listedSkeletons.length}</span>
+        <h2>{ui("已保存的骨架")}{" "}<span>{listedSkeletons.length}</span>
         </h2>
       </div>
       {!listedSkeletons.length ? (
@@ -503,7 +459,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 <button type="button" className={"sk-saved-item" + (k.id === focusId ? " on" : "")} onClick={() => { setStale(false); onFocus(k.id === focusId ? null : k.id); }}>
                   <strong>{k.title}</strong>
                   <small className="muted">
-                    {k.nodes}{ui(" 个概念 · ")}{k.relations}{ui(" 条关系")}{k.sequences ? uiFormat(" · {0} 条时序", [k.sequences]) : ""} · {k.cardIds.length}{ui(" 题 · ")}{k.decks}{ui(" 个题组 · ")}{ago(k.updatedAt)}
+                    {[uiFormat("{0} 个概念 · {1} 条关系", [k.nodes, k.relations]), k.sequences ? uiFormat("{0} 条时序", [k.sequences]) : "", uiFormat("{0} 题", [k.cardIds.length]), uiFormat("{0} 个题组", [k.decks]), ago(k.updatedAt)].filter(Boolean).join(" · ")}
                   </small>
                 </button>
               </li>
@@ -523,7 +479,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                   <button
                     type="button"
                     onClick={() =>
-                      askInChat(chatPrompt({ scope: viewing.scope, lint: null, topics: [...new Set(viewing.scope.map((x) => x.topic).filter(Boolean))], update: viewing }))
+                      askInChat(designSkeletonPrompt({ scope: viewing.scope, lint: null, topics: [...new Set(viewing.scope.map((x) => x.topic).filter(Boolean))], update: viewing }))
                     }
                   >{ui("在对话中更新")}</button>
                   <button
@@ -554,7 +510,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 onSubmit={(ev) => {
                   ev.preventDefault();
                   if (!extendText.trim()) return;
-                  askInChat(extendPrompt({ skeleton: viewing, text: extendText.trim() }));
+                  askInChat(extendSkeletonPrompt({ skeleton: viewing, text: extendText.trim() }));
                   setExtendText("");
                 }}
               >
@@ -575,7 +531,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 <SkeletonCanvas
                   skeleton={viewing}
                   onPractice={onPractice}
-                  onAsk={(ask) => askInChat(extendPrompt({ skeleton: viewing, ...ask }))}
+                  onAsk={(ask) => askInChat(extendSkeletonPrompt({ skeleton: viewing, ...ask }))}
                 />
               )}
               <details className="sk-text">

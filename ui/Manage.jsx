@@ -5,7 +5,7 @@ import { useInjectCss } from "./shared.js";
 import css from "./manage.css";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
-import { Banner, Button, ConfirmDialog } from "./components/index.js";
+import { Badge, Banner, Button, ConfirmDialog, PageHeader, Panel, useToast } from "./components/index.js";
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -22,7 +22,6 @@ export default function Manage({
   act,
   openDraft,
   setPage,
-  setNotice,
   managedDeck,
   decks = [],
   sources,
@@ -32,6 +31,7 @@ export default function Manage({
   onRemoveDeck,
 }) {
   useInjectCss(css, "study-manage");
+  const toast = useToast();
   const [targetId, setTargetId] = useState("");
   const [merging, setMerging] = useState(false);
   const [splitTitle, setSplitTitle] = useState("");
@@ -45,7 +45,7 @@ export default function Manage({
     const ids = decks.map((d) => d.id);
     const other = decks.findIndex((d) => d.id === siblings[siblingIndex + delta]?.id);
     [ids[deckIndex], ids[other]] = [ids[other], ids[deckIndex]];
-    act("deck.reorder", { ids }, () => setNotice(ui("题组顺序已保存")));
+    act("deck.reorder", { ids }, () => toast.success(ui("题组顺序已保存")));
   };
   const unreviewed = reviewedCardStatus(managedDeck)?.changed ?? managedDeck.editorial?.uncheckedAtPublish ?? 0;
   const selfCited = selfCitedCardCount(managedDeck.cards, sources);
@@ -54,46 +54,26 @@ export default function Manage({
   const splitReady = !!splitTitle.trim() && splitTopics.length > 0 && splitTopics.length < topics.length;
   return (
     <section className="page manage-page">
-      <header className="manage-head">
-        <div className="manage-head__title">
-          <h1>{managedDeck.title}</h1>
-          <div className="manage-meta">
-            <span className="manage-chip">{uiFormat("{0} 题", [managedDeck.cards.length])}</span>
-            {managedDeck.archived && <span className="manage-chip manage-chip--warn">{ui("已归档")}</span>}
-          </div>
-          {managedDeck.originalTitle && managedDeck.originalTitle !== managedDeck.title &&
-            <p className="muted">{ui("导入原标题：")}{managedDeck.originalTitle}</p>}
-          {slainView && <p className="muted">{ui("本工作区唯一的斩题组。这里的题不参与复习，作答历史和复习进度保留，可恢复到原题组。")}</p>}
-          {!slainView && <p className="muted">{ui("编辑先进入草稿；重新发布时，未改动题目保留复习进度，内容变更的题目重新开始调度。历史作答始终保留。")}</p>}
-        </div>
-        <div className="manage-actions">
-          <button
-            className="primary"
-            disabled={busy || slainView}
-            onClick={() =>
-              act("deck.edit", { id: managedDeck.id }, openDraft)
-            }
-          >{ui("编辑题组")}</button>
-          <button
-            disabled={busy || slainView}
-            onClick={() =>
-              act(
-                "deck.archive",
-                { id: managedDeck.id, archived: !managedDeck.archived },
-                async () =>
-                  setManagedDeck(
-                    await call("deck.get", { id: managedDeck.id }),
-                  ),
-              )
-            }
-          >
+      <PageHeader className="manage-head" back={{ label: ui("返回学习库"), onClick: () => setPage("library") }} title={managedDeck.title}
+        description={slainView ? ui("本工作区唯一的斩题组。这里的题不参与复习，作答历史和复习进度保留，可恢复到原题组。")
+          : ui("编辑先进入草稿；重新发布时，未改动题目保留复习进度，内容变更的题目重新开始调度。历史作答始终保留。")}
+        actions={<>
+          <Button variant="primary" disabled={busy || slainView} onClick={() => act("deck.edit", { id: managedDeck.id }, openDraft)}>{ui("编辑题组")}</Button>
+          <Button disabled={busy || slainView}
+            onClick={() => act("deck.archive", { id: managedDeck.id, archived: !managedDeck.archived },
+              async () => setManagedDeck(await call("deck.get", { id: managedDeck.id })))}>
             {managedDeck.archived ? ui("恢复题组") : ui("归档题组并结束练习")}
-          </button>
-        <button onClick={() => setPage("library")}>{ui("返回学习库")}</button>
-        {managedDeck.archived && !managedDeck.systemKind && <Button variant="danger" disabled={busy}
-          onClick={() => onRemoveDeck(managedDeck.id)}>{ui("永久删除")}</Button>}
-      </div>
-      </header>
+          </Button>
+          {managedDeck.archived && !managedDeck.systemKind && <Button variant="danger" disabled={busy}
+            onClick={() => onRemoveDeck(managedDeck.id)}>{ui("永久删除")}</Button>}
+        </>}>
+        <div className="manage-meta">
+          <Badge size="sm">{uiFormat("{0} 题", [managedDeck.cards.length])}</Badge>
+          {managedDeck.archived && <Badge size="sm" tone="warning">{ui("已归档")}</Badge>}
+        </div>
+        {managedDeck.originalTitle && managedDeck.originalTitle !== managedDeck.title &&
+          <p className="muted">{ui("导入原标题：")}{managedDeck.originalTitle}</p>}
+      </PageHeader>
       {!slainView && (unreviewed > 0 || selfCited > 0) && (
         <Banner tone="warning" role="status">
           {unreviewed > 0 && <p>{uiFormat("{0} 题尚未自动审阅。学习时可正常作答，发现问题可点题目标记或 👎 交给后台修题。", [unreviewed])}</p>}
@@ -110,7 +90,7 @@ export default function Manage({
             (moved) => {
               setManagedDeck({ ...managedDeck, folder: moved.folder });
               setFolderDraft(moved.folder);
-              setNotice(moved.folder ? uiFormat("已放入目录「{0}」",[moved.folder]) : ui("已移到目录顶层"));
+              toast.success(moved.folder ? uiFormat("已放入目录「{0}」",[moved.folder]) : ui("已移到目录顶层"));
             },
           );
         }}
@@ -126,11 +106,8 @@ export default function Manage({
           <button disabled={busy || folderDraft === (managedDeck.folder || "")}>{ui("保存目录")}</button>
         </div>
       </form>
-      {!managedDeck.systemKind && !managedDeck.archived && <div className="manage-panel">
-        <div className="manage-panel__head">
-          <h2>{ui("整理题组")}</h2>
-          <p className="muted">{ui("合并保留全部题目；拆分按主题移动。题目复习记录和前置题关联会一起保留。")}</p>
-        </div>
+      {!managedDeck.systemKind && !managedDeck.archived && <Panel className="manage-panel" title={ui("整理题组")}
+        description={ui("合并保留全部题目；拆分按主题移动。题目复习记录和前置题关联会一起保留。")}>
         <div className="manage-section">
           <span className="manage-label">{ui("题组顺序")}</span>
           <div className="manage-row manage-row--pair">
@@ -157,7 +134,7 @@ export default function Manage({
           act("deck.split", { id: managedDeck.id, title: splitTitle, topics: splitTopics }, async (result) => {
             setManagedDeck(await call("deck.get", { id: managedDeck.id }));
             setSplitTopics([]); setSplitTitle("");
-            setNotice(uiFormat("已拆出 {0} 道题到新题组",[result.moved]));
+            toast.success(uiFormat("已拆出 {0} 道题到新题组",[result.moved]));
           });
         }}>
           <span className="manage-label">
@@ -173,25 +150,25 @@ export default function Manage({
             <button disabled={busy || !splitReady}>{ui("拆出所选主题")}</button>
           </div>
         </form>}
-      </div>}
+      </Panel>}
       {merging && targetId && <MergeDeckDialog deck={managedDeck} target={peers.find((d) => d.id === targetId) || { title: "" }}
         onClose={() => setMerging(false)} onConfirm={async () => {
           const result = await act("deck.merge", { sourceIds: [managedDeck.id], targetId }, (moved) => {
-            setPage("library"); setNotice(uiFormat("已合并 {0} 道题，全部保留", [moved.moved]));
+            setPage("library"); toast.success(uiFormat("已合并 {0} 道题，全部保留", [moved.moved]));
           }, { rethrow: true });
           if (result === undefined) throw new Error(ui("另一个操作还在进行，请稍后重试。"));
         }} />}
       {!managedDeck.cards.length && <p className="muted">{slainView ? ui("斩题组为空。练习时点击“斩”，题目会收纳到这里。") : ui("当前题组没有题目。已斩的题可从斩题组恢复。")}</p>}
       <div className="manage-cards">
         {managedDeck.cards.map((card) => (
-          <article className={`manage-card${card.suspended ? " is-suspended" : ""}`} key={card.id}>
+          <Panel as="article" density="compact" className={`manage-card${card.suspended ? " is-suspended" : ""}`} key={card.id}>
             <div className="manage-card__body">
               <div className="manage-card__meta">
-                <span className="manage-chip">{card.topic || ui("未分类")}</span>
+                <Badge size="sm">{card.topic || ui("未分类")}</Badge>
                 <span>{card.kind}</span>
-                {card.suspended && <span className="manage-chip manage-chip--warn">{ui("已暂停")}</span>}
-                {marks && marks[card.id] !== reviewedCardFingerprint(card) && <span className="manage-chip manage-chip--warn">{ui("未自动审阅")}</span>}
-                {selfCitedCardCount([card], sources) > 0 && <span className="manage-chip manage-chip--warn">{ui("仅有导入题目引用")}</span>}
+                {card.suspended && <Badge size="sm" tone="warning">{ui("已暂停")}</Badge>}
+                {marks && marks[card.id] !== reviewedCardFingerprint(card) && <Badge size="sm" tone="warning">{ui("未自动审阅")}</Badge>}
+                {selfCitedCardCount([card], sources) > 0 && <Badge size="sm" tone="warning">{ui("仅有导入题目引用")}</Badge>}
               </div>
               <Markdown className="md-title manage-card__prompt" text={card.prompt} />
               {card.flag && <p className="muted">{ui("标记：")}{card.flag}</p>}
@@ -203,7 +180,7 @@ export default function Manage({
                 { deckId: managedDeck.id, cardId: card.id },
                 async (result) => {
                   setManagedDeck(await call("deck.get", { id: managedDeck.id }));
-                  setNotice(slainView ? uiFormat("已恢复到「{0}」",[result.title]) : ui("已移入斩题组，不再参与复习，可在斩题组恢复。"));
+                  toast.success(slainView ? uiFormat("已恢复到「{0}」",[result.title]) : ui("已移入斩题组，不再参与复习，可在斩题组恢复。"));
                 },
               )}>{slainView ? ui("恢复原题组") : ui("斩")}</button>
               <button
@@ -247,7 +224,7 @@ export default function Manage({
                 >{ui("清除标记")}</button>
               )}
             </div>
-          </article>
+          </Panel>
         ))}
       </div>
     </section>

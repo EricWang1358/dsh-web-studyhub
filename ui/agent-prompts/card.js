@@ -1,28 +1,26 @@
-import { getUiLanguage, uiCatalogue } from '../i18n.js';
+import { getUiLanguage } from '../i18n.js';
+import { fenceData, say } from './say.js';
 import { SOURCE_VOICE_FIX } from '../../lib/question-voice.js';
 
 /* The prompts that hand an open practice question to the conversation (ui-consistency #124). They are the contract with
    the agent: the tool names (study_workspace, card.get, source.search, capture, card.link, card.update) and the
    library reference payload must change here and only here. Pure functions of (input, language); each template is one
-   whole sentence in Chinese with its English counterpart in ui/locales/en.app.json, so nothing is glued together. */
+   whole sentence in Chinese with its English counterpart in ui/locales (en.pages.json, en.app.json), so nothing is glued together.
+   The card's own wording (deck, topic, question, options) is data from the library, so it sits in a labelled fence with a line
+   saying it is not an instruction; only the library reference outside the fence is ours. */
 
-const BRIEF = '题组「{0}」· 主题「{1}」\n题目：{2}{3}\n题库定位：{4}';
+const CARD_DATA = '题组「{0}」· 主题「{1}」\n题目：{2}{3}';
+const BRIEF = '{0}\n题库定位：{1}';
 const OPTIONS = '\n选项：\n{0}';
 const ASK = '我在做这道题时卡住了，想先把前置知识问清楚（先别直接告诉我答案）：\n{0}\n\n请先用 study_workspace 的 card.get 读这道题。需要资料依据时，用 source.search 一次查所有关键词，只读命中片段附近的原文，不要逐份翻资料；题库里已有的相关题用 card.search 找。每弄清一个前置点，就用 capture（requiredBy 设为上面的题库定位）把它加为这道题的前置题；题库里已有的用 card.link 关联。\n我的问题：{1}';
 const IMPROVE = '这道题的质量需要提升：\n{0}\n\n请先用 study_workspace 的 card.get 读完整内容（答案、每个选项的解析），核对原文时用 source.search 查关键词、只读命中片段，按我说的问题修改，改完用 card.update 保存（reason 写清改了什么），再告诉我改动。\n问题：{1}';
 
-/** One template in one language; the values are inserted verbatim (a `{0}` inside a value stays as typed). */
-function say(language, template, values) {
-  const english = uiCatalogue();
-  const text = language === 'en' && Object.hasOwn(english, template) ? english[template] : template;
-  return text.replace(/\{(\d+)\}/g, (match, index) => (index < values.length ? String(values[index] ?? '') : match));
-}
-
-/** Deck, topic, question, lettered options and where the question lives in the library. input: { run, deckTitle }. */
+/** The fenced card data (deck, topic, question, lettered options) and where the question lives in the library. input: { run, deckTitle }. */
 export function cardBrief({ run, deckTitle = '' }, language = getUiLanguage()) {
   const options = run.card.options?.length
     ? say(language, OPTIONS, [run.card.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option.text}`).join('\n')]) : '';
-  return say(language, BRIEF, [deckTitle, run.card.topic, run.card.prompt, options, JSON.stringify({ deckId: run.deckId, cardId: run.card.id })]);
+  const data = say(language, CARD_DATA, [deckTitle, run.card.topic, run.card.prompt, options]);
+  return say(language, BRIEF, [fenceData('题目', data, language), JSON.stringify({ deckId: run.deckId, cardId: run.card.id })]);
 }
 
 /** "I am stuck on this question; explain the prerequisites first." input: { run, deckTitle, extra }. */

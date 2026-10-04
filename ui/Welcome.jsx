@@ -1,8 +1,9 @@
 import React from "react";
 import { ui, uiFormat } from "./i18n.js";
-import { Banner, Button, Icon, SetupRequired } from "./components/index.js";
+import { Banner, Button, Icon, Panel, SetupRequired } from "./components/index.js";
 import { useInjectCss } from "./shared.js";
 import css from "./welcome.css";
+import migrationCss from "./panel-migrations.css";
 
 /**
  * The first screen of an empty library (and of a freshly loaded sample, until
@@ -14,6 +15,7 @@ import css from "./welcome.css";
  */
 export default function Welcome({ model, sample, busy = false, onStartSample, onStartTour, onImport, onSetupModel, onRemoveSample, onLater }) {
   useInjectCss(css, "study-welcome");
+  useInjectCss(migrationCss, "study-panel-migrations");
   const loaded = !!sample?.loaded;
   const modelReady = model?.ready !== false;
   return (
@@ -27,33 +29,33 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
       </header>
       {loaded ? (
         <div className="welcome__choices">
-          <article className="welcome-card welcome-card--lead">
+          <Panel as="article" tone="accent" className="welcome-card welcome-card--lead">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="sparkle" size={22} /></span>
             <h2 className="welcome-card__title">{ui("跟着导览走一遍")}</h2>
             <p className="welcome-card__text">{ui("两三分钟，依次切到资料、出题、练习、错题和统计等页面，看看每一步怎么用。")}</p>
             <div className="welcome-card__action">
               <Button variant="primary" iconEnd="arrow-right" disabled={busy} onClick={onStartTour}>{ui("开始导览")}</Button>
             </div>
-          </article>
-          <article className="welcome-card">
+          </Panel>
+          <Panel as="article" className="welcome-card">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="upload" size={22} /></span>
             <h2 className="welcome-card__title">{ui("从自己的资料开始")}</h2>
             <p className="welcome-card__text">{ui("PDF、Markdown、网页或文本都可以，原文件会保留。导入后就能用它出题。")}</p>
             <div className="welcome-card__action">
               <Button icon="upload" disabled={busy} onClick={onImport}>{ui("导入我的第一份资料")}</Button>
             </div>
-          </article>
+          </Panel>
         </div>
       ) : (
         <div className="welcome__choices welcome__choices--first">
-          <article className="welcome-card welcome-card--lead">
+          <Panel as="article" tone="accent" className="welcome-card welcome-card--lead">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="upload" size={22} /></span>
             <h2 className="welcome-card__title">{ui("从自己的资料开始")}</h2>
             <p className="welcome-card__text">{ui("PDF、Markdown、网页或文本都可以，原文件会保留。导入后就能用它出题。")}</p>
             <div className="welcome-card__action">
               <Button variant="primary" icon="upload" disabled={busy} onClick={onImport}>{ui("导入我的第一份资料")}</Button>
             </div>
-          </article>
+          </Panel>
           {/* The sample is for looking around first: a quiet link, never the lead. */}
           <p className="welcome__sample">
             <span>{ui("想先看看效果？")}</span>

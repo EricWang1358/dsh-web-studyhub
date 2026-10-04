@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ui } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 import { Button, CloseButton, Hint, InlineMessage } from '../components/index.js';
 
 /**
@@ -35,7 +35,7 @@ export default function MergeSuggestions({ merge, busy }) {
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       {suggestions && <div className="merge-suggestions">
         <div className="merge-suggestions-head">
-          <strong>{suggestions.course}{ui(' · 合并建议')}</strong>
+          <strong>{uiFormat('{0} · 合并建议', [suggestions.course])}</strong>
           <CloseButton onClick={merge.close} />
         </div>
         {!suggestions.proposals.length && <Hint>
@@ -43,7 +43,7 @@ export default function MergeSuggestions({ merge, busy }) {
         </Hint>}
         {suggestions.proposals.map((item) => <div className="merge-suggestion" key={item.targetId}>
           <div><strong>{item.sourceTitles.join('、')} → {item.targetTitle}</strong>
-            <p>{item.reason}{ui(' · 合并后共 ')}{item.count}{ui(' 题，全部题目保留。')}</p></div>
+            <p>{item.reason}{' · '}{uiFormat('合并后共 {0} 题，全部题目保留。', [item.count])}</p></div>
           <Button size="sm" disabled={busy || merge.busy} onClick={() => merge.confirm(item)}>{ui('确认合并')}</Button>
         </div>)}
       </div>}

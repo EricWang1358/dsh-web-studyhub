@@ -19,10 +19,11 @@ import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
 import DailyRecap from './DailyRecap.jsx';
-import { Button, Popover, ProgressBar, Spinner } from "./components/index.js";
+import { Button, PageHeader, Popover, ProgressBar, Spinner } from "./components/index.js";
 import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "./agent-prompts/card.js";
+import { weakTopicsPrompt } from "./agent-prompts/library.js";
 import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
@@ -197,33 +198,26 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
       {rail && <ReviewNavigator run={run} busy={busy} onJump={(index) => reviewAct("review.move", { index })} />}
-      <div className="review-heading">
-        <div>
-          {flow && <p className="review-flow-origin">{[ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ")}</p>}
-          <h1>{[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}</h1>
-          <button
-            className="pill"
-            onClick={() => openModal({ type: "sources" })}
-          >{uiFormat("查看 {0} 份资料", [run.sourceIds?.length || 0])}</button>
-          {skeletonHere && openSkeleton && (
-            <button className="pill" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("◈ 知识骨架")}</button>
-          )}
-        </div>
-        <div className="review-heading-actions">
+      <PageHeader className="review-heading" compact
+        eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
+        title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
+        actions={<>
           {host.openInSidebar && !run.complete && (
-            <button
-              className="ghost-btn"
-              title={ui("题目放到右栏，主区域回到对话")}
-              onClick={() => host.openInSidebar(run.id)}
-            >{ui("在右栏打开")}</button>
+            <Button variant="quiet" title={ui("题目放到右栏，主区域回到对话")} onClick={() => host.openInSidebar(run.id)}>{ui("在右栏打开")}</Button>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
-          <button className="review-return" aria-label={flow ? ui("回到学习流") : ui("返回学习库")} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : navigate("library")}>
+          <Button variant="quiet" className="review-return" aria-label={flow ? ui("回到学习流") : ui("返回学习库")} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : navigate("library")}>
             <span className="review-return-full">{flow ? ui("回到学习流") : ui("返回学习库")}</span>
             <span className="review-return-short" aria-hidden="true">{ui("返回")}</span>
-          </button>
+          </Button>
+        </>}>
+        <div className="review-heading-links">
+          <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [run.sourceIds?.length || 0])}</Button>
+          {skeletonHere && openSkeleton && (
+            <Button variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
+          )}
         </div>
-      </div>
+      </PageHeader>
       {run.complete ? (
         // Distinct keys: without them React reuses the question body's DOM nodes
         // for the summary, and the ✓ badge inherited .question-area's inline
@@ -231,7 +225,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         <div key="summary" className="session-summary result-page">
           <div className="result-reading"><ReadingSettingsButton /></div>
           <div className="result-kicker">{ui("本轮学习结果")}</div>
-          <h1 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h1>
+          <h2 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h2>
           <p className="result-subtitle">{uiFormat("{0} · {1} 道题", [shellTitle, run.questions ?? run.total])}</p>
           {onReturnToReading && <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} />}
           <div className="result-hero">
@@ -316,9 +310,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             {run.weakTopics?.length > 0 && (
               <button
                 onClick={() =>
-                  askInChat(
-                    uiFormat('我刚在「{0}」里这些主题还没掌握稳：{1}。请结合学习库资料逐个讲清楚，并各出一道小题检查我。', [shellTitle, run.weakTopics.join(', ')]),
-                  )
+                  askInChat(weakTopicsPrompt({ title: shellTitle, topics: run.weakTopics }))
                 }
               >{ui("在对话中讲解薄弱点")}</button>
             )}
@@ -723,7 +715,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             {run.feedback && (
               <p className={"next-due" + (run.feedback.correct ? "" : " retry")}>
                 {uiFormat("{0} · 下次复习 {1}", [run.feedback.correct ? ui("✓ 已掌握") : ui("↻ 将继续巩固"), date(run.feedback.nextDue)])}
-                {run.feedback.retryQueued && <span>{ui(" · 已追加到本轮队尾，稍后再练一次")}</span>}
+                {run.feedback.retryQueued && <span>{" · "}{ui("已追加到本轮队尾，稍后再练一次")}</span>}
               </p>
             )}
             <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => openModal({ type: "source", source, quote, back: true })} />

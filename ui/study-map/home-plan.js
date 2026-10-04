@@ -1,6 +1,7 @@
 import { ui, uiFormat, uiLocale } from '../i18n.js';
 import { documentCount } from '../generation-status.js';
 import { TERMS } from '../mastery-terms.js';
+import { workspaceFilePrompt } from '../agent-prompts/library.js';
 
 /**
  * What the home card offers. The card offers exactly one action: a newcomer's
@@ -37,7 +38,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
             title: ui('还没有资料'), next: ui('添加讲义、笔记或 PDF，AI 会据此出题；发布后这里会给出学习路径。'),
             action: { label: ui('添加第一份资料'), run: addSource },
             also: [jsonLink, ...(canChat ? [[ui('在对话中用工作区文件出题'), () => askInChat(
-              ui('请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。'))]] : [])] };
+              workspaceFilePrompt())]] : [])] };
   const breakdown = [
     today.due && uiFormat('{0} 题到期', [today.due]),
     today.weak && uiFormat('{0} 题薄弱', [today.weak]),

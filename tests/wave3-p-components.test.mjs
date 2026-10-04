@@ -26,6 +26,12 @@ test('PageHeader titleProps land on the h1 (focus targets and context headings)'
   assert.match(out, /<h1 class="sh-page-header__title" tabindex="-1" data-context-heading="true">笔记<\/h1>/);
 });
 
+test('PageHeader compact is the one-line header of a working surface', () => {
+  assert.match(html(m.PageHeader, { title: '题', compact: true }), /<header class="sh-page-header sh-page-header--compact">/);
+  assert.doesNotMatch(html(m.PageHeader, { title: '题' }), /--compact/);
+  assert.match(readFileSync('ui/components/page-header.css', 'utf8'), /\.sh-page-header--compact \.sh-page-header__title/);
+});
+
 test('Panel tones, density and element', () => {
   assert.match(html(m.Panel, { title: 'a' }, 'x'), /^<section class="sh-panel">/, 'plain is the default and adds no modifier class');
   for (const tone of ['sunken', 'accent', 'dashed', 'paper']) assert.match(html(m.Panel, { tone }, 'x'), new RegExp(`class="sh-panel sh-panel--${tone}"`));

@@ -1,7 +1,9 @@
 import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
-import { Banner, Button, Disclosure, Hint } from "./components/index.js";
+import { Banner, Button, Disclosure, Hint, PageHeader, Panel, useToast } from "./components/index.js";
+import { useInjectCss } from "./shared.js";
+import migrationCss from "./panel-migrations.css";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS } from "../lib/job-status.js";
@@ -42,8 +44,6 @@ export default function Draft({
   onStartPublished,
   clearRecovery,
   setPage,
-  setNotice,
-  setError,
   setModal,
   setSelectedSources,
   setGenSource,
@@ -51,6 +51,8 @@ export default function Draft({
   patchCard,
   parseDraft,
 }) {
+  useInjectCss(migrationCss, "study-panel-migrations");
+  const toast = useToast();
   const [deleteArmedId, setDeleteArmedId] = React.useState(null);
   const science = useSciencePreferences();
   const appendImage = (cardId, key, markdown) => setDraft(current => current.id !== draft.id ? current : ({ ...current, cards: current.cards.map(card =>
@@ -114,7 +116,7 @@ export default function Draft({
     try {
       copy = structuredClone(jsonMode ? parseDraft(draftText) : draft);
     } catch (error) {
-      setError(uiFormat("JSON 格式不正确：{0}", [error.message]));
+      toast.error(uiFormat("JSON 格式不正确：{0}", [error.message]));
       return;
     }
     copy.id = crypto.randomUUID();
@@ -131,7 +133,7 @@ export default function Draft({
       try {
         setDraft(parseDraft(draftText));
       } catch (error) {
-        setError(uiFormat("JSON 格式不正确：{0}", [error.message]));
+        toast.error(uiFormat("JSON 格式不正确：{0}", [error.message]));
         return;
       }
     }
@@ -139,13 +141,8 @@ export default function Draft({
   }
   return (
     <section className="page draft-page">
-      <div className="page-heading draft-heading">
-        <div>
-          <div className="eyebrow">PUBLISH YOUR DRAFT</div>
-          <h1>{ui("草稿与发布")}</h1>
-        </div>
-        {jsonMode && <button type="button" onClick={toggleJsonMode}>{ui("返回逐题编辑")}</button>}
-      </div>
+      <PageHeader eyebrow={ui("发布草稿")} title={ui("草稿与发布")}
+        actions={jsonMode && <Button variant="quiet" onClick={toggleJsonMode}>{ui("返回逐题编辑")}</Button>} />
       {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
       </label>}
       {!jsonMode && draft.format === "case-study" && <CaseDraftHeader draft={draft} data={data} />}
@@ -158,7 +155,7 @@ export default function Draft({
             try {
               d = jsonMode ? parseDraft(draftText) : draft;
             } catch (e) {
-              setError("JSON 格式不正确：" + e.message);
+              toast.error("JSON 格式不正确：" + e.message);
               return;
             }
             act("draft.save", { deck: d }, openDraft);
@@ -173,7 +170,7 @@ export default function Draft({
             try {
               d = jsonMode ? parseDraft(draftText) : draft;
             } catch (e) {
-              setError("JSON 格式不正确：" + e.message);
+              toast.error("JSON 格式不正确：" + e.message);
               return;
             }
             await act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => {
@@ -188,12 +185,12 @@ export default function Draft({
                   mode: "new", count: 10, ordered: true, fresh: true });
                 if (isCurrent()) {
                   onStartPublished(run);
-                  setNotice(uiFormat("已发布，开始学习本轮 {0} 道新题。",[run.total]));
+                  toast.success(uiFormat("已发布，开始学习本轮 {0} 道新题。",[run.total]));
                 }
               } catch {
                 if (isCurrent()) {
                   setPage("library");
-                  setNotice(ui("题组已发布；当前没有可开始的新题。"));
+                  toast.success(ui("题组已发布；当前没有可开始的新题。"));
                 }
               }
             }, { afterNavigation: true });
@@ -305,12 +302,12 @@ export default function Draft({
           <Button size="sm" disabled={busy || repairRunning || staleDraft || unsavedDraft || !data.modelReady || !repairableCount}
             title={unsavedDraft ? ui("先保存草稿") : !data.modelReady ? ui("先在设置中选择模型") : !repairableCount ? ui("先给待处理题目添加引用来源") : ui("后台逐题修复并独立复审")}
             onClick={() => act("draft.repair", { id: draft.id, draftVersion: draft.draftVersion },
-              () => setNotice(ui("后台修题已启动；完成后可回来发布通过的题目。")))}>
+              () => toast.success(ui("后台修题已启动；完成后可回来发布通过的题目。")))}>
             {repairRunning ? ui("后台修题中…") : ui("交给后台修题")}
           </Button>
           {repairJob && <Button size="sm" variant="quiet" disabled={busy || repairJob.status === JOB_STATUS.CANCELLING}
             onClick={() => act("job.cancel", { jobId: repairJob.id },
-              () => setNotice(ui("正在停止后台修题；已修好的题目会保留在草稿中。")))}>
+              () => toast.success(ui("正在停止后台修题；已修好的题目会保留在草稿中。")))}>
             {repairJob.status === JOB_STATUS.CANCELLING ? ui("正在停止修题…") : ui("停止修题，保留草稿")}
           </Button>}
         </div>
@@ -358,7 +355,7 @@ export default function Draft({
       ) : (
         <>
           {draft.cards.map((q, i) => (
-            <details className="draft-card" key={q.id}>
+            <Panel as="details" className="draft-card" key={q.id}>
               <summary>
                 <span>{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
                 {q.prompt.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, '[$1]')}
@@ -568,7 +565,7 @@ export default function Draft({
                   onClick={() => patchCard(i, "citations", [...(q.citations || []),
                     { sourceId: data.sources[0].id, quote: "" }])}>{ui("＋ 添加原文引用")}</button>
               </div>
-            </details>
+            </Panel>
           ))}
           <button
             disabled={draft.cards.length >= 100}

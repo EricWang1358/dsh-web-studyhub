@@ -7,7 +7,7 @@ export default function SelectionBar({ scope, run, busy, onClear, onShowGraph, o
   if (!scope.length) return null;
   return (
     <div className="selection-bar" role="region" aria-label={ui('已选内容')}>
-      <span>{ui('已选 ')}{scope.length}{ui(' 项')}</span>
+      <span>{uiFormat('已选 {0} 项', [scope.length])}</span>
       <Button size="sm" onClick={onClear}>{ui('清除')}</Button>
       <Button size="sm" disabled={busy} title={ui('用整块画布打开所选范围的知识结构图或学习路径图（可缩放、拖拽）')} onClick={() => onShowGraph?.(scope, { canvas: true })}>{ui('查看图谱')}</Button>
       <Button variant="primary" size="sm" icon="play" disabled={busy} onClick={() => (run ? onResume(run.id) : onStart({ mode: 'path', scope }))}>
