@@ -67,7 +67,7 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   assert.equal(await page.locator('.teaching-context dt').count(), 3);
   assert.equal(await page.locator('.teaching-progress').getAttribute('aria-valuenow'), '0');
   await answer.fill('wrong');
-  await page.locator('.teaching-panel button.primary').click();
+  await page.locator('.teaching-panel button.sh-btn--primary').click();
   await page.getByText('Try checking the time unit', { exact: true }).waitFor();
   assert.equal(await answer.inputValue(), 'wrong');
   await page.reload();
@@ -76,7 +76,7 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   assert.equal(await answer.inputValue(), 'wrong');
   const release = Promise.withResolvers(); gate = release.promise;
   await answer.fill('right');
-  await page.locator('.teaching-panel button.primary').click();
+  await page.locator('.teaching-panel button.sh-btn--primary').click();
   await gradingStarted.promise;
   await answer.fill('typed while checking');
   release.resolve();

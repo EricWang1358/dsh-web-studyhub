@@ -1,6 +1,7 @@
 import React from "react";
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
+import { Button } from "./components/index.js";
 import { useInjectCss } from "./shared.js";
 import { gateTitle } from "./ModelSetupGate.jsx";
 import css from "./draft-shortfall.css";
@@ -23,11 +24,11 @@ export function DraftTopUp({ draft, jobs = [], busy = false, modelReady = true, 
   if (!work && !canContinueDraft(draft)) return null;
   const blocked = busy || !!work || !modelReady;
   return <div className={"draft-topup " + className} data-draft-topup>
-    <button type="button" disabled={blocked}
+    <Button disabled={blocked}
       title={work ? undefined : !modelReady ? gateTitle("block") : ui("用原资料补齐题目，保留已有草稿")}
       onClick={() => onContinue?.(draft)}>
       {work ? draftWorkLabel(work, draft) : uiFormat("继续补齐 {0} 题", [missing])}
-    </button>
+    </Button>
     {!work && modelReady && call && <TokenEstimate call={call} enabled request={{ feature: "generate", resumeDraftId: draft.id, draftVersion: draft.draftVersion }} />}
   </div>;
 }

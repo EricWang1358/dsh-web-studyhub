@@ -6,7 +6,7 @@ import React, { useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
-import { ConfirmDialog } from "./components/index.js";
+import { Button, ConfirmDialog } from "./components/index.js";
 import css from "./workflow-scope.css";
 
 const PICKED = { route: "课程路线的这一批", none: "学习库里还没有相关的题目", ai: "AI 选的范围", match: "按名称匹配的范围", course: "没找到直接相关的主题，先学当前课程" };
@@ -55,7 +55,7 @@ export function ScopeBar({ session, resources, disabled, onRescope, onStartNew }
           {courses.map((item) => <option key={item.name} value={item.name}>{item.name === course ? uiFormat("{0}（当前）", [courseName(item.name)]) : courseName(item.name)}</option>)}
         </select>
       </label>
-      {hint && <p className="wf-scope-hint">{uiFormat("「{0}」可能更相关", [courseName(hint.course)])} · <button type="button" className="link-btn" onClick={() => choose(hint.course)}>{ui("切换到这门课")}</button></p>}
+      {hint && <p className="wf-scope-hint">{uiFormat("「{0}」可能更相关", [courseName(hint.course)])} · <Button variant="link" size="sm" onClick={() => choose(hint.course)}>{ui("切换到这门课")}</Button></p>}
     </div>}
     {asking !== null && <ConfirmDialog tone="primary" title={ui("换课程要开始新的学习")} cancelLabel={ui("先不换")}
       confirmLabel={uiFormat("为「{0}」开始新的学习", [courseName(asking)])} onClose={() => setAsking(null)}

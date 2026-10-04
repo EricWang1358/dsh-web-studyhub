@@ -109,6 +109,5 @@ const files = (dir, out = []) => {
 test('role="tab" lives in components/Tabs.jsx; the remaining hand-written tablists are listed work for other packages (#144)', () => {
   const owners = files(join(process.cwd(), 'ui')).filter(file => /role=["']tab["']/.test(readFileSync(file, 'utf8')))
     .map(file => file.replace(/\\/g, '/').replace(/^.*\/ui\//, 'ui/')).sort();
-  // Generate.jsx belongs to WP-M (its tablist moves to <Tabs> there).
-  assert.deepEqual(owners, ['ui/Generate.jsx', 'ui/components/Tabs.jsx']);
+  assert.deepEqual(owners, ['ui/components/Tabs.jsx'], 'Generate.jsx uses <Tabs> since wave 3');
 });

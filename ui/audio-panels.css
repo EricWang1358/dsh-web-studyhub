@@ -1,0 +1,21 @@
+/* The usage console is two Panels (ui-consistency #143): the folded row is a plain panel with no padding of its own (its summary
+   pads itself), the console inside is the sunken tone. The surface rules of .audio-usage-panel and .audio-dashboard in
+   audio-dashboard.css (border, radius, background) are superseded here; those selectors keep only their layout. Tokens only. */
+:is(.study-app, .study-seat) .audio-usage-panel.sh-panel {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+:is(.study-app, .study-seat) .audio-dashboard.sh-panel {
+  padding: var(--space-6);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+:is(.study-app, .study-seat) .audio-usage-panel.sh-panel > .audio-dashboard.sh-panel {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+}

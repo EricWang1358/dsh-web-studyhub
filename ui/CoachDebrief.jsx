@@ -4,15 +4,18 @@ import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
 import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
+import { Button } from "./components/index.js";
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
-   自动驾驶开启时按 next 倒计时执行（白名单动作，可取消）。 */
+   自动驾驶开启时按 next 倒计时执行（白名单动作，可取消）。
+   「继续学习」的去向由页面决定（destination：{ kind, label, go }，见 ui/review/session-logic.js continueDestination）：
+   去向是回到原题时，这张卡不再提供任何会把人带去别处的按钮，只让自动驾驶倒计时走回原题；页面自己的「回到原题」是唯一主动作。 */
 
 const LEVELS = [["recall", "记忆"], ["concept", "概念辨析"], ["apply", "应用分析"]];
 const COUNTDOWN = 5;
 
-export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, busy }) {
+export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, busy }) {
   useInjectCss(css, "study-coach");
   const [debrief, setDebrief] = useState(initial || null),
     [status, setStatus] = useState(initial?.status || null),
@@ -37,10 +40,13 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   usePolling(() => call("coach.status").then(setStatus).catch(() => {}), { intervalMs: 2000, enabled: waiting });
 
   const ready = status?.ready || 0;
-  const next = ready ? "practice_prepared" : debrief?.next === "practice_prepared" ? (waiting ? "wait" : "continue_path") : debrief?.next;
-  const action = next === "practice_prepared" ? onPractice
-    : next === "review_weak" ? onReviewWeak : next === "continue_path" ? onContinue : null;
-  const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题 →", [ready]) : next === "review_weak" ? ui("先补薄弱点 →") : ui("继续学习 →");
+  // A prerequisite round has one way on: back to the question it came from (autopilot included); nothing else competes with it.
+  const back = destination?.kind === "original";
+  const next = back ? "original" : ready ? "practice_prepared" : debrief?.next === "practice_prepared" ? (waiting ? "wait" : "continue_path") : debrief?.next;
+  const onward = destination?.go || onContinue;
+  const action = next === "original" ? destination.go : next === "practice_prepared" ? onPractice
+    : next === "review_weak" ? onReviewWeak : next === "continue_path" ? onward : null;
+  const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题 →", [ready]) : next === "review_weak" ? ui("先补薄弱点 →") : destination?.label || ui("继续学习 →");
 
   // Autopilot: count down, then take the suggested step; any click cancels.
   const cancelled = useRef(false);
@@ -114,7 +120,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
             {LEVELS.map(([id, name]) => (
               <span key={id}>
                 <i className={"coach-levels-dot " + id} style={{ background: `var(--${id === "recall" ? "decor-faint" : id === "concept" ? "info" : "ok"})` }} />
-                {ui(name)}{ui("达标 ")}{m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0}/{m.levels?.[id]?.n || 0}
+                {uiFormat("{0} 达标 {1}/{2}", [ui(name), m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0, m.levels?.[id]?.n || 0])}
               </span>
             ))}
           </div>
@@ -127,22 +133,22 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       )}
       <div className="coach-actions">
         {next === "wait" && (
-          <button className="primary" disabled>{ui("正在为你备应用题…")}</button>
+          <Button variant="primary" disabled>{ui("正在为你备应用题…")}</Button>
         )}
-        {action && (
-          <button
-            className="primary"
+        {action && !back && (
+          <Button
+            variant="primary"
             disabled={busy}
             onClick={() => {
               cancelled.current = true;
               action();
             }}
           >
-            {ui(label)}
-          </button>
+            {label}
+          </Button>
         )}
         {left !== null && left > 0 && (
-          <span className="coach-countdown" role="status">{ui("自动驾驶：")}{left}{ui(" 秒后执行 ·")}{" "}
+          <span className="coach-countdown" role="status">{back ? uiFormat("自动驾驶：{0} 秒后{1} ·", [left, label.replace(/\s*→$/, "")]) : uiFormat("自动驾驶：{0} 秒后执行 ·", [left])}{" "}
             <button className="coach-chip" onClick={() => { cancelled.current = true; setLeft(null); }}>{ui("取消")}</button>
           </span>
         )}

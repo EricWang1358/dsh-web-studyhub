@@ -16,7 +16,7 @@ const han = /[㐀-鿿]/;
 const baseRun = { id: "r", index: 0, total: 2, mode: "path", card: { id: "q", kind: "quiz", topic: "T", prompt: "P?", options: [] } };
 const render = (run, props = {}) => renderToStaticMarkup(React.createElement(ReviewToolbar, {
   run: { ...baseRun, ...run }, busy: false, onToggleHelp() {}, onAsk() {}, onImprove() {}, onSlay() {}, onNote() {}, onReviewAction() {}, ...props }));
-const nextButton = (html) => html.match(/<button[^>]*class="primary pill"[^>]*>/)?.[0] || "";
+const nextButton = (html) => html.match(/<button[^>]*data-usage="review.next"[^>]*>/)?.[0] || "";
 
 test("an unanswered question says why 下一题 is unavailable, in words next to the button", () => {
   setUiLanguage("zh");

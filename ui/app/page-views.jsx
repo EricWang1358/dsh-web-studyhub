@@ -1,14 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ui, uiFormat, uiLocale, setUiLanguage } from '../i18n.js';
 import { pageAvailable } from '../capabilities.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
-import { dismissJobs } from '../quick-actions.js';
 import { parseDraft } from '../draft-editor.js';
 import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes } from '../workspace-views.jsx';
 import StudyMap from '../StudyMap.jsx';
 import Welcome, { SampleBanner } from '../Welcome.jsx';
-import { OnboardingPanel } from '../tour/SampleControls.jsx';
 import Dashboard from '../Dashboard.jsx';
 import Exam from '../Exam.jsx';
 import WrongBook from '../WrongBook.jsx';
@@ -20,9 +18,7 @@ import Generate from '../Generate.jsx';
 import Draft from '../Draft.jsx';
 import Review from '../Review.jsx';
 import AudioImport from '../AudioImport.jsx';
-import { AudioPageHeader } from '../AudioPageHeader.jsx';
-import { CourseList } from '../CourseSettings.jsx';
-import { Button } from '../components/index.js';
+import { Button, PageHeader } from '../components/index.js';
 import { useApp } from './app-context.js';
 import { SourceForm } from './modals/AddSourceDialog.jsx';
 import { createSetupHandlers } from './setup-handlers.js';
@@ -34,8 +30,8 @@ import { RecoveryBanner } from './AppBanners.jsx';
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
 
 function LibraryView() {
-  const { data, host, core, nav, set, session, intents, drafts, notebooks, tour, dailyPlan, shell, settingsEntry, canChat } = useApp();
-  const { act, call, busy, notify, quick } = core;
+  const { data, core, nav, set, session, intents, drafts, notebooks, tour, dailyPlan, settingsEntry } = useApp();
+  const { busy, notify } = core;
   if (tour.showWelcome) return (
     <Welcome model={tour.modelState} sample={data.sample} busy={busy || tour.sampleBusy} onStartSample={tour.loadSampleAndTour}
       onStartTour={() => tour.startTour({ restart: true })} onImport={tour.openFirstImport} onSetupModel={settingsEntry.openModelSettings}
@@ -44,31 +40,25 @@ function LibraryView() {
   return (
     <>
       {data.sample?.loaded && <SampleBanner sample={data.sample} busy={busy || tour.sampleBusy} onTour={() => tour.startTour({ restart: true })} onRemove={() => tour.setRemovingSample(true)} />}
-      <StudyMap data={data} busy={busy} start={intents.startReview} resume={intents.openRun} endRun={(runId) => act('review.end', { runId })}
-        restoreDeck={(id) => act('deck.archive', { id, archived: false }, () => notify(ui('题组已恢复。')))}
-        removeDeck={(id) => set.setRemovingDeck({ id, root: data.root })} manage={intents.openDeck}
-        openDraft={(draft) => drafts.openDraft(draft, { navigation: true })} continueDraft={drafts.continueDraft} call={call}
-        retryGeneration={(job) => {
-          const available = new Set(data.sources.map((source) => source.id));
-          intents.goGenerate({ sourceIds: (job.sourceIds || []).filter((id) => available.has(id)),
-            genPatch: (current) => ({ kind: job.kind || current.kind, count: job.requestedTotal || job.count || current.count }) });
-          notify(ui('已带回可用资料、题型和题数；请核对学习目标后再生成。'));
-        }}
-        openAgent={host.openAgent} cancelJob={(jobId) => act('job.cancel', jobId ? { jobId } : { all: true })} dismissJob={(jobId) => dismissJobs(quick, jobId)}
-        addSource={() => set.setModal({ type: 'add' })} createManual={drafts.createManual} importLibrary={() => intents.goGenerate({ source: 'json' })}
-        generateFromSources={(ids) => intents.goGenerate({ sourceIds: ids })}
-        setupHandlers={createSetupHandlers({ data, nav, set, intents, drafts, settingsEntry })}
-        onCoachPractice={pageAvailable(data, 'review') ? session.onCoachPractice : undefined}
-        onWeakPoints={pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined}
-        openModelSettings={settingsEntry.openModelSettings} canChat={canChat} reveal={intents.revealHome} onRevealed={() => intents.setRevealHome(0)}
-        askInChat={core.askInChat} theme={shell.theme} setTheme={shell.setTheme}
-        notebooks={notebooks.notebooks} notebookError={notebooks.notebookError} onNotebookPublish={notebooks.publish} onNotebookUnpublish={notebooks.unpublish}
-        onNotebookOpen={notebooks.open} refreshNotebooks={notebooks.loadNotebooks} onNotebookSearch={notebooks.search}
-        onShowGraph={(scope, options) => { set.setGraphScope(scope ?? null); set.setGraphCanvas(options?.canvas !== false); nav.navigate('graph'); }}
-        onFocus={(next) => act('focus.set', next)} onCourseSettings={settingsEntry.setCourseSettings} startCourseFlow={intents.startCourseFlow}
-        suggestRole={(args) => call('focus.suggest', args)} suggestMerges={(args) => call('deck.merge.suggest', args)}
-        mergeDecks={(args) => act('deck.merge', args, null, { rethrow: true })}>
-        {pageAvailable(data, 'review') && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} onBoard={() => nav.navigate('board')}
+      <StudyMap data={data} setupHandlers={createSetupHandlers({ data, nav, set, intents, drafts, settingsEntry })} notebooks={notebooks}
+        reveal={intents.revealHome} onRevealed={() => intents.setRevealHome(0)}
+        actions={{
+          start: intents.startReview, resume: intents.openRun, manage: intents.openDeck, removeDeck: (id) => set.setRemovingDeck({ id, root: data.root }),
+          openDraft: (draft) => drafts.openDraft(draft, { navigation: true }), continueDraft: drafts.continueDraft,
+          retryGeneration: (job) => {
+            const available = new Set(data.sources.map((source) => source.id));
+            intents.goGenerate({ sourceIds: (job.sourceIds || []).filter((id) => available.has(id)),
+              genPatch: (current) => ({ kind: job.kind || current.kind, count: job.requestedTotal || job.count || current.count }) });
+            notify(ui('已带回可用资料、题型和题数；请核对学习目标后再生成。'));
+          },
+          addSource: () => set.setModal({ type: 'add' }), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
+          generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }), startCourseFlow: intents.startCourseFlow,
+          onCoachPractice: pageAvailable(data, 'review') ? session.onCoachPractice : undefined,
+          onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,
+          onShowGraph: (scope, options) => { set.setGraphScope(scope ?? null); set.setGraphCanvas(options?.canvas !== false); nav.navigate('graph'); },
+          onCourseSettings: settingsEntry.setCourseSettings,
+        }}>
+        {pageAvailable(data, 'review') && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
         <RecoveryBanner />
       </StudyMap>
@@ -135,7 +125,7 @@ function ManageView() {
   const { data, core, nav, lib, set, drafts } = useApp();
   if (!lib.managedDeck) return null;
   return (
-    <Manage call={core.call} busy={core.busy} act={core.act} openDraft={drafts.openDraft} setPage={nav.navigate} setNotice={core.notify} managedDeck={lib.managedDeck}
+    <Manage call={core.call} busy={core.busy} act={core.act} openDraft={drafts.openDraft} setPage={nav.navigate} managedDeck={lib.managedDeck}
       decks={data.decks} sources={data.sources} modelReady={data.modelReady} setManagedDeck={set.setManagedDeck} folderDraft={lib.folderDraft}
       setFolderDraft={set.setFolderDraft} onRemoveDeck={(id) => set.setRemovingDeck({ id, root: data.root })} />
   );
@@ -144,10 +134,21 @@ function ManageView() {
 function SourcesView() {
   const { data, host, core, nav, lib, set, learn, sources, settingsEntry } = useApp();
   return (
-    <Sources key={data.root} data={data} busy={core.busy} act={core.act} setModal={set.setModal} sourceForm={<SourceForm />} call={core.call} setNotice={core.notify}
+    <Sources key={data.root} data={data} busy={core.busy} act={core.act} setModal={set.setModal} sourceForm={<SourceForm />} call={core.call}
       highlight={lib.sourceHighlight} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
       onLegacyRetry={(job) => { set.setLegacyAudioJobId(job.id); nav.navigate('audio'); }}
       onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onGenerate={sources.generateFromSources} />
+  );
+}
+
+/** The 音频转写 page's header: the shared PageHeader, its two links to neighbouring pages as quiet Buttons. */
+export function AudioHeader({ onSettings, onSources }) {
+  return (
+    <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。')}
+      actions={<>
+        <Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>
+        <Button variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
+      </>} />
   );
 }
 
@@ -155,7 +156,7 @@ function AudioView() {
   const { data, host, core, nav, lib, set, learn } = useApp();
   return (
     <section className="page">
-      <AudioPageHeader onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')} />
+      <AudioHeader onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')} />
       <AudioImport data={data} busy={core.busy} act={core.act} call={core.call} setNotice={core.notify} askInChat={core.askInChat} canAsk={!!host.askInChat}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
@@ -167,7 +168,7 @@ function AudioView() {
 function GenerateView() {
   const { data, core, nav, lib, set, drafts, intents, connection, settingsEntry, canChat } = useApp();
   return (
-    <Generate data={data} busy={core.busy} running={connection.running} act={core.act} call={core.call} setPage={nav.navigate} setNotice={core.notify}
+    <Generate data={data} busy={core.busy} running={connection.running} act={core.act} call={core.call} setPage={nav.navigate}
       openDraft={drafts.openDraft} genSource={intents.genSource} setGenSource={intents.setGenSource} gen={lib.gen} setGen={set.setGen}
       selectedSources={lib.selectedSources} setSelectedSources={set.setSelectedSources} setModal={set.setModal} askInChat={core.askInChat} canChat={canChat}
       openModelSettings={settingsEntry.openModelSettings}
@@ -184,14 +185,14 @@ function DraftView() {
     <Draft data={data} busy={core.busy} act={core.act} call={core.call} draft={lib.draft} draftLoaded={lib.draftLoaded} setDraft={set.setDraft}
       draftText={lib.draftText} setDraftText={set.setDraftText} jsonMode={lib.jsonMode} setJsonMode={set.setJsonMode} openDraft={drafts.openDraft}
       continueDraft={drafts.continueDraft} onOpenPublished={intents.openDeck} onStartPublished={session.enterRun} clearRecovery={drafts.clearRecovery}
-      setPage={nav.navigate} setNotice={core.notify} setError={core.setError} setModal={set.setModal} setSelectedSources={set.setSelectedSources}
+      setPage={nav.navigate} setModal={set.setModal} setSelectedSources={set.setSelectedSources}
       setGenSource={intents.setGenSource} blankCard={drafts.blankCard} patchCard={drafts.patchCard} parseDraft={parseDraft} />
   );
 }
 
-/** Settings still takes finished panels as props this wave (the binding panel, the course list, the onboarding block). */
+/** Settings reads the services from useStudy() and its panes draw the binding panel, the course list and the sample controls themselves. */
 function SettingsView() {
-  const { data, host, language, core, shell, lib, set, tour, settingsEntry, resetLibraryState } = useApp();
+  const { data, language, core, shell, lib, set, tour, settingsEntry, resetLibraryState } = useApp();
   const { call, setError, notify } = core;
   const { appearance, updateAppearance } = shell;
   async function exportData() {
@@ -211,13 +212,8 @@ function SettingsView() {
     }
   }
   return (
-    <Settings data={data} busy={core.busy} act={core.act} call={call} host={host} setNotice={notify} settings={lib.settings} setSettings={set.setSettings}
-      legacy={settingsEntry.legacy} setLegacy={settingsEntry.setLegacy} workspacePanel={<WorkspaceBindingPanel />}
-      coursePanel={<CourseList courses={data.courses || []} busy={core.busy} onOpen={settingsEntry.setCourseSettings} currentId={data.focus?.courseId}
-        recent={Object.fromEntries((data.focus?.courses || []).map((course) => [course.name, course.lastUsedAt]))}
-        onMerge={(id, mergeFrom) => settingsEntry.setCourseSettings({ id, mergeFrom })} />}
-      onboardingPanel={<OnboardingPanel sample={data.sample} progress={tour.tourResume} busy={core.busy || tour.sampleBusy} onTour={() => tour.startTour()}
-        onRestart={() => tour.startTour({ restart: true })} onLoad={data.sample ? tour.loadSampleOnly : undefined} onRemove={() => tour.setRemovingSample(true)} />}
+    <Settings data={data} settings={lib.settings} setSettings={set.setSettings}
+      legacy={settingsEntry.legacy} setLegacy={settingsEntry.setLegacy}
       exportData={exportData}
       appearance={{ language, onLanguage: setUiLanguage, ...appearance, onTheme: shell.setTheme,
         onScience: (value) => shell.setSciencePrefs(normalizeScienceSettings(value)),
@@ -244,6 +240,8 @@ function SettingsView() {
 function ReviewView({ feedback }) {
   const { data, core, nav, lib, set, session, learn, intents, dailyPlan, settingsEntry } = useApp();
   const run = session.run;
+  // A finished round may change what today's plan shows next (practice progress is counted from the answers), so read it again once.
+  useEffect(() => { if (run?.complete) dailyPlan.refresh?.(); }, [run?.id, run?.complete]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!run) return null;
   const detour = lib.detour && !(lib.detour.runId === run.id && lib.detour.index === run.index) ? lib.detour : null;
   const links = {
@@ -265,7 +263,7 @@ function ReviewView({ feedback }) {
     <>
       <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => nav.navigate('board')} />
       <Review session={session} data={data} shellTitle={shellTitleOf('review', { run, decks: data?.decks })} feedback={feedback}
-        coachProps={data ? session.coach : undefined} links={links}
+        coachProps={data ? { ...session.coach, destination: run.complete ? session.continueTo(dailyPlan) : undefined } : undefined} links={links}
         context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour }} />
     </>
   );
@@ -292,9 +290,8 @@ export function DisabledPage() {
   const { nav } = useApp();
   return (
     <section className="page" role="status">
-      <h1>{ui('此功能已停用')}</h1>
-      <p>{ui('在 DSH 插件管理器中启用所需组件后即可继续，已保存的学习资料仍会保留。')}</p>
-      <Button onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('工作区设置')}</Button>
+      <PageHeader title={ui('此功能已停用')} description={ui('在 DSH 插件管理器中启用所需组件后即可继续，已保存的学习资料仍会保留。')}
+        actions={<Button onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('工作区设置')}</Button>} />
     </section>
   );
 }

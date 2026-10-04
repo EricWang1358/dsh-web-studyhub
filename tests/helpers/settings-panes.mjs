@@ -6,9 +6,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
    renders as usual: the loaded panes render synchronously from then on. `Settings` is the bundled default export. */
 export async function warmSettingsPanes(Settings, props = {}) {
   const noop = () => {};
-  const element = React.createElement(Settings, { data: { settings: {}, focus: { courses: [] }, sources: [], decks: [], courses: [], root: 'r' }, busy: false, act: noop, call: undefined,
-    host: {}, setNotice: noop, settings: {}, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop, workspacePanel: null, coursePanel: null,
-    onboardingPanel: null, tourActive: true, ...props });
+  const element = React.createElement(Settings, { data: { settings: {}, focus: { courses: [] }, sources: [], decks: [], courses: [], root: 'r' },
+    settings: {}, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop, tourActive: true, ...props });
   renderToStaticMarkup(element);
   await new Promise(resolve => setTimeout(resolve, 50));
   renderToStaticMarkup(element);

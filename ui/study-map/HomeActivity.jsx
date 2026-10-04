@@ -19,7 +19,7 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
         <span>
           <strong>{d.title}</strong>
           <small>
-            {d.cards.length}{ui(' 道题')}{qualityCount ? uiFormat(' · {0} 项质量提醒', [qualityCount]) : ''}
+            {[uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : ''].filter(Boolean).join(' · ')}
             {rejectedCount ? uiFormat(' · {0} 题待处理', [rejectedCount])
               : ` · ${reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查')}`}
             {missing > 0 ? uiFormat(' · 还差 {0} 题', [missing]) : ''}
@@ -57,7 +57,7 @@ export default function HomeActivity({ sectionRef, jobs, drafts, data, busy, mod
       </div>}
       {drafts.length > 0 && <div className="home-drafts">
         <div className="section-heading">
-          <h2>{ui('待发布 ')}<span>{drafts.length}</span></h2>
+          <h2>{ui('待发布')}{' '}<span>{drafts.length}</span></h2>
           <small>{ui('发布时逐题检查；问题题留在草稿')}</small>
         </div>
         {[...drafts].reverse().map((d) => <DraftRow key={d.id} draft={d} data={data} busy={busy} modelReady={modelReady} call={call}

@@ -1,0 +1,5 @@
+/* The practice page's buttons are the shared <Button> (ui-consistency #135). A shared button never wraps its label; a long label in a
+   narrow column (the teaching form at 320px, the question toolbar) must be allowed to, or it widens the whole column. Tokens only. */
+:is(.study-app, .study-seat) .teaching-panel form > .sh-btn { min-width: 0; max-width: 100%; white-space: normal; text-align: center; }
+:is(.study-app, .study-seat) .question-navigation > .sh-btn { min-width: 0; white-space: normal; }
+:is(.study-app, .study-seat) .assist-actions > .sh-btn { white-space: normal; }

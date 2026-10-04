@@ -17,7 +17,7 @@ function DeskMastery({ mastery }) {
       <span className="desk-mastery-value">{primary.value}<small>%</small></span>
       <span className="desk-mastery-label">{ui(TERMS.mastery.label)}</span>
       <MasteryBar node={primary.node} />
-      {others && whole && <span className="desk-mastery-all" title={uiFormat('全部课程合计 {0} 题', [whole.cards])}>{ui('所有课程 ')}<strong>{whole.value}%</strong></span>}
+      {others && whole && <span className="desk-mastery-all" title={uiFormat('全部课程合计 {0} 题', [whole.cards])}>{ui('所有课程')}{' '}<strong>{whole.value}%</strong></span>}
     </div>
   );
 }
@@ -26,7 +26,7 @@ function DeskMastery({ mastery }) {
 function OtherRuns({ runs, otherCourse, busy, resume, endRun }) {
   return (
     <details className="resume-list">
-      <summary>{ui('另有 ')}{runs.length}{ui(' 组练习未完成')}</summary>
+      <summary>{uiFormat('另有 {0} 组练习未完成', [runs.length])}</summary>
       {runs.map((r) => (
         <div className="resume-row" key={r.id}>
           <button className="resume" disabled={busy} onClick={() => resume(r.id)}>

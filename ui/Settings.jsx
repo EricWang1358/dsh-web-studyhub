@@ -4,7 +4,8 @@ import { audioFocusPending } from './audio-focus.js';
 import { hasContext } from './capabilities.js';
 import { KEY_FIELDS } from '../lib/audio-providers.js';
 import { SETTINGS_GROUPS, categoriesFor, categoryForAnchor, initialCategory, settingsGroupState } from './settings-groups.js';
-import { CrashFallback, LoadingState } from './components/index.js';
+import { CrashFallback, LoadingState, PageHeader } from './components/index.js';
+import { useStudy } from './study-context.jsx';
 import { useComponentCss } from './components/css.js';
 import fieldsCss from './components/fields.css';
 import { useInjectCss } from './shared.js';
@@ -65,20 +66,13 @@ const Pane = ({ category, services }) => <PaneBoundary key={category.id} categor
 
 /* ---------- the page ---------- */
 
+/** The services (call, act, busy, host, notify) come from useStudy(); the panels of the model, course and sample panes are drawn by the panes. */
 export default function Settings({
   data,
-  busy,
-  act,
-  call,
-  host,
-  setNotice,
   settings,
   setSettings,
   legacy,
   setLegacy,
-  workspacePanel,
-  coursePanel,
-  onboardingPanel,
   exportData,
   onRestored,
   initialProfile = null,
@@ -88,6 +82,7 @@ export default function Settings({
   onFocused,
 }) {
   useInjectCss(css, 'study-settings');
+  const { call, act, busy, host, notify: setNotice } = useStudy();
   // The section shell is a shared component; sections still written by hand elsewhere borrow its stylesheet.
   useComponentCss(fieldsCss, 'study-fields');
   const [profile, setProfile] = useState(initialProfile);
@@ -137,14 +132,13 @@ export default function Settings({
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);
-  // Everything a pane may need. Panes take what they use and nothing else; App still hands in the three built panels.
-  const services = { data, busy, act, call, host, setNotice, settings, setSettings, legacy, setLegacy, workspacePanel, coursePanel, onboardingPanel,
+  // Everything a pane may need. Panes take what they use and nothing else.
+  const services = { data, busy, act, call, host, setNotice, settings, setSettings, legacy, setLegacy,
     exportData, onRestored, appearance, profile, setProfile, capabilities, status };
   const selected = available.find((item) => item.id === active) || available[0];
   return (
     <section className="page settings-page">
-      <h1>{ui('工作区设置')}</h1>
-      <p className="muted">{ui('资料、题库、调度与模型，由你掌控。')}</p>
+      <PageHeader title={ui('工作区设置')} description={ui('资料、题库、调度与模型，由你掌控。')} />
       {tourActive ? (
         /* The tour points at sections anywhere on the page: show every category, one after another. */
         <div className="settings-all">{available.map((item) => <Pane key={item.id} category={item} services={services} />)}</div>

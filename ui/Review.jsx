@@ -2,7 +2,6 @@ import { ui, uiFormat, uiLocale } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import Cloze from "./Cloze.jsx";
-import Icon from "./Icon.jsx";
 import ReviewNavigator from "./ReviewNavigator.jsx";
 import FlipCard from "./FlipCard.jsx";
 import SmoothHeight from "./SmoothHeight.jsx";
@@ -18,11 +17,14 @@ import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
+import buttonCss from "./review-buttons.css";
 import DailyRecap from './DailyRecap.jsx';
-import { Button, Popover, ProgressBar, Spinner } from "./components/index.js";
+import { Badge, Button, Chip, Icon, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
 import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "./agent-prompts/card.js";
+import { weakTopicsPrompt } from "./agent-prompts/library.js";
+import { fixSuggestionFor } from "./card-fix.js";
 import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
@@ -63,7 +65,10 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
   const assistTasks = data?.assist;
+  // Where 继续学习 goes (the page decided it with today's plan in view): the coach card and this page's own way back share it.
+  const destination = coachProps?.destination;
   useInjectCss(resultCss, "review-results");
+  useInjectCss(buttonCss, "study-review-buttons");
   const pageRef = React.useRef(null);
   // A learning-flow practice round: the page is the same, only the way back differs.
   const flow = run.workflow && onBackToWorkflow ? run.workflow : null;
@@ -157,8 +162,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         {(() => {
           const unlearned = run.prerequisites.some((p) => ["new", "weak"].includes(p.level));
           return (
-            <button
-              className={unlearned ? "primary pill" : "pill"}
+            <Button
+              variant={unlearned ? "primary" : "secondary"} size="sm"
               disabled={busy}
               title={unlearned ? ui("先学没掌握的前置题，学完回到这道题") : ui("把前置题再过一遍自查，做完回到这道题")}
               onClick={(e) => {
@@ -167,7 +172,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               }}
             >
               {unlearned ? ui("先学前置 →") : ui("自查前置 →")}
-            </button>
+            </Button>
           );
         })()}
       </summary>
@@ -197,33 +202,26 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
       {rail && <ReviewNavigator run={run} busy={busy} onJump={(index) => reviewAct("review.move", { index })} />}
-      <div className="review-heading">
-        <div>
-          {flow && <p className="review-flow-origin">{[ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ")}</p>}
-          <h1>{[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}</h1>
-          <button
-            className="pill"
-            onClick={() => openModal({ type: "sources" })}
-          >{uiFormat("查看 {0} 份资料", [run.sourceIds?.length || 0])}</button>
-          {skeletonHere && openSkeleton && (
-            <button className="pill" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("◈ 知识骨架")}</button>
-          )}
-        </div>
-        <div className="review-heading-actions">
+      <PageHeader className="review-heading" compact
+        eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
+        title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
+        actions={<>
           {host.openInSidebar && !run.complete && (
-            <button
-              className="ghost-btn"
-              title={ui("题目放到右栏，主区域回到对话")}
-              onClick={() => host.openInSidebar(run.id)}
-            >{ui("在右栏打开")}</button>
+            <Button variant="quiet" title={ui("题目放到右栏，主区域回到对话")} onClick={() => host.openInSidebar(run.id)}>{ui("在右栏打开")}</Button>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
-          <button className="review-return" aria-label={flow ? ui("回到学习流") : ui("返回学习库")} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : navigate("library")}>
+          <Button variant="quiet" className="review-return" aria-label={flow ? ui("回到学习流") : ui("返回学习库")} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : navigate("library")}>
             <span className="review-return-full">{flow ? ui("回到学习流") : ui("返回学习库")}</span>
             <span className="review-return-short" aria-hidden="true">{ui("返回")}</span>
-          </button>
+          </Button>
+        </>}>
+        <div className="review-heading-links">
+          <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [run.sourceIds?.length || 0])}</Button>
+          {skeletonHere && openSkeleton && (
+            <Button variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
+          )}
         </div>
-      </div>
+      </PageHeader>
       {run.complete ? (
         // Distinct keys: without them React reuses the question body's DOM nodes
         // for the summary, and the ✓ badge inherited .question-area's inline
@@ -231,7 +229,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         <div key="summary" className="session-summary result-page">
           <div className="result-reading"><ReadingSettingsButton /></div>
           <div className="result-kicker">{ui("本轮学习结果")}</div>
-          <h1 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h1>
+          <h2 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h2>
           <p className="result-subtitle">{uiFormat("{0} · {1} 道题", [shellTitle, run.questions ?? run.total])}</p>
           {onReturnToReading && <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} />}
           <div className="result-hero">
@@ -257,6 +255,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               busy={busy}
               onPractice={coachProps.onPractice}
               onContinue={coachProps.onContinue}
+              destination={coachProps.destination}
               onReviewWeak={coachProps.onReviewWeak}
             />
           )}
@@ -277,50 +276,47 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </p>
           )}
           <div className="summary-actions">
-            {run.course?.next && <button className="primary" disabled={busy}
-              onClick={() => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun)}>{ui("继续课程下一批 →")}</button>}
-            {run.course?.next?.fresh > 0 && onCourseFlow && <button disabled={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</button>}
+            {run.course?.next && <Button variant="primary" disabled={busy}
+              onClick={() => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun)}>{ui("继续课程下一批 →")}</Button>}
+            {run.course?.next?.fresh > 0 && onCourseFlow && <Button disabled={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</Button>}
             {run.mode === "new" && nextFreshCount > 0 && (
-              <button className="primary" disabled={busy} onClick={() => act("review.start",
-                { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: 10, ordered: true, fresh: true }, enterRun)}>{ui("继续下一批新题 →")}</button>
+              <Button variant="primary" disabled={busy} onClick={() => act("review.start",
+                { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: 10, ordered: true, fresh: true }, enterRun)}>{ui("继续下一批新题 →")}</Button>
             )}
-            {flow && <button className="primary" disabled={busy} onClick={() => onBackToWorkflow(flow.sessionId)}>
-              {flow.current ? ui("回到学习流，继续下一步 →") : ui("回到学习流 →")}</button>}
-            {contextReturnLabel && <button disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</button>}
-            {detour && <button className="primary" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题 →", [detour.index + 1])}</button>}
-            {run.returnTo && !detour && <button className="primary" disabled={busy}
-              onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>{ui("回到原题 →")}</button>}
+            {flow && <Button variant="primary" disabled={busy} onClick={() => onBackToWorkflow(flow.sessionId)}>
+              {flow.current ? ui("回到学习流，继续下一步 →") : ui("回到学习流 →")}</Button>}
+            {contextReturnLabel && <Button disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</Button>}
+            {detour && <Button variant="primary" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题 →", [detour.index + 1])}</Button>}
+            {destination?.kind === "original" && !detour && <Button variant="primary" disabled={busy} onClick={destination.go}>{destination.label}</Button>}
             {summaryCase && <>
-              <button disabled={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
+              <Button disabled={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
                 setCaseNote(uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count])))}>
-                {ui("把薄弱项变成练习")}</button>
-              <button disabled={busy} onClick={() => act("generate", { kind: "case", fromDeckId: summaryCase.id },
-                () => setCaseNote(ui("已开始出一套同类案例，完成后草稿会出现在学习库。")))}>{ui("再来一个同类案例")}</button>
+                {ui("把薄弱项变成练习")}</Button>
+              <Button disabled={busy} onClick={() => act("generate", { kind: "case", fromDeckId: summaryCase.id },
+                () => setCaseNote(ui("已开始出一套同类案例，完成后草稿会出现在学习库。")))}>{ui("再来一个同类案例")}</Button>
             </>}
-            <button onClick={() => navigate("library")}>{ui("回到学习目录")}</button>
+            <Button onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
           </div>
+          {destination?.note && <p className="muted" role="status">{destination.note}</p>}
           {caseNote && <p className="muted" role="status">{caseNote}</p>}
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
             <div className="summary-actions">
             {run.mode === "path" && !run.returnTo && !flow && (
-              <button
-                className="primary"
+              <Button variant="primary"
                 disabled={busy}
                 onClick={() => act("review.start", { mode: "path", scope: run.scope || [], fresh: true }, enterRun)}
               >
                 {run.scope?.length ? ui("再练此范围") : ui("继续学习")}
-              </button>
+              </Button>
             )}
             {run.weakTopics?.length > 0 && (
-              <button
+              <Button
                 onClick={() =>
-                  askInChat(
-                    uiFormat('我刚在「{0}」里这些主题还没掌握稳：{1}。请结合学习库资料逐个讲清楚，并各出一道小题检查我。', [shellTitle, run.weakTopics.join(', ')]),
-                  )
+                  askInChat(weakTopicsPrompt({ title: shellTitle, topics: run.weakTopics }))
                 }
-              >{ui("在对话中讲解薄弱点")}</button>
+              >{ui("在对话中讲解薄弱点")}</Button>
             )}
             </div>
           </details>
@@ -348,9 +344,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 </span>
                 <div>
                   {cardNotes.map((note) => note.status === "published" && note.url
-                    ? <a key={note.noteId} className="pill result-note-badge" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}>{ui("已发布笔记 ↗")}</a>
-                    : <button key={note.noteId} className="pill result-note-badge" type="button" disabled={!onOpenNote}
-                      title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</button>)}
+                    ? <a key={note.noteId} className="result-note-badge" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}><Badge size="sm" icon="external">{ui("已发布笔记")}</Badge></a>
+                    : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-badge" disabled={!onOpenNote}
+                      title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</Button>)}
                   {run.origin && (
                     <span className="origin-tag" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
                       {(() => {
@@ -368,12 +364,12 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                       <p>{publicationIssues.join("；")}</p>
                       <Button size="sm" onClick={() => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
                     </Popover>}
-                  <button
+                  <Button
                     aria-label={ui("标记题目")}
                     onClick={() => openModal({ type: "flag" })}
                   >
                     ⚑
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div
@@ -390,9 +386,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                   <div className="question"><Markdown text={run.card.prompt || ui("题干尚未填写")} /></div>
                   <p>{ui("这道题缺少可判分内容。你可以交给助教修改，或跳过；跳过不会记录成绩或改变复习进度。")}</p>
                   {!!publicationIssues.length && <p>{publicationIssues.join("；")}</p>}
-                  <button type="button" disabled={busy} onClick={() =>
-                    assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</button>
-                  <button className="primary" disabled={busy} onClick={() => reviewAct("review.skip")}>{ui("跳过此题，不计成绩 →")}</button>
+                  <Button disabled={busy} onClick={() =>
+                    assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
+                  <Button variant="primary" disabled={busy} onClick={() => reviewAct("review.skip")}>{ui("跳过此题，不计成绩 →")}</Button>
                 </div>
               ) : choice ? (
                 <>
@@ -476,14 +472,14 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                     })}
                   </div>
                   {run.card.multiple && !run.feedback && (
-                    <button
-                      className="primary submit-answer"
+                    <Button
+                      variant="primary" className="submit-answer"
                       data-usage="review.submit"
                       disabled={busy || !selected.length}
                       onClick={() =>
                         reviewAct("review.answer", { selected })
                       }
-                    >{ui("提交答案")}</button>
+                    >{ui("提交答案")}</Button>
                   )}
                 </>
               ) : isCloze ? (
@@ -514,8 +510,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                     </p>
                   )}
                   {!run.feedback && (
-                    <button
-                      className="primary submit-answer"
+                    <Button
+                      variant="primary" className="submit-answer"
                       data-usage="review.submit"
                       disabled={
                         busy ||
@@ -526,7 +522,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                       onClick={() =>
                         reviewAct("review.answer", { answers: clozeValues })
                       }
-                    >{ui("提交答案")}</button>
+                    >{ui("提交答案")}</Button>
                   )}
                 </>
               ) : rubricCard ? (
@@ -616,7 +612,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
               onToggleEn={toggleEn}
               thumbs={coachProps && run.mode !== "exam" && (
-                <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()} />
+                <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
+                  onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />
               )}
             />
             {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
@@ -624,7 +621,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (
               <p className="assist-status voice-hint" role="status">
                 {ui("这道题在问「资料怎么说」，考的是背资料的措辞，不是理解或应用。")}{" "}
-                <button type="button" className="link-btn" data-usage="review.voice-fix" disabled={busy} onClick={() => assistCard("improve", ui(SOURCE_VOICE_FIX))}>{ui("改成概念或情景题")}</button>
+                <Button variant="link" size="sm" data-usage="review.voice-fix" disabled={busy} onClick={() => assistCard("improve", ui(SOURCE_VOICE_FIX))}>{ui("改成概念或情景题")}</Button>
               </p>
             )}
             <SmoothHeight className="assist-area">
@@ -648,25 +645,20 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                     <strong>{ui("想从哪里弄懂？可多选")}</strong>
                     <div className="assist-quick-choices" role="group" aria-label={ui("帮助方式")}>
                       {HELP_CHOICES.filter((choice) => choice.id !== "mistake" || run.feedback).map((choice) =>
-                        <button type="button" key={choice.id}
-                          className={"pill" + (helpChoices.includes(choice.id) ? " pill-on" : "")}
-                          aria-pressed={helpChoices.includes(choice.id)}
+                        <Chip key={choice.id} selected={helpChoices.includes(choice.id)}
                           onClick={() => setHelpChoices((items) => items.includes(choice.id)
                             ? items.filter((item) => item !== choice.id) : [...items, choice.id])}>
                           {ui(choice.label)}
-                        </button>)}
+                        </Chip>)}
                     </div>
                   </>}
-                  {assistMode === "derive" && <div className="assist-quick-choices" role="radiogroup" aria-label={ui("出成什么题")}>
-                    {[["prerequisite", ui("这道题的前置题")], ["standalone", ui("一道独立的新题")]].map(([value, label]) =>
-                      <button type="button" key={value} role="radio" aria-checked={deriveRelation === value}
-                        className={"pill" + (deriveRelation === value ? " pill-on" : "")} onClick={() => setDeriveRelation(value)}>{label}</button>)}
-                  </div>}
+                  {assistMode === "derive" && <SegmentedControl size="sm" className="assist-quick-choices" label={ui("出成什么题")} value={deriveRelation} onChange={setDeriveRelation}
+                    options={[{ value: "prerequisite", label: ui("这道题的前置题") }, { value: "standalone", label: ui("一道独立的新题") }]} />}
                   {assistMode === "improve" && <>
                     <strong>{ui("不知道怎么说？点一个，或者让助教自己检查")}</strong>
                     <div className="assist-quick-choices" role="group" aria-label={ui("常见的问题")}>
                       {IMPROVE_SUGGESTIONS.map(([label, body]) =>
-                        <button type="button" key={label} className="pill" onClick={() => setAssistText(ui(body))}>{ui(label)}</button>)}
+                        <Chip key={label} onClick={() => setAssistText(ui(body))}>{ui(label)}</Chip>)}
                     </div>
                   </>}
                   <label>
@@ -682,9 +674,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                   </label>
                   <div className="action-feedback-slot">{feedback}</div>
                   <div className="assist-actions">
-                    <button type="submit" className="primary pill"
-                      disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</button>
-                    <button type="button" className="pill" onClick={() => setAssistMode("")}>{ui("取消")}</button>
+                    <Button type="submit" variant="primary" size="sm"
+                      disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</Button>
+                    <Button size="sm" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
                   </div>
                   {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教；完成结果进信箱，做题和主对话可继续。")}</p>}
                 </form>
@@ -699,11 +691,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                   <p>{uiFormat("后台助教没能完成：{0}", [lastTask.message || ui("任务失败")])}</p>
                   {/* "可以重新提交" used to be only a sentence: the buttons send the same request again, or open the form with it filled in to change first. */}
                   <div className="assist-actions">
-                    <button type="button" className="primary pill" disabled={busy}
+                    <Button variant="primary" size="sm" disabled={busy}
                       onClick={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
-                        lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}>{ui("重新提交")}</button>
-                    {(lastTask.mode === "ask" || lastTask.mode === "improve" || (lastTask.mode === "derive" && !lastTask.followupId)) && <button type="button" className="pill"
-                      onClick={() => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); if (lastTask.mode === "derive") setDeriveRelation(lastTask.relation || "prerequisite"); }}>{ui("改一改再提交")}</button>}
+                        lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}>{ui("重新提交")}</Button>
+                    {(lastTask.mode === "ask" || lastTask.mode === "improve" || (lastTask.mode === "derive" && !lastTask.followupId)) && <Button size="sm"
+                      onClick={() => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); if (lastTask.mode === "derive") setDeriveRelation(lastTask.relation || "prerequisite"); }}>{ui("改一改再提交")}</Button>}
                   </div>
                 </div>
               )}
@@ -716,14 +708,14 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             )}
             {hint && !run.revealed && (
               <div className="hint">
-                <Icon>♧</Icon>
+                <Icon name="help" />
                 <Markdown text={run.card.hint} />
               </div>
             )}
             {run.feedback && (
               <p className={"next-due" + (run.feedback.correct ? "" : " retry")}>
                 {uiFormat("{0} · 下次复习 {1}", [run.feedback.correct ? ui("✓ 已掌握") : ui("↻ 将继续巩固"), date(run.feedback.nextDue)])}
-                {run.feedback.retryQueued && <span>{ui(" · 已追加到本轮队尾，稍后再练一次")}</span>}
+                {run.feedback.retryQueued && <span>{" · "}{ui("已追加到本轮队尾，稍后再练一次")}</span>}
               </p>
             )}
             <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => openModal({ type: "source", source, quote, back: true })} />
@@ -753,12 +745,10 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             )}
             {run.feedback && run.mode !== "exam" && (
               <div className="assist-actions" aria-label={ui("引导学习方式")}>
-                <button type="button" className="pill" disabled={teachingBusy}
-                  aria-pressed={teaching?.mode === "understanding"}
-                  onClick={() => teachingAct("teach.start", { mode: "understanding", language: uiLocale().startsWith("en") ? "en" : "zh" })}>{ui("逐步理解")}</button>
-                <button type="button" className="pill" disabled={teachingBusy}
-                  aria-pressed={teaching?.mode === "calculation"}
-                  onClick={() => teachingAct("teach.start", { mode: "calculation", language: uiLocale().startsWith("en") ? "en" : "zh" })}>{ui("计算题引导练习")}</button>
+                <Chip selected={teaching?.mode === "understanding"}
+                  onClick={() => { if (!teachingBusy) teachingAct("teach.start", { mode: "understanding", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("逐步理解")}</Chip>
+                <Chip selected={teaching?.mode === "calculation"}
+                  onClick={() => { if (!teachingBusy) teachingAct("teach.start", { mode: "calculation", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("计算题引导练习")}</Chip>
                 {teachingBusy && <span role="status">{ui("正在准备当前步骤…")}</span>}
               </div>
             )}
@@ -816,11 +806,10 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                             onChange={(e) => actions.setTeachAnswer(e.target.value)}
                           />
                         </label>
-                        <button
-                          className="primary"
+                        <Button variant="primary"
                           disabled={teachingBusy || !teachAnswer.trim()}
                           onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })}
-                        >{ui("检查理解 →")}</button>
+                         type="submit">{ui("检查理解 →")}</Button>
                       </form>
                     </>
                   )}

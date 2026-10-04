@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { mapProps } from './helpers/study-map-props.mjs';
 
 const compiled = await build({ entryPoints: ["ui/StudyMap.jsx"], bundle: true,
   write: false, platform: "node", format: "cjs", external: ["react"],
@@ -24,13 +25,13 @@ function render(patch = {}) {
     ...patch,
   };
   const noop = () => {};
-  return renderToStaticMarkup(React.createElement(StudyMap, {
+  return renderToStaticMarkup(React.createElement(StudyMap, mapProps({
     data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop,
     continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop,
     askInChat: noop, notebooks: [], onFocus: noop,
-  }));
+  })));
 }
-const primaries = (html) => (html.match(/class="primary[^"]*"/g) || []).length;
+const primaries = (html) => (html.match(/class="[^"]*sh-btn--primary[^"]*"/g) || []).length;
 const count = (html) => html.match(/<div class="today-count"><strong>(\d+)<\/strong><span>([^<]*)<\/span>/)?.slice(1);
 
 test("the home card offers exactly one primary action in every state", () => {
@@ -49,7 +50,7 @@ test("the home card offers exactly one primary action in every state", () => {
   assert.deepEqual(count(states.fresh), ["10", "道新题"]);
   assert.match(states.fresh, /到期复习与巩固 · 3 题/, "the other start stays reachable as a link");
   assert.match(states.clear, /今天已经清空/);
-  assert.match(states.clear, /class="primary today-go" disabled/);
+  assert.match(states.clear, /class="sh-btn sh-btn--primary sh-btn--md today-go" disabled/);
   assert.match(states.empty, /导入 JSON 题组/);
   assert.doesNotMatch(states.empty, /today-count/);
 });
@@ -63,7 +64,7 @@ test("the run the learner was last inside takes the card, and a new start stays 
   assert.equal(primaries(html), 1);
   assert.deepEqual(count(html), ["6", "题未完成"]);
   assert.match(html, /行为型模式 · 已做到第 5 \/ 10 题/);
-  assert.match(html, /接着做<span aria-hidden="true">→<\/span>/);
+  assert.match(html, /接着做<svg/);
   assert.match(html, /到期复习与巩固 · 3 题/, "what the card would have started becomes a link");
   assert.match(html, /<summary>另有 1 组练习未完成<\/summary>/, "the card's run is not listed again in the fold");
 });
@@ -111,13 +112,13 @@ test("show-all lives inside an open course, and a lone course can never be stuck
 test("finished job cards can be acknowledged and removed, running ones cannot", () => {
   const noop = () => {};
   const job = (id, status) => ({ id, status, type: "generate", stage: "", parts: 1, trace: [] });
-  const html = (jobs) => renderToStaticMarkup(React.createElement(StudyMap, {
+  const html = (jobs) => renderToStaticMarkup(React.createElement(StudyMap, mapProps({
     data: { root: "/tmp/lib", decks: [deck], progress, sources: [{ id: "s" }], drafts: [], jobs, runs: [],
       today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: "class", course: "CS3219", courses: [{ name: "CS3219" }], fresh: [] } },
     busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop,
     retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop,
     notebooks: [], onFocus: noop, cancelJob: noop, dismissJob: noop,
-  }));
+  })));
   const mixed = html([job("a", "failed"), job("b", "running")]);
   assert.equal((mixed.match(/class="[^"]*sh-job__dismiss[^"]*"/g) || []).length, 1, "only the finished job offers 知道了");
   assert.doesNotMatch(mixed, /全部知道了/, "one finished card needs no bulk action");

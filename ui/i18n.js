@@ -48,6 +48,7 @@ import fields from './locales/en.fields.json';
 import canvas from './locales/en.canvas.json';
 import examCopy from './locales/en.exam.json';
 import feedbackLoop from './locales/en.feedback-loop.json';
+import pages from './locales/en.pages.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -97,6 +98,7 @@ export const ENGLISH_SOURCES = {
   'en.canvas.json': canvas,
   'en.exam.json': examCopy,
   'en.feedback-loop.json': feedbackLoop,
+  'en.pages.json': pages,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

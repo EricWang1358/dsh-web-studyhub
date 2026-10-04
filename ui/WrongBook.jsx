@@ -7,7 +7,8 @@ import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Banner, Button, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, SegmentedControl, SetupRequired } from './components/index.js';
+import { Banner, Button, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl } from './components/index.js';
+import ModelSetupGate from './ModelSetupGate.jsx';
 import { RECS_PREVIEW, VARIANT_BATCH_CAP, groupRows, reasonText, retrainOptions, shortDeckNames, variantFailureText, variantState } from './wrongbook-model.js';
 
 const PAGE_SIZE = 100;
@@ -204,23 +205,16 @@ export function WrongBookView({
   const recsShown = recsAll ? recItems : recItems.slice(0, RECS_PREVIEW);
   const showRecs = recItems.length > 0;
   const practiceRec = (rec) => onPractice([refOf(rec)]);
-  const gateWhy = ui("生成变式要调用 AI 模型；上面的「为你推荐」不需要模型，现在就能练。");
 
   return (
     <section className="page wb">
-      <div className="page-heading">
-        <div>
-          <h1>{ui("错题与待巩固")}</h1>
-          <PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />
-          <p className="muted">
-            {counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral]) : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
-            {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
-          </p>
-        </div>
-        <div className="section-heading-actions">
-          <Button variant="secondary" onClick={() => onReload(page)} disabled={busy || loading}>{ui("刷新")}</Button>
-        </div>
-      </div>
+      <PageHeader title={ui("错题与待巩固")}
+        description={<>
+          {counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral]) : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
+          {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
+        </>}
+        scope={<PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />}
+        actions={<Button variant="secondary" icon="refresh" onClick={() => onReload(page)} disabled={busy || loading}>{ui("刷新")}</Button>} />
 
       {err && <ErrorState error={items ? uiFormat("读取失败，仍显示上次结果：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
       {loading && !items && <LoadingState label={ui("正在读取待巩固题…")} />}
@@ -302,8 +296,7 @@ export function WrongBookView({
       )}
 
       {gated && total > 0 && (
-        <SetupRequired icon="model" title={ui("先配置一个 AI 模型")} why={gateWhy}
-          primary={onOpenSettings ? { label: ui("打开模型设置"), icon: "model", onClick: onOpenSettings } : undefined} />
+        <ModelSetupGate feature="variants" model={{ ready: false }} onOpenSettings={onOpenSettings} />
       )}
 
       {ask && canGenerate && (
@@ -378,10 +371,10 @@ export function WrongBookView({
         );
       })}
       {items && hasMore && <nav className="wb-pages" aria-label={ui("待巩固题分页")}>
-        <span>{ui("第 ")}{page * pageSize + 1}–{page * pageSize + total}{ui(" 题 / 共 ")}{counts.total}{ui(" 题")}</span>
-        <button type="button" disabled={busy || loading || page === 0} onClick={() => onPage(page - 1)}>{ui("上一页")}</button>
-        <button type="button" disabled={busy || loading || (page + 1) * pageSize >= counts.total}
-          onClick={() => onPage(page + 1)}>{ui("下一页")}</button>
+        <span>{uiFormat("第 {0}–{1} 题 / 共 {2} 题", [page * pageSize + 1, page * pageSize + total, counts.total])}</span>
+        <Button disabled={busy || loading || page === 0} onClick={() => onPage(page - 1)}>{ui("上一页")}</Button>
+        <Button disabled={busy || loading || (page + 1) * pageSize >= counts.total}
+          onClick={() => onPage(page + 1)}>{ui("下一页")}</Button>
       </nav>}
     </section>
   );

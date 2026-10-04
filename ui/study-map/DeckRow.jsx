@@ -5,6 +5,7 @@ import { DisclosureToggle, Icon, Menu, foldLabel } from '../components/index.js'
 import ArchivedDeckRow from '../ArchivedDeckRow.jsx';
 import MasteryBar from './MasteryBar.jsx';
 import { dotLevel, topicKey } from './map-model.js';
+import { deckAnalysisPrompt, topicExplainPrompt } from '../agent-prompts/library.js';
 
 /** One deck of the tree: its fold, selection, mastery, play button and ⋯ menu, and its topics when open. */
 export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy, actions }) {
@@ -16,7 +17,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
     flashcard: () => start({ deckId: d.id, mode: 'flashcard' }),
     quiz: () => start({ deckId: d.id, mode: 'quiz' }),
     wrong: () => start({ deckId: d.id, mode: 'wrong' }),
-    ask: () => askInChat(uiFormat('请用 study_workspace 查看题组「{0}」的掌握情况（map），告诉我哪些主题最薄弱，并安排接下来的学习顺序。', [d.title])),
+    ask: () => askInChat(deckAnalysisPrompt({ deckTitle: d.title })),
     manage: () => manage(d.id),
   };
   const items = [
@@ -38,7 +39,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
           <strong>{d.title}{d.format === 'case-study' && <span className="case-badge" title={ui('案例分析题组：长案例 + 开放题，按评分标准批改')}>
             {d.caseBest ? uiFormat('案例 · 最好 {0}/{1}', [d.caseBest.total, d.caseBest.max]) : uiFormat('案例 · {0} 分', [d.caseMarks])}</span>}</strong>
           <small>
-            {d.available}{ui(' 题')}{p?.due ? uiFormat(' · {0} 题到期', [p.due]) : ''}
+            {[uiFormat('{0} 题', [d.available]), p?.due ? uiFormat('{0} 题到期', [p.due]) : ''].filter(Boolean).join(' · ')}
             {d.wrong ? uiFormat(' · {0} 题待巩固', [d.wrong]) : ''}
             {d.uncheckedAtPublish ? uiFormat(' · {0} 题未自动审阅', [d.uncheckedAtPublish]) : ''}
             {d.selfCited ? uiFormat(' · {0} 题仅有导入题目引用', [d.selfCited]) : ''}
@@ -65,7 +66,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
                 <span className={`map-dot lv-${level}`} title={LEVEL_LABEL[level]} />
                 <span className="map-name">
                   <span>{t.name}</span>
-                  <small>{t.total}{ui(' 题 · ')}{t.due ? uiFormat('{0} 题到期', [t.due]) : LEVEL_LABEL[level]}</small>
+                  <small>{uiFormat('{0} 题', [t.total])}{' · '}{t.due ? uiFormat('{0} 题到期', [t.due]) : LEVEL_LABEL[level]}</small>
                 </span>
                 <MasteryBar node={t} />
                 <button className={`map-play${topicRun ? ' is-run' : ''}`} disabled={busy || d.archived} aria-label={uiFormat('学习主题 {0}', [t.name])}
@@ -74,8 +75,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
                   {topicRun ? ui('继续') : <Icon name="play" size={14} />}
                 </button>
                 <button className="map-ask" title={ui('在对话中讲解这个主题')} aria-label={uiFormat('在对话中讲解 {0}', [t.name])}
-                  onClick={() => askInChat(uiFormat('请结合学习库里的资料，给我讲解「{0}」（题组「{1}」）。我目前掌握度 {2}%{3}。先讲核心概念，再用一两道小问题检查我是否理解。',
-                    [t.name, d.title, t.mastery, t.counts.weak ? uiFormat('，有 {0} 道题当前薄弱', [t.counts.weak]) : '']))}>{ui('问')}</button>
+                  onClick={() => askInChat(topicExplainPrompt({ topic: t.name, deckTitle: d.title, mastery: t.mastery, weak: t.counts.weak }))}>{ui('问')}</button>
               </li>
             );
           })}
