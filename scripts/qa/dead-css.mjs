@@ -45,7 +45,7 @@ export function collectUsage(root = ROOT) {
     quoted,
     prefixes: all.filter((p) => p.length >= 2 && /[-_]$/.test(p)),
     numbered: all.filter((p) => !/[-_]$/.test(p)),
-    suffixes: [...suffixes].filter((s) => s.length >= 3),
+    suffixes: [...suffixes].filter((s) => /^(__|--)/.test(s) && s.length >= 4),
   };
 }
 
@@ -55,6 +55,7 @@ export function collectUsage(root = ROOT) {
 export const NEVER_SET = {
   job: 'JobRow renders sh-job; no component sets a bare job class',
   deck: 'decks render as map-name / resume rows; no component sets a bare deck class',
+  guide: 'the guide card was removed with the old onboarding rail; nothing sets a bare guide class',
 };
 export const ONLY_COMPOUND = { empty: 'set only as "mastery-bar empty" and "skc-class-attrs empty"' };
 

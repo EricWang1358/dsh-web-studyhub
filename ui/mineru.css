@@ -31,7 +31,6 @@
 .study-app .mineru-route__body { display: grid; gap: var(--space-1); min-width: 0; }
 .study-app .mineru-route__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
 .study-app .mineru-route__body small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-.study-app .mineru-gate--local { padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
 .study-app .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-size: var(--fs-sm); }
 .study-app .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .study-app .mineru-start .sh-btn { margin: 0; }

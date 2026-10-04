@@ -3119,11 +3119,6 @@
   .map-topics { padding: 2px 0 10px 34px; }
   .topic-row { min-height: 42px; padding: 7px 10px 7px 8px; }
   .map-menu-wrap { position: relative; flex-shrink: 0; }
-  .map-deck.menu-open,
-  .map-folder.menu-open {
-    position: relative;
-    z-index: 30;
-  }
   .map-empty { padding: 20px 4px; }
   .selection-bar {
     position: sticky;
@@ -3149,29 +3144,9 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .guide {
-    border: 1px solid var(--line-soft);
-    border-radius: var(--radius);
-    background: var(--bg-surface);
-  }
   /* In the rail the guide is a quiet footnote, not another card. */
   .sidebar {
     overflow-y: auto;
-  }
-  .guide-body {
-    padding: 0 12px 12px;
-  }
-  .guide-marker {
-    display: inline-grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    margin-top: 1px;
-    border-radius: 50%;
-    border: 1px solid var(--line-strong);
-    font-size: 15px;
-    color: var(--text-dim);
   }
   @container study (min-width:1400px) {
     .flash-area {
