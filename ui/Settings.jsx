@@ -8,6 +8,7 @@ import JevSettings from './JevSettings.jsx';
 import { ExperimentalSection } from './ExperimentalSettings.jsx';
 import UsageSettings from './UsageSettings.jsx';
 import GenerationSettings from './GenerationSettings.jsx';
+import DailyRecapSettings from './DailyRecapSettings.jsx';
 import ScienceSettings from './ScienceSettings.jsx';
 import { experimentalShown } from './experimental-flag.js';
 import { hasContext } from './capabilities.js';
@@ -499,6 +500,7 @@ export default function Settings({
         </fieldset>
       );
       case "generation": return capabilities.generation ? <GenerationSettings root={data.root} saved={data.settings?.generation} busy={busy} act={act} setNotice={setNotice} /> : null;
+      case "daily-recap": return <DailyRecapSettings root={data.root} saved={data.settings?.dailyRecap} busy={busy} act={act} setNotice={setNotice} />;
       case "courses": return coursePanel;
       case "audio": return capabilities.audio ? <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} /> : null;
       case "mineru": return <>

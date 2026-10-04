@@ -25,6 +25,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 - **Move between questions and sources.** A citation opens the passage it came from. In a source, paragraph and table markers lead to the questions and explanations linked to them.
 - **Practise and review.** Start today's study from the **Study library**, follow a **Learning flow** (a short lesson, then practice), click **Help me understand** on any question, and let SM-2 schedule your reviews.
 - **Find weak points.** Use **Mistakes & weak points**, **Statistics** and **Mock exam**, which offers a multiple-choice paper, a case paper or an oral interview.
+- **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps use the source reader; saving one as a source and publishing on CSDN are separate actions.
 - **Turn recordings into text.** Import a lecture recording, or transcribe a **Live class** as it happens, and get a Chinese–English transcript you can generate questions from.
 - **Read and organise.** The reader has a table of contents, search, **Translate this page** and **Practise these pages**. Courses, **Study notes**, **Tasks** and a **Knowledge outline** keep a term's work together.
 
