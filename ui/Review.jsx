@@ -21,7 +21,7 @@ import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
 import DailyRecap from './DailyRecap.jsx';
-import { Badge, Button, Chip, Icon, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
+import { Badge, Banner, Button, Chip, Icon, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
 import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "./agent-prompts/card.js";
@@ -409,14 +409,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               />
               {(choice || isCloze || run.card.publicationUngrable) && prereqStrip}
               {run.card.publicationUngrable ? (
-                <div className="quality-note warning" role="status">
+                <Banner tone="warning" role="status" className="review-ungrable"
+                  action={{ label: ui("跳过此题，不计成绩 →"), variant: "primary", disabled: busy, onClick: () => reviewAct("review.skip") }}
+                  secondary={{ label: ui("交给后台修题"), disabled: busy, onClick: () => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')])) }}>
                   <div className="question"><Markdown text={run.card.prompt || ui("题干尚未填写")} /></div>
                   <p>{ui("这道题缺少可判分内容。你可以交给助教修改，或跳过；跳过不会记录成绩或改变复习进度。")}</p>
                   {!!publicationIssues.length && <p>{publicationIssues.join("；")}</p>}
-                  <Button disabled={busy} onClick={() =>
-                    assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
-                  <Button variant="primary" disabled={busy} onClick={() => reviewAct("review.skip")}>{ui("跳过此题，不计成绩 →")}</Button>
-                </div>
+                </Banner>
               ) : choice ? (
                 <>
                   <div className="question" role="heading" aria-level={2} key={"stem:" + reviewEntryKey(run)}>

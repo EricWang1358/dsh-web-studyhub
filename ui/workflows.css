@@ -53,11 +53,8 @@
     .wf-empty { padding: var(--space-5) 0; font-size: var(--fs-md); line-height: 1.75; }
     .wf-error { padding: var(--space-3) var(--space-4); color: var(--bad); border: 1px solid var(--bad); border-radius: var(--radius-sm); font-size: var(--fs-md); overflow-wrap: anywhere; line-height: 1.65; }
     .wf-error p { margin: 0 0 var(--space-2); }
-    .wf-notice { padding: 14px var(--space-4); border-left: 3px solid var(--info); background: var(--bg-surface); line-height: 1.75; font-size: var(--fs-md); margin-block: 18px; overflow-wrap: anywhere; }
-    .wf-notice p { margin: 0 0 10px; }
-    .wf-notice p:last-child { margin-bottom: 0; }
-    .wf-notice details { margin-bottom: 10px; }
-    .wf-notice h3 { margin: 0 0 10px; font-size: var(--fs-lg); }
+    .wf-banner { margin-block: var(--space-4); overflow-wrap: anywhere; }
+    .wf-banner details { margin-top: var(--space-2); }
     .wf-fields { display: grid; gap: 18px; }
     .wf-fields label, .wf-output-label { display: grid; gap: var(--space-2); color: var(--text-dim); font-size: var(--fs-md); line-height: 1.5; }
     .wf-fields > label { margin: 0; }
@@ -258,7 +255,6 @@
       .wf-step-move button { padding-inline: var(--space-2); }
       .wf-branch-fields { grid-template-columns: 1fr; }
       .wf-history time { flex-basis: 100%; margin-left: 0; }
-      .wf-notice .wf-actions button { flex: 1; }
     }
   }
   :where(.study-app, .study-seat) {

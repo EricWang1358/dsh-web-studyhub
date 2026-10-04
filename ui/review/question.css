@@ -23,6 +23,10 @@
       margin: var(--space-5) 0;
       color: var(--text-dim);
     }
+    .review-ungrable { margin: var(--space-5) 0; }
+    .review-ungrable .question { margin-bottom: var(--space-2); }
+    /* A flashcard's header and progress rule are absolute at the top of the card: the note starts below them. */
+    .flash-area .question-card:has(.review-ungrable) { padding-top: calc(var(--space-9) + var(--space-3)); }
     .generation-trace { margin-top: 10px; overflow-wrap: anywhere; }
     .generation-trace ol { padding-left: var(--space-5); }
     .agent-link__error { display: block; margin-top: var(--space-half); color: var(--bad-ink); font-size: var(--fs-xs); line-height: var(--lh-snug); }

@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiLocale, useUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
-import { Button, Icon, IconButton, InlineConfirm, PageHeader, useToast } from "./components/index.js";
+import { Banner, Button, Icon, IconButton, InlineConfirm, PageHeader, useToast } from "./components/index.js";
 import { workflowDesignPrompt, workflowSkeletonPrompt } from "./agent-prompts/workflow.js";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
@@ -102,16 +102,16 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
     <div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} disabled={!!pending}>{ui("← 学习流工作台")}</Button><span className="muted small">{dirty ? ui("修改暂存于此设备") : draft.id ? ui("已保存") : ui("新学习流")}</span></div>
     <PageHeader className="wf-heading" title={ui("编排学习流")} description={ui("把适合自己的学习方式排成步骤。拖动排序，也可使用上移、下移。")} />
     {error && <p className="wf-error" role="alert">{error}{" "}{ui("你的输入已保留。")}</p>}
-    {conflict && <div className="wf-notice" role="status">
-      <p>{latest ? ui("这条学习流已在其他地方更新。本地输入已保留，保存前请先核对。") : ui("原学习流已被删除。你仍可把当前内容另存为新流程。")}</p>
-      {latest && <details><summary>{ui("查看最新版本")}</summary><p>{latest.title} · {latest.description}</p><ol>{latest.steps.map((s) => <li key={s.id}>{s.title}</li>)}</ol></details>}
-      <div className="wf-actions">
-        {latest && <Button disabled={!!pending} onClick={(event) => dirty ? askConfirm("reload")(event) : reloadLatest()}>{ui("载入最新版本")}</Button>}
-        <Button disabled={!!pending} onClick={() => { const { id: _id, version: _version, requestId: _requestId, ...copy } = draft; change({ ...copy, requestId: crypto.randomUUID() }); }}>{ui("将本地修改另存为新流程")}</Button>
-      </div>
-      {confirm === "reload" && <InlineConfirm tone="warning" title={ui("载入后将替换当前未保存的修改。")} confirmLabel={ui("确认载入")} cancelLabel={ui("保留输入")}
-        returnFocusRef={confirmTrigger} onConfirm={reloadLatest} onCancel={() => setConfirm("")} />}
-    </div>}
+    {conflict && (() => {
+      const saveCopy = { label: ui("将本地修改另存为新流程"), disabled: !!pending, onClick: () => { const { id: _id, version: _version, requestId: _requestId, ...copy } = draft; change({ ...copy, requestId: crypto.randomUUID() }); } };
+      const reload = latest && { label: ui("载入最新版本"), disabled: !!pending, onClick: (event) => dirty ? askConfirm("reload")(event) : reloadLatest() };
+      return <Banner role="status" tone="info" className="wf-banner" action={reload || saveCopy} secondary={reload ? saveCopy : undefined}>
+        <p>{latest ? ui("这条学习流已在其他地方更新。本地输入已保留，保存前请先核对。") : ui("原学习流已被删除。你仍可把当前内容另存为新流程。")}</p>
+        {latest && <details><summary>{ui("查看最新版本")}</summary><p>{latest.title} · {latest.description}</p><ol>{latest.steps.map((s) => <li key={s.id}>{s.title}</li>)}</ol></details>}
+        {confirm === "reload" && <InlineConfirm tone="warning" title={ui("载入后将替换当前未保存的修改。")} confirmLabel={ui("确认载入")} cancelLabel={ui("保留输入")}
+          returnFocusRef={confirmTrigger} onConfirm={reloadLatest} onCancel={() => setConfirm("")} />}
+      </Banner>;
+    })()}
     <fieldset disabled={!!pending} className="wf-fields">
       <label>{ui("学习流名称")}<input maxLength={60} value={draft.title} placeholder={ui("例如：先讲懂，再练题")} onChange={(e) => change({ ...draft, title: e.target.value })} /></label>
       <label>{ui("适合什么时候使用")}<textarea rows={2} maxLength={400} value={draft.description} placeholder={ui("例如：学一个陌生主题，先建立结构，再独立解释和应用。")} onChange={(e) => change({ ...draft, description: e.target.value })} /></label>

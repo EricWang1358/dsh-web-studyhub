@@ -77,6 +77,21 @@ export async function runShots(options) {
       await step("board-due-focus", async () => {});
       await page.keyboard.press("Escape");
     }
+    if (surfaces.has("ungrable")) {
+      const source = { id: "s", title: "Notes", text: "Architecture sets principles that guide how a system is designed and changed." };
+      const base = { kind: "flashcard", topic: "Architecture", objective: "Explain principles", hint: "Think of constraints.", explanation: "The notes say principles guide design.", misconception: "Only components matter.", citations: [{ sourceId: "s", quote: source.text }] };
+      await previewCall(server, "source.add", source);
+      const cards = [0, 1, 2].map((n) => ({ ...base, id: `q${n}`, objective: `Objective ${n}`, prompt: `Question ${n}?`, answer: n === 1 ? "" : "Architectural principles." }));
+      const saved = await previewCall(server, "draft.save", { deck: { id: "quick", title: "Quick", cards } });
+      await previewCall(server, "draft.publish.quick", { id: saved.id, draftVersion: saved.draftVersion });
+      const run = await previewCall(server, "review.start", { deckId: "quick", mode: "new", count: 3, ordered: true, fresh: true });
+      await previewCall(server, "review.move", { runId: run.id, index: 1 });
+      await page.reload();
+      await page.locator("aside, nav").first().waitFor();
+      await narrowMenu();
+      await go("nav.resume");
+      await step("review-ungrable", async () => { await page.locator(".review-ungrable").waitFor({ timeout: 8000 }); });
+    }
     if (surfaces.has("dashboard")) {
       await previewCall(server, "sample.load", { uiLanguage: options.lang });
       await page.reload();
