@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import { ui } from './i18n.js';
+import { CrashFallback, LoadingState } from './components/index.js';
 
 export function deferredView(load) {
   const View = lazy(load);
@@ -10,12 +11,10 @@ export function deferredView(load) {
     }
     static getDerivedStateFromError(error) { return { error }; }
     render() {
-      if (this.state.error) return <div role="alert">
-        <p>{String(this.state.error?.message || this.state.error)}</p>
-        <button type="button" onClick={() => this.setState({ View: lazy(load), error: null })}>{ui('重新加载')}</button>
-      </div>;
+      if (this.state.error) return <CrashFallback error={this.state.error} title={ui('这个页面没能打开')} retryLabel={ui('重新加载')}
+        onRetry={() => this.setState({ View: lazy(load), error: null })} />;
       const CurrentView = this.state.View;
-      return <Suspense fallback={<p role="status">{ui('正在打开学习工作区…')}</p>}><CurrentView {...this.props} /></Suspense>;
+      return <Suspense fallback={<LoadingState label={ui('正在打开学习工作区…')} />}><CurrentView {...this.props} /></Suspense>;
     }
   };
 }

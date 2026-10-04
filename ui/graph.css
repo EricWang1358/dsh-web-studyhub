@@ -149,12 +149,8 @@
   text-align: center;
   color: var(--text-muted);
 }
-.graph-error {
-  color: var(--bad);
-}
-.graph-error button {
-  margin-top: 10px;
-}
+.graph-state.sh-loading { justify-content: center; }
+.graph-state .sh-inline { max-width: 480px; margin-inline: auto; text-align: left; }
 .graph-hint {
   font-size: 11.5px;
   color: var(--text-faint);

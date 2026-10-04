@@ -1,7 +1,7 @@
 import { ui } from "./i18n.js";
 import React, { useState } from "react";
 import CourseField from './CourseField.jsx';
-import { SegmentedControl } from './components/index.js';
+import { InlineMessage, SegmentedControl } from './components/index.js';
 
 const KINDS = [
   ["auto", "自动识别", "有选项保持单选/多选，没有选项做成问答闪卡"],
@@ -86,7 +86,7 @@ export default function Ingest({ data, busy, start }) {
         <small className="sh-seg-note">{ui(MISTAKES.find(([id]) => id === mistakes)[2])}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
       </fieldset>
       {!data.modelReady && (
-        <p className="warning">{ui("当前会话没有可用模型，录题需要模型整理题目。")}</p>
+        <InlineMessage tone="warning">{ui("当前会话没有可用模型，录题需要模型整理题目。")}</InlineMessage>
       )}
       <button className="primary wide" disabled={busy || !data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题 → 去对话里粘贴")}</button>
     </form>

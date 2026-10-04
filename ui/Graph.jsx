@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
 import PageScope, { usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { SegmentedControl } from './components/index.js';
+import { ErrorState, Hint, LoadingState, SegmentedControl } from './components/index.js';
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
 import {
   layoutStructure,
@@ -44,6 +44,13 @@ const fitLabel = (t, max) => {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 };
 const ZOOM_STEP = 1.25;
+
+/** What the canvas says when there is no drawing: reading, failed (with a retry) or nothing in this scope. */
+export function GraphStatus({ loading, error, onRetry }) {
+  if (loading) return <LoadingState className="graph-state" label={ui("正在生成图谱…")} />;
+  if (error) return <div className="graph-state"><ErrorState error={error} title={ui("图谱加载失败")} onRetry={onRetry} /></div>;
+  return <div className="graph-state"><Hint>{ui("当前范围内没有可展示的题目。")}</Hint></div>;
+}
 
 /* ── component ────────────────────────────────────────────────────────── */
 export default function Graph({
@@ -510,14 +517,11 @@ export default function Graph({
         onClickCapture={onClickCapture}
       >
         {loading ? (
-          <div className="graph-state">{ui("正在生成图谱…")}</div>
+          <GraphStatus loading />
         ) : error ? (
-          <div className="graph-state graph-error">
-            <div>{ui("图谱加载失败：")}{error}</div>
-            <button onClick={load}>{ui("重试")}</button>
-          </div>
+          <GraphStatus error={error} onRetry={load} />
         ) : !layout || !layout.placed.length ? (
-          <div className="graph-state">{ui("当前范围内没有可展示的题目。")}</div>
+          <GraphStatus />
         ) : (
           <div
             className="graph-plane"

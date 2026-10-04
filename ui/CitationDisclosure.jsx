@@ -1,5 +1,6 @@
 import { ui } from "./i18n.js";
 import React from "react";
+import { Hint } from "./components/index.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
 
 export default function CitationDisclosure({ card, sources = [], onOpenSource }) {
@@ -28,7 +29,7 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource })
             </button>;
           })}
         </div>
-        {selfCited && <p className="warning" role="note">{ui("这些引用来自导入的题目自身，不能独立核实答案。请对照原始资料判断。")}</p>}
+        {selfCited && <Hint tone="warning" role="note">{ui("这些引用来自导入的题目自身，不能独立核实答案。请对照原始资料判断。")}</Hint>}
       </>}
     </details>
   );

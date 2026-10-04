@@ -1,9 +1,14 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, uiLocale } from "./i18n.js";
 import React from "react";
+import { Badge, Button, EmptyState, Icon, InlineMessage, ScrollWindow } from "./components/index.js";
+import { useInjectCss } from "./shared.js";
+import { inboxMissingPrompt, inboxOpenHint, inboxTone, inboxTopics } from "../lib/inbox-kinds.js";
+import css from "./inbox.css";
 
-/* 顶栏信箱：会话或后台替某道题做完的事（提升质量、前置题、按反馈改题、
-   陪学回复、定制题、讲解追问）都投递到这里。点一条直接跳回那道题；
-   「全部已读」只清角标，不删记录。数据来自 snapshot.inbox，随轮询刷新。 */
+/* 顶栏信箱：会话或后台替学习者做完的事（改题、前置题、陪学回复、讲解追问、笔记草稿、
+   音频转写、PDF 转换、译文、批改、原文补题）都投递到这里。点一条直接跳回那道题或那份
+   结果；「全部已读」只清角标，不删记录。数据来自 snapshot.inbox，随轮询刷新。
+   每种信件的名称、语气、点开提示都在 lib/inbox-kinds.js。 */
 
 const ago = (at) => {
   const s = Math.max(0, (Date.now() - Date.parse(at)) / 1000);
@@ -15,41 +20,50 @@ const ago = (at) => {
 };
 
 const NO_ITEMS = [];
+const PANEL_ROWS = { "--sh-scroll-max": "min(360px, 55vh)" };
 
-function MailboxIcon() {
+function EmptyMailbox() {
+  const topics = new Intl.ListFormat(uiLocale(), { style: "long", type: "conjunction" }).format(inboxTopics().map((topic) => ui(topic)));
+  return <EmptyState size="sm" icon="mail" className="mailbox__empty" title={ui("暂无消息")}
+    description={uiFormat("{0}的结果会投递到这里，点一下就能跳回对应的地方。", [topics])} />;
+}
+
+function Letter({ m, busy, onOpen, onUndo, close }) {
+  const tone = inboxTone(m.kind);
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-      <path
-        d="M3.5 7.5A2.5 2.5 0 0 1 6 5h12a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5v-9Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path d="m4 7.5 8 6 8-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-    </svg>
+    <>
+      <button
+        type="button"
+        className={"mailbox__item" + (m.read ? "" : " is-unread")}
+        disabled={busy || m.missing}
+        title={ui(inboxOpenHint(m.kind, { missing: m.missing }))}
+        onClick={() => {
+          close();
+          onOpen(m);
+        }}
+      >
+        <span className="mailbox__top">
+          {!m.read && <span className="sh-visually-hidden">{ui("未读")}</span>}
+          <Badge tone={tone} size="sm" icon={tone === "error" || tone === "warning"}>{ui(m.label)}</Badge>
+          {m.count > 1 && <span className="mailbox__multi">×{m.count}</span>}
+          <small className="mailbox__deck">{m.deckTitle}</small>
+          <small className="mailbox__time">{ago(m.at)}</small>
+        </span>
+        <span className="mailbox__prompt">{m.missing ? ui(inboxMissingPrompt(m.kind)) : m.prompt}</span>
+        {m.detail && <span className="mailbox__detail">{m.detail}</span>}
+      </button>
+      {m.canRevert && onUndo && <Button variant="link" size="sm" className="mailbox__undo"
+        disabled={busy} onClick={() => onUndo(m)}>{ui("回退这次改题")}</Button>}
+    </>
   );
 }
 
-export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readError = "" }) {
-  const [open, setOpen] = React.useState(false);
-  const root = React.useRef(null),
-    list = React.useRef(null);
+export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readError = "", defaultOpen = false }) {
+  useInjectCss(css, "study-inbox");
+  const [open, setOpen] = React.useState(defaultOpen);
+  const root = React.useRef(null);
   const unread = inbox?.unread || 0,
     items = inbox?.items || NO_ITEMS;
-
-  // Show at most three letters, scrolling the rest. Letters differ in height
-  // (a detail line is optional and clamps at two), so measure the first three.
-  React.useLayoutEffect(() => {
-    const el = list.current;
-    if (!open || !el) return;
-    const rows = [...el.children];
-    if (rows.length <= 3) {
-      el.style.maxHeight = "";
-      return;
-    }
-    const pad = parseFloat(getComputedStyle(el).paddingTop) || 0;
-    el.style.maxHeight = `${rows[3].offsetTop - el.offsetTop + pad}px`;
-  }, [open, items]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -60,7 +74,7 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readErro
       if (e.key === "Escape") {
         e.stopPropagation();
         setOpen(false);
-        root.current?.querySelector(".inbox-toggle")?.focus();
+        root.current?.querySelector(".mailbox__toggle")?.focus();
       }
     };
     document.addEventListener("pointerdown", outside, true);
@@ -72,59 +86,32 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readErro
   }, [open]);
 
   return (
-    <div className="inbox" ref={root}>
+    <div className="mailbox" ref={root}>
       <button
         type="button"
-        className={"inbox-toggle" + (unread ? " has-unread" : "")}
+        className={"mailbox__toggle" + (unread ? " has-unread" : "")}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={unread ? uiFormat("信箱，{0} 条未读", [unread]) : ui("信箱")}
         title={unread ? uiFormat("{0} 条后台结果待查看", [unread]) : ui("信箱")}
         onClick={() => setOpen((v) => !v)}
       >
-        <MailboxIcon />
-        {unread > 0 && <span className="inbox-badge">{unread > 99 ? "99+" : unread}</span>}
+        <Icon name="mail" size={18} />
+        {unread > 0 && <span className="mailbox__count">{unread > 99 ? "99+" : unread}</span>}
       </button>
       {open && (
-        <div className="inbox-panel" role="dialog" aria-label={ui("信箱")}>
-          <div className="inbox-head">
+        <div className="mailbox__panel" role="dialog" aria-label={ui("信箱")}>
+          <div className="mailbox__head">
             <strong>{ui("信箱")}</strong>
-            <small className="muted">{unread ? uiFormat("{0} 条未读", [unread]) : ui("都看过了")}</small>
-            <button type="button" className="inbox-read-all" disabled={!unread} onClick={onReadAll}>{ui("全部已读")}</button>
+            <small className="mailbox__sub">{unread ? uiFormat("{0} 条未读", [unread]) : ui("都看过了")}</small>
+            <Button variant="link" size="sm" className="mailbox__read-all" disabled={!unread} onClick={onReadAll}>{ui("全部已读")}</Button>
           </div>
-          {readError && <p className="job-error" role="alert">{uiFormat("没能标为已读：{0}", [readError])}</p>}
+          {readError && <InlineMessage tone="error" className="mailbox__error">{uiFormat("没能标为已读：{0}", [readError])}</InlineMessage>}
           {items.length ? (
-            <ul className="inbox-list" ref={list}>
-              {items.map((m) => (
-                <li key={m.id}>
-                  <button
-                    type="button"
-                    className={"inbox-item" + (m.read ? "" : " unread")}
-                    disabled={busy || m.missing}
-                    title={m.missing ? (m.kind === "note" ? ui("笔记已不存在") : ui("这道题已经不在题库里了"))
-                      : m.kind.startsWith('pdf-') ? ui("打开 PDF 转换结果") : m.kind.startsWith('translate-') ? ui("打开这份资料") : m.kind.startsWith('audio-') ? ui("打开音频转写结果") : m.kind === "note" ? ui("打开笔记草稿") : ui("跳到这道题")}
-                    onClick={() => {
-                      setOpen(false);
-                      onOpen(m);
-                    }}
-                  >
-                    <span className="inbox-item-top">
-                      <span className={"inbox-kind k-" + m.kind}>{ui(m.label)}</span>
-                      {m.count > 1 && <span className="inbox-count">×{m.count}</span>}
-                      <small>{m.deckTitle}</small>
-                      <small className="inbox-time">{ago(m.at)}</small>
-                    </span>
-                    <span className="inbox-prompt">{m.missing ? (m.kind === "note" ? ui("（笔记已删除）") : ui("（题目已删除）")) : m.prompt}</span>
-                    {m.detail && <span className="inbox-detail">{m.detail}</span>}
-                  </button>
-                  {m.canRevert && onUndo && <button type="button" className="inbox-undo"
-                    disabled={busy} onClick={() => onUndo(m)}>{ui("回退这次改题")}</button>}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="inbox-empty muted">{ui("暂无消息。你去做下一题时，会话和后台做完的改题、前置题、陪学回复和讲解追问会投递到这里，点一下就能跳回那道题。")}</p>
-          )}
+            <ScrollWindow className="mailbox__scroll" label={ui("信箱消息")} items={items} itemKey={(m) => m.id}
+              listClassName="mailbox__list" itemClassName="mailbox__row" style={PANEL_ROWS}
+              renderItem={(m) => <Letter m={m} busy={busy} onOpen={onOpen} onUndo={onUndo} close={() => setOpen(false)} />} />
+          ) : <EmptyMailbox />}
         </div>
       )}
     </div>

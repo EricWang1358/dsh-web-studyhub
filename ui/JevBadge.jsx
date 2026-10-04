@@ -1,16 +1,17 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
+import { Badge } from './components/index.js';
 import { percentText, triageRows } from './jev-flow.js';
 import css from './jev.css';
 
 /* EXPERIMENTAL 出题预审 in the draft: a small "Jev 预审" badge on a card's summary line and, inside the opened card, the probabilities Jev gave
    (the chance that each defect is present). It is a signal only: the independent review is what decided whether the card is here. */
 
-/** "由 Jev 判定": the small mark on a card whose independent review was replaced by Jev (editorial.jevDecided). EXPERIMENTAL, hidden unless experimental features are shown. */
-export function JevDecidedBadge() {
+/** "由 Jev 判定": the small mark on a card (scope "card") or a course suggestion row (scope "row") that Jev answered instead of the model. EXPERIMENTAL, hidden unless experimental features are shown. */
+export function JevDecidedBadge({ scope = 'card' }) {
   useInjectCss(css, 'study-jev');
-  return <small className="jev-badge jev-badge--decided" data-jev-decided="card">{ui('由 Jev 判定')}<span className="jev-badge__exp"> · {ui('实验性')}</span></small>;
+  return <Badge tone="info" size="sm" data-jev-decided={scope}>{ui('由 Jev 判定')}<span className="jev-badge__exp"> · {ui('实验性')}</span></Badge>;
 }
 
 /** One quiet paragraph above the cards: how many Jev judged and how many the independent model review did, and (once) why the model took some. */
@@ -32,7 +33,8 @@ export function JevCardBadge({ signal }) {
   if (!signal) return null;
   const state = signal.rewritten ? 'rewritten' : signal.flagged ? 'flagged' : 'clear';
   const text = { rewritten: ui('Jev 预审 · 已改写'), flagged: ui('Jev 预审 · 有疑点'), clear: ui('Jev 预审 · 未见明显问题') }[state];
-  return <small className={`jev-badge jev-badge--${state}`} data-jev-badge={state}>{text}<span className="jev-badge__exp"> · {ui('实验性')}</span></small>;
+  const tone = { rewritten: 'info', flagged: 'warning', clear: 'success' }[state];
+  return <Badge tone={tone} size="sm" icon={state === 'flagged'} data-jev-badge={state}>{text}<span className="jev-badge__exp"> · {ui('实验性')}</span></Badge>;
 }
 
 /** The probabilities behind the badge, shown inside the opened card. */
@@ -42,7 +44,7 @@ export function JevCardSignals({ signal, threshold }) {
   const rows = triageRows(signal);
   return (
     <div className="jev-card-signals" data-jev-signals>
-      <p className="jev-card-signals__head"><span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span>
+      <p className="jev-card-signals__head"><Badge tone="info" size="sm" className="jev-chip">{ui('实验性')}</Badge>
         <strong>{ui('Jev 预审')}</strong>
         <small>{uiFormat('判断线 {0}；只是参考，最终以独立复审为准。', [percentText(threshold ?? 0.8)])}</small></p>
       <ul className="jev-probs__list">

@@ -1,9 +1,8 @@
 import React from 'react';
 import { ui, uiFormat, uiLocale } from './i18n.js';
-import { useInjectCss } from './shared.js';
-import css from './index-badge.css';
+import { Badge, Spinner } from './components/index.js';
 
-/* One quiet chip on a material row: whether its search index is built (资料 page and the picker of 创建题组). The index is what lets a big book be asked about
+/* One quiet badge on a material row: whether its search index is built (资料 page and the picker of 创建题组). The index is what lets a big book be asked about
    and turned into questions page by page; the row says where it stands, so nobody has to open the settings to find out. */
 
 /** The words for a state ({ state, indexed, stale, total } from documentIndexState) given the coverage the backend reported. */
@@ -19,9 +18,13 @@ export function indexLabel(info, coverage = {}) {
   }
 }
 
+/** Tone and mark per state: the words always say it, the icon and colour back them up. */
+const LOOK = { indexed: ['success', 'check'], partial: ['warning', 'warning'], stale: ['warning', 'refresh'], building: ['info', null], missing: ['neutral', null] };
+
 export default function IndexBadge({ info, coverage }) {
-  useInjectCss(css, 'study-index-badge');
   if (!info) return null;
   const label = indexLabel(info, coverage);
-  return <span className="index-badge" data-state={info.state} title={ui('索引是按页提前编好的目录：对整本书提问或出题时，只把相关的页面发给 AI。')}>{label}</span>;
+  const [tone, icon] = LOOK[info.state] || LOOK.missing;
+  return <Badge className="index-badge" size="sm" tone={tone} icon={info.state === 'building' ? <Spinner size="sm" /> : icon || undefined} data-state={info.state}
+    title={ui('索引是按页提前编好的目录：对整本书提问或出题时，只把相关的页面发给 AI。')}>{label}</Badge>;
 }

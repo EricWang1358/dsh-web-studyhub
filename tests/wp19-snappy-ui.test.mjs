@@ -80,11 +80,11 @@ test("audio cards: 知道了 is never disabled, leaving cards animate out, error
     return renderToStaticMarkup(quick ? React.createElement(QuickActionsContext.Provider, { value: quick }, tree) : tree);
   };
   const html = render();
-  const buttons = html.match(/<button[^>]*class="job-dismiss"[^>]*>/g) || [];
+  const buttons = html.match(/<button[^>]*class="[^"]*sh-job__dismiss[^"]*"[^>]*>/g) || [];
   assert.equal(buttons.length, 2);
   for (const button of buttons) assert.doesNotMatch(button, /disabled/);
-  assert.match(html, /class="job complete"/);
-  assert.match(html, /class="job failed job-leaving"/);
+  assert.match(html, /class="sh-job sh-job--complete"/);
+  assert.match(html, /class="sh-job sh-job--failed is-leaving"/);
   const withError = render(quickValue({ one: "写入失败" }));
   assert.match(withError.match(/one\.mp3[\s\S]*?(?=two\.mp3)/)[0], /写入失败/);
 });

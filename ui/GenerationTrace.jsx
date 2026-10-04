@@ -1,6 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useEffect, useState } from "react";
-import { Disclosure } from "./components/index.js";
+import React, { useState } from "react";
+import { Disclosure, useNow } from "./components/index.js";
 import AgentLink from "./AgentLink.jsx";
 import { legacyStageText, stepLabel } from "./generation-status.js";
 import { JobUsage } from "./TokenUsage.jsx";
@@ -18,15 +18,12 @@ const seconds = (from, to) => Math.max(0, Math.round((to - Date.parse(from)) / 1
    stays behind 技术详情 for whoever wants to look (P29). */
 export default function GenerationTrace({ job, openAgent }) {
   const steps = job.steps || [];
-  const [now, setNow] = useState(Date.now);
   const active = ["running", "queued", "cancelling"].includes(job.status);
-  useEffect(() => {
-    if (!active) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [active]);
+  // The waited-seconds readout only exists while the trace is open: a collapsed trace never re-renders on a clock.
+  const [open, setOpen] = useState(false);
+  const now = useNow(1000, { enabled: active && open });
   const status = STEP_STATUS();
-  return <details className="generation-trace">
+  return <details className="generation-trace" onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary>{uiFormat("查看执行过程 · {0} 步", [steps.length])}</summary>
     {job.retrieval && <p className="muted" data-retrieval={retrievalSummary(job.retrieval).error ? "error" : "used"}>{retrievalSummary(job.retrieval).text}</p>}
     {!steps.length && <p className="muted">{job.status === "queued" ? ui("正在排队，还没有开始。") : ui("还没有步骤记录。")}</p>}

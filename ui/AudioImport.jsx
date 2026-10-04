@@ -1,7 +1,7 @@
 import { getUiLanguage, ui, uiFormat, uiLocale, uiMessage, useUiLanguage } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
 import CourseField, { parseCourses } from './CourseField.jsx';
-import { Button, FileDrop, InlineMessage } from './components/index.js';
+import { Button, FileDrop, Hint, Icon, InlineMessage, JobRow, ProgressBar, useNow } from './components/index.js';
 import { AudioSetupGate, requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import { TokenEstimate } from './TokenUsage.jsx';
@@ -138,7 +138,7 @@ function AudioTasks({ job, now, openAgent }) {
         <strong>{taskLabel(task)}</strong>
         <small>{ui(TASK_STATUS[task.status] || task.status)}{ui(RUNTIME[task.runtime] || '')}
           {task.finishedAt ? uiFormat(' · {0}', [spent(Date.parse(task.finishedAt) - Date.parse(task.startedAt))]) : ''}</small>
-        {task.note && <small className="warning">{task.note}</small>}
+        {task.note && <Hint as="small" size="xs" tone="warning">{task.note}</Hint>}
         {task.reasoning && <small>{getUiLanguage() === 'en' ? 'Reasoning: ' : '推理：'}{task.reasoning}
           {task.reasoningEffort && task.reasoningEffort !== task.reasoning ? ` → ${task.reasoningEffort}` : ''}</small>}
         <OpenAgent task={task} openAgent={openAgent} />
@@ -160,12 +160,7 @@ function memberState(member, jobActive, now) {
 function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onOpenSettings }) {
   const quick = useQuickActions(), dismissFailure = quick?.failures[job.id];
   // The length of the recording is not how long the work takes: show how long it has actually taken.
-  const running = isActive(job), [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [running]);
+  const running = isActive(job), now = useNow(1000, { enabled: running });
   const took = job.startedAt && job.status !== "queued" ? (running ? now : Date.parse(job.finishedAt || job.startedAt)) - Date.parse(job.startedAt) : null;
   const counted = ORDER.includes(job.phase) && job.total > 0;
   const progress = audioProgress(job, now);
@@ -186,91 +181,81 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
         : job.status === "cancelling" ? ui("正在停止")
           : counted ? uiFormat("{0}（{1}/{2}）", [ui(PHASES[job.phase]), Math.min(job.done + 1, job.total), job.total]) : ui(PHASES[job.phase] || "处理中");
   const order = job.review ? [] : job.subtitle ? ORDER.filter(phase => phase !== "transcribe") : ORDER;
+  const meta = <>{title}{job.minutes ? uiFormat(" · 录音时长 {0} 分钟", [job.minutes]) : ""}
+    {took !== null && (running || job.finishedAt) && !held ? uiFormat(running ? " · 已用 {0}" : " · 用时 {0}", [spent(took)]) : ""}</>;
+  const progressed = running && job.phase !== "queued";
+  const retry = (args) => () => act("audio.retry", { jobId: job.id, ...args });
+  const actions = [
+    ...(["running", "queued"].includes(job.status) ? [{ key: "stop", label: ui("停止（已转写的部分会保留）"), disabled: busy, onClick: () => act("job.cancel", { jobId: job.id }) }] : []),
+    ...(held && job.retryable ? [
+      { key: "skip", label: ui("跳过此文件继续"), variant: "primary", disabled: busy, onClick: retry({ skip: [job.blocked.index] }) },
+      { key: "fix", label: ui("修复后继续"), disabled: busy, title: ui("修好这个文件或音频设置后，从头再检查一遍；已完成的部分不会重复付费"), onClick: retry({}) },
+    ] : []),
+    ...(!held && ["failed", "cancelled"].includes(job.status) && job.retryable ? [{ key: "retry", label: ui("接着做（不重复付费）"), variant: "primary", disabled: busy,
+      title: ui("已转写、校对、翻译好的部分会直接复用，不会重复付费；也不用重新选文件"), onClick: retry({}) }] : []),
+    ...(job.legacy && onLegacyRetry ? [{ key: "legacy", label: ui("重新选择原录音继续"), variant: "primary", disabled: busy, onClick: () => onLegacyRetry(job) }] : []),
+  ];
+  const failure = job.status === "failed" ? { hint: <>{job.stage}
+    {onOpenSettings && aboutSettings(job.stage) && <> <Button variant="link" size="sm" onClick={onOpenSettings}>{ui('打开音频设置')}</Button></>}</> } : null;
+  const stage = job.status === "cancelling" ? ui("正在停止") : running ? ui(PHASES[job.phase] || "处理中") : undefined;
   return (
-    <div className={"job " + job.status + (job.leaving ? " job-leaving" : "")} role="status"
-      aria-hidden={job.leaving ? "true" : undefined} inert={job.leaving || undefined}>
-      <span>{job.status === "failed" ? "!" : job.status === "cancelled" ? "×" : isActive(job) ? "◌" : "✓"}</span>
-      <div>
-        <strong>{job.filename}</strong>
-        <small>{title}{job.minutes ? uiFormat(" · 录音时长 {0} 分钟", [job.minutes]) : ""}
-          {took !== null && (running || job.finishedAt) && !held ? uiFormat(running ? " · 已用 {0}" : " · 用时 {0}", [spent(took)]) : ""}</small>
-        {running && job.phase !== "queued" && <div className="audio-progress">
-          <div className="audio-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent}
-            title={ui("总进度按步骤估算：转写 25% · 校对 30% · 翻译 45%；每一步里按已完成的段数计算。")}>
-            <span style={{ width: `${progress.percent}%` }} />
-            {progress.flight > 0 && <i style={{ left: `${progress.percent}%`, width: `${progress.flight}%` }} />}
-          </div>
-          <div className="audio-progress-line">
-            <strong>{progress.percent}%</strong>
-            {job.members ? <small>{uiFormat('已完成 {0}/{1} 段音频', [job.members.filter(member => member.status === 'complete').length, job.members.filter(member => member.status !== 'skipped').length])}</small> : <ol className="audio-steps">{order.map((phase) => {
-              const step = job.steps?.[phase], state = step?.total > 0 && step.done >= step.total ? "done" : job.phase === phase ? "current" : "todo";
-              return <li key={phase} className={state}>{state === "done" ? "✓ " : ""}{ui(TASK_KINDS[phase])}
-                {step?.total > 0 ? uiFormat(" 已完成 {0}/{1}", [step.done, step.total]) : ""}</li>;
-            })}</ol>}
-          </div>
-          {progress.eta !== null
-            ? <small className="muted">{uiFormat("本步骤预计还需{0}", [roughly(progress.eta)])}</small>
-            : job.phase === "transcribe" && <small className="muted">{ui("转写要等服务商处理完整段录音，长录音需要几分钟，不是卡住了；上面的「已用」时间在走。")}</small>}
-        </div>}
-        {job.status === "failed" && <small className="warning">{job.stage}
-          {onOpenSettings && aboutSettings(job.stage) && <> <button type="button" className="link-btn" onClick={onOpenSettings}>{ui('打开音频设置')}</button></>}</small>}
-        {job.members?.length > 0 && <ol className="audio-members">{job.members.map((member, index) => {
-          const state = memberState(member, running, now);
-          return <li key={index}>
-            <strong>{member.filename}</strong><small className={state.reason ? 'audio-member-reason' : undefined}>{state.text}</small>
-            {ORDER.filter(phase => member.steps?.[phase]?.total > 0).map(phase => <small key={phase}>
-              {ui(TASK_KINDS[phase])}{uiFormat(' 已完成 {0}/{1}', [member.steps[phase].done, member.steps[phase].total])}</small>)}
-            <AudioTasks job={member} now={now} openAgent={openAgent} />
-          </li>;
-        })}</ol>}
-        {job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources && <button type="button" className="link-btn"
-          onClick={() => onOpenSources(job.sourceIds)}>{ui('打开逐字稿')}</button>}
-        {["failed", "cancelled"].includes(job.status) && savedSteps(job.steps) && <small>{uiFormat("已保存：{0}", [savedSteps(job.steps)])}</small>}
-        {job.status === "complete" && !job.reused && job.uncertain > 0 && (
-          <small>{uiFormat("另有 {0} 处把握不大的疑似错词没有改，可在资料里查看", [job.uncertain])}
-            {job.sourceIds?.length > 0 && onOpenSources && <button type="button" className="link-btn" onClick={() => onOpenSources(job.sourceIds.slice(0, 1))}>{ui("去复核")}</button>}</small>
-        )}
-        {requestsOf(usage) > 0 && (
-          <small>
-            {uiFormat("Gemini 请求（这份录音累计，含之前的尝试）：免费 {0} 次 · 付费 {1} 次", [usage.free.requests, usage.paid.requests])}
-            {paidUsed && usage.estimatedPaidTranscribeUsd > 0 ? uiFormat(" · 转写付费部分约 ${0}", [usage.estimatedPaidTranscribeUsd]) : ""}
-          </small>
-        )}
-        {usage?.siliconflow?.requests > 0 && (
-          <small>{uiFormat("硅基流动请求（免费，这份录音累计）：{0} 次", [usage.siliconflow.requests])}</small>
-        )}
-        {usage?.groq?.requests > 0 && (
-          <small>{uiFormat("Groq 请求（免费额度，这份录音累计）：{0} 次", [usage.groq.requests])}</small>
-        )}
-        {usage && job.usageRun && requestsOf(job.usageRun) !== requestsOf(usage) && (
-          <small className="muted">{requestsOf(job.usageRun) === 0
-            ? ui("这次没有新发 Gemini 请求：已保存的转写等结果直接复用了")
-            : uiFormat("其中本次：免费 {0} 次 · 付费 {1} 次", [job.usageRun.free.requests, job.usageRun.paid.requests])}</small>
-        )}
-        {usage && job.textProvider === "host" && textStepsRan(job) && <small className="muted">{ui("校对和翻译由 DSH 的模型完成，不在上面的 Gemini 次数里")}</small>}
-        {isActive(job) && !job.reused && job.estimatedUsd > 0 && (
-          <small>{uiFormat("若全部走付费密钥，转写约 ${0}", [job.estimatedUsd])}</small>
-        )}
-        {(job.warnings || []).map((warning) => <small className="warning" key={warning}>{warning}</small>)}
-        <AudioTasks job={job} now={now} openAgent={openAgent} />
-        {["running", "queued"].includes(job.status) &&
-          <button type="button" disabled={busy} onClick={() => act("job.cancel", { jobId: job.id })}>{ui("停止（已转写的部分会保留）")}</button>}
-        {held && job.retryable && <div className="audio-job-actions">
-          <Button variant="primary" size="sm" disabled={busy} onClick={() => act("audio.retry", { jobId: job.id, skip: [job.blocked.index] })}>{ui("跳过此文件继续")}</Button>
-          <Button size="sm" disabled={busy} title={ui("修好这个文件或音频设置后，从头再检查一遍；已完成的部分不会重复付费")}
-            onClick={() => act("audio.retry", { jobId: job.id })}>{ui("修复后继续")}</Button>
-        </div>}
-        {!held && ["failed", "cancelled"].includes(job.status) && job.retryable &&
-          <button type="button" className="primary" disabled={busy} title={ui("已转写、校对、翻译好的部分会直接复用，不会重复付费；也不用重新选文件")}
-            onClick={() => act("audio.retry", { jobId: job.id })}>{ui("接着做（不重复付费）")}</button>}
-        {job.legacy && onLegacyRetry && <button type="button" className="primary" disabled={busy}
-          onClick={() => onLegacyRetry(job)}>{ui("重新选择原录音继续")}</button>}
-        {dismissFailure && <p className="job-error" role="alert">{uiFormat("没能移除这条记录：{0}", [dismissFailure])}</p>}
-      </div>
-      {!isActive(job) && (
-        <button type="button" className="job-dismiss" onClick={() => quick ? dismissJobs(quick, job.id) : act("job.dismiss", { jobId: job.id })}>{ui("知道了")}</button>
+    <JobRow status={job.status === "cancelling" ? "running" : job.status} stage={stage} title={job.filename} meta={meta}
+      leaving={job.leaving} actions={actions} failure={failure} data-job-id={job.id}
+      onDismiss={!isActive(job) ? () => quick ? dismissJobs(quick, job.id) : act("job.dismiss", { jobId: job.id }) : undefined}
+      progress={progressed ? { value: progress.percent, max: 100, ahead: progress.flight, label: uiFormat("{0} 的总进度", [job.filename]),
+        title: ui("总进度按步骤估算：转写 25% · 校对 30% · 翻译 45%；每一步里按已完成的段数计算。"),
+        summary: <>
+          <strong>{progress.percent}%</strong>
+          {job.members ? <small>{uiFormat('已完成 {0}/{1} 段音频', [job.members.filter(member => member.status === 'complete').length, job.members.filter(member => member.status !== 'skipped').length])}</small> : <ol className="sh-job__steps">{order.map((phase) => {
+            const step = job.steps?.[phase], state = step?.total > 0 && step.done >= step.total ? "done" : job.phase === phase ? "current" : "todo";
+            return <li key={phase} className={"is-" + state}>{state === "done" && <Icon name="check" size={14} />}{ui(TASK_KINDS[phase])}
+              {step?.total > 0 ? uiFormat(" 已完成 {0}/{1}", [step.done, step.total]) : ""}</li>;
+          })}</ol>}
+        </> } : undefined}>
+      {progressed && (progress.eta !== null
+        ? <Hint as="small">{uiFormat("本步骤预计还需{0}", [roughly(progress.eta)])}</Hint>
+        : job.phase === "transcribe" && <Hint as="small">{ui("转写要等服务商处理完整段录音，长录音需要几分钟，不是卡住了；上面的「已用」时间在走。")}</Hint>)}
+      {job.members?.length > 0 && <ol className="audio-members">{job.members.map((member, index) => {
+        const state = memberState(member, running, now);
+        return <li key={index}>
+          <strong>{member.filename}</strong><small className={state.reason ? 'audio-member-reason' : undefined}>{state.text}</small>
+          {ORDER.filter(phase => member.steps?.[phase]?.total > 0).map(phase => <small key={phase}>
+            {ui(TASK_KINDS[phase])}{uiFormat(' 已完成 {0}/{1}', [member.steps[phase].done, member.steps[phase].total])}</small>)}
+          <AudioTasks job={member} now={now} openAgent={openAgent} />
+        </li>;
+      })}</ol>}
+      {job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources && <Button variant="link" size="sm"
+        onClick={() => onOpenSources(job.sourceIds)}>{ui('打开逐字稿')}</Button>}
+      {["failed", "cancelled"].includes(job.status) && savedSteps(job.steps) && <small>{uiFormat("已保存：{0}", [savedSteps(job.steps)])}</small>}
+      {job.status === "complete" && !job.reused && job.uncertain > 0 && (
+        <small>{uiFormat("另有 {0} 处把握不大的疑似错词没有改，可在资料里查看", [job.uncertain])}
+          {job.sourceIds?.length > 0 && onOpenSources && <Button variant="link" size="sm" onClick={() => onOpenSources(job.sourceIds.slice(0, 1))}>{ui("去复核")}</Button>}</small>
       )}
-    </div>
+      {requestsOf(usage) > 0 && (
+        <small>
+          {uiFormat("Gemini 请求（这份录音累计，含之前的尝试）：免费 {0} 次 · 付费 {1} 次", [usage.free.requests, usage.paid.requests])}
+          {paidUsed && usage.estimatedPaidTranscribeUsd > 0 ? uiFormat(" · 转写付费部分约 ${0}", [usage.estimatedPaidTranscribeUsd]) : ""}
+        </small>
+      )}
+      {usage?.siliconflow?.requests > 0 && (
+        <small>{uiFormat("硅基流动请求（免费，这份录音累计）：{0} 次", [usage.siliconflow.requests])}</small>
+      )}
+      {usage?.groq?.requests > 0 && (
+        <small>{uiFormat("Groq 请求（免费额度，这份录音累计）：{0} 次", [usage.groq.requests])}</small>
+      )}
+      {usage && job.usageRun && requestsOf(job.usageRun) !== requestsOf(usage) && (
+        <Hint as="small">{requestsOf(job.usageRun) === 0
+          ? ui("这次没有新发 Gemini 请求：已保存的转写等结果直接复用了")
+          : uiFormat("其中本次：免费 {0} 次 · 付费 {1} 次", [job.usageRun.free.requests, job.usageRun.paid.requests])}</Hint>
+      )}
+      {usage && job.textProvider === "host" && textStepsRan(job) && <Hint as="small">{ui("校对和翻译由 DSH 的模型完成，不在上面的 Gemini 次数里")}</Hint>}
+      {isActive(job) && !job.reused && job.estimatedUsd > 0 && (
+        <small>{uiFormat("若全部走付费密钥，转写约 ${0}", [job.estimatedUsd])}</small>
+      )}
+      {(job.warnings || []).map((warning) => <InlineMessage tone="warning" key={warning}>{warning}</InlineMessage>)}
+      <AudioTasks job={job} now={now} openAgent={openAgent} />
+      {dismissFailure && <InlineMessage tone="error">{uiFormat("没能移除这条记录：{0}", [dismissFailure])}</InlineMessage>}
+    </JobRow>
   );
 }
 
@@ -301,17 +286,17 @@ export function AudioCorrections({ audio, onReview }) {
       <summary>{uiFormat("校对改动 {0} 处 · 未改动的存疑处 {1} 处", [audio.corrections.appliedCount ?? applied.length, unsure.length])}</summary>
       {applied.length > 0 && <ul>{applied.map((item, index) => row(item, `a${index}`))}</ul>}
       {unsure.length > 0 && <>
-        <p className="muted">{ui("下面这些把握不大，没有改动，需要时请对照录音核对：")}</p>
-        {onReview && pending > 0 && <p>
+        <Hint>{ui("下面这些把握不大，没有改动，需要时请对照录音核对：")}</Hint>
+        {onReview && pending > 0 && <><p>
           <button type="button" disabled={review.status !== "idle"} onClick={start}
             title={ui("用对话模型结合上下文再判一次：能确定的直接改进正稿（译文里的同一处一起改），仍拿不准的留在这里")}>
             {uiFormat("让模型复核这 {0} 处", [pending])}</button>
-          {review.status === "started" && <small className="muted"> {ui("已开始复核，进度见音频任务卡片")}</small>}
-          {review.error && <small className="warning"> {review.error}</small>}
-        </p>}
+          {review.status === "started" && <Hint as="small"> {ui("已开始复核，进度见音频任务卡片")}</Hint>}
+        </p>
+        {review.error && <InlineMessage tone="error">{review.error}</InlineMessage>}</>}
         <ul>{unsure.map((item, index) => row(item, `u${index}`))}</ul>
       </>}
-      {kept > 0 && <p className="muted">{uiFormat("另有 {0} 处经复核判定原文无误，已不再列出", [kept])}</p>}
+      {kept > 0 && <Hint>{uiFormat("另有 {0} 处经复核判定原文无误，已不再列出", [kept])}</Hint>}
     </details>
   );
 }
@@ -319,7 +304,7 @@ export function AudioCorrections({ audio, onReview }) {
 /** Progress and results of audio imports; shown in the add-source form and at the top of the sources page. */
 export function AudioJobs({ data, busy, act, openAgent, onOpenSources, onLegacyRetry, onOpenSettings }) {
   const jobs = (data.jobs || []).filter((job) => job.type === "audio-import");
-  return jobs.length ? <div className="jobs audio-jobs">{jobs.map((job) => <AudioJob key={job.id} job={job} busy={busy} act={act} openAgent={openAgent}
+  return jobs.length ? <div className="jobs audio-jobs sh-job-list">{jobs.map((job) => <AudioJob key={job.id} job={job} busy={busy} act={act} openAgent={openAgent}
     onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onOpenSettings={onOpenSettings} />)}</div> : null;
 }
 
@@ -342,9 +327,9 @@ function WorkspaceAudio({ call, onPick }) {
     <details className="audio-workspace" onToggle={(event) => setOpened(event.currentTarget.open)}>
       <summary>{ui("从工作区里找")}</summary>
       <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={ui("搜索文件名")} aria-label={ui("搜索文件名")} />
-      {state.status === "loading" && !state.files.length && <p className="muted">{ui("正在查找…")}</p>}
-      {state.status === "error" && <p className="warning" role="alert">{uiFormat("无法列出工作区里的文件：{0}", [state.error])}</p>}
-      {state.status === "ready" && !state.files.length && <p className="muted">{ui("工作区里没有找到音频文件。把录音放进工作区，或用上面的方式选择。")}</p>}
+      {state.status === "loading" && !state.files.length && <Hint>{ui("正在查找…")}</Hint>}
+      {state.status === "error" && <InlineMessage tone="error">{uiFormat("无法列出工作区里的文件：{0}", [state.error])}</InlineMessage>}
+      {state.status === "ready" && !state.files.length && <Hint>{ui("工作区里没有找到音频文件。把录音放进工作区，或用上面的方式选择。")}</Hint>}
       {state.files.length > 0 && <ul className="audio-files">
         {state.files.map((file) => (
           <li key={file.path}>
@@ -356,7 +341,7 @@ function WorkspaceAudio({ call, onPick }) {
           </li>
         ))}
       </ul>}
-      {state.truncated && <p className="muted">{ui("只列出最近的一部分，请用搜索缩小范围。")}</p>}
+      {state.truncated && <Hint>{ui("只列出最近的一部分，请用搜索缩小范围。")}</Hint>}
     </details>
   );
 }
@@ -633,7 +618,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
       <strong>{ui("音频 / 录音 → 中英对照逐字稿")}</strong>
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
         <button type="button" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</button></p>}
-      <p className="muted">{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</p>
+      <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${[...EXTENSIONS, ...SUBTITLES].join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings}
@@ -651,13 +636,13 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
         <FileDrop multiple accept={[...EXTENSIONS, ...SUBTITLES]} disabled={busy}
           label={ui("把音频文件拖到这里，或点击选择")} hint={`MP3 · WAV · M4A · AAC · OGG · FLAC · OPUS · WEBM · AIFF · ${ui("最大 512 MB")}`}
           onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
-        <small className="muted">{ui("也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。")}</small>
+        <Hint as="small">{ui("也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。")}</Hint>
       </div>}
       {problem && <InlineMessage tone="warning">{problem}</InlineMessage>}
       {!upload && !gated && <>
         {files.length > 0 && <div className="audio-add" onDragOver={event => event.preventDefault()} onDrop={drop}>
           <button type="button" disabled={busy} onClick={() => picker.current?.click()}>{ui('添加音频')}</button>
-          <small className="muted">{ui('也可把更多音频拖到这里')}</small>
+          <Hint as="small">{ui('也可把更多音频拖到这里')}</Hint>
         </div>}
         <div className="audio-ways">
           <WorkspaceAudio call={call} onPick={(picked) => pickPath(picked.path, picked.size)} />
@@ -674,16 +659,16 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
           </details>
         </div>
       </>}
-      {upload && <div className="audio-upload" role="status">
+      {upload && <div className="audio-upload">
         <div className="audio-upload-head"><strong>{upload.name}</strong>
           {upload.error ? <button type="button" className="link-btn" onClick={() => setUpload(null)}>{ui("重新选择")}</button>
             : <button type="button" className="link-btn" onClick={cancelUpload}>{ui("取消上传")}</button>}</div>
-        {upload.error ? <p className="warning" role="alert">{uiFormat("上传失败：{0}", [upload.error])}</p> : <>
-          <div className="audio-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>
+        {upload.error ? <InlineMessage tone="error">{uiFormat("上传失败：{0}", [upload.error])}</InlineMessage> : <>
+          <ProgressBar value={percent} max={100} size="sm" label={uiFormat("上传 {0}", [upload.name])} />
           <small className="muted">{uiFormat("正在上传 {0} / {1}", [formatSize(upload.sent), formatSize(upload.size)])}</small></>}
       </div>}
       {files.length > 0 && <form onSubmit={start}>
-        {files.length > 1 && <small className="muted">{ui('按下面的顺序合成一份逐字稿，可拖动或用按钮调整。')}</small>}
+        {files.length > 1 && <Hint as="small">{ui('按下面的顺序合成一份逐字稿，可拖动或用按钮调整。')}</Hint>}
         <ol className={`audio-selection${files.length === 1 ? ' single' : ''}`}>{files.map((file, index) => {
           const note = notes[file.key];
           return <li key={file.key} className="audio-chosen" draggable={!busy && files.length > 1}

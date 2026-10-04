@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { InlineMessage } from './components/index.js';
+import { Badge, InlineMessage } from './components/index.js';
+import { JevDecidedBadge as DecidedBadge } from './JevBadge.jsx';
 import { lineText, percentText, probabilityRows } from './jev-flow.js';
 import css from './jev.css';
 
@@ -21,11 +22,8 @@ export function useJevCourseSuggest(call, initial) {
   return on;
 }
 
-/** "由 Jev 判定": on a course suggestion row that Jev answered instead of the model. */
-export function JevDecidedBadge() {
-  useInjectCss(css, 'study-jev');
-  return <small className="jev-badge jev-badge--decided" data-jev-decided="row">{ui('由 Jev 判定')}<span className="jev-badge__exp"> · {ui('实验性')}</span></small>;
-}
+/** "由 Jev 判定": on a course suggestion row that Jev answered instead of the model (the draft's badge, scope row). */
+export const JevDecidedBadge = () => <DecidedBadge scope="row" />;
 
 /** One quiet line after a run in which Jev answered instead of the model: how many each took and, once, why the model took some. Nothing when the site is off. */
 export function JevRunNote({ jev }) {
@@ -46,7 +44,7 @@ export function JevSuggestButton({ enabled, disabled, onClick }) {
 }
 function JevSuggestControl({ disabled, onClick }) {
   useInjectCss(css, 'study-jev');
-  return <button type="button" className="jev-suggest-button" disabled={disabled} onClick={onClick} data-experimental="true">{ui('Jev 建议')}<span className="audio-chip audio-chip--accent jev-chip">{ui('实验性')}</span></button>;
+  return <button type="button" className="jev-suggest-button" disabled={disabled} onClick={onClick} data-experimental="true">{ui('Jev 建议')}<Badge tone="info" size="sm" className="jev-chip">{ui('实验性')}</Badge></button>;
 }
 
 /** Why Jev could not help, in one quiet line; the existing "请 AI 建议" and the manual field are still there. */
@@ -63,7 +61,7 @@ export function JevProbabilities({ jev }) {
   const rows = probabilityRows(jev);
   return (
     <div className="jev-probs" data-jev-probs data-filled={jev.filled ? 'true' : 'false'}>
-      <p className="jev-probs__head"><span className="audio-chip audio-chip--accent jev-chip">{ui('Jev 建议')}</span><small>{ui('实验性')} · {lineText(jev)} · {jev.filled ? ui('已填入') : ui('把握不够，没有填入')}</small></p>
+      <p className="jev-probs__head"><Badge tone="info" size="sm" className="jev-chip">{ui('Jev 建议')}</Badge><small>{ui('实验性')} · {lineText(jev)} · {jev.filled ? ui('已填入') : ui('把握不够，没有填入')}</small></p>
       <ul className="jev-probs__list">
         {rows.map(row => <li key={row.id} className={`jev-prob${row.picked ? ' is-picked' : ''}${row.none ? ' is-none' : ''}`}>
           <span className="jev-prob__name">{row.label}</span>

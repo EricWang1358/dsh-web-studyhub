@@ -1,10 +1,8 @@
 /* ── 错题与待巩固 (WP26) ────────────────────────────────────────────────
    A marked exercise book: topics are headings over ruled lines, the mark sits
    in the margin. "为你推荐" and the retrain bar are quiet panels above it.
-   Tokens only; the shared .wb shell and .wb-error live in views.css. */
+   Tokens only; the shared .wb shell lives in views.css. */
 :is(.study-app, .study-seat) {
-  .wb-empty h2 { margin: 0; }
-
   /* retrain scope */
   .wb-retrain {
     display: flex;
