@@ -9,7 +9,7 @@ import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/g
 
 /** The generate form after a job starts: one source of the defaults (P27). */
 export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, count: GENERATION_SETTINGS_DEFAULTS.count,
-  difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, role: '' });
+  difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, notation: GENERATION_SETTINGS_DEFAULTS.notation, role: '' });
 
 export function generationFormDefaults(saved, language = getUiLanguage()) {
   const { performance: _performance, ...content } = resolveGenerationRequest(saved, {}, { language });
@@ -29,7 +29,7 @@ export function syncGenerationDefaults(current, before, after) {
 
 /** Start another deck with saved content defaults and the learner's role. */
 export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => ({ ...gen,
-  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, count: GENERATION_DEFAULTS.count, focus: '' }
+  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation }
     : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined });
 
 /** Plan contract C3 first (`data.model`), then the legacy `modelReady` flag. */

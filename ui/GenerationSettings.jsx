@@ -3,12 +3,13 @@ import { ui, uiFormat } from './i18n.js';
 import { Button } from './components/Button.jsx';
 import { kinds } from './shared.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_KINDS, GENERATION_LANGUAGES,
-  GENERATION_DIFFICULTIES, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
+  GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 
-const labels = { kind: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点',
+const labels = { kind: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '运行时限（分钟）' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
+const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
 const numeric = ['count', 'concurrency', 'batchSize', 'jobTimeoutMinutes'];
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const numbers = values => ({ ...values, ...Object.fromEntries(numeric.map(key =>
@@ -97,6 +98,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, setNoti
       {numberField('count', ui('一次请求的总题数，与每批题数分别设置。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
+      {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}
       {field('focus', <textarea {...propsFor('focus')} rows={3} maxLength={GENERATION_SETTINGS_LIMITS.focus.max}
         placeholder={ui('例如：重点解释成立条件，再比较相似概念。')} />, ui('可留空；这次出题的侧重点可以覆盖这里的默认值。'))}
       <h3 className="settings-subtitle">{ui('生成安排')}</h3>

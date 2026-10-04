@@ -7,7 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 
 const original = { kind: 'flashcard', count: 7, language: 'English', difficulty: 'foundation', focus: 'Explain independent deployment',
-  concurrency: 1, batchSize: 2, jobTimeoutMinutes: 5 };
+  concurrency: 1, batchSize: 2, jobTimeoutMinutes: 5, notation: 'auto' };
 const performance = ({ concurrency, batchSize, jobTimeoutMinutes }) => ({ concurrency, batchSize, jobTimeoutMinutes });
 const text = 'Microservices split a system into independently deployable services that own their data. ' +
   'Event-driven architecture lets services react to events published by others, which decouples producers from consumers. ' +
