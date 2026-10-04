@@ -68,6 +68,8 @@
 .study-app .nav-group-label[aria-expanded="false"] .nav-group-chevron {
   transform: translateX(-2px) rotate(-45deg);
 }
+/* The row's Tooltip wrapper adds no box of its own (its panel is in the top layer). */
+.study-app .side-nav .nav-tip { display: block; }
 /* Every row, wherever it sits, floats above the one gliding highlight; a lifted row above its neighbours. */
 .study-app .side-nav .nav {
   z-index: 1;

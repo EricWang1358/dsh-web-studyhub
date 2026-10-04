@@ -6,9 +6,10 @@ import { uiRich } from "./i18n-rich.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
-import { Button, PageHeader } from "./components/index.js";
+import { Banner, Button, Disclosure, InlineMessage, PageHeader, ProgressBar } from "./components/index.js";
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
-import { ModelError, Readings, ScopeBar } from "./WorkflowScope.jsx";
+import { Readings, ScopeBar } from "./WorkflowScope.jsx";
+import ModelErrorNote, { ModelSettingsContext } from "./ModelErrorNote.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./workflows.css";
 import skeletonCss from "./skeleton.css";
@@ -55,7 +56,7 @@ function PracticeStep({ step, resources, pending, disabled, onStart, onOpen }) {
   </div>;
   const done = p.complete || p.ended;
   return <div className="wf-practice-intro">
-    <div className="wf-practice-progress" role="progressbar" aria-label={ui("本步练习进度")} aria-valuemin={0} aria-valuemax={p.total} aria-valuenow={p.answered}><span style={{ width: `${p.total ? Math.round((p.answered / p.total) * 100) : 0}%` }} /></div>
+    <ProgressBar className="wf-practice-progress" value={p.answered} max={p.total} label={ui("本步练习进度")} size="sm" />
     {p.complete ? <p>{uiRich("本步练完了：答对 {0} / {1} 道。", <strong>{p.correct}</strong>, p.total)}</p>
       : p.ended ? <p>{uiFormat("这一轮提前结束了，做了 {0} / {1} 道。可以再练一轮，或在下方如实选择跳过。", [p.answered, p.total])}</p>
       : <p>{p.answered ? uiRich("已做 {0} / {1} 道，答对 {2} 道。", <strong>{p.answered}</strong>, p.total, p.correct) : uiRich("已做 {0} / {1} 道。", <strong>{p.answered}</strong>, p.total)}</p>}
@@ -76,7 +77,7 @@ function SkeletonMaker({ session, resources, disabled, onGenerate }) {
     <h3>{ui("本次还没有知识骨架")}</h3>
     <p className="muted">{ui("骨架把本次范围里的概念串成一条主线：先学什么、谁属于谁、哪些容易混。")}</p>
     {running ? <p className="wf-spine-status" role="status"><span className="wf-pulse" aria-hidden="true" />{uiFormat("AI 正在整理本次范围的骨架（{0} 题），好了会直接显示在这里；也可以先往下学。", [job.cards])}</p>
-      : resources.modelReady ? <>{failed && <div className="wf-error" role="alert"><p>{ui("上次没有生成成功")}{job.message ? "" : "。"}</p>{job.message && <ModelError text={job.message} />}</div>}
+      : resources.modelReady ? <>{failed && (job.message ? <ModelErrorNote error={job.message} /> : <InlineMessage tone="error">{ui("上次没有生成成功。")}</InlineMessage>)}
         <button type="button" className="primary" disabled={disabled || !resources.cardCount} onClick={onGenerate}>{failed ? ui("重新生成本次范围的骨架") : ui("一键生成本次范围的骨架")}</button>
         {!resources.cardCount && <p className="muted small">{ui("本次范围没有题目，无法整理骨架。")}</p>}</>
       : <p className="wf-model-hint">{ui("连接模型后可以一键生成；也可以请主对话帮你设计骨架。")}</p>}
@@ -130,11 +131,16 @@ export function SpinePeek({ session, resources, stepKind, late, disabled, onGene
   // At the last step a new skeleton would only serve a later session.
   if (!resources.modelReady || late) return null;
   const interrupted = job?.status === "running" || job?.status === "failed";
-  return <div className="wf-spine-status muted">{interrupted ? <><span>{ui("上次后台整理骨架没有完成。")}</span>{job.message && <ModelError text={job.message} />}</> : <span>{ui("本次范围还没有知识骨架。")}</span>}
+  return <div className="wf-spine-status muted">{interrupted ? <><span>{ui("上次后台整理骨架没有完成。")}</span>{job.message && <ModelErrorNote error={job.message} />}</> : <span>{ui("本次范围还没有知识骨架。")}</span>}
     <button type="button" className="link-btn" disabled={disabled} onClick={onGenerate}>{interrupted ? ui("重新在后台生成") : ui("在后台生成一份")}</button></div>;
 }
 
-export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession, onBack, revision }) {
+/** The guided flow. onOpenSettings (optional) is what a model-failure note inside it offers as 打开模型设置. */
+export default function WorkflowPortal({ onOpenSettings, ...props }) {
+  return <ModelSettingsContext.Provider value={onOpenSettings || null}><PortalBody {...props} /></ModelSettingsContext.Provider>;
+}
+
+function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession, onBack, revision }) {
   useInjectCss(css, "study-workflows");
   useInjectCss(skeletonCss, "study-skeleton");
   const [session, setSession] = useState(null), [resources, setResources] = useState({ readings: [], sources: [], cardCount: 0 });
@@ -396,11 +402,12 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
       actions={!completed && <Button disabled={busy || !!remote} onClick={() => changeStatus(active ? "paused" : "active")}>{active ? ui("保存并暂停") : ui("继续学习")}</Button>}>
       <ScopeBar session={session} resources={resources} disabled={busy || !!remote || !active} onRescope={rescope} onStartNew={startInCourse} />
     </PageHeader>
-    {error && <div className="wf-error" role="alert"><ModelError text={error} /><p>{ui(" 你的输入仍保留在此设备。")}</p><button type="button" disabled={busy} onClick={refresh}>{ui("核对最新进度")}</button></div>}
-    {remote && <div className="wf-notice" role="status"><p>{ui("这次学习在其他地方有了更新。你的文字已保留，请选择怎样继续。")}</p>
-      {savedOutput(remote.session) && <details><summary>{ui("查看学习库中的最新回答")}</summary><Markdown text={savedOutput(remote.session)} /></details>}
-      <div className="wf-actions"><button type="button" onClick={() => reconcile(true)}>{remote.session.currentStepId === session.currentStepId ? ui("载入更新，保留我的文字") : ui("进入新步骤，保留旧步草稿")}</button><button type="button" onClick={() => reconcile(false)}>{ui("使用最新记录")}</button></div>
-    </div>}
+    {error && <div className="wf-failure"><ModelErrorNote error={error} /><p>{ui("你的输入仍保留在此设备。")}</p><Button size="sm" disabled={busy} onClick={refresh}>{ui("核对最新进度")}</Button></div>}
+    {remote && <Banner tone="info" role="status" title={ui("这次学习在其他地方有了更新。你的文字已保留，请选择怎样继续。")}
+      action={{ label: remote.session.currentStepId === session.currentStepId ? ui("载入更新，保留我的文字") : ui("进入新步骤，保留旧步草稿"), onClick: () => reconcile(true) }}
+      secondary={{ label: ui("使用最新记录"), onClick: () => reconcile(false) }}>
+      {savedOutput(remote.session) && <Disclosure summary={ui("查看学习库中的最新回答")}><Markdown text={savedOutput(remote.session)} /></Disclosure>}
+    </Banner>}
     {notice && <p className="wf-status" role="status">{notice}</p>}
     <ol className="wf-portal-route" aria-label={ui("学习步骤")}>{session.template.steps.map((item, stepIndex) => {
       const outcome = session.records[item.id]?.outcome, resume = item.id === session.resumeStepId;
@@ -414,7 +421,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
     {!completed && <article className="wf-activity">
       <div className="wf-section-head"><h2>{step.title}</h2></div>
       {step.instructions && <Markdown text={step.instructions} className="wf-instructions" />}
-      {!active && <p className="wf-notice">{ui("已暂停。点「继续学习」后可接着作答，当前内容可以阅读。")}</p>}
+      {!active && <Banner tone="info">{ui("已暂停。点「继续学习」后可接着作答，当前内容可以阅读。")}</Banner>}
       {["overview", "reflection"].includes(step.kind) && <LearnerChoices kind={step.kind} output={output} disabled={!active || busy || !!remote} onChange={changeOutput} />}
       {step.kind === "recall" && <section className="wf-recall-invitation"><h3>{ui("先合上材料，用自己的话讲一遍")}</h3><p>{ui("试着说清核心机制、一个例子，以及什么时候不适用。")}</p><div className="wf-quick-choices"><button type="button" aria-pressed={oralReported} disabled={!active || busy || !!remote} onClick={() => changeOutput(oralReported ? output.split("\n").filter((line) => !Object.values(ORAL_REPORTS).includes(line)).join("\n").trim() : [output.trim(), ORAL_REPORTS[getUiLanguage()]].filter(Boolean).join("\n"))}>{oralReported ? ui("已记录：我已口头复述") : ui("我已口头复述")}</button></div><small className="muted">{ui("这是你的自我记录；不会据此判分或认定掌握。也可以在下面写下复述。")}</small></section>}
       {step.kind === "skeleton" && (resources.skeleton ? <div className="wf-skeleton"><h3>{resources.skeleton.title}</h3>{resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} stepKind="skeleton" /></div> : <SkeletonMaker session={session} resources={resources} disabled={!active || busy || !!remote} onGenerate={generateSkeleton} />)}

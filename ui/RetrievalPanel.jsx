@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ui, uiFormat, uiLocale } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, InlineMessage } from './components/index.js';
+import { Button, Hint, InlineMessage } from './components/index.js';
+import { formatNumber } from './format.js';
 import css from './large-documents.css';
 
 /* On 创建题组 (WP28): with a retrieval tool chosen, a big selection is narrowed to
@@ -33,10 +34,10 @@ export default function RetrievalPanel({ call, advice, sourceIds = [], focus = '
       <div className="retrieval-panel__head">
         <p>{advice?.needsTopic
           ? ui('所选资料太大。先在「这次想练什么？」写下主题，StudyHub 才能用检索挑出相关页面。')
-          : uiFormat('检索已启用：出题时会先挑出和主题相关的页面，只把这些页面发给 AI（所选资料约 {0} 个字符）。', [Number(advice?.chars || 0).toLocaleString(uiLocale())])}</p>
+          : uiFormat('检索已启用：出题时会先挑出和主题相关的页面，只把这些页面发给 AI（所选资料约 {0} 个字符）。', [formatNumber(Number(advice?.chars || 0))])}</p>
         <Button size="sm" variant="secondary" busy={loading} disabled={disabled || !topic} onClick={run}>{ui('预览会用到的页面')}</Button>
       </div>
-      {error && <InlineMessage>{error}</InlineMessage>}
+      {error && <InlineMessage tone="error">{error}</InlineMessage>}
       {preview && preview.pages?.length > 0 && <>
         <ul className="retrieval-panel__pages" aria-label={ui('检索挑出的页面')}>
           {preview.pages.map(page => <li key={page.sourceId}>
@@ -47,14 +48,14 @@ export default function RetrievalPanel({ call, advice, sourceIds = [], focus = '
             </label>
           </li>)}
         </ul>
-        {preview.unresolved > 0 && <p className="large-doc__note">{uiFormat('另有 {0} 段没能对应到你资料里的页面，已忽略。', [preview.unresolved])}</p>}
-        {preview.truncated && <p className="large-doc__note">{ui('相关页面很多，只列出了最相关的一部分。')}</p>}
+        {preview.unresolved > 0 && <Hint>{uiFormat('另有 {0} 段没能对应到你资料里的页面，已忽略。', [preview.unresolved])}</Hint>}
+        {preview.truncated && <Hint>{ui('相关页面很多，只列出了最相关的一部分。')}</Hint>}
         <div className="retrieval-panel__actions">
           <Button size="sm" variant="secondary" disabled={disabled || !checked.size} onClick={() => onApply?.(preview.pages.filter(page => checked.has(page.sourceId)).map(page => page.sourceId))}>{ui('只用勾选的页面')}</Button>
           <Button size="sm" variant="quiet" onClick={() => setPreview(null)}>{ui('关闭预览')}</Button>
         </div>
       </>}
-      {preview && !preview.pages?.length && <p className="large-doc__note">{ui('检索没有找到相关页面。换个说法再试，或按章节缩小选择。')}</p>}
+      {preview && !preview.pages?.length && <Hint>{ui('检索没有找到相关页面。换个说法再试，或按章节缩小选择。')}</Hint>}
     </section>
   );
 }

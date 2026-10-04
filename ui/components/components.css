@@ -760,7 +760,8 @@
   .sh-file-chip--error { --sh-tone: var(--bad); }
 
   /* ── Dialog ─────────────────────────────────────────────────────────── */
-  .sh-dialog {
+  /* `&.sh-dialog`: a dialog outside every study surface is the surface itself (see Dialog.jsx, ownScope). */
+  .sh-dialog, &.sh-dialog {
     --sh-dialog-width: 680px;
     box-sizing: border-box;
     position: fixed;
@@ -779,18 +780,18 @@
     box-shadow: var(--shadow-lg), 0 2px 10px #0000002e;
     container-type: inline-size;
   }
-  .sh-dialog[open] {
+  .sh-dialog[open], &.sh-dialog[open] {
     display: flex;
     flex-direction: column;
     animation: sh-dialog-in 0.2s var(--ease-out);
   }
-  .sh-dialog::backdrop {
+  .sh-dialog::backdrop, &.sh-dialog::backdrop {
     background: rgb(14 11 8 / 0.56);
     backdrop-filter: blur(3px);
     animation: sh-fade-in 0.18s ease;
   }
-  .sh-dialog--sm { --sh-dialog-width: 460px; }
-  .sh-dialog--lg { --sh-dialog-width: 940px; }
+  .sh-dialog--sm, &.sh-dialog--sm { --sh-dialog-width: 460px; }
+  .sh-dialog--lg, &.sh-dialog--lg { --sh-dialog-width: 940px; }
   .sh-dialog--full {
     width: calc(100vw / var(--study-ui-scale, 1));
     height: calc(100dvh / var(--study-ui-scale, 1));
@@ -879,7 +880,7 @@
     .sh-setup { padding: var(--space-5); }
   }
   @media (max-width: 600px) {
-    .sh-dialog:not(.sh-dialog--full) { width: calc(100vw / var(--study-ui-scale, 1) - 16px); max-height: calc(100dvh / var(--study-ui-scale, 1) - 16px); border-radius: var(--radius); }
+    .sh-dialog:not(.sh-dialog--full), &.sh-dialog:not(.sh-dialog--full) { width: calc(100vw / var(--study-ui-scale, 1) - 16px); max-height: calc(100dvh / var(--study-ui-scale, 1) - 16px); border-radius: var(--radius); }
     .sh-dialog__header { padding: var(--space-4) var(--space-3) var(--space-2) var(--space-4); }
     .sh-dialog__body { padding: var(--space-2) var(--space-4) var(--space-4); }
     .sh-dialog__footer { padding: var(--space-3) var(--space-4); }
@@ -887,7 +888,7 @@
     .sh-dialog--full .sh-dialog__body { padding: var(--space-4); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .sh-toast, .sh-dialog[open], .sh-dialog::backdrop { animation: none; }
+    .sh-toast, .sh-dialog[open], .sh-dialog::backdrop, &.sh-dialog[open], &.sh-dialog::backdrop { animation: none; }
     .sh-spinner { animation-duration: 2.4s; }
     .sh-btn, .sh-drop__icon, .sh-disclosure__chevron { transition: none; }
     .sh-seg__thumb, .sh-seg__item, .sh-disclosure::details-content { transition: none; }

@@ -1,9 +1,10 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
-import { InlineMessage } from './components/index.js';
+import { Disclosure, InlineMessage } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import css from './ai-helper-note.css';
 import { describeModelError } from './generation-status.js';
+import { gateTitle } from './ModelSetupGate.jsx';
 
 /* One way of saying why an AI helper did not work (2.5.8), the same wherever a helper can fail: the 帮我想想 assist and the 分步生成路径
    refinement. The operation answers { reason, message?, sample? }:
@@ -17,7 +18,7 @@ const SETTINGS_KINDS = new Set(['credential', 'quota']);
 /** { kind, text, detail?, sample?, settings } for an unavailable answer, or null when there is nothing to explain (no signal, or no reason). */
 export function describeAiUnavailable(unavailable, fallback) {
   const reason = unavailable?.reason, left = ui(fallback);
-  if (reason === 'no-model') return { kind: reason, text: uiFormat('还没有可用的 AI 模型。{0}。', [left]), settings: true };
+  if (reason === 'no-model') return { kind: reason, text: uiFormat('{0}。{1}。', [gateTitle('inline'), left]), settings: true };
   if (reason === 'failed') {
     const raw = String(unavailable.message || '').trim(), known = describeModelError(raw);
     return { kind: reason, settings: SETTINGS_KINDS.has(known.kind), detail: known.kind !== 'unknown' ? raw : '',
@@ -39,7 +40,7 @@ export default function AiHelperNote({ unavailable, fallback, onRetry, onSetting
   return (
     <div className={['ai-helper-note', className].filter(Boolean).join(' ')} data-ai-helper-note={note.kind}>
       <InlineMessage tone="warning" action={action}>{note.text}</InlineMessage>
-      {look && <details className="ai-helper-note__sample"><summary>{look}</summary><pre>{note.sample || note.detail}</pre></details>}
+      {look && <Disclosure className="ai-helper-note__sample" summary={look}><pre>{note.sample || note.detail}</pre></Disclosure>}
     </div>
   );
 }

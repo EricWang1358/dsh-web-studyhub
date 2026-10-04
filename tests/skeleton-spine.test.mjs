@@ -37,7 +37,7 @@ test("unknown parents and parent cycles never drop a node", () => {
   assert.equal(spine[0].term, "Orphan");
 });
 
-import { spineCounts, spineKeyTarget, spineDefaultOpen, spineOpenKey, readSpineOpen, writeSpineOpen } from "../ui/skeleton-spine.js";
+import { spineCounts, spineDefaultOpen, spineOpenKey, readSpineOpen, writeSpineOpen } from "../ui/skeleton-spine.js";
 
 test("the counts are stations and the points under them, at any depth", () => {
   const spine = skeletonSpine({
@@ -48,17 +48,6 @@ test("the counts are stations and the points under them, at any depth", () => {
   });
   assert.deepEqual(spineCounts(spine), { stations: 2, points: 3 });
   assert.deepEqual(spineCounts([]), { stations: 0, points: 0 });
-});
-
-test("the tablist keys move to a neighbour, the ends, and never past them", () => {
-  assert.equal(spineKeyTarget(1, "ArrowRight", 5), 2);
-  assert.equal(spineKeyTarget(1, "ArrowLeft", 5), 0);
-  assert.equal(spineKeyTarget(4, "ArrowRight", 5), 4, "the last station stays the last");
-  assert.equal(spineKeyTarget(0, "ArrowLeft", 5), 0);
-  assert.equal(spineKeyTarget(2, "Home", 5), 0);
-  assert.equal(spineKeyTarget(2, "End", 5), 4);
-  assert.equal(spineKeyTarget(2, "a", 5), null, "other keys are not handled");
-  assert.equal(spineKeyTarget(0, "End", 0), null, "no stations, nothing to move to");
 });
 
 test("the spine is expanded by default only where the skeleton is the subject of the step", () => {

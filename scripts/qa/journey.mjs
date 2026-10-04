@@ -92,7 +92,7 @@ export const JOURNEY_STEPS = [
     j.state.jobId = (await j.snapshot()).jobs.at(-1).id;
   } },
   { name: "job-progress", needs: ["job"], run: async (j) => {
-    const job = j.page.locator(".generation-jobs .job").first();
+    const job = j.page.locator(".generation-jobs .generation-job").first();
     await job.waitFor({ timeout: 15000 });
     await j.settle(200);
     await job.scrollIntoViewIfNeeded();
@@ -101,8 +101,8 @@ export const JOURNEY_STEPS = [
     if (done.status !== "complete") throw new Error(`generation ended as ${done.status}: ${done.stage}`);
     j.state.draftId = done.draft?.id;
     // WP4: the finished job card at the top of the home offers 打开草稿.
-    await j.page.locator(".generation-jobs .job").getByRole("button", { name: j.t("打开草稿"), exact: true }).first().waitFor({ timeout: 15000 });
-    await j.page.locator(".generation-jobs .job").first().scrollIntoViewIfNeeded();
+    await j.page.locator(".generation-jobs .generation-job").getByRole("button", { name: j.t("打开草稿"), exact: true }).first().waitFor({ timeout: 15000 });
+    await j.page.locator(".generation-jobs .generation-job").first().scrollIntoViewIfNeeded();
     await j.settle();
     await j.shot("done");
   } },
@@ -343,7 +343,7 @@ export const CASE_STEPS = [
     await j.anchor("generate-submit").first().click();
     await j.until(async () => (await j.snapshot()).jobs.length > before, "a case generation job starts");
     j.state.caseJobId = (await j.snapshot()).jobs.at(-1).id;
-    await j.page.locator(".generation-jobs .job").first().waitFor({ timeout: 15000 });
+    await j.page.locator(".generation-jobs .generation-job").first().waitFor({ timeout: 15000 });
     await j.settle(300);
     await j.shot("running");
     const done = await j.api("job.wait", { jobId: j.state.caseJobId, timeoutSeconds: 60 });

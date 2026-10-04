@@ -239,8 +239,8 @@ test('the keyboard shortcut is documented in the shortcut sheet and does not col
   setUiLanguage('en');
   assert.doesNotMatch(render(e(ShortcutHelp, { page: 'library', onClose() {} })), han);
   setUiLanguage('zh');
-  // The app-wide handler (ui/App.jsx) uses these letters; P stays free so the reader's own handler can have it.
-  const app = readFileSync(new URL('../ui/App.jsx', import.meta.url), 'utf8');
-  for (const letter of ['a', 's', 'h', 't']) assert.ok(app.includes(`letter === "${letter}"`), letter);
-  assert.ok(!app.includes('letter === "p"'));
+  // The app-wide handler (ui/review/session-logic.js) uses these letters; P stays free so the reader's own handler can have it.
+  const app = readFileSync(new URL('../ui/review/session-logic.js', import.meta.url), 'utf8');
+  for (const letter of ['a', 's', 'h', 't']) assert.ok(app.includes(`letter === '${letter}'`), letter);
+  assert.ok(!app.includes("letter === 'p'"));
 });

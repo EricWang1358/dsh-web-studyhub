@@ -13,7 +13,7 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 let active;
 const realRequire = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
-  export { BackupSection } from './ui/Settings.jsx';
+  export { BackupSection } from './ui/settings/BackupSection.jsx';
   export { default as CourseSettings } from './ui/CourseSettings.jsx';
   export { default as ExtensionsSettings } from './ui/ExtensionsSettings.jsx';
   export { DisplaySettings } from './ui/reading-settings/ReadingSettings.jsx';`, resolveDir: process.cwd() },
@@ -145,11 +145,11 @@ test('the initial retrieval settings response preserves a URL typed while the re
   t.after(() => { globalThis.document = previousDocument; });
   const response = deferred(), view = renderHook(ExtensionsSettings, { call: () => response.promise });
   const tree = view.render(); view.effects();
-  const endpoint = find(tree, node => node.type === 'input' && node.props.type === 'url');
+  const endpoint = find(tree, node => node.props?.type === 'url');
   endpoint.props.onChange({ target: { value: 'https://chosen.example' } });
   response.resolve({ selected: 'builtin', effective: 'builtin', providers: [], otherTools: [], hfEndpoint: 'https://saved.example' });
   await response.promise; await Promise.resolve();
-  assert.equal(find(view.render(), node => node.type === 'input' && node.props.type === 'url').props.value, 'https://chosen.example');
+  assert.equal(find(view.render(), node => node.props?.type === 'url').props.value, 'https://chosen.example');
 });
 
 test('clearing the backup choice or changing libraries invalidates a pending file read', async t => {
@@ -179,7 +179,7 @@ test('untouched endpoint input still loads the saved setting and leaving ignores
     view.render(); view.effects(); if (leave) view.unmount();
     response.resolve({ selected: 'builtin', effective: 'builtin', providers: [], otherTools: [], hfEndpoint: 'https://saved.example' });
     await response.promise; await Promise.resolve();
-    assert.equal(find(view.render(), node => node.type === 'input' && node.props.type === 'url').props.value, leave ? '' : 'https://saved.example');
+    assert.equal(find(view.render(), node => node.props?.type === 'url').props.value, leave ? '' : 'https://saved.example');
     view.unmount();
   }
 });

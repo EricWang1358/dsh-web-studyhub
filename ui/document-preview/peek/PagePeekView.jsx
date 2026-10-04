@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { useInjectCss } from '../../shared.js';
-import { Button } from '../../components/index.js';
+import { Button, CloseButton, IconButton, Spinner } from '../../components/index.js';
 import { ZOOMS } from './peek-logic.js';
 import css from './peek.css';
 
@@ -24,18 +24,18 @@ export default function PagePeekView({ phase, page, total, zoom = 1, figure = fa
       <span className="page-peek__where" aria-live="polite">{uiFormat('第 {0} / {1} 页', [page, total])}</span>
       <div className="page-peek__tools">
         {ready && <>
-          <Button size="sm" variant="quiet" aria-label={ui('上一页')} title={ui('上一页')} disabled={page <= 1} onClick={onPrev}><span aria-hidden="true">‹</span></Button>
-          <Button size="sm" variant="quiet" aria-label={ui('下一页')} title={ui('下一页')} disabled={page >= total} onClick={onNext}><span aria-hidden="true">›</span></Button>
-          <Button size="sm" variant="quiet" aria-label={ui('缩小')} title={ui('缩小')} disabled={zoom <= ZOOMS[0]} onClick={() => onZoom(-1)}><span aria-hidden="true">−</span></Button>
+          <IconButton size="sm" icon="chevron-left" label={ui('上一页')} disabled={page <= 1} onClick={onPrev} />
+          <IconButton size="sm" icon="chevron" label={ui('下一页')} disabled={page >= total} onClick={onNext} />
+          <IconButton size="sm" icon="minus" label={ui('缩小')} disabled={zoom <= ZOOMS[0]} onClick={() => onZoom(-1)} />
           <output className="page-peek__zoom" aria-live="polite">{Math.round(zoom * 100)}%</output>
-          <Button size="sm" variant="quiet" aria-label={ui('放大')} title={ui('放大')} disabled={zoom >= ZOOMS.at(-1)} onClick={() => onZoom(1)}><span aria-hidden="true">＋</span></Button>
-          <Button size="sm" variant="quiet" aria-label={ui('适合宽度')} title={ui('适合宽度')} onClick={onFit}><span aria-hidden="true">⤢</span></Button>
+          <IconButton size="sm" icon="plus" label={ui('放大')} disabled={zoom >= ZOOMS.at(-1)} onClick={() => onZoom(1)} />
+          <IconButton size="sm" icon="fit" label={ui('适合宽度')} onClick={onFit} />
         </>}
-        <Button size="sm" variant="quiet" aria-label={ui('关闭')} title={ui('关闭')} onClick={onClose}><span aria-hidden="true">×</span></Button>
+        <CloseButton onClick={onClose} />
       </div>
     </header>
     <div className="page-peek__body">
-      {phase === 'loading' && <p className="page-peek__state" role="status"><span className="sh-spinner" aria-hidden="true" />{ui('正在读取原文件…')}</p>}
+      {phase === 'loading' && <p className="page-peek__state" role="status"><Spinner />{ui('正在读取原文件…')}</p>}
       {phase === 'none' && <div className="page-peek__state page-peek__state--note">
         <p>{issue?.kind && issue.kind !== 'none' && issue.message ? issue.message : ui('这份资料只保存了提取出的文字，没有原文件，所以看不到原页。')}</p>
         <Button size="sm" variant="secondary" icon="file" onClick={() => onAttach?.(issue?.kind && issue.kind !== 'none' ? 'relink' : 'attach')}>

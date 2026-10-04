@@ -1,17 +1,17 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
 import PageScope, { usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { ErrorState, Hint, LoadingState, SegmentedControl } from './components/index.js';
+import { Button, ErrorState, Hint, LoadingState, SegmentedControl } from './components/index.js';
+import { FullscreenButton, ZoomControls, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
 import {
   layoutStructure,
   layoutPath,
   pathColumns,
-  fitScale,
-  clampScale,
   bez,
   idTail,
+  FIT_MAX,
   ZOOM_MIN,
   ZOOM_MAX,
 } from "./graph-layout.js";
@@ -20,9 +20,10 @@ import {
    left, topics fanning right, each topic branching into its card leaves.
    Data comes from call("graph", {scope, mode}); layout lives in
    ui/graph-layout.js (column-packed, so the sheet grows sideways instead of
-   becoming a ribbon). The panel view scrolls the whole drawing; 「大画布」
-   promotes the section to a real browser fullscreen canvas with zoom, pan and
-   fit, which is the only way to see a library's whole structure at once.
+   becoming a ribbon). Pan, zoom and fullscreen are the shared canvas kit
+   (ui/canvas): drag pans, Ctrl/⌘+wheel zooms, 全屏查看 takes the whole screen
+   (the Fullscreen API, or the top layer where the host blocks it), which is
+   the only way to see a library's whole structure at once.
    CSS is injected once with a <style data-study-graph> marker. */
 
 const levelOf = (node) => {
@@ -43,7 +44,6 @@ const fitLabel = (t, max) => {
   const s = String(t ?? "");
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 };
-const ZOOM_STEP = 1.25;
 
 /** What the canvas says when there is no drawing: reading, failed (with a retry) or nothing in this scope. */
 export function GraphStatus({ loading, error, onRetry }) {
@@ -72,19 +72,13 @@ export default function Graph({
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [full, setFull] = useState(false);
-  const [scale, setScale] = useState(1);
-  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  const fullscreen = useCanvasFullscreen();
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const { viewRef, view, viewport, fit, zoomAt, panHandlers } = usePanZoom(size.w, size.h, {
+    maxFit: FIT_MAX, minInitial: 0, zoomMin: ZOOM_MIN, zoomMax: ZOOM_MAX,
+  });
   const seq = useRef(0);
-  const canvasRef = useRef(null);
-  const viewRef = useRef(null);
-  const scaleRef = useRef(1);
-  const dragRef = useRef(null);
-  const suppressClick = useRef(false);
   const autoTried = useRef(false);
-  const lastFit = useRef("");
-  const fittedScale = useRef(1);
   const scopeKey = JSON.stringify(objectScope ? { scope } : scopeArgs(course, showInactive));
 
   const load = useCallback(async () => {
@@ -108,29 +102,12 @@ export default function Graph({
     load();
   }, [load]);
 
-  /* The drawing is measured, not guessed: the viewport size drives both the
-     path row length and the fit scale. */
   useEffect(() => {
-    const el = viewRef.current;
-    if (!el) return;
-    const measure = () => setViewport({ w: el.clientWidth, h: el.clientHeight });
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    viewRef.current?.focus?.({ preventScroll: true });
+  }, [viewRef]);
 
-  useEffect(() => {
-    const sync = () => setFull(document.fullscreenElement === canvasRef.current);
-    document.addEventListener("fullscreenchange", sync);
-    return () => document.removeEventListener("fullscreenchange", sync);
-  }, []);
-
-  useEffect(() => {
-    canvasRef.current?.focus?.({ preventScroll: true });
-  }, []);
-
+  /* The drawing is measured, not guessed: the viewport size drives the path
+     row length, and the drawing's size drives the shared pan/zoom's fit. */
   const layout = useMemo(() => {
     if (!data || !Array.isArray(data.nodes)) return null;
     return (data.mode || mode) === "path"
@@ -140,171 +117,26 @@ export default function Graph({
           viewportH: viewport.h,
         });
   }, [data, mode, viewport.w, viewport.h]);
-
-  const fitView = useCallback(() => {
-    const el = viewRef.current;
-    if (!el || !layout) return;
-    const next = fitScale(layout.width, layout.height, el.clientWidth, el.clientHeight, 28);
-    scaleRef.current = next;
-    fittedScale.current = next;
-    setScale(next);
-    // Content that still overflows (a clamped minimum scale) starts centred.
-    requestAnimationFrame(() => {
-      el.scrollLeft = Math.max(0, (layout.width * next - el.clientWidth) / 2);
-      el.scrollTop = Math.max(0, (layout.height * next - el.clientHeight) / 2);
-    });
+  useLayoutEffect(() => {
+    const next = layout ? { w: layout.width, h: layout.height } : { w: 0, h: 0 };
+    setSize((previous) => (previous.w === next.w && previous.h === next.h ? previous : next));
   }, [layout]);
-
-  /* Fit once per drawing, mode and fullscreen transition, and again when the
-     viewport settles after a resize — but never after the reader zoomed in
-     themselves, so their scale and place survive. */
-  useEffect(() => {
-    if (!layout || !viewport.w || !viewport.h) return;
-    const key = `${full ? "canvas" : "panel"}:${data?.mode || mode}:${layout.width}x${layout.height}`;
-    const untouched = Math.abs(scale - fittedScale.current) < 1e-6;
-    if (lastFit.current === key && !untouched) return;
-    lastFit.current = key;
-    fitView();
-  }, [layout, viewport.w, viewport.h, full, mode, data, scale, fitView]);
-
-  const applyZoom = useCallback((value, focus) => {
-    const el = viewRef.current;
-    const next = clampScale(value);
-    if (!el || next === scaleRef.current) return;
-    const rect = el.getBoundingClientRect();
-    const cx = focus ? focus.x - rect.left : el.clientWidth / 2;
-    const cy = focus ? focus.y - rect.top : el.clientHeight / 2;
-    const anchorX = el.scrollLeft + cx;
-    const anchorY = el.scrollTop + cy;
-    const k = next / scaleRef.current;
-    scaleRef.current = next;
-    setScale(next);
-    requestAnimationFrame(() => {
-      el.scrollLeft = anchorX * k - cx;
-      el.scrollTop = anchorY * k - cy;
-    });
-  }, []);
-
-  /* Ctrl/⌘+wheel zooms around the pointer; a plain wheel keeps scrolling, so
-     the canvas behaves like the rest of the page until asked to scale. */
-  useEffect(() => {
-    const el = viewRef.current;
-    if (!el) return;
-    const onWheel = (ev) => {
-      if (!(ev.ctrlKey || ev.metaKey)) return;
-      ev.preventDefault();
-      applyZoom(scaleRef.current * (ev.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP), {
-        x: ev.clientX,
-        y: ev.clientY,
-      });
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [applyZoom]);
-
-  const enterCanvas = useCallback(async () => {
-    const el = canvasRef.current;
-    if (!el) return false;
-    setNotice("");
-    if (document.fullscreenElement === el) return true;
-    if (!el.requestFullscreen) {
-      setNotice(ui("当前浏览器不支持全屏画布，用 Ctrl/⌘+滚轮缩放查看。"));
-      return false;
-    }
-    try {
-      await el.requestFullscreen();
-      return true;
-    } catch {
-      setNotice(ui("浏览器没有进入全屏，可继续在面板中查看，或再次点「大画布」。"));
-      return false;
-    }
-  }, []);
-
-  const toggleCanvas = useCallback(async () => {
-    if (document.fullscreenElement === canvasRef.current) {
-      await document.exitFullscreen?.();
-      return;
-    }
-    await enterCanvas();
-  }, [enterCanvas]);
 
   /* Opened from the study map: the click that navigated here is the user
      gesture that lets the canvas take the screen, so try it once on mount and
-     hand the intent back either way. A refusal degrades to the panel view. */
+     hand the intent back either way. */
   useEffect(() => {
     if (!canvasWanted || autoTried.current) return;
     autoTried.current = true;
-    enterCanvas().finally(() => onCanvasHandled?.());
-  }, [canvasWanted, enterCanvas, onCanvasHandled]);
+    fullscreen.enter().finally(() => onCanvasHandled?.());
+  }, [canvasWanted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onKeyDown = (ev) => {
-    if (ev.key === "Escape") {
-      // In fullscreen the browser owns Escape and leaves the canvas itself.
-      if (document.fullscreenElement === canvasRef.current) return;
-      ev.stopPropagation();
-      onClose?.();
-      return;
-    }
-    if (ev.target !== ev.currentTarget && ev.target?.closest?.("button")) return;
-    if (ev.key === "+" || ev.key === "=") {
-      ev.preventDefault();
-      applyZoom(scaleRef.current * ZOOM_STEP);
-    } else if (ev.key === "-" || ev.key === "_") {
-      ev.preventDefault();
-      applyZoom(scaleRef.current / ZOOM_STEP);
-    } else if (ev.key === "0") {
-      ev.preventDefault();
-      fitView();
-    }
-  };
-
-  /* Drag anywhere (including over a node) pans the sheet; a press that never
-     moves stays a click, so opening a card is unaffected. */
-  const onPointerDown = (ev) => {
-    if (ev.button !== 0) return;
-    const el = viewRef.current;
-    if (!el) return;
-    dragRef.current = {
-      id: ev.pointerId,
-      x: ev.clientX,
-      y: ev.clientY,
-      left: el.scrollLeft,
-      top: el.scrollTop,
-      moved: false,
-    };
-  };
-  const onPointerMove = (ev) => {
-    const d = dragRef.current;
-    const el = viewRef.current;
-    if (!d || !el) return;
-    const dx = ev.clientX - d.x;
-    const dy = ev.clientY - d.y;
-    if (!d.moved && Math.hypot(dx, dy) < 4) return;
-    if (!d.moved) {
-      d.moved = true;
-      el.classList.add("is-panning");
-      el.setPointerCapture?.(d.id);
-    }
-    el.scrollLeft = d.left - dx;
-    el.scrollTop = d.top - dy;
-  };
-  const endDrag = () => {
-    const d = dragRef.current;
-    dragRef.current = null;
-    const el = viewRef.current;
-    if (el) {
-      el.classList.remove("is-panning");
-      try {
-        if (d) el.releasePointerCapture?.(d.id);
-      } catch {}
-    }
-    if (d?.moved) suppressClick.current = true;
-  };
-  const onClickCapture = (ev) => {
-    if (!suppressClick.current) return;
-    suppressClick.current = false;
-    ev.preventDefault();
+    if (ev.key !== "Escape") return;
+    // Expanded in the top layer, Escape leaves that first; native fullscreen is left by the browser itself.
+    if (fullscreen.onEscape(ev) || fullscreen.native) return;
     ev.stopPropagation();
+    onClose?.();
   };
 
   const study = useCallback(
@@ -421,8 +253,8 @@ export default function Graph({
 
   return (
     <section
-      className={"graph" + (full ? " graph-canvas" : "")}
-      ref={canvasRef}
+      className={("graph" + (fullscreen.full ? " graph-canvas" : "") + " " + fullscreen.className).trim()}
+      ref={fullscreen.ref}
       tabIndex={-1}
       aria-busy={busy || loading}
       aria-label={ui("知识图谱画布")}
@@ -432,47 +264,13 @@ export default function Graph({
         <SegmentedControl size="sm" label={ui("视图模式")} value={mode} disabled={busy} onChange={setMode}
           options={[{ value: "structure", label: ui("知识结构") }, { value: "path", label: ui("学习路径") }]} />
         <div className="graph-zoom" role="group" aria-label={ui("缩放")}>
-          <button
-            type="button"
-            disabled={!layout}
-            title={ui("缩小（-）")}
-            aria-label={ui("缩小")}
-            onClick={() => applyZoom(scaleRef.current / ZOOM_STEP)}
-          >
-            −
-          </button>
-          <span className="graph-zoom-value">{Math.round(scale * 100)}%</span>
-          <button
-            type="button"
-            disabled={!layout}
-            title={ui("放大（+）")}
-            aria-label={ui("放大")}
-            onClick={() => applyZoom(scaleRef.current * ZOOM_STEP)}
-          >
-            ＋
-          </button>
-          <button
-            type="button"
-            className="graph-fit"
-            disabled={!layout}
-            title={ui("缩放到刚好看到整张图（0）")}
-            onClick={fitView}
-          >{ui("适应窗口")}</button>
+          <ZoomControls variant="quiet" zoomAt={zoomAt} fit={() => fit()} percent={Math.round(view.k * 100)} disabled={!layout}
+            fitTitle={ui("缩放到刚好看到整张图（0）")} />
         </div>
         <div className="graph-actions">
-          <button
-            type="button"
-            className={full ? "" : "primary"}
-            title={
-              full
-                ? ui("回到面板中查看（Esc）")
-                : ui("用整个屏幕看这张图，可缩放、拖拽")
-            }
-            onClick={toggleCanvas}
-          >
-            {full ? ui("退出大画布") : ui("大画布")}
-          </button>
-          <button type="button" onClick={onClose}>{ui("关闭")}</button>
+          <FullscreenButton full={fullscreen.full} variant={fullscreen.full ? "secondary" : "primary"} onToggle={fullscreen.toggle}
+            title={fullscreen.full ? ui("回到面板中查看（Esc）") : ui("用整个屏幕看这张图，可缩放、拖拽")} />
+          <Button size="sm" onClick={onClose}>{ui("关闭")}</Button>
         </div>
       </div>
 
@@ -500,7 +298,6 @@ export default function Graph({
         </div>
       </div>
 
-      {notice && <div className="graph-notice">{notice}</div>}
       {!!data?.truncated && (
         <div className="graph-truncated">{ui("题目超过 400 张，画布只画前 400 张；在目录里选定范围可查看全部。")}</div>
       )}
@@ -508,13 +305,11 @@ export default function Graph({
       <div
         className="graph-viewport"
         ref={viewRef}
-        data-full={full ? "1" : undefined}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onLostPointerCapture={endDrag}
-        onClickCapture={onClickCapture}
+        role="group"
+        tabIndex={0}
+        aria-label={ui("知识图谱，方向键平移，加减号缩放，0 适应")}
+        data-full={fullscreen.full ? "1" : undefined}
+        {...panHandlers}
       >
         {loading ? (
           <GraphStatus loading />
@@ -525,14 +320,13 @@ export default function Graph({
         ) : (
           <div
             className="graph-plane"
-            style={{ width: layout.width * scale, height: layout.height * scale }}
+            style={{ width: layout.width, height: layout.height, transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}
           >
             <svg
               className="graph-svg"
               width={layout.width}
               height={layout.height}
               viewBox={`0 0 ${layout.width} ${layout.height}`}
-              style={{ transform: `scale(${scale})` }}
               role="img"
               aria-label={mode === "path" ? ui("学习路径图") : ui("知识结构图")}
             >
@@ -612,9 +406,9 @@ export default function Graph({
       </div>
 
       <div className="graph-hint">
-        {full
-          ? ui("滚轮滚动 · Ctrl/⌘+滚轮缩放 · 拖拽平移 · Esc 退出大画布")
-          : uiFormat("拖拽或滚动查看 · Ctrl/⌘+滚轮缩放 · 缩放范围 {0}–{1}%", [Math.round(ZOOM_MIN * 100), Math.round(ZOOM_MAX * 100)])}
+        {fullscreen.full
+          ? ui("拖拽平移 · Ctrl/⌘+滚轮缩放 · Esc 退出全屏")
+          : uiFormat("拖拽平移 · Ctrl/⌘+滚轮缩放 · 缩放范围 {0}–{1}%", [Math.round(ZOOM_MIN * 100), Math.round(ZOOM_MAX * 100)])}
       </div>
     </section>
   );

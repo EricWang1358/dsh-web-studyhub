@@ -3,13 +3,11 @@
    every bundle that already includes CourseField keeps building without a CSS loader. */
 export default `:is(.study-app, .study-seat) .course-field { container: course-field / inline-size; display: grid; gap: var(--space-2); min-width: 0; margin: 0 0 var(--space-3); }
 :is(.study-app, .study-seat) .source-organize > .course-field { max-width: 560px; }
-:is(.study-app, .study-seat) .course-field__label { margin: 0; }
 :is(.study-app, .study-seat) .course-field__control { position: relative; min-width: 0; }
 :is(.study-app, .study-seat) .course-field__control > input { width: 100%; margin: 0; text-overflow: ellipsis; }
 :is(.study-app, .study-seat) .course-field__control.has-value > input { padding-right: 44px; }
 :is(.study-app, .study-seat) .course-field__clear { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); color: var(--text-muted); }
 :is(.study-app, .study-seat) .course-field__clear:hover:not(:disabled) { color: var(--text); }
-:is(.study-app, .study-seat) .course-field__hint { display: block; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-weight: 400; line-height: var(--lh-snug); }
 :is(.study-app, .study-seat) .course-field__picks,
 :is(.study-app, .study-seat) .course-field__chapters { display: flex; flex-wrap: wrap; gap: var(--space-1) 6px; margin: 0; padding: 0; min-width: 0; }
 :is(.study-app, .study-seat) .course-field__chapters { padding: var(--space-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken); }

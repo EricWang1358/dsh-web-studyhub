@@ -2,6 +2,10 @@ import { withQualityStages, qualityPlan, qualityBlueprint, authored, qualityRevi
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { makePdf } from "./helpers/pdf.mjs";
+import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
+import { LocalPdfDataFactory } from '../lib/pdf-runtime.js';
 import { libraryContracts, studyToolDescription, studyUsagePrompt } from "../lib/study-contracts.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +13,83 @@ import { extractPdf } from "../lib/documents.js";
 import { StudyService } from "../lib/service.js";
 import { generateDeck, completeJson } from "../lib/generation.js";
 import { generateBatched, planGeneration } from "../lib/batch.js";
+
+async function cMapPdfFixture() {
+  const doc = await PDFDocument.create(), page = doc.addPage();
+  const descendant = doc.context.register(doc.context.obj({ Type: 'Font', Subtype: 'CIDFontType0', BaseFont: 'HeiseiMin-W3',
+    CIDSystemInfo: { Registry: PDFString.of('Adobe'), Ordering: PDFString.of('Japan1'), Supplement: 0 } }));
+  const font = doc.context.register(doc.context.obj({ Type: 'Font', Subtype: 'Type0', BaseFont: 'HeiseiMin-W3',
+    Encoding: 'UniJIS-UCS2-H', DescendantFonts: [descendant] }));
+  page.node.set(PDFName.of('Resources'), doc.context.obj({ Font: { F1: font } }));
+  page.node.addContentStream(doc.context.register(doc.context.flateStream('BT /F1 12 Tf 50 50 Td <65E5> Tj ET')));
+  return Buffer.from(await doc.save());
+}
+
+test('PDF assets are read locally as transferable bytes and unsafe requests are rejected', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'study-pdf-assets-'));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 3 }));
+  const bytes = Uint8Array.of(0, 128, 255);
+  await writeFile(join(root, 'fixture.bin'), bytes);
+  const factory = new LocalPdfDataFactory({ cMapUrl: root, standardFontDataUrl: root, wasmUrl: root });
+  for (const kind of ['cMapUrl', 'standardFontDataUrl', 'wasmUrl']) {
+    const data = await factory.fetch({ kind, filename: 'fixture.bin' });
+    assert.equal(data.constructor, Uint8Array);
+    assert.deepEqual(data, bytes);
+  }
+  for (const filename of ['../fixture.bin', '..\\fixture.bin', '/fixture.bin', 'C:\\fixture.bin', 'https://example.com/font', '.', '..']) {
+    await assert.rejects(factory.fetch({ kind: 'cMapUrl', filename }), /Invalid local PDF asset request/);
+  }
+  await assert.rejects(factory.fetch({ kind: '__proto__', filename: 'fixture.bin' }), /Invalid local PDF asset request/);
+  const remote = new LocalPdfDataFactory({ cMapUrl: 'https://example.com/' });
+  await assert.rejects(remote.fetch({ kind: 'cMapUrl', filename: 'fixture.bin' }), /Missing local PDF asset directory/);
+});
+
+for (const runtime of ['node', 'renderer', 'utility']) for (const entry of ['text', 'outline']) {
+  test(`PDF ${entry} loads in a fresh ${runtime} host without workerSrc configuration`, async () => {
+    const bytes = await makePdf({ pages: 2, outline: [{ title: 'Chapter one', page: 1 }] });
+    const probe = `
+      import assert from 'node:assert/strict';
+      const runtime = process.argv[1];
+      if (runtime !== 'node') {
+        const canvas = await import('@napi-rs/canvas');
+        for (const name of ['DOMMatrix', 'ImageData', 'Path2D']) globalThis[name] = canvas[name];
+        Object.defineProperty(process.versions, 'electron', { value: '40.0.0' });
+        process.type = runtime;
+      }
+      const { openPdfDocument } = await import('./lib/documents.js');
+      const { readOutline } = await import('./lib/pdf-chunker.js');
+      const bytes = Buffer.from(process.argv[2], 'base64');
+      if (process.argv[3] === 'outline') {
+        // This entry suppresses parser failures and must not silently lose bookmarks.
+        assert.deepEqual(await readOutline(bytes), [{ level: 1, title: 'Chapter one', page: 1 }]);
+      } else await Promise.all([1, 2].map(async () => {
+        const task = await openPdfDocument(bytes);
+        try {
+          const pdf = await task.promise;
+          assert.equal(pdf.numPages, 2);
+          const page = await pdf.getPage(1);
+          assert.equal((await page.getTextContent()).items.map(item => item.str).join(''), 'Page 1');
+          page.cleanup();
+        } finally { await task.destroy(); }
+      }));
+      if (process.argv[3] === 'text') {
+        const task = await openPdfDocument(Buffer.from(process.argv[4], 'base64'));
+        try {
+          const pdf = await task.promise, page = await pdf.getPage(1);
+          assert.equal((await page.getTextContent()).items.map(item => item.str).join(''), '日');
+          page.cleanup();
+        } finally { await task.destroy(); }
+      }
+    `;
+    const result = spawnSync(process.execPath, ['--import', new URL('../scripts/qa/test-network.mjs', import.meta.url).href,
+      '--input-type=module', '-e', probe, runtime, bytes.toString('base64'), entry,
+      entry === 'text' ? (await cMapPdfFixture()).toString('base64') : ''], {
+      cwd: new URL('../', import.meta.url), encoding: 'utf8', timeout: 30_000, windowsHide: true,
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  });
+}
 
 // A real, cross-reference-indexed PDF with one text stream per page.
 export function pdfFixture(pages) {

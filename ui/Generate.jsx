@@ -11,7 +11,8 @@ import useIndexCoverage from './use-index-coverage.js';
 import GenerationPath from './GenerationPath.jsx';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
-import { Banner, Button, Disclosure, EmptyState, PageHeader, SegmentedControl, SetupRequired } from './components/index.js';
+import { Button, Disclosure, EmptyState, InlineMessage, PageHeader, SegmentedControl } from './components/index.js';
+import ModelSetupGate from './ModelSetupGate.jsx';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
 import { TokenEstimate } from './TokenUsage.jsx';
@@ -147,11 +148,6 @@ export default function Generate({
       else setPage("library");
     });
   }
-  const gateWhy = model.reason === "no-credential"
-    ? model.label ? uiFormat("已选择「{0}」，但还没有可用的 API Key。出题要用它调用模型。", [model.label])
-      : ui("已选择模型，但还没有可用的 API Key。出题要用它调用模型。")
-    : model.reason === "no-route" ? ui("还没有选择用来出题的 AI 模型。配置好之后回到这里，已填的内容会保留。")
-      : ui("出题需要一个可用的 AI 模型。配置好之后回到这里，已填的内容会保留。");
   const suggestedCount = suggestCount(stats);
   const caseExam = courseHasCaseExam((data.courses || []).find((course) => course?.name === generationCourse));
   const summary = summaryLine({ ...stats, count: gen.count, difficulty: gen.difficulty, language: gen.language, minutes: estimateMinutes(data.jobs, gen.count) });
@@ -189,6 +185,7 @@ export default function Generate({
         <Ingest
           data={data}
           busy={busy}
+          onOpenSettings={openSettings}
           start={(config) =>
             act("ingest.start", config, (mode) => {
               const kindText = {
@@ -236,10 +233,6 @@ export default function Generate({
           secondary={{ label: ui("已有题目？导入 JSON 题组"), onClick: () => setGenSource("json") }} />
       ) : (
         <>
-          {!model.ready && <Banner tone="warning" title={ui("还没有可用的 AI 模型")}
-            action={{ label: ui("打开模型设置"), onClick: openSettings }}>
-            {ui("可以先选好资料和题型；生成前需要先配置模型。")}
-          </Banner>}
           <p className="muted">{ui("先选资料，再设定学习目标。生成结果会先进入草稿；发布时逐题检查，通过的题先进入学习库。")}</p>
           <form onSubmit={submit}>
             <fieldset data-tour="generate-sources">
@@ -321,7 +314,7 @@ export default function Generate({
                 format={gen.referenceFormat} onFormatChange={referenceFormat => setGen({ ...gen, referenceFormat })}
                 onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
                 courses={data.focus?.courses} busy={busy} />
-              {selectedPdfPages > Number(gen.count) && <p className="warning" role="status">{ui("已选 ")}{selectedPdfPages}{ui(" 页 PDF，计划生成 ")}{gen.count}{ui(" 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。")}</p>}
+              {selectedPdfPages > Number(gen.count) && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。", [selectedPdfPages, gen.count])}</InlineMessage>}
               <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、公式写法、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
                 <div className="generate-rows">
                   <FormRow label={ui("公式写法")}>
@@ -352,8 +345,8 @@ export default function Generate({
                   course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
-                {advice.blocked && <p className="warning" role="status">{advice.needsTopic ? ui("所选资料太大。先在「这次想练什么？」写下主题，再生成。")
-                  : ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</p>}
+                {advice.blocked && <InlineMessage tone="warning">{advice.needsTopic ? ui("所选资料太大。先在「这次想练什么？」写下主题，再生成。")
+                  : ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
                 <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason}
                   data-tour="generate-submit" data-usage="generate.submit">
@@ -361,10 +354,7 @@ export default function Generate({
                 </Button>
               </> : (
                 /* P14: no usable model, so there is nothing to click into a 20-second failure. */
-                <SetupRequired data-tour="generate-submit" icon="model" title={ui("先配置一个 AI 模型")} why={gateWhy}
-                  steps={[{ text: ui("打开模型设置，选择一个服务商") }, { text: ui("填入这个服务商的 API Key") },
-                    { text: ui("回到这里，点「生成并检查题组」") }]}
-                  primary={{ label: ui("打开模型设置"), icon: "model", onClick: openSettings }} />
+                <ModelSetupGate variant="block" feature="generate" model={model} onOpenSettings={openSettings} data-tour="generate-submit" />
               )}
             </div>
           </form>

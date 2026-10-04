@@ -1,52 +1,14 @@
-/* Audio transcription settings, the audio setup gate and the import pre-flight rows. Tokens only; 12 px floor. */
-.study-app .audio-settings { container-type: inline-size; }
-.study-app .audio-settings-lead { max-width: 70ch; margin: 0 0 var(--space-4); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-.study-app .audio-settings-empty { margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--text); font-size: var(--fs-sm); }
-.study-app .audio-provider-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
-.study-app .audio-provider-card { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-5);
-  border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
-.study-app .audio-provider-card.is-set { border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); }
-/* Wide: one row per card part through subgrid — head · saved status · steps · key input · actions · message/footnote —
-   so inputs and buttons sit at the same height in every card, whatever wraps above them. */
-@container (min-width: 760px) {
-  @supports (grid-template-rows: subgrid) {
-    .study-app .audio-provider-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); column-gap: var(--space-4); row-gap: 0; }
-    .study-app .audio-provider-card { display: grid; grid-row: span 6; grid-template-rows: subgrid; row-gap: var(--space-3); }
-    .study-app .audio-provider-card .sh-secret { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: var(--space-3); }
-  }
-}
-.study-app .audio-provider-card__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
-.study-app .audio-provider-card__head h3 { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: 650; line-height: var(--lh-tight); }
-.study-app .audio-provider-card__chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
-.study-app .audio-chip { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; line-height: 1.6; white-space: nowrap; }
-.study-app .audio-chip--good { background: color-mix(in srgb, var(--ok) 16%, transparent); color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
-.study-app .audio-chip--accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); }
-.study-app .audio-key-state { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-.study-app .audio-key-state.is-set { color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-weight: 600; }
-.study-app .audio-provider-steps { display: grid; align-content: start; gap: var(--space-2); margin: 0; padding: var(--space-3) 0 0; border-top: 1px solid var(--line-soft);
-  list-style: none; font-size: var(--fs-sm); line-height: var(--lh-snug); }
-.study-app .audio-provider-steps li { display: flex; align-items: baseline; gap: var(--space-2); }
-.study-app .audio-provider-steps a { color: var(--accent-text); text-underline-offset: 3px; overflow-wrap: anywhere; }
-.study-app .audio-step-num { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; border: 1px solid var(--line-strong);
-  border-radius: 50%; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; line-height: 1; }
-.study-app .audio-provider-note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-.study-app .audio-settings-path { margin: var(--space-4) 0 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+/* Audio transcription settings, the audio setup gate and the import pre-flight rows. Tokens only; 12 px floor.
+   The provider card, steps, badges, fields and notes are shared components (ui/components/fields.css); only what is about audio is here. */
 .study-app .audio-advanced { margin-top: var(--space-5); }
 .study-app .audio-advanced .sh-disclosure__body > * + * { margin-top: var(--space-5); }
-.study-app .audio-preset { display: grid; gap: var(--space-2); justify-items: start; }
-.study-app .audio-preset__label, .study-app .audio-paid h4 { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
-.study-app .audio-preset small { font-size: var(--fs-xs); }
 .study-app .audio-paid { display: grid; gap: var(--space-2); }
-.study-app .audio-field { margin: var(--space-3) 0; font-size: var(--fs-sm); }
-.study-app .audio-field small { font-size: var(--fs-xs); }
 .study-app .audio-expert .audio-reasoning { margin-top: var(--space-4); }
 
 /* The setup gate in the audio tab. */
 .study-app .audio-setup { margin: var(--space-4) 0; }
 .study-app .audio-setup .sh-secret { margin-top: var(--space-4); max-width: 560px; }
-.study-app .audio-setup-alt { margin: var(--space-3) 0 0; color: var(--text-muted); font-size: var(--fs-xs); }
+.study-app .audio-setup-alt { margin: var(--space-3) 0 0; }
 .study-app .audio-setup-alt a { color: var(--accent-text); }
 .study-app .audio-subtitle-only { margin-top: var(--space-4); }
 .study-app .audio-subtitle-only > p { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); }
@@ -63,7 +25,3 @@
 .study-app .audio-member-reason { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
 .study-app .audio-job-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 .study-app .audio-job-actions .sh-btn { margin: 0; }
-
-@container (max-width: 420px) {
-  .study-app .audio-provider-card { padding: var(--space-4); }
-}

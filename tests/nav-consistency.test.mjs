@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readAppSource } from "./helpers/app-source.mjs";
 
 /* The sidebar's rows share one anatomy: icon, label, optional trailing hint. The resume row ("回到题目")
    used to grow a second line while a run was open, which pushed every row below it down by 24px; these tests pin the
@@ -60,8 +61,9 @@ test("the resume row is the same single line with or without a run; progress is 
   }
   assert.doesNotMatch(none, /nav-count/);
   assert.match(open, /<span class="nav-count nav-progress">2\/3<\/span>/);
-  assert.match(open, /title="回到「Patterns」第 2\/3 题"/, "the run's title lives in the tooltip");
-  assert.match(none, /title="没有进行中的练习，开始今日学习"/);
+  assert.match(open, /role="tooltip"[^>]*>回到「Patterns」第 2\/3 题/, "the run's title lives in the tooltip");
+  assert.match(none, /role="tooltip"[^>]*>没有进行中的练习，开始今日学习/);
+  assert.doesNotMatch(open, /<button[^>]*\btitle=/, "no native title: the Tooltip also shows on keyboard focus (#86)");
 });
 
 test("an empty library does not dim the resume row: dimmed means disabled, and this row still works", () => {
@@ -69,7 +71,7 @@ test("an empty library does not dim the resume row: dimmed means disabled, and t
   const empty = html(React.createElement(ResumeNavItem, { lastRun: null, hasDecks: false, active: false }));
   assert.doesNotMatch(empty, /muted-nav/);
   assert.doesNotMatch(empty, /disabled/);
-  assert.match(empty, /title="还没有题目，先去创建题组"/);
+  assert.match(empty, /role="tooltip"[^>]*>还没有题目，先去创建题组/);
   const busy = html(React.createElement(ResumeNavItem, { lastRun: null, hasDecks: true, active: false, disabled: true }));
   assert.match(busy, /disabled=""/);
 });
@@ -105,7 +107,7 @@ test("English renders without Han outside user data, and the run title stays use
     assert.match(none, /No questions yet; create a deck first/);
     assert.match(coach, /Personali[sz]ed|3 questions ready/);
     const own = html(React.createElement(ResumeNavItem, { lastRun: { ...lastRun, title: "操作系统" }, hasDecks: true, active: false }));
-    assert.doesNotMatch(own.replace(/title="[^"]*"/, ""), han, "only the tooltip carries the learner's own title");
+    assert.doesNotMatch(own.replace(/<span[^>]*role="tooltip"[^>]*>[^<]*<\/span>/, ""), han, "only the tooltip carries the learner's own title");
   } finally { setUiLanguage("zh"); }
 });
 
@@ -128,7 +130,7 @@ test("stylesheet contract: one row height, labels clamped to the row, no second-
 });
 
 test("App uses the shared row for every sidebar entry", async () => {
-  const source = (await readFile(new URL("../ui/App.jsx", import.meta.url), "utf8")).replace(/\r/g, "");
+  const source = (await readAppSource()).replace(/\r/g, "");
   assert.match(source, /<ResumeNavItem\b/);
   assert.match(source, /<CoachNavItem\b/);
   assert.doesNotMatch(source, /className=\{?["']nav[ "']/, "no hand-written nav button is left");

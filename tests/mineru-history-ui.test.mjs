@@ -102,7 +102,7 @@ test('a finished row: file name, size and pages, the route, the status, when and
   const html = render(view([record()]));
   assert.match(html, /Databases\.pdf/);
   assert.match(html, /12 MB · 450 页/);
-  assert.match(html, /audio-chip[^>]*>云端</);
+  assert.match(html, /sh-badge[^>]*data-tone="info"[^>]*>云端</);
   assert.match(html, /已完成/);
   assert.match(html, /3 分钟前 · 用时 4 分 20 秒/);
   assert.match(html, /已导入为「Databases」· 共 448 页/);
@@ -190,8 +190,8 @@ test('every action is a real button with a name that says which file it is for (
 
 test('the rows reuse the conversion job card markup, so one component per action', () => {
   const html = render(view([record(), failed()]));
-  assert.match(html, /class="job complete pdf-history__row/);
-  assert.match(html, /class="job failed pdf-history__row/);
+  assert.match(html, /class="sh-job sh-job--complete[^"]*pdf-history__row/);
+  assert.match(html, /class="sh-job sh-job--failed[^"]*pdf-history__row/);
 });
 
 test('where the owner looks: the MinerU panel opened from "用 MinerU 解析" has the history, and it does not depend on a PDF being chosen', () => {

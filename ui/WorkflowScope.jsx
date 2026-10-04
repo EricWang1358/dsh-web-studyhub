@@ -7,23 +7,11 @@ import { ui, uiFormat } from "./i18n.js";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
 import { ConfirmDialog } from "./components/index.js";
-import { describeModelError } from "./generation-status.js";
 import css from "./workflow-scope.css";
 
 const PICKED = { route: "课程路线的这一批", none: "学习库里还没有相关的题目", ai: "AI 选的范围", match: "按名称匹配的范围", course: "没找到直接相关的主题，先学当前课程" };
 const courseName = (name) => name || ui("未分类课程");
 const clip = (text, n) => { const s = String(text || "").trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
-
-/* A model failure in plain words, the raw provider text one click away. */
-export function ModelError({ text, className = "" }) {
-  useInjectCss(css, "study-workflow-scope");
-  const info = describeModelError(text);
-  if (info.kind === "unknown") return <div className={`wf-model-error ${className}`.trim()}><p>{info.title}</p></div>;
-  return <div className={`wf-model-error ${className}`.trim()}>
-    <p><strong>{info.title}</strong> {info.hint}</p>
-    <details className="wf-model-error__raw"><summary>{ui("详情")}</summary><code>{info.detail}</code></details>
-  </div>;
-}
 
 /* The scope sentence: which course the topics come from, and how they were chosen. */
 function scopeSentence(session, course, total, goal) {
@@ -52,12 +40,12 @@ export function ScopeBar({ session, resources, disabled, onRescope, onStartNew }
     if (resources.rescope?.allowed === false) setAsking(next);
     else onRescope?.(next);
   };
-  const topicLine = shown ? `${shown}${total > 4 ? uiFormat(" 等 {0} 个主题", [total]) : ""}` : "";
+  const topicLine = shown ? (total > 4 ? uiFormat("{0} 等 {1} 个主题", [shown, total]) : shown) : "";
   return <div className="wf-scope">
     <p className={`wf-scope-line${fallback ? " is-fallback" : ""}`} title={topics.join("、")}>
       {named ? <span>{scopeSentence(session, course, total, session.goal)}</span>
         : <span>{ui(PICKED[session.pickedBy]) || ui("本次范围")}{topicLine ? "：" : ""}{!named && topicLine}</span>}
-      {resources.cardCount > 0 && <span className="wf-scope-count">{` · ${resources.cardCount}${ui(" 题")}`}</span>}
+      {resources.cardCount > 0 && <span className="wf-scope-count"><span aria-hidden="true"> · </span>{uiFormat("{0} 题", [resources.cardCount])}</span>}
     </p>
     {named && topicLine && <p className="wf-scope-topics" title={(resources.scopeDecks || []).join("、")}>{session.pickedBy === "course" ? ui("先从这些主题学起：") : ""}{topicLine}</p>}
     {session.aiFailed && <p className="wf-scope-note">{ui("模型暂时不可用，已按名称匹配主题")}</p>}
@@ -90,7 +78,7 @@ export const Readings = React.memo(function Readings({ resources }) {
   useInjectCss(css, "study-workflow-scope");
   const titles = new Map((resources.sources || []).map((source) => [source.id, source.title]));
   if (!resources.readings?.length) return <p className="muted">{ui("本次范围还没有关联资料。可以请主对话围绕这个主题补充讲解，或把自己的资料写在笔记里。")}</p>;
-  return <details className="wf-readings"><summary>{ui("参考已有题解与引用材料 ")}<span className="muted">{resources.readings.length}{ui(" 条")}</span></summary>
+  return <details className="wf-readings"><summary>{ui("参考已有题解与引用材料")} <span className="muted">{uiFormat("{0} 条", [resources.readings.length])}</span></summary>
     <p className="muted small">{ui("这些是所选范围内的现有内容，可请主对话整理成连贯讲解。")}</p>
     {resources.readings.map((reading, index) => <article key={`${reading.deckId}:${reading.cardId}`}>
       <h4>{index + 1}. {reading.topic || ui("参考材料")}</h4>

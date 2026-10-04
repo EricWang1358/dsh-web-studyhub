@@ -110,8 +110,8 @@ test('departed library saves and failures cannot change the new form or report s
 test('invalid fields show bounded feedback, and busy or duplicate submits make no extra write', async () => {
   let calls = 0; const response = deferred(), view = editor({ act: async () => { calls++; await response.promise; } });
   view.render(); view.effects(); edit(view, 'concurrency', '7');
-  assert.equal(control(view, 'concurrency').props['aria-invalid'], true);
-  assert.match(find(view.render(), node => node.props?.role === 'alert').props.children, /1–6/);
+  // The Field around the control adds aria-invalid, aria-describedby and the alert (tests/wave2-g-fields.test.mjs); here it must be handed the bounded message.
+  assert.match(find(view.render(), node => typeof node.props?.error === 'string' && node.props.error.includes('1–6')).props.error, /1–6/);
   await submit(view); assert.equal(calls, 0);
   edit(view, 'concurrency', '2'); view.render({ busy: true }); await submit(view); assert.equal(calls, 0);
   assert.equal(control(view, 'count').props.disabled, true);

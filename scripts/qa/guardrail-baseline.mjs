@@ -29,10 +29,10 @@ export const RULES = {
 
 /* Hard rules: allow-listed exceptions live here with the issue that removes them. */
 export const ALLOW = {
-  /* ui/Manage.jsx is blocked in wave 1; the migration to a ConfirmDialog removes this entry. */
-  dialogCalls: [{ file: 'ui/Manage.jsx', issue: '#67' }],
-  /* ui/style.css is blocked in wave 1; rendering ui('展开') in JSX removes this entry. */
-  cjkContent: [{ file: 'ui/style.css', selector: 'followup-item', issue: '#160' }],
+  /* No exceptions: host webviews may block the browser's own dialogs, so ui/ never calls them. */
+  dialogCalls: [],
+  /* No exceptions: CSS-generated text cannot be translated (the follow-up fold label is rendered in JSX, #160). */
+  cjkContent: [],
   /* Custom properties that no ui CSS or JS defines because the host or the runtime provides them. */
   undefinedVars: [
     /* Provided by the DSH host shell, never by StudyHub CSS (each use has a fallback). */

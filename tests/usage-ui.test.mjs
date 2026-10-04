@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
@@ -6,6 +7,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { buildReport } from '../lib/usage-report.js';
+import { readAppSource } from './helpers/app-source.mjs';
 
 /* Settings › Advanced › Usage frequency record: the privacy contract is on the screen before the switch, there is one clear state for
    each of "off", "on, nothing yet", "on with data", "paused" and "off with data", the report speaks plain words, bars have text, and
@@ -24,6 +26,7 @@ const { UsageSettingsView, usageRowName, usagePrivacyPoints, Settings, SETTINGS_
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const noop = () => {};
+await warmSettingsPanes(Settings);
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 
 const TODAY = '2026-10-03', DAY = 86400000;
@@ -198,7 +201,7 @@ test('Settings › Advanced has a category for the usage record and one for the 
 });
 
 test('the section is quiet: no first-run banner, no badge on the sidebar, nothing added to the home page', async () => {
-  const app = await readFile('ui/App.jsx', 'utf8');
+  const app = await readAppSource();
   assert.ok(!/UsageSettings|usage\.frequency\.|usage-frequency\.json/.test(app), 'App only hosts the controller and the area marker: the section and the operations are Settings\'');
   assert.match(app, /createUsageController/);
   assert.match(app, /data-usage-area=\{page\}/);

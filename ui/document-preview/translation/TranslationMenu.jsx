@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Popover, SegmentedControl } from '../../components/index.js';
+import { Button, InlineMessage, Popover, SegmentedControl } from '../../components/index.js';
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
 import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
@@ -93,7 +93,7 @@ export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss })
     </div>
     <div className="tr-job__bar" role="progressbar" aria-valuemin={0} aria-valuemax={job.total || 0} aria-valuenow={job.done || 0} aria-label={counts}><span style={{ transform: `scaleX(${fraction})` }} /></div>
     {active && <small className="tr-job__note">{ui('后台继续翻译，可以接着读、接着提问；停止后已译的段落会保留。')}</small>}
-    {!active && job.rejected > 0 && <small className="tr-job__note is-warning">{uiFormat('有 {0} 段没通过检查，没有保存；可以在那几段上点 译 再试。', [job.rejected])}</small>}
+    {!active && job.rejected > 0 && <InlineMessage tone="warning" className="tr-job__note">{uiFormat('有 {0} 段没通过检查，没有保存；可以在那几段上点 译 再试。', [job.rejected])}</InlineMessage>}
     {failed && job.stage && <details className="tr-job__raw"><summary>{ui('技术详情')}</summary><code>{job.stage}</code></details>}
     {summary && <details className="tr-job__usage"><summary>{summary}</summary><JobUsage job={job} /></details>}
   </div>;

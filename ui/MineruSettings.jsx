@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Icon, InlineConfirm, InlineMessage, SecretKeyForm } from './components/index.js';
+import { Badge, Button, Checkbox, Hint, Icon, InlineConfirm, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, SettingsSection } from './components/index.js';
 import { sizeLabel } from './mineru-flow.js';
-import audioCss from './audio-settings.css';
 import css from './mineru.css';
 
 /* MinerU: PDF to text with page numbers, for scanned books, formulas, tables and long textbooks.
@@ -39,11 +38,9 @@ export function PrivacyConfirm({ checked, onChange, disabled, id }) {
   const own = useId(), field = id || own;
   return (
     <div className="mineru-privacy">
-      <p className="mineru-privacy__note" id={`${field}-note`}>{privacyNote()}</p>
-      <label className="mineru-privacy__check" htmlFor={field}>
-        <input id={field} type="checkbox" checked={!!checked} disabled={disabled} aria-describedby={`${field}-note`} onChange={event => onChange?.(event.target.checked)} />
-        <span>{ui('我知道文档会上传到 MinerU 的云端，同意用云端解析')}</span>
-      </label>
+      <Hint id={`${field}-note`}>{privacyNote()}</Hint>
+      <Checkbox id={field} label={ui('我知道文档会上传到 MinerU 的云端，同意用云端解析')} checked={!!checked} disabled={disabled}
+        aria-describedby={`${field}-note`} onChange={onChange} />
     </div>
   );
 }
@@ -130,14 +127,11 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
         <li>{ui('装好后回到这里，点「重新检测」。StudyHub 不会替你安装它。')}</li>
       </ol>}
       {state === 'needs-models' && !running && <div className="mineru-local__setup">
-        <fieldset className="mineru-tier">
-          <legend>{ui('选一个档位')}</legend>
-          {['basic', 'standard'].map(name => <label key={name} className="mineru-tier__option">
-            <input type="radio" name="mineru-tier" value={name} checked={tier === name} onChange={() => setTier(name)} disabled={busy || !!working} />
-            <span>{TIER_TEXT[name]()}</span>
-            <small>{uiFormat('模型约 {0}；每页约 {1} 秒（估算：一台只用 CPU 的笔记本上量到的）', [sizeLabel(status?.modelsMbByTier?.[name] ?? (name === 'standard' ? 1200 : 800)), status?.estimates?.[name] ?? (name === 'standard' ? 2.5 : 1.6)])}</small>
-          </label>)}
-        </fieldset>
+        <RadioCardGroup legend={ui('选一个档位')}>
+          {['basic', 'standard'].map(name => <RadioCard key={name} name="mineru-tier" value={name} checked={tier === name} onSelect={setTier} disabled={busy || !!working}
+            title={TIER_TEXT[name]()}
+            hint={uiFormat('模型约 {0}；每页约 {1} 秒（估算：一台只用 CPU 的笔记本上量到的）', [sizeLabel(status?.modelsMbByTier?.[name] ?? (name === 'standard' ? 1200 : 800)), status?.estimates?.[name] ?? (name === 'standard' ? 2.5 : 1.6)])} />)}
+        </RadioCardGroup>
         {!confirm
           ? <Button ref={downloadTrigger} variant="primary" icon="download" disabled={busy || !!working} onClick={() => setConfirm(true)}>{ui('下载模型并启用本地解析…')}</Button>
           : <InlineConfirm tone="warning" title={ui('确认下载')} confirmLabel={ui('确认下载')} cancelLabel={ui('先不下载')}
@@ -148,7 +142,7 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
       {running && <div className="mineru-progress" role="status" aria-live="polite">
         <p><strong>{STEP_TEXT[setup.step]?.() || ui('正在设置')}</strong>{uiFormat('（{0}，已用 {1} 秒）', [sizeLabel(setup.modelsMb), Math.max(0, Math.round((Date.now() - Date.parse(setup.startedAt)) / 1000))])}</p>
         {setup.lastLine && <p className="mineru-progress__line" translate="no">{setup.lastLine}</p>}
-        <p className="audio-provider-note">{ui('模型很大，下载没有精确的百分比；只要下面这一行在变化，就是在进行。')}</p>
+        <Hint>{ui('模型很大，下载没有精确的百分比；只要下面这一行在变化，就是在进行。')}</Hint>
         <Button variant="quiet" size="sm" disabled={!!working} onClick={cancel}>{ui('取消')}</Button>
       </div>}
       {state === 'server-stopped' && <div className="mineru-local__actions">
@@ -167,7 +161,6 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
 
 /** 设置 › MinerU 解析: local model setup first, then the optional cloud token. `initialSettings` / `initialLocal` skip the first read (previews, tests). */
 export default function MineruSettings({ call, busy = false, setNotice, initialSettings = null, initialLocal = null }) {
-  useInjectCss(audioCss, 'study-audio-settings');
   useInjectCss(css, 'study-mineru');
   const [settings, setSettings] = useState(initialSettings), [local, setLocal] = useState(initialLocal), [error, setError] = useState('');
   const [acknowledging, setAcknowledging] = useState(false);
@@ -184,40 +177,25 @@ export default function MineruSettings({ call, busy = false, setNotice, initialS
     finally { setAcknowledging(false); }
   };
   return (
-    <fieldset className="audio-settings settings-section mineru-settings" data-tour="settings-mineru">
-      <legend className="settings-section__title">{ui('PDF 转换（MinerU）')}</legend>
-      <p className="settings-section__lead">{ui('把 PDF 转成带页码的文字：支持扫描件、公式、表格和中文，超过 200 页的书会自动分段处理。有两种用法，可以只用其中一种。')}</p>
+    <SettingsSection className="mineru-settings" tour="settings-mineru" title={ui('PDF 转换（MinerU）')}
+      lead={ui('把 PDF 转成带页码的文字：支持扫描件、公式、表格和中文，超过 200 页的书会自动分段处理。有两种用法，可以只用其中一种。')}>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <div className="audio-provider-grid">
-        <article className={`audio-provider-card${local?.state === 'ready' ? ' is-set' : ''}`} data-route="local">
-          <header className="audio-provider-card__head">
-            <h3>{ui('本地（mineru 命令行）')}</h3>
-            <span className="audio-chip">{ui('推荐')}</span>
-            <span className="audio-provider-card__chips"><span className="audio-chip audio-chip--good">{ui('免费 · 不上传')}</span></span>
-          </header>
+      <ProviderGrid columns={2}>
+        <ProviderCard layout="stack" data-route="local" set={local?.state === 'ready'} title={ui('本地（mineru 命令行）')}
+          badges={<><Badge size="sm" tone="accent">{ui('推荐')}</Badge><Badge size="sm" tone="success">{ui('免费 · 不上传')}</Badge></>}>
           <LocalMineruPanel call={call} status={local} onStatus={setLocal} busy={busy} />
-        </article>
-        <article className={`audio-provider-card${settings?.token?.set ? ' is-set' : ''}`} data-route="cloud">
-          <header className="audio-provider-card__head">
-            <h3>{ui('云端（MinerU 令牌）')}</h3>
-            <span className="audio-provider-card__chips"><span className="audio-chip audio-chip--good">{ui('目前免费')}</span><span className="audio-chip">{ui('文档会上传')}</span></span>
-          </header>
+        </ProviderCard>
+        <ProviderCard layout="stack" data-route="cloud" set={!!settings?.token?.set} title={ui('云端（MinerU 令牌）')}
+          badges={<><Badge size="sm" tone="success">{ui('目前免费')}</Badge><Badge size="sm">{ui('文档会上传')}</Badge></>}
+          status={settings?.token?.set ? uiFormat('已保存 {0}', [settings.token.hint]) : ui('未配置')}
+          steps={[{ text: ui('打开 MinerU 的 API 管理页，创建一个令牌'), href: settings?.docsUrl || DOCS_URL }, { text: ui('复制令牌，粘贴到下面，点「保存并验证」') },
+            { text: ui('导入 PDF 时选「用 MinerU 云端解析」，其余全自动') }]}>
           <InlineMessage tone="warning">{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</InlineMessage>
-          <p className={`audio-key-state${settings?.token?.set ? ' is-set' : ''}`}>
-            <Icon name={settings?.token?.set ? 'success' : 'key'} size={16} />{settings?.token?.set ? uiFormat('已保存 {0}', [settings.token.hint]) : ui('未配置')}
-          </p>
-          <ol className="audio-provider-steps">
-            <li><span className="audio-step-num" aria-hidden="true">1</span><a href={settings?.docsUrl || DOCS_URL} target="_blank" rel="noreferrer">{ui('打开 MinerU 的 API 管理页，创建一个令牌')}<span className="sh-visually-hidden">{ui('（在新标签页打开）')}</span></a></li>
-            <li><span className="audio-step-num" aria-hidden="true">2</span><span>{ui('复制令牌，粘贴到下面，点「保存并验证」')}</span></li>
-            <li><span className="audio-step-num" aria-hidden="true">3</span><span>{ui('导入 PDF 时选「用 MinerU 云端解析」，其余全自动')}</span></li>
-          </ol>
           <MineruTokenForm call={call} settings={settings} onSaved={setSettings} busy={busy} />
-          <div className="mineru-settings__privacy">
-            <PrivacyConfirm checked={!!settings?.acknowledged} disabled={busy || acknowledging || !settings} onChange={acknowledge} />
-          </div>
-        </article>
-      </div>
-      {settings?.settingsFile && <p className="audio-settings-path">{uiFormat('令牌保存在 {0}，不在学习库里，也不会出现在导出或备份中。', [settings.settingsFile])}</p>}
-    </fieldset>
+          <PrivacyConfirm checked={!!settings?.acknowledged} disabled={busy || acknowledging || !settings} onChange={acknowledge} />
+        </ProviderCard>
+      </ProviderGrid>
+      {settings?.settingsFile && <Hint>{uiFormat('令牌保存在 {0}，不在学习库里，也不会出现在导出或备份中。', [settings.settingsFile])}</Hint>}
+    </SettingsSection>
   );
 }

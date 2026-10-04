@@ -118,7 +118,7 @@ test('English renders without Han, and the group labels have English text', () =
 });
 
 test('App renders the sidebar through the groups: resume and coach lead the daily group, every page keeps its anchor', async () => {
-  const source = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
+  const source = (await readFile(new URL('../ui/app/AppSidebar.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
   assert.match(source, /<NavGroup\b/);
   assert.match(source, /NAV_GROUPS\.map/);
   assert.match(source, /data-tour=\{`nav-\$\{id\}`\}/, 'the nav-<page> tour anchors stay');

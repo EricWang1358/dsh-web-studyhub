@@ -65,7 +65,7 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   assert.equal((await page.locator('.teaching-panel').innerText()).includes('Secret scoring'), false);
   assert.equal((await page.locator('.teaching-panel').innerText()).includes('Work on stage 1'), false);
   assert.equal(await page.locator('.teaching-context dt').count(), 3);
-  assert.equal(await page.locator('.teaching-progress').getAttribute('value'), '0');
+  assert.equal(await page.locator('.teaching-progress').getAttribute('aria-valuenow'), '0');
   await answer.fill('wrong');
   await page.locator('.teaching-panel button.primary').click();
   await page.getByText('Try checking the time unit', { exact: true }).waitFor();
@@ -81,7 +81,7 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   await answer.fill('typed while checking');
   release.resolve();
   await page.getByRole('heading', { name: 'Formula and why it applies' }).waitFor();
-  assert.equal(await page.locator('.teaching-progress').getAttribute('value'), '1');
+  assert.equal(await page.locator('.teaching-progress').getAttribute('aria-valuenow'), '1');
   assert.equal(await answer.inputValue(), 'typed while checking');
   await page.getByRole('button', { name: 'Guided understanding', exact: true }).click();
   await page.getByText('Generic current relationship', { exact: true }).waitFor();

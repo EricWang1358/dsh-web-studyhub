@@ -383,7 +383,7 @@ test('合并到这里 opens the existing merge confirmation with the duplicate p
   const html = render(h(CourseSettings, { data, courseId: chapters[0].id, mergeFrom: [duplicate.id], act: async () => {}, onClose() {} }));
   assert.match(html, /把 1 门课程并入「Cloud Native Solution Design \/ 01 云计算概览与参考架构」？/);
   assert.match(html, /确认合并/);
-  const checked = html.match(/<input type="checkbox" checked=""[^>]*>[\s\S]*?<strong>([^<]+)<\/strong>/);
+  const checked = html.match(/<input type="checkbox"[^>]*checked=""[^>]*\/><span class="sh-check__text"><span class="sh-check__label">([^<]+)<\/span>/);
   assert.equal(checked?.[1], duplicate.name);
 });
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Dialog, Disclosure, EmptyState, Icon, IconButton, InlineConfirm, InlineMessage, ScrollWindow, SegmentedControl } from './components/index.js';
+import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
@@ -163,26 +163,20 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
       </ul>}
     </div>;
   };
-  return <fieldset className="course-list settings-section">
-    <legend className="settings-section__title">{ui('课程')}</legend>
-    <p className="settings-section__lead">{ui('每门课可以记下考试形式、日期、分值和考官指引；改名或合并会同步更新所有题组和资料。')}</p>
-    <p className="settings-section__lead">{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</p>
+  return <SettingsSection className="course-list" title={ui('课程')} lead={ui('每门课可以记下考试形式、日期、分值和考官指引；改名或合并会同步更新所有题组和资料。')}>
+    <Hint>{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</Hint>
     {courses.length ? <ScrollWindow className="course-list__window" label={ui('课程列表')} items={entries} itemKey={entryKey} match={entryText}
       renderItem={renderEntry} filterable={entries.length > 6 || filtering} filterPlaceholder={ui('筛选课程…')} query={query} onQueryChange={setQuery}
       activeKey={activeKey} maxHeight={400} listClassName="course-list__items" itemClassName="course-list__entry" />
       : <EmptyState size="sm" icon="folder" title={ui('还没有课程')} description={ui('导入资料或发布题组时填写课程，这里就会出现。')} />}
-  </fieldset>;
+  </SettingsSection>;
 }
 
 function NumberField({ label, value, placeholder, onChange, min = 0, max, step = 1, disabled, suffix }) {
-  return <label className="course-settings__field">
-    <span>{label}</span>
-    <span className="course-settings__number">
-      <input type="number" inputMode="decimal" min={min} max={max} step={step} value={value} placeholder={String(placeholder)} disabled={disabled}
-        onChange={event => onChange(event.target.value)} />
-      {suffix && <small>{suffix}</small>}
-    </span>
-  </label>;
+  return <Field label={label} width="full">
+    <NumberInput min={min} max={max} step={step} value={value} placeholder={String(placeholder)} disabled={disabled} suffix={suffix}
+      onChange={event => onChange(event.target.value)} />
+  </Field>;
 }
 
 function SectionRow({ section, index, onChange, onRemove, disabled }) {
@@ -193,14 +187,11 @@ function SectionRow({ section, index, onChange, onRemove, disabled }) {
       <IconButton icon="close" size="sm" label={uiFormat('删除第 {0} 部分', [index + 1])} disabled={disabled} onClick={onRemove} />
     </div>
     <div className="course-settings__grid">
-      <label className="course-settings__field course-settings__wide"><span>{ui('标题')}</span>
-        <input value={section.title} maxLength={200} disabled={disabled} onChange={set('title')} /></label>
-      <label className="course-settings__field"><span>{ui('讲师')}</span>
-        <input value={section.lecturer} maxLength={200} disabled={disabled} onChange={set('lecturer')} /></label>
-      <label className="course-settings__field"><span>{ui('分值')}</span>
-        <input type="number" min={0} step={1} value={section.marks} disabled={disabled} onChange={set('marks')} /></label>
-      <label className="course-settings__field course-settings__wide"><span>{ui('考查知识点')}</span>
-        <input value={section.topics} disabled={disabled} placeholder={ui('用分号分隔')} onChange={set('topics')} /></label>
+      <Field className="course-settings__wide" label={ui('标题')} width="full"><TextInput value={section.title} maxLength={200} disabled={disabled} onChange={set('title')} /></Field>
+      <Field label={ui('讲师')} width="full"><TextInput value={section.lecturer} maxLength={200} disabled={disabled} onChange={set('lecturer')} /></Field>
+      <Field label={ui('分值')} width="full"><NumberInput min={0} step={1} value={section.marks} disabled={disabled} onChange={set('marks')} /></Field>
+      <Field className="course-settings__wide" label={ui('考查知识点')} width="full">
+        <TextInput value={section.topics} disabled={disabled} placeholder={ui('用分号分隔')} onChange={set('topics')} /></Field>
     </div>
   </li>;
 }
@@ -261,8 +252,8 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
       <section className="course-settings__block" aria-labelledby="course-settings-name">
         <h3 id="course-settings-name">{ui('名称')}</h3>
         <div className="course-settings__rename">
-          <label className="course-settings__field course-settings__wide"><span>{ui('课程名称')}</span>
-            <input value={name} maxLength={200} disabled={disabled} onChange={event => { setName(event.target.value); setConfirm(null); }} /></label>
+          <Field className="course-settings__wide" label={ui('课程名称')} width="full">
+            <TextInput value={name} maxLength={200} disabled={disabled} onChange={event => { setName(event.target.value); setConfirm(null); }} /></Field>
           <Button ref={renameTrigger} variant="secondary" disabled={disabled || !renamed} onClick={() => setConfirm('rename')}>{ui('改名')}</Button>
         </div>
         {confirm === 'rename' && renamed && <InlineConfirm tone="warning" title={uiFormat('把「{0}」改名为「{1}」？', [course.name, name.trim()])}
@@ -282,20 +273,19 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
 
       <section className="course-settings__block" aria-labelledby="course-settings-exam">
         <h3 id="course-settings-exam">{ui('考试信息')}</h3>
-        <div className="course-settings__field">
-          <span>{ui('考试形式')}</span>
+        <Field group label={ui('考试形式')} width="full">
           <SegmentedControl size="sm" label={ui('考试形式')} value={draft.format} options={formats} disabled={disabled}
             onChange={format => change({ format })} />
-        </div>
+        </Field>
         <div className="course-settings__grid">
           <NumberField label={ui('总分')} value={draft.totalMarks} placeholder={defaults.totalMarks} {...EXAM_SETTING_LIMITS.totalMarks} disabled={disabled} onChange={totalMarks => change({ totalMarks })} />
           <NumberField label={ui('作答时间')} suffix={ui('分钟')} value={draft.writingMinutes} placeholder={defaults.writingMinutes} {...EXAM_SETTING_LIMITS.writingMinutes} disabled={disabled} onChange={writingMinutes => change({ writingMinutes })} />
           <NumberField label={ui('阅读时间')} suffix={ui('分钟')} value={draft.readingMinutes} placeholder={defaults.readingMinutes} {...EXAM_SETTING_LIMITS.readingMinutes} disabled={disabled} onChange={readingMinutes => change({ readingMinutes })} />
           <NumberField label={ui('每分用时')} suffix={ui('分钟')} value={draft.minutesPerMark} placeholder={defaults.minutesPerMark} {...EXAM_SETTING_LIMITS.minutesPerMark} step="any" disabled={disabled} onChange={minutesPerMark => change({ minutesPerMark })} />
-          <label className="course-settings__field"><span>{ui('考试日期')}</span>
-            <input type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></label>
+          <Field label={ui('考试日期')} width="full">
+            <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
         </div>
-        <p className="course-settings__hint">{ui('留空的项按默认推算：每分 3 分钟，阅读时间约为作答时间的 1/5（5–30 分钟）。')}</p>
+        <Hint>{ui('留空的项按默认推算：每分 3 分钟，阅读时间约为作答时间的 1/5（5–30 分钟）。')}</Hint>
         <div className="course-settings__subhead"><strong>{ui('考试部分')}</strong>
           <Button size="sm" variant="quiet" icon="plus" disabled={disabled || draft.sections.length >= 20}
             onClick={() => change({ sections: [...draft.sections, { title: '', lecturer: '', marks: '', topics: '' }] })}>{ui('添加考试部分')}</Button></div>
@@ -303,21 +293,21 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
           {draft.sections.map((section, index) => <SectionRow key={index} index={index} section={section} disabled={disabled}
             onChange={next => change({ sections: draft.sections.map((item, at) => at === index ? next : item) })}
             onRemove={() => change({ sections: draft.sections.filter((_, at) => at !== index) })} />)}
-        </ol> : <p className="course-settings__hint">{ui('按讲师或题型分几部分时，在这里写下每部分的分值和考查知识点。')}</p>}
+        </ol> : <Hint>{ui('按讲师或题型分几部分时，在这里写下每部分的分值和考查知识点。')}</Hint>}
       </section>
 
       <section className="course-settings__block" aria-labelledby="course-settings-focus">
         <h3 id="course-settings-focus">{ui('重点知识点')}</h3>
-        <p className="course-settings__hint">{ui('复习、出题和案例分析会优先照顾这些知识点。')}</p>
-        <label className="course-settings__field">
-          <input aria-label={ui('重点知识点')} value={draft.focusTopics} disabled={disabled} placeholder={ui('用分号分隔，例如 迁移策略；数据一致性')}
-            onChange={event => change({ focusTopics: event.target.value })} /></label>
+        <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点。')}</Hint>
+        <Field width="full">
+          <TextInput aria-label={ui('重点知识点')} value={draft.focusTopics} disabled={disabled} placeholder={ui('用分号分隔，例如 迁移策略；数据一致性')}
+            onChange={event => change({ focusTopics: event.target.value })} /></Field>
       </section>
 
       <Disclosure className="course-settings__disclosure" summary={ui('考官指引')}
         meta={draft.guidanceSourceIds.length ? uiFormat('已选 {0} 份', [draft.guidanceSourceIds.length]) : ui('未选择')}
         defaultOpen={draft.guidanceSourceIds.length > 0}>
-        <p className="course-settings__hint">{ui('选入考官讲解或考试说明（例如导入的说明会逐字稿），出案例题和批改时会参考。')}</p>
+        <Hint>{ui('选入考官讲解或考试说明（例如导入的说明会逐字稿），出案例题和批改时会参考。')}</Hint>
         <SourcePicker sources={data?.sources || []} selected={draft.guidanceSourceIds} disabled={disabled}
           onChange={guidanceSourceIds => change({ guidanceSourceIds })} />
       </Disclosure>
@@ -327,11 +317,9 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
         {/* A long course list scrolls in a window; likely duplicates of this course come first (WP14). */}
         <ScrollWindow className="course-settings__merge-window" label={ui('可以合并的课程')} items={mergeCandidates} itemKey={item => item.id}
           match={item => [item.name, ...(item.aliases || [])].join(' ')} filterable={mergeCandidates.length > 6} filterPlaceholder={ui('筛选课程…')}
-          maxHeight={260} listClassName="course-settings__merge" renderItem={item => <label>
-            <input type="checkbox" checked={mergeIds.includes(item.id)} disabled={disabled}
-              onChange={event => { setConfirm(null); setMergeIds(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />
-            <span><strong>{item.name}</strong>{(countLine(item) || likely.has(item.id)) && <small>{[likely.has(item.id) ? ui('名称几乎相同') : '', countLine(item)].filter(Boolean).join(' · ')}</small>}</span>
-          </label>} />
+          maxHeight={260} listClassName="course-settings__merge" renderItem={item => <Checkbox label={item.name} checked={mergeIds.includes(item.id)} disabled={disabled}
+            hint={(countLine(item) || likely.has(item.id)) ? [likely.has(item.id) ? ui('名称几乎相同') : '', countLine(item)].filter(Boolean).join(' · ') : undefined}
+            onChange={checked => { setConfirm(null); setMergeIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />} />
         <Button ref={mergeTrigger} variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
         {confirm === 'merge' && mergeIds.length > 0 && <InlineConfirm tone="warning" title={uiFormat('把 {0} 门课程并入「{1}」？', [mergeNames.length, course.name])}
           confirmLabel={ui('确认合并')} busy={working || busy} returnFocusRef={mergeTrigger} onConfirm={merge} onCancel={() => setConfirm(null)}>

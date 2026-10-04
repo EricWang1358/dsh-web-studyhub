@@ -46,9 +46,10 @@ export function jobAnnouncement(previous, current) {
  * status or `stage` changes. The caller passes the elapsed/meta text in.
  *   status: queued | running | complete | failed | partial | cancelled | interrupted
  *   progress: { value, max, label, ahead?, indeterminate?, summary? }
+ *   dismissTitle: what 知道了 does, as a tooltip.
  *   failure: { title, hint, detail }   actions: [{ label, onClick, variant?, icon?, disabled?, busy?, title? }]
  */
-export function JobRow({ status = 'running', stage, title, meta, progress, failure, actions, onDismiss, dismissLabel, leaving = false, className, children, ...rest }) {
+export function JobRow({ status = 'running', stage, title, meta, progress, failure, actions, onDismiss, dismissLabel, dismissTitle, leaving = false, className, children, ...rest }) {
   useComponentCss(css, 'study-feedback');
   const kind = statusOf(status), look = STATUS[kind];
   const [announced, setAnnounced] = useState('');
@@ -83,7 +84,7 @@ export function JobRow({ status = 'running', stage, title, meta, progress, failu
       {(actions?.length > 0 || onDismiss) && <div className="sh-job__actions">
         {actions?.map((action, index) => <Button key={action.key ?? index} size="sm" variant={action.variant || 'secondary'} icon={action.icon}
           disabled={action.disabled} busy={action.busy} title={action.title} onClick={action.onClick}>{action.label}</Button>)}
-        {onDismiss && <Button size="sm" variant="quiet" className="sh-job__dismiss" onClick={onDismiss}>{dismissLabel || ui('知道了')}</Button>}
+        {onDismiss && <Button size="sm" variant="quiet" className="sh-job__dismiss" title={dismissTitle} onClick={onDismiss}>{dismissLabel || ui('知道了')}</Button>}
       </div>}
       <span className="sh-visually-hidden" role="status">{announced}</span>
     </article>

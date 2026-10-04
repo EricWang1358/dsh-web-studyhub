@@ -59,16 +59,6 @@ export function spineCounts(stations) {
   return { stations: list.length, points: list.reduce((n, station) => n + below(station.children), 0) };
 }
 
-/** Where a key on the station strip moves the current station, or null for a key the strip does not handle. The ends stay put. */
-export function spineKeyTarget(index, key, count) {
-  if (!(count > 0)) return null;
-  if (key === "ArrowRight") return Math.min(count - 1, index + 1);
-  if (key === "ArrowLeft") return Math.max(0, index - 1);
-  if (key === "Home") return 0;
-  if (key === "End") return count - 1;
-  return null;
-}
-
 /** The spine opens by itself only on the step whose subject it is; in a lesson it is one folded line. */
 export const spineDefaultOpen = (stepKind) => stepKind === "skeleton";
 

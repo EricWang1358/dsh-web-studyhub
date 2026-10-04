@@ -107,9 +107,9 @@ test('a job from before the environment was kept has no block, and nothing is ma
 
 test('up to eight windows are listed inside the card, each with its pages and its state', () => {
   const html = render(jobs([job({ chunks: windows(6), chunk: { index: 3, count: 6 } })]));
-  assert.match(html, /<ol[^>]*class="audio-steps pdf-chunks"/);
-  assert.match(html, /<li class="done">✓ 第 1 段 · 第 1–50 页/);
-  assert.match(html, /<li class="current">第 3 段 · 第 101–150 页/);
+  assert.match(html, /<ol[^>]*class="sh-job__steps pdf-chunks"/);
+  assert.match(html, /<li class="is-done"><svg[^>]*>.*?<\/svg><span class="sh-visually-hidden">已完成 <\/span>第 1 段 · 第 1–50 页/);
+  assert.match(html, /<li class="is-current"[^>]*>第 3 段 · 第 101–150 页/);
   assert.match(html, /<li class="">第 4 段 · 第 151–200 页|<li>第 4 段 · 第 151–200 页/);
   assert.doesNotMatch(html, /展开各段/);
 });

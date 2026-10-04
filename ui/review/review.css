@@ -1,0 +1,42 @@
+/* The parts of the practice page that are components now (ui-consistency #79 #101 #102): the 待核对 popover and the 更多 menu's
+   trigger. Tokens only. The rules they replace (.review-more*, .publication-mark > summary, .publication-mark-popover,
+   .assist-spin, the native-progress pseudo elements of .teaching-progress) are left in style.css and coach.css for the CSS pass. */
+:is(.study-app, .study-seat) {
+  .publication-mark .publication-mark__trigger.sh-btn {
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    border-bottom: 1px dotted var(--decor-faint);
+    color: inherit;
+    font-size: inherit;
+    font-weight: var(--fw-regular);
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .publication-mark__panel {
+    width: min(300px, 75cqi);
+    color: var(--text-dim);
+    white-space: normal;
+  }
+  .publication-mark__panel p {
+    margin: 0 0 var(--space-2);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  /* A drawn chevron: the "⌄" glyph sits below the baseline and read as a subscript. It turns up while the menu is open. */
+  .review-more-trigger::after {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin: 0 0 var(--space-half) var(--space-2);
+    border-right: 1.5px solid var(--text-muted);
+    border-bottom: 1.5px solid var(--text-muted);
+    transform: rotate(45deg);
+    transition: transform var(--dur-fast) var(--ease);
+  }
+  .review-more-trigger[aria-expanded="true"]::after { transform: translateY(3px) rotate(-135deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.study-app, .study-seat) .review-more-trigger::after { transition: none; }
+}

@@ -48,26 +48,31 @@ export function useNotice(scope) {
 }
 
 const toObject = value => typeof value === 'string' ? { text: value } : value || {};
+const actionOf = (value, busy) => value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, disabled: !!busy || value.action.disabled };
+
+/** A notice as the toast the region draws. An undo offer (`undo`, with `timeout`) may leave by itself but is held while hovered or focused. */
+export function noticeToToast(notice, busy) {
+  const value = toObject(notice);
+  return { id: 'notice', key: `notice:${value.key ?? value.text}`, tone: value.tone || 'info',
+    message: uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
+    ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), action: actionOf(value, busy) };
+}
+
+export function errorToToast(error, busy) {
+  const value = toObject(error);
+  return { id: 'error', key: `error:${value.text}`, tone: 'error', message: uiMessage(value.text ?? ''), dismissLabel: ui('关闭错误'), action: actionOf(value, busy) };
+}
 
 /**
  * App-level feedback, now shown as toasts in the visible Study viewport (or in
  * the open dialog). Props are unchanged; `error` / `notice` may be a string or
- * { text, action: { label, run }, persistent, tone }. placement: 'auto' |
- * 'page' | 'inline' (see ToastRegion).
+ * { text, action: { label, run }, persistent, tone, undo, timeout }. placement: 'auto' |
+ * 'page' | 'inline' (see ToastRegion). Rendered once, by App; pages reach it through useToast().
  */
 export default function ActionFeedback({ error, notice, busy, onCloseError, onCloseNotice, placement = 'auto' }) {
   const toasts = [];
-  if (notice) {
-    const value = toObject(notice);
-    toasts.push({ id: 'notice', key: `notice:${value.key ?? value.text}`, tone: value.tone || 'info',
-      message: uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
-      action: value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, disabled: !!busy || value.action.disabled } });
-  }
-  if (error) {
-    const value = toObject(error);
-    toasts.push({ id: 'error', key: `error:${value.text}`, tone: 'error', message: uiMessage(value.text ?? ''), dismissLabel: ui('关闭错误'),
-      action: value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, disabled: !!busy || value.action.disabled } });
-  }
+  if (notice) toasts.push(noticeToToast(notice, busy));
+  if (error) toasts.push(errorToToast(error, busy));
   return <ToastRegion toasts={toasts} placement={placement}
     onDismiss={id => (id === 'error' ? onCloseError : onCloseNotice)?.()} />;
 }

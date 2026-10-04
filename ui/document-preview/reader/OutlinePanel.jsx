@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Icon } from '../../components/index.js';
+import { DisclosureToggle, Icon } from '../../components/index.js';
 import { defaultExpanded, filterOutline, outlineRows } from './outline.js';
 import { MasteryMark } from '../practice/MasteryMark.jsx';
 import MathText from '../../MathText.jsx';
@@ -53,9 +53,8 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
           const label = labelOf(item), open = expanded.has(item.id), foldable = !filtering && item.children > 0;
           return <li key={item.id} data-depth={filtering ? 0 : Math.min(item.depth || 0, 4)} data-minor={item.minor || undefined}>
             {foldable
-              ? <button type="button" className="reader-outline__twisty" aria-expanded={open}
-                aria-label={uiFormat(open ? '收起「{0}」' : '展开「{0}」', [name(item) || ui('此节')])} onClick={() => toggle(item)}>
-                <Icon name="chevron" size={14} className={open ? 'reader-turn reader-turn--down' : 'reader-turn'} /></button>
+              ? <DisclosureToggle className="reader-outline__twisty" open={open}
+                label={open ? uiFormat('收起「{0}」', [name(item) || ui('此节')]) : uiFormat('展开「{0}」', [name(item) || ui('此节')])} onToggle={() => toggle(item)} />
               : <span className="reader-outline__twisty reader-outline__twisty--none" aria-hidden="true" />}
             <button type="button" className="reader-outline__link" aria-current={item.id === current ? 'location' : undefined}
               title={[name(item), filtering && item.trail?.length ? item.trail.join(' › ') : ''].filter(Boolean).join('\n')} onClick={() => onJump(item)}>

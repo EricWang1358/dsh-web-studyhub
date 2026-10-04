@@ -1,7 +1,8 @@
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Icon from "./components/Icon.jsx";
-import { skeletonSpine, spineCounts, spineKeyTarget, readSpineOpen, writeSpineOpen } from "./skeleton-spine.js";
+import { TabPanel, Tabs } from "./components/index.js";
+import { skeletonSpine, spineCounts, readSpineOpen, writeSpineOpen } from "./skeleton-spine.js";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
 /* 脉络：一条学习主线。一行站点条（编号圆点 + 短标题）加一个"当前站"详情：
@@ -67,7 +68,6 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
   const [all, setAll] = useState(false);
   const [edges, setEdges] = useState({ start: false, end: false });
   const strip = useRef(null);
-  const tabs = useRef([]);
   const count = stations.length;
   const open = !collapsible || (folds[stepKind] ?? stored);
   const index = Math.min(current, Math.max(0, count - 1));
@@ -80,10 +80,10 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
   };
   // Keep the current tab inside the strip, and tell the strip's edges whether more stations hide beyond them.
   useEffect(() => {
-    const box = strip.current, tab = tabs.current[index];
+    const box = strip.current, tab = box?.querySelector('[aria-selected="true"]');
     if (!box || !tab) return;
     const pad = 36;
-    const left = tab.parentElement.offsetLeft, right = left + tab.parentElement.offsetWidth;
+    const left = tab.offsetLeft, right = left + tab.offsetWidth;
     let target = null;
     if (left < box.scrollLeft + pad) target = Math.max(0, left - pad);
     else if (right > box.scrollLeft + box.clientWidth - pad) target = right - box.clientWidth + pad;
@@ -100,19 +100,12 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
 
   if (!count) return null;
   const station = stations[index];
-  const bodyId = `${uid}-body`, panelId = `${uid}-panel`, tabId = (i) => `${uid}-tab-${i}`;
+  const bodyId = `${uid}-body`;
   const select = (to) => setCurrent(Math.max(0, Math.min(count - 1, to)));
   const toggle = () => {
     const next = !open;
     setFolds((prev) => ({ ...prev, [stepKind]: next }));
     writeSpineOpen(stepKind, next);
-  };
-  const onKeyDown = (event) => {
-    const to = spineKeyTarget(index, event.key, count);
-    if (to === null) return;
-    event.preventDefault();
-    select(to);
-    tabs.current[to]?.focus();
   };
   const arrow = (dir, className, label) => (
     <button type="button" className={className} aria-label={label} disabled={dir < 0 ? index === 0 : index === count - 1} onClick={() => select(index + dir)}>
@@ -171,35 +164,21 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
               <div className="spine-nav">
                 {count > 1 && arrow(-1, "spine-arrow spine-prev", ui("上一站"))}
                 <div className="spine-strip" ref={strip} data-start={edges.start ? "1" : undefined} data-end={edges.end ? "1" : undefined} onScroll={measureEdges}>
-                  <ol className="spine-track" role="tablist" aria-label={ui("学习站点")} onKeyDown={onKeyDown}>
-                    {stations.map((item, i) => (
-                      <li key={item.id} role="presentation">
-                        <button
-                          type="button"
-                          role="tab"
-                          id={tabId(i)}
-                          ref={(el) => { tabs.current[i] = el; }}
-                          className={"spine-tab" + (i === index ? " is-current" : "")}
-                          aria-selected={i === index}
-                          aria-controls={panelId}
-                          aria-label={`${item.step}. ${item.term}`}
-                          tabIndex={i === index ? 0 : -1}
-                          title={item.term}
-                          onClick={() => select(i)}
-                        >
-                          <span className="spine-marker" aria-hidden="true">{item.step}</span>
-                          <span className="spine-tab-title" aria-hidden="true">{item.term}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
+                  <Tabs id={uid} className="spine-track" itemClassName="spine-tab" label={ui("学习站点")} wrap={false} value={index} onChange={select}
+                    items={stations.map((item, i) => ({
+                      value: i, ariaLabel: `${item.step}. ${item.term}`, tooltip: item.term,
+                      content: <>
+                        <span className="spine-marker" aria-hidden="true">{item.step}</span>
+                        <span className="spine-tab-title" aria-hidden="true">{item.term}</span>
+                      </>,
+                    }))} />
                 </div>
                 {count > 1 && arrow(1, "spine-arrow spine-next", ui("下一站"))}
               </div>
-              <ReadingBlock className="spine-detail" role="tabpanel" id={panelId} aria-labelledby={tabId(index)}>
+              <TabPanel as={ReadingBlock} id={uid} value={index} selected={index} className="spine-detail" tabIndex={undefined}>
                 <h4 className="spine-detail-title">{station.term}</h4>
                 <StationBody station={station} onPractice={onPractice} />
-              </ReadingBlock>
+              </TabPanel>
             </>
           )}
         </div>

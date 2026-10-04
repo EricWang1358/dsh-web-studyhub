@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
-import { Button, EmptyState, IconButton, InlineMessage, PageHeader, ToastRegion } from "./components/index.js";
+import { Button, EmptyState, IconButton, InlineMessage, PageHeader, useToast } from "./components/index.js";
 import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
 import { createBoardStore } from "./board/store.js";
 import BoardCard from "./board/Card.jsx";
@@ -170,11 +170,11 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drag, setDrag] = useState(null);
   const [drop, setDrop] = useState(null);
-  const [toast, setToast] = useState(null);
+  const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [originError, setOriginError] = useState("");
-  const boardRef = useRef(board), focusId = useRef(null), announced = useRef(0), toastCount = useRef(0);
+  const boardRef = useRef(board), focusId = useRef(null), announced = useRef(0);
   boardRef.current = board;
 
   // A study link handed over from "加入待办" opens the composer with the chip attached.
@@ -187,11 +187,12 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
     return () => cancelAnimationFrame(frame);
   }, [board]);
   const say = useCallback((message) => { announced.current += 1; setAnnouncement(announced.current % 2 ? message : `${message}​`); }, []);
+  // The undo offer goes to the app's one toast region: it leaves after UNDO_TIMEOUT but is held while hovered or focused.
   const offer = useCallback((message, undo) => {
-    toastCount.current += 1;
-    setToast({ id: toastCount.current, message, undo });
+    toast.show({ tone: "success", message, undo: true, timeout: UNDO_TIMEOUT,
+      action: undo ? { label: ui("撤销"), onClick: async () => { toast.dismiss(); if (await undo()) say(ui("已撤销")); } } : undefined });
     say(message);
-  }, [say]);
+  }, [say, toast]);
   const run = useCallback((action, args, options) => (mutate ? mutate(action, args, options) : Promise.resolve(false)), [mutate]);
 
   const columnName = (id) => { const column = boardRef.current.columns.find((entry) => entry.id === id); return column ? boardColumnLabel(column) : ""; };
@@ -326,8 +327,5 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
         if (!(await (kind === "purge" ? run("board.card.remove", { id: card.id }) : deleteCard(card)))) throw new Error(ui("没有完成，请再试一次。"));
       }} />}
     <div className="sh-visually-hidden" role="status" aria-live="polite">{announcement}</div>
-    <ToastRegion placement="page" toasts={toast ? [{ id: toast.id, tone: "success", message: toast.message, undo: true, timeout: UNDO_TIMEOUT,
-      action: toast.undo ? { label: ui("撤销"), onClick: async () => { const undo = toast.undo; setToast(null); if (await undo()) say(ui("已撤销")); } } : undefined }] : []}
-      onDismiss={() => setToast(null)} />
   </section>;
 }

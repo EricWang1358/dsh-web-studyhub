@@ -120,7 +120,7 @@ const AUDIT = () => {
     if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) problems.push("two translation blocks overlap");
   }
   const bounds = viewer ? box(viewer) : null;
-  for (const panel of document.querySelectorAll(".reader-popover__panel, .tr-menu__list, .tr-float")) {
+  for (const panel of document.querySelectorAll(".reader-popover__panel, .sh-menu, .tr-float__panel")) {
     const r = box(panel);
     if (bounds && (r.left < bounds.left - 1 || r.right > bounds.right + 1)) problems.push(`a panel leaves the reader (${panel.className.split(" ")[0]})`);
   }
@@ -277,8 +277,14 @@ export async function runTranslationQa(options) {
       if (foreign.test(quote)) throw new Error("the captured quote contains the translation: " + quote.slice(0, 80));
       if (!quote.includes(doc.p0.slice(0, 10)) || !quote.includes(doc.p1.slice(0, 10))) throw new Error("the captured quote lost the document's own text");
     });
+    // The block's menu closes when something scrolls under it, so settle the scroll Playwright makes to reach the button before pressing it.
+    const openBlockMenu = async (text) => {
+      const trigger = blockAfter(text).getByRole("button", { name: t("这段译文的更多操作", "More actions for this translation") });
+      await trigger.scrollIntoViewIfNeeded(); await sleep(300); await trigger.click();
+      await page.getByRole("menu").waitFor();
+    };
     await step("retranslate-ask", async () => {
-      await blockAfter(doc.p0).getByRole("button", { name: t("这段译文的更多操作", "More actions for this translation") }).click();
+      await openBlockMenu(doc.p0);
       await page.getByRole("menuitem", { name: t("重新翻译…", "Retranslate…") }).click();
       await blockAfter(doc.p0).locator(".tr-ask__input").fill(t("更口语一点", "more conversational"));
     });
@@ -287,13 +293,13 @@ export async function runTranslationQa(options) {
       await blockAfter(doc.p0).locator(".tr-chip", { hasText: /v2/ }).waitFor({ timeout: 15000 });
     });
     await step("copy", async () => {
-      await blockAfter(doc.p0).getByRole("button", { name: t("这段译文的更多操作", "More actions for this translation") }).click();
+      await openBlockMenu(doc.p0);
       await page.getByRole("menuitem", { name: t("复制译文", "Copy translation") }).click();
-      await page.getByRole("menuitem", { name: t("已复制", "Copied") }).waitFor();
-      await page.keyboard.press("Escape");
+      // The menu closes on a choice; the block says it copied (and forgets after a moment).
+      await blockAfter(doc.p0).locator(".tr-chip[role='status']", { hasText: t("已复制", "Copied") }).waitFor();
     });
     await step("delete-undo", async () => {
-      await blockAfter(doc.p0).getByRole("button", { name: t("这段译文的更多操作", "More actions for this translation") }).click();
+      await openBlockMenu(doc.p0);
       await page.getByRole("menuitem", { name: t("删除这段翻译", "Delete this translation") }).click();
       await viewer.locator(".tr-block[data-state='undo']").waitFor();
       await shot("deleted");
@@ -334,6 +340,32 @@ export async function runTranslationQa(options) {
     await step("original-view", async () => {
       await viewer.getByRole("radio", { name: t("原文", "Original text"), exact: true }).click().catch(() => viewer.getByRole("button", { name: t("原文", "Original text"), exact: true }).click());
       await sleep(600); await select(doc.sentence); await page.locator(".tr-chipbtn").waitFor();
+      await page.locator(".tr-chipbtn").click(); await viewer.locator(".tr-float .tr-block__text").waitFor({ timeout: 15000 });
+    });
+    // The floating card is a Popover: a press elsewhere in the text closes it, and the first Escape closes the card, not the reader.
+    await step("float-menu", async () => {
+      await viewer.locator(".tr-float .sh-menu-anchor button").click();
+      await page.getByRole("menu").waitFor();
+      const where = await page.evaluate(() => ({ inDialog: !!document.querySelector("dialog[open] .sh-menu"), focus: document.activeElement?.getAttribute("role") }));
+      if (!where.inDialog) throw new Error("the block menu did not open inside the reader dialog (it would sit behind it)");
+      if (where.focus !== "menuitem") throw new Error(`focus is on ${where.focus}, not in the menu`);
+    });
+    await step("float-escape-order", async () => {
+      await page.keyboard.press("Escape");
+      if (await page.getByRole("menu").count()) throw new Error("the first Escape did not close the menu");
+      if (!(await page.locator(".tr-float").count())) throw new Error("Escape closed the card together with the menu");
+      await page.keyboard.press("Escape");
+      await sleep(250);
+      if (await page.locator(".tr-float").count()) throw new Error("the second Escape did not close the card");
+      if (!(await viewer.count())) throw new Error("Escape closed the whole reader instead of the card");
+    });
+    await step("float-outside-press", async () => {
+      await sleep(600); await select(doc.sentence); await page.locator(".tr-chipbtn").waitFor();
+      await page.locator(".tr-chipbtn").click(); await viewer.locator(".tr-float .tr-block__text").waitFor({ timeout: 15000 });
+      await viewer.locator(".reader-scroll").click({ position: { x: 8, y: 8 } });
+      await sleep(250);
+      if (await page.locator(".tr-float").count()) throw new Error("a press elsewhere in the text did not close the card");
+      await sleep(300); await select(doc.sentence); await page.locator(".tr-chipbtn").waitFor();
       await page.locator(".tr-chipbtn").click(); await viewer.locator(".tr-float .tr-block__text").waitFor({ timeout: 15000 });
     });
     await closeReader();

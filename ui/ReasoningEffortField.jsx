@@ -1,8 +1,6 @@
-import React, { useEffect, useId } from 'react';
+import React, { useEffect } from 'react';
 import { ui, uiFormat } from './i18n.js';
-import { useInjectCss } from './shared.js';
-import { SegmentedControl } from './components/index.js';
-import css from './reasoning-effort.css';
+import { Field, Hint, SegmentedControl, Select } from './components/index.js';
 
 /** Segments up to this many levels (plus the follow choice); a select beyond. */
 const SEGMENT_LEVELS = 4;
@@ -27,15 +25,11 @@ export function effortTradeoff(options = [], current = '') {
  * Settings opens or the followed model changes, so the levels match the model).
  */
 export default function ReasoningEffortField({ binding = {}, busy = false, onChange, onRefresh, refreshKey }) {
-  useInjectCss(css, 'study-reasoning-effort');
-  const labelId = useId();
   useEffect(() => { onRefresh?.(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const effort = binding.effort || {}, options = Array.isArray(effort.options) ? effort.options : [];
   if (options.length < 2) {
     if (!effort.stale) return null;
-    return <div className="binding-row effort-row">
-      <small className="effort-note">{ui('当前模型不支持推理程度设置，已使用模型默认。')}</small>
-    </div>;
+    return <div className="binding-row effort-row"><Hint>{ui('当前模型不支持推理程度设置，已使用模型默认。')}</Hint></div>;
   }
   const preferred = effort.applied ? binding.reasoningEffort : '';
   // What following gives: the session's level, else the model's own default (binding.effort.followed).
@@ -45,17 +39,16 @@ export default function ReasoningEffortField({ binding = {}, busy = false, onCha
     : (followedName ? uiFormat('模型默认（{0}）', [followedName]) : ui('模型默认'));
   const choices = [{ value: '', label: followLabel }, ...options.map((item) => ({ value: item.id, label: item.name }))];
   const tradeoff = effortTradeoff(options, effort.current);
-  return <div className="binding-row effort-row">
-    <div className="binding-main">
-      <span className="binding-label" id={labelId}>{ui('推理程度')}</span>
-      {options.length <= SEGMENT_LEVELS
+  const small = options.length <= SEGMENT_LEVELS;
+  return <div className="binding-row effort-row"><div className="binding-main">
+    <Field group={small} label={ui('推理程度')} width="full" hint={ui('只影响出题和改题；陪学提示固定用最低档，音频处理在音频设置里单独调。')}>
+      {small
         ? <SegmentedControl label={ui('推理程度')} value={preferred} options={choices} disabled={busy} onChange={onChange} />
-        : <select aria-labelledby={labelId} value={preferred} disabled={busy} onChange={(event) => onChange?.(event.target.value)}>
+        : <Select value={preferred} disabled={busy} onChange={(event) => onChange?.(event.target.value)}>
           {choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-        </select>}
-      <small className="effort-tradeoff" data-effort={tradeoff.key}>{tradeoff.text}</small>
-      {effort.stale && <small className="effort-note">{uiFormat('之前选的「{0}」当前模型没有，已改为跟随。', [binding.reasoningEffort])}</small>}
-      <small>{ui('只影响出题和改题；陪学提示固定用最低档，音频处理在音频设置里单独调。')}</small>
-    </div>
-  </div>;
+        </Select>}
+    </Field>
+    <Hint className="effort-tradeoff" data-effort={tradeoff.key}>{tradeoff.text}</Hint>
+    {effort.stale && <Hint className="effort-note">{uiFormat('之前选的「{0}」当前模型没有，已改为跟随。', [binding.reasoningEffort])}</Hint>}
+  </div></div>;
 }

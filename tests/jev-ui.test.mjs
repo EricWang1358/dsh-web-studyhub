@@ -69,7 +69,7 @@ test('nothing can be switched on until a key is saved and the note is confirmed;
   for (const [settings, step] of [[fresh, 'key'], [keyed, 'confirm'], [ready, 'ready']]) assert.equal(setupStep(settings), step);
   const html = render(view(fresh));
   assert.match(html, /<fieldset class="jev-switches" disabled=""/);
-  assert.match(html, /<input id="[^"]*" type="checkbox"(?![^>]*checked)/, 'the confirmation starts unchecked');
+  assert.match(html.slice(html.indexOf('jev-privacy')), /<input type="checkbox" class="sh-check__input"(?![^>]*checked)[^>]*id="/, 'the confirmation starts unchecked');
   assert.match(html, /未配置/);
   const confirm = render(view(keyed));
   assert.match(confirm, /先确认上面的隐私说明/);
@@ -89,7 +89,7 @@ test('every experiment has its own switch and all of them start off; the master 
   assert.match(html, /总开关/);
   assert.match(html, /立即生效/);
   const enabled = render(view(on));
-  assert.match(enabled, /data-feature="courseSuggest"><input type="checkbox" checked=""/);
+  assert.match(enabled, /<input[^>]*role="switch"[^>]*data-feature="courseSuggest"[^>]*checked=""/);
 });
 
 test('the key is shown only as its last four characters and the field is a password input', () => {

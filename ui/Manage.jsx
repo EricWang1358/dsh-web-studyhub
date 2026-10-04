@@ -5,7 +5,14 @@ import { useInjectCss } from "./shared.js";
 import css from "./manage.css";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
-import { Button } from "./components/index.js";
+import { Banner, Button, ConfirmDialog } from "./components/index.js";
+
+/** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
+export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
+  return <ConfirmDialog title={uiFormat("合并到「{0}」？", [target.title])} confirmLabel={ui("合并到目标题组")}
+    description={uiFormat("将「{0}」的 {1} 道题全部并入目标题组？来源题组会移除。", [deck.title, deck.cards.length])}
+    onConfirm={onConfirm} onClose={onClose} />;
+}
 
 /* 题组管理视图：编辑先进入草稿（deck.edit → openDraft），归档/暂停/标记
    与目录移动就地生效。managedDeck 由 App 在进入本视图时 deck.get 取得。 */
@@ -26,6 +33,7 @@ export default function Manage({
 }) {
   useInjectCss(css, "study-manage");
   const [targetId, setTargetId] = useState("");
+  const [merging, setMerging] = useState(false);
   const [splitTitle, setSplitTitle] = useState("");
   const [splitTopics, setSplitTopics] = useState([]);
   const topics = [...new Set(managedDeck.cards.map((c) => c.topic || ui("未分类")))];
@@ -87,10 +95,10 @@ export default function Manage({
       </div>
       </header>
       {!slainView && (unreviewed > 0 || selfCited > 0) && (
-        <p className="quality-note warning" role="status">
-          {unreviewed > 0 && uiFormat("{0} 题尚未自动审阅。学习时可正常作答，发现问题可点题目标记或 👎 交给后台修题。", [unreviewed])}
-          {selfCited > 0 && uiFormat(" {0} 题只引用导入题目自身；请先在草稿中换成原始资料引用。", [selfCited])}
-        </p>
+        <Banner tone="warning" role="status">
+          {unreviewed > 0 && <p>{uiFormat("{0} 题尚未自动审阅。学习时可正常作答，发现问题可点题目标记或 👎 交给后台修题。", [unreviewed])}</p>}
+          {selfCited > 0 && <p>{uiFormat("{0} 题只引用导入题目自身；请先在草稿中换成原始资料引用。", [selfCited])}</p>}
+        </Banner>
       )}
       <form
         className="manage-folder"
@@ -132,10 +140,7 @@ export default function Manage({
         </div>
         <form className="manage-section" onSubmit={(e) => {
           e.preventDefault();
-          if (!targetId || !window.confirm(uiFormat('将「{0}」的 {1} 道题全部并入目标题组？来源题组会移除。', [managedDeck.title, managedDeck.cards.length]))) return;
-          act("deck.merge", { sourceIds: [managedDeck.id], targetId }, (result) => {
-            setPage("library"); setNotice(uiFormat("已合并 {0} 道题，全部保留",[result.moved]));
-          });
+          if (targetId) setMerging(true);
         }}>
           <label className="manage-label" htmlFor="manage-merge-target">{ui("合并到题组")}</label>
           <div className="manage-row">
@@ -169,6 +174,13 @@ export default function Manage({
           </div>
         </form>}
       </div>}
+      {merging && targetId && <MergeDeckDialog deck={managedDeck} target={peers.find((d) => d.id === targetId) || { title: "" }}
+        onClose={() => setMerging(false)} onConfirm={async () => {
+          const result = await act("deck.merge", { sourceIds: [managedDeck.id], targetId }, (moved) => {
+            setPage("library"); setNotice(uiFormat("已合并 {0} 道题，全部保留", [moved.moved]));
+          }, { rethrow: true });
+          if (result === undefined) throw new Error(ui("另一个操作还在进行，请稍后重试。"));
+        }} />}
       {!managedDeck.cards.length && <p className="muted">{slainView ? ui("斩题组为空。练习时点击“斩”，题目会收纳到这里。") : ui("当前题组没有题目。已斩的题可从斩题组恢复。")}</p>}
       <div className="manage-cards">
         {managedDeck.cards.map((card) => (

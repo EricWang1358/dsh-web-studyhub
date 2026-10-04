@@ -11,8 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `export * from './ui/components/Dialog.jsx'; export { default } from './ui/components/Dialog.jsx';
   export * from './ui/components/dialog-stack.js';
-  export { default as ModalFrame } from './ui/ModalFrame.jsx';
-  export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+  export { setUiLanguage, ui } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -47,14 +46,14 @@ test('every size maps to a class and unknown sizes fall back to md', () => {
   assert.match(renderToStaticMarkup(h(m.default, { title: 't', size: 'huge', onClose() {} })), /sh-dialog--md/);
 });
 
-test('ModalFrame keeps its props and is now a native dialog for both sizes', () => {
+test('a full-size dialog with a class and a body label is a native dialog with a labelled scrolling body (the reader\'s shape)', () => {
   m.setUiLanguage('zh');
-  const plain = renderToStaticMarkup(h(m.ModalFrame, { title: '添加资料', onClose() {} }, '表单'));
+  const plain = renderToStaticMarkup(h(m.default, { title: '添加资料', onClose() {} }, '表单'));
   assert.match(plain, /<dialog[^>]*role="dialog"[^>]*aria-modal="true"/);
   assert.doesNotMatch(plain, /modal-backdrop/, 'the z-indexed div backdrop is gone');
   assert.match(plain, /sh-dialog--md/);
   assert.match(plain, /表单/);
-  const full = renderToStaticMarkup(h(m.ModalFrame, { title: '第一章.pdf', fullscreen: true, onClose() {} }, '正文'));
+  const full = renderToStaticMarkup(h(m.default, { title: '第一章.pdf', size: 'full', className: 'source-preview', bodyLabel: '资料内容', onClose() {} }, '正文'));
   assert.match(full, /<dialog[^>]*class="[^"]*sh-dialog--full[^"]*source-preview/);
   assert.match(full, /aria-label="资料内容"/, 'the scrolling body is a labelled region');
 });
@@ -94,7 +93,7 @@ test('only a click that starts and ends on the backdrop closes the dialog', () =
 
 test('English dialog chrome contains no Chinese', () => {
   m.setUiLanguage('en');
-  const out = renderToStaticMarkup(h(m.ModalFrame, { title: 'Add source', fullscreen: true, onClose() {} }, 'x'));
+  const out = renderToStaticMarkup(h(m.default, { title: 'Add source', size: 'full', className: 'source-preview', bodyLabel: m.ui('资料内容'), onClose() {} }, 'x'));
   assert.doesNotMatch(out, han);
   assert.match(out, /aria-label="Close"/);
   m.setUiLanguage('zh');

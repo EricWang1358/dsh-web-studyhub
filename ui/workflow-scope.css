@@ -12,8 +12,10 @@
 .wf-course-switch > span { white-space: nowrap; }
 .workflow-page .wf-course-switch select { width: auto; min-width: 0; max-width: min(320px, 56vw); min-height: 32px; padding: 4px 28px 4px 4px; border: 0; background-color: transparent; color: var(--text); font-weight: 600; text-overflow: ellipsis; cursor: pointer; }
 .workflow-page .wf-course-switch select:is(:focus, :focus-visible) { outline: 0; box-shadow: none; background-color: transparent; }
-.wf-spine-status .wf-model-error { flex: 1 1 260px; }
-.wf-spine-status:has(.wf-model-error) { align-items: flex-start; }
+.wf-spine-status:has(.sh-inline) { align-items: flex-start; }
+.wf-failure { display: grid; justify-items: start; gap: var(--space-2); margin-block: var(--space-3); }
+.wf-failure > .sh-inline { width: 100%; }
+.wf-failure > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
 .wf-scope-hint { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); }
 .wf-scope-hint .link-btn { font-size: inherit; font-weight: 600; color: var(--accent-text); }
 
@@ -23,12 +25,6 @@
 .wf-ref-card .wf-ref-answer > summary { cursor: pointer; font-size: 14px; color: var(--accent-text); }
 .wf-ref-card .wf-ref-answer > p { margin: 6px 0 0; color: var(--text-muted); line-height: 1.7; }
 .wf-ref-card cite { display: block; margin-top: 6px; font-size: 13px; font-style: normal; color: var(--text-muted); overflow-wrap: anywhere; }
-
-.wf-model-error { display: grid; gap: 6px; min-width: 0; }
-.wf-model-error p { margin: 0; line-height: 1.65; overflow-wrap: anywhere; }
-.wf-model-error__raw { font-size: 13px; color: var(--text-muted); }
-.wf-model-error__raw > summary { cursor: pointer; width: fit-content; }
-.wf-model-error__raw code { display: block; margin-top: 6px; padding: 8px 10px; background: var(--bg-sunken); border-radius: var(--radius-sm); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
 
 .wf-history .wf-rescope-event { color: var(--text-muted); }
 .wf-history .wf-rescope-event strong { color: var(--text); }

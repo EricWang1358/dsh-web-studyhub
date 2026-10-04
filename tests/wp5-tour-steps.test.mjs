@@ -28,6 +28,8 @@ async function anchorsInSource() {
     const text = await readFile(file, "utf8");
     // JSX attributes (data-tour="x") and spread props ({ "data-tour": "x" }).
     for (const match of text.matchAll(/data-tour["']?\s*[=:]\s*["']([a-z0-9-]+)["']/g)) anchors.add(match[1]);
+    // A settings section names its anchor with the tour prop of SettingsSection (rendered as data-tour).
+    if (/\bSettingsSection\b/.test(text)) for (const match of text.matchAll(/\btour=["']([a-z0-9-]+)["']/g)) anchors.add(match[1]);
     if (/data-tour=\{`nav-\$\{id\}`\}/.test(text)) for (const id of Object.values(NAV_DEFAULTS).flat()) anchors.add(`nav-${id}`);
     // Tabs described as data ({ …, tour: "x" } rendered with data-tour={tab.tour}, ui/Generate.jsx).
     if (/data-tour=\{tab\.tour\}/.test(text)) for (const match of text.matchAll(/\btour:\s*["']([a-z0-9-]+)["']/g)) anchors.add(match[1]);

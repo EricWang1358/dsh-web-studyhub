@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Disclosure, Icon, InlineMessage } from './components/index.js';
+import { Badge, Button, Disclosure, Icon, InlineMessage, ProgressBar } from './components/index.js';
 import { PrivacyConfirm, privacyNote } from './MineruSettings.jsx';
 import { chooseRoute, localEstimate, minutesOf, pageRange, uploadPdf } from './mineru-flow.js';
 import { formatBytes } from './components/FileDrop.jsx';
@@ -25,7 +25,7 @@ function RouteCard({ group = 'mineru-route', id, value, current, title, chips, c
   );
 }
 
-const chip = (text, tone) => <span className={`audio-chip${tone ? ` audio-chip--${tone}` : ''}`}>{text}</span>;
+const chip = (text, tone = 'neutral') => <Badge size="sm" tone={tone}>{text}</Badge>;
 
 function planHeading(adaptive, pieces, route) {
   if (adaptive) return ui('分段会按这台电脑的速度调整');
@@ -143,8 +143,8 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
       <fieldset className="mineru-routes" disabled={starting}>
         <legend>{ui('解析工具')}</legend>
-        <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={local?.state === 'ready' ? chip(ui('可用'), 'good') : chip(ui('需要设置'))}><small>{ui('本机或云端解析')}</small></RouteCard>
-        <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'good') : chip(ui('需要设置'))}><small>{ui('调用本机 Marker，自动导入')}</small></RouteCard>
+        <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={local?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><small>{ui('本机或云端解析')}</small></RouteCard>
+        <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><small>{ui('调用本机 Marker，自动导入')}</small></RouteCard>
       </fieldset>
       {!file && <div className="mineru-pick">
         <input ref={picker} type="file" accept={ACCEPT} className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
@@ -155,8 +155,8 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
       {file && <>
         <p className="mineru-file"><strong>{file.name}</strong><span>{formatBytes(file.size)}</span></p>
-        {reading !== null && <div className="mineru-reading" role="status" aria-live="polite">
-          <div className="audio-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(reading * 100)} aria-label={ui('正在读取这份 PDF')}><span style={{ width: `${Math.round(reading * 100)}%` }} /></div>
+        {reading !== null && <div className="mineru-reading">
+          <ProgressBar value={Math.round(reading * 100)} max={100} label={ui('正在读取这份 PDF')} size="sm" />
           <small>{uiFormat('正在读取这份 PDF（只在这台电脑上），{0}%', [Math.round(reading * 100)])}</small>
         </div>}
         {plan && !isMarker && <div className="mineru-plan" role="status">
@@ -181,13 +181,13 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
         {!isMarker && <fieldset className="mineru-routes" disabled={starting}>
           <legend>{ui('用哪种方式解析')}</legend>
           <RouteCard id={`${radioId}-local`} value="local" current={route} onSelect={setChoice} title={ui('本地 mineru')}
-            chips={<>{chip(ui('推荐'))}{chip(ui('免费 · 不上传'), 'good')}{localReady ? chip(ui('可用'), 'accent') : chip(local ? ui('需要设置') : ui('检测中…'))}</>}>
+            chips={<>{chip(ui('推荐'))}{chip(ui('免费 · 不上传'), 'success')}{localReady ? chip(ui('可用'), 'success') : chip(local ? ui('需要设置') : ui('检测中…'))}</>}>
             <small>{localReady
               ? (estimate ? uiFormat('约 {0} 分钟（估算：{1} 档每页约 {2} 秒，实际取决于这台电脑）', [minutesOf(estimate), local.tier, local.estimates?.[local.tier]]) : ui('文档不会离开这台电脑。'))
               : ui('文档不会离开这台电脑；需要本机装好 mineru 并下载模型。')}</small>
           </RouteCard>
           <RouteCard id={`${radioId}-cloud`} value="cloud" current={route} onSelect={setChoice} title={ui('用 MinerU 云端解析')}
-            chips={<>{chip(ui('暂不可用'))}{cloudSet ? chip(ui('令牌已设置'), 'accent') : chip(ui('需要令牌'))}</>}>
+            chips={<>{chip(ui('暂不可用'))}{cloudSet ? chip(ui('令牌已设置'), 'info') : chip(ui('需要令牌'))}</>}>
             <small>{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</small>
             <small>{privacyNote()}</small>
           </RouteCard>

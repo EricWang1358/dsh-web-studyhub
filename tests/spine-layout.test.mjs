@@ -69,7 +69,7 @@ test("the folded panel is one short line, the open panel follows the current sta
           assert.ok(paneText.includes(node.meaning), `${tag}: the full description of ${node.term}`);
         }
         // The strip: one baseline, titles ellipsised with the full text in the tooltip, no hidden horizontal scroll without a cue.
-        const tabs = await page.locator(".spine-tab").evaluateAll((els) => els.map((el) => ({ title: el.getAttribute("title"), top: el.querySelector(".spine-marker").getBoundingClientRect().top, size: el.getBoundingClientRect() })));
+        const tabs = await page.locator(".spine-tab").evaluateAll((els) => els.map((el) => ({ title: el.parentElement.querySelector('[role="tooltip"]')?.textContent, top: el.querySelector(".spine-marker").getBoundingClientRect().top, size: el.getBoundingClientRect() })));
         assert.equal(tabs.length, 5);
         assert.ok(tabs.every((tab) => Math.abs(tab.top - tabs[0].top) < 0.6), `${tag}: the numbered circles share one baseline whatever the title length`);
         assert.ok(tabs.every((tab) => tab.size.height >= 32 && tab.size.width >= 32), `${tag}: every tab is at least 32px`);

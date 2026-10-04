@@ -1,7 +1,10 @@
 import React, { useId, useState } from 'react';
-import { ui, uiFormat, uiLocale } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Disclosure, Icon } from './components/index.js';
+import { Badge, Button, Disclosure, Hint, Icon } from './components/index.js';
+import { formatNumber } from './format.js';
+import { megabytes } from '../lib/office/limits.js';
+import { useCopyFeedback } from './use-copy-feedback.js';
 import { LARGE_DOCUMENT_LIMITS, TOOLS, VERIFIED_AT, mcpConfigSnippet } from '../lib/large-documents.js';
 import ExtensionPanel from './ExtensionPanel.jsx';
 import PdfConversion from './PdfConversion.jsx';
@@ -35,11 +38,11 @@ export function providerLabel(provider) {
 
 function reasonText(reason, detail = {}) {
   const name = detail.name ? uiFormat('「{0}」', [detail.name]) : ui('这个文件');
-  const number = value => Number(value).toLocaleString(uiLocale());
+  const number = value => formatNumber(value);
   switch (reason) {
-    case 'pdf-size': return uiFormat('{0}超过 8 MB，StudyHub 不直接导入这么大的文件。先用转换工具把它变成带页码的文字，再导入转换结果：按页保存、按章节选，原文引用照常可用。', [name]);
-    case 'pdf-pages': return uiFormat('{0}超过 200 页，StudyHub 不直接导入。先用转换工具把它变成带页码的文字，再导入转换结果：按页保存、按章节选。', [name]);
-    case 'text-chars': return uiFormat('{0}提取出的文字超过 60 万字。先用转换工具转换，再按章节导入或选择。', [name]);
+    case 'pdf-size': return uiFormat('{0}超过 {1} MB，StudyHub 不直接导入这么大的文件。先用转换工具把它变成带页码的文字，再导入转换结果：按页保存、按章节选，原文引用照常可用。', [name, megabytes(LARGE_DOCUMENT_LIMITS.pdfBytes)]);
+    case 'pdf-pages': return uiFormat('{0}超过 {1} 页，StudyHub 不直接导入。先用转换工具把它变成带页码的文字，再导入转换结果：按页保存、按章节选。', [name, LARGE_DOCUMENT_LIMITS.pdfPages]);
+    case 'text-chars': return uiFormat('{0}提取出的文字超过 {1} 字符。先用转换工具转换，再按章节导入或选择。', [name, number(LARGE_DOCUMENT_LIMITS.selectionChars)]);
     case 'selection': return uiFormat('所选资料约 {0} 个字符，超过一次生成的上限（{1}）。可以按章节缩小选择，或用检索工具只挑出和主题相关的页面。',
       [number(detail.chars ?? 0), number(LARGE_DOCUMENT_LIMITS.selectionChars)]);
     case 'long-document': return uiFormat('{0}有 {1} 页。整本书一起出题既贵又不聚焦，建议按章节选择，或配合检索工具只取相关页面。', [name, number(detail.pages ?? 0)]);
@@ -62,15 +65,15 @@ export function ToolCard({ tool }) {
     <article className="large-doc__tool" data-tool={tool.id}>
       <header className="large-doc__tool-head">
         <strong>{ui(tool.name)}</strong>
-        {tool.recommended && (tool.id === 'mineru-local' || ['download', 'token'].includes(tool.needs)) && <span className="large-doc__badge">{ui('推荐')}</span>}
-        {NEEDS[tool.needs] && <span className="large-doc__needs">{NEEDS[tool.needs]()}</span>}
+        {tool.recommended && (tool.id === 'mineru-local' || ['download', 'token'].includes(tool.needs)) && <Badge tone="info" size="sm">{ui('推荐')}</Badge>}
+        {NEEDS[tool.needs] && <Badge size="sm">{NEEDS[tool.needs]()}</Badge>}
       </header>
       <p className="large-doc__summary">{SUMMARY[tool.id]()}</p>
       <p className="large-doc__meta">{[ui(tool.license), tool.platforms.join(' / '), ...(tool.outputs ? [tool.outputs.join(', ')] : [])].join(' · ')}</p>
       <ul className="large-doc__channels" aria-label={uiFormat('{0} 的下载渠道', [ui(tool.name)])}>
         {tool.channels.map(channel => <li key={channel.url}>
           <a href={channel.url} target="_blank" rel="noreferrer">{ui(channel.label)}<Icon name="external" size={13} /></a>
-          <span className={`large-doc__kind large-doc__kind--${channel.kind}`}>{KIND_LABEL[channel.kind]()}</span>
+          <Badge size="sm" tone={channel.kind === 'mainland' ? 'success' : 'neutral'}>{KIND_LABEL[channel.kind]()}</Badge>
         </li>)}
       </ul>
     </article>
@@ -91,26 +94,27 @@ export function ConverterMain({ available = true, call, file = null, courses = [
       <h3 className="large-doc__group-title">{ui('转换：把 PDF 变成带页码的文字')}</h3>
       {typeof call === 'function'
         ? <PdfConversion available={available} compact file={file || picked} onFile={file ? undefined : setPicked} call={call} courses={courses} onOpenSettings={onOpenSettings} onStarted={onStarted} />
-        : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /><p className="large-doc__note">{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</p></div>}
-      <p className="large-doc__note">{ui('转换结果带页码，StudyHub 才能按页引用；超过 200 页的书会自动分段处理。')}</p>
+        : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /><Hint>{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</Hint></div>}
+      <Hint>{ui('转换结果带页码，StudyHub 才能按页引用；超过 200 页的书会自动分段处理。')}</Hint>
     </div>
   );
 }
 
+function ConfigSnippet({ tool, describedBy }) {
+  const { copied, copy } = useCopyFeedback(mcpConfigSnippet(tool.id));
+  return <div className="large-doc__snippet">
+    <strong>{tool.name}</strong>
+    <pre className="large-doc__code" aria-describedby={describedBy}><code>{mcpConfigSnippet(tool.id)}</code></pre>
+    <Button size="sm" variant="secondary" icon={copied ? 'check' : undefined} onClick={copy}>{copied ? ui('已复制') : ui('复制配置')}</Button>
+  </div>;
+}
+
 function ManualConfig() {
-  const [copied, setCopied] = useState(''), id = useId();
-  const tools = TOOLS.filter(tool => tool.server);
-  async function copy(tool) {
-    try { await navigator.clipboard.writeText(mcpConfigSnippet(tool.id)); setCopied(tool.id); setTimeout(() => setCopied(''), 2500); } catch { setCopied(''); }
-  }
+  const id = useId();
   return (
     <Disclosure summary={ui('高级：手动配置')} meta={ui('需要手动配置')} className="large-doc__config">
-      <p className="large-doc__note" id={id}>{ui('不想用一键安装的检索扩展，也可以自己连接别的检索工具：把下面的配置加到 DSH 主目录的 cordis.patch.yml（已有内容的话接在后面），并把路径换成放转换结果的文件夹。保存后 DSH 会连接它，不需要重装 StudyHub。')}</p>
-      {tools.map(tool => <div key={tool.id} className="large-doc__snippet">
-        <strong>{tool.name}</strong>
-        <pre className="large-doc__code" aria-describedby={id}><code>{mcpConfigSnippet(tool.id)}</code></pre>
-        <Button size="sm" variant="secondary" onClick={() => copy(tool)}>{copied === tool.id ? ui('已复制') : ui('复制配置')}</Button>
-      </div>)}
+      <Hint id={id}>{ui('不想用一键安装的检索扩展，也可以自己连接别的检索工具：把下面的配置加到 DSH 主目录的 cordis.patch.yml（已有内容的话接在后面），并把路径换成放转换结果的文件夹。保存后 DSH 会连接它，不需要重装 StudyHub。')}</Hint>
+      {TOOLS.filter(tool => tool.server).map(tool => <ConfigSnippet key={tool.id} tool={tool} describedBy={id} />)}
       <ToolCard tool={byId('mcp-local-rag')} />
     </Disclosure>
   );
@@ -168,7 +172,7 @@ export default function LargeDocumentCard({ reason, detail = {}, retrieval = nul
     {typeof call === 'function'
       ? <ExtensionPanel call={call} status={retrieval} onStatus={onRetrieval} courses={courses} defaultCourse={defaultCourse}
         initialPlan={initialPlan} initialRun={initialRun} initialApproval={initialApproval} />
-      : <p className="large-doc__note">{ui('在「设置 › 检索扩展」里一键安装检索扩展，再为这门课建立检索索引。')}</p>}
+      : <Hint>{ui('在「设置 › 检索扩展」里一键安装检索扩展，再为这门课建立检索索引。')}</Hint>}
   </div>;
   return (
     <section className={`large-doc${className ? ` ${className}` : ''}`} aria-labelledby={titleId} data-reason={reason} {...rest}>

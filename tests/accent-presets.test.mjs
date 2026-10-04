@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import * as appearance from '../ui/appearance-prefs.js';
+import { readAppSource } from './helpers/app-source.mjs';
 
 const { APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, APPEARANCE_LABELS, normalizeAppearance, appearanceAttrs, exportAppearance, importAppearance } = appearance;
 const read = async file => (await readFile(new URL(`../${file}`, import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
@@ -33,9 +34,9 @@ test('every preset has a zh label and an English one', async () => {
 });
 
 test('Settings offers the accent row, App wires it to the store, and the empty page gets it through the shared attributes', async () => {
-  const [settings, app, page] = await Promise.all(['ui/Settings.jsx', 'ui/App.jsx', 'ui/host/studyhub-page.jsx'].map(read));
+  const [settings, page] = await Promise.all(['ui/settings/AppearanceSection.jsx', 'ui/host/studyhub-page.jsx'].map(read)), app = await readAppSource();
   assert.match(settings, /appearance\.onAccent/);
-  assert.match(settings, /appearanceOptions\(["']accent["']\)/);
+  assert.match(settings, /kind=["']accent["']/);
   assert.match(app, /onAccent:\s*\(value\)\s*=>\s*updateAppearance\(\{\s*accent:\s*value\s*\}\)/);
   assert.match(page, /useAppearanceAttrs/);
 });

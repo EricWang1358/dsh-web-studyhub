@@ -1,18 +1,25 @@
 import { ui } from "./i18n.js";
 import React from "react";
-import { useDismiss } from "./components/index.js";
+import { Button, Menu } from "./components/index.js";
 import { ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
 const NEXT_HINT_ID = "review-next-hint";
 
-export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode }) {
-  const moreRef = React.useRef(null), moreSummary = React.useRef(null);
-  const [moreOpen, setMoreOpen] = React.useState(false);
-  // The listeners exist only while the menu is open; Escape gives focus back to 更多.
-  useDismiss({ open: moreOpen, onClose: () => { if (moreRef.current) moreRef.current.open = false; }, refs: moreRef, returnFocusRef: moreSummary });
+/**
+ * The tools under a question: hint / explanation, EN, ask for help, the reading settings, 更多 (a menu: note, task, fix the
+ * question, derive a prerequisite, slay it) and the previous / next buttons. `moreDefaultOpen` opens the menu at first render.
+ */
+export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode, moreDefaultOpen = false }) {
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
   const needsAnswer = !run.feedback && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
+  const more = [
+    { id: "note", label: ui("写笔记"), disabled: busy, run: onNote },
+    onTask && { id: "task", label: ui("记待办"), disabled: busy, run: onTask },
+    { id: "improve", label: ui("修题"), run: onImprove },
+    onDerive && { id: "derive", label: ui("出前置题…"), attrs: { "data-usage": "review.derive" }, run: onDerive },
+    { id: "slay", label: ui("斩掉此题"), disabled: busy, danger: true, run: onSlay },
+  ].filter(Boolean);
   return (
     <div className="question-toolbar">
       <div className="question-tools">
@@ -36,18 +43,9 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}
       <div className="question-navigation">
-        <details className="review-more" ref={moreRef} onToggle={() => {
-          setMoreOpen(!!moreRef.current?.open);
-          if (moreRef.current?.open) requestAnimationFrame(() => {
-            moreRef.current?.querySelector(".review-more-menu")?.scrollIntoView({ block: "nearest" });
-          });
-        }}><summary ref={moreSummary} className="tool-action">{ui("更多")}</summary><div className="review-more-menu">
-          <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onNote(); }}>{ui("写笔记")}</button>
-          {onTask && <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onTask(); }}>{ui("记待办")}</button>}
-          <button type="button" aria-expanded={assistMode === "improve"} onClick={(event) => { event.currentTarget.closest("details").open = false; onImprove(); }}>{ui("修题")}</button>
-          {onDerive && <button type="button" data-usage="review.derive" aria-expanded={assistMode === "derive"} onClick={(event) => { event.currentTarget.closest("details").open = false; onDerive(); }}>{ui("出前置题…")}</button>}
-          <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onSlay(); }}>{ui("斩掉此题")}</button>
-        </div></details>
+        <Menu label={ui("更多")} items={more.map(({ run: _run, ...item }) => item)} defaultOpen={moreDefaultOpen}
+          onSelect={(id) => more.find((item) => item.id === id)?.run?.()}
+          trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" {...props}>{ui("更多")}</Button>} />
         <button className="pill" data-usage="review.prev" disabled={busy || run.index === 0} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</button>
         <button className="primary pill" data-usage="review.next" disabled={nextBlocked}

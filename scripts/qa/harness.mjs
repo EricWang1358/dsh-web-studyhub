@@ -27,9 +27,10 @@ export function parseQaArgs(argv, name, extra = {}) {
 
 /**
  * Run a journey. seed(libraryRoot) fills the temporary library; run(context) does the steps. Returns the summary.
+ * latencyMs: how long each fake model answer takes (a job that stays running for a screenshot needs more).
  * context: { page, browser, browserContext, server, options, summary, t(zh, en), step(name, fn), shot(name), sleep, library }
  */
-export async function runQa({ name, options, seed, run, model = "fake", localStorageSeed = {} }) {
+export async function runQa({ name, options, seed, run, model = "fake", localStorageSeed = {}, latencyMs = 300 }) {
   const removed = scrubProcessEnv();
   await rm(options.out, { recursive: true, force: true });
   await mkdir(options.out, { recursive: true });
@@ -37,7 +38,7 @@ export async function runQa({ name, options, seed, run, model = "fake", localSto
   await mkdir(library, { recursive: true });
   await seed(library);
   const server = await createPreviewServer({ libraryRoot: library, home: join(options.out, "work", "home"), port: 0,
-    model: model === "none" ? null : createFakeModel({ latencyMs: 300, usage: true }) });
+    model: model === "none" ? null : createFakeModel({ latencyMs, usage: true }) });
   const browser = await launchChromium({ args: [`--lang=${options.lang === "en" ? "en-US" : "zh-CN"}`, "--enable-precise-memory-info", "--js-flags=--expose-gc"] });
   const summary = { name, startedAt: new Date().toISOString(), options, url: server.url, scrubbedEnv: removed, steps: [], consoleErrors: [], pageErrors: [], apiErrors: [] };
   try {

@@ -116,8 +116,20 @@ export function dismissJobs(quick, jobId) {
   });
 }
 
-/** 全部已读: the badge clears at once. */
-export function markInboxRead(quick) {
+/** 全部已读: the badge clears at once. With `ids`: those letters were seen on screen, so they read at once and the others stay unread. */
+export function markInboxRead(quick, { ids } = {}) {
+  if (ids) {
+    const wanted = new Set(ids);
+    return quick.run("inbox.read", { ids }, {
+      key: `inbox:read:${ids.join(",")}`,
+      patch: (data) => {
+        let flipped = 0;
+        const items = (data.inbox?.items || []).map((item) => wanted.has(item.id) && !item.read ? (flipped++, { ...item, read: true }) : item);
+        return flipped ? { ...data, inbox: { ...data.inbox, unread: Math.max(0, (data.inbox.unread || 0) - flipped), items } } : data;
+      },
+      confirmed: (data) => !(data.inbox?.items || []).some((item) => wanted.has(item.id) && !item.read),
+    });
+  }
   return quick.run("inbox.read", { all: true }, {
     key: "inbox:read",
     patch: (data) => data.inbox ? { ...data, inbox: { ...data.inbox, unread: 0, items: (data.inbox.items || []).map((item) => item.read ? item : { ...item, read: true }) } } : data,
