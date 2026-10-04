@@ -263,7 +263,8 @@ test("improving an answered question refreshes its open view, retains history an
   const history = after.runs[0].entries[0].previousVersions[0];
   assert.equal(history.card.prompt, oldPrompt);
   assert.deepEqual(history.feedback, feedback);
-  await service.call("source.remove", { id: before.sources[0].id });
+  await service.call('source.archive', { id: before.sources[0].id, archived: true });
+  await service.call('source.remove', { id: before.sources[0].id, confirm: true });
   assert.equal((await service.call("review.get", args)).card.importedFromJson, true);
   await assert.rejects(service.call("review.answer", { ...args, selected: ["x"], queueVersion: run.queueVersion }), /changed/);
   const answered = await service.call("review.answer", { ...args, selected: ["x"], queueVersion: updated.queueVersion });
@@ -747,29 +748,26 @@ test("an unattributed editorial complaint stops the batch after one review", asy
   assert.equal(calls, 4, "four stages, no repair or second independent review");
 });
 
-test("a defect the local gate can prove still costs the card, however the editor votes", async () => {
+test("a defect the local gate can prove and autofix cannot repair still costs the card, however the editor votes", async () => {
   const broken = deck();
-  broken.cards[0].hint = broken.cards[0].answer;
+  broken.cards[0].prompt = "What does this lecture transcript call a blueprint?";
   await assert.rejects(
     generateDeck(withQualityStages(async () => JSON.stringify(broken)), { count: 1, kind: "flashcard", sources: [source] }),
     /Quality gate failed/,
   );
 });
-test("generation rejects wrong question kind even when model editor approves", async () => {
+test("a wrong question kind is corrected from the bound blueprint, with no extra model call, even when the editor would approve", async () => {
   const request = { count: 1, kind: 'quiz', sources: [source] }, plan = qualityPlan(request);
   const valid = deck();
   valid.cards[0].kind = 'quiz';
   valid.cards[0].options = ['a', 'b', 'c'].map(id => ({ id, text: `Distinct option ${id}`, correct: id === 'a', explanation: `The supported distinction rules ${id === 'a' ? 'in' : 'out'} this option.` }));
-  const replies = [plan, qualityBlueprint(request, plan, valid), authored(deck(), [], plan), qualityReview(deck())];
+  const replies = [plan, qualityBlueprint(request, plan, valid), authored(deck(), [], plan), qualityReview(valid)];
   let calls = 0;
-  await assert.rejects(
-    () =>
-      generateDeck(
-        async () => { calls++; return JSON.stringify(replies.shift()); }, request,
-      ),
-    /requested kind/,
-  );
-  assert.equal(calls, 4, 'the approved review cannot override the requested kind');
+  const result = await generateDeck(async () => { calls++; return JSON.stringify(replies.shift()); }, request);
+  assert.equal(calls, 4, 'evidence, answers, author, one review: the kind fix costs nothing');
+  assert.equal(result.cards[0].kind, 'quiz');
+  assert.deepEqual(result.cards[0].options, valid.cards[0].options);
+  assert.equal(result.editorial.autofixed, 1);
 });
 test("teaching stores conclusions only and cannot advance a failed check or add SM2 attempts", async () => {
   const service = await ready();

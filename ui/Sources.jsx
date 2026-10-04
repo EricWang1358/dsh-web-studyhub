@@ -25,8 +25,8 @@ import css from "./sources.css";
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
    最新一组默认展开（P23）；刚导入的资料高亮并滚动到视野里。sourceForm 是 App
-   传入的导入入口（ImportHub），在空库时直接作为空状态。删除整份文档会逐页调用
-   source.remove，先确认。 */
+   传入的导入入口（ImportHub），在空库时直接作为空状态。资料先归档，可恢复；
+   永久删除需再次确认，并以一次事务删除整份文档。 */
 
 const UNKNOWN = "unknown";
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -73,37 +73,15 @@ function groupByDay(items) {
     }));
 }
 
-/**
- * Remove every source of one document: the first through App's act (busy
- * state, refresh afterwards), the rest through call inside the same act.
- * Resolves { removed: ids, failed: [{ id, error }] }; never throws.
- */
-export async function removeDocument(item, { act, call }) {
-  const [first, ...rest] = item.sourceIds;
-  const removed = [], failed = [];
-  const fail = (ids, error) => ids.forEach(id => failed.push({ id, error: error?.message || String(error) }));
-  const busyError = () => new Error(ui('另一个操作还在进行，请稍后重试。'));
+/** Delete all pages in one checked transaction; failures retain every page. */
+export async function removeDocument(item, { act }) {
   try {
-    const result = await act("source.remove", { id: first }, async () => {
-      removed.push(first);
-      if (!call) return;
-      for (const id of rest) {
-        try { await call("source.remove", { id }); removed.push(id); }
-        catch (error) { fail([id], error); }
-      }
-    }, { rethrow: true });
-    if (result === undefined && !removed.length) { fail(item.sourceIds, busyError()); return { removed, failed }; }
+    const result = await act('source.remove', { sourceIds: item.sourceIds, confirm: true }, undefined, { rethrow: true });
+    if (result === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
+    return { removed: item.sourceIds, failed: [] };
   } catch (error) {
-    if (!removed.length) { fail(item.sourceIds, error); return { removed, failed }; }
+    return { removed: [], failed: item.sourceIds.map(id => ({ id, error: error?.message || String(error) })) };
   }
-  // Without call, the remaining pages go one act at a time (act is single-flight).
-  if (!call) for (const id of rest) {
-    try {
-      if (await act("source.remove", { id }, undefined, { rethrow: true }) === undefined) throw busyError();
-      removed.push(id);
-    } catch (error) { fail([id], error); }
-  }
-  return { removed, failed };
 }
 
 /** source.courses.set assignments for every page of the chosen documents. */
@@ -141,18 +119,19 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery })
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSegment, onRename }) {
+export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSegment, onRename, onArchive }) {
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
     {call && <OriginalMenuEntry item={item} call={call} busy={busy} />}
     {onRename && <button type="button" disabled={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</button>}
     {onChangeCourse && <button type="button" disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</button>}
     {onSegment && <button type="button" disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</button>}
-    <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('移除')}</button>
+    {onArchive && <button type="button" disabled={busy} onClick={event => { close(event); onArchive(item); }}>{item.archived ? ui('恢复资料') : ui('归档')}</button>}
+    {item.archived && <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('永久删除')}</button>}
   </div>;
 }
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onChangeCourse, onSegment, mastery, rename, indexInfo = null, indexCoverage = null, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onArchive, onChangeCourse, onSegment, mastery, rename, indexInfo = null, indexCoverage = null, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => () => clearTimeout(opening.current), []);
@@ -201,7 +180,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
         <div className="source-doc__actions">
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse} onRemove={onRemove} onSegment={onSegment} onRename={editor ? startEditing : undefined} />
+            <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse} onRemove={onRemove} onArchive={onArchive} onSegment={onSegment} onRename={editor ? startEditing : undefined} />
           </details>
         </div>
       </div>
@@ -251,9 +230,9 @@ export function CourseDialog({ item, items, byId, courses, busy, act, onClose })
   );
 }
 
-function RemoveDialog({ item, busy, act, call, onClose, onRemoved }) {
+export function RemoveDialog({ item, busy, act, call, onClose, onRemoved }) {
   const [working, setWorking] = useState(false), [error, setError] = useState("");
-  const blocked = item.usedBy.length > 0;
+  const blocked = item.usedBy.length > 0 || !item.archived;
   async function confirm() {
     setWorking(true); setError("");
     const result = await removeDocument(item, { act, call });
@@ -265,13 +244,14 @@ function RemoveDialog({ item, busy, act, call, onClose, onRemoved }) {
   }
   const pages = item.pages.length;
   return (
-    <Dialog size="sm" title={uiFormat("移除「{0}」？", [displayTitle(item.title)])} onClose={() => { if (!working) onClose(); }}
+    <Dialog size="sm" title={uiFormat("永久删除「{0}」？", [displayTitle(item.title)])} onClose={() => { if (!working) onClose(); }}
       footer={<>
         <Button variant="quiet" disabled={working} onClick={onClose}>{ui("取消")}</Button>
-        <Button variant="danger" busy={working} disabled={busy || blocked} onClick={confirm}>{ui("移除")}</Button>
+        <Button variant="danger" busy={working} disabled={busy || blocked} onClick={confirm}>{ui("确认永久删除")}</Button>
       </>}>
       <p>{item.format === 'pdf' && pages > 1 ? uiFormat("这份 PDF 的 {0} 页文字都会从资料列表移除，无法撤销。", [pages]) : ui("这份资料会从资料列表移除，无法撤销。")}</p>
-      {blocked && <InlineMessage tone="warning" boxed title={ui("有题组引用这份资料，不能移除")}>
+      {!item.archived && <InlineMessage>{ui('请先归档这份资料，再永久删除。')}</InlineMessage>}
+      {item.usedBy.length > 0 && <InlineMessage tone="warning" boxed title={ui("有题组引用这份资料，不能移除")}>
         {uiFormat("引用它的题组：{0}。先删除或改写这些题，再移除资料。", [item.usedBy.map(deck => deck.title).join(" · ")])}
       </InlineMessage>}
       {error && <InlineMessage>{error}</InlineMessage>}
@@ -282,7 +262,9 @@ function RemoveDialog({ item, busy, act, call, onClose, onRemoved }) {
 export default function Sources({ data, busy, act, call, setModal, setNotice, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
   useInjectCss(css, "study-sources");
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
-  const items = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
+  const [showArchived, setShowArchived] = useState(false);
+  const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
+  const items = useMemo(() => allItems.filter(item => item.archived === showArchived), [allItems, showArchived]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
   const known = useMemo(() => courseNamesOf(data), [data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps
   const filtered = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
@@ -336,6 +318,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
         description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 &&
           uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length])}</>}
         actions={<>
+          <Button variant="quiet" aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
           {groups.length > 1 && <Button variant="quiet" onClick={() => {
             if (allOpen) { setOpened(new Set()); setClosed(new Set(groups.map(group => group.key))); }
             else { setOpened(new Set(groups.map(group => group.key))); setClosed(new Set()); }
@@ -401,10 +384,10 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
       {!items.length ? (
         <section className="sources-empty" data-tour="sources-list">
           <div className="sources-empty__intro">
-            <h2>{ui("还没有资料")}</h2>
-            <p>{ui("添加讲义、笔记或录音，之后就能用它们出题；题目会引用原文。")}</p>
+            <h2>{showArchived ? ui('没有已归档的资料。') : ui("还没有资料")}</h2>
+            {!showArchived && <p>{ui("添加讲义、笔记或录音，之后就能用它们出题；题目会引用原文。")}</p>}
           </div>
-          {sourceForm}
+          {!showArchived && sourceForm}
         </section>
       ) : (
         <div className="source-groups" data-tour="sources-list">
@@ -421,7 +404,8 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
                   onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
-                  onOpen={openSource} onGenerate={onGenerate} onRemove={setRemoving} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined} rename={renameFor}
+                  onOpen={openSource} onGenerate={showArchived ? undefined : onGenerate} onRemove={setRemoving}
+                  onArchive={item => act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived })} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined} rename={renameFor}
                   mastery={data.materialMastery?.[item.key]} indexInfo={documentIndexState(item, indexCoverage, { big: bigKeys.has(item.key) })} indexCoverage={indexCoverage} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
                   call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
               </div>

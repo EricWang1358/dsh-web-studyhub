@@ -49,7 +49,8 @@ async function runJob(t, { invent }) {
     const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1].split('\n\nYour previous plan was rejected')[0]);
     if (system.startsWith('Plan a source-grounded')) {
       const plan = qualityPlan(request);
-      if (invent) plan.targets[0].citations[0].quote = 'A passage about caching that this page never contained at all';
+      // Two of the planned targets cannot be grounded: the batch plans one reserve target, so one of the two questions is still lost.
+      if (invent) for (const target of plan.targets.slice(0, 2)) target.citations[0].quote = 'A passage about caching that this page never contained at all';
       return JSON.stringify(plan);
     }
     const deck = { title: 'T', cards: request.assessmentPlan.targets.map((target, i) => ({ ...flashcard(i + 1, target.citations), targetId: target.targetId })) };

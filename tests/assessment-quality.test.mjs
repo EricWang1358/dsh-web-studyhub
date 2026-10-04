@@ -419,16 +419,17 @@ test('one independent review keeps approved questions without repair or a second
   assert.match(JSON.stringify(result.editorial.omittedIssues), /answerLeak/);
 });
 
-test('a requested-kind mismatch costs only that candidate instead of the approved batch', async () => {
+test('a requested-kind mismatch is corrected deterministically instead of costing the candidate', async () => {
   const deck = candidate();
   const quiz = { ...structuredClone(card), id: 'wrong-kind', kind: 'quiz', prompt: 'A different target?', objective: 'Different target',
     options: ['a', 'b', 'c'].map(id => ({ id, text: `Option ${id}`, correct: id === 'a', explanation: `Why ${id}` })) };
   deck.cards.push(quiz);
   const req = { ...request, count: 2 }, replies = [qualityPlan(req), qualityBlueprint(req, qualityPlan(req), deck), authored(deck), qualityReview(deck)];
   const result = await generateDeck(async () => JSON.stringify(replies.shift()), req);
-  assert.equal(result.cards.length, 1);
-  assert.equal(result.cards[0].kind, 'flashcard');
-  assert.equal(result.editorial.dropped, 1);
+  assert.equal(result.cards.length, 2);
+  assert.deepEqual(result.cards.map(item => item.kind), ['flashcard', 'flashcard']);
+  assert.equal(result.editorial.dropped, undefined);
+  assert.equal(result.editorial.autofixed, 1);
 });
 
 test('questions cannot depend on remembering unseen lecture notes', () => {
@@ -459,10 +460,19 @@ const generateWith = (deck, raw = JSON.stringify) => generateDeck(async (system,
   return raw(authored(deck));
 }, request);
 
-test('a formula written outside math delimiters is rejected instead of shown as raw text', async () => {
+test('a formula written outside math delimiters is wrapped (author text and blueprint-bound answer alike) and rejected only when it cannot be wrapped cleanly', async () => {
   const bare = candidate();
   bare.cards[0].prompt += ' Take z^l = W^l a^{l-1} + b^l as the layer rule.';
-  await assert.rejects(generateWith(bare), /Quality gate failed.*formula outside math delimiters/);
+  const wrapped = await generateWith(bare);
+  assert.match(wrapped.cards[0].prompt, /Take \$z\^l = W\^l a\^\{l-1\} \+ b\^l\$ as the layer rule\./);
+  assert.equal(wrapped.editorial.autofixed, 1);
+  const unfixable = candidate();
+  // TeX next to a link is not wrapped by the string-based TeX pass; plain-text math (z^l = …) beside a link is wrapped in place.
+  unfixable.cards[0].answer += ' Take \\frac{l}{2} as the layer rule, see https://example.com/rule.';
+  await assert.rejects(generateWith(unfixable), /formula outside math delimiters/);
+  const answered = candidate();
+  answered.cards[0].answer += ' Take z^l = W^l a^{l-1} + b^l as the layer rule.';
+  assert.match((await generateWith(answered)).cards[0].answer, /Take \$z\^l = W\^l a\^\{l-1\} \+ b\^l\$ as the layer rule\./);
   const delimited = candidate();
   delimited.cards[0].prompt += ' Take $z^l = W^l a^{l-1} + b^l$ as the layer rule.';
   const result = await generateWith(delimited);

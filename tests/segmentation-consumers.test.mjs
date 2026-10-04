@@ -84,7 +84,7 @@ test('every row of the 资料 page offers AI 重新分段… in its 更多 menu,
   const markup = render(h(RowMenuItems, { item, busy: false, onChangeCourse() {}, onRemove() {}, onSegment() {} }));
   assert.match(markup, /AI 重新分段…/);
   assert.match(markup, /改课程…/);
-  assert.match(markup, /移除/);
+  assert.doesNotMatch(markup, /永久删除|移除/, 'active sources cannot be deleted');
   const english = render(h(RowMenuItems, { item, busy: false, onChangeCourse() {}, onRemove() {}, onSegment() {} }), 'en');
   assert.match(english, /Re-segment with AI…/);
   assert.doesNotMatch(render(h(RowMenuItems, { item, busy: false, onChangeCourse() {}, onRemove() {} })), /重新分段/, 'without a handler there is no entry');

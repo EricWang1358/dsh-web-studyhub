@@ -2,6 +2,16 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.13 — 2026-10-04
+
+- **More questions survive the first pass.** Text defects are now fixed without a model call: missing hints, misconceptions, topics or explanations, hints that give the answer away, a wrong question kind, and formulas without their delimiters, including those in the bound answers and options. Questions flagged only for wording are reworded once inside the run in one batched call per part, then reviewed again; answers, options and citations never change. Each group plans a few reserve knowledge points (at most three) and uses them when a part comes up short, instead of rerunning the whole pipeline. A run where every question passes makes the same model calls as before. The real-model first-pass rate has not been measured yet.
+- **Formula notation: automatic, plain text or LaTeX.** More options in the generate form now has a Formula notation choice. Automatic picks LaTeX for maths and chemistry material and plain text otherwise. LaTeX writes formulas as `$…$` and chemistry as `$\ce{…}$` (H₂SO₄, SO₄²⁻, 5√2 render properly, also in options). Plain text writes Unicode (H₂SO₄, H⁺, x², 5√2). The choice is kept on the draft for supplementation and repair. Ambiguous text such as "SO42−" is not guessed at; it goes back to the model. Questions generated earlier are not rewritten.
+- **Why a question was dropped.** "Incomplete question format" is split into its real causes: formula format, a stem that asks what the source says, missing fields, option structure and an unmatched knowledge point. The dropped-question and failure lists no longer show empty rows.
+- **Results reach the chat that asked.** A generation started from the main chat now reports its final result to that chat once, after every batch, the review and the final draft save are done. Success, failure and cancellation all report; UI-started jobs and intermediate saves do not wake the chat.
+- **Archive before deleting materials.** A source must be archived before it can be permanently deleted from the archive, with a second confirmation. Archived sources can be restored and keep question references and history. Deletion is refused while any page is still used by a deck, draft, study record or generation job.
+- **Tidier deck maintenance and extension updates.** The Manage deck page has a clearer header, one organise panel (deck order, merge, split by topic with a selection counter) and compact question rows. Updating the search extension keeps its result on screen, including whether DSH needs a restart, and Check for updates also rereads the extension status.
+- **Release packages.** Download links and bilingual setup guides now point to 2.5.13. The release includes the complete plugin, six capability plugins, retrieval extension, two setup guides and SHA-256 checksums.
+
 ## 2.5.12 — 2026-10-04
 
 - **External Marker conversion.** Installation guides, a downloadable user-run Python helper and a paginated Markdown result picker are available in Add materials. StudyHub does not install or run Marker or include its models. Separate model licences and inference prerequisites still apply; real OCR quality has not been benchmarked.
