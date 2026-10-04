@@ -1,7 +1,7 @@
 .daily-recap {
   --recap-gap: var(--space-4, 16px);
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg, 14px);
+  border-radius: var(--radius);
   padding: clamp(18px, 3cqi, 28px);
   background: var(--bg-surface);
   text-align: left;
