@@ -24,23 +24,28 @@ import { ROOT, FROZEN_FILES, cssFiles, parseTree, splitSelectorList } from './cs
 
 export const LAYER_STATEMENT = '@layer study.reset, study.tokens, study.components, study.features, study.overrides;';
 export const SCOPE = ':is(.study-app, .study-seat)';
+/* The same scope with zero specificity. A rule that used to be bare (or under :where(.study-app)) keeps the (0,1,0) it always had next
+   to the rules that were written `.study-app .x` (0,2,0): the wrapper preserves what the author's selector meant, so wrapping a
+   file never changes which of two rules of different files wins on specificity. */
+export const SCOPE_LOW = ':where(.study-app, .study-seat)';
 
 /** The layer a stylesheet belongs to, by path. */
 export function layerOf(file) {
   if (file === 'ui/base.css' || file === 'ui/motion.css') return 'reset';
   if (['ui/tokens.css', 'ui/paper.css', 'ui/accent.css', 'ui/appearance-themes.css'].includes(file)) return 'tokens';
-  if (file.startsWith('ui/components/') || file === 'ui/legacy.css') return 'components';
+  if (file.startsWith('ui/components/')) return 'components';
   if (['ui/host/studyhub.css', 'ui/panel-bridge.css'].includes(file)) return 'overrides';
   return 'features';
 }
 
 /* Stylesheets that style things the host renders outside the study app. Their selectors cannot be scoped to it:
-   scope: false  keep selectors as written (host chrome: the seat frame, the panel's own picker), still in a layer
-   keepBare      bare selectors stay unscoped and unlayered (content shown in the host's preview pane, ::highlight on the host document) */
+   scope: false  keep selectors as written (host chrome: the seat frame, the panel's own picker; the content the host shows in its preview pane
+                 and the ::highlight on its document), still in a layer: an unlayered rule would out-rank every layered one in the app
+   keepBare      bare selectors stay unscoped and unlayered (kept for a sheet that must beat the layers; nothing uses it today) */
 export const HOST_FILES = {
   'ui/host/studyhub.css': { scope: false },
   'ui/panel-bridge.css': { scope: false },
-  'ui/document-preview/document-preview.css': { keepBare: true },
+  'ui/document-preview/document-preview.css': { scope: false },
 };
 export const optionsOf = (file) => HOST_FILES[file] || {};
 
@@ -51,22 +56,23 @@ const WRAPPERS = new Map([[':is(.study-app, .study-seat)', 'is'], [':where(.stud
 function classify(entry, wrapper, scope = true) {
   const e = entry.trim();
   if (!scope) return { kind: 'root', text: e };
+  if (wrapper && !e.startsWith('&')) return { kind: 'scoped', text: relative(e), low: wrapper === 'where' };
   if (wrapper && e.startsWith('&')) {
     const rest = e.slice(1);
     const root = wrapper === 'is' ? SCOPE : '.study-app';
     if (!rest.trim()) return { kind: 'root', text: root };
     if (!/^[\s>+~]/.test(rest)) return { kind: 'root', text: root + rest };
-    return { kind: 'scoped', text: relative(rest.trim()) };
+    return { kind: 'scoped', text: relative(rest.trim()), low: wrapper === 'where' };
   }
   if (e.startsWith('.study-seat')) return { kind: 'root', text: e };
   const m = PREFIX.exec(e);
   if (m) {
     const rest = e.slice(m[0].length).trim();
     if (!rest) return { kind: 'root', text: e.startsWith(':where(.study-app)') ? '.study-app' : e };
-    return { kind: 'scoped', text: relative(rest) };
+    return { kind: 'scoped', text: relative(rest), low: m[0].startsWith(':where') };
   }
   if (e.startsWith('.study-app') || e.startsWith(':is(.study-app, .study-seat)')) return { kind: 'root', text: e };
-  return { kind: 'scoped', text: relative(e), bare: true };
+  return { kind: 'scoped', text: relative(e), bare: true, low: true };
 }
 
 /* A nested selector that starts with a type name needs `&` in the first nesting syntax. */
@@ -125,24 +131,18 @@ export function wrapStylesheet(source, layer, options = {}) {
         continue;
       }
       const entries = splitSelectorList(node.prelude);
-      const roots = [], scoped = [], bares = [];
+      const roots = [], scoped = [], lows = [], bares = [];
       let changed = false;
       for (const entry of entries) {
         const c = classify(entry, wrapper, scope);
         if (c.text !== entry.trim()) changed = true;
         if (c.kind === 'scoped' && keepBare && c.bare) bares.push(c.text);
-        else (c.kind === 'root' ? roots : scoped).push(c.text);
+        else if (c.kind === 'root') roots.push(c.text);
+        else (c.low ? lows : scoped).push(c.text);
       }
-      if (bares.length) {
-        push(chain, 'bare', ruleText(node, bares, true), lead);
-        if (roots.length && scoped.length) { push(chain, 'root', ruleText(node, roots, true), []); push(chain, 'scoped', ruleText(node, scoped, true), []); }
-        else if (roots.length || scoped.length) push(chain, roots.length ? 'root' : 'scoped', ruleText(node, roots.length ? roots : scoped, true), []);
-        continue;
-      }
-      if (roots.length && scoped.length) {
-        push(chain, 'root', ruleText(node, roots, true), lead);
-        push(chain, 'scoped', ruleText(node, scoped, true), []);
-      } else push(chain, roots.length ? 'root' : 'scoped', ruleText(node, roots.length ? roots : scoped, changed), lead);
+      if (options.collect) { for (const t of scoped) options.collect.push({ chain: chain.join('|'), prelude: t, low: false }); for (const t of lows) options.collect.push({ chain: chain.join('|'), prelude: t, low: true }); }
+      const parts = [['bare', bares], ['root', roots], ['scoped', scoped], ['low', lows]].filter(([, list]) => list.length);
+      parts.forEach(([kind, list], index) => push(chain, kind, ruleText(node, list, parts.length > 1 || changed), index === 0 ? lead : []));
     }
   };
   flatten(nodes, [], null);
@@ -157,10 +157,11 @@ export function wrapStylesheet(source, layer, options = {}) {
   }
   flush();
   const render = (g) => {
-    let depth = 1 + g.chain.length + (g.kind === 'scoped' ? 1 : 0);
+    const scoped = g.kind === 'scoped' || g.kind === 'low';
+    let depth = 1 + g.chain.length + (scoped ? 1 : 0);
     if (g.kind === 'bare') depth -= 1;
     const body = g.items.map((item) => [...item.lead.map((c) => reindent(c, c.match(/^[ \t]*/)[0].length, depth * 2)), reindent(item.piece.text, item.piece.base, depth * 2)].join('\n')).join('\n');
-    let result = g.kind === 'scoped' ? `${' '.repeat((depth - 1) * 2)}${SCOPE} {\n${body}\n${' '.repeat((depth - 1) * 2)}}` : body;
+    let result = scoped ? `${' '.repeat((depth - 1) * 2)}${g.kind === 'low' ? SCOPE_LOW : SCOPE} {\n${body}\n${' '.repeat((depth - 1) * 2)}}` : body;
     depth = g.kind === 'bare' ? g.chain.length : 1 + g.chain.length;
     for (let i = g.chain.length - 1; i >= 0; i--) {
       depth--;
@@ -178,6 +179,13 @@ export function wrapStylesheet(source, layer, options = {}) {
   return `${parts.join('\n\n')}\n`;
 }
 
+/** For a stylesheet as an author wrote it: { chain, prelude, low } of every scoped rule entry (chain = the @media/@container rules around it). */
+export function scopedOrigins(source) {
+  const collect = [];
+  wrapStylesheet(source, 'features', { collect });
+  return collect;
+}
+
 /** Structure problems of one stylesheet: everything must sit in a study layer and, inside it, in the scope or on a root. */
 export function checkStructure(source, options = {}) {
   const { scope = true, keepBare = false } = options;
@@ -193,7 +201,7 @@ export function checkStructure(source, options = {}) {
         continue;
       }
       if (inScope || !scope) continue;
-      if (node.prelude === SCOPE) continue;
+      if (node.prelude === SCOPE || node.prelude === SCOPE_LOW) continue;
       const entries = splitSelectorList(node.prelude);
       if (!entries.every(rootEntry)) problems.push(`line ${node.line}: "${node.prelude.slice(0, 70)}" is outside ${SCOPE}`);
     }

@@ -10,22 +10,32 @@
     .shortfall { display: grid; gap: var(--space-1); min-width: 0; margin-top: var(--space-1); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .shortfall p { margin: 0; }
     .shortfall__lead { color: var(--text-muted); }
-    .shortfall__reasons { display: grid; gap: 2px; margin: 0; padding-left: 1.2em; }
+    .shortfall__reasons { display: grid; gap: var(--space-half); margin: 0; padding-left: 1.2em; }
     .shortfall__reasons small { display: inline; margin: 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .shortfall__line { color: var(--text-dim); }
+  }
+  :where(.study-app, .study-seat) {
     /* The notices of a draft (Banners) stack with one gap; the shortfall banner lays its parts out the same way. */
     .draft-notices { display: grid; gap: var(--space-3); margin-block: var(--space-4); }
     .draft-notices:empty { display: none; }
+  }
+  :is(.study-app, .study-seat) {
     .draft-shortfall .sh-banner__body { display: grid; gap: var(--space-2); }
+  }
+  :where(.study-app, .study-seat) {
     .draft-banner__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+  }
+  :is(.study-app, .study-seat) {
     .omitted-questions { font-size: var(--fs-sm); }
     .omitted-questions > summary { cursor: pointer; width: fit-content; }
+  }
+  :where(.study-app, .study-seat) {
     /* The stem, the reasons and the reviewer's note are three blocks (plain selectors: the draft page is not always inside .study-app). */
     .omitted-questions ul { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding-left: 1.2em; }
     .omitted-questions li { min-width: 0; overflow-wrap: anywhere; }
     .omitted-questions li > strong, .omitted-questions__why, .omitted-questions__note { display: block; }
-    .omitted-questions li > strong { font-weight: 600; }
-    .omitted-questions__why { margin-top: 2px; color: var(--text-dim); }
-    .omitted-questions__note { margin-top: 2px; color: var(--text-muted); }
+    .omitted-questions li > strong { font-weight: var(--fw-strong); }
+    .omitted-questions__why { margin-top: var(--space-half); color: var(--text-dim); }
+    .omitted-questions__note { margin-top: var(--space-half); color: var(--text-muted); }
   }
 }

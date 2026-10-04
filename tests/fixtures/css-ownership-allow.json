@@ -6,7 +6,6 @@
       "ui/review/question.css"
     ],
     "active": [
-      "ui/appearance-themes.css",
       "ui/shell.css",
       "ui/sources-page.css",
       "ui/study-map/catalog.css"
@@ -39,27 +38,16 @@
       "ui/canvas/canvas.css",
       "ui/graph.css"
     ],
-    "card-progress": [
-      "ui/appearance-themes.css",
-      "ui/paper.css",
-      "ui/review/question.css"
-    ],
     "case-chip": [
       "ui/case-result.css",
       "ui/case-study.css"
     ],
-    "chip": [
-      "ui/appearance-themes.css",
-      "ui/study-map/catalog.css"
-    ],
     "cloze": [
       "ui/graph.css",
-      "ui/motion.css",
       "ui/review/question.css"
     ],
     "collapse-toggle": [
       "ui/app/app-shell.css",
-      "ui/language.css",
       "ui/shell.css"
     ],
     "course-active": [
@@ -150,16 +138,6 @@
       "ui/study-map/catalog.css",
       "ui/study-map/desk.css"
     ],
-    "flash-area": [
-      "ui/appearance-themes.css",
-      "ui/paper.css",
-      "ui/review/question.css"
-    ],
-    "flip-face": [
-      "ui/appearance-themes.css",
-      "ui/paper.css",
-      "ui/review/question.css"
-    ],
     "generation-trace": [
       "ui/generate-home.css",
       "ui/review/question.css"
@@ -167,14 +145,6 @@
     "ghost-btn": [
       "ui/legacy.css",
       "ui/study-map/desk.css"
-    ],
-    "grade": [
-      "ui/language.css",
-      "ui/review/question.css"
-    ],
-    "grading-head": [
-      "ui/language.css",
-      "ui/review/question.css"
     ],
     "highlight-quote": [
       "ui/document-preview/reader/reader.css",
@@ -193,12 +163,10 @@
       "ui/update.css"
     ],
     "is-active": [
-      "ui/appearance-themes.css",
       "ui/case-study.css",
       "ui/components/components.css",
       "ui/components/disclosure.css",
       "ui/course-field.css",
-      "ui/language.css",
       "ui/review/question.css",
       "ui/skeleton.css"
     ],
@@ -312,7 +280,6 @@
       "ui/study-map/desk.css"
     ],
     "mastery-bar": [
-      "ui/motion.css",
       "ui/study-map/catalog.css",
       "ui/study-map/desk.css"
     ],
@@ -356,14 +323,8 @@
       "ui/workflows.css"
     ],
     "nav": [
-      "ui/appearance-themes.css",
-      "ui/language.css",
       "ui/shell.css",
       "ui/side-groups.css"
-    ],
-    "nav-mark": [
-      "ui/motion.css",
-      "ui/shell.css"
     ],
     "nav-reset": [
       "ui/app/app-shell.css",
@@ -378,10 +339,6 @@
       "ui/live-class.css",
       "ui/shell.css",
       "ui/skeleton.css"
-    ],
-    "options": [
-      "ui/motion.css",
-      "ui/review/question.css"
     ],
     "page-heading": [
       "ui/reading-settings/reading.css",
@@ -401,13 +358,11 @@
     ],
     "pill": [
       "ui/coach.css",
-      "ui/language.css",
       "ui/legacy.css",
       "ui/review/question.css",
       "ui/review/session.css"
     ],
     "primary": [
-      "ui/appearance-themes.css",
       "ui/coach.css",
       "ui/legacy.css",
       "ui/workflows.css"
@@ -417,65 +372,18 @@
       "ui/generate-home.css",
       "ui/review/question.css"
     ],
-    "question": [
-      "ui/motion.css",
-      "ui/review/question.css"
-    ],
     "question-area": [
-      "ui/appearance-themes.css",
       "ui/case-study.css",
-      "ui/paper.css",
       "ui/review/question.css",
       "ui/review/session.css"
-    ],
-    "question-card": [
-      "ui/appearance-themes.css",
-      "ui/motion.css",
-      "ui/paper.css",
-      "ui/review/question.css"
-    ],
-    "question-meta": [
-      "ui/appearance-themes.css",
-      "ui/paper.css",
-      "ui/review/question.css"
-    ],
-    "question-navigation": [
-      "ui/language.css",
-      "ui/review/question.css"
-    ],
-    "question-toolbar": [
-      "ui/language.css",
-      "ui/review/question.css"
     ],
     "reader-p": [
       "ui/document-preview/reader/reader.css",
       "ui/document-preview/translation/translation.css"
     ],
     "reader-page": [
-      "ui/appearance-themes.css",
       "ui/document-preview/reader/reader.css",
-      "ui/document-preview/translation/translation.css",
-      "ui/paper.css"
-    ],
-    "reader-popover": [
-      "ui/document-preview/reader/reader.css",
-      "ui/reading-settings/reading.css"
-    ],
-    "reader-popover__panel": [
-      "ui/document-preview/reader/reader.css",
-      "ui/reading-settings/reading.css"
-    ],
-    "reader-popover__reset": [
-      "ui/document-preview/reader/reader.css",
-      "ui/reading-settings/reading.css"
-    ],
-    "reader-stepper": [
-      "ui/document-preview/reader/reader.css",
-      "ui/reading-settings/reading.css"
-    ],
-    "reader-stepper__value": [
-      "ui/document-preview/reader/reader.css",
-      "ui/reading-settings/reading.css"
+      "ui/document-preview/translation/translation.css"
     ],
     "reader-toolbar": [
       "ui/blog-notes.css",
@@ -500,14 +408,6 @@
     "resume-list": [
       "ui/home-tiers.css",
       "ui/study-map/desk.css"
-    ],
-    "review-detour": [
-      "ui/language.css",
-      "ui/review/session.css"
-    ],
-    "review-flow-origin": [
-      "ui/language.css",
-      "ui/review/session.css"
     ],
     "review-page": [
       "ui/review/session.css",
@@ -568,13 +468,11 @@
     "sh-btn": [
       "ui/DailyRecap.css",
       "ui/app/app-shell.css",
-      "ui/appearance-themes.css",
       "ui/audio-settings.css",
       "ui/blog-notes.css",
       "ui/board/board.css",
       "ui/components/components.css",
       "ui/components/feedback.css",
-      "ui/components/overlays.css",
       "ui/components/secret-key.css",
       "ui/course-settings.css",
       "ui/daily-plan.css",
@@ -606,7 +504,6 @@
       "ui/wrongbook.css"
     ],
     "sh-btn--primary": [
-      "ui/appearance-themes.css",
       "ui/components/components.css",
       "ui/daily-plan.css",
       "ui/exam-setup.css",
@@ -623,8 +520,7 @@
     ],
     "sh-dialog": [
       "ui/components/components.css",
-      "ui/components/dialog-media.css",
-      "ui/components/overlays.css"
+      "ui/components/dialog-media.css"
     ],
     "sh-dialog__body": [
       "ui/components/components.css",
@@ -688,18 +584,6 @@
       "ui/update.css",
       "ui/workflow-scope.css"
     ],
-    "sh-inline__text": [
-      "ui/components/components.css",
-      "ui/components/overlays.css"
-    ],
-    "sh-inline__title": [
-      "ui/components/components.css",
-      "ui/components/overlays.css"
-    ],
-    "sh-inline--boxed": [
-      "ui/components/components.css",
-      "ui/components/overlays.css"
-    ],
     "sh-job": [
       "ui/components/feedback.css",
       "ui/mineru.css"
@@ -721,14 +605,6 @@
       "ui/charts/charts.css",
       "ui/components/components.css"
     ],
-    "sh-paper": [
-      "ui/appearance-themes.css",
-      "ui/paper.css"
-    ],
-    "sh-popover-anchor": [
-      "ui/components/overlays.css",
-      "ui/components/tooltip-layer.css"
-    ],
     "sh-progress": [
       "ui/components/feedback.css",
       "ui/large-documents.css"
@@ -748,7 +624,6 @@
       "ui/components/fields.css",
       "ui/exam-setup.css",
       "ui/generate-form.css",
-      "ui/language.css",
       "ui/views.css",
       "ui/wrongbook.css"
     ],
@@ -756,7 +631,6 @@
       "ui/blog-notes.css",
       "ui/components/components.css",
       "ui/exam-setup.css",
-      "ui/language.css",
       "ui/wrongbook.css"
     ],
     "sh-setup": [
@@ -771,10 +645,6 @@
     "sh-tab": [
       "ui/components/disclosure.css",
       "ui/skeleton.css"
-    ],
-    "sh-tooltip": [
-      "ui/components/overlays.css",
-      "ui/components/tooltip-layer.css"
     ],
     "sidebar": [
       "ui/shell.css",
@@ -798,16 +668,11 @@
     ],
     "source-mode": [
       "ui/generate-home.css",
-      "ui/language.css",
       "ui/sources-page.css"
     ],
     "source-row-actions": [
       "ui/sources-page.css",
       "ui/sources.css"
-    ],
-    "source-tab": [
-      "ui/appearance-themes.css",
-      "ui/sources-page.css"
     ],
     "source-text--pdf": [
       "ui/document-preview/document-preview.css",
@@ -816,10 +681,6 @@
     "source-text--reading": [
       "ui/document-preview/document-preview.css",
       "ui/document-preview/reader/reader.css"
-    ],
-    "study-app": [
-      "ui/appearance-themes.css",
-      "ui/tokens.css"
     ],
     "study-document-body": [
       "ui/document-preview/document-preview.css",
@@ -840,17 +701,8 @@
       "ui/document-preview/reader/reader.css"
     ],
     "study-document-viewer": [
-      "ui/appearance-themes.css",
       "ui/blog-notes.css",
-      "ui/document-preview/reader/reader.css",
-      "ui/paper.css",
-      "ui/tokens.css"
-    ],
-    "study-reading": [
-      "ui/appearance-themes.css",
-      "ui/paper.css",
-      "ui/reading-settings/reading.css",
-      "ui/tokens.css"
+      "ui/document-preview/reader/reader.css"
     ],
     "summary-actions": [
       "ui/review-results.css",
@@ -864,12 +716,6 @@
       "ui/coach.css",
       "ui/review/question.css"
     ],
-    "today-card": [
-      "ui/appearance-themes.css",
-      "ui/motion.css",
-      "ui/paper.css",
-      "ui/study-map/desk.css"
-    ],
     "today-card-empty": [
       "ui/generate-home.css",
       "ui/study-map/desk.css"
@@ -880,7 +726,6 @@
     ],
     "today-stack": [
       "ui/home-tiers.css",
-      "ui/motion.css",
       "ui/study-map/desk.css"
     ],
     "token-estimate": [

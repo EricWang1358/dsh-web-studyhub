@@ -6,7 +6,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     ::highlight(study-link-question) {
       text-decoration-line: underline;
       text-decoration-style: solid;
@@ -25,6 +25,8 @@
       text-decoration-thickness: 1.5px;
       text-decoration-color: var(--text-muted);
     }
+  }
+  :is(.study-app, .study-seat) {
     .study-document-body[data-link-hover] { cursor: pointer; }
     /* The Aa popover's underline row sits on one line so the popover stays short. */
     /* ── Save an answer as a flashcard ──────────────────────────────────── */

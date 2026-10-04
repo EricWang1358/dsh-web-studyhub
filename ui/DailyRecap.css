@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .daily-recap {
       --recap-gap: var(--space-4, 16px);
       border: 1px solid var(--line);
@@ -9,59 +9,59 @@
       padding: clamp(18px, 3cqi, 28px);
       background: var(--bg-surface);
       text-align: left;
-      margin: 20px 0;
+      margin: var(--space-5) 0;
     }
     .daily-recap-heading, .daily-recap-course-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--recap-gap); }
-    .daily-recap-heading h2 { margin: 0; font-size: 22px; letter-spacing: -.025em; }
-    .daily-recap-lead { color: var(--text-muted); font-size: 14px; line-height: 1.7; margin: 10px 0 0; }
-    .daily-recap-course { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 20px; min-width: 0; }
-    .daily-recap-course h3 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
-    .daily-recap-state { flex-shrink: 0; font-size: 12px; color: var(--text-muted); }
+    .daily-recap-heading h2 { margin: 0; font-size: var(--fs-2xl); letter-spacing: -.025em; }
+    .daily-recap-lead { color: var(--text-muted); font-size: var(--fs-md); line-height: 1.7; margin: 10px 0 0; }
+    .daily-recap-course { border-top: 1px solid var(--line); margin-top: var(--space-5); padding-top: var(--space-5); min-width: 0; }
+    .daily-recap-course h3 { margin: 0; font-size: var(--fs-xl); overflow-wrap: anywhere; }
+    .daily-recap-state { flex-shrink: 0; font-size: var(--fs-xs); color: var(--text-muted); }
     .daily-recap-course[data-state="running"] .daily-recap-state,
     .daily-recap-course[data-state="ready"] .daily-recap-state { color: var(--accent); }
-    .daily-recap-meta { margin: 7px 0 14px; color: var(--text-muted); font-size: 13px; }
-    .daily-recap-hint, .daily-recap-threshold p { margin: 10px 0; font-size: 13px; color: var(--text-muted); line-height: 1.7; }
-    .daily-recap-threshold progress { display: block; width: min(100%, 280px); height: 5px; border: 0; border-radius: 5px; overflow: hidden; accent-color: var(--accent); }
-    .daily-recap-threshold progress::-webkit-progress-bar { background: var(--line); border-radius: 5px; }
-    .daily-recap-threshold progress::-webkit-progress-value { background: var(--accent); border-radius: 5px; }
-    .daily-recap-preview { margin: 16px 0; padding: 0 0 0 14px; border-left: 2px solid var(--accent); }
-    .daily-recap-preview small { color: var(--text-muted); font-size: 12px; }
-    .daily-recap-preview p { margin: 6px 0 0; max-width: 65ch; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; }
+    .daily-recap-meta { margin: 7px 0 14px; color: var(--text-muted); font-size: var(--fs-sm); }
+    .daily-recap-hint, .daily-recap-threshold p { margin: 10px 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.7; }
+    .daily-recap-threshold progress { display: block; width: min(100%, 280px); height: 5px; border: 0; border-radius: var(--radius-xs); overflow: hidden; accent-color: var(--accent); }
+    .daily-recap-threshold progress::-webkit-progress-bar { background: var(--line); border-radius: var(--radius-xs); }
+    .daily-recap-threshold progress::-webkit-progress-value { background: var(--accent); border-radius: var(--radius-xs); }
+    .daily-recap-preview { margin: var(--space-4) 0; padding: 0 0 0 14px; border-left: 2px solid var(--accent); }
+    .daily-recap-preview small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .daily-recap-preview p { margin: 6px 0 0; max-width: 65ch; font-size: var(--fs-md); line-height: 1.8; overflow-wrap: anywhere; }
     .daily-recap-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--recap-gap); margin-top: 18px; }
-    .daily-recap-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+    .daily-recap-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
     .daily-recap-tone { display: flex; gap: 0; border: 0; padding: 0; margin: 0; min-width: 0; }
-    .daily-recap-tone legend { padding: 0; margin-bottom: 6px; color: var(--text-muted); font-size: 12px; }
-    .daily-recap-tone label { display: flex; flex-direction: row; align-items: center; gap: 6px; min-height: 44px; padding: 7px 12px; margin: 0; white-space: nowrap; border: 1px solid var(--line); font-size: 13px; cursor: pointer; background: var(--bg-sunken); }
-    .daily-recap-tone label:first-of-type { border-radius: var(--radius-sm, 8px) 0 0 var(--radius-sm, 8px); }
-    .daily-recap-tone label:last-of-type { border-radius: 0 var(--radius-sm, 8px) var(--radius-sm, 8px) 0; border-left: 0; }
+    .daily-recap-tone legend { padding: 0; margin-bottom: 6px; color: var(--text-muted); font-size: var(--fs-xs); }
+    .daily-recap-tone label { display: flex; flex-direction: row; align-items: center; gap: 6px; min-height: 44px; padding: 7px var(--space-3); margin: 0; white-space: nowrap; border: 1px solid var(--line); font-size: var(--fs-sm); cursor: pointer; background: var(--bg-sunken); }
+    .daily-recap-tone label:first-of-type { border-radius: var(--radius-sm, var(--radius-sm)) 0 0 var(--radius-sm, var(--radius-sm)); }
+    .daily-recap-tone label:last-of-type { border-radius: 0 var(--radius-sm, var(--radius-sm)) var(--radius-sm, var(--radius-sm)) 0; border-left: 0; }
     .daily-recap-tone label:has(input:checked) { background: var(--bg-hover); color: var(--text); }
     .daily-recap-tone label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; position: relative; z-index: 1; }
     .daily-recap-tone input[type="radio"] { accent-color: var(--accent); margin: 0; padding: 0; width: 14px; height: 14px; flex: none; }
     .daily-recap-tone:disabled label { opacity: .6; cursor: default; }
-    .daily-recap-progress { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0; }
-    .daily-recap-progress p { margin: 0 0 4px; font-size: 14px; }
-    .daily-recap-progress small { color: var(--text-muted); font-size: 12px; line-height: 1.6; }
-    .daily-recap-spinner { flex-shrink: 0; margin-top: 4px; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: daily-recap-spin 1s linear infinite; }
-    .daily-recap-replace { margin-top: 14px; font-size: 13px; }
+    .daily-recap-progress { display: flex; align-items: flex-start; gap: 10px; margin: var(--space-4) 0; }
+    .daily-recap-progress p { margin: 0 0 var(--space-1); font-size: var(--fs-md); }
+    .daily-recap-progress small { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.6; }
+    .daily-recap-spinner { flex-shrink: 0; margin-top: var(--space-1); width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: daily-recap-spin 1s linear infinite; }
+    .daily-recap-replace { margin-top: 14px; font-size: var(--fs-sm); }
     .daily-recap-replace > p { line-height: 1.7; color: var(--text-muted); }
-    .daily-recap-replace .daily-recap-tone { margin: 12px 0; }
+    .daily-recap-replace .daily-recap-tone { margin: var(--space-3) 0; }
     .daily-recap summary { cursor: pointer; }
-    .daily-recap-error { margin-top: 16px; font-size: 13px; overflow-wrap: anywhere; }
+    .daily-recap-error { margin-top: var(--space-4); font-size: var(--fs-sm); overflow-wrap: anywhere; }
     .daily-recap-error p { margin: 6px 0; }
-    .daily-recap-footer { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-muted); }
+    .daily-recap-footer { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--text-muted); }
     .daily-recap-footer details { flex: 0 1 auto; }
     .daily-recap-footer details[open] { flex-basis: 100%; }
     .daily-recap-footer p { max-width: 65ch; line-height: 1.7; }
   }
   @media (prefers-reduced-motion: reduce) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .daily-recap-spinner { animation: none; }
     }
   }
   @container study (max-width: 600px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .daily-recap-heading { align-items: flex-start; }
-      .daily-recap-heading h2 { font-size: 20px; }
+      .daily-recap-heading h2 { font-size: var(--fs-xl); }
       .daily-recap-heading .sh-btn { flex-shrink: 0; }
       .daily-recap-course-heading { align-items: flex-start; }
       .daily-recap-buttons { width: 100%; margin-left: 0; }

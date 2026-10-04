@@ -12,32 +12,31 @@
     .usage-settings[data-state="paused"] .usage-status { color: var(--warn); }
     /* The report: folded until opened. */
     .usage-report { display: grid; gap: var(--space-4); min-width: 0; border-top: 1px solid var(--line-soft); padding-top: var(--space-2); }
-    .usage-report__summary { padding: var(--space-2) 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; cursor: pointer; }
+    .usage-report__summary { padding: var(--space-2) 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); cursor: pointer; }
     .usage-report[open] > .usage-report__summary { margin-bottom: var(--space-3); }
     .usage-report__body { display: grid; gap: var(--space-5); min-width: 0; max-width: 780px; }
     .usage-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: var(--space-3); max-width: 480px; margin: 0; }
-    .usage-summary > div { display: grid; gap: 2px; min-width: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); }
+    .usage-summary > div { display: grid; gap: var(--space-half); min-width: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); }
     .usage-summary dt { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-    .usage-summary dd { margin: 0; color: var(--text); font-size: var(--fs-xl); font-weight: 650; font-variant-numeric: tabular-nums; }
+    .usage-summary dd { margin: 0; color: var(--text); font-size: var(--fs-xl); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
     .usage-block { display: grid; gap: var(--space-2); align-content: start; min-width: 0; }
     .usage-pair { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-5) var(--space-6); min-width: 0; }
     /* Ranked rows and share rows: name and numbers on one line, a thin bar under them. */
     .usage-rank,
     .usage-shares { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
     .usage-rank__row,
-    .usage-share__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-3); align-items: baseline; min-width: 0; font-size: var(--fs-sm); }
+    .usage-share__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-half) var(--space-3); align-items: baseline; min-width: 0; font-size: var(--fs-sm); }
     .usage-rank__name,
     .usage-share__name { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
     .usage-rank__num,
     .usage-share__num { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .usage-meter { grid-column: 1 / -1; display: block; height: 5px; border-radius: 3px; background: var(--accent-text); opacity: 0.8; }
+    .usage-meter { grid-column: 1 / -1; display: block; height: 5px; border-radius: var(--radius-xs); background: var(--accent-text); opacity: 0.8; }
     /* The daily rhythm: one bar per day, the numbers are in the text under it and in each day's hidden label. */
-    .usage-rhythm { display: flex; align-items: stretch; gap: 2px; height: 64px; margin: 0; padding: 0; list-style: none; min-width: 0; border-bottom: 1px solid var(--line); }
+    .usage-rhythm { display: flex; align-items: stretch; gap: var(--space-half); height: 64px; margin: 0; padding: 0; list-style: none; min-width: 0; border-bottom: 1px solid var(--line); }
     .usage-rhythm__day { position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; }
-    .usage-rhythm__bar { display: block; width: 100%; min-height: 0; border-radius: 2px 2px 0 0; background: var(--info); }
-    .usage-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .usage-rhythm__bar { display: block; width: 100%; min-height: 0; border-radius: var(--radius-xs) var(--radius-xs) 0 0; background: var(--info); }
     .usage-never { min-width: 0; }
-    .usage-never > summary { color: var(--text); font-size: var(--fs-md); font-weight: 650; cursor: pointer; padding: var(--space-1) 0; }
+    .usage-never > summary { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); cursor: pointer; padding: var(--space-1) 0; }
     .usage-never p { margin: var(--space-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .usage-never__group { color: var(--text-dim); }
     .usage-hints__list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; max-width: 72ch; }

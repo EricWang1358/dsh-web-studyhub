@@ -12,13 +12,13 @@
     }
     /* Three labels take room the rail did not have: take it back from the quiet parts around the rows. */
     .sidebar:not(.is-narrow) {
-      padding-top: 20px;
+      padding-top: var(--space-5);
     }
     .sidebar:not(.is-narrow) .brand {
-      margin-bottom: 16px;
+      margin-bottom: var(--space-4);
     }
     .sidebar:not(.is-narrow) .local-status {
-      padding-block: 4px;
+      padding-block: var(--space-1);
     }
     .sidebar.is-narrow {
       --nav-group: 9px;
@@ -33,23 +33,23 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: var(--space-2);
       width: 100%;
       height: var(--nav-group);
       margin: 0;
-      padding: 0 12px;
+      padding: 0 var(--space-3);
       border: none;
       background: none;
       color: var(--text-faint);
-      font-size: 12px;
-      font-weight: 600;
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-strong);
       letter-spacing: 0.04em;
       line-height: 1;
       text-align: left;
     }
     & button.nav-group-label {
       cursor: pointer;
-      transition: color 0.15s var(--ease);
+      transition: color var(--dur-fast) var(--ease);
     }
     & button.nav-group-label:hover {
       color: var(--text-dim);
@@ -67,7 +67,7 @@
       border-right: 1.5px solid currentColor;
       border-bottom: 1.5px solid currentColor;
       transform: translateY(-2px) rotate(45deg);
-      transition: transform 0.2s var(--ease-out);
+      transition: transform var(--dur) var(--ease-out);
     }
     .nav-group-label[aria-expanded="false"] .nav-group-chevron {
       transform: translateX(-2px) rotate(-45deg);
@@ -79,10 +79,10 @@
       z-index: 1;
     }
     .side-nav .nav.is-dragging {
-      z-index: 3;
+      z-index: var(--z-sticky);
       border-radius: var(--radius-sm);
       background: var(--bg-raised);
-      box-shadow: 0 8px 22px color-mix(in srgb, #000 40%, transparent);
+      box-shadow: var(--shadow-drag);
       color: var(--text);
     }
     /* The 62px rail has no room for words: the label becomes a hairline between the groups and nothing is folded. */

@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* Case practice (WP12): the scenario with highlights, rubric answers in
        review, the timed case paper and the case creation form. Tokens only;
        highlight colours mix the semantic hues so both themes stay legible. */
@@ -9,7 +9,7 @@
       display: inline-flex;
       align-items: center;
       gap: var(--space-1);
-      padding: 2px var(--space-2);
+      padding: var(--space-half) var(--space-2);
       border-radius: var(--radius-pill);
       border: 1px solid var(--line);
       background: var(--bg-raised);
@@ -21,10 +21,10 @@
     .case-chip.pace-ahead { color: var(--ok); border-color: var(--ok); }
     /* ---------- the scenario ---------- */
     .case-scenario {
-      --hl-yellow: color-mix(in srgb, var(--warn) 34%, transparent);
-      --hl-green: color-mix(in srgb, var(--ok) 32%, transparent);
-      --hl-blue: color-mix(in srgb, var(--info) 34%, transparent);
-      --hl-pink: color-mix(in srgb, var(--bad) 30%, transparent);
+      --hl-yellow: var(--warn-mark);
+      --hl-green: var(--ok-mark);
+      --hl-blue: var(--info-mark);
+      --hl-pink: var(--bad-mark);
       display: grid;
       gap: var(--space-3);
       padding: var(--space-4) var(--space-5);
@@ -50,7 +50,7 @@
       gap: var(--space-2);
     }
     .case-pen {
-      padding: 2px var(--space-3);
+      padding: var(--space-half) var(--space-3);
       border-radius: var(--radius-pill);
       border: 1px solid var(--line-strong);
       background: transparent;
@@ -68,10 +68,10 @@
       padding: 0;
     }
     .case-swatch[aria-pressed="true"] { border-color: var(--text); box-shadow: var(--ring); }
-    .case-swatch.hl-yellow, .case-dot.hl-yellow { background: color-mix(in srgb, var(--warn) 70%, var(--bg-surface)); }
-    .case-swatch.hl-green, .case-dot.hl-green { background: color-mix(in srgb, var(--ok) 70%, var(--bg-surface)); }
-    .case-swatch.hl-blue, .case-dot.hl-blue { background: color-mix(in srgb, var(--info) 70%, var(--bg-surface)); }
-    .case-swatch.hl-pink, .case-dot.hl-pink { background: color-mix(in srgb, var(--bad) 70%, var(--bg-surface)); }
+    .case-swatch.hl-yellow, .case-dot.hl-yellow { background: var(--warn-solid); }
+    .case-swatch.hl-green, .case-dot.hl-green { background: var(--ok-solid); }
+    .case-swatch.hl-blue, .case-dot.hl-blue { background: var(--info-solid); }
+    .case-swatch.hl-pink, .case-dot.hl-pink { background: var(--bad-solid); }
     .case-paras {
       list-style: none;
       margin: 0;
@@ -88,7 +88,7 @@
       font-variant-numeric: tabular-nums;
       color: var(--text-muted);
       font-size: var(--fs-xs);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       text-align: right;
       padding-top: 3px;
     }
@@ -100,7 +100,7 @@
     }
     .case-hl {
       color: inherit;
-      border-radius: 3px;
+      border-radius: var(--radius-xs);
       padding: 0 1px;
       cursor: pointer;
     }
@@ -176,7 +176,7 @@
     .rubric-editor > span {
       color: var(--text-dim);
       font-size: var(--fs-sm);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
     }
     .rubric-editor textarea {
       width: 100%;
@@ -219,12 +219,12 @@
     }
   }
   @container study (max-width: 980px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .question-area.has-case { display: block; width: min(700px, calc(100% - 32px)); }
       .question-area.has-case > .case-review-scenario { position: static; max-height: 40vh; margin-bottom: var(--space-4); }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* ---------- the timed case paper ---------- */
     .case-paper.is-running { container-type: inline-size; }
     .case-paper__bar {
@@ -242,7 +242,7 @@
       border: 1px solid var(--line);
       box-shadow: var(--shadow-sm);
     }
-    .case-paper__bar > div:first-child { display: grid; gap: 2px; }
+    .case-paper__bar > div:first-child { display: grid; gap: var(--space-half); }
     .case-paper__bar strong { color: var(--text); }
     .case-paper__clock {
       font-family: var(--font-display);
@@ -328,13 +328,17 @@
       padding: 0;
       margin: 0;
     }
+  }
+  :is(.study-app, .study-seat) {
     .case-create button {
       min-width: 0;
       max-width: 100%;
       white-space: normal;
     }
+  }
+  :where(.study-app, .study-seat) {
     .case-create legend {
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       color: var(--text);
       margin-bottom: var(--space-2);
     }
@@ -375,13 +379,13 @@
       border: 1px solid var(--accent-soft);
       color: var(--accent-text);
       font-size: var(--fs-xs);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       vertical-align: middle;
       white-space: nowrap;
     }
   }
   @container (max-width: 860px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .case-paper__switch { display: inline-flex; }
       .case-paper__body { grid-template-columns: minmax(0, 1fr); }
       .case-paper__body .case-scenario { position: static; max-height: none; }
@@ -390,14 +394,14 @@
     }
   }
   @container study (max-width: 560px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .case-create__grid { grid-template-columns: minmax(0, 1fr); }
       .case-create__question { grid-template-columns: minmax(0, 1fr) 5rem; }
       .case-scenario { padding: var(--space-3); }
       .case-paper__clock { font-size: var(--fs-xl); }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* the exam page's mode switch */
     /* checking a case draft */
     .case-draft { margin: var(--space-4) 0; }
@@ -412,7 +416,7 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
     }
-    .criteria-editor legend { padding: 0 var(--space-1); font-weight: 600; color: var(--text); }
+    .criteria-editor legend { padding: 0 var(--space-1); font-weight: var(--fw-strong); color: var(--text); }
     .criteria-editor__row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 6rem;

@@ -64,7 +64,7 @@
       color: inherit;
       font: inherit;
     }
-    .sh-chip__main { cursor: pointer; transition: background 0.15s var(--ease), color 0.15s var(--ease); }
+    .sh-chip__main { cursor: pointer; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
     .sh-chip__main:hover { background: var(--bg-hover); color: var(--text); }
     .sh-chip__main:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     .sh-chip.is-selected {
@@ -110,7 +110,7 @@
       background: var(--sh-tone);
       transform: scaleX(0);
       transform-origin: left center;
-      transition: transform 0.2s var(--ease);
+      transition: transform var(--dur) var(--ease);
     }
     .sh-progress__ahead { opacity: 0.35; }
     .sh-progress--indeterminate .sh-progress__fill {
@@ -152,9 +152,9 @@
       margin: var(--space-6) auto;
       max-width: 640px;
       padding: var(--space-5);
-      border: 1px solid color-mix(in srgb, var(--bad) 30%, var(--line));
+      border: 1px solid var(--bad-line);
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--bad) 7%, var(--bg-surface));
+      background: var(--bad-bg);
     }
     .sh-crash__icon { flex: none; margin-top: var(--space-half); color: var(--bad); }
     .sh-crash__body { display: grid; justify-items: start; gap: var(--space-2); min-width: 0; }
@@ -174,8 +174,8 @@
       border-radius: var(--radius);
       background: var(--bg-surface);
     }
-    .sh-job--running { border-color: color-mix(in srgb, var(--info) 35%, var(--line)); }
-    .sh-job--failed { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+    .sh-job--running { border-color: var(--info-line); }
+    .sh-job--failed { border-color: var(--bad-line); }
     .sh-job__mark { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--sh-tone-ink); }
     .sh-job__mark .sh-spinner { width: 18px; height: 18px; }
     .sh-job-list { display: grid; gap: var(--space-2); }
@@ -199,7 +199,7 @@
     .sh-job__actions .sh-btn { max-width: 100%; white-space: normal; text-align: left; }
     /* A leading quiet button hangs its own padding and 1px border, so its text starts where the title does. */
     .sh-job__actions > .sh-btn--quiet:first-child { margin-inline-start: calc(var(--space-3) * -1 - var(--space-half) / 2); }
-    .sh-job.is-leaving { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, 150ms) ease-out forwards; }
+    .sh-job.is-leaving { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, var(--dur-fast)) ease-out forwards; }
   }
   @container study (max-width: 560px) {
     :is(.study-app, .study-seat) {

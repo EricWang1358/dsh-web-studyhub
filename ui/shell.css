@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .sidebar {
       width: 244px;
       flex-shrink: 0;
@@ -12,7 +12,7 @@
       align-self: flex-start;
       height: 100%;
       min-height: min(700px, 100dvh);
-      padding: 26px 14px 16px;
+      padding: 26px 14px var(--space-4);
       display: flex;
       flex-direction: column;
       /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). */
@@ -26,17 +26,17 @@
       display: flex;
       align-items: center;
       gap: 11px;
-      margin: 0 8px 34px;
+      margin: 0 var(--space-2) 34px;
       font-family: var(--font-display);
-      font-size: 16px;
-      font-weight: 650;
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-strong);
       letter-spacing: -0.01em;
     }
     .brand small {
       display: block;
       font-family: var(--font-ui);
-      font-size: 15px;
-      font-weight: 400;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-regular);
       letter-spacing: 0;
       margin-top: 3px;
       white-space: nowrap;
@@ -59,16 +59,18 @@
       align-items: center;
       justify-content: center;
       padding: 0;
-      border: none;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       background: transparent;
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1;
       cursor: pointer;
       transition:
         background 0.18s var(--ease),
         color 0.18s var(--ease);
+    }
+    .collapse-toggle:not(.sh-btn) {
+      border: none;
     }
     .collapse-toggle:hover {
       background: var(--bg-hover);
@@ -79,17 +81,17 @@
       display: flex;
       width: 100%;
       align-items: center;
-      gap: 12px;
+      gap: var(--space-3);
       border: none;
       background: transparent;
       text-align: left;
       height: var(--nav-row);
-      padding: 0 12px;
+      padding: 0 var(--space-3);
       margin: 1px 0;
       color: var(--text-dim);
       transition:
-        background 0.15s var(--ease),
-        color 0.15s var(--ease);
+        background var(--dur-fast) var(--ease),
+        color var(--dur-fast) var(--ease);
     }
     /* Hover only brightens the label; the gliding highlight is the one pill,
        so hovering while it moves never stacks two backgrounds. */
@@ -98,7 +100,7 @@
       color: var(--text);
     }
     .nav .icon {
-      transition: transform 0.2s var(--ease-out), color 0.15s var(--ease);
+      transition: transform var(--dur) var(--ease-out), color var(--dur-fast) var(--ease);
     }
     /* The row keeps its one height: a label that does not fit takes a second line (tight leading) and past that is cut with an
        ellipsis, the tooltip has the whole text. */
@@ -121,7 +123,7 @@
     .nav.active {
       background: transparent;
       color: var(--text);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
     }
     /* The one highlight behind the active item; it glides between items. */
     .side-nav {
@@ -141,7 +143,7 @@
       transition:
         transform 0.42s var(--ease-out),
         height 0.42s var(--ease-out);
-      animation: mark-in 0.3s var(--ease-out);
+      animation: mark-in var(--dur-slow) var(--ease-out);
     }
     .nav-mark::before,
     .sidebar-bottom .nav.active::before {
@@ -151,7 +153,7 @@
       top: 9px;
       bottom: 9px;
       width: 3px;
-      border-radius: 0 3px 3px 0;
+      border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
       background: var(--text);
     }
     /* Rows below the rail (Settings) are not on the gliding highlight; they get the same one directly. */
@@ -163,7 +165,7 @@
     .nav-upkeep {
       height: var(--nav-row-upkeep);
       padding-block: 0;
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--text-muted);
     }
     .nav:not(.nav-upkeep) + .nav-upkeep {
@@ -172,17 +174,17 @@
     /* Reordering: hold an item, then drag; the lifted one follows the pointer while the others make way. */
     .side-nav.is-reordering, .side-nav.is-reordering .nav { cursor: grabbing; user-select: none; }
     .side-nav > .nav.is-dragging {
-      z-index: 3;
+      z-index: var(--z-sticky);
       border-radius: var(--radius-sm);
       background: var(--bg-raised);
-      box-shadow: 0 8px 22px color-mix(in srgb, #000 40%, transparent);
+      box-shadow: var(--shadow-drag);
       color: var(--text);
     }
     .nav.is-dragging::after { display: none; }
     .nav-reset {
       display: block;
-      margin: 10px 12px 0;
-      padding: 2px 0;
+      margin: 10px var(--space-3) 0;
+      padding: var(--space-half) 0;
       border: none;
       background: none;
       color: var(--text-faint);
@@ -211,21 +213,21 @@
     .nav-count {
       flex: none;
       margin-left: auto;
-      font-size: 15px;
+      font-size: var(--fs-md);
       font-variant-numeric: tabular-nums;
       color: var(--text-faint);
-      font-weight: 400;
+      font-weight: var(--fw-regular);
     }
     .nav-count.is-due {
       color: var(--danger, var(--accent));
-      font-weight: 600;
+      font-weight: var(--fw-strong);
     }
     /* ── Collapsed rail ─────────────────────────────────────────────────────
        .is-narrow is set manually via the toggle, or automatically when the
        workspace is ≤720px (ResizeObserver in App.jsx). */
     .sidebar.is-narrow {
       width: 62px;
-      padding: 20px 6px;
+      padding: var(--space-5) 6px;
       --sidebar-pad: 6px;
       --nav-row: 42px;
       --nav-row-upkeep: 42px;
@@ -235,7 +237,7 @@
       margin: 0 auto 28px;
     }
     .sidebar.is-narrow .collapse-toggle {
-      margin: 4px auto 0;
+      margin: var(--space-1) auto 0;
     }
     .sidebar.is-narrow .brand > div,
     .sidebar.is-narrow .nav-count,
@@ -277,12 +279,12 @@
     }
     /* The dot sits in the same 20px slot as a row's icon, so the text lines up with the labels above. */
     .local-status {
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--text-muted);
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 20px 12px;
+      gap: var(--space-3);
+      padding: var(--space-5) var(--space-3);
     }
     .local-status span {
       width: 6px;
@@ -291,7 +293,7 @@
       flex: none;
       border-radius: 50%;
       background: var(--ok);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent);
+      box-shadow: 0 0 0 3px var(--ok-halo);
     }
     & main {
       flex: 1;
@@ -305,10 +307,10 @@
       justify-content: space-between;
       align-items: center;
       padding: 0 25px;
-      font-size: 15px;
+      font-size: var(--fs-md);
       position: sticky;
       top: 0;
-      z-index: 12;
+      z-index: calc(var(--z-sticky) + 2);
       background: var(--bg-canvas);
     }
     .crumbs {
@@ -322,19 +324,19 @@
     }
     .crumb.current {
       color: var(--text);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .breadcrumb {
       color: var(--text-faint);
-      margin: 0 12px;
+      margin: 0 var(--space-3);
     }
     .top-status {
       display: inline-flex;
       align-items: center;
       gap: 7px;
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--text-muted);
       white-space: nowrap;
     }
@@ -348,7 +350,7 @@
     }
     .top-status .dot.on {
       background: var(--ok);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent);
+      box-shadow: 0 0 0 3px var(--ok-halo);
     }
     .top-status .dot.busy {
       background: var(--warn);
@@ -356,7 +358,7 @@
     }
   }
   @container study (max-width: 640px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       /* A narrow pane gives the page title the room: the decorative "Study ›"
          goes, and the steady "已连接" shrinks to its dot (busy and failing
          states keep their words). */
@@ -374,14 +376,14 @@
       }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* ── Top-bar mailbox ────────────────────────────────────────────────── */
     .top-right {
       display: inline-flex;
       align-items: center;
       gap: 10px;
       flex-shrink: 0;
-      margin-left: 12px;
+      margin-left: var(--space-3);
     }
     .inbox {
       position: relative;
@@ -390,14 +392,14 @@
     .page {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 32px 36px 56px;
+      padding: var(--space-7) 36px var(--space-9);
     }
     /* Switching pages: the new page settles in as ONE block (opacity and a few
        pixels of rise), 0.2s. It used to animate every child of the page with a
        stagger: a composited layer per block while React was still mounting the
        page, which is what made a heavy page (Generate, 资料) stutter on arrival. */
     :is(.page, .review-page) {
-      animation: page-in 0.2s var(--ease-out) backwards;
+      animation: page-in var(--dur) var(--ease-out) backwards;
     }
     /* Leaving: the current page lifts and fades for a beat before the switch
        (90ms: see leaveDelayMs in interface-prefs.js, which must match). */
@@ -415,7 +417,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 24px;
+      gap: var(--space-6);
       margin-bottom: 22px;
     }
     .page-heading p {
@@ -436,7 +438,7 @@
     }
   }
   @container study (max-width:1050px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .sidebar {
         width: 190px;
         padding-left: 10px;
@@ -444,11 +446,11 @@
         --sidebar-pad: 10px;
       }
       .brand {
-        font-size: 15px;
+        font-size: var(--fs-md);
         gap: 7px;
       }
       .brand small {
-        font-size: 15px;
+        font-size: var(--fs-md);
       }
       & main {
         min-width: 0;
@@ -462,12 +464,12 @@
     }
   }
   @container study (max-width:720px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       & main {
         min-width: 0;
       }
       .topbar {
-        padding: 0 16px;
+        padding: 0 var(--space-4);
       }
       .breadcrumb {
         margin: 0 7px;
@@ -486,7 +488,7 @@
       }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* The sidebar keeps its own `position: sticky` (sticky already creates a
        stacking context); resetting it to relative made the rail scroll away on
        long pages, leaving a bare strip. */
@@ -503,7 +505,7 @@
 @keyframes dot-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 45%, transparent);
+    box-shadow: 0 0 0 0 var(--warn-mid);
     opacity: 1;
   }
   50% {

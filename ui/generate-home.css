@@ -5,7 +5,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* ── Home: progress and drafts at the top ─────────────────────────────── */
     .home-activity { display: grid; gap: var(--space-4); margin: var(--space-4) 0 var(--space-2); }
     .home-activity .generation-jobs { display: grid; gap: var(--space-2); margin: 0; }
@@ -30,7 +30,7 @@
       font-size: var(--fs-md);
       color: var(--paper-dim);
     }
-    .today-card .starter-steps li.is-current { font-weight: 650; color: var(--paper-ink); }
+    .today-card .starter-steps li.is-current { font-weight: var(--fw-strong); color: var(--paper-ink); }
     .today-card .starter-steps li.is-done { color: var(--paper-dim); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--paper-dim) 55%, transparent); }
     .today-card .starter-mark {
       display: inline-grid;
@@ -41,7 +41,7 @@
       border-radius: 50%;
       border: 1.5px solid currentColor;
       font-size: var(--fs-xs);
-      font-weight: 700;
+      font-weight: var(--fw-strong);
       font-variant-numeric: tabular-nums;
       text-decoration: none;
     }

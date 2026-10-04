@@ -46,7 +46,7 @@ test('switching pages waits for the leave animation only when there is one', () 
 test('the stylesheet obeys it: no stagger on every child of a page, one entrance for the page itself, and the off/reduced rules keep spinners alive', () => {
   const css = globalCss();
   assert.doesNotMatch(css, /:is\(\.page, \.review-page\) > \* \{\s*animation: page-in/, 'the entrance used to be a composited layer per child of the page');
-  assert.match(css, /:is\(\.page, \.review-page\) \{[^}]*animation: page-in 0\.2s/);
+  assert.match(css, /:is\(\.page, \.review-page\) \{[^}]*animation: page-in var\(--dur\)/);
   assert.match(css, /\.study-app\[data-motion='off'\][^{]*\{[^}]*animation-duration: 0\.01ms !important/);
   assert.match(css, /\.study-app\[data-motion='off'\][\s\S]*?:not\([^)]*spin[^)]*\)/, 'spinners and other busy indicators still turn');
   assert.match(css, /\.study-app\[data-motion='reduced'\]/);

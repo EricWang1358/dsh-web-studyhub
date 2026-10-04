@@ -12,9 +12,9 @@
       border-radius: var(--radius);
       background: var(--bg-surface);
     }
-    .import-hub__course label { margin: 0; gap: 6px; font-weight: 600; }
-    .import-hub__course input { font-weight: 400; }
-    .import-hub__course small { font-size: var(--fs-sm); font-weight: 400; line-height: var(--lh-snug); }
+    .import-hub__course label { margin: 0; gap: 6px; font-weight: var(--fw-strong); }
+    .import-hub__course input { font-weight: var(--fw-regular); }
+    .import-hub__course small { font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
     .import-hub__tabs { justify-self: start; max-width: 100%; }
     .import-hub__files { display: grid; gap: var(--space-3); min-width: 0; }
     .import-hub__routes { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
@@ -32,7 +32,7 @@
       margin: 0;
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--info) 14%, transparent);
+      background: var(--info-bg);
       color: var(--text);
       font-size: var(--fs-sm);
     }

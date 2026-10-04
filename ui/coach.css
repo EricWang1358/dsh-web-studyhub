@@ -5,12 +5,12 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .coach-chip {
       border: 1px solid var(--line);
-      border-radius: 999px;
+      border-radius: var(--radius-pill);
       padding: 3px 9px;
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.5;
       background: transparent;
       color: var(--text-dim);
@@ -21,26 +21,26 @@
     .coach-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
     .coach-chip:disabled { opacity: 0.55; }
     .coach-options { display: flex; flex-wrap: wrap; gap: 6px; }
-    .coach-options .coach-chip { font-size: 15px; padding: 4px 10px; }
+    .coach-options .coach-chip { font-size: var(--fs-md); padding: var(--space-1) 10px; }
     .coach-card {
-      padding: 10px 12px;
+      padding: 10px var(--space-3);
       border-radius: var(--radius-sm);
       background: var(--accent-glow);
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.7;
       animation: coach-rise 240ms var(--ease) both;
     }
-    .coach-card p { margin: 0 0 8px; color: var(--text); }
+    .coach-card p { margin: 0 0 var(--space-2); color: var(--text); }
     .coach-card .coach-options { gap: 6px; }
     /* ── Thumbs ───────────────────────────────────────────────────────────── */
-    .thumbs { display: inline-flex; align-items: center; gap: 4px; position: relative; }
+    .thumbs { display: inline-flex; align-items: center; gap: var(--space-1); position: relative; }
     .thumbs > button { min-width: 34px; padding-left: 10px; padding-right: 10px; }
     .thumbs > button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
     .thumb-tray {
       position: absolute;
       bottom: calc(100% + 8px);
       left: 0;
-      z-index: 5;
+      z-index: var(--z-popover);
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
@@ -54,21 +54,21 @@
       box-shadow: var(--shadow-md);
       animation: coach-pop 160ms var(--ease) both;
     }
-    .thumb-tray small { width: 100%; color: var(--text-faint); font-size: 15px; }
+    .thumb-tray small { width: 100%; color: var(--text-faint); font-size: var(--fs-md); }
     .thumb-tray kbd, .shortcut-sheet kbd {
       font: 600 10px/1 ui-monospace, monospace;
-      padding: 2px 4px;
-      border-radius: 4px;
+      padding: var(--space-half) var(--space-1);
+      border-radius: var(--radius-xs);
       border: 1px solid var(--line);
       color: var(--text-muted);
-      margin-right: 4px;
+      margin-right: var(--space-1);
     }
     /* ── Autopilot ────────────────────────────────────────────────────────── */
     .autopilot-bar {
       position: relative;
       height: 3px;
-      margin: 14px 12px 0;
-      border-radius: 3px;
+      margin: 14px var(--space-3) 0;
+      border-radius: var(--radius-xs);
       background: var(--line-soft);
       overflow: hidden;
     }
@@ -80,12 +80,12 @@
       transform-origin: left;
       animation: autopilot-fill var(--autopilot-ms, 1500ms) linear both;
     }
-    .autopilot-note { display: block; margin: 6px 12px 0; font-size: 15px; color: var(--text-faint); }
+    .autopilot-note { display: block; margin: 6px var(--space-3) 0; font-size: var(--fs-md); color: var(--text-faint); }
     /* ── Debrief (session summary) ───────────────────────────────────────── */
     .coach-debrief {
       width: min(560px, 100%);
       margin: 18px auto 6px;
-      padding: 18px 20px;
+      padding: 18px var(--space-5);
       border-radius: var(--radius);
       text-align: left;
       border: 1px solid var(--line-soft);
@@ -94,30 +94,30 @@
       animation: coach-rise 320ms var(--ease) both;
     }
     /* On the result page it lines up with the score card above it. */
-    .result-page .coach-debrief { width: 100%; margin: 20px 0; }
+    .result-page .coach-debrief { width: 100%; margin: var(--space-5) 0; }
     .coach-debrief .eyebrow { margin-bottom: 6px; }
-    .coach-debrief h2 { margin: 0 0 6px; font-size: 21px; line-height: 1.4; color: var(--text); }
-    .coach-debrief > p { margin: 0 0 12px; color: var(--text-dim); font-size: 15px; line-height: 1.7; }
-    .coach-score-split { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; color: var(--text-dim); font-size: 15px; }
+    .coach-debrief h2 { margin: 0 0 6px; font-size: var(--fs-2xl); line-height: 1.4; color: var(--text); }
+    .coach-debrief > p { margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); line-height: 1.7; }
+    .coach-score-split { display: flex; flex-wrap: wrap; gap: 6px var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); }
     .coach-score-split strong { color: var(--text); }
-    .coach-levels { display: flex; gap: 6px; margin: 0 0 12px; height: 8px; border-radius: 6px; overflow: hidden; background: var(--line-soft); }
+    .coach-levels { display: flex; gap: 6px; margin: 0 0 var(--space-3); height: 8px; border-radius: var(--radius-sm); overflow: hidden; background: var(--line-soft); }
     .coach-levels span { display: block; height: 100%; transition: flex-grow 400ms var(--ease); }
     .coach-levels .recall { background: var(--decor-faint); }
     .coach-levels .concept { background: var(--info); }
     .coach-levels .apply { background: var(--ok); }
-    .coach-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 15px; color: var(--text-muted); margin: -4px 0 12px; }
-    .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
-    .coach-insights { margin: 0 0 14px; padding-left: 18px; font-size: 15px; line-height: 1.8; color: var(--text-dim); }
-    .coach-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .coach-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-md); color: var(--text-muted); margin: -4px 0 var(--space-3); }
+    .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-xs); margin-right: var(--space-1); vertical-align: 0; }
+    .coach-insights { margin: 0 0 14px; padding-left: 18px; font-size: var(--fs-md); line-height: 1.8; color: var(--text-dim); }
+    .coach-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
     /* A question, not a second primary: neutral stock and outlined chips. */
     .coach-consent {
       margin-top: 14px;
       background: color-mix(in srgb, var(--text) 5%, transparent);
       border: 1px solid var(--line-soft);
     }
-    .coach-chip.coach-yes { border-color: var(--accent-soft); color: var(--text); font-weight: 600; }
-    .coach-consent .coach-consent-error { margin: 8px 0 0; color: var(--bad); }
-    .coach-consent-note { margin: 12px 0 0; font-size: 15px; color: var(--text-muted); }
+    .coach-chip.coach-yes { border-color: var(--accent-soft); color: var(--text); font-weight: var(--fw-strong); }
+    .coach-consent .coach-consent-error { margin: var(--space-2) 0 0; color: var(--bad); }
+    .coach-consent-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
     /* One filled primary per screen: when the 雷霆建议 hands over its own next
        step (定制题 or 补薄弱), the generic next-step buttons on the page step back. */
     /* style.css forces .primary with !important, so the step-back needs it too. */
@@ -126,7 +126,7 @@
       border-color: var(--line) !important;
       color: inherit !important;
       box-shadow: none;
-      font-weight: 400;
+      font-weight: var(--fw-regular);
     }
     .result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .primary:not(:disabled)) .summary-actions > button.primary:hover:not(:disabled) {
       background: color-mix(in srgb, var(--text) 11%, transparent) !important;
@@ -134,15 +134,15 @@
       box-shadow: none;
       transform: none;
     }
-    .coach-countdown { font-size: 15px; color: var(--text-muted); }
+    .coach-countdown { font-size: var(--fs-md); color: var(--text-muted); }
     .skeleton {
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       background: linear-gradient(90deg, var(--line-soft) 25%, var(--bg-hover) 50%, var(--line-soft) 75%);
       background-size: 200% 100%;
       animation: sh-coach-shimmer 1.2s infinite linear;
     }
     .skeleton.h { height: 22px; width: 70%; margin-bottom: 10px; }
-    .skeleton.l { height: 12px; width: 92%; margin-bottom: 8px; }
+    .skeleton.l { height: 12px; width: 92%; margin-bottom: var(--space-2); }
     .skeleton.s { height: 12px; width: 55%; }
     /* ── Library offer ───────────────────────────────────────────────────── */
     /* ── Sidebar entry: shows on every page while 定制题 are ready ─────────── */
@@ -152,11 +152,11 @@
       margin-left: auto;
       min-width: 24px;
       padding: 0 7px;
-      border-radius: 999px;
+      border-radius: var(--radius-pill);
       border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
       color: var(--accent-soft);
-      font-size: 15px;
-      font-weight: 600;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
       line-height: 1.4;
       text-align: center;
       font-variant-numeric: tabular-nums;
@@ -179,37 +179,32 @@
       position: fixed;
       right: 20px;
       bottom: 20px;
-      z-index: 40;
+      z-index: var(--z-overlay);
       width: min(340px, calc(100cqi - 40px));
-      padding: 14px 16px;
-      border-radius: var(--radius);
-      border: 1px solid var(--line);
-      background: var(--bg-glass-strong);
-      backdrop-filter: blur(var(--glass-blur));
-      box-shadow: var(--shadow-lg);
-      font-size: 15px;
+      padding: 14px var(--space-4);
+      font-size: var(--fs-md);
       color: var(--text-dim);
       animation: coach-pop 180ms var(--ease) both;
     }
-    .shortcut-sheet h3 { margin: 0 0 8px; font-size: 15px; color: var(--text); display: flex; justify-content: space-between; }
-    .shortcut-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; }
+    .shortcut-sheet h3 { margin: 0 0 var(--space-2); font-size: var(--fs-md); color: var(--text); display: flex; justify-content: space-between; }
+    .shortcut-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: 6px var(--space-3); margin: 0; }
     .shortcut-sheet dt { white-space: nowrap; }
     .shortcut-sheet dd { margin: 0; }
   }
   @media (prefers-reduced-motion: reduce) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .coach-card, .coach-debrief, .thumb-tray, .shortcut-sheet { animation: none; }
       .skeleton { animation-duration: 2.4s; }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* ── Settings ────────────────────────────────────────────────────────── */
-    .inline-check { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+    .inline-check { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); }
     .inline-check input { width: auto; margin: 0; }
     .origin-tag {
       border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 1px 8px;
+      border-radius: var(--radius-pill);
+      padding: 1px var(--space-2);
       color: var(--text-dim);
       white-space: nowrap;
       max-width: 260px;
@@ -218,13 +213,13 @@
     }
     /* 后台助教：题目工具条下方的委托表单与状态。 */
     .assist-area {
-      margin-top: 8px;
+      margin-top: var(--space-2);
     }
     .assist-form {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      padding: 12px 14px;
+      gap: var(--space-2);
+      padding: var(--space-3) 14px;
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
@@ -234,16 +229,16 @@
       gap: 6px;
       margin: 0;
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .assist-form textarea {
       width: 100%;
       box-sizing: border-box;
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .assist-form > strong {
       color: var(--text);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .assist-quick-choices {
       display: flex;
@@ -251,7 +246,7 @@
       gap: 7px;
     }
     .assist-quick-choices .pill {
-      font-size: 15px;
+      font-size: var(--fs-md);
       padding: 7px 11px;
     }
     .assist-form > p {
@@ -265,10 +260,10 @@
     .assist-status {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin: 8px 0 0;
+      gap: var(--space-2);
+      margin: var(--space-2) 0 0;
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .assist-status.failed {
       color: var(--warn);

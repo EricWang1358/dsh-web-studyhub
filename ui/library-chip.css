@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* Top-bar library location chip (P03): quiet, one click to Settings. */
     .library-chip {
       display: inline-flex;
@@ -9,12 +9,12 @@
       gap: 6px;
       min-width: 0;
       max-width: min(30ch, 34cqi);
-      padding: 4px 10px;
+      padding: var(--space-1) 10px;
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
       background: transparent;
       color: var(--text-muted);
-      font-size: 13px;
+      font-size: var(--fs-sm);
       line-height: 1.4;
       white-space: nowrap;
     }
@@ -33,11 +33,11 @@
     }
   }
   @container study (max-width: 640px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       /* The ~420px DSH sidebar: keep the folder visible, drop the icon. */
       .library-chip {
         max-width: 16ch;
-        padding: 3px 8px;
+        padding: 3px var(--space-2);
       }
       .library-chip svg {
         display: none;

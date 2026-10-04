@@ -6,27 +6,23 @@
        (review explanations and Q&A, results, notes, lessons, the skeleton detail pane, the exam report). A block opts in with the
        .study-reading class (ui/reading-settings/ReadingSettings.jsx sets the variables and the face / tone attributes on it); only
        TEXT elements follow, never a control, and nothing goes below the 15px floor. Tokens only. */
-    /* The Aa popover: the same rules the reader has, so it looks the same wherever it is mounted. */
+    /* The Aa popover (the reader toolbar and every reading block mount it): its look is the shared panel surface of components/overlays.css. */
     .reader-popover { position: relative; display: inline-flex; }
     .reader-popover__panel {
       position: absolute;
       top: calc(100% + 8px);
       right: 0;
-      z-index: 30;
+      z-index: var(--z-popover);
       display: grid;
       gap: var(--space-4);
       box-sizing: border-box;
       width: min(304px, calc(100vw - var(--space-4)));
       overflow-y: auto;
       padding: var(--space-4);
-      border: 1px solid var(--line-strong);
-      border-radius: var(--radius);
-      background: var(--bg-raised);
-      box-shadow: var(--shadow-md);
       color: var(--text);
       text-align: left;
       font-size: var(--fs-md);
-      font-weight: 400;
+      font-weight: var(--fw-regular);
       white-space: normal;
     }
     .reader-stepper { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -58,24 +54,24 @@
     .study-reading.study-reading :is(p, li, blockquote, dd, dt, figcaption, .md) {
       font-family: var(--reader-face);
       font-weight: var(--reader-weight, 400);
-      font-size: var(--reader-size, 16px);
+      font-size: var(--reader-size, var(--fs-lg));
       line-height: var(--reading-leading, 1.65);
     }
     .study-reading.study-reading :is(td, th) {
       font-family: var(--reader-face);
       font-weight: var(--reader-weight, 400);
-      font-size: var(--reader-size, 16px);
+      font-size: var(--reader-size, var(--fs-lg));
       line-height: 1.6;
     }
     /* Headings grow with the text but keep their own face; they are never smaller than the body. */
-    .study-reading.study-reading h3 { font-size: calc(var(--reader-size, 16px) + 1px); }
-    .study-reading.study-reading :is(h4, h5) { font-size: var(--reader-size, 16px); }
+    .study-reading.study-reading h3 { font-size: calc(var(--reader-size, var(--fs-lg)) + var(--fs-xs)); }
+    .study-reading.study-reading :is(h4, h5) { font-size: var(--reader-size, var(--fs-lg)); }
     .study-reading :is(.md-table, table) { max-width: 100%; }
     /* An article that is all text (a lesson): the container itself is the text, and its headings scale with it. */
     .study-reading--prose.study-reading {
       font-family: var(--reader-face);
       font-weight: var(--reader-weight, 400);
-      font-size: var(--reader-size, 16px);
+      font-size: var(--reader-size, var(--fs-lg));
       line-height: var(--reader-leading, 1.8);
     }
     .study-reading--prose.study-reading h1 { font-size: 1.7em; }
@@ -91,5 +87,11 @@
       color: var(--paper-ink);
     }
     .study-reading[data-tone='paper'] :is(.md th, th) { background: var(--paper-rule); }
+  }
+  /* In a narrow reader the Aa panel opens towards the text, not off the right edge. */
+  @container reader (max-width: 899.98px) {
+    :is(.study-app, .study-seat) {
+      .reader-popover__panel { right: auto; left: 0; max-width: calc(100cqw - var(--space-6)); }
+    }
   }
 }

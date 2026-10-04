@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.components {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* ── Tabs and DisclosureToggle ───────────────────────────────────────────
        Tokens only; the look is the existing quiet controls. The caret turns with
        transform (the one thing that moves) and reduced motion removes the turn.
@@ -45,6 +45,8 @@
     :where(.sh-tab-anchor) > button.sh-tab { flex: 1 1 auto; }
     :where(.sh-tab__note) { color: var(--text-faint); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
     :where(.sh-tabpanel):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+  }
+  :is(.study-app, .study-seat) {
     .sh-disclosure-toggle .sh-icon { transition: transform var(--dur-fast) var(--ease); }
     .sh-disclosure-toggle[aria-expanded="true"] .sh-icon { transform: rotate(90deg); }
     /* The same caret inside a button that is itself the fold toggle (a text row). */

@@ -13,10 +13,10 @@
     .source-doc__line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
     .source-doc__line > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
     .source-doc .source-main { align-items: flex-start; gap: var(--space-3); }
-    .source-doc .source-main > span { display: grid; gap: 2px; min-width: 0; }
+    .source-doc .source-main > span { display: grid; gap: var(--space-half); min-width: 0; }
     .source-doc .source-main strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
-    .source-doc .source-main small { margin-top: 2px; font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .source-doc__icon { flex: none; margin-top: 2px; color: var(--accent-text); }
+    .source-doc .source-main small { margin-top: var(--space-half); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
     .source-doc__actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; min-width: 0; align-items: center; gap: var(--space-2); }
     .source-doc__actions > .sh-btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
     .source-doc__actions .source-row-actions { position: relative; max-width: none; }
@@ -33,23 +33,18 @@
       position: absolute;
       top: 100%;
       right: 0;
-      z-index: 3;
+      z-index: var(--z-sticky);
       display: grid;
-      gap: 2px;
+      gap: var(--space-half);
       min-width: 9em;
-      margin-top: 4px;
-      padding: var(--space-1);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: var(--bg-raised);
-      box-shadow: var(--shadow-md);
+      margin-top: var(--space-1);
     }
     .source-doc__actions .source-row-menu button { display: block; width: 100%; margin: 0; text-align: left; white-space: nowrap; }
-    .source-doc__pages { margin: var(--space-2) 0 0 calc(var(--space-3) + 20px + var(--space-3)); }
+    .source-doc__pages { margin: var(--space-2) 0 0 calc(var(--space-3) + var(--space-5) + var(--space-3)); }
     .source-doc__pages-toggle .sh-icon:last-child { transition: transform 0.18s var(--ease); }
     .source-doc__pages-toggle[aria-expanded="true"] .sh-icon:last-child { transform: rotate(90deg); }
     /* The list of pages/chapters of a document scrolls inside its own box: a 400-page book must not push the whole page down. */
-    .source-doc__page-list { display: grid; gap: 2px; margin: var(--space-1) 0 0; padding: 0 var(--space-1) 0 0; list-style: none; max-height: min(60vh, 30rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .source-doc__page-list { display: grid; gap: var(--space-half); margin: var(--space-1) 0 0; padding: 0 var(--space-1) 0 0; list-style: none; max-height: min(60vh, 30rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
     /* A chapter is one line: the title takes the room (and ellipsises), the size sits at its end, 从这一章出题 keeps its own width. */
     .source-doc__chapters > li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
     .source-doc__chapters > li > button:not(.sh-btn) { flex: 1 1 0; min-width: 0; width: auto; }
@@ -82,12 +77,12 @@
       animation: source-new-in 1.6s var(--ease-out) 1;
     }
     .source-new {
-      padding: 1px 8px;
+      padding: 1px var(--space-2);
       border-radius: var(--radius-pill);
       background: color-mix(in srgb, var(--accent) 16%, transparent);
       color: var(--accent-text);
       font-size: var(--fs-xs);
-      font-weight: 650;
+      font-weight: var(--fw-strong);
     }
     .sources-empty { display: grid; gap: var(--space-4); margin-top: var(--space-2); }
     .sources-empty__intro h2 { margin: 0 0 var(--space-1); font-size: var(--fs-xl); }

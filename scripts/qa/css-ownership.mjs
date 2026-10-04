@@ -9,6 +9,10 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT, cssFiles, parseTree, splitSelectorList } from './css-tools.mjs';
 
+/* Sheets that exist to reach across features, so they name classes of other sheets on purpose: the theme and paper tokens, the motion
+   switches, the appearance themes and accent presets, the shared floating surface, and the English-layout adjustments. */
+export const CROSS_CUTTING = ['ui/tokens.css', 'ui/paper.css', 'ui/motion.css', 'ui/appearance-themes.css', 'ui/accent.css', 'ui/components/overlays.css', 'ui/language.css'];
+
 export const ALLOW_FILE = join(ROOT, 'tests/fixtures/css-ownership-allow.json');
 
 /* The subject classes of one selector entry: the classes of its last compound (inside :is()/:where() they count too, `:not()` does not). */
@@ -31,13 +35,14 @@ export function subjectClasses(entry) {
 export function classOwners(root = ROOT) {
   const map = new Map();
   for (const file of cssFiles(root)) {
+    if (CROSS_CUTTING.includes(file)) continue;
     const tree = parseTree(readFileSync(join(root, file), 'utf8'));
     const visit = (node) => {
       for (const child of node.children) {
         if (child.kind === 'rule') {
           for (const entry of splitSelectorList(child.prelude.replace(/^&\s*/, ''))) {
-            if (/^(\.study-app|\.study-seat|:is\(\.study-app, \.study-seat\))$/.test(entry.trim())) continue;
-            for (const name of subjectClasses(entry.replace(/^:is\(\.study-app, \.study-seat\)\s*/, '').replace(/^\.study-(app|seat)\s*/, ''))) {
+            if (/^(\.study-app|\.study-seat|:is\(\.study-app, \.study-seat\)|:where\(\.study-app, \.study-seat\))$/.test(entry.trim())) continue;
+            for (const name of subjectClasses(entry.replace(/^:(is|where)\(\.study-app, \.study-seat\)\s*/, '').replace(/^\.study-(app|seat)\s*/, ''))) {
               if (!map.has(name)) map.set(name, new Set());
               map.get(name).add(file);
             }

@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .md,
     .md p,
     .md li {
@@ -42,28 +42,28 @@
       justify-content: var(--study-formula-align, center);
     }
     .md-math-display:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
-    .md-math math { font-size: 1em; font-weight: 400; font-family: math, "Cambria Math", serif; }
+    .md-math math { font-size: 1em; font-weight: var(--fw-regular); font-family: math, "Cambria Math", serif; }
     /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
     .md-math math:has(mphantom) { padding-inline-end: 0.2em; }
     .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
     .md-math-source { white-space: pre-wrap; }
     .md-image { display: inline-block; max-width: 100%; margin-block: 0.5em; vertical-align: middle; }
-    .md-image img { display: block; max-width: 100%; max-height: var(--study-image-height, 360px); width: auto; height: auto; object-fit: contain; border-radius: 6px; margin-inline: auto; }
+    .md-image img { display: block; max-width: 100%; max-height: var(--study-image-height, 360px); width: auto; height: auto; object-fit: contain; border-radius: var(--radius-sm); margin-inline: auto; }
     .md-image-open, .md-image-static {
       max-width: 100%;
-      padding: 8px;
+      padding: var(--space-2);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--bg-surface);
     }
     .md-image-open { display: block; cursor: zoom-in; text-align: left; }
     .md-image-open:hover { background: var(--bg-hover); border-color: var(--line-strong); }
-    .md-image-info { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
+    .md-image-info { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); }
     .md-image-caption { display: block; min-width: 0; font-family: var(--font-ui); font-size: var(--fs-sm); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
-    .md-image-static > .md-image-caption { margin-top: 8px; }
-    .md-image-action { margin-left: auto; font-size: var(--fs-xs); font-weight: 500; color: var(--text); }
-    .md-image-fallback { display: inline-grid; gap: 3px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); color: var(--text-muted); }
-    .md-image-dialog-canvas { margin-top: 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--bg-sunken); }
+    .md-image-static > .md-image-caption { margin-top: var(--space-2); }
+    .md-image-action { margin-left: auto; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--text); }
+    .md-image-fallback { display: inline-grid; gap: 3px; padding: 10px var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); color: var(--text-muted); }
+    .md-image-dialog-canvas { margin-top: var(--space-4); padding: var(--space-3); border-radius: var(--radius-sm); background: var(--bg-sunken); }
     .md > :first-child {
       margin-top: 0;
     }
@@ -90,7 +90,7 @@
       color: var(--accent-soft);
     }
     .md strong {
-      font-weight: 620;
+      font-weight: var(--fw-strong);
       color: var(--text);
     }
     .md em {
@@ -103,18 +103,18 @@
       font-family: "JetBrains Mono", Consolas, monospace;
       font-size: 1em;
       padding: 0.1em 0.38em;
-      border-radius: 5px;
+      border-radius: var(--radius-xs);
       background: var(--bg-sunken);
       border: 1px solid var(--line);
     }
     .md .md-code {
       margin: 0.4em 0 0.9em;
-      padding: 12px 14px;
-      border-radius: 9px;
+      padding: var(--space-3) 14px;
+      border-radius: var(--radius-sm);
       background: var(--bg-sunken);
       border: 1px solid var(--line);
       overflow-x: auto;
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.6;
       white-space: pre;
     }
@@ -126,14 +126,14 @@
     }
     .md blockquote {
       margin: 0.4em 0 0.9em;
-      padding: 2px 0 2px 12px;
+      padding: var(--space-half) 0 var(--space-half) var(--space-3);
       border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
       color: var(--text-dim);
     }
     .md .md-heading {
       margin: 0.9em 0 0.4em;
       font-size: 1.05em;
-      font-weight: 620;
+      font-weight: var(--fw-strong);
       line-height: 1.5;
     }
     .md hr {
@@ -168,7 +168,7 @@
     }
     .md th {
       background: var(--bg-surface);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
     }
     .md .md-color strong,
     .md .md-color em,
@@ -178,9 +178,9 @@
     .md details.md-details {
       margin: 0.5em 0 0.9em;
       border: 1px solid var(--line);
-      border-radius: 9px;
+      border-radius: var(--radius-sm);
       background: var(--bg-surface);
-      padding: 0 12px;
+      padding: 0 var(--space-3);
     }
     .md details.md-details > summary {
       cursor: pointer;
@@ -200,7 +200,7 @@
     }
     .md-title {
       font-size: var(--fs-lg);
-      font-weight: 550;
+      font-weight: var(--fw-medium);
       margin: 6px 0 10px;
     }
   }

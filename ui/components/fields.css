@@ -40,6 +40,7 @@
     /* ── Checkbox / Switch rows ────────────────────────────────────────── */
     .sh-check { position: relative; display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
     .sh-check.is-disabled { cursor: default; opacity: 0.6; }
+    .sh-check__input:focus-visible, .sh-radio-card__input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     .sh-check__input { flex: none; width: 1.15em; height: 1.15em; min-width: 0; margin: 0.1em 0 0; padding: 0; accent-color: var(--accent); }
     .sh-check__text { display: grid; gap: var(--space-half); min-width: 0; }
     .sh-check__label { font-weight: var(--fw-medium); }

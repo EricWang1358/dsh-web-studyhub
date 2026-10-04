@@ -1,45 +1,45 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .review-heading {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       padding: 22px 28px 0;
-      gap: 20px;
+      gap: var(--space-5);
     }
     .review-detour {
       display: block;
       max-width: 100%;
       margin: 14px auto 0;
-      padding: 4px 12px;
+      padding: var(--space-1) var(--space-3);
       border: 1px solid var(--accent-soft);
-      border-radius: 999px;
+      border-radius: var(--radius-pill);
       background: color-mix(in srgb, var(--accent) 7%, transparent);
       color: var(--text);
-      font-size: 15px;
+      font-size: var(--fs-md);
       text-align: left;
       overflow-wrap: anywhere;
-      animation: follow-in 0.3s var(--ease-out) both;
+      animation: follow-in var(--dur-slow) var(--ease-out) both;
     }
     .review-detour:hover:not(:disabled) {
       background: color-mix(in srgb, var(--accent) 14%, transparent);
     }
     .review-flow-origin {
-      margin: 0 0 4px;
-      font-size: 15px;
+      margin: 0 0 var(--space-1);
+      font-size: var(--fs-md);
       letter-spacing: 0.04em;
       color: var(--text-muted);
     }
     .review-heading h1 {
-      font-size: 18px;
-      font-weight: 650;
-      margin-bottom: 8px;
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-strong);
+      margin-bottom: var(--space-2);
       letter-spacing: -0.01em;
     }
     .review-heading .pill {
-      padding: 4px 11px;
+      padding: var(--space-1) 11px;
       border-color: var(--line);
       background: transparent;
       color: var(--text-muted);
@@ -49,7 +49,7 @@
     }
     .review-heading > button,
     .review-return {
-      font-size: 15px;
+      font-size: var(--fs-md);
       border-color: transparent;
       background: transparent;
       color: var(--text-dim);
@@ -63,15 +63,15 @@
     }
   }
   @container study (max-width:720px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .review-heading {
         padding: 21px 17px 0;
       }
       .review-heading h1 {
-        font-size: 20px;
+        font-size: var(--fs-xl);
       }
       .review-heading > button {
-        font-size: 15px;
+        font-size: var(--fs-md);
         padding: 5px 0;
         white-space: nowrap;
       }
@@ -79,12 +79,12 @@
       .review-return-short { display: inline; }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* Rail column spans the whole review page; everything else sits beside it. */
     .review-page.has-rail {
       display: grid;
       grid-template-columns: 36px minmax(0, 1fr);
-      column-gap: 12px;
+      column-gap: var(--space-3);
       padding-left: 14px;
       align-items: start;
     }
@@ -108,7 +108,7 @@
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: none;
-      padding: 8px 0;
+      padding: var(--space-2) 0;
     }
     .review-navigator::-webkit-scrollbar { display: none; }
     .review-tick {
@@ -120,7 +120,7 @@
       min-height: 16px;
       padding: 0;
       border: 0;
-      border-radius: 3px;
+      border-radius: var(--radius-xs);
       background: transparent;
       box-shadow: none;
     }
@@ -139,7 +139,7 @@
     .review-tick .lv-new { --tick: color-mix(in srgb, var(--text) 34%, transparent); }
     .review-tick .lv-weak { --tick: var(--bad); }
     .review-tick .lv-learning { --tick: var(--warn); }
-    .review-tick .lv-familiar { --tick: color-mix(in srgb, var(--ok) 62%, transparent); }
+    .review-tick .lv-familiar { --tick: var(--ok-mid); }
     .review-tick .lv-mastered { --tick: var(--ok); }
     .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
     .review-tick:hover .review-tick-line { width: 15px; }
@@ -147,14 +147,14 @@
     .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
   }
   @container study (max-width: 600px) {
-    :is(.study-app, .study-seat) {
-      .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: 4px; padding-left: 6px; padding-right: 12px; }
+    :where(.study-app, .study-seat) {
+      .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--space-1); padding-left: 6px; padding-right: var(--space-3); }
       .review-tick { width: 28px; height: 24px; }
       .review-body > .question-area { width: 100%; min-width: 0; }
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .review-tick-line { transition: none; }
     }
   }

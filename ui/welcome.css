@@ -10,19 +10,21 @@
       max-width: 980px;
       padding-top: 48px;
     }
+  }
+  :where(.study-app, .study-seat) {
     .welcome__intro { max-width: 640px; margin-bottom: 28px; }
     .welcome__eyebrow {
       margin: 0 0 10px;
       color: var(--accent-text);
       font-size: var(--fs-sm);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       letter-spacing: 0.06em;
     }
     .welcome__title {
-      margin: 0 0 12px;
+      margin: 0 0 var(--space-3);
       font-family: var(--font-display);
       font-size: var(--fs-3xl);
-      font-weight: 700;
+      font-weight: var(--fw-strong);
       line-height: var(--lh-tight);
       letter-spacing: -0.02em;
     }
@@ -56,7 +58,7 @@
       flex-direction: column;
       gap: var(--space-2);
       min-width: 0;
-      padding: 22px 22px 20px;
+      padding: 22px 22px var(--space-5);
       border: 1px solid var(--line);
       border-radius: var(--radius-card);
       background: var(--bg-surface);
@@ -73,8 +75,8 @@
       place-items: center;
       width: 40px;
       height: 40px;
-      margin-bottom: 4px;
-      border-radius: 12px;
+      margin-bottom: var(--space-1);
+      border-radius: var(--radius);
       background: color-mix(in srgb, var(--text) 7%, transparent);
       color: var(--text);
     }
@@ -86,7 +88,7 @@
       margin: 0;
       font-family: var(--font-display);
       font-size: var(--fs-xl);
-      font-weight: 650;
+      font-weight: var(--fw-strong);
       line-height: var(--lh-tight);
     }
     .welcome-card__text {
@@ -112,6 +114,8 @@
     /* "Later" is the quiet way out, not a call to action. */
     .welcome__footer .sh-btn--link { color: var(--text-muted); }
     .welcome__footer .sh-btn--link:hover { color: var(--text); }
+  }
+  :is(.study-app, .study-seat) {
     /* The sample banner rides at the top of the home page. */
     .sample-banner {
       max-width: 1200px;
@@ -123,10 +127,14 @@
   @container study (max-width: 760px) {
     :is(.study-app, .study-seat) {
       .welcome { padding-top: 28px; }
+    }
+    :where(.study-app, .study-seat) {
       .welcome__choices { grid-template-columns: minmax(0, 1fr); }
       .welcome__title { font-size: var(--fs-2xl); }
       .welcome__lead { font-size: var(--fs-md); }
       .welcome__footer { justify-content: flex-start; }
+    }
+    :is(.study-app, .study-seat) {
       .sample-banner { width: calc(100% - 32px); }
     }
   }

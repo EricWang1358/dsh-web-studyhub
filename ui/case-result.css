@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* Rubric grading results and case paper reports (WP12). Tokens only. */
     .rubric-result {
       display: grid;
@@ -45,10 +45,10 @@
     }
     .rubric-band {
       justify-self: start;
-      padding: 2px var(--space-2);
+      padding: var(--space-half) var(--space-2);
       border-radius: var(--radius-pill);
       font-size: var(--fs-xs);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       border: 1px solid currentColor;
     }
     .rubric-band.band-excellent, .rubric-band.band-good { color: var(--ok); }
@@ -114,7 +114,7 @@
     .rubric-block small {
       color: var(--text-muted);
       font-size: var(--fs-xs);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       letter-spacing: 0.02em;
     }
     .rubric-block p, .rubric-block ul {
@@ -214,7 +214,7 @@
       border: 1px solid var(--line);
       background: var(--bg-surface);
     }
-    .case-report__n { font-weight: 600; color: var(--text); white-space: nowrap; }
+    .case-report__n { font-weight: var(--fw-strong); color: var(--text); white-space: nowrap; }
     .case-report__prompt {
       min-width: 0;
       overflow: hidden;
@@ -225,10 +225,10 @@
     }
     .case-report__marks {
       font-variant-numeric: tabular-nums;
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       color: var(--text);
     }
-    .case-report__marks small { color: var(--text-muted); font-weight: 400; }
+    .case-report__marks small { color: var(--text-muted); font-weight: var(--fw-regular); }
     .case-report__pace {
       grid-column: 2 / -1;
       color: var(--text-muted);
@@ -247,7 +247,7 @@
       border-left: 3px solid var(--warn);
       background: var(--bg-surface);
     }
-    .case-report__weak li div { display: grid; gap: 2px; }
+    .case-report__weak li div { display: grid; gap: var(--space-half); }
     .case-report__weak small { color: var(--text-muted); font-size: var(--fs-xs); }
     .case-report__actions {
       display: flex;
@@ -260,7 +260,7 @@
       display: inline-flex;
       align-items: center;
       gap: var(--space-1);
-      padding: 2px var(--space-2);
+      padding: var(--space-half) var(--space-2);
       border-radius: var(--radius-pill);
       border: 1px solid var(--line);
       background: var(--bg-raised);
@@ -298,7 +298,7 @@
     .rubric-skills__trend {
       display: inline-flex;
       align-items: flex-end;
-      gap: 2px;
+      gap: var(--space-half);
       height: 18px;
       color: var(--text-muted);
       font-size: var(--fs-xs);
@@ -309,14 +309,14 @@
       height: var(--h);
       min-height: 2px;
       align-self: flex-end;
-      border-radius: 1px;
+      border-radius: var(--radius-xs);
       background: var(--accent-soft);
       margin-right: 1px;
     }
     .rubric-skills__trend i:last-of-type { margin-right: var(--space-2); }
   }
   @container study (max-width: 560px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .rubric-result__head, .case-report__hero { flex-direction: column; align-items: flex-start; }
       .case-report__questions li { grid-template-columns: minmax(0, 1fr) auto; }
       .case-report__prompt { grid-column: 1 / -1; white-space: normal; }

@@ -10,7 +10,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .today-card,
       .today-stack::before,
       .today-stack::after,

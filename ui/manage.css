@@ -18,13 +18,13 @@
     .manage-actions button { flex: 0 0 auto; white-space: nowrap; }
     .manage-meta { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     .manage-chip {
-      display: inline-block; padding: 2px 10px; border: 1px solid var(--line); border-radius: var(--radius-pill);
+      display: inline-block; padding: var(--space-half) 10px; border: 1px solid var(--line); border-radius: var(--radius-pill);
       color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); white-space: nowrap;
     }
-    .manage-chip--warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); color: var(--warn); }
+    .manage-chip--warn { border-color: var(--warn-line); color: var(--warn); }
     /* Labelled field rows: label above, control + button on one line. */
-    .manage-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-md); font-weight: 600; }
-    .manage-label small { color: var(--text-muted); font-size: var(--fs-sm); font-weight: 400; font-variant-numeric: tabular-nums; }
+    .manage-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
+    .manage-label small { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-regular); font-variant-numeric: tabular-nums; }
     .manage-row { display: flex; align-items: stretch; gap: var(--space-2); }
     .manage-row > :is(input, select) { flex: 1 1 auto; min-width: 0; }
     .manage-row > button { flex: 0 0 auto; white-space: nowrap; }
@@ -39,10 +39,10 @@
     /* Topic toggles: wrapping pills instead of bare checkboxes in a stretched row. */
     .manage-topics { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     .manage-topic {
-      display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-2); max-width: 100%; margin: 0; padding: 6px 12px;
+      display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-2); max-width: 100%; margin: 0; padding: 6px var(--space-3);
       border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent;
       color: var(--text-muted); font-size: var(--fs-md); line-height: var(--lh-snug); cursor: pointer;
-      transition: border-color 0.15s var(--ease), background 0.15s var(--ease), color 0.15s var(--ease);
+      transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
     }
     .manage-topic:hover { border-color: var(--line-strong); color: var(--text); }
     .manage-topic:has(input:checked) { border-color: var(--accent); background: var(--bg-selected); color: var(--text); }
@@ -61,7 +61,7 @@
     .manage-card__prompt { margin: 0; font-size: var(--fs-md); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .manage-card__body p { margin: 0; font-size: var(--fs-sm); }
     .manage-card__actions { flex: 0 0 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
-    .manage-card__actions button { padding: 6px 12px; font-size: var(--fs-md); white-space: nowrap; }
+    .manage-card__actions button { padding: 6px var(--space-3); font-size: var(--fs-md); white-space: nowrap; }
   }
   @media (max-width: 720px) {
     :is(.study-app, .study-seat) {

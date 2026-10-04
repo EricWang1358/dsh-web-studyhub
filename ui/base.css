@@ -12,18 +12,17 @@
   }
   /* Dark is the product identity, so `auto` stays dark by default. Learners who
      want the light palette opt in explicitly via the theme toggle. */
-  /* Structural layer. :where() keeps every rule inside at the specificity of
-     what it writes — the bare element defaults below (button, label, h1..p)
-     must not out-rank the single-class view rules in views.css / graph.css,
-     which are injected separately and used to need (0,2,0)+ patches to win. */
+  /* The element layer (#137): typography, form-control fonts and the plain look of a raw <button>, <input>, <label> and <small>. It sits
+     in the lowest cascade layer, so every component and feature rule outranks it; the hover / disabled / focus states are the block
+     below the layer, because those used to out-rank a feature's own rules. */
   .study-app {
     font-family: var(--font-ui);
     color: var(--text);
     background: transparent;
     font-synthesis: none;
-    font-size: 15px;
+    font-size: var(--fs-md);
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     * {
       box-sizing: border-box;
     }
@@ -41,24 +40,8 @@
       border-radius: var(--radius-sm);
       padding: 9px 14px;
       transition:
-        background 0.15s var(--ease),
-        border-color 0.15s var(--ease);
-    }
-    & button:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--text) 11%, transparent);
-      border-color: var(--line-strong);
-    }
-    & button:disabled {
-      cursor: default;
-      opacity: 0.4;
-    }
-    & button:focus-visible,
-    & a:focus-visible,
-    & input:focus-visible,
-    & textarea:focus-visible,
-    & select:focus-visible {
-      outline: 2px solid var(--accent-soft);
-      outline-offset: 3px;
+        background var(--dur-fast) var(--ease),
+        border-color var(--dur-fast) var(--ease);
     }
     & input,
     & textarea,
@@ -67,21 +50,13 @@
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
       background: var(--bg-sunken);
-      padding: 12px;
+      padding: var(--space-3);
       color: var(--text);
       line-height: 1.6;
       transition:
-        border-color 0.15s var(--ease),
-        box-shadow 0.15s var(--ease),
-        background 0.15s var(--ease);
-    }
-    & input:focus,
-    & textarea:focus,
-    & select:focus {
-      border-color: var(--accent-soft);
-      background: var(--bg-surface);
-      box-shadow: var(--ring);
-      outline: none;
+        border-color var(--dur-fast) var(--ease),
+        box-shadow var(--dur-fast) var(--ease),
+        background var(--dur-fast) var(--ease);
     }
     & input::placeholder,
     & textarea::placeholder {
@@ -90,15 +65,10 @@
     & textarea {
       resize: vertical;
     }
-    & input[type="checkbox"] {
-      width: 17px;
-      height: 17px;
-      accent-color: var(--accent);
-    }
     & label {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: var(--space-2);
       margin: 19px 0;
       color: var(--text);
     }
@@ -108,7 +78,7 @@
       color: var(--text-muted);
     }
     & small {
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.6;
     }
     & h1,
@@ -121,7 +91,7 @@
     & h1 {
       font-family: var(--font-display);
       font-size: var(--fs-3xl);
-      font-weight: 650;
+      font-weight: var(--fw-strong);
       letter-spacing: -0.02em;
       line-height: 1.35;
       margin-bottom: 10px;
@@ -129,21 +99,21 @@
     & h2 {
       font-family: var(--font-display);
       font-size: var(--fs-xl);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       letter-spacing: -0.01em;
     }
     & h3 {
-      font-size: 18px;
-      font-weight: 550;
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-medium);
     }
     & h4 {
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     & p {
       line-height: 1.8;
     }
     & strong {
-      font-weight: 550;
+      font-weight: var(--fw-medium);
     }
   }
   .study-app {
@@ -158,15 +128,15 @@
     isolation: isolate;
     container-name: study;
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .icon {
-      font-size: 21px;
+      font-size: var(--fs-2xl);
       display: inline-flex;
       align-items: center;
       flex-shrink: 0;
     }
     .eyebrow {
-      font-size: 15px;
+      font-size: var(--fs-md);
       letter-spacing: 2px;
       color: var(--text-muted);
       margin-bottom: 13px;
@@ -176,15 +146,15 @@
       border: 0;
       border-top: 1px solid var(--line);
       padding: 22px 0;
-      margin: 30px 0 12px;
+      margin: 30px 0 var(--space-3);
     }
     & legend {
-      font-size: 15px;
-      padding-right: 16px;
+      font-size: var(--fs-md);
+      padding-right: var(--space-4);
       color: var(--text-dim);
     }
     .small {
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
   }
   .study-app::-webkit-scrollbar {
@@ -196,34 +166,24 @@
   }
   .study-app::-webkit-scrollbar-thumb {
     background: var(--line-strong);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border: 2px solid transparent;
     background-clip: padding-box;
   }
   .study-app::-webkit-scrollbar-thumb:hover {
     background: var(--decor-faint);
   }
-  :is(.study-app, .study-seat) {
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
-  }
   @container study (max-width:1050px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       & h1 {
-        font-size: 24px;
+        font-size: var(--fs-2xl);
       }
     }
   }
   @container study (max-width:720px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .eyebrow {
-        font-size: 15px;
+        font-size: var(--fs-md);
       }
     }
   }
@@ -236,17 +196,8 @@
   .study-app {
     background-color: var(--bg-canvas);
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* ── Focus ring ──────────────────────────────────────────────────────── */
-    & button:focus-visible,
-    & a:focus-visible,
-    & input:focus-visible,
-    & textarea:focus-visible,
-    & select:focus-visible {
-      outline: 2px solid var(--accent-soft);
-      outline-offset: 2px;
-      box-shadow: var(--ring);
-    }
   }
   /* 界面大小 / 界面字体 (设置 › 界面): the whole interface scales with CSS zoom (text, controls and spacing together; the app box keeps filling the window), and the
      typeface of its text switches by attribute. 100% and the system typeface are the defaults and need no rule. Reading text keeps its own Aa settings. */
@@ -257,6 +208,52 @@
   .study-app[data-ui-scale='150'] { --study-ui-scale: 1.5; }
   .study-app[data-ui-scale='175'] { --study-ui-scale: 1.75; }
   .study-app[data-ui-scale='200'] { --study-ui-scale: 2; }
+}
+
+/* The element states (#137). A raw <button>, <input> or link keeps its hover, disabled and focus look, and these rules beat the
+   plain class rules of a feature (a feature's own button background used to lose to the hover rule: it still does). They sit in the
+   features layer for that reason, and an element that carries an sh- class is left out: the primitives own their states. */
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    & button:where(:not([class^="sh-"], [class*=" sh-"])):hover:not(:disabled) {
+      background: color-mix(in srgb, var(--text) 11%, transparent);
+      border-color: var(--line-strong);
+    }
+    & button:where(:not([class^="sh-"], [class*=" sh-"])):disabled {
+      cursor: default;
+      opacity: 0.4;
+    }
+    & button:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & a:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & input:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 3px;
+    }
+    & input:where(:not([class^="sh-"], [class*=" sh-"])):focus,
+    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus,
+    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus {
+      border-color: var(--accent-soft);
+      background: var(--bg-surface);
+      box-shadow: var(--ring);
+      outline: none;
+    }
+    & input:where(:not([class^="sh-"], [class*=" sh-"]))[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--accent);
+    }
+    & button:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & a:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & input:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
+      box-shadow: var(--ring);
+    }
+  }
 }
 
 /* Keyframes live at the top level: browsers ignore @keyframes nested inside

@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .source-row {
       display: flex;
       align-items: center;
@@ -10,7 +10,7 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
       padding: 14px;
-      margin: 12px 0;
+      margin: var(--space-3) 0;
       width: 100%;
       text-align: left;
     }
@@ -39,16 +39,16 @@
       color: var(--accent-soft);
     }
     /* .page-scope (the course-scope control): ui/course-active.css, so every page shows it the same. */
-    .source-organize { margin: 16px 0; }
+    .source-organize { margin: var(--space-4) 0; }
     .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
     .source-organize > label { max-width: 560px; }
-    .source-organization-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .source-course-proposals { margin: 16px 0; padding-left: 16px; border-left: 2px solid var(--line); }
+    .source-organization-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .source-course-proposals { margin: var(--space-4) 0; padding-left: var(--space-4); border-left: 2px solid var(--line); }
     .source-row > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
-    .source-proposal-select { display: flex; align-items: center; gap: 8px; }
+    .source-proposal-select { display: flex; align-items: center; gap: var(--space-2); }
     .source-proposal-select input { width: auto; }
     .source-row-actions { max-width: 150px; flex: 0 0 auto; }
-    .source-row-actions button { display: block; margin-top: 8px; max-width: 100%; }
+    .source-row-actions button { display: block; margin-top: var(--space-2); max-width: 100%; }
     /* Raw attachment paths have no spaces; let them wrap instead of overflowing. */
     .source-main strong {
       overflow-wrap: anywhere;
@@ -61,12 +61,12 @@
       margin: 10px 0;
     }
     .source-group.open {
-      padding-bottom: 4px;
+      padding-bottom: var(--space-1);
     }
     .source-group .source-row {
-      margin: 0 10px 8px;
+      margin: 0 10px var(--space-2);
       width: auto;
-      padding: 10px 12px;
+      padding: 10px var(--space-3);
       border-color: var(--line-soft);
       background: var(--bg-sunken);
     }
@@ -78,7 +78,7 @@
       align-items: center;
       gap: 10px;
       width: 100%;
-      padding: 13px 16px;
+      padding: 13px var(--space-4);
       border: 0;
       border-radius: var(--radius);
       background: transparent;
@@ -89,7 +89,7 @@
     }
     .source-group-head small {
       margin-left: auto;
-      font-size: 15px;
+      font-size: var(--fs-md);
       white-space: nowrap;
     }
     .source-group-caret {
@@ -104,37 +104,37 @@
     .source-group-tag {
       padding: 1px 7px;
       border: 1px solid var(--line-soft);
-      border-radius: 999px;
+      border-radius: var(--radius-pill);
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .pdf-import {
-      padding: 20px;
+      padding: var(--space-5);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      margin: 20px 0;
+      margin: var(--space-5) 0;
     }
     .pdf-import details {
       max-height: 240px;
       overflow: auto;
       overflow-wrap: anywhere;
-      margin-top: 12px;
+      margin-top: var(--space-3);
     }
     .source-mode {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
       gap: 10px;
-      margin: 18px 0 8px;
+      margin: 18px 0 var(--space-2);
     }
     .source-tab {
       display: grid;
-      gap: 4px;
+      gap: var(--space-1);
       text-align: left;
-      padding: 14px 16px;
+      padding: 14px var(--space-4);
       border-radius: var(--radius);
     }
     .source-tab small {
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--text-muted);
     }
     .source-tab.active {
@@ -147,23 +147,23 @@
     }
     .source-text {
       font-family: inherit;
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.9;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       color: var(--text-dim);
     }
     .highlight-quote {
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.9;
-      margin: 0 0 24px;
+      margin: 0 0 var(--space-6);
       border-left: 3px solid var(--accent-soft);
-      padding: 16px;
+      padding: var(--space-4);
       background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
     }
   }
   @container study (max-width:720px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .source-row {
         padding: 10px;
       }
@@ -175,12 +175,12 @@
       }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* Citation hit inside the source modal: one highlighted passage. */
     .source-hit {
       background: var(--accent-glow);
       color: inherit;
-      border-radius: 3px;
+      border-radius: var(--radius-xs);
       padding: 1px 0;
       box-shadow: 0 0 0 2px var(--accent-glow);
     }

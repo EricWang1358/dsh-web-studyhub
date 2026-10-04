@@ -8,8 +8,8 @@
       border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
     .mineru-route-panel.is-compact { padding: var(--space-4); margin: var(--space-3) 0; }
     .mineru-route-panel__head { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
-    .mineru-route-panel__head .sh-icon { flex: none; margin-top: 2px; color: var(--accent-text); }
-    .mineru-route-panel__head h3 { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: 650; line-height: var(--lh-tight); }
+    .mineru-route-panel__head .sh-icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
+    .mineru-route-panel__head h3 { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .mineru-route-panel__head p { margin: var(--space-1) 0 0; max-width: 70ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
     .mineru-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
     .mineru-pick small, .mineru-reading small { color: var(--text-muted); font-size: var(--fs-xs); }
@@ -25,7 +25,7 @@
     .mineru-plan__why { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .mineru-routes { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
-    .mineru-routes > legend { padding: 0; margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+    .mineru-routes > legend { padding: 0; margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .mineru-route { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4);
       border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; }
     .mineru-route:hover { border-color: var(--line-strong); }
@@ -35,15 +35,15 @@
     .mineru-route__body { display: grid; gap: var(--space-1); min-width: 0; }
     .mineru-route__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
     .mineru-route__body small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-    .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-size: var(--fs-sm); }
+    .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ok-ink); font-size: var(--fs-sm); }
     .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .mineru-start .sh-btn { margin: 0; }
     .mineru-privacy { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--warn) 10%, transparent); }
+      background: var(--warn-bg); }
     .mineru-local { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
     .mineru-local .sh-btn, .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
     .mineru-local__summary { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .mineru-local[data-state="ready"] .mineru-local__summary { color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-weight: 600; }
+    .mineru-local[data-state="ready"] .mineru-local__summary { color: var(--ok-ink); font-weight: var(--fw-strong); }
     .mineru-local__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .mineru-local__actions .sh-btn { margin: 0; }
     .mineru-local__steps { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
@@ -68,7 +68,7 @@
     /* The conversion history (解析历史): the rows are the conversion job card's own markup (.job), so they look like every other background job;
        only what a finished record needs is added here. It sits in the MinerU panel and under the running cards on the Sources page. */
     .pdf-history { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
-    .pdf-history__title { margin: 0; color: var(--text); font-size: var(--fs-md, var(--fs-sm)); font-weight: 650; line-height: var(--lh-tight); }
+    .pdf-history__title { margin: 0; color: var(--text); font-size: var(--fs-md, var(--fs-sm)); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .pdf-history__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .pdf-history__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); min-width: 0; }
     .pdf-history__bar small, .pdf-history__note { flex: 1 1 260px; min-width: 0; margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
@@ -77,7 +77,7 @@
     .pdf-history__empty strong { color: var(--text); font-size: var(--fs-sm); }
     .pdf-history__empty p { margin: 0; max-width: 62ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
     .pdf-history__group { display: grid; gap: var(--space-2); min-width: 0; }
-    .pdf-history__day { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; }
+    .pdf-history__day { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
     .pdf-history__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
     .pdf-history__item { min-width: 0; }
     .pdf-history .sh-job.pdf-history__row { background: var(--bg); border-color: var(--line-soft); }
@@ -93,17 +93,17 @@
     /* 运行环境: what does the work. One block on the live card and (collapsed) on the history rows. */
     .pdf-env { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
       background: color-mix(in srgb, var(--text) 5%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-    .pdf-env__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; }
-    .pdf-env__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+    .pdf-env__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .pdf-env__list { display: grid; gap: var(--space-half); margin: 0; padding: 0; list-style: none; min-width: 0; }
     .pdf-env__list li { min-width: 0; overflow-wrap: anywhere; color: var(--text-dim); }
     .pdf-env__service { display: flex; align-items: baseline; gap: var(--space-2); }
     .pdf-env__dot { flex: none; width: 8px; height: 8px; margin-top: 1px; border-radius: 50%; background: var(--text-muted); transform: translateY(0); align-self: center; }
-    .pdf-env__service[data-state="running"] { color: color-mix(in srgb, var(--ok) 75%, var(--text)); }
-    .pdf-env__service[data-state="running"] .pdf-env__dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
-    .pdf-env__service[data-state="stopped"], .pdf-env__warning { color: color-mix(in srgb, var(--bad) 80%, var(--text)); font-weight: 600; }
+    .pdf-env__service[data-state="running"] { color: var(--ok-ink); }
+    .pdf-env__service[data-state="running"] .pdf-env__dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-halo); }
+    .pdf-env__service[data-state="stopped"], .pdf-env__warning { color: var(--bad-ink); font-weight: var(--fw-strong); }
     .pdf-env__service[data-state="stopped"] .pdf-env__dot { background: var(--bad); }
     .pdf-env__service[data-state="unknown"] .pdf-env__dot { background: var(--warn); }
-    .pdf-env__hint { color: color-mix(in srgb, var(--bad) 70%, var(--text)); }
+    .pdf-env__hint { color: var(--bad-ink); }
     .pdf-env__where summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
     .pdf-env__where summary:focus-visible, .pdf-env-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .pdf-env__where p { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
@@ -112,7 +112,7 @@
     .pdf-env-details > summary { cursor: pointer; width: fit-content; color: var(--accent-text); }
     .pdf-env-details .pdf-env { margin-top: var(--space-1); }
     /* The windows: they wrap INSIDE the card in even columns (never run off its edge), with a state each; many of them fold into one line and a toggle. */
-    .pdf-chunks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 2px var(--space-3); min-width: 0; max-width: 100%; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
+    .pdf-chunks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: var(--space-half) var(--space-3); min-width: 0; max-width: 100%; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
     .pdf-chunks li { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
     .pdf-chunks li.is-current { color: var(--text); font-weight: var(--fw-strong); }
     .pdf-chunks__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
@@ -121,25 +121,25 @@
     .pdf-live { display: grid; justify-items: start; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
       background: color-mix(in srgb, var(--accent) 6%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .pdf-live p, .pdf-live small { max-width: 100%; margin: 0; overflow-wrap: anywhere; }
-    .pdf-live__window { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-2); color: var(--text); font-variant-numeric: tabular-nums; }
+    .pdf-live__window { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); color: var(--text); font-variant-numeric: tabular-nums; }
     .pdf-live__window span { color: var(--text-dim); }
     .pdf-live__state { display: flex; align-items: center; gap: var(--space-2); color: var(--text); }
     .pdf-live__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
-    .pdf-live__state[data-state="parsing"] .pdf-live__dot, .pdf-live__state[data-state="starting"] .pdf-live__dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+    .pdf-live__state[data-state="parsing"] .pdf-live__dot, .pdf-live__state[data-state="starting"] .pdf-live__dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-halo); }
     .pdf-live__state[data-state="queued"] .pdf-live__dot, .pdf-live__state[data-state="quiet"] .pdf-live__dot, .pdf-live__state[data-state="unknown"] .pdf-live__dot { background: var(--warn); }
-    .pdf-live__state--warn { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
+    .pdf-live__state--warn { color: var(--bad-ink); }
     .pdf-live__state--warn .pdf-live__dot { background: var(--bad); }
     .pdf-live__advice { color: var(--text-dim); }
-    .pdf-live__advice--warn { color: var(--text); padding-left: var(--space-2); border-left: 3px solid color-mix(in srgb, var(--bad) 55%, transparent); }
+    .pdf-live__advice--warn { color: var(--text); padding-left: var(--space-2); border-left: 3px solid var(--bad-line); }
     .pdf-live__why { min-width: 0; max-width: 100%; }
     .pdf-live__why summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
     .pdf-live__why summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .pdf-live__why p { margin: var(--space-1) 0 0; color: var(--text-dim); max-width: 62ch; }
     .pdf-eta { color: var(--text); font-variant-numeric: tabular-nums; }
-    .pdf-chunks__next { display: block; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .pdf-chunks__next { display: block; margin-top: var(--space-half); font-variant-numeric: tabular-nums; }
     .pdf-env__windows summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
     .pdf-env__windows summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .pdf-env__windows ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 2px var(--space-3); margin: var(--space-1) 0 0; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }
+    .pdf-env__windows ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: var(--space-half) var(--space-3); margin: var(--space-1) 0 0; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }
     .pdf-env__windows li { min-width: 0; overflow-wrap: anywhere; }
   }
 }

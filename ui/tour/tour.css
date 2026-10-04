@@ -7,18 +7,15 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .tour-layer {
-      --tour-shade: color-mix(in srgb, #0b0907 64%, transparent);
+      --tour-shade: var(--scrim);
       position: fixed;
       inset: 0;
-      z-index: 80;
+      z-index: var(--z-tour);
       overflow: hidden;
       pointer-events: none;
     }
-  }
-  .study-app[data-theme="light"] .tour-layer {
-    --tour-shade: color-mix(in srgb, #2a1c0e 36%, transparent);
   }
   :is(.study-app, .study-seat) {
     /* A scrolled-to anchor clears the sticky top bar and keeps a little air. */
@@ -26,6 +23,8 @@
       scroll-margin-top: 68px;
       scroll-margin-bottom: 16px;
     }
+  }
+  :where(.study-app, .study-seat) {
     .tour-shade {
       position: absolute;
       inset: 0;
@@ -33,7 +32,7 @@
     }
     .tour-spot {
       position: absolute;
-      border-radius: 12px;
+      border-radius: var(--radius);
       box-shadow:
         0 0 0 2px var(--accent-soft),
         0 0 0 7px var(--accent-glow),
@@ -47,9 +46,9 @@
       max-height: calc(100% - 24px);
       overflow: auto;
       pointer-events: auto;
-      padding: 16px 18px 14px;
+      padding: var(--space-4) 18px 14px;
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: var(--radius-card);
       background: var(--bg-raised);
       color: var(--text);
       font-family: var(--font-ui);
@@ -85,7 +84,7 @@
       bottom: 12px;
       width: auto;
       max-height: min(58%, 440px);
-      border-radius: 14px;
+      border-radius: var(--radius-card);
     }
     .tour-pop__head {
       display: flex;
@@ -99,7 +98,7 @@
       gap: 6px;
       color: var(--accent-text);
       font-size: var(--fs-xs);
-      font-weight: 650;
+      font-weight: var(--fw-strong);
       letter-spacing: 0.04em;
     }
     .tour-pop__count {
@@ -127,7 +126,7 @@
       color: var(--text);
       font-family: var(--font-display);
       font-size: var(--fs-lg);
-      font-weight: 650;
+      font-weight: var(--fw-strong);
       line-height: var(--lh-tight);
       letter-spacing: -0.01em;
     }
@@ -141,45 +140,45 @@
       display: flex;
       align-items: flex-start;
       gap: var(--space-2);
-      margin: 12px 0 0;
-      padding: 8px 10px;
+      margin: var(--space-3) 0 0;
+      padding: var(--space-2) 10px;
       border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--info) 13%, transparent);
+      background: var(--info-bg);
       color: var(--text);
       font-size: var(--fs-sm);
       line-height: var(--lh-snug);
     }
     .tour-pop__note .sh-icon { margin-top: 1px; color: var(--info); }
-    .tour-pop__note.is-ready { background: color-mix(in srgb, var(--ok) 13%, transparent); }
+    .tour-pop__note.is-ready { background: var(--ok-bg); }
     .tour-pop__note.is-ready .sh-icon { color: var(--ok); }
     .tour-pop__choices {
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
-      margin-top: 16px;
+      margin-top: var(--space-4);
     }
     .tour-pop__foot {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      margin-top: 16px;
-      padding-top: 12px;
+      margin-top: var(--space-4);
+      padding-top: var(--space-3);
       border-top: 1px solid var(--line-soft);
     }
     .tour-pop__skip { color: var(--text-muted); }
     .tour-pop__spacer { flex: 1; }
   }
   @media (prefers-reduced-motion: no-preference) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .tour-spot {
-        transition: left 0.3s var(--ease-out), top 0.3s var(--ease-out), width 0.3s var(--ease-out), height 0.3s var(--ease-out);
+        transition: left var(--dur-slow) var(--ease-out), top var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out), height var(--dur-slow) var(--ease-out);
       }
       .tour-pop {
-        transition: left 0.3s var(--ease-out), top 0.3s var(--ease-out);
+        transition: left var(--dur-slow) var(--ease-out), top var(--dur-slow) var(--ease-out);
         animation: tour-rise 0.26s var(--ease-out) both;
       }
       .tour-shade { animation: tour-fade 0.22s var(--ease) both; }
-      .tour-pop__bar > span { transition: width 0.3s var(--ease-out); }
+      .tour-pop__bar > span { transition: width var(--dur-slow) var(--ease-out); }
     }
   }
 }

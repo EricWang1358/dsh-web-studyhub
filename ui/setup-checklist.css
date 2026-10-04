@@ -27,7 +27,7 @@
       margin-bottom: var(--space-3);
     }
     .setup-heading {
-      margin: 2px 0 0;
+      margin: var(--space-half) 0 0;
       font-size: var(--fs-xl);
       line-height: var(--lh-tight);
     }
@@ -71,32 +71,32 @@
       border-color: var(--accent);
       background: var(--accent);
       color: var(--bg-canvas);
-      font-weight: 700;
+      font-weight: var(--fw-strong);
     }
     .setup-step[data-status="done"] .setup-mark {
       border-color: transparent;
-      background: color-mix(in srgb, var(--ok) 18%, transparent);
+      background: var(--ok-bg);
       color: var(--ok);
     }
     .setup-body {
       display: grid;
-      gap: 2px;
+      gap: var(--space-half);
       min-width: 0;
     }
     .setup-title {
       font-size: var(--fs-md);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       line-height: var(--lh-snug);
     }
     .setup-step[data-status="done"] .setup-title {
       color: var(--text-dim);
-      font-weight: 500;
+      font-weight: var(--fw-medium);
     }
     .setup-optional {
       margin-left: var(--space-2);
       color: var(--text-faint);
       font-size: var(--fs-xs);
-      font-weight: 400;
+      font-weight: var(--fw-regular);
     }
     .setup-text {
       color: var(--text-muted);
@@ -122,16 +122,16 @@
       display: inline-flex;
       align-items: center;
       max-width: 100%;
-      padding: 5px 12px;
+      padding: 5px var(--space-3);
       border: 1px solid var(--line);
-      border-radius: 999px;
+      border-radius: var(--radius-pill);
       background: transparent;
       color: var(--text-dim);
       font-size: var(--fs-sm);
       line-height: 1.4;
       text-align: left;
       cursor: pointer;
-      transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+      transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
     }
     .setup-chip-toggle:hover {
       border-color: var(--line-strong, var(--line));

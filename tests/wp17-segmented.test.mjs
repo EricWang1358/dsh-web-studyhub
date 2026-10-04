@@ -69,7 +69,7 @@ test('keyboard focus moves without changing the value; Enter and Space still sel
 
 test('the thumb animates position and size only, and reduced motion removes every transition', () => {
   assert.match(css, /\.sh-seg__thumb\s*\{[^}]*position:\s*absolute/);
-  assert.match(css, /\.sh-seg__thumb\s*\{[^}]*transition:[^;}]*transform\s+0?\.2s[^;}]*width[^;}]*height/);
+  assert.match(css, /\.sh-seg__thumb\s*\{[^}]*transition:[^;}]*transform\s+var\(--dur\)[^;}]*width[^;}]*height/);
   assert.match(css, /\.sh-seg__item\s*\{[^}]*transition:[^;}]*color/, 'text colour cross-fades');
   assert.match(css, /\.sh-seg\[data-thumb="on"\]\s+\.sh-seg__item\.is-active\s*\{[^}]*background:\s*transparent/, 'the item fill hands over to the thumb');
   assert.match(css, /\.sh-seg__item:active:not\(:disabled\)\s*\{[^}]*scale\(0\.98\)/, 'press feedback');

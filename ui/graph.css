@@ -5,7 +5,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* ── Graph shell ──────────────────────────────────────────────────────── */
     .graph {
       display: flex;
@@ -24,7 +24,7 @@
       height: 100%;
       max-height: none;
       min-height: 0;
-      padding: 10px 14px 8px;
+      padding: 10px 14px var(--space-2);
       overflow: hidden;
       background: var(--bg-canvas);
       color: var(--text);
@@ -32,7 +32,7 @@
     .graph-toolbar {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: var(--space-3);
       flex-wrap: wrap;
     }
     .graph-legend {
@@ -41,7 +41,7 @@
       gap: 10px;
       flex-wrap: wrap;
       margin-left: auto;
-      font-size: 12px;
+      font-size: var(--fs-xs);
       color: var(--text-muted);
     }
     .graph-legend-item {
@@ -53,18 +53,18 @@
     .graph-swatch {
       width: 10px;
       height: 10px;
-      border-radius: 3px;
+      border-radius: var(--radius-xs);
       flex: none;
     }
     .graph-swatch.gn-mastered { background: var(--ok); }
-    .graph-swatch.gn-familiar { background: color-mix(in srgb, var(--ok) 42%, transparent); }
+    .graph-swatch.gn-familiar { background: var(--ok-mid); }
     .graph-swatch.gn-learning { background: var(--warn); }
     .graph-swatch.gn-weak { background: var(--bad); }
     .graph-swatch.gn-new { background: var(--decor-faint); }
     .graph-line-demo { flex: none; }
     .graph-toolbar-sub {
       gap: 10px;
-      font-size: 12px;
+      font-size: var(--fs-xs);
       color: var(--text-muted);
     }
     .graph-scope {
@@ -73,8 +73,8 @@
     .graph-zoom {
       display: inline-flex;
       align-items: center;
-      gap: 2px;
-      padding: 2px;
+      gap: var(--space-half);
+      padding: var(--space-half);
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
       background: var(--bg-sunken);
@@ -82,11 +82,11 @@
     .graph-actions {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2);
       margin-left: auto;
     }
     .graph-truncated {
-      font-size: 12px;
+      font-size: var(--fs-xs);
       color: var(--warn);
     }
     /* The viewport pans and zooms the WHOLE drawing (the shared canvas kit moves
@@ -132,14 +132,14 @@
       display: block;
     }
     .graph-state {
-      padding: 32px 16px;
+      padding: var(--space-7) var(--space-4);
       text-align: center;
       color: var(--text-muted);
     }
     .graph-state.sh-loading { justify-content: center; }
     .graph-state .sh-inline { max-width: 480px; margin-inline: auto; text-align: left; }
     .graph-hint {
-      font-size: 11.5px;
+      font-size: var(--fs-xs);
       color: var(--text-faint);
     }
     /* ── SVG nodes: soft level fill + solid level stroke ─────────────────── */
@@ -151,20 +151,20 @@
       stroke-width: 1.5;
     }
     .gn-mastered {
-      fill: color-mix(in srgb, var(--ok) 22%, var(--bg-surface));
+      fill: var(--ok-tint);
       stroke: var(--ok);
     }
     .gn-familiar {
       /* Same familiar green as the mastery bars (.lv-familiar), not --info. */
-      fill: color-mix(in srgb, var(--ok) 14%, var(--bg-surface));
-      stroke: color-mix(in srgb, var(--ok) 55%, var(--bg-surface));
+      fill: var(--ok-tint);
+      stroke: var(--ok-solid);
     }
     .gn-learning {
-      fill: color-mix(in srgb, var(--warn) 24%, var(--bg-surface));
+      fill: var(--warn-tint);
       stroke: var(--warn);
     }
     .gn-weak {
-      fill: color-mix(in srgb, var(--bad) 22%, var(--bg-surface));
+      fill: var(--bad-tint);
       stroke: var(--bad);
     }
     .gn-new {
@@ -178,18 +178,18 @@
     }
     .gn-label {
       fill: var(--text);
-      font-size: 12px;
+      font-size: var(--fs-xs);
     }
     .gn-deck-label {
-      font-size: 13px;
-      font-weight: 600;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
     }
     .gn-card-label {
-      font-size: 11.5px;
+      font-size: var(--fs-xs);
     }
     .gn-meta {
       fill: var(--text-muted);
-      font-size: 10.5px;
+      font-size: var(--fs-xs);
     }
     .gn-ghost-label {
       fill: var(--text-faint);
@@ -240,7 +240,7 @@
       gap: 6px;
     }
     .cloze-hint {
-      font-size: 12px;
+      font-size: var(--fs-xs);
       color: var(--text-muted);
     }
     .cloze-text {
@@ -259,12 +259,12 @@
       color: var(--text);
       background: var(--bg-raised);
       border: 1px solid var(--line-strong);
-      border-radius: 8px;
-      padding: 1px 8px;
+      border-radius: var(--radius-sm);
+      padding: 1px var(--space-2);
       text-align: center;
       transition:
-        border-color 0.15s var(--ease),
-        box-shadow 0.15s var(--ease);
+        border-color var(--dur-fast) var(--ease),
+        box-shadow var(--dur-fast) var(--ease);
     }
     & input.cloze-blank:focus {
       outline: none;
@@ -276,26 +276,26 @@
     }
     .cloze-right,
     .cloze-wrong {
-      border-radius: 8px;
-      padding: 1px 8px;
-      font-size: 13px;
+      border-radius: var(--radius-sm);
+      padding: 1px var(--space-2);
+      font-size: var(--fs-sm);
     }
     .cloze-right {
       color: var(--ok);
       border: 1px solid var(--ok);
-      background: color-mix(in srgb, var(--ok) 10%, transparent);
+      background: var(--ok-bg);
     }
     .cloze-wrong {
       color: var(--bad);
       border: 1px solid var(--bad);
-      background: color-mix(in srgb, var(--bad) 10%, transparent);
+      background: var(--bad-bg);
     }
     .cloze-mark {
-      margin-left: 4px;
+      margin-left: var(--space-1);
     }
     .cloze-yours {
       display: block;
-      font-size: 11px;
+      font-size: var(--fs-xs);
       line-height: 1.5;
       color: var(--text-dim);
     }

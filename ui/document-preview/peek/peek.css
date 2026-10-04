@@ -15,11 +15,11 @@
     .reader-peek-mark { user-select: none; }
     .reader-section__head .reader-peek { margin-left: var(--space-3); }
     .page-peek {
-      position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 40;
+      position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: var(--z-overlay);
       display: flex; flex-direction: column; box-sizing: border-box;
       width: min(560px, calc(100% - var(--space-4))); height: min(78%, 760px); min-width: 260px; min-height: 200px; max-width: calc(100% - 8px); max-height: calc(100% - 8px);
       overflow: hidden;
-      border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-raised); box-shadow: var(--shadow-lg); color: var(--text);
+      color: var(--text);
     }
     /* A message with a button needs no tall frame. */
     .page-peek:not([data-phase='ready']) { height: auto; min-height: 0; }
@@ -30,7 +30,7 @@
     }
     .page-peek__title { font-size: var(--fs-md); }
     .page-peek__where { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .page-peek__tools { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px; }
+    .page-peek__tools { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-half); }
     .page-peek__tools .sh-btn { min-width: 32px; padding-inline: var(--space-2); font-size: var(--fs-md); }
     .page-peek__zoom { min-width: 3.2em; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; text-align: center; }
     .page-peek__body { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
@@ -40,10 +40,10 @@
     /* The resize handles: real, visible grips outside the scroll area (a native resize corner sat on the scrollbars and, with the panel docked bottom-right, moved the wrong way). */
     .page-peek__foot { display: flex; flex: none; justify-content: flex-end; height: 14px; border-top: 1px solid var(--line); background: var(--bg-raised); }
     .page-peek__grip { position: relative; flex: none; width: 18px; height: 14px; padding: 0; border: 0; background: transparent; color: var(--text-dim); touch-action: none; }
-    .page-peek__grip::before { content: ''; position: absolute; inset: 3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 2px 0; }
+    .page-peek__grip::before { content: ''; position: absolute; inset: 3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 var(--radius-xs) 0; }
     .page-peek__grip--se { cursor: nwse-resize; }
     .page-peek__grip--nw { position: absolute; top: 0; left: 0; z-index: 1; width: 16px; height: 16px; cursor: nwse-resize; }
-    .page-peek__grip--nw::before { inset: 3px; border-right: 0; border-bottom: 0; border-left: 2px solid currentColor; border-top: 2px solid currentColor; border-radius: 2px 0 0 0; }
+    .page-peek__grip--nw::before { inset: 3px; border-right: 0; border-bottom: 0; border-left: 2px solid currentColor; border-top: 2px solid currentColor; border-radius: var(--radius-xs) 0 0 0; }
     .page-peek__grip:hover, .page-peek__grip:focus-visible { color: var(--text); }
     .page-peek__grip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
     .page-peek__canvas { display: block; margin: 0 auto; max-width: none; background: #fff; box-shadow: 0 0 0 1px var(--line); }

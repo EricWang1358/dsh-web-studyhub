@@ -32,12 +32,12 @@
       font-variant-numeric: tabular-nums;
     }
     .token-usage__row + .token-usage__row { border-top: 1px solid var(--line); }
-    .token-usage__row dt { margin: 0; color: var(--text-dim); font-weight: 400; }
+    .token-usage__row dt { margin: 0; color: var(--text-dim); font-weight: var(--fw-regular); }
     .token-usage__row dd { margin: 0; color: var(--text); text-align: right; white-space: nowrap; }
     /* DSH puts the total first and larger: it is the one number most people want. */
     .token-usage__row--total { background: var(--bg-sunken); }
-    .token-usage__row--total dt { color: var(--text); font-weight: 600; }
-    .token-usage__row--total dd { font-weight: 700; }
+    .token-usage__row--total dt { color: var(--text); font-weight: var(--fw-strong); }
+    .token-usage__row--total dd { font-weight: var(--fw-strong); }
     .token-usage__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .token-usage__calls { color: var(--text-muted); }
     .token-usage__copy { margin-inline-start: auto; }
@@ -47,7 +47,7 @@
       flex-wrap: wrap;
       border: 0;
       background: transparent;
-      gap: 2px var(--space-5);
+      gap: var(--space-half) var(--space-5);
     }
     .token-usage--inline .token-usage__row { padding: 0; gap: var(--space-2); border: 0; background: transparent; }
     .token-usage--inline .token-usage__row + .token-usage__row { border-top: 0; }
@@ -105,7 +105,7 @@
     .model-usage { display: grid; gap: var(--space-4); }
     .model-usage__days { display: flex; gap: var(--space-2); }
     .model-usage__list { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-    .model-usage__item { display: grid; gap: 4px; min-width: 0; }
+    .model-usage__item { display: grid; gap: var(--space-1); min-width: 0; }
     .model-usage__item--total { padding-top: var(--space-3); border-top: 1px solid var(--line); }
     .model-usage__name { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-variant-numeric: tabular-nums; }
     .model-usage__bar { display: block; height: 6px; border-radius: var(--radius-pill); background: var(--bg-sunken); overflow: hidden; }
@@ -115,7 +115,7 @@
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
-      .token-usage--inline .token-usage__rows { flex-direction: column; gap: 2px; }
+      .token-usage--inline .token-usage__rows { flex-direction: column; gap: var(--space-half); }
       .token-usage--inline .token-usage__row { justify-content: space-between; }
       .token-usage--inline .token-usage__row dd { text-align: right; }
     }

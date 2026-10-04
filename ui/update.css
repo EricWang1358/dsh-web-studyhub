@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* WP15 · update chip, 关于与更新 settings section and the upgrade dialog. Tokens only. */
     .update-chip {
       display: flex;
@@ -36,7 +36,7 @@
     .update-dialog .update-notes-wrap h3 {
       margin: 0 0 var(--space-2);
       font-size: var(--fs-sm);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
       color: var(--text-muted);
     }
     .update-dialog .update-notes {
@@ -109,9 +109,9 @@
       background: var(--bg-sunken);
       color: var(--text-dim);
       font-size: var(--fs-xs);
-      font-weight: 700;
+      font-weight: var(--fw-strong);
     }
-    .update-dialog .update-steps strong { color: var(--text); font-weight: 600; }
+    .update-dialog .update-steps strong { color: var(--text); font-weight: var(--fw-strong); }
     .update-dialog .update-steps span { color: var(--text-muted); }
     .update-dialog .update-done { display: grid; gap: var(--space-2); justify-items: start; }
     .update-dialog .update-footer {
@@ -136,7 +136,7 @@
       gap: var(--space-2) var(--space-6);
       margin: 0 0 var(--space-3);
     }
-    .update-settings .update-facts div { display: grid; gap: 2px; }
+    .update-settings .update-facts div { display: grid; gap: var(--space-half); }
     .update-settings .update-facts dt { color: var(--text-muted); font-size: var(--fs-xs); }
     .update-settings .update-facts dd { margin: 0; color: var(--text); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
     .update-settings > .sh-banner, .update-settings > .sh-inline, .update-settings > .sh-hint { margin: 0 0 var(--space-3); }
@@ -149,7 +149,7 @@
     .update-settings .update-settings__actions .inline-check { margin: 0; }
   }
   @container study (max-width: 480px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .update-dialog .update-address { flex-direction: column; align-items: stretch; }
     }
   }

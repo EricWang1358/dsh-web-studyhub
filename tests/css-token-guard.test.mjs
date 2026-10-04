@@ -41,16 +41,11 @@ function literalsEqualToTokens(source) {
 /** Files (relative to ui/) that still hold raw hex colours, and how many. Only lower these. */
 const HEX_BASELINE = {
   'board/board.css': 2,
-  'components/components.css': 5,
   'components/scroll-window.css': 4,
   'document-preview/document-preview.css': 4,
   'document-preview/peek/peek.css': 1,
-  'review-results.css': 5,
-  'side-groups.css': 1,
   'skeleton.css': 4,
-  'legacy.css': 2,
   'review/question.css': 1,
-  'shell.css': 1,
 };
 
 test('the counters understand the shapes they guard (fixtures)', () => {

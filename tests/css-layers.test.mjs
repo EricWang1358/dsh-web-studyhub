@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, FROZEN_FILES, cssFiles } from '../scripts/qa/css-tools.mjs';
-import { checkStructure, wrapStylesheet, layerOf, optionsOf, HOST_FILES, LAYER_STATEMENT } from '../scripts/qa/css-layers.mjs';
+import { checkStructure, wrapStylesheet, layerOf, optionsOf, scopedOrigins, HOST_FILES, LAYER_STATEMENT, SCOPE, SCOPE_LOW } from '../scripts/qa/css-layers.mjs';
 
 // #149: one scope and cascade layers instead of five ways to write "inside the app".
 const read = (file) => readFileSync(join(ROOT, file), 'utf8').replace(/\r\n/g, '\n');
@@ -46,9 +46,10 @@ test('the wrapper puts bare, scoped and root rules where they belong and is idem
   assert.deepEqual(checkStructure(wrapped), []);
   assert.equal(wrapStylesheet(wrapped, 'features'), wrapped, 'a wrapped sheet is left alone');
   assert.match(wrapped, /@layer study\.features \{/);
-  assert.match(wrapped, /\.plain \{ color: red; \}/);
-  assert.match(wrapped, /\.old,\s*\.both \{ color: blue; \}/, 'both scope spellings become one relative selector');
-  assert.match(wrapped, /\.where \{ color: green; \}/);
+  const inside = (scope, rule) => new RegExp(`${scope.replace(/[().,]/g, '\\$&')} \\{[^{}]*${rule.replace(/[.{}]/g, '\\$&')}`).test(wrapped);
+  assert.ok(inside(SCOPE_LOW, '.plain { color: red; }'), 'a bare rule keeps its zero-specificity scope');
+  assert.ok(inside(SCOPE_LOW, '.where { color: green; }'), 'so does one written under :where(.study-app)');
+  assert.ok(inside(SCOPE, '.old, .both { color: blue; }'), 'a .study-app / :is() rule keeps the scope that adds a class');
   assert.match(wrapped, /\.study-app\[data-theme="light"\] \.themed \{/, 'a root-conditional selector stays a root rule');
   assert.match(wrapped, /\.study-seat \.seat-only \{/, 'a seat-only rule stays a root rule');
   assert.match(wrapped, /\.study-app \{\s*display: flex;/, 'the app box itself is a root rule, not the seat');
@@ -60,13 +61,19 @@ test('the wrapper puts bare, scoped and root rules where they belong and is idem
   assert.notEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .loose { color: red; } }`).length, 0, 'an unscoped rule inside a layer is reported');
 });
 
+test('the scope a rule is wrapped in keeps the specificity its author wrote', () => {
+  const origins = scopedOrigins('.bare { a: 1; }\n.study-app .high { a: 1; }\n:where(.study-app) .low { a: 1; }\n:is(.study-app, .study-seat) .also-high { a: 1; }\n@media (min-width: 1px) { .in-media { a: 1; } }\n');
+  assert.deepEqual(origins.map((o) => `${o.prelude}:${o.low ? 'low' : 'high'}`), ['.bare:low', '.high:high', '.low:low', '.also-high:high', '.in-media:low']);
+  assert.equal(origins.at(-1).chain, '@media (min-width: 1px)');
+});
+
 test('layers by path: tokens and element defaults low, components, features, host chrome on top', () => {
   assert.equal(layerOf('ui/tokens.css'), 'tokens');
   assert.equal(layerOf('ui/accent.css'), 'tokens');
   assert.equal(layerOf('ui/base.css'), 'reset');
   assert.equal(layerOf('ui/motion.css'), 'reset', 'its !important rules must win, and !important inverts the layer order');
   assert.equal(layerOf('ui/components/components.css'), 'components');
-  assert.equal(layerOf('ui/legacy.css'), 'components');
+  assert.equal(layerOf('ui/legacy.css'), 'features', 'the old button rules fight the element states by specificity, so they sit in the same layer');
   assert.equal(layerOf('ui/review/question.css'), 'features');
   assert.equal(layerOf('ui/host/studyhub.css'), 'overrides');
 });

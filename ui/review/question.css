@@ -1,13 +1,13 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .tag {
       border: 1px solid var(--line);
-      border-radius: 30px;
-      padding: 4px 9px;
+      border-radius: var(--radius-card);
+      padding: var(--space-1) 9px;
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: var(--fs-md);
       display: inline-block;
     }
     .tag.bad {
@@ -18,19 +18,19 @@
       display: flex;
       gap: 14px;
       padding: 18px;
-      border-radius: 11px;
+      border-radius: var(--radius);
       background: var(--bg-surface);
-      margin: 20px 0;
+      margin: var(--space-5) 0;
       color: var(--text-dim);
     }
     .generation-trace { margin-top: 10px; overflow-wrap: anywhere; }
-    .generation-trace ol { padding-left: 20px; }
-    .agent-link__error { display: block; margin-top: 2px; color: color-mix(in srgb, var(--bad) 85%, var(--text)); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-    .generation-trace li { margin: 12px 0; }
+    .generation-trace ol { padding-left: var(--space-5); }
+    .agent-link__error { display: block; margin-top: var(--space-half); color: var(--bad-ink); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .generation-trace li { margin: var(--space-3) 0; }
     .generation-trace small { display: block; }
     .quality-note p {
       margin: 0;
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .quality-note .icon {
       color: var(--accent-soft);
@@ -40,37 +40,37 @@
       width: 100%;
       text-align: left;
       padding: 13px;
-      margin-top: 12px;
-      font-size: 15px;
+      margin-top: var(--space-3);
+      font-size: var(--fs-md);
       color: var(--text-dim);
     }
     .citation-disclosure {
-      margin-top: 16px;
+      margin-top: var(--space-4);
       border-top: 1px solid var(--line-soft);
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .citation-disclosure > summary {
       width: fit-content;
-      padding: 12px 0;
+      padding: var(--space-3) 0;
       cursor: pointer;
     }
     .citation-disclosure > summary span { color: var(--text-faint); }
     .citations blockquote {
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.8;
       margin: 9px 0 0;
-      padding-left: 12px;
+      padding-left: var(--space-3);
       border-left: 2px solid var(--line-strong);
     }
     .question-area {
       /* 700px at the standard reading width and size (44em of 16px); 窄 / 宽 and a larger size change it. */
       width: min(var(--review-column, 700px), calc(100% - 48px));
-      margin: 34px auto 56px;
+      margin: 34px auto var(--space-9);
     }
     .question-area:not(.flash-area) .question-card {
-      padding: 18px 32px 28px;
+      padding: 18px var(--space-7) 28px;
       border-radius: var(--radius-card);
       background: var(--paper);
       box-shadow: var(--shadow-card);
@@ -80,10 +80,10 @@
       display: flex;
       justify-content: space-between;
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: var(--fs-md);
       align-items: center;
       margin: 0;
-      padding-bottom: 12px;
+      padding-bottom: var(--space-3);
     }
     .question-card .question,
     .question-card .options,
@@ -94,7 +94,7 @@
     .question-card .cloze { animation-delay: 70ms; }
     .card-progress {
       height: 2px;
-      margin: 0 0 24px;
+      margin: 0 0 var(--space-6);
       background:
         linear-gradient(var(--accent), var(--accent)) 0 0 / var(--progress, 100%) 100% no-repeat,
         var(--line);
@@ -132,7 +132,7 @@
       gap: 9px;
     }
     .question-meta > div > span {
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--text-muted);
       max-width: 220px;
       overflow: hidden;
@@ -140,13 +140,13 @@
       white-space: nowrap;
     }
     .question-meta button {
-      padding: 4px 9px;
+      padding: var(--space-1) 9px;
       border: 0;
     }
     .question {
       font-family: var(--font-display);
-      font-size: calc(21px * var(--card-scale, 1));
-      font-weight: 600;
+      font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
+      font-weight: var(--fw-strong);
       letter-spacing: -0.005em;
       line-height: 1.7;
       margin: 0 0 28px;
@@ -156,7 +156,7 @@
       position: relative;
       flex-shrink: 0;
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .publication-mark > summary {
       cursor: pointer;
@@ -184,17 +184,17 @@
       background: transparent;
       border-radius: 0;
       padding: 15px 10px;
-      font-size: calc(16.5px * var(--card-scale, 1));
+      font-size: calc(var(--fs-lg) * var(--card-scale, 1));
       line-height: 1.6;
       width: 100%;
-      transition: background 0.15s var(--ease);
+      transition: background var(--dur-fast) var(--ease);
     }
     .option > div {
       flex: 1;
       white-space: pre-wrap;
     }
     .option-letter {
-      transition: background-color 0.3s var(--ease), box-shadow 0.3s var(--ease), color 0.3s var(--ease);
+      transition: background-color var(--dur-slow) var(--ease), box-shadow var(--dur-slow) var(--ease), color var(--dur-slow) var(--ease);
       transition-delay: calc(var(--reveal-index, 0) * 50ms);
       display: inline-grid;
       place-items: center;
@@ -205,8 +205,8 @@
       border-radius: 50%;
       box-shadow: inset 0 0 0 1px var(--line-strong);
       color: var(--text-dim);
-      font-size: 15px;
-      font-weight: 600;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
     }
     .option.selected .option-letter {
       background: var(--accent);
@@ -233,12 +233,12 @@
       background: color-mix(in srgb, var(--accent) 7%, transparent);
     }
     .option > div > .md:first-child {
-      transition: color 0.3s var(--ease);
+      transition: color var(--dur-slow) var(--ease);
       transition-delay: calc(var(--reveal-index, 0) * 50ms);
     }
     .option.correct > div > .md:first-child {
       color: var(--ok);
-      font-weight: 600;
+      font-weight: var(--fw-strong);
     }
     /* After answering, each option's verdict and explanation grow open from zero
        height, staggered down the list, so the card lengthens smoothly. */
@@ -267,12 +267,12 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .option-reveal, .option-reveal > div, .choice-feedback-wrap { animation: none; }
       .option-letter, .option > div > .md:first-child { transition: none; }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .option.incorrect > div > .md:first-child {
       color: var(--bad);
       text-decoration: line-through;
@@ -286,7 +286,7 @@
     }
     .answer-state {
       display: block;
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--ok);
       margin: 9px 0 5px;
     }
@@ -299,16 +299,16 @@
     .choice-feedback {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px 20px;
+      gap: 6px var(--space-5);
       margin: -12px 0 14px;
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .choice-feedback strong { color: var(--text); }
     .choice-feedback > span { white-space: nowrap; }
     .choice-feedback .choice-mismatch { color: var(--bad); }
     .option p {
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.7;
       margin: 5px 0 0;
     }
@@ -318,8 +318,8 @@
       justify-content: space-between;
       align-items: center;
       margin: 14px 0 0;
-      padding: 0 8px;
-      gap: 8px 16px;
+      padding: 0 var(--space-2);
+      gap: var(--space-2) var(--space-4);
     }
     .question-toolbar > div {
       display: flex;
@@ -338,7 +338,7 @@
       border-radius: var(--radius-sm);
       background: transparent;
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.2;
       white-space: nowrap;
     }
@@ -353,61 +353,61 @@
       color: var(--text);
     }
     .question-toolbar .thumbs { gap: 0; }
-    .question-toolbar .thumbs > .tool-icon { width: 38px; padding: 8px; }
+    .question-toolbar .thumbs > .tool-icon { width: 38px; padding: var(--space-2); }
     .question-toolbar .thumbs svg { display: block; width: 17px; height: 17px; }
     .question-navigation { margin-left: auto; }
     .question-toolbar > .next-hint { flex: 1 0 100%; margin: 0; text-align: right; }
     .question-toolbar .question-navigation { gap: 7px; }
-    .question-toolbar .question-navigation .pill { min-height: 38px; padding: 8px 12px; white-space: nowrap; }
+    .question-toolbar .question-navigation .pill { min-height: 38px; padding: var(--space-2) var(--space-3); white-space: nowrap; }
     /* A drawn chevron: the "⌄" glyph sits below the baseline and read as a subscript. */
     /* EN 附文：始终紧跟其中文原文之后，弱一级、左侧一道色杠。 */
     .en-block {
       margin-top: 10px;
       padding: 9px 13px;
       border-left: 3px solid var(--accent-glow);
-      border-radius: 0 10px 10px 0;
+      border-radius: 0 var(--radius) var(--radius) 0;
       background: var(--bg-sunken);
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .en-block p { margin: 0; }
     .en-tag {
       display: inline-block;
-      font-size: 15px;
-      font-weight: 700;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
       letter-spacing: 0.08em;
       color: var(--accent-soft);
       border: 1px solid var(--accent-glow);
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       padding: 0 5px;
-      margin-right: 8px;
+      margin-right: var(--space-2);
       vertical-align: 2px;
     }
     .option .option-en {
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.55;
     }
-    .option-explanation.en-line { opacity: 0.88; margin-top: 4px; }
-    & p.en-block.en-inline-line { margin-top: 8px; }
+    .option-explanation.en-line { opacity: 0.88; margin-top: var(--space-1); }
+    & p.en-block.en-inline-line { margin-top: var(--space-2); }
     .hint {
-      background: color-mix(in srgb, var(--warn) 8%, transparent);
+      background: var(--warn-bg);
       border-left: 2px solid var(--warn);
       padding: 14px 18px;
-      border-radius: 0 10px 10px 0;
+      border-radius: 0 var(--radius) var(--radius) 0;
       display: flex;
       gap: 14px;
-      margin-bottom: 16px;
+      margin-bottom: var(--space-4);
     }
     .hint p {
       margin: 0;
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .hint .icon {
       color: var(--warn);
     }
     .next-due {
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--ok);
       margin: 17px 0;
     }
@@ -421,17 +421,17 @@
       margin-top: 22px;
     }
     .explanation h3 {
-      font-size: 16px;
+      font-size: var(--fs-lg);
     }
     .explanation h4 {
       margin: 22px 0 6px;
-      font-size: 15px;
-      font-weight: 500;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
       color: var(--text-muted);
     }
     .explanation p {
-      font-size: 15.5px;
-      font-weight: 400;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-regular);
       white-space: pre-wrap;
     }
     .teaching-panel {
@@ -440,7 +440,7 @@
     .teaching-panel > button {
       width: 100%;
       padding: 14px;
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--text-dim);
       background: transparent;
       border: 1px dashed var(--line-strong);
@@ -451,7 +451,7 @@
     }
     .teaching-panel .explanation {
       margin-top: 0;
-      padding: 18px 20px;
+      padding: 18px var(--space-5);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--bg-surface);
@@ -460,9 +460,9 @@
       display: block;
       width: 100%;
       height: 4px;
-      margin: 12px 0 18px;
+      margin: var(--space-3) 0 18px;
       border: 0;
-      border-radius: 4px;
+      border-radius: var(--radius-xs);
       overflow: hidden;
       appearance: none;
       background: var(--line-soft);
@@ -471,11 +471,11 @@
     .teaching-context {
       display: grid;
       gap: 10px;
-      margin: 16px 0;
+      margin: var(--space-4) 0;
       padding: 14px 0;
       border-top: 1px solid var(--line-soft);
       border-bottom: 1px solid var(--line-soft);
-      font-size: 14px;
+      font-size: var(--fs-md);
       line-height: 1.6;
     }
     .teaching-context > div {
@@ -491,21 +491,21 @@
     .teaching-panel form > button { justify-self: end; }
   }
   @container study (max-width: 480px) {
-    :is(.study-app, .study-seat) {
-      .teaching-panel .explanation { padding: 16px; }
+    :where(.study-app, .study-seat) {
+      .teaching-panel .explanation { padding: var(--space-4); }
       .teaching-context > div { grid-template-columns: minmax(0, 1fr); gap: 3px; }
       .teaching-panel form > button { width: 100%; }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .teaching-feedback {
       margin: 0 0 14px;
       padding: 11px 14px;
       background: color-mix(in srgb, var(--accent) 8%, transparent);
       border-left: 2px solid var(--accent-soft);
-      border-radius: 0 6px 6px 0;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
       color: var(--text);
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.65;
       white-space: pre-wrap;
     }
@@ -514,7 +514,7 @@
       margin: 18px 0 0 auto;
     }
     .flash-area {
-      margin-top: 56px;
+      margin-top: var(--space-9);
     }
     .flashcard {
       position: relative;
@@ -523,7 +523,7 @@
       border: 0;
       padding: 0;
       background: transparent;
-      border-radius: 36px;
+      border-radius: var(--radius-card);
       perspective: 1800px;
       animation: card-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
@@ -581,7 +581,7 @@
     }
     .flash-follow .grading,
     .flash-follow .response-label {
-      animation: follow-in 0.3s var(--ease) both;
+      animation: follow-in var(--dur-slow) var(--ease) both;
     }
     .flashcard.flipped .flip-inner {
       transform: rotateY(180deg);
@@ -603,25 +603,25 @@
       justify-content: center;
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
-      transition: translate 0.2s;
+      transition: translate var(--dur);
     }
     .flip-back {
       transform: rotateY(180deg);
     }
   }
   @container study (max-width: 720px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       /* Narrow panes: the same card, tighter margins. */
       .question-area:not(.flash-area) .question-card { padding: 14px 18px 22px; }
-      .flash-area .question-meta { padding: 12px 22px 0; }
+      .flash-area .question-meta { padding: var(--space-3) 22px 0; }
       .flash-area .card-progress { left: 22px; right: 22px; }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .flash-prompt {
       font-family: var(--font-display);
-      font-size: calc(27px * var(--card-scale, 1));
-      font-weight: 500;
+      font-size: calc(var(--fs-3xl) * var(--card-scale, 1));
+      font-weight: var(--fw-medium);
       letter-spacing: -0.01em;
       line-height: 1.55;
       text-align: left;
@@ -630,45 +630,45 @@
     }
     .flash-prompt.long,
     .flip-back .flash-prompt.long {
-      font-size: calc(18px * var(--card-scale, 1));
+      font-size: calc(var(--fs-xl) * var(--card-scale, 1));
       line-height: 1.75;
     }
     .prereq-strip {
-      margin: 0 12px 18px;
+      margin: 0 var(--space-3) 18px;
       border: 1px solid var(--line);
-      border-radius: 11px;
+      border-radius: var(--radius);
       background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .flash-area .prereq-strip {
-      margin: 16px 12px 0;
+      margin: var(--space-4) var(--space-3) 0;
     }
     .prereq-strip > summary {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 8px 10px 8px 14px;
+      padding: var(--space-2) 10px var(--space-2) 14px;
       cursor: pointer;
       color: var(--text-dim);
     }
     .prereq-strip > summary .pill {
       flex: none;
-      padding: 5px 12px;
-      font-size: 15px;
+      padding: 5px var(--space-3);
+      font-size: var(--fs-md);
       white-space: nowrap;
     }
     .prereq-strip ul {
       list-style: none;
       margin: 0;
-      padding: 2px 14px 10px;
+      padding: var(--space-half) 14px 10px;
       display: grid;
       gap: 6px;
     }
     .prereq-strip li {
       display: flex;
       align-items: baseline;
-      gap: 8px;
+      gap: var(--space-2);
       color: var(--text-dim);
     }
     .prereq-strip li .map-dot {
@@ -678,9 +678,9 @@
     .prereq-item {
       display: flex;
       align-items: baseline;
-      gap: 8px;
+      gap: var(--space-2);
       width: 100%;
-      padding: 6px 8px;
+      padding: 6px var(--space-2);
       border: 0;
       border-radius: var(--radius-sm);
       text-align: left;
@@ -696,20 +696,20 @@
     .prereq-go {
       color: var(--accent-soft);
       opacity: 0;
-      transition: opacity 0.15s;
+      transition: opacity var(--dur-fast);
     }
     .prereq-item:hover .prereq-go,
     .prereq-item:focus-visible .prereq-go {
       opacity: 1;
     }
     .flip-back .flash-prompt {
-      font-size: calc(23px * var(--card-scale, 1));
+      font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
       color: var(--text);
     }
     .flip-question {
       align-self: stretch;
       text-align: left;
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.6;
       color: var(--text-muted);
       padding-bottom: 14px;
@@ -728,14 +728,14 @@
       display: block;
       height: 14px;
       width: 60%;
-      border-radius: 7px;
+      border-radius: var(--radius-sm);
       background: linear-gradient(90deg, var(--line), var(--line-strong), var(--line));
       background-size: 200% 100%;
       animation: shimmer 1.1s linear infinite;
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .flashcard {
         animation: none;
       }
@@ -751,7 +751,7 @@
         animation: none;
       }
       .flip-face {
-        transition: opacity 0.2s;
+        transition: opacity var(--dur);
       }
       .flip-back,
       .flashcard.flipped .flip-front {
@@ -764,33 +764,33 @@
       }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .flip-label {
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--text-faint);
       margin-top: 45px;
     }
     .grading {
-      margin-top: 24px;
+      margin-top: var(--space-6);
       container: grading / inline-size;
     }
     .grading-head {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      gap: 8px;
+      gap: var(--space-2);
       margin-bottom: 10px;
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .grading-head small {
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .grade-scale {
       display: grid;
       grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 4px;
+      gap: var(--space-1);
     }
     .grade {
       display: flex;
@@ -799,7 +799,7 @@
       justify-content: flex-start;
       min-width: 0;
       min-height: 74px;
-      padding: 10px 3px 8px;
+      padding: 10px 3px var(--space-2);
       border: 0;
       border-radius: var(--radius);
       background: transparent;
@@ -821,52 +821,52 @@
     .grade strong {
       display: block;
       font-family: var(--font-display);
-      font-size: 30px;
-      font-weight: 300;
+      font-size: var(--fs-3xl);
+      font-weight: var(--fw-light);
       line-height: 1;
-      margin-bottom: 8px;
+      margin-bottom: var(--space-2);
       font-variant-numeric: tabular-nums;
     }
     .grade span {
       display: block;
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: var(--fs-md);
       line-height: 1.4;
       white-space: normal;
       overflow-wrap: anywhere;
     }
   }
   @container grading (max-width: 640px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .grade-scale { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
   }
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .response-label {
-      font-size: 15px;
+      font-size: var(--fs-md);
       color: var(--text-dim);
     }
     .session-summary {
       max-width: 568px;
       margin: 90px auto;
       text-align: center;
-      padding: 0 24px;
+      padding: 0 var(--space-6);
     }
     .session-summary h1 {
-      font-size: 32px;
+      font-size: var(--fs-3xl);
     }
     .session-summary > p {
       color: var(--text-dim);
     }
     .summary-topics {
       background: var(--bg-surface);
-      border-radius: 14px;
+      border-radius: var(--radius-card);
       padding: 23px;
       margin: 30px 0;
       text-align: left;
     }
     .summary-topics h3 {
-      font-size: 15px;
+      font-size: var(--fs-md);
     }
     .summary-topics .tag {
       margin: 0 6px 6px 0;
@@ -874,10 +874,10 @@
     /* Feedback occupies its own space, beside the action on a question
        (ActionFeedback renders inline toasts here; see components.css). */
     .action-feedback-slot { min-height: 44px; }
-    .summary-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .summary-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; }
   }
   @container study (min-width:1400px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .flash-area {
         margin-top: 145px;
       }
@@ -893,7 +893,7 @@
     }
   }
   @container study (max-width:1050px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .flash-area {
         margin-top: 70px;
       }
@@ -901,35 +901,35 @@
         min-height: 380px;
       }
       .flash-prompt {
-        font-size: calc(25px * var(--card-scale, 1));
+        font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
       }
     }
   }
   @container study (max-width:720px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .question-area {
         width: calc(100% - 30px);
         margin-top: 34px;
       }
       .question {
-        font-size: calc(17px * var(--card-scale, 1));
-        margin-left: 4px;
-        margin-right: 4px;
+        font-size: calc(var(--fs-lg) * var(--card-scale, 1));
+        margin-left: var(--space-1);
+        margin-right: var(--space-1);
       }
       .question-meta {
-        margin-left: 4px;
-        margin-right: 4px;
+        margin-left: var(--space-1);
+        margin-right: var(--space-1);
       }
       .question-meta > div > span {
         max-width: 130px;
       }
       .option {
-        font-size: 15px;
-        padding: 14px 12px;
+        font-size: var(--fs-md);
+        padding: 14px var(--space-3);
         gap: 9px;
       }
       .option p {
-        font-size: 15px;
+        font-size: var(--fs-md);
       }
       .flash-area {
         margin-top: 22px;
@@ -943,16 +943,16 @@
         padding: 72px 22px 22px;
       }
       .flash-prompt {
-        font-size: calc(23px * var(--card-scale, 1));
+        font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
       }
       .flip-back .flash-prompt {
-        font-size: calc(21px * var(--card-scale, 1));
+        font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
       }
       .grade-scale {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
       .grade strong {
-        font-size: 24px;
+        font-size: var(--fs-2xl);
       }
       .question-toolbar .question-navigation {
         width: 100%;
@@ -963,7 +963,7 @@
       .question-toolbar .question-navigation .pill { min-height: 44px; }
       .question-toolbar .pill {
         padding: 7px 11px;
-        font-size: 15px;
+        font-size: var(--fs-md);
       }
       .session-summary {
         margin-top: 60px;
