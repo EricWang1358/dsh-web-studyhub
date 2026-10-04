@@ -162,6 +162,5 @@
   :where(.study-app, .study-seat) {
     /* 有效课程: what the forecast counts, and what sits in parked courses. */
     .dash-scope-note { margin: var(--space-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
-    .dash-scope-note .link-btn { font-size: var(--fs-sm); }
   }
 }

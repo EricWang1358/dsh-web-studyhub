@@ -21,7 +21,6 @@
     .wf-failure > .sh-inline { width: 100%; }
     .wf-failure > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
     .wf-scope-hint { margin: 0; font-size: var(--fs-md); line-height: 1.6; color: var(--text-muted); }
-    .wf-scope-hint .link-btn { font-size: inherit; font-weight: var(--fw-strong); color: var(--accent-text); }
     .wf-ref-card { margin: var(--space-1) 0 10px; padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-surface); }
     .wf-ref-card .wf-ref-prompt { margin: 0; font-weight: var(--fw-strong); line-height: 1.7; }
     .wf-ref-card .wf-ref-answer { margin: 6px 0 0; }

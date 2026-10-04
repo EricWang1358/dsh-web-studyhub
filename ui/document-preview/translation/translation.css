@@ -198,21 +198,6 @@
     .tr-scope__head { display: grid; gap: var(--space-half); min-width: 0; }
     .tr-scope__head small { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .tr-panel__actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line); }
-    .tr-modes__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); }
-    .tr-modes .tr-modes__item {
-      min-height: 32px;
-      margin: 0;
-      padding: var(--space-1) var(--space-2);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: transparent;
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-      line-height: var(--lh-tight);
-      cursor: pointer;
-    }
-    .tr-modes .tr-modes__item:hover { border-color: var(--line-strong); color: var(--text); background: var(--bg-hover); }
-    .tr-modes .tr-modes__item[aria-pressed='true'] { border-color: var(--line-strong); background: var(--bg-selected); color: var(--text); font-weight: var(--fw-strong); }
     .tr-modes__note { color: var(--text-muted); font-size: var(--fs-xs); }
     /* ── The progress line of a running job, in the reader's notices ── */
     .tr-job { display: grid; gap: var(--space-1); padding: var(--space-half) 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }

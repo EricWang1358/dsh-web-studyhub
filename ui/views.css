@@ -248,21 +248,6 @@
     .exam-type-settings small { font-size: var(--fs-md); }
     .exam-type-settings .warning { margin: 0; }
     /* ── Exam: running ───────────────────────────────────────────────────── */
-    .exam-head {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: var(--space-3);
-      flex-wrap: wrap;
-    }
-    .exam-head h2 {
-      margin: var(--space-half) 0 0;
-    }
-    .exam-head-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
     .exam-timer,
     .exam-progress {
       padding: var(--space-1) 10px;

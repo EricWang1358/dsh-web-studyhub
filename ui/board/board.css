@@ -64,14 +64,6 @@
     .board-search .sh-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
     .board-search input { padding: 7px var(--space-3) 7px 34px; font-size: var(--fs-sm); line-height: 1.5; }
     .board-filter__group { display: flex; flex-wrap: wrap; gap: 6px; }
-    .board-toggle, .board-toggle:hover:not(:disabled) {
-      min-height: 28px; padding: 3px 11px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium);
-      border: 1px solid var(--line-strong); background: transparent; color: var(--text-dim);
-    }
-    .board-toggle:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-    .board-toggle[aria-pressed="true"], .board-toggle[aria-pressed="true"]:hover:not(:disabled) {
-      background: var(--bg-selected); border-color: var(--accent-soft); color: var(--text);
-    }
     .board-filter__result { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     /* Columns */
     .board-columns {

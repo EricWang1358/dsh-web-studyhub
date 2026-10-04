@@ -92,15 +92,6 @@
       font-size: var(--fs-md);
       white-space: nowrap;
     }
-    .source-group-caret {
-      display: inline-block;
-      width: 12px;
-      color: var(--text-muted);
-      transition: transform 0.18s var(--ease);
-    }
-    .source-group.open .source-group-caret {
-      transform: rotate(90deg);
-    }
     .source-group-tag {
       padding: 1px 7px;
       border: 1px solid var(--line-soft);

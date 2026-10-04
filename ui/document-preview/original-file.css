@@ -4,10 +4,6 @@
   :is(.study-app, .study-seat) {
     /* 补全原文件 (attach the original to a document that only kept its text): the reader notice, the dialog, the row-menu line.
        Tokens only; the dialog follows the shared Dialog component. */
-    .study-document-notices .original-notice { display: grid; gap: var(--space-2); justify-items: start; justify-self: start; width: fit-content; max-width: 100%;
-      padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); }
-    .study-document-notices .original-notice > p { max-width: 60em; }
-    .study-document-notices .original-notice.is-warning { border-color: var(--warn-line); }
     .original-notice__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     .original-dialog .sh-dialog__content { display: grid; gap: var(--space-4); align-content: start; }
     .original-dialog p { margin: 0; line-height: var(--lh-snug); }

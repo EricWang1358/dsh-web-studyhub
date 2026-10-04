@@ -11,8 +11,6 @@
     .followup-item > summary h4 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: 1.6; color: var(--text); }
     .followup-item .followup-fold { display: block; margin: 6px 0 0 auto; font-size: var(--fs-md); color: var(--text-muted); }
     .followup-item .followup-derive { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0 0; font-size: var(--fs-md); }
-    .followup-item .followup-derive .link-btn { color: var(--accent-text, var(--accent)); }
-    .followup-item .followup-derive .link-btn:disabled { color: var(--text-muted); cursor: default; }
     .followup-item:not([open]) > summary h4 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .followup-item > summary:hover h4 { text-decoration: underline; text-decoration-color: var(--accent-soft); text-underline-offset: 4px; }
     .followup-item[open] > summary { margin-bottom: 10px; }

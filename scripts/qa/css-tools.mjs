@@ -20,9 +20,8 @@ export function walkFiles(dir, exts, out = []) {
 
 export const toRel = (file, root = ROOT) => relative(root, file).split(sep).join('/');
 
-/* Stylesheets another work package owns this wave: no mechanical pass (dead rules, tokens, layers) may rewrite them.
-   ui/daily-plan.css moved to WP-P (#173, home daily-plan redesign). Remove the entry when that work lands. */
-export const FROZEN_FILES = ['ui/daily-plan.css'];
+/* Stylesheets another work package owns: no mechanical pass (dead rules, tokens, layers) may rewrite them. None at the moment. */
+export const FROZEN_FILES = [];
 
 /** All stylesheets under ui/ as repo-relative paths (sorted). `frozen: false` leaves out the files in FROZEN_FILES. */
 export function cssFiles(root = ROOT, { frozen = true } = {}) {

@@ -11,9 +11,6 @@
     .archived-deck__info small { color: var(--text-muted); font-size: var(--fs-md); }
     .archived-deck__actions { display: flex; gap: 6px; flex-wrap: wrap; }
   }
-  :is(.study-app, .study-seat) {
-    .archived-deck__actions .danger-text { color: var(--bad); }
-  }
   :where(.study-app, .study-seat) {
     .role-prep { margin: -8px 0 18px; }
     .role-prep details { max-width: 640px; }
@@ -51,7 +48,6 @@
   :where(.study-app, .study-seat) {
     .group-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) 18px; margin: 0 0 18px; padding: 10px 0 10px 14px; border-left: 3px solid var(--accent); font-size: var(--fs-md); line-height: 1.6; color: var(--text-dim); }
     .group-reminder-actions { display: inline-flex; align-items: center; gap: 14px; }
-    .group-reminder .link-btn { font-weight: var(--fw-strong); }
     .merge-suggestions { margin: 0 0 18px; padding: 14px var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .merge-suggestions-head, .merge-suggestion { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
     .merge-suggestion { padding: var(--space-3) 0; border-top: 1px solid var(--line-soft); }

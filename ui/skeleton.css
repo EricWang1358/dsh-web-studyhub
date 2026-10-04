@@ -1192,7 +1192,6 @@
     }
   }
   :where(.study-app, .study-seat) {
-    .spine-flip { transform: rotate(180deg); }
     .spine-body { margin-top: var(--space-half); }
     .spine-body > .md { margin: 0 0 10px; }
     /* The strip: one row, circles on one baseline whatever the title length. */

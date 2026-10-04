@@ -100,9 +100,6 @@
       .source-doc__pages { margin-left: 0; }
     }
   }
-  :is(.study-app, .study-seat) {
-    .source-doc__actions .danger-text { color: var(--bad); }
-  }
 }
 
 @keyframes source-new-in {

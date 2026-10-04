@@ -24,7 +24,6 @@
     .course-active__confirm { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
     .course-parked-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: 1px var(--space-2); border: 1px solid var(--line);
       border-radius: var(--radius-pill); background: var(--bg-sunken); color: var(--text-dim); font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1.6; vertical-align: middle; }
-    .course-parked-chip .link-btn { font-size: var(--fs-xs); }
     .course-parked-chip__error { color: var(--bad); }
     /* Page scope (ui/PageScope.jsx): one compact control on every page. The label is a small muted line above one fixed-width
        select (it never grows with the page or the chosen course), the path and the notes sit under it in one small style. */
@@ -36,7 +35,6 @@
     /* Page scope: the notes under the picker. */
     .page-scope__note { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0;
       font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); font-weight: var(--fw-regular); }
-    .page-scope__note .link-btn { font-size: var(--fs-sm); }
     .page-scope select option.is-parked { color: var(--text-muted); }
     /* The home: the current course is parked - say so under the heading, with the way back. */
     .course-parked-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: var(--space-1) 0 0; }

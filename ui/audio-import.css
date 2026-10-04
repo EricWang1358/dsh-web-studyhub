@@ -7,7 +7,6 @@
     .audio-drop-icon { font-size: var(--fs-3xl); line-height: 1; color: var(--accent-soft); }
     .audio-ways { display: grid; gap: var(--space-3); margin-top: 14px; text-align: left; }
     .audio-ways summary { cursor: pointer; }
-    .audio-ways .link-btn { justify-self: start; }
     .audio-workspace input[type="search"], .audio-path-row input { width: 100%; min-width: 0; margin-top: var(--space-2); }
     .audio-path-row { display: flex; align-items: center; gap: var(--space-2); }
     .audio-path-row button { margin-top: var(--space-2); flex: none; }

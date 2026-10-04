@@ -77,14 +77,6 @@
       gap: var(--space-2);
       flex-wrap: wrap;
     }
-    .sticky-actions .danger-text {
-      background: transparent;
-      border-color: transparent;
-      color: var(--bad);
-    }
-    .sticky-actions .danger-text:hover:not(:disabled) {
-      background: var(--bg-hover);
-    }
     .draft-title-field {
       margin: 0 0 6px;
       color: var(--text-muted);
@@ -94,12 +86,6 @@
       margin-top: var(--space-2);
       font-size: var(--fs-lg);
       font-weight: var(--fw-strong);
-    }
-    .draft-page .draft-heading {
-      margin-bottom: 18px;
-    }
-    .draft-page .draft-heading .eyebrow {
-      margin-bottom: 6px;
     }
     .draft-count {
       margin: var(--space-2) 0 18px;

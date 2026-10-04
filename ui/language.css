@@ -26,7 +26,7 @@
       .study-language-switch .sh-seg {margin-left:auto}
     }
   }
-  .study-app[lang=en] :is(.pill,.review-detour,.review-flow-origin,.grading-head,.study-mode-switch,.source-mode) {white-space:normal;overflow-wrap:anywhere}
+  .study-app[lang=en] :is(.review-detour,.review-flow-origin,.grading-head,.study-mode-switch,.source-mode) {white-space:normal;overflow-wrap:anywhere}
   .study-app[lang=en] .grade {min-width:0;white-space:normal}
   .study-app[lang=en] .grade span {display:block;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
   .study-app[lang=en] :is(.grading-head,.question-toolbar,.section-head,.page-head) {flex-wrap:wrap}

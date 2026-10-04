@@ -3,8 +3,7 @@
 @layer study.features {
   :where(.study-app, .study-seat) {
     .oral-exam { display: flex; flex-direction: column; gap: var(--space-5); }
-    .oral-heading, .oral-progress, .oral-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
-    .oral-heading h1 { margin: 5px 0 0; }
+    .oral-progress, .oral-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
     .oral-question, .oral-report { padding: var(--space-6); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
     .oral-progress { color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .oral-question { display: grid; gap: 18px; }

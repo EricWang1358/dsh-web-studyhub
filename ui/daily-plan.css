@@ -1,74 +1,82 @@
-/* 今天先做什么 (ui/DailyPlan.jsx). One focal object on the home: the day's paper card. So this block is a line under a hairline, folded by
-   default, and when open it is plain sections divided by hairlines, never a box. Tokens only; numbers use the UI font with tabular figures. */
-:is(.study-app, .study-seat) .daily-plan {
-  margin: 0 0 var(--space-5);
-  border-bottom: 1px solid var(--line-soft);
-  background: none;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-:is(.study-app, .study-seat) .daily-plan__heading {
-  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3);
-  padding: var(--space-1) 0 var(--space-2);
-}
-:is(.study-app, .study-seat) .daily-plan__heading h2 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-medium); }
-:is(.study-app, .study-seat) .daily-plan__summary {
-  flex: 1 1 12rem; min-width: 0; margin: 0; color: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-sm); overflow-wrap: anywhere;
-}
-:is(.study-app, .study-seat) .daily-plan__menu { margin-inline-start: auto; }
-:is(.study-app, .study-seat) .daily-plan__body { padding: var(--space-3) 0 var(--space-3); border-top: 1px solid var(--line-soft); }
-:is(.study-app, .study-seat) .daily-plan__body[hidden] { display: none; }
-:is(.study-app, .study-seat) .daily-plan__body > * + * { margin-top: var(--space-4); }
-:is(.study-app, .study-seat) .daily-plan__pace { display: grid; gap: var(--space-2); }
-:is(.study-app, .study-seat) .daily-plan__pace > span { color: var(--text-muted); font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .daily-plan__next-bottom,
-:is(.study-app, .study-seat) .daily-plan__editor-bottom { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
-:is(.study-app, .study-seat) .daily-plan__eyebrow { display: block; margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-xs); }
-:is(.study-app, .study-seat) .daily-plan__meta { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) :is(.daily-plan__next, .daily-plan__proposal) h3 {
-  margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-medium); line-height: var(--lh-tight); letter-spacing: -0.01em; overflow-wrap: anywhere;
-}
-:is(.study-app, .study-seat) .daily-plan__subject { margin: var(--space-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .daily-plan__intro { margin: var(--space-2) 0; max-width: 68ch; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-body); overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .daily-plan__next-bottom { margin-top: var(--space-3); justify-content: flex-start; }
-:is(.study-app, .study-seat) .daily-plan__actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-:is(.study-app, .study-seat) .daily-plan__list { border-top: 1px solid var(--line-soft); }
-:is(.study-app, .study-seat) .daily-plan__list > summary { display: list-item; padding: var(--space-3) 0; cursor: pointer; font-size: var(--fs-sm); color: var(--text-muted); }
-:is(.study-app, .study-seat) .daily-plan__tasks { padding: 0; margin: 0; list-style: none; }
-:is(.study-app, .study-seat) .daily-plan__task { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line-soft); }
-:is(.study-app, .study-seat) .daily-plan__task-copy { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .daily-plan__task-copy strong { font-size: var(--fs-sm); font-weight: var(--fw-medium); }
-:is(.study-app, .study-seat) .daily-plan__task.is-done strong { color: var(--text-muted); }
-:is(.study-app, .study-seat) .daily-plan__actual { margin-top: var(--space-1); font-size: var(--fs-xs); }
-:is(.study-app, .study-seat) .daily-plan__actual summary { cursor: pointer; color: var(--text-muted); padding: var(--space-2) 0; }
-:is(.study-app, .study-seat) .daily-plan__actual form { display: flex; align-items: flex-end; gap: var(--space-2); margin-top: var(--space-2); flex-wrap: wrap; }
-:is(.study-app, .study-seat) .daily-plan__proposal ol { list-style: decimal-leading-zero; padding-left: var(--space-6); margin: var(--space-3) 0 var(--space-4); }
-:is(.study-app, .study-seat) .daily-plan__proposal li { display: list-item; padding: var(--space-2) 0 var(--space-2) var(--space-2); border-bottom: 1px solid var(--line-soft); overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .daily-plan__proposal li::marker { color: var(--text-muted); font-size: var(--fs-xs); }
-:is(.study-app, .study-seat) .daily-plan__proposal li strong { font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .daily-plan__proposal li p { margin: var(--space-1) 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .daily-plan__failure { margin: var(--space-2) 0 var(--space-3); }
-:is(.study-app, .study-seat) .daily-plan__raw { display: block; overflow-wrap: anywhere; white-space: pre-wrap; font-size: var(--fs-xs); }
-:is(.study-app, .study-seat) .daily-plan__empty { max-width: 60ch; }
-:is(.study-app, .study-seat) .daily-plan__empty p { margin: 0 0 var(--space-3); color: var(--text-muted); line-height: var(--lh-body); font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .daily-plan__editor { padding: var(--space-3) 0 var(--space-2); border-top: 1px solid var(--line-soft); }
-:is(.study-app, .study-seat) .daily-plan label { display: flex; gap: var(--space-2); flex-direction: column; font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .daily-plan textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 5rem; }
-:is(.study-app, .study-seat) .daily-plan input { min-width: 0; width: 5rem; }
-:is(.study-app, .study-seat) .daily-plan__editor-bottom { margin-top: var(--space-3); }
-:is(.study-app, .study-seat) label.daily-plan__minutes { flex-direction: row; align-items: center; flex-wrap: wrap; }
-:is(.study-app, .study-seat) .daily-plan__footnote { margin: var(--space-3) 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .daily-plan__fields { display: flex; gap: var(--space-4); margin-bottom: var(--space-3); flex-wrap: wrap; }
-:is(.study-app, .study-seat) .daily-related { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-5); padding: var(--space-3) 0; margin: var(--space-3) 0; border-block: 1px solid var(--line-soft); }
-:is(.study-app, .study-seat) .daily-related__row { display: flex; align-items: center; gap: var(--space-4); flex: 1 1 15rem; min-width: 0; }
-:is(.study-app, .study-seat) .daily-related__row .daily-plan__task-copy { flex: 1; }
-:is(.study-app, .study-seat) .daily-plan :is(summary, input),
-:is(.study-app, .study-seat) .daily-plan__body button,
-:is(.study-app, .study-seat) .daily-related button { min-height: 2.75rem; }
-:is(.study-app, .study-seat) .daily-plan summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-@media (max-width: 600px) {
-  :is(.study-app, .study-seat) .daily-plan__next-bottom { align-items: flex-start; flex-direction: column; }
-  :is(.study-app, .study-seat) .daily-plan__task { align-items: flex-start; }
-  :is(.study-app, .study-seat) .daily-plan__task > button { flex-shrink: 0; }
-  :is(.study-app, .study-seat) .daily-plan__editor-bottom { align-items: flex-start; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 今天先做什么 (ui/DailyPlan.jsx). One focal object on the home: the day's paper card. So this block is a line under a hairline, folded by
+       default, and when open it is plain sections divided by hairlines, never a box. Tokens only; numbers use the UI font with tabular figures. */
+    .daily-plan {
+      margin: 0 0 var(--space-5);
+      border-bottom: 1px solid var(--line-soft);
+      background: none;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .daily-plan__heading {
+      display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3);
+      padding: var(--space-1) 0 var(--space-2);
+    }
+    .daily-plan__heading h2 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-medium); }
+    .daily-plan__summary {
+      flex: 1 1 12rem; min-width: 0; margin: 0; color: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-sm); overflow-wrap: anywhere;
+    }
+    .daily-plan__menu { margin-inline-start: auto; }
+    .daily-plan__body { padding: var(--space-3) 0 var(--space-3); border-top: 1px solid var(--line-soft); }
+    .daily-plan__body[hidden] { display: none; }
+    .daily-plan__body > * + * { margin-top: var(--space-4); }
+    .daily-plan__pace { display: grid; gap: var(--space-2); }
+    .daily-plan__pace > span { color: var(--text-muted); font-size: var(--fs-sm); }
+    .daily-plan__next-bottom,
+    .daily-plan__editor-bottom { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
+    .daily-plan__eyebrow { display: block; margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-xs); }
+    .daily-plan__meta { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    :is(.daily-plan__next, .daily-plan__proposal) h3 {
+      margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-medium); line-height: var(--lh-tight); letter-spacing: -0.01em; overflow-wrap: anywhere;
+    }
+    .daily-plan__subject { margin: var(--space-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .daily-plan__intro { margin: var(--space-2) 0; max-width: 68ch; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-body); overflow-wrap: anywhere; }
+    .daily-plan__next-bottom { margin-top: var(--space-3); justify-content: flex-start; }
+    .daily-plan__actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .daily-plan__list { border-top: 1px solid var(--line-soft); }
+    .daily-plan__list > summary { display: list-item; padding: var(--space-3) 0; cursor: pointer; font-size: var(--fs-sm); color: var(--text-muted); }
+    .daily-plan__tasks { padding: 0; margin: 0; list-style: none; }
+    .daily-plan__task { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line-soft); }
+    .daily-plan__task-copy { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
+    .daily-plan__task-copy strong { font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+    .daily-plan__task.is-done strong { color: var(--text-muted); }
+    .daily-plan__actual { margin-top: var(--space-1); font-size: var(--fs-xs); }
+    .daily-plan__actual summary { cursor: pointer; color: var(--text-muted); padding: var(--space-2) 0; }
+    .daily-plan__actual form { display: flex; align-items: flex-end; gap: var(--space-2); margin-top: var(--space-2); flex-wrap: wrap; }
+    .daily-plan__proposal ol { list-style: decimal-leading-zero; padding-left: var(--space-6); margin: var(--space-3) 0 var(--space-4); }
+    .daily-plan__proposal li { display: list-item; padding: var(--space-2) 0 var(--space-2) var(--space-2); border-bottom: 1px solid var(--line-soft); overflow-wrap: anywhere; }
+    .daily-plan__proposal li::marker { color: var(--text-muted); font-size: var(--fs-xs); }
+    .daily-plan__proposal li strong { font-size: var(--fs-sm); }
+    .daily-plan__proposal li p { margin: var(--space-1) 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .daily-plan__failure { margin: var(--space-2) 0 var(--space-3); }
+    .daily-plan__raw { display: block; overflow-wrap: anywhere; white-space: pre-wrap; font-size: var(--fs-xs); }
+    .daily-plan__empty { max-width: 60ch; }
+    .daily-plan__empty p { margin: 0 0 var(--space-3); color: var(--text-muted); line-height: var(--lh-body); font-size: var(--fs-sm); }
+    .daily-plan__editor { padding: var(--space-3) 0 var(--space-2); border-top: 1px solid var(--line-soft); }
+    .daily-plan label { display: flex; gap: var(--space-2); flex-direction: column; font-size: var(--fs-sm); }
+    .daily-plan textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 5rem; }
+    .daily-plan input { min-width: 0; width: 5rem; }
+    .daily-plan__editor-bottom { margin-top: var(--space-3); }
+    & label.daily-plan__minutes { flex-direction: row; align-items: center; flex-wrap: wrap; }
+    .daily-plan__footnote { margin: var(--space-3) 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .daily-plan__fields { display: flex; gap: var(--space-4); margin-bottom: var(--space-3); flex-wrap: wrap; }
+    .daily-related { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-5); padding: var(--space-3) 0; margin: var(--space-3) 0; border-block: 1px solid var(--line-soft); }
+    .daily-related__row { display: flex; align-items: center; gap: var(--space-4); flex: 1 1 15rem; min-width: 0; }
+    .daily-related__row .daily-plan__task-copy { flex: 1; }
+    .daily-plan :is(summary, input),
+    .daily-plan__body button,
+    .daily-related button { min-height: 2.75rem; }
+    .daily-plan summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  }
+  @media (max-width: 600px) {
+    :is(.study-app, .study-seat) {
+      .daily-plan__next-bottom { align-items: flex-start; flex-direction: column; }
+      .daily-plan__task { align-items: flex-start; }
+      .daily-plan__task > button { flex-shrink: 0; }
+      .daily-plan__editor-bottom { align-items: flex-start; }
+    }
+  }
 }

@@ -11,17 +11,7 @@
     .manage-page > * { min-width: 0; margin: 0; }
     /* Head: title block left, actions right (stacks under it on narrow screens). */
     .manage-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-4) var(--space-6); }
-    .manage-head__title { flex: 1 1 360px; min-width: 0; display: grid; gap: var(--space-2); }
-    .manage-head__title h1 { margin: 0; overflow-wrap: anywhere; }
-    .manage-head__title p { margin: 0; max-width: 62ch; font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .manage-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-    .manage-actions button { flex: 0 0 auto; white-space: nowrap; }
     .manage-meta { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-    .manage-chip {
-      display: inline-block; padding: var(--space-half) 10px; border: 1px solid var(--line); border-radius: var(--radius-pill);
-      color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); white-space: nowrap;
-    }
-    .manage-chip--warn { border-color: var(--warn-line); color: var(--warn); }
     /* Labelled field rows: label above, control + button on one line. */
     .manage-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .manage-label small { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-regular); font-variant-numeric: tabular-nums; }
@@ -31,8 +21,6 @@
     .manage-row--pair > button { flex: 1 1 0; }
     /* Organise panel. */
     .manage-panel { display: grid; gap: var(--space-5); padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
-    .manage-panel__head h2 { margin: 0 0 var(--space-1); font-size: var(--fs-lg); }
-    .manage-panel__head p { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .manage-section { display: block; margin: 0; padding-top: var(--space-4); border-top: 1px solid var(--line-soft); }
     .manage-section > .manage-row + .manage-topics,
     .manage-section > .manage-topics + .manage-row { margin-top: var(--space-3); }

@@ -26,26 +26,11 @@
     .review-detour:hover:not(:disabled) {
       background: color-mix(in srgb, var(--accent) 14%, transparent);
     }
-    .review-flow-origin {
-      margin: 0 0 var(--space-1);
-      font-size: var(--fs-md);
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-    }
     .review-heading h1 {
       font-size: var(--fs-xl);
       font-weight: var(--fw-strong);
       margin-bottom: var(--space-2);
       letter-spacing: -0.01em;
-    }
-    .review-heading .pill {
-      padding: var(--space-1) 11px;
-      border-color: var(--line);
-      background: transparent;
-      color: var(--text-muted);
-    }
-    .review-heading .pill:hover:not(:disabled) {
-      color: var(--text);
     }
     .review-heading > button,
     .review-return {
@@ -56,11 +41,6 @@
     }
     .review-return { white-space: nowrap; }
     .review-return-short { display: none; }
-    .review-heading-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {

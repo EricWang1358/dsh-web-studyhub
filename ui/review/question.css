@@ -358,7 +358,6 @@
     .question-navigation { margin-left: auto; }
     .question-toolbar > .next-hint { flex: 1 0 100%; margin: 0; text-align: right; }
     .question-toolbar .question-navigation { gap: 7px; }
-    .question-toolbar .question-navigation .pill { min-height: 38px; padding: var(--space-2) var(--space-3); white-space: nowrap; }
     /* A drawn chevron: the "⌄" glyph sits below the baseline and read as a subscript. */
     /* EN 附文：始终紧跟其中文原文之后，弱一级、左侧一道色杠。 */
     .en-block {
@@ -651,12 +650,6 @@
       padding: var(--space-2) 10px var(--space-2) 14px;
       cursor: pointer;
       color: var(--text-dim);
-    }
-    .prereq-strip > summary .pill {
-      flex: none;
-      padding: 5px var(--space-3);
-      font-size: var(--fs-md);
-      white-space: nowrap;
     }
     .prereq-strip ul {
       list-style: none;
@@ -960,11 +953,6 @@
       }
       .question-toolbar .tool-action,
       .question-toolbar .tool-icon,
-      .question-toolbar .question-navigation .pill { min-height: 44px; }
-      .question-toolbar .pill {
-        padding: 7px 11px;
-        font-size: var(--fs-md);
-      }
       .session-summary {
         margin-top: 60px;
       }

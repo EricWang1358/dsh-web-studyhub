@@ -57,10 +57,6 @@
       flex: 1;
       min-width: 0;
     }
-    .resume-row .ghost-btn {
-      flex-shrink: 0;
-      align-self: center;
-    }
     .draft-row {
       display: flex;
       flex-wrap: wrap;

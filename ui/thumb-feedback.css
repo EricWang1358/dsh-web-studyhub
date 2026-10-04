@@ -1,7 +1,13 @@
-/* The 👎 control is an expander (aria-expanded), so its recorded vote is not aria-pressed (#176): the same "chosen" look
-   as the pressed 👍 in coach.css, driven by data-vote. */
-:is(.study-app, .study-seat) .thumbs > button[data-vote="on"] {
-  border-color: var(--accent);
-  color: var(--text);
-  background: var(--accent-glow);
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The 👎 control is an expander (aria-expanded), so its recorded vote is not aria-pressed (#176): the same "chosen" look
+       as the pressed 👍 in coach.css, driven by data-vote. */
+    .thumbs > button[data-vote="on"] {
+      border-color: var(--accent);
+      color: var(--text);
+      background: var(--accent-glow);
+    }
+  }
 }
