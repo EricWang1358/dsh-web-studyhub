@@ -25,6 +25,7 @@ import { originalNote, renameDocument, startsEditing } from './document-preview/
 import css from "./sources.css";
 import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 import { useStudy } from './study-context.jsx';
+import { useRetrievalStatus } from './retrieval-status.js';
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
    最新一组默认展开（P23）；刚导入的资料高亮并滚动到视野里。sourceForm 是 App
@@ -133,7 +134,7 @@ export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSeg
   </div>;
 }
 
-function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onArchive, onChangeCourse, onSegment, mastery, rename, indexInfo = null, indexCoverage = null, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse, onRetrieval }) {
+function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onArchive, onChangeCourse, onSegment, mastery, rename, indexInfo = null, indexCoverage = null, advice = false, retrieval = null, onOpenSettings, call, courses, defaultCourse }) {
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => () => clearTimeout(opening.current), []);
@@ -208,7 +209,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
       </div>}
       {advice && <Disclosure className="source-doc__advice" summary={uiFormat('这份资料有 {0} 页，建议按章节使用', [Math.max(item.pages.length, item.totalPages || 0)])} meta={ui('大教材建议')}>
         <LargeDocumentCard reason="long-document" detail={{ name: displayTitle(item.title), pages: Math.max(item.pages.length, item.totalPages || 0) }}
-          retrieval={retrieval} onOpenSettings={onOpenSettings} call={call} courses={courses} defaultCourse={item.courses?.[0] || defaultCourse} onRetrieval={onRetrieval} />
+          retrieval={retrieval} onOpenSettings={onOpenSettings} call={call} courses={courses} defaultCourse={item.courses?.[0] || defaultCourse} />
       </Disclosure>}
     </article>
   );
@@ -270,15 +271,9 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const filtered = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
   // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
   const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
-  const [retrieval, setRetrieval] = useState(null);
   // Whether each material's search index is built (the rows say so); read once, and followed while a build runs.
   const [indexCoverage] = useIndexCoverage(call);
-  useEffect(() => {
-    if (!bigKeys.size || retrieval || typeof call !== 'function') return undefined;
-    let live = true;
-    Promise.resolve(call('retrieval.status', {})).then(value => { if (live) setRetrieval(value); }, () => {});
-    return () => { live = false; };
-  }, [bigKeys.size > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: retrieval } = useRetrievalStatus({ enabled: bigKeys.size > 0 });
   const groups = useMemo(() => groupByDay(filtered), [filtered]);
   const fresh = useMemo(() => new Set(items.filter(item => item.sourceIds.some(id => highlight?.ids?.includes(id))).map(item => item.key)), [items, highlight]);
   // Explicit choices win; otherwise the newest day and any day holding a fresh import are open.
@@ -407,7 +402,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                   onOpen={openSource} onGenerate={showArchived ? undefined : onGenerate} onRemove={setRemoving}
                   onArchive={item => act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived })} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined} rename={renameFor}
                   mastery={data.materialMastery?.[item.key]} indexInfo={documentIndexState(item, indexCoverage, { big: bigKeys.has(item.key) })} indexCoverage={indexCoverage} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
-                  call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} onRetrieval={setRetrieval} />)}
+                  call={call} courses={data.focus?.courses} defaultCourse={data.focus?.course} />)}
               </div>
             );
           })}

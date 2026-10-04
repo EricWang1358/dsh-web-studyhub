@@ -5,6 +5,7 @@ import { Button, ConfirmDialog, Hint, InlineMessage, ProgressBar } from './compo
 import { usePolling } from './use-polling.js';
 import { indexProgress, runInstall, runUninstall, startIndex } from './retrieval-extension-flow.js';
 import css from './large-documents.css';
+import { refreshRetrievalStatus, setRetrievalStatus } from './retrieval-status.js';
 
 /* The one-click path to searching a large textbook (WP28b): install the search
    extension, then build the index of a course. No file is edited and no command is
@@ -165,12 +166,13 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
   const [confirmRemove, setConfirmRemove] = useState(false);
   const extension = status?.extension;
   if (!status || !extension) return null;
-  const refresh = async next => { const value = next || await Promise.resolve(call('retrieval.status', {})).catch(() => null); if (value) onStatus?.(value); };
+  // The status lives in the shared store (ui/retrieval-status.js): what is learned here reaches every reader, then the page's own hook.
+  const refresh = async next => { if (next) setRetrievalStatus(next); const value = next || await refreshRetrievalStatus(call); if (value) onStatus?.(value); };
   // A failure is shown inside the confirmation, which stays open for another try.
   async function remove() {
     const result = await runUninstall(call);
     if (result.phase === 'error') throw new Error(result.message);
-    if (result.status) onStatus?.(result.status);
+    if (result.status) { setRetrievalStatus(result.status); onStatus?.(result.status); }
   }
   const running = status.companion?.running === true;
   return (

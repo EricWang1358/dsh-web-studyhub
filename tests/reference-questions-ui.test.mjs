@@ -18,7 +18,7 @@ const { Generate, CaseCreate, ReferenceQuestions, setUiLanguage } = module.expor
 // Exercise event closures without a browser, storage or executing effects/model calls.
 const services = { current: null }; // what useStudy() answers inside the event closures (see tests/helpers/study-services.mjs)
 const hooks = { ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
-  useInsertionEffect: () => {}, useContext: () => services.current, useEffect: () => {}, useCallback: callback => callback, useMemo: read => read(), useRef: initial => ({ current: initial }) };
+  useInsertionEffect: () => {}, useContext: () => services.current, useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useEffect: () => {}, useCallback: callback => callback, useMemo: read => read(), useRef: initial => ({ current: initial }) };
 const eventModule = { exports: {} };
 const require = createRequire(import.meta.url);
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : require(name), eventModule, eventModule.exports);

@@ -10,6 +10,7 @@ import { looksLikeConvertedJson } from '../lib/converted-document.js';
 import { LARGE_DOCUMENT_LIMITS, classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
 import { AUDIO_EXTENSIONS, MAX_SUBTITLE_BYTES, SUBTITLE_TIMED_EXTENSIONS } from '../lib/audio-formats.js';
+import { useRetrievalStatus } from './retrieval-status.js';
 import { IMPORT_ERROR } from '../lib/import-errors.js';
 import { SELECTION_CHARS } from '../lib/limits.js';
 import { extensionOf } from './file-names.js';
@@ -381,16 +382,10 @@ export default function ImportHub({
   const handleDrag = useMemo(() => hubDropHandler(type => strayRef.current?.(type)), []);
   // A file that is too large gets the 大教材建议 card; what DSH can search with is read once, then.
   const largeItem = items.find(item => item.status === 'error' && item.large);
-  const [retrieval, setRetrieval] = useState(null);
   // The PDF conversion panel also handles files refused by the ordinary import size limit.
   const [converter, setConverter] = useState('mineru');
   const [conversionOpen, setConversionOpen] = useState(false), [conversionFile, setConversionFile] = useState(null), [conversionHistory, setConversionHistory] = useState(false);
-  useEffect(() => {
-    if (!largeItem || retrieval || typeof call !== 'function') return undefined;
-    let live = true;
-    Promise.resolve(call('retrieval.status', {})).then(value => { if (live) setRetrieval(value); }, () => {});
-    return () => { live = false; };
-  }, [!!largeItem]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: retrieval } = useRetrievalStatus({ enabled: !!largeItem });
   useEffect(() => {
     alive.current = true;
     const element = root.current, types = ['dragenter', 'dragover', 'dragleave', 'drop'];
@@ -463,7 +458,7 @@ export default function ImportHub({
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />}
         {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={onOpenSettings}
-          call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course} onRetrieval={setRetrieval}
+          call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course}
           conversionAvailable={hasContext(data, 'audio')} courseNames={courses} onConversionStarted={conversionStarted} />}
         {!largeItem && conversionOpen && <>
           <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); }}>{ui('返回文件导入')}</Button>

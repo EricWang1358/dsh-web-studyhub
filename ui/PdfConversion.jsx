@@ -7,6 +7,7 @@ import { chooseRoute, localEstimate, minutesOf, pageRange, uploadPdf } from './m
 import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
 import css from './mineru.css';
+import { useMineruState } from './use-mineru.js';
 
 /* Both entry points share one staged PDF. Choosing a converter never reuploads it;
    only an explicit start hands the file to a background conversion job. */
@@ -48,7 +49,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   const [converter, setConverter] = useState(initialConverter), [marker, setMarker] = useState(initialMarker);
   useEffect(() => { setConverter(initialConverter); }, [initialConverter]);
   const isMarker = converter === 'marker';
-  const [settings, setSettings] = useState(initialSettings), [local, setLocal] = useState(initialLocal);
+  const { settings, local, setSettings } = useMineruState({ call, initialSettings, initialLocal, enabled: available });
   const [plan, setPlan] = useState(initialPlan), [reading, setReading] = useState(null), [problem, setProblem] = useState('');
   const [choice, setChoice] = useState(initialRoute), [agreed, setAgreed] = useState(initialAcknowledged), [starting, setStarting] = useState(false);
   const uploadId = useRef(''), picker = useRef(null), alive = useRef(true), taken = useRef(false);
@@ -60,8 +61,6 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     if (!available || typeof call !== 'function') return undefined;
     let live = true;
     if (!initialMarker) Promise.resolve(call('marker.local.status', {})).then(value => { if (live) setMarker(value); }, () => { if (live) setMarker({ state: 'unavailable' }); });
-    if (!initialSettings) Promise.resolve(call('mineru.settings.get', {})).then(value => { if (live) setSettings(value); }, () => { if (live) setSettings({ token: { set: false }, acknowledged: false, unavailable: true }); });
-    if (!initialLocal) Promise.resolve(call('mineru.local.status', {})).then(value => { if (live) setLocal(value); }, () => { if (live) setLocal({ state: 'unavailable' }); });
     return () => { live = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
