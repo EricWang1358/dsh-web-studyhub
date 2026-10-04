@@ -1,54 +1,59 @@
-/* ── Tabs and DisclosureToggle ───────────────────────────────────────────
-   Tokens only; the look is the existing quiet controls. The caret turns with
-   transform (the one thing that moves) and reduced motion removes the turn.
-   The tab list has no specificity at all and a tab only just beats the bare
-   button rule, so a feature that skins its tabs (a strip of numbered
-   stations, small pills) wins with one class, whatever the injection order. */
-:where(.study-app, .study-seat) :where(.sh-tabs) {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: var(--space-1);
-  min-width: 0;
-}
-:where(.study-app, .study-seat) button.sh-tab {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-  min-height: 2rem;
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-regular);
-  text-align: left;
-  cursor: pointer;
-}
-:where(.study-app, .study-seat) button.sh-tab:hover:not(:disabled) { border-color: var(--line-strong); color: var(--text); }
-:where(.study-app, .study-seat) button.sh-tab:is(.is-active, [aria-selected="true"]) {
-  border-color: var(--line-strong);
-  background: var(--bg-surface);
-  color: var(--text);
-  font-weight: var(--fw-medium);
-}
-:where(.study-app, .study-seat) button.sh-tab:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-:where(.study-app, .study-seat) button.sh-tab:disabled { opacity: .5; cursor: not-allowed; }
-:where(.study-app, .study-seat) :where(.sh-tab-anchor) { display: flex; min-width: 0; }
-:where(.study-app, .study-seat) :where(.sh-tab-anchor) > button.sh-tab { flex: 1 1 auto; }
-:where(.study-app, .study-seat) :where(.sh-tab__note) { color: var(--text-faint); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
-:where(.study-app, .study-seat) :where(.sh-tabpanel):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-:is(.study-app, .study-seat) {
-  .sh-disclosure-toggle .sh-icon { transition: transform var(--dur-fast) var(--ease); }
-  .sh-disclosure-toggle[aria-expanded="true"] .sh-icon { transform: rotate(90deg); }
-  /* The same caret inside a button that is itself the fold toggle (a text row). */
-  [aria-expanded] > .sh-caret { flex: none; transition: transform var(--dur-fast) var(--ease); }
-  [aria-expanded="true"] > .sh-caret { transform: rotate(90deg); }
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* ── Tabs and DisclosureToggle ───────────────────────────────────────────
+       Tokens only; the look is the existing quiet controls. The caret turns with
+       transform (the one thing that moves) and reduced motion removes the turn.
+       The tab list has no specificity at all and a tab only just beats the bare
+       button rule, so a feature that skins its tabs (a strip of numbered
+       stations, small pills) wins with one class, whatever the injection order. */
+    :where(.sh-tabs) {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    & button.sh-tab {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-1);
+      min-height: 2rem;
+      padding: var(--space-1) var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      text-align: left;
+      cursor: pointer;
+    }
+    & button.sh-tab:hover:not(:disabled) { border-color: var(--line-strong); color: var(--text); }
+    & button.sh-tab:is(.is-active, [aria-selected="true"]) {
+      border-color: var(--line-strong);
+      background: var(--bg-surface);
+      color: var(--text);
+      font-weight: var(--fw-medium);
+    }
+    & button.sh-tab:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    & button.sh-tab:disabled { opacity: .5; cursor: not-allowed; }
+    :where(.sh-tab-anchor) { display: flex; min-width: 0; }
+    :where(.sh-tab-anchor) > button.sh-tab { flex: 1 1 auto; }
+    :where(.sh-tab__note) { color: var(--text-faint); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+    :where(.sh-tabpanel):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .sh-disclosure-toggle .sh-icon { transition: transform var(--dur-fast) var(--ease); }
+    .sh-disclosure-toggle[aria-expanded="true"] .sh-icon { transform: rotate(90deg); }
+    /* The same caret inside a button that is itself the fold toggle (a text row). */
+    [aria-expanded] > .sh-caret { flex: none; transition: transform var(--dur-fast) var(--ease); }
+    [aria-expanded="true"] > .sh-caret { transform: rotate(90deg); }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .sh-disclosure-toggle .sh-icon, [aria-expanded] > .sh-caret { transition: none; }
+    :is(.study-app, .study-seat) {
+      .sh-disclosure-toggle .sh-icon, [aria-expanded] > .sh-caret { transition: none; }
+    }
   }
 }

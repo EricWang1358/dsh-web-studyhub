@@ -95,7 +95,8 @@ test('systemNow asks for the contrast preference too, without a matchMedia it is
 
 /* ---------- the stylesheet ---------- */
 
-const normalize = text => text.replace(/\r\n/g, '\n');
+// The sheets are wrapped in @layer and the scope, so rules are indented; these tests read blocks by their selector line.
+const normalize = text => text.replace(/\r\n/g, '\n').replace(/^[ \t]+/gm, '');
 const themes = normalize(await readFile('ui/appearance-themes.css', 'utf8'));
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '');
 /** Every top-level rule of the file (also inside @media): { selector, decls } with comments removed. */
@@ -111,7 +112,8 @@ function rules(source) {
       let depth = 1, j = open + 1;
       while (depth && j < body.length) { depth += body[j] === '{' ? 1 : body[j] === '}' ? -1 : 0; j += 1; }
       const inner = body.slice(open + 1, j - 1);
-      if (head.startsWith('@media')) walk(inner, head);
+      if (head.startsWith('@layer') || head === ':is(.study-app, .study-seat)') walk(inner, media);
+      else if (head.startsWith('@media')) walk(inner, head);
       else out.push({ media, selector: head.replace(/\s+/g, ' '), decls: Object.fromEntries([...inner.matchAll(/([\w-]+)\s*:\s*([^;]+);?/g)].map(([, name, value]) => [name, value.trim()])) });
       i = j;
     }

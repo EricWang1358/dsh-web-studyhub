@@ -1,164 +1,256 @@
-/* ── Theme tokens ────────────────────────────────────────────────────────
-   "Ink desk": warm near-black surfaces, paper-white type and one cinnabar
-   accent (the red of a teacher's 朱批 and an index card's header rule).
-   Cinnabar is reserved for the single primary action and progress; mastery
-   hues (jade / ochre / rose) only ever carry meaning. Older one-off literals
-   were re-hued to this family with lightness preserved. New rules must
-   reference tokens, not raw colours. */
-/* The seat carries the tokens too: host overlays (the panel's question
-   picker) render beside the app, not inside it. */
-.study-app,
-.study-seat {
-  /* dark is the product default */
-  --bg-canvas: #161412;
-  --bg-sunken: #110f0d;
-  --bg-surface: #1e1b18;
-  --bg-raised: #26231f;
-  --bg-glass: #1e1b18f0;
-  --bg-glass-strong: #1e1b18fa;
-  --bg-hover: #fff1dc0b;
-  --bg-selected: #2d2521;
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-  --line-soft: #f5e6cf12;
-  --line: #332f2a;
-  --line-strong: #4a443c;
+@layer study.tokens {
+  /* ── Theme tokens ────────────────────────────────────────────────────────
+     "Ink desk": warm near-black surfaces, paper-white type and one cinnabar
+     accent (the red of a teacher's 朱批 and an index card's header rule).
+     Cinnabar is reserved for the single primary action and progress; mastery
+     hues (jade / ochre / rose) only ever carry meaning. Older one-off literals
+     were re-hued to this family with lightness preserved. New rules must
+     reference tokens, not raw colours. */
+  /* The seat carries the tokens too: host overlays (the panel's question
+     picker) render beside the app, not inside it. */
+  .study-app,
+  .study-seat {
+    /* dark is the product default */
+    --bg-canvas: #161412;
+    --bg-sunken: #110f0d;
+    --bg-surface: #1e1b18;
+    --bg-raised: #26231f;
+    --bg-glass: #1e1b18f0;
+    --bg-glass-strong: #1e1b18fa;
+    --bg-hover: #fff1dc0b;
+    --bg-selected: #2d2521;
 
-  --text: #efe9df;
-  --text-dim: #c5bdb1;
-  /* Every --text-* token reaches WCAG AA (4.5:1) on canvas, sunken, surface,
-     raised and selected (tests/wp1-tokens). Hierarchy below --text-dim comes
-     from size and weight, not from fading words out. */
-  --text-muted: #a59d91;
-  --text-faint: #958e84;
-  /* Non-text decoration only: status dots, dotted rules, empty rings. */
-  --decor-faint: #6f685e;
+    --line-soft: #f5e6cf12;
+    --line: #332f2a;
+    --line-strong: #4a443c;
 
-  --accent: #c93d22;
-  --accent-soft: #ec6a4a;
-  --accent-ink: #fff8f2;
-  --accent-glow: color-mix(in srgb, var(--accent) 28%, transparent);
-  /* Accent-coloured words and links (AA on every surface). */
-  --accent-text: #ec6a4a;
+    --text: #efe9df;
+    --text-dim: #c5bdb1;
+    /* Every --text-* token reaches WCAG AA (4.5:1) on canvas, sunken, surface,
+       raised and selected (tests/wp1-tokens). Hierarchy below --text-dim comes
+       from size and weight, not from fading words out. */
+    --text-muted: #a59d91;
+    --text-faint: #958e84;
+    /* Non-text decoration only: status dots, dotted rules, empty rings. */
+    --decor-faint: #6f685e;
 
-  --ok: #5fb58a;
-  --warn: #d9a441;
-  --bad: #d76c93;
-  --info: #86a9c6;
+    --accent: #c93d22;
+    --accent-soft: #ec6a4a;
+    --accent-ink: #fff8f2;
+    --accent-glow: color-mix(in srgb, var(--accent) 28%, transparent);
+    /* Accent-coloured words and links (AA on every surface). */
+    --accent-text: #ec6a4a;
 
-  /* The card is the one physical object: paper on the desk. */
-  --paper: #ece4d6;
-  --paper-ink: #201b15;
-  --paper-dim: #5d5448;
-  --paper-rule: #20160c14;
+    --ok: #5fb58a;
+    --warn: #d9a441;
+    --bad: #d76c93;
+    --info: #86a9c6;
 
-  --shadow-card: 0 0 0 1px var(--paper-rule), 0 2px 4px #00000026, var(--shadow-lg);
-  --radius-card: 16px;
-  --glass-blur: 0px;
-  --glass-sheen: #fff4e30a;
-  --shadow-sm: 0 1px 2px #0000004d, 0 2px 8px -4px #00000080;
-  --shadow-md: 0 14px 34px -20px #000000d9;
-  --shadow-lg: 0 30px 70px -30px #000000f2;
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+    /* The card is the one physical object: paper on the desk. */
+    --paper: #ece4d6;
+    --paper-ink: #201b15;
+    --paper-dim: #5d5448;
+    --paper-rule: #20160c14;
 
-  /* The stacks themselves are the --font-stack-* block at the end of this file (ui/font-presets.js lists them). */
-  --font-ui: var(--font-stack-system);
-  --font-display: var(--font-stack-system-display);
+    --shadow-card: 0 0 0 1px var(--paper-rule), 0 2px 4px #00000026, var(--shadow-lg);
+    --radius-card: 16px;
+    --glass-blur: 0px;
+    --glass-sheen: #fff4e30a;
+    --shadow-sm: 0 1px 2px #0000004d, 0 2px 8px -4px #00000080;
+    --shadow-md: 0 14px 34px -20px #000000d9;
+    --shadow-lg: 0 30px 70px -30px #000000f2;
+    --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-pill: 999px;
+    /* The stacks themselves are the --font-stack-* block at the end of this file (ui/font-presets.js lists them). */
+    --font-ui: var(--font-stack-system);
+    --font-display: var(--font-stack-system-display);
 
-  /* Type scale. 15px is the reading size; 12px is the floor for badges,
-     counters and keys, never for sentences. */
-  --fs-xs: 12px;
-  --fs-sm: 13px;
-  --fs-md: 15px;
-  --fs-lg: 17px;
-  --fs-xl: 19px;
-  --fs-2xl: 23px;
-  --fs-3xl: 28px;
-  --lh-tight: 1.3;
-  --lh-snug: 1.45;
-  --lh-body: 1.65;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-pill: 999px;
 
-  /* Spacing on a 4px grid. */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-7: 32px;
-  --space-8: 40px;
-  --space-9: 56px;
-  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  color-scheme: dark;
+    /* Type scale. 15px is the reading size; 12px is the floor for badges,
+       counters and keys, never for sentences. */
+    --fs-xs: 12px;
+    --fs-sm: 13px;
+    --fs-md: 15px;
+    --fs-lg: 17px;
+    --fs-xl: 19px;
+    --fs-2xl: 23px;
+    --fs-3xl: 28px;
+    --lh-tight: 1.3;
+    --lh-snug: 1.45;
+    --lh-body: 1.65;
+
+    /* Spacing on a 4px grid. */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 32px;
+    --space-8: 40px;
+    --space-9: 56px;
+    --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    color-scheme: dark;
+  }
+  /* Light theme: the same desk by daylight — warm paper greys, ink type. */
+  .study-app[data-theme="light"],
+  .study-seat:has(> .study-app[data-theme="light"]) {
+    --bg-canvas: #f1ede6;
+    --bg-sunken: #e8e3da;
+    --bg-surface: #faf8f4;
+    --bg-raised: #ffffff;
+    --bg-glass: #faf8f4f0;
+    --bg-glass-strong: #faf8f4fa;
+    --bg-hover: #2a1c0e0b;
+    --bg-selected: #f5e4dc;
+
+    --line-soft: #2a1c0e12;
+    --line: #ddd5c9;
+    --line-strong: #c5bbad;
+
+    --text: #1e1a15;
+    --text-dim: #453e35;
+    --text-muted: #635b51;
+    --text-faint: #6a635a;
+    --decor-faint: #9c9488;
+
+    --accent: #c03a1f;
+    --accent-soft: #d44f2e;
+    --accent-ink: #fffaf5;
+    --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
+    --accent-text: #ad4025;
+
+    --ok: #1e724d;
+    --warn: #8b590f;
+    --bad: #ad3966;
+    --info: #376893;
+
+    --paper: #fffdf8;
+    --paper-ink: #1e1a15;
+    --paper-dim: #5f574c;
+    --paper-rule: #20160c12;
+
+    --glass-sheen: #ffffffb3;
+    --shadow-sm: 0 1px 2px #2a1c0e14, 0 2px 8px -4px #2a1c0e26;
+    --shadow-md: 0 14px 34px -20px #2a1c0e38;
+    --shadow-lg: 0 30px 70px -30px #2a1c0e45;
+    --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+
+    color-scheme: light;
+  }
+  /* ── Semantic tokens ──────────────────────────────
+     Derived from the base tokens above with color-mix, so every theme
+     (dark, light, card stock, future high-contrast ones) adapts on its own.
+     Tone ink/bg/line fix the 82% / 8% / 30% formulas that keep coloured words
+     AA-readable on tinted surfaces; --warn-text is the name two older rules
+     already referenced. Layers, scrims, weights, the small radius and the
+     durations replace the magic numbers feature CSS still carries (the
+     ratchets in tests/ui-guardrails.test.mjs stop new ones). */
+  .study-app,
+  .study-seat {
+    --ok-ink: color-mix(in srgb, var(--ok) 82%, var(--text));
+    --ok-bg: color-mix(in srgb, var(--ok) 8%, var(--bg-surface));
+    --ok-line: color-mix(in srgb, var(--ok) 30%, var(--line));
+    --warn-ink: color-mix(in srgb, var(--warn) 82%, var(--text));
+    --warn-bg: color-mix(in srgb, var(--warn) 8%, var(--bg-surface));
+    --warn-line: color-mix(in srgb, var(--warn) 30%, var(--line));
+    --bad-ink: color-mix(in srgb, var(--bad) 82%, var(--text));
+    --bad-bg: color-mix(in srgb, var(--bad) 8%, var(--bg-surface));
+    --bad-line: color-mix(in srgb, var(--bad) 30%, var(--line));
+    --info-ink: color-mix(in srgb, var(--info) 82%, var(--text));
+    --info-bg: color-mix(in srgb, var(--info) 8%, var(--bg-surface));
+    --info-line: color-mix(in srgb, var(--info) 30%, var(--line));
+    --warn-text: var(--warn-ink);
+    --z-raised: 1;
+    --z-sticky: 10;
+    --z-toast: 11;
+    --z-popover: 30;
+    --z-overlay: 40;
+    --z-tour: 80;
+    --z-fullscreen: 90;
+    --z-tooltip: 50;
+    --scrim: color-mix(in srgb, var(--bg-sunken) 60%, transparent);
+    --scrim-strong: color-mix(in srgb, var(--bg-sunken) 82%, transparent);
+    --fw-light: 300;
+    --fw-regular: 400;
+    --fw-medium: 550;
+    --fw-strong: 650;
+    --radius-xs: 4px;
+    --space-half: 2px;
+    --dur-fast: .15s;
+    --dur: .2s;
+    --dur-slow: .3s;
+    /* Strengths of a tone beyond ink / bg / line: halo = a ring or glow, mid = a stroke or tick, mark = a highlighter, tint = a graph fill, solid = a swatch. */
+    --ok-halo: color-mix(in srgb, var(--ok) 22%, transparent);
+    --ok-mid: color-mix(in srgb, var(--ok) 45%, transparent);
+    --ok-mark: color-mix(in srgb, var(--ok) 32%, transparent);
+    --ok-tint: color-mix(in srgb, var(--ok) 22%, var(--bg-surface));
+    --ok-solid: color-mix(in srgb, var(--ok) 70%, var(--bg-surface));
+    --warn-halo: color-mix(in srgb, var(--warn) 22%, transparent);
+    --warn-mid: color-mix(in srgb, var(--warn) 45%, transparent);
+    --warn-mark: color-mix(in srgb, var(--warn) 32%, transparent);
+    --warn-tint: color-mix(in srgb, var(--warn) 22%, var(--bg-surface));
+    --warn-solid: color-mix(in srgb, var(--warn) 70%, var(--bg-surface));
+    --bad-halo: color-mix(in srgb, var(--bad) 22%, transparent);
+    --bad-mid: color-mix(in srgb, var(--bad) 45%, transparent);
+    --bad-mark: color-mix(in srgb, var(--bad) 32%, transparent);
+    --bad-tint: color-mix(in srgb, var(--bad) 22%, var(--bg-surface));
+    --bad-solid: color-mix(in srgb, var(--bad) 70%, var(--bg-surface));
+    --info-halo: color-mix(in srgb, var(--info) 22%, transparent);
+    --info-mid: color-mix(in srgb, var(--info) 45%, transparent);
+    --info-mark: color-mix(in srgb, var(--info) 32%, transparent);
+    --info-tint: color-mix(in srgb, var(--info) 22%, var(--bg-surface));
+    --info-solid: color-mix(in srgb, var(--info) 70%, var(--bg-surface));
+    /* Mixed hues for the board's columns and chips. */
+    --hue-violet: color-mix(in srgb, var(--info) 55%, var(--bad));
+    --hue-teal: color-mix(in srgb, var(--ok) 50%, var(--info));
+    --hue-orange: color-mix(in srgb, var(--warn) 55%, var(--bad));
+    /* Shadows that are not the three elevation steps: the contact shadow of a dialog and a toast, the fade above a pinned list, a dragged row. */
+    --shadow-contact: 0 2px 10px #0000002e;
+    --shadow-contact-toast: 0 3px 10px -4px #0000003d;
+    --shadow-up: 0 -10px 18px -14px #0000008c;
+    --shadow-drag: 0 8px 22px color-mix(in srgb, #000 40%, transparent);
+    /* The inner highlight on a primary button. */
+    --sheen: #ffffff24;
+    --sheen-strong: #ffffff38;
+  }
+  @supports (color: light-dark(black, white)) {
+    /* Stacking order, lowest to highest. A new layer goes between two of these, never above 90. */
+    /* Page-dimming scrims: the sunken desk colour on dark themes, the ink on light ones. */
+    /* Light themes follow color-scheme, so a future light variant needs no extra rule. */
+    .study-app,
+  .study-seat {
+      --scrim: light-dark(color-mix(in srgb, var(--text) 45%, transparent), color-mix(in srgb, var(--bg-sunken) 60%, transparent));
+      --scrim-strong: light-dark(color-mix(in srgb, var(--text) 66%, transparent), color-mix(in srgb, var(--bg-sunken) 82%, transparent));
+    }
+  }
+  /* 字体 (#64): the typefaces are defined once, here, and every surface only refers to them: the interface (--font-ui and --font-display
+     together; 保持系统 puts the headings back), the reader and the reading blocks (--reader-face). `custom` is the installed font the person
+     typed: --font-custom is set on the app root from the gated name, and an unknown name falls through to the system stack. */
+  :is(.study-app, .study-seat) {
+    --font-stack-system: "Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-stack-system-display: "Inter Display", "Segoe UI Variable Display", "SF Pro Display", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-stack-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
+    --font-stack-kai: "KaiTi", "Kaiti SC", "STKaiti", "BiauKai", "DFKai-SB", serif;
+    --font-stack-round: "Yuanti SC", "HarmonyOS Sans SC", "MiSans", "YouYuan", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+    --font-stack-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Microsoft YaHei UI", monospace;
+  }
+  .study-app[data-ui-font='serif'], .study-seat:has(> .study-app[data-ui-font='serif']) { --font-ui: var(--font-stack-serif); --font-display: var(--font-stack-serif); }
+  .study-app[data-ui-font='kai'], .study-seat:has(> .study-app[data-ui-font='kai']) { --font-ui: var(--font-stack-kai); --font-display: var(--font-stack-kai); }
+  .study-app[data-ui-font='round'], .study-seat:has(> .study-app[data-ui-font='round']) { --font-ui: var(--font-stack-round); --font-display: var(--font-stack-round); }
+  .study-app[data-ui-font='mono'], .study-seat:has(> .study-app[data-ui-font='mono']) { --font-ui: var(--font-stack-mono); --font-display: var(--font-stack-mono); }
+  .study-app[data-ui-font='custom'], .study-seat:has(> .study-app[data-ui-font='custom']) { --font-ui: var(--font-custom, var(--font-stack-system)); --font-display: var(--font-custom, var(--font-stack-system-display)); }
+  .study-app[data-ui-title='system'], .study-seat:has(> .study-app[data-ui-title='system']) { --font-display: var(--font-stack-system-display); }
+  :is(.study-app, .study-seat) {
+    :is(.study-document-viewer, .study-reading)[data-face='serif'] { --reader-face: var(--font-stack-serif); }
+    :is(.study-document-viewer, .study-reading)[data-face='kai'] { --reader-face: var(--font-stack-kai); }
+    :is(.study-document-viewer, .study-reading)[data-face='round'] { --reader-face: var(--font-stack-round); }
+    :is(.study-document-viewer, .study-reading)[data-face='mono'] { --reader-face: var(--font-stack-mono); }
+  }
 }
-/* Light theme: the same desk by daylight — warm paper greys, ink type. */
-.study-app[data-theme="light"],
-.study-seat:has(> .study-app[data-theme="light"]) {
-  --bg-canvas: #f1ede6;
-  --bg-sunken: #e8e3da;
-  --bg-surface: #faf8f4;
-  --bg-raised: #ffffff;
-  --bg-glass: #faf8f4f0;
-  --bg-glass-strong: #faf8f4fa;
-  --bg-hover: #2a1c0e0b;
-  --bg-selected: #f5e4dc;
-
-  --line-soft: #2a1c0e12;
-  --line: #ddd5c9;
-  --line-strong: #c5bbad;
-
-  --text: #1e1a15;
-  --text-dim: #453e35;
-  --text-muted: #635b51;
-  --text-faint: #6a635a;
-  --decor-faint: #9c9488;
-
-  --accent: #c03a1f;
-  --accent-soft: #d44f2e;
-  --accent-ink: #fffaf5;
-  --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
-  --accent-text: #ad4025;
-
-  --ok: #1e724d;
-  --warn: #8b590f;
-  --bad: #ad3966;
-  --info: #376893;
-
-  --paper: #fffdf8;
-  --paper-ink: #1e1a15;
-  --paper-dim: #5f574c;
-  --paper-rule: #20160c12;
-
-  --glass-sheen: #ffffffb3;
-  --shadow-sm: 0 1px 2px #2a1c0e14, 0 2px 8px -4px #2a1c0e26;
-  --shadow-md: 0 14px 34px -20px #2a1c0e38;
-  --shadow-lg: 0 30px 70px -30px #2a1c0e45;
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
-
-  color-scheme: light;
-}
-/* 字体 (#64): the typefaces are defined once, here, and every surface only refers to them: the interface (--font-ui and --font-display
-   together; 保持系统 puts the headings back), the reader and the reading blocks (--reader-face). `custom` is the installed font the person
-   typed: --font-custom is set on the app root from the gated name, and an unknown name falls through to the system stack. */
-:is(.study-app, .study-seat) {
-  --font-stack-system: "Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-  --font-stack-system-display: "Inter Display", "Segoe UI Variable Display", "SF Pro Display", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-  --font-stack-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
-  --font-stack-kai: "KaiTi", "Kaiti SC", "STKaiti", "BiauKai", "DFKai-SB", serif;
-  --font-stack-round: "Yuanti SC", "HarmonyOS Sans SC", "MiSans", "YouYuan", "Microsoft YaHei UI", "PingFang SC", sans-serif;
-  --font-stack-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Microsoft YaHei UI", monospace;
-}
-.study-app[data-ui-font='serif'], .study-seat:has(> .study-app[data-ui-font='serif']) { --font-ui: var(--font-stack-serif); --font-display: var(--font-stack-serif); }
-.study-app[data-ui-font='kai'], .study-seat:has(> .study-app[data-ui-font='kai']) { --font-ui: var(--font-stack-kai); --font-display: var(--font-stack-kai); }
-.study-app[data-ui-font='round'], .study-seat:has(> .study-app[data-ui-font='round']) { --font-ui: var(--font-stack-round); --font-display: var(--font-stack-round); }
-.study-app[data-ui-font='mono'], .study-seat:has(> .study-app[data-ui-font='mono']) { --font-ui: var(--font-stack-mono); --font-display: var(--font-stack-mono); }
-.study-app[data-ui-font='custom'], .study-seat:has(> .study-app[data-ui-font='custom']) { --font-ui: var(--font-custom, var(--font-stack-system)); --font-display: var(--font-custom, var(--font-stack-system-display)); }
-.study-app[data-ui-title='system'], .study-seat:has(> .study-app[data-ui-title='system']) { --font-display: var(--font-stack-system-display); }
-:is(.study-app, .study-seat) :is(.study-document-viewer, .study-reading)[data-face='serif'] { --reader-face: var(--font-stack-serif); }
-:is(.study-app, .study-seat) :is(.study-document-viewer, .study-reading)[data-face='kai'] { --reader-face: var(--font-stack-kai); }
-:is(.study-app, .study-seat) :is(.study-document-viewer, .study-reading)[data-face='round'] { --reader-face: var(--font-stack-round); }
-:is(.study-app, .study-seat) :is(.study-document-viewer, .study-reading)[data-face='mono'] { --reader-face: var(--font-stack-mono); }

@@ -1,17 +1,21 @@
-/* ── Tooltip in the top layer ────────────────────────────────────────────
-   <Tooltip layer>: the panel is a manual popover, so a scrolling or clipping
-   ancestor (a sidebar list, a horizontal strip) cannot cut it off. Placement is
-   written inline (position fixed, from the anchor's rectangle); the rest is the
-   usual raised surface. Tokens only. */
-:is(.study-app, .study-seat) {
-  .sh-tooltip[popover] {
-    position: fixed;
-    inset: auto;
-    margin: 0;
-    overflow: visible;
-    white-space: pre-line;
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* ── Tooltip in the top layer ────────────────────────────────────────────
+       <Tooltip layer>: the panel is a manual popover, so a scrolling or clipping
+       ancestor (a sidebar list, a horizontal strip) cannot cut it off. Placement is
+       written inline (position fixed, from the anchor's rectangle); the rest is the
+       usual raised surface. Tokens only. */
+    .sh-tooltip[popover] {
+      position: fixed;
+      inset: auto;
+      margin: 0;
+      overflow: visible;
+      white-space: pre-line;
+    }
+    .sh-tooltip[popover]:not(:popover-open) { display: none; }
+    /* The panel is fixed, so its wrapper needs no positioning context. */
+    .sh-popover-anchor:has(> .sh-tooltip[popover]) { position: static; }
   }
-  .sh-tooltip[popover]:not(:popover-open) { display: none; }
-  /* The panel is fixed, so its wrapper needs no positioning context. */
-  .sh-popover-anchor:has(> .sh-tooltip[popover]) { position: static; }
 }

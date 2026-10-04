@@ -1,116 +1,126 @@
-/* Settings page layout and the sections that are specific to it (陪学, SM-2, backup). The section shell, the fields and the notes are shared
-   components (ui/components/fields.css). Injected as <style data-study-settings>. */
-:is(.study-app, .study-seat) .settings-page .settings-subtitle { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; line-height: var(--lh-tight); }
-:is(.study-app, .study-seat) .settings-page .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-:is(.study-app, .study-seat) .settings-page .settings-actions .sh-btn { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .settings-form { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .binding-panel { margin: 0; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-/* Disclosures inside a section start at the section edge (no extra indent). */
-:is(.study-app, .study-seat) .settings-page .settings-disclosure { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .settings-disclosure > .sh-disclosure__summary { padding: var(--space-3) 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; }
-:is(.study-app, .study-seat) .settings-page .settings-disclosure > .sh-disclosure__body { display: grid; gap: var(--space-5); padding: var(--space-1) 0 var(--space-4); }
-:is(.study-app, .study-seat) .settings-page .settings-disclosure > .sh-disclosure__body > * { margin: 0; }
-:is(.study-app, .study-seat) .settings-page .audio-expert > .sh-disclosure__body { gap: var(--space-4); }
-:is(.study-app, .study-seat) .settings-page .course-list__window { margin: 0; }
-
-/* 陪学 */
-:is(.study-app, .study-seat) .coach-profile { display: grid; gap: var(--space-2); max-width: 72ch; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
-:is(.study-app, .study-seat) .coach-profile__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
-:is(.study-app, .study-seat) .coach-profile__head strong { color: var(--text); font-size: var(--fs-md); }
-:is(.study-app, .study-seat) .coach-profile__head small { color: var(--text-muted); font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .coach-profile__summary { margin: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-body); }
-:is(.study-app, .study-seat) .coach-profile__summary.is-clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-:is(.study-app, .study-seat) .coach-profile__more { justify-self: start; }
-:is(.study-app, .study-seat) .coach-stats { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-1) 0 0; padding: var(--space-3) 0 0;
-  border-top: 1px solid var(--line-soft); list-style: none; color: var(--text-muted); font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .coach-stats li { display: inline-flex; align-items: center; gap: 6px; }
-:is(.study-app, .study-seat) .coach-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .coach-stats__ready { margin-left: auto; }
-
-/* SM-2 */
-:is(.study-app, .study-seat) .sm2-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 14rem)); gap: var(--space-3) var(--space-5); }
-:is(.study-app, .study-seat) .sm2-preview { display: grid; gap: var(--space-2); max-width: 720px; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft);
-  border-radius: var(--radius); background: var(--bg-surface); }
-:is(.study-app, .study-seat) .sm2-preview svg { display: block; width: 100%; height: auto; overflow: visible; }
-:is(.study-app, .study-seat) .sm2-tick line { stroke: var(--line-soft); stroke-width: 1; stroke-dasharray: 2 4; }
-:is(.study-app, .study-seat) .sm2-tick text { fill: var(--text-muted); font-size: 12px; }
-:is(.study-app, .study-seat) .sm2-track { stroke-width: 2; stroke-linecap: round; }
-:is(.study-app, .study-seat) .sm2-series text { font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .sm2-series.is-good .sm2-track { stroke: color-mix(in srgb, var(--accent) 55%, transparent); }
-:is(.study-app, .study-seat) .sm2-series.is-good circle { fill: var(--accent); stroke: var(--bg-surface); stroke-width: 2; }
-:is(.study-app, .study-seat) .sm2-series.is-good text { fill: var(--accent-text); }
-:is(.study-app, .study-seat) .sm2-series.is-hard .sm2-track { stroke: var(--line-strong); stroke-dasharray: 4 4; }
-:is(.study-app, .study-seat) .sm2-series.is-hard circle { fill: var(--bg-surface); stroke: var(--text-muted); stroke-width: 1.5; }
-:is(.study-app, .study-seat) .sm2-series.is-hard text { fill: var(--text-muted); font-weight: 500; }
-:is(.study-app, .study-seat) .sm2-preview figcaption { display: grid; gap: 2px; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .sm2-key::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; vertical-align: 1px; }
-:is(.study-app, .study-seat) .sm2-key.is-good::before { background: var(--accent); }
-:is(.study-app, .study-seat) .sm2-key.is-hard::before { border: 1.5px solid var(--text-muted); }
-
-/* 数据备份与恢复 */
-:is(.study-app, .study-seat) .backup-blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-4); }
-:is(.study-app, .study-seat) .backup-block { display: grid; gap: var(--space-2); align-content: start; min-width: 0; padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
-:is(.study-app, .study-seat) .backup-block > p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-:is(.study-app, .study-seat) .backup-block > .settings-actions { margin-top: var(--space-2); }
-:is(.study-app, .study-seat) .backup-path { display: block; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--bg-sunken);
-  color: var(--text); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .restore-preview { display: grid; gap: var(--space-2); margin-top: var(--space-2); padding: var(--space-3); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line));
-  border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warn) 7%, var(--bg-surface)); }
-:is(.study-app, .study-seat) .restore-preview__file { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text); }
-:is(.study-app, .study-seat) .restore-preview__file strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:is(.study-app, .study-seat) .restore-preview__file small { flex: none; color: var(--text-muted); }
-:is(.study-app, .study-seat) .restore-preview p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); }
-
-/* Settings: the categories on the left (under the three group headings 常用 / 一次性设置 / 高级), one category at a time on the right. Narrow: the list is a row
-   of pills above the pane. */
-:is(.study-app, .study-seat) .settings-page .settings-layout { display: grid; grid-template-columns: 224px minmax(0, 1fr); gap: var(--space-6); align-items: start; margin-top: var(--space-5); }
-:is(.study-app, .study-seat) .settings-nav { position: sticky; top: var(--space-4); display: grid; gap: var(--space-4); min-width: 0; }
-:is(.study-app, .study-seat) .settings-nav__label { margin: 0 0 var(--space-1); padding: 0 var(--space-3); color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em; }
-:is(.study-app, .study-seat) .settings-nav ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-:is(.study-app, .study-seat) .settings-nav__item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; padding: 8px var(--space-3);
-  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-dim); font-size: var(--fs-md); text-align: left; }
-:is(.study-app, .study-seat) .settings-nav__item:hover { background: var(--bg-hover); color: var(--text); }
-:is(.study-app, .study-seat) .settings-nav__item[aria-current='page'] { background: var(--bg-selected); color: var(--text); font-weight: 600; }
-:is(.study-app, .study-seat) .settings-nav__todo { flex: none; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line)); border-radius: 999px;
-  background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--text); font-size: var(--fs-xs); font-weight: 400; line-height: 1.6; white-space: nowrap; }
-:is(.study-app, .study-seat) .settings-pane { min-width: 0; }
-/* The first section of a pane sits at its top: no rule above it. */
-:is(.study-app, .study-seat) .settings-page .settings-pane > :first-child.settings-section, :is(.study-app, .study-seat) .settings-page .settings-pane > :first-child { margin-top: 0; }
-:is(.study-app, .study-seat) .settings-page .settings-pane > :first-child.settings-section { border-top: 0; padding-top: 0; }
-/* A pane that is one form (出题偏好, 每日合集, 复习调度) starts at its top as well. */
-:is(.study-app, .study-seat) .settings-page .settings-pane > .settings-form:first-child > .settings-section { margin-top: 0; padding-top: 0; border-top: 0; }
-:is(.study-app, .study-seat) .settings-all { min-width: 0; }
-@container study (max-width: 860px) {
-  :is(.study-app, .study-seat) .settings-page .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
-  :is(.study-app, .study-seat) .settings-nav { position: static; display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: var(--space-1); scrollbar-width: thin; }
-  :is(.study-app, .study-seat) .settings-nav__group { display: contents; }
-  :is(.study-app, .study-seat) .settings-nav__label { display: none; }
-  :is(.study-app, .study-seat) .settings-nav ul { display: flex; gap: var(--space-2); }
-  :is(.study-app, .study-seat) .settings-nav li { flex: none; }
-  :is(.study-app, .study-seat) .settings-nav__item { width: auto; border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
-}
-:is(.study-app, .study-seat) .settings-page .appearance-backup { display: grid; gap: var(--space-2); }
-/* The retrieval tool picker and its test button share a row; the button lines up with the select, not the label. */
-:is(.study-app, .study-seat) .settings-page .extensions-settings__choice { align-items: flex-end; }
-
-@container study (max-width: 520px) {
-  /* The library row stacks: path and usage get the full width, 更换目录… goes below. */
-  :is(.study-app, .study-seat) .settings-page .binding-row { flex-direction: column; align-items: stretch; }
-  :is(.study-app, .study-seat) .settings-page .binding-actions { justify-content: flex-start; }
-  :is(.study-app, .study-seat) .backup-block { padding: var(--space-4); }
-  :is(.study-app, .study-seat) .coach-stats__ready { margin-left: 0; }
-}
-/* Local science preferences and bounded tools share the settings layout. */
-.science-preview { padding: var(--space-4); margin-block: var(--space-5); border: 1px solid var(--line-soft); border-radius: var(--radius); }
-.science-tool { padding-block: var(--space-5); border-top: 1px solid var(--line-soft); }
-.science-tool form { display: grid; gap: var(--space-3); }
-.science-tool form > button { justify-self: start; }
-.science-result { margin-top: var(--space-4); overflow-wrap: anywhere; }
-.science-result code { display: block; margin-top: var(--space-1); white-space: pre-wrap; }
-.science-result details { margin-top: var(--space-3); }
-.science-result li { overflow-wrap: anywhere; }
-@container study (max-width: 480px) {
-  .science-tool .two-col { grid-template-columns: minmax(0, 1fr); }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* Settings page layout and the sections that are specific to it (陪学, SM-2, backup). The section shell, the fields and the notes are shared
+       components (ui/components/fields.css). Injected as <style data-study-settings>. */
+    .settings-page .settings-subtitle { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; line-height: var(--lh-tight); }
+    .settings-page .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .settings-page .settings-actions .sh-btn { margin: 0; }
+    .settings-page .settings-form { margin: 0; }
+    .settings-page .binding-panel { margin: 0; }
+    /* Disclosures inside a section start at the section edge (no extra indent). */
+    .settings-page .settings-disclosure { margin: 0; }
+    .settings-page .settings-disclosure > .sh-disclosure__summary { padding: var(--space-3) 0; color: var(--text); font-size: var(--fs-md); font-weight: 650; }
+    .settings-page .settings-disclosure > .sh-disclosure__body { display: grid; gap: var(--space-5); padding: var(--space-1) 0 var(--space-4); }
+    .settings-page .settings-disclosure > .sh-disclosure__body > * { margin: 0; }
+    .settings-page .audio-expert > .sh-disclosure__body { gap: var(--space-4); }
+    .settings-page .course-list__window { margin: 0; }
+    /* 陪学 */
+    .coach-profile { display: grid; gap: var(--space-2); max-width: 72ch; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
+    .coach-profile__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
+    .coach-profile__head strong { color: var(--text); font-size: var(--fs-md); }
+    .coach-profile__head small { color: var(--text-muted); font-size: var(--fs-sm); }
+    .coach-profile__summary { margin: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-body); }
+    .coach-profile__summary.is-clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+    .coach-profile__more { justify-self: start; }
+    .coach-stats { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-1) 0 0; padding: var(--space-3) 0 0;
+      border-top: 1px solid var(--line-soft); list-style: none; color: var(--text-muted); font-size: var(--fs-sm); }
+    .coach-stats li { display: inline-flex; align-items: center; gap: 6px; }
+    .coach-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
+    .coach-stats__ready { margin-left: auto; }
+    /* SM-2 */
+    .sm2-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 14rem)); gap: var(--space-3) var(--space-5); }
+    .sm2-preview { display: grid; gap: var(--space-2); max-width: 720px; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft);
+      border-radius: var(--radius); background: var(--bg-surface); }
+    .sm2-preview svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .sm2-tick line { stroke: var(--line-soft); stroke-width: 1; stroke-dasharray: 2 4; }
+    .sm2-tick text { fill: var(--text-muted); font-size: 12px; }
+    .sm2-track { stroke-width: 2; stroke-linecap: round; }
+    .sm2-series text { font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+    .sm2-series.is-good .sm2-track { stroke: color-mix(in srgb, var(--accent) 55%, transparent); }
+    .sm2-series.is-good circle { fill: var(--accent); stroke: var(--bg-surface); stroke-width: 2; }
+    .sm2-series.is-good text { fill: var(--accent-text); }
+    .sm2-series.is-hard .sm2-track { stroke: var(--line-strong); stroke-dasharray: 4 4; }
+    .sm2-series.is-hard circle { fill: var(--bg-surface); stroke: var(--text-muted); stroke-width: 1.5; }
+    .sm2-series.is-hard text { fill: var(--text-muted); font-weight: 500; }
+    .sm2-preview figcaption { display: grid; gap: 2px; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .sm2-key::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; vertical-align: 1px; }
+    .sm2-key.is-good::before { background: var(--accent); }
+    .sm2-key.is-hard::before { border: 1.5px solid var(--text-muted); }
+    /* 数据备份与恢复 */
+    .backup-blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-4); }
+    .backup-block { display: grid; gap: var(--space-2); align-content: start; min-width: 0; padding: var(--space-4) var(--space-5);
+      border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
+    .backup-block > p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .backup-block > .settings-actions { margin-top: var(--space-2); }
+    .backup-path { display: block; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--bg-sunken);
+      color: var(--text); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+    .restore-preview { display: grid; gap: var(--space-2); margin-top: var(--space-2); padding: var(--space-3); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line));
+      border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warn) 7%, var(--bg-surface)); }
+    .restore-preview__file { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text); }
+    .restore-preview__file strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .restore-preview__file small { flex: none; color: var(--text-muted); }
+    .restore-preview p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); }
+    /* Settings: the categories on the left (under the three group headings 常用 / 一次性设置 / 高级), one category at a time on the right. Narrow: the list is a row
+       of pills above the pane. */
+    .settings-page .settings-layout { display: grid; grid-template-columns: 224px minmax(0, 1fr); gap: var(--space-6); align-items: start; margin-top: var(--space-5); }
+    .settings-nav { position: sticky; top: var(--space-4); display: grid; gap: var(--space-4); min-width: 0; }
+    .settings-nav__label { margin: 0 0 var(--space-1); padding: 0 var(--space-3); color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em; }
+    .settings-nav ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+    .settings-nav__item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; padding: 8px var(--space-3);
+      border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-dim); font-size: var(--fs-md); text-align: left; }
+    .settings-nav__item:hover { background: var(--bg-hover); color: var(--text); }
+    .settings-nav__item[aria-current='page'] { background: var(--bg-selected); color: var(--text); font-weight: 600; }
+    .settings-nav__todo { flex: none; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line)); border-radius: 999px;
+      background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--text); font-size: var(--fs-xs); font-weight: 400; line-height: 1.6; white-space: nowrap; }
+    .settings-pane { min-width: 0; }
+    /* The first section of a pane sits at its top: no rule above it. */
+    .settings-page .settings-pane > :first-child.settings-section, .settings-page .settings-pane > :first-child { margin-top: 0; }
+    .settings-page .settings-pane > :first-child.settings-section { border-top: 0; padding-top: 0; }
+    /* A pane that is one form (出题偏好, 每日合集, 复习调度) starts at its top as well. */
+    .settings-page .settings-pane > .settings-form:first-child > .settings-section { margin-top: 0; padding-top: 0; border-top: 0; }
+    .settings-all { min-width: 0; }
+  }
+  @container study (max-width: 860px) {
+    :is(.study-app, .study-seat) {
+      .settings-page .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+      .settings-nav { position: static; display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: var(--space-1); scrollbar-width: thin; }
+      .settings-nav__group { display: contents; }
+      .settings-nav__label { display: none; }
+      .settings-nav ul { display: flex; gap: var(--space-2); }
+      .settings-nav li { flex: none; }
+      .settings-nav__item { width: auto; border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
+    }
+  }
+  :is(.study-app, .study-seat) {
+    .settings-page .appearance-backup { display: grid; gap: var(--space-2); }
+    /* The retrieval tool picker and its test button share a row; the button lines up with the select, not the label. */
+    .settings-page .extensions-settings__choice { align-items: flex-end; }
+  }
+  @container study (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      /* The library row stacks: path and usage get the full width, 更换目录… goes below. */
+      .settings-page .binding-row { flex-direction: column; align-items: stretch; }
+      .settings-page .binding-actions { justify-content: flex-start; }
+      .backup-block { padding: var(--space-4); }
+      .coach-stats__ready { margin-left: 0; }
+    }
+  }
+  :is(.study-app, .study-seat) {
+    /* Local science preferences and bounded tools share the settings layout. */
+    .science-preview { padding: var(--space-4); margin-block: var(--space-5); border: 1px solid var(--line-soft); border-radius: var(--radius); }
+    .science-tool { padding-block: var(--space-5); border-top: 1px solid var(--line-soft); }
+    .science-tool form { display: grid; gap: var(--space-3); }
+    .science-tool form > button { justify-self: start; }
+    .science-result { margin-top: var(--space-4); overflow-wrap: anywhere; }
+    .science-result code { display: block; margin-top: var(--space-1); white-space: pre-wrap; }
+    .science-result details { margin-top: var(--space-3); }
+    .science-result li { overflow-wrap: anywhere; }
+  }
+  @container study (max-width: 480px) {
+    :is(.study-app, .study-seat) {
+      .science-tool .two-col { grid-template-columns: minmax(0, 1fr); }
+    }
+  }
 }

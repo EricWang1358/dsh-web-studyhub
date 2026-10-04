@@ -1,25 +1,29 @@
-/* Audio transcription settings, the audio setup gate and the import pre-flight rows. Tokens only; 12 px floor.
-   The provider card, steps, badges, fields and notes are shared components (ui/components/fields.css); only what is about audio is here. */
-.study-app .audio-advanced { margin-top: var(--space-5); }
-.study-app .audio-advanced .sh-disclosure__body > * + * { margin-top: var(--space-5); }
-.study-app .audio-paid { display: grid; gap: var(--space-2); }
-.study-app .audio-expert .audio-reasoning { margin-top: var(--space-4); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-/* The setup gate in the audio tab. */
-.study-app .audio-setup { margin: var(--space-4) 0; }
-.study-app .audio-setup .sh-secret { margin-top: var(--space-4); max-width: 560px; }
-.study-app .audio-setup-alt { margin: var(--space-3) 0 0; }
-.study-app .audio-setup-alt a { color: var(--accent-text); }
-.study-app .audio-subtitle-only { margin-top: var(--space-4); }
-.study-app .audio-subtitle-only > p { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); }
-
-/* Pre-flight notes under each chosen file, and the submit row. */
-.study-app .audio-check { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1);
-  color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-.study-app .audio-check--split { color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
-.study-app .audio-check--blocked { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
-.study-app .audio-check--ok, .study-app .audio-check--split-confirmed { color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
-.study-app .audio-check .sh-btn { margin: 0; }
-.study-app .audio-submit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
-.study-app .audio-submit .sh-inline { flex: 1 1 100%; }
-.study-app .audio-member-reason { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* Audio transcription settings, the audio setup gate and the import pre-flight rows. Tokens only; 12 px floor.
+       The provider card, steps, badges, fields and notes are shared components (ui/components/fields.css); only what is about audio is here. */
+    .audio-advanced { margin-top: var(--space-5); }
+    .audio-advanced .sh-disclosure__body > * + * { margin-top: var(--space-5); }
+    .audio-paid { display: grid; gap: var(--space-2); }
+    .audio-expert .audio-reasoning { margin-top: var(--space-4); }
+    /* The setup gate in the audio tab. */
+    .audio-setup { margin: var(--space-4) 0; }
+    .audio-setup .sh-secret { margin-top: var(--space-4); max-width: 560px; }
+    .audio-setup-alt { margin: var(--space-3) 0 0; }
+    .audio-setup-alt a { color: var(--accent-text); }
+    .audio-subtitle-only { margin-top: var(--space-4); }
+    .audio-subtitle-only > p { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); }
+    /* Pre-flight notes under each chosen file, and the submit row. */
+    .audio-check { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1);
+      color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .audio-check--split { color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
+    .audio-check--blocked { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
+    .audio-check--ok, .audio-check--split-confirmed { color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
+    .audio-check .sh-btn { margin: 0; }
+    .audio-submit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
+    .audio-submit .sh-inline { flex: 1 1 100%; }
+    .audio-member-reason { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
+  }
+}

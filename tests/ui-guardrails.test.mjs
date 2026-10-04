@@ -112,9 +112,9 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
   }
 });
 
-// ── Semantic tokens (components.css, scoped so every theme derives them) ──
-const components = parseCss(readFileSync(new URL('../ui/components/components.css', import.meta.url), 'utf8'));
-const tokenDecls = components.declarations.filter((d) => d.prop.startsWith('--') && d.ctx.length === 1 && d.ctx[0] === ':is(.study-app, .study-seat)');
+// ── Semantic tokens (tokens.css, on the app root and the seat so every theme derives them) ──
+const tokenSheet = parseCss(readFileSync(new URL('../ui/tokens.css', import.meta.url), 'utf8'));
+const tokenDecls = tokenSheet.declarations.filter((d) => d.prop.startsWith('--') && d.ctx.length === 2 && d.ctx[1] === '.study-app, .study-seat');
 const tokens = Object.fromEntries(tokenDecls.map((d) => [d.prop, d.value]));
 
 test('tone tokens use the component library formulas', () => {

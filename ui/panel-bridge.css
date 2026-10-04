@@ -1,31 +1,35 @@
-/* The panel's question picker: the choices inside a Dialog (modal, Escape closes, the app behind is inert). */
-.study-panel-candidates {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.study-panel-candidates button {
-  display: block;
-  width: 100%;
-  padding: var(--space-3);
-  text-align: left;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-  color: var(--text);
-  cursor: pointer;
-}
-.study-panel-candidates button:hover {
-  border-color: var(--line-strong);
-  background: var(--bg-hover);
-}
-.study-panel-candidates button small,
-.study-panel-candidates button span {
-  display: block;
-}
-.study-panel-candidates button small {
-  color: var(--text-muted);
-  margin-bottom: var(--space-1);
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.overrides {
+  /* The panel's question picker: the choices inside a Dialog (modal, Escape closes, the app behind is inert). */
+  .study-panel-candidates {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .study-panel-candidates button {
+    display: block;
+    width: 100%;
+    padding: var(--space-3);
+    text-align: left;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .study-panel-candidates button:hover {
+    border-color: var(--line-strong);
+    background: var(--bg-hover);
+  }
+  .study-panel-candidates button small,
+  .study-panel-candidates button span {
+    display: block;
+  }
+  .study-panel-candidates button small {
+    color: var(--text-muted);
+    margin-bottom: var(--space-1);
+  }
 }

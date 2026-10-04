@@ -301,7 +301,7 @@
       "ui/study-map/desk.css": 2
     },
     "rawColor": {
-      "ui/components/components.css": 5,
+      "ui/components/components.css": 7,
       "ui/document-preview/document-preview.css": 4,
       "ui/document-preview/peek/peek.css": 1,
       "ui/legacy.css": 2,

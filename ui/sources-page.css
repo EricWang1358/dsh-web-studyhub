@@ -1,180 +1,188 @@
-:where(.study-app) {
-  .source-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 15px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 14px;
-    margin: 12px 0;
-    width: 100%;
-    text-align: left;
-  }
-  .source-main {
-    display: flex;
-    align-items: center;
-    gap: 17px;
-    border: 0;
-    padding: 5px;
-    text-align: left;
-    min-width: 0;
-    flex: 1;
-  }
-  .source-main span:last-child {
-    min-width: 0;
-  }
-  .source-main small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 560px;
-    margin-top: 7px;
-  }
-  .source-main .icon {
-    color: var(--accent-soft);
-  }
-  /* .page-scope (the course-scope control): ui/course-active.css, so every page shows it the same. */
-  .source-organize { margin: 16px 0; }
-  .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
-  .source-organize > label { max-width: 560px; }
-  .source-organization-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .source-course-proposals { margin: 16px 0; padding-left: 16px; border-left: 2px solid var(--line); }
-  .source-row > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
-  .source-proposal-select { display: flex; align-items: center; gap: 8px; }
-  .source-proposal-select input { width: auto; }
-  .source-row-actions { max-width: 150px; flex: 0 0 auto; }
-  .source-row-actions button { display: block; margin-top: 8px; max-width: 100%; }
-  /* Raw attachment paths have no spaces; let them wrap instead of overflowing. */
-  .source-main strong {
-    overflow-wrap: anywhere;
-  }
-  /* Sources grouped by creation day, collapsed by default. */
-  .source-group {
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--bg-surface);
-    margin: 10px 0;
-  }
-  .source-group.open {
-    padding-bottom: 4px;
-  }
-  .source-group .source-row {
-    margin: 0 10px 8px;
-    width: auto;
-    padding: 10px 12px;
-    border-color: var(--line-soft);
-    background: var(--bg-sunken);
-  }
-  .source-group .source-main {
-    background: transparent;
-  }
-  button.source-group-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 13px 16px;
-    border: 0;
-    border-radius: var(--radius);
-    background: transparent;
-    text-align: left;
-  }
-  button.source-group-head:hover:not(:disabled) {
-    background: var(--bg-hover);
-  }
-  .source-group-head small {
-    margin-left: auto;
-    font-size: 15px;
-    white-space: nowrap;
-  }
-  .source-group-caret {
-    display: inline-block;
-    width: 12px;
-    color: var(--text-muted);
-    transition: transform 0.18s var(--ease);
-  }
-  .source-group.open .source-group-caret {
-    transform: rotate(90deg);
-  }
-  .source-group-tag {
-    padding: 1px 7px;
-    border: 1px solid var(--line-soft);
-    border-radius: 999px;
-    color: var(--text-muted);
-    font-size: 15px;
-  }
-  .pdf-import {
-    padding: 20px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    margin: 20px 0;
-  }
-  .pdf-import details {
-    max-height: 240px;
-    overflow: auto;
-    overflow-wrap: anywhere;
-    margin-top: 12px;
-  }
-  .source-mode {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
-    gap: 10px;
-    margin: 18px 0 8px;
-  }
-  .source-tab {
-    display: grid;
-    gap: 4px;
-    text-align: left;
-    padding: 14px 16px;
-    border-radius: var(--radius);
-  }
-  .source-tab small {
-    font-size: 15px;
-    color: var(--text-muted);
-  }
-  .source-tab.active {
-    background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
-    border-color: var(--accent-soft);
-  }
-  .source-md {
-    white-space: normal;
-    line-height: 1.8;
-  }
-  .source-text {
-    font-family: inherit;
-    font-size: 15px;
-    line-height: 1.9;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    color: var(--text-dim);
-  }
-  .highlight-quote {
-    font-size: 15px;
-    line-height: 1.9;
-    margin: 0 0 24px;
-    border-left: 3px solid var(--accent-soft);
-    padding: 16px;
-    background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
-  }
-  @container study (max-width:720px) {
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
     .source-row {
-      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin: 12px 0;
+      width: 100%;
+      text-align: left;
+    }
+    .source-main {
+      display: flex;
+      align-items: center;
+      gap: 17px;
+      border: 0;
+      padding: 5px;
+      text-align: left;
+      min-width: 0;
+      flex: 1;
+    }
+    .source-main span:last-child {
+      min-width: 0;
     }
     .source-main small {
-      max-width: 180px;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 560px;
+      margin-top: 7px;
     }
     .source-main .icon {
-      display: none;
+      color: var(--accent-soft);
+    }
+    /* .page-scope (the course-scope control): ui/course-active.css, so every page shows it the same. */
+    .source-organize { margin: 16px 0; }
+    .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
+    .source-organize > label { max-width: 560px; }
+    .source-organization-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .source-course-proposals { margin: 16px 0; padding-left: 16px; border-left: 2px solid var(--line); }
+    .source-row > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
+    .source-proposal-select { display: flex; align-items: center; gap: 8px; }
+    .source-proposal-select input { width: auto; }
+    .source-row-actions { max-width: 150px; flex: 0 0 auto; }
+    .source-row-actions button { display: block; margin-top: 8px; max-width: 100%; }
+    /* Raw attachment paths have no spaces; let them wrap instead of overflowing. */
+    .source-main strong {
+      overflow-wrap: anywhere;
+    }
+    /* Sources grouped by creation day, collapsed by default. */
+    .source-group {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+      margin: 10px 0;
+    }
+    .source-group.open {
+      padding-bottom: 4px;
+    }
+    .source-group .source-row {
+      margin: 0 10px 8px;
+      width: auto;
+      padding: 10px 12px;
+      border-color: var(--line-soft);
+      background: var(--bg-sunken);
+    }
+    .source-group .source-main {
+      background: transparent;
+    }
+    & button.source-group-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 13px 16px;
+      border: 0;
+      border-radius: var(--radius);
+      background: transparent;
+      text-align: left;
+    }
+    & button.source-group-head:hover:not(:disabled) {
+      background: var(--bg-hover);
+    }
+    .source-group-head small {
+      margin-left: auto;
+      font-size: 15px;
+      white-space: nowrap;
+    }
+    .source-group-caret {
+      display: inline-block;
+      width: 12px;
+      color: var(--text-muted);
+      transition: transform 0.18s var(--ease);
+    }
+    .source-group.open .source-group-caret {
+      transform: rotate(90deg);
+    }
+    .source-group-tag {
+      padding: 1px 7px;
+      border: 1px solid var(--line-soft);
+      border-radius: 999px;
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+    .pdf-import {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      margin: 20px 0;
+    }
+    .pdf-import details {
+      max-height: 240px;
+      overflow: auto;
+      overflow-wrap: anywhere;
+      margin-top: 12px;
+    }
+    .source-mode {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+      gap: 10px;
+      margin: 18px 0 8px;
+    }
+    .source-tab {
+      display: grid;
+      gap: 4px;
+      text-align: left;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+    }
+    .source-tab small {
+      font-size: 15px;
+      color: var(--text-muted);
+    }
+    .source-tab.active {
+      background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
+      border-color: var(--accent-soft);
+    }
+    .source-md {
+      white-space: normal;
+      line-height: 1.8;
+    }
+    .source-text {
+      font-family: inherit;
+      font-size: 15px;
+      line-height: 1.9;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--text-dim);
+    }
+    .highlight-quote {
+      font-size: 15px;
+      line-height: 1.9;
+      margin: 0 0 24px;
+      border-left: 3px solid var(--accent-soft);
+      padding: 16px;
+      background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
     }
   }
-  /* Citation hit inside the source modal: one highlighted passage. */
-  .source-hit {
-    background: var(--accent-glow);
-    color: inherit;
-    border-radius: 3px;
-    padding: 1px 0;
-    box-shadow: 0 0 0 2px var(--accent-glow);
+  @container study (max-width:720px) {
+    :is(.study-app, .study-seat) {
+      .source-row {
+        padding: 10px;
+      }
+      .source-main small {
+        max-width: 180px;
+      }
+      .source-main .icon {
+        display: none;
+      }
+    }
+  }
+  :is(.study-app, .study-seat) {
+    /* Citation hit inside the source modal: one highlighted passage. */
+    .source-hit {
+      background: var(--accent-glow);
+      color: inherit;
+      border-radius: 3px;
+      padding: 1px 0;
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
   }
 }

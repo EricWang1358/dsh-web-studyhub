@@ -1,221 +1,221 @@
-/* ── StudyHub feedback and status primitives ─────────────────────────────
-   Badge, Chip, Hint, ProgressBar, StackedBar, LoadingState, CrashFallback and
-   JobRow. Injected by the components (useComponentCss, marker study-feedback);
-   tokens only. Tone colours come from ONE block below ([data-tone]): when the
-   palette gains dedicated --ok-ink / --ok-bg style tokens, switch them there.
-   Nothing here animates width: bars move with transform, and every motion
-   stops under prefers-reduced-motion. */
-:is(.study-app, .study-seat) {
-  /* ── Tone mapping (the only place) ──────────────────────────────────── */
-  [data-tone] { --sh-tone-ink: color-mix(in srgb, var(--sh-tone) 80%, var(--text)); }
-  [data-tone='neutral'] { --sh-tone: var(--text-muted); }
-  [data-tone='info'] { --sh-tone: var(--info); }
-  [data-tone='success'] { --sh-tone: var(--ok); }
-  [data-tone='warning'] { --sh-tone: var(--warn); }
-  [data-tone='error'] { --sh-tone: var(--bad); }
-  [data-tone='accent'] { --sh-tone: var(--accent); --sh-tone-ink: var(--accent-text); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-  /* ── Badge ──────────────────────────────────────────────────────────── */
-  .sh-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    flex: none;
-    box-sizing: border-box;
-    max-width: 100%;
-    padding: var(--space-half) var(--space-2);
-    border-radius: var(--radius-pill);
-    background: color-mix(in srgb, var(--sh-tone) 13%, transparent);
-    color: var(--sh-tone-ink);
-    font-size: var(--fs-sm);
-    font-weight: var(--fw-strong);
-    line-height: 1.4;
-    white-space: nowrap;
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* ── StudyHub feedback and status primitives ─────────────────────────────
+       Badge, Chip, Hint, ProgressBar, StackedBar, LoadingState, CrashFallback and
+       JobRow. Injected by the components (useComponentCss, marker study-feedback);
+       tokens only. Tone colours come from ONE block below ([data-tone]): when the
+       palette gains dedicated --ok-ink / --ok-bg style tokens, switch them there.
+       Nothing here animates width: bars move with transform, and every motion
+       stops under prefers-reduced-motion. */
+    /* ── Tone mapping (the only place) ──────────────────────────────────── */
+    [data-tone] { --sh-tone-ink: color-mix(in srgb, var(--sh-tone) 80%, var(--text)); }
+    [data-tone='neutral'] { --sh-tone: var(--text-muted); }
+    [data-tone='info'] { --sh-tone: var(--info); }
+    [data-tone='success'] { --sh-tone: var(--ok); }
+    [data-tone='warning'] { --sh-tone: var(--warn); }
+    [data-tone='error'] { --sh-tone: var(--bad); }
+    [data-tone='accent'] { --sh-tone: var(--accent); --sh-tone-ink: var(--accent-text); }
+    /* ── Badge ──────────────────────────────────────────────────────────── */
+    .sh-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      flex: none;
+      box-sizing: border-box;
+      max-width: 100%;
+      padding: var(--space-half) var(--space-2);
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--sh-tone) 13%, transparent);
+      color: var(--sh-tone-ink);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .sh-badge--sm { padding: 0 var(--space-2); font-size: var(--fs-xs); }
+    .sh-badge__dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--sh-tone); }
+    /* ── Chip (interactive) ─────────────────────────────────────────────── */
+    .sh-chip {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      min-height: 28px;
+      box-sizing: border-box;
+      border: 1px solid color-mix(in srgb, var(--sh-tone) 30%, var(--line));
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--sh-tone) 7%, transparent);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: 1.4;
+    }
+    .sh-chip--sm { min-height: 24px; font-size: var(--fs-xs); }
+    .sh-chip__main, .sh-chip__label {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      min-width: 0;
+      margin: 0;
+      padding: var(--space-half) calc(var(--space-2) + var(--space-half));
+      border: 0;
+      border-radius: inherit;
+      background: none;
+      color: inherit;
+      font: inherit;
+    }
+    .sh-chip__main { cursor: pointer; transition: background 0.15s var(--ease), color 0.15s var(--ease); }
+    .sh-chip__main:hover { background: var(--bg-hover); color: var(--text); }
+    .sh-chip__main:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
+    .sh-chip.is-selected {
+      border-color: color-mix(in srgb, var(--sh-tone) 55%, var(--line));
+      background: color-mix(in srgb, var(--sh-tone) 18%, transparent);
+      color: var(--text);
+    }
+    .sh-chip .sh-chip__remove.sh-btn--icon { flex: none; width: 24px; min-height: 24px; height: 24px; margin-right: var(--space-half); padding: 0; border-radius: 50%; }
+    /* ── Hint ───────────────────────────────────────────────────────────── */
+    .sh-hint {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+    .sh-hint--xs { font-size: var(--fs-xs); }
+    .sh-hint[data-tone]:not([data-tone='neutral']) { color: var(--sh-tone-ink); }
+    /* ── Spinner size and loading line ──────────────────────────────────── */
+    .sh-spinner--sm { width: 0.9em; height: 0.9em; border-width: 1.5px; }
+    .sh-loading {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3) 0;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+      line-height: var(--lh-snug);
+    }
+    .sh-loading--inline { display: inline-flex; padding: 0; font-size: inherit; vertical-align: middle; }
+    /* ── Progress ───────────────────────────────────────────────────────── */
+    .sh-progress {
+      position: relative;
+      height: 6px;
+      overflow: hidden;
+      border-radius: var(--radius-pill);
+      background: var(--bg-sunken);
+      box-shadow: inset 0 0 0 1px var(--line-soft);
+    }
+    .sh-progress--sm { height: 4px; }
+    .sh-progress__fill, .sh-progress__ahead {
+      position: absolute;
+      inset: 0;
+      background: var(--sh-tone);
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform 0.2s var(--ease);
+    }
+    .sh-progress__ahead { opacity: 0.35; }
+    .sh-progress--indeterminate .sh-progress__fill {
+      right: auto;
+      width: 36%;
+      transform: translateX(-100%);
+      transition: none;
+      animation: sh-progress-run 1.4s var(--ease) infinite;
+    }
+    /* ── Stacked bar ────────────────────────────────────────────────────── */
+    .sh-stacked__bar {
+      display: flex;
+      gap: var(--space-half);
+      height: 8px;
+      overflow: hidden;
+      border-radius: var(--radius-pill);
+      background: var(--bg-sunken);
+    }
+    .sh-stacked__segment { flex: 1 1 0; min-width: 4px; background: var(--sh-tone); }
+    .sh-stacked__legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-4);
+      margin: var(--space-2) 0 0;
+      padding: 0;
+      list-style: none;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .sh-stacked__key { display: inline-flex; align-items: center; gap: calc(var(--space-1) + var(--space-half)); }
+    .sh-stacked__key strong { color: var(--text); font-variant-numeric: tabular-nums; }
+    .sh-stacked__swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sh-tone); }
+    /* ── Error state and crash fallback ─────────────────────────────────── */
+    .sh-error-state--compact { margin: 0; }
+    .sh-crash {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      margin: var(--space-6) auto;
+      max-width: 640px;
+      padding: var(--space-5);
+      border: 1px solid color-mix(in srgb, var(--bad) 30%, var(--line));
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--bad) 7%, var(--bg-surface));
+    }
+    .sh-crash__icon { flex: none; margin-top: var(--space-half); color: var(--bad); }
+    .sh-crash__body { display: grid; justify-items: start; gap: var(--space-2); min-width: 0; }
+    .sh-crash__title { color: var(--text); font-size: var(--fs-lg); line-height: var(--lh-tight); }
+    .sh-crash__hint { margin: 0; color: var(--text-dim); line-height: var(--lh-body); }
+    .sh-crash__detail { width: 100%; color: var(--text-muted); font-size: var(--fs-sm); }
+    .sh-crash__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }
+    /* ── Job row ────────────────────────────────────────────────────────── */
+    .sh-job {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      align-items: start;
+      gap: var(--space-1) var(--space-3);
+      margin: 0;
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+    }
+    .sh-job--running { border-color: color-mix(in srgb, var(--info) 35%, var(--line)); }
+    .sh-job--failed { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+    .sh-job__mark { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--sh-tone-ink); }
+    .sh-job__mark .sh-spinner { width: 18px; height: 18px; }
+    .sh-job-list { display: grid; gap: var(--space-2); }
+    .sh-job__body { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
+    .sh-job__body > .sh-btn { justify-self: start; }
+    .sh-job__title { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
+    .sh-job__meta { display: block; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .sh-job__progress { display: grid; gap: var(--space-2); max-width: 420px; margin-block: var(--space-1); }
+    .sh-job__summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
+    .sh-job__summary > strong { min-width: 3.4ch; color: var(--text); font-size: var(--fs-lg); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
+    .sh-job__steps { display: flex; flex-wrap: wrap; gap: var(--space-half) var(--space-3); margin: 0; padding: 0; list-style: none; }
+    .sh-job__steps li { display: inline-flex; align-items: center; gap: var(--space-half); }
+    .sh-job__steps .is-done { color: var(--ok); }
+    .sh-job__steps .is-current { color: var(--text); font-weight: var(--fw-strong); }
+    .sh-job__failure { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-1); }
+    .sh-job__failure .sh-inline { width: 100%; margin: 0; }
+    .sh-job__body > .sh-inline { margin: 0; }
+    .sh-job__detail { width: 100%; color: var(--text-muted); font-size: var(--fs-sm); }
+    .sh-job__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }
+    .sh-job__actions { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: var(--space-1) var(--space-3); min-width: 0; }
+    .sh-job__actions .sh-btn { max-width: 100%; white-space: normal; text-align: left; }
+    /* A leading quiet button hangs its own padding and 1px border, so its text starts where the title does. */
+    .sh-job__actions > .sh-btn--quiet:first-child { margin-inline-start: calc(var(--space-3) * -1 - var(--space-half) / 2); }
+    .sh-job.is-leaving { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, 150ms) ease-out forwards; }
   }
-  .sh-badge--sm { padding: 0 var(--space-2); font-size: var(--fs-xs); }
-  .sh-badge__dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--sh-tone); }
-
-  /* ── Chip (interactive) ─────────────────────────────────────────────── */
-  .sh-chip {
-    display: inline-flex;
-    align-items: center;
-    max-width: 100%;
-    min-height: 28px;
-    box-sizing: border-box;
-    border: 1px solid color-mix(in srgb, var(--sh-tone) 30%, var(--line));
-    border-radius: var(--radius-pill);
-    background: color-mix(in srgb, var(--sh-tone) 7%, transparent);
-    color: var(--text-dim);
-    font-size: var(--fs-sm);
-    line-height: 1.4;
-  }
-  .sh-chip--sm { min-height: 24px; font-size: var(--fs-xs); }
-  .sh-chip__main, .sh-chip__label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    min-width: 0;
-    margin: 0;
-    padding: var(--space-half) calc(var(--space-2) + var(--space-half));
-    border: 0;
-    border-radius: inherit;
-    background: none;
-    color: inherit;
-    font: inherit;
-  }
-  .sh-chip__main { cursor: pointer; transition: background 0.15s var(--ease), color 0.15s var(--ease); }
-  .sh-chip__main:hover { background: var(--bg-hover); color: var(--text); }
-  .sh-chip__main:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
-  .sh-chip.is-selected {
-    border-color: color-mix(in srgb, var(--sh-tone) 55%, var(--line));
-    background: color-mix(in srgb, var(--sh-tone) 18%, transparent);
-    color: var(--text);
-  }
-  .sh-chip .sh-chip__remove.sh-btn--icon { flex: none; width: 24px; min-height: 24px; height: 24px; margin-right: var(--space-half); padding: 0; border-radius: 50%; }
-
-  /* ── Hint ───────────────────────────────────────────────────────────── */
-  .sh-hint {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: var(--fs-sm);
-    line-height: var(--lh-snug);
-  }
-  .sh-hint--xs { font-size: var(--fs-xs); }
-  .sh-hint[data-tone]:not([data-tone='neutral']) { color: var(--sh-tone-ink); }
-
-  /* ── Spinner size and loading line ──────────────────────────────────── */
-  .sh-spinner--sm { width: 0.9em; height: 0.9em; border-width: 1.5px; }
-  .sh-loading {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3) 0;
-    color: var(--text-muted);
-    font-size: var(--fs-md);
-    line-height: var(--lh-snug);
-  }
-  .sh-loading--inline { display: inline-flex; padding: 0; font-size: inherit; vertical-align: middle; }
-
-  /* ── Progress ───────────────────────────────────────────────────────── */
-  .sh-progress {
-    position: relative;
-    height: 6px;
-    overflow: hidden;
-    border-radius: var(--radius-pill);
-    background: var(--bg-sunken);
-    box-shadow: inset 0 0 0 1px var(--line-soft);
-  }
-  .sh-progress--sm { height: 4px; }
-  .sh-progress__fill, .sh-progress__ahead {
-    position: absolute;
-    inset: 0;
-    background: var(--sh-tone);
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 0.2s var(--ease);
-  }
-  .sh-progress__ahead { opacity: 0.35; }
-  .sh-progress--indeterminate .sh-progress__fill {
-    right: auto;
-    width: 36%;
-    transform: translateX(-100%);
-    transition: none;
-    animation: sh-progress-run 1.4s var(--ease) infinite;
-  }
-
-  /* ── Stacked bar ────────────────────────────────────────────────────── */
-  .sh-stacked__bar {
-    display: flex;
-    gap: var(--space-half);
-    height: 8px;
-    overflow: hidden;
-    border-radius: var(--radius-pill);
-    background: var(--bg-sunken);
-  }
-  .sh-stacked__segment { flex: 1 1 0; min-width: 4px; background: var(--sh-tone); }
-  .sh-stacked__legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-4);
-    margin: var(--space-2) 0 0;
-    padding: 0;
-    list-style: none;
-    color: var(--text-muted);
-    font-size: var(--fs-sm);
-  }
-  .sh-stacked__key { display: inline-flex; align-items: center; gap: calc(var(--space-1) + var(--space-half)); }
-  .sh-stacked__key strong { color: var(--text); font-variant-numeric: tabular-nums; }
-  .sh-stacked__swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sh-tone); }
-
-  /* ── Error state and crash fallback ─────────────────────────────────── */
-  .sh-error-state--compact { margin: 0; }
-  .sh-crash {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-    margin: var(--space-6) auto;
-    max-width: 640px;
-    padding: var(--space-5);
-    border: 1px solid color-mix(in srgb, var(--bad) 30%, var(--line));
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--bad) 7%, var(--bg-surface));
-  }
-  .sh-crash__icon { flex: none; margin-top: var(--space-half); color: var(--bad); }
-  .sh-crash__body { display: grid; justify-items: start; gap: var(--space-2); min-width: 0; }
-  .sh-crash__title { color: var(--text); font-size: var(--fs-lg); line-height: var(--lh-tight); }
-  .sh-crash__hint { margin: 0; color: var(--text-dim); line-height: var(--lh-body); }
-  .sh-crash__detail { width: 100%; color: var(--text-muted); font-size: var(--fs-sm); }
-  .sh-crash__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }
-
-  /* ── Job row ────────────────────────────────────────────────────────── */
-  .sh-job {
-    display: grid;
-    grid-template-columns: 24px minmax(0, 1fr) auto;
-    align-items: start;
-    gap: var(--space-1) var(--space-3);
-    margin: 0;
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--bg-surface);
-  }
-  .sh-job--running { border-color: color-mix(in srgb, var(--info) 35%, var(--line)); }
-  .sh-job--failed { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
-  .sh-job__mark { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--sh-tone-ink); }
-  .sh-job__mark .sh-spinner { width: 18px; height: 18px; }
-  .sh-job-list { display: grid; gap: var(--space-2); }
-  .sh-job__body { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
-  .sh-job__body > .sh-btn { justify-self: start; }
-  .sh-job__title { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
-  .sh-job__meta { display: block; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-  .sh-job__progress { display: grid; gap: var(--space-2); max-width: 420px; margin-block: var(--space-1); }
-  .sh-job__summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
-  .sh-job__summary > strong { min-width: 3.4ch; color: var(--text); font-size: var(--fs-lg); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
-  .sh-job__steps { display: flex; flex-wrap: wrap; gap: var(--space-half) var(--space-3); margin: 0; padding: 0; list-style: none; }
-  .sh-job__steps li { display: inline-flex; align-items: center; gap: var(--space-half); }
-  .sh-job__steps .is-done { color: var(--ok); }
-  .sh-job__steps .is-current { color: var(--text); font-weight: var(--fw-strong); }
-  .sh-job__failure { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-1); }
-  .sh-job__failure .sh-inline { width: 100%; margin: 0; }
-  .sh-job__body > .sh-inline { margin: 0; }
-  .sh-job__detail { width: 100%; color: var(--text-muted); font-size: var(--fs-sm); }
-  .sh-job__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }
-  .sh-job__actions { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: var(--space-1) var(--space-3); min-width: 0; }
-  .sh-job__actions .sh-btn { max-width: 100%; white-space: normal; text-align: left; }
-  /* A leading quiet button hangs its own padding and 1px border, so its text starts where the title does. */
-  .sh-job__actions > .sh-btn--quiet:first-child { margin-inline-start: calc(var(--space-3) * -1 - var(--space-half) / 2); }
-  .sh-job.is-leaving { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, 150ms) ease-out forwards; }
   @container study (max-width: 560px) {
-    .sh-job { grid-template-columns: 22px minmax(0, 1fr); padding: var(--space-3); }
-    .sh-job__actions { grid-column: 2; justify-content: flex-start; }
+    :is(.study-app, .study-seat) {
+      .sh-job { grid-template-columns: 22px minmax(0, 1fr); padding: var(--space-3); }
+      .sh-job__actions { grid-column: 2; justify-content: flex-start; }
+    }
   }
-
   @media (prefers-reduced-motion: reduce) {
-    .sh-progress__fill, .sh-progress__ahead, .sh-chip__main { transition: none; }
-    .sh-progress--indeterminate .sh-progress__fill { width: 100%; opacity: 0.45; transform: none; animation: none; }
-    .sh-job.is-leaving { display: none; animation: none; }
+    :is(.study-app, .study-seat) {
+      .sh-progress__fill, .sh-progress__ahead, .sh-chip__main { transition: none; }
+      .sh-progress--indeterminate .sh-progress__fill { width: 100%; opacity: 0.45; transform: none; animation: none; }
+      .sh-job.is-leaving { display: none; animation: none; }
+    }
   }
 }
+
 @keyframes sh-progress-run { to { transform: translateX(280%); } }
 @keyframes sh-job-leave {
   0% { opacity: 1; max-height: 220px; }

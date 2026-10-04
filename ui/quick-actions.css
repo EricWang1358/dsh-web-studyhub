@@ -1,2 +1,7 @@
-/* WP19: a card dismissed with 知道了 leaves at once (the call runs in the background, ui/quick-actions.js; the JobRow's
-   is-leaving state animates it), and a failed dismissal puts a short message next to the card that came back. */
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+
+  /* WP19: a card dismissed with 知道了 leaves at once (the call runs in the background, ui/quick-actions.js; the JobRow's
+     is-leaving state animates it), and a failed dismissal puts a short message next to the card that came back. */
+}

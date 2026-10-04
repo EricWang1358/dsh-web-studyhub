@@ -1,150 +1,156 @@
-/* WP15 · update chip, 关于与更新 settings section and the upgrade dialog. Tokens only. */
-:where(.study-app) .update-chip {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: calc(100% - 2 * var(--space-2));
-  margin: 0 var(--space-2) var(--space-2);
-  padding: 7px var(--space-3);
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-:where(.study-app) .update-chip .sh-badge { flex: 1 1 auto; min-width: 0; padding-block: var(--space-1); padding-inline: var(--space-3); }
-:where(.study-app) .update-chip__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:where(.study-app) .update-chip svg { flex-shrink: 0; }
-:where(.study-app) .update-chip:hover .sh-badge { background: color-mix(in srgb, var(--sh-tone) 22%, transparent); }
-:where(.study-app) .update-chip:focus-visible { outline: none; box-shadow: var(--ring); }
-:where(.study-app) .update-chip.is-compact {
-  justify-content: center;
-  width: auto;
-  margin: 0 auto var(--space-2);
-}
-:where(.study-app) .update-chip.is-compact .sh-badge { flex: none; padding: var(--space-2); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-.update-dialog .update-notes-wrap h3 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--text-muted);
-}
-.update-dialog .update-notes {
-  max-height: 220px;
-  overflow: auto;
-  margin: 0 0 var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.update-dialog .update-lead {
-  margin: 0 0 var(--space-3);
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-}
-.update-dialog .update-note {
-  margin: var(--space-3) 0 0;
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-snug);
-}
-.update-dialog .update-address {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  margin-bottom: var(--space-3);
-}
-.update-dialog .update-address input {
-  flex: 1;
-  min-width: 0;
-  padding: 7px var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  color: var(--text);
-  font: var(--fs-xs) / var(--lh-tight) ui-monospace, SFMono-Regular, Consolas, monospace;
-}
-.update-dialog .update-steps {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-3);
-  padding: 0;
-  list-style: none;
-  counter-reset: update-step;
-}
-.update-dialog .update-steps li {
-  display: grid;
-  grid-template-columns: 24px 1fr;
-  column-gap: var(--space-3);
-  align-items: baseline;
-  counter-increment: update-step;
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-}
-.update-dialog .update-steps li::before {
-  content: counter(update-step);
-  grid-row: span 2;
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-}
-.update-dialog .update-steps strong { color: var(--text); font-weight: 600; }
-.update-dialog .update-steps span { color: var(--text-muted); }
-.update-dialog .update-done { display: grid; gap: var(--space-2); justify-items: start; }
-.update-dialog .update-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  flex-wrap: wrap;
-}
-.update-dialog .update-footer__actions { display: flex; gap: var(--space-2); margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
-.update-dialog .update-release-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  color: var(--accent-text);
-  font-size: var(--fs-sm);
-}
-
-:where(.study-app) .update-settings .update-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-6);
-  margin: 0 0 var(--space-3);
-}
-:where(.study-app) .update-settings .update-facts div { display: grid; gap: 2px; }
-:where(.study-app) .update-settings .update-facts dt { color: var(--text-muted); font-size: var(--fs-xs); }
-:where(.study-app) .update-settings .update-facts dd { margin: 0; color: var(--text); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
-:where(.study-app) .update-settings > .sh-banner, :where(.study-app) .update-settings > .sh-inline, :where(.study-app) .update-settings > .sh-hint { margin: 0 0 var(--space-3); }
-:where(.study-app) .update-settings .update-settings__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-}
-:where(.study-app) .update-settings .update-settings__actions .inline-check { margin: 0; }
-@container study (max-width: 480px) {
-  .update-dialog .update-address { flex-direction: column; align-items: stretch; }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* WP15 · update chip, 关于与更新 settings section and the upgrade dialog. Tokens only. */
+    .update-chip {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      width: calc(100% - 2 * var(--space-2));
+      margin: 0 var(--space-2) var(--space-2);
+      padding: 7px var(--space-3);
+      padding: 0;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: none;
+      text-align: left;
+      cursor: pointer;
+    }
+    .update-chip .sh-badge { flex: 1 1 auto; min-width: 0; padding-block: var(--space-1); padding-inline: var(--space-3); }
+    .update-chip__label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .update-chip svg { flex-shrink: 0; }
+    .update-chip:hover .sh-badge { background: color-mix(in srgb, var(--sh-tone) 22%, transparent); }
+    .update-chip:focus-visible { outline: none; box-shadow: var(--ring); }
+    .update-chip.is-compact {
+      justify-content: center;
+      width: auto;
+      margin: 0 auto var(--space-2);
+    }
+    .update-chip.is-compact .sh-badge { flex: none; padding: var(--space-2); }
+    .update-dialog .update-notes-wrap h3 {
+      margin: 0 0 var(--space-2);
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .update-dialog .update-notes {
+      max-height: 220px;
+      overflow: auto;
+      margin: 0 0 var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .update-dialog .update-lead {
+      margin: 0 0 var(--space-3);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+    .update-dialog .update-note {
+      margin: var(--space-3) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      line-height: var(--lh-snug);
+    }
+    .update-dialog .update-address {
+      display: flex;
+      gap: var(--space-2);
+      align-items: center;
+      margin-bottom: var(--space-3);
+    }
+    .update-dialog .update-address input {
+      flex: 1;
+      min-width: 0;
+      padding: 7px var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      color: var(--text);
+      font: var(--fs-xs) / var(--lh-tight) ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    .update-dialog .update-steps {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0 0 var(--space-3);
+      padding: 0;
+      list-style: none;
+      counter-reset: update-step;
+    }
+    .update-dialog .update-steps li {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      column-gap: var(--space-3);
+      align-items: baseline;
+      counter-increment: update-step;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+    .update-dialog .update-steps li::before {
+      content: counter(update-step);
+      grid-row: span 2;
+      display: inline-grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--bg-sunken);
+      color: var(--text-dim);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+    }
+    .update-dialog .update-steps strong { color: var(--text); font-weight: 600; }
+    .update-dialog .update-steps span { color: var(--text-muted); }
+    .update-dialog .update-done { display: grid; gap: var(--space-2); justify-items: start; }
+    .update-dialog .update-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    .update-dialog .update-footer__actions { display: flex; gap: var(--space-2); margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+    .update-dialog .update-release-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      color: var(--accent-text);
+      font-size: var(--fs-sm);
+    }
+    .update-settings .update-facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-6);
+      margin: 0 0 var(--space-3);
+    }
+    .update-settings .update-facts div { display: grid; gap: 2px; }
+    .update-settings .update-facts dt { color: var(--text-muted); font-size: var(--fs-xs); }
+    .update-settings .update-facts dd { margin: 0; color: var(--text); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+    .update-settings > .sh-banner, .update-settings > .sh-inline, .update-settings > .sh-hint { margin: 0 0 var(--space-3); }
+    .update-settings .update-settings__actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-4);
+    }
+    .update-settings .update-settings__actions .inline-check { margin: 0; }
+  }
+  @container study (max-width: 480px) {
+    :is(.study-app, .study-seat) {
+      .update-dialog .update-address { flex-direction: column; align-items: stretch; }
+    }
+  }
 }

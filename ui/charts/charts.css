@@ -2,173 +2,178 @@
    due forecast and mastery bars, plus the tidied metrics/footnote around
    them. Tokens only; SVG text is drawn at real pixel size so 12px is 12px. */
 
-.dash-split > .dash-metrics { padding-top: 6px; }
-.dash-footnote {
-  margin: -4px 0 0;
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-  color: var(--text-muted);
-}
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-/* Three charts: the trend takes the full row, the two companions share the
-   next one from 900px of study-container width and stack below that. */
-.dash-charts {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-5);
-  min-width: 0;
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .dash-split > .dash-metrics { padding-top: 6px; }
+    .dash-footnote {
+      margin: -4px 0 0;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      color: var(--text-muted);
+    }
+    /* Three charts: the trend takes the full row, the two companions share the
+       next one from 900px of study-container width and stack below that. */
+    .dash-charts {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-5);
+      min-width: 0;
+    }
+    .dash-charts > .dash-chart { min-width: 0; }
+  }
+  @container study (min-width: 900px) {
+    :is(.study-app, .study-seat) {
+      .dash-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .dash-charts > .dash-trend-panel { grid-column: 1 / -1; }
+    }
+  }
+  @container study (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      .dash-charts { gap: var(--space-4); }
+      .dash-chart.sh-panel { padding: var(--space-4); }
+    }
+  }
+  :is(.study-app, .study-seat) {
+    .dash-chart .sh-panel__head { flex-wrap: wrap; }
+    /* Legend: line samples that differ by dash pattern, not only by colour. */
+    .dash-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-5);
+      margin: 0 0 var(--space-3);
+      padding: 0;
+      list-style: none;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .dash-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
+    .dash-swatch { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--accent-text); border-radius: 2px; }
+    .dash-swatch.self { border-top: 3px dotted var(--info); }
+    .dash-chart-box { position: relative; min-width: 0; }
+    .dash-plot { position: relative; }
+    .dash-svg { display: block; max-width: 100%; overflow: visible; }
+    .dash-grid { stroke: var(--line-soft); stroke-width: 1; }
+    .dash-axis { fill: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .dash-axis.today { fill: var(--text); font-weight: 600; }
+    .dash-guide { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
+    .dash-hit { fill: transparent; pointer-events: all; }
+    /* Trend: graded solid, self-assessed dotted with hollow points. */
+    .dash-line { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+    .dash-line.graded { stroke: var(--accent-text); }
+    .dash-line.self { stroke: var(--info); stroke-dasharray: 0.1 5.5; stroke-width: 2.75; }
+    .dash-point { stroke-width: 2; cursor: default; outline: none; pointer-events: all; }
+    .dash-point.graded { fill: var(--accent-text); stroke: var(--bg-surface); }
+    .dash-point.self { fill: var(--bg-surface); stroke: var(--info); }
+    .dash-point:hover, .dash-point:focus-visible { stroke-width: 3; }
+    .dash-point.graded:hover, .dash-point.graded:focus-visible { stroke: var(--text); }
+    .dash-point.self:hover, .dash-point.self:focus-visible { stroke: var(--text); }
+    /* Forecast bars. */
+    .dash-chart-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-4);
+      margin: 0 0 var(--space-2);
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .dash-chart-summary span:first-child { color: var(--text); font-weight: 600; }
+    .dash-bar { outline: none; }
+    .dash-bar-hit { fill: transparent; pointer-events: all; }
+    .dash-bar-fill { fill: color-mix(in srgb, var(--info) 78%, transparent); transition: fill 0.12s var(--ease); }
+    .dash-bar.today .dash-bar-fill { fill: var(--accent); }
+    .dash-bar.zero .dash-bar-fill { fill: var(--line-strong); }
+    .dash-bar-value { fill: var(--text-dim); font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .dash-bar[role="button"] { cursor: pointer; }
+    .dash-bar[role="button"]:hover .dash-bar-fill,
+    .dash-bar[role="button"]:focus-visible .dash-bar-fill { fill: var(--info); }
+    .dash-bar.today[role="button"]:hover .dash-bar-fill,
+    .dash-bar.today[role="button"]:focus-visible .dash-bar-fill { fill: var(--accent-soft); }
+    .dash-bar[role="button"]:focus-visible .dash-bar-fill { stroke: var(--text); stroke-width: 2; }
+    /* Tooltip shared by the two SVG charts. */
+    .dash-tip {
+      position: absolute;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 8px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-md);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      color: var(--text-dim);
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translate(-50%, -100%);
+    }
+    .dash-tip.below { transform: translate(-50%, 14px); }
+    .dash-tip strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+    /* Per-chart empty state: short, sits where the chart would be. */
+    .dash-chart-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: var(--space-1);
+      min-height: 96px;
+      padding: var(--space-4) var(--space-5);
+      border: 1px dashed var(--line);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+    }
+    .dash-chart-empty strong { font-size: var(--fs-md); font-weight: 600; color: var(--text-dim); }
+    .dash-chart-empty p { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    /* Mastery bars. */
+    .dash-mastery { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+    .dash-mrow {
+      display: grid;
+      grid-template-columns: minmax(4.5em, 7.5em) minmax(0, 1fr) minmax(5.5em, auto);
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .dash-mname { font-size: var(--fs-md); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+    .dash-mastery-track {
+      position: relative;
+      height: 12px;
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--text) 8%, transparent);
+      overflow: hidden;
+    }
+    .dash-mrow.thin .dash-mastery-track {
+      background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text) 10%, transparent) 0 4px, transparent 4px 8px);
+    }
+    .dash-mastery-fill { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--ok); }
+    .dash-mastery-fill[data-tone="mid"] { background: var(--warn); }
+    .dash-mastery-fill[data-tone="low"] { background: var(--bad); }
+    .dash-mvalue { display: flex; flex-direction: column; align-items: flex-end; line-height: var(--lh-tight); text-align: right; }
+    .dash-mvalue b { font-size: var(--fs-lg); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
+    .dash-mvalue em { font-size: var(--fs-sm); font-style: normal; color: var(--text-muted); }
+    .dash-mvalue small { font-size: var(--fs-xs); color: var(--text-muted); }
+    /* Visually hidden data table for assistive tech. */
+    .dash-sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .dash-bar-fill { transition: none; }
+    }
+  }
+  :is(.study-app, .study-seat) {
+    /* 有效课程: what the forecast counts, and what sits in parked courses. */
+    .dash-scope-note { margin: var(--space-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
+    .dash-scope-note .link-btn { font-size: var(--fs-sm); }
+  }
 }
-.dash-charts > .dash-chart { min-width: 0; }
-@container study (min-width: 900px) {
-  .dash-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dash-charts > .dash-trend-panel { grid-column: 1 / -1; }
-}
-@container study (max-width: 520px) {
-  .dash-charts { gap: var(--space-4); }
-  .dash-chart.sh-panel { padding: var(--space-4); }
-}
-.dash-chart .sh-panel__head { flex-wrap: wrap; }
-
-/* Legend: line samples that differ by dash pattern, not only by colour. */
-.dash-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: 0 0 var(--space-3);
-  padding: 0;
-  list-style: none;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-}
-.dash-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
-.dash-swatch { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--accent-text); border-radius: 2px; }
-.dash-swatch.self { border-top: 3px dotted var(--info); }
-
-.dash-chart-box { position: relative; min-width: 0; }
-.dash-plot { position: relative; }
-.dash-svg { display: block; max-width: 100%; overflow: visible; }
-.dash-grid { stroke: var(--line-soft); stroke-width: 1; }
-.dash-axis { fill: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-.dash-axis.today { fill: var(--text); font-weight: 600; }
-.dash-guide { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
-.dash-hit { fill: transparent; pointer-events: all; }
-
-/* Trend: graded solid, self-assessed dotted with hollow points. */
-.dash-line { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
-.dash-line.graded { stroke: var(--accent-text); }
-.dash-line.self { stroke: var(--info); stroke-dasharray: 0.1 5.5; stroke-width: 2.75; }
-.dash-point { stroke-width: 2; cursor: default; outline: none; pointer-events: all; }
-.dash-point.graded { fill: var(--accent-text); stroke: var(--bg-surface); }
-.dash-point.self { fill: var(--bg-surface); stroke: var(--info); }
-.dash-point:hover, .dash-point:focus-visible { stroke-width: 3; }
-.dash-point.graded:hover, .dash-point.graded:focus-visible { stroke: var(--text); }
-.dash-point.self:hover, .dash-point.self:focus-visible { stroke: var(--text); }
-
-/* Forecast bars. */
-.dash-chart-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: 0 0 var(--space-2);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-}
-.dash-chart-summary span:first-child { color: var(--text); font-weight: 600; }
-.dash-bar { outline: none; }
-.dash-bar-hit { fill: transparent; pointer-events: all; }
-.dash-bar-fill { fill: color-mix(in srgb, var(--info) 78%, transparent); transition: fill 0.12s var(--ease); }
-.dash-bar.today .dash-bar-fill { fill: var(--accent); }
-.dash-bar.zero .dash-bar-fill { fill: var(--line-strong); }
-.dash-bar-value { fill: var(--text-dim); font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; font-variant-numeric: tabular-nums; }
-.dash-bar[role="button"] { cursor: pointer; }
-.dash-bar[role="button"]:hover .dash-bar-fill,
-.dash-bar[role="button"]:focus-visible .dash-bar-fill { fill: var(--info); }
-.dash-bar.today[role="button"]:hover .dash-bar-fill,
-.dash-bar.today[role="button"]:focus-visible .dash-bar-fill { fill: var(--accent-soft); }
-.dash-bar[role="button"]:focus-visible .dash-bar-fill { stroke: var(--text); stroke-width: 2; }
-
-/* Tooltip shared by the two SVG charts. */
-.dash-tip {
-  position: absolute;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-md);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-  color: var(--text-dim);
-  white-space: nowrap;
-  pointer-events: none;
-  transform: translate(-50%, -100%);
-}
-.dash-tip.below { transform: translate(-50%, 14px); }
-.dash-tip strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-
-/* Per-chart empty state: short, sits where the chart would be. */
-.dash-chart-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: var(--space-1);
-  min-height: 96px;
-  padding: var(--space-4) var(--space-5);
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-}
-.dash-chart-empty strong { font-size: var(--fs-md); font-weight: 600; color: var(--text-dim); }
-.dash-chart-empty p { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
-
-/* Mastery bars. */
-.dash-mastery { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-.dash-mrow {
-  display: grid;
-  grid-template-columns: minmax(4.5em, 7.5em) minmax(0, 1fr) minmax(5.5em, auto);
-  align-items: center;
-  gap: var(--space-3);
-}
-.dash-mname { font-size: var(--fs-md); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
-.dash-mastery-track {
-  position: relative;
-  height: 12px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  overflow: hidden;
-}
-.dash-mrow.thin .dash-mastery-track {
-  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text) 10%, transparent) 0 4px, transparent 4px 8px);
-}
-.dash-mastery-fill { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--ok); }
-.dash-mastery-fill[data-tone="mid"] { background: var(--warn); }
-.dash-mastery-fill[data-tone="low"] { background: var(--bad); }
-.dash-mvalue { display: flex; flex-direction: column; align-items: flex-end; line-height: var(--lh-tight); text-align: right; }
-.dash-mvalue b { font-size: var(--fs-lg); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
-.dash-mvalue em { font-size: var(--fs-sm); font-style: normal; color: var(--text-muted); }
-.dash-mvalue small { font-size: var(--fs-xs); color: var(--text-muted); }
-
-/* Visually hidden data table for assistive tech. */
-.dash-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dash-bar-fill { transition: none; }
-}
-
-/* 有效课程: what the forecast counts, and what sits in parked courses. */
-.dash-scope-note { margin: var(--space-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
-.dash-scope-note .link-btn { font-size: var(--fs-sm); }

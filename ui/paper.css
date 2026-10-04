@@ -1,26 +1,70 @@
-/* Card stock. Anything drawn on a card uses these, whatever the theme. The accent tints derive from --accent (the presets of accent.css change it). */
-.study-app :is(.today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta,
-  .flash-area .card-progress, .flip-face) {
-  --text: var(--paper-ink);
-  --text-dim: #463e34;
-  --text-muted: var(--paper-dim);
-  --text-faint: #6c6459;
-  --decor-faint: #867d70;
-  --line: #20160c26;
-  --line-soft: #20160c14;
-  --line-strong: #20160c40;
-  --bg-hover: #20160c0b;
-  --bg-surface: #20160c08;
-  --bg-sunken: #20160c0d;
-  --bg-raised: var(--paper);
-  --bg-selected: color-mix(in srgb, var(--accent) 8%, transparent);
-  --accent-soft: color-mix(in srgb, var(--accent) 89%, black);
-  --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
-  --ok: #2c7a53;
-  --warn: #93600f;
-  --bad: #a8345f;
-  --info: #3b6f9c;
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--text);
-  color-scheme: light;
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.tokens {
+  :is(.study-app, .study-seat) {
+    /* Paper (#157). The card is the one physical object: anything drawn on paper re-scopes the ink tokens to paper values, whatever the
+       theme, so the text, lines, tones and focus ring on a card read the same everywhere. `.sh-paper` is the way in (a Panel with
+       tone="paper"; a new paper surface adds the class and nothing else). The elements after it predate the class and are listed
+       here once, so no other stylesheet re-defines --text for a card: delete an entry when its markup carries `.sh-paper`.
+       The accent tints derive from --accent (the presets of accent.css change it). */
+    :is(.sh-paper, .today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta, .flash-area .card-progress, .flip-face,
+      .study-document-viewer[data-tone='paper'] .reader-page, .study-reading[data-tone='paper']) {
+      --text: var(--paper-ink);
+      --text-dim: #463e34;
+      --text-muted: var(--paper-dim);
+      --text-faint: #6c6459;
+      --decor-faint: #867d70;
+      --line: #20160c26;
+      --line-soft: #20160c14;
+      --line-strong: #20160c40;
+      --bg-hover: #20160c0b;
+      --bg-surface: #20160c08;
+      --bg-sunken: #20160c0d;
+      --bg-raised: var(--paper);
+      --bg-selected: color-mix(in srgb, var(--accent) 8%, transparent);
+      --accent-soft: color-mix(in srgb, var(--accent) 89%, black);
+      --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
+      --ok: #2c7a53;
+      --warn: #93600f;
+      --bad: #a8345f;
+      --info: #3b6f9c;
+      --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+      /* The tones are derived from the ones above, so they are rebuilt where those change. */
+      --ok-ink: color-mix(in srgb, var(--ok) 82%, var(--text));
+      --ok-bg: color-mix(in srgb, var(--ok) 8%, var(--bg-surface));
+      --ok-line: color-mix(in srgb, var(--ok) 30%, var(--line));
+      --warn-ink: color-mix(in srgb, var(--warn) 82%, var(--text));
+      --warn-bg: color-mix(in srgb, var(--warn) 8%, var(--bg-surface));
+      --warn-line: color-mix(in srgb, var(--warn) 30%, var(--line));
+      --bad-ink: color-mix(in srgb, var(--bad) 82%, var(--text));
+      --bad-bg: color-mix(in srgb, var(--bad) 8%, var(--bg-surface));
+      --bad-line: color-mix(in srgb, var(--bad) 30%, var(--line));
+      --info-ink: color-mix(in srgb, var(--info) 82%, var(--text));
+      --info-bg: color-mix(in srgb, var(--info) 8%, var(--bg-surface));
+      --info-line: color-mix(in srgb, var(--info) 30%, var(--line));
+      --warn-text: var(--warn-ink);
+      --ok-halo: color-mix(in srgb, var(--ok) 22%, transparent);
+      --ok-mid: color-mix(in srgb, var(--ok) 45%, transparent);
+      --ok-mark: color-mix(in srgb, var(--ok) 32%, transparent);
+      --ok-tint: color-mix(in srgb, var(--ok) 22%, var(--bg-surface));
+      --ok-solid: color-mix(in srgb, var(--ok) 70%, var(--bg-surface));
+      --warn-halo: color-mix(in srgb, var(--warn) 22%, transparent);
+      --warn-mid: color-mix(in srgb, var(--warn) 45%, transparent);
+      --warn-mark: color-mix(in srgb, var(--warn) 32%, transparent);
+      --warn-tint: color-mix(in srgb, var(--warn) 22%, var(--bg-surface));
+      --warn-solid: color-mix(in srgb, var(--warn) 70%, var(--bg-surface));
+      --bad-halo: color-mix(in srgb, var(--bad) 22%, transparent);
+      --bad-mid: color-mix(in srgb, var(--bad) 45%, transparent);
+      --bad-mark: color-mix(in srgb, var(--bad) 32%, transparent);
+      --bad-tint: color-mix(in srgb, var(--bad) 22%, var(--bg-surface));
+      --bad-solid: color-mix(in srgb, var(--bad) 70%, var(--bg-surface));
+      --info-halo: color-mix(in srgb, var(--info) 22%, transparent);
+      --info-mid: color-mix(in srgb, var(--info) 45%, transparent);
+      --info-mark: color-mix(in srgb, var(--info) 32%, transparent);
+      --info-tint: color-mix(in srgb, var(--info) 22%, var(--bg-surface));
+      --info-solid: color-mix(in srgb, var(--info) 70%, var(--bg-surface));
+      color: var(--text);
+      color-scheme: light;
+    }
+  }
 }

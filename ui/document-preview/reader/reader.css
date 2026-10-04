@@ -4,491 +4,487 @@
    up only as the reading-progress line and the one primary button. Below 900px of viewer
    width (NARROW in DocumentViewer.jsx) the outline and the learning panel slide over the text. */
 
-@keyframes reader-slide-left { from { opacity: 0; transform: translateX(-14px); } }
-@keyframes reader-slide-right { from { opacity: 0; transform: translateX(14px); } }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-::highlight(study-find) { background-color: color-mix(in srgb, var(--warn) 30%, transparent); color: inherit; }
-::highlight(study-find-current) { background-color: color-mix(in srgb, var(--warn) 72%, transparent); color: inherit; }
-
-:is(.study-app, .study-seat) {
-  .study-document-viewer {
-    --reader-size: 16px;
-    --reader-measure: 44em;
-    --reader-leading: 1.8;
-    --reader-sans: var(--font-ui);
-    --reader-face: var(--reader-sans);
-    container: reader / inline-size;
-    position: relative;
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    min-height: 0;
-    background: var(--bg-surface);
-  }
-  .study-document-viewer[data-face='serif'] { --reader-weight: 450; } /* the faces themselves: --font-stack-* in style.css */
-
-  /* ── Toolbar ─────────────────────────────────────────────────────────── */
-  .reader-toolbar {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: var(--space-3);
-    min-height: 52px;
-    padding: var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--line);
-    background: var(--bg-raised);
-  }
-  .reader-toolbar__group { display: flex; flex: none; align-items: center; gap: var(--space-2); min-width: 0; }
-  .reader-toolbar__group--end { margin-left: auto; }
-  .reader-toolbar__where {
-    flex: 1 1 0;
-    min-width: 0;
-    margin: 0;
-    padding-inline: var(--space-2);
-    overflow: hidden;
-    color: var(--text-muted);
-    font-size: var(--fs-sm);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .reader-toolbar .sh-btn[aria-pressed='true'] { background: var(--bg-selected); color: var(--text); }
-  .reader-toolbar .sh-btn--icon { position: relative; }
-  .reader-toolbar [data-attention='true']::after {
-    content: "";
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 7px;
-    height: 7px;
-    border-radius: var(--radius-pill);
-    background: var(--warn);
-  }
-  .reader-badge {
-    position: absolute;
-    top: 1px;
-    right: 1px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: var(--radius-pill);
-    background: var(--text);
-    color: var(--bg-raised);
-    font-size: 11px;
-    font-weight: 650;
-    line-height: 16px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* Reading progress: the one place besides the primary button where the accent appears. */
-  .reader-progress { flex: none; height: 2px; overflow: hidden; background: var(--line-soft); }
-  .reader-progress > span {
-    display: block;
-    height: 100%;
-    background: var(--accent);
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 0.12s linear;
-  }
-
-  /* ── Search, notices ─────────────────────────────────────────────────── */
-  .reader-find {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--line);
-    background: var(--bg-surface);
-  }
-  .reader-find__icon { flex: none; color: var(--text-muted); }
-  .reader-find .reader-find__input {
-    flex: 1 1 200px;
-    width: auto;
-    min-width: 0;
-    max-width: 420px;
-    min-height: 36px;
-    margin: 0;
-    padding: 6px var(--space-3);
-    font-size: var(--fs-sm);
-    line-height: var(--lh-tight);
-  }
-  .reader-find__count { min-width: 5em; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-  .reader-find__input::-webkit-search-cancel-button { display: none; }
-  .reader-turn--up { transform: rotate(-90deg); }
-  .reader-turn--down { transform: rotate(90deg); }
-  .study-document-viewer .reader-notices { flex: none; margin: 0; padding: 0 var(--space-5); }
-  .study-document-viewer .reader-notices:not(:empty) { padding-block: var(--space-2); border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
-  .reader-aux { flex: none; padding: 0 var(--space-5); }
-  .reader-aux:empty { display: none; }
-  .reader-aux .highlight-quote { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); font-size: var(--fs-md); line-height: 1.7; }
-
-  /* ── Layout: outline | reading column | learning panel ───────────────── */
-  .reader-layout { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
-  .reader-scroll {
-    flex: 1 1 0;
-    min-width: 0;
-    overflow: auto;
-    overscroll-behavior: contain;
-    background: var(--bg-surface);
-  }
-  .reader-scroll:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
-  .reader-outline, .reader-tools { display: flex; flex: none; flex-direction: column; min-height: 0; background: var(--bg-raised); }
-  .reader-outline[hidden], .reader-tools[hidden] { display: none; }
-  .reader-outline { width: 272px; border-right: 1px solid var(--line); }
-  .reader-tools { position: static; width: 360px; gap: var(--space-3); padding: var(--space-4); overflow-y: auto; border-left: 1px solid var(--line); }
-  .reader-scrim { display: none; }
-  .reader-panel__title {
-    margin: 0;
-    padding: var(--space-4) var(--space-4) var(--space-2);
-    color: var(--text-muted);
-    font-family: var(--font-ui);
-    font-size: var(--fs-xs);
-    font-weight: 650;
-    letter-spacing: 0.08em;
-  }
-  .reader-tools .reader-panel__title { padding: 0 0 var(--space-1); }
-
-  /* ── Outline ─────────────────────────────────────────────────────────── */
-  .reader-outline__scroll { flex: 1 1 auto; min-height: 0; padding: 0 var(--space-2) var(--space-4); overflow: auto; overscroll-behavior: contain; }
-  .reader-outline ol { margin: 0; padding: 0; list-style: none; }
-  .reader-outline li { display: flex; align-items: stretch; padding-left: calc(var(--outline-depth, 0) * 14px); }
-  .reader-outline li[data-depth='1'] { --outline-depth: 1; }
-  .reader-outline li[data-depth='2'] { --outline-depth: 2; }
-  .reader-outline li[data-depth='3'] { --outline-depth: 3; }
-  .reader-outline li[data-depth='4'] { --outline-depth: 4; }
-  .reader-outline__twisty {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 26px;
-    min-height: 34px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-faint);
-  }
-  button.reader-outline__twisty:hover { background: var(--bg-hover); color: var(--text); }
-  .reader-outline__twisty--none { pointer-events: none; }
-  .reader-outline__link {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1px;
-    min-width: 0;
-    min-height: 34px;
-    padding: 6px var(--space-2);
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: var(--fs-sm);
-    line-height: var(--lh-snug);
-    text-align: left;
-  }
-  .reader-outline__link:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-  .reader-outline__link[aria-current='location'] { background: var(--bg-selected); color: var(--text); font-weight: 600; }
-  .reader-outline li[data-minor] .reader-outline__link { color: var(--text-faint); font-size: var(--fs-xs); }
-  .reader-outline li[data-minor] .reader-outline__link[aria-current='location'] { color: var(--text); }
-  .reader-outline__label { color: var(--text-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-  .reader-outline__trail { color: var(--text-faint); font-size: var(--fs-xs); }
-  .reader-outline__title {
-    display: -webkit-box;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-  }
-  .reader-outline__empty { margin: 0; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
-  .reader-outline__filter { display: flex; flex: none; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-2); }
-  .reader-outline__filter input { flex: 1 1 auto; width: auto; min-width: 0; min-height: 32px; margin: 0; padding: 4px var(--space-3); font-size: var(--fs-sm); }
-  .reader-outline__filter input::-webkit-search-cancel-button { display: none; }
-  .reader-outline__foot { flex: none; max-height: 55%; padding: var(--space-3); overflow: auto; border-top: 1px solid var(--line); }
-
-  /* ── "让 AI 帮你": the flow under the outline, and its preview ───────── */
-  .reader-assist { display: grid; gap: var(--space-2); }
-  .reader-assist__actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
-  .reader-assist__actions .sh-btn { height: auto; padding-block: 5px; line-height: var(--lh-snug); white-space: normal; text-align: left; }
-  .reader-assist__note, .reader-assist__status { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-  .reader-assist__bar { position: relative; display: block; height: 3px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); }
-  .reader-assist__bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 36%; border-radius: inherit; background: var(--accent); animation: reader-assist-run 1.4s var(--ease-out) infinite; }
-  @keyframes reader-assist-run { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
-  .reader-assist__preview { display: grid; gap: var(--space-3); }
-  .reader-assist__columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
-  .reader-assist__columns h4 { margin: 0 0 var(--space-2); font-size: var(--fs-sm); }
-  .reader-assist__entries { max-height: 46vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-  .reader-assist__entries li { display: flex; gap: var(--space-2); align-items: baseline; padding: 3px var(--space-2) 3px calc(var(--space-2) + var(--entry-depth, 0) * 16px); overflow-wrap: anywhere; }
-  .reader-assist__entries li[data-depth='1'] { --entry-depth: 1; }
-  .reader-assist__entries li[data-depth='2'] { --entry-depth: 2; }
-  .reader-assist__entries li[data-depth='3'] { --entry-depth: 3; }
-  .reader-assist__entries li[data-minor] { color: var(--text-faint); }
-  .reader-assist__tag { flex: none; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); }
-  /* Using the outline as chapters: the level, the chapters it gives, what a chapter inside a page means. */
-  .reader-segment { display: grid; gap: var(--space-3); }
-  .reader-segment__levels { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
-  .reader-segment__levels legend { width: 100%; margin: 0 0 var(--space-2); padding: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; }
-  .reader-segment__levels label { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; padding: 6px var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); cursor: pointer; }
-  .reader-segment__levels label:has(input:checked) { border-color: var(--accent); background: var(--bg-selected); }
-  .reader-segment__levels input { flex: none; width: auto; min-height: 0; margin: 0; accent-color: var(--accent); }
-  .reader-segment__chapters { max-height: 40vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-  .reader-segment__chapters li { display: flex; align-items: baseline; gap: var(--space-2); padding: 4px var(--space-2); }
-  .reader-segment__chapters li > span { min-width: 0; overflow-wrap: anywhere; }
-  .reader-segment__chapters li > small:last-child { flex: none; margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
-  .reader-assist-dialog { display: grid; gap: var(--space-3); }
-  .reader-assist-dialog > p { margin: 0; }
-  .reader-assist-dialog .reader-assist__actions .sh-btn { white-space: normal; }
-  @container reader (max-width: 640px) { .reader-assist__columns { grid-template-columns: minmax(0, 1fr); } }
-  @media (max-width: 640px) { .reader-assist__columns { grid-template-columns: minmax(0, 1fr); } }
-
-  /* ── The reading column ──────────────────────────────────────────────── */
-  .reader-page {
-    box-sizing: border-box;
-    width: 100%;
-    max-width: calc(var(--reader-measure) + var(--space-6) * 2);
-    margin: 0 auto;
-    padding: var(--space-8) var(--space-6) var(--space-9);
-    font-size: var(--reader-size);
-  }
-  .reader-page .study-document-body {
-    box-sizing: border-box;
-    max-width: var(--reader-measure);
-    margin-inline: auto;
-    color: var(--text);
-    font-family: var(--reader-face);
-    font-weight: var(--reader-weight, 400);
-    font-size: var(--reader-size);
-    line-height: var(--reader-leading);
-    overflow-wrap: anywhere;
-    word-break: normal;
-  }
-
-  /* The 纸张 tone: the text sits on a paper sheet, the desk shows around it. */
-  .study-document-viewer[data-tone='paper'] .reader-scroll { background: var(--bg-canvas); }
-  .study-document-viewer[data-tone='paper'] .reader-page {
-    --text: var(--paper-ink);
-    --text-dim: var(--paper-ink);
-    --text-muted: var(--paper-dim);
-    --text-faint: var(--paper-dim);
-    --line: var(--paper-rule);
-    --line-soft: var(--paper-rule);
-    --line-strong: var(--paper-dim);
-    --bg-sunken: var(--paper-rule);
-    --bg-hover: var(--paper-rule);
-    max-width: calc(var(--reader-measure) + 8em);
-    margin: var(--space-6) auto var(--space-8);
-    padding: 3.2em 4em 3.6em;
-    border-radius: var(--radius-card);
-    background: var(--paper);
-    box-shadow: var(--shadow-card);
-  }
-
-  /* Rendered Markdown / HTML */
-  .reader-html > :first-child, .reader-prose > :first-child { margin-top: 0; }
-  .reader-html > :last-child, .reader-prose > :last-child { margin-bottom: 0; }
-  .reader-html :is(h1, h2, h3, h4, h5, h6) {
-    margin: 1.8em 0 0.6em;
-    font-family: var(--font-display);
-    font-weight: 650;
-    letter-spacing: -0.01em;
-    line-height: 1.3;
-    text-wrap: balance;
-  }
-  .reader-html h1 { font-size: 1.75em; }
-  .reader-html h2 { font-size: 1.4em; }
-  .reader-html h3 { font-size: 1.18em; }
-  .reader-html :is(h4, h5, h6) { font-size: 1.05em; }
-  .reader-html p { margin: 0 0 var(--reader-gap, 1em); line-height: inherit; text-wrap: pretty; } /* inherit: the app's global p leading must not win over 行距 */
-  .reader-html :is(ul, ol) { margin: 0 0 var(--reader-gap, 1em); padding-left: 1.5em; }
-  .reader-html li + li { margin-top: 0.3em; }
-  .reader-html blockquote { margin: 1.2em 0; padding: 0.1em 0 0.1em 1.1em; border-left: 3px solid var(--line-strong); color: var(--text-dim); }
-  .reader-html blockquote > :last-child { margin-bottom: 0; }
-  .reader-html table {
-    display: block;
-    max-width: 100%;
-    margin: 1.2em 0;
-    overflow-x: auto;
-    border-collapse: collapse;
-    font-size: 0.94em;
-    font-variant-numeric: tabular-nums;
-  }
-  .reader-html :is(th, td) { padding: 0.5em 0.8em; border: 1px solid var(--line); text-align: left; }
-  .reader-html th { background: var(--bg-sunken); font-weight: 600; }
-  .reader-html pre {
-    margin: 1.2em 0;
-    padding: 0.9em 1.1em;
-    overflow: auto;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    background: var(--bg-sunken);
-    font: 0.88em/1.6 var(--font-stack-mono);
-    white-space: pre;
-  }
-  .reader-html :not(pre) > code { padding: 0.1em 0.35em; border-radius: 4px; background: var(--bg-sunken); font: 0.9em var(--font-stack-mono); }
-  .reader-html hr { margin: 2em 0; border: 0; border-top: 1px solid var(--line); }
-  .reader-html a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 0.18em; }
-  .reader-html a:hover { text-decoration-color: currentColor; }
-
-  /* Text sources: PDF pages, slides, transcripts, plain text */
-  .reader-section + .reader-section { margin-top: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--line); }
-  .reader-section__head { margin: 0 0 var(--space-4); }
-  .reader-section__label {
-    display: block;
-    margin: 0 0 var(--space-2);
-    color: var(--text-muted);
-    font-family: var(--font-ui);
-    font-size: var(--fs-xs);
-    font-weight: 650;
-    letter-spacing: 0.06em;
-    font-variant-numeric: tabular-nums;
-  }
-  .reader-section__title { margin: 0; font-family: var(--font-display); font-size: 1.4em; font-weight: 650; letter-spacing: -0.01em; line-height: 1.3; }
-  .reader-bracket { display: none; }
-  .reader-join { font-size: 0; }
-  .reader-p { margin: 0 0 var(--reader-gap, 1em); line-height: inherit; white-space: normal; text-wrap: pretty; }
-  .reader-p--lines { white-space: pre-line; }
-  /* A formula, one look for text and Markdown sources (formula.js): its stored text is the hidden source, the drawing a marker beside it.
-     Inline sits on the baseline; display is a centred block of the document that scrolls sideways when it is wide. */
-  .reader-math { position: relative; }
-  .reader-math__source { position: absolute; inset-inline-start: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: pre; }
-  .reader-math__view math { font-family: math, "Cambria Math", serif; font-size: 1em; font-weight: 400; }
-  /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
-  .reader-math__view math:has(mphantom) { padding-inline-end: 0.2em; }
-  .reader-math--display { display: block; margin: 0.9em 0; overflow-x: auto; overflow-y: hidden; text-align: center; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-  .reader-math--display > .reader-math__view { display: block; width: max-content; min-width: 100%; }
-  .reader-math__label { margin-inline-start: 1.2em; color: var(--text-muted); }
-  .reader-p--layout {
-    padding: 0.7em 1em;
-    overflow-x: auto;
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--text) 5%, transparent);
-    font: 0.9em/1.65 var(--font-stack-mono);
-    white-space: pre;
-  }
-  .reader-p--heading { margin: 1.6em 0 0.5em; font-family: var(--font-display); font-size: 1.18em; font-weight: 650; line-height: 1.35; text-wrap: balance; }
-
-  /* 原文: the stored text exactly, in the reader's size and typeface */
-  .study-document-viewer .study-document-body .source-text--reading {
-    max-width: none;
-    color: inherit;
-    font: inherit;
-    line-height: inherit;
-  }
-  .study-document-viewer .study-document-body .source-text--pdf {
-    width: 100%;
-    padding: var(--space-3) var(--space-4);
-    overflow-x: auto;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--text) 4%, transparent);
-    color: var(--text);
-    font: 0.86em/1.7 var(--font-stack-mono);
-  }
-  .study-document-viewer .study-document-page + .study-document-page { margin-top: var(--space-6); }
-  .study-document-viewer .study-document-page .reader-section__label { margin-bottom: var(--space-2); }
-
-  /* 原始 PDF fills the reading area */
-  .reader-scroll[data-mode='original'] { overflow: hidden; }
-  .reader-scroll[data-mode='original'] .reader-page { height: 100%; max-width: none; margin: 0; padding: 0; }
-  .reader-scroll[data-mode='original'] .study-document-body { height: 100%; max-width: none; }
-  .reader-original, .reader-original iframe { width: 100%; height: 100%; }
-  .reader-original iframe { display: block; border: 0; border-radius: 0; background: var(--bg-sunken); }
-
-  /* Previous / next section */
-  .reader-pager {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-4);
-    max-width: var(--reader-measure);
-    margin: var(--space-9) auto 0;
-    padding-top: var(--space-5);
-    border-top: 1px solid var(--line);
-    font-size: var(--reader-size);
-  }
-  .reader-pager .reader-pager__link {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-width: 48%;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--text);
-    font-size: var(--fs-sm);
-    line-height: var(--lh-snug);
-    text-align: left;
-  }
-  .reader-pager .reader-pager__link[data-direction='next'] { align-items: flex-end; margin-left: auto; text-align: right; }
-  .reader-pager .reader-pager__link:hover:not(:disabled) { background: var(--bg-hover); }
-  .reader-pager__link small { color: var(--text-muted); font-size: var(--fs-xs); }
-  .reader-pager__link span { overflow-wrap: anywhere; }
-
-  /* ── Learning panel ──────────────────────────────────────────────────── */
-  .reader-tools .study-document-selection { gap: var(--space-3); padding: 0; border: 0; border-radius: 0; background: transparent; }
-  .reader-tools .study-document-links-heading { margin: var(--space-4) 0 0; font-size: var(--fs-md); }
-
-  /* ── Display settings (Aa) ───────────────────────────────────────────── */
-  .reader-popover { position: relative; display: inline-flex; }
-  .reader-popover__panel {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    z-index: 6;
-    display: grid;
-    gap: var(--space-4);
-    width: 304px;
-    padding: var(--space-4);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    background: var(--bg-raised);
-    box-shadow: var(--shadow-md);
-  }
-  .reader-setting { display: grid; gap: var(--space-2); }
-  .reader-setting__label { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em; }
-  .reader-stepper { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-  .reader-stepper__value { min-width: 2.5em; font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-align: center; }
-  .reader-popover__reset { justify-self: start; }
-
-  /* ── Narrow panes: panels slide over the text ────────────────────────── */
-  @container reader (max-width: 899.98px) {
-    .reader-outline, .reader-tools {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      z-index: 5;
-      width: min(340px, 88%);
-      box-shadow: var(--shadow-lg);
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    ::highlight(study-find) { background-color: color-mix(in srgb, var(--warn) 30%, transparent); color: inherit; }
+    ::highlight(study-find-current) { background-color: color-mix(in srgb, var(--warn) 72%, transparent); color: inherit; }
+    .study-document-viewer {
+      --reader-size: 16px;
+      --reader-measure: 44em;
+      --reader-leading: 1.8;
+      --reader-sans: var(--font-ui);
+      --reader-face: var(--reader-sans);
+      container: reader / inline-size;
+      position: relative;
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--bg-surface);
     }
-    .reader-outline { left: 0; animation: reader-slide-left 0.18s var(--ease-out); }
-    .reader-tools { right: 0; animation: reader-slide-right 0.18s var(--ease-out); }
-    .reader-scrim {
+    .study-document-viewer[data-face='serif'] { --reader-weight: 450; }
+    /* the faces themselves: --font-stack-* in style.css */
+    /* ── Toolbar ─────────────────────────────────────────────────────────── */
+    .reader-toolbar {
+      display: flex;
+      flex: none;
+      align-items: center;
+      gap: var(--space-3);
+      min-height: 52px;
+      padding: var(--space-2) var(--space-4);
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-raised);
+    }
+    .reader-toolbar__group { display: flex; flex: none; align-items: center; gap: var(--space-2); min-width: 0; }
+    .reader-toolbar__group--end { margin-left: auto; }
+    .reader-toolbar__where {
+      flex: 1 1 0;
+      min-width: 0;
+      margin: 0;
+      padding-inline: var(--space-2);
+      overflow: hidden;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .reader-toolbar .sh-btn[aria-pressed='true'] { background: var(--bg-selected); color: var(--text); }
+    .reader-toolbar .sh-btn--icon { position: relative; }
+    .reader-toolbar [data-attention='true']::after {
+      content: "";
       position: absolute;
-      inset: 0;
-      z-index: 4;
+      top: 6px;
+      right: 6px;
+      width: 7px;
+      height: 7px;
+      border-radius: var(--radius-pill);
+      background: var(--warn);
+    }
+    .reader-badge {
+      position: absolute;
+      top: 1px;
+      right: 1px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: var(--radius-pill);
+      background: var(--text);
+      color: var(--bg-raised);
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 16px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Reading progress: the one place besides the primary button where the accent appears. */
+    .reader-progress { flex: none; height: 2px; overflow: hidden; background: var(--line-soft); }
+    .reader-progress > span {
       display: block;
+      height: 100%;
+      background: var(--accent);
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform 0.12s linear;
+    }
+    /* ── Search, notices ─────────────────────────────────────────────────── */
+    .reader-find {
+      display: flex;
+      flex: none;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-surface);
+    }
+    .reader-find__icon { flex: none; color: var(--text-muted); }
+    .reader-find .reader-find__input {
+      flex: 1 1 200px;
+      width: auto;
+      min-width: 0;
+      max-width: 420px;
+      min-height: 36px;
+      margin: 0;
+      padding: 6px var(--space-3);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-tight);
+    }
+    .reader-find__count { min-width: 5em; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .reader-find__input::-webkit-search-cancel-button { display: none; }
+    .reader-turn--up { transform: rotate(-90deg); }
+    .reader-turn--down { transform: rotate(90deg); }
+    .study-document-viewer .reader-notices { flex: none; margin: 0; padding: 0 var(--space-5); }
+    .study-document-viewer .reader-notices:not(:empty) { padding-block: var(--space-2); border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
+    .reader-aux { flex: none; padding: 0 var(--space-5); }
+    .reader-aux:empty { display: none; }
+    .reader-aux .highlight-quote { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); font-size: var(--fs-md); line-height: 1.7; }
+    /* ── Layout: outline | reading column | learning panel ───────────────── */
+    .reader-layout { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
+    .reader-scroll {
+      flex: 1 1 0;
+      min-width: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      background: var(--bg-surface);
+    }
+    .reader-scroll:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
+    .reader-outline, .reader-tools { display: flex; flex: none; flex-direction: column; min-height: 0; background: var(--bg-raised); }
+    .reader-outline[hidden], .reader-tools[hidden] { display: none; }
+    .reader-outline { width: 272px; border-right: 1px solid var(--line); }
+    .reader-tools { position: static; width: 360px; gap: var(--space-3); padding: var(--space-4); overflow-y: auto; border-left: 1px solid var(--line); }
+    .reader-scrim { display: none; }
+    .reader-panel__title {
+      margin: 0;
+      padding: var(--space-4) var(--space-4) var(--space-2);
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: var(--fs-xs);
+      font-weight: 650;
+      letter-spacing: 0.08em;
+    }
+    .reader-tools .reader-panel__title { padding: 0 0 var(--space-1); }
+    /* ── Outline ─────────────────────────────────────────────────────────── */
+    .reader-outline__scroll { flex: 1 1 auto; min-height: 0; padding: 0 var(--space-2) var(--space-4); overflow: auto; overscroll-behavior: contain; }
+    .reader-outline ol { margin: 0; padding: 0; list-style: none; }
+    .reader-outline li { display: flex; align-items: stretch; padding-left: calc(var(--outline-depth, 0) * 14px); }
+    .reader-outline li[data-depth='1'] { --outline-depth: 1; }
+    .reader-outline li[data-depth='2'] { --outline-depth: 2; }
+    .reader-outline li[data-depth='3'] { --outline-depth: 3; }
+    .reader-outline li[data-depth='4'] { --outline-depth: 4; }
+    .reader-outline__twisty {
+      display: grid;
+      flex: none;
+      place-items: center;
+      width: 26px;
+      min-height: 34px;
       padding: 0;
       border: 0;
-      border-radius: 0;
-      background: color-mix(in srgb, var(--bg-canvas) 62%, transparent);
-      cursor: default;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-faint);
     }
-    .reader-toolbar__where { display: none; }
-    .reader-toolbar__group--end { flex: 1 1 auto; justify-content: flex-end; }
+    & button.reader-outline__twisty:hover { background: var(--bg-hover); color: var(--text); }
+    .reader-outline__twisty--none { pointer-events: none; }
+    .reader-outline__link {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1px;
+      min-width: 0;
+      min-height: 34px;
+      padding: 6px var(--space-2);
+      border: 0;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      text-align: left;
+    }
+    .reader-outline__link:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+    .reader-outline__link[aria-current='location'] { background: var(--bg-selected); color: var(--text); font-weight: 600; }
+    .reader-outline li[data-minor] .reader-outline__link { color: var(--text-faint); font-size: var(--fs-xs); }
+    .reader-outline li[data-minor] .reader-outline__link[aria-current='location'] { color: var(--text); }
+    .reader-outline__label { color: var(--text-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .reader-outline__trail { color: var(--text-faint); font-size: var(--fs-xs); }
+    .reader-outline__title {
+      display: -webkit-box;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .reader-outline__empty { margin: 0; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
+    .reader-outline__filter { display: flex; flex: none; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-2); }
+    .reader-outline__filter input { flex: 1 1 auto; width: auto; min-width: 0; min-height: 32px; margin: 0; padding: 4px var(--space-3); font-size: var(--fs-sm); }
+    .reader-outline__filter input::-webkit-search-cancel-button { display: none; }
+    .reader-outline__foot { flex: none; max-height: 55%; padding: var(--space-3); overflow: auto; border-top: 1px solid var(--line); }
+    /* ── "让 AI 帮你": the flow under the outline, and its preview ───────── */
+    .reader-assist { display: grid; gap: var(--space-2); }
+    .reader-assist__actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+    .reader-assist__actions .sh-btn { height: auto; padding-block: 5px; line-height: var(--lh-snug); white-space: normal; text-align: left; }
+    .reader-assist__note, .reader-assist__status { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .reader-assist__bar { position: relative; display: block; height: 3px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); }
+    .reader-assist__bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 36%; border-radius: inherit; background: var(--accent); animation: reader-assist-run 1.4s var(--ease-out) infinite; }
+    .reader-assist__preview { display: grid; gap: var(--space-3); }
+    .reader-assist__columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+    .reader-assist__columns h4 { margin: 0 0 var(--space-2); font-size: var(--fs-sm); }
+    .reader-assist__entries { max-height: 46vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .reader-assist__entries li { display: flex; gap: var(--space-2); align-items: baseline; padding: 3px var(--space-2) 3px calc(var(--space-2) + var(--entry-depth, 0) * 16px); overflow-wrap: anywhere; }
+    .reader-assist__entries li[data-depth='1'] { --entry-depth: 1; }
+    .reader-assist__entries li[data-depth='2'] { --entry-depth: 2; }
+    .reader-assist__entries li[data-depth='3'] { --entry-depth: 3; }
+    .reader-assist__entries li[data-minor] { color: var(--text-faint); }
+    .reader-assist__tag { flex: none; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); }
+    /* Using the outline as chapters: the level, the chapters it gives, what a chapter inside a page means. */
+    .reader-segment { display: grid; gap: var(--space-3); }
+    .reader-segment__levels { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
+    .reader-segment__levels legend { width: 100%; margin: 0 0 var(--space-2); padding: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; }
+    .reader-segment__levels label { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; padding: 6px var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); cursor: pointer; }
+    .reader-segment__levels label:has(input:checked) { border-color: var(--accent); background: var(--bg-selected); }
+    .reader-segment__levels input { flex: none; width: auto; min-height: 0; margin: 0; accent-color: var(--accent); }
+    .reader-segment__chapters { max-height: 40vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .reader-segment__chapters li { display: flex; align-items: baseline; gap: var(--space-2); padding: 4px var(--space-2); }
+    .reader-segment__chapters li > span { min-width: 0; overflow-wrap: anywhere; }
+    .reader-segment__chapters li > small:last-child { flex: none; margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
+    .reader-assist-dialog { display: grid; gap: var(--space-3); }
+    .reader-assist-dialog > p { margin: 0; }
+    .reader-assist-dialog .reader-assist__actions .sh-btn { white-space: normal; }
   }
   @container reader (max-width: 640px) {
-    .reader-toolbar { flex-wrap: wrap; row-gap: var(--space-2); padding-inline: var(--space-3); }
-    .reader-toolbar__group--end { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; row-gap: var(--space-2); }
-    .reader-page { padding: var(--space-6) var(--space-4) var(--space-8); }
-    .study-document-viewer[data-tone='paper'] .reader-page { margin: 0; padding: 1.6em 1.3em 2em; border-radius: 0; box-shadow: none; }
-    .reader-popover__panel { right: auto; left: 0; max-width: calc(100cqw - var(--space-6)); }
-    .reader-pager { flex-direction: column; }
-    .reader-pager .reader-pager__link { max-width: none; }
+    :is(.study-app, .study-seat) {
+      .reader-assist__columns { grid-template-columns: minmax(0, 1fr); }
+    }
+  }
+  @media (max-width: 640px) {
+    :is(.study-app, .study-seat) {
+      .reader-assist__columns { grid-template-columns: minmax(0, 1fr); }
+    }
+  }
+  :is(.study-app, .study-seat) {
+    /* ── The reading column ──────────────────────────────────────────────── */
+    .reader-page {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: calc(var(--reader-measure) + var(--space-6) * 2);
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-6) var(--space-9);
+      font-size: var(--reader-size);
+    }
+    .reader-page .study-document-body {
+      box-sizing: border-box;
+      max-width: var(--reader-measure);
+      margin-inline: auto;
+      color: var(--text);
+      font-family: var(--reader-face);
+      font-weight: var(--reader-weight, 400);
+      font-size: var(--reader-size);
+      line-height: var(--reader-leading);
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    /* The 纸张 tone: the text sits on a paper sheet, the desk shows around it. */
+    .study-document-viewer[data-tone='paper'] .reader-scroll { background: var(--bg-canvas); }
+    .study-document-viewer[data-tone='paper'] .reader-page {
+      max-width: calc(var(--reader-measure) + 8em);
+      margin: var(--space-6) auto var(--space-8);
+      padding: 3.2em 4em 3.6em;
+      border-radius: var(--radius-card);
+      background: var(--paper);
+      box-shadow: var(--shadow-card);
+    }
+    /* Rendered Markdown / HTML */
+    .reader-html > :first-child, .reader-prose > :first-child { margin-top: 0; }
+    .reader-html > :last-child, .reader-prose > :last-child { margin-bottom: 0; }
+    .reader-html :is(h1, h2, h3, h4, h5, h6) {
+      margin: 1.8em 0 0.6em;
+      font-family: var(--font-display);
+      font-weight: 650;
+      letter-spacing: -0.01em;
+      line-height: 1.3;
+      text-wrap: balance;
+    }
+    .reader-html h1 { font-size: 1.75em; }
+    .reader-html h2 { font-size: 1.4em; }
+    .reader-html h3 { font-size: 1.18em; }
+    .reader-html :is(h4, h5, h6) { font-size: 1.05em; }
+    .reader-html p { margin: 0 0 var(--reader-gap, 1em); line-height: inherit; text-wrap: pretty; }
+    /* inherit: the app's global p leading must not win over 行距 */
+    .reader-html :is(ul, ol) { margin: 0 0 var(--reader-gap, 1em); padding-left: 1.5em; }
+    .reader-html li + li { margin-top: 0.3em; }
+    .reader-html blockquote { margin: 1.2em 0; padding: 0.1em 0 0.1em 1.1em; border-left: 3px solid var(--line-strong); color: var(--text-dim); }
+    .reader-html blockquote > :last-child { margin-bottom: 0; }
+    .reader-html table {
+      display: block;
+      max-width: 100%;
+      margin: 1.2em 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+      font-size: 0.94em;
+      font-variant-numeric: tabular-nums;
+    }
+    .reader-html :is(th, td) { padding: 0.5em 0.8em; border: 1px solid var(--line); text-align: left; }
+    .reader-html th { background: var(--bg-sunken); font-weight: 600; }
+    .reader-html pre {
+      margin: 1.2em 0;
+      padding: 0.9em 1.1em;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      font: 0.88em/1.6 var(--font-stack-mono);
+      white-space: pre;
+    }
+    .reader-html :not(pre) > code { padding: 0.1em 0.35em; border-radius: 4px; background: var(--bg-sunken); font: 0.9em var(--font-stack-mono); }
+    .reader-html hr { margin: 2em 0; border: 0; border-top: 1px solid var(--line); }
+    .reader-html a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 0.18em; }
+    .reader-html a:hover { text-decoration-color: currentColor; }
+    /* Text sources: PDF pages, slides, transcripts, plain text */
+    .reader-section + .reader-section { margin-top: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--line); }
+    .reader-section__head { margin: 0 0 var(--space-4); }
+    .reader-section__label {
+      display: block;
+      margin: 0 0 var(--space-2);
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: var(--fs-xs);
+      font-weight: 650;
+      letter-spacing: 0.06em;
+      font-variant-numeric: tabular-nums;
+    }
+    .reader-section__title { margin: 0; font-family: var(--font-display); font-size: 1.4em; font-weight: 650; letter-spacing: -0.01em; line-height: 1.3; }
+    .reader-bracket { display: none; }
+    .reader-join { font-size: 0; }
+    .reader-p { margin: 0 0 var(--reader-gap, 1em); line-height: inherit; white-space: normal; text-wrap: pretty; }
+    .reader-p--lines { white-space: pre-line; }
+    /* A formula, one look for text and Markdown sources (formula.js): its stored text is the hidden source, the drawing a marker beside it.
+       Inline sits on the baseline; display is a centred block of the document that scrolls sideways when it is wide. */
+    .reader-math { position: relative; }
+    .reader-math__source { position: absolute; inset-inline-start: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: pre; }
+    .reader-math__view math { font-family: math, "Cambria Math", serif; font-size: 1em; font-weight: 400; }
+    /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
+    .reader-math__view math:has(mphantom) { padding-inline-end: 0.2em; }
+    .reader-math--display { display: block; margin: 0.9em 0; overflow-x: auto; overflow-y: hidden; text-align: center; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+    .reader-math--display > .reader-math__view { display: block; width: max-content; min-width: 100%; }
+    .reader-math__label { margin-inline-start: 1.2em; color: var(--text-muted); }
+    .reader-p--layout {
+      padding: 0.7em 1em;
+      overflow-x: auto;
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--text) 5%, transparent);
+      font: 0.9em/1.65 var(--font-stack-mono);
+      white-space: pre;
+    }
+    .reader-p--heading { margin: 1.6em 0 0.5em; font-family: var(--font-display); font-size: 1.18em; font-weight: 650; line-height: 1.35; text-wrap: balance; }
+    /* 原文: the stored text exactly, in the reader's size and typeface */
+    .study-document-viewer .study-document-body .source-text--reading {
+      max-width: none;
+      color: inherit;
+      font: inherit;
+      line-height: inherit;
+    }
+    .study-document-viewer .study-document-body .source-text--pdf {
+      width: 100%;
+      padding: var(--space-3) var(--space-4);
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--text) 4%, transparent);
+      color: var(--text);
+      font: 0.86em/1.7 var(--font-stack-mono);
+    }
+    .study-document-viewer .study-document-page + .study-document-page { margin-top: var(--space-6); }
+    .study-document-viewer .study-document-page .reader-section__label { margin-bottom: var(--space-2); }
+    /* 原始 PDF fills the reading area */
+    .reader-scroll[data-mode='original'] { overflow: hidden; }
+    .reader-scroll[data-mode='original'] .reader-page { height: 100%; max-width: none; margin: 0; padding: 0; }
+    .reader-scroll[data-mode='original'] .study-document-body { height: 100%; max-width: none; }
+    .reader-original, .reader-original iframe { width: 100%; height: 100%; }
+    .reader-original iframe { display: block; border: 0; border-radius: 0; background: var(--bg-sunken); }
+    /* Previous / next section */
+    .reader-pager {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-4);
+      max-width: var(--reader-measure);
+      margin: var(--space-9) auto 0;
+      padding-top: var(--space-5);
+      border-top: 1px solid var(--line);
+      font-size: var(--reader-size);
+    }
+    .reader-pager .reader-pager__link {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-width: 48%;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--text);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      text-align: left;
+    }
+    .reader-pager .reader-pager__link[data-direction='next'] { align-items: flex-end; margin-left: auto; text-align: right; }
+    .reader-pager .reader-pager__link:hover:not(:disabled) { background: var(--bg-hover); }
+    .reader-pager__link small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .reader-pager__link span { overflow-wrap: anywhere; }
+    /* ── Learning panel ──────────────────────────────────────────────────── */
+    .reader-tools .study-document-selection { gap: var(--space-3); padding: 0; border: 0; border-radius: 0; background: transparent; }
+    .reader-tools .study-document-links-heading { margin: var(--space-4) 0 0; font-size: var(--fs-md); }
+    /* ── Display settings (Aa) ───────────────────────────────────────────── */
+    .reader-popover { position: relative; display: inline-flex; }
+    .reader-popover__panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 6;
+      display: grid;
+      gap: var(--space-4);
+      width: 304px;
+      padding: var(--space-4);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-md);
+    }
+    .reader-setting { display: grid; gap: var(--space-2); }
+    .reader-setting__label { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em; }
+    .reader-stepper { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .reader-stepper__value { min-width: 2.5em; font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-align: center; }
+    .reader-popover__reset { justify-self: start; }
+  }
+  @container reader (max-width: 899.98px) {
+    :is(.study-app, .study-seat) {
+      /* ── Narrow panes: panels slide over the text ────────────────────────── */
+      .reader-outline, .reader-tools {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        z-index: 5;
+        width: min(340px, 88%);
+        box-shadow: var(--shadow-lg);
+      }
+      .reader-outline { left: 0; animation: reader-slide-left 0.18s var(--ease-out); }
+      .reader-tools { right: 0; animation: reader-slide-right 0.18s var(--ease-out); }
+      .reader-scrim {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        display: block;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: color-mix(in srgb, var(--bg-canvas) 62%, transparent);
+        cursor: default;
+      }
+      .reader-toolbar__where { display: none; }
+      .reader-toolbar__group--end { flex: 1 1 auto; justify-content: flex-end; }
+    }
+  }
+  @container reader (max-width: 640px) {
+    :is(.study-app, .study-seat) {
+      .reader-toolbar { flex-wrap: wrap; row-gap: var(--space-2); padding-inline: var(--space-3); }
+      .reader-toolbar__group--end { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; row-gap: var(--space-2); }
+      .reader-page { padding: var(--space-6) var(--space-4) var(--space-8); }
+      .study-document-viewer[data-tone='paper'] .reader-page { margin: 0; padding: 1.6em 1.3em 2em; border-radius: 0; box-shadow: none; }
+      .reader-popover__panel { right: auto; left: 0; max-width: calc(100cqw - var(--space-6)); }
+      .reader-pager { flex-direction: column; }
+      .reader-pager .reader-pager__link { max-width: none; }
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    .reader-outline, .reader-tools { animation: none; }
-    .reader-progress > span { transition: none; }
-    .reader-assist__bar::after { animation: none; width: 100%; opacity: 0.4; }
+    :is(.study-app, .study-seat) {
+      .reader-outline, .reader-tools { animation: none; }
+      .reader-progress > span { transition: none; }
+      .reader-assist__bar::after { animation: none; width: 100%; opacity: 0.4; }
+    }
   }
 }
+
+@keyframes reader-slide-left { from { opacity: 0; transform: translateX(-14px); } }
+@keyframes reader-slide-right { from { opacity: 0; transform: translateX(14px); } }
+  @keyframes reader-assist-run { from { transform: translateX(-100%); } to { transform: translateX(300%); } }

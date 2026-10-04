@@ -5,7 +5,7 @@ import { readFile, readdir } from 'node:fs/promises';
 // P52: text tokens must be readable (WCAG AA, 4.5:1) on every surface they sit
 // on, in both themes and on card stock. Decoration that used --text-faint gets
 // its own --decor-faint so raising text contrast does not brighten dots/rules.
-const css = ((await readFile('ui/tokens.css', 'utf8')) + '\n' + (await readFile('ui/paper.css', 'utf8'))).replace(/\r\n/g, '\n');
+const css = ((await readFile('ui/tokens.css', 'utf8')) + '\n' + (await readFile('ui/paper.css', 'utf8'))).replace(/\r\n/g, '\n').replace(/^[ \t]+/gm, ''); // wrapped in @layer and the scope: read blocks by their selector line
 function block(selectorStart) {
   const start = css.indexOf(selectorStart);
   assert.ok(start >= 0, `token block ${selectorStart}`);
@@ -15,7 +15,7 @@ function block(selectorStart) {
 }
 const dark = block('.study-app,\n.study-seat {');
 const light = block('.study-app[data-theme="light"],');
-const card = block('.study-app :is(.today-card');
+const card = block(':is(.sh-paper');
 const resolve = (value, scope) => {
   const ref = value.match(/^var\((--[\w-]+)\)$/);
   return ref ? resolve(scope[ref[1]], scope) : value;
@@ -87,7 +87,7 @@ test('decorative paints use --decor-faint and text never uses it', async () => {
 
 // #66: the extra themes and the high-contrast setting (ui/appearance-themes.css) must reach the same bar. Each scope is built the way the cascade
 // does it: the dark base, then the light theme where the palette sits on it, then the palette, then high contrast, then card stock on top.
-const themesCss = (await readFile('ui/appearance-themes.css', 'utf8')).replace(/\r\n/g, '\n');
+const themesCss = (await readFile('ui/appearance-themes.css', 'utf8')).replace(/\r\n/g, '\n').replace(/^[ \t]+/gm, '');
 function themeBlock(selectorStart) {
   const start = themesCss.indexOf(selectorStart);
   assert.ok(start >= 0, `theme block ${selectorStart}`);

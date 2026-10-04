@@ -1,35 +1,40 @@
-/* WP18 · the guided flow's course line, switcher, references and model errors. */
-.wf-scope { display: grid; gap: 6px; margin-top: 10px; min-width: 0; }
-.wf-scope .wf-scope-line { margin: 0; font-size: var(--fs-15, 15px); color: var(--text); line-height: 1.6; overflow-wrap: anywhere; }
-.wf-scope .wf-scope-line > span:first-child, .wf-scope .wf-scope-line.is-fallback > span:first-child { color: var(--text); font-weight: 600; }
-.wf-scope .wf-scope-count { white-space: nowrap; color: var(--text-muted); }
-.wf-scope-topics, .wf-scope-note { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); overflow-wrap: anywhere; }
-.wf-scope-note { color: var(--text-dim); font-style: normal; }
-.wf-scope-note::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--warn); vertical-align: middle; }
-.wf-scope-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 4px; }
-.workflow-page label.wf-course-switch { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; max-width: 100%; padding: 2px 4px 2px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill, 999px); background: var(--bg-surface); font-size: 14px; color: var(--text-muted); }
-.wf-course-switch:focus-within { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-.wf-course-switch > span { white-space: nowrap; }
-.workflow-page .wf-course-switch select { width: auto; min-width: 0; max-width: min(320px, 56vw); min-height: 32px; padding: 4px 28px 4px 4px; border: 0; background-color: transparent; color: var(--text); font-weight: 600; text-overflow: ellipsis; cursor: pointer; }
-.workflow-page .wf-course-switch select:is(:focus, :focus-visible) { outline: 0; box-shadow: none; background-color: transparent; }
-.wf-spine-status:has(.sh-inline) { align-items: flex-start; }
-.wf-failure { display: grid; justify-items: start; gap: var(--space-2); margin-block: var(--space-3); }
-.wf-failure > .sh-inline { width: 100%; }
-.wf-failure > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
-.wf-scope-hint { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); }
-.wf-scope-hint .link-btn { font-size: inherit; font-weight: 600; color: var(--accent-text); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-.wf-ref-card { margin: 4px 0 10px; padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-surface); }
-.wf-ref-card .wf-ref-prompt { margin: 0; font-weight: 600; line-height: 1.7; }
-.wf-ref-card .wf-ref-answer { margin: 6px 0 0; }
-.wf-ref-card .wf-ref-answer > summary { cursor: pointer; font-size: 14px; color: var(--accent-text); }
-.wf-ref-card .wf-ref-answer > p { margin: 6px 0 0; color: var(--text-muted); line-height: 1.7; }
-.wf-ref-card cite { display: block; margin-top: 6px; font-size: 13px; font-style: normal; color: var(--text-muted); overflow-wrap: anywhere; }
-
-.wf-history .wf-rescope-event { color: var(--text-muted); }
-.wf-history .wf-rescope-event strong { color: var(--text); }
-
-@container (max-width: 520px) {
-  .wf-course-switch { width: 100%; box-sizing: border-box; }
-  .workflow-page .wf-course-switch select { flex: 1; max-width: none; }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* WP18 · the guided flow's course line, switcher, references and model errors. */
+    .wf-scope { display: grid; gap: 6px; margin-top: 10px; min-width: 0; }
+    .wf-scope .wf-scope-line { margin: 0; font-size: var(--fs-15, 15px); color: var(--text); line-height: 1.6; overflow-wrap: anywhere; }
+    .wf-scope .wf-scope-line > span:first-child, .wf-scope .wf-scope-line.is-fallback > span:first-child { color: var(--text); font-weight: 600; }
+    .wf-scope .wf-scope-count { white-space: nowrap; color: var(--text-muted); }
+    .wf-scope-topics, .wf-scope-note { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); overflow-wrap: anywhere; }
+    .wf-scope-note { color: var(--text-dim); font-style: normal; }
+    .wf-scope-note::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--warn); vertical-align: middle; }
+    .wf-scope-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 4px; }
+    .workflow-page label.wf-course-switch { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; max-width: 100%; padding: 2px 4px 2px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill, 999px); background: var(--bg-surface); font-size: 14px; color: var(--text-muted); }
+    .wf-course-switch:focus-within { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .wf-course-switch > span { white-space: nowrap; }
+    .workflow-page .wf-course-switch select { width: auto; min-width: 0; max-width: min(320px, 56vw); min-height: 32px; padding: 4px 28px 4px 4px; border: 0; background-color: transparent; color: var(--text); font-weight: 600; text-overflow: ellipsis; cursor: pointer; }
+    .workflow-page .wf-course-switch select:is(:focus, :focus-visible) { outline: 0; box-shadow: none; background-color: transparent; }
+    .wf-spine-status:has(.sh-inline) { align-items: flex-start; }
+    .wf-failure { display: grid; justify-items: start; gap: var(--space-2); margin-block: var(--space-3); }
+    .wf-failure > .sh-inline { width: 100%; }
+    .wf-failure > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+    .wf-scope-hint { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); }
+    .wf-scope-hint .link-btn { font-size: inherit; font-weight: 600; color: var(--accent-text); }
+    .wf-ref-card { margin: 4px 0 10px; padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-surface); }
+    .wf-ref-card .wf-ref-prompt { margin: 0; font-weight: 600; line-height: 1.7; }
+    .wf-ref-card .wf-ref-answer { margin: 6px 0 0; }
+    .wf-ref-card .wf-ref-answer > summary { cursor: pointer; font-size: 14px; color: var(--accent-text); }
+    .wf-ref-card .wf-ref-answer > p { margin: 6px 0 0; color: var(--text-muted); line-height: 1.7; }
+    .wf-ref-card cite { display: block; margin-top: 6px; font-size: 13px; font-style: normal; color: var(--text-muted); overflow-wrap: anywhere; }
+    .wf-history .wf-rescope-event { color: var(--text-muted); }
+    .wf-history .wf-rescope-event strong { color: var(--text); }
+  }
+  @container (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      .wf-course-switch { width: 100%; box-sizing: border-box; }
+      .workflow-page .wf-course-switch select { flex: 1; max-width: none; }
+    }
+  }
 }

@@ -1,57 +1,62 @@
-/* 看原页: the floating original-page panel and the buttons that open it. Tokens only. The panel sits in the reader (a fixed box inside the
-   viewer), can be dragged by its title and resized by its two corner grips. */
-:is(.study-app, .study-seat) {
-  .reader-peek {
-    display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 1px var(--space-2);
-    border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent;
-    color: var(--text-muted); font: inherit; font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; user-select: none;
-  }
-  .reader-peek:hover { background: var(--bg-hover); color: var(--text); }
-  .reader-peek:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-  .reader-p--figure { color: var(--text-muted); }
-  .reader-peek-mark { user-select: none; }
-  .reader-section__head .reader-peek { margin-left: var(--space-3); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-  .page-peek {
-    position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 40;
-    display: flex; flex-direction: column; box-sizing: border-box;
-    width: min(560px, calc(100% - var(--space-4))); height: min(78%, 760px); min-width: 260px; min-height: 200px; max-width: calc(100% - 8px); max-height: calc(100% - 8px);
-    overflow: hidden;
-    border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-raised); box-shadow: var(--shadow-lg); color: var(--text);
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 看原页: the floating original-page panel and the buttons that open it. Tokens only. The panel sits in the reader (a fixed box inside the
+       viewer), can be dragged by its title and resized by its two corner grips. */
+    .reader-peek {
+      display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 1px var(--space-2);
+      border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent;
+      color: var(--text-muted); font: inherit; font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; user-select: none;
+    }
+    .reader-peek:hover { background: var(--bg-hover); color: var(--text); }
+    .reader-peek:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .reader-p--figure { color: var(--text-muted); }
+    .reader-peek-mark { user-select: none; }
+    .reader-section__head .reader-peek { margin-left: var(--space-3); }
+    .page-peek {
+      position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 40;
+      display: flex; flex-direction: column; box-sizing: border-box;
+      width: min(560px, calc(100% - var(--space-4))); height: min(78%, 760px); min-width: 260px; min-height: 200px; max-width: calc(100% - 8px); max-height: calc(100% - 8px);
+      overflow: hidden;
+      border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-raised); box-shadow: var(--shadow-lg); color: var(--text);
+    }
+    /* A message with a button needs no tall frame. */
+    .page-peek:not([data-phase='ready']) { height: auto; min-height: 0; }
+    .page-peek:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .page-peek__head {
+      display: flex; flex: none; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--line); cursor: grab; touch-action: none; user-select: none;
+    }
+    .page-peek__title { font-size: var(--fs-md); }
+    .page-peek__where { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .page-peek__tools { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px; }
+    .page-peek__tools .sh-btn { min-width: 32px; padding-inline: var(--space-2); font-size: var(--fs-md); }
+    .page-peek__zoom { min-width: 3.2em; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; text-align: center; }
+    .page-peek__body { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+    .page-peek__scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--bg-sunken); }
+    /* Fitted to the width there is nothing to scroll sideways: a horizontal bar there is only a few pixels of rounding. */
+    .page-peek__scroll[data-fit='true'] { overflow-x: hidden; }
+    /* The resize handles: real, visible grips outside the scroll area (a native resize corner sat on the scrollbars and, with the panel docked bottom-right, moved the wrong way). */
+    .page-peek__foot { display: flex; flex: none; justify-content: flex-end; height: 14px; border-top: 1px solid var(--line); background: var(--bg-raised); }
+    .page-peek__grip { position: relative; flex: none; width: 18px; height: 14px; padding: 0; border: 0; background: transparent; color: var(--text-dim); touch-action: none; }
+    .page-peek__grip::before { content: ''; position: absolute; inset: 3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 2px 0; }
+    .page-peek__grip--se { cursor: nwse-resize; }
+    .page-peek__grip--nw { position: absolute; top: 0; left: 0; z-index: 1; width: 16px; height: 16px; cursor: nwse-resize; }
+    .page-peek__grip--nw::before { inset: 3px; border-right: 0; border-bottom: 0; border-left: 2px solid currentColor; border-top: 2px solid currentColor; border-radius: 2px 0 0 0; }
+    .page-peek__grip:hover, .page-peek__grip:focus-visible { color: var(--text); }
+    .page-peek__grip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
+    .page-peek__canvas { display: block; margin: 0 auto; max-width: none; background: #fff; box-shadow: 0 0 0 1px var(--line); }
+    .page-peek__state { display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-4); color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-snug); }
+    .page-peek__state--note { flex-direction: column; align-items: flex-start; }
+    .page-peek__state p { margin: 0; overflow-wrap: anywhere; }
+    .page-peek__busy { position: absolute; top: var(--space-2); left: var(--space-3); margin: 0; padding: 1px var(--space-2); border-radius: var(--radius-pill); background: var(--bg-raised); color: var(--text-muted); font-size: var(--fs-xs); box-shadow: 0 0 0 1px var(--line); }
+    .page-peek__note { flex: none; margin: 0; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--line); color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
   }
-  /* A message with a button needs no tall frame. */
-  .page-peek:not([data-phase='ready']) { height: auto; min-height: 0; }
-  .page-peek:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-  .page-peek__head {
-    display: flex; flex: none; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--line); cursor: grab; touch-action: none; user-select: none;
-  }
-  .page-peek__title { font-size: var(--fs-md); }
-  .page-peek__where { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .page-peek__tools { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px; }
-  .page-peek__tools .sh-btn { min-width: 32px; padding-inline: var(--space-2); font-size: var(--fs-md); }
-  .page-peek__zoom { min-width: 3.2em; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; text-align: center; }
-  .page-peek__body { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
-  .page-peek__scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--bg-sunken); }
-  /* Fitted to the width there is nothing to scroll sideways: a horizontal bar there is only a few pixels of rounding. */
-  .page-peek__scroll[data-fit='true'] { overflow-x: hidden; }
-  /* The resize handles: real, visible grips outside the scroll area (a native resize corner sat on the scrollbars and, with the panel docked bottom-right, moved the wrong way). */
-  .page-peek__foot { display: flex; flex: none; justify-content: flex-end; height: 14px; border-top: 1px solid var(--line); background: var(--bg-raised); }
-  .page-peek__grip { position: relative; flex: none; width: 18px; height: 14px; padding: 0; border: 0; background: transparent; color: var(--text-dim); touch-action: none; }
-  .page-peek__grip::before { content: ''; position: absolute; inset: 3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 2px 0; }
-  .page-peek__grip--se { cursor: nwse-resize; }
-  .page-peek__grip--nw { position: absolute; top: 0; left: 0; z-index: 1; width: 16px; height: 16px; cursor: nwse-resize; }
-  .page-peek__grip--nw::before { inset: 3px; border-right: 0; border-bottom: 0; border-left: 2px solid currentColor; border-top: 2px solid currentColor; border-radius: 2px 0 0 0; }
-  .page-peek__grip:hover, .page-peek__grip:focus-visible { color: var(--text); }
-  .page-peek__grip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
-  .page-peek__canvas { display: block; margin: 0 auto; max-width: none; background: #fff; box-shadow: 0 0 0 1px var(--line); }
-  .page-peek__state { display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-4); color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-snug); }
-  .page-peek__state--note { flex-direction: column; align-items: flex-start; }
-  .page-peek__state p { margin: 0; overflow-wrap: anywhere; }
-  .page-peek__busy { position: absolute; top: var(--space-2); left: var(--space-3); margin: 0; padding: 1px var(--space-2); border-radius: var(--radius-pill); background: var(--bg-raised); color: var(--text-muted); font-size: var(--fs-xs); box-shadow: 0 0 0 1px var(--line); }
-  .page-peek__note { flex: none; margin: 0; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--line); color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
   @media (max-width: 640px) {
-    .page-peek { right: var(--space-2); bottom: var(--space-2); width: calc(100% - var(--space-4)); height: min(70%, 640px); }
-    .page-peek__head { flex-wrap: wrap; }
+    :is(.study-app, .study-seat) {
+      .page-peek { right: var(--space-2); bottom: var(--space-2); width: calc(100% - var(--space-4)); height: min(70%, 640px); }
+      .page-peek__head { flex-wrap: wrap; }
+    }
   }
 }

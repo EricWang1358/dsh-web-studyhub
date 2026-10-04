@@ -1,28 +1,31 @@
-/* ── Shared canvas chrome ────────────────────────────────────────────────
-   The expanded canvas is a manual popover, so it lives in the browser's top
-   layer: no z-index is needed (or wanted). The user-agent popover box is
-   reset to a full-viewport sheet; each canvas sets its own padding and fill. */
-.canvas-expanded {
-  position: fixed;
-  inset: 0;
-  box-sizing: border-box;
-  width: auto;
-  height: auto;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  border: 0;
-  background: var(--bg-surface);
-  color: var(--text);
-}
-.canvas-expanded::backdrop { background: var(--bg-canvas); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-:is(.study-app, .study-seat) {
-  .canvas-zoom-value {
-    min-width: 3rem;
-    color: var(--text-dim);
-    font-size: var(--fs-xs);
-    font-variant-numeric: tabular-nums;
-    text-align: center;
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* ── Shared canvas chrome ────────────────────────────────────────────────
+       The expanded canvas is a manual popover, so it lives in the browser's top
+       layer: no z-index is needed (or wanted). The user-agent popover box is
+       reset to a full-viewport sheet; each canvas sets its own padding and fill. */
+    .canvas-expanded {
+      position: fixed;
+      inset: 0;
+      box-sizing: border-box;
+      width: auto;
+      height: auto;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      border: 0;
+      background: var(--bg-surface);
+      color: var(--text);
+    }
+    .canvas-expanded::backdrop { background: var(--bg-canvas); }
+    .canvas-zoom-value {
+      min-width: 3rem;
+      color: var(--text-dim);
+      font-size: var(--fs-xs);
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
   }
 }

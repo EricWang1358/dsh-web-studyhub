@@ -50,8 +50,9 @@ test('accent.css reaches both builds: the DSH host injects it right after the gl
 
 /* ---------- the colours ---------- */
 
-const styleCss = await read('ui/tokens.css');
-const accentCss = await read('ui/accent.css');
+const dedent = text => text.replace(/^[ \t]+/gm, ''); // the sheets are wrapped in @layer and the scope
+const styleCss = dedent(await read('ui/tokens.css'));
+const accentCss = dedent(await read('ui/accent.css'));
 
 /** A tiny CSS reader: rules with declarations and nested rules; comments dropped. Good enough for custom-property blocks. */
 function parse(text) {
@@ -73,7 +74,8 @@ function parse(text) {
       if (j >= text.length) return node;
     }
   }
-  return body().kids;
+  const flat = nodes => nodes.flatMap(node => [node, ...flat(node.kids)]); // the sheets are wrapped in @layer and the scope
+  return flat(body().kids);
 }
 const rule = (rules, selectorStart) => {
   const found = rules.find(r => r.selector.startsWith(selectorStart));
@@ -83,7 +85,7 @@ const rule = (rules, selectorStart) => {
 const styleRules = parse(styleCss);
 const darkBase = rule(styleRules, '.study-app,\n.study-seat').decls;
 const lightBase = rule(styleRules, '.study-app[data-theme="light"],').decls;
-const cardBase = rule(parse(await read('ui/paper.css')), '.study-app :is(.today-card').decls;
+const cardBase = rule(parse(dedent(await read('ui/paper.css'))), ':is(.sh-paper').decls;
 const accentRules = parse(accentCss);
 const presetRule = name => accentRules.find(r => r.selector.includes(`[data-accent=${name}]`));
 /** The tokens a preset sets in one theme (the dark values, with the light ones on top for light). */
