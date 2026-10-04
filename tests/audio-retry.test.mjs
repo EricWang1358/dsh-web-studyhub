@@ -203,7 +203,9 @@ test("a retry uses the settings as they are now, and dismissing a failed card re
   assert.equal(counts.transcribe, 1);
   assert.equal(broken.retryable, true);
   await service.call("job.dismiss", { jobId: broken.id });
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  // The kept upload is removed in the background; wait for it rather than for a fixed delay (slow Windows runners).
+  for (const deadline = Date.now() + 10_000; Date.now() < deadline && (await uploadFolders(root)).includes(id);)
+    await new Promise((resolve) => setTimeout(resolve, 25));
   assert.ok(!(await uploadFolders(root)).includes(id), "dismissing the card discards the upload it was keeping");
   await assert.rejects(service.call("audio.retry", { jobId: broken.id }), /不能重试/);
   failing = false;

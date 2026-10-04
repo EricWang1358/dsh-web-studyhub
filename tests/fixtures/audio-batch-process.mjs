@@ -33,10 +33,12 @@ if (mode === 'interrupt') {
   await service.call('audio.upload.chunk', { uploadId, offset: 0, data: b.toString('base64') });
   await service.call('audio.upload.finish', { uploadId });
   const started = await service.call('audio.import', { files: [{ path: a }, { uploadId }], courses: ['Frozen A'] });
-  for (let i = 0; i < 400; i++) {
-    const batch = JSON.parse(await readFile(join(root, 'audio-batches', started.batchId, 'manifest.json'), 'utf8'));
-    if (batch.members[0].status === 'complete') { process.stdout.write(JSON.stringify(started)); process.exit(0); }
-    await new Promise(resolve => setTimeout(resolve, 10));
+  // A deadline, not an iteration count: a loaded Windows runner can take several seconds per member, and a read can
+  // land mid-replacement of the manifest.
+  for (const deadline = Date.now() + 60_000; Date.now() < deadline;) {
+    const batch = await readFile(join(root, 'audio-batches', started.batchId, 'manifest.json'), 'utf8').then(JSON.parse, () => null).catch(() => null);
+    if (batch?.members[0].status === 'complete') { process.stdout.write(JSON.stringify(started)); process.exit(0); }
+    await new Promise(resolve => setTimeout(resolve, 25));
   }
   throw new Error('First member never completed');
 } else {
