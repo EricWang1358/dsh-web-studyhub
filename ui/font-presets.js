@@ -18,8 +18,6 @@ export const READER_FACES = Object.freeze(['sans', ...FONT_IDS.filter(id => id !
 export const TITLE_MODES = Object.freeze(['follow', 'system']);
 export const FONT_NAME_MAX = 40;
 
-export const fontLabelKey = id => FONT_PRESETS[id]?.label ?? '';
-
 /** The name of an installed font as typed, or '' when it is not a plain name. Only letters (any script, so CJK too), digits, single
     spaces and hyphens inside, starting with a letter or digit: anything else is rejected whole, never repaired into something else. */
 export function cleanFontName(raw) {

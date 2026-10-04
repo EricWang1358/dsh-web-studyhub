@@ -352,25 +352,16 @@ const appearanceOptions = (kind) => APPEARANCE_OPTIONS[kind].map((value) => {
   return { value, label: label ? ui(label) : kind === "scale" ? `${value}%` : String(value) };
 });
 
-/** The name of a font installed on this computer (the `custom` typeface): typed, or picked from the computer's own list where the browser
- *  offers one (Chromium's queryLocalFonts asks permission first). Only a name that passes cleanFontName is applied; anything else says so. */
+/** The name of a font installed on this computer (the `custom` typeface), typed. Only a name that passes cleanFontName is applied; anything
+ *  else says so and changes nothing. */
 function CustomFontField({ value, onChange }) {
-  const [draft, setDraft] = useState(value), [fonts, setFonts] = useState([]), list = useId();
+  const [draft, setDraft] = useState(value), clean = cleanFontName(draft), invalid = draft.trim() && !clean;
   useEffect(() => { setDraft((text) => (cleanFontName(text) === value ? text : value)); }, [value]);
-  const type = (text) => { setDraft(text); if (!text.trim()) onChange(""); else if (cleanFontName(text)) onChange(cleanFontName(text)); };
-  const load = async () => {
-    try { setFonts([...new Set((await window.queryLocalFonts()).map((font) => cleanFontName(font.family)).filter(Boolean))].sort().slice(0, 600)); }
-    catch { /* no permission, or no list: typing still works */ }
-  };
-  const invalid = draft.trim() && !cleanFontName(draft);
   return (
     <div className="custom-font">
-      <input value={draft} maxLength={FONT_NAME_MAX + 8} list={list} spellCheck={false} autoComplete="off" aria-invalid={invalid || undefined}
-        aria-label={ui("本机字体")} placeholder={ui("已安装的字体名，如 LXGW WenKai")} onChange={(event) => type(event.target.value)} />
-      {fonts.length > 0 && <datalist id={list}>{fonts.map((name) => <option key={name} value={name} />)}</datalist>}
-      {typeof window !== "undefined" && "queryLocalFonts" in window && !fonts.length && <Button size="sm" variant="quiet" onClick={load}>{ui("从本机字体中选择")}</Button>}
-      {invalid ? <InlineMessage tone="error">{ui("字体名只能含文字、数字、空格和连字符，没有应用。")}</InlineMessage>
-        : <small className="muted">{ui("填你电脑上已安装的字体名；找不到时会自动用系统字体。")}</small>}
+      <input value={draft} maxLength={FONT_NAME_MAX + 8} spellCheck={false} aria-label={ui("本机字体")} aria-invalid={invalid || undefined}
+        onChange={(event) => { setDraft(event.target.value); if (!event.target.value.trim() || cleanFontName(event.target.value)) onChange(cleanFontName(event.target.value)); }} />
+      <small className="muted">{invalid ? ui("字体名只能含文字、数字、空格和连字符。") : ui("填已安装的字体名，找不到会用系统字体。")}</small>
     </div>
   );
 }

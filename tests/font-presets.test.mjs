@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { FONT_PRESETS, FONT_IDS, TITLE_MODES, FONT_NAME_MAX, READER_FACES, cleanFontName, customFontStack, fontLabelKey } from '../ui/font-presets.js';
+import { FONT_PRESETS, FONT_IDS, TITLE_MODES, FONT_NAME_MAX, READER_FACES, cleanFontName, customFontStack } from '../ui/font-presets.js';
 import { FONTS, APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, normalizeAppearance, appearanceAttrs, appearanceStyle, importAppearance, exportAppearance } from '../ui/appearance-prefs.js';
 import { FACES, normalizeReaderSettings, readerVars, readingVars, READER_DEFAULTS } from '../ui/reading-settings/settings.js';
 
@@ -16,7 +16,6 @@ test('the registry: system, serif (宋体), kai (楷体), round (圆体) and mon
     const { label, stack } = FONT_PRESETS[id];
     assert.ok(label && /[㐀-鿿]/.test(label), `${id}: a zh label`);
     assert.equal(stack, `var(--font-stack-${id})`, `${id}: the stack is a reference to the one definition`);
-    assert.equal(fontLabelKey(id), label);
   }
   assert.ok(Object.isFrozen(FONT_PRESETS));
   assert.deepEqual(TITLE_MODES, ['follow', 'system']);
@@ -150,6 +149,6 @@ test('no font file is bundled and the labels exist in English', () => {
   const files = readdirSync(new URL('../ui', import.meta.url), { recursive: true });
   assert.deepEqual(files.filter(name => /\.(woff2?|ttf|otf|eot)$/i.test(String(name))), [], 'a typeface is a system stack or an installed name, never a file');
   const english = Object.assign({}, ...readdirSync(new URL('../ui/locales', import.meta.url)).filter(name => /^en(\..+)?\.json$/.test(name)).map(name => JSON.parse(read(`ui/locales/${name}`))));
-  for (const zh of [...FONT_IDS.map(fontLabelKey), '本机字体', '标题字体', '跟随正文', '保持系统', '字重', '行距', '段间距', '紧凑', '宽松', '稍粗', '加粗', '跟随界面', '排版微调'])
+  for (const zh of [...FONT_IDS.map(id => FONT_PRESETS[id].label), '本机字体', '标题字体', '跟随正文', '保持系统', '字重', '行距', '段间距', '紧凑', '宽松', '稍粗', '加粗', '跟随界面', '排版微调'])
     assert.ok(english[zh] && !/[㐀-鿿]/.test(english[zh]), `${zh} has an English text`);
 });
