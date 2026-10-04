@@ -192,7 +192,7 @@ export const JOURNEY_STEPS = [
     await j.page.getByRole("button", { name: j.t("开始导入"), exact: true }).click();
     await j.until(async () => (await done()) > before, "the recording is transcribed and saved", 120000);
     await j.settle(1500);
-    await j.page.locator(".audio-jobs .job").first().scrollIntoViewIfNeeded();
+    await j.page.locator(".audio-jobs .sh-job").first().scrollIntoViewIfNeeded();
     await j.shot("done");
   } },
   { name: "audio-long", needs: ["siliconflow"], run: async (j) => {

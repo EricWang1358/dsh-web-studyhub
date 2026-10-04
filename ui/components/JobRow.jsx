@@ -71,7 +71,7 @@ export function JobRow({ status = 'running', stage, title, meta, progress, failu
         {meta && <small className="sh-job__meta" aria-live="off">{meta}</small>}
         {progress && <div className="sh-job__progress">
           <ProgressBar value={progress.value} max={progress.max} label={progress.label} ahead={progress.ahead}
-            indeterminate={progress.indeterminate} size="sm" />
+            indeterminate={progress.indeterminate} title={progress.title} size="sm" />
           {progress.summary && <div className="sh-job__summary">{progress.summary}</div>}
         </div>}
         {failure && <div className="sh-job__failure">
@@ -83,7 +83,7 @@ export function JobRow({ status = 'running', stage, title, meta, progress, failu
       {(actions?.length > 0 || onDismiss) && <div className="sh-job__actions">
         {actions?.map((action, index) => <Button key={action.key ?? index} size="sm" variant={action.variant || 'secondary'} icon={action.icon}
           disabled={action.disabled} busy={action.busy} title={action.title} onClick={action.onClick}>{action.label}</Button>)}
-        {onDismiss && <Button size="sm" variant="quiet" onClick={onDismiss}>{dismissLabel || ui('知道了')}</Button>}
+        {onDismiss && <Button size="sm" variant="quiet" className="sh-job__dismiss" onClick={onDismiss}>{dismissLabel || ui('知道了')}</Button>}
       </div>}
       <span className="sh-visually-hidden" role="status">{announced}</span>
     </article>

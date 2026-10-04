@@ -123,7 +123,7 @@ test("English audio import copy is fully translated and keeps user content as wr
 test("only audio jobs are listed, and nothing renders when there are none", () => {
   assert.equal(renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [{ type: "draft-repair", id: "x", status: "running" }] }, busy: false, act() {} })), "");
   const html = renderToStaticMarkup(React.createElement(AudioJobs, { data, busy: false, act() {} }));
-  assert.equal(html.match(/class="job /g).length, 4);
+  assert.equal(html.match(/class="sh-job /g).length, 4);
 });
 
 test('audio imports show the source-page course, including source-only courses and explicit unassigned', () => {
@@ -191,7 +191,7 @@ test("a running import shows the bar, the steps and the task in flight, and can 
     const page = html();
     assert.match(page, /role="progressbar"[^>]*aria-valuenow="31"/);
     assert.match(page, /<strong>31%<\/strong>/);
-    assert.match(page, /✓ 转写 已完成 1\/1/);
+    assert.match(page, /<li class="is-done"><svg[\s\S]*?<\/svg>转写 已完成 1\/1/, "a finished step is marked by an icon, not a text glyph");
     assert.match(page, /校对 已完成 1\/5/);
     assert.match(page, /正在做：校对 2\/5 · DSH 子代理 · 执行中 · 已等待 \d+ 秒/);
     assert.match(page, /本步骤预计还需约 \d+ 分钟/);
