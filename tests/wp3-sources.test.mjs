@@ -10,11 +10,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // documents: generating from one passes every page, removing one removes
 // every page after a confirmation.
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { default, removeDocument, courseAssignments } from './ui/Sources.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export { default, removeDocument, courseAssignments, RowMenuItems, RemoveDialog } from './ui/Sources.jsx'; export { default as SourcePicker } from './ui/SourcePicker.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { default: Sources, removeDocument, courseAssignments, setUiLanguage } = module.exports;
+const { default: Sources, removeDocument, courseAssignments, RowMenuItems, RemoveDialog, SourcePicker, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const SHA = '7'.repeat(64);
 const now = new Date().toISOString();
@@ -27,6 +27,30 @@ const sources = [page(1), page(2), page(3), md, older];
 const data = { root: 'lib', sources, decks: [], drafts: [], jobs: [], focus: { course: '*', courses: [{ name: '操作系统' }] }, modelReady: true };
 const render = (props = {}) => renderToStaticMarkup(React.createElement(Sources, { data, act() {}, setModal() {}, onGenerate() {}, ...props }));
 const rows = html => (html.match(/data-document-key="/g) || []).length;
+
+test('active menus only archive; archived menus restore or request confirmed permanent deletion', () => {
+  setUiLanguage('zh');
+  const item = { title: 'Lecture', archived: false, usedBy: [], pages: [], sourceIds: ['a'] };
+  const menu = archived => renderToStaticMarkup(React.createElement(RowMenuItems, { item: { ...item, archived }, onArchive() {}, onRemove() {} }));
+  assert.match(menu(false), /归档/);
+  assert.doesNotMatch(menu(false), /永久删除/);
+  assert.match(menu(true), /恢复资料/);
+  assert.match(menu(true), /永久删除/);
+  const dialog = renderToStaticMarkup(React.createElement(RemoveDialog, { item: { ...item, archived: true }, onClose() {} }));
+  assert.match(dialog, /确认永久删除/);
+  assert.match(dialog, /取消/);
+  assert.match(dialog, /无法撤销/);
+});
+
+test('archived sources leave the active library and generation picker', () => {
+  setUiLanguage('zh');
+  const archived = { ...older, archived: true };
+  const library = { ...data, sources: [archived] };
+  assert.equal(rows(render({ data: library })), 0);
+  assert.match(render({ data: library }), /已归档（1）/);
+  const picker = renderToStaticMarkup(React.createElement(SourcePicker, { sources: [archived], selected: [], onChange() {} }));
+  assert.doesNotMatch(picker, /进程与线程/);
+});
 
 test('a PDF is one row; pages stay inside it and the wording is plain', () => {
   setUiLanguage('zh');
@@ -71,18 +95,17 @@ test('tour anchors mark the list and the add button, also on an empty library', 
   assert.match(empty, /hub-stub/, 'the import hub is the empty state');
 });
 
-test('removing a document removes every page and reports pages that could not go', async () => {
-  const seen = [];
-  const act = async (action, args, after) => { seen.push(['act', action, args.id]); if (after) await after({ ok: true }); return { ok: true }; };
-  const call = async (action, args) => { seen.push(['call', action, args.id]); if (args.id.endsWith('p3')) throw new Error('Source is referenced by a deck or draft'); return { ok: true }; };
+test('removing a document submits all pages with explicit confirmation, atomically', async () => {
   const item = { sourceIds: [page(1).id, page(2).id, page(3).id] };
-  const result = await removeDocument(item, { act, call });
-  assert.deepEqual(seen.map(entry => entry.slice(0, 2).join(' ')), ['act source.remove', 'call source.remove', 'call source.remove']);
-  assert.deepEqual(result.removed, [page(1).id, page(2).id]);
-  assert.deepEqual(result.failed.map(entry => entry.id), [page(3).id]);
-  const blocked = await removeDocument(item, { act: async () => undefined, call });
+  const seen = [];
+  const result = await removeDocument(item, { act: async (action, args) => { seen.push({ action, args }); return { ok: true }; } });
+  assert.deepEqual(seen, [{ action: 'source.remove', args: { sourceIds: item.sourceIds, confirm: true } }]);
+  assert.deepEqual(result.removed, item.sourceIds);
+  const blocked = await removeDocument(item, { act: async () => { throw new Error('Source is referenced'); } });
   assert.deepEqual(blocked.removed, []);
   assert.equal(blocked.failed.length, 3);
+  const busy = await removeDocument(item, { act: async () => undefined });
+  assert.deepEqual(busy.removed, []);
 });
 
 test('course assignments cover every page of the chosen documents', () => {

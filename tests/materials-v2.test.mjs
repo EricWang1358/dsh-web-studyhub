@@ -124,7 +124,8 @@ test('removing current material sources preserves readable cited history without
   ] }));
   const revisedBytes = Buffer.from('Unreferenced current evidence.').toString('base64');
   const current = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt', dataBase64: revisedBytes });
-  await runtime.call('source.remove', { id: current.sourceIds[0] });
+  await runtime.call('source.archive', { id: current.sourceIds[0], archived: true });
+  await runtime.call('source.remove', { id: current.sourceIds[0], confirm: true });
   const after = await runtime.call('materials.document.get', { documentId: first.documentId });
   assert.deepEqual(after.sourceIds, [], 'deleted projections are removed from every version member list');
   assert.deepEqual(after.sources, []);
@@ -137,6 +138,8 @@ test('removing current material sources preserves readable cited history without
   await assert.rejects(runtime.call('source.remove', { id: first.sourceIds[0] }), /referenced/);
   const restored = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt', dataBase64: revisedBytes });
   assert.deepEqual(restored.sourceIds, current.sourceIds, 'explicitly importing the deleted revision restores its original identity');
+  assert.equal((await runtime.call('materials.document.list', {})).total, 0, 'reattaching evidence does not undo archive');
+  await runtime.call('source.archive', { id: restored.sourceIds[0], archived: false });
   assert.equal((await runtime.call('materials.document.list', {})).total, 1);
 });
 
@@ -146,11 +149,13 @@ test('removing an unreferenced historical projection removes its version members
   t.after(() => runtime.dispose());
   const first = await runtime.call('materials.document.import', { filename: 'lesson.txt', dataBase64: Buffer.from('Old evidence.').toString('base64') });
   const current = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt', dataBase64: Buffer.from('Current evidence.').toString('base64') });
-  await runtime.call('source.remove', { id: first.sourceIds[0] });
+  await runtime.call('source.archive', { id: first.sourceIds[0], archived: true });
+  await runtime.call('source.remove', { id: first.sourceIds[0], confirm: true });
   const old = await runtime.call('materials.document.get', { documentId: first.documentId, revision: first.revision });
   assert.deepEqual(old.sourceIds, []);
   assert.deepEqual(old.sources, []);
   assert.deepEqual((await runtime.call('materials.document.get', { documentId: first.documentId })).sourceIds, current.sourceIds);
+  await runtime.call('source.archive', { id: current.sourceIds[0], archived: false });
   assert.equal((await runtime.call('materials.document.list', {})).total, 1);
 });
 

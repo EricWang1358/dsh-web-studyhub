@@ -16,7 +16,10 @@
 
 :is(.study-app, .study-seat) .omitted-questions { font-size: var(--fs-sm); }
 :is(.study-app, .study-seat) .omitted-questions > summary { cursor: pointer; width: fit-content; }
-:is(.study-app, .study-seat) .omitted-questions ul { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding-left: 1.2em; }
-:is(.study-app, .study-seat) .omitted-questions li { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .omitted-questions li small { display: block; margin: 0; color: var(--text-dim); }
-:is(.study-app, .study-seat) .omitted-questions li small.muted { color: var(--text-muted); }
+/* The stem, the reasons and the reviewer's note are three blocks (plain selectors: the draft page is not always inside .study-app). */
+.omitted-questions ul { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding-left: 1.2em; }
+.omitted-questions li { min-width: 0; overflow-wrap: anywhere; }
+.omitted-questions li > strong, .omitted-questions__why, .omitted-questions__note { display: block; }
+.omitted-questions li > strong { font-weight: 600; }
+.omitted-questions__why { margin-top: 2px; color: var(--text-dim); }
+.omitted-questions__note { margin-top: 2px; color: var(--text-muted); }

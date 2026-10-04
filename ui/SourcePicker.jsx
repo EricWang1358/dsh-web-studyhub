@@ -186,7 +186,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, ...rest }) {
   useInjectCss(css, 'study-source-picker');
   const [query, setQuery] = useState(defaultQuery);
-  const items = useMemo(() => groupSourcesByDocument(sources), [sources]);
+  const items = useMemo(() => groupSourcesByDocument(sources).filter(item => !item.archived), [sources]);
   const bigKeys = useMemo(() => new Set(indexCoverage ? bigDocuments(items).map(item => item.key) : []), [items, indexCoverage]);
   const effectiveScope = onScopeChange ? scope : '*';
   const known = useMemo(() => courses.map(course => typeof course === 'string' ? course : course?.name).filter(Boolean), [courses]);

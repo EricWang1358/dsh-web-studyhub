@@ -157,7 +157,8 @@ test('public generation saves reference IDs while citations and planning retain 
   assert.deepEqual(restored.editorial.generation.referenceLimits, limits);
   assert.equal(restored.editorial.generation.referenceFormat, 'strict');
   const more = await service.call('draft.save', { deck: { ...restored, editorial: { ...restored.editorial, requested: 3 } } });
-  await service.call('source.remove', { id: sample.id });
+  await service.call('source.archive', { id: sample.id, archived: true });
+  await service.call('source.remove', { id: sample.id, confirm: true });
   assert.ok((await service.call('export')).drafts.some(d => d.id === draft.id), 'deleting a sample does not erase questions');
   await assert.rejects(service.call('generate', { resumeDraftId: draft.id, draftVersion: more.draftVersion }), /missing or empty/);
   const clear = await service.call('generate', { resumeDraftId: draft.id, draftVersion: more.draftVersion, referenceSourceIds: [], referenceLimits: {}, referenceFormat: 'flexible' });
