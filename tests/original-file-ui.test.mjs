@@ -59,7 +59,7 @@ test('the row menu line says where the original is, in plain words', () => {
   assert.equal(lib.originalLine(ref).text, '原文件：引用 D:\\…\\Database System Concepts.pdf');
   assert.equal(lib.originalLine(ref).title, BOOK);
   assert.equal(lib.originalLine(copy).text, '原文件：已复制到资料库 · 23.5 MB');
-  assert.equal(lib.originalLine({ ...ref, status: 'missing' }).tone, 'warn');
+  assert.equal(lib.originalLine({ ...ref, status: 'missing' }).tone, 'warning');
   assert.match(lib.originalLine({ ...ref, status: 'missing' }).text, /找不到/);
   assert.match(lib.originalLine({ ...ref, status: 'changed', reason: 'changed' }).text, /已被修改/);
   inLanguage('en', () => {
@@ -86,9 +86,9 @@ test('what is wrong with the original, and what can be done, is stated plainly',
 });
 
 test('the verification report reads as plain sentences; a mismatch says it may not be the same file', () => {
-  assert.deepEqual(lib.reportHeadline(IDENTICAL), { tone: 'ok', text: '核对通过：和保存文字时用的是同一个文件' });
-  assert.deepEqual(lib.reportHeadline(MATCH), { tone: 'ok', text: '核对通过：页数一致，文字对得上' });
-  assert.deepEqual(lib.reportHeadline(MISMATCH), { tone: 'warn', text: '页数不同 / 文字对不上，可能不是同一份文件' });
+  assert.deepEqual(lib.reportHeadline(IDENTICAL), { tone: 'success', text: '核对通过：和保存文字时用的是同一个文件' });
+  assert.deepEqual(lib.reportHeadline(MATCH), { tone: 'success', text: '核对通过：页数一致，文字对得上' });
+  assert.deepEqual(lib.reportHeadline(MISMATCH), { tone: 'warning', text: '页数不同 / 文字对不上，可能不是同一份文件' });
   assert.deepEqual(lib.reportLines(MATCH).map(line => line.text), ['页数一致：120 页', '文字对得上：抽查 60 页，60 页一致，相似度 99.1%']);
   assert.deepEqual(lib.reportLines(MISMATCH).map(line => line.text), ['页数不同：保存的文字来自 120 页，这个文件有 98 页', '文字对不上：抽查 60 页，3 页一致，相似度 31%']);
   assert.deepEqual(lib.reportLines(IDENTICAL), []);

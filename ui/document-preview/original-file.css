@@ -11,14 +11,14 @@
       border: 1px solid var(--line); background: var(--bg-surface); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .original-status > svg { flex: none; margin-top: 1px; }
     .original-status > div { min-width: 0; display: grid; gap: var(--space-half); }
-    .original-status[data-tone="ok"] { border-color: var(--ok-line); }
-    .original-status[data-tone="ok"] > svg { color: var(--ok); }
-    .original-status[data-tone="warn"] { border-color: var(--warn-line); }
-    .original-status[data-tone="warn"] > svg { color: var(--warn); }
+    .original-status[data-tone="success"] { border-color: var(--ok-line); }
+    .original-status[data-tone="success"] > svg { color: var(--ok); }
+    .original-status[data-tone="warning"] { border-color: var(--warn-line); }
+    .original-status[data-tone="warning"] > svg { color: var(--warn); }
     .original-status[data-tone="info"] > svg { color: var(--accent-text); }
     .original-file-name { color: var(--text-muted); overflow-wrap: anywhere; }
     .original-lines { margin: var(--space-half) 0 0; padding: 0; list-style: none; display: grid; gap: var(--space-half); color: var(--text-dim); }
-    .original-lines li[data-tone="warn"] { color: var(--warn-ink); }
+    .original-lines li[data-tone="warning"] { color: var(--warn-ink); }
     .original-pick { display: grid; gap: var(--space-2); }
     .original-step { font-size: var(--fs-sm); }
     .original-pathrow { display: flex; gap: var(--space-2); align-items: stretch; }
@@ -40,6 +40,6 @@
     .original-dialog .original-confirm { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); }
     .source-row-menu .source-row-menu__note { display: block; max-width: 18em; padding: var(--space-1) var(--space-2); color: var(--text-muted);
       font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-    .source-row-menu .source-row-menu__note[data-tone="warn"] { color: var(--warn-ink); }
+    .source-row-menu .source-row-menu__note[data-tone="warning"] { color: var(--warn-ink); }
   }
 }

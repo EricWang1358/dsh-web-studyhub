@@ -65,7 +65,7 @@ function KeyCard({ provider, state, call, busy, onSaved, recommended }) {
   return (
     <ProviderCard data-provider={provider.tier} title={ui(provider.name)} set={!!state?.set}
       badges={<>
-        <Badge size="sm" tone={provider.tone === 'good' ? 'success' : 'neutral'}>{ui(provider.badge)}</Badge>
+        <Badge size="sm" tone={provider.tone === 'success' ? 'success' : 'neutral'}>{ui(provider.badge)}</Badge>
         {recommended && <Badge size="sm" tone="accent">{ui('推荐')}</Badge>}
       </>}
       status={state?.set ? uiFormat('已保存 {0}', [state.hint]) : ui('未配置')}

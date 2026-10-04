@@ -25,15 +25,15 @@ export function originalLine(original) {
   const state = original || { mode: null, status: 'none' };
   if (state.mode === 'reference') {
     const where = shortPath(state.path), title = state.path;
-    if (state.status === 'ok') return { tone: 'ok', text: uiFormat('原文件：引用 {0}', [where]), title };
-    if (state.status === 'missing') return { tone: 'warn', text: uiFormat('原文件：找不到 {0}', [where]), title };
-    if (state.reason === 'redirected') return { tone: 'warn', text: ui('原文件：路径现在指向别处'), title };
-    if (state.status === 'unreadable') return { tone: 'warn', text: ui('原文件：无法读取'), title };
-    return { tone: 'warn', text: ui('原文件：已被修改'), title };
+    if (state.status === 'ok') return { tone: 'success', text: uiFormat('原文件：引用 {0}', [where]), title };
+    if (state.status === 'missing') return { tone: 'warning', text: uiFormat('原文件：找不到 {0}', [where]), title };
+    if (state.reason === 'redirected') return { tone: 'warning', text: ui('原文件：路径现在指向别处'), title };
+    if (state.status === 'unreadable') return { tone: 'warning', text: ui('原文件：无法读取'), title };
+    return { tone: 'warning', text: ui('原文件：已被修改'), title };
   }
   if (state.mode === 'copy') {
-    return state.status === 'ok' ? { tone: 'ok', text: uiFormat('原文件：已复制到资料库 · {0}', [formatBytes(state.bytes)]) }
-      : { tone: 'warn', text: ui('原文件：资料库里的副本丢失') };
+    return state.status === 'ok' ? { tone: 'success', text: uiFormat('原文件：已复制到资料库 · {0}', [formatBytes(state.bytes)]) }
+      : { tone: 'warning', text: ui('原文件：资料库里的副本丢失') };
   }
   return { tone: 'muted', text: ui('原文件：未保存') };
 }
@@ -54,18 +54,18 @@ const percent = value => `${Math.round(value * 1000) / 10}%`;
 
 /** The verdict in one sentence. */
 export function reportHeadline(report) {
-  if (report.verdict === 'identical') return { tone: 'ok', text: ui('核对通过：和保存文字时用的是同一个文件') };
-  if (report.verdict === 'match') return { tone: 'ok', text: report.pages?.stored > 1 ? ui('核对通过：页数一致，文字对得上') : ui('核对通过：文字对得上') };
-  return { tone: 'warn', text: ui('页数不同 / 文字对不上，可能不是同一份文件') };
+  if (report.verdict === 'identical') return { tone: 'success', text: ui('核对通过：和保存文字时用的是同一个文件') };
+  if (report.verdict === 'match') return { tone: 'success', text: report.pages?.stored > 1 ? ui('核对通过：页数一致，文字对得上') : ui('核对通过：文字对得上') };
+  return { tone: 'warning', text: ui('页数不同 / 文字对不上，可能不是同一份文件') };
 }
 
 /** The figures behind the verdict. */
 export function reportLines(report) {
   if (report.verdict === 'identical') return [];
   const lines = [], { pages } = report;
-  if (pages?.stored > 1 || !pages?.match) lines.push({ tone: pages.match ? 'ok' : 'warn',
+  if (pages?.stored > 1 || !pages?.match) lines.push({ tone: pages.match ? 'success' : 'warning',
     text: pages.match ? uiFormat('页数一致：{0} 页', [pages.stored]) : uiFormat('页数不同：保存的文字来自 {0} 页，这个文件有 {1} 页', [pages.stored, pages.supplied]) });
-  if (report.checked > 0) lines.push({ tone: report.reasons?.includes('text') ? 'warn' : 'ok',
+  if (report.checked > 0) lines.push({ tone: report.reasons?.includes('text') ? 'warning' : 'success',
     text: uiFormat(report.reasons?.includes('text') ? '文字对不上：抽查 {0} 页，{1} 页一致，相似度 {2}' : '文字对得上：抽查 {0} 页，{1} 页一致，相似度 {2}', [report.checked, report.matched, percent(report.similarity)]) });
   return lines;
 }
