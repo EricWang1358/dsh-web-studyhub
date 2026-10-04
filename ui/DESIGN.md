@@ -24,6 +24,8 @@ The whole panel follows one idea: **the card is the only physical object; everyt
 
 Rules: one filled primary button per screen; a primary that cannot act turns neutral, not muddy red; new CSS references tokens, never raw colours.
 
+Accent presets (设置 › 界面 › 强调色): cinnabar stays the default and the identity; jade, ochre, graphite and plum are opt-in swaps of `--accent`, `--accent-soft`, `--accent-text` and `--bg-selected` (`ui/accent.css`, one `data-accent` attribute), nothing else changes. There is no free colour picker, so every preset is contrast-checked in `tests/accent-presets.test.mjs`, and none is blue-violet. The mastery hues (`--ok` jade, `--warn` ochre) keep their meaning; a preset that shares a hue with one is a choice of the learner, not a signal.
+
 ## Theme
 
 `auto` follows `prefers-color-scheme` (inside DSH, the host appearance) and updates live; `dark` / `light` override. The resolved theme is always stamped on `.study-app`; `.study-seat` mirrors it for host overlays.
