@@ -47,7 +47,7 @@ export function parseTree(source, { comments = false } = {}) {
   for (let k = 0, n = 1; k <= source.length; k++) { lines[k] = n; if (source.charCodeAt(k) === 10) n++; }
   const pushDecl = (end) => {
     const raw = source.slice(segStart, end);
-    const text = raw.replace(/\/\*[\s\S]*?\*\//g, ' ').trim();
+    const text = raw.replace(/\/\*[\s\S]*?\*\//g, ' ').trim().replace(/;$/, '').trim();
     if (!text) return;
     const colon = text.indexOf(':');
     if (colon < 1) return;
