@@ -23,7 +23,8 @@ import Board, { useBoard } from "./Board.jsx";
 import { dueSummary } from "../lib/board-model.js";
 import { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
-import { loadInterface, saveInterface, effectiveMotion, leaveDelayMs } from "./interface-prefs.js";
+import { APPEARANCE_LABELS, THEMES as THEME_IDS, exportAppearance, importAppearance, leaveDelayMs } from "./appearance-prefs.js";
+import { useAppearance, useAppearanceAttrs } from "./use-appearance.js";
 import { loadScienceSettings, saveScienceSettings, normalizeScienceSettings, scienceVars } from './science-settings.js';
 import { SciencePreferencesContext } from './SciencePreferences.jsx';
 import sideGroupsCss from "./side-groups.css";
@@ -72,11 +73,7 @@ import { ReaderHeading } from './document-preview/RenameTitle.jsx';
 import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
-const THEMES = [
-  ["auto", "跟随系统"],
-  ["dark", "深色"],
-  ["light", "浅色"],
-];
+const THEMES = THEME_IDS.map((id) => [id, APPEARANCE_LABELS.theme[id]]);
 
 export default function App({ call: transportCall, host = {} }) {
   const language = useUiLanguage();
@@ -98,44 +95,14 @@ export default function App({ call: transportCall, host = {} }) {
     actDeps = useRef(null),
     libraryEpoch = useRef(0),
     navigationRequest = useRef(0);
-  /* 'auto' follows the OS (inside DSH, the host's appearance); explicit
-     'dark'/'light' wins. The resolved theme is always stamped on the root,
-     so every view, and the editors, switch together. */
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem("study-theme") || "auto";
-    } catch {
-      return "auto";
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("study-theme", theme);
-    } catch {}
-  }, [theme]);
-  const [systemLight, setSystemLight] = useState(() =>
-    typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches);
-  useEffect(() => {
-    if (typeof matchMedia !== "function") return;
-    const query = matchMedia("(prefers-color-scheme: light)"),
-      sync = (event) => setSystemLight(event.matches);
-    query.addEventListener?.("change", sync);
-    return () => query.removeEventListener?.("change", sync);
-  }, []);
-  const resolvedTheme = theme === "auto" ? (systemLight ? "light" : "dark") : theme;
-  /* 界面 preferences (how much the interface moves). 'auto' follows the system's reduce-motion setting; the resolved value is stamped on the root. */
-  const [interfacePrefs, setInterfacePrefs] = useState(loadInterface);
+  /* The appearance (theme, size, typeface, motion) is one store shared with every open panel and tab. 'auto' follows the OS (inside DSH,
+     the host's appearance) live; the resolved values are always stamped on the root, so every view, and the editors, switch together. */
+  const [appearance, updateAppearance, resetAppearance] = useAppearance();
+  const appearanceAttrs = useAppearanceAttrs(appearance);
+  const theme = appearance.theme, resolvedTheme = appearanceAttrs["data-theme"], motion = appearanceAttrs["data-motion"];
+  const setTheme = useCallback((value) => updateAppearance({ theme: value }), [updateAppearance]);
   const [sciencePrefs, setSciencePrefs] = useState(loadScienceSettings);
   useEffect(() => { saveScienceSettings(sciencePrefs); }, [sciencePrefs]);
-  useEffect(() => { saveInterface(interfacePrefs); }, [interfacePrefs]);
-  const [systemReducesMotion, setSystemReducesMotion] = useState(() => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
-  useEffect(() => {
-    if (typeof matchMedia !== "function") return;
-    const query = matchMedia("(prefers-reduced-motion: reduce)"), sync = (event) => setSystemReducesMotion(event.matches);
-    query.addEventListener?.("change", sync);
-    return () => query.removeEventListener?.("change", sync);
-  }, []);
-  const motion = effectiveMotion(interfacePrefs.motion, systemReducesMotion);
   /* Sidebar collapse. The manual choice is persisted; a narrow workspace
      forces the icon rail regardless of the stored preference. */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -1820,10 +1787,7 @@ export default function App({ call: transportCall, host = {} }) {
     <CourseActiveProvider value={courseActiveApi}>
     <div
       className="study-app"
-      data-theme={resolvedTheme}
-      data-motion={motion}
-      data-ui-scale={interfacePrefs.scale}
-      data-ui-font={interfacePrefs.font}
+      {...appearanceAttrs}
       style={scienceVars(sciencePrefs)}
       lang={language === 'en' ? 'en' : 'zh-CN'}
       ref={attachRoot}
@@ -2364,11 +2328,13 @@ export default function App({ call: transportCall, host = {} }) {
                   onTour={() => startTour()} onRestart={() => startTour({ restart: true })}
                   onLoad={data.sample ? loadSampleOnly : undefined} onRemove={() => setRemovingSample(true)} />}
                 exportData={exportData}
-                appearance={{ language, onLanguage: setUiLanguage, theme, themes: THEMES, onTheme: setTheme,
+                appearance={{ language, onLanguage: setUiLanguage, ...appearance, onTheme: setTheme,
                   onScience: (value) => setSciencePrefs(normalizeScienceSettings(value)),
-                  motion: interfacePrefs.motion, onMotion: (value) => setInterfacePrefs((current) => ({ ...current, motion: value })),
-                  scale: interfacePrefs.scale, onScale: (value) => setInterfacePrefs((current) => ({ ...current, scale: value })),
-                  font: interfacePrefs.font, onFont: (value) => setInterfacePrefs((current) => ({ ...current, font: value })) }}
+                  onMotion: (value) => updateAppearance({ motion: value }),
+                  onScale: (value) => updateAppearance({ scale: value }),
+                  onFont: (value) => updateAppearance({ font: value }),
+                  onReset: resetAppearance, onExport: () => exportAppearance(appearance),
+                  onImport: (text) => { const imported = importAppearance(text); if (imported) updateAppearance(imported); return !!imported; } }}
                 tourActive={!!tourStep}
                 focusSection={settingsFocus}
                 onFocused={() => setSettingsFocus("")}
