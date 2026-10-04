@@ -13,8 +13,9 @@ const More = <svg className="sh-icon" viewBox="0 0 24 24" width={18} height={18}
 
 /**
  * A small action menu behind a button (⋯ by default). In the browser the list
- * is portalled into the study surface (absolute, in content coordinates) so
- * neither a column's overflow nor a horizontal scroller can clip it; it opens
+ * is portalled into the study surface, or into the open dialog it sits in (the
+ * dialog is in the top layer; the surface is not), absolute in content
+ * coordinates, so neither a column's overflow nor a horizontal scroller can clip it; it opens
  * downward and flips up when there is more room above. Keyboard: Arrow
  * keys/Home/End move, Enter/Space choose, Escape closes and returns focus, Tab
  * closes, ArrowDown on the button opens it.
@@ -38,7 +39,7 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
 
   useLayoutEffect(() => {
     if (!inBrowser) return;
-    setHost(open && button.current ? (button.current.closest('.study-app, .study-seat') || document.body) : null);
+    setHost(open && button.current ? (button.current.closest('dialog[open], .study-app, .study-seat') || document.body) : null);
     if (!open) setPlace(null);
   }, [open, inBrowser]);
 

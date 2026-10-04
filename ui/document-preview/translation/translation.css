@@ -3,7 +3,6 @@
    link underline (accent, drawn on the text) looks like. Marks and blocks are siblings of the document's own paragraphs, all
    data-study-marker; the text itself is never touched. Layout per mode is data-tr-mode on .reader-page. */
 
-@keyframes tr-spin { to { transform: rotate(360deg); } }
 @keyframes tr-pulse { 50% { opacity: 0.45; } }
 
 :is(.study-app, .study-seat) {
@@ -59,7 +58,7 @@
     border: 2px solid currentColor;
     border-right-color: transparent;
     border-radius: 50%;
-    animation: tr-spin 0.8s linear infinite;
+    animation: sh-spin 0.8s linear infinite;
   }
 
   /* 仅译文: the original is folded to its first line; a click on it unfolds it. */
@@ -133,56 +132,6 @@
   }
   .tr-chip--warn { border-color: var(--warn); color: color-mix(in srgb, var(--warn) 75%, var(--text)); }
   .tr-chip--quote { font-style: normal; }
-  .tr-iconbtn {
-    display: inline-grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    min-height: 0;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-  }
-  .tr-iconbtn:hover:not(:disabled), .tr-iconbtn[aria-expanded='true'] { background: var(--bg-hover); color: var(--text); }
-  .tr-iconbtn:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
-  .tr-menu { position: relative; display: inline-flex; flex: none; }
-  .tr-menu__list {
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    z-index: 7;
-    display: grid;
-    min-width: 188px;
-    padding: 4px;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    background: var(--bg-raised);
-    box-shadow: var(--shadow-md);
-  }
-  .tr-menu__item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: 0;
-    margin: 0;
-    padding: 7px 10px;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text);
-    font-size: var(--fs-sm);
-    text-align: left;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .tr-menu__item:hover:not(:disabled) { background: var(--bg-hover); }
-  .tr-menu__item:disabled { color: var(--text-faint); cursor: default; opacity: 1; }
-  .tr-menu__item[data-tone='danger'] { color: var(--bad); }
-  .tr-menu__item .tr-glyph { flex: none; }
   .tr-ask { display: grid; gap: 4px; margin-top: 0.5em; font-size: var(--fs-sm); }
   .tr-ask__label { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; }
   .tr-ask__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
@@ -232,25 +181,10 @@
   .tr-chipbtn:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
   .tr-float { position: absolute; z-index: 5; width: min(320px, calc(100% - 8px)); }
   .tr-float .tr-block { padding-right: 1.6em; border: 1px solid var(--line-strong); border-left: 3px solid var(--info); border-radius: var(--radius-sm); background: var(--bg-raised); box-shadow: var(--shadow-md); }
-  .tr-float .tr-float__close {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    z-index: 1;
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 16px;
-    line-height: 1;
-    cursor: pointer;
-  }
+  /* The Popover that carries the card: zero-size anchor at the selection, a plain panel around the block's own frame. */
+  .tr-float .tr-float__anchor { display: block; width: 0; height: 0; }
+  .tr-float .tr-float__panel { width: min(320px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4))); padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; }
+  .tr-float .tr-float__close { position: absolute; top: var(--space-1); right: var(--space-1); z-index: var(--z-raised); }
 
   /* ── The toolbar button, its panel, the display row ── */
   .tr-toolbar-button { gap: var(--space-1); }

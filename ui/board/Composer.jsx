@@ -1,6 +1,6 @@
 import { ui, uiFormat } from '../i18n.js';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { Button } from '../components/index.js';
+import { Button, CloseButton } from '../components/index.js';
 import { isMeaningfulTitle } from '../../lib/board-model.js';
 import BIcon from './icons.jsx';
 import { studyRefLabel } from './meta.js';
@@ -70,7 +70,7 @@ export default function Composer({ columnTitle, studyRef, library, labelSuggesti
       {link && <span className="board-study-chip">
         <BIcon name="link" size={13} />
         <span className="board-study-chip__text" title={studyRef.root}>{uiFormat('关联：{0}', [link.text])}</span>
-        <button type="button" className="board-study-chip__remove" aria-label={ui('取消关联')} title={ui('取消关联')} onClick={onClearStudyRef}>×</button>
+        <CloseButton className="board-study-chip__remove" label={ui('取消关联')} onClick={onClearStudyRef} />
       </span>}
       <div className="board-composer__fields">
         <label className="board-field"><span>{ui('截止日期')}</span><input type="date" value={due} onChange={(event) => setDue(event.target.value)} /></label>
@@ -80,7 +80,7 @@ export default function Composer({ columnTitle, studyRef, library, labelSuggesti
       </div>
       <div className="board-composer__actions">
         <Button type="submit" variant="primary" size="sm" disabled={!ready} busy={sending}>{ui('添加')}</Button>
-        <Button variant="quiet" size="sm" onClick={onClose}>{ui('关闭')}</Button>
+        <CloseButton onClick={onClose} />
       </div>
     </form>
   );

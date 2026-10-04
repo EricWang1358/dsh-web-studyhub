@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button } from '../../components/index.js';
+import { Button, InlineMessage, Menu, Spinner } from '../../components/index.js';
 import MathText from '../../MathText.jsx';
 import Glyph from './Glyph.jsx';
 import { failureKind, shortQuote, versionOf } from './model.js';
@@ -27,25 +27,6 @@ export function failureText(error) {
   return uiFormat('这段没有译成：{0}', [error?.message || ui('出现未知错误')]);
 }
 
-/** The ⋯ menu of a block: a small popover that closes on a click elsewhere, on Escape and after a choice. */
-function BlockMenu({ items, label }) {
-  const [open, setOpen] = useState(false), root = useRef(null), id = useId();
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = event => { if (root.current && !root.current.contains(event.target)) setOpen(false); };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [open]);
-  const onKeyDown = event => { if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); root.current?.querySelector('button')?.focus(); } };
-  return <div className="tr-menu" ref={root} onKeyDown={onKeyDown}>
-    <button type="button" className="tr-iconbtn" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} aria-label={label} title={label} onClick={() => setOpen(value => !value)}><Glyph name="more" /></button>
-    {open && <div className="tr-menu__list" role="menu" id={id}>
-      {items.map(entry => <button key={entry.id} type="button" role="menuitem" className="tr-menu__item" data-tone={entry.tone} disabled={entry.disabled}
-        onClick={() => { if (entry.keepOpen) entry.run(); else { setOpen(false); entry.run(); } }}><Glyph name={entry.glyph} /><span>{entry.label}</span></button>)}
-    </div>}
-  </div>;
-}
-
 /** "给点意见（可选）": the one line a retranslation asks for. Enter sends, Escape closes. */
 function AskForm({ onSubmit, onCancel }) {
   const [comment, setComment] = useState(''), input = useRef(null), id = useId();
@@ -69,7 +50,7 @@ function History({ item }) {
 }
 
 /** The bar every state shares: the fold handle, the 译 tag and (when it has one) the version, the passage it translates and the ⋯ menu. */
-function Bar({ open, onToggle, target, item, menu, preview }) {
+function Bar({ open, onToggle, target, item, menu, preview, copied }) {
   const version = versionOf(item), selection = item?.kind === 'selection';
   return <div className="tr-block__bar">
     <button type="button" className="tr-fold" aria-expanded={open} aria-label={open ? ui('收起译文') : ui('展开译文')} title={open ? ui('收起译文') : ui('展开译文')} onClick={onToggle}>
@@ -79,6 +60,7 @@ function Bar({ open, onToggle, target, item, menu, preview }) {
     {version && <span className="tr-chip" title={version.comment || undefined}>{version.comment ? uiFormat('v{0} · 意见：{1}', [version.version, shortQuote(version.comment, 36)]) : uiFormat('v{0}', [version.version])}</span>}
     {item?.outdated && <span className="tr-chip tr-chip--warn" title={ui('术语表改过了，这段译文可能还没按新术语翻译；可以重新翻译。')}>{ui('术语表已改')}</span>}
     {!open && preview && <span className="tr-block__preview" lang={targetLang(target)}>{shortQuote(preview, 90)}</span>}
+    {copied && <span className="tr-chip" role="status">{ui('已复制')}</span>}
     {menu}
   </div>;
 }
@@ -100,27 +82,28 @@ export default function TranslationBlock({ state, item, target, open, pendingKin
       <span className="tr-block__bar-actions">{error?.code !== 'model' && onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>{ui('重试')}</Button>}<Button size="sm" variant="quiet" onClick={onDismiss}>{ui('关闭')}</Button></span></div>
   </div>;
   if (state === 'pending' && !item) return <div className="tr-block" role="status" data-state="pending">
-    <div className="tr-block__bar"><span className="sh-spinner" aria-hidden="true" /><span className="tr-block__status">{ui('正在翻译…')}</span><span className="tr-block__bar-actions"><Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></span></div>
+    <div className="tr-block__bar"><Spinner /><span className="tr-block__status">{ui('正在翻译…')}</span><span className="tr-block__bar-actions"><Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></span></div>
   </div>;
   // Collapsed: no frame at all. The paragraph's own 译 (filled) opens it again.
   if (!open) return null;
   const busy = state === 'pending';
   const copy = async () => { const ok = await onCopy?.(); setCopied(ok !== false); clearTimeout(timer.current); timer.current = setTimeout(() => setCopied(false), 1600); };
-  const menu = <BlockMenu label={ui('这段译文的更多操作')} items={[
-    { id: 'copy', glyph: 'copy', label: copied ? ui('已复制') : ui('复制译文'), run: copy, keepOpen: true },
-    { id: 'again', glyph: 'retry', label: ui('重新翻译…'), run: () => setAsking(true), disabled: busy },
-    { id: 'glossary', glyph: 'book', label: ui('术语表…'), run: onGlossary },
-    { id: 'delete', glyph: 'trash', label: ui('删除这段翻译'), run: onDelete, tone: 'danger', disabled: busy },
+  const choose = { copy, again: () => setAsking(true), glossary: onGlossary, delete: onDelete };
+  const menu = <Menu className="tr-menu" label={ui('这段译文的更多操作')} onSelect={id => choose[id]()} items={[
+    { id: 'copy', icon: <Glyph name="copy" />, label: ui('复制译文') },
+    { id: 'again', icon: <Glyph name="retry" />, label: ui('重新翻译…'), disabled: busy },
+    { id: 'glossary', icon: <Glyph name="book" />, label: ui('术语表…') },
+    { id: 'delete', icon: <Glyph name="trash" />, label: ui('删除这段翻译'), danger: true, disabled: busy },
   ]} />;
   return <div className="tr-block" role="note" aria-label={ui('译文')} lang={lang} data-state={busy ? 'busy' : 'ok'} data-open={open ? 'true' : 'false'} data-kind={item.kind}>
-    <Bar open={open} onToggle={onToggle} target={target} item={item} menu={menu} preview={item.text} />
+    <Bar open={open} onToggle={onToggle} target={target} item={item} menu={menu} preview={item.text} copied={copied} />
     {open && <>
       <p className="tr-block__text"><MathText text={item.text} /></p>
-      {busy && <p className="tr-block__status" role="status"><span className="sh-spinner" aria-hidden="true" />{ui('正在重新翻译…')}<Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></p>}
-      {!busy && item.warnings?.includes('numbers') && <p className="tr-block__note is-warning">{ui('译文里的数字和原文对不上，请核对。')}</p>}
+      {busy && <p className="tr-block__status" role="status"><Spinner />{ui('正在重新翻译…')}<Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></p>}
+      {!busy && item.warnings?.includes('numbers') && <InlineMessage tone="warning" className="tr-block__note">{ui('译文里的数字和原文对不上，请核对。')}</InlineMessage>}
       {!busy && item.parts > 1 && <p className="tr-block__note">{uiFormat('这段很长，已分成 {0} 小段翻译。', [item.parts])}</p>}
       {!busy && item.reused && <p className="tr-block__note">{ui('沿用了相同文字的旧译文，没有再调用模型。')}</p>}
-      {!busy && item.outdated && <p className="tr-block__note is-warning">{ui('术语表改过了，这段译文可能不一致。')}<Button size="sm" variant="quiet" onClick={() => setAsking(true)}>{ui('重新翻译')}</Button></p>}
+      {!busy && item.outdated && <InlineMessage tone="warning" className="tr-block__note" action={{ label: ui('重新翻译'), onClick: () => setAsking(true) }}>{ui('术语表改过了，这段译文可能不一致。')}</InlineMessage>}
       <History item={item} />
     </>}
     {asking && <AskForm onCancel={() => setAsking(false)} onSubmit={comment => { setAsking(false); onRetranslate(comment); }} />}

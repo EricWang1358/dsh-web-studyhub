@@ -182,10 +182,10 @@
     background: color-mix(in srgb, var(--info) 12%, transparent); color: color-mix(in srgb, var(--info) 60%, var(--text)); font-size: var(--fs-xs); font-weight: 550;
   }
   .board-study-chip__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .board-study-chip__remove, .board-study-chip__remove:hover:not(:disabled) {
-    flex: none; width: 20px; height: 20px; padding: 0; display: inline-grid; place-items: center; border: 0; border-radius: 50%; background: none; color: inherit; font-size: 15px; line-height: 1;
+  .board-study-chip .board-study-chip__remove.sh-btn, .board-study-chip .board-study-chip__remove.sh-btn:hover:not(:disabled) {
+    flex: none; width: 20px; height: 20px; min-height: 0; padding: 0; border-radius: 50%; background: none; color: inherit;
   }
-  .board-study-chip__remove:hover:not(:disabled) { background: color-mix(in srgb, var(--info) 24%, transparent); }
+  .board-study-chip .board-study-chip__remove.sh-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--info) 24%, transparent); }
 
   /* Card detail */
   .board-editor__form { display: flex; flex-direction: column; gap: var(--space-4); }

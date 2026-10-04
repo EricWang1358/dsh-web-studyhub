@@ -212,7 +212,6 @@
   .reader-assist__actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
   .reader-assist__actions .sh-btn { height: auto; padding-block: 5px; line-height: var(--lh-snug); white-space: normal; text-align: left; }
   .reader-assist__note, .reader-assist__status { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-  .reader-assist__note.is-warning { color: var(--warn-text, var(--text)); }
   .reader-assist__bar { position: relative; display: block; height: 3px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); }
   .reader-assist__bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 36%; border-radius: inherit; background: var(--accent); animation: reader-assist-run 1.4s var(--ease-out) infinite; }
   @keyframes reader-assist-run { from { transform: translateX(-100%); } to { transform: translateX(300%); } }

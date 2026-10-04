@@ -19,6 +19,7 @@ const PATHS = {
   'chevron-left': <path d="m14.5 6-6 6 6 6" />,
   caret: <path d="M9.2 7v10l6.3-5z" />,
   minus: <path d="M5 12h14" />,
+  fit: <path d="M9 4.5H4.5V9M15 4.5h4.5V9M9 19.5H4.5V15M15 19.5h4.5V15" />,
   play: <path d="M8 5.5v13l10.5-6.5z" />,
   'arrow-left': <path d="M19 12H5M11 6l-6 6 6 6" />,
   'arrow-right': <path d="M5 12h14M13 6l6 6-6 6" />,

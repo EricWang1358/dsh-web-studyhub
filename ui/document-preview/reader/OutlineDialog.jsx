@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Dialog } from '../../components/index.js';
+import { Button, Dialog, InlineMessage } from '../../components/index.js';
 import OutlineAssist from './OutlineAssist.jsx';
 
 /* "AI 重新分段…" on a row of the 资料 page: the same flow as under the reader's outline (OutlineAssist), for the whole
@@ -23,7 +23,7 @@ export function OutlineDialogBody({ item, call }) {
   const current = useMemo(() => (item.chapters || []).map(chapter => ({ title: chapter.title || ui('前言与目录'), depth: 0 })), [item]);
   return <div className="reader-assist-dialog">
     <p>{ui('让 AI 看一遍这份资料的文字，找出章节（或整理完整目录），再按它重新分段。只改变章节与目录的划分：原文、页码、引用和题目都不会改变。')}</p>
-    {error && <p className="is-warning" role="alert">{uiFormat('没能读取这份资料的目录：{0}', [error])}</p>}
+    {error && <InlineMessage tone="error">{uiFormat('没能读取这份资料的目录：{0}', [error])}</InlineMessage>}
     <OutlineAssist variant="dialog" call={call} target={target} current={current} saved={document?.outline || null} stale={document?.outlineStale || null}
       onSaved={outline => setDocument(value => ({ ...(value || {}), outline, outlineStale: undefined }))} onCleared={() => setDocument(value => ({ ...(value || {}), outline: undefined }))} />
   </div>;
