@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { Button, Icon, InlineMessage } from '../components/index.js';
 import { JobUsage } from '../TokenUsage.jsx';
 import { stepLabel } from '../generation-status.js';
+import { isCancellable } from '../../lib/job-status.js';
 import {
   WORK_PHASES, countsText, deckName, elapsedClock, failureCopy, isActive, jobPhase, phaseLabel, phaseName, resultHeadline, resultReasons,
 } from './selection-job.js';
@@ -70,7 +71,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
       <small className="muted">{ui('后台继续生成，关闭阅读器也不会中断；完成后进信箱。')}</small>
       <JobUsage job={job} />
       <Steps job={job} />
-      {onCancel && ['queued', 'running'].includes(job.status) && <div className="selection-job__actions">
+      {onCancel && isCancellable(job) && <div className="selection-job__actions">
         <Button size="sm" variant="quiet" onClick={() => onCancel(job)}>{ui('停止')}</Button>
       </div>}
     </div>}

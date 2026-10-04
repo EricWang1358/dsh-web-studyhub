@@ -63,7 +63,7 @@ const MEASURE = async ({ selector, index }) => {
   const card = cards[index], t0 = performance.now();
   const visible = (el) => { if (!el || !el.isConnected) return false; const s = getComputedStyle(el), r = el.getBoundingClientRect();
     return s.display !== "none" && s.visibility !== "hidden" && Number(s.opacity) > 0.02 && r.height > 1; };
-  const dismiss = card.querySelector(".job-dismiss") || card;
+  const dismiss = card.querySelector(".job-dismiss, .sh-job__dismiss") || card;
   const disabledNow = () => document.querySelectorAll(".study-app button:disabled, .study-app input:disabled, .study-app select:disabled").length;
   const before = disabledNow();
   let goneMs = null, removedMs = null, disabledUntil = 0, maxDisabled = 0, frames = 0;
@@ -138,11 +138,11 @@ try {
       else await route.continue();
     });
     await page.click('[data-tour="nav-audio"]');
-    await page.waitForSelector(".audio-jobs .job-dismiss");
-    await page.click(".audio-jobs .job-dismiss");
+    await page.waitForSelector(".audio-jobs .sh-job__dismiss");
+    await page.click(".audio-jobs .sh-job__dismiss");
     await sleep(700);
     await shot("fail-audio");
-    results.failureShown = { audio: await page.locator(".audio-jobs .job-error").allTextContents() };
+    results.failureShown = { audio: await page.locator(".audio-jobs .sh-job .sh-inline--error").allTextContents() };
     await page.click('[data-tour="nav-library"]');
     await page.waitForSelector(".generation-jobs .job-dismiss");
     await page.click(".generation-jobs .jobs-dismiss-all");
@@ -159,8 +159,8 @@ try {
   }
   // Audio page.
   await page.click('[data-tour="nav-audio"]');
-  await page.waitForSelector(".audio-jobs .job-dismiss", { timeout: 20000 });
-  await measure("audio-single", ".audio-jobs .job", 0);
+  await page.waitForSelector(".audio-jobs .sh-job__dismiss", { timeout: 20000 });
+  await measure("audio-single", ".audio-jobs .sh-job", 0);
   await page.click('[data-tour="nav-library"]');
   // Home: single card, then dismiss-all.
   await page.waitForSelector(".generation-jobs .job-dismiss", { timeout: 20000 });

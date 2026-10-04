@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
+import { usePolling } from "./use-polling.js";
 import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
@@ -33,11 +34,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   }, [run.id, call]);
   // While variants are being written, watch the cheap status call until they land.
   const waiting = !!status?.preparing && !status?.ready;
-  useEffect(() => {
-    if (!waiting) return;
-    const t = setInterval(() => call("coach.status").then(setStatus).catch(() => {}), 2000);
-    return () => clearInterval(t);
-  }, [waiting, call]);
+  usePolling(() => call("coach.status").then(setStatus).catch(() => {}), { intervalMs: 2000, enabled: waiting });
 
   const ready = status?.ready || 0;
   const next = ready ? "practice_prepared" : debrief?.next === "practice_prepared" ? (waiting ? "wait" : "continue_path") : debrief?.next;
@@ -53,9 +50,9 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       return;
     }
     setLeft(COUNTDOWN);
-    const t = setInterval(() => setLeft((n) => (n > 0 ? n - 1 : 0)), 1000);
-    return () => clearInterval(t);
   }, [autopilot, !!debrief, next, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The countdown keeps its seconds even if the tab is in the background: the suggested step is taken on time.
+  usePolling(() => setLeft((n) => (n > 0 ? n - 1 : 0)), { intervalMs: 1000, enabled: left !== null && left > 0, pauseWhenHidden: false });
   useEffect(() => {
     if (left === 0 && action && !cancelled.current) {
       cancelled.current = true;

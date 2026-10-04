@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Icon, InlineMessage } from './components/index.js';
+import { Button, Icon, InlineConfirm, InlineMessage, SecretKeyForm } from './components/index.js';
 import { sizeLabel } from './mineru-flow.js';
 import audioCss from './audio-settings.css';
 import css from './mineru.css';
@@ -25,6 +25,8 @@ const TEST_TEXT = {
   unavailable: () => ui('没有验证成功：MinerU 暂时不可用，请稍后再试'),
   missing: () => ui('还没有保存令牌'),
 };
+
+const tokenResultText = result => TEST_TEXT[result.state]?.() || uiMessage(result.message || ui('没有返回原因'));
 
 /** The privacy note, one sentence, used wherever the cloud route is offered. */
 export const privacyNote = () => ui('文档会上传到 MinerU 的云端解析，目前不收费，规则可能变化。本地解析不会上传任何内容。');
@@ -51,40 +53,11 @@ export function PrivacyConfirm({ checked, onChange, disabled, id }) {
  * `settings` is mineru.settings.get; `onSaved(settings)` gets the new view. `initialResult` shows a check result at first render (previews, tests).
  */
 export function MineruTokenForm({ call, settings, onSaved, busy = false, primary = true, initialResult = null, label }) {
-  useInjectCss(audioCss, 'study-audio-settings');
-  const [value, setValue] = useState(''), [working, setWorking] = useState(''), [result, setResult] = useState(initialResult);
-  const messageId = useId();
-  const run = async (kind, work) => {
-    if (!call || working) return;
-    setWorking(kind); setResult(null);
-    try { await work(); } catch (error) { setResult({ ok: false, state: 'error', message: String(error?.message || error) }); } finally { setWorking(''); }
-  };
-  const verify = async () => setResult(await call('mineru.test', {}));
-  const save = event => {
-    event.preventDefault();
-    const token = value.trim();
-    if (!token) return;
-    void run('save', async () => { onSaved?.(await call('mineru.settings.set', { token })); setValue(''); await verify(); });
-  };
-  const text = result && (TEST_TEXT[result.state]?.() || uiMessage(result.message || ui('没有返回原因')));
-  return (
-    <form className="audio-key-form" onSubmit={save}>
-      <input name="mineru-token" className="audio-key-input" type="password" autoComplete="off" spellCheck={false} value={value} disabled={busy || !!working}
-        aria-label={label || ui('MinerU 令牌')} aria-describedby={result ? messageId : undefined}
-        placeholder={settings?.token?.set ? uiFormat('已保存 {0}；粘贴新的会替换它', [settings.token.hint]) : ui('粘贴 MinerU 的令牌（eyJ…）')}
-        onChange={event => setValue(event.target.value)} />
-      <div className="audio-key-actions">
-        <Button type="submit" variant={primary ? 'primary' : 'secondary'} busy={working === 'save'} disabled={busy || !!working || !value.trim()}>{ui('保存并验证')}</Button>
-        {settings?.token?.set && <Button variant="secondary" busy={working === 'verify'} disabled={busy || !!working} onClick={() => void run('verify', verify)}>{ui('验证')}</Button>}
-        {settings?.token?.set && settings.token.source !== 'env' && <Button variant="quiet" size="sm" className="audio-key-clear" disabled={busy || !!working}
-          onClick={() => void run('clear', async () => { onSaved?.(await call('mineru.settings.set', { token: '' })); })}>{ui('清除已保存的令牌')}</Button>}
-      </div>
-      <div className="audio-key-foot">
-        {result && <InlineMessage id={messageId} tone={result.ok ? 'success' : 'error'}>{text}</InlineMessage>}
-        <p className="audio-provider-note">{ui('验证只发一次不含文档的请求；令牌只保存在 DSH 主目录里，不进学习库、备份或快照。')}</p>
-      </div>
-    </form>
-  );
+  const set = patch => Promise.resolve(call('mineru.settings.set', patch)).then(next => { onSaved?.(next); return next; });
+  return <SecretKeyForm name="mineru-token" label={label || ui('MinerU 令牌')} placeholder={ui('粘贴 MinerU 的令牌（eyJ…）')}
+    saved={settings?.token} busy={busy || !call} primary={primary} initialResult={initialResult} resultText={tokenResultText} clearLabel={ui('清除已保存的令牌')}
+    footnote={<p className="sh-secret__note">{ui('验证只发一次不含文档的请求；令牌只保存在 DSH 主目录里，不进学习库、备份或快照。')}</p>}
+    onSave={token => set({ token })} onClear={() => set({ token: '' })} onVerify={() => Promise.resolve(call('mineru.test', {}))} />;
 }
 
 const STEP_TEXT = { download: () => ui('正在下载模型'), configure: () => ui('正在启用本地模式'), start: () => ui('正在启动本地服务') };
@@ -114,7 +87,7 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
   useInjectCss(css, 'study-mineru');
   const [working, setWorking] = useState(''), [error, setError] = useState(''), [tier, setTier] = useState('basic'), [confirm, setConfirm] = useState(initialConfirm);
   const [setup, setSetup] = useState(status?.setup?.status === 'running' ? status.setup : null);
-  const alive = useRef(true);
+  const alive = useRef(true), downloadTrigger = useRef(null);
   useEffect(() => () => { alive.current = false; }, []);
   const refresh = useCallback(async () => {
     const next = await call('mineru.local.status', {});
@@ -166,14 +139,11 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
           </label>)}
         </fieldset>
         {!confirm
-          ? <Button variant="primary" icon="download" disabled={busy || !!working} onClick={() => setConfirm(true)}>{ui('下载模型并启用本地解析…')}</Button>
-          : <div className="mineru-confirm" role="group" aria-label={ui('确认下载')}>
-            <p>{uiFormat('将下载约 {0} 到这台电脑，需要联网并占用磁盘。下载中可以随时取消。', [sizeLabel(mb)])}</p>
-            <div className="audio-key-actions">
-              <Button variant="primary" busy={working === 'setup'} disabled={busy || !!working} onClick={download}>{ui('确认下载')}</Button>
-              <Button variant="quiet" disabled={!!working} onClick={() => setConfirm(false)}>{ui('先不下载')}</Button>
-            </div>
-          </div>}
+          ? <Button ref={downloadTrigger} variant="primary" icon="download" disabled={busy || !!working} onClick={() => setConfirm(true)}>{ui('下载模型并启用本地解析…')}</Button>
+          : <InlineConfirm tone="warning" title={ui('确认下载')} confirmLabel={ui('确认下载')} cancelLabel={ui('先不下载')}
+            busy={working === 'setup' || busy} returnFocusRef={downloadTrigger} onConfirm={download} onCancel={() => setConfirm(false)}>
+            {uiFormat('将下载约 {0} 到这台电脑，需要联网并占用磁盘。下载中可以随时取消。', [sizeLabel(mb)])}
+          </InlineConfirm>}
       </div>}
       {running && <div className="mineru-progress" role="status" aria-live="polite">
         <p><strong>{STEP_TEXT[setup.step]?.() || ui('正在设置')}</strong>{uiFormat('（{0}，已用 {1} 秒）', [sizeLabel(setup.modelsMb), Math.max(0, Math.round((Date.now() - Date.parse(setup.startedAt)) / 1000))])}</p>
@@ -181,13 +151,13 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
         <p className="audio-provider-note">{ui('模型很大，下载没有精确的百分比；只要下面这一行在变化，就是在进行。')}</p>
         <Button variant="quiet" size="sm" disabled={!!working} onClick={cancel}>{ui('取消')}</Button>
       </div>}
-      {state === 'server-stopped' && <div className="audio-key-actions">
+      {state === 'server-stopped' && <div className="mineru-local__actions">
         <Button variant="primary" busy={working === 'start'} disabled={busy || !!working} onClick={() => start(false)}>{ui('启动本地服务')}</Button>
       </div>}
       {setup?.status === 'failed' && <InlineMessage tone="error">{uiMessage(setup.error || ui('本地设置没有完成'))}</InlineMessage>}
       {setup?.status === 'cancelled' && <InlineMessage tone="warning">{ui('已取消；没有改动任何设置。')}</InlineMessage>}
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <div className="audio-key-actions">
+      <div className="mineru-local__actions">
         <Button variant="quiet" size="sm" busy={working === 'refresh'} disabled={busy || !!working} onClick={() => void act('refresh', refresh)}>{ui('重新检测')}</Button>
         {state === 'ready' && <Button variant="quiet" size="sm" disabled={busy || !!working} onClick={() => start(true)}>{ui('重新启动本地服务')}</Button>}
       </div>

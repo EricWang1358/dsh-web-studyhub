@@ -5,6 +5,76 @@
    (`:where(.study-app) button`) without !important. Tone colours are passed
    through --sh-tone; --sh-tone-ink nudges the tone toward the text colour so
    coloured words on tinted backgrounds keep AA contrast in both themes. */
+/* ── Semantic tokens (tracker #161, wave 1) ──────────────────────────────
+   Derived from the base tokens in style.css with color-mix, so every theme
+   (dark, light, card stock, future high-contrast ones) adapts on its own.
+   Tone ink/bg/line fix the 82% / 8% / 30% formulas that keep coloured words
+   AA-readable on tinted surfaces; --warn-text is the name two older rules
+   already referenced. Layers, scrims, weights, the small radius and the
+   durations replace the magic numbers feature CSS still carries (the
+   ratchets in tests/ui-guardrails.test.mjs stop new ones). */
+:is(.study-app, .study-seat) {
+  --ok-ink: color-mix(in srgb, var(--ok) 82%, var(--text));
+  --ok-bg: color-mix(in srgb, var(--ok) 8%, var(--bg-surface));
+  --ok-line: color-mix(in srgb, var(--ok) 30%, var(--line));
+  --warn-ink: color-mix(in srgb, var(--warn) 82%, var(--text));
+  --warn-bg: color-mix(in srgb, var(--warn) 8%, var(--bg-surface));
+  --warn-line: color-mix(in srgb, var(--warn) 30%, var(--line));
+  --bad-ink: color-mix(in srgb, var(--bad) 82%, var(--text));
+  --bad-bg: color-mix(in srgb, var(--bad) 8%, var(--bg-surface));
+  --bad-line: color-mix(in srgb, var(--bad) 30%, var(--line));
+  --info-ink: color-mix(in srgb, var(--info) 82%, var(--text));
+  --info-bg: color-mix(in srgb, var(--info) 8%, var(--bg-surface));
+  --info-line: color-mix(in srgb, var(--info) 30%, var(--line));
+  --warn-text: var(--warn-ink);
+
+  /* Stacking order, lowest to highest. A new layer goes between two of these, never above 90. */
+  --z-raised: 1;
+  --z-sticky: 10;
+  --z-toast: 11;
+  --z-popover: 30;
+  --z-overlay: 40;
+  --z-tour: 80;
+  --z-fullscreen: 90; --z-tooltip: 50;
+
+  /* Page-dimming scrims: the sunken desk colour on dark themes, the ink on light ones. */
+  --scrim: color-mix(in srgb, var(--bg-sunken) 60%, transparent);
+  --scrim-strong: color-mix(in srgb, var(--bg-sunken) 82%, transparent);
+
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 550;
+  --fw-strong: 650;
+  --radius-xs: 4px; --space-half: 2px;
+  --dur-fast: .15s;
+  --dur: .2s;
+  --dur-slow: .3s;
+}
+/* Light themes follow color-scheme, so a future light variant needs no extra rule. */
+@supports (color: light-dark(black, white)) {
+  :is(.study-app, .study-seat) {
+    --scrim: light-dark(color-mix(in srgb, var(--text) 45%, transparent), color-mix(in srgb, var(--bg-sunken) 60%, transparent));
+    --scrim-strong: light-dark(color-mix(in srgb, var(--text) 66%, transparent), color-mix(in srgb, var(--bg-sunken) 82%, transparent));
+  }
+}
+/* Card stock re-themes --text/--ok/..., so the derived tones are rebuilt there (mirrors style.css card stock). */
+.study-app :is(.today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta,
+  .flash-area .card-progress, .flip-face, .exam-sheet) {
+  --ok-ink: color-mix(in srgb, var(--ok) 82%, var(--text));
+  --ok-bg: color-mix(in srgb, var(--ok) 8%, var(--bg-surface));
+  --ok-line: color-mix(in srgb, var(--ok) 30%, var(--line));
+  --warn-ink: color-mix(in srgb, var(--warn) 82%, var(--text));
+  --warn-bg: color-mix(in srgb, var(--warn) 8%, var(--bg-surface));
+  --warn-line: color-mix(in srgb, var(--warn) 30%, var(--line));
+  --bad-ink: color-mix(in srgb, var(--bad) 82%, var(--text));
+  --bad-bg: color-mix(in srgb, var(--bad) 8%, var(--bg-surface));
+  --bad-line: color-mix(in srgb, var(--bad) 30%, var(--line));
+  --info-ink: color-mix(in srgb, var(--info) 82%, var(--text));
+  --info-bg: color-mix(in srgb, var(--info) 8%, var(--bg-surface));
+  --info-line: color-mix(in srgb, var(--info) 30%, var(--line));
+  --warn-text: var(--warn-ink);
+}
+
 :is(.study-app, .study-seat) {
   .sh-visually-hidden {
     position: absolute;
@@ -356,11 +426,10 @@
   }
 
   /* ── Tones ──────────────────────────────────────────────────────────── */
-  :is(.sh-toast, .sh-inline, .sh-banner) { --sh-tone: var(--info); }
-  :is(.sh-toast--success, .sh-inline--success, .sh-banner--success) { --sh-tone: var(--ok); }
-  :is(.sh-toast--warning, .sh-inline--warning, .sh-banner--warning) { --sh-tone: var(--warn); }
-  :is(.sh-toast--error, .sh-inline--error, .sh-banner--error) { --sh-tone: var(--bad); }
-  :is(.sh-toast, .sh-inline, .sh-banner) { --sh-tone-ink: color-mix(in srgb, var(--sh-tone) 82%, var(--text)); }
+  :is(.sh-toast, .sh-inline, .sh-banner) { --sh-tone: var(--info); --sh-tone-ink: var(--info-ink); }
+  :is(.sh-toast--success, .sh-inline--success, .sh-banner--success) { --sh-tone: var(--ok); --sh-tone-ink: var(--ok-ink); }
+  :is(.sh-toast--warning, .sh-inline--warning, .sh-banner--warning) { --sh-tone: var(--warn); --sh-tone-ink: var(--warn-ink); }
+  :is(.sh-toast--error, .sh-inline--error, .sh-banner--error) { --sh-tone: var(--bad); --sh-tone-ink: var(--bad-ink); }
 
   /* ── Toast ──────────────────────────────────────────────────────────── */
   .sh-toast {

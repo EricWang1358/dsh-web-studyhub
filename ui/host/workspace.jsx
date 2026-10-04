@@ -11,6 +11,7 @@ import hostCss from './studyhub.css';
 import { createStudyCall } from "../transport.js";
 import { sessionFileAddress } from '../document-preview/selection.js';
 import { openBackgroundAgent } from './open-agent.js';
+import { createPoller } from "../use-polling.js";
 import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
 // The top-level DSH page (root `main` panel) and its sidebar entry share one key.
 export const STUDYHUB_PANEL = "studyhub";
@@ -117,8 +118,9 @@ export function apply(ctx, registerDocumentLearning) {
         }
       } finally { polling = false; }
     };
-    const timer = setInterval(poll, 1800);
-    return () => clearInterval(timer);
+    const poller = createPoller({ run: poll, intervalMs: 1800 });
+    poller.start();
+    return () => poller.stop();
   }, "study conversation panel bridge");
   /** One shared App per placement: the conversation tab ("main"), the right sidebar, or the top-level page. */
   function Seat(props) {

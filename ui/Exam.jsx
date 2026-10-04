@@ -5,14 +5,16 @@ import css from "./views.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import { createWriteQueue } from "./async.js";
 import { EXAM_LIMIT_MS } from "../lib/exam-timing.js";
+import { QUESTION_COUNT } from "../lib/limits.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 import OralExam from "./OralExam.jsx";
 import { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
+import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 import caseCss from './case-study.css';
-import { Button, Icon, SegmentedControl } from './components/index.js';
+import { Button, ErrorState, Icon, SegmentedControl, useNow } from './components/index.js';
 import { ExamHeader, ExamSetupCard, CountField, RecentExams } from './ExamShell.jsx';
 import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from './exam-format.js';
 
@@ -23,9 +25,10 @@ import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from '.
    挂载时从快照 runs 里找回进行中的 exam run 并 review.get 恢复；计时满
    30 分钟自动交卷；卸载不交卷，未交卷的考试保留在服务端可再次接回。 */
 
+const DEFAULT_COUNT = 10;
 const clampCount = (v) => {
   const n = Math.round(Number(v));
-  return Number.isFinite(n) ? Math.min(50, Math.max(1, n)) : 10;
+  return Number.isFinite(n) ? Math.min(QUESTION_COUNT.max, Math.max(QUESTION_COUNT.min, n)) : DEFAULT_COUNT;
 };
 const fmtClock = (ms) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -68,7 +71,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
     [report, setReport] = useState(null),
     [picks, setPicks] = useState({}),
     [err, setErr] = useState(""),
-    [countDraft, setCountDraft] = useState("10"),
+    [countDraft, setCountDraft] = useState(String(DEFAULT_COUNT)),
     [typeMode, setTypeMode] = useState("all"),
     [confirming, setConfirming] = useState(false),
     [busy, setBusy] = useState(false),
@@ -157,13 +160,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* 秒表：从 run.startedAt 起每秒一格。 */
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (phase !== "running" || !run?.startedAt) return;
-    setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [phase, run?.id, run?.startedAt]);
+  const now = useNow(1000, { enabled: phase === "running" && !!run?.startedAt });
   const startMs = useMemo(() => {
     const v = new Date(run?.startedAt).getTime();
     return Number.isFinite(v) ? v : null;
@@ -418,12 +415,12 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
                 <small className="muted">{ui("已选题组：单选 ")}{pickedKinds.quiz}{ui(" 道，多选 ")}{pickedKinds.multi}{ui(" 道。均衡模式尽量各占一半，不足时由另一类补齐。")}</small>
                 {pickedDecks.size > 0 && !typeAvailable && <p className="warning">{ui("所选题组没有这种题型，请换题型或题组。")}</p>}
               </div>
-                <CountField value={count} presets={[5, 10, 20]} min={1} max={50} onChange={(next) => setCountDraft(String(next))}
+                <CountField value={count} presets={[5, 10, 20]} min={QUESTION_COUNT.min} max={QUESTION_COUNT.max} onChange={(next) => setCountDraft(String(next))}
                   hint={pickedDecks.size && !typeAvailable
                     ? ui("当前题型可选 0 道")
                     : pickedDecks.size && typeAvailable < count
                       ? uiFormat("符合题型的题只有 {0} 道，将全部出题", [typeAvailable])
-                      : ui("1–50 · 默认 10")} />
+                      : uiFormat("{0}–{1} · 默认 {2}", [QUESTION_COUNT.min, QUESTION_COUNT.max, DEFAULT_COUNT])} />
               </>
             ) : (
               <div className="es-empty">
@@ -439,7 +436,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
             )}
           </ExamSetupCard>
           {recent}
-          {err && <p className="exam-error">{err}</p>}
+          {err && <ErrorState error={err} />}
         </div>
       )}
 
@@ -499,28 +496,19 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
               onClick={() => move(1)}
             >{ui("下一题 →")}</button>
           </div>
-          {confirming ? (
-            <div className="exam-confirm" role="alertdialog" aria-label={ui("确认交卷")}>
-              <p>{ui("还有 ")}<strong>{unanswered}</strong>{ui(" 题未作答，交卷后将立即判分并结束本次考试。")}</p>
-              <div className="exam-confirm-actions">
-                <button disabled={busy} onClick={() => setConfirming(false)}>{ui("继续作答")}</button>
-                <button className="primary" disabled={busy} onClick={submit}>
-                  {busy ? ui("正在交卷…") : ui("确认交卷")}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="exam-foot">
-              <button disabled={busy} onClick={expired ? submit : () => setConfirming(true)}>
-                {expired ? ui("重试交卷") : ui("交卷")}
-              </button>
-              <p className="muted small">
-                {expired ? ui("时间已到，已停止作答；交卷失败时会自动重试。")
-                  : ui("未交卷的考试会保留在回到题目里 · 计时满 30 分钟自动交卷")}
-              </p>
-            </div>
-          )}
-          {err && <p className="exam-error">{err}</p>}
+          <div className="exam-foot">
+            <button disabled={busy} onClick={expired ? submit : () => setConfirming(true)}>
+              {expired ? ui("重试交卷") : ui("交卷")}
+            </button>
+            <p className="muted small">
+              {expired ? ui("时间已到，已停止作答；交卷失败时会自动重试。")
+                : ui("未交卷的考试会保留在回到题目里 · 计时满 30 分钟自动交卷")}
+            </p>
+          </div>
+          {confirming && <SubmitBlanksDialog onClose={() => setConfirming(false)} onConfirm={submit}>
+            <p>{uiFormat("还有 {0} 题未作答，交卷后将立即判分并结束本次考试。", [unanswered])}</p>
+          </SubmitBlanksDialog>}
+          {err && <ErrorState error={err} />}
         </>
       )}
 
@@ -649,7 +637,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
           </div>}
 
           </details>
-          {err && <p className="exam-error">{err}</p>}
+          {err && <ErrorState error={err} />}
         </ReadingBlock>
       )}
     </section>

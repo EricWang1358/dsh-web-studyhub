@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from '../../components/index.js';
+import { Button, InlineMessage } from '../../components/index.js';
 import { ui, uiFormat } from '../../i18n.js';
 
 /** "已存为闪卡 · 打开这道题": the result of saving, with the jump to the saved (or already existing) card. */
@@ -50,6 +50,6 @@ export default function SaveAnswerAsCard({ call, selection, question, answer, de
         title={ready ? undefined : ui('需要先启用出题组件，才能存成闪卡。')}>{busy ? ui('正在保存…') : error ? ui('重试保存') : ui('存成闪卡')}</Button>
       <small className="muted">{deckId && deckTitle ? uiFormat('将保存到「{0}」', [deckTitle]) : ui('将保存到本课程的「原文问答」题组')}</small>
     </>}
-    {error && <p className="warning" role="alert">{error}</p>}
+    {error && <InlineMessage tone="error">{error}</InlineMessage>}
   </div>;
 }

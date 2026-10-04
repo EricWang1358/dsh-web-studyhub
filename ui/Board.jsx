@@ -1,12 +1,14 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useInjectCss } from "./shared.js";
-import { Button, Dialog, EmptyState, IconButton, InlineMessage, PageHeader, ToastRegion } from "./components/index.js";
+import { usePolling } from "./use-polling.js";
+import { Button, EmptyState, IconButton, InlineMessage, PageHeader, ToastRegion } from "./components/index.js";
 import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
 import { createBoardStore } from "./board/store.js";
 import BoardCard from "./board/Card.jsx";
 import Composer from "./board/Composer.jsx";
 import CardEditor from "./board/CardEditor.jsx";
+import DeleteCardDialog from "./board/DeleteCardDialog.jsx";
 import FilterBar from "./board/FilterBar.jsx";
 import Menu from "./board/Menu.jsx";
 import BIcon from "./board/icons.jsx";
@@ -23,13 +25,14 @@ export function useBoard(call, visible) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   useEffect(() => {
     store.refresh();
-    const timer = setInterval(() => { if (!document.hidden) store.refresh(); }, visible ? 5000 : 30000);
-    return () => { clearInterval(timer); store.invalidate(); };
+    return () => store.invalidate();
   }, [store, visible]);
+  usePolling(() => store.refresh(), { intervalMs: visible ? 5000 : 30000 });
   return useMemo(() => ({ ...snapshot, mutate: store.mutate, refresh: store.refresh, clearError: store.clearError }), [snapshot, store]);
 }
 
 const MOVE_KEYS = { left: -1, right: 1 };
+const UNDO_TIMEOUT = 8000;
 const COLLAPSE_KEY = "study-board-collapsed";
 const readCollapsed = () => { try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "[]")); } catch { return new Set(); } };
 const writeCollapsed = (set) => { try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set])); } catch { /* a per-viewer convenience only */ } };
@@ -183,13 +186,6 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
     const frame = requestAnimationFrame(() => { document.querySelector(`[data-card-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: false }); focusId.current = null; });
     return () => cancelAnimationFrame(frame);
   }, [board]);
-  // An undo offer lives a few seconds.
-  useEffect(() => {
-    if (!toast) return undefined;
-    const timer = setTimeout(() => setToast((current) => current?.id === toast.id ? null : current), 8000);
-    return () => clearTimeout(timer);
-  }, [toast]);
-
   const say = useCallback((message) => { announced.current += 1; setAnnouncement(announced.current % 2 ? message : `${message}​`); }, []);
   const offer = useCallback((message, undo) => {
     toastCount.current += 1;
@@ -321,17 +317,16 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
     {editingCard && <CardEditor key={editing.id} card={editingCard} board={board} baseRevision={editing.revision} library={library} today={today}
       labelSuggestions={labels.map((entry) => entry.label)} saving={saving} error={message} conflict={conflict} onClose={() => { setEditing(null); clearError?.(); }}
       onSave={async (fields) => { setSaving(true); const ok = await run("board.card.edit", { id: editingCard.id, revision: editing.revision, ...fields }, { optimistic: false }); setSaving(false); return ok; }}
-      onArchive={async (card) => { setEditing(null); await archiveCard(card); }} onDelete={async (card) => { setEditing(null); await deleteCard(card); }}
+      onArchive={async (card) => { setEditing(null); await archiveCard(card); }} onDelete={async (card) => { const ok = await deleteCard(card); if (ok) setEditing(null); return ok; }}
       onOrigin={openRef(onOrigin) && ((workspace) => { setEditing(null); return openRef(onOrigin)(workspace); })}
       onStudyRef={openRef(onStudyRef) && ((ref) => { setEditing(null); return openRef(onStudyRef)(ref); })} />}
-    {confirm && <Dialog size="sm" title={confirm.kind === "purge" ? ui("永久删除这张卡片？") : ui("删除这张卡片？")} onClose={() => setConfirm(null)}
-      description={confirm.kind === "purge" ? ui("它会从归档里消失，无法恢复。") : ui("删除后会立刻提示，可撤销。")}
-      footer={<>
-        <Button variant="quiet" onClick={() => setConfirm(null)}>{ui("保留")}</Button>
-        <Button variant="danger" icon={<BIcon name="trash" />} onClick={async () => { const { card, kind } = confirm; setConfirm(null); await (kind === "purge" ? run("board.card.remove", { id: card.id }) : deleteCard(card)); }}>{ui("确认删除")}</Button>
-      </>}><p className="board-confirm__title">{confirm.card.title}</p></Dialog>}
+    {confirm && <DeleteCardDialog card={confirm.card} purge={confirm.kind === "purge"} onClose={() => setConfirm(null)}
+      onConfirm={async () => {
+        const { card, kind } = confirm;
+        if (!(await (kind === "purge" ? run("board.card.remove", { id: card.id }) : deleteCard(card)))) throw new Error(ui("没有完成，请再试一次。"));
+      }} />}
     <div className="sh-visually-hidden" role="status" aria-live="polite">{announcement}</div>
-    <ToastRegion placement="page" toasts={toast ? [{ id: toast.id, tone: "success", message: toast.message, persistent: true,
+    <ToastRegion placement="page" toasts={toast ? [{ id: toast.id, tone: "success", message: toast.message, undo: true, timeout: UNDO_TIMEOUT,
       action: toast.undo ? { label: ui("撤销"), onClick: async () => { const undo = toast.undo; setToast(null); if (await undo()) say(ui("已撤销")); } } : undefined }] : []}
       onDismiss={() => setToast(null)} />
   </section>;

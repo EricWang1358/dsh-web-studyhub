@@ -36,6 +36,24 @@ Rules: one filled primary button per screen; a primary that cannot act turns neu
 
 Accent presets (设置 › 界面 › 强调色): cinnabar stays the default and the identity; jade, ochre, graphite and plum are opt-in swaps of `--accent`, `--accent-soft`, `--accent-text` and `--bg-selected` (`ui/accent.css`, one `data-accent` attribute), nothing else changes. There is no free colour picker, so every preset is contrast-checked in `tests/accent-presets.test.mjs`, and none is blue-violet. The mastery hues (`--ok` jade, `--warn` ochre) keep their meaning; a preset that shares a hue with one is a choice of the learner, not a signal.
 
+## Semantic tokens
+
+Defined at the top of `ui/components/components.css` (scoped to `.study-app` / `.study-seat`, derived with `color-mix`, so every theme adapts). Feature CSS uses these, not literals; `tests/ui-guardrails.test.mjs` ratchets the old literals down per file.
+
+| Token | Use |
+| --- | --- |
+| `--ok-ink` / `--warn-ink` / `--bad-ink` / `--info-ink` | Coloured words on a tinted or plain surface (the tone mixed 82% into `--text`, AA in both themes). `--warn-text` is an alias of `--warn-ink`. |
+| `--ok-bg` / `--warn-bg` / `--bad-bg` / `--info-bg` | Light tinted surface for notes and banners (tone 8% into `--bg-surface`). |
+| `--ok-line` / `--warn-line` / `--bad-line` / `--info-line` | Border of such a surface (tone 30% into `--line`). |
+| `--z-raised` 1, `--z-sticky` 10, `--z-toast` 11, `--z-popover` 30, `--z-overlay` 40, `--z-tooltip` 50, `--z-tour` 80, `--z-fullscreen` 90 | The only stacking order. Pick a layer; never write a number above 2. |
+| `--scrim` / `--scrim-strong` | Page dimming behind dialogs, sheets and `::backdrop` (dark on every theme). |
+| `--fw-light` 300, `--fw-regular` 400, `--fw-medium` 550, `--fw-strong` 650 | Font weights; no other numbers. |
+| `--radius-xs` 4px | Chips, keys and inline code; larger shapes keep `--radius-sm`, `--radius`, `--radius-card`, `--radius-pill`. |
+| `--space-half` 2px | Hairline gaps and badge padding below `--space-1`; everything larger uses `--space-1…9`. |
+| `--dur-fast` .15s, `--dur` .2s, `--dur-slow` .3s | Transition and animation durations, with `--ease` / `--ease-out`. |
+
+Where a rule re-themes `--text` or a tone (card stock), re-declare the derived tones there too.
+
 ## Theme
 
 `auto` follows `prefers-color-scheme` (inside DSH, the host appearance) and updates live; `dark` / `light` override. The resolved theme is always stamped on `.study-app`; `.study-seat` mirrors it for host overlays.
@@ -135,3 +153,12 @@ Block: a labelled note (`role="note"`, the language of the translation on it), s
 Modes (one row in Aa, kept per browser): 逐段对照 (under its paragraph; the default), 左右分栏 (original left, translation right: every paragraph and its block are in one grid row, so heights match without scroll sync; it falls back to 逐段对照 when the reader is under 900px or the reading column under 640px, and says so), 仅中文/仅英文 (the original folds to its first line, a click unfolds it), 隐藏译文 (only the marks; a click on a mark shows that one). Markdown/HTML lists and other nested blocks stay stacked in 左右分栏 (a grid needs direct children).
 Costs are visible before they are paid: the 译 popover prices 本页 / 本节 / 本章 with the shared token estimate and says how many paragraphs are left; the job (background, bounded batches, at most three in flight, stop keeps what is done, never twice) shows done/total, the clock and what it used against what was expected in the reader's notices, and files an inbox letter.
 Contracts: marks, blocks and the chip carry `data-study-marker` (selection capture, find, link underlines and the outline skip them); no stored character, `data-study-*` attribute, citation or card link is touched; a translation is kept per document revision and never applied to another (listed as older, reused where the words did not change); the 原文 view gets the chip and a floating card because its text is one `<pre>`.
+
+# Confirmations
+
+One question, one component. Pick by what the action does, not by where the button is.
+- Destructive, irreversible or leaving-the-screen actions (delete a card, remove sample data, switch course and start over, submit an exam with blanks) use `ConfirmDialog`: a modal, cancel (quiet) first and focused, the confirm last (danger, or primary when nothing is lost). It stays open and busy while the action runs, shows a failure inside itself, cannot be dismissed while busy and fires once on a double click. The same action asks the same question from every entry point (the ⋯ menu and the editor both open the board's delete dialog).
+- Reversible edits inside a form (reset a field group, merge two courses that can be split again, clear a history that can be refilled) use `InlineConfirm`: one boxed question in place, the same button order, focus on cancel when it appears and back on the trigger when it is cancelled. It is a labelled group, never `role="alertdialog"`, because the rest of the form stays usable.
+- Never `window.confirm`, never "tap twice to confirm" by swapping a label, never a hand-built footer of two buttons.
+- An undo offer replaces a confirmation only when the action really is reversible: a toast with `undo: true` and an action leaves after its timeout but is held while the pointer or keyboard focus is on it.
+- Closing: `Dialog` `busy` means "work is running": the close button stays, is marked aria-disabled, Escape and the backdrop do nothing. Use `CloseButton` for any other close control and `Popover` / `Menu` / `Tooltip` for floating panels (they share `useDismiss` and `useAnchoredPosition`).

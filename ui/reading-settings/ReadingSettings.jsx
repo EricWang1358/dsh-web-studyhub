@@ -1,7 +1,7 @@
-import React, { createElement, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { createElement } from 'react';
 import { ui } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, IconButton, SegmentedControl } from '../components/index.js';
+import { Button, IconButton, Popover, SegmentedControl } from '../components/index.js';
 import { FONT_PRESETS } from '../font-presets.js';
 import { FACES, SIZES, readingProps, stepSize } from './settings.js';
 import { useReadingSettings } from './store.js';
@@ -65,54 +65,15 @@ export function DisplayControls({ settings, onChange, onReset, underline = true,
   </>;
 }
 
-const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
-
 /** The Aa button and its popover for the given settings. Inside the reader the panel is kept within the viewer; elsewhere within the window. */
 export function DisplaySettings({ settings, onChange, onReset, underline = true, className, extra = null }) {
   useInjectCss(css, 'study-reading');
-  const [open, setOpen] = useState(false);
-  const root = useRef(null), panel = useRef(null), panelId = useId();
-  // On a narrow pane the Aa button can sit anywhere along a wrapped toolbar: slide the panel back inside its bounds (a style write, no state).
-  useIsoLayoutEffect(() => {
-    const element = panel.current, anchor = root.current, viewer = anchor?.closest('.study-document-viewer');
-    if (!open || !element || !anchor) return;
-    const place = () => {
-      const bounds = viewer ? viewer.getBoundingClientRect() : { left: 0, right: window.innerWidth };
-      const box = element.getBoundingClientRect(), margin = 8;
-      // Bounds include interface zoom, while translateX uses the element's CSS pixels.
-      const scale = element.offsetWidth ? box.width / element.offsetWidth : 1;
-      // offsetLeft follows container reflow without including the previous translation.
-      const left = anchor.getBoundingClientRect().left + element.offsetLeft * scale;
-      let shift = Math.min(0, bounds.right - margin - left - box.width);
-      shift = Math.max(shift, bounds.left + margin - left);
-      element.style.transform = shift ? `translateX(${Math.round(shift / (scale || 1))}px)` : '';
-      const bottom = Math.min(bounds.bottom ?? window.innerHeight, window.innerHeight);
-      element.style.maxHeight = `${Math.max(0, Math.floor((bottom - box.top - margin) / (scale || 1)))}px`;
-    };
-    place();
-    window.addEventListener('resize', place);
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
-    if (viewer) observer?.observe(viewer);
-    observer?.observe(anchor);
-    observer?.observe(element);
-    return () => { window.removeEventListener('resize', place); observer?.disconnect(); };
-  }, [open]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = event => { if (root.current && !root.current.contains(event.target)) setOpen(false); };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [open]);
-  const onKeyDown = event => {
-    if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); }
-  };
-  return <div className={`reader-popover${className ? ` ${className}` : ''}`} ref={root} onKeyDown={onKeyDown}>
-    <IconButton icon="type" label={ui('显示设置')} data-usage="reader.display" aria-expanded={open} aria-controls={open ? panelId : undefined} aria-pressed={open}
-      onClick={() => setOpen(state => !state)} />
-    {open && <div className="reader-popover__panel" ref={panel} id={panelId} role="group" aria-label={ui('显示设置')}>
-      <DisplayControls settings={settings} onChange={onChange} onReset={onReset} underline={underline} extra={extra} />
-    </div>}
-  </div>;
+  // On a narrow pane the Aa button can sit anywhere along a wrapped toolbar: Popover slides the panel back inside its bounds at any interface zoom.
+  return <Popover label={ui('显示设置')} icon="type" className={`reader-popover${className ? ` ${className}` : ''}`} panelClassName="reader-popover__panel"
+    boundsSelector=".study-document-viewer" flip={false}
+    trigger={({ props, ref }) => <IconButton ref={ref} icon="type" label={ui('显示设置')} data-usage="reader.display" {...props} />}>
+    <DisplayControls settings={settings} onChange={onChange} onReset={onReset} underline={underline} extra={extra} />
+  </Popover>;
 }
 
 /** The Aa button wired to the shared setting: size, text width, typeface and background of every reading block, in every open panel. */

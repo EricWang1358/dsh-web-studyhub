@@ -7,7 +7,7 @@ import css from "./skeleton.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { InlineMessage, SegmentedControl } from "./components/index.js";
+import { ConfirmDialog, InlineMessage, SegmentedControl } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
@@ -537,26 +537,23 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                     className="sk-danger"
                     disabled={!!pending}
                     title={ui("只删骨架，题目不受影响")}
-                    onBlur={() => setConfirmDelete(false)}
-                    onClick={async () => {
-                      // Two taps instead of window.confirm, which host webviews may block.
-                      if (!confirmDelete) return setConfirmDelete(true);
-                      setConfirmDelete(false);
-                      setPending("delete");
-                      try {
-                        await call("skeleton.delete", { id: viewing.id });
-                        onFocus(null);
-                      } catch (e) {
-                        fail(e);
-                      } finally {
-                        setPending("");
-                      }
-                    }}
+                    onClick={() => setConfirmDelete(true)}
                   >
-                    {confirmDelete ? ui("再点一次删除") : ui("删除")}
+                    {ui("删除")}
                   </button>
                 </div>
               </header>
+              {confirmDelete && <ConfirmDialog title={uiFormat("删除骨架「{0}」？", [viewing.title])} description={ui("只删骨架，题目不受影响。")}
+                confirmLabel={ui("删除")} onClose={() => setConfirmDelete(false)}
+                onConfirm={async () => {
+                  setPending("delete");
+                  try {
+                    await call("skeleton.delete", { id: viewing.id });
+                    onFocus(null);
+                  } finally {
+                    setPending("");
+                  }
+                }} />}
               {viewing.overview && <Markdown text={viewing.overview} className="sk-overview" />}
               <form
                 className="sk-extend-row"
