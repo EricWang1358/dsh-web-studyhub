@@ -61,6 +61,18 @@ test('Settings is not handed JSX to lay out (#113)', () => {
   assert.doesNotMatch(code(read('ui/app/page-views.jsx')), /\b(workspacePanel|coursePanel|onboardingPanel)\b/);
 });
 
+/* ---------- #116: unmount guards and failure text come from ui/use-async.js ---------- */
+
+test('"let live = true" unmount flags are few: effects use useLiveEffect (#116)', () => {
+  const flags = uiSources().flatMap(({ file, text }) => [...text.matchAll(/\blet\s+(?:live|alive)\s*=\s*true\b/g)].map(() => file));
+  assert.ok(flags.length <= 10, `${flags.length} hand-written flags: ${[...new Set(flags)].join(', ')}`);
+});
+
+test('a failure is turned into text by errorMessage (uiMessage), not by message || String(failure) (#116)', () => {
+  const offenders = uiSources().filter(({ text }) => /\bmessage\s*\|\|\s*String\(/.test(text)).map(({ file }) => file);
+  assert.deepEqual(offenders, []);
+});
+
 /* ---------- #115: the browser's storage is touched in one place ---------- */
 
 test('localStorage and sessionStorage appear only in ui/storage.js and ui/i18n.js (#115)', () => {

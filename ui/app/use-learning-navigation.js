@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { navLabelOf } from '../pages.js';
 import {
   ABORT, captureContext as captureOrigin, currentStudyReference as referenceOf, leavesTrail, loadLearningTarget, loadReturnTarget,
@@ -59,7 +59,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       openTarget(target, result, verbs, env(live));
       if (leavesTrail(target)) setFocusRequest({});
     } catch (error) {
-      if (live()) { if (throwOnError) throw error; setError(error.message || String(error)); }
+      if (live()) { if (throwOnError) throw error; setError(errorMessage(error)); }
     }
   }, [call, captureContext, guard, rememberContext, setError, setModal, setFocusRequest, verbs]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -98,7 +98,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       } else setModal(null);
       setContextTrail((previous) => previous.slice(0, -1));
       setFocusRequest({ element: origin.invoker });
-    } catch (error) { if (live()) setError(error.message || String(error)); }
+    } catch (error) { if (live()) setError(errorMessage(error)); }
   }, [call, guard, refs, setContextTrail, setError, setFocusRequest, setModal, verbs]);
 
   // Back to the question a letter took the learner away from.

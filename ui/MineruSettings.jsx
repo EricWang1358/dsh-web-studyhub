@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { ui, uiFormat, uiMessage } from './i18n.js';
+import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Checkbox, Hint, Icon, InlineConfirm, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, SettingsSection, useToast } from './components/index.js';
 import { sizeLabel } from './mineru-flow.js';
@@ -112,7 +112,7 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
   const act = async (name, work) => {
     if (working) return;
     setWorking(name); setError('');
-    try { await work(); } catch (failure) { setError(uiMessage(String(failure?.message || failure))); } finally { if (alive.current) setWorking(''); }
+    try { await work(); } catch (failure) { setError(errorMessage(failure)); } finally { if (alive.current) setWorking(''); }
   };
   const start = restart => act('start', async () => { onStatus?.(await call('mineru.local.start', { restart })); });
   const download = () => act('setup', async () => { setConfirm(false); setSetup(await call('mineru.local.setup', { tier, confirm: true })); });
@@ -173,7 +173,7 @@ export default function MineruSettings({ call, busy = false, initialSettings = n
   const acknowledge = async checked => {
     setAcknowledging(true); setError('');
     try { setSettings(await call('mineru.settings.set', { acknowledge: checked })); toast.success(checked ? ui('已确认：云端解析会把文档上传到 MinerU。') : ui('已撤回确认；之后用云端解析前会再问一次。')); }
-    catch (failure) { setError(uiMessage(String(failure?.message || failure))); }
+    catch (failure) { setError(errorMessage(failure)); }
     finally { setAcknowledging(false); }
   };
   return (

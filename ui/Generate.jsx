@@ -30,6 +30,7 @@ import formCss from './generate-form.css';
 import CaseCreate from './CaseCreate.jsx';
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { referenceSelection } from './reference-questions.js';
+import { useLiveEffect } from './use-async.js';
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
    importing questions that already exist is the second way in. Generation is
@@ -74,11 +75,9 @@ export default function Generate({
   const advice = generateAdvice({ sources: data.sources, selectedIds: selectedSources, focus: gen.focus, retrieval });
   // The learner's goal tells whether the target role belongs on the form; read once, quietly.
   const [goal, setGoal] = React.useState('');
-  React.useEffect(() => {
-    let live = true;
-    Promise.resolve(call?.('coach.profile', {})).then((profile) => { if (live && typeof profile?.goal === 'string') setGoal(profile.goal); }, () => {});
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useLiveEffect((live) => {
+    Promise.resolve(call?.('coach.profile', {})).then((profile) => { if (live() && typeof profile?.goal === 'string') setGoal(profile.goal); }, () => {});
+  }, []);
   // 帮我想想: asked on click only; a result belongs to the sources and course it was asked for.
   const [assist, setAssist] = React.useState({ phase: 'idle', result: null, applied: false });
   const assistToken = React.useRef(0);

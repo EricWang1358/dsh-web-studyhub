@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { uiFormat } from '../../i18n.js';
+import { uiFormat, errorMessage } from '../../i18n.js';
 import PagePeekView from './PagePeekView.jsx';
 import { createPeekRenderer } from './renderer.js';
 import { LruCache, MAX_CACHED_PAGES, clampTo, createRenderGate, moveBox, pdfPageFor, peekCanvasSize, peekPlan, resizeBox, stepZoom } from './peek-logic.js';
@@ -45,7 +45,7 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
         renderer.current = opened;
         if (!windowed && totalPages > 0 && opened.numPages !== totalPages) { setMismatch({ totalPages, pdfPages: opened.numPages }); setPhase('mismatch'); return; }
         setPhase('ready');
-      } catch (failure) { if (live) { setMessage(failure?.message || String(failure)); setPhase('error'); } }
+      } catch (failure) { if (live) { setMessage(errorMessage(failure)); setPhase('error'); } }
     })();
     return () => {
       live = false;
@@ -88,7 +88,7 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
           note();
         }
       } catch (failure) {
-        if (turn.current() && failure?.name !== 'RenderingCancelledException' && failure?.name !== 'AbortError' && failure?.name !== 'AbortException') { setMessage(failure?.message || String(failure)); setPhase('error'); }
+        if (turn.current() && failure?.name !== 'RenderingCancelledException' && failure?.name !== 'AbortError' && failure?.name !== 'AbortException') { setMessage(errorMessage(failure)); setPhase('error'); }
       } finally { if (turn.current()) setBusy(false); }
     })();
     return () => gate.current?.cancelAll();

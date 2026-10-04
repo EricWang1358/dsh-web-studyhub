@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ui, uiFormat } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Hint, InlineMessage } from './components/index.js';
 import { formatNumber } from './format.js';
@@ -27,7 +27,7 @@ export default function RetrievalPanel({ advice, sourceIds = [], focus = '', cou
     try {
       const result = await call('retrieval.preview', { sourceIds, query: topic, ...(course ? { course } : {}), limit: 20 });
       setPreview(result); setChecked(new Set((result?.pages || []).map(page => page.sourceId)));
-    } catch (failure) { setError(failure?.message || String(failure)); }
+    } catch (failure) { setError(errorMessage(failure)); }
     finally { setLoading(false); }
   }
   const toggle = (id, on) => setChecked(current => { const next = new Set(current); if (on) next.add(id); else next.delete(id); return next; });

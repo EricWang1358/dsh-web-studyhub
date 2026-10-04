@@ -13,6 +13,7 @@ import { useInjectCss } from './shared.js';
 import css from './live-class.css';
 import CourseField from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
+import { useLiveEffect } from './use-async.js';
 
 // What the host's generator is told to write in, by interface language.
 const GENERATION_LANGUAGE = { en: 'English', zh: '中文' };
@@ -82,11 +83,9 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
   const [readiness, setReadiness] = useState(initialReadiness);
-  useEffect(() => {
+  useLiveEffect((alive) => {
     if (!visible || initialReadiness || !call) return;
-    let alive = true;
-    Promise.resolve(call('audio.preflight', {})).then((result) => { if (alive && result && typeof result === 'object') setReadiness(result); }, () => {});
-    return () => { alive = false; };
+    Promise.resolve(call('audio.preflight', {})).then((result) => { if (alive() && result && typeof result === 'object') setReadiness(result); }, () => {});
   }, [visible, call, initialReadiness]);
   const refresh = useCallback(async () => {
     const result = await call('live.list'); setSessions(result.sessions || []);

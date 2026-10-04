@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import css from "./views.css";
@@ -180,7 +180,7 @@ export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onS
       const value = await call('stats', scopeArgs(course, showInactive));
       if (request === seq.current) setStats({ course: scopeKey, value });
     } catch (e) {
-      if (request === seq.current) setErr(e.message || String(e));
+      if (request === seq.current) setErr(errorMessage(e));
     } finally {
       if (request === seq.current) setLoading(false);
     }

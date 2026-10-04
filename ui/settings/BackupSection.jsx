@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, ConfirmDialog, Hint, Icon, InlineMessage, SettingsSection, formatBytes } from '../components/index.js';
 import { backupFileName } from './backup-name.js';
 
@@ -54,7 +54,7 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
       if (!isFullBackup(state)) throw new Error(ui('这不是完整学习库备份'));
       setFile({ name: chosen.name, size: chosen.size, state });
     } catch (e) {
-      if (request === readRequest.current) setError(uiFormat('无法读取备份：{0}', [e.message || String(e)]));
+      if (request === readRequest.current) setError(uiFormat('无法读取备份：{0}', [errorMessage(e)]));
     } finally { if (request === readRequest.current && input.current) input.current.value = ''; }
   }
   function chooseBackup() { read(null); input.current?.click(); }
@@ -63,7 +63,7 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
     try {
       await act('restore', { state: file.state }, (result) => { setFile(null); onRestored?.(result); }, { rethrow: true });
     } catch (e) {
-      throw new Error(uiFormat('恢复没有完成，当前学习库保持不变：{0}', [e?.message || String(e)]));
+      throw new Error(uiFormat('恢复没有完成，当前学习库保持不变：{0}', [errorMessage(e)]));
     }
   }
   return (

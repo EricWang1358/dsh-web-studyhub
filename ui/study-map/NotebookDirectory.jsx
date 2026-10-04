@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Badge, Button, DisclosureToggle, Hint, InlineMessage, LoadingState, foldLabel } from '../components/index.js';
 import { EMPTY_NOTEBOOKS } from './map-model.js';
 import { readText, writeText } from '../storage.js';
@@ -55,7 +55,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
       const found = await onSearch(q);
       if (request === searchRequest.current) setResults(found);
     } catch (failure) {
-      if (request === searchRequest.current) setSearchError(failure.message || String(failure));
+      if (request === searchRequest.current) setSearchError(errorMessage(failure));
     } finally {
       if (request === searchRequest.current) setSearching(false);
     }

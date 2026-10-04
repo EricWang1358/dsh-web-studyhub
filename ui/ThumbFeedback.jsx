@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
 import { Chip, Icon, InlineMessage, useToast } from "./components/index.js";
@@ -82,7 +82,7 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
       .catch((failure) => {
         if (activeKey.current === key) {
           args.tags?.forEach((tag) => submitting.current.delete(tag));
-          setError(uiFormat("反馈未保存：{0}。请重试。", [failure.message || String(failure)]));
+          setError(uiFormat("反馈未保存：{0}。请重试。", [errorMessage(failure)]));
           setVote(saved.current.vote);
           setTags(saved.current.tags);
           sent.current = new Set(saved.current.tags);

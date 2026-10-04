@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ui, uiMessage } from './i18n.js';
+import { ui, uiMessage, errorMessage } from './i18n.js';
 import { downloadMarkerScript } from './marker-script.js';
 import { Button, Disclosure, Field, Hint, Icon, InlineMessage, TextInput } from './components/index.js';
 import MarkerInstall from './MarkerInstall.jsx';
 import { useInjectCss } from './shared.js';
 import css from './marker-install.css';
+import { useLiveEffect } from './use-async.js';
 
 export default function MarkerSettings({ call, disabled = false, available = true }) {
   const alive = useRef(true), revision = useRef(0), saving = useRef(false);
@@ -12,19 +13,17 @@ export default function MarkerSettings({ call, disabled = false, available = tru
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [command, setCommand] = useState(''), [status, setStatus] = useState(null), [working, setWorking] = useState(false), [error, setError] = useState('');
   const [loading, setLoading] = useState(available && !!call);
-  useEffect(() => {
-    if (!available || !call) { setLoading(false); return undefined; }
-    let live = true;
+  useLiveEffect(live => {
+    if (!available || !call) { setLoading(false); return; }
     const generation = ++revision.current;
     setLoading(true);
     Promise.resolve(call('marker.settings.get', {})).then(settings => {
-      if (live) setCommand(settings.command || '');
-    }, failure => { if (live) setError(uiMessage(String(failure.message || failure))); })
-      .finally(() => { if (live) setLoading(false); });
+      if (live()) setCommand(settings.command || '');
+    }, failure => { if (live()) setError(errorMessage(failure)); })
+      .finally(() => { if (live()) setLoading(false); });
     Promise.resolve(call('marker.local.status', {})).then(result => {
-      if (live && revision.current === generation) setStatus(result);
-    }, failure => { if (live && revision.current === generation) setError(uiMessage(String(failure.message || failure))); });
-    return () => { live = false; };
+      if (live() && revision.current === generation) setStatus(result);
+    }, failure => { if (live() && revision.current === generation) setError(errorMessage(failure)); });
   }, [call, available]);
   async function save() {
     if (!available || !call || loading || saving.current) return;
@@ -35,7 +34,7 @@ export default function MarkerSettings({ call, disabled = false, available = tru
       await call('marker.settings.set', { command: command.trim() });
       const result = await call('marker.local.status', {});
       if (alive.current && revision.current === generation) setStatus(result);
-    } catch (failure) { if (alive.current) setError(uiMessage(String(failure.message || failure))); }
+    } catch (failure) { if (alive.current) setError(errorMessage(failure)); }
     finally { saving.current = false; if (alive.current) setWorking(false); }
   }
   // After an install, a cancel or an uninstall the path and the state are read again: the installer wrote the path itself.
@@ -45,7 +44,7 @@ export default function MarkerSettings({ call, disabled = false, available = tru
     try {
       const [settings, result] = await Promise.all([call('marker.settings.get', {}), call('marker.local.status', {})]);
       if (alive.current && revision.current === generation) { setCommand(settings.command || ''); setStatus(result); setError(''); }
-    } catch (failure) { if (alive.current) setError(uiMessage(String(failure.message || failure))); }
+    } catch (failure) { if (alive.current) setError(errorMessage(failure)); }
   }
   return <div className="marker-settings">
     <p>{ui('选好 PDF 后，StudyHub 会调用本机 Marker，显示进度并自动导入结果。')}</p>

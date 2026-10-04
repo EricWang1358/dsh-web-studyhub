@@ -53,6 +53,7 @@ import feedbackLoop from './locales/en.feedback-loop.json';
 import pages from './locales/en.pages.json';
 import markerInstall from './locales/en.marker-install.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
+import { failureText } from './failure.js';
 
 export const ENGLISH_SOURCES = {
   'en.json': base,
@@ -155,6 +156,8 @@ export function ui(value) {
 export const uiLabels = labels => new Proxy(labels, { get: (target, key) => ui(target[key]) });
 /** Application diagnostics only; unknown provider details are kept verbatim. */
 export const uiMessage = value => localizeAppMessage(ui(value), language);
+/** What a failure says, for the learner: its message (or the value thrown) through uiMessage, so an English page never shows a Chinese host message. */
+export const errorMessage = failure => uiMessage(failureText(failure));
 export function uiFormat(template, values) {
   return ui(template).replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
 }

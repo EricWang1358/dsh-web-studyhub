@@ -1,3 +1,4 @@
+import { failureText } from './failure.js';
 /* The panel's single-flight action runner (App's act()).
    One write at a time: a second act() while one is in flight is dropped, so an
    answer or a generation job can never be submitted twice. The lock covers the
@@ -27,7 +28,7 @@ export function createActRunner(read) {
       if (reload && epoch === deps.epoch()) {
         // The failure belongs to the sync, not to the action that already succeeded.
         const pending = Promise.resolve().then(() => deps.refresh()).catch((error) => {
-          if (isCurrent()) deps.setError(error?.message || String(error));
+          if (isCurrent()) deps.setError(failureText(error));
         });
         let timer;
         await Promise.race([pending, new Promise((done) => { timer = setTimeout(done, deps.holdMs ?? REFRESH_HOLD_MS); })]);
@@ -37,7 +38,7 @@ export function createActRunner(read) {
     } catch (error) {
       if (epoch !== deps.epoch()) return;
       if (rethrow) throw error;
-      if (isCurrent()) deps.setError(error?.message || String(error));
+      if (isCurrent()) deps.setError(failureText(error));
     } finally {
       if (current === operation) { current = null; deps.setBusy(false); }
     }

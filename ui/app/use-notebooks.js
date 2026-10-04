@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import { errorMessage } from '../i18n.js';
 
 /* The cross-workspace notebook directory on the library home: loaded once per library and again whenever the learner
    returns to the library page, so due counts stay honest. A request that was in flight when the library changed is dropped
@@ -15,7 +16,7 @@ export function useNotebooks({ core, lib, nav, host, root }) {
       setNotebookError('');
     } catch (failure) {
       if (request !== refs.notebookRequest.current) return;
-      setNotebookError(failure.message || String(failure));
+      setNotebookError(errorMessage(failure));
     }
   }, [call, refs, setNotebooks, setNotebookError]);
   useEffect(() => { if (root && nav.page === 'library') loadNotebooks(); }, [root, nav.page, loadNotebooks]);
@@ -27,7 +28,7 @@ export function useNotebooks({ core, lib, nav, host, root }) {
   const open = useCallback(async (notebook) => {
     setError('');
     try { await host.openWorkspaceNotebook?.(notebook.workspace); }
-    catch (failure) { setError(failure.message || String(failure)); }
+    catch (failure) { setError(errorMessage(failure)); }
   }, [host, setError]);
   const search = useCallback((query) => call('notebook.search', { query }), [call]);
   return { notebooks: lib.state.notebooks, notebookError: lib.state.notebookError, loadNotebooks, publish: () => toggle(true), unpublish: () => toggle(false), open, search };

@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./views.css";
@@ -150,7 +150,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       selected: next,
     })).then(() => exam.setError(""), (e) => exam.setError(startMs && Date.now() - startMs >= EXAM_LIMIT_MS
       ? ui("考试时间已到，未确认保存的选择可能不会计入成绩。")
-      : uiFormat("选择尚未保存，请重新选择后继续：{0}", [e.message || String(e)])));
+      : uiFormat("选择尚未保存，请重新选择后继续：{0}", [errorMessage(e)])));
   }
 
   const move = (direction) => {
@@ -187,7 +187,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       },
       after: (_report, { unsavedChoice }) => { if (unsavedChoice) exam.setError(ui("最后一次选择未确认保存，成绩按服务端已保存的答案计算。")); },
       describeError: (e) => {
-        const message = e.message || String(e);
+        const message = errorMessage(e);
         return startMs && Date.now() - startMs >= EXAM_LIMIT_MS ? uiFormat("交卷失败，正在自动重试：{0}", [message]) : message;
       },
     });

@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
@@ -183,7 +183,7 @@ export function WrongBookView({
         : { tone: "info", text: ui("这些题已经有变式，或正在生成。") });
     } catch (e) {
       setPending(new Set());
-      setMessage({ tone: "error", text: e?.message || String(e) });
+      setMessage({ tone: "error", text: errorMessage(e) });
     } finally {
       setWorking(false);
     }
@@ -427,7 +427,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
         .catch(() => request === seq.current && setRecs(null));
       else setRecs(null);
     } catch (e) {
-      if (request === seq.current) setErr(e.message || String(e));
+      if (request === seq.current) setErr(errorMessage(e));
     } finally {
       if (request === seq.current) setLoading(false);
     }

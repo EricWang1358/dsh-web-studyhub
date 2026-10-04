@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { ui, uiFormat } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput, useToast } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
@@ -223,7 +223,7 @@ export default function CourseSettings({ data, courseId, act, busy = false, onCl
   const run = async (action, args, done) => {
     setWorking(true); setError('');
     try { await act(action, args, done, { rethrow: true }); }
-    catch (caught) { setError(caught?.message || String(caught)); }
+    catch (caught) { setError(errorMessage(caught)); }
     finally { setWorking(false); }
   };
   const save = () => run('course.save', payloadFromDraft(course, draft), () => {

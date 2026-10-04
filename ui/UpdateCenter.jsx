@@ -5,7 +5,7 @@
    reports DSH's plugin manager (`update.install`), otherwise it guides a
    reinstall from the exact package address. */
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { ui, uiFormat } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Banner, Button, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
 import { formatDateTime } from './format.js';
@@ -36,7 +36,7 @@ export async function refreshUpdate(call, { force = false } = {}) {
     return update;
   } catch (error) {
     started = false;
-    return force ? { error: error?.message || String(error) } : null;
+    return force ? { error: errorMessage(error) } : null;
   } finally { setStore({ checking: false }); }
 }
 async function savePreferences(call, preferences) {
@@ -77,7 +77,7 @@ export async function startUpgrade(call, update, { confirmJobs = false } = {}) {
     if (result?.status === 'jobs-running') return { phase: 'jobs', jobs: result.jobs };
     if (result?.status === 'failed') return { phase: 'error', code: result.code, message: failureMessage(result.code) };
     return { phase: 'installed', version: result.version, restartRequired: result.restartRequired !== false, desktop: !!result.desktop };
-  } catch (error) { return { phase: 'error', message: error?.message || String(error) }; }
+  } catch (error) { return { phase: 'error', message: errorMessage(error) }; }
 }
 
 
@@ -232,7 +232,7 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
   const retry = { label: ui('重试'), onClick: checkUpdates };
   async function toggle(event) {
     setSaving(true); setSaveError('');
-    try { await savePreferences(call, { autoCheck: event.target.checked }); } catch (error) { setSaveError(error?.message || String(error)); }
+    try { await savePreferences(call, { autoCheck: event.target.checked }); } catch (error) { setSaveError(errorMessage(error)); }
     finally { setSaving(false); }
   }
   return (

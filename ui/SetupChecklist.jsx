@@ -7,6 +7,7 @@ import { useInjectCss } from "./shared.js";
 import { SETUP_STEP_IDS, courseSetup, hasBigBook } from "../lib/course-setup.js";
 import css from "./setup-checklist.css";
 import { loadRetrievalStatus } from "./retrieval-status.js";
+import { useLiveEffect } from './use-async.js';
 
 /* 课程准备: what is done once at the start of a course, as a checklist at the top of the library home (docs/feature-tiers.md).
 
@@ -118,16 +119,14 @@ export default function SetupChecklist({ data, on = {}, later: laterProp, initia
   const bigBook = useMemo(() => hasBigBook(data, course), [data?.sources, data?.focus?.courses, course]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Whether the big book has an index is asked of the search extension, once, and only when there is a big book.
-  useEffect(() => {
-    if (!bigBook || typeof call !== "function" || retrievalProp || !course) return undefined;
-    let live = true;
+  useLiveEffect((live) => {
+    if (!bigBook || typeof call !== "function" || retrievalProp || !course) return;
     (async () => {
       const status = (await loadRetrievalStatus(call)) ?? null;
       const plan = status?.extension?.installed && status?.companion?.running ? await Promise.resolve(call("retrieval.index.plan", { course })).catch(() => null) : null;
-      if (live) setRetrieval(status ? { status, plan } : null);
+      if (live()) setRetrieval(status ? { status, plan } : null);
     })();
-    return () => { live = false; };
-  }, [bigBook, course]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bigBook, course]);
 
   const setup = courseSetup(data, { retrieval, dismissed: later });
   useEffect(() => { if (setup.mode === "done" && !seen) markSetupDone(root, course); }, [setup.mode, seen, root, course]);

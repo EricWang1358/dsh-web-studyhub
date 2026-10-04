@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { ui, uiFormat, uiMessage } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Disclosure, Icon, InlineMessage, ProgressBar } from './components/index.js';
 import { PrivacyConfirm, privacyNote } from './MineruSettings.jsx';
@@ -8,6 +8,7 @@ import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
 import css from './mineru.css';
 import { useMineruState } from './use-mineru.js';
+import { useLiveEffect } from './use-async.js';
 
 /* Both entry points share one staged PDF. Choosing a converter never reuploads it;
    only an explicit start hands the file to a background conversion job. */
@@ -57,12 +58,10 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   // What is set up: read once, and again whenever a panel changes something.
-  useEffect(() => {
-    if (!available || typeof call !== 'function') return undefined;
-    let live = true;
-    if (!initialMarker) Promise.resolve(call('marker.local.status', {})).then(value => { if (live) setMarker(value); }, () => { if (live) setMarker({ state: 'unavailable' }); });
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useLiveEffect(live => {
+    if (!available || typeof call !== 'function') return;
+    if (!initialMarker) Promise.resolve(call('marker.local.status', {})).then(value => { if (live()) setMarker(value); }, () => { if (live()) setMarker({ state: 'unavailable' }); });
+  }, []);
 
   // A chosen PDF is handed to the backend in pieces and planned; nothing leaves the computer here.
   useEffect(() => {
@@ -80,7 +79,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
         if (alive.current && !controller.signal.aborted) { setPlan(next); setReading(null); }
       } catch (error) {
         if (controller.signal.aborted || !alive.current) return;
-        setReading(null); setProblem(uiMessage(String(error?.message || error)));
+        setReading(null); setProblem(errorMessage(error));
       }
     })();
     return () => {
@@ -118,7 +117,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     } catch (error) {
       taken.current = false;
       if (!alive.current && selectedUpload) Promise.resolve(call('mineru.upload.cancel', { uploadId: selectedUpload })).catch(() => {});
-      if (alive.current) setProblem(uiMessage(String(error?.message || error)));
+      if (alive.current) setProblem(errorMessage(error));
     } finally { if (alive.current) setStarting(false); }
   };
 

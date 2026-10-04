@@ -5,6 +5,7 @@ import { useStudy } from './study-context.jsx';
 import { Button, IconButton, LoadingState, Panel, ProgressBar } from './components/index.js';
 import css from './token-usage.css';
 import { totalTokens } from '../lib/token-usage.js';
+import { useLiveEffect } from './use-async.js';
 import {
   USAGE_FEATURE_ORDER, callsText, estimateRows, estimateSummary, estimateText, expectedText, featureLabel, joinRows, methodNote, noteText,
   rangeTok, stageLabel, usageNotes, usageRows, usageText, usedCallsText,
@@ -192,14 +193,12 @@ export function ModelUsage({ call, onAudio }) {
   const [state, setState] = useState({ status: 'loading' });
   const callRef = useRef(call);
   callRef.current = call;
-  useEffect(() => {
-    let live = true;
+  useLiveEffect((live) => {
     setState((current) => (current.status === 'ready' ? current : { status: 'loading' }));
     Promise.resolve().then(() => callRef.current('usage.summary', { days })).then(
-      (summary) => { if (live) setState({ status: 'ready', summary }); },
-      () => { if (live) setState({ status: 'error' }); },
+      (summary) => { if (live()) setState({ status: 'ready', summary }); },
+      () => { if (live()) setState({ status: 'error' }); },
     );
-    return () => { live = false; };
   }, [days]);
   return <ModelUsageView state={state} days={days} onDays={setDays} onAudio={onAudio} />;
 }

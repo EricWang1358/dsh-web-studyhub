@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
+import { ui, uiFormat, uiLocale, getUiLanguage, errorMessage } from "./i18n.js";
 import { formatNumber } from "./format.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
@@ -84,7 +84,7 @@ export async function removeDocument(item, { act }) {
     if (result === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
     return { removed: item.sourceIds, failed: [] };
   } catch (error) {
-    return { removed: [], failed: item.sourceIds.map(id => ({ id, error: error?.message || String(error) })) };
+    return { removed: [], failed: item.sourceIds.map(id => ({ id, error: errorMessage(error) })) };
   }
 }
 
@@ -222,7 +222,7 @@ function DocumentRow({ item, source, isNew, organizing, selected, onSelect, onOp
 /** Saves the courses of a document through act(). Resolves '' when it worked, else the plain reason, so the dialog can say it where the learner is looking instead of in a notice that lands on top of its own buttons. */
 export async function saveDocumentCourses(act, assignments, onDone) {
   try { await act('source.courses.set', { assignments }, onDone, { rethrow: true }); return ''; }
-  catch (error) { return error?.message || String(error); }
+  catch (error) { return errorMessage(error); }
 }
 
 export function CourseDialog({ item, items, byId, courses, onClose }) {

@@ -4,6 +4,7 @@ import { assignCards, chapterEntryIds, entrySummaries, rangeOptions, recordVisit
 import { captureAnchor, restoreTop } from './reading-position.js';
 import { domPlacer, nodeTop, outlineNode } from './place-dom.js';
 import { rangeLabel } from './mastery-copy.js';
+import { useLiveEffect } from '../../use-async.js';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 const FLASH_MS = 2400, WAIT_MS = 700;
@@ -33,18 +34,16 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const [visited, setVisited] = useState([]), [note, setNote] = useState('');
 
   // 1. The questions linked to this document, with their review state.
-  useEffect(() => {
-    if (!call || !documentId) return undefined;
-    let live = true;
+  useLiveEffect(live => {
+    if (!call || !documentId) return;
     (async () => {
       try {
         const result = await call('materials.pages.cards', { documentId, sourceId: source.id });
-        if (!live) return;
+        if (!live()) return;
         if (result?.status === 'unavailable') setState(current => ({ ...current, status: 'unavailable' }));
         else setState({ status: 'ready', cards: result?.cards || [], summary: result?.summary || summarizeLinked([]), inactiveCourses: result?.inactiveCourses || [] });
-      } catch (error) { if (live) setState(current => ({ ...current, status: 'error', message: error.message })); }
+      } catch (error) { if (live()) setState(current => ({ ...current, status: 'error', message: error.message })); }
     })();
-    return () => { live = false; };
   }, [call, documentId, source.id, version, reloads]);
   const reload = useCallback(() => { setState(current => ({ ...current, status: 'loading' })); setReloads(count => count + 1); }, []);
 

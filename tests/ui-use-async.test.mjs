@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 
 // #116: busy / error / unmount-guard boilerplate lives in one place.
-const m = await loadUi(`export * from './ui/use-async.js'; export { setUiLanguage } from './ui/i18n.js';`);
+const m = await loadUi(`export * from './ui/use-async.js'; export { failureText } from './ui/failure.js'; export { setUiLanguage } from './ui/i18n.js';`);
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 const watch = (options) => { const states = []; const runner = m.createAsyncRunner({ ...options, onChange: state => states.push(state) }); return { runner, states }; };
 
@@ -94,6 +94,33 @@ test('exclusive: a run of another kind is turned away while one is in flight', a
   assert.equal(other, 0);
   await runner.run('verify', () => { other += 1; });
   assert.equal(other, 1, 'free again once the first one is done');
+});
+
+test('a live scope is live until it ends, and an effect without cleanup leaves nothing behind (#116)', () => {
+  const scope = m.liveScope();
+  assert.equal(scope.isLive(), true);
+  scope.end();
+  assert.equal(scope.isLive(), false);
+  scope.end();
+  assert.equal(scope.isLive(), false, 'ending twice is fine');
+});
+
+test('failureText is the plain text of a failure, whatever was thrown, and knows nothing of the language (#116)', () => {
+  assert.equal(m.failureText(new Error('boom')), 'boom');
+  assert.equal(m.failureText('plain'), 'plain');
+  assert.equal(m.failureText({ message: 'from an object' }), 'from an object');
+  assert.equal(m.failureText(new Error('')), 'Error');
+  assert.equal(m.failureText(undefined), '');
+  assert.equal(m.failureText(null), '');
+});
+
+test('errorMessage is the message of a failure through uiMessage, whatever was thrown (#116)', () => {
+  assert.equal(m.errorMessage(new Error('boom')), 'boom');
+  assert.equal(m.errorMessage('plain text'), 'plain text');
+  assert.equal(m.errorMessage(undefined), '');
+  assert.equal(m.errorMessage(null), '');
+  m.setUiLanguage('en');
+  try { assert.doesNotMatch(m.errorMessage(new Error('Study request failed')), /[㐀-鿿]/); } finally { m.setUiLanguage('zh'); }
 });
 
 test('the hook starts idle', () => {

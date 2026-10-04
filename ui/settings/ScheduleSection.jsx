@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { getUiLanguage, ui, uiFormat } from '../i18n.js';
+import { getUiLanguage, ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, NumberInput, SettingsSection, useToast } from '../components/index.js';
 import { previewSchedule } from '../../lib/sm2.js';
 import { syncScheduleSettings } from '../schedule-settings.js';
@@ -84,7 +84,7 @@ export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, 
         setSettings(previous => syncScheduleSettings(previous, current, next));
         toast.success(ui('复习调度已保存'));
       }, { rethrow: true });
-    } catch (cause) { if (isCurrent()) setError(cause?.message || String(cause)); }
+    } catch (cause) { if (isCurrent()) setError(errorMessage(cause)); }
     finally { if (isCurrent()) { pending.current = null; setWorking(false); } }
   };
   return (

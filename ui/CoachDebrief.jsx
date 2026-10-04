@@ -6,6 +6,7 @@ import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
 import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
 import { Button, ErrorState, StackedBar } from "./components/index.js";
+import { useLiveEffect } from './use-async.js';
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
@@ -23,18 +24,14 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
     [error, setError] = useState(""),
     [left, setLeft] = useState(null),
     [consent, setConsent] = useState({ busy: false, answer: null, error: "" });
-  useEffect(() => {
-    let live = true;
+  useLiveEffect((live) => {
     call("coach.debrief", { runId: run.id })
       .then((d) => {
-        if (!live) return;
+        if (!live()) return;
         setDebrief(d);
         setStatus(d.status);
       })
-      .catch((e) => live && setError(e.message));
-    return () => {
-      live = false;
-    };
+      .catch((e) => live() && setError(e.message));
   }, [run.id, call]);
   // While variants are being written, watch the cheap status call until they land.
   const waiting = !!status?.preparing && !status?.ready;

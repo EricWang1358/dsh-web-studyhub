@@ -1,3 +1,4 @@
+import { failureText } from '../failure.js';
 /* The lifecycle every exam format shares (#132): setup -> running -> report, restoring a run from the host, submitting
    it, opening a saved report, and the clock. The written exam, the case paper and the oral exam keep only their
    answering UI and talk to this controller. It has no React and no DOM: ui/exam/useExamRun.js binds it to a page and
@@ -14,7 +15,7 @@ export const EXAM_KINDS = Object.freeze({
 });
 
 const INITIAL = Object.freeze({ phase: 'setup', run: null, report: null, error: '', busy: false, loading: false });
-const messageOf = (error) => error?.message || String(error);
+const messageOf = (error) => failureText(error);
 
 /**
  * Where the clock stands for a run: `startMs` (null without a valid startedAt), whole `elapsedMs` since then and whether

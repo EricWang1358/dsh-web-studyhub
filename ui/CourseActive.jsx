@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useId, useState } from 'react';
-import { ui, uiFormat } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, InlineMessage } from './components/index.js';
 import { courseScope } from '../lib/course-tree.js';
@@ -70,7 +70,7 @@ export function ActiveSwitch({ course, courses = [], disabled = false, compact =
       const note = activeNotice(await api.setActive(course, active, options));
       setState({ confirm: false, working: false, text: [note.text, note.detail].filter(Boolean).join(' '), error: '' });
     } catch (error) {
-      setState(current => ({ ...current, working: false, error: error?.message || String(error) }));
+      setState(current => ({ ...current, working: false, error: errorMessage(error) }));
     }
   };
   const toggle = () => parked ? set(true) : subs.length ? setState(current => ({ ...current, confirm: true })) : set(false);
@@ -105,7 +105,7 @@ export function ParkedChip({ course, className = '' }) {
   const activate = async () => {
     setState({ working: true, error: '' });
     try { await api.activate(course); setState({ working: false, error: '' }); }
-    catch (error) { setState({ working: false, error: error?.message || String(error) }); }
+    catch (error) { setState({ working: false, error: errorMessage(error) }); }
   };
   return <span className={`course-parked-chip ${className}`.trim()} title={sentence(course)}>
     <span>{ui('未激活')}</span>

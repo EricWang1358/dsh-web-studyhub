@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ui, uiFormat, uiLocale } from './i18n.js';
+import { ui, uiFormat, uiLocale, errorMessage } from './i18n.js';
 import { recapTimeZone } from './useDailyRecap.js';
 import { Button, Checkbox, Field, Hint, Select, SettingsSection, useToast } from './components/index.js';
 
@@ -39,7 +39,7 @@ export function DailyRecapSettingsForm({ root, saved, busy = false, act }) {
         setEditor(previous => ({ baseline: JSON.stringify(next), values: version.current === revision ? next : previous.values }));
         toast.success(ui('每日合集设置已保存'));
       }, { rethrow: true });
-    } catch (cause) { if (live()) setError(cause.message || String(cause)); }
+    } catch (cause) { if (live()) setError(errorMessage(cause)); }
     finally { if (live()) { pending.current = null; setWorking(false); } }
   }
   return <form className="settings-form" onSubmit={save}>

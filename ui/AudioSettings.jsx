@@ -6,6 +6,7 @@ import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js'
 import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
+import { useLiveEffect } from './use-async.js';
 
 export { audioFocusPending, requestAudioSettingsFocus };
 
@@ -110,10 +111,8 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
   const [view, setView] = useState(initialView);
   const section = useRef(null);
   // Loaded with call(), not act(): act is single-flight and the settings page already loads 陪学 through it.
-  useEffect(() => {
-    let alive = true;
-    call?.('audio.settings.get', {})?.then?.((value) => alive && setView(value), () => {});
-    return () => { alive = false; };
+  useLiveEffect((alive) => {
+    call?.('audio.settings.get', {})?.then?.((value) => alive() && setView(value), () => {});
   }, [call]);
   useEffect(() => {
     if (!view || !audioFocusPending() || !section.current) return;

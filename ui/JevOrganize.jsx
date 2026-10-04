@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, InlineMessage, ProgressBar } from './components/index.js';
 import { lineText, percentText, probabilityRows } from './jev-flow.js';
 import css from './jev.css';
+import { useLiveEffect } from './use-async.js';
 
 /* EXPERIMENTAL 课程归属建议 inside the 整理课程归属 organizer (ui/Sources.jsx): a "Jev 建议" button next to "请 AI 建议", and the
    probabilities under each suggested row. It exists only while the learner has switched the experiment on in Settings; it
@@ -12,12 +13,10 @@ import css from './jev.css';
 /** Whether the learner switched the experiment on (asks once, quietly; a failure just means "no"). */
 export function useJevCourseSuggest(call, initial) {
   const [on, setOn] = useState(initial ?? false);
-  useEffect(() => {
-    if (initial !== undefined || typeof call !== 'function') return undefined;
-    let live = true;
-    Promise.resolve(call('jev.settings.get', {})).then(view => { if (live) setOn(!!(view?.enabled && view.features?.courseSuggest)); }, () => {});
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useLiveEffect(live => {
+    if (initial !== undefined || typeof call !== 'function') return;
+    Promise.resolve(call('jev.settings.get', {})).then(view => { if (live()) setOn(!!(view?.enabled && view.features?.courseSuggest)); }, () => {});
+  }, []);
   return on;
 }
 

@@ -10,6 +10,7 @@ import { toBase64 } from '../upload.js';
 import { isAbsolutePath, unquotePath } from '../paths.js';
 import { baseName } from '../file-names.js';
 import { useStudy } from '../study-context.jsx';
+import { useLiveEffect } from '../use-async.js';
 
 /* 补全原文件: attach the ORIGINAL file to a document that only kept its text, by reference (the path is remembered, nothing
    is copied) or as a copy in the library. The host verifies the file against the stored text first (no model); nothing about
@@ -62,12 +63,10 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   const bytes = useRef(null), alive = useRef(true), pathId = useId(), modeName = useId(), hintId = useId();
   const identity = identityOf(target);
   useEffect(() => () => { alive.current = false; }, []);
-  useEffect(() => {
-    if (info || !call) return undefined;
-    let live = true;
-    Promise.resolve(call('materials.original.status', identity)).then(value => { if (live) setInfo(value); }, failure => { if (live) { setError(failure?.message || ''); setInfo({ mode: null, status: 'none' }); } });
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useLiveEffect(live => {
+    if (info || !call) return;
+    Promise.resolve(call('materials.original.status', identity)).then(value => { if (live()) setInfo(value); }, failure => { if (live()) { setError(failure?.message || ''); setInfo({ mode: null, status: 'none' }); } });
+  }, []);
   useEffect(() => { if (intent === 'copy' && info?.path && !picked) void checkPath(info.path, 'copy'); }, [info?.path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const issue = info ? issueOf(info) : null;
@@ -199,13 +198,12 @@ export function OriginalMenuEntry({ item, host, initial }) {
   useInjectCss(css, 'study-original-file');
   const [info, setInfo] = useState(initial ?? null), [portal, setPortal] = useState(null), anchor = useRef(null);
   const sourceId = item?.sourceIds?.[0];
-  useEffect(() => {
+  useLiveEffect(live => {
     const details = anchor.current?.closest('details');
     if (!details || !call || !sourceId) return undefined;
-    let live = true;
-    const load = () => { if (details.open) Promise.resolve(call('materials.original.status', { sourceId })).then(value => { if (live) setInfo(value); }, () => {}); };
+    const load = () => { if (details.open) Promise.resolve(call('materials.original.status', { sourceId })).then(value => { if (live()) setInfo(value); }, () => {}); };
     details.addEventListener('toggle', load);
-    return () => { live = false; details.removeEventListener('toggle', load); };
+    return () => details.removeEventListener('toggle', load);
   }, [call, sourceId]);
   if (!call || !sourceId || item.format === 'audio') return null;
   const line = info ? originalLine(info) : null;

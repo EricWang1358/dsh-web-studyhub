@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ui, uiFormat, uiLocale } from '../../i18n.js';
 import { Button, Dialog, InlineMessage, LoadingState } from '../../components/index.js';
 import { chapterLabel } from '../../SourcePicker.jsx';
+import { useLiveEffect } from '../../use-async.js';
 
 /* Using a kept outline as the document's chapters (materials.outline.segment): which level defines a chapter, what each
    level would give with its page ranges, applied only when the learner says so. It is a view over the same text: no page,
@@ -44,13 +45,11 @@ export function SegmentPreview({ preview, level, onLevel }) {
  */
 export default function SegmentDialog({ call, args, onClose, onApplied, onRestored }) {
   const [preview, setPreview] = useState(null), [level, setLevel] = useState(1), [state, setState] = useState({ status: 'loading' });
-  useEffect(() => {
-    let live = true;
+  useLiveEffect(live => {
     call('materials.outline.segment', { ...args, preview: true }).then(value => {
-      if (!live) return;
+      if (!live()) return;
       setPreview(value); setLevel(value.applied || (value.levels[1].count ? 1 : value.levels[2].count ? 2 : 3)); setState({ status: 'ready' });
-    }, error => { if (live) setState({ status: 'error', message: error.message }); });
-    return () => { live = false; };
+    }, error => { if (live()) setState({ status: 'error', message: error.message }); });
   }, [call, args]);
   const apply = async value => {
     setState({ status: 'saving' });

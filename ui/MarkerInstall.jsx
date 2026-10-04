@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getUiLanguage, ui, uiFormat, uiMessage } from './i18n.js';
+import { getUiLanguage, ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, ConfirmDialog, Disclosure, Field, Hint, Icon, InlineMessage, JobRow, LoadingState, RadioCard, RadioCardGroup, TextInput } from './components/index.js';
 import { usePolling } from './use-polling.js';
@@ -7,6 +7,7 @@ import { useStudy } from './study-context.jsx';
 import { sizeLabel } from './mineru-flow.js';
 import { STAGES, canInstall, defaultMirror, failureHint, installMode, stageName, stageStates } from './marker-install-flow.js';
 import css from './marker-install.css';
+import { useLiveEffect } from './use-async.js';
 
 /* One-click Marker (settings › PDF 转换 › Marker). Nothing is installed until the learner presses the one primary button: a private
    Python environment with marker-pdf, in the StudyHub data folder or a folder they choose, then the program path is filled in for them.
@@ -80,19 +81,15 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const mode = installMode({ install, markerReady, moving });
   const planned = !!install && (mode === 'offer' || mode === 'problem' || (mode === 'manual' && opened));
-  useEffect(() => {
-    if (initialInstall || typeof call !== 'function') return undefined;
-    let live = true;
-    Promise.resolve(call('marker.install.status', {})).then(value => { if (live && alive.current) setInstall(value); }, failure => { if (live && alive.current) { setInstall({ status: 'idle', log: [], error: null }); setError(uiMessage(String(failure?.message || failure))); } });
-    return () => { live = false; };
-  }, [call]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!planned || typeof call !== 'function') return undefined;
-    if (skipFirstPlan.current) { skipFirstPlan.current = false; return undefined; }
-    let live = true;
-    Promise.resolve(call('marker.install.plan', { mirror, ...(location ? { location } : {}) })).then(value => { if (live && alive.current) setPlan(value); },
-      failure => { if (live && alive.current) setError(uiMessage(String(failure?.message || failure))); });
-    return () => { live = false; };
+  useLiveEffect(live => {
+    if (initialInstall || typeof call !== 'function') return;
+    Promise.resolve(call('marker.install.status', {})).then(value => { if (live() && alive.current) setInstall(value); }, failure => { if (live() && alive.current) { setInstall({ status: 'idle', log: [], error: null }); setError(errorMessage(failure)); } });
+  }, [call]);
+  useLiveEffect(live => {
+    if (!planned || typeof call !== 'function') return;
+    if (skipFirstPlan.current) { skipFirstPlan.current = false; return; }
+    Promise.resolve(call('marker.install.plan', { mirror, ...(location ? { location } : {}) })).then(value => { if (live() && alive.current) setPlan(value); },
+      failure => { if (live() && alive.current) setError(errorMessage(failure)); });
   }, [call, planned, mirror, location, nonce]);
   // The install runs in the background on the server: ask until it ends, then tell the settings page to read the path and the state again.
   usePolling(async () => {
@@ -106,7 +103,7 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
   const act = async (name, work) => {
     if (flight.current) return;
     flight.current = true; setWorking(name); setError('');
-    try { await work(); } catch (failure) { if (alive.current) setError(uiMessage(String(failure?.message || failure))); } finally { flight.current = false; if (alive.current) setWorking(''); }
+    try { await work(); } catch (failure) { if (alive.current) setError(errorMessage(failure)); } finally { flight.current = false; if (alive.current) setWorking(''); }
   };
   const start = () => act('start', async () => {
     const next = await call('marker.install.start', { confirm: true, mirror, ...(location ? { location } : {}), ...(moving ? { removePrevious: true } : {}) });
