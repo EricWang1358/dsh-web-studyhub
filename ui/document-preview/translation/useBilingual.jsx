@@ -73,10 +73,11 @@ const selectionPassage = capture => ({ sourceId: capture.sourceId, kind: 'select
  * @param props call, document (materials.document.get), source, view ('read' | 'text' | 'original'), paged, narrow, body / scroller (refs),
  *   rendered (changes whenever the drawn text does), outline / activeId / chapterLevel (the reader's contents), onNotice({ text, tone })
  */
-export default function useBilingual({ call, document: doc, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, onNotice }) {
+export default function useBilingual({ call, document: doc, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, onNotice, enabled = true }) {
   const language = useUiLanguage();
   const [settings, setSettings] = useState(loadTranslationSettings), [state, dispatch] = useReducer(reducer, initialState);
-  const [supported, setSupported] = useState(false), [version, setVersion] = useState(0), [hosts, setHosts] = useState(() => new Map()), [page, setPage] = useState(null);
+  const [available, setSupported] = useState(false), [version, setVersion] = useState(0), [hosts, setHosts] = useState(() => new Map()), [page, setPage] = useState(null);
+  const supported = enabled && available;
   const [chip, setChip] = useState(null), [floating, setFloating] = useState(null), [menuOpen, setMenuOpen] = useState(false), [scopes, setScopes] = useState([]);
   const [glossaryOpen, setGlossaryOpen] = useState(false), [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set()), [now, setNow] = useState(() => Date.now());
   const layer = useRef(emptyLayer()), latest = useRef({}), scopeDefs = useRef([]), reading = view === 'read';
@@ -98,12 +99,12 @@ export default function useBilingual({ call, document: doc, source, view, paged,
 
   /* ---------- the translations of this revision ---------- */
   const refresh = useCallback(async () => {
-    if (!identityKey) return;
+    if (!enabled || !identityKey) return;
     try {
       const list = await call('materials.translation.list', JSON.parse(identityKey));
       if (list?.items) { dispatch({ type: 'loaded', list }); setSupported(true); } else setSupported(false);
     } catch { setSupported(false); }
-  }, [call, identityKey]);
+  }, [call, identityKey, enabled]);
   useEffect(() => { dispatch({ type: 'reset' }); void refresh(); }, [refresh]);
 
   /* ---------- the layer in the reading column ---------- */

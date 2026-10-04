@@ -30,6 +30,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   { id: 'science', group: 'common', title: '公式、图片与计算工具', anchors: ['settings-science'] },
   { id: 'model', group: 'common', title: '学习库与模型', anchors: ['settings-model'] },
   { id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation'], needs: 'generation' },
+  { id: 'daily-recap', group: 'common', title: '每日讲解合集', anchors: ['settings-daily-recap'] },
   { id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'] },
   { id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio' },
   { id: 'mineru', group: 'once', title: 'PDF 转换（MinerU / Marker）', anchors: ['settings-mineru', 'settings-marker'] },

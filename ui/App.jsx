@@ -746,7 +746,7 @@ export default function App({ call: transportCall, host = {} }) {
   }
   function captureContext(overrides = {}) {
     return { root: dataRef.current?.root, page, runId: page === 'review' ? run?.id : undefined,
-      index: run?.index, noteId: noteInitialId, skeletonId: skeletonFocus, deckId: managedDeck?.id,
+      index: run?.index, runComplete: !!run?.complete, noteId: noteInitialId, skeletonId: skeletonFocus, deckId: managedDeck?.id,
       exam: examLocation.current, workflow: workflowReturn?.sessionId,
       modal: modal?.type === 'source' ? { sourceId: modal.source?.id, quote: modal.quote } : null,
       input: page === 'review' ? { key: reviewEntryKey(run), selected, response, clozeValues, hint, explain, teachAnswer } : null,
@@ -758,7 +758,7 @@ export default function App({ call: transportCall, host = {} }) {
   }
   function contextLabel(origin) {
     if (origin?.modal) return ui('返回资料');
-    if (origin?.page === 'review') return uiFormat('回到之前的第 {0} 题', [(origin.index || 0) + 1]);
+    if (origin?.page === 'review') return origin.runComplete ? ui('返回本轮学习结果') : uiFormat('回到之前的第 {0} 题', [(origin.index || 0) + 1]);
     if (origin?.page === 'exam') return origin.exam?.kind === 'oral' ? ui('返回口头模拟') : ui('返回笔试');
     return uiFormat('返回{0}', [navLabels[origin?.page] || ui('原位置')]);
   }
@@ -852,7 +852,8 @@ export default function App({ call: transportCall, host = {} }) {
     if (!origin || origin.root !== dataRef.current?.root) { setContextTrail([]); return; }
     try {
       if (origin.page === 'review') {
-        const next = await call('review.move', { runId: origin.runId, index: origin.index });
+        const next = origin.runComplete ? await call('review.get', { runId: origin.runId })
+          : await call('review.move', { runId: origin.runId, index: origin.index });
         if (!live()) return;
         enterRun(next, origin.input);
       } else if (origin.page === 'notes') {
@@ -2401,6 +2402,8 @@ export default function App({ call: transportCall, host = {} }) {
                 onCourseFlow={startCourseFlow}
                 onBackToWorkflow={(sessionId) => { setWorkflowReturn({ sessionId, nonce: Date.now() }); navigatePage("workflows"); }}
                 onOpenNote={(noteId) => openLearningTarget({ kind: 'note', id: noteId })}
+                onRecapSettings={() => { rememberContext(captureContext()); setSettingsFocus('settings-daily-recap'); setPage('settings'); }}
+                onModelSettings={openModelSettings}
                 onMakeNote={() => { const origin = captureContext(); return act("note.create", {
                   title: uiFormat('学习笔记 · {0}', [new Date().toLocaleDateString(uiLocale())]),
                   cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }],
@@ -2452,6 +2455,8 @@ export default function App({ call: transportCall, host = {} }) {
               />
             )}
             {page === "notes" && <BlogNotes key={data.root} data={data} call={call} act={act} theme={resolvedTheme}
+              onModelSettings={openModelSettings}
+              busy={busy} onRecapSettings={() => { rememberContext(captureContext()); setSettingsFocus('settings-daily-recap'); setPage('settings'); }}
               initialId={noteInitialId} onSelect={setNoteInitialId}
               onOpenCard={ref => openLearningTarget({ kind: 'card', ...ref })}
               backLabel={contextTrail.length ? contextLabel(contextTrail.at(-1)) : ''}

@@ -1,7 +1,22 @@
 .blog-notes-page { max-width: none; }
-.note-list { display: grid; gap: 8px; max-width: 700px; }
-.note-list button { display: flex; justify-content: space-between; gap: 12px; text-align: left; padding: 12px 16px; }
+.note-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; max-width: 700px; }
+.note-list > * { min-width: 0; }
+.note-list > button { display: flex; justify-content: space-between; gap: 12px; text-align: left; padding: 12px 16px; }
 .note-list small { opacity: .7; }
+.note-list .daily-recap { margin: 8px 0; }
+.note-daily-item { border-left: 3px solid var(--accent); }
+.note-daily-date { display: block; margin-top: 4px; }
+.note-heading { align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+.note-heading-title { flex: 1 1 280px; min-width: 0; }
+.note-heading-title h1 { overflow-wrap: anywhere; font-size: clamp(22px, 2.8cqi, 30px); margin: 4px 0 10px; }
+.note-heading-title > .sh-btn { padding-left: 0; min-height: 28px; }
+.note-heading-reading .note-heading-title h1 { font-size: 16px; font-weight: 600; margin: 4px 0 8px; }
+.note-header-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.note-daily-meta { color: var(--text-muted); font-size: 13px; line-height: 1.7; margin: 0; }
+.note-unsaved { display: block; margin-top: 6px; font-size: 12px; color: var(--text-muted); }
+.note-reader { min-width: 0; height: min(78vh, 950px); min-height: 420px; margin: 18px 0; }
+.note-reader > .study-document-viewer { height: 100%; }
+.note-editor.note-editor-single { grid-template-columns: minmax(0, 1fr); }
 .note-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .note-title { display: grid; gap: 6px; max-width: 800px; margin: 14px 0; }
 .note-title input { width: 100%; }
@@ -20,10 +35,28 @@
 .note-preview section > eqn { display: flex; width: max-content; min-width: 100%; justify-content: var(--study-formula-align, center); }
 .note-linking, .note-publish { margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
 .note-linking summary, .note-publish summary { cursor: pointer; }
+.note-reuse-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.note-reuse-actions > details { flex: 1 1 250px; margin-top: 12px; border-width: 0 0 1px; border-radius: 0; padding: 12px 0; }
+.note-reuse-actions > details[open] { flex-basis: 100%; }
 .note-card-search { display: flex; gap: 8px; margin: 10px 0; }
 .note-card-search input { flex: 1; min-width: 0; }
 .note-search-result { display: block; width: 100%; margin: 5px 0; text-align: left; }
 @container study (max-width: 800px) { .note-editor { grid-template-columns: 1fr; } .note-preview { height: 380px; } }
+@container study (max-width: 600px) { .note-list > button { flex-wrap: wrap; padding: 12px; } .note-card-search { flex-wrap: wrap; } .note-reader { min-height: 360px; height: 72vh; } .note-actions > button { white-space: normal; } }
+@container study (max-width: 600px) {
+  .blog-notes-page { padding-top: 20px; }
+  .note-heading { gap: 12px; }
+  .note-heading-title { flex-basis: 0; }
+  .note-heading:not(.note-heading-reading) .note-header-tools > .sh-btn:last-child { padding-inline: 0; border-color: transparent; background: transparent; }
+  .note-heading-reading .note-heading-title { flex-basis: 100%; }
+  .note-heading-reading .note-header-tools { width: 100%; }
+  .note-heading-reading .note-header-tools > .sh-btn:last-child { margin-left: auto; }
+  .note-reader { margin-top: 12px; }
+  .blog-notes-page .note-reader .reader-toolbar { gap: 4px; padding: 6px; }
+  .blog-notes-page .note-reader .reader-toolbar__group { gap: 4px; }
+  .blog-notes-page .note-reader .reader-toolbar__group--end { flex: 1 1 auto; justify-content: flex-end; }
+  .blog-notes-page .note-reader .sh-seg__item { min-width: 44px; min-height: 44px; padding-inline: 4px; }
+}
 /* The editor keeps its syntax colours but sits on the panel's own surfaces. */
 .note-edit-pane .cm-editor,
 .note-edit-pane .cm-gutters { background: var(--bg-sunken) !important; }
