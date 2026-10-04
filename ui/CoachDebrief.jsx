@@ -1,7 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
 import css from "./coach.css";
-import { Button } from "./components/index.js";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
 import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
@@ -128,11 +127,11 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       )}
       <div className="coach-actions">
         {next === "wait" && (
-          <Button variant="primary" disabled>{ui("正在为你备应用题…")}</Button>
+          <button className="primary" disabled>{ui("正在为你备应用题…")}</button>
         )}
         {action && (
-          <Button
-            variant="primary"
+          <button
+            className="primary"
             disabled={busy}
             onClick={() => {
               cancelled.current = true;
@@ -140,11 +139,11 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
             }}
           >
             {ui(label)}
-          </Button>
+          </button>
         )}
         {left !== null && left > 0 && (
           <span className="coach-countdown" role="status">{ui("自动驾驶：")}{left}{ui(" 秒后执行 ·")}{" "}
-            <Button size="sm" onClick={() => { cancelled.current = true; setLeft(null); }}>{ui("取消")}</Button>
+            <button className="coach-chip" onClick={() => { cancelled.current = true; setLeft(null); }}>{ui("取消")}</button>
           </span>
         )}
         {next === "rest" && <span className="coach-countdown">{ui("今天到这儿就很好，明天按间隔回来复习。")}</span>}
@@ -153,8 +152,8 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
         <div className="coach-card coach-consent">
           <p>{ui("要给你备几道变式题和应用场景题吗？开启时会从最近的错题中选最多 4 道备题；之后点「生成变式」或标记「太简单 / 太难」时，也会在后台少量调用模型备题。本轮回顾发现还缺应用练习时，也会准备应用题。")}</p>
           <div className="coach-options">
-            <Button size="sm" disabled={consent.busy} onClick={() => answerConsent(true)}>{ui("好，帮我备题")}</Button>
-            <Button size="sm" variant="quiet" disabled={consent.busy} onClick={() => answerConsent(false)}>{ui("先不用")}</Button>
+            <button className="coach-chip coach-yes" disabled={consent.busy} onClick={() => answerConsent(true)}>{ui("好，帮我备题")}</button>
+            <button className="coach-chip" disabled={consent.busy} onClick={() => answerConsent(false)}>{ui("先不用")}</button>
           </div>
           {consent.error && <p className="coach-consent-error" role="alert">{consent.error}</p>}
         </div>

@@ -331,7 +331,6 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     catch (error) { dispatch({ type: 'failed', keys: [key], message: error?.message }); }
   }, [call, identity, target, state.undo, refresh]);
   useEffect(() => () => layer.current.timers.forEach(timer => clearTimeout(timer)), []);
-  const copy = useCallback(async item => { try { await navigator.clipboard.writeText(item.text); return true; } catch { return false; } }, []);
 
   /* ---------- the page / chapter job ---------- */
   const loadJobs = useCallback(async () => {
@@ -427,7 +426,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     if (!item) return null;
     const entry = () => entryOfItem(item);
     return <TranslationBlock {...common} state={pending ? 'pending' : 'ok'} item={item} pendingKind={pending} open={blockState(state, key, mode) === 'open'}
-      onToggle={() => dispatch({ type: 'show', keys: [key], value: blockState(state, key, mode) !== 'open' })} onCopy={() => copy(item)} onDelete={() => remove(key)} onCancel={() => cancel(key)}
+      onToggle={() => dispatch({ type: 'show', keys: [key], value: blockState(state, key, mode) !== 'open' })} onDelete={() => remove(key)} onCancel={() => cancel(key)}
       onRetranslate={comment => { const made = entry(); if (made) void send([made], { retranslate: true, comment }); }} />;
   };
   const layerNodes = <>

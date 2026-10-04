@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, InlineMessage } from './components/index.js';
+import { Badge, Button, InlineMessage } from './components/index.js';
 import { JevDecidedBadge as DecidedBadge } from './JevBadge.jsx';
 import { lineText, percentText, probabilityRows } from './jev-flow.js';
 import css from './jev.css';
@@ -44,7 +44,7 @@ export function JevSuggestButton({ enabled, disabled, onClick }) {
 }
 function JevSuggestControl({ disabled, onClick }) {
   useInjectCss(css, 'study-jev');
-  return <button type="button" className="jev-suggest-button" disabled={disabled} onClick={onClick} data-experimental="true">{ui('Jev 建议')}<Badge tone="info" size="sm" className="jev-chip">{ui('实验性')}</Badge></button>;
+  return <Button size="sm" className="jev-suggest-button" disabled={disabled} onClick={onClick} data-experimental="true">{ui('Jev 建议')}<Badge tone="info" size="sm" className="jev-chip">{ui('实验性')}</Badge></Button>;
 }
 
 /** Why Jev could not help, in one quiet line; the existing "请 AI 建议" and the manual field are still there. */

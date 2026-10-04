@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiLocale } from "./i18n.js";
 import { formatAgo } from "./format.js";
 import React from "react";
-import { Badge, Button, EmptyState, Icon, InlineMessage, ScrollWindow, useNow } from "./components/index.js";
+import { Badge, Button, EmptyState, IconButton, InlineMessage, ScrollWindow, useNow } from "./components/index.js";
 import { useDismiss } from "./components/use-dismiss.js";
 import { useInjectCss } from "./shared.js";
 import { inboxMissingPrompt, inboxOpenHint, inboxTone, inboxTopics } from "../lib/inbox-kinds.js";
@@ -76,19 +76,18 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readErro
 
   return (
     <div className="mailbox" ref={root}>
-      <button
+      <IconButton
         ref={toggle}
-        type="button"
+        icon="mail"
         className={"mailbox__toggle" + (unread ? " has-unread" : "")}
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={unread ? uiFormat("信箱，{0} 条未读", [unread]) : ui("信箱")}
+        label={unread ? uiFormat("信箱，{0} 条未读", [unread]) : ui("信箱")}
         title={unread ? uiFormat("{0} 条后台结果待查看", [unread]) : ui("信箱")}
         onClick={() => setOpen((v) => !v)}
       >
-        <Icon name="mail" size={18} />
         {unread > 0 && <span className="mailbox__count">{unread > 99 ? "99+" : unread}</span>}
-      </button>
+      </IconButton>
       {open && (
         <div className="mailbox__panel" ref={panel} tabIndex={-1} role="dialog" aria-label={ui("信箱")}>
           <div className="mailbox__head">
