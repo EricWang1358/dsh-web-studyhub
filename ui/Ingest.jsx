@@ -1,7 +1,9 @@
 import { ui } from "./i18n.js";
 import React, { useState } from "react";
 import CourseField from './CourseField.jsx';
-import { InlineMessage, SegmentedControl } from './components/index.js';
+import { SegmentedControl } from './components/index.js';
+import ModelSetupGate from './ModelSetupGate.jsx';
+import { modelReadiness } from './generation-status.js';
 
 const KINDS = [
   ["auto", "自动识别", "有选项保持单选/多选，没有选项做成问答闪卡"],
@@ -17,7 +19,7 @@ const MISTAKES = [
 ];
 
 /** Setup for recording questions straight from the conversation. */
-export default function Ingest({ data, busy, start }) {
+export default function Ingest({ data, busy, start, onOpenSettings }) {
   const decks = data.decks.filter(d => !d.archived && !d.systemKind);
   const currentCourse = data.focus?.course ?? '';
   const [target, setTarget] = useState(() => decks.find(d => (d.course ?? d.folder ?? '') === currentCourse)?.id || 'new'),
@@ -61,13 +63,13 @@ export default function Ingest({ data, busy, start }) {
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={ui("例如：SWE5006 Canvas 错题")}
+                placeholder={ui("例如：数据结构 · 错题")}
               />
             </label>
             <label>{ui("所在目录（可选）")}<input
                 value={folder}
                 onChange={(e) => setFolder(e.target.value)}
-                placeholder={ui("例如：SWE5006 / Module 3")}
+                placeholder={ui("例如：数据结构 / 第 3 章")}
               />
             </label>
           </div>
@@ -85,9 +87,7 @@ export default function Ingest({ data, busy, start }) {
           options={MISTAKES.map(([value, label, note]) => ({ value, label: ui(label), title: ui(note) }))} />
         <small className="sh-seg-note">{ui(MISTAKES.find(([id]) => id === mistakes)[2])}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
       </fieldset>
-      {!data.modelReady && (
-        <InlineMessage tone="warning">{ui("当前会话没有可用模型，录题需要模型整理题目。")}</InlineMessage>
-      )}
+      <ModelSetupGate variant="inline" feature="ingest" model={modelReadiness(data)} onOpenSettings={onOpenSettings} />
       <button className="primary wide" disabled={busy || !data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题 → 去对话里粘贴")}</button>
     </form>
   );

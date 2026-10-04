@@ -3,7 +3,7 @@
    fix for failures. Raw provider/engine prose is only shown behind 技术详情. */
 import { ui, uiFormat, getUiLanguage } from './i18n.js';
 import { stageCodeOf, stepStageCode } from '../lib/contexts/jobs/contracts.js';
-import { supplementJobLabel } from './job-visibility.js';
+import { isActiveJob, supplementJobLabel } from './job-visibility.js';
 import { countDocuments } from '../lib/source-groups.js';
 import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/generation-settings.js';
 
@@ -44,7 +44,6 @@ export function modelReadiness(data) {
 /** Materials as the learner counts them: a PDF is one material, not one per page. */
 export const documentCount = countDocuments;
 
-const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 export const jobCode = (job) => (typeof job?.stageCode === 'string' && job.stageCode) || stageCodeOf(job);
 const draftOf = (job, drafts = []) => (job?.draftId && drafts.find((draft) => draft.id === job.draftId)) || null;
 const ownProse = (job) => job?.type === 'draft-publish' || job?.type === 'draft-repair';
@@ -184,7 +183,7 @@ export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved =
   const code = jobCode(job), draft = draftOf(job, drafts);
   if (job.kind === 'case' && job.publication && code === 'done') return ui('批改结果已进信箱；这套案例在学习库里，可以随时再练。');
   // A passage supplement saves into the deck itself: there is no draft to check.
-  if (job.origin === 'selection' && !ACTIVE.has(job.status)) {
+  if (job.origin === 'selection' && !isActiveJob(job)) {
     if (code === 'cancelled') return ui('已停止，题组没有变化。');
     if (code === 'done') return ui('已通过独立审阅，并保存到题组。');
     if (code === 'partial') return ui('只有部分题通过了独立审阅；通过的已保存到题组。');
@@ -198,11 +197,11 @@ export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved =
   if (code === 'partial' && incomplete(job)) {
     const { missing } = standing(job, draft);
     // A top-up of this very draft is already running: the advice to start one would be wrong, and the numbers are about to change.
-    if (missing > 0 && jobs.some((other) => other !== job && other.draftId === job.draftId && ACTIVE.has(other.status) && !ownProse(other)))
+    if (missing > 0 && jobs.some((other) => other !== job && other.draftId === job.draftId && isActiveJob(other) && !ownProse(other)))
       return uiFormat('还差 {0} 题，正在补题；进度见新的任务卡。', [missing]);
     return missing > 0 ? uiFormat('少了 {0} 题；可以打开草稿补齐。', [missing]) : ui('草稿已补齐，检查后即可发布');
   }
-  if (!ACTIVE.has(job.status) || code === 'queued' || code === 'cancelling') return stageCodeLabel(code);
+  if (!isActiveJob(job) || code === 'queued' || code === 'cancelling') return stageCodeLabel(code);
   // While running, the newest step in flight says more than the job-level stage.
   const step = [...(job.steps || [])].reverse().find((item) => ['starting', 'running', 'finishing'].includes(item.status));
   const stepCode = step && stepStageCode(step);
@@ -228,6 +227,21 @@ const FAILURES = [
 ];
 
 /**
+ * One table for every model failure, whether a generation job or the learning flow reports it: kind -> title, hint and what the learner
+ * can do about it ('settings' opens the model settings, 'retry' asks again). The strings are the translation keys. Generation adds its
+ * own kinds (a spent time budget, bad citations, a failed quality gate...) in describeFailure.
+ */
+export const FAILURE_COPY = Object.freeze({
+  credential: { action: 'settings', title: '还没有可用的模型密钥', hint: '在模型设置里填好 API Key 后再试。' },
+  quota: { action: 'settings', title: '模型账户的余额或额度不足', hint: '充值，或在设置里换一个模型后再试。' },
+  'rate-limit': { action: 'retry', title: '模型服务太忙了', hint: '请求太频繁，被模型服务限流了。等一两分钟再试，或在设置里换一个模型。' },
+  timeout: { action: 'retry', title: '模型长时间没有回应', hint: '可能是网络或服务繁忙，稍后再试。' },
+  network: { action: 'retry', title: '连不上模型服务', hint: '检查网络后重试。' },
+  unavailable: { action: 'retry', title: '模型服务暂时不可用', hint: '稍后再试。' },
+});
+const copyOf = (kind) => { const entry = FAILURE_COPY[kind]; return { kind, action: entry.action, title: ui(entry.title), hint: ui(entry.hint) }; };
+
+/**
  * A generation failure in plain words: { kind, title, hint, action } where
  * action is 'settings' (open the model settings), 'retry' (set the same
  * materials up again) or 'open-draft' (questions were kept).
@@ -235,19 +249,10 @@ const FAILURES = [
 export function describeFailure(text = '', { hasDraft = false } = {}) {
   const raw = String(text || '');
   const kind = FAILURES.find(([, pattern]) => pattern.test(raw))?.[0] || 'unknown';
+  if (Object.hasOwn(FAILURE_COPY, kind)) return copyOf(kind);
   switch (kind) {
-    case 'credential': return { kind, action: 'settings', title: ui('还没有可用的模型密钥'),
-      hint: ui('出题要调用 AI 模型。在模型设置里填好 API Key，再重新生成。') };
-    case 'quota': return { kind, action: 'settings', title: ui('模型账户的余额或额度不足'),
-      hint: ui('充值或换一个模型后，再重新生成。') };
-    case 'rate-limit': return { kind, action: 'retry', title: ui('模型服务太忙了'),
-      hint: ui('请求太频繁，被模型服务限流了。等一两分钟再重新生成。') };
     case 'budget': return { kind: 'timeout', action: hasDraft ? 'open-draft' : 'retry', title: ui('生成用时太长，已自动停止'),
       hint: hasDraft ? ui('已通过检查的题保存在草稿里，可以打开草稿继续。') : ui('可以减少题数或资料后重新生成。') };
-    case 'timeout': return { kind, action: 'retry', title: ui('模型长时间没有回应'),
-      hint: ui('可能是网络或服务繁忙，稍后重新生成。') };
-    case 'network': return { kind, action: 'retry', title: ui('连不上模型服务'), hint: ui('检查网络连接后重新生成。') };
-    case 'unavailable': return { kind, action: 'retry', title: ui('模型服务暂时不可用'), hint: ui('稍后再重新生成。') };
     case 'sources': return { kind, action: 'retry', title: ui('出题用的资料已被删除'), hint: ui('重新选择资料后再生成。') };
     case 'grounding': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('引用的原文在资料里找不到'),
       hint: hasDraft ? ui('AI 引用的句子和资料原文对不上；通过检查的题已保存在草稿里。打开草稿用「继续补齐」补上缺的题，不必重新选页。')
@@ -265,23 +270,16 @@ export function describeFailure(text = '', { hasDraft = false } = {}) {
 
 /**
  * A model failure anywhere in the learning flow, in plain words: { kind, title,
- * hint, detail }. `detail` is the raw provider text for a 详情 toggle; an error
- * that is not recognised passes through as the title with no detail.
+ * hint, action, detail }. Same table as describeFailure. `detail` is the raw
+ * provider text for a technical-details toggle; an error that is not recognised
+ * passes through as the title with no detail.
  */
 export function describeModelError(text = '') {
   const raw = String(text || '').trim();
   const found = FAILURES.find(([, pattern]) => pattern.test(raw))?.[0];
-  const copy = {
-    'rate-limit': [ui('模型当前限流'), ui('稍等一两分钟再点重新生成；或在设置里换一个模型。')],
-    quota: [ui('模型账户的余额或额度不足'), ui('充值，或在设置里换一个模型后再试。')],
-    credential: [ui('还没有可用的模型密钥'), ui('在模型设置里填好 API Key 后再试。')],
-    timeout: [ui('模型太久没有回应'), ui('稍后再试一次。')],
-    budget: [ui('模型太久没有回应'), ui('稍后再试一次。')],
-    network: [ui('连接模型失败'), ui('检查网络后重试。')],
-    unavailable: [ui('模型服务暂时不可用'), ui('稍后再试。')],
-  }[found];
-  if (!copy) return { kind: 'unknown', title: raw, hint: '', detail: '' };
-  return { kind: found === 'budget' ? 'timeout' : found, title: copy[0], hint: copy[1], detail: raw };
+  const kind = found === 'budget' ? 'timeout' : found;
+  if (!Object.hasOwn(FAILURE_COPY, kind || '')) return { kind: 'unknown', title: raw, hint: '', detail: '' };
+  return { ...copyOf(kind), detail: raw };
 }
 
 /** The toast after a generation starts (P26): which deck, and that it is on its way. */

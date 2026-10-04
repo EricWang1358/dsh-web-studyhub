@@ -9,11 +9,10 @@
    Pure; the components are ui/DraftShortfall.jsx. */
 import { ui, uiFormat } from './i18n.js';
 import { describeFailure } from './generation-status.js';
+import { isActiveJob } from './job-visibility.js';
 import { missingQuestions } from '../lib/draft-continuation.js';
 
 export { missingQuestions, canContinueDraft } from '../lib/draft-continuation.js';
-
-const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 
 /**
  * What is working on this draft right now: `{ kind, job }` with kind
@@ -21,7 +20,7 @@ const ACTIVE = new Set(['queued', 'running', 'cancelling']);
  * writing it), 'publish' or 'repair'; null when nothing is.
  */
 export function draftWork(draft, jobs = []) {
-  const job = (jobs || []).find((item) => item.draftId === draft?.id && ACTIVE.has(item.status));
+  const job = (jobs || []).find((item) => item.draftId === draft?.id && isActiveJob(item));
   if (!job) return null;
   const kind = job.type === 'draft-publish' ? 'publish' : job.type === 'draft-repair' ? 'repair' : job.continued ? 'topup' : 'generating';
   return { kind, job };

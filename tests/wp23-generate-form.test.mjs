@@ -282,7 +282,7 @@ test("local suggestions are labelled as coming from the learner's own data, with
 test("a model failure says why in plain words next to the local fallback, with a retry", () => {
   const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "429 Too Many Requests: rate limit" } } });
   assert.match(html, /AI 调用没有成功/);
-  assert.match(html, /模型当前限流/);
+  assert.match(html, /模型服务太忙了/);
   assert.match(html, /先给你来自本地数据的建议/);
   assert.match(html, /来自你的错题与资料目录/, "the suggestions that remain are labelled as local");
   assert.match(html, />再试一次<\/button>/);

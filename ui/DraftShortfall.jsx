@@ -2,6 +2,7 @@ import React from "react";
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { useInjectCss } from "./shared.js";
+import { gateTitle } from "./ModelSetupGate.jsx";
 import css from "./draft-shortfall.css";
 import { canContinueDraft, draftWork, draftWorkLabel, missingQuestions, omissionTitle, reasonLabel, shortfall } from "./draft-shortfall.js";
 
@@ -23,7 +24,7 @@ export function DraftTopUp({ draft, jobs = [], busy = false, modelReady = true, 
   const blocked = busy || !!work || !modelReady;
   return <div className={"draft-topup " + className} data-draft-topup>
     <button type="button" disabled={blocked}
-      title={work ? undefined : !modelReady ? ui("先配置一个 AI 模型") : ui("用原资料补齐题目，保留已有草稿")}
+      title={work ? undefined : !modelReady ? gateTitle("block") : ui("用原资料补齐题目，保留已有草稿")}
       onClick={() => onContinue?.(draft)}>
       {work ? draftWorkLabel(work, draft) : uiFormat("继续补齐 {0} 题", [missing])}
     </button>

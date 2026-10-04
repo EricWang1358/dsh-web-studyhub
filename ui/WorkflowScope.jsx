@@ -7,23 +7,11 @@ import { ui, uiFormat } from "./i18n.js";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
 import { ConfirmDialog } from "./components/index.js";
-import { describeModelError } from "./generation-status.js";
 import css from "./workflow-scope.css";
 
 const PICKED = { route: "课程路线的这一批", none: "学习库里还没有相关的题目", ai: "AI 选的范围", match: "按名称匹配的范围", course: "没找到直接相关的主题，先学当前课程" };
 const courseName = (name) => name || ui("未分类课程");
 const clip = (text, n) => { const s = String(text || "").trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
-
-/* A model failure in plain words, the raw provider text one click away. */
-export function ModelError({ text, className = "" }) {
-  useInjectCss(css, "study-workflow-scope");
-  const info = describeModelError(text);
-  if (info.kind === "unknown") return <div className={`wf-model-error ${className}`.trim()}><p>{info.title}</p></div>;
-  return <div className={`wf-model-error ${className}`.trim()}>
-    <p><strong>{info.title}</strong> {info.hint}</p>
-    <details className="wf-model-error__raw"><summary>{ui("详情")}</summary><code>{info.detail}</code></details>
-  </div>;
-}
 
 /* The scope sentence: which course the topics come from, and how they were chosen. */
 function scopeSentence(session, course, total, goal) {
