@@ -63,14 +63,15 @@ test('the old audio-key-* classes are gone from the stylesheets and the pages', 
 const source = async (path) => (await read(path)).replace(/\r\n/g, '\n');
 
 test('audio import has no local copy of the upload loop, the size and clock formats, the extension lists or the path helpers', async () => {
-  const page = await source('ui/AudioImport.jsx');
+  // The form lives in AudioImport.jsx; its upload loop, formats and limits in ui/audio (WP-X, #131).
+  const page = (await Promise.all(['ui/AudioImport.jsx', 'ui/audio/audio-upload.js', 'ui/audio/formats.js'].map(source))).join('\n');
   assert.match(page, /uploadInChunks\(call, 'audio', /);
-  assert.match(page, /maxChunkBytes: 3 \* 1024 \* 1024/);
+  assert.match(page, /PIECE_CAP = 3 \* 1024 \* 1024/);
   for (const [name, pattern] of [['toBase64', /const toBase64/], ['formatSize', /formatSize/], ['spent', /const spent/], ['extensionOf', /const extensionOf/], ['baseName', /const baseName/],
     ['isAbsolutePath', /const isAbsolutePath/], ['unquote', /const unquote/], ['MAX_BYTES', /const MAX_BYTES/], ['MAX_SUBTITLE_BYTES', /const MAX_SUBTITLE_BYTES/], ['EXTENSIONS', /const EXTENSIONS/], ['SUBTITLES', /const SUBTITLES/]]) {
     assert.doesNotMatch(page, pattern, `${name} comes from a shared module`);
   }
-  for (const from of ['./format.js', './upload.js', './file-names.js', './paths.js', '../lib/audio-formats.js']) assert.ok(page.includes(`'${from}'`) || page.includes(`"${from}"`), from);
+  for (const from of ['./format.js', '../upload.js', '../file-names.js', '../paths.js', '../../lib/audio-formats.js']) assert.ok(page.includes(`'${from}'`) || page.includes(`"${from}"`), from);
 });
 
 /* ---------- 3. Inbox: shared "ago" and dismiss (#94 #82 #80) ---------- */
@@ -129,7 +130,7 @@ test('pages that poll use usePolling (paused while hidden) and pages that show a
 
 test('job activity and cancellability come from lib/job-status, not from local Sets or inline status lists', async () => {
   for (const file of ['ui/document-preview/selection-job.js', 'ui/document-preview/translation/model.js', 'ui/GenerationTrace.jsx', 'ui/document-preview/SelectionJobs.jsx',
-    'ui/document-preview/translation/TranslationMenu.jsx', 'ui/AudioImport.jsx']) {
+    'ui/document-preview/translation/TranslationMenu.jsx', 'ui/audio/AudioJobs.jsx']) {
     const page = await source(file);
     assert.doesNotMatch(page, /new Set\(\[['"]queued['"]/, `${file}: no local ACTIVE set`);
     assert.doesNotMatch(page, /\[["'](?:queued|running)["'], ["'](?:running|queued|cancelling)["'](?:, ["']cancelling["'])?\]\.includes\(/, `${file}: no inline status list`);

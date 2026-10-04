@@ -1,0 +1,3 @@
+/* The audio form's reorder buttons share one chevron icon, turned to point up or down (Icon has no vertical arrows yet). */
+:is(.study-app, .study-seat) .audio-order-icon--up { transform: rotate(-90deg); }
+:is(.study-app, .study-seat) .audio-order-icon--down { transform: rotate(90deg); }

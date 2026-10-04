@@ -103,7 +103,7 @@ test("App wires every 知道了 and 全部知道了 through the light path, not 
   const app = await readAppSource();
   assert.match(app, /dismissJob=\{[^}]*dismissJobs\(quick/, "StudyMap dismissJob uses dismissJobs()");
   assert.doesNotMatch(app, /act\("job\.dismiss"/);
-  const audioUi = await readFile("ui/AudioImport.jsx", "utf8");
+  const audioUi = await readFile("ui/audio/AudioJobs.jsx", "utf8");
   assert.match(audioUi, /quick \? dismissJobs\(quick, job\.id\)/, "audio cards use the light path; act is only the fallback outside App");
   assert.match(app, /QuickActionsContext\.Provider/);
   assert.match(app, /markInboxRead\(quick/, "全部已读 is light as well");

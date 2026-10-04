@@ -17,5 +17,10 @@
   "有待补充 {0}": "Needs detail {0}",
   "需要巩固 {0}": "Needs review {0}",
   "没有模型时：追问会用固定问题，结束后只保存回答、不评估。": "Without a model, follow-ups use a fixed question and, at the end, answers are saved but not assessed.",
-  "{0}，答案已保存；配置模型后点「重新提交批改」。": "{0}. Your answers are saved; set up a model, then select Submit for grading again."
+  "{0}，答案已保存；配置模型后点「重新提交批改」。": "{0}. Your answers are saved; set up a model, then select Submit for grading again.",
+  "这不是支持的音频文件。支持 {0}。": "That is not a supported audio file. Supported: {0}.",
+  "文件超过 {0}，请先压缩成 MP3 或按章节拆分。": "The file is over {0}; compress it to MP3 or split it by chapter first.",
+  "字幕文件超过 {0}。": "The subtitle file exceeds {0}.",
+  "也可以放 B 站等网站下载的带时间戳字幕（{0}）：跳过转写，直接校对和翻译，时间戳会保留。": "You can also import timestamped subtitles downloaded from Bilibili or other sites ({0}). They skip transcription, go straight to proofreading and translation, and keep their timestamps.",
+  "推理：": "Reasoning: "
 }
