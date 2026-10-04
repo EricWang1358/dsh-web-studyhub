@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readAppSource } from "./helpers/app-source.mjs";
 
 // D1 / P09 / P14: 创建题组 leads with generating from the learner's materials,
 // keeps JSON import as the second entry, and gates generation on a usable model
@@ -103,7 +104,7 @@ test("the English page has no Chinese UI text", () => {
 });
 
 test("the app opens 创建题组 on generating from materials and keeps form defaults in one place", async () => {
-  const app = await readFile("ui/App.jsx", "utf8");
-  assert.match(app, /\[genSource, setGenSource\] = useState\("files"\)/);
+  const app = await readAppSource();
+  assert.match(app, /\[genSource, setGenSource\] = useState\(["']files["']\)/);
   assert.match(app, /GENERATION_DEFAULTS/);
 });

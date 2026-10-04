@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readAppSource } from './helpers/app-source.mjs';
 
 /* D2 (2.5.9): 学习流, 课堂实录 and 音频转录 sit in the same page frame as 资料: the shared PageHeader carries each
    page's only <h1>, its actions are shared Buttons, and the content starts at the page's own left edge. */
@@ -105,6 +106,6 @@ test('no page below the frame hand-rolls its heading any more', async () => {
     assert.doesNotMatch(source, /<h1>/, `${file}: no bare h1`);
     assert.doesNotMatch(source, /<header className="(wf|live)-heading/, `${file}: no hand-rolled heading`);
   }
-  const app = await readFile('ui/App.jsx', 'utf8');
+  const app = await readAppSource();
   assert.doesNotMatch(app, /<h1>\{language === "en" \? "Audio transcription"/, 'the audio heading left App.jsx');
 });

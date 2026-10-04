@@ -4,18 +4,20 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { reviewElement } from "./helpers/review-render.mjs";
 
-const compiled = await build({ entryPoints: ["ui/Review.jsx"], bundle: true,
+const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx';", resolveDir: process.cwd() }, bundle: true,
   write: false, platform: "node", format: "cjs", external: ["react"],
   loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const Review = module.exports.default;
+const reviewEl = (old) => reviewElement(Review, module.exports.StudyServicesContext, old);
 function render(kind, revealed, runPatch = {}, dataPatch = {}) {
   const card = { id: "q", kind, topic: "Context", prompt: "Who processes payments?",
     options: [{ id: "a", text: "Payment System" }],
     cloze: { text: "付款由 {{actor}} 处理。", blanks: [{ id: "actor" }] } };
-  return renderToStaticMarkup(React.createElement(Review, {
+  return renderToStaticMarkup(reviewEl({
     run: { id: "r", index: 0, total: 2, card, revealed,
       feedback: revealed ? { correct: false, details: [{ id: "actor", correct: false, expected: "Payment System" }] } : null,
       solution: revealed ? { answer: "Payment System", explanation: "Payment System handles payments.",
@@ -29,7 +31,7 @@ function renderResult(status, next = "review_weak") {
   const debrief = { headline: "先把「Context」补稳。", why: "", next, insights: [],
     metrics: { answered: 4, gradedAnswered: 4, gradedCorrect: 2 }, status };
   const noop = () => {};
-  return renderToStaticMarkup(React.createElement(Review, {
+  return renderToStaticMarkup(reviewEl({
     run: { id: "r", mode: "path", complete: true, index: 4, total: 4, questions: 4, answered: 4, correct: 2,
       weakTopics: ["Context"], scope: [], card },
     data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {},
@@ -39,7 +41,7 @@ function renderResult(status, next = "review_weak") {
 }
 
 test("review action feedback is in the question's local tools area", () => {
-  const html = renderToStaticMarkup(React.createElement(Review, {
+  const html = renderToStaticMarkup(reviewEl({
     run: { id: "feedback-run", index: 0, total: 1, mode: "path", card: {
       id: "feedback-card", kind: "quiz", topic: "Context", prompt: "Which context?", options: [],
     } }, data: { sources: [] }, host: {}, choice: true, selected: [], clozeValues: {},
@@ -131,13 +133,14 @@ test("each Q&A folds: the newest starts open, the rest closed, with one control 
   assert.deepEqual(items.map((tag) => / open=""/.test(tag)), [false, false, true], "only the newest is open");
   assert.match(html, /3 条问答/);
   assert.match(html, />全部展开</);
-  assert.match(html, /<summary><span class="en-tag">Q&amp;A<\/span><h4>第一个问题？<\/h4><\/summary>/, "the question is the fold's title");
+  assert.match(html, /<summary><span class="en-tag">Q&amp;A<\/span><h4>第一个问题？<\/h4><span class="followup-state" aria-hidden="true">展开<\/span><\/summary>/, "the question is the fold's title, with its state in words (#160)");
+  assert.match(html, /<h4>第三个问题？<\/h4><span class="followup-state" aria-hidden="true">收起<\/span>/, "the open one offers to fold");
   const single = render("quiz", true, { solution: { ...solution, followups: followups.slice(0, 1) } });
   assert.match(single, /<details class="followup-item" open="">/);
   assert.doesNotMatch(single, /条问答/, "no bulk control for a single Q&A");
 });
 test("a question reached from the inbox offers the way back to where the learner was", () => {
-  const html = renderToStaticMarkup(React.createElement(Review, {
+  const html = renderToStaticMarkup(reviewEl({
     run: { id: "letter", index: 0, total: 1, card: { id: "q", kind: "flashcard", topic: "T", prompt: "Q?" }, revealed: false, feedback: null },
     detour: { runId: "course", index: 4, title: "课程 · Cloud Native" }, onReturnFromDetour: () => {},
     data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "信箱", busy: false,
@@ -147,7 +150,7 @@ test("a question reached from the inbox offers the way back to where the learner
 
 test("a failed background assist offers 重新提交 and 改一改再提交 buttons (it used to only say 'you can submit again')", () => {
   const card = { id: "q", kind: "quiz", topic: "Context", prompt: "Who processes payments?", options: [{ id: "a", text: "Payment System" }] };
-  const html = renderToStaticMarkup(React.createElement(Review, {
+  const html = renderToStaticMarkup(reviewEl({
     run: { id: "r", index: 0, total: 2, card, revealed: false, feedback: null, solution: null },
     data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
     assistTasks: [{ id: "t", cardId: "q", mode: "ask", status: "failed", message: "新前置题格式无效", question: "为什么？", choices: ["prerequisite"] }],
@@ -156,7 +159,7 @@ test("a failed background assist offers 重新提交 and 改一改再提交 butt
   assert.match(html, /<button[^>]*>重新提交<\/button>/);
   assert.match(html, /<button[^>]*>改一改再提交<\/button>/);
   assert.doesNotMatch(html, /。可以重新提交。/);
-  const grade = renderToStaticMarkup(React.createElement(Review, {
+  const grade = renderToStaticMarkup(reviewEl({
     run: { id: "r", index: 0, total: 2, card, revealed: false, feedback: null, solution: null },
     data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
     assistTasks: [{ id: "t", cardId: "q", mode: "grade", status: "failed", message: "x" }],
@@ -186,7 +189,7 @@ test("each Q&A of a card offers 出成前置题 and 出成独立题; a failed �
   const html = render("quiz", true, { solution }, {});
   // the Q&A list is read-only in the page, but the derive links are actions on each item
   assert.match(html, /出成前置题/);
-  const withHandler = renderToStaticMarkup(React.createElement(Review, {
+  const withHandler = renderToStaticMarkup(reviewEl({
     run: { id: "r", index: 0, total: 2, card: { id: "q", kind: "quiz", topic: "Context", prompt: "P?", options: [{ id: "a", text: "A" }] }, revealed: true,
       feedback: { correct: true, details: [] }, solution },
     data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {},
@@ -197,7 +200,7 @@ test("each Q&A of a card offers 出成前置题 and 出成独立题; a failed �
   assert.match(withHandler, /后台助教没能完成：新题和当前这道题重复，没有保存/);
   assert.match(withHandler, /<button[^>]*>重新提交<\/button>/);
   assert.doesNotMatch(withHandler, /改一改再提交/, "a Q&A-based task has nothing to edit: only a typed knowledge point does");
-  const typed = renderToStaticMarkup(React.createElement(Review, {
+  const typed = renderToStaticMarkup(reviewEl({
     run: { id: "r", index: 0, total: 2, card: { id: "q", kind: "quiz", topic: "Context", prompt: "P?", options: [{ id: "a", text: "A" }] }, revealed: false, feedback: null, solution: null },
     data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {},
     assistTasks: [{ id: "t", cardId: "q", mode: "derive", status: "failed", message: "x", question: "什么是聚合根", relation: "standalone" }],
@@ -206,7 +209,7 @@ test("each Q&A of a card offers 出成前置题 and 出成独立题; a failed �
 });
 
 test("a stem that asks what the source says is called out with a one-click fix, and 修题 offers the usual problems as choices", () => {
-  const make = (prompt, assistMode, extra = {}) => renderToStaticMarkup(React.createElement(Review, {
+  const make = (prompt, assistMode, extra = {}) => renderToStaticMarkup(reviewEl({
     run: { id: "r", index: 0, total: 2, card: { id: "q", kind: "flashcard", topic: "API", prompt, options: [] }, revealed: false, feedback: null, solution: null },
     data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {}, ...extra }));
   const bad = make("API 返回 4xx 与 5xx 时，资料用什么基本区别帮助开发者定位问题？");
@@ -214,7 +217,7 @@ test("a stem that asks what the source says is called out with a one-click fix, 
   assert.match(bad, /data-usage="review\.voice-fix"[^>]*>改成概念或情景题</);
   const good = make("4xx 与 5xx 有什么基本区别？");
   assert.doesNotMatch(good, /在问「资料怎么说」/, "a normal question gets no hint");
-  const exam = renderToStaticMarkup(React.createElement(Review, {
+  const exam = renderToStaticMarkup(reviewEl({
     run: { id: "r", mode: "exam", index: 0, total: 2, card: { id: "q", kind: "flashcard", topic: "API", prompt: "资料说了什么？", options: [] }, revealed: false, feedback: null, solution: null },
     data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {} }));
   assert.doesNotMatch(exam, /在问「资料怎么说」/, "no hint in an exam");

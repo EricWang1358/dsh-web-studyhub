@@ -226,8 +226,8 @@ test("a stale operation finishing after reset does not unlock the operation that
 });
 
 test("App wires act() through the runner and never refreshes inside the 下一题 lock", async () => {
-  const { readFile } = await import("node:fs/promises");
-  const source = await readFile(new URL("../ui/App.jsx", import.meta.url), "utf8");
+  const { readAppSource } = await import("./helpers/app-source.mjs");
+  const source = await readAppSource();
   assert.match(source, /createActRunner/);
   assert.doesNotMatch(source, /acting\.current/, "no second, hand-rolled lock");
   const reviewAct = source.slice(source.indexOf("const reviewAct ="), source.indexOf("const reviewActRef"));

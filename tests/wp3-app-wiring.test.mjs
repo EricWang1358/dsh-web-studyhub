@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
+import { readAppSource } from './helpers/app-source.mjs';
 
 // O-3 / P19: after an import the dialog closes, a success toast offers the
 // next step and the new material is highlighted in 资料 — unless the learner
@@ -51,12 +52,13 @@ test('a single JSON deck opens its draft; subtitles land in 资料', () => {
 });
 
 test('App wires the hub into the dialog and the empty state, and counts documents', async () => {
-  const source = await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8');
-  assert.match(source, /const sourceForm = [\s\S]{0,400}<ImportHub/);
+  const source = await readAppSource();
+  assert.match(source, /export function SourceForm\(\)[\s\S]{0,1500}<ImportHub/, 'one SourceForm (ImportHub) serves the dialog and the empty Sources page');
+  assert.match(source, /<SourceForm \/>/);
   assert.doesNotMatch(source, /导入 Markdown \/ 文本/, 'the third text input is gone');
   assert.doesNotMatch(source, /<DocumentImport /);
   assert.match(source, /hint=\{[^}]*countDocuments\(data\.sources\)/, 'the 资料 row shows its document count as its trailing hint');
-  assert.match(source, /highlight=\{sourceHighlight\}/);
-  assert.match(source, /onComplete=\{finishImport\}/);
-  assert.match(source, /documentSourceIds\(data\.sources, modal\.source\.id\)/, 'the source dialog generates from the whole document');
+  assert.match(source, /highlight=\{lib\.sourceHighlight\}/);
+  assert.match(source, /onComplete=\{sources\.finishImport\}/);
+  assert.match(source, /documentSourceIds\(data\.sources, source\.id\)/, 'the source dialog generates from the whole document');
 });

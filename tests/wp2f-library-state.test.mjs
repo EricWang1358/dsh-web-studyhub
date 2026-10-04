@@ -70,7 +70,8 @@ test('a reset gives every key its initial value: restore leaves nothing of the o
 });
 
 const fakeDeps = (log) => {
-  const refs = { epoch: { current: 4 }, navigation: { current: 9 }, leaveTimer: { current: 'timer' }, examLocation: { current: { runId: 'r' } }, actRunner: { current: { reset: () => log.push('act.reset') } } };
+  const refs = { epoch: { current: 4 }, navigation: { current: 9 }, notebookRequest: { current: 2 }, leaveTimer: { current: 'timer' }, examLocation: { current: { runId: 'r' } },
+    actRunner: { current: { reset: () => log.push('act.reset') } } };
   return {
     refs,
     quick: { reset: () => log.push('quick.reset') },
@@ -93,6 +94,7 @@ test('resetLibraryState: one list for switching library, restoring a backup and 
     assert.equal(deps.refs.epoch.current, 5, `${reason}: the library epoch moves, so late answers are dropped`);
     assert.equal(deps.refs.navigation.current, 10, `${reason}: pending navigations are dropped`);
     assert.equal(deps.refs.examLocation.current, null, `${reason}: the exam location is forgotten`);
+    assert.equal(deps.refs.notebookRequest.current, 3, `${reason}: a directory request in flight is dropped`);
     for (const entry of ['quick.reset', 'act.reset', 'session.reset', 'clearTimer:timer']) assert.ok(log.includes(entry), `${reason}: ${entry}`);
     assert.deepEqual(log.find((entry) => entry[0] === 'library.reset'), ['library.reset', { gen: gen0, settings: { s: 1 } }], reason);
     assert.deepEqual(log.filter((entry) => Array.isArray(entry) && entry[0] !== 'library.reset'),
@@ -104,6 +106,12 @@ test('resetLibraryState without a running action runner or settings still resets
   const log = [], deps = fakeDeps(log);
   deps.refs.actRunner.current = null;
   createLibraryReset(deps)('restore', { gen: gen0 });
+  assert.deepEqual(log.find((entry) => entry[0] === 'library.reset')[1], { gen: gen0, settings: {} });
+});
+
+test('a restore that does not know the new settings keeps the form on the defaults of the library it was in', () => {
+  const log = [], deps = { ...fakeDeps(log), defaultGen: () => gen0 };
+  createLibraryReset(deps)('restore');
   assert.deepEqual(log.find((entry) => entry[0] === 'library.reset')[1], { gen: gen0, settings: {} });
 });
 

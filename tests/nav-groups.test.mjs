@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readAppSource } from './helpers/app-source.mjs';
 
 /* The sidebar is grouped by when a page is used (docs/feature-tiers.md): 每天 (every day), 阶段性 (now and then) and
    课程准备与管理 (once at the start of a course). The grouping removes nothing: every page, anchor, shortcut and the
@@ -118,7 +119,7 @@ test('English renders without Han, and the group labels have English text', () =
 });
 
 test('App renders the sidebar through the groups: resume and coach lead the daily group, every page keeps its anchor', async () => {
-  const source = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
+  const source = (await readFile(new URL('../ui/app/AppSidebar.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
   assert.match(source, /<NavGroup\b/);
   assert.match(source, /NAV_GROUPS\.map/);
   assert.match(source, /data-tour=\{`nav-\$\{id\}`\}/, 'the nav-<page> tour anchors stay');

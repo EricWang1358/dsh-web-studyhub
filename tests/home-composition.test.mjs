@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readAppSource } from './helpers/app-source.mjs';
 
 /* The home ("学习库") is the daily path: one continue card, one recommendation with its reason, the other ways to start folded
    under one line, and every number with one plain label and a hover that says what it counts. Nothing else is promised above
@@ -105,7 +106,7 @@ test('English renders without Han outside the learner\'s own names', () => {
 });
 
 test('App no longer draws the personalised-questions card; the sidebar row and the home link remain', async () => {
-  const app = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
+  const app = (await readAppSource()).replace(/\r/g, '');
   assert.doesNotMatch(app, /className="coach-offer"/);
   assert.match(app, /<CoachNavItem\b/);
   assert.match(app, /onCoachPractice=\{/);

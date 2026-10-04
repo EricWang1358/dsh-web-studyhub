@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ABORT, LEARNING_TARGETS, REFERENCE_ORDER, RETURN_PAGES, captureContext, currentStudyReference, loadLearningTarget, openLearningTarget,
+  ABORT, LEARNING_TARGETS, REFERENCE_ORDER, practiceArgs, RETURN_PAGES, captureContext, currentStudyReference, loadLearningTarget, openLearningTarget,
   returnTargetFor, openReturnTarget, loadReturnTarget, readExamTarget,
 } from '../ui/learning-navigation.js';
 
@@ -204,6 +204,15 @@ test('returning: notes, skeleton and manage check their object first, exam and e
     openReturnTarget(entry, undefined, origin, sink);
     assert.deepEqual(sink.log.at(-1), ['showPage', origin.page]);
   }
+});
+
+test('practiceArgs: one shape for every practice request', () => {
+  assert.deepEqual(practiceArgs([{ deckId: 'd', cardId: 'c' }]), { mode: 'path', scope: [{ deckId: 'd', cardId: 'c' }], fresh: true });
+  assert.deepEqual(practiceArgs(undefined, { fresh: false }), { mode: 'path' }, 'continue today\'s path');
+  assert.deepEqual(practiceArgs([1], { fresh: false }), { mode: 'path', scope: [1] });
+  assert.deepEqual(practiceArgs([1], { returnTo: 'run-1' }), { mode: 'path', scope: [1], fresh: true, returnTo: 'run-1' });
+  assert.deepEqual(practiceArgs([1], { reading: { sourceId: 's' } }), { mode: 'path', scope: [1], fresh: true, reading: { sourceId: 's' } }, 'extra fields pass through');
+  assert.deepEqual(practiceArgs([]), { mode: 'path', scope: [], fresh: true }, 'an empty scope is still a scope (the coach continue)');
 });
 
 test('readExamTarget still reads a finished exam with its report', async () => {

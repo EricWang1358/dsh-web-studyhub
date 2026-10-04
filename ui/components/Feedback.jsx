@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ui } from '../i18n.js';
 import css from './components.css';
 import { useComponentCss, cx } from './css.js';
@@ -165,4 +165,41 @@ export function Banner({ tone = 'info', title, children, action, secondary, onDi
       </div>
     </div>
   );
+}
+
+/* ── The toast context ──────────────────────────────────────────────────────
+   One feedback region per app (App renders it), reached from any page without passing a setter down:
+     const toast = useToast();
+     toast.success('已保存'); toast.error(error, { retry }); toast.show({ tone, message, action, undo, timeout });
+   The api is built by createToastApi over the app's notice and error slots; without a provider useToast is silent. */
+export const ToastContext = createContext(null);
+
+const silentToast = Object.freeze({ show() {}, success() {}, info() {}, warning() {}, error() {}, dismiss() {} });
+
+/** The toast api of the nearest ToastContext.Provider (a silent one when there is none). */
+export const useToast = () => useContext(ToastContext) || silentToast;
+
+const failureText = error => {
+  const raw = typeof error === 'string' ? error : error?.message;
+  return raw ? String(raw) : ui('出了点问题，请重试。');
+};
+
+/**
+ * The api over the app's two feedback slots. show({ tone, message, action: { label, onClick }, persistent, undo, timeout, scope })
+ * fills the notice slot (a newer one replaces it); error(error, { retry }) fills the error slot; dismiss() clears the notice.
+ * An undo offer (`undo: true`) leaves after `timeout` but is held while hovered or focused (see shouldAutoDismiss).
+ */
+export function createToastApi({ setNotice, setError }) {
+  const show = ({ tone = 'info', message, action, persistent, undo, timeout, scope }) => setNotice({
+    text: message, tone,
+    ...(persistent ? { persistent } : {}), ...(undo ? { undo } : {}), ...(timeout ? { timeout } : {}), ...(scope !== undefined ? { scope } : {}),
+    ...(action ? { action: { label: action.label, run: action.run ?? action.onClick } } : {}),
+  });
+  const withTone = kind => (message, options = {}) => show({ tone: kind, message, ...options });
+  return {
+    show,
+    success: withTone('success'), info: withTone('info'), warning: withTone('warning'),
+    error: (error, { retry } = {}) => setError({ text: failureText(error), ...(retry ? { action: { label: ui('重试'), run: retry } } : {}) }),
+    dismiss: () => setNotice(''),
+  };
 }

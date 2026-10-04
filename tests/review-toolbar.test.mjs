@@ -63,25 +63,38 @@ test("the hint and busy reason are English in the English UI", () => {
 
 test('the More chevron is drawn, not a text glyph: the "⌄" character sits below the baseline and looks like a subscript', async () => {
   const { readFileSync } = await import('node:fs');
-  const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8');
-  const after = /\.question-toolbar \.review-more > summary::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  const css = readFileSync(new URL('../ui/review/review.css', import.meta.url), 'utf8');
+  const after = /\.review-more-trigger::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
   assert.ok(after, 'the chevron rule exists');
   assert.doesNotMatch(after, /content:\s*"[^"]/, 'no text glyph as content');
   assert.match(after, /border-right:/); assert.match(after, /border-bottom:/);
   assert.match(after, /transform:[^;]*rotate\(45deg\)/);
-  const open = /\.question-toolbar \.review-more\[open\] > summary::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  const open = /\.review-more-trigger\[aria-expanded="true"\]::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
   assert.match(open, /rotate\(-135deg\)/, 'it turns up while the menu is open');
+});
+
+test("更多 is a menu (#79): a button with aria-haspopup, not a details element, and its list is a role=menu", () => {
+  setUiLanguage("zh");
+  const closed = render({ feedback: null });
+  assert.doesNotMatch(closed, /<details|<summary/);
+  assert.match(closed, /<button[^>]*aria-haspopup="menu"[^>]*aria-expanded="false"[^>]*>更多<\/button>|<button[^>]*aria-expanded="false"[^>]*aria-haspopup="menu"[^>]*>更多<\/button>/);
+  const open = render({ feedback: null }, { moreDefaultOpen: true });
+  assert.match(open, /role="menu"/);
+  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["写笔记", "修题", "斩掉此题"]);
+  assert.match(open, /<button[^>]*role="menuitem"[^>]*class="sh-menu__item is-danger"[^>]*>(?:(?!<\/button>).)*斩掉此题/, 'slaying is marked as the dangerous one');
+  const withTask = render({ feedback: null }, { onTask() {}, moreDefaultOpen: true });
+  assert.ok(withTask.indexOf("记待办") > withTask.indexOf("写笔记") && withTask.indexOf("记待办") < withTask.indexOf("修题"));
 });
 
 test("the More menu has 出前置题… next to 修题 (only when the page can start it), in both languages", () => {
   setUiLanguage("zh");
-  const withIt = render({ feedback: null }, { onDerive() {} });
-  assert.match(withIt, /<button[^>]*data-usage="review\.derive"[^>]*>出前置题…<\/button>/);
+  const withIt = render({ feedback: null }, { onDerive() {}, moreDefaultOpen: true });
+  assert.match(withIt, /<button[^>]*data-usage="review\.derive"[^>]*>(?:(?!<\/button>).)*出前置题…<\/span><\/button>/);
   assert.ok(withIt.indexOf("修题") < withIt.indexOf("出前置题…") && withIt.indexOf("出前置题…") < withIt.indexOf("斩掉此题"), "between 修题 and 斩掉此题");
-  assert.doesNotMatch(render({ feedback: null }), /出前置题/, "no handler, no entry");
+  assert.doesNotMatch(render({ feedback: null }, { moreDefaultOpen: true }), /出前置题/, "no handler, no entry");
   setUiLanguage("en");
   try {
-    const english = render({ feedback: null }, { onDerive() {} });
+    const english = render({ feedback: null }, { onDerive() {}, moreDefaultOpen: true });
     assert.match(english, />Generate a prerequisite question…</);
     assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
   } finally { setUiLanguage("zh"); }

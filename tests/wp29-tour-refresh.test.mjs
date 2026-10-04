@@ -71,9 +71,9 @@ test("steps that may find their element missing carry a fallback anchor or a con
 });
 
 test("every prepare hook is handled by the app and every page it names is a real page", async () => {
-  const app = await read("ui/App.jsx");
-  const handled = new Set([...app.matchAll(/step\.prepare === "([A-Za-z]+)"/g)].map((match) => match[1]));
-  for (const item of TOUR_STEPS.filter((candidate) => candidate.prepare)) assert.ok(handled.has(item.prepare), `${item.id}: ${item.prepare} is not handled in ui/App.jsx`);
+  const app = await read("ui/app/use-tour.js");
+  const handled = new Set([...app.matchAll(/step\.prepare === ["']([A-Za-z]+)["']/g)].map((match) => match[1]));
+  for (const item of TOUR_STEPS.filter((candidate) => candidate.prepare)) assert.ok(handled.has(item.prepare), `${item.id}: ${item.prepare} is not handled in ui/app/use-tour.js`);
   // The exam format switch is shown as the learner left it; the tour must not force a format that hides the switch.
   assert.equal(step("exam").prepare, undefined);
 });

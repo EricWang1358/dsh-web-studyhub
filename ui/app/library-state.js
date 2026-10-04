@@ -1,4 +1,4 @@
-import { useMemo, useReducer } from 'react';
+import { useMemo, useReducer, useRef } from 'react';
 
 /* Everything the app remembers about ONE library: the page it was on, the draft it was editing, the materials it ticked,
    the generate form, an open dialog. Switching the library, restoring a backup and moving the binding all have to forget
@@ -63,8 +63,26 @@ export function createLibraryReset(deps) {
     deps.setError('');
     deps.session.reset();
     refs.examLocation.current = null;
-    deps.resetLibrary({ gen, settings: settings ?? {} });
+    // A directory request that was in flight belongs to the old library.
+    if (refs.notebookRequest) refs.notebookRequest.current++;
+    // The generate form starts from the defaults of the library it was in unless the caller knows the new library's.
+    deps.resetLibrary({ gen: gen ?? deps.defaultGen?.(), settings: settings ?? {} });
     deps.setPage('library');
     return reason;
   };
+}
+
+/** resetLibraryState(reason, { gen, settings }) over the app's hooks; one stable function, always acting on the latest hooks. */
+export function useLibraryReset({ core, libApi, nav, session, defaultGen }) {
+  const latest = useRef(null);
+  latest.current = { libApi, nav, session, defaultGen };
+  return useMemo(() => createLibraryReset({
+    refs: core.refs, quick: core.quick, defaultGen: () => latest.current.defaultGen?.(),
+    resetLibrary: (initial) => latest.current.libApi.reset(initial),
+    session: { reset: () => latest.current.session.reset() },
+    clearTimer: (timer) => clearTimeout(timer),
+    setPageTarget: (value) => latest.current.nav.setPageTarget(value),
+    setBusy: core.setBusy, setNotice: core.notify, setError: core.setError,
+    setPage: (value) => latest.current.nav.setPage(value),
+  }), [core.refs, core.quick, core.setBusy, core.notify, core.setError]);
 }

@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readAppSource } from './helpers/app-source.mjs';
 
 const compiled = await build({ stdin: { contents: "export { LibraryChip, libraryFolderName } from './ui/App.jsx'; export { setUiLanguage } from './ui/i18n.js';",
   resolveDir: process.cwd(), loader: 'js' }, bundle: true, write: false, platform: 'node', format: 'cjs',
@@ -24,7 +25,7 @@ test('the library location reads as the folder a learner recognises', () => {
 test('the top-bar chip names the library, shows the full path and opens Settings', () => {
   const root = 'C:\\Users\\me\\Documents\\CS1010\\.dsh-study';
   const html = renderToStaticMarkup(React.createElement(LibraryChip, { root, onOpen() {} }));
-  assert.match(html, /^<button type="button" class="library-chip"/);
+  assert.match(html, /^<button type="button" class="[^"]*\blibrary-chip\b/);
   assert.ok(html.includes(`title="${root}"`), 'the tooltip is the full path');
   assert.match(html, /学习库：CS1010/);
   let opened = 0;
@@ -40,9 +41,9 @@ test('the top-bar chip names the library, shows the full path and opens Settings
 });
 
 test('the app shell names the product StudyHub', async () => {
-  const source = await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8');
+  const source = await readAppSource();
   assert.doesNotMatch(source, /Daily Flashcard/);
-  assert.match(source, /className="brand"[\s\S]{0,400}\{ui\("StudyHub"\)\}<small>/);
-  assert.match(source, /<span className="crumb">\{ui\("StudyHub"\)\}<\/span>/);
-  assert.match(source, /<LibraryChip root=\{binding\.root\} onOpen=\{\(\) => switchPage\("settings"\)\} \/>/);
+  assert.match(source, /className="brand"[\s\S]{0,400}\{ui\(['"]StudyHub['"]\)\}<small>/);
+  assert.match(source, /<span className="crumb">\{ui\(['"]StudyHub['"]\)\}<\/span>/);
+  assert.match(source, /<LibraryChip root=\{binding\.root\} onOpen=\{\(\) => nav\.navigate\('settings', \{ animate: true, keepTrail: false \}\)\} \/>/);
 });

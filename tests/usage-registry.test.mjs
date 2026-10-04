@@ -11,6 +11,7 @@ import { dom, loadUsageModules } from './helpers/usage-dom.mjs';
 import { USAGE_REGISTRY, USAGE_TIERS, USAGE_GROUPS, USAGE_NAV_GROUPS, USAGE_AREAS, USAGE_CLASS_HOOKS, usageEntry, TEXT_FIELD_KEY } from '../lib/usage-registry.js';
 import * as uiRegistry from '../ui/usage/registry.js';
 import { StudyService } from '../lib/service.js';
+import { reviewElement } from './helpers/review-render.mjs';
 
 /* The registry is the one list of controls the report speaks about. It must stay honest: unique keys, names in both languages, a tier
    (docs/feature-tiers.md), every control a page marks with data-usage listed, every listed control actually marked, and the keys the
@@ -73,8 +74,9 @@ test('CI-style: every data-usage a page marks is registered, and every registere
   for (const file of await sourceFiles('ui')) {
     const text = await readFile(file, 'utf8');
     combined += `\n${text}`;
-    for (const match of text.matchAll(/data-usage=(?:"([^"]+)"|\{`([^`]+)`\}|\{'([^']+)'\}|\{"([^"]+)"\})/g)) {
-      const value = match[1] || match[2] || match[3] || match[4];
+    // A control marked in JSX (data-usage="x") or through the attrs of a Menu item ("data-usage": "x").
+    for (const match of text.matchAll(/data-usage=(?:"([^"]+)"|\{`([^`]+)`\}|\{'([^']+)'\}|\{"([^"]+)"\})|["']data-usage["']:\s*["']([^"']+)["']/g)) {
+      const value = match[1] || match[2] || match[3] || match[4] || match[5];
       if (!marked.has(value)) marked.set(value, file);
     }
   }
@@ -113,6 +115,7 @@ const pages = await bundle('pages', `
   export { default as Settings } from './ui/Settings.jsx';
   export { default as Sources } from './ui/Sources.jsx';
   export { default as ShortcutHelp } from './ui/ShortcutHelp.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { NavItem, NavGroup } from './ui/SideNav.jsx';
   export { setUiLanguage, ui } from './ui/i18n.js';`);
 const h = React.createElement;
@@ -130,7 +133,7 @@ const progress = { d1: { counts: { mastered: 1, familiar: 1, learning: 1, weak: 
 const sources = [{ id: 'p1', title: '讲义 第 1 页', text: 'x', document: { id: 'pdf', page: 1 } }, { id: 'p2', title: '讲义 第 2 页', text: 'x', document: { id: 'pdf', page: 2 } }];
 const home = () => renderToStaticMarkup(h(pages.StudyMap, { data: { root: '/tmp/lib', decks: [deck], progress, sources, drafts: [], jobs: [], runs: [], today: { due: 1, weak: 2, new: 0, size: 3 }, focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } },
   busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: { notebooks: [] }, onFocus: noop, cancelJob: noop, dismissJob: noop, generateFromSources: noop, openModelSettings: noop, canChat: false }));
-const review = kind => renderToStaticMarkup(h(pages.Review, { run: { id: 'r', index: 0, total: 3, card: { id: 'q', kind, topic: 'Context', prompt: 'Who processes payments?', options: [{ id: 'a', text: 'Payment System' }, { id: 'b', text: 'Ledger' }] }, revealed: kind !== 'quiz', feedback: null, solution: null },
+const review = kind => renderToStaticMarkup(reviewElement(pages.Review, pages.StudyServicesContext, { run: { id: 'r', index: 0, total: 3, card: { id: 'q', kind, topic: 'Context', prompt: 'Who processes payments?', options: [{ id: 'a', text: 'Payment System' }, { id: 'b', text: 'Ledger' }] }, revealed: kind !== 'quiz', feedback: null, solution: null },
   data: { sources: [] }, host: {}, choice: kind === 'quiz', isCloze: false, selected: [], clozeValues: {}, shellTitle: 'Review', busy: false }));
 const settings = () => renderToStaticMarkup(h(pages.Settings, { data: { sources: [], contexts: ['system'], settings: {}, root: '/tmp/lib' }, busy: false, act: noop, call: async () => ({}), host: {}, setNotice: noop,
   settings: { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 }, setSettings: noop, legacy: '', setLegacy: noop, workspacePanel: null, coursePanel: null, onboardingPanel: null, exportData: noop, onRestored: noop, initialProfile: { consent: false, goal: '', summary: '', signals: {} } }));
@@ -148,7 +151,7 @@ for (const [name, area, render, minimum = 3] of [['home', 'library', home], ['pr
 }
 
 test('the sidebar rows carry data-usage in the app and key identically in both languages', async () => {
-  const app = await readFile(join('ui', 'App.jsx'), 'utf8');
+  const app = await readFile(join('ui', 'app', 'AppSidebar.jsx'), 'utf8');
   assert.match(app, /data-usage=\{`nav\.\$\{id\}`\}/, 'the page rows are keyed by page id');
   assert.match(app, /data-usage="nav\.settings"/);
   const zh = withLanguage('zh', () => renderToStaticMarkup(h(pages.NavItem, { glyph: 'library', label: pages.ui('学习库'), 'data-usage': 'nav.library' })));

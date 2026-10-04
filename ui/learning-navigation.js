@@ -14,7 +14,12 @@ import { reviewEntryKey } from './async.js';
 export const ABORT = Symbol('stale learning target');
 
 const scopeOf = (deckId, cardIds) => cardIds.map((cardId) => ({ deckId, cardId }));
-const startPath = (call, scope) => call('review.start', { mode: 'path', scope, fresh: true });
+
+/** The one shape of a practice request: a path round over `scope`, fresh (new questions first) unless said otherwise. */
+export const practiceArgs = (scope, { fresh = true, returnTo, ...extra } = {}) => ({
+  mode: 'path', ...(scope ? { scope } : {}), ...(fresh ? { fresh: true } : {}), ...(returnTo ? { returnTo } : {}), ...extra,
+});
+const startPath = (call, scope) => call('review.start', practiceArgs(scope));
 
 export const LEARNING_TARGETS = {
   card: {
