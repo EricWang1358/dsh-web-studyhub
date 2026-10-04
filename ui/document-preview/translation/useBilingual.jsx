@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, us
 import { createPortal } from 'react-dom';
 import { ui, uiFormat, useUiLanguage } from '../../i18n.js';
 import { needsTranslation } from '../../../lib/passage-translation.js';
+import { gateMessage } from '../../ModelSetupGate.jsx';
 import { locateGroups } from '../links/link-ranges.js';
 import { captureSelection } from '../selection.js';
 import { createHost, createMark, paragraphAround, scanParagraphs } from './dom.js';
@@ -412,7 +413,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const priceAgain = useCallback(async passages => { try { return (await call('generation.translation.start', { ...identity, target, passages, retranslate: true, estimate: true })).estimate; } catch { return null; } }, [call, identity, target]);
   const retranslateMany = useCallback(async passages => {
     const started = await call('generation.translation.start', { ...identity, target, passages, retranslate: true, label: ui('术语表更新') });
-    if (started?.available === false) throw new Error(ui('当前没有可用模型，请先在设置里连接模型。'));
+    if (started?.available === false) throw new Error(gateMessage('translate'));
     await loadJobs();
   }, [call, identity, target, loadJobs]);
 
