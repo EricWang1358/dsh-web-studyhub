@@ -6,36 +6,29 @@
   width: calc(100% - 2 * var(--space-2));
   margin: 0 var(--space-2) var(--space-2);
   padding: 7px var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  padding: 0;
+  border: 0;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-  color: var(--accent-text);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  line-height: var(--lh-tight);
+  background: none;
   text-align: left;
   cursor: pointer;
 }
-:where(.study-app) .update-chip span {
+:where(.study-app) .update-chip .sh-badge { flex: 1 1 auto; min-width: 0; padding-block: var(--space-1); padding-inline: var(--space-3); }
+:where(.study-app) .update-chip__label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 :where(.study-app) .update-chip svg { flex-shrink: 0; }
-:where(.study-app) .update-chip:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+:where(.study-app) .update-chip:hover .sh-badge { background: color-mix(in srgb, var(--sh-tone) 22%, transparent); }
 :where(.study-app) .update-chip:focus-visible { outline: none; box-shadow: var(--ring); }
-:where(.study-app) .update-chip--restart {
-  border-color: color-mix(in srgb, var(--info) 45%, var(--line));
-  background: color-mix(in srgb, var(--info) 10%, transparent);
-  color: var(--text);
-}
 :where(.study-app) .update-chip.is-compact {
   justify-content: center;
   width: auto;
   margin: 0 auto var(--space-2);
-  padding: 9px;
 }
+:where(.study-app) .update-chip.is-compact .sh-badge { flex: none; padding: var(--space-2); }
 
 .update-dialog .update-notes-wrap h3 {
   margin: 0 0 var(--space-2);
@@ -110,8 +103,8 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent-text);
+  background: var(--bg-sunken);
+  color: var(--text-dim);
   font-size: var(--fs-xs);
   font-weight: 700;
 }
@@ -144,21 +137,7 @@
 :where(.study-app) .update-settings .update-facts div { display: grid; gap: 2px; }
 :where(.study-app) .update-settings .update-facts dt { color: var(--text-muted); font-size: var(--fs-xs); }
 :where(.study-app) .update-settings .update-facts dd { margin: 0; color: var(--text); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
-:where(.study-app) .update-settings .update-available {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
-  color: var(--accent-text);
-  font-weight: 600;
-  font-size: var(--fs-sm);
-}
-:where(.study-app) .update-settings .update-available button { margin-left: auto; }
-:where(.study-app) .update-settings .update-status { margin: 0 0 var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
+:where(.study-app) .update-settings > .sh-banner, :where(.study-app) .update-settings > .sh-inline, :where(.study-app) .update-settings > .sh-hint { margin: 0 0 var(--space-3); }
 :where(.study-app) .update-settings .update-settings__actions {
   display: flex;
   align-items: center;

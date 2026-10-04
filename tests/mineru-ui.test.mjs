@@ -251,7 +251,7 @@ test('the 大教材建议 card leads with local models; the desktop client is on
   assert.doesNotMatch(html.slice(0, advanced), /mineru\.net\/client/, 'no desktop-client link outside 高级');
   assert.doesNotMatch(html, /下载并安装 MinerU 客户端/);
   assert.match(html, /云端暂不可用，优先使用本地模型/);
-  assert.match(html, /<span class="large-doc__badge">推荐<\/span>/);
+  assert.match(html, /<span class="sh-badge[^"]*"[^>]*data-tone="info"[^>]*>推荐<\/span>/);
 });
 
 test('the catalogue recommends local models and Docling; cloud and desktop are kept without a recommendation', () => {

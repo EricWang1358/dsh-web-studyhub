@@ -1,13 +1,15 @@
 /* WP15 · update check and upgrade. One shared store per page: the first App
    that mounts asks `update.check` (cached on the host for 12 h); the sidebar
    chip, the 关于与更新 settings section and the upgrade dialog read it.
-   A failed check is silent. The dialog upgrades in one click when the host
+   An automatic check that fails is silent; a manual one says so, with a retry. The dialog upgrades in one click when the host
    reports DSH's plugin manager (`update.install`), otherwise it guides a
    reinstall from the exact package address. */
 import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { ui, uiFormat, uiLocale } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Dialog, Icon, InlineMessage } from './components/index.js';
+import { Badge, Banner, Button, Dialog, Hint, Icon, InlineMessage } from './components/index.js';
+import { formatDateTime } from './format.js';
+import { useCopyFeedback } from './use-copy-feedback.js';
 import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
 import { isNewerVersion } from '../lib/semver.js';
 import css from './update.css';
@@ -20,16 +22,20 @@ const read = () => snapshot;
 export const useUpdateStore = () => useSyncExternalStore(subscribe, read, read);
 
 let started = false;
-/** Ask the host; any failure leaves the last answer in place and is never shown as an error. */
+/**
+ * Ask the host. A failure leaves the last answer in place. An automatic check stays silent about it (null); a forced one (the
+ * learner pressed 检查更新) answers `{ error }` so the page can say so. The host's own answer may also carry `error` (GitHub
+ * could not be reached), which is the same thing to the learner.
+ */
 export async function refreshUpdate(call, { force = false } = {}) {
   setStore({ checking: true });
   try {
     const update = await call('update.check', force ? { force: true } : {});
     if (update && typeof update === 'object') setStore({ update });
     return update;
-  } catch {
+  } catch (error) {
     started = false;
-    return null;
+    return force ? { error: error?.message || String(error) } : null;
   } finally { setStore({ checking: false }); }
 }
 async function savePreferences(call, preferences) {
@@ -73,15 +79,6 @@ export async function startUpgrade(call, update, { confirmJobs = false } = {}) {
   } catch (error) { return { phase: 'error', message: error?.message || String(error) }; }
 }
 
-const formatTime = value => {
-  if (!value) return '';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(uiLocale(), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-};
-const formatDay = value => {
-  const date = value ? new Date(value) : null;
-  return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(uiLocale(), { year: 'numeric', month: 'short', day: 'numeric' }) : '';
-};
 
 /** The sidebar chip: quiet, only when there is something to do. */
 export function UpdateChip({ update, onOpen, compact = false }) {
@@ -92,22 +89,15 @@ export function UpdateChip({ update, onOpen, compact = false }) {
   return (
     <button type="button" className={`update-chip update-chip--${state}${compact ? ' is-compact' : ''}`} onClick={onOpen}
       aria-label={compact ? label : undefined} title={label}>
-      <Icon name={state === 'restart' ? 'info' : 'sparkle'} size={16} />
-      {!compact && <span>{label}</span>}
+      <Badge tone="info" icon={state === 'restart' ? 'info' : 'sparkle'}>{!compact && <span className="update-chip__label">{label}</span>}</Badge>
     </button>
   );
 }
 
 function CopyAddress({ address }) {
-  const [copied, setCopied] = useState(false);
-  async function copy() {
-    try { await navigator.clipboard.writeText(address); setCopied(true); }
-    catch {
-      const field = document.getElementById('study-update-address');
-      field?.select?.();
-      setCopied(false);
-    }
-  }
+  const { copied, copy: write } = useCopyFeedback(address);
+  // Without clipboard access the address is selected, ready for the learner's own copy.
+  async function copy() { if (!await write()) document.getElementById('study-update-address')?.select?.(); }
   return (
     <div className="update-address">
       <input id="study-update-address" readOnly value={address} aria-label={ui('安装地址')} onFocus={event => event.target.select()} />
@@ -174,10 +164,10 @@ export function UpdateDialog({ update, call, host, onClose, notify, initialPhase
   }
   async function later() {
     try { await savePreferences(call, { snooze: update.latest }); notify?.({ text: uiFormat('{0} 先不提醒了，可在「设置 › 关于与更新」里随时升级。', [update.latest]), tone: 'info' }); }
-    catch { /* a reminder preference is not worth an error */ }
+    catch { notify?.({ text: ui('没能保存「稍后提醒」，请再试一次。'), tone: 'error' }); return; }
     onClose('later');
   }
-  const published = formatDay(update.publishedAt);
+  const published = formatDateTime(update.publishedAt, 'day');
   const description = uiFormat('当前版本 {0}', [update.current]) + (published ? ` · ${uiFormat('发布于 {0}', [published])}` : '');
   let primary = null;
   if (phase.phase === 'installed') primary = <Button variant="primary" onClick={() => onClose('done')}>{ui('知道了')}</Button>;
@@ -219,21 +209,28 @@ export function UpdateDialog({ update, call, host, onClose, notify, initialPhase
 }
 
 /** Settings › 关于与更新. */
-export function UpdateSettings({ update, call, onOpen, checking = false, extension, onExtension, onCheck }) {
+export function UpdateSettings({ update, call, onOpen, checking = false, extension, onExtension, onCheck, initialCheckError = '', initialSaveError = '' }) {
   useInjectCss(css, 'study-update');
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState(false), [checkError, setCheckError] = useState(initialCheckError), [saveError, setSaveError] = useState(initialSaveError);
   // The check compares StudyHub only; the search extension is installed once and is not updated with it.
   const staleExtension = extension?.installed && extension.outdated ? extension : null;
-  const checkUpdates = () => { refreshUpdate(call, { force: true }); onCheck?.(); };
+  async function checkUpdates() {
+    setCheckError('');
+    const result = await refreshUpdate(call, { force: true });
+    onCheck?.();
+    if (result?.error) setCheckError(String(result.error));
+  }
   const available = canUpgrade(update);
+  // How the check stands: tone and words differ for "up to date", "restart needed", "extension behind", "never checked".
   const status = !update ? null
-    : update.pendingRestart ? uiFormat('已安装 {0}，重启 DSH 后生效。', [update.pendingRestart])
+    : update.pendingRestart ? { tone: 'info', text: uiFormat('已安装 {0}，重启 DSH 后生效。', [update.pendingRestart]) }
       : available || update.error ? null
-          : staleExtension ? uiFormat('StudyHub 本体已是最新，但检索扩展还是 {0}，需要更新到 {1}。', [staleExtension.version, staleExtension.expected])
-            : update.checkedAt ? ui('已是最新版本。') : ui('还没有检查过更新。');
+        : staleExtension ? { tone: 'warning', text: uiFormat('StudyHub 本体已是最新，但检索扩展还是 {0}，需要更新到 {1}。', [staleExtension.version, staleExtension.expected]) }
+          : update.checkedAt ? { tone: 'success', text: ui('已是最新版本。') } : { tone: 'hint', text: ui('还没有检查过更新。') };
+  const retry = { label: ui('重试'), onClick: checkUpdates };
   async function toggle(event) {
-    setSaving(true);
-    try { await savePreferences(call, { autoCheck: event.target.checked }); } catch { /* keep the old value */ }
+    setSaving(true); setSaveError('');
+    try { await savePreferences(call, { autoCheck: event.target.checked }); } catch (error) { setSaveError(error?.message || String(error)); }
     finally { setSaving(false); }
   }
   return (
@@ -243,15 +240,14 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
         <div><dt>{ui('当前版本')}</dt><dd>{update?.current || '—'}</dd></div>
         <div><dt>{ui('已安装版本')}</dt><dd>{update?.installed || update?.pendingRestart || update?.current || '—'}</dd></div>
         <div><dt>{ui('最新已知版本')}</dt><dd>{update?.latest || '—'}</dd></div>
-        <div><dt>{ui('上次检查')}</dt><dd>{update?.checkedAt ? formatTime(update.checkedAt) : ui('尚未检查')}</dd></div>
+        <div><dt>{ui('上次检查')}</dt><dd>{update?.checkedAt ? formatDateTime(update.checkedAt) : ui('尚未检查')}</dd></div>
       </dl>
-      {update?.pendingRestart && <p className="update-status">{ui('当前版本是正在运行的代码；已安装版本在重启 DSH 后生效。')}</p>}
-      {available && <div className="update-available">
-        <Icon name="sparkle" size={16} /><span>{uiFormat('有新版本 {0}', [update.latest])}</span>
-        <Button size="sm" variant="primary" onClick={onOpen}>{ui('查看升级')}</Button>
-      </div>}
-      {status && <p className="update-status" role="status">{status}</p>}
-      {update?.error && <p className="update-status" role="status">{ui('暂时无法连接 GitHub 检查更新，稍后会自动重试。')}</p>}
+      {update?.pendingRestart && <Hint>{ui('当前版本是正在运行的代码；已安装版本在重启 DSH 后生效。')}</Hint>}
+      {available && <Banner tone="info" icon="sparkle" title={uiFormat('有新版本 {0}', [update.latest])} action={{ label: ui('查看升级'), variant: 'primary', onClick: onOpen }} />}
+      {checkError ? <InlineMessage tone="error" title={ui('没能检查更新')} action={retry}>{ui('暂时无法连接 GitHub 检查更新。请检查网络后重试。')}</InlineMessage>
+        : update?.error ? <InlineMessage tone="warning" action={retry}>{ui('暂时无法连接 GitHub 检查更新，稍后会自动重试。')}</InlineMessage> : null}
+      {!checkError && status && (status.tone === 'hint' ? <Hint>{status.text}</Hint> : <InlineMessage tone={status.tone}>{status.text}</InlineMessage>)}
+      {saveError && <InlineMessage tone="error" onDismiss={() => setSaveError('')}>{ui('没能保存这个设置，已恢复原来的选择。')}</InlineMessage>}
       {extension?.installed && <ExtensionUpdateNotice call={call} status={{ extension }} onStatus={onExtension} />}
       <div className="update-settings__actions">
         <Button size="sm" busy={checking} onClick={checkUpdates}>{ui('检查更新')}</Button>

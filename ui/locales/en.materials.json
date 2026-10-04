@@ -26,5 +26,12 @@
   "上次没有生成成功。": "The last attempt did not succeed.",
   "请求太频繁，被模型服务限流了。等一两分钟再试，或在设置里换一个模型。": "Too many requests; the model service has rate-limited them. Wait a minute or two and try again, or switch models in the settings.",
   "可能是网络或服务繁忙，稍后再试。": "The network or the service may be busy. Try again in a little while.",
-  "{0}。{1}。": "{0}. {1}."
+  "{0}。{1}。": "{0}. {1}.",
+  "没能保存「稍后提醒」，请再试一次。": "Could not save “Remind me later”. Please try again.",
+  "没能检查更新": "Could not check for updates",
+  "暂时无法连接 GitHub 检查更新。请检查网络后重试。": "Could not reach GitHub to check for updates. Check your network and retry.",
+  "没能保存这个设置，已恢复原来的选择。": "Could not save this setting; the previous choice is back.",
+  "{0}超过 {1} MB，StudyHub 不直接导入这么大的文件。先用转换工具把它变成带页码的文字，再导入转换结果：按页保存、按章节选，原文引用照常可用。": "{0} is over {1} MB, and StudyHub does not import files that large directly. Convert it to text with page numbers first, then import the result: it is stored page by page and chosen by chapter, and citations to the original still work.",
+  "{0}超过 {1} 页，StudyHub 不直接导入。先用转换工具把它变成带页码的文字，再导入转换结果：按页保存、按章节选。": "{0} is over {1} pages, which StudyHub does not import directly. Convert it to text with page numbers first, then import the result: it is stored page by page and chosen by chapter.",
+  "{0}提取出的文字超过 {1} 字符。先用转换工具转换，再按章节导入或选择。": "The text extracted from {0} is over {1} characters. Convert it with a converter first, then import or choose it by chapter."
 }
