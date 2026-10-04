@@ -122,7 +122,7 @@ function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false, 
             onChange={event => onChange(toggleDocument(selected, item, event.target.checked))} />
           <span className="source-picker__text">
             <strong title={item.title}>{item.title}</strong>
-            <small>{meta.join(' · ')}{item.coursesInferred ? ui(' · 推断归属') : ''}</small>
+            <small>{[...meta, item.coursesInferred ? ui('推断归属') : ''].filter(Boolean).join(' · ')}</small>
             {indexInfo && <small className="source-picker__index"><IndexBadge info={indexInfo} coverage={indexCoverage} /></small>}
             {state === 'some' && <small className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>

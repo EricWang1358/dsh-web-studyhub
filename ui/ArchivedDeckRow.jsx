@@ -7,7 +7,7 @@ export default function ArchivedDeckRow({ deck, busy, onRestore, onRemove, onMan
   return <li className="map-deck archived-deck">
     <div className="archived-deck__info">
       <strong>{deck.title}</strong>
-      <small>{uiFormat('{0} 题', [deck.count])}{ui(' · 已归档')}</small>
+      <small>{uiFormat('{0} 题 · 已归档', [deck.count])}</small>
     </div>
     <div className="archived-deck__actions">
       {!deck.systemKind && <Button variant="secondary" disabled={busy} onClick={() => onRestore(deck.id)}>{ui('恢复题组')}</Button>}

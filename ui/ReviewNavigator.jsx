@@ -19,7 +19,7 @@ export default function ReviewNavigator({ run, busy, onJump }) {
     <nav className="review-navigator" aria-label={ui("题目跳转与掌握程度")} ref={rail}>
       {run.navigation.map((item) => {
         const current = item.index === run.index;
-        const label = uiFormat("第 {0} 题 · {1} · {2}{3}", [item.index + 1, ui(labels[item.level]), item.topic, item.answered ? ui(" · 已答") : ""]);
+        const label = uiFormat(item.answered ? "第 {0} 题 · {1} · {2} · 已答" : "第 {0} 题 · {1} · {2}", [item.index + 1, ui(labels[item.level]), item.topic]);
         return <button key={item.index}
           className="review-tick" aria-label={label} title={label}
           aria-current={current ? "step" : undefined} disabled={busy}

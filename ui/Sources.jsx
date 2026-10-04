@@ -172,8 +172,8 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
             <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{displayTitle(item.title)}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
-            <small>{item.courses.join(' · ') || ui('未分类')}{item.coursesInferred ? ui(' · 推断归属') : ''}
-              {item.usedBy.length ? uiFormat(' · 用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''}</small>
+            <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
+              item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
             <small>{details.join(" · ")}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
             {indexInfo && <small className="source-doc__index"><IndexBadge info={indexInfo} coverage={indexCoverage} /></small>}
             {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}

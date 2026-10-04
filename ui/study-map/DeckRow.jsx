@@ -39,11 +39,11 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
           <strong>{d.title}{d.format === 'case-study' && <Badge size="sm" tone="info" className="deck-case-mark" title={ui('案例分析题组：长案例 + 开放题，按评分标准批改')}>
             {d.caseBest ? uiFormat('案例 · 最好 {0}/{1}', [d.caseBest.total, d.caseBest.max]) : uiFormat('案例 · {0} 分', [d.caseMarks])}</Badge>}</strong>
           <small>
-            {[uiFormat('{0} 题', [d.available]), p?.due ? uiFormat('{0} 题到期', [p.due]) : ''].filter(Boolean).join(' · ')}
-            {d.wrong ? uiFormat(' · {0} 题待巩固', [d.wrong]) : ''}
-            {d.uncheckedAtPublish ? uiFormat(' · {0} 题未自动审阅', [d.uncheckedAtPublish]) : ''}
-            {d.selfCited ? uiFormat(' · {0} 题仅有导入题目引用', [d.selfCited]) : ''}
-            {d.archived ? ui(' · 已归档') : ''}
+            {[uiFormat('{0} 题', [d.available]), p?.due ? uiFormat('{0} 题到期', [p.due]) : '',
+              d.wrong ? uiFormat('{0} 题待巩固', [d.wrong]) : '',
+              d.uncheckedAtPublish ? uiFormat('{0} 题未自动审阅', [d.uncheckedAtPublish]) : '',
+              d.selfCited ? uiFormat('{0} 题仅有导入题目引用', [d.selfCited]) : '',
+              d.archived ? ui('已归档') : ''].filter(Boolean).join(' · ')}
           </small>
         </button>
         {p && <MasteryBar node={p} />}

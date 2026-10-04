@@ -296,8 +296,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             )}
           </div>
           {run.course && (
-            <p className="summary-course">{uiRich("课程进度 · 已学 {0} 题", <strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong>)}{run.course.chapter ? uiFormat(" · 第 {0} / {1} 章「{2}」{3}/{4}", [run.course.chapter.index + 1, run.course.chapters, run.course.chapter.title, run.course.chapter.learned, run.course.chapter.total]) : ui(" · 全部章节都学过了")}
-              {run.course.next?.label ? <span>{uiFormat(" · 下一批：{0}", [run.course.next.label])}</span> : null}
+            <p className="summary-course">{uiRich("课程进度 · 已学 {0} 题", <strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong>)}{" · "}{run.course.chapter ? uiFormat("第 {0} / {1} 章「{2}」{3}/{4}", [run.course.chapter.index + 1, run.course.chapters, run.course.chapter.title, run.course.chapter.learned, run.course.chapter.total]) : ui("全部章节都学过了")}
+              {run.course.next?.label ? <span>{" · "}{uiFormat("下一批：{0}", [run.course.next.label])}</span> : null}
             </p>
           )}
           <div className="summary-actions">

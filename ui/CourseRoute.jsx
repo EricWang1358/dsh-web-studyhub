@@ -1,4 +1,5 @@
 import { ui, uiFormat } from "./i18n.js";
+import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { TERMS } from "./mastery-terms.js";
 import { Button } from "./components/index.js";
@@ -16,8 +17,8 @@ export default function CourseRoute({ route, busy, onStartChapter }) {
       <p className="course-route-head">
         <span className="course-route-label">{ui("课程进度")}</span>
         {chapter
-          ? <span>{ui("第 ")}{route.current + 1} / {route.chapters.length}{ui(" 章 · ")}<strong>{chapter.title}</strong>{ui(" · 本章 ")}{chapter.learned}/{chapter.total}</span>
-          : <span>{route.chapters.length}{ui(" 章全部学过")}</span>}
+          ? <span>{uiRich("第 {0} / {1} 章 · {2} · 本章 {3}/{4}", route.current + 1, route.chapters.length, <strong>{chapter.title}</strong>, chapter.learned, chapter.total)}</span>
+          : <span>{uiFormat("{0} 章全部学过", [route.chapters.length])}</span>}
         <span className="course-route-total" title={ui(TERMS.learned.hint)}>{uiFormat("学过 {0} / {1} 题", [route.learned, route.cards])}</span>
       </p>
       <div className="course-route-bar" role="img" aria-label={uiFormat("学过 {0} / {1} 题", [route.learned, route.cards])}>

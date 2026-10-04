@@ -62,7 +62,7 @@ export default function JsonImport({ data, busy, act, call, openDraft }) {
           onFiles={accepted => void readFile(accepted)} />
         <label>{ui("JSON 内容")}<textarea rows={14} required value={text} disabled={busy || reading || proposing} onChange={(e) => { setText(e.target.value); setProposal(null); setMerge(false); }} placeholder={ui("{\"title\":\"题组名称\",\"cards\":[...]}")} /></label>
         {proposal && <div className="import-proposal">
-          <p className="muted">{proposal.method === "ai" ? ui("AI 建议，请确认或修改") : ui("初步整理建议，请确认或修改")}{ui(" · 原标题：")}{proposal.originalTitle}</p>
+          <p className="muted">{uiFormat("{0} · 原标题：{1}", [proposal.method === "ai" ? ui("AI 建议，请确认或修改") : ui("初步整理建议，请确认或修改"), proposal.originalTitle])}</p>
           <label>{ui("短标题")}<input value={proposal.title} onChange={(e) => setProposal({ ...proposal, title: e.target.value })} /></label>
           <CourseField label={ui('所属课程')} courses={data?.focus?.courses || []} value={proposal.course}
             onChange={course => { setProposal({ ...proposal, course, mergeTargetId: null }); setMerge(false); }} />

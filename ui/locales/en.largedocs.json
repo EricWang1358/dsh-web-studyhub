@@ -92,7 +92,6 @@
   "检索没有找到相关页面。换个说法再试，或按章节缩小选择。": "Search found no relevant pages. Try other words, or narrow the selection by chapter.",
   "检索没有用上：{0}。已使用你选的全部资料。": "Search was not used: {0}. Everything you selected was used.",
   "用检索挑出了相关页面：第 {0} 页（所选 {1} 份，实际发给 AI {2} 份）。": "Search picked these pages: {0} ({1} selected, {2} sent to the AI).",
-  " 相关页面很多，只取了最相关的部分。": " Many pages matched; only the most relevant were used.",
   "所选资料太大。先在「这次想练什么？」写下主题，再生成。": "The selected material is too large. Write a topic under “What do you want to practise?” first, then generate.",
   "所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。": "The selected material is over what one generation accepts. Narrow it by chapter, or use a retrieval tool as suggested above.",
   "有图形界面的桌面客户端（Windows / macOS）：打开 PDF，导出带页码的 JSON。支持扫描件、公式、表格和中文。": "A desktop client with a normal window (Windows / macOS): open the PDF and export JSON with page numbers. Handles scanned pages, formulas, tables and Chinese.",

@@ -265,8 +265,8 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
           <div className="sk-panel-head">
             <strong>{ui("选择主题")}</strong>
             <small className="muted">
-              {topics && !loadFailed ? uiFormat("{0} 个主题", [topics.length]) : ""}
-              {loadFailed ? "" : groups.length ? uiFormat(" · {0} 个主题组", [groups.length]) : ui(" · 同名主题已跨题组合并")}
+              {[topics && !loadFailed ? uiFormat("{0} 个主题", [topics.length]) : "",
+                loadFailed ? "" : groups.length ? uiFormat("{0} 个主题组", [groups.length]) : ui("同名主题已跨题组合并")].filter(Boolean).join(" · ")}
             </small>
           </div>
           <div className="sk-group-bar">

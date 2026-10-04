@@ -1,4 +1,5 @@
 import { ui, uiFormat } from "./i18n.js";
+import { uiRich } from "./i18n-rich.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
@@ -106,8 +107,8 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       <h2>{debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
       {(m.gradedAnswered > 0 || m.selfAnswered > 0) && <div className="coach-score-split">
-        {m.gradedAnswered > 0 && <span>{ui("客观题答对 ")}<strong>{m.gradedCorrect}/{m.gradedAnswered}</strong></span>}
-        {m.selfAnswered > 0 && <span>{ui("自评达标 ")}<strong>{m.selfMet}/{m.selfAnswered}</strong></span>}
+        {m.gradedAnswered > 0 && <span>{uiRich("客观题答对 {0}", <strong>{m.gradedCorrect}/{m.gradedAnswered}</strong>)}</span>}
+        {m.selfAnswered > 0 && <span>{uiRich("自评达标 {0}", <strong>{m.selfMet}/{m.selfAnswered}</strong>)}</span>}
       </div>}
       {m.answered > 0 && (
         <>

@@ -21,7 +21,7 @@ export function retrievalSummary(retrieval) {
   const used = retrieval.used || [];
   const listed = used.slice(0, MAX_LISTED_PAGES).map(page => page.page ?? page.title).join(ui('、')) + (used.length > MAX_LISTED_PAGES ? '…' : '');
   return { error: false, text: uiFormat('用检索挑出了相关页面：第 {0} 页（所选 {1} 份，实际发给 AI {2} 份）。', [listed, retrieval.selected ?? used.length, used.length])
-    + (retrieval.truncated ? ui(' 相关页面很多，只取了最相关的部分。') : '') };
+    + (retrieval.truncated ? ` ${ui('相关页面很多，只取了最相关的部分。')}` : '') };
 }
 
 /**

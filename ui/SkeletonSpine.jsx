@@ -20,10 +20,10 @@ function Branch({ items, onPractice }) {
             <strong>{item.term}</strong>
             {item.meaning && <span className="spine-meaning">{item.meaning}</span>}
             {item.contrasts.length > 0 && (
-              <span className="spine-contrast">{ui("对比 · ")}{item.contrasts.join("、")}</span>
+              <span className="spine-contrast">{uiFormat("对比 · {0}", [item.contrasts.join("、")])}</span>
             )}
             {onPractice && item.subtreeCards.length > 0 && (
-              <Button variant="link" size="sm" className="spine-practice" onClick={() => onPractice(item.subtreeCards)}>{ui("练 ")}{item.subtreeCards.length}{ui(" 题")}</Button>
+              <Button variant="link" size="sm" className="spine-practice" onClick={() => onPractice(item.subtreeCards)}>{uiFormat("练 {0} 题", [item.subtreeCards.length])}</Button>
             )}
           </div>
           <Branch items={item.children} onPractice={onPractice} />
@@ -39,7 +39,7 @@ function StationBody({ station, onPractice }) {
     <>
       {station.meaning && <p className="spine-station-meaning">{station.meaning}</p>}
       {onPractice && station.subtreeCards.length > 0 && (
-        <Button variant="link" size="sm" className="spine-practice spine-station-practice" onClick={() => onPractice(station.subtreeCards)}>{ui("学这一站 · ")}{station.subtreeCards.length}{ui(" 题 →")}</Button>
+        <Button variant="link" size="sm" className="spine-practice spine-station-practice" onClick={() => onPractice(station.subtreeCards)}>{uiFormat("学这一站 · {0} 题 →", [station.subtreeCards.length])}</Button>
       )}
       <Branch items={station.children} onPractice={onPractice} />
     </>

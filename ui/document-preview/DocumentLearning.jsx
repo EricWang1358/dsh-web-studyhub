@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import Markdown from '../Markdown.jsx';
-import { ui, getUiLanguage } from '../i18n.js';
+import { ui, uiFormat, getUiLanguage } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import MathText from '../MathText.jsx';
 import { Badge, Button, InlineMessage, useToast } from '../components/index.js';
@@ -19,7 +19,7 @@ const statusLabels = {
 export function PassageLinks({ groups = [], onOpenCard }) {
   if (!groups.length) return <p className="muted">{ui('这份资料还没有关联题目。选中文字即可补充到现有题组。')}</p>;
   return <div className="study-passage-links">{groups.map((group, index) => <details key={JSON.stringify(group.selection)}>
-    <summary><sup>[{group.number || index + 1}]</sup> <MathText text={group.selection.quote} /> <small>· {group.links.length} {ui('道题')}</small></summary>
+    <summary><sup>[{group.number || index + 1}]</sup> <MathText text={group.selection.quote} /> <small>{uiFormat('· {0} 道题', [group.links.length])}</small></summary>
     {group.links.map(link => <article key={`${link.deckId}:${link.cardId}`}>
       <p><strong>{link.prompt || link.cardId}</strong>{link.status !== 'resolved' && <> <Badge tone="warning" size="sm">{ui(link.status === 'stale' ? '引用待核对' : '原文位置不可用')}</Badge></>}</p>
       {link.answer && <p>{Array.isArray(link.answer) ? link.answer.join('、') : String(link.answer)}</p>}
