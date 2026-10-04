@@ -51,8 +51,6 @@
     .wf-session-list strong { font-size: var(--fs-md); overflow-wrap: anywhere; }
     .wf-session-list p { margin: 6px 0; color: var(--text-dim); font-size: var(--fs-md); line-height: 1.5; overflow-wrap: anywhere; }
     .wf-empty { padding: var(--space-5) 0; font-size: var(--fs-md); line-height: 1.75; }
-    .wf-error { padding: var(--space-3) var(--space-4); color: var(--bad); border: 1px solid var(--bad); border-radius: var(--radius-sm); font-size: var(--fs-md); overflow-wrap: anywhere; line-height: 1.65; }
-    .wf-error p { margin: 0 0 var(--space-2); }
     .wf-banner { margin-block: var(--space-4); overflow-wrap: anywhere; }
     .wf-banner details { margin-top: var(--space-2); }
     .wf-fields { display: grid; gap: 18px; }
@@ -305,7 +303,6 @@
     .wf-skeleton-maker { padding: 18px 0 var(--space-2); }
     .wf-skeleton-maker h3 { margin: 0 0 6px; font-size: var(--fs-xl); }
     .wf-skeleton-maker > p { margin: 0 0 14px; }
-    .wf-skeleton-maker .wf-error { margin-bottom: var(--space-3); }
     .wf-advanced { margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--line-soft); }
     .wf-advanced > summary { cursor: pointer; color: var(--text-muted); }
     .wf-advanced > summary:hover { color: var(--text); }

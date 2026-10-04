@@ -105,7 +105,7 @@
       background: color-mix(in srgb, var(--text) 5%, transparent);
       border: 1px solid var(--line-soft);
     }
-    .coach-consent .coach-consent-error { margin: var(--space-2) 0 0; color: var(--bad); }
+    .coach-consent .coach-consent__problem { margin: var(--space-2) 0 0; }
     .coach-consent-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
     /* One filled primary per screen: when the 雷霆建议 hands over its own next
        step (定制题 or 补薄弱), the generic next-step buttons on the page step back. */

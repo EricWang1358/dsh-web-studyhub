@@ -4,7 +4,7 @@ import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
 import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
-import { Button } from "./components/index.js";
+import { Button, ErrorState } from "./components/index.js";
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
@@ -161,7 +161,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
             <Button size="sm" disabled={consent.busy} onClick={() => answerConsent(true)}>{ui("好，帮我备题")}</Button>
             <Button variant="quiet" size="sm" disabled={consent.busy} onClick={() => answerConsent(false)}>{ui("先不用")}</Button>
           </div>
-          {consent.error && <p className="coach-consent-error" role="alert">{consent.error}</p>}
+          {consent.error && <ErrorState compact className="coach-consent__problem" error={consent.error} />}
         </div>
       )}
       {consent.answer === true && !ready && (

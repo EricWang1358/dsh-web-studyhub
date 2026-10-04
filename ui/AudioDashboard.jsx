@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ui, uiFormat, uiMessage } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 import { formatNumber } from './format.js';
-import { Button, Hint, Panel } from './components/index.js';
+import { Button, ErrorState, Hint, Panel } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 import { useStudy } from './study-context.jsx';
@@ -31,7 +31,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
   return <Panel tone="sunken" className="audio-dashboard" aria-labelledby="audio-dashboard-title">
     <header className="audio-dashboard-heading"><div><small>{ui('音频 / 用量')}</small><h2 id="audio-dashboard-title">{ui('用量控制台')}</h2></div>
       <Button variant="quiet" size="sm" icon="refresh" disabled={busy} onClick={refresh}>{ui('刷新')}</Button></header>
-    {error && <p className="audio-dashboard-error" role="alert">{uiMessage(error)}</p>}
+    {error && <ErrorState error={error} className="audio-dashboard__problem" />}
     <div className="audio-dashboard-summary">
       <div className="audio-usage-dial" style={{ '--share': `${share}%` }}><div><strong>{freeQuota ? fmt(freeQuota.remaining) : '—'}</strong>
         <span>{freeQuota ? `${freeQuota.tier === 'free' ? 'Gemini' : providerName(freeQuota.tier)} · ${freeQuota.source === 'provider' ? ui('服务端余量') : ui('估算余量')}` : ui('免费额度待确认')}</span>

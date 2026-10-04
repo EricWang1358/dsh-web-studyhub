@@ -6,7 +6,7 @@ import { uiRich } from "./i18n-rich.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
-import { Banner, Button, Disclosure, InlineMessage, PageHeader, ProgressBar, useToast } from "./components/index.js";
+import { Banner, Button, Disclosure, ErrorState, InlineMessage, PageHeader, ProgressBar, useToast } from "./components/index.js";
 import { WORKFLOW_HANDOFF as HANDOFF, workflowStepPrompt } from "./agent-prompts/workflow.js";
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
 import { Readings, ScopeBar } from "./WorkflowScope.jsx";
@@ -361,7 +361,7 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
     }
   });
 
-  if (!session) return <section className="page workflow-page"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack}>{ui("← 学习流工作台")}</Button></div><PageHeader title={ui("学习 Portal")} />{error ? <><p className="wf-error" role="alert">{error}</p><Button onClick={refresh}>{ui("重新读取")}</Button></> : <p className="muted" role="status">{ui("正在恢复学习进度…")}</p>}</section>;
+  if (!session) return <section className="page workflow-page"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack}>{ui("← 学习流工作台")}</Button></div><PageHeader title={ui("学习 Portal")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <p className="muted" role="status">{ui("正在恢复学习进度…")}</p>}</section>;
   const step = session.template.steps.find((item) => item.id === session.currentStepId);
   const index = session.template.steps.indexOf(step), record = session.records[step.id] || {};
   const dirty = output !== savedOutput(session), busy = !!pending, active = session.status === "active", completed = session.status === "completed";

@@ -55,7 +55,7 @@
     "radius999": {},
     "zIndexNumeric": {},
     "important": {
-      "ui/audio-dashboard.css": 2,
+      "ui/audio-dashboard.css": 1,
       "ui/document-preview/document-preview.css": 3,
       "ui/skeleton.css": 1,
       "ui/source-picker.css": 1,

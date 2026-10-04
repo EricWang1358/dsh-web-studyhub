@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiLocale, useUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
-import { Banner, Button, Icon, IconButton, InlineConfirm, PageHeader, useToast } from "./components/index.js";
+import { Banner, Button, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, PageHeader, useToast } from "./components/index.js";
 import { workflowDesignPrompt, workflowSkeletonPrompt } from "./agent-prompts/workflow.js";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
@@ -101,7 +101,7 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
   return <section className="wf-editor">
     <div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} disabled={!!pending}>{ui("← 学习流工作台")}</Button><span className="muted small">{dirty ? ui("修改暂存于此设备") : draft.id ? ui("已保存") : ui("新学习流")}</span></div>
     <PageHeader className="wf-heading" title={ui("编排学习流")} description={ui("把适合自己的学习方式排成步骤。拖动排序，也可使用上移、下移。")} />
-    {error && <p className="wf-error" role="alert">{error}{" "}{ui("你的输入已保留。")}</p>}
+    {error && <InlineMessage tone="error" boxed>{error}{" "}{ui("你的输入已保留。")}</InlineMessage>}
     {conflict && (() => {
       const saveCopy = { label: ui("将本地修改另存为新流程"), disabled: !!pending, onClick: () => { const { id: _id, version: _version, requestId: _requestId, ...copy } = draft; change({ ...copy, requestId: crypto.randomUUID() }); } };
       const reload = latest && { label: ui("载入最新版本"), disabled: !!pending, onClick: (event) => dirty ? askConfirm("reload")(event) : reloadLatest() };
@@ -196,7 +196,7 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
   }
   return <section className="wf-start"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} disabled={pending || skeletonPending}>{ui("← 学习流工作台")}</Button></div>
     <PageHeader className="wf-heading" eyebrow={ui("开始一次学习")} title={template.title} description={template.description || ui("选定主题，从第一步开始。")} />
-    {error && <p className="wf-error" role="alert">{error}</p>}
+    {error && <ErrorState error={error} />}
     <form onSubmit={start}><fieldset disabled={pending || skeletonPending} className="wf-fields">
       <details className="wf-scope" open={listing.topics.length > 0}>
         <summary>{ui("选择已有主题与题目范围")}{" "}<span className="muted">{selected.size ? uiFormat("· 已选 {0} 个主题 / {1} 题", [selected.size, selectedCount]) : ui("· 可选")}</span></summary>
@@ -280,7 +280,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   const unfinished = listing?.sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && uiFormat("{0} 的核心概念", [data.focus.course])].filter(Boolean);
   if (screen.kind === "portal") return <>{renderRelated?.(screen.id)}<WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} onOpenRun={openRun} onOpenSession={(sessionId) => setScreen({ kind: "portal", id: sessionId })} onBack={back} revision={data?.revision} /></>;
-  if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <><p className="wf-error" role="alert">{error}</p><Button onClick={refresh}>{ui("重新读取")}</Button></> : <p className="muted" role="status">{ui("正在读取学习流…")}</p>}</section>;
+  if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <p className="muted" role="status">{ui("正在读取学习流…")}</p>}</section>;
   if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
   if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} askInChat={askInChat} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
   return <section className="page workflow-page">
@@ -299,7 +299,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
       {pending === "quick" && <p className="wf-quick-status" role="status"><span className="wf-pulse" aria-hidden="true" />{modelReady ? ui("AI 正在从你的学习库里挑选相关主题、排好顺序…") : ui("正在按名称匹配学习库里的主题…")}</p>}
       {modelReady && <label className="wf-quick-option"><input type="checkbox" checked={autoSkeleton} disabled={!!pending} onChange={(e) => toggleSkeleton(e.target.checked)} />{ui("没有现成的知识骨架时，在后台按本次范围生成一份")}<span className="muted">{ui("不用等它，学习照常开始")}</span></label>}
     </form>
-    {error && <p className="wf-error" role="alert">{error}</p>}
+    {error && <ErrorState error={error} />}
     <div className="wf-section-head"><h2>{ui("学习记录")}</h2></div>
     {!listing.sessions.length ? <p className="muted wf-empty">{ui("还没有学习记录。在上面说一句想学什么，学到一半离开也会留在这里，随时接着学。")}</p> : <ul className="wf-session-list">{[...listing.sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? ui("本次学习已结束") : s.stepTitle}</p><small className="muted">{s.status === "completed" ? "" : `${ui(STATUS[s.status])} · `}{when(s.updatedAt)}</small></div><div className="wf-actions"><Button disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? ui("查看记录") : ui("继续学习")}</Button><Button disabled={!!pending} aria-label={uiFormat("删除学习记录 {0}", [s.topic])} onClick={askConfirm(`session:${s.id}`)}>{ui("删除")}</Button></div>{confirm === `session:${s.id}` && <InlineConfirm title={ui("删除这次学习的笔记和进度？闪卡练习历史会保留。")} confirmLabel={ui("确认删除")}
         busy={!!pending} returnFocusRef={confirmTrigger} onConfirm={() => remove("session", s)} onCancel={() => setConfirm("")} />}</li>)}</ul>}

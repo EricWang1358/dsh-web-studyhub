@@ -87,7 +87,7 @@
     .audio-dashboard-footer { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.7; }
     .audio-dashboard-footer span { flex: 1 1 320px; }
     .audio-dashboard-footer a { color: var(--text-dim); }
-    .audio-dashboard-error { color: var(--bad); margin-bottom: var(--space-4) !important; }
+    .audio-dashboard .audio-dashboard__problem { margin-bottom: var(--space-4); }
   }
   @container (max-width: 560px) {
     :is(.study-app, .study-seat) {
