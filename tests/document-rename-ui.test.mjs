@@ -7,9 +7,11 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { withStudy } from './helpers/study-services.mjs';
 
 const compiled = await build({ stdin: { contents: `
   export { default as Sources, RowMenuItems } from './ui/Sources.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { documentSearchText } from './ui/SourcePicker.jsx';
   export { RenameField, ReaderHeading } from './ui/document-preview/RenameTitle.jsx';
   export * from './ui/document-preview/rename.js';
@@ -28,7 +30,9 @@ const page = (n, extra = {}) => ({ id: `pdf-${SHA}-text2-p${n}`, title: `Databas
   document: { id: SHA, filename: 'lecture5.pdf', bookTitle: 'Databases lecture', page: n, totalPages: 2, extractionVersion: 2, materialId: `document-${SHA}-pdf`, format: 'pdf' }, ...extra });
 const note = { id: 'n1', title: 'Pasted notes', text: 'hello', createdAt: now, courses: ['DB'], usedBy: [] };
 const data = { root: 'lib', sources: [page(1), page(2), note], decks: [], drafts: [], jobs: [], focus: { course: '*', courses: [{ name: 'DB' }] }, modelReady: true };
-const renderSources = (props = {}) => renderToStaticMarkup(h(lib.Sources, { data, act: noop, call: noop, setModal: noop, onGenerate: noop, ...props }));
+// act / call are the host's: pass undefined to say it offers none.
+const renderSources = (props = {}) => renderToStaticMarkup(withStudy(lib.StudyServicesContext, h(lib.Sources, { data, setModal: noop, onGenerate: noop }),
+  { act: 'act' in props ? props.act : noop, call: 'call' in props ? props.call : noop }));
 
 /* ---------- the rules, in plain words ---------- */
 

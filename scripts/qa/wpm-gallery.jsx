@@ -5,6 +5,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
+import { StudyServicesContext } from '../../ui/study-context.jsx';
 import Manage from '../../ui/Manage.jsx';
 import ImportHub from '../../ui/ImportHub.jsx';
 import Generate from '../../ui/Generate.jsx';
@@ -33,10 +34,13 @@ const card = (id, topic, prompt) => ({ id, topic, prompt, kind: 'quiz', explanat
 const deck = { id: 'd-patterns', title: '设计模式 · 第 4 章', folder: '', archived: false, cards: [card('c1', '观察者', '观察者模式解决什么问题？'), card('c2', '观察者', '被观察者如何通知订阅者？'), card('c3', '策略', '策略模式与状态模式有何区别？')] };
 const peers = [deck, { id: 'd-se', title: '软件工程基础', folder: '', count: 20 }, { id: 'd-os', title: '操作系统期中', folder: '复习', count: 35 }];
 
+/* Pages read call / act / busy / askInChat from the study services, not from props. */
+const services = (over) => ({ call: async () => ({}), act: async () => undefined, busy: false, notify: () => {}, askInChat: () => {}, host: {}, openSettings: () => {}, navigate: () => {}, openModal: () => {}, ...over });
+const Study = ({ over, children }) => <StudyServicesContext.Provider value={services(over)}>{children}</StudyServicesContext.Provider>;
 function MergeScene() {
   const [folder, setFolder] = React.useState('');
-  return <main><div className="page gallery"><Manage call={async () => deck} busy={false} act={async () => ({ moved: 3 })} openDraft={noop} setPage={noop} setNotice={noop}
-    managedDeck={deck} decks={peers} sources={[]} setManagedDeck={noop} folderDraft={folder} setFolderDraft={setFolder} onRemoveDeck={noop} /></div></main>;
+  return <main><div className="page gallery"><Study over={{ call: async () => deck, act: async () => ({ moved: 3 }) }}><Manage openDraft={noop} setPage={noop}
+    managedDeck={deck} decks={peers} sources={[]} setManagedDeck={noop} folderDraft={folder} setFolderDraft={setFolder} onRemoveDeck={noop} /></Study></div></main>;
 }
 
 const REQUEST_PROBLEM = Object.assign(new Error('Extracted text exceeds 600,000 characters'), { code: 'text-too-long', details: { limit: 600000 } });
@@ -47,15 +51,15 @@ const importCall = async (action, args) => {
 };
 
 function ImportScene() {
-  return <main><div className="page gallery"><ImportHub data={{ focus: { course: '数据结构', courses: [{ name: '数据结构' }, { name: '操作系统' }] }, contexts: ['audio'] }} call={importCall} /></div></main>;
+  return <main><div className="page gallery"><Study over={{ call: importCall }}><ImportHub data={{ focus: { course: '数据结构', courses: [{ name: '数据结构' }, { name: '操作系统' }] }, contexts: ['audio'] }} /></Study></div></main>;
 }
 
 const sources = [{ id: 'a', title: '数据库索引笔记', text: '索引加快查找。', courses: ['数据库'] }, { id: 'b', title: '事务笔记.md', text: '事务保证一致性。', courses: ['数据库'] }];
 function GenerateScene() {
   const data = { root: 'lib', decks: [], drafts: [], jobs: [], sources, modelReady: false, focus: { course: '数据库', courses: [{ name: '数据库' }] } };
-  return <main><div className="page gallery"><Generate data={data} busy={false} running={false} act={noop} call={async () => ({})} openDraft={noop} setPage={noop} setNotice={noop} genSource="files" setGenSource={noop}
+  return <main><div className="page gallery"><Study><Generate data={data} running={false} openDraft={noop} setPage={noop} setNotice={noop} genSource="files" setGenSource={noop}
     gen={{ kind: 'mixed', count: 10, difficulty: 'mixed', language: lang === 'en' ? 'English' : '中文', focus: '', role: '' }} setGen={noop} selectedSources={['a']} setSelectedSources={noop}
-    setModal={noop} askInChat={noop} openModelSettings={noop} /></div></main>;
+    setModal={noop} openModelSettings={noop} /></Study></div></main>;
 }
 
 const update = (extra = {}) => ({ current: '2.5.12', latest: '2.5.12', newer: false, installed: '2.5.12', publishedAt: '2026-10-01T08:00:00Z', url: 'https://example.test/release',

@@ -24,6 +24,7 @@ import { RenameField } from './document-preview/RenameTitle.jsx';
 import { originalNote, renameDocument, startsEditing } from './document-preview/rename.js';
 import css from "./sources.css";
 import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
+import { useStudy } from './study-context.jsx';
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
    最新一组默认展开（P23）；刚导入的资料高亮并滚动到视野里。sourceForm 是 App
@@ -256,7 +257,8 @@ export function RemoveDialog({ item, busy, act, onClose, onRemoved }) {
   );
 }
 
-export default function Sources({ data, busy, act, call, setModal, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
+export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
+  const { busy, act, call } = useStudy();
   useInjectCss(css, "study-sources");
   const toast = useToast();
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');

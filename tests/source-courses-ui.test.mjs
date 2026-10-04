@@ -4,14 +4,16 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { withStudy } from './helpers/study-services.mjs';
 
 const compiled = await build({ stdin: { contents: `export {default as Sources, CourseDialog, courseAssignments, saveDocumentCourses} from './ui/Sources.jsx';
   export {default as Generate} from './ui/Generate.jsx'; export {default as ImportHub} from './ui/ImportHub.jsx';
-  export {usePageScope} from './ui/PageScope.jsx'; export {setUiLanguage} from './ui/i18n.js';`, resolveDir: process.cwd() },
+  export {usePageScope} from './ui/PageScope.jsx'; export {setUiLanguage} from './ui/i18n.js'; export {StudyServicesContext} from './ui/study-context.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Sources, CourseDialog, courseAssignments, saveDocumentCourses, Generate, ImportHub, usePageScope, setUiLanguage } = module.exports;
+const { Sources, CourseDialog, courseAssignments, saveDocumentCourses, Generate, ImportHub, usePageScope, setUiLanguage, StudyServicesContext } = module.exports;
+const sourcesPage = (props) => withStudy(StudyServicesContext, React.createElement(Sources, { setModal: noop, ...props }), { act: noop, call: undefined });
 const data = { root: 'library-A', decks: [], drafts: [], sources: [{ id: 'a', title: 'Database notes', text: 'Transactions keep changes consistent.', courses: ['Databases'], createdAt: '2026-09-30' }],
   focus: { course: 'Systems', courses: [{ name: 'Databases' }, { name: 'Systems' }] }, jobs: [], modelReady: true };
 const noop = () => {};
@@ -19,7 +21,7 @@ const noop = () => {};
 test('source organization and import forms expose local course choices in English', () => {
   try {
     setUiLanguage('en');
-    const sources = renderToStaticMarkup(React.createElement(Sources, { data, act: noop, setModal: noop }));
+    const sources = renderToStaticMarkup(sourcesPage({ data }));
     assert.match(sources, /Organize courses/);
     assert.match(sources, /All courses/);
     assert.match(sources, /Uncategorised/);
@@ -68,10 +70,10 @@ test('page scope remembers explicit all and unassigned per library while unset p
 test('each source row offers 改课程 in its More menu, so a wrong course can be fixed where it is shown', () => {
   try {
     const here = { ...data, focus: { ...data.focus, course: 'Databases' } };
-    const zh = renderToStaticMarkup(React.createElement(Sources, { data: here, act: noop, setModal: noop }));
+    const zh = renderToStaticMarkup(sourcesPage({ data: here }));
     assert.match(zh, /<button[^>]*>改课程…<\/button>/);
     setUiLanguage('en');
-    const en = renderToStaticMarkup(React.createElement(Sources, { data: here, act: noop, setModal: noop }));
+    const en = renderToStaticMarkup(sourcesPage({ data: here }));
     assert.match(en, /<button[^>]*>Change course…<\/button>/);
     assert.doesNotMatch(en, /[㐀-鿿]/);
   } finally { setUiLanguage('zh'); }
@@ -97,7 +99,7 @@ test('the course dialog starts from the current course and applies it through th
 test('the row menu lists its actions in one stacked menu instead of putting every button at the same spot', async () => {
   const { readFileSync } = await import('node:fs');
   const here = { ...data, focus: { ...data.focus, course: 'Databases' } };
-  const html = renderToStaticMarkup(React.createElement(Sources, { data: here, act: noop, setModal: noop }));
+  const html = renderToStaticMarkup(sourcesPage({ data: here }));
   const menu = /<details class="source-row-actions"><summary>[^<]*<\/summary>(<div class="source-row-menu"[^>]*>(.*?)<\/div>)<\/details>/.exec(html);
   assert.ok(menu, 'the buttons sit inside one .source-row-menu container');
   assert.deepEqual([...menu[2].matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(match => match[1]), ['重命名…', '改课程…', '归档']);

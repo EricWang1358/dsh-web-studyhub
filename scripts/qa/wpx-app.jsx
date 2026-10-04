@@ -7,6 +7,7 @@ import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
 import Exam from '../../ui/Exam.jsx';
 import AudioImport from '../../ui/AudioImport.jsx';
+import { StudyServicesContext } from '../../ui/study-context.jsx';
 
 const params = new URLSearchParams(location.search);
 const lang = params.get('lang') === 'en' ? 'en' : 'zh';
@@ -93,7 +94,9 @@ const audioData = { ...baseData, jobs: [job(),
   job({ id: 'c', status: 'complete', filename: 'lecture-week3.mp3', phase: 'done', sourceIds: ['s1'], corrected: 4, finishedAt: ago(30000) })] };
 const files = [{ kind: 'upload', uploadId: 'u1', name: 'lecture-week6.mp3', size: 45 * MB }, { kind: 'path', path: '/w/lecture-week7.mp3', name: 'lecture-week7.mp3', size: 38 * MB }];
 
-const exam = (props = {}) => <Exam call={call} data={inert} onExit={() => {}} onCreate={() => {}} onStartRun={() => {}} onSetupModel={() => {}} {...props} />;
+/* Pages read call / act / busy from the study services, not from props. */
+const Study = ({ over, children }) => <StudyServicesContext.Provider value={{ call, act: async () => undefined, busy: false, notify: () => {}, askInChat: () => {}, host: {}, openSettings: () => {}, navigate: () => {}, openModal: () => {}, ...over }}>{children}</StudyServicesContext.Provider>;
+const exam = ({ call: callOverride, ...props } = {}) => <Study over={callOverride ? { call: callOverride } : undefined}><Exam data={inert} onExit={() => {}} onCreate={() => {}} onStartRun={() => {}} onSetupModel={() => {}} {...props} /></Study>;
 const scenes = {
   'exam-setup': () => exam({ initialKind: 'exam', data: { ...inert, focus: { ...inert.focus, course: 'Databases' } }, call: never }),
   'exam-running': () => exam({ initialRunId: 'r1' }),
@@ -105,9 +108,9 @@ const scenes = {
   'oral-setup': () => exam({ initialKind: 'oral', call: async (action) => (action === 'oral.active' ? null : call(action)) }),
   'oral-running': () => exam({ initialKind: 'oral' }),
   'oral-report': () => exam({ initialKind: 'oral', initialRunId: 'ora2' }),
-  audio: () => <div className="page"><AudioImport data={audioData} busy={false} act={() => {}} call={call} initialFiles={files} initialReadiness={{ transcription: true, text: true }}
-    initialChecks={{ 'initial-0': { seconds: 1800, requests: 1 }, 'initial-1': { seconds: 4 * 3600, requests: 4, issue: { code: 'long-split', minutes: 240, parts: 4, requests: 4, partMinutes: 59.5 } } }} onOpenSources={() => {}} onOpenSettings={() => {}} /></div>,
-  'audio-empty': () => <div className="page"><AudioImport data={audioData} busy={false} act={() => {}} call={call} initialReadiness={{ transcription: true, text: true }} onOpenSources={() => {}} /></div>,
+  audio: () => <div className="page"><Study><AudioImport data={audioData} initialFiles={files} initialReadiness={{ transcription: true, text: true }}
+    initialChecks={{ 'initial-0': { seconds: 1800, requests: 1 }, 'initial-1': { seconds: 4 * 3600, requests: 4, issue: { code: 'long-split', minutes: 240, parts: 4, requests: 4, partMinutes: 59.5 } } }} onOpenSources={() => {}} onOpenSettings={() => {}} /></Study></div>,
+  'audio-empty': () => <div className="page"><Study><AudioImport data={audioData} initialReadiness={{ transcription: true, text: true }} onOpenSources={() => {}} /></Study></div>,
 };
 createRoot(document.getElementById('root')).render(
   <div className="study-app" data-theme={theme} lang={lang === 'en' ? 'en' : 'zh-CN'} style={{ height: '100%', overflow: 'auto' }}><main style={{ flex: 1, minWidth: 0 }}>{(scenes[scene] || scenes['exam-setup'])()}</main></div>,

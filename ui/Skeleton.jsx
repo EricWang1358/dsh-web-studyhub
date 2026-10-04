@@ -11,6 +11,7 @@ import { designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skel
 import PageScope, { usePageScope } from './PageScope.jsx';
 import { Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
+import { useStudy } from "./study-context.jsx";
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
    多选后可以先做零 token 的质量检测，再把整组交给主会话设计骨架、
@@ -61,7 +62,8 @@ function NodeTree({ skeleton, onPractice }) {
   return <ul className="sk-tree sk-root">{render("", 0)}</ul>;
 }
 
-export default function Skeleton({ call, data, busy, askInChat, onPractice, focusId, onFocus }) {
+export default function Skeleton({ data, onPractice, focusId, onFocus }) {
+  const { call, busy, askInChat } = useStudy();
   useInjectCss(css, "study-skeleton");
   const [course, setCourse] = usePageScope(data?.root, 'skeleton', data?.focus?.course ?? '*');
   const [saved, setSaved] = useState(null);

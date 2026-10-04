@@ -17,6 +17,7 @@ import { AUDIO_ACCEPT, audioFileProblem, audioFormatNames, audioLimitLabel, isSu
 import { inputOf, preflightNotes } from './audio/preflight.js';
 import { useAudioPreflight } from './audio/useAudioPreflight.js';
 import { useAudioUpload } from './audio/useAudioUpload.js';
+import { useStudy } from './study-context.jsx';
 
 /* 音频导入：录音 → 转写 → 校对识别错误的词 → 中英对照逐字稿，存为一份资料。
    这里只管导入表单；出题仍走「资料 → 生成」。转写在后台进行，进度来自快照里的
@@ -31,8 +32,22 @@ import { useAudioUpload } from './audio/useAudioUpload.js';
 
 const subtitleAlone = () => ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。");
 
-export default function AudioImport({ data, busy, act, call, askInChat, canAsk = false, openAgent, onOpenSources, initialFile = null, initialFiles, defaultCourse, defaultCourses, recoveryJobId = '', onRecoveryChange,
-  onOpenSettings, initialReadiness = null, initialChecks }) {
+export default function AudioImport({
+  data,
+  canAsk = false,
+  openAgent,
+  onOpenSources,
+  initialFile = null,
+  initialFiles,
+  defaultCourse,
+  defaultCourses,
+  recoveryJobId = '',
+  onRecoveryChange,
+  onOpenSettings,
+  initialReadiness = null,
+  initialChecks,
+}) {
+  const { busy, act, call, askInChat } = useStudy();
   useInjectCss(settingsCss, 'study-audio-settings');
   useInjectCss(audioCss, 'study-audio-import');
   const language = useUiLanguage(), toast = useToast();

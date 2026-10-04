@@ -67,28 +67,28 @@ function LibraryView() {
 }
 
 function WorkflowsView() {
-  const { data, core, nav, lib, intents, dailyPlan, settingsEntry } = useApp();
+  const { data, nav, lib, intents, dailyPlan, settingsEntry } = useApp();
   return (
-    <Workflows key={lib.workflowReturn?.nonce || 'workflows'} call={core.call} askInChat={core.askInChat} data={data} onOpenSettings={settingsEntry.openModelSettings}
+    <Workflows key={lib.workflowReturn?.nonce || 'workflows'} data={data} onOpenSettings={settingsEntry.openModelSettings}
       renderRelated={(sessionId) => <RelatedTasks plan={dailyPlan} reference={{ root: data.root, kind: 'workflow', sessionId }} onBoard={() => nav.navigate('board')} />}
       openSession={lib.workflowReturn?.sessionId} openRun={intents.openRun} />
   );
 }
 
 function SkeletonView() {
-  const { data, core, lib, set, session, intents } = useApp();
+  const { data, lib, set, session, intents } = useApp();
   const run = session.run;
   return (
-    <Skeleton call={core.call} data={data} busy={core.busy} askInChat={core.askInChat} focusId={lib.skeletonFocus} onFocus={set.setSkeletonFocus}
+    <Skeleton data={data} focusId={lib.skeletonFocus} onFocus={set.setSkeletonFocus}
       onPractice={(cards) => intents.practice([...new Map(cards.map((card) => [card.cardId, { deckId: card.deckId, cardId: card.cardId }])).values()],
         { returnTo: run && !run.complete ? run.id : undefined })} />
   );
 }
 
 function DashboardView() {
-  const { data, core, nav, intents } = useApp();
+  const { data, nav, intents } = useApp();
   return (
-    <Dashboard call={core.call} data={data} busy={core.busy} onStartScope={(scope) => intents.practice(scope, { fresh: false })} onLibrary={() => nav.navigate('library')}
+    <Dashboard data={data} onStartScope={(scope) => intents.practice(scope, { fresh: false })} onLibrary={() => nav.navigate('library')}
       onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} onAudioUsage={() => nav.navigate('audio')} />
   );
 }
@@ -96,7 +96,7 @@ function DashboardView() {
 function ExamView() {
   const { data, core, nav, lib, session, learn, intents, settingsEntry } = useApp();
   return (
-    <Exam initialRunId={lib.examRunId} initialKind={lib.examKind} key={`${data.root}:${lib.examKind}:${lib.examRunId || 'latest'}`} call={core.call} data={data}
+    <Exam initialRunId={lib.examRunId} initialKind={lib.examKind} key={`${data.root}:${lib.examKind}:${lib.examRunId || 'latest'}`} data={data}
       onLocation={(location) => { core.refs.examLocation.current = location; }}
       onStartRun={(next, origin) => { if (origin) learn.rememberContext(learn.captureContext({ page: 'exam', exam: origin })); session.enterRun(next); }}
       onExit={() => nav.navigate('library')} onCreate={() => intents.goGenerate()} onCreateCase={() => intents.goGenerate({ source: 'case' })}
@@ -107,7 +107,7 @@ function ExamView() {
 function WrongBookView() {
   const { data, core, nav, session, intents, settingsEntry } = useApp();
   return (
-    <WrongBook call={core.call} data={data} busy={core.busy} onPracticePrepared={(args) => core.act('coach.practice', args || {}, session.enterRun)}
+    <WrongBook data={data} onPracticePrepared={(args) => core.act('coach.practice', args || {}, session.enterRun)}
       onOpenSettings={settingsEntry.openModelSettings} onPractice={(scope) => intents.practice(scope)} onStart={() => intents.practice(undefined, { fresh: false })}
       onLibrary={() => nav.navigate('library')} onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} />
   );
@@ -122,19 +122,19 @@ function GraphView() {
 }
 
 function ManageView() {
-  const { data, core, nav, lib, set, drafts } = useApp();
+  const { data, nav, lib, set, drafts } = useApp();
   if (!lib.managedDeck) return null;
   return (
-    <Manage call={core.call} busy={core.busy} act={core.act} openDraft={drafts.openDraft} setPage={nav.navigate} managedDeck={lib.managedDeck}
+    <Manage openDraft={drafts.openDraft} setPage={nav.navigate} managedDeck={lib.managedDeck}
       decks={data.decks} sources={data.sources} modelReady={data.modelReady} setManagedDeck={set.setManagedDeck} folderDraft={lib.folderDraft}
       setFolderDraft={set.setFolderDraft} onRemoveDeck={(id) => set.setRemovingDeck({ id, root: data.root })} />
   );
 }
 
 function SourcesView() {
-  const { data, host, core, nav, lib, set, learn, sources, settingsEntry } = useApp();
+  const { data, host, nav, lib, set, learn, sources, settingsEntry } = useApp();
   return (
-    <Sources key={data.root} data={data} busy={core.busy} act={core.act} setModal={set.setModal} sourceForm={<SourceForm />} call={core.call}
+    <Sources key={data.root} data={data} setModal={set.setModal} sourceForm={<SourceForm />}
       highlight={lib.sourceHighlight} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
       onLegacyRetry={(job) => { set.setLegacyAudioJobId(job.id); nav.navigate('audio'); }}
       onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onGenerate={sources.generateFromSources} />
@@ -153,24 +153,24 @@ export function AudioHeader({ onSettings, onSources }) {
 }
 
 function AudioView() {
-  const { data, host, core, nav, lib, set, learn } = useApp();
+  const { data, host, nav, lib, set, learn } = useApp();
   return (
     <section className="page">
       <AudioHeader onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')} />
-      <AudioImport data={data} busy={core.busy} act={core.act} call={core.call} askInChat={core.askInChat} canAsk={!!host.askInChat}
+      <AudioImport data={data} canAsk={!!host.askInChat}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
-      <AudioDashboard call={core.call} />
+      <AudioDashboard />
     </section>
   );
 }
 
 function GenerateView() {
-  const { data, core, nav, lib, set, drafts, intents, connection, settingsEntry, canChat } = useApp();
+  const { data, nav, lib, set, drafts, intents, connection, settingsEntry, canChat } = useApp();
   return (
-    <Generate data={data} busy={core.busy} running={connection.running} act={core.act} call={core.call} setPage={nav.navigate}
+    <Generate data={data} running={connection.running} setPage={nav.navigate}
       openDraft={drafts.openDraft} genSource={intents.genSource} setGenSource={intents.setGenSource} gen={lib.gen} setGen={set.setGen}
-      selectedSources={lib.selectedSources} setSelectedSources={set.setSelectedSources} setModal={set.setModal} askInChat={core.askInChat} canChat={canChat}
+      selectedSources={lib.selectedSources} setSelectedSources={set.setSelectedSources} setModal={set.setModal} canChat={canChat}
       openModelSettings={settingsEntry.openModelSettings}
       onStarted={() => { intents.setRevealHome((count) => count + 1); set.setCaseInitial(null); nav.show.page('library'); }}
       caseInitial={lib.caseInitial || undefined} onCourseSettings={settingsEntry.setCourseSettings} reasoningEffort={connection.binding.effort?.current || ''}
@@ -179,10 +179,10 @@ function GenerateView() {
 }
 
 function DraftView() {
-  const { data, core, nav, lib, set, session, drafts, intents } = useApp();
+  const { data, nav, lib, set, session, drafts, intents } = useApp();
   if (!lib.draft) return null;
   return (
-    <Draft data={data} busy={core.busy} act={core.act} call={core.call} draft={lib.draft} draftLoaded={lib.draftLoaded} setDraft={set.setDraft}
+    <Draft data={data} draft={lib.draft} draftLoaded={lib.draftLoaded} setDraft={set.setDraft}
       draftText={lib.draftText} setDraftText={set.setDraftText} jsonMode={lib.jsonMode} setJsonMode={set.setJsonMode} openDraft={drafts.openDraft}
       continueDraft={drafts.continueDraft} onOpenPublished={intents.openDeck} onStartPublished={session.enterRun} clearRecovery={drafts.clearRecovery}
       setPage={nav.navigate} setModal={set.setModal} setSelectedSources={set.setSelectedSources}
@@ -270,9 +270,9 @@ function ReviewView({ feedback }) {
 }
 
 function NotesView() {
-  const { data, core, nav, lib, set, shell, learn, settingsEntry } = useApp();
+  const { data, nav, lib, set, shell, learn, settingsEntry } = useApp();
   return (
-    <BlogNotes key={data.root} data={data} call={core.call} act={core.act} theme={shell.resolvedTheme} onModelSettings={settingsEntry.openModelSettings} busy={core.busy}
+    <BlogNotes key={data.root} data={data} theme={shell.resolvedTheme} onModelSettings={settingsEntry.openModelSettings}
       onRecapSettings={() => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); }}
       initialId={lib.noteInitialId} onSelect={set.setNoteInitialId} onOpenCard={(reference) => learn.openLearningTarget({ kind: 'card', ...reference })}
       backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : () => { set.setNoteInitialId(''); nav.navigate('library'); }} />

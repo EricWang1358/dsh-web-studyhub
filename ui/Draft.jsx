@@ -18,6 +18,7 @@ import { DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall
 import { draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
 import { modelReadiness } from "./generation-status.js";
 import LocalImagePicker from './LocalImagePicker.jsx';
+import { useStudy } from "./study-context.jsx";
 import { useSciencePreferences } from './SciencePreferences.jsx';
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
@@ -26,9 +27,6 @@ import { useSciencePreferences } from './SciencePreferences.jsx';
    parseDraft 同时被恢复暂存的 JSON 校验使用。 */
 export default function Draft({
   data,
-  busy,
-  act,
-  call,
   draft,
   draftLoaded,
   setDraft,
@@ -49,6 +47,7 @@ export default function Draft({
   patchCard,
   parseDraft,
 }) {
+  const { call, busy, act } = useStudy();
   const toast = useToast();
   const [deleteArmedId, setDeleteArmedId] = React.useState(null);
   const science = useSciencePreferences();

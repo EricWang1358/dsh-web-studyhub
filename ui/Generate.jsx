@@ -35,10 +35,7 @@ import { referenceSelection } from './reference-questions.js';
    gated on a usable model before any effort goes into the form (P14). */
 export default function Generate({
   data,
-  busy,
   running,
-  act,
-  call,
   openDraft,
   setPage,
   genSource,
@@ -48,7 +45,6 @@ export default function Generate({
   selectedSources,
   setSelectedSources,
   setModal,
-  askInChat,
   canChat = false,
   openModelSettings,
   onStarted,
@@ -58,7 +54,7 @@ export default function Generate({
   initialRetrieval = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
-  const { notify } = useStudy();
+  const { notify, call, busy, act, askInChat } = useStudy();
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
@@ -154,7 +150,7 @@ export default function Generate({
       {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} call={call} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+        <CaseCreate data={data} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest

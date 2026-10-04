@@ -17,6 +17,7 @@ import { formatNumber } from './format.js';
 import { toBase64 } from './upload.js';
 import css from './import-hub.css';
 import { hasContext } from './capabilities.js';
+import { useStudy } from './study-context.jsx';
 
 /* The one way to add material (O-3, O-4, P19–P21, P05). The course is chosen
    first; one drop zone takes documents, JSON decks and subtitles together and
@@ -343,8 +344,22 @@ function PasteForm({ call, courses, disabled, draft, onDraft, onSaved }) {
  * is finished without failures or the learner confirms a partial one, and
  * onOpenSources(sourceIds) to jump to a material the 解析历史 lists.
  */
-export default function ImportHub({ data, call, busy = false, course, onCourseChange, audio, initialTab = 'files', pasteDraft, onPasteDraftChange,
-  onImported, onComplete, onOpenSettings, onOpenSources, className, ...rest }) {
+export default function ImportHub({
+  data,
+  course,
+  onCourseChange,
+  audio,
+  initialTab = 'files',
+  pasteDraft,
+  onPasteDraftChange,
+  onImported,
+  onComplete,
+  onOpenSettings,
+  onOpenSources,
+  className,
+  ...rest
+}) {
+  const { call, busy } = useStudy();
   useInjectCss(css, 'study-import-hub');
   const audioOn = audio !== undefined && audio !== null && audio !== false;
   const [tab, setTab] = useState(initialTab === 'audio' && !audioOn ? 'files' : initialTab);

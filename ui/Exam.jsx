@@ -19,6 +19,7 @@ import { useExamRun } from './exam/useExamRun.js';
 import { DEFAULT_COUNT, cardKindName, clampCount, picksFromRun, typeAvailableOf } from './exam/exam-written.js';
 import WrittenSetup from './exam/WrittenSetup.jsx';
 import WrittenReport from './exam/WrittenReport.jsx';
+import { useStudy } from './study-context.jsx';
 
 /* 模拟考试（v0.4 契约 §3）：选择题笔试。生命周期（setup → running → report、恢复、交卷、计时）在
    ui/exam/useExamRun.js，三种考试形式共用；这里只管作答界面和各形式的外壳。
@@ -29,7 +30,8 @@ import WrittenReport from './exam/WrittenReport.jsx';
 
 const RETRY_SUBMIT_MS = 5000;
 
-export default function Exam({ call, data, onExit, onCreate, onCreateCase, onStartRun, onSetupModel, initialRunId, initialKind = 'exam', onLocation }) {
+export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun, onSetupModel, initialRunId, initialKind = 'exam', onLocation }) {
+  const { call } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(caseCss, "study-case-workspace");
   const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.mode === 'interview' ? '*' : data?.focus?.course ?? '*');
@@ -224,7 +226,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
     header={header} recent={recent} course={course} onCourseChange={chooseCourse} onSetupModel={onSetupModel}
     onCreate={onCreateCase || onCreate} onStartRun={onStartRun} onLocation={onLocation}
     initialRunId={deepRun("case")} />;
-  if (examMode === "oral") return <OralExam key={`oral:${deepRun("oral") || ""}`} call={call} data={data} onExit={onExit}
+  if (examMode === "oral") return <OralExam key={`oral:${deepRun("oral") || ""}`} data={data} onExit={onExit}
     initialRunId={deepRun("oral")} onLocation={onLocation} onStartRun={onStartRun} onSetupModel={onSetupModel}
     header={header} recent={recent}
     course={course} onCourseChange={chooseCourse}

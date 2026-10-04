@@ -5,6 +5,7 @@ import { formatNumber } from './format.js';
 import { Button, Hint, Panel } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
+import { useStudy } from './study-context.jsx';
 
 /* 用量控制台：首次转写之前不显示（什么都没配置时由音频页的配置卡片代替），
    显示后默认折叠；展开时才轮询。服务商按请求顺序排列：Gemini 免费 → 硅基流动 → Groq → Gemini 付费。 */
@@ -99,7 +100,8 @@ export function AudioDashboardPanel({ data, settings, busy, refresh, save, error
   </Panel>;
 }
 
-export default function AudioDashboard({ call }) {
+export default function AudioDashboard({  }) {
+  const { call } = useStudy();
   const [data, setData] = useState(null), [settings, setSettings] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const saving = useRef(false);
