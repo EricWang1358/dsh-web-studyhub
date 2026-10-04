@@ -173,30 +173,25 @@ test('a saved token never bypasses local installation or model-download setup', 
     assert.match(html, /name="mineru-route" checked="" value="local"/);
     assert.match(html, /disabled=""[^>]*>(?:(?!<\/button>).)*开始本地解析/s);
     assert.doesNotMatch(html, /type="checkbox"|type="password"/);
-    if (local === states.needs) assert.match(html, /下载模型并启用本地解析/);
-    if (local === states.missing) assert.match(html, /uv tool install/);
-    if (local === states.stopped) assert.match(html, /启动本地服务/);
+    assert.match(html, /先在设置里准备本机 MinerU/);
+    assert.doesNotMatch(html, /uv tool install|下载模型并启用本地解析/);
   }
 });
 
-test('explicitly choosing unconfigured cloud keeps its token setup gate', () => {
+test('explicitly choosing unconfigured cloud directs token setup to settings', () => {
   const html = render(h(MineruRoute, { file, call, initialSettings: unset, initialLocal: states.missing, initialPlan: plan, onOpenSettings() {}, initialRoute: 'cloud' }));
-  assert.match(html, /云端解析还没配置 · 约 2 分钟/);
-  assert.match(html, /href="https:\/\/mineru\.net\/apiManage\/docs"/);
-  assert.match(html, /type="password"/);
+  assert.match(html, /先在设置里配置 MinerU 云端令牌/);
+  assert.doesNotMatch(html, /type="password"|apiManage/);
   assert.match(html, /打开设置/);
   assert.match(html, /disabled=""[^>]*>(?:(?!<\/button>).)*开始云端解析/s);
 });
 
-test('without a file the entry offers to choose a PDF; the desktop client and command line are under 高级', () => {
+test('without a file the entry offers a PDF picker and peer converters without manual instructions', () => {
   const html = render(h(MineruRoute, { call, onFile() {}, initialSettings: saved, initialLocal: states.ready }));
   assert.match(html, /选择 PDF…/);
   assert.match(html, /type="file" accept="\.pdf,application\/pdf"/);
-  assert.match(html, /高级：桌面客户端和命令行/);
-  assert.match(html, /--pages/);
-  assert.match(html, /默认只解析前 10 页/);
-  const advanced = html.indexOf('mineru-advanced');
-  assert.ok(advanced > 0 && html.indexOf('mineru.net/client') > advanced, 'the desktop client link is inside the advanced disclosure');
+  assert.match(html, /value="mineru"/); assert.match(html, /value="marker"/);
+  assert.doesNotMatch(html, /高级：桌面客户端和命令行|--pages|mineru.net\/client/);
 });
 
 /* ---------- the job card ---------- */
@@ -273,6 +268,9 @@ test('the catalogue recommends local models and Docling; cloud and desktop are k
 test('the import hub reports a started conversion in words and goes to the Sources page', () => {
   const summary = { done: 1, failed: 0, documents: [], decks: [], subtitles: [], sourceIds: [], conversions: [{ name: 'Book.pdf', pages: 450, route: 'cloud', jobId: 'j' }] };
   assert.equal(importDoneMessage(summary), '「Book.pdf」正在后台用 MinerU 解析（450 页），进度在资料页');
+  const marker = { ...summary.conversions[0], converter: 'marker' };
+  assert.match(importDoneMessage({ ...summary, conversions: [marker] }), /用 Marker 解析/);
+  assert.equal(importDoneMessage({ ...summary, conversions: [marker, summary.conversions[0]] }), '2 份 PDF 正在后台解析，进度在资料页');
   assert.equal(importOutcome(summary).page, 'sources');
   assert.match(importOutcome(summary).notice.text, /进度在资料页/);
   assert.equal(importDoneMessage({ ...summary, conversions: [summary.conversions[0], summary.conversions[0]] }), '2 份 PDF 正在后台用 MinerU 解析，进度在资料页');
