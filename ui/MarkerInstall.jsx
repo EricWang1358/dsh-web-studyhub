@@ -128,11 +128,10 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
     {custom && <Button size="sm" variant="quiet" disabled={locked} onClick={() => setLocation('')}>{ui('用默认位置')}</Button>}
   </p>;
 
-  const offer = primary => {
+  const offer = (primary, { start: showStart = true } = {}) => {
     const folder = plan?.folder || install?.defaultFolder || '';
     const problems = (plan?.problems || []).filter(item => !['python-missing', 'python-too-old'].includes(item.code));
     return <div className="marker-install__offer">
-      {plan?.channels ? <InlineMessage tone="warning">{uiMessage(plan.problems?.[0]?.message || '')}</InlineMessage> : null}
       {plan?.channels && <PythonChannels plan={plan} />}
       {folderLine(folder, !!location)}
       {draft !== null && <form className="marker-install__draft" onSubmit={event => { event.preventDefault(); setLocation(draft.trim()); setDraft(null); }}>
@@ -156,14 +155,14 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
         <Hint>{ui('只在上面的安装位置里创建环境，不修改系统的 Python，也不需要管理员权限。')}</Hint>
       </Disclosure>}
       <div className="marker-install__row">
-        <Button variant={primary ? 'primary' : 'secondary'} wrap icon="download" busy={working === 'start'} disabled={locked || !canInstall(plan)} onClick={start}>
+        {showStart && <Button variant={primary ? 'primary' : 'secondary'} wrap icon="download" busy={working === 'start'} disabled={locked || !canInstall(plan)} onClick={start}>
           {moving ? ui('安装到这个位置并删除旧环境') : ui('一键安装 Marker')}
-        </Button>
+        </Button>}
         <Button variant="quiet" size="sm" disabled={locked} onClick={recheck}>{ui('重新检测')}</Button>
         {moving && <Button variant="quiet" size="sm" disabled={locked} onClick={() => { setMoving(false); setLocation(''); }}>{ui('先不换')}</Button>}
       </div>
       {moving && <Hint>{ui('新环境装好并通过检测后，才会删除旧的那个；失败时旧的保持可用。')}</Hint>}
-      <Hint>{ui('只在你点击后才会安装；marker-pdf 用 pip 下载，需要联网。')}</Hint>
+      {showStart && <Hint>{ui('只在你点击后才会安装；marker-pdf 用 pip 下载，需要联网。')}</Hint>}
     </div>;
   };
 
@@ -186,13 +185,13 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
     return <div className="marker-install__problem">
       <JobRow status={cancelled ? 'cancelled' : install.status === 'interrupted' ? 'interrupted' : 'failed'} title={cancelled ? ui('安装已取消') : install.status === 'interrupted' ? ui('安装被中断') : ui('Marker 没有装好')}
         meta={install.stage ? uiFormat('停在：{0}', [stageName(install.stage)]) : undefined}
-        failure={cancelled ? { hint: failureHint(code) } : { title: uiMessage(install.error?.message || ''), hint: failureHint(code), detail: install.log?.length ? install.log.join('\n') : undefined }}
+        failure={cancelled ? { hint: failureHint(code) } : { hint: <><span className="marker-install__reason">{uiMessage(install.error?.message || '')}</span> {failureHint(code)}</>, detail: install.log?.length ? install.log.join('\n') : undefined }}
         actions={[{ label: ui('重试'), variant: 'primary', icon: 'refresh', onClick: start, busy: working === 'start', disabled: locked || (!!plan && !canInstall(plan)) }]}>
         <Stages install={install} />
       </JobRow>
       {cancelled && install.log?.length > 0 && <Disclosure summary={ui('原始日志')}><pre className="marker-install__commands"><code>{install.log.join('\n')}</code></pre></Disclosure>}
       {install.installed && <Hint>{ui('之前装好的 Marker 仍然可用。')}</Hint>}
-      {offer(false)}
+      {offer(false, { start: false })}
     </div>;
   };
 

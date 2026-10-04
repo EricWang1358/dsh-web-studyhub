@@ -41,6 +41,7 @@ export function failureHint(code) {
     case 'no-space': return ui('清理磁盘，或点「更改位置」换到空间更大的磁盘后重试。');
     case 'not-writable': return ui('点「更改位置」换一个你有写入权限的文件夹后重试。');
     case 'python-too-old': return ui('安装 Python 3.10 – 3.12 后重试。');
+    case 'configure-failed': return ui('把安装位置里 venv 的 marker_single 路径填到下面的输入框，点「保存并检测」。');
     case 'cancelled': return ui('没有改动任何设置。需要时点「重试」。');
     case 'interrupted': return ui('点「重试」接着安装，已下载的内容会被 pip 缓存复用。');
     default: return ui('展开「技术详情」查看原始日志，修正后点「重试」。');

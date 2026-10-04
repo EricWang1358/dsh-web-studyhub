@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { INSTALL_MESSAGES } from '../lib/marker-install.js';
 
 /* The one-click Marker install in Settings: every state renders in both languages, uses the shared primitives, and the buttons call the right actions. */
 const mod = await loadUi(`export { default as MarkerInstall } from './ui/MarkerInstall.jsx';
@@ -17,12 +18,12 @@ const plan = (extra = {}) => ({ ok: true, problems: [], folder: 'C:\\Users\\lee\
   python: { version: '3.11.4', command: 'py -3' }, minPython: '3.10', recommendedPython: '3.12', disk: { freeMb: 52_000, neededMb: 4000 }, estimate: { downloadMb: 1500, minutes: [5, 20] },
   mirror: 'tsinghua', mirrors: [{ id: 'tsinghua', reach: 'mainland', url: 'https://pypi.tuna.tsinghua.edu.cn/simple' }, { id: 'official', reach: 'overseas', url: null }],
   commands: [{ stage: 'create-venv', command: 'py -3 -m venv "C:\\m\\venv"' }, { stage: 'install', command: '"C:\\m\\venv\\Scripts\\python.exe" -m pip install marker-pdf' }], ...extra });
-const missing = plan({ ok: false, python: null, problems: [{ code: 'python-missing', message: '没有找到 Python。请先安装 Python 3.10 或更新版本，装好后再点「一键安装 Marker」。' }],
+const missing = plan({ ok: false, python: null, problems: [{ code: 'python-missing', message: INSTALL_MESSAGES.pythonMissing }],
   channels: [{ id: 'npmmirror', reach: 'mainland', url: 'https://registry.npmmirror.com/binary.html?path=python/' }, { id: 'huawei', reach: 'mainland', url: 'https://mirrors.huaweicloud.com/python/' }, { id: 'official', reach: 'overseas', url: 'https://www.python.org/downloads/' }] });
 const idle = { status: 'idle', stage: '', stages: ['create-venv', 'install', 'verify', 'configure'], folder: '', log: [], error: null, installed: false, installedFolder: '', defaultFolder: plan().folder };
 const running = { ...idle, status: 'running', stage: 'install', folder: plan().folder, mirror: 'tsinghua', startedAt: new Date().toISOString(), lastLine: 'Downloading torch-2.4.0 (190 MB)', log: ['== install ==', 'Downloading torch-2.4.0 (190 MB)'] };
 const failed = { ...idle, status: 'failed', stage: 'install', folder: plan().folder, log: ['$ python -m pip install marker-pdf', 'ERROR: Could not find a version that satisfies the requirement marker-pdf'],
-  error: { code: 'network', message: '下载 marker-pdf 失败，多半是网络不通。可以换用「国内直连」的下载源后重试。' } };
+  error: { code: 'network', message: INSTALL_MESSAGES.pipNetwork } };
 const complete = { ...idle, status: 'complete', stage: 'done', folder: plan().folder, command: 'C:\\m\\venv\\Scripts\\marker_single.exe', installed: true, installedFolder: plan().folder, needsModels: true, log: ['Successfully installed marker-pdf-1.0.0'] };
 const render = (props, language = 'zh') => { mod.setUiLanguage(language); try { return renderToStaticMarkup(React.createElement(MarkerInstall, { call: async () => ({}), ...props })); } finally { mod.setUiLanguage('zh'); } };
 
@@ -80,7 +81,7 @@ test('installing: stages, a progress bar, the latest line, cancel', () => {
 });
 
 test('failed and cancelled: the reason, a retry, the raw log behind a disclosure', () => {
-  for (const state of [failed, { ...failed, status: 'cancelled', error: { code: 'cancelled', message: '已取消安装。' } }, { ...failed, status: 'interrupted', error: { code: 'interrupted', message: '上次安装被中断（StudyHub 关闭或重启）。可以点「重试」接着安装。' } }]) {
+  for (const state of [failed, { ...failed, status: 'cancelled', error: { code: 'cancelled', message: INSTALL_MESSAGES.cancelled } }, { ...failed, status: 'interrupted', error: { code: 'interrupted', message: INSTALL_MESSAGES.interrupted } }]) {
     const html = render({ initialInstall: state, initialPlan: plan() });
     const text = textOf(html);
     if (state.status === 'cancelled') assert.match(text, /安装已取消/); else assert.ok(text.includes(state.error.message.slice(0, 8)), state.error.message);
@@ -107,10 +108,10 @@ test('a Marker that already works keeps the install out of the way', () => {
 
 test('English: every state is free of Chinese, links use the theme link style, nothing leaks', () => {
   const states = [{ initialInstall: idle, initialPlan: plan() }, { initialInstall: idle, initialPlan: missing }, { initialInstall: running, initialPlan: plan() },
-    { initialInstall: failed, initialPlan: plan() }, { initialInstall: { ...failed, status: 'cancelled', error: { code: 'cancelled', message: '已取消安装。' } }, initialPlan: plan() },
-    { initialInstall: { ...failed, status: 'interrupted', error: { code: 'interrupted', message: '上次安装被中断（StudyHub 关闭或重启）。可以点「重试」接着安装。' } }, initialPlan: plan() },
+    { initialInstall: failed, initialPlan: plan() }, { initialInstall: { ...failed, status: 'cancelled', error: { code: 'cancelled', message: INSTALL_MESSAGES.cancelled } }, initialPlan: plan() },
+    { initialInstall: { ...failed, status: 'interrupted', error: { code: 'interrupted', message: INSTALL_MESSAGES.interrupted } }, initialPlan: plan() },
     { initialInstall: complete, initialPlan: plan(), markerReady: true }, { initialInstall: idle, initialPlan: plan({ adjusted: true }) },
-    { initialInstall: idle, initialPlan: plan({ ok: false, problems: [{ code: 'no-space', message: '安装位置所在磁盘的剩余空间不够。请换一个位置，或清理磁盘后重试。' }] }) }];
+    { initialInstall: idle, initialPlan: plan({ ok: false, problems: [{ code: 'no-space', message: INSTALL_MESSAGES.noSpace }] }) }];
   for (const props of states) {
     const html = render(props, 'en');
     assert.doesNotMatch(textOf(html), han, textOf(html));
@@ -207,7 +208,7 @@ test('cancel and retry call the install actions; uninstall asks first, then remo
   t.after(() => { if (savedDocument === undefined) delete globalThis.document; else globalThis.document = savedDocument; });
   const calls = [];
   let current = running, changes = 0;
-  const call = async (action, args) => { calls.push({ action, args }); if (action === 'marker.install.status') return current; if (action === 'marker.install.plan') return plan(); if (action === 'marker.install.cancel') return (current = { ...failed, status: 'cancelled', error: { code: 'cancelled', message: '已取消安装。' } });
+  const call = async (action, args) => { calls.push({ action, args }); if (action === 'marker.install.status') return current; if (action === 'marker.install.plan') return plan(); if (action === 'marker.install.cancel') return (current = { ...failed, status: 'cancelled', error: { code: 'cancelled', message: INSTALL_MESSAGES.cancelled } });
     if (action === 'marker.install.start') return (current = running); if (action === 'marker.install.uninstall') return (current = idle); return {}; };
   const mounted = await mount({ call, markerReady: false, onChanged: () => { changes += 1; } });
   mounted.render(); await flush(); await flush();

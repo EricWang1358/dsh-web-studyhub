@@ -56,7 +56,7 @@ export default function MarkerSettings({ call, disabled = false, available = tru
     <Field label={ui('Marker 程序路径')} hint={ui('留空会自动查找 marker_single。也可以填写虚拟环境中该程序的完整路径。')}>
       <TextInput value={command} placeholder="marker_single" disabled={disabled || working || loading || !available} onChange={event => { ++revision.current; setStatus(null); setError(''); setCommand(event.target.value); }} />
     </Field>
-    <Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('保存并检测')}</Button>
+    <div className="marker-settings__actions"><Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('保存并检测')}</Button></div>
     <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用；模型和 OCR 后端会在实际解析时检查。')}</Hint>
     {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}

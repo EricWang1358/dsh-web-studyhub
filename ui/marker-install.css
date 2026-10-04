@@ -9,6 +9,8 @@
     .marker-settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
     .marker-settings__manual { display: grid; gap: var(--space-3); min-width: 0; padding-top: var(--space-4); border-top: 1px solid var(--line-soft); }
     .marker-settings__manual > h4 { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
+    .marker-settings__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .marker-install__reason { font-weight: var(--fw-strong); }
     .marker-settings__status { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); color: var(--text); }
     .marker-settings__status[data-ready="true"] { color: var(--ok-ink); font-weight: var(--fw-strong); }
 
