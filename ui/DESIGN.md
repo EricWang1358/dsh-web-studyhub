@@ -37,6 +37,7 @@ Defined at the top of `ui/components/components.css` (scoped to `.study-app` / `
 | `--scrim` / `--scrim-strong` | Page dimming behind dialogs, sheets and `::backdrop` (dark on every theme). |
 | `--fw-light` 300, `--fw-regular` 400, `--fw-medium` 550, `--fw-strong` 650 | Font weights; no other numbers. |
 | `--radius-xs` 4px | Chips, keys and inline code; larger shapes keep `--radius-sm`, `--radius`, `--radius-card`, `--radius-pill`. |
+| `--space-half` 2px | Hairline gaps and badge padding below `--space-1`; everything larger uses `--space-1…9`. |
 | `--dur-fast` .15s, `--dur` .2s, `--dur-slow` .3s | Transition and animation durations, with `--ease` / `--ease-out`. |
 
 Where a rule re-themes `--text` or a tone (card stock), re-declare the derived tones there too.

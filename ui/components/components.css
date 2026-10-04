@@ -45,7 +45,7 @@
   --fw-regular: 400;
   --fw-medium: 550;
   --fw-strong: 650;
-  --radius-xs: 4px;
+  --radius-xs: 4px; --space-half: 2px;
   --dur-fast: .15s;
   --dur: .2s;
   --dur-slow: .3s;
