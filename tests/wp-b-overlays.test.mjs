@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -133,10 +133,9 @@ test('Menu keeps its API, uses sh-menu classes and needs no board icon set', () 
   assert.doesNotMatch(read('ui/components/Menu.jsx'), /board\/icons|BIcon/);
 });
 
-test('the board menu is a thin wrapper over the shared Menu', () => {
-  const wrapper = read('ui/board/Menu.jsx');
-  assert.match(wrapper, /components\/(index\.js|Menu\.jsx)/);
-  assert.ok(wrapper.split('\n').length < 40, 'only maps board icon names to nodes');
+test('the board uses the shared Menu itself: the icon names are the registry\'s, no wrapper (#145)', () => {
+  assert.equal(existsSync('ui/board/Menu.jsx'), false);
+  for (const file of ['ui/Board.jsx', 'ui/board/Card.jsx']) assert.match(read(file), /\bMenu\b[^;]*from ['"]\.{1,2}\/(components\/)?(index\.js|components\/index\.js)['"]/, file);
 });
 
 test('Tooltip describes its trigger through aria-describedby and works with focus as well as hover', () => {
