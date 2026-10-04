@@ -17,9 +17,9 @@ const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '');
 /** Raw hex colours (#rgb, #rgba, #rrggbb, #rrggbbaa) outside custom-property declarations. */
 function countRawHex(source) {
   let count = 0;
-  for (const line of stripComments(source).split(/\r?\n/)) {
-    if (/^\s*--[\w-]+\s*:/.test(line)) continue;
-    count += (line.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length;
+  for (const declaration of stripComments(source).split(/[;{}]/)) {
+    if (/^\s*--[\w-]+\s*:/.test(declaration)) continue;
+    count += (declaration.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length;
   }
   return count;
 }

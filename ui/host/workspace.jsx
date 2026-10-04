@@ -93,7 +93,7 @@ export function apply(ctx, registerDocumentLearning) {
   const t = ctx.locale.bind("study-workspace");
   ctx.effect(() => {
     const el = document.createElement("style");
-    el.textContent = css + "\n" + themesCss + "\n" + accentCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
+    el.textContent = css + "\n" + accentCss + "\n" + themesCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
     document.head.appendChild(el);
     return () => el.remove();
   }, "study styles");
