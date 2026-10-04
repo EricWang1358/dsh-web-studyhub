@@ -6,4 +6,3 @@ export function downloadMarkerScript() {
   link.href = url; link.download = MARKER_SCRIPT_FILENAME;
   try { link.click(); } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
 }
-

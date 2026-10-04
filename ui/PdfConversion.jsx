@@ -104,7 +104,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   const adaptiveLocal = route === 'local' && !!plan?.adaptive && plan.pages > plan.adaptive.firstPages;
   const pieceCount = adaptiveLocal ? 0 : pieces?.length || 0;
   const estimate = !isMarker && plan && local?.tier ? localEstimate(plan.pages, local.tier, local.estimates) : null;
-  
+
 
   const start = async () => {
     if (!available || !file || !plan || starting) return;
