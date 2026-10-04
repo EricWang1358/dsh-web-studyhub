@@ -2353,6 +2353,8 @@
   "章节列表": "Chapter list",
   "页面列表": "Page list",
   "恢复资料": "Restore source",
+  "题组已永久删除，原始资料和作答记录已保留。": "Deck permanently deleted. Original sources and answer history were retained.",
+  "将永久删除这个题组及其中的 {0} 道题，无法撤销。原始资料和已有作答记录会保留。": "This will permanently delete the deck and its {0} questions. This cannot be undone. Original sources and existing answer history will be retained.",
   "永久删除「{0}」？": "Permanently delete “{0}”?",
   "确认永久删除": "Confirm permanent deletion",
   "已归档（{0}）": "Archived ({0})",

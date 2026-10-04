@@ -5,6 +5,7 @@ import { useInjectCss } from "./shared.js";
 import css from "./manage.css";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
+import { Dialog } from "./components/index.js";
 
 /* 题组管理视图：编辑先进入草稿（deck.edit → openDraft），归档/暂停/标记
    与目录移动就地生效。managedDeck 由 App 在进入本视图时 deck.get 取得。 */
@@ -26,6 +27,22 @@ export default function Manage({
   const [targetId, setTargetId] = useState("");
   const [splitTitle, setSplitTitle] = useState("");
   const [splitTopics, setSplitTopics] = useState([]);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
+  const removeDeck = async () => {
+    if (busy) return;
+    setRemoveError("");
+    try {
+      await act("deck.remove", { id: managedDeck.id, confirm: true }, () => {
+        setRemoving(false);
+        setManagedDeck(null);
+        setPage("library");
+        setNotice(ui("题组已永久删除，原始资料和作答记录已保留。"));
+      }, { rethrow: true });
+    } catch (error) {
+      setRemoveError(error?.message || String(error));
+    }
+  };
   const topics = [...new Set(managedDeck.cards.map((c) => c.topic || ui("未分类")))];
   const peers = decks.filter((d) => d.id !== managedDeck.id && !d.systemKind && !d.archived);
   const deckIndex = decks.findIndex((d) => d.id === managedDeck.id);
@@ -79,8 +96,19 @@ export default function Manage({
           >
             {managedDeck.archived ? ui("恢复题组") : ui("归档题组并结束练习")}
           </button>
-          <button onClick={() => setPage("library")}>{ui("返回学习库")}</button>
-        </div>
+        <button onClick={() => setPage("library")}>{ui("返回学习库")}</button>
+        {managedDeck.archived && !managedDeck.systemKind && <button className="danger" disabled={busy}
+          onClick={() => { setRemoveError(""); setRemoving(true); }}>{ui("永久删除")}</button>}
+      </div>
+      {removing && <Dialog size="sm" title={uiFormat("永久删除「{0}」？", [managedDeck.title])}
+        onClose={() => { if (!busy) setRemoving(false); }} dismissible={!busy}
+        footer={<>
+          <button disabled={busy} onClick={() => setRemoving(false)}>{ui("取消")}</button>
+          <button className="danger" disabled={busy} onClick={removeDeck}>{ui("确认永久删除")}</button>
+        </>}>
+        <p>{uiFormat("将永久删除这个题组及其中的 {0} 道题，无法撤销。原始资料和已有作答记录会保留。", [managedDeck.cards.length])}</p>
+        {removeError && <p role="alert">{removeError}</p>}
+      </Dialog>}
       </header>
       {!slainView && (unreviewed > 0 || selfCited > 0) && (
         <p className="quality-note warning" role="status">
