@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readAppSource } from './helpers/app-source.mjs';
+import { mapProps } from './helpers/study-map-props.mjs';
 
 /* The home ("学习库") is the daily path: one continue card, one recommendation with its reason, the other ways to start folded
    under one line, and every number with one plain label and a hover that says what it counts. Nothing else is promised above
@@ -28,9 +29,9 @@ function render(patch = {}, props = {}) {
     next: { deckId: 'd1', deckTitle: 'Behavioural patterns', topic: 'Memento', mastery: 23 },
     coach: { ready: 4 }, focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: Array(14).fill({}), route }, ...patch };
   const noop = () => {};
-  return renderToStaticMarkup(React.createElement(StudyMap, { data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop,
+  return renderToStaticMarkup(React.createElement(StudyMap, mapProps({ data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop,
     retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop,
-    startCourseFlow: noop, onCoachPractice: noop, onWeakPoints: noop, ...props }));
+    startCourseFlow: noop, onCoachPractice: noop, onWeakPoints: noop, ...props })));
 }
 const count = (html, pattern) => (html.match(pattern) || []).length;
 
@@ -108,6 +109,6 @@ test('App no longer draws the personalised-questions card; the sidebar row and t
   const app = (await readAppSource()).replace(/\r/g, '');
   assert.doesNotMatch(app, /className="coach-offer"/);
   assert.match(app, /<CoachNavItem\b/);
-  assert.match(app, /onCoachPractice=\{/);
-  assert.match(app, /onWeakPoints=\{/);
+  assert.match(app, /onCoachPractice:/, 'the home action bag carries the personalised-questions link');
+  assert.match(app, /onWeakPoints:/);
 });

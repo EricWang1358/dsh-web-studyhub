@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { mapProps } from './helpers/study-map-props.mjs';
 
 /* D3 (2.5.9, design consistency): the shared course-scope control looks the same on every page, and the home has one clear
    hierarchy (mode tabs above the title, title on its own line, one primary button). */
@@ -27,8 +28,8 @@ function home(runs = []) {
   const data = { root: '/tmp/lib', decks: [deck], progress, sources: [{ id: 's' }], drafts: [], jobs: [], runs, today: { due: 1, weak: 2, new: 1, size: 4 },
     focus: { mode: 'class', course: 'CS3219', courses, fresh: [] } };
   const noop = () => {};
-  return renderToStaticMarkup(h(StudyMap, { data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop,
-    retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop }));
+  return renderToStaticMarkup(h(StudyMap, mapProps({ data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop,
+    retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop })));
 }
 
 test('PageScope renders the same wrapper on every page, whatever the page passes', () => {

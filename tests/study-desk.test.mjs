@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { mapProps } from './helpers/study-map-props.mjs';
 
 const compiled = await build({ entryPoints: ["ui/StudyMap.jsx"], bundle: true,
   write: false, platform: "node", format: "cjs", external: ["react"],
@@ -24,11 +25,11 @@ function render(patch = {}) {
     ...patch,
   };
   const noop = () => {};
-  return renderToStaticMarkup(React.createElement(StudyMap, {
+  return renderToStaticMarkup(React.createElement(StudyMap, mapProps({
     data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop,
     continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop,
     askInChat: noop, notebooks: [], onFocus: noop,
-  }));
+  })));
 }
 const primaries = (html) => (html.match(/class="primary[^"]*"/g) || []).length;
 const count = (html) => html.match(/<div class="today-count"><strong>(\d+)<\/strong><span>([^<]*)<\/span>/)?.slice(1);
@@ -111,13 +112,13 @@ test("show-all lives inside an open course, and a lone course can never be stuck
 test("finished job cards can be acknowledged and removed, running ones cannot", () => {
   const noop = () => {};
   const job = (id, status) => ({ id, status, type: "generate", stage: "", parts: 1, trace: [] });
-  const html = (jobs) => renderToStaticMarkup(React.createElement(StudyMap, {
+  const html = (jobs) => renderToStaticMarkup(React.createElement(StudyMap, mapProps({
     data: { root: "/tmp/lib", decks: [deck], progress, sources: [{ id: "s" }], drafts: [], jobs, runs: [],
       today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: "class", course: "CS3219", courses: [{ name: "CS3219" }], fresh: [] } },
     busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop,
     retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop,
     notebooks: [], onFocus: noop, cancelJob: noop, dismissJob: noop,
-  }));
+  })));
   const mixed = html([job("a", "failed"), job("b", "running")]);
   assert.equal((mixed.match(/class="[^"]*sh-job__dismiss[^"]*"/g) || []).length, 1, "only the finished job offers 知道了");
   assert.doesNotMatch(mixed, /全部知道了/, "one finished card needs no bulk action");

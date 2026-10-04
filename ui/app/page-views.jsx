@@ -141,15 +141,22 @@ function SourcesView() {
   );
 }
 
+/** The 音频转写 page's header: the shared PageHeader, its two links to neighbouring pages as quiet Buttons. */
+export function AudioHeader({ onSettings, onSources }) {
+  return (
+    <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。')}
+      actions={<>
+        <Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>
+        <Button variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
+      </>} />
+  );
+}
+
 function AudioView() {
   const { data, host, core, nav, lib, set, learn } = useApp();
   return (
     <section className="page">
-      <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。')}
-        actions={<>
-          <Button variant="quiet" onClick={() => nav.navigate('settings')}>{ui('音频设置')}</Button>
-          <Button variant="quiet" onClick={() => nav.navigate('sources')}>{ui('查看资料')}</Button>
-        </>} />
+      <AudioHeader onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')} />
       <AudioImport data={data} busy={core.busy} act={core.act} call={core.call} setNotice={core.notify} askInChat={core.askInChat} canAsk={!!host.askInChat}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />

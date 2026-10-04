@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { mapProps } from './helpers/study-map-props.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -175,9 +176,9 @@ function library(patch = {}, props = {}) {
   const data = { root: '/tmp/lib', decks: [deck('d1', 'Databases'), deck('d2', 'Cloud', { inactive: true })], sources: [], drafts: [], jobs: [], runs: [],
     progress: { ...progress('d1'), ...progress('d2') }, today: { due: 1, weak: 0, new: 2, size: 3 }, next: null,
     focus: { mode: 'class', course: 'Databases', courses: [{ name: 'Databases', count: 1, active: true }, { name: 'Cloud', count: 1, active: false, explicit: false }], fresh: [] }, ...patch };
-  return renderToStaticMarkup(h(CourseActiveProvider, { value: api }, h(StudyMap, { data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop,
+  return renderToStaticMarkup(h(CourseActiveProvider, { value: api }, h(StudyMap, mapProps({ data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop,
     continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: { notebooks: [] }, onFocus: noop,
-    cancelJob: noop, dismissJob: noop, generateFromSources: noop, openModelSettings: noop, canChat: false, ...props })));
+    cancelJob: noop, dismissJob: noop, generateFromSources: noop, openModelSettings: noop, canChat: false, ...props }))));
 }
 
 test('the library folds parked courses under one heading and keeps their decks out of the default list', () => {

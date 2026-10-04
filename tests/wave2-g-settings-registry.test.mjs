@@ -5,12 +5,15 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { inApp } from './helpers/fake-app.mjs';
 
 // WP-G (#139): the settings registry is the one place a category is declared, loaded lazily and gated.
 const require = createRequire(import.meta.url);
 const compiled = await build({
   stdin: { contents: `export { SETTINGS_CATEGORIES, categoriesFor, partAvailable, categoryForAnchor } from './ui/settings-groups.js';
     export { default as Settings } from './ui/Settings.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
     export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent',
 });
@@ -70,21 +73,20 @@ test('the category panes never test a capability themselves', () => {
 
 test('Settings renders the selected category through its registry component, behind a Suspense boundary', async () => {
   setUiLanguage('zh');
-  const props = { data: data(), busy: false, act: noop, call: undefined, host: {}, setNotice: noop, settings: defaults, setSettings: noop, legacy: '', setLegacy: noop,
-    workspacePanel: h('p', { id: 'workspace-panel' }, 'workspace'), coursePanel: h('p', { id: 'course-panel' }, 'courses'), onboardingPanel: null,
-    exportData: noop, onRestored: noop, appearance: null, tourActive: true };
-  const first = renderToStaticMarkup(h(Settings, props));
+  const props = { data: data(), settings: defaults, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop, appearance: null, tourActive: true };
+  const render = () => renderToStaticMarkup(inApp(mod.exports, h(Settings, props), { data: props.data, call: undefined, act: noop }));
+  const first = render();
   await tick();
-  const out = renderToStaticMarkup(h(Settings, props));
+  const out = render();
   assert.ok(out.length >= first.length);
-  assert.match(out, /id="workspace-panel"/, 'the model pane renders the panel App hands in');
-  assert.match(out, /id="course-panel"/);
+  assert.match(out, /class="binding-panel"/, 'the model pane draws the library binding itself');
+  assert.match(out, /<legend class="settings-section__title">课程<\/legend>/, 'the course pane draws the course list itself');
+  assert.doesNotMatch(renderToStaticMarkup(h(Settings, props)).replace(/<[^>]*>/g, ''), /undefined/, 'outside the app the panels draw nothing instead of failing');
   assert.match(out, /data-tour="settings-model"/);
 });
 
 test('without the audio component the MinerU routes are absent but the Marker section stays', async () => {
-  const props = { data: data({ contexts: [] }), busy: false, act: noop, call: undefined, host: {}, setNotice: noop, settings: defaults, setSettings: noop, legacy: '', setLegacy: noop,
-    workspacePanel: null, coursePanel: null, onboardingPanel: null, exportData: noop, onRestored: noop, appearance: null, tourActive: true };
+  const props = { data: data({ contexts: [] }), settings: defaults, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop, appearance: null, tourActive: true };
   renderToStaticMarkup(h(Settings, props));
   await tick();
   const bare = renderToStaticMarkup(h(Settings, props));

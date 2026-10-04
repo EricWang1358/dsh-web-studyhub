@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readAppSource } from './helpers/app-source.mjs';
+import { inApp } from './helpers/fake-app.mjs';
 
 /* Settings by when a setting is touched (docs/feature-tiers.md): 常用 (language, appearance, the model: touched whenever
    something is off) and 一次性设置 (keys, search extension, MinerU, audio, courses, import and backup: set once). A group is
@@ -17,6 +18,8 @@ const compiled = await build({
   stdin: { contents: `export { settingsGroupState, SETTINGS_GROUPS, categoriesFor, categoryForAnchor } from './ui/settings-groups.js';
     export { default as Settings, SettingsNav } from './ui/Settings.jsx';
     export { CourseList } from './ui/CourseSettings.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
     export { OnboardingPanel } from './ui/tour/SampleControls.jsx';
     export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent',
@@ -93,9 +96,11 @@ test('the category list sits under the three group headings, marks the selected 
   } finally { setUiLanguage('zh'); }
 });
 
-const page = (props = {}) => renderToStaticMarkup(h(Settings, { data: data(), busy: false, act: noop, call: noop, setNotice: noop, settings: { ...defaults }, setSettings: noop,
-  legacy: '', setLegacy: noop, workspacePanel: h('div', { className: 'binding-panel' }, 'library'), exportData: noop, onRestored: noop, coursePanel: h(CourseList, { courses: [] }),
-  onboardingPanel: h(OnboardingPanel, { sample: null, onTour: noop }), initialProfile: { consent: true, goal: 'exam', summary: '', signals: {}, ready: 0 }, ...props }));
+const page = (props = {}) => {
+  const view = props.data || data();
+  return renderToStaticMarkup(inApp(mod.exports, h(Settings, { settings: { ...defaults }, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop,
+    initialProfile: { consent: true, goal: 'exam', summary: '', signals: {}, ready: 0 }, ...props, data: view }), { data: view, call: noop, act: noop }));
+};
 
 test('the page is the category list and ONE category: the first one by default, the one a deep link points at, everything for the tour', () => {
   setUiLanguage('zh');

@@ -122,10 +122,10 @@ export default function Generate({
     // Only on entering the page, so 清空选择 still sticks.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = [
-    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", tour: "generate-from-sources" },
+    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", attrs: { "data-tour": "generate-from-sources" } },
     { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), icon: "file" },
     // Case-study papers (WP12): a long case with open questions, graded criterion by criterion.
-    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", tour: "generate-case" },
+    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", attrs: { "data-tour": "generate-case" } },
     // Recording into the conversation needs a chat that can take it (plan C3).
     ...(canChat ? [{ id: "chat", label: ui("在对话里录题"), note: ui("刷题软件、错题或截图") }] : []),
   ];
@@ -151,7 +151,7 @@ export default function Generate({
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
         description={ui("用你的资料让 AI 出题，逐题检查后再发布；已经有现成的题目，也可以直接导入。")} />
       <Tabs id="generate" className="source-mode" itemClassName="source-tab" label={ui("创建方式")} value={current} onChange={setGenSource}
-        items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.tour ? { "data-tour": tab.tour } : undefined }))} />
+        items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
       <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
       {current === "json" ? (
         <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />

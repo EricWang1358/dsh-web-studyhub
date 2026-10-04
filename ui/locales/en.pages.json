@@ -1,7 +1,6 @@
 {
   "练这个主题": "Practise this topic",
   "发布草稿": "Publish your draft",
-  "回到这里，点「为全部错题生成变式」": "Come back here and choose “Generate variants for all mistakes”",
   "生成变式需要先配置模型。": "Generating variants needs a model first.",
   "「为你推荐」现在就能练；生成变式前需要先配置模型。": "“Recommended for you” can be practised now; set up a model before generating variants.",
   "音频 / 用量": "Audio / usage",
@@ -14,8 +13,6 @@
   "题目": "Question",
   "题组名称": "Deck name",
   "主题": "Topic",
-  "知识骨架": "Knowledge skeleton",
-  "资料": "Material",
   "（目录 {0}）": " (folder: {0})",
   "开始录题：接下来这段对话里我贴的题目（刷题软件、Canvas 错题记录、截图都可能），请都用 study_workspace 的 ingest 直接录入学习库，不用再问我确认。\n- 题组：「{0}」{1}\n- 题型：{2}\n- 错题：{3}\n- 截图请先逐字转写题目、选项和答案再录入；一次贴很多题时可以分批。\n- 如果我贴的是讲义 PDF 而不是现成题目，请用 source.import 按页导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n- 每批录完简短告诉我：录入几道、哪些重复、哪些没录成功及原因、哪些答案是推断的需要我核对。\n- 我说「停止录题」时调用 ingest.stop。\n第一批题目：\n": "Start recording questions: use study_workspace ingest to add questions I paste in this conversation (including quiz apps, Canvas mistakes and screenshots) directly to my study library without asking for confirmation again.\n- Deck: “{0}”{1}\n- Question type: {2}\n- Mistakes: {3}\n- Preserve the original language of questions, options and answers. Reply in English.\n- For screenshots, transcribe questions, options and answers before importing. Large batches may be split.\n- If I paste a lecture PDF rather than existing questions, import its pages with source.import, then use generate to create a draft under the deck name above. Do not record lecture material as mistakes.\n- After each batch, briefly report the imported count, duplicates, failures with reasons, and inferred answers that need checking.\n- When I say “stop recording”, call ingest.stop.\nFirst batch of questions:\n",
   "自动识别（有选项的保持单选/多选，没有选项的做成问答闪卡）": "Preserve single/multiple-choice questions when options are present; otherwise create Q&A flashcards.",
@@ -45,5 +42,9 @@
   "{0} · 合并建议": "{0} · Merge suggestions",
   "合并后共 {0} 题，全部题目保留。": "{0} questions after merging, all retained.",
   "已选 {0} 项": "{0} selected",
-  "另有 {0} 组练习未完成": "{0} more unfinished sessions"
+  "另有 {0} 组练习未完成": "{0} more unfinished sessions",
+  "所有课程": "All courses",
+  "{0} + Enter 请 AI 查看": "{0} + Enter to ask AI",
+  "{0} + Enter 保存": "{0} + Enter to save",
+  "回到这里，让 AI 为错题写变式": "Come back here and let the AI write variants for your mistakes"
 }

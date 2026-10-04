@@ -156,9 +156,9 @@ test("02 / 学习方式 uses segmented controls, a stepper and presets instead o
   assert.match(section, /aria-label="减少题数"/);
   assert.match(section, /aria-label="增加题数"/);
   assert.match(section, /<input[^>]*type="number"[^>]*min="1"[^>]*max="30"|<input[^>]*max="30"[^>]*type="number"/);
-  const presets = [...section.matchAll(/<button[^>]*class="generate-chip generate-preset"[^>]*>(\d+)<\/button>/g)].map((match) => match[1]);
+  const presets = [...section.matchAll(/<span[^>]*class="sh-chip [^"]*generate-preset[^"]*"[^>]*><button[^>]*class="sh-chip__main"[^>]*>(\d+)<\/button>/g)].map((match) => match[1]);
   assert.deepEqual(presets, ["5", "10", "20", "30"]);
-  assert.match(section, /generate-preset[^>]*aria-pressed="true"[^>]*>10</, "the current count is pressed");
+  assert.match(section, /is-selected generate-preset[^>]*><button[^>]*aria-pressed="true"[^>]*>10</, "the current count is pressed");
   assert.match(section, /aria-pressed="true"[^>]*>混合</, "the current difficulty is on");
 });
 
@@ -201,7 +201,7 @@ test("without a usable model the assist offers local suggestions and never claim
 
 test("a count hint appears when the materials suggest a different number, and never overwrites the field", () => {
   const section = formOf(render());
-  assert.match(section, /generate-hint[^>]*>[^<]*建议 5 题/);
+  assert.match(section, /generate-hint[^>]*><button[^>]*>[^<]*建议 5 题/);
   assert.match(section, /<input[^>]*value="10"/, "the learner's value stays");
   const same = formOf(render({}, { gen: { ...gen, count: 5 } }));
   assert.doesNotMatch(same, /建议 5 题/, "no hint when it already matches");

@@ -6,6 +6,7 @@ import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readAppSource } from "./helpers/app-source.mjs";
+import { mapProps } from './helpers/study-map-props.mjs';
 
 /* WP19: "知道了" must not freeze the page. Cards leave at once through the light path
    (ui/quick-actions.js), nothing is disabled, failures come back next to the card. */
@@ -29,11 +30,11 @@ const generation = (id, status, extra = {}) => ({ id, status, type: "generate", 
 const audio = (id, status, extra = {}) => ({ id, status, type: "audio-import", filename: `${id}.mp3`, phase: "done", ...extra });
 const quickValue = (failures = {}, run = noop) => ({ failures, run, clearFailure: noop });
 const map = (jobs, { busy = false, quick, dismissJob = noop } = {}) => {
-  const tree = React.createElement(StudyMap, {
+  const tree = React.createElement(StudyMap, mapProps({
     data: { root: "/tmp/lib", decks: [deck], progress, sources: [{ id: "s" }], drafts: [], jobs, runs: [],
       today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: "class", course: "CS3219", courses: [{ name: "CS3219" }], fresh: [] } },
     busy, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop, retryGeneration: noop,
-    addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop, cancelJob: noop, dismissJob });
+    addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop, cancelJob: noop, dismissJob }));
   return renderToStaticMarkup(quick ? React.createElement(QuickActionsContext.Provider, { value: quick }, tree) : tree);
 };
 
@@ -101,7 +102,7 @@ test("the English strings exist for the new error labels", async () => {
 
 test("App wires every 知道了 and 全部知道了 through the light path, not through act", async () => {
   const app = await readAppSource();
-  assert.match(app, /dismissJob=\{[^}]*dismissJobs\(quick/, "StudyMap dismissJob uses dismissJobs()");
+  assert.match(await readFile("ui/StudyMap.jsx", "utf8"), /dismissJob = \(jobId\) => dismissJobs\(quick/, "StudyMap dismissJob uses dismissJobs()");
   assert.doesNotMatch(app, /act\("job\.dismiss"/);
   const audioUi = await readFile("ui/AudioImport.jsx", "utf8");
   assert.match(audioUi, /quick \? dismissJobs\(quick, job\.id\)/, "audio cards use the light path; act is only the fallback outside App");

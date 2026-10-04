@@ -16,7 +16,7 @@ new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(creat
 const { Generate, CaseCreate, ReferenceQuestions, setUiLanguage } = module.exports;
 // Exercise event closures without a browser, storage or executing effects/model calls.
 const hooks = { ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
-  useEffect: () => {}, useCallback: callback => callback, useMemo: read => read(), useRef: initial => ({ current: initial }) };
+  useContext: () => null, useEffect: () => {}, useCallback: callback => callback, useMemo: read => read(), useRef: initial => ({ current: initial }) };
 const eventModule = { exports: {} };
 const require = createRequire(import.meta.url);
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : require(name), eventModule, eventModule.exports);

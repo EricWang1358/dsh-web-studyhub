@@ -23,7 +23,8 @@ test('PageHeader has a scope slot between the description and the actions', () =
 
 test('PageHeader titleProps land on the h1 (focus targets and context headings)', () => {
   const out = html(m.PageHeader, { title: '笔记', titleProps: { tabIndex: -1, 'data-context-heading': true } });
-  assert.match(out, /<h1 class="sh-page-header__title" tabindex="-1" data-context-heading="true">笔记<\/h1>/);
+  assert.match(out, /<h1 tabindex="-1" data-context-heading="true" class="sh-page-header__title">笔记<\/h1>/);
+  assert.match(html(m.PageHeader, { title: 'x', titleProps: { className: 'course-heading', 'data-tour': 'home-course' } }), /<h1 class="sh-page-header__title course-heading" data-tour="home-course">/, 'a class on the title joins the shared one');
 });
 
 test('PageHeader compact is the one-line header of a working surface', () => {

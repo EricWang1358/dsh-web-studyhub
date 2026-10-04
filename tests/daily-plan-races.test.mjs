@@ -27,7 +27,7 @@ function harness() {
       return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
     useRef: value => slot(() => ({ current: value }))[1],
     useMemo: memo, useCallback: (callback, deps) => memo(() => callback, deps),
-    useSyncExternalStore: (subscribe, get) => get(),
+    useSyncExternalStore: (subscribe, get) => get(), useContext: () => null,
     useEffect: (callback, deps) => {
       const [, value] = slot(() => ({ deps: undefined, cleanup: null }));
       if (!value.deps || deps.some((item, index) => item !== value.deps[index])) {
