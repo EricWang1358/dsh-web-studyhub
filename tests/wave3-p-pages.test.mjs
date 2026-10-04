@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
-import { inApp } from './helpers/fake-app.mjs';
 
 // UI wave 3 · WP-P: the page-level leftovers that have one-line rules (#91 #107 #113 #144 #146 #104 #135 #145).
 const read = file => readFileSync(file, 'utf8').replace(/\r\n/g, '\n');

@@ -29,7 +29,7 @@ bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react',
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { Settings, CoachSection, coachActions, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName, AudioSettings, ProviderKeyForm, PROVIDERS,
-  CourseList, OnboardingPanel, previewSchedule, setUiLanguage } = module.exports;
+  previewSchedule, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const h = React.createElement;
 const noop = () => {};

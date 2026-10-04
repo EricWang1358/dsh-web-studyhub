@@ -26,7 +26,7 @@ const compiled = await build({
 });
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, mod, mod.exports);
-const { settingsGroupState, SETTINGS_GROUPS, categoriesFor, categoryForAnchor, Settings, SettingsNav, CourseList, OnboardingPanel, setUiLanguage } = mod.exports;
+const { settingsGroupState, SETTINGS_GROUPS, categoriesFor, categoryForAnchor, Settings, SettingsNav, setUiLanguage } = mod.exports;
 const h = React.createElement;
 const noop = () => {};
 await warmSettingsPanes(Settings);

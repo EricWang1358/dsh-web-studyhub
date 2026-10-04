@@ -4,7 +4,7 @@
         (without a plan: back to the learning path; with an accepted plan: its next action)
      B  question 2 of a round → 前置题 → finish the prerequisite round → the only primary action is 回到原题, and it lands on
         question 2 again, unanswered. */
-/* global document, window, localStorage -- page.evaluate callbacks run in the browser */
+/* global localStorage -- page.evaluate callbacks run in the browser */
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { previewCall } from "../preview-server.mjs";

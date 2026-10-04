@@ -1,7 +1,7 @@
 /* node scripts/qa/wave3-p-shots.mjs [--lang zh|en --theme dark|light --width 1280|420 --out <dir>]
    Screenshots for the wave-3 page frame: the home's folded and open 今天先做什么, the Board, the Settings model and course panes (they draw their
    own panels), a deck's 维护 page (Panels), a draft, and a sample of every Panel tone beside a PageHeader with a scope. Fake library and model. */
-/* global document, localStorage -- page.evaluate callbacks run in the browser */
+/* global document, window, localStorage -- page.evaluate callbacks run in the browser */
 import { build } from "esbuild";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -36,7 +36,7 @@ const summary = await runQa({ name: "wave3-p-shots", options,
       const more = page.getByRole("button", { name: t("更多操作", "More actions"), exact: true }).first();
       await more.scrollIntoViewIfNeeded(); await more.click();
       await page.getByRole("menuitem", { name: t("管理题组", "Manage deck") }).click();
-      await page.locator(".manage-page").waitFor({ timeout: 10000 }); await sleep(400);
+      await page.locator(".manage-page").waitFor({ timeout: 10000 }); await page.evaluate(() => { for (const node of document.querySelectorAll("main, .page")) node.scrollTop = 0; window.scrollTo(0, 0); }); await sleep(400);
     });
     await step("dashboard-scope-header", async () => { await nav("dashboard"); });
 
