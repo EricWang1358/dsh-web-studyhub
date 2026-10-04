@@ -42,7 +42,7 @@ test("an empty library asks for a first material, with JSON import as the second
   const html = render();
   assert.equal(primaries(html), 1);
   assert.equal(primaryLabel(html), "添加第一份资料");
-  assert.match(html, /<button[^>]*class="link-btn"[^>]*>已有题目？导入 JSON 题组<\/button>/);
+  assert.match(html, /<button[^>]*class="sh-btn sh-btn--link[^"]*"[^>]*>已有题目？导入 JSON 题组<\/button>/);
   assert.doesNotMatch(html, /还没有卡片/);
   assert.doesNotMatch(html, /在对话中用工作区文件出题/, "a chat-only start is not offered without a chat");
   assert.match(render({}, { canChat: true }), /在对话中用工作区文件出题/);
@@ -91,7 +91,7 @@ test("running jobs and pending drafts sit above the desk, naming the deck in pla
     steps: [{ id: "s1", stage: "Part 1/2 · Writing and self-checking questions", part: 1, status: "running", runtime: "subagent", childId: "child-1",
       startedAt: "2026-10-01T00:00:00Z" }] };
   const html = render({ sources: pdfPages, jobs: [job], drafts: [{ id: "dr", title: "旧草稿", cards: [{ id: "c" }], editorial: {} }] });
-  const jobAt = html.indexOf('class="job '), draftAt = html.indexOf('class="draft-row"'), deskAt = html.indexOf('class="desk');
+  const jobAt = html.indexOf('class="sh-job '), draftAt = html.indexOf('class="draft-row"'), deskAt = html.indexOf('class="desk');
   assert.ok(jobAt > 0 && jobAt < deskAt, "the job card comes before the desk");
   assert.ok(draftAt > 0 && draftAt < deskAt, "pending drafts come before the desk");
   assert.match(html, /正在生成「索引小测」/);

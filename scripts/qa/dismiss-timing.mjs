@@ -144,14 +144,14 @@ try {
     await shot("fail-audio");
     results.failureShown = { audio: await page.locator(".audio-jobs .sh-job .sh-inline--error").allTextContents() };
     await page.click('[data-tour="nav-library"]');
-    await page.waitForSelector(".generation-jobs .job-dismiss");
+    await page.waitForSelector(".generation-jobs .sh-job__dismiss");
     await page.click(".generation-jobs .jobs-dismiss-all");
     await sleep(700);
     await shot("fail-home-all");
-    await page.click(".generation-jobs .job-dismiss");
+    await page.click(".generation-jobs .sh-job__dismiss");
     await sleep(700);
     await shot("fail-home-single");
-    results.failureShown.home = await page.locator(".generation-jobs .job-error, .jobs-actions .job-error").allTextContents();
+    results.failureShown.home = await page.locator(".generation-jobs .sh-job .sh-inline, .jobs-actions .sh-inline").allTextContents();
     await writeFile(join(out, `timings-${label}-${LANG}-${THEME}-lat${LATENCY}-fail.json`), JSON.stringify(results, null, 2));
     console.log(JSON.stringify(results.failureShown, null, 2));
     await browser.close(); await server.close();
@@ -163,12 +163,12 @@ try {
   await measure("audio-single", ".audio-jobs .sh-job", 0);
   await page.click('[data-tour="nav-library"]');
   // Home: single card, then dismiss-all.
-  await page.waitForSelector(".generation-jobs .job-dismiss", { timeout: 20000 });
-  await measure("home-single", ".generation-jobs .job", 0);
+  await page.waitForSelector(".generation-jobs .sh-job__dismiss", { timeout: 20000 });
+  await measure("home-single", ".generation-jobs .sh-job", 0);
   await page.waitForSelector(".generation-jobs .jobs-dismiss-all", { timeout: 20000 }).catch(() => {});
   if (await page.$(".generation-jobs .jobs-dismiss-all")) {
     results.scenarios["home-all"] = await page.evaluate(async () => {
-      const cards = [...document.querySelectorAll(".generation-jobs .job:not(.running)")];
+      const cards = [...document.querySelectorAll(".generation-jobs .sh-job:not(.sh-job--running)")];
       const t0 = performance.now();
       const visible = (el) => { if (!el.isConnected) return false; const s = getComputedStyle(el); return s.display !== "none" && s.visibility !== "hidden" && Number(s.opacity) > 0.02 && el.getBoundingClientRect().height > 1; };
       const disabledNow = () => document.querySelectorAll(".study-app button:disabled").length, before = disabledNow();

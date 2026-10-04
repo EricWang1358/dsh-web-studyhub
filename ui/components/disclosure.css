@@ -43,7 +43,10 @@
 :is(.study-app, .study-seat) {
   .sh-disclosure-toggle .sh-icon { transition: transform var(--dur-fast) var(--ease); }
   .sh-disclosure-toggle[aria-expanded="true"] .sh-icon { transform: rotate(90deg); }
+  /* The same caret inside a button that is itself the fold toggle (a text row). */
+  [aria-expanded] > .sh-caret { flex: none; transition: transform var(--dur-fast) var(--ease); }
+  [aria-expanded="true"] > .sh-caret { transform: rotate(90deg); }
   @media (prefers-reduced-motion: reduce) {
-    .sh-disclosure-toggle .sh-icon { transition: none; }
+    .sh-disclosure-toggle .sh-icon, [aria-expanded] > .sh-caret { transition: none; }
   }
 }

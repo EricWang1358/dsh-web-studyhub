@@ -38,16 +38,16 @@ const map = (jobs, { busy = false, quick, dismissJob = noop } = {}) => {
 
 test("知道了 stays clickable while another action is busy: it is not part of the single-flight act", () => {
   const html = map([generation("a", "failed"), generation("b", "complete")], { busy: true });
-  const buttons = html.match(/<button[^>]*class="job-dismiss"[^>]*>/g) || [];
+  const buttons = html.match(/<button[^>]*class="[^"]*sh-job__dismiss[^"]*"[^>]*>/g) || [];
   assert.equal(buttons.length, 2);
   for (const button of buttons) assert.doesNotMatch(button, /disabled/);
-  assert.match(html, /class="link-btn jobs-dismiss-all"(?![^>]*disabled)/);
+  assert.match(html, /class="[^"]*jobs-dismiss-all"(?![^>]*disabled)/);
 });
 
 test("a card that is leaving is animated out and no longer counted for 全部知道了", () => {
   const html = map([generation("a", "failed", { leaving: true }), generation("b", "complete")]);
-  assert.match(html, /class="job failed job-leaving"[^>]*data-job-id="a"/);
-  assert.doesNotMatch(html, /class="job complete job-leaving"/);
+  assert.match(html, /<article[^>]*class="sh-job sh-job--failed is-leaving[^"]*"[^>]*data-job-id="a"/);
+  assert.doesNotMatch(html, /sh-job--complete is-leaving/);
   assert.doesNotMatch(html, /全部知道了/, "only one visible finished card is left, so the bulk action goes away");
   const leavingButton = html.match(/data-job-id="a"[\s\S]*?<\/article>/)[0];
   assert.match(leavingButton, /aria-hidden="true"/, "a card on its way out is hidden from assistive tech");
@@ -62,9 +62,8 @@ test("the dismiss-all button hands the whole decision to the light path", () => 
 
 test("a failed dismissal puts a short error next to the card that came back", () => {
   const html = map([generation("a", "failed")], { quick: quickValue({ a: "磁盘忙" }) });
-  assert.match(html, /role="alert"[^>]*class="job-error"[^>]*>[^<]*磁盘忙|class="job-error"[^>]*role="alert"[^>]*>[^<]*磁盘忙/);
   const section = html.match(/data-job-id="a"[\s\S]*?<\/article>/)[0];
-  assert.match(section, /磁盘忙/, "inside the card, not in a page-level banner");
+  assert.match(section, /role="alert"[^>]*>[^]*磁盘忙/, "an alert inside the card, not in a page-level banner");
 });
 
 test("a failed dismiss-all puts its error beside the bulk button", () => {
