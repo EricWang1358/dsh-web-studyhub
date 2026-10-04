@@ -1,6 +1,7 @@
 import StudyBoundary from "./StudyBoundary.jsx";
 import { Dialog, InlineMessage } from "../components/index.js";
 import { getUiLanguage, ui } from "../i18n.js";
+import { browserStorage } from "../storage.js";
 import React from "react";
 import App from "../App.jsx";
 import css from "../styles.js";
@@ -64,10 +65,6 @@ function useHostStore(store) {
     ),
     read = React.useCallback(() => store?.getSnapshot(), [store]);
   return React.useSyncExternalStore(subscribe, read, read);
-}
-/** Durable browser storage, or null where it is absent or blocked. */
-function durableStorage() {
-  try { return window.localStorage || null; } catch { return null; }
 }
 
 export function apply(ctx, registerDocumentLearning) {
@@ -366,7 +363,7 @@ export function apply(ctx, registerDocumentLearning) {
      without durable storage it would steal the main view on every load, so
      it does nothing there. selectPanel throws until the panel is registered. */
   ctx.effect(() => {
-    const storage = durableStorage();
+    const storage = browserStorage(window);
     let seen = true;
     try { seen = !storage || !!storage.getItem(WELCOME_KEY); } catch { seen = true; }
     if (seen) return;

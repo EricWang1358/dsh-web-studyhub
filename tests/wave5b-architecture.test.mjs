@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 // UI wave 5B: the architecture clean-ups (#113 #115 #116 #123 #125 #126 #128 #117) pinned as source scans, so a regression names the file.
 // The per-file counts that may only fall (call/busy hand-offs and the like) live in tests/fixtures/ui-guardrail-baseline.json.
 const root = new URL('../', import.meta.url);
 const read = file => readFileSync(new URL(file, root), 'utf8');
+const walk = (dir, extensions) => readdirSync(new URL(`${dir}/`, root), { withFileTypes: true }).flatMap(entry =>
+  entry.isDirectory() ? walk(`${dir}/${entry.name}`, extensions) : extensions.some(ext => entry.name.endsWith(ext)) ? [`${dir}/${entry.name}`] : []);
 /** The code of a source file: comments blanked, so a sentence that mentions localStorage is not a use of it. */
 const code = text => text.replace(/\/\*[\s\S]*?\*\//g, match => match.replace(/[^\n]/g, ' ')).replace(/(^|[^:\\'"`])\/\/[^\n]*/g, (match, lead) => lead);
+const uiSources = () => walk('ui', ['.js', '.jsx']).map(file => ({ file, text: code(read(file)) }));
 
 /* ---------- #113: the services come from useStudy() ---------- */
 
@@ -56,4 +59,11 @@ test('StudyMap takes the snapshot and a few app verbs, not the services (#113)',
 test('Settings is not handed JSX to lay out (#113)', () => {
   assert.doesNotMatch(code(read('ui/Settings.jsx')), /\b(workspacePanel|coursePanel|onboardingPanel)\b/);
   assert.doesNotMatch(code(read('ui/app/page-views.jsx')), /\b(workspacePanel|coursePanel|onboardingPanel)\b/);
+});
+
+/* ---------- #115: the browser's storage is touched in one place ---------- */
+
+test('localStorage and sessionStorage appear only in ui/storage.js and ui/i18n.js (#115)', () => {
+  const offenders = uiSources().filter(({ file, text }) => !['ui/storage.js', 'ui/i18n.js'].includes(file) && /\b(?:localStorage|sessionStorage)\b/.test(text)).map(({ file }) => file);
+  assert.deepEqual(offenders, []);
 });

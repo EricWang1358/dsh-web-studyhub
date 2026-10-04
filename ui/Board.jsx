@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
+import { readJSON, writeJSON } from "./storage.js";
 import { Button, EmptyState, Icon, IconButton, InlineMessage, LoadingState, Menu, PageHeader, useToast } from "./components/index.js";
 import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
 import { createBoardStore } from "./board/store.js";
@@ -32,8 +33,8 @@ export function useBoard(call, visible) {
 const MOVE_KEYS = { left: -1, right: 1 };
 const UNDO_TIMEOUT = 8000;
 const COLLAPSE_KEY = "study-board-collapsed";
-const readCollapsed = () => { try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "[]")); } catch { return new Set(); } };
-const writeCollapsed = (set) => { try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set])); } catch { /* a per-viewer convenience only */ } };
+const readCollapsed = () => { const saved = readJSON(COLLAPSE_KEY, []); return new Set(Array.isArray(saved) ? saved : []); };
+const writeCollapsed = (set) => { writeJSON(COLLAPSE_KEY, [...set]); /* a per-viewer convenience only */ };
 const friendly = (error, conflict) => conflict ? ui("看板已在其他位置更新，已载入最新内容，请再试一次。") : error;
 
 function Column({ column, view, board, today, library, drag, drop, setDrag, setDrop, hasDone, composer, collapsed, filtering, readOnly, labelSuggestions,

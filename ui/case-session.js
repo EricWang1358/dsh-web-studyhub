@@ -3,6 +3,7 @@
    pacing per question, and the per-run draft kept in the browser. Pure apart
    from the guarded localStorage helpers, so it is tested without a DOM. */
 import { HIGHLIGHT_COLORS, isBlank, paceStatus } from "../lib/case-study.js";
+import { readJSON, removeKey, writeJSON } from "./storage.js";
 
 export { HIGHLIGHT_COLORS };
 
@@ -108,10 +109,9 @@ export function tickQuestion(perQuestion = {}, activeId, deltaMs) {
 const KEY = "study-case";
 export const sessionKey = (root, runId) => `${KEY}:${root || ""}:${runId}`;
 export function readSession(root, runId) {
-  try { const value = JSON.parse(localStorage.getItem(sessionKey(root, runId)) || "null"); return value && typeof value === "object" ? value : null; }
-  catch { return null; }
+  const value = readJSON(sessionKey(root, runId));
+  return value && typeof value === "object" ? value : null;
 }
 export function writeSession(root, runId, value) {
-  try { if (value) localStorage.setItem(sessionKey(root, runId), JSON.stringify(value)); else localStorage.removeItem(sessionKey(root, runId)); return true; }
-  catch { return false; }
+  return value ? writeJSON(sessionKey(root, runId), value) : removeKey(sessionKey(root, runId));
 }

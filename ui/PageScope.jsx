@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
+import { browserSession, readJSON, writeJSON } from './storage.js';
 import { courseScope, courseSegments, courseTree } from '../lib/course-tree.js';
 import { isParked, parkedWithin, useCourseActive } from './CourseActive.jsx';
 import { useInjectCss } from './shared.js';
@@ -8,8 +9,8 @@ import activeCss from './course-active.css';
 
 const storageKey = (root, page) => `study-page-scope:v1:${JSON.stringify([root || '', page])}`;
 const read = key => {
-  try { const value = JSON.parse(sessionStorage.getItem(key)); return typeof value === 'string' ? value : undefined; }
-  catch { return undefined; }
+  const value = readJSON(key, undefined, browserSession());
+  return typeof value === 'string' ? value : undefined;
 };
 
 /** The names of the library's courses (the snapshot's course list), for the no-space slash rule of lib/course-tree.js. */
@@ -54,7 +55,7 @@ export function usePageScope(root, page, defaultValue = '*') {
   const value = saved.key === key ? saved.value : read(key);
   const choose = value => {
     setSaved({ key, value });
-    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* memory still works */ }
+    writeJSON(key, value, browserSession()); // memory still works when the storage refuses it
   };
   return [value ?? defaultValue, choose];
 }

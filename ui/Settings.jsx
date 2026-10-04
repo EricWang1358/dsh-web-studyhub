@@ -12,6 +12,7 @@ import { useInjectCss } from './shared.js';
 import css from './settings.css';
 import { loadMineruSettings } from './use-mineru.js';
 import { loadRetrievalStatus } from './retrieval-status.js';
+import { readText, writeText } from './storage.js';
 
 /* App names the file of an export with this; it lives in its own module so the page does not load the backup section for it. */
 export { backupFileName } from './settings/backup-name.js';
@@ -23,8 +24,8 @@ export { backupFileName } from './settings/backup-name.js';
 /* ---------- categories: a list on the left, one category on the right ---------- */
 
 const CATEGORY_KEY = 'study-settings-category';
-const readCategory = () => { try { return localStorage.getItem(CATEGORY_KEY) || ''; } catch { return ''; } };
-const writeCategory = (value) => { try { localStorage.setItem(CATEGORY_KEY, value); } catch { /* the choice still applies this session */ } };
+const readCategory = () => readText(CATEGORY_KEY);
+const writeCategory = (value) => { writeText(CATEGORY_KEY, value); /* the choice still applies this session */ };
 
 /** The list of categories under the three group headings; the selected one is marked, and one that needs attention says so in words (not by colour alone). */
 export function SettingsNav({ available, active, missing, onSelect }) {

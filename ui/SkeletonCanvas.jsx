@@ -4,6 +4,7 @@ import Markdown from "./Markdown.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 import { Button, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
 import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
+import { readJSON, removeKey, writeJSON } from "./storage.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
 
 /* 知识骨架的两张可交互图：UML 类图（概念结构）+ UML 时序图（动态链路）。
@@ -55,13 +56,9 @@ const MinimapNodes = React.memo(function MinimapNodes({ boxes }) {
 
 const storageKey = (id) => `study-skeleton-layout:${id}`;
 function loadPositions(id) {
-  try {
-    const raw = JSON.parse(localStorage.getItem(storageKey(id)) || "{}");
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-    return Object.fromEntries(Object.entries(raw).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.y >= 0));
-  } catch {
-    return {};
-  }
+  const raw = readJSON(storageKey(id), {});
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(Object.entries(raw).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.y >= 0));
 }
 
 function useStoredPositions(key) {
@@ -73,10 +70,9 @@ function useStoredPositions(key) {
   }), [key]);
   useEffect(() => {
     const timer = setTimeout(() => {
-      try {
-        if (Object.keys(positions).length) localStorage.setItem(storageKey(key), JSON.stringify(positions));
-        else localStorage.removeItem(storageKey(key));
-      } catch { /* private mode: layout just is not remembered */ }
+      // private mode: the layout is just not remembered
+      if (Object.keys(positions).length) writeJSON(storageKey(key), positions);
+      else removeKey(storageKey(key));
     }, 250);
     return () => clearTimeout(timer);
   }, [key, positions]);

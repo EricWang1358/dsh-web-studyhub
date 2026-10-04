@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { Button, Icon } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
+import { readJSON, readText, removeKey, writeJSON, writeText } from "./storage.js";
 import { useInjectCss } from "./shared.js";
 import { SETUP_STEP_IDS, courseSetup, hasBigBook } from "../lib/course-setup.js";
 import css from "./setup-checklist.css";
@@ -18,22 +19,19 @@ import { loadRetrievalStatus } from "./retrieval-status.js";
 const key = (kind, root, course) => `study-setup-${kind}:${root || "local"}:${course ?? ""}`;
 /** The steps the learner put off for a course: ids, per library and course. */
 export function readSetupLater(root, course) {
-  try {
-    const value = JSON.parse(localStorage.getItem(key("later", root, course)));
-    return Array.isArray(value) ? value.filter((id) => SETUP_STEP_IDS.includes(id)) : [];
-  } catch { return []; }
+  const value = readJSON(key("later", root, course));
+  return Array.isArray(value) ? value.filter((id) => SETUP_STEP_IDS.includes(id)) : [];
 }
 export function writeSetupLater(root, course, ids) {
-  try {
-    if (ids.length) localStorage.setItem(key("later", root, course), JSON.stringify(ids)); else localStorage.removeItem(key("later", root, course));
-  } catch { /* the choice still holds this session */ }
+  // the choice still holds this session when the storage refuses it
+  if (ids.length) writeJSON(key("later", root, course), ids); else removeKey(key("later", root, course));
 }
 /** Has the "all done" note been shown for this course? It is shown once. */
 export function setupDoneSeen(root, course) {
-  try { return localStorage.getItem(key("done", root, course)) === "1"; } catch { return false; }
+  return readText(key("done", root, course)) === "1";
 }
 export function markSetupDone(root, course) {
-  try { localStorage.setItem(key("done", root, course), "1"); } catch { /* the note may show once more */ }
+  writeText(key("done", root, course), "1"); // the note may show once more when the storage refuses it
 }
 
 /** The one action of a step: { label, run, disabled }. `on` carries the page's own handlers; a step without a handler is disabled, never a dead button. */

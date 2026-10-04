@@ -1,3 +1,5 @@
+import { browserStorage } from './storage.js';
+
 export const SCIENCE_KEY = 'study-science-settings';
 export const FORMULA_SCALES = Object.freeze([75, 100, 125, 150, 175, 200]);
 export const IMAGE_HEIGHTS = Object.freeze([180, 360, 540, 720]);
@@ -14,12 +16,11 @@ export function normalizeScienceSettings(raw) {
     if (typeof value[key] === 'boolean') result[key] = value[key];
   return result;
 }
-const storageOf = () => { try { return globalThis.localStorage; } catch { return null; } };
-export function loadScienceSettings(storage = storageOf()) {
+export function loadScienceSettings(storage = browserStorage()) {
   try { return normalizeScienceSettings(JSON.parse(storage?.getItem(SCIENCE_KEY) || 'null')); }
   catch { return { ...SCIENCE_DEFAULTS }; }
 }
-export function saveScienceSettings(value, storage = storageOf()) {
+export function saveScienceSettings(value, storage = browserStorage()) {
   try { storage?.setItem(SCIENCE_KEY, JSON.stringify(normalizeScienceSettings(value))); } catch { /* Session choice still applies. */ }
 }
 export function scienceVars(value) {

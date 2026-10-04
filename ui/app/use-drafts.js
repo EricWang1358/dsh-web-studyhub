@@ -1,11 +1,10 @@
 import { useCallback, useEffect } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { hasUnsavedDraft } from '../draft-editor.js';
-import { readJSON, removeKey, writeJSON } from '../storage.js';
+import { browserSession, readJSON, removeKey, writeJSON } from '../storage.js';
 
 /* The draft the learner is editing, and the copy of it this window keeps in sessionStorage so a reload offers it back
    (the 有本窗口暂存的编辑 banner). The draft itself is part of the library state; this is its editing verbs. */
-const sessionStore = () => { try { return globalThis.sessionStorage ?? null; } catch { return null; } };
 const recoveryKey = (root) => `study-draft:${root}`;
 
 export function useDrafts({ core, lib, nav, data }) {
@@ -15,17 +14,17 @@ export function useDrafts({ core, lib, nav, data }) {
   const root = data?.root;
   useEffect(() => {
     if (!root) return;
-    const saved = readJSON(recoveryKey(root), null, sessionStore());
+    const saved = readJSON(recoveryKey(root), null, browserSession());
     // hasUnsavedDraft reads inside the stash, so anything that is not one (nothing stored, a damaged value) is simply nothing to offer.
     const keep = !!saved && typeof saved === 'object' && hasUnsavedDraft(saved);
-    if (!keep) removeKey(recoveryKey(root), sessionStore());
+    if (!keep) removeKey(recoveryKey(root), browserSession());
     setRecovery(keep ? saved : null);
   }, [root, setRecovery]);
   useEffect(() => {
     if (!root || !draft) return;
     const saved = { draft, draftText, jsonMode, draftLoaded };
     const keep = hasUnsavedDraft(saved);
-    const ok = keep ? writeJSON(recoveryKey(root), saved, sessionStore()) : removeKey(recoveryKey(root), sessionStore());
+    const ok = keep ? writeJSON(recoveryKey(root), saved, browserSession()) : removeKey(recoveryKey(root), browserSession());
     if (!ok) { notify({ text: ui('浏览器暂存不可用，请及时保存草稿。'), persistent: true }); return; }
     setRecovery(keep ? saved : null);
   }, [root, draft, draftText, jsonMode, draftLoaded, notify, setRecovery]);
@@ -48,7 +47,7 @@ export function useDrafts({ core, lib, nav, data }) {
     ...current, cards: current.cards.map((card, at) => (at === index ? { ...card, [key]: value } : card)),
   })), [setDraft]);
   const clearRecovery = useCallback(() => {
-    if (root) removeKey(recoveryKey(root), sessionStore());
+    if (root) removeKey(recoveryKey(root), browserSession());
     setRecovery(null);
     setDraft(null);
   }, [root, setRecovery, setDraft]);

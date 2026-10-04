@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { readJSON, removeKey, writeJSON } from "./storage.js";
 
 /* The sidebar's pages, grouped by WHEN a page is used (docs/feature-tiers.md), and their order, set by holding an item
    with the left button and dragging it.
@@ -31,13 +32,11 @@ const HOLD_MS = 350; // the item lifts only after this long, so an ordinary clic
 const SLOP = 6; // moving further than this before the hold ends means the press was something else
 
 const read = () => {
-  try {
-    const value = JSON.parse(localStorage.getItem(KEY));
-    return value && typeof value === "object" ? value : null;
-  } catch { return null; }
+  const value = readJSON(KEY);
+  return value && typeof value === "object" ? value : null;
 };
-const write = (value) => {
-  try { if (value) localStorage.setItem(KEY, JSON.stringify(value)); else localStorage.removeItem(KEY); } catch { /* the order still applies this session */ }
+const write = (value) => { // the order still applies this session when the storage refuses it
+  if (value) writeJSON(KEY, value); else removeKey(KEY);
 };
 
 /** A saved order applied to the pages that exist now. An order saved before the regrouping (main / upkeep) lends its
@@ -55,17 +54,13 @@ export function mergeOrder(saved, defaults) {
 
 /** The groups the learner folded: { setup: true }. Only collapsible groups, only `true`; anything unreadable is nothing folded. */
 export function readNavGroups() {
-  try {
-    const value = JSON.parse(localStorage.getItem(GROUPS_KEY));
-    if (!value || typeof value !== "object") return {};
-    return Object.fromEntries(NAV_GROUPS.filter((group) => group.collapsible && value[group.id] === true).map((group) => [group.id, true]));
-  } catch { return {}; }
+  const value = readJSON(GROUPS_KEY);
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(NAV_GROUPS.filter((group) => group.collapsible && value[group.id] === true).map((group) => [group.id, true]));
 }
-export function writeNavGroups(folded) {
-  try {
-    const kept = Object.fromEntries(Object.entries(folded || {}).filter(([, value]) => value === true));
-    if (Object.keys(kept).length) localStorage.setItem(GROUPS_KEY, JSON.stringify(kept)); else localStorage.removeItem(GROUPS_KEY);
-  } catch { /* the groups still fold this session */ }
+export function writeNavGroups(folded) { // the groups still fold this session when the storage refuses it
+  const kept = Object.fromEntries(Object.entries(folded || {}).filter(([, value]) => value === true));
+  if (Object.keys(kept).length) writeJSON(GROUPS_KEY, kept); else removeKey(GROUPS_KEY);
 }
 /** Is a group drawn open? A folded group opens by itself while the learner is on one of its pages (the current page is always visible). */
 export function groupIsOpen(id, folded, activePage) {

@@ -8,6 +8,8 @@ import { usePolling } from "./use-polling.js";
 import { QUESTION_COUNT } from "../lib/limits.js";
 import css from "./workflows.css";
 import { useStudy } from "./study-context.jsx";
+import { readDraft as readSavedDraft, writeDraft as writeSavedDraft, clearDraft as clearSavedDraft } from "./writing-drafts.js";
+import { usePersistentState } from "./storage.js";
 
 /* The move buttons' arrows: the caret-chevron turned a quarter either way (the icon set has no up and down arrows). */
 const turned = (degrees) => <span className="wf-turn" style={{ display: "inline-flex", transform: `rotate(${degrees}deg)` }}><Icon name="chevron" size={16} /></span>;
@@ -15,8 +17,9 @@ const TURN_UP = turned(-90), TURN_DOWN = turned(90);
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const when = (value) => new Date(value).toLocaleString(uiLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 const STATUS = { active: "学习中", paused: "已暂停", completed: "已结束" };
-const readDraft = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
-const writeDraft = (key, value) => { try { value ? localStorage.setItem(key, JSON.stringify(value)) : localStorage.removeItem(key); } catch {} };
+/* The flow editor's unsaved copy: the shared recovery drafts (ui/writing-drafts.js), `null` forgets it. */
+const readDraft = (key) => readSavedDraft(key)?.value ?? null;
+const writeDraft = (key, value) => { try { if (value) writeSavedDraft(key, value); else clearSavedDraft(key); } catch { /* the editor still holds it; only recovery is lost */ } };
 const newStep = (component) => ({ id: `step-${crypto.randomUUID()}`, kind: component.kind, title: component.title,
   instructions: component.prompt, content: "", next: "$next", retry: "$stay", count: 10 });
 
@@ -225,8 +228,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   const toast = useToast();
   const [confirm, setConfirm] = useState(""), [wish, setWish] = useState("");
   const [goal, setGoal] = useState(""), quickRequest = useRef(null);
-  const [autoSkeleton, setAutoSkeleton] = useState(() => { try { return localStorage.getItem("study-workflow-auto-skeleton") !== "0"; } catch { return true; } });
-  const toggleSkeleton = (value) => { setAutoSkeleton(value); try { localStorage.setItem("study-workflow-auto-skeleton", value ? "1" : "0"); } catch {} };
+  const [autoSkeleton, setAutoSkeleton] = usePersistentState("study-workflow-auto-skeleton", true, { parse: (raw) => raw !== "0", serialize: (value) => (value ? "1" : "0") });
   const lock = useRef(false), request = useRef(0), reading = useRef(null), live = useRef(true), confirmTrigger = useRef(null);
   const askConfirm = (value) => (event) => { confirmTrigger.current = event.currentTarget; setConfirm(value); };
   const root = data?.root || "local";
@@ -297,7 +299,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
       {suggestions.length > 0 && <div className="wf-quick-suggest">{suggestions.map((text) =>
         <Button variant="link" size="sm" key={text} disabled={!!pending} onClick={() => setGoal(text)}>{text}</Button>)}</div>}
       {pending === "quick" && <LoadingState className="wf-quick-status" label={modelReady ? ui("AI 正在从你的学习库里挑选相关主题、排好顺序…") : ui("正在按名称匹配学习库里的主题…")} />}
-      {modelReady && <label className="wf-quick-option"><input type="checkbox" checked={autoSkeleton} disabled={!!pending} onChange={(e) => toggleSkeleton(e.target.checked)} />{ui("没有现成的知识骨架时，在后台按本次范围生成一份")}<span className="muted">{ui("不用等它，学习照常开始")}</span></label>}
+      {modelReady && <label className="wf-quick-option"><input type="checkbox" checked={autoSkeleton} disabled={!!pending} onChange={(e) => setAutoSkeleton(e.target.checked)} />{ui("没有现成的知识骨架时，在后台按本次范围生成一份")}<span className="muted">{ui("不用等它，学习照常开始")}</span></label>}
     </form>
     {error && <ErrorState error={error} />}
     <div className="wf-section-head"><h2>{ui("学习记录")}</h2></div>

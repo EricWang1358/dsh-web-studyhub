@@ -2,6 +2,7 @@
    on one horizontal learning axis (in the order the skeleton lists them),
    their children hang below as a vertical branch, and deeper nodes branch
    again from those. Pure data, no React, so the shape can be tested. */
+import { browserStorage } from './storage.js';
 
 const cardKey = (ref) => `${ref.deckId}:${ref.cardId}`;
 
@@ -65,7 +66,6 @@ export const spineDefaultOpen = (stepKind) => stepKind === "skeleton";
 /** One small per-browser convenience per step type. */
 export const spineOpenKey = (stepKind) => `study-spine-${stepKind || "page"}`;
 
-const browserStorage = () => { try { return globalThis.localStorage || null; } catch { return null; } };
 
 export function readSpineOpen(stepKind, storage = browserStorage()) {
   try {

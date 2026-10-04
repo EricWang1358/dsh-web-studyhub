@@ -33,6 +33,26 @@ test('writeJSON and removeKey swallow storage errors and say whether it worked',
   assert.equal(m.removeKey('k', broken), false);
 });
 
+test('readText and writeText keep plain text as written and never throw (#115)', () => {
+  const store = memory({ page: 'review' });
+  assert.equal(m.readText('page', '', store), 'review');
+  assert.equal(m.readText('none', 'fallback', store), 'fallback');
+  assert.equal(m.readText('page', 'x', broken), 'x');
+  assert.equal(m.readText('page', 'x', null), 'x');
+  assert.equal(m.writeText('page', 7, store), true);
+  assert.equal(store.map.get('page'), '7', 'text, not JSON');
+  assert.equal(m.writeText('page', 'a', broken), false);
+  assert.equal(m.writeText('page', 'a', null), false);
+});
+
+test('the browser storage is asked of a scope (the host page\'s window in the DSH seat), the session one of globalThis, and a blocked one is null (#115)', () => {
+  const scope = { localStorage: memory() };
+  assert.equal(m.browserStorage(scope), scope.localStorage);
+  assert.equal(m.browserStorage({}), null);
+  assert.equal(m.browserStorage({ get localStorage() { throw new Error('blocked'); } }), null);
+  assert.equal(m.browserSession(), globalThis.sessionStorage ?? null);
+});
+
 test('a persistent state starts from the stored value (parse) and falls back to the initial one', () => {
   const store = memory({ theme: 'dark' });
   const Probe = ({ storage, initial = 'light', options = {} }) => React.createElement('b', null, m.usePersistentState('theme', initial, { storage, ...options })[0]);
