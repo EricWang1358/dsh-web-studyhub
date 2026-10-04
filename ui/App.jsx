@@ -20,6 +20,8 @@ import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
+import DailyPlan, { RelatedTasks } from './DailyPlan.jsx';
+import { useDailyPlan, useStudyReferenceHandoff } from './daily-plan.js';
 import { dueSummary } from "../lib/board-model.js";
 import { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
@@ -345,6 +347,15 @@ export default function App({ call: transportCall, host = {} }) {
   const [notebooks, setNotebooks] = useState(null),
     [notebookError, setNotebookError] = useState("");
   const boardState = useBoard(call, page === "board");
+  const dailyPlan = useDailyPlan({ call, root: data && pageAvailable(data, 'review') ? data.root : null,
+    navigation: () => navigationRequest.current,
+    progressKey: run ? `${run.id}:${run.answered}:${run.complete}` : '',
+    visible: ['library', 'board', 'review', 'workflows'].includes(page) || modal?.type === 'source',
+    onLaunch: async (result) => {
+      if (result.run) enterRun(result.run);
+      else if (result.studyRef) await openBoardReference(result.studyRef);
+    },
+    onChanged: () => boardState.refresh({ force: true }) });
   const [boardStudyRef, setBoardStudyRef] = useState(null);
   const [legacyAudioJobId, setLegacyAudioJobId] = useState('');
   const boardCount = boardState.board?.columns.reduce((n, column) => n + (column.done ? 0 : column.cardIds.length), 0);
@@ -530,6 +541,8 @@ export default function App({ call: transportCall, host = {} }) {
     () => takeHandoff?.((runId) => handoffAction.current?.(runId)),
     [takeHandoff],
   );
+  useStudyReferenceHandoff(host.takeStudyReference, data?.root,
+    ref => openBoardReference(ref).catch(failure => setError(failure.message)));
   // Links and fixes made in the conversation reach the open question without a reload.
   useEffect(() => {
     if (page !== "review" || !run?.card?.id) return;
@@ -2026,6 +2039,7 @@ export default function App({ call: transportCall, host = {} }) {
           onJobs={() => { void refresh().catch((failure) => setError(failure.message)); }} />}
         {page === "board" ? (
           <Board state={boardState} library={data} onOrigin={host.openWorkspaceNotebook} studyRef={boardStudyRef}
+            dailyPlan={data && pageAvailable(data, 'review') ? <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} modelReady={data.model?.ready !== false} openModelSettings={openModelSettings} /> : null}
             onClearStudyRef={() => setBoardStudyRef(null)} onStudyRef={openBoardReference} />
         ) : !data ? (
           <section className="onboarding">
@@ -2130,6 +2144,8 @@ export default function App({ call: transportCall, host = {} }) {
                 suggestMerges={(args) => call("deck.merge.suggest", args)}
                 mergeDecks={(args) => act("deck.merge", args, null, { rethrow: true })}
               >
+                {pageAvailable(data, 'review') && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} onBoard={() => navigatePage('board')}
+                  modelReady={data.model?.ready !== false} openModelSettings={openModelSettings} />}
                 {recovery && (
                   <div className="alert notice">
                     <span>{ui("有本窗口暂存的编辑：")}{recovery.draft.title}{ui("（尚未发布）")}</span>
@@ -2149,6 +2165,7 @@ export default function App({ call: transportCall, host = {} }) {
               </StudyMap>
             )}
             {page === "workflows" && <Workflows key={workflowReturn?.nonce || "workflows"} call={call} askInChat={askInChat} data={data}
+              renderRelated={sessionId => <RelatedTasks plan={dailyPlan} reference={{ root: data.root, kind: 'workflow', sessionId }} onBoard={() => navigatePage('board')} />}
               openSession={workflowReturn?.sessionId} openRun={(runId) => act("review.get", { runId }, enterRun)} />}
             {page === "skeleton" && (
               <Skeleton
@@ -2390,6 +2407,7 @@ export default function App({ call: transportCall, host = {} }) {
                 }}
               />
             )}
+            {page === 'review' && run && <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => navigatePage('board')} />}
             {page === "review" && run && (
               <Review
                 feedback={feedback}
@@ -2531,6 +2549,8 @@ export default function App({ call: transportCall, host = {} }) {
                 )}
                 {modal.source ? (
                   <>
+                    <RelatedTasks plan={dailyPlan} reference={{ root: data.root, kind: 'source', id: modal.source.id }}
+                      onBoard={() => { setModal(null); navigatePage('board'); }} />
                     {!!modal.source.usedBy?.length && <div className="source-connections">
                       <small className="muted">{ui('使用这份资料的题组')}</small>
                       {modal.source.usedBy.map(deck => <button key={`${deck.kind}:${deck.id}`} disabled={busy || deck.kind === 'draft'}
