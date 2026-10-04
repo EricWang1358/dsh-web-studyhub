@@ -61,6 +61,23 @@ test('Settings is not handed JSX to lay out (#113)', () => {
   assert.doesNotMatch(code(read('ui/app/page-views.jsx')), /\b(workspacePanel|coursePanel|onboardingPanel)\b/);
 });
 
+/* ---------- #123: words go through ui() and the locale files, not through a language test ---------- */
+
+test('no code outside ui/i18n.js asks which language the interface is in to choose a sentence (#123)', () => {
+  const asks = /getUiLanguage\(\)\s*[!=]==?\s*['"](?:en|zh)['"]|\b(?:language|lang)\s*[!=]==?\s*['"](?:en|zh)['"]\s*\?/;
+  // Whole documents that exist in two languages by design (an agent prompt, a language switch labelling its own two states), not interface text.
+  const own = new Set(['ui/LanguageSwitch.jsx', 'ui/topic-group-prompt.js', 'ui/json-prompts.js']);
+  assert.deepEqual(uiSources().filter(({ file, text }) => file !== 'ui/i18n.js' && !own.has(file) && asks.test(text)).map(({ file }) => file), []);
+});
+
+test('no inline (zh, en) helper and no { zh, en } pair of sentences: the Chinese is the key, the English is in a locale file (#123)', () => {
+  const pair = /\bzh\s*:\s*['"`][^'"`]*['"`]\s*,\s*en\s*:\s*['"`]/;
+  const helper = /const\s+\w+\s*=\s*\(\s*zh\b/;
+  // The language switch names its own two states; generation-path-flow.js writes the agent brief in either language (pure, tested without the catalogue).
+  const own = new Set(['ui/LanguageSwitch.jsx', 'ui/generation-path-flow.js']);
+  assert.deepEqual(uiSources().filter(({ file, text }) => !own.has(file) && (pair.test(text) || helper.test(text))).map(({ file }) => file), []);
+});
+
 /* ---------- #116: unmount guards and failure text come from ui/use-async.js ---------- */
 
 test('"let live = true" unmount flags are few: effects use useLiveEffect (#116)', () => {

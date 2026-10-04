@@ -1,4 +1,4 @@
-import { getUiLanguage } from "./i18n.js";
+import { uiIsEnglish } from "./i18n.js";
 const fields = {
   id: "题目编号", kind: "题型", topic: "主题", objective: "学习目标",
   prompt: "问题", answer: "答案", hint: "提示", explanation: "讲解",
@@ -7,7 +7,7 @@ const fields = {
 
 export function readableQualityIssue(issue) {
   const value = String(issue || "");
-  if (getUiLanguage() === "en") return value;
+  if (uiIsEnglish()) return value;
   const match = /^Card (\d+): (.*)$/.exec(value);
   if (!match) return value;
   const [, index, detail] = match;

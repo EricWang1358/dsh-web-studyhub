@@ -67,6 +67,11 @@ export function formatAgo(value, now = Date.now()) {
   return formatDateTime(time, 'stamp');
 }
 
+/** Short items in one line: "第 1 步、第 2 步" / "Step 1, Step 2". */
+export const formatList = (items) => items.join(ui('、'));
+/** Clauses of one sentence: "原因甲；原因乙" / "reason a; reason b". */
+export const formatClauses = (items) => items.join(ui('；'));
+
 const formatters = new Map();
 /** A number in the interface language; `options` are Intl.NumberFormat's. '' for anything that is not a finite number. */
 export function formatNumber(value, options) {

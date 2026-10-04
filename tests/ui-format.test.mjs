@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { loadUi } from './helpers/ui-module.mjs';
 
 // #126: one set of date / clock / duration / size / number formatters, all following the interface language.
-const m = await loadUi(`export * from './ui/format.js'; export { setUiLanguage } from './ui/i18n.js';`);
+const m = await loadUi(`export * from './ui/format.js'; export { setUiLanguage, uiIsEnglish, uiLanguageName } from './ui/i18n.js';`);
 const han = /[㐀-鿿]/;
 const KB = 1024, MB = KB * 1024, GB = MB * 1024;
 
@@ -119,6 +119,26 @@ test('formatDateTime has three shapes, follows the language and is empty for a b
   assert.equal(m.formatDateTime(new Date(2026, 9, 4, 8, 5), 'stamp'), m.formatDateTime(value, 'stamp'), 'a Date works too');
   assert.equal(m.formatDateTime(Date.parse(value), 'day'), m.formatDateTime(value, 'day'), 'so does a timestamp');
   assert.doesNotMatch(m.formatDateTime(value, 'day'), /[A-Za-z]/);
+});
+
+test('lists and clauses use the separator of the interface language, through the catalogue (#123)', () => {
+  m.setUiLanguage('zh');
+  assert.equal(m.formatList(['第 1 步', '第 2 步']), '第 1 步、第 2 步');
+  assert.equal(m.formatClauses(['甲', '乙']), '甲；乙');
+  assert.equal(m.formatList(['只有一个']), '只有一个');
+  assert.equal(m.formatList([]), '');
+  m.setUiLanguage('en');
+  try {
+    assert.equal(m.formatList(['Step 1', 'Step 2', 'Step 3']), 'Step 1, Step 2, Step 3');
+    assert.equal(m.formatClauses(['a', 'b']), 'a; b');
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('the language helpers say which language data is wanted in, without choosing a sentence (#123)', () => {
+  m.setUiLanguage('zh');
+  assert.deepEqual([m.uiIsEnglish(), m.uiLanguageName()], [false, '中文']);
+  m.setUiLanguage('en');
+  try { assert.deepEqual([m.uiIsEnglish(), m.uiLanguageName()], [true, 'English']); } finally { m.setUiLanguage('zh'); }
 });
 
 test('English output carries no Chinese', () => {

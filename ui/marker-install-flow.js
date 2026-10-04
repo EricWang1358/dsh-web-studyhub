@@ -30,7 +30,8 @@ export function stageStates(install) {
 }
 
 /** Mainland users reach the Tsinghua mirror; everyone else goes to PyPI directly. Only the first choice: it is always visible and changeable. */
-export const defaultMirror = language => (language === 'zh' ? 'tsinghua' : 'official');
+const MIRROR_FOR = { zh: 'tsinghua' };
+export const defaultMirror = language => MIRROR_FOR[language] ?? 'official';
 
 export const canInstall = plan => !!plan && plan.ok === true;
 

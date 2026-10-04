@@ -1,4 +1,4 @@
-import { ui, uiFormat, getUiLanguage } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Icon from "./components/Icon.jsx";
 import { Button, IconButton, TabPanel, Tabs } from "./components/index.js";
@@ -48,8 +48,7 @@ function StationBody({ station, onPractice }) {
 
 /** "5 站 · 8 个要点" as one string (no empty text nodes between the numbers). */
 function countLabel(stations, points) {
-  const text = uiFormat("{0} 站 · {1} 个要点", [stations, points]);
-  return getUiLanguage() === "en" ? text.replace(/\b1 stations\b/, "1 station").replace(/\b1 key points\b/, "1 key point") : text;
+  return [stations === 1 ? ui("1 站") : uiFormat("{0} 站", [stations]), points === 1 ? ui("1 个要点") : uiFormat("{0} 个要点", [points])].join(" · ");
 }
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;

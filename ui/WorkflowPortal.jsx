@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
+import { ui, uiFormat, uiLocale, uiCatalogue } from "./i18n.js";
 import { clearStepDraft as clearDraft, keepStepDraft as keepDraft, readStepDraft as readDraft, savedOutput } from "./workflow-draft.js";
 import { formatDateTime, formatNumber } from "./format.js";
 import { usePolling } from "./use-polling.js";
@@ -17,7 +17,9 @@ import skeletonCss from "./skeleton.css";
 import { useStudy } from "./study-context.jsx";
 
 const OUTCOME = { done: "已完成活动", needs_work: "还需巩固", skipped: "已跳过" };
-const ORAL_REPORTS = { zh: "我已口头复述（自我记录，未经过判分或掌握验证）。", en: 'I retold it aloud (self-recorded; not graded or verified for mastery).' };
+const ORAL_REPORT = "我已口头复述（自我记录，未经过判分或掌握验证）。";
+/* The sentence in either language: a report written under the other interface language still counts as one. */
+const oralReportLines = () => [ORAL_REPORT, uiCatalogue()[ORAL_REPORT]];
 const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 const prefersReducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const coarsePointer = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
@@ -368,7 +370,7 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
   const content = record.content || step.content;
   const priorLesson = session.template.steps.slice(0, index).findLast(item => item.kind === "lesson");
   const recallContent = content || (priorLesson && (session.records[priorLesson.id]?.content ?? priorLesson.content));
-  const oralReported = output.split("\n").some(line => Object.values(ORAL_REPORTS).includes(line));
+  const oralReported = output.split("\n").some(line => oralReportLines().includes(line));
   // The last reading of the retelling stays visible while the learner revises it,
   // marked as being about the earlier version, so the gaps are still in view.
   const lastFeedback = step.kind === "recall" ? record.feedback || null : null;
@@ -414,7 +416,7 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
       {step.instructions && <Markdown text={step.instructions} className="wf-instructions" />}
       {!active && <Banner tone="info">{ui("已暂停。点「继续学习」后可接着作答，当前内容可以阅读。")}</Banner>}
       {["overview", "reflection"].includes(step.kind) && <LearnerChoices kind={step.kind} output={output} disabled={!active || busy || !!remote} onChange={changeOutput} />}
-      {step.kind === "recall" && <section className="wf-recall-invitation"><h3>{ui("先合上材料，用自己的话讲一遍")}</h3><p>{ui("试着说清核心机制、一个例子，以及什么时候不适用。")}</p><div className="wf-quick-choices"><Button aria-pressed={oralReported} disabled={!active || busy || !!remote} onClick={() => changeOutput(oralReported ? output.split("\n").filter((line) => !Object.values(ORAL_REPORTS).includes(line)).join("\n").trim() : [output.trim(), ORAL_REPORTS[getUiLanguage()]].filter(Boolean).join("\n"))}>{oralReported ? ui("已记录：我已口头复述") : ui("我已口头复述")}</Button></div><small className="muted">{ui("这是你的自我记录；不会据此判分或认定掌握。也可以在下面写下复述。")}</small></section>}
+      {step.kind === "recall" && <section className="wf-recall-invitation"><h3>{ui("先合上材料，用自己的话讲一遍")}</h3><p>{ui("试着说清核心机制、一个例子，以及什么时候不适用。")}</p><div className="wf-quick-choices"><Button aria-pressed={oralReported} disabled={!active || busy || !!remote} onClick={() => changeOutput(oralReported ? output.split("\n").filter((line) => !oralReportLines().includes(line)).join("\n").trim() : [output.trim(), ui(ORAL_REPORT)].filter(Boolean).join("\n"))}>{oralReported ? ui("已记录：我已口头复述") : ui("我已口头复述")}</Button></div><small className="muted">{ui("这是你的自我记录；不会据此判分或认定掌握。也可以在下面写下复述。")}</small></section>}
       {step.kind === "skeleton" && (resources.skeleton ? <div className="wf-skeleton"><h3>{resources.skeleton.title}</h3>{resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} stepKind="skeleton" /></div> : <SkeletonMaker session={session} resources={resources} disabled={!active || busy || !!remote} onGenerate={generateSkeleton} />)}
       {step.kind === "lesson" && <WorkflowLesson key={step.id} topic={session.topic} content={content} record={record} resources={resources} disabled={!active || busy || !!remote} onTeach={teach} onUndo={undoTeaching} call={call} sessionId={id} stepId={step.id} />}
       {!["lesson", "recall"].includes(step.kind) && content && <section className="wf-material" aria-label={ui("本步材料")}>

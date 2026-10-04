@@ -1,7 +1,7 @@
 /* What a question-generation job says to the learner (P15, P26–P29): plain
    words in the UI language, keyed by the backend's stable stage codes, with a
    fix for failures. Raw provider/engine prose is only shown behind 技术详情. */
-import { ui, uiFormat, getUiLanguage } from './i18n.js';
+import { ui, uiFormat, getUiLanguage, uiIsEnglish } from './i18n.js';
 import { stageCodeOf, stepStageCode } from '../lib/contexts/jobs/contracts.js';
 import { isActiveJob, supplementJobLabel } from './job-visibility.js';
 import { JOB_STATUS } from '../lib/job-status.js';
@@ -81,7 +81,7 @@ function stepCodeLabel(code) {
 
 /** Generation prose from an older backend without codes, in Chinese (kept for unknown steps). */
 export function legacyStageText(stage = '') {
-  if (getUiLanguage() === 'en') return stage;
+  if (uiIsEnglish()) return stage;
   return String(stage).replace(/^Part (\d+)\/(\d+) · /, '第 $1/$2 批 · ')
     .replace(/Generation reached its (\d+)-minute total budget; approved questions were retained/, '已达到 $1 分钟执行时限；已验收题目已保留')
     .replace(/Draft ready with (\d+)\/(\d+) questions; (\d+) part\(s\) failed/, '草稿已保留 $1/$2 题；$3 批未完成')

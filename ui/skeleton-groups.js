@@ -1,4 +1,4 @@
-import { ui, getUiLanguage } from './i18n.js';
+import { ui, uiIsEnglish } from './i18n.js';
 
 /* 知识骨架页的纯逻辑：按课程过滤主题组、把「骨架不存在」之类的错误翻成
    人话、处理已经不存在的骨架焦点。不碰 React，方便单独测试。 */
@@ -45,7 +45,7 @@ export function classifySkeletonError(error) {
   if (error?.code === 'STUDY_UNAVAILABLE')
     return { kind: 'error', text: ui('学习插件暂时没有连上，稍等一下会自动重试。') };
   const message = String(error?.message || '').trim();
-  const readable = message && (getUiLanguage() === 'en' ? !HAN.test(message) && !/Study request failed|STUDY_ERROR/.test(message) : HAN.test(message));
+  const readable = message && (uiIsEnglish() ? !HAN.test(message) && !/Study request failed|STUDY_ERROR/.test(message) : HAN.test(message));
   return { kind: 'error', text: readable ? message : ui('这一步没有成功，请稍后再试一次。') };
 }
 

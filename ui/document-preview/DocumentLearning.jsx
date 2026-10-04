@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import Markdown from '../Markdown.jsx';
-import { ui, uiFormat, getUiLanguage } from '../i18n.js';
+import { ui, uiFormat, uiLanguageName } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import MathText from '../MathText.jsx';
 import { Badge, Button, InlineMessage, useToast } from '../components/index.js';
@@ -73,7 +73,7 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
         </div>
         <p className="muted">{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</p>
         {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled
-          request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: getUiLanguage() === 'en' ? 'English' : '中文' }} />}
+          request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: uiLanguageName() }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}
         <Button type="submit" variant="primary" busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
       </form>

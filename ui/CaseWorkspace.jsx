@@ -34,7 +34,7 @@ import css from "./case-study.css";
 
 const COLOR_LABEL = { yellow: "黄色高亮", green: "绿色高亮", blue: "蓝色高亮", pink: "粉色高亮" };
 export function lengthHintLabel(marks) {
-  const words = suggestedWords(marks, getUiLanguage() === "en" ? "en" : "zh");
+  const words = suggestedWords(marks, getUiLanguage());
   const kind = { paragraph: ui("一段话"), short: ui("两三段：观点 + 理由"), structured: ui("分点作答，附例子"), extended: ui("分点作答：例子、论证与取舍") }[lengthHint(marks)];
   return uiFormat("{0} · 约 {1}–{2} 字/词", [kind, words.min, words.max]);
 }

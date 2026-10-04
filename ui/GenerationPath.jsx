@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ui, uiFormat, uiLocale, getUiLanguage } from './i18n.js';
+import { ui, uiFormat, uiLocale, getUiLanguage, uiIsEnglish } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, InlineMessage, useToast } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
@@ -16,7 +16,7 @@ const pageRange = (from, to) => from === to ? uiFormat('第 {0} 页', [from]) : 
 
 /** The step's name in the interface language: a model's name as it is, otherwise from its parts (the same rule as the plan's own: usable chapter names, else the pages). */
 export function stepTitle(step) {
-  if (step.named || getUiLanguage() !== 'en') return step.title;
+  if (step.named || !uiIsEnglish()) return step.title;
   const parts = step.parts || [];
   if (!parts.length) return step.title;
   return stepTitleOf(parts, { range: pageRange, front: ui('前言与目录'), join: ', ', ellipsis: ' … ' });
@@ -27,7 +27,7 @@ export function stepPages(step, title) {
   const runs = (step.ranges || []).filter(run => Number.isInteger(run?.from) && Number.isInteger(run?.to));
   if (!runs.length) return '';
   const documents = new Set(runs.map(run => run.document));
-  const text = runs.map(run => (documents.size > 1 && run.document ? `${run.document} ` : '') + pageRange(run.from, run.to)).join(getUiLanguage() === 'en' ? ', ' : '、');
+  const text = runs.map(run => (documents.size > 1 && run.document ? `${run.document} ` : '') + pageRange(run.from, run.to)).join(ui('、'));
   return runs.length === 1 && documents.size === 1 && String(title).includes(pageRange(runs[0].from, runs[0].to)) ? '' : text;
 }
 

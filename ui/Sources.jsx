@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale, getUiLanguage, errorMessage } from "./i18n.js";
+import { ui, uiFormat, uiLocale, errorMessage, uiIsEnglish } from "./i18n.js";
 import { formatNumber } from "./format.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
@@ -52,7 +52,7 @@ function dayLabel(key) {
   if (key === dayKey(today)) return ui("今天");
   if (key === dayKey(yesterday)) return ui("昨天");
   const date = new Date(Number(key)), y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
-  if (getUiLanguage() === 'en') return date.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric', ...(y !== today.getFullYear() ? { year: 'numeric' } : {}) });
+  if (uiIsEnglish()) return date.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric', ...(y !== today.getFullYear() ? { year: 'numeric' } : {}) });
   return uiFormat("{0}{1} 月 {2} 日 · {3}", [y === today.getFullYear() ? "" : `${y} 年 `, m, d, WEEKDAYS[date.getDay()]]);
 }
 

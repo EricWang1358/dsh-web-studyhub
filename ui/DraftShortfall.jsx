@@ -1,11 +1,12 @@
 import React from "react";
-import { ui, uiFormat, getUiLanguage } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { Button } from "./components/index.js";
 import { useInjectCss } from "./shared.js";
 import { gateTitle } from "./ModelSetupGate.jsx";
 import css from "./draft-shortfall.css";
 import { canContinueDraft, draftWork, draftWorkLabel, missingQuestions, omissionTitle, reasonLabel, shortfall } from "./draft-shortfall.js";
+import { formatClauses } from './format.js';
 
 /* The two pieces every place that shows a short draft uses, so the same thing
    reads and acts the same way on the home card, the job card and the draft
@@ -71,7 +72,7 @@ export function OmittedQuestions({ draft }) {
     <ul>
       {records.map((item, index) => <li key={index}>
         <strong>{omissionTitle(item)}</strong>{" "}
-        <span className="omitted-questions__why">{item.codes.map((code) => reasonLabel(code)).join(getUiLanguage() === "en" ? "; " : "；")}</span>{" "}
+        <span className="omitted-questions__why">{formatClauses(item.codes.map((code) => reasonLabel(code)))}</span>{" "}
         {item.note && <span className="omitted-questions__note muted">{uiFormat("审阅意见：{0}", [item.note])}</span>}
       </li>)}
     </ul>
