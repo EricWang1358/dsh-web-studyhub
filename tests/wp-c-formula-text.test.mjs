@@ -137,13 +137,13 @@ test('prompts: chemistry in \\ce, ions with a caret, equations in one \\ce, and 
   }
 });
 
-test('the plain-text notation (公式写法 text) keeps Unicode math and chemistry as written: nothing is wrapped, flagged or prompted', async () => {
+test('the plain-text notation (公式写法 text) keeps Unicode math as written and turns chemistry and TeX into Unicode: nothing is wrapped, flagged or prompted for \ce', async () => {
   const options = [opt('a', '5√4', false), opt('b', '√26', false), opt('c', '5√2', true)];
   const card = goodCard({ answer: '5√2', options, prompt: '化简 √8+√18，当 x≠1 时，H2SO4 的 a/b。', explanation: '得到 x^2 与 TeX a^{2}。' });
   const { deck } = autofixDeck({ title: 't', cards: [card] }, { assessmentPlan: plan(), answerBlueprint: blueprint(options, '5√2'), expectedKind: 'quiz', language: 'English', notation: 'text' });
   assert.deepEqual(deck.cards[0].options.map(option => option.text), ['5√4', '√26', '5√2']);
-  assert.equal(deck.cards[0].prompt, '化简 √8+√18，当 x≠1 时，H2SO4 的 a/b。');
-  assert.equal(deck.cards[0].explanation, '得到 x^2 与 TeX $a^{2}$。', 'real TeX is still delimited');
+  assert.equal(deck.cards[0].prompt, '化简 √8+√18，当 x≠1 时，H₂SO₄ 的 a/b。');
+  assert.equal(deck.cards[0].explanation, '得到 x² 与 TeX a²。', 'TeX and caret powers become Unicode in the text notation');
   assert.equal(formulaIssues({ cards: [goodCard({ prompt: '化简 √8+√18，当 x≠1 时，H2SO4 的 a/b。' })] }, { notation: 'text' }).length, 0);
   assert.equal(formulaIssues({ cards: [goodCard({ prompt: '化简 √8+√18' })] }).length, 1);
   assert.equal(formulaIssues({ cards: [goodCard({ prompt: 'bare a^{2} here' })] }, { notation: 'text' }).length, 1);
