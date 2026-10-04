@@ -123,12 +123,15 @@ const nonZeroPx = (value) => (stripUrlAndStrings(value).match(PX) || []).filter(
 
 function isAllowedImportant(file, decl) {
   const ctx = decl.ctx.join(' | ');
-  if (/prefers-reduced-motion/.test(ctx) || /data-motion/.test(ctx)) return true;
+  if (/prefers-reduced-motion/.test(ctx) || /data-motion/.test(ctx) || /forced-colors/.test(ctx)) return true;
   return file === 'ui/blog-notes.css' && /\.cm-|CodeMirror/.test(ctx);
 }
 
+/** The theme files: their custom properties are the palette itself (base tokens, accent presets, high-contrast / OLED / paper themes). */
+const TOKEN_FILES = new Set(['ui/style.css', 'ui/accent.css', 'ui/appearance-themes.css']);
+
 function isTokenDefinition(file, decl) {
-  return file === 'ui/style.css' && decl.prop.startsWith('--');
+  return TOKEN_FILES.has(file) && decl.prop.startsWith('--');
 }
 
 function scanCssFile(file, source, metrics, found) {
