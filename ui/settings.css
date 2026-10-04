@@ -79,6 +79,8 @@
 /* The first section of a pane sits at its top: no rule above it. */
 :is(.study-app, .study-seat) .settings-page .settings-pane > :first-child.settings-section, :is(.study-app, .study-seat) .settings-page .settings-pane > :first-child { margin-top: 0; }
 :is(.study-app, .study-seat) .settings-page .settings-pane > :first-child.settings-section { border-top: 0; padding-top: 0; }
+/* A pane that is one form (出题偏好, 每日合集, 复习调度) starts at its top as well. */
+:is(.study-app, .study-seat) .settings-page .settings-pane > .settings-form:first-child > .settings-section { margin-top: 0; padding-top: 0; border-top: 0; }
 :is(.study-app, .study-seat) .settings-all { min-width: 0; }
 @container study (max-width: 860px) {
   :is(.study-app, .study-seat) .settings-page .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }

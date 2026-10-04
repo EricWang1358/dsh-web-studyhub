@@ -175,6 +175,7 @@ test('the field stylesheet uses tokens only and defines every class once', () =>
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/, 'no raw colours');
   assert.doesNotMatch(css, /font-size:\s*\d+(\.\d+)?px/, 'no raw font sizes');
   assert.doesNotMatch(css, /!important/);
+  assert.doesNotMatch(css, /container-type/, 'a container of its own inside a lazily mounted pane made Chromium skip laying out the provider cards now and then; the page container (@container study) decides');
   assert.doesNotMatch(css, /z-index:\s*\d/);
   assert.match(css, /\.sh-input\b/);
   assert.match(css, /prefers-reduced-motion/);

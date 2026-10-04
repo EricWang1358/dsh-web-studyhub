@@ -162,3 +162,10 @@ One question, one component. Pick by what the action does, not by where the butt
 - Never `window.confirm`, never "tap twice to confirm" by swapping a label, never a hand-built footer of two buttons.
 - An undo offer replaces a confirmation only when the action really is reversible: a toast with `undo: true` and an action leaves after its timeout but is held while the pointer or keyboard focus is on it.
 - Closing: `Dialog` `busy` means "work is running": the close button stays, is marked aria-disabled, Escape and the backdrop do nothing. Use `CloseButton` for any other close control and `Popover` / `Menu` / `Tooltip` for floating panels (they share `useDismiss` and `useAnchoredPosition`).
+
+# Fields and settings
+
+A settings page is built from the same few parts; it never styles a label or a switch of its own.
+- `SettingsSection` is the shell of a section (fieldset, legend title, lead, `tour` anchor). `Field` is one label + control + hint + error: it generates the id, wires `aria-describedby` / `aria-invalid` and adds the alert; `width` is `sm | md | full`, `inline` puts the label beside the control, `group` is for a control that names itself (SegmentedControl). One label weight (`--fw-medium`), one hint size (`Hint`, `--fs-sm`).
+- `TextInput`, `TextArea`, `Select`, `NumberInput` render `.sh-input`; the bare `input` / `select` rules in style.css are legacy and are not relied on. `Checkbox` is a labelled row, `Switch` the same row with `role="switch"` and a track (for a setting that acts at once), `RadioCard` + `RadioCardGroup` for a few choices that deserve a sentence each. `ProviderCard` + `StepList` are the card of a service that needs a key.
+- A settings category is declared once in `ui/settings-groups.js`: title, group, anchors, `needs` (the host component it requires), `partNeeds` (one gated part inside a category that stays visible) and its pane, loaded lazily. `Settings` renders `<category.Component {...services} />` and decides nothing else per category.

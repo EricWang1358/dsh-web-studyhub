@@ -6,7 +6,7 @@
   .sh-field { display: grid; gap: var(--space-1); align-content: start; min-width: 0; margin: 0; }
   .sh-field--sm { max-width: 14rem; }
   .sh-field--md { max-width: 36rem; }
-  .sh-field--inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); max-width: none; }
+  .sh-field--inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-3); max-width: none; }
   .sh-field--inline > .sh-hint { flex: 1 0 100%; }
   .sh-field__label { display: block; margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
   .sh-field__required { margin-inline-start: var(--space-half); color: var(--bad-ink); }
@@ -37,7 +37,7 @@
   .sh-number__suffix { flex: none; color: var(--text-muted); font-size: var(--fs-sm); }
 
   /* ── Checkbox / Switch rows ────────────────────────────────────────── */
-  .sh-check { position: relative; display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
+  .sh-check { position: relative; display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
   .sh-check.is-disabled { cursor: default; opacity: 0.6; }
   .sh-check__input { flex: none; width: 1.15em; height: 1.15em; min-width: 0; margin: 0.1em 0 0; padding: 0; accent-color: var(--accent); }
   .sh-check__text { display: grid; gap: var(--space-half); min-width: 0; }
@@ -53,7 +53,7 @@
   /* ── Radio cards ───────────────────────────────────────────────────── */
   .sh-radio-group { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
   .sh-radio-group > legend { margin: 0 0 var(--space-2); padding: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
-  .sh-radio-card { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
+  .sh-radio-card { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
   .sh-radio-card:hover:not(.is-disabled) { border-color: var(--line-strong); }
   .sh-radio-card.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface)); }
   .sh-radio-card:focus-within { box-shadow: var(--ring); }
@@ -73,13 +73,15 @@
   .settings-section__note { max-width: 72ch; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
 
   /* ── Provider card and steps ───────────────────────────────────────── */
-  .sh-provider-grid { container-type: inline-size; min-width: 0; }
-  .sh-provider-grid__items { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+  .sh-provider-grid { min-width: 0; }
+  .sh-provider-grid__items { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--space-4); }
+  .sh-provider-grid__items--two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
   .sh-provider { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
   .sh-provider.is-set { border-color: var(--ok-line); }
   .sh-provider__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
   .sh-provider__title { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
-  .sh-provider__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+  .sh-provider__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; max-width: 100%; }
+  .sh-provider__badges .sh-badge { max-width: 100%; white-space: normal; }
   .sh-provider__status { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .sh-provider__status.is-set { color: var(--ok-ink); font-weight: var(--fw-medium); }
   .sh-steps { display: grid; align-content: start; gap: var(--space-2); margin: 0; padding: var(--space-3) 0 0; border-top: 1px solid var(--line-soft); list-style: none; font-size: var(--fs-sm); line-height: var(--lh-snug); }
@@ -87,17 +89,14 @@
   .sh-steps a { color: var(--accent-text); text-underline-offset: 3px; overflow-wrap: anywhere; }
   .sh-steps__num { display: inline-grid; place-items: center; flex: none; width: 1.5em; height: 1.5em; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); line-height: 1; }
 }
-/* Wide: one row per card part through subgrid (head · saved state · steps · key input · actions · message), so inputs and buttons sit at
-   the same height in every card, whatever wraps above them. A `stack` card keeps its own column and the grid sets two columns. */
-@container (min-width: 760px) {
-  :is(.study-app, .study-seat) .sh-provider-grid__items--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  @supports (grid-template-rows: subgrid) {
-    :is(.study-app, .study-seat) .sh-provider-grid__items:not(.sh-provider-grid__items--two) { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); column-gap: var(--space-4); row-gap: 0; }
-    :is(.study-app, .study-seat) .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) { display: grid; grid-row: span 6; grid-template-rows: subgrid; row-gap: var(--space-3); }
-    :is(.study-app, .study-seat) .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) .sh-secret { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: var(--space-3); }
-  }
+/* Cards that sit side by side take one row per part through subgrid (head · saved state · steps · key input · actions · message), so inputs
+   and buttons sit at the same height in every card, whatever wraps above them. A `stack` card keeps its own column. The columns come from
+   the grid's own sizing, with no container of its own: one inside a lazily mounted pane made Chromium skip laying out the cards now and then. */
+@supports (grid-template-rows: subgrid) {
+  :is(.study-app, .study-seat) .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) { display: grid; grid-row: span 6; grid-template-rows: subgrid; }
+  :is(.study-app, .study-seat) .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) .sh-secret { display: grid; grid-row: span 3; grid-template-rows: subgrid; }
 }
-@container (max-width: 420px) {
+@container study (max-width: 520px) {
   :is(.study-app, .study-seat) .sh-provider { padding: var(--space-4); }
 }
 @media (prefers-reduced-motion: reduce) {

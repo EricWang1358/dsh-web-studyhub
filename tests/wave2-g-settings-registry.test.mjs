@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
