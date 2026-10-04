@@ -6,7 +6,7 @@ import { uiRich } from "./i18n-rich.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
-import { Banner, Button, Disclosure, InlineMessage, PageHeader } from "./components/index.js";
+import { Banner, Button, Disclosure, InlineMessage, PageHeader, ProgressBar } from "./components/index.js";
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
 import { Readings, ScopeBar } from "./WorkflowScope.jsx";
 import ModelErrorNote, { ModelSettingsContext } from "./ModelErrorNote.jsx";
@@ -56,7 +56,7 @@ function PracticeStep({ step, resources, pending, disabled, onStart, onOpen }) {
   </div>;
   const done = p.complete || p.ended;
   return <div className="wf-practice-intro">
-    <div className="wf-practice-progress" role="progressbar" aria-label={ui("本步练习进度")} aria-valuemin={0} aria-valuemax={p.total} aria-valuenow={p.answered}><span style={{ width: `${p.total ? Math.round((p.answered / p.total) * 100) : 0}%` }} /></div>
+    <ProgressBar className="wf-practice-progress" value={p.answered} max={p.total} label={ui("本步练习进度")} size="sm" />
     {p.complete ? <p>{uiRich("本步练完了：答对 {0} / {1} 道。", <strong>{p.correct}</strong>, p.total)}</p>
       : p.ended ? <p>{uiFormat("这一轮提前结束了，做了 {0} / {1} 道。可以再练一轮，或在下方如实选择跳过。", [p.answered, p.total])}</p>
       : <p>{p.answered ? uiRich("已做 {0} / {1} 道，答对 {2} 道。", <strong>{p.answered}</strong>, p.total, p.correct) : uiRich("已做 {0} / {1} 道。", <strong>{p.answered}</strong>, p.total)}</p>}

@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { Banner, Button, Disclosure, Hint } from "./components/index.js";
+import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS } from "../lib/job-status.js";
 import { kinds } from "./shared.js";
@@ -359,7 +360,7 @@ export default function Draft({
           {draft.cards.map((q, i) => (
             <details className="draft-card" key={q.id}>
               <summary>
-                <span>{String(i + 1).padStart(2, "0")}</span>
+                <span>{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
                 {q.prompt.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, '[$1]')}
                 <small>{kinds[q.kind]}</small>
                 {draft.editorial?.reviewedCards?.[q.id] !== reviewedCardFingerprint(q) &&

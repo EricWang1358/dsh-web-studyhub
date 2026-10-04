@@ -5,6 +5,7 @@ import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, 
 import { formatBytes, formatDuration, formatAgo, formatElapsed } from './format.js';
 import { usePolling } from './use-polling.js';
 import { isActiveJob, isCancellable } from './job-visibility.js';
+import { JOB_STATUS } from '../lib/job-status.js';
 import { megabytes } from '../lib/office/limits.js';
 import { HISTORY_PAGE, groupHistoryByDay, historyRefreshKey, pageRange, isConvertJob } from './mineru-flow.js';
 import css from './mineru.css';
@@ -32,7 +33,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
   const title = job.status === 'complete' ? uiFormat('已存为 {0} 页资料 · {1}解析', [job.sourceIds?.length ?? 0, route])
     : job.status === 'failed' ? ui('转换未完成')
       : job.status === 'cancelled' ? ui('转换已取消')
-        : job.status === 'cancelling' ? ui('正在停止')
+        : job.status === JOB_STATUS.CANCELLING ? ui('正在停止')
           : [PHASE_TEXT[job.phase]?.() || ui('处理中'), piece].filter(Boolean).join(' · ');
   const run = async (name, work) => {
     if (working) return;
@@ -58,7 +59,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
   ];
   return (
     <JobRow id={`pdf-job-${job.id}`} tabIndex={-1} data-route={job.route || 'cloud'} leaving={job.leaving}
-      status={job.status === 'cancelling' ? 'running' : job.status} stage={running ? PHASE_TEXT[job.phase]?.() || ui('处理中') : undefined}
+      status={job.status === JOB_STATUS.CANCELLING ? 'running' : job.status} stage={running ? PHASE_TEXT[job.phase]?.() || ui('处理中') : undefined}
       title={job.filename} meta={meta} actions={actions} onDismiss={running ? undefined : () => void run('dismiss', () => send('job.dismiss', { jobId: job.id }))}
       failure={job.status === 'failed' ? { hint: uiMessage(job.stage) } : undefined}
       progress={running && job.phase !== 'queued' ? { value: percent, max: 100, label: pages, summary: <><strong>{percent}%</strong><small>{pages}</small></> } : undefined}>

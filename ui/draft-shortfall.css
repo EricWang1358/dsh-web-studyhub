@@ -11,8 +11,11 @@
 :is(.study-app, .study-seat) .shortfall__reasons small { display: inline; margin: 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 :is(.study-app, .study-seat) .shortfall__line { color: var(--text-dim); }
 
-:is(.study-app, .study-seat) .draft-shortfall { display: grid; gap: var(--space-2); }
-:is(.study-app, .study-seat) .draft-shortfall > strong { font-size: var(--fs-md); }
+/* The notices of a draft (Banners) stack with one gap; the shortfall banner lays its parts out the same way. */
+.draft-notices { display: grid; gap: var(--space-3); margin-block: var(--space-4); }
+.draft-notices:empty { display: none; }
+:is(.study-app, .study-seat) .draft-shortfall .sh-banner__body { display: grid; gap: var(--space-2); }
+.draft-banner__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 
 :is(.study-app, .study-seat) .omitted-questions { font-size: var(--fs-sm); }
 :is(.study-app, .study-seat) .omitted-questions > summary { cursor: pointer; width: fit-content; }

@@ -4,6 +4,7 @@
 import { ui, uiFormat, getUiLanguage } from './i18n.js';
 import { stageCodeOf, stepStageCode } from '../lib/contexts/jobs/contracts.js';
 import { isActiveJob, supplementJobLabel } from './job-visibility.js';
+import { JOB_STATUS } from '../lib/job-status.js';
 import { countDocuments } from '../lib/source-groups.js';
 import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/generation-settings.js';
 
@@ -155,7 +156,7 @@ export function jobHeadline(job = {}, drafts = []) {
     return named(job.status === 'running' ? ui('后台修题中') : job.status === 'queued' ? ui('修题排队中')
       : job.status === 'failed' ? job.savedCount ? uiFormat('修题中断 · {0}/{1} 题已修好', [job.savedCount, job.count]) : ui('未修好题目')
         : job.status === 'partial' ? uiFormat('部分修好 · {0}/{1} 题', [job.savedCount, job.count])
-          : job.status === 'cancelling' ? ui('正在停止修题')
+          : job.status === JOB_STATUS.CANCELLING ? ui('正在停止修题')
             : job.status === 'cancelled' ? ui('修题已取消') : uiFormat('全部修好 · {0}/{1} 题', [job.savedCount, job.count]));
   // Case papers (WP12) read as cases; queueing and stopping read as any generation.
   if (job.kind === 'case' && !['queued', 'cancelling', 'cancelled'].includes(jobCode(job))) {

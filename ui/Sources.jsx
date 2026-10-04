@@ -1,4 +1,5 @@
 import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
+import { formatNumber } from "./format.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./AudioImport.jsx";
 import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
@@ -31,8 +32,8 @@ import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 
 const UNKNOWN = "unknown";
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-const pad = (n) => String(n).padStart(2, "0");
-const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/* A day is the midnight (local time) that starts it, as text: groups sort by it and it needs no formatting. */
+const dayKey = (d) => String(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
 
 /* Attachment imports can be titled with their absolute path; the list shows
    the file name and keeps the full path in the tooltip. */
@@ -47,8 +48,7 @@ function dayLabel(key) {
     yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
   if (key === dayKey(today)) return ui("今天");
   if (key === dayKey(yesterday)) return ui("昨天");
-  const [y, m, d] = key.split("-").map(Number),
-    date = new Date(y, m - 1, d);
+  const date = new Date(Number(key)), y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
   if (getUiLanguage() === 'en') return date.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric', ...(y !== today.getFullYear() ? { year: 'numeric' } : {}) });
   return uiFormat("{0}{1} 月 {2} 日 · {3}", [y === today.getFullYear() ? "" : `${y} 年 `, m, d, WEEKDAYS[date.getDay()]]);
 }
@@ -108,7 +108,7 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery })
         <button type="button" onClick={() => onOpen(chapter.startSourceId || chapter.sourceIds[0])}>
           <span>{chapterLabel(chapter, item.chapterUnit)}</span>
           <small>{[partial && (item.chapterUnit === 'part' ? ui('从文件中间开始') : ui('从页中间开始')),
-            item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, chapter.chars.toLocaleString(uiLocale())])].filter(Boolean).join(' · ')}</small>
+            item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, formatNumber(chapter.chars)])].filter(Boolean).join(' · ')}</small>
           <MasteryLine className="source-doc__mastery" summary={mastery?.chapters?.[chapter.index] ?? null} title={chapterLabel(chapter, item.chapterUnit)} />
         </button>
         {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy || inside}
@@ -154,7 +154,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
   }, [isNew]);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
-  const details = [sourceFormatLabel(item), uiFormat("{0} 字符", [item.chars.toLocaleString(uiLocale())]), corrections, ...documentNotes(item)].filter(Boolean);
+  const details = [sourceFormatLabel(item), uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, ...documentNotes(item)].filter(Boolean);
   return (
     <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined}>
       <div className="source-doc__line">
@@ -199,7 +199,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
             <button type="button" onClick={() => onOpen(page.sourceId)}>
-              <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [page.chars.toLocaleString(uiLocale())])}</small>
+              <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [formatNumber(page.chars)])}</small>
               <MasteryLine className="source-doc__mastery" summary={mastery?.pages?.[page.sourceId] ?? null} title={pageLabel(item, page)} />
             </button>
           </li>)}
@@ -396,7 +396,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
                   <span className="source-group-caret" aria-hidden="true">▸</span>
                   <strong>{dayLabel(g.key)}</strong>
                   {g.inferred && <span className="source-group-tag" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</span>}
-                  <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, g.chars.toLocaleString(uiLocale())])}</small>
+                  <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
                 </button>
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} busy={busy}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
