@@ -69,7 +69,8 @@
 }
 .study-app .mailbox__head strong { font-size: var(--fs-md); }
 .study-app .mailbox__sub { color: var(--text-muted); font-size: var(--fs-sm); }
-.study-app .mailbox__read-all { margin-left: auto; }
+/* Two classes of the mailbox, so a Button margin reset injected after this file cannot win. */
+.study-app .mailbox .mailbox__read-all { margin-left: auto; }
 .study-app .mailbox__error { margin: var(--space-2) var(--space-3) 0; }
 
 /* The list is a ScrollWindow; inside the panel its frame is the panel's own edge. */
@@ -143,7 +144,7 @@
   font-size: var(--fs-sm);
   line-height: var(--lh-snug);
 }
-.study-app .mailbox__undo { margin: 0 0 var(--space-1) var(--space-5); }
+.study-app .mailbox .mailbox__undo { margin: 0 0 var(--space-1) var(--space-5); }
 .study-app .mailbox__empty { padding: var(--space-6) var(--space-4); }
 @media (prefers-reduced-motion: reduce) {
   .study-app .mailbox__count, .study-app .mailbox__panel { animation: none; }

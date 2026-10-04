@@ -101,6 +101,12 @@ test('the inbox closes through useDismiss and puts focus inside the panel and ba
   assert.doesNotMatch(page, /const ago\b/);
 });
 
+test('the mailbox margins on Buttons out-rank the Button reset whatever order the stylesheets load in', async () => {
+  const css = await source('ui/inbox.css');
+  assert.match(css, /\.study-app \.mailbox \.mailbox__read-all \{ margin-left: auto; \}/);
+  assert.match(css, /\.study-app \.mailbox \.mailbox__undo \{/);
+});
+
 /* ---------- 4. Clocks and polling (#125 #128) ---------- */
 
 test('the live audio monitor reads its clock from useNow, not from a polling loop that sets state', async () => {

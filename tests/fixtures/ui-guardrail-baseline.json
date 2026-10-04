@@ -153,7 +153,7 @@
       "ui/side-groups.css": 1,
       "ui/skeleton.css": 71,
       "ui/style.css": 196,
-      "ui/views.css": 34,
+      "ui/views.css": 33,
       "ui/workflow-scope.css": 8,
       "ui/workflows.css": 98
     },
@@ -335,7 +335,7 @@
       "ui/tour/tour.css": 16,
       "ui/update.css": 4,
       "ui/usage.css": 6,
-      "ui/views.css": 77,
+      "ui/views.css": 76,
       "ui/welcome.css": 11,
       "ui/workflow-scope.css": 16,
       "ui/workflows.css": 208,
