@@ -135,7 +135,7 @@
 }
 .dash-section h2 {
   margin: 0 0 14px;
-  font-size: 17px;
+  font-size: var(--fs-lg);
 }
 .dash-section h2 small {
   font-family: var(--font-ui);
@@ -273,7 +273,7 @@
 }
 .exam-sheet > .exam-panel-head strong {
   font-family: var(--font-display);
-  font-size: 19px;
+  font-size: var(--fs-xl);
 }
 .exam-sheet .exam-setup-tools button {
   border-color: transparent;
@@ -627,7 +627,7 @@
   flex-direction: column;
 }
 .exam-stats strong {
-  font-size: 19px;
+  font-size: var(--fs-xl);
   font-variant-numeric: tabular-nums;
 }
 .exam-stats small {

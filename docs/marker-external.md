@@ -1,6 +1,12 @@
-# Convert PDFs with external Marker
+# Parse PDFs directly with Marker
 
-Open **Add material → Files → Marker: convert outside StudyHub** for installation guidance, a downloadable conversion script, and a picker for existing results. StudyHub generates the script and imports the file you choose. It does not install, launch or bundle Marker or its models. MinerU remains available.
+Choose the original PDF in **Add material → Files**, then select **MinerU** or **Marker**. Marker invokes the installed program and automatically imports its paginated result. Both converters share progress, cancellation, retry, and conversion history.
+
+Open **Settings → PDF conversion (MinerU / Marker) → Marker** to save and check the `marker_single` executable. Enter its full path when it is installed in a virtual environment. An empty setting uses `MARKER_BIN` or the system search path. Enter an executable path, not a command with arguments.
+
+The check confirms that the command runs and supports the required options; it does not verify every model or OCR backend. Once the environment is configured, choose a PDF and start parsing without downloading a script or finding an output file. The program runs on the StudyHub server's computer.
+
+Completed ranges are cached for retry or another import of the same PDF. Marker and MinerU caches are separate. Cancellation stops the running conversion process. The first conversion may download models; missing dependencies and unreachable backends appear as task errors so you can fix the environment and resume.
 
 ## Install separately
 
@@ -26,9 +32,9 @@ Installing the Python package alone may not prepare OCR inference. Current upstr
 
 Installation and initial execution may download dependencies and model files, and use disk, memory and processing time. Downloading the script does none of this. The script does not install missing dependencies, configure API keys or enable extra LLM enhancement. It inherits your existing Marker / Surya configuration: if you have configured a remote inference endpoint, document content may leave your computer. Check that configuration before processing private material.
 
-## Generate the conversion script
+## Convert outside the app (optional)
 
-1. Select **Download Marker conversion script** and save `studyhub-marker-convert.py`.
+1. In the Marker settings section, select **Download Marker conversion script** and save `studyhub-marker-convert.py`.
 2. Run it using the Python environment where you installed Marker. Without an input path, it opens a PDF picker. If a GUI or Tk is unavailable, provide the PDF path explicitly:
 
    Windows PowerShell:
@@ -44,7 +50,7 @@ Installation and initial execution may download dependencies and model files, an
    ```
 
 3. The script runs installed `marker_single` with `--output_format markdown --paginate_output`. It writes to a fresh output directory and prints the resulting `.md` paths without overwriting earlier output. A failed conversion or missing valid result produces an error.
-4. Return to StudyHub and select **Choose Marker output file**. Choose the paginated `.md` at the printed location, or drop it into the ordinary file area. The dedicated picker accepts neither the original PDF nor Marker JSON.
+4. Return to **Add material → Files** and drop the paginated `.md` into the ordinary file area. This optional external flow is separate from direct PDF parsing.
 
 Alternatively, run Marker yourself:
 
@@ -54,7 +60,7 @@ marker_single "book.pdf" --output_format markdown --paginate_output --output_dir
 
 ## Inspect the import
 
-Marker paginated Markdown contains page separators starting with `{0}` followed by dashes. StudyHub converts zero-based page IDs to one-based pages and saves separate text sources. The dedicated picker rejects missing pagination rather than treating the book as one page. Markdown has an 8 MB import limit; split larger conversions and check their page numbering.
+Marker paginated Markdown contains page separators starting with `{0}` followed by dashes. StudyHub converts zero-based page IDs to one-based pages and saves separate text sources. Direct parsing validates page markers before import. Markdown has an 8 MB import limit; split larger conversions and check their page numbering.
 
 Choose a course before importing. Inspect reading order, page numbers, equations and tables: importing does not correct OCR errors. Then select pages or chapters for generation. Conversion does not automatically create a question deck. Imported results do not retain the original PDF for original-page viewing; citations point to the imported text pages. Separate extracted images are not imported in this flow.
 

@@ -45,7 +45,7 @@
   --accent: #c93d22;
   --accent-soft: #ec6a4a;
   --accent-ink: #fff8f2;
-  --accent-glow: #c93d2247;
+  --accent-glow: color-mix(in srgb, var(--accent) 28%, transparent);
   /* Accent-coloured words and links (AA on every surface). */
   --accent-text: #ec6a4a;
 
@@ -67,7 +67,7 @@
   --shadow-sm: 0 1px 2px #0000004d, 0 2px 8px -4px #00000080;
   --shadow-md: 0 14px 34px -20px #000000d9;
   --shadow-lg: 0 30px 70px -30px #000000f2;
-  --ring: 0 0 0 3px #c93d2240;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
 
   /* The stacks themselves are the --font-stack-* block at the end of this file (ui/font-presets.js lists them). */
   --font-ui: var(--font-stack-system);
@@ -130,7 +130,7 @@
   --accent: #c03a1f;
   --accent-soft: #d44f2e;
   --accent-ink: #fffaf5;
-  --accent-glow: #c03a1f33;
+  --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
   --accent-text: #ad4025;
 
   --ok: #1e724d;
@@ -147,12 +147,12 @@
   --shadow-sm: 0 1px 2px #2a1c0e14, 0 2px 8px -4px #2a1c0e26;
   --shadow-md: 0 14px 34px -20px #2a1c0e38;
   --shadow-lg: 0 30px 70px -30px #2a1c0e45;
-  --ring: 0 0 0 3px #c03a1f33;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 
   color-scheme: light;
 }
 
-/* Card stock. Anything drawn on a card uses these, whatever the theme. */
+/* Card stock. Anything drawn on a card uses these, whatever the theme. The accent tints derive from --accent (the presets of accent.css change it). */
 .study-app :is(.today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta,
   .flash-area .card-progress, .flip-face, .exam-sheet) {
   --text: var(--paper-ink);
@@ -167,14 +167,14 @@
   --bg-surface: #20160c08;
   --bg-sunken: #20160c0d;
   --bg-raised: var(--paper);
-  --bg-selected: #c93d2214;
-  --accent-soft: #b3361c;
-  --accent-glow: #c93d2233;
+  --bg-selected: color-mix(in srgb, var(--accent) 8%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 89%, black);
+  --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
   --ok: #2c7a53;
   --warn: #93600f;
   --bad: #a8345f;
   --info: #3b6f9c;
-  --ring: 0 0 0 3px #c93d2233;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   color: var(--text);
   color-scheme: light;
 }
@@ -299,7 +299,7 @@
   }
   h1 {
     font-family: var(--font-display);
-    font-size: 28px;
+    font-size: var(--fs-3xl);
     font-weight: 650;
     letter-spacing: -0.02em;
     line-height: 1.35;
@@ -307,7 +307,7 @@
   }
   h2 {
     font-family: var(--font-display);
-    font-size: 19px;
+    font-size: var(--fs-xl);
     font-weight: 600;
     letter-spacing: -0.01em;
   }
@@ -520,7 +520,7 @@
     border: none;
     background: none;
     color: var(--text-faint);
-    font-size: 12px;
+    font-size: var(--fs-xs);
     text-align: left;
   }
   .nav-reset:hover { color: var(--text-dim); }
@@ -735,7 +735,7 @@
     height: 30px;
     padding: 0;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-muted);
   }
@@ -1023,7 +1023,7 @@
     color: var(--text-muted);
     padding: 6px 10px;
     font-size: 15px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
   }
   .ghost-btn:hover:not(:disabled) {
     color: var(--text);
@@ -1244,7 +1244,7 @@
   }
   .job > span {
     color: var(--accent-soft);
-    font-size: 23px;
+    font-size: var(--fs-2xl);
   }
   .job small {
     display: block;
@@ -1265,7 +1265,7 @@
     justify-content: space-between;
     gap: 15px;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--radius);
     padding: 14px;
     margin: 12px 0;
     width: 100%;
@@ -1319,7 +1319,7 @@
   /* Sources grouped by creation day, collapsed by default. */
   .source-group {
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--radius);
     background: var(--bg-surface);
     margin: 10px 0;
   }
@@ -1343,7 +1343,7 @@
     width: 100%;
     padding: 13px 16px;
     border: 0;
-    border-radius: 12px;
+    border-radius: var(--radius);
     background: transparent;
     text-align: left;
   }
@@ -1465,7 +1465,7 @@
   .pdf-import {
     padding: 20px;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--radius);
     margin: 20px 0;
   }
   .source-selection {
@@ -1493,7 +1493,7 @@
   }
   .audio-import label { display: block; margin-top: 12px; }
   .audio-import textarea { width: 100%; }
-  .audio-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; padding: 26px 18px; border: 1.5px dashed var(--line-strong); border-radius: 12px; text-align: center; cursor: pointer; transition: border-color .15s, background-color .15s; }
+  .audio-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; padding: 26px 18px; border: 1.5px dashed var(--line-strong); border-radius: var(--radius); text-align: center; cursor: pointer; transition: border-color .15s, background-color .15s; }
   .audio-drop:hover, .audio-drop:focus-visible, .audio-drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); outline: none; }
   .audio-drop strong { font-size: 16px; }
   .audio-drop small { color: var(--text-dim); overflow-wrap: anywhere; }
@@ -1530,7 +1530,7 @@
   .audio-progress { margin-top: 4px; }
   .audio-progress-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
   .audio-progress-line > strong { min-width: 3.4ch; font-variant-numeric: tabular-nums; }
-  .audio-steps { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-muted); }
+  .audio-steps { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); color: var(--text-muted); }
   .audio-steps li.done { color: var(--accent-soft); }
   .audio-steps li.current { color: var(--text); font-weight: 600; }
   .audio-now button, .audio-trace button { margin-left: 8px; }
@@ -1603,7 +1603,7 @@
   }
   .draft-card {
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--radius);
     padding: 18px;
     margin: 16px 0;
   }
@@ -1679,7 +1679,7 @@
   }
   .draft-title-field input {
     margin-top: 8px;
-    font-size: 17px;
+    font-size: var(--fs-lg);
     font-weight: 600;
   }
   .draft-page .draft-heading {
@@ -1695,7 +1695,7 @@
   }
   .draft-count strong {
     color: var(--text);
-    font-size: 17px;
+    font-size: var(--fs-lg);
   }
   .draft-page .sticky-actions {
     margin: 0 0 20px;
@@ -2138,7 +2138,7 @@
     min-height: 38px;
     padding: 7px 11px;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-dim);
     font-size: 15px;
@@ -2305,7 +2305,7 @@
     margin-top: 0;
     padding: 18px 20px;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--radius);
     background: var(--bg-surface);
   }
   .teaching-progress {
@@ -2508,7 +2508,7 @@
     margin: 0.75em 0;
     padding: 0.8em 1em;
     border: 1px solid var(--line-soft);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     text-align: center;
   }
@@ -2521,6 +2521,8 @@
   }
   .md-math-display:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
   .md-math math { font-size: 1em; font-weight: 400; font-family: math, "Cambria Math", serif; }
+  /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
+  .md-math math:has(mphantom) { padding-inline-end: 0.2em; }
   .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
   .md-math-source { white-space: pre-wrap; }
   .md-image { display: inline-block; max-width: 100%; margin-block: 0.5em; vertical-align: middle; }
@@ -2529,23 +2531,23 @@
     max-width: 100%;
     padding: 8px;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--radius);
     background: var(--bg-surface);
   }
   .md-image-open { display: block; cursor: zoom-in; text-align: left; }
   .md-image-open:hover { background: var(--bg-hover); border-color: var(--line-strong); }
   .md-image-info { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
-  .md-image-caption { display: block; min-width: 0; font-family: var(--font-ui); font-size: 13px; line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
+  .md-image-caption { display: block; min-width: 0; font-family: var(--font-ui); font-size: var(--fs-sm); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
   .md-image-static > .md-image-caption { margin-top: 8px; }
-  .md-image-action { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--text); }
-  .md-image-fallback { display: inline-grid; gap: 3px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; font-size: 13px; color: var(--text-muted); }
+  .md-image-action { margin-left: auto; font-size: var(--fs-xs); font-weight: 500; color: var(--text); }
+  .md-image-fallback { display: inline-grid; gap: 3px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); color: var(--text-muted); }
   .md-image-dialog {
     max-width: min(94vw, 1200px);
     min-width: min(360px, 90vw);
     max-height: calc(100dvh - 32px);
     padding: 20px;
     border: 1px solid var(--line-strong);
-    border-radius: 16px;
+    border-radius: var(--radius-card);
     color: var(--text);
     background: var(--bg-surface);
     overflow: auto;
@@ -2555,7 +2557,7 @@
   .md-image-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .md-image-dialog-header p { margin: 0; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; min-width: 0; }
   .md-image-close { flex: none; min-height: 40px; }
-  .md-image-dialog-canvas { margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--bg-sunken); }
+  .md-image-dialog-canvas { margin-top: 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--bg-sunken); }
   .md-image-dialog img { display: block; max-width: 100%; max-height: 70dvh; width: auto; height: auto; object-fit: contain; margin: auto; }
   .md > :first-child {
     margin-top: 0;
@@ -2695,7 +2697,7 @@
     gap: 4px;
     text-align: left;
     padding: 14px 16px;
-    border-radius: 12px;
+    border-radius: var(--radius);
   }
   .source-tab small {
     font-size: 15px;
@@ -2759,7 +2761,7 @@
     width: 100%;
     padding: 6px 8px;
     border: 0;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     text-align: left;
     color: inherit;
     background: transparent;
@@ -2803,7 +2805,7 @@
     margin-bottom: 0.3em;
   }
   .md-title {
-    font-size: 17px;
+    font-size: var(--fs-lg);
     font-weight: 550;
     margin: 6px 0 10px;
   }
@@ -2911,7 +2913,7 @@
     min-height: 74px;
     padding: 10px 3px 8px;
     border: 0;
-    border-radius: 12px;
+    border-radius: var(--radius);
     background: transparent;
     text-align: center;
   }
@@ -3007,7 +3009,7 @@
   .alert {
     margin: 15px 25px 0;
     padding: 11px 16px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     display: flex;
     justify-content: space-between;
     gap: 16px;
@@ -3129,7 +3131,7 @@
     padding: 0;
     opacity: 0;
     cursor: pointer;
-    font-size: 17px;
+    font-size: var(--fs-lg);
   }
   .course-heading:has(select:focus-visible) {
     outline: 2px solid var(--accent-soft);
@@ -3717,7 +3719,7 @@
     gap: 10px;
     width: 100%;
     border: 0;
-    border-radius: 12px;
+    border-radius: var(--radius);
     padding: 11px 12px;
     text-align: left;
   }
@@ -3827,7 +3829,7 @@
   .guide-actions button {
     padding: 5px 10px;
     font-size: 15px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
   }
   .guide-foot {
     margin: 10px 0 0;
@@ -3950,7 +3952,7 @@
       font-size: 15px;
     }
     .page h1 {
-      font-size: 23px;
+      font-size: var(--fs-2xl);
     }
     .stats > div {
       padding: 0 15px;

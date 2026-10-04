@@ -16,6 +16,12 @@
   .import-hub__files { display: grid; gap: var(--space-3); min-width: 0; }
   .import-hub__routes { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
   .import-hub__summary { margin: 0; }
+  .import-hub__conversion { display: grid; gap: var(--space-2); }
+  .import-hub__converters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .import-hub__converter { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); }
+  .import-hub__converter h3 { margin: 0; font-size: var(--fs-md); }
+  .import-hub__converter p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+  .import-hub__converter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: auto; }
   .import-hub__marker { display: grid; gap: var(--space-3); min-width: 0; }
   .import-hub__marker p { margin: 0; }
   .import-hub__marker ol { margin: 0; padding-inline-start: 24px; }
@@ -50,6 +56,7 @@
   .import-hub__audio > .audio-import > strong:first-child { display: none; }
 }
 @container (max-width: 520px) {
+  :is(.study-app, .study-seat) .import-hub__converters { grid-template-columns: minmax(0, 1fr); }
   :is(.study-app, .study-seat) .import-hub__course { padding: var(--space-3); }
   :is(.study-app, .study-seat) .import-hub__tabs { justify-self: stretch; }
   :is(.study-app, .study-seat) .import-hub__tabs .sh-icon { display: none; }

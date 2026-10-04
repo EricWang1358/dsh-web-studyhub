@@ -22,6 +22,7 @@ import OutlineDialog from './document-preview/reader/OutlineDialog.jsx';
 import { RenameField } from './document-preview/RenameTitle.jsx';
 import { originalNote, renameDocument, startsEditing } from './document-preview/rename.js';
 import css from "./sources.css";
+import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
    最新一组默认展开（P23）；刚导入的资料高亮并滚动到视野里。sourceForm 是 App
@@ -127,7 +128,7 @@ export function RowMenuItems({ item, busy, call, onChangeCourse, onRemove, onSeg
     {onChangeCourse && <button type="button" disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</button>}
     {onSegment && <button type="button" disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</button>}
     {onArchive && <button type="button" disabled={busy} onClick={event => { close(event); onArchive(item); }}>{item.archived ? ui('恢复资料') : ui('归档')}</button>}
-    {item.archived && <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('永久删除')}</button>}
+    {item.archived && onRemove && <button type="button" disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('永久删除')}</button>}
   </div>;
 }
 
@@ -179,8 +180,13 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
         </button>}
         <div className="source-doc__actions">
           {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
+          {item.archived && <>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => onArchive(item)}>{ui('恢复资料')}</Button>
+            <Button size="sm" variant="quiet" className="danger-text" disabled={busy} onClick={() => onRemove(item)}>{ui('永久删除')}</Button>
+          </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse} onRemove={onRemove} onArchive={onArchive} onSegment={onSegment} onRename={editor ? startEditing : undefined} />
+            <RowMenuItems item={item} busy={busy} call={call} onChangeCourse={onChangeCourse}
+              onArchive={item.archived ? undefined : onArchive} onSegment={onSegment} onRename={editor ? startEditing : undefined} />
           </details>
         </div>
       </div>
@@ -230,32 +236,23 @@ export function CourseDialog({ item, items, byId, courses, busy, act, onClose })
   );
 }
 
-export function RemoveDialog({ item, busy, act, call, onClose, onRemoved }) {
-  const [working, setWorking] = useState(false), [error, setError] = useState("");
+export function RemoveDialog({ item, busy, act, onClose, onRemoved }) {
   const blocked = item.usedBy.length > 0 || !item.archived;
   async function confirm() {
-    setWorking(true); setError("");
-    const result = await removeDocument(item, { act, call });
-    setWorking(false);
-    if (!result.failed.length) { onRemoved(item); return; }
-    setError(result.removed.length
-      ? uiFormat("已移除 {0} 部分，还有 {1} 部分没有移除：{2}", [result.removed.length, result.failed.length, result.failed[0].error])
-      : result.failed[0].error);
+    const result = await removeDocument(item, { act });
+    if (!result.failed.length) return;
+    throw new Error(result.failed[0].error);
   }
   const pages = item.pages.length;
   return (
-    <Dialog size="sm" title={uiFormat("永久删除「{0}」？", [displayTitle(item.title)])} onClose={() => { if (!working) onClose(); }}
-      footer={<>
-        <Button variant="quiet" disabled={working} onClick={onClose}>{ui("取消")}</Button>
-        <Button variant="danger" busy={working} disabled={busy || blocked} onClick={confirm}>{ui("确认永久删除")}</Button>
-      </>}>
+    <PermanentDeleteDialog title={displayTitle(item.title)} busy={busy} blocked={blocked}
+      onConfirm={confirm} onDeleted={() => onRemoved(item)} onClose={onClose}>
       <p>{item.format === 'pdf' && pages > 1 ? uiFormat("这份 PDF 的 {0} 页文字都会从资料列表移除，无法撤销。", [pages]) : ui("这份资料会从资料列表移除，无法撤销。")}</p>
       {!item.archived && <InlineMessage>{ui('请先归档这份资料，再永久删除。')}</InlineMessage>}
       {item.usedBy.length > 0 && <InlineMessage tone="warning" boxed title={ui("有题组引用这份资料，不能移除")}>
         {uiFormat("引用它的题组：{0}。先删除或改写这些题，再移除资料。", [item.usedBy.map(deck => deck.title).join(" · ")])}
       </InlineMessage>}
-      {error && <InlineMessage>{error}</InlineMessage>}
-    </Dialog>
+    </PermanentDeleteDialog>
   );
 }
 
@@ -416,7 +413,7 @@ export default function Sources({ data, busy, act, call, setModal, setNotice, so
       {editingCourse && <CourseDialog item={editingCourse} items={items} byId={byId} courses={data.focus?.courses} busy={busy} act={act}
         onClose={() => setEditingCourse(null)} />}
       {segmenting && <OutlineDialog item={segmenting} call={call} act={act} onClose={() => setSegmenting(null)} />}
-      {removing && <RemoveDialog item={removing} busy={busy} act={act} call={call} onClose={() => setRemoving(null)}
+      {removing && <RemoveDialog item={removing} busy={busy} act={act} onClose={() => setRemoving(null)}
         onRemoved={item => { setRemoving(null); setNotice?.({ text: uiFormat("已移除「{0}」", [displayTitle(item.title)]), tone: "success" }); }} />}
     </section>
   );

@@ -4,11 +4,12 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MAX_TEXT_DOCUMENT_BYTES } from '../lib/office/limits.js';
 import { createMarkerConversionScript, MARKER_SCRIPT_FILENAME } from '../lib/marker-external.js';
 
 const compiled = await build({ stdin: { contents: `export { default as ImportHub } from './ui/ImportHub.jsx';
-  export { default as MarkerExternal, validateMarkerOutput, downloadMarkerScript } from './ui/MarkerExternal.jsx';
+  export { default as MarkerSettings } from './ui/MarkerSettings.jsx';
+  export { default as PdfConversion } from './ui/PdfConversion.jsx';
+  export { downloadMarkerScript } from './ui/marker-script.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false,
   platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const require = createRequire(import.meta.url);
@@ -20,133 +21,55 @@ function load(react) {
 const components = load(React);
 const changes = [];
 const events = load({ ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, value => changes.push(value)],
-  useEffect: () => {}, useMemo: read => read(), useRef: initial => ({ current: initial }) });
+  useEffect: () => {}, useId: () => 'pdf', useMemo: read => read(), useRef: initial => ({ current: initial }) });
 function find(tree, predicate) {
   if (Array.isArray(tree)) return tree.map(item => find(item, predicate)).find(Boolean);
   if (!React.isValidElement(tree)) return undefined;
   return predicate(tree) ? tree : find(tree.props.children, predicate);
 }
-function file(name, text) { const blob = new Blob([text]); return Object.assign(blob, { name }); }
-const output = file('lecture.md', `{0}${'-'.repeat(48)}\n# Mechanics\nEnergy is conserved.\n{1}${'-'.repeat(48)}\nWork transfers energy.`);
 
-test('optional Marker guidance is bilingual, explains local workflow and separate model licenses', () => {
+test('Marker settings show executable configuration and usage guidance in both languages', () => {
   try {
     for (const language of ['zh', 'en']) {
       components.setUiLanguage(language);
-      const html = renderToStaticMarkup(React.createElement(components.MarkerExternal));
+      const html = renderToStaticMarkup(React.createElement(components.MarkerSettings, { call: async () => ({}) }));
       assert.match(html, /marker#installation/);
       assert.match(html, /marker#commercial-usage/);
-      assert.match(html, /Apache-2.0/);
-      assert.match(html, /python studyhub-marker-convert.py/);
-      assert.match(html, /accept=".md,.markdown"/);
-      if (language === 'en') {
-        assert.doesNotMatch(html.replace(/<[^>]*>/g, ''), /[㐀-鿿]/);
-        assert.match(html, /does not install or start Marker/);
-        assert.match(html, /LLM enhancement off/);
-        assert.match(html, /does not remove these requirements/);
-      } else assert.match(html, /不会扫描你的电脑/);
+      assert.match(html, /marker_single/);
+      assert.match(html, /type="text"/);
+      if (language === 'en') assert.doesNotMatch(html.replace(/<[^>]*>/g, ''), /[㐀-鿿]/);
     }
   } finally { components.setUiLanguage('zh'); }
 });
 
-test('the native picker forwards validated Markdown into the normal course import and completion callbacks', async () => {
-  const calls = [], summaries = [];
-  let complete;
-  const done = new Promise(resolve => { complete = resolve; });
-  const hub = events.ImportHub({ data: { focus: { courses: [] } }, course: 'Mechanics', call: async (action, args) => {
-    calls.push({ action, args });
-    return { documentId: 'doc', sourceIds: ['p1', 'p2'], document: { title: 'Lecture', format: 'md', sources: [{ document: { converter: 'marker' } }] } };
-  }, onImported: value => summaries.push(value), onComplete: complete });
-  const marker = find(hub, item => item.type === events.MarkerExternal);
-  assert.ok(marker);
-  const picker = find(events.MarkerExternal(marker.props), item => item.props.type === 'file');
-  const event = { target: { files: [output], value: 'fakepath/lecture.md' } };
-  await picker.props.onChange(event);
-  const result = await done;
-  assert.equal(event.target.value, '');
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].action, 'materials.document.import');
+test('import portal presents peer converters and keeps installation details in settings', () => {
+  const html = renderToStaticMarkup(React.createElement(components.ImportHub, { data: { focus: {} }, call: async () => ({}), onOpenSettings: () => {} }));
+  assert.match(html, /aria-label="MinerU"/);
+  assert.match(html, /aria-label="Marker"/);
+  assert.match(html, /用 Marker 解析/);
+  assert.match(html, /安装与使用设置/);
+  assert.doesNotMatch(html, /marker#installation|studyhub-marker-convert.py|Apache-2.0|llama-server|选择转换结果/);
+});
+
+test('Marker starts from original PDF with course routing, without cloud acknowledgement or manual results', async () => {
+  const calls = [], starts = [], file = { name: 'Lecture.pdf', size: 1000 }, plan = { pages: 5, bytes: 1000 };
+  const tree = events.PdfConversion({ file, initialPlan: plan, initialConverter: 'marker', initialMarker: { state: 'ready' }, initialSettings: {}, initialLocal: { state: 'ready' },
+    courses: ['Mechanics'], call: async (action, args) => { calls.push({ action, args }); return { jobId: 'marker-job' }; }, onStarted: job => starts.push(job) });
+  await find(tree, item => item.props.children === '用 Marker 开始解析').props.onClick();
+  assert.deepEqual(calls.map(item => item.action), ['marker.import']);
   assert.deepEqual(calls[0].args.courses, ['Mechanics']);
-  assert.equal(calls[0].args.filename, output.name);
-  assert.equal(Buffer.from(calls[0].args.dataBase64, 'base64').toString(), await output.text());
-  assert.equal(summaries.length, 1);
-  assert.equal(result.documents[0].converted, 'marker');
-  assert.deepEqual(result.sourceIds, ['p1', 'p2']);
+  assert.equal(starts[0].converter, 'marker'); assert.equal(starts[0].filename, file.name);
+  const html = renderToStaticMarkup(React.createElement(components.PdfConversion, { file, initialPlan: plan, initialConverter: 'marker', initialMarker: { state: 'ready' }, initialSettings: {}, initialLocal: { state: 'ready' } }));
+  assert.doesNotMatch(html, /type="checkbox"|type="password"|选择转换结果|高级：|llama-server/);
 });
 
-test('invalid formats and oversized output produce a visible error without import or automatic retry', async () => {
-  assert.equal(await components.validateMarkerOutput(output), output);
-  await assert.rejects(components.validateMarkerOutput(file('lecture.md', '# Ordinary unpaginated text')), /分页标记/);
-  await assert.rejects(components.validateMarkerOutput(file('lecture.json', '{"children":[]}')), /不是原 PDF 或 JSON/);
-  await assert.rejects(components.validateMarkerOutput(file('lecture.pdf', '%PDF')), /不是原 PDF 或 JSON/);
-  await assert.rejects(components.validateMarkerOutput({ name: 'huge.md', size: MAX_TEXT_DOCUMENT_BYTES + 1, text: () => assert.fail('must reject before reading') }), /8 MB/);
-  let imports = 0;
-  changes.length = 0;
-  const picker = find(events.MarkerExternal({ onFiles: () => { imports++; } }), item => item.props.type === 'file');
-  await picker.props.onChange({ target: { files: [file('wrong.md', '# Missing pagination')], value: 'wrong.md' } });
-  assert.equal(imports, 0);
-  assert.ok(changes.some(value => typeof value === 'string' && /分页标记/.test(value)));
-});
-
-test('busy Marker controls block file handling and keep ordinary import unchanged', async () => {
-  const html = renderToStaticMarkup(React.createElement(components.MarkerExternal, { disabled: true }));
-  assert.equal((html.match(/<button[^>]*disabled/g) || []).length, 2);
-  assert.match(html, /type="file"[^>]*disabled/);
-  const tree = events.MarkerExternal({ disabled: true, onFiles: () => assert.fail('busy must not enqueue') });
-  await find(tree, item => item.props.type === 'file').props.onChange({ target: { files: [output], value: 'output.md' } });
-  const hub = events.ImportHub({ data: { focus: {} }, busy: true, call: () => assert.fail('busy must not import') });
-  assert.equal(find(hub, item => item.type === events.MarkerExternal).props.disabled, true);
-});
-
-test('an import starting while Marker validation is pending blocks its stale callback with an actionable error', async () => {
-  const refs = [], states = [];
-  let cursor = 0, release;
-  const pending = new Promise(resolve => { release = resolve; });
-  const racing = load({ ...React, useState: initial => [initial, value => states.push(value)],
-    useEffect: () => {}, useRef: initial => refs[cursor++] ||= { current: initial } });
-  let imports = 0;
-  const props = { onFiles: () => { imports++; } };
-  const picker = find(racing.MarkerExternal(props), item => item.props.type === 'file');
-  const selection = picker.props.onChange({ target: { files: [{ name: 'pending.md', size: 200,
-    text: async () => { await pending; return output.text(); } }], value: 'pending.md' } });
-  cursor = 0;
-  racing.MarkerExternal({ ...props, disabled: true });
-  release();
-  await selection;
-  assert.equal(imports, 0);
-  assert.ok(states.includes('另一个操作还在进行，请稍后重试。'));
-});
-
-test('closing the import dialog during validation cancels queueing and updates to an unmounted component', async () => {
-  const states = [], cleanups = [];
-  let release;
-  const pending = new Promise(resolve => { release = resolve; });
-  const mounted = load({ ...React, useState: initial => [initial, value => states.push(value)],
-    useEffect: effect => cleanups.push(effect()), useRef: initial => ({ current: initial }) });
-  let imports = 0;
-  const tree = mounted.MarkerExternal({ onFiles: () => { imports++; } });
-  const selection = find(tree, item => item.props.type === 'file').props.onChange({ target: {
-    files: [{ name: 'pending.md', size: 200, text: async () => { await pending; return output.text(); } }], value: 'pending.md' } });
-  cleanups.forEach(cleanup => cleanup());
-  const previousStates = states.length;
-  release(); await selection;
-  assert.equal(imports, 0);
-  assert.equal(states.length, previousStates);
-});
-
-test('a course change during validation uses the latest import callback', async () => {
-  const refs = [], imported = [];
-  let cursor = 0, release;
-  const pending = new Promise(resolve => { release = resolve; });
-  const mounted = load({ ...React, useState: initial => [initial, () => {}], useEffect: () => {},
-    useRef: initial => refs[cursor++] ||= { current: initial } });
-  const tree = mounted.MarkerExternal({ onFiles: () => imported.push('old course') });
-  const selection = find(tree, item => item.props.type === 'file').props.onChange({ target: {
-    files: [{ name: 'pending.md', size: 200, text: async () => { await pending; return output.text(); } }], value: 'pending.md' } });
-  cursor = 0;
-  mounted.MarkerExternal({ onFiles: files => { imported.push('current course'); assert.equal(files[0].name, 'pending.md'); } });
-  release(); await selection;
-  assert.deepEqual(imported, ['current course']);
+test('Marker setup is a settings jump rather than installation instructions inside import', () => {
+  let anchor;
+  const tree = events.PdfConversion({ file: { name: 'Lecture.pdf', size: 1000 }, initialPlan: { pages: 5, bytes: 1000 }, initialConverter: 'marker', initialMarker: { state: 'not-installed' },
+    initialSettings: {}, initialLocal: { state: 'ready' }, onOpenSettings: value => { anchor = value; } });
+  find(tree, item => item.props.children === '打开设置').props.onClick();
+  assert.equal(anchor, 'settings-marker');
+  assert.equal(find(tree, item => item.props.children === '用 Marker 开始解析').props.disabled, true);
 });
 
 test('script download contains the generated local script and releases the object URL', async () => {
@@ -168,4 +91,106 @@ test('script download contains the generated local script and releases the objec
     globalThis.document = originalDocument; URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke;
     globalThis.setTimeout = originalTimeout;
   }
+});
+
+// Keep state and effect dependencies across renders to exercise the shared upload ownership.
+function mountPdf(props, component = 'PdfConversion') {
+  const states = [], refs = [], effectDependencies = [], cleanups = [];
+  let stateCursor = 0, refCursor = 0, effectCursor = 0, pending = [];
+  const mounted = load({ ...React, useId: () => 'mounted-pdf',
+    useState: initial => { const index = stateCursor++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }]; },
+    useRef: initial => refs[refCursor++] ||= { current: initial },
+    useEffect: (effect, dependencies) => { const index = effectCursor++; if (dependencies?.some(item => typeof item === 'string' && item.includes('{'))) return;
+      if (!effectDependencies[index] || dependencies.some((value, position) => value !== effectDependencies[index][position])) {
+        effectDependencies[index] = dependencies; pending.push(() => { cleanups[index]?.(); cleanups[index] = effect(); });
+      }
+    } });
+  return {
+    render(next = props) { stateCursor = 0; refCursor = 0; effectCursor = 0; pending = []; const tree = mounted[component](next); pending.forEach(effect => effect()); return tree; },
+    close() { cleanups.forEach(cleanup => cleanup?.()); }, states,
+  };
+}
+
+test('switching converters preserves one PDF upload and starts the selected converter', async () => {
+  const file = Object.assign(new Blob(['original PDF']), { name: 'Original.pdf' });
+  const calls = [], starts = [];
+  const props = { file, initialSettings: {}, initialLocal: { state: 'ready' }, initialMarker: { state: 'ready' }, courses: ['Mechanics'],
+    call: async (action, args) => { calls.push({ action, args });
+      if (action === 'mineru.upload.start') return { uploadId: 'shared-pdf' };
+      if (action === 'mineru.plan') return { pages: 5, bytes: file.size, windows: [], pieces: [] };
+      if (action === 'marker.import') return { jobId: 'selected-marker' };
+      return {};
+    }, onStarted: job => starts.push(job) };
+  const mounted = mountPdf(props); mounted.render(); await new Promise(resolve => setImmediate(resolve));
+  const mineru = mounted.render(); find(mineru, item => item.props.title === 'Marker').props.onSelect('marker');
+  const marker = mounted.render(); await find(marker, item => item.props.children === '用 Marker 开始解析').props.onClick();
+  mounted.close();
+  assert.equal(calls.filter(item => item.action === 'mineru.upload.start').length, 1);
+  assert.equal(calls.filter(item => item.action === 'mineru.plan').length, 1);
+  assert.deepEqual(calls.find(item => item.action === 'marker.import').args, { uploadId: 'shared-pdf', courses: ['Mechanics'] });
+  assert.equal(starts[0].converter, 'marker');
+  assert.equal(calls.filter(item => item.action === 'mineru.upload.cancel').length, 0, 'started upload belongs to the background job');
+});
+
+test('replacing a PDF while its plan is pending cancels that upload and ignores its stale plan', async () => {
+  const first = Object.assign(new Blob(['first']), { name: 'First.pdf' }), second = Object.assign(new Blob(['second']), { name: 'Second.pdf' });
+  const calls = []; let release;
+  const props = { file: first, initialSettings: {}, initialLocal: { state: 'ready' }, initialMarker: { state: 'ready' },
+    call: async (action, args) => { calls.push({ action, args });
+      if (action === 'mineru.upload.start') return { uploadId: args.name };
+      if (action === 'mineru.plan' && args.uploadId === first.name) return new Promise(resolve => { release = resolve; });
+      if (action === 'mineru.plan') return { pages: 2, bytes: second.size, windows: [], pieces: [] };
+      return {};
+    } };
+  const mounted = mountPdf(props); mounted.render(); await new Promise(resolve => setImmediate(resolve));
+  mounted.render({ ...props, file: second }); await new Promise(resolve => setImmediate(resolve));
+  release({ pages: 999, bytes: first.size }); await new Promise(resolve => setImmediate(resolve));
+  const tree = mounted.render({ ...props, file: second });
+  assert.ok(find(tree, item => item.props.children === second.name));
+  assert.ok(mounted.states.some(value => value?.pages === 2));
+  assert.ok(!mounted.states.some(value => value?.pages === 999));
+  assert.ok(calls.some(item => item.action === 'mineru.upload.cancel' && item.args.uploadId === first.name));
+  mounted.close();
+});
+
+const flush = () => new Promise(resolve => setImmediate(resolve));
+test('Marker settings load the path promptly and reject a stale initial probe after saving', async () => {
+  let releaseSettings, releaseStatus;
+  let probes = 0;
+  const calls = [];
+  const props = { call: async (action, args) => {
+    calls.push({ action, args });
+    if (action === 'marker.settings.get') return new Promise(resolve => { releaseSettings = resolve; });
+    if (action === 'marker.local.status' && ++probes === 1) return new Promise(resolve => { releaseStatus = resolve; });
+    if (action === 'marker.local.status') return { state: 'ready' };
+    return {};
+  } };
+  const mounted = mountPdf(props, 'MarkerSettings');
+  let tree = mounted.render();
+  assert.equal(find(tree, item => item.type === 'input').props.disabled, true);
+  releaseSettings({ command: 'old-path' }); await flush();
+  tree = mounted.render();
+  assert.equal(find(tree, item => item.type === 'input').props.disabled, false, 'editing does not wait for the CLI probe');
+  find(tree, item => item.type === 'input').props.onChange({ target: { value: 'new-path' } });
+  tree = mounted.render(); await find(tree, item => item.props.children === '保存并检测').props.onClick();
+  releaseStatus({ state: 'not-installed' }); await flush();
+  tree = mounted.render();
+  assert.equal(find(tree, item => item.type === 'input').props.value, 'new-path');
+  assert.equal(mounted.states[1].state, 'ready');
+  assert.deepEqual(calls.find(item => item.action === 'marker.settings.set').args, { command: 'new-path' });
+  mounted.close();
+});
+test('a host without audio offers external guidance and never calls unavailable converter operations', async () => {
+  const calls = [], call = async action => { calls.push(action); return {}; };
+  const settings = mountPdf({ call, available: false }, 'MarkerSettings');
+  const tree = settings.render();
+  assert.equal(find(tree, item => item.type === 'input').props.disabled, true);
+  assert.equal(find(tree, item => item.props.children === '保存并检测').props.disabled, true);
+  assert.equal(find(tree, item => item.props.children === '下载 Marker 转换脚本').props.disabled, false);
+  const pdf = mountPdf({ call, available: false, file: new Blob(['PDF']) }); pdf.render(); await flush();
+  assert.deepEqual(calls, []);
+  const html = renderToStaticMarkup(React.createElement(components.ImportHub, { data: { contexts: ['materials'], focus: {} }, call, onOpenSettings: () => {} }));
+  assert.match(html, /未启用 PDF 解析组件/);
+  assert.match(html, /<button[^>]*disabled[^>]*>用 Marker 解析/);
+  settings.close(); pdf.close();
 });

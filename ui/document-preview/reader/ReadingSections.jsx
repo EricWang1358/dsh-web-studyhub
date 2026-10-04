@@ -1,7 +1,31 @@
 import React from 'react';
 import { ui } from '../../i18n.js';
-import { lineBreakPieces } from './text-sections.js';
+import { lineBreakPieces, headingMark } from './text-sections.js';
 import { isFigurePlaceholder } from '../peek/peek-logic.js';
+import { splitStudyMath } from '../../study-media.js';
+import { formulaClass, formulaViewHtml } from './formula.js';
+
+/** One formula, as formula.js's formulaHtml writes it: the stored text hidden, the drawing a marker beside it. The raw text
+ * decides the drawing, so a re-render of the page (a selection, a find) never draws it again. */
+const ReaderFormula = React.memo(function ReaderFormula({ formula }) {
+  return <span className={formulaClass(formula.display)}>
+    <span className="reader-math__source" aria-hidden="true">{formula.raw}</span>
+    <span className="reader-math__view" data-study-marker="true" dangerouslySetInnerHTML={{ __html: formulaViewHtml(formula) }} />
+  </span>;
+}, (before, after) => before.formula.raw === after.formula.raw);
+
+/** Prose with its CJK line joins marked (a hidden newline between two lines, so selection and find see the stored text). */
+const withJoins = (text, key) => lineBreakPieces(text).map((part, index) => typeof part === 'string' ? part : <span key={`${key}.${index}`} className="reader-join">{'\n'}</span>);
+
+/** Text with $…$ / $$…$$ / \(…\) / \[…\] drawn as formulas; everything else, joins included when `join`, as it is stored. */
+const withFormulas = (text, join) => splitStudyMath(text).flatMap((piece, at) => typeof piece !== 'string' ? [<ReaderFormula key={at} formula={piece} />]
+  : join ? withJoins(piece, at) : [piece]);
+
+/** A heading line: a Markdown "# " stays in the text, hidden like a transcript's 【】, and the formulas in it are drawn. */
+function Heading({ text }) {
+  const mark = headingMark(text);
+  return <h4 className="reader-p reader-p--heading">{mark && <span className="reader-bracket" aria-hidden="true">{mark}</span>}{withFormulas(text.slice(mark.length))}</h4>;
+}
 
 /**
  * Text sources set for reading. Each section keeps the markers the selection tools use:
@@ -25,10 +49,9 @@ export default function ReadingSections({ sections, labelOf, onPeek }) {
           ? <p key={index} className="reader-p reader-p--figure">{paragraph.text}<span className="reader-peek-mark" data-study-marker="true"><button type="button" className="reader-peek" data-peek-page={section.page} data-peek-figure="true" title={ui('看原页')}
             onClick={event => onPeek(section.page, { figure: true, trigger: event.currentTarget })}>{ui('看原页')}</button></span></p>
           : paragraph.kind === 'heading'
-          ? <h4 key={index} className="reader-p reader-p--heading">{paragraph.text}</h4>
-          : <p key={index} className={`reader-p reader-p--${paragraph.kind}`}>{paragraph.kind === 'prose'
-            ? lineBreakPieces(paragraph.text).map((piece, at) => typeof piece === 'string' ? piece : <span key={at} className="reader-join">{'\n'}</span>)
-            : paragraph.text}</p>)}
+          ? <Heading key={index} text={paragraph.text} />
+          : <p key={index} className={`reader-p reader-p--${paragraph.kind}`}>{paragraph.kind === 'layout'
+            ? paragraph.text : withFormulas(paragraph.text, paragraph.kind === 'prose')}</p>)}
       </div>
     </section>;
   });

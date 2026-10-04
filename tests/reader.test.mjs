@@ -171,6 +171,13 @@ test('collectHeadings numbers h1–h4 relative to the shallowest one and tags ea
   assert.deepEqual(collectHeadings({ querySelectorAll: () => [] }), []);
 });
 
+test('collectHeadings titles a heading with a formula by its stored text, not the drawn glyphs', () => {
+  const drawn = { remove() { drawn.removed = true; } };
+  const node = { ...heading('H2', '激活 $\sigma(z)$σ(z)σ(z)'), querySelector: () => drawn,
+    cloneNode: () => ({ querySelectorAll: () => [drawn], get textContent() { return drawn.removed ? '激活 $\sigma(z)$' : 'junk'; } }) };
+  assert.deepEqual(collectHeadings({ querySelectorAll: () => [node] }).map(item => item.title), ['激活 $\sigma(z)$']);
+});
+
 test('pickActive follows the scroll position, neighbours give previous and next, progress is clamped', () => {
   const entries = [{ id: 'a', top: 300 }, { id: 'b', top: 900 }, { id: 'c', top: 1500 }];
   assert.equal(pickActive(entries), 'a', 'above the first heading the first entry is current');

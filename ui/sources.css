@@ -102,3 +102,4 @@
   :is(.study-app, .study-seat) .source-doc__actions { width: 100%; justify-content: flex-end; }
   :is(.study-app, .study-seat) .source-doc__pages { margin-left: 0; }
 }
+.study-app .source-doc__actions .danger-text { color: var(--bad); }
