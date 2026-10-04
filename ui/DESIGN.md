@@ -24,6 +24,23 @@ The whole panel follows one idea: **the card is the only physical object; everyt
 
 Rules: one filled primary button per screen; a primary that cannot act turns neutral, not muddy red; new CSS references tokens, never raw colours.
 
+## Semantic tokens
+
+Defined at the top of `ui/components/components.css` (scoped to `.study-app` / `.study-seat`, derived with `color-mix`, so every theme adapts). Feature CSS uses these, not literals; `tests/ui-guardrails.test.mjs` ratchets the old literals down per file.
+
+| Token | Use |
+| --- | --- |
+| `--ok-ink` / `--warn-ink` / `--bad-ink` / `--info-ink` | Coloured words on a tinted or plain surface (the tone mixed 82% into `--text`, AA in both themes). `--warn-text` is an alias of `--warn-ink`. |
+| `--ok-bg` / `--warn-bg` / `--bad-bg` / `--info-bg` | Light tinted surface for notes and banners (tone 8% into `--bg-surface`). |
+| `--ok-line` / `--warn-line` / `--bad-line` / `--info-line` | Border of such a surface (tone 30% into `--line`). |
+| `--z-raised` 1, `--z-sticky` 10, `--z-toast` 11, `--z-popover` 30, `--z-overlay` 40, `--z-tour` 80, `--z-fullscreen` 90 | The only stacking order. Pick a layer; never write a number above 2. |
+| `--scrim` / `--scrim-strong` | Page dimming behind dialogs, sheets and `::backdrop` (dark on every theme). |
+| `--fw-light` 300, `--fw-regular` 400, `--fw-medium` 550, `--fw-strong` 650 | Font weights; no other numbers. |
+| `--radius-xs` 4px | Chips, keys and inline code; larger shapes keep `--radius-sm`, `--radius`, `--radius-card`, `--radius-pill`. |
+| `--dur-fast` .15s, `--dur` .2s, `--dur-slow` .3s | Transition and animation durations, with `--ease` / `--ease-out`. |
+
+Where a rule re-themes `--text` or a tone (card stock), re-declare the derived tones there too.
+
 ## Theme
 
 `auto` follows `prefers-color-scheme` (inside DSH, the host appearance) and updates live; `dark` / `light` override. The resolved theme is always stamped on `.study-app`; `.study-seat` mirrors it for host overlays.
