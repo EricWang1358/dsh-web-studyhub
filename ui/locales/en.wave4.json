@@ -1,0 +1,6 @@
+{
+  "模型服务拒绝了请求": "The model service rejected the request",
+  "密钥失效，或这个模型已停用 / 不再支持。请在模型设置里检查密钥，或换一个模型。": "The key is no longer valid, or this model has been retired or is no longer supported. Check the key in the model settings, or switch to another model.",
+  "这个模型已经不能用了": "This model is no longer available",
+  "模型服务不再提供所选的模型。请在模型设置里换一个模型再试。": "The provider no longer serves the selected model. Switch to another model in the model settings and try again."
+}

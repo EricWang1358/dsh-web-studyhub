@@ -13,6 +13,8 @@ import ChoiceFeedback from "./ChoiceFeedback.jsx";
 import CoachDebrief from "./CoachDebrief.jsx";
 import ThumbFeedback from "./ThumbFeedback.jsx";
 import { reviewEntryKey } from "./async.js";
+import ModelErrorNote from "./ModelErrorNote.jsx";
+import { describeModelError, plainAssistFailure } from "./generation-status.js";
 import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
@@ -55,6 +57,32 @@ const CALCULATION_STAGE_LABELS = {
  * onRecapSettings, onModelSettings, onReturnToReading) and context (the way back to where the learner came from:
  * label, onReturn, detour, onReturnFromDetour).
  */
+/* A failed background-assistant task. A model failure goes through the one model note: a key or model problem points to the settings
+   (sending the same request again cannot work, so there is no 重新提交), a busy or slow service keeps 重新提交. Anything else is about the
+   content: the plain line, 重新提交, and 改一改再提交 when there is a question to edit. */
+function AssistFailure({ task, busy, onSettings, onResubmit, onEdit }) {
+  const text = plainAssistFailure(task.message) || ui("任务失败");
+  const info = describeModelError(text);
+  const resubmit = <Button variant="primary" size="sm" disabled={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
+  if (info.kind !== "unknown") {
+    return (
+      <div className="assist-note assist-failed" data-kind={info.kind}>
+        <ModelErrorNote error={text} context="assist" onSettings={onSettings} />
+        {info.action === "retry" && <div className="assist-actions">{resubmit}</div>}
+      </div>
+    );
+  }
+  return (
+    <div className="assist-status failed assist-failed" role="status">
+      <p>{uiFormat("后台助教没能完成：{0}", [text])}</p>
+      <div className="assist-actions">
+        {resubmit}
+        {onEdit && <Button size="sm" onClick={onEdit}>{ui("改一改再提交")}</Button>}
+      </div>
+    </div>
+  );
+}
+
 export default function Review({ session, data, shellTitle, feedback, coachProps, links = {}, context = {} }) {
   useInjectCss(reviewCss, "study-review");
   const { run, entry, showBack, showEn, enBusyKey, teachingBusy, choice, isCloze, actions } = session;
@@ -687,17 +715,12 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 </p>
               )}
               {!runningTask && lastTask?.status === "failed" && (
-                <div className="assist-status failed assist-failed" role="status">
-                  <p>{uiFormat("后台助教没能完成：{0}", [lastTask.message || ui("任务失败")])}</p>
-                  {/* "可以重新提交" used to be only a sentence: the buttons send the same request again, or open the form with it filled in to change first. */}
-                  <div className="assist-actions">
-                    <Button variant="primary" size="sm" disabled={busy}
-                      onClick={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
-                        lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}>{ui("重新提交")}</Button>
-                    {(lastTask.mode === "ask" || lastTask.mode === "improve" || (lastTask.mode === "derive" && !lastTask.followupId)) && <Button size="sm"
-                      onClick={() => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); if (lastTask.mode === "derive") setDeriveRelation(lastTask.relation || "prerequisite"); }}>{ui("改一改再提交")}</Button>}
-                  </div>
-                </div>
+                <AssistFailure task={lastTask} busy={busy} onSettings={onModelSettings}
+                  onResubmit={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
+                    lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}
+                  onEdit={(lastTask.mode === "ask" || lastTask.mode === "improve" || (lastTask.mode === "derive" && !lastTask.followupId))
+                    ? () => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); if (lastTask.mode === "derive") setDeriveRelation(lastTask.relation || "prerequisite"); }
+                    : null} />
               )}
             </SmoothHeight>
             {coachProps?.autoAdvance > 0 && (

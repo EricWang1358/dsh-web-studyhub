@@ -215,7 +215,9 @@ export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved =
 const FAILURES = [
   ['quota', /insufficient[ _-]?(balance|quota|credit)|exceeded your current quota|\b402\b|余额不足|额度不足|ACCOUNT_QUOTA/i],
   ['rate-limit', /rate.?limit|too many requests|\b429\b|限流/i],
-  ['credential', /api[ _-]?key|credential|NO_ADAPTER|unauthori[sz]ed|\b40[13]\b|authenticat|未注册模型提供方|没有可用模型|密钥|Configure a model provider/i],
+  ['model-retired', /model[_ ]not[_ ]found|model[^.;:\n]{0,60}(does not exist|not supported|unsupported|deprecated|decommission|retired|no longer (available|supported))|unsupported model|模型[^；;。]{0,20}(已下线|已停用|不再支持|不存在)/i],
+  ['rejected', /\b40[13]\b|unauthori[sz]ed|authenticat|permission[_ ]?error|forbidden|invalid api[ _-]?key|incorrect api[ _-]?key|服务拒绝/i],
+  ['credential', /api[ _-]?key|credential|NO_ADAPTER|未注册模型提供方|没有可用模型|密钥|Configure a model provider/i],
   ['budget', /total budget|time budget|执行时限/i],
   ['timeout', /timed? ?out|timeout|超时|did not respond|没有回应/i],
   ['network', /fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket hang up|connection (error|reset|refused|closed|terminated)|network|连不上|网络/i],
@@ -234,6 +236,8 @@ const FAILURES = [
  */
 export const FAILURE_COPY = Object.freeze({
   credential: { action: 'settings', title: '还没有可用的模型密钥', hint: '在模型设置里填好 API Key 后再试。' },
+  rejected: { action: 'settings', title: '模型服务拒绝了请求', hint: '密钥失效，或这个模型已停用 / 不再支持。请在模型设置里检查密钥，或换一个模型。' },
+  'model-retired': { action: 'settings', title: '这个模型已经不能用了', hint: '模型服务不再提供所选的模型。请在模型设置里换一个模型再试。' },
   quota: { action: 'settings', title: '模型账户的余额或额度不足', hint: '充值，或在设置里换一个模型后再试。' },
   'rate-limit': { action: 'retry', title: '模型服务太忙了', hint: '请求太频繁，被模型服务限流了。等一两分钟再试，或在设置里换一个模型。' },
   timeout: { action: 'retry', title: '模型长时间没有回应', hint: '可能是网络或服务繁忙，稍后再试。' },
@@ -282,6 +286,9 @@ export function describeModelError(text = '') {
   if (!Object.hasOwn(FAILURE_COPY, kind || '')) return { kind: 'unknown', title: raw, hint: '', detail: '' };
   return { ...copyOf(kind), detail: raw };
 }
+
+/** A background-assistant task's failure text without the prefix the backend puts on it (the page adds its own sentence). */
+export const plainAssistFailure = (text = '') => String(text || '').replace(/^\s*后台助教未完成[：:]\s*/, '');
 
 /** The toast after a generation starts (P26): which deck, and that it is on its way. */
 export function generationStartedNotice(job = {}, gen = {}, materials = 0) {

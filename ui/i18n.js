@@ -28,6 +28,7 @@ import peekCopy from './locales/en.peek.json';
 import largedocs from './locales/en.largedocs.json';
 import mineruCopy from './locales/en.mineru.json';
 import reader from './locales/en.reader.json';
+import wave4 from './locales/en.wave4.json';
 import selectionCopy from './locales/en.selection.json';
 import original from './locales/en.original.json';
 import links from './locales/en.links.json';
@@ -78,6 +79,7 @@ export const ENGLISH_SOURCES = {
   'en.largedocs.json': largedocs,
   'en.mineru.json': mineruCopy,
   'en.reader.json': reader,
+  'en.wave4.json': wave4,
   'en.selection.json': selectionCopy,
   'en.original.json': original,
   'en.links.json': links,
