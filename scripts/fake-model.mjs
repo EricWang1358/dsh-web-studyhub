@@ -9,6 +9,7 @@ import { norm } from "../lib/domain.js";
 import { parseJson } from "../lib/generation.js";
 import { reportUsage } from "../lib/usage-scope.js";
 import { dshSystemTokens, dshUserTokens } from "../lib/token-estimate.js";
+import { recapLeaks } from "../lib/daily-recap.js";
 
 /** The route a preview reports for this model. */
 export const FAKE_MODEL_ROUTE = Object.freeze({ provider: "preview", model: "fake-model" });
@@ -359,27 +360,108 @@ function gradeCaseAnswers(input, english) {
     }) };
 }
 
+/* ---------- daily recap preview: one opening, stuck points, what is solid, three steps for tomorrow ---------- */
+
+const RECAP_TEXT = {
+  zh: {
+    title: (input) => `# ${input.course} · ${input.day} 学习回顾`,
+    solidHeading: '已经稳住的', planHeading: '明天这样练',
+    thought: (kind, friendly, said) => ({
+      missed: friendly
+        ? (said ? `你当时的答案是「${said}」。我看不到你完整的想法，不过这类题最容易的做法，就是直接套结论，没先核对条件。` : '这题今天没答对。我看不到你当时具体怎么想的，不过这类题最容易的做法，就是直接套结论，没先核对条件。')
+        : `常见误判：直接套用结论而未先核对条件${said ? `（作答：「${said}」）` : ''}。`,
+      retried: friendly ? '这题改过一次才答对，说明方向已经对了，但还不算稳，隔天再试一遍更稳。' : '反馈后重试才答对，尚不能视为掌握，建议隔天再测一次。',
+      unsure: friendly ? '这题你自己也拿不太准，这不代表你答错了，只是还没底气。我们把判断的依据理清楚。' : '这类题的把握程度较低，并非已确认的错误；以下给出判断依据。',
+    })[kind],
+    rule: (friendly, text) => friendly ? `**判断的尺子**：${text}` : `**判断依据**：${text}`,
+    example: (friendly, question, answer) => friendly ? `**一个例子**：${question}。正确思路是：${answer}。` : `**示例**：${question}；正确答案：${answer}。`,
+    opening: (input, friendly, topics, stuck, solid) => friendly
+      ? `今天你一共练了 ${input.answeredCount} 道不同的题，主线是把「${topics}」一步步串起来。${stuck ? `大部分题你都有不错的把握，有 ${stuck} 处值得停一停，下面一处一处看。` : '这些题你都答得不错，下面不用停在错处，把要点再串一遍就好。'}`
+      : `今日完成 ${input.answeredCount} 道不同题目，涉及：${topics}。${stuck ? `需要巩固的要点共 ${stuck} 处，依次说明判断依据如下。` : '未发现需要巩固的要点，以下回顾已掌握的内容。'}`,
+    pending: (count, friendly) => friendly ? `另外有 ${count} 道作答还在等批改，先回顾内容，不急着判断对错。` : `另有 ${count} 道作答待批改，仅回顾内容，不据此判断对错。`,
+    uncovered: (topic) => `「${topic}」这部分讲义没讲到，先不展开。`,
+    steps: (friendly, [a, b, c]) => friendly
+      ? [`明天先合上笔记，凭记忆讲一遍「${a}」的判断条件，再对照核对。`, `把今天没答稳的题隔天重做一遍，先写理由，再选答案（重点看「${b}」）。`, `最后为「${c}」自己出一个小例子讲给自己听，讲得通才算稳。`]
+      : [`不看笔记复述「${a}」的判断条件，再对照核对。`, `隔天重做今天未答稳的题，先写理由再作答（重点：「${b}」）。`, `为「${c}」自拟一个示例并说明判断依据。`],
+  },
+  en: {
+    title: (input) => `# ${input.course} · ${input.day} Daily recap`,
+    solidHeading: 'Already solid', planHeading: "Tomorrow's three steps",
+    thought: (kind, friendly, said) => ({
+      missed: friendly
+        ? (said ? `You answered "${said}". I cannot see your whole line of thought, but the easiest move with this kind of question is to apply the conclusion before checking the conditions.` : 'This one did not go right today. I cannot see how you were thinking, but the easiest move with this kind of question is to apply the conclusion before checking the conditions.')
+        : `Common misjudgement: applying the conclusion without checking the conditions first${said ? ` (answer given: "${said}")` : ''}.`,
+      retried: friendly ? 'It took a second try to get this one, so the direction is right but not yet steady. Try it again tomorrow to make it stick.' : 'Correct only after a retry with feedback, so not yet mastered; test it again tomorrow.',
+      unsure: friendly ? 'You were not sure about this one. That does not mean you got it wrong, only that it does not feel firm yet. Let us make the reasoning clear.' : 'Confidence was low here, which signals uncertainty rather than a confirmed error; the reasoning follows.',
+    })[kind],
+    rule: (friendly, text) => friendly ? `**The rule that decides it**: ${text}` : `**Judging criteria**: ${text}`,
+    example: (friendly, question, answer) => friendly ? `**An example**: ${question} The sound reasoning: ${answer}` : `**Example**: ${question} Correct answer: ${answer}`,
+    opening: (input, friendly, topics, stuck) => friendly
+      ? `You worked through ${input.answeredCount} different questions today, and the thread was ${topics}. ${stuck ? `You had a good hold on most of them; ${stuck} spot${stuck === 1 ? '' : 's'} deserve a second look, so let us take them one at a time.` : 'You handled these well, so there is nothing to dwell on; let us just tie the ideas together.'}`
+      : `${input.answeredCount} different questions completed today, covering ${topics}. ${stuck ? `${stuck} point${stuck === 1 ? '' : 's'} need consolidating; the judging criteria follow.` : 'No point needs consolidating; the sound concepts are reviewed below.'}`,
+    pending: (count, friendly) => friendly ? `${count} of your answers are still waiting to be graded, so just revisit what you wrote and hold off on judging them.` : `${count} answers await grading; their content is reviewed without inferring correctness.`,
+    uncovered: (topic) => `The material does not cover "${topic}", so I will not go into it.`,
+    steps: (friendly, [a, b, c]) => friendly
+      ? [`Tomorrow, close your notes and explain the conditions behind "${a}" from memory, then check.`, `Redo the questions that did not feel steady a day later, writing your reason before you choose (start with "${b}").`, `Make up one small example for "${c}" and explain it to yourself; if it holds together, it is solid.`]
+      : [`Recall the conditions behind "${a}" without notes, then verify.`, `Redo the unsteady questions a day later, stating the reason before answering (focus: "${b}").`, `Write one original example for "${c}" and state the criterion that decides it.`],
+  },
+};
+
+function recapKind(question) {
+  const attempts = question.attempts || [], graded = attempts.filter((attempt) => Number.isInteger(attempt.grade));
+  if (attempts.length && !graded.length) return 'pending';
+  if (!question.explanation && !question.answer) return 'uncovered';
+  if (graded.some((attempt) => attempt.retry && attempt.grade >= 3) && graded.some((attempt) => !attempt.retry && attempt.grade < 3)) return 'retried';
+  const low = graded.filter((attempt) => attempt.grade < 3);
+  if (low.length && low.every((attempt) => attempt.assessment === 'self')) return 'unsure';
+  if (question.wrong || low.length) return 'missed';
+  return 'solid';
+}
+
+function dailyRecapReply(input, system) {
+  const english = system.includes('in English,'), friendly = system.includes('Tone: friendly'), words = RECAP_TEXT[english ? 'en' : 'zh'];
+  const stage = input.stage || 'recap';
+  if (stage === 'rewrite') // keep every passage that reads naturally, drop the ones that recite internal bookkeeping
+    return String(input.markdown || '').split(/\n{2,}/).filter((paragraph) => !recapLeaks(paragraph).length).join('\n\n');
+  const sectionOf = (title, ...paragraphs) => `## ${title}\n\n${paragraphs.join('\n\n')}`;
+  let stuck = [], solid = [], uncovered = [], pending = input.unassessedCount || 0, topics = [];
+  if (stage === 'consolidate') {
+    for (const text of input.sections || []) for (const block of String(text).split(/^## /m).slice(1)) {
+      const title = block.split('\n')[0].trim();
+      if (title === words.solidHeading) solid.push(...block.split('\n').filter((line) => line.startsWith('- ')));
+      else stuck.push({ title, block: `## ${block.trim()}` });
+    }
+    topics = stuck.map((item) => item.title);
+    if (!topics.length) topics = solid.map((line) => line.replace(/^- \*\*|\*\*.*$/g, ''));
+  } else {
+    for (const question of input.questions || []) {
+      const kind = recapKind(question), topic = question.topic || (english ? 'Key idea' : '知识点');
+      if (kind === 'uncovered') { uncovered.push(topic); continue; }
+      if (kind === 'pending') { pending = Math.max(pending, 1); continue; }
+      if (kind === 'solid') { solid.push(`- **${topic}**${english ? ': ' : '：'}${question.answer || question.explanation}`); continue; }
+      const said = String((question.attempts || []).find((attempt) => attempt.learnerAnswer)?.learnerAnswer || '').slice(0, 40);
+      stuck.push({ title: topic, block: sectionOf(topic, words.thought(kind, friendly, said), words.rule(friendly, question.explanation),
+        words.example(friendly, question.question, question.answer)) });
+    }
+    topics = (stuck.length ? stuck.map((item) => item.title) : solid.map((line) => line.replace(/^- \*\*|\*\*.*$/g, ''))).slice(0, 3);
+  }
+  const solidBlock = solid.length ? sectionOf(words.solidHeading, solid.join('\n')) : '';
+  if (stage === 'prepare')
+    return [english ? `Notes for this batch of ${(input.questions || []).length} questions: the points where it got stuck first, then what is already solid.` : `这一批共 ${(input.questions || []).length} 道题的整理：先写卡住的点，再列已经稳住的。`,
+      ...stuck.map((item) => item.block), solidBlock].filter(Boolean).join('\n\n');
+  const joiner = english ? ', ' : '、';
+  const opening = [words.opening(input, friendly, topics.slice(0, 3).join(joiner) || (english ? 'today\'s practice' : '今天的练习'), stuck.length),
+    pending ? words.pending(pending, friendly) : '', ...uncovered.slice(0, 1).map(words.uncovered)].filter(Boolean).join(english ? ' ' : '');
+  const pool = topics.length ? topics : [english ? 'today\'s ideas' : '今天的内容'];
+  const steps = words.steps(friendly, [0, 1, 2].map((index) => pool[index % pool.length])).map((step, index) => `${index + 1}. ${step}`).join('\n');
+  return [words.title(input), opening, ...stuck.map((item) => item.block), solidBlock, sectionOf(words.planHeading, steps)].filter(Boolean).join('\n\n');
+}
+
 /* ---------- handlers, first match wins ---------- */
 
 const HANDLERS = [
   { name: 'notes.daily-recap', text: true, match: system => system.startsWith('DAILY_COURSE_RECAP:'),
-    reply: ({ input, system }) => {
-      const english = system.includes('in English,'), friendly = system.includes('friendly, warm');
-      const title = `# ${input.course} · ${input.day} ${english ? 'Daily recap' : '学习总结'}`;
-      const summary = english
-        ? `You practised ${input.answeredCount} distinct questions today; ${input.wrongCount} showed a weak point. Review the evidence below, then check your reasoning on your next practice round.`
-        : `今天练习了 ${input.answeredCount} 道不同题目，${input.wrongCount} 道曾需要巩固。${friendly ? '我们一起把今天的收获串起来。' : '以下按知识点整理作答依据。'}请对照题目核对推理，再安排下一次复习。`;
-      const pending = input.unassessedCount > 0 ? (english
-        ? `${input.unassessedCount} submitted answers are awaiting grading. Review their content without inferring correctness or mastery.`
-        : `其中 ${input.unassessedCount} 道作答尚待批改，先回顾作答内容，不据此判断对错或是否掌握。`) : '';
-      const sections = input.sections || (input.questions || []).map(question => {
-        const answer = question.answer || (question.options || []).filter(option => option.correct).map(option => option.text).join('；');
-        return `## ${question.topic || (english ? 'Key idea' : '知识点')}\n\n${question.question}\n\n${english ? 'Expected answer' : '正确思路'}：${answer}\n\n${question.explanation || (english ? 'Check the stated conditions before applying the conclusion.' : '先核对题目条件，再应用结论。')}`;
-      });
-      const plan = english ? '## Next review\n\nRecall the conditions without looking at the answer, then retry the related questions. A recap alone does not establish mastery.'
-        : '## 下次复习\n\n先不看答案复述成立条件，再重做关联题目。读完总结后仍要用练习检查是否掌握。（预览用的模拟模型输出）';
-      return [title, summary, pending, ...sections, plan].filter(Boolean).join('\n\n');
-    } },
+    reply: ({ input, system }) => dailyRecapReply(input, system) },
   { name: 'daily.plan', match: (s) => s.startsWith('You propose a realistic daily learning plan.'),
     reply: ({ input, english }) => {
       let remaining = input.availableMinutes || 0;
