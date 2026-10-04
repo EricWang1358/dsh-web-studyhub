@@ -109,7 +109,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
             <span>{ui('标签')}</span>
             <div className="board-editor__labels">
               {draft.labels.map((label) => <span key={label} className={`board-chip board-hue-${labelHue(label)}`}>{label}
-                <button type="button" aria-label={uiFormat('移除标签 {0}', [label])} onClick={() => set({ labels: draft.labels.filter((entry) => entry !== label) })}>×</button></span>)}
+                <button type="button" aria-label={uiFormat('移除标签 {0}', [label])} onClick={() => set({ labels: draft.labels.filter((entry) => entry !== label) })}><Icon name="close" size={12} /></button></span>)}
               <input value={labelInput} maxLength={60} placeholder={ui('添加标签')} aria-label={ui('添加标签')} onChange={(event) => setLabelInput(event.target.value)}
                 onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ',') && !event.nativeEvent?.isComposing) { event.preventDefault(); addLabel(labelInput); } }}
                 onBlur={() => addLabel(labelInput)} />

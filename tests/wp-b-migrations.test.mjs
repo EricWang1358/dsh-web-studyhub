@@ -127,6 +127,10 @@ test('popover triggers never combine aria-pressed with aria-expanded (#82)', () 
   }
 });
 
+test('no bare × glyph buttons remain in the files this wave owns (#83)', () => {
+  for (const file of ['ui/board/CardEditor.jsx', 'ui/ShortcutHelp.jsx', 'ui/Board.jsx', 'ui/CourseSettings.jsx']) lacks(file, />×<\/button>/);
+});
+
 test('the shortcut sheet closes with the shared CloseButton (#83 #82)', () => {
   has('ui/ShortcutHelp.jsx', /CloseButton/);
   lacks('ui/ShortcutHelp.jsx', /coach-chip/);
