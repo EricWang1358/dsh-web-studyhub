@@ -26,7 +26,7 @@ test('ambiguous digit-then-sign endings are found but marked as not auto-fixable
 });
 
 test('plain words, product names, codes and units are not chemistry', () => {
-  for (const text of ['A4 paper', 'MP3 player', 'B2B sales', 'B2C and C2C', 'COVID19 and COVID-19', 'Y2K bug', 'PS4 and PS5', 'H1N1 flu', 'NO1 choice',
+  for (const text of ['A4 paper', 'MP3 player', 'B2B sales', 'B2C and C2C', 'COVID19 and COVID-19', 'Y2K bug', 'PS4 and PS5', 'WP4 and WP12 tasks', 'H1N1 flu', 'NO1 choice',
     'CS2030 is a course', 'IPv4 address', 'HTTP2 protocol', 'version 2.5.1 and v2.5.1', 'm2 and kg2 in prose', '2026-10-04', 'range 3-5',
     'C++ and C#', 'Wi-Fi6 router', 'H264 video', 'EC2 and S3 buckets', 'K2 mountain', 'F2 key', 'A+ grade', 'I- and B+ and C-', 'He said No2',
     'NaCl and HCl and NaOH have no digits', 'water', '3D printing', '4K screen', 'x2 speed', 'pH 7']) {

@@ -64,3 +64,10 @@ test('wrapMathText wraps only the math spans and leaves the prose alone', () => 
   assert.equal(wrapMathText('已有 $x+1$'), '已有 $x+1$');
   assert.equal(wrapMathText('Fill {{b1}} where x+1 appears.'), 'Fill {{b1}} where x+1 appears.');
 });
+
+test('a power chain with a space-separated product is one span, a capital variable joins it, and links beside it are not touched', () => {
+  assert.deepEqual(bareMathText('z^l = W^l a^{l-1} + b^l'), ['z^l = W^l a^{l-1} + b^l']);
+  assert.deepEqual(bareMathText('复杂度 O(n^2) 与 O(n log n)'), ['O(n^2)']);
+  assert.deepEqual(bareMathText('1+1 a and A/B and N-1'), []);
+  assert.equal(wrapMathText('Take z^l + b^l, see https://example.com/rule.'), 'Take $z^{l} + b^{l}$, see https://example.com/rule.');
+});

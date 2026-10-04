@@ -467,7 +467,8 @@ test('a formula written outside math delimiters is wrapped (author text and blue
   assert.match(wrapped.cards[0].prompt, /Take \$z\^l = W\^l a\^\{l-1\} \+ b\^l\$ as the layer rule\./);
   assert.equal(wrapped.editorial.autofixed, 1);
   const unfixable = candidate();
-  unfixable.cards[0].answer += ' Take z^l = W^l a^{l-1} + b^l as the layer rule, see https://example.com/rule.';
+  // TeX next to a link is not wrapped by the string-based TeX pass; plain-text math (z^l = …) beside a link is wrapped in place.
+  unfixable.cards[0].answer += ' Take \\frac{l}{2} as the layer rule, see https://example.com/rule.';
   await assert.rejects(generateWith(unfixable), /formula outside math delimiters/);
   const answered = candidate();
   answered.cards[0].answer += ' Take z^l = W^l a^{l-1} + b^l as the layer rule.';
