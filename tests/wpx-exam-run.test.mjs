@@ -284,6 +284,51 @@ test('the hook renders in setup and exposes the controller verbs', () => {
   assert.equal(renderToStaticMarkup(React.createElement(Probe, { call: async () => {} })), '<p>setup|false|false|0|function|function</p>');
 });
 
+const MINE = ['ui/Exam.jsx', 'ui/OralExam.jsx', 'ui/CaseWorkspace.jsx', 'ui/CaseCreate.jsx', 'ui/CaseResult.jsx', 'ui/ExamShell.jsx', 'ui/SubmitBlanksDialog.jsx',
+  'ui/exam/WrittenSetup.jsx', 'ui/exam/WrittenReport.jsx', 'ui/AudioImport.jsx', 'ui/audio/AudioJobs.jsx', 'ui/audio/AudioCorrections.jsx', 'ui/audio/AudioWorkspace.jsx'];
+const code = async (file) => (await read(file)).replace(/^\s*\/\*[\s\S]*?\*\//gm, '').replace(/^\s*\/\/.*$/gm, '');
+
+test('no sentence is cut into ui() fragments around a value, and no copy is picked by language in JSX (#107 #123)', async () => {
+  for (const file of MINE) {
+    const source = await code(file);
+    assert.doesNotMatch(source, /\{ui\((["'`])[^"'`]*\1\)\}\s*\{[^{}]+\}\s*\{ui\(/, `${file}: one uiFormat('… {0} …', [value]) instead of ui(a){value}ui(b)`);
+    assert.doesNotMatch(source, /ui\((["'`])[^"'`]*\1\)\s*\+\s*[(\w]/, `${file}: no ui(...) + value`);
+    assert.doesNotMatch(source, /getUiLanguage\(\) === ["']en["']\s*\?\s*["'`][^"'`]{4,}/, `${file}: no per-language strings`);
+  }
+});
+
+test('the exam and audio pages tell the app through the toast, not through a note prop (#91)', async () => {
+  for (const file of MINE) assert.doesNotMatch(await code(file), /\b(onNotice|setNotice|notify)\b/, `${file}: useToast()`);
+  for (const file of ['ui/CaseWorkspace.jsx', 'ui/CaseCreate.jsx', 'ui/AudioImport.jsx']) assert.match(await code(file), /useToast\(\)/, file);
+});
+
+test('the pages use PageHeader, Panel and the shared model gate with their existing props (#142 #143 #104)', async () => {
+  for (const file of MINE) assert.doesNotMatch(await code(file), /<h1\b|className="(page-heading|oral-heading|manage-head)"/, `${file}: the one h1 is PageHeader's`);
+  assert.match(await code('ui/exam/WrittenReport.jsx'), /<PageHeader\b/);
+  assert.match(await code('ui/Exam.jsx'), /<PageHeader\b[^>]*eyebrow/);
+  assert.match(await code('ui/OralExam.jsx'), /<PageHeader\b/);
+  assert.match(await code('ui/Exam.jsx'), /<Panel className="exam-card"/);
+  for (const name of ['oral-question', 'oral-report']) assert.match(await code('ui/OralExam.jsx'), new RegExp(`<Panel className="${name}"`));
+  assert.match(await code('ui/CaseWorkspace.jsx'), /<Panel as="article"[^>]*case-question/);
+  assert.match(await code('ui/ExamShell.jsx'), /<Panel className="es-recent"/);
+  for (const file of ['ui/CaseWorkspace.jsx', 'ui/CaseCreate.jsx', 'ui/OralExam.jsx']) {
+    const source = await code(file);
+    assert.match(source, /<ModelSetupGate\b/, file);
+    assert.doesNotMatch(source, /<SetupRequired\b/, `${file}: the gate is ModelSetupGate`);
+  }
+  for (const file of MINE) assert.doesNotMatch(await code(file), /先配置一个 AI 模型|还没有可用的 AI 模型["，。]|没有可用模型/, `${file}: the gate copy table is ModelSetupGate.jsx`);
+});
+
+test('the pages hold no raw buttons or legacy button classes except the answer cards and the highlighter (#135 #153)', async () => {
+  const allowed = { 'ui/Exam.jsx': 1, 'ui/CaseWorkspace.jsx': 4 };
+  for (const file of MINE) {
+    const source = await code(file);
+    assert.equal((source.match(/<button(?![\w-])/g) || []).length, allowed[file] || 0, `${file}: raw <button>`);
+    assert.doesNotMatch(source, /className="[^"]*\b(primary|link-btn|ghost-btn|pill|danger-text)\b/, `${file}: legacy button class`);
+    assert.doesNotMatch(source, />\s*[×✕−＋↑↓▸▾▶‹›✓♫✧♧]\s*</, `${file}: glyph as icon`);
+  }
+});
+
 test('the three pages run on the hook: no private phase machine, interval timer, or clock function (#132 acceptance)', async () => {
   for (const file of ['ui/Exam.jsx', 'ui/CaseWorkspace.jsx', 'ui/OralExam.jsx']) {
     const source = await read(file);

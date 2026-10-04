@@ -197,9 +197,9 @@ test('AudioImport.jsx is the form: 350 lines at most, and the jobs and correctio
 });
 
 test('the audio form and its modules keep no private copy of the limits, the extension lists or the glyph icons (#120 #127 #145 #135)', async () => {
-  for (const file of ['ui/AudioImport.jsx', 'ui/audio/AudioJobs.jsx', 'ui/audio/AudioCorrections.jsx', 'ui/audio/WorkspaceAudio.jsx', 'ui/audio/formats.js', 'ui/audio/preflight.js',
+  for (const file of ['ui/AudioImport.jsx', 'ui/audio/AudioJobs.jsx', 'ui/audio/AudioCorrections.jsx', 'ui/audio/AudioWorkspace.jsx', 'ui/audio/formats.js', 'ui/audio/preflight.js',
     'ui/audio/useAudioPreflight.js', 'ui/audio/useAudioUpload.js', 'ui/audio/audio-upload.js']) {
-    const source = (await read(file)).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const source = (await read(file)).replace(/^\s*\/\*[\s\S]*?\*\//gm, '').replace(/^\s*\/\/.*$/gm, '');
     // The one byte count left is the piece cap of the upload protocol (the host's UPLOAD_CHUNK_BYTES), in audio-upload.js.
     assert.doesNotMatch(source, file === 'ui/audio/audio-upload.js' ? /\b512 MB|\b8 MB/ : /\b512 MB|\b8 MB|1024 \* 1024/, `${file}: sizes come from lib/audio-formats and formatBytes`);
     assert.doesNotMatch(source, /['"]\.(flac|mp3|wav|m4a|srt|vtt)['"]/, `${file}: no extension literal`);

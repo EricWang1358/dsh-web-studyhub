@@ -40,7 +40,7 @@ export function createExamRun(read) {
     isBusy: () => flying,
 
     /** A new identity (the page opened another run): results of earlier work are ignored and the page is free to act. */
-    begin() { epoch += 1; flying = false; set({ busy: false }); },
+    begin() { epoch += 1; flying = false; if (state.busy) set({ busy: false }); },
     /** The page left: whatever is still in flight is ignored. */
     end() { epoch += 1; flying = false; },
 

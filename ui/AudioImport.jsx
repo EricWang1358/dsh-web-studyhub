@@ -1,4 +1,4 @@
-import { getUiLanguage, ui, uiFormat, uiMessage, useUiLanguage } from "./i18n.js";
+import { ui, uiFormat, uiMessage, useUiLanguage } from "./i18n.js";
 import React, { useRef, useState } from "react";
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { Button, FileDrop, Hint, Icon, IconButton, InlineMessage, ProgressBar, useToast } from './components/index.js';
@@ -12,7 +12,7 @@ import { baseName } from './file-names.js';
 import { unquotePath } from './paths.js';
 import { SUBTITLE_EXTENSIONS } from '../lib/audio-formats.js';
 import { AudioJobs, aboutSettings } from './audio/AudioJobs.jsx';
-import WorkspaceAudio from './audio/WorkspaceAudio.jsx';
+import AudioWorkspace from './audio/AudioWorkspace.jsx';
 import { AUDIO_ACCEPT, audioFileProblem, audioFormatNames, audioLimitLabel, isSubtitleName, pathsFromDrop, subtitleFormatNames, subtitleProblem } from './audio/formats.js';
 import { inputOf, preflightNotes } from './audio/preflight.js';
 import { useAudioPreflight } from './audio/useAudioPreflight.js';
@@ -232,11 +232,9 @@ export default function AudioImport({ data, busy, act, call, askInChat, canAsk =
           <Hint as="small">{ui('也可把更多音频拖到这里')}</Hint>
         </div>}
         <div className="audio-ways">
-          <WorkspaceAudio call={call} onPick={(picked) => pickPath(picked.path, picked.size)} />
+          <AudioWorkspace call={call} onPick={(picked) => pickPath(picked.path, picked.size)} />
           {canAsk && askInChat && <Button variant="link" size="sm" disabled={busy}
-            onClick={() => askInChat(getUiLanguage() === "en"
-              ? "Please import these audio files in the order I choose as one transcript with audio.import files:[{path:...}]. Use absolute paths: @"
-              : "请把这些音频按我指定的顺序合成一份逐字稿（用 audio.import files:[{path:...}]，路径用绝对路径）：@")}>{ui("在对话里用 @ 选文件")}</Button>}
+            onClick={() => askInChat(ui("请把这些音频按我指定的顺序合成一份逐字稿（用 audio.import files:[{path:...}]，路径用绝对路径）：@"))}>{ui("在对话里用 @ 选文件")}</Button>}
           <details className="audio-path"><summary>{ui("粘贴文件路径（高级）")}</summary>
             <div className="audio-path-row">
               <input value={pathText} onChange={(event) => setPathText(event.target.value)} placeholder={ui("例如：C:\\Users\\你\\Downloads\\lecture.mp3")}

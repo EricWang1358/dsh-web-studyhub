@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { ui, uiFormat } from "../i18n.js";
-import { Hint, InlineMessage } from "../components/index.js";
+import { Button, Hint, InlineMessage } from "../components/index.js";
 import { formatBytes, formatDateTime } from "../format.js";
 
 /** Search the session workspace for audio, like @ in the composer: type a few letters, pick one. */
-export default function WorkspaceAudio({ call, onPick }) {
+export default function AudioWorkspace({ call, onPick }) {
   const [state, setState] = useState({ status: "idle", files: [], truncated: false, error: "" });
   const [query, setQuery] = useState(""), [opened, setOpened] = useState(false);
   useEffect(() => {
@@ -28,11 +28,11 @@ export default function WorkspaceAudio({ call, onPick }) {
       {state.files.length > 0 && <ul className="audio-files">
         {state.files.map((file) => (
           <li key={file.path}>
-            <button type="button" onClick={() => onPick(file)}>
+            <Button variant="quiet" className="audio-file" onClick={() => onPick(file)}>
               <strong>{file.name}</strong>
               <small>{file.rel.slice(0, Math.max(0, file.rel.length - file.name.length)).replace(/[\\/]$/, "") || ui("工作区根目录")}</small>
               <small>{formatBytes(file.size)} · {formatDateTime(file.modified, "day")}</small>
-            </button>
+            </Button>
           </li>
         ))}
       </ul>}

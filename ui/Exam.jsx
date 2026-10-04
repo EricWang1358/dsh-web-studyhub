@@ -148,7 +148,7 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
       selected: next,
     })).then(() => exam.setError(""), (e) => exam.setError(startMs && Date.now() - startMs >= EXAM_LIMIT_MS
       ? ui("考试时间已到，未确认保存的选择可能不会计入成绩。")
-      : ui("选择尚未保存，请重新选择后继续：") + (e.message || String(e))));
+      : uiFormat("选择尚未保存，请重新选择后继续：{0}", [e.message || String(e)])));
   }
 
   const move = (direction) => {
