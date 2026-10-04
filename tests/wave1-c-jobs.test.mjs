@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // UI wave 1 · WP-C: background job rows (#98, #100) and the .warning-as-error sites (#88) in the files this package owns.
 const read = async path => (await readFile(path, 'utf8')).replace(/\r\n/g, '\n');
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { AudioJobs } from './ui/AudioImport.jsx'; export { default as GenerationTrace } from './ui/GenerationTrace.jsx'; export { setUiLanguage } from './ui/i18n.js'; export { QuickActionsContext } from './ui/quick-actions.js';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export { AudioJobs } from './ui/audio/AudioJobs.jsx'; export { default as GenerationTrace } from './ui/GenerationTrace.jsx'; export { setUiLanguage } from './ui/i18n.js'; export { QuickActionsContext } from './ui/quick-actions.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);

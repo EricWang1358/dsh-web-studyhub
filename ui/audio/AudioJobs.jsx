@@ -7,8 +7,7 @@ import { formatElapsed } from "../format.js";
 import { isActiveJob, isCancellable } from "../../lib/job-status.js";
 
 /* The background audio imports as cards: phase, real progress, the model tasks behind them, what they cost, and what to do next.
-   Shown in the add-source form, at the top of the sources page and in the reader (they import AudioJobs through AudioImport.jsx
-   until their owners switch to this file). */
+   Shown in the add-source form, at the top of the sources page and in the reader. */
 
 const PHASES = {
   queued: "排队中", read: "读取并切分音频", transcribe: "转写音频",
@@ -75,8 +74,7 @@ export function audioProgress(job, now = Date.now()) {
 }
 
 function OpenAgent({ task, openAgent }) {
-  // AgentLink draws its own plain button; the Button classes give it the link look until it renders <Button variant="link"> itself.
-  return <AgentLink childId={task.childId} openAgent={openAgent} className="sh-btn sh-btn--link sh-btn--sm"
+  return <AgentLink childId={task.childId} openAgent={openAgent}
     ariaLabel={uiFormat('查看子代理：{0}', [taskLabel(task)])} label={ui("查看子代理")} />;
 }
 

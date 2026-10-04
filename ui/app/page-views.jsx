@@ -100,7 +100,7 @@ function ExamView() {
       onLocation={(location) => { core.refs.examLocation.current = location; }}
       onStartRun={(next, origin) => { if (origin) learn.rememberContext(learn.captureContext({ page: 'exam', exam: origin })); session.enterRun(next); }}
       onExit={() => nav.navigate('library')} onCreate={() => intents.goGenerate()} onCreateCase={() => intents.goGenerate({ source: 'case' })}
-      onSetupModel={settingsEntry.openModelSettings} onNotice={core.notify} />
+      onSetupModel={settingsEntry.openModelSettings} />
   );
 }
 
@@ -157,7 +157,7 @@ function AudioView() {
   return (
     <section className="page">
       <AudioHeader onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')} />
-      <AudioImport data={data} busy={core.busy} act={core.act} call={core.call} setNotice={core.notify} askInChat={core.askInChat} canAsk={!!host.askInChat}
+      <AudioImport data={data} busy={core.busy} act={core.act} call={core.call} askInChat={core.askInChat} canAsk={!!host.askInChat}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
       <AudioDashboard call={core.call} />

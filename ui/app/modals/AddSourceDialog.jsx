@@ -11,7 +11,7 @@ import { useApp } from '../app-context.js';
 export function SourceForm() {
   const { data, host, core, nav, set, sources, learn, settingsEntry } = useApp();
   if (!hasContext(data, 'materials')) return <p role="status">{ui('请在 DSH 插件管理器中启用资料组件，再导入资料。')}</p>;
-  const { call, act, busy, notify, askInChat, refresh } = core;
+  const { call, act, busy, askInChat, refresh } = core;
   return (
     <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sources.formCourse} onCourseChange={sources.changeFormCourse}
       pasteDraft={sources.paste} onPasteDraftChange={(draft) => sources.setPaste({ title: draft.title, text: draft.text })}
@@ -19,7 +19,7 @@ export function SourceForm() {
       onOpenSettings={(section) => { set.setModal(null); settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru'); }}
       onOpenSources={(ids) => { nav.navigate('sources'); learn.openAudioSources(ids); }}
       audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sources.formCourse)} busy={busy} act={act} call={call}
-        setNotice={notify} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
+        askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
         onOpenSettings={() => { set.setModal(null); nav.navigate('settings'); }} /> : undefined} />
   );
 }

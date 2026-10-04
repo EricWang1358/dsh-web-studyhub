@@ -169,9 +169,9 @@
       "ui/components/components.css",
       "ui/components/disclosure.css",
       "ui/course-field.css",
+      "ui/generate-tabs.css",
       "ui/review/question.css",
-      "ui/skeleton.css",
-      "ui/generate-tabs.css"
+      "ui/skeleton.css"
     ],
     "is-compact": [
       "ui/course-settings.css",
@@ -444,6 +444,7 @@
       "ui/app/app-shell.css",
       "ui/audio-settings.css",
       "ui/board/board.css",
+      "ui/components/button-variants.css",
       "ui/components/components.css",
       "ui/components/feedback.css",
       "ui/components/secret-key.css",
@@ -457,14 +458,13 @@
       "ui/generation-path.css",
       "ui/jev.css",
       "ui/mineru.css",
+      "ui/review-buttons.css",
       "ui/review/review.css",
       "ui/settings.css",
       "ui/setup-checklist.css",
       "ui/sources.css",
       "ui/tour/onboarding.css",
-      "ui/wrongbook.css",
-      "ui/components/button-variants.css",
-      "ui/review-buttons.css"
+      "ui/wrongbook.css"
     ],
     "sh-btn--icon": [
       "ui/components/components.css",
@@ -472,18 +472,18 @@
       "ui/document-preview/reader/reader.css"
     ],
     "sh-btn--link": [
+      "ui/components/button-variants.css",
       "ui/components/components.css",
       "ui/course-settings.css",
       "ui/welcome.css",
-      "ui/wrongbook.css",
-      "ui/components/button-variants.css"
+      "ui/wrongbook.css"
     ],
     "sh-btn--primary": [
+      "ui/coach.css",
       "ui/components/components.css",
       "ui/exam-setup.css",
       "ui/generate-home.css",
-      "ui/workflows.css",
-      "ui/coach.css"
+      "ui/workflows.css"
     ],
     "sh-btn--quiet": [
       "ui/components/components.css",
@@ -585,9 +585,9 @@
       "ui/components/page-header.css"
     ],
     "sh-panel": [
+      "ui/audio-panels.css",
       "ui/charts/charts.css",
       "ui/components/components.css",
-      "ui/audio-panels.css",
       "ui/panel-migrations.css"
     ],
     "sh-panel__head": [
@@ -619,10 +619,10 @@
     ],
     "sh-seg__item": [
       "ui/blog-notes.css",
+      "ui/components/button-variants.css",
       "ui/components/components.css",
       "ui/exam-setup.css",
-      "ui/wrongbook.css",
-      "ui/components/button-variants.css"
+      "ui/wrongbook.css"
     ],
     "sh-setup": [
       "ui/components/components.css",
@@ -672,8 +672,8 @@
     ],
     "source-mode": [
       "ui/generate-home.css",
-      "ui/sources-page.css",
-      "ui/generate-tabs.css"
+      "ui/generate-tabs.css",
+      "ui/sources-page.css"
     ],
     "source-row-actions": [
       "ui/sources-page.css",

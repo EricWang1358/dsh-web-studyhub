@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
 import Inbox from '../../ui/Inbox.jsx';
-import { AudioJobs } from '../../ui/AudioImport.jsx';
+import { AudioJobs } from '../../ui/audio/AudioJobs.jsx';
 import MineruSettings from '../../ui/MineruSettings.jsx';
 import Exam from '../../ui/Exam.jsx';
 

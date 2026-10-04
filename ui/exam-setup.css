@@ -6,8 +6,8 @@
 @layer study.features {
   :where(.study-app, .study-seat) {
     .es-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4) var(--space-6); margin-top: var(--space-4); }
-    .es-controls .page-scope { margin: 0; display: grid; gap: var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
-    .es-controls .page-scope select { min-height: 38px; font-weight: var(--fw-regular); }
+    .es-header .page-scope { margin: 0; display: grid; gap: var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+    .es-header .page-scope select { min-height: 38px; font-weight: var(--fw-regular); }
     .es-format { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; }
     .es-label { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .es-format .sh-seg { max-width: 100%; }
@@ -109,7 +109,7 @@
       .es-format .sh-seg { width: 100%; }
       .es-format .sh-seg__item { flex: 1 1 0; justify-content: center; padding: var(--space-1) 6px; gap: var(--space-1); }
       .es-controls { align-items: stretch; }
-      .es-controls .page-scope, .es-controls .page-scope select { width: 100%; max-width: none; }
+      .es-header .page-scope, .es-header .page-scope select { width: 100%; max-width: none; }
       .es-foot .sh-btn--primary { width: 100%; }
       .es-recent { padding: var(--space-4); }
       .es-recent__row { flex-wrap: wrap; }

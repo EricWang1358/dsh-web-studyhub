@@ -182,6 +182,7 @@
 ## 开发者参考
 
 - 服务端操作：`coach.nudge` `coach.reply` `coach.feedback` `coach.consent` `coach.goal` `coach.debrief` `coach.practice` `coach.revert` `coach.status` `coach.profile` `coach.forget` `coach.prepare` `coach.variants` `coach.rewrite.retry`。
+- `coach.feedback { vote, tags, rewriteVia }`：面板自己打开「修题」框处理改题类标签时，会传 `rewriteVia: "assist"`。此时不再启动后台静默改题（改题只留一条可见的后台助教路径），返回里带 `fix`，即面板应当提供修题的改题标签；`scheduled` 里没有 `rewrite`。没有这个参数的客户端仍走后台改题，返回里没有 `fix`。
 - 从 1.0.0 起，做题页不再有陪学栏。`coach.nudge`（客观题答错或自评低于 3 分后的陪学点，模拟考试不提供）和 `coach.reply`（懂了、还是不懂、回答小检查；每个陪学点最多再换 2 个角度讲）仍保留在服务端，但面板不会调用。同时发起的相同请求共用一次调用。
 - 在结果页调用 `coach.consent { prep: true, runId }` 时，也会把这一轮需要的应用题加入备题。
 - `coach.forget` 只清空 `learner` 和待练的 `prepared`。

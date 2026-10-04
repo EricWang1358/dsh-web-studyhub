@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import { formatNumber } from "./format.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AudioJobs } from "./AudioImport.jsx";
+import { AudioJobs } from "./audio/AudioJobs.jsx";
 import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';

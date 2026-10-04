@@ -29,11 +29,6 @@ import { useAudioUpload } from './audio/useAudioUpload.js';
    选文件不用输路径：拖进来或点击选择（浏览器把文件分块传给插件，ui/audio/useAudioUpload.js），从工作区里搜，
    或在对话输入框里用 @ 选。手输路径留在「高级」里。 */
 
-// Sources and the reader still import these from here; their owners switch to ui/audio/* later.
-export { AudioJobs, audioProgress, textStepsRan } from './audio/AudioJobs.jsx';
-export { AudioCorrections } from './audio/AudioCorrections.jsx';
-export { preflightNotes } from './audio/preflight.js';
-
 const subtitleAlone = () => ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。");
 
 export default function AudioImport({ data, busy, act, call, askInChat, canAsk = false, openAgent, onOpenSources, initialFile = null, initialFiles, defaultCourse, defaultCourses, recoveryJobId = '', onRecoveryChange,
@@ -272,9 +267,9 @@ export default function AudioImport({ data, busy, act, call, askInChat, canAsk =
               </span>}
             </div>
             <div className="audio-order-actions">{files.length > 1 && <>
-              <IconButton size="sm" icon={<Icon name="chevron" size={16} className="audio-order-icon audio-order-icon--up" />} label={uiFormat('上移 {0}', [file.name])}
+              <IconButton size="sm" icon={<Icon name="arrow-up" size={16} />} label={uiFormat('上移 {0}', [file.name])}
                 disabled={busy} aria-disabled={busy || index === 0} onClick={() => move(index, index - 1)} />
-              <IconButton size="sm" icon={<Icon name="chevron" size={16} className="audio-order-icon audio-order-icon--down" />} label={uiFormat('下移 {0}', [file.name])}
+              <IconButton size="sm" icon={<Icon name="arrow-down" size={16} />} label={uiFormat('下移 {0}', [file.name])}
                 disabled={busy} aria-disabled={busy || index === files.length - 1} onClick={() => move(index, index + 1)} />
             </>}<Button size="sm" variant="quiet" disabled={busy} aria-label={uiFormat('移除 {0}', [file.name])} onClick={() => remove(index)}>{ui(files.length === 1 ? '换一个' : '移除')}</Button></div>
           </li>;

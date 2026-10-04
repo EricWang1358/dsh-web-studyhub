@@ -13,7 +13,7 @@ import { mapProps } from './helpers/study-map-props.mjs';
 
 const compiled = await build({
   stdin: { contents: `export { default as StudyMap } from './ui/StudyMap.jsx';
-    export { AudioJobs } from './ui/AudioImport.jsx';
+    export { AudioJobs } from './ui/audio/AudioJobs.jsx';
     export { QuickActionsContext } from './ui/quick-actions.js';
     export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".json": "json", ".css": "text" },

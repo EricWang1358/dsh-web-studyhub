@@ -82,7 +82,7 @@ export default function Settings({
   onFocused,
 }) {
   useInjectCss(css, 'study-settings');
-  const { call, act, busy, host, notify: setNotice } = useStudy();
+  const { call, act, busy, host } = useStudy();
   // The section shell is a shared component; sections still written by hand elsewhere borrow its stylesheet.
   useComponentCss(fieldsCss, 'study-fields');
   const [profile, setProfile] = useState(initialProfile);
@@ -133,7 +133,7 @@ export default function Settings({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);
   // Everything a pane may need. Panes take what they use and nothing else.
-  const services = { data, busy, act, call, host, setNotice, settings, setSettings, legacy, setLegacy,
+  const services = { data, busy, act, call, host, settings, setSettings, legacy, setLegacy,
     exportData, onRestored, appearance, profile, setProfile, capabilities, status };
   const selected = available.find((item) => item.id === active) || available[0];
   return (

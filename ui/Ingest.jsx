@@ -4,19 +4,7 @@ import CourseField from './CourseField.jsx';
 import { Button, SegmentedControl } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
-
-const KINDS = [
-  ["auto", "自动识别", "有选项保持单选/多选，没有选项做成问答闪卡"],
-  ["flashcard", "闪卡", "一律做成问答闪卡"],
-  ["quiz", "单选 MQ", "一律做成单选，没有选项的补干扰项"],
-  ["multi", "多选", "一律做成多选"],
-  ["open", "开放问答", "需要论述的题，附评分标准"],
-];
-const MISTAKES = [
-  ["auto", "按我标注的", "标了自己选错的才记为错题"],
-  ["all", "全部当错题", "这批都是错题记录，全部优先复习"],
-  ["none", "都不算错题", "只是收集题目"],
-];
+import { INGEST_KINDS, INGEST_MISTAKES } from './agent-prompts/ingest.js';
 
 /** Setup for recording questions straight from the conversation. */
 export default function Ingest({ data, busy, start, onOpenSettings }) {
@@ -78,14 +66,14 @@ export default function Ingest({ data, busy, start, onOpenSettings }) {
       <fieldset>
         <legend>{ui("02 / 题型")}</legend>
         <SegmentedControl label={ui("02 / 题型")} value={kind} onChange={setKind}
-          options={KINDS.map(([value, label, note]) => ({ value, label: ui(label), title: ui(note) }))} />
-        <small className="sh-seg-note">{ui(KINDS.find(([id]) => id === kind)[2])}</small>
+          options={INGEST_KINDS.map(({ id, label, hint }) => ({ value: id, label: ui(label), title: ui(hint) }))} />
+        <small className="sh-seg-note">{ui(INGEST_KINDS.find((item) => item.id === kind).hint)}</small>
       </fieldset>
       <fieldset>
         <legend>{ui("03 / 错题怎么记")}</legend>
         <SegmentedControl label={ui("03 / 错题怎么记")} value={mistakes} onChange={setMistakes}
-          options={MISTAKES.map(([value, label, note]) => ({ value, label: ui(label), title: ui(note) }))} />
-        <small className="sh-seg-note">{ui(MISTAKES.find(([id]) => id === mistakes)[2])}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
+          options={INGEST_MISTAKES.map(({ id, label, hint }) => ({ value: id, label: ui(label), title: ui(hint) }))} />
+        <small className="sh-seg-note">{ui(INGEST_MISTAKES.find((item) => item.id === mistakes).hint)}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
       </fieldset>
       <ModelSetupGate variant="inline" feature="ingest" model={modelReadiness(data)} onOpenSettings={onOpenSettings} />
       <Button type="submit" variant="primary" block busy={busy} disabled={!data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题 → 去对话里粘贴")}</Button>

@@ -151,7 +151,7 @@ export default function CaseCreate({ data, busy, act, call, onStarted, openImpor
             {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}
           </Button>
         ) : (
-          <ModelSetupGate variant="block" feature="generate" model={model} onOpenSettings={openSettings} />
+          <ModelSetupGate variant="block" feature="case" model={model} onOpenSettings={openSettings} />
         )}
       </div>
     </form>

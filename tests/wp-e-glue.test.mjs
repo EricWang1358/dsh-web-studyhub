@@ -157,7 +157,7 @@ test('a running job row is neutral or info at the border, never cinnabar', () =>
 });
 
 test('the transcript link of a finished audio job sits in the actions row beside 知道了', async () => {
-  const audio = await loadUi(`export { AudioJobs } from './ui/AudioImport.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+  const audio = await loadUi(`export { AudioJobs } from './ui/audio/AudioJobs.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
   audio.setUiLanguage('zh');
   const job = { type: 'audio-import', id: 'c', status: 'complete', filename: 'lecture.mp3', phase: 'done', sourceIds: ['s1'], finishedAt: new Date().toISOString(), startedAt: new Date(Date.now() - 5000).toISOString(), steps: {}, warnings: [] };
   const out = renderToStaticMarkup(h(audio.AudioJobs, { data: { jobs: [job] }, busy: false, act() {}, onOpenSources() {} }));

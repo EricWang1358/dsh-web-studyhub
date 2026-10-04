@@ -24,6 +24,11 @@ const FEATURES = {
     line: ui('生成题目需要先配置模型。'),
     note: ui('可以先选好资料和题型；生成前需要先配置模型。'),
   }),
+  // Writing a case paper is generating, with its own button to come back to.
+  case: (model) => ({
+    ...FEATURES.generate(model),
+    then: ui('回到这里，点「出一套案例题」'),
+  }),
   grade: () => ({
     badge: ui('批改需要模型'),
     why: ui('批改要调用 AI 模型。答案会先保存；配置好模型后点「重新提交批改」。'),
@@ -55,7 +60,7 @@ const FEATURES = {
 export const gateMessage = (feature = 'generate', model) => (FEATURES[feature] || FEATURES.generate)(model || {}).line;
 
 /**
- * variant: 'block' | 'inline' | 'banner'; feature: 'generate' | 'grade' | 'ingest' | 'translate' | 'variants'. `model` is the readiness
+ * variant: 'block' | 'inline' | 'banner'; feature: 'generate' | 'case' | 'grade' | 'ingest' | 'translate' | 'variants'. `model` is the readiness
  * ({ ready, reason, label }, see modelReadiness): a ready model renders nothing. Without onOpenSettings there is no button.
  * Other props (data-tour…) go to the outer element.
  */

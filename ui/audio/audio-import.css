@@ -2,9 +2,6 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
-    /* The audio form's reorder buttons share one chevron icon, turned to point up or down (Icon has no vertical arrows yet). */
-    .audio-order-icon--up { transform: rotate(-90deg); }
-    .audio-order-icon--down { transform: rotate(90deg); }
     /* A workspace file is a list row (name, folder, size) that is also a Button: it takes the row's width and layout. */
     .audio-files .audio-file {
       display: grid;
