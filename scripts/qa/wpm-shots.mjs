@@ -1,4 +1,3 @@
-/* global document */
 /* node scripts/qa/wpm-shots.mjs [--out <dir>]
    Screenshots of the materials / import / generation-status / update surfaces (UI consistency wave 2, WP-M) from fixed-props galleries
    (scripts/qa/wpm-gallery.jsx and scripts/qa/mineru-gallery.jsx): the deck-merge confirmation, the PDF job rows and the history,
