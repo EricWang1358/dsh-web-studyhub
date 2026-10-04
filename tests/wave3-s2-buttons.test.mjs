@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // SegmentedControl gains fill / wrap / stack / xs, so features stop re-skinning
 // .sh-btn and .sh-seg in their own CSS.
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export * from './ui/components/index.js'; export { busyWidthStyle } from './ui/components/Button.jsx';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export * from './ui/components/index.js'; export { holdWidth } from './ui/components/Button.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -40,11 +40,12 @@ test('Button: busy keeps its width, announces aria-busy and can swap its label',
   assert.match(busy, /保存中…/);
   assert.doesNotMatch(busy, />保存</, 'the idle label is replaced');
   assert.match(html(m.Button, { busyLabel: '保存中…' }, '保存'), />保存</, 'busyLabel only shows while busy');
-  assert.deepEqual(m.busyWidthStyle(true, 132, undefined), { minWidth: 132 });
-  assert.deepEqual(m.busyWidthStyle(true, 132, { color: 'red' }), { color: 'red', minWidth: 132 });
-  assert.equal(m.busyWidthStyle(false, 132, undefined), undefined);
-  assert.equal(m.busyWidthStyle(true, 0, undefined), undefined);
-  assert.deepEqual(m.busyWidthStyle(false, 132, { color: 'red' }), { color: 'red' });
+  // A press records the width; the stylesheet holds it only while aria-busy is on.
+  const stored = {};
+  m.holdWidth({ offsetWidth: 132, style: { setProperty: (name, value) => { stored[name] = value; } } });
+  assert.deepEqual(stored, { '--sh-held-width': '132px' });
+  assert.doesNotThrow(() => m.holdWidth(null));
+  assert.match(css, /\.sh-btn\[aria-busy="true"\]\s*\{\s*min-width:\s*var\(--sh-held-width/);
 });
 
 test('SegmentedControl: fill, wrap, stack and xs are class modifiers', () => {

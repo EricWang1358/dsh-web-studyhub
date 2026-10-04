@@ -17,6 +17,8 @@
     display: flex;
     width: 100%;
   }
+  /* Busy keeps the width the press measured (Button stores it in --sh-held-width). */
+  .sh-btn[aria-busy="true"] { min-width: var(--sh-held-width, 0); }
   .sh-btn--start { justify-content: flex-start; text-align: start; }
   .sh-btn--center { justify-content: center; text-align: center; }
   /* Pill is for toggle buttons only (Button drops it without aria-pressed). */

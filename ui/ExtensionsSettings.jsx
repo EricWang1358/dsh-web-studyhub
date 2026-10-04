@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Disclosure, Field, InlineMessage, Select, SettingsSection, TextInput } from './components/index.js';
+import { Button, Disclosure, Field, InlineMessage, Select, SettingsSection, TextInput, useToast } from './components/index.js';
 import { AdvancedTools, ConverterMain, DetectionLine, providerLabel } from './LargeDocumentCard.jsx';
 import ExtensionPanel from './ExtensionPanel.jsx';
 import { useAsyncAction } from './use-async.js';
@@ -18,8 +18,9 @@ export { providerLabel };
 const NOTHING = { selected: 'builtin', effective: 'builtin', hostCanSearch: false, providers: [], otherTools: [] };
 const stripTool = value => String(value ?? '').replace(/^mcp:/, '');
 
-/** Props: call(action, args), initialStatus (skips the first read; tests and previews), courses + defaultCourse (the index), setNotice. */
-export default function ExtensionsSettings({ call, initialStatus = null, courses = [], defaultCourse = '', setNotice, onStatus, initialPlan, initialRun }) {
+/** Props: call(action, args), initialStatus (skips the first read; tests and previews), courses + defaultCourse (the index). */
+export default function ExtensionsSettings({ call, initialStatus = null, courses = [], defaultCourse = '', onStatus, initialPlan, initialRun }) {
+  const toast = useToast();
   useInjectCss(css, 'study-large-documents');
   const [status, setStatus] = useState(initialStatus);
   const [probe, setProbe] = useState(null);
@@ -36,12 +37,12 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
   const current = status || NOTHING;
   const choose = provider => { setProbe(null); return run('choose', async () => {
     accept(await call('retrieval.set', { provider }));
-    setNotice?.({ text: provider === 'builtin' ? ui('已改为不使用检索。') : ui('已选择检索工具。出题时，超过 15 万字的选择会先用它挑出相关页面。'), tone: 'success' });
+    toast.success(provider === 'builtin' ? ui('已改为不使用检索。') : ui('已选择检索工具。出题时，超过 15 万字的选择会先用它挑出相关页面。'));
   }); };
   const test = () => { setProbe(null); return run('test', async () => { setProbe(await call('retrieval.test', {})); }); };
   const saveEndpoint = () => run('endpoint', async () => {
     accept(await call('retrieval.endpoint.set', { endpoint }));
-    setNotice?.({ text: endpoint ? ui('已保存模型下载地址。重启 DSH 后生效。') : ui('已恢复默认的模型下载地址。重启 DSH 后生效。'), tone: 'success' });
+    toast.success(endpoint ? ui('已保存模型下载地址。重启 DSH 后生效。') : ui('已恢复默认的模型下载地址。重启 DSH 后生效。'));
   });
   const mcpOthers = current.otherTools || [];
   const canChoose = current.providers.length > 0 || mcpOthers.length > 0;

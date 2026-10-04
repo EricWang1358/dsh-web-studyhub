@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useRef } from 'react';
+import React, { forwardRef } from 'react';
 import css from './components.css';
 import variantsCss from './button-variants.css';
 import { useComponentCss, cx } from './css.js';
@@ -8,11 +8,8 @@ const VARIANTS = new Set(['primary', 'secondary', 'quiet', 'link', 'danger']);
 const ALIGNS = new Set(['start', 'center']);
 const glyph = (icon, size) => typeof icon === 'string' ? <Icon name={icon} size={size} /> : icon || null;
 
-/** While busy a button never shrinks below the width it had when it was pressed (the label may change, the row must not jump). */
-export function busyWidthStyle(busy, width, style) {
-  if (!busy || !(width > 0)) return style;
-  return { ...style, minWidth: width };
-}
+/** A press remembers the button's width in --sh-held-width; while busy, CSS keeps the button at least that wide (the label may change, the row must not jump). */
+export const holdWidth = element => element?.style?.setProperty('--sh-held-width', `${element.offsetWidth}px`);
 
 /**
  * One button for the whole app. variant: primary (one per view) | secondary |
@@ -25,29 +22,18 @@ export function busyWidthStyle(busy, width, style) {
  * only (it needs aria-pressed).
  */
 export const Button = forwardRef(function Button({ variant = 'secondary', size = 'md', type = 'button', icon, iconEnd,
-  busy = false, busyLabel, wrap = false, block = false, align, shape, disabled = false, className, children, onClick, style, ...rest }, ref) {
+  busy = false, busyLabel, wrap = false, block = false, align, shape, disabled = false, className, children, onClick, ...rest }, ref) {
   useComponentCss(css);
   useComponentCss(variantsCss, 'study-button-variants');
-  const node = useRef(null);
-  const held = useRef(0);
-  const setRef = useCallback(element => {
-    node.current = element;
-    if (typeof ref === 'function') ref(element);
-    else if (ref) ref.current = element;
-  }, [ref]);
   const kind = VARIANTS.has(variant) ? variant : 'secondary';
   const scale = size === 'sm' ? 'sm' : 'md';
   const iconSize = scale === 'sm' ? 16 : 18;
   const pill = shape === 'pill' && rest['aria-pressed'] !== undefined;
-  const press = event => {
-    if (node.current) held.current = node.current.offsetWidth;
-    onClick?.(event);
-  };
+  const press = onClick && (event => { holdWidth(event.currentTarget); onClick(event); });
   return (
-    <button ref={setRef} type={type} onClick={onClick ? press : undefined}
+    <button ref={ref} type={type} onClick={press}
       className={cx('sh-btn', `sh-btn--${kind}`, `sh-btn--${scale}`, wrap && 'sh-btn--wrap', block && 'sh-btn--block',
         ALIGNS.has(align) && `sh-btn--${align}`, pill && 'sh-btn--pill', className)}
-      style={busyWidthStyle(busy, held.current, style)}
       disabled={disabled || busy} aria-busy={busy || undefined} {...rest}>
       {busy ? <span className="sh-spinner" aria-hidden="true" /> : glyph(icon, iconSize)}
       {busy && busyLabel != null ? busyLabel : children}

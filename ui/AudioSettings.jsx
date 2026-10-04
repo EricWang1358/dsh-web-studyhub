@@ -1,7 +1,7 @@
 import { getUiLanguage, ui, uiFormat, uiMessage, useUiLanguage } from './i18n.js';
 import React, { useEffect, useRef, useState } from 'react';
 import AudioReasoning from './AudioReasoning.jsx';
-import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, SegmentedControl, Select, SetupRequired, SettingsSection, TextInput } from './components/index.js';
+import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, SegmentedControl, Select, SetupRequired, SettingsSection, TextInput, useToast } from './components/index.js';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
@@ -103,7 +103,8 @@ export function AudioSetupGate({ language = getUiLanguage(), call, onOpenSetting
   );
 }
 
-export default function AudioSettings({ busy, act, call, setNotice, initialView = null }) {
+export default function AudioSettings({ busy, act, call, initialView = null }) {
+  const toast = useToast();
   useInjectCss(css, 'study-audio-settings');
   const language = useUiLanguage();
   const [view, setView] = useState(initialView);
@@ -122,7 +123,7 @@ export default function AudioSettings({ busy, act, call, setNotice, initialView 
   }, [view]);
   if (!view) return null;
   const save = (patch, message) => act('audio.settings.set', patch, (next) => {
-    setView(next); setNotice?.({ text: message || ui('音频设置已保存'), tone: 'success' });
+    setView(next); toast.success(message || ui('音频设置已保存'));
   }, { refreshAfter: false });
   const saved = (next) => { if (next) setView(next); };
   const modelField = (field, label) => <Field label={ui(label)}>

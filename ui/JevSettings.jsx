@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Checkbox, Field, Hint, InlineMessage, ProviderCard, SecretKeyForm, SettingsSection, Select, Switch, TextInput } from './components/index.js';
+import { Badge, Button, Checkbox, Field, Hint, InlineMessage, ProviderCard, SecretKeyForm, SettingsSection, Select, Switch, TextInput, useToast } from './components/index.js';
 import { readJSON, writeJSON } from './storage.js';
 import { useAsyncAction } from './use-async.js';
 import { TokenUsage } from './TokenUsage.jsx';
@@ -215,7 +215,8 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
 }
 
 /** The settings section, connected. `initial` ({ settings, usage, failure }) skips the first read (previews, tests). */
-export default function JevSettings({ call, busy = false, setNotice, initial = null, initialResult = null }) {
+export default function JevSettings({ call, busy = false, initial = null, initialResult = null }) {
+  const toast = useToast();
   useInjectCss(css, 'study-jev');
   const section = useRef(null);
   const [settings, setSettings] = useState(initial?.settings ?? null), [usage, setUsage] = useState(initial?.usage ?? null), [failure, setFailure] = useState(initial?.failure ?? null);
@@ -249,11 +250,11 @@ export default function JevSettings({ call, busy = false, setNotice, initial = n
         onProvider={provider => change('provider', { provider }, async () => { setResult(null); })}
         onKeyEnv={keyEnv => change('keyEnv', { keyEnv }, async () => { setResult(null); })}
         onCustom={patch => change('custom', patch, async () => { setResult(null); })}
-        onConfirm={checked => change('confirm', { confirm: checked }, async next => { setNotice?.({ text: checked ? (providerOf(next) === 'typesafe' ? ui('已确认：Jev 功能会把所需内容发送到 TypeSafe 云端。') : providerOf(next) === 'custom' ? ui('已确认：Jev 功能会把所需内容发送到你填写的自定义端点。') : (providerOf(next) === 'opencode-go' ? ui('已确认：Jev 功能会把所需内容发送到 OpenCode Go 云端。') : ui('已确认：Jev 功能会把所需内容发送到 OpenCode Zen 云端。'))) : ui('已撤回确认；之后使用 Jev 前会再问一次。'), tone: 'success' }); })}
+        onConfirm={checked => change('confirm', { confirm: checked }, async next => { toast.success(checked ? (providerOf(next) === 'typesafe' ? ui('已确认：Jev 功能会把所需内容发送到 TypeSafe 云端。') : providerOf(next) === 'custom' ? ui('已确认：Jev 功能会把所需内容发送到你填写的自定义端点。') : (providerOf(next) === 'opencode-go' ? ui('已确认：Jev 功能会把所需内容发送到 OpenCode Go 云端。') : ui('已确认：Jev 功能会把所需内容发送到 OpenCode Zen 云端。'))) : ui('已撤回确认；之后使用 Jev 前会再问一次。')); })}
         onEnabled={checked => change('enabled', { enabled: checked })}
         onFeature={(id, checked) => change('feature', { features: { [id]: checked } })}
         onReplace={(site, checked) => change('replace', { replace: { [site]: checked }, ...(checked && !settings.enabled ? { enabled: true } : {}) },
-          async () => { if (checked && !settings.enabled) setNotice?.({ text: ui('Jev 总开关也已一起打开。'), tone: 'success' }); })}
+          async () => { if (checked && !settings.enabled) toast.success(ui('Jev 总开关也已一起打开。')); })}
         onGoto={goto}
         onThreshold={threshold => change('threshold', { threshold })} />}
       {settings?.settingsFile && <Hint>{uiFormat('密钥和开关保存在 {0}，不在学习库里，也不会出现在导出或备份中。', [settings.settingsFile])}</Hint>}

@@ -6,10 +6,10 @@ import MineruSettings from '../MineruSettings.jsx';
 import MarkerSettings from '../MarkerSettings.jsx';
 
 /** PDF 转换: the MinerU routes (they need the audio component, as the registry says) and the local Marker route (always shown). */
-export default function MineruPane({ capabilities, busy, call, setNotice }) {
+export default function MineruPane({ capabilities, busy, call }) {
   const routes = partAvailable('mineru', 'routes', capabilities);
   return <>
-    {routes && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
+    {routes && <MineruSettings busy={busy} call={call} />}
     <SettingsSection title={ui('Marker：本机解析')} tour="settings-marker">
       <MarkerSettings disabled={busy} call={call} available={routes} />
     </SettingsSection>

@@ -91,7 +91,7 @@ function QuotedText({ text, quote, anchor, format }) {
  * toolbar's primary action), generateDisabled, initialMode ('read' | 'text' | 'original').
  * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
  */
-export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onNotice, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
+export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
   onPracticePages, onGeneratePages, resume, backLabel, onBack, localContent }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
@@ -253,7 +253,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   };
   usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle });
   // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
-  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, onNotice, enabled: !localMode });
+  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled: !localMode });
   const quoteState = quote ? locateQuote(sources.find(item => item.id === source.id)?.text || content, quote, source.selection) : null;
   useEffect(() => {
     if (!reading || !quote || quoteState?.status !== 'resolved') return undefined;
@@ -409,7 +409,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         <div className="study-document-selection">
           <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>
           <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} onPublished={refreshLinks} onOpenCard={onOpenCard}
-            onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} onNotice={onNotice} />
+            onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
           {onCaseFromPassage && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}

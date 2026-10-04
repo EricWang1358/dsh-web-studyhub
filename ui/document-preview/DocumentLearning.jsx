@@ -3,7 +3,7 @@ import Markdown from '../Markdown.jsx';
 import { ui, getUiLanguage } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import MathText from '../MathText.jsx';
-import { Badge, Button, InlineMessage } from '../components/index.js';
+import { Badge, Button, InlineMessage, useToast } from '../components/index.js';
 import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
@@ -83,7 +83,8 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
 }
 
 /** One resolved selection feeds both grounded questions and reviewed, incremental publication (a background job). */
-export default function DocumentLearning({ call, document, capture, data, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, onNotice, isCurrent = () => true }) {
+export default function DocumentLearning({ call, document, capture, data, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
+  const toast = useToast();
   const [resolution, setResolution] = useState(null), [resolving, setResolving] = useState(false);
   const [question, setQuestion] = useState(''), [answer, setAnswer] = useState('');
   const [deckId, setDeckId] = useState(''), [count, setCount] = useState(3), [kind, setKind] = useState('flashcard');
@@ -91,8 +92,8 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
   const [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set()), [now, setNow] = useState(Date.now);
   const [fallbackSnapshot, setFallbackSnapshot] = useState(null), [capabilities, setCapabilities] = useState(null), [bankDecks, setBankDecks] = useState(null);
   const sectionRef = useRef(null), [reveal, setReveal] = useState('');
-  const jobsRef = useRef(jobs), noticeRef = useRef(onNotice), publishedRef = useRef(onPublished);
-  jobsRef.current = jobs; noticeRef.current = onNotice; publishedRef.current = onPublished;
+  const jobsRef = useRef(jobs), noticeRef = useRef(null), publishedRef = useRef(onPublished);
+  jobsRef.current = jobs; noticeRef.current = notice => toast.show({ tone: notice.tone, message: notice.text }); publishedRef.current = onPublished;
   const snapshot = data ?? fallbackSnapshot;
   const documentId = document?.documentId || document?.id;
   useEffect(() => {

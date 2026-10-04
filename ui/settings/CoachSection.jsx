@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Checkbox, ConfirmDialog, Field, Hint, Icon, Select, SettingsSection } from '../components/index.js';
+import { Button, Checkbox, ConfirmDialog, Field, Hint, Icon, Select, SettingsSection, useToast } from '../components/index.js';
 import { formatDateTime } from '../format.js';
 
 const GOALS = [['', '未设定'], ['exam', '应付考试'], ['interview', '面试求职'], ['work', '工作中落地'], ['explore', '兴趣拓展']];
@@ -22,7 +22,8 @@ export function coachActions({ act, call, setProfile }) {
 }
 
 /** 陪学: what the profile changes, the goal, a short profile with a compact feedback row, and a confirmed reset. */
-export function CoachSection({ profile, busy, act, call, setProfile, setNotice, confirmForget = false }) {
+export function CoachSection({ profile, busy, act, call, setProfile, confirmForget = false }) {
+  const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [confirm, setConfirm] = useState(confirmForget);
   const summaryId = useId();
@@ -64,7 +65,7 @@ export function CoachSection({ profile, busy, act, call, setProfile, setNotice, 
         description={uiFormat('将删除：学习目标、画像摘要、反馈计数和 {0} 道未使用的定制题。', [profile.ready || 0])}
         onConfirm={() => act('coach.forget', {}, (next) => {
           setProfile(next);
-          setNotice?.({ text: ui('已清空陪学画像和未使用的定制题；练习记录不受影响。'), tone: 'success' });
+          toast.success(ui('已清空陪学画像和未使用的定制题；练习记录不受影响。'));
         }, { rethrow: true })}>
         <Hint>{ui('练习记录和复习进度不受影响；之后做完一轮，陪学会重新写画像。')}</Hint>
       </ConfirmDialog>}

@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput } from './components/index.js';
+import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput, useToast } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
@@ -198,9 +198,10 @@ function SectionRow({ section, index, onChange, onRemove, disabled }) {
 
 /**
  * Props: data (snapshot: courses, sources, focus), courseId, act (App's act;
- * called with rethrow so errors stay in the panel), busy, setNotice, onClose.
+ * called with rethrow so errors stay in the panel), busy, onClose.
  */
-export default function CourseSettings({ data, courseId, act, busy = false, setNotice, onClose, mergeFrom = [] }) {
+export default function CourseSettings({ data, courseId, act, busy = false, onClose, mergeFrom = [] }) {
+  const toast = useToast();
   useInjectCss(css, 'study-course-settings');
   const courses = useMemo(() => data?.courses || [], [data?.courses]);
   const course = courses.find(item => item.id === courseId);
@@ -226,17 +227,17 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
     finally { setWorking(false); }
   };
   const save = () => run('course.save', payloadFromDraft(course, draft), () => {
-    setNotice?.({ text: uiFormat('已保存「{0}」的课程信息', [course.name]), tone: 'success' });
+    toast.success(uiFormat('已保存「{0}」的课程信息', [course.name]));
     onClose?.('saved');
   });
   const rename = () => run('course.rename', { id: course.id, name: name.trim() }, result => {
     setConfirm(null); setName(result?.course?.name || name.trim());
-    setNotice?.({ text: uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]), tone: 'success' });
+    toast.success(uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]));
   });
   const merge = () => run('course.merge', { from: mergeIds, into: course.id }, result => {
     if (result?.course) setDraft(current => draftAfterMerge(course, current, result.course));
     setConfirm(null); setMergeIds([]);
-    setNotice?.({ text: uiFormat('已把 {0} 门课程并入「{1}」', [result?.merged?.length || mergeIds.length, course.name]), tone: 'success' });
+    toast.success(uiFormat('已把 {0} 门课程并入「{1}」', [result?.merged?.length || mergeIds.length, course.name]));
   });
   const renamed = name.trim() && name.trim() !== course.name;
   const mergeNames = others.filter(item => mergeIds.includes(item.id)).map(item => item.name);

@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from '../i18n.js';
-import { Button, Field, Hint, NumberInput, SettingsSection } from '../components/index.js';
+import { Button, Field, Hint, NumberInput, SettingsSection, useToast } from '../components/index.js';
 import { previewSchedule } from '../../lib/sm2.js';
 import { syncScheduleSettings } from '../schedule-settings.js';
 
@@ -46,7 +46,8 @@ function SchedulePreview({ good, hard }) {
 }
 
 /** SM-2 parameters: one compact row of number fields, a live preview and save/undo. */
-export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, act, busy, setNotice }) {
+export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, act, busy }) {
+  const toast = useToast();
   const savedKey = JSON.stringify(numbers(saved));
   const [baseline, setBaseline] = useState(() => numbers(saved));
   const [working, setWorking] = useState(false), [error, setError] = useState('');
@@ -81,7 +82,7 @@ export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, 
         const next = numbers(result);
         setBaseline(next);
         setSettings(previous => syncScheduleSettings(previous, current, next));
-        setNotice?.({ text: ui('复习调度已保存'), tone: 'success' });
+        toast.success(ui('复习调度已保存'));
       }, { rethrow: true });
     } catch (cause) { if (isCurrent()) setError(cause?.message || String(cause)); }
     finally { if (isCurrent()) { pending.current = null; setWorking(false); } }
