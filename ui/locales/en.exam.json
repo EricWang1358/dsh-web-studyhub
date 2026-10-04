@@ -1,0 +1,21 @@
+{
+  "已用时 {0}": "Elapsed {0}",
+  "目标岗位：{0}。本次按上方范围和勾选题组出题。": "Target role: {0}. Questions come from the scope above and the decks you ticked.",
+  "已选题组：单选 {0} 道，多选 {1} 道。均衡模式尽量各占一半，不足时由另一类补齐。": "Selected decks: {0} single choice, {1} multiple choice. Balanced mode aims for half of each and fills from the other kind when one runs short.",
+  "本次笔试得分 · {0}/{1} 题": "Written exam score · {0}/{1}",
+  "用时：{0}": "Time taken: {0}",
+  "{0} · 已判分并计入复习计划。": "{0} · Graded and added to your review schedule.",
+  "同范围、题数及题型构成的上次考试为 {0}%；这次{1}。两次抽到的题目可能不同，仅供参考。": "The previous exam with the same scope, count and type mix scored {0}%; this time is {1}. Questions may differ; this comparison is a reference only.",
+  "{0}/{1} 题答错或未答": "{0}/{1} wrong or unanswered",
+  "练习答错与未答的 {0} 道 →": "Practise the {0} wrong or unanswered →",
+  "答错 · {0}": "Incorrect · {0}",
+  "未答 · {0}": "Unanswered · {0}",
+  "第 {0} / {1} 题": "Question {0} of {1}",
+  "本轮已回答 {0} 题": "Answered this round: {0}",
+  "{0}/{1} 题已回答 · {2} 题已评估": "{0}/{1} answered · {2} assessed",
+  "回答扎实 {0}": "Strong {0}",
+  "有待补充 {0}": "Needs detail {0}",
+  "需要巩固 {0}": "Needs review {0}",
+  "没有模型时：追问会用固定问题，结束后只保存回答、不评估。": "Without a model, follow-ups use a fixed question and, at the end, answers are saved but not assessed.",
+  "{0}，答案已保存；配置模型后点「重新提交批改」。": "{0}. Your answers are saved; set up a model, then select Submit for grading again."
+}

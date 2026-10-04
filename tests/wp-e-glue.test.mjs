@@ -122,8 +122,9 @@ test('pages that poll use usePolling (paused while hidden) and pages that show a
     const page = await source(file);
     assert.doesNotMatch(page, /setInterval|clearInterval|visibilitychange|document\.hidden|visibilityState/, `${file} has no timer or visibility plumbing of its own`);
   }
-  for (const file of ['ui/Workflows.jsx', 'ui/CaseWorkspace.jsx', 'ui/WrongBook.jsx', 'ui/Board.jsx']) assert.match(await source(file), /usePolling\(/, file);
-  for (const file of ['ui/Exam.jsx', 'ui/CaseWorkspace.jsx']) assert.match(await source(file), /useNow\(1000/, file);
+  // The exam pages poll a report and show a clock through the shared lifecycle hook (WP-X, #132).
+  for (const file of ['ui/Workflows.jsx', 'ui/exam/useExamRun.js', 'ui/WrongBook.jsx', 'ui/Board.jsx']) assert.match(await source(file), /usePolling\(/, file);
+  for (const file of ['ui/exam/useExamRun.js']) assert.match(await source(file), /useNow\(1000/, file);
 });
 
 test('job activity and cancellability come from lib/job-status, not from local Sets or inline status lists', async () => {
@@ -168,7 +169,7 @@ test('the transcript link of a finished audio job sits in the actions row beside
 /* ---------- 5. Question counts (#121) ---------- */
 
 test('the exam, its setup field and the workflow editor read the question-count range from lib/limits', async () => {
-  for (const file of ['ui/Exam.jsx', 'ui/ExamShell.jsx', 'ui/Workflows.jsx']) {
+  for (const file of ['ui/exam/exam-written.js', 'ui/exam/WrittenSetup.jsx', 'ui/ExamShell.jsx', 'ui/Workflows.jsx']) {
     const page = await source(file);
     assert.match(page, /QUESTION_COUNT/, file);
     assert.doesNotMatch(page, /max=\{50\}|max = 50\b|Math\.min\(50|1–50/, `${file}: no literal 1-50`);

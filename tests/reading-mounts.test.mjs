@@ -64,7 +64,7 @@ test('review, results, notes, the skeleton canvas and the exam report mount the 
   const canvas = await source('ui/SkeletonCanvas.jsx');
   assert.match(canvas, /<ReadingBlock[^>]*className="skc-detail"/);
   assert.match(canvas, /<ReadingSettingsButton/);
-  const exam = await source('ui/Exam.jsx');
+  const exam = await source('ui/exam/WrittenReport.jsx');
   assert.match(exam, /<ReadingBlock[^>]*className="exam-report"/);
   assert.match(exam, /<ReadingSettingsButton/);
   const lesson = await source('ui/WorkflowLesson.jsx');
