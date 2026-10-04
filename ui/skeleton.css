@@ -1121,7 +1121,7 @@
   padding: 0;
 }
 /* The axis: a short rule between two tabs, level with the circles. */
-.study-app .spine-tab:not(:last-child)::after {
+.study-app .spine-track > .sh-tab-anchor:not(:last-child) > .spine-tab::after {
   content: "";
   position: absolute;
   top: 17px;
@@ -1330,7 +1330,7 @@
   .spine-tab-title { display: none; }
   .spine-track { grid-auto-columns: minmax(34px, 1fr); column-gap: 12px; }
   .study-app .spine-tab { flex: none; padding: 4px; border-radius: 999px; }
-  .study-app .spine-tab:not(:last-child)::after { width: 12px; }
+  .study-app .spine-track > .sh-tab-anchor:not(:last-child) > .spine-tab::after { width: 12px; }
 }
 /* Narrow panes: the folded chip takes its own line and the points stack. */
 @container study (max-width: 640px) {

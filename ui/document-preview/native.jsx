@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage, useUiLanguage } from '../i18n.js';
+import { Dialog } from '../components/index.js';
 import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
 import { safeDocumentHtml } from './DocumentViewer.jsx';
 import { annotatePassages, captureSelection, groupPassageLinks } from './selection.js';
@@ -19,7 +20,7 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
     const [document, setDocument] = useState(null), [capture, setCapture] = useState(null), [links, setLinks] = useState([]);
     const [error, setError] = useState(''), [busy, setBusy] = useState(false), [open, setOpen] = useState(false);
     const [hasMaterials, setHasMaterials] = useState(false);
-    const button = useRef(null), dialog = useRef(null), pending = useRef(null), target = useRef(null);
+    const button = useRef(null), pending = useRef(null), target = useRef(null);
     useEffect(() => { setDocument(null); setCapture(null); setLinks([]); setOpen(false); target.current = null; }, [sessionId, absolutePath]);
     useEffect(() => {
       let current = true;
@@ -29,11 +30,6 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
       }).catch(() => { if (current) setHasMaterials(false); });
       return () => { current = false; };
     }, [call, absolutePath]);
-    useEffect(() => {
-      if (!open) return;
-      const node = dialog.current; node.showModal();
-      return () => { if (node.open) node.close(); };
-    }, [open]);
     const current = () => !!target.current && !!ctx.get('sidebarRight')?.isTargetCurrent?.(target.current);
     function captureBeforeBlur(event) {
       const sidebar = ctx.get('sidebarRight'), selection = window.getSelection();
@@ -70,16 +66,14 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
     if (!hasMaterials) return null;
     return <span className="study-document-native">
       <button ref={button} type="button" onPointerDown={captureBeforeBlur} onClick={launch}>{ui('选段学习')}</button>
-      {open && <dialog ref={dialog} className="study-document-native-dialog" aria-label={ui('资料选段学习')}
-        onCancel={event => { event.preventDefault(); setOpen(false); }}>
-        <header><strong>{ui('资料选段学习')}</strong><button type="button" onClick={() => setOpen(false)} aria-label={ui('关闭')}>×</button></header>
+      {open && <Dialog title={ui('资料选段学习')} size="md" onClose={() => setOpen(false)}>
         {busy && <p role="status">{ui('正在连接资料与原文位置…')}</p>}
         {error && <p role="alert">{uiMessage(error)}</p>}
         {!capture && <p>{ui(/\.html?$/i.test(absolutePath) ? '选中一段文字后点击此按钮。HTML 请切换到「学习 HTML」预览。' : '选中预览中的一段文字后，再点击「选段学习」。')}</p>}
         {document && <DocumentLearning call={call} document={document} capture={capture} onPublished={published} isCurrent={current}
           onOpenCard={navigate} />}
         <PassageLinks groups={groupPassageLinks(links)} onOpenCard={navigate} />
-      </dialog>}
+      </Dialog>}
     </span>;
   }
   ctx.effect(() => ctx.slots.inject('sidebar.right.tab.document.actions', () => ctx.slots.register({

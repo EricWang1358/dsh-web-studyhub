@@ -1,4 +1,5 @@
 import StudyBoundary from "./StudyBoundary.jsx";
+import { Dialog, InlineMessage } from "../components/index.js";
 import { getUiLanguage, ui } from "../i18n.js";
 import React from "react";
 import App from "../App.jsx";
@@ -269,18 +270,16 @@ export function apply(ctx, registerDocumentLearning) {
     const seat = (
       <div className="study-seat"><StudyBoundary>
         {placement === "sidebar" && candidateIntent?.candidates?.length > 0 &&
-          <div className="study-panel-candidates" role="dialog" aria-label={ui("选择题目")}>
-            <div className="study-panel-candidates-head">
-              <strong>{ui("选择要打开的题目")}</strong>
-              <button type="button" onClick={() => deliverCandidates(sessionId, null)}>{ui("取消")}</button>
+          <Dialog title={ui("选择要打开的题目")} size="md" onClose={() => deliverCandidates(sessionId, null)}>
+            {candidateError && <InlineMessage tone="error">{candidateError}</InlineMessage>}
+            <div className="study-panel-candidates">
+              {candidateIntent.candidates.map((item) =>
+                <button type="button" key={`${item.deckId}:${item.cardId}`} onClick={() => chooseCandidate(item)}>
+                  <small>{item.deckTitle} · {item.topic || ui("未分类")}</small>
+                  <span>{item.prompt}</span>
+                </button>)}
             </div>
-            {candidateError && <p role="alert">{candidateError}</p>}
-            {candidateIntent.candidates.map((item) =>
-              <button type="button" key={`${item.deckId}:${item.cardId}`} onClick={() => chooseCandidate(item)}>
-                <small>{item.deckTitle} · {item.topic || ui("未分类")}</small>
-                <span>{item.prompt}</span>
-              </button>)}
-          </div>}
+          </Dialog>}
         <App key={sessionId || "empty"} call={call} host={host} />
       </StudyBoundary></div>
     );

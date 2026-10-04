@@ -42,7 +42,7 @@ const HEX_BASELINE = {
   'board/board.css': 2,
   'components/components.css': 4,
   'components/scroll-window.css': 4,
-  'document-preview/document-preview.css': 24,
+  'document-preview/document-preview.css': 4,
   'document-preview/peek/peek.css': 1,
   'review-results.css': 5,
   'side-groups.css': 1,
@@ -89,8 +89,8 @@ test('radius and font-size literals that equal a token are written as the token 
   assert.deepEqual(offenders, []);
 });
 
-test('the blue-violet fallback colour is gone from the document preview, whose fallbacks stand in for the cinnabar accent', async () => {
+test('the blue-violet fallback colour is gone from the document preview, and the learning panel needs no accent fallback (its dialog carries the tokens)', async () => {
   const source = await readFile('ui/document-preview/document-preview.css', 'utf8');
   assert.doesNotMatch(source, /#7284ef/i);
-  assert.match(source, /var\(--accent,#c93d22\)/);
+  assert.doesNotMatch(source, /var\(--accent\s*,/);
 });

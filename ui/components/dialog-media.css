@@ -1,0 +1,21 @@
+/* ── Dialog size="media" ─────────────────────────────────────────────────
+   A dialog that fits what it shows (an enlarged image) instead of a fixed
+   column: as wide as the picture, capped like the other sizes, and the picture
+   never taller than 70% of the window. Tokens only. */
+:is(.study-app, .study-seat) {
+  .sh-dialog.sh-dialog--media, &.sh-dialog.sh-dialog--media {
+    --sh-dialog-width: 960px;
+    width: fit-content;
+    min-width: min(20rem, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
+    max-width: min(var(--sh-dialog-width), calc(100vw / var(--study-ui-scale, 1) - var(--space-7)));
+  }
+  .sh-dialog--media .sh-dialog__content img {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 70dvh;
+    margin: auto;
+    object-fit: contain;
+  }
+}

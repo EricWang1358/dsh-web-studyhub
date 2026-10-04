@@ -2,6 +2,7 @@ import React, { forwardRef, useId } from 'react';
 import css from './disclosure.css';
 import { useComponentCss, cx } from './css.js';
 import { nextSegmentIndex, tabStopIndex } from './segmented.js';
+import Tooltip from './Tooltip.jsx';
 
 /** The element ids a tab and its panel share, so aria-controls and aria-labelledby always resolve. */
 export const tabIds = (id, value) => ({ tab: `${id}-tab-${value}`, panel: `${id}-panel-${value}` });
@@ -25,9 +26,10 @@ export function nextTabIndex(items, from, key, { wrap = true, rtl = false } = {}
  * the next enabled tab and select it; only the selected tab is in the tab
  * order and only it names its panel with aria-controls (render the matching
  * <TabPanel id value selected>, so the reference always resolves).
- * items: [{ value, label, note?, disabled?, ariaLabel?, title?, content?, attrs? }]
- * (`content` replaces the label and note; `attrs` is spread on the button, e.g.
- * data-tour). id: shared with the panels (defaults to a generated one).
+ * items: [{ value, label, note?, disabled?, ariaLabel?, title?, tooltip?, content?, attrs? }]
+ * (`content` replaces the label and note; `tooltip` shows its words in a
+ * Tooltip, in the top layer, on hover and keyboard focus; `attrs` is spread on
+ * the button, e.g. data-tour). id: shared with the panels (defaults to a generated one).
  * itemClassName / className: skin the buttons / the list. wrap={false}: the
  * ends stay put.
  */
@@ -55,7 +57,7 @@ export const Tabs = forwardRef(function Tabs({ id, value, onChange, items = [], 
       {items.map((item, index) => {
         const active = index === activeIndex;
         const ids = tabIds(base, item.value);
-        return (
+        const tab = (
           <button key={item.value} type="button" role="tab" id={ids.tab} aria-selected={active} aria-controls={active ? ids.panel : undefined}
             aria-label={item.ariaLabel} title={item.title} tabIndex={index === stop ? 0 : -1} disabled={item.disabled}
             className={cx('sh-tab', itemClassName, active && 'is-active')} onClick={() => { if (!active) onChange?.(item.value); }} {...item.attrs}>
@@ -65,6 +67,7 @@ export const Tabs = forwardRef(function Tabs({ id, value, onChange, items = [], 
             </>}
           </button>
         );
+        return item.tooltip ? <Tooltip key={item.value} layer content={item.tooltip} anchorClassName="sh-tab-anchor">{tab}</Tooltip> : tab;
       })}
     </div>
   );

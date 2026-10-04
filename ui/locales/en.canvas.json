@@ -5,5 +5,9 @@
   "拖拽平移 · Ctrl/⌘+滚轮缩放 · 缩放范围 {0}–{1}%": "Drag to pan · Ctrl/⌘+wheel to zoom · zoom range {0}–{1}%",
   "展开 {0}": "Expand {0}",
   "收起 {0}": "Collapse {0}",
-  "学习所选内容": "Study selection"
+  "学习所选内容": "Study selection",
+  "图片不可用": "Image unavailable",
+  "放大图片": "Enlarge image",
+  "放大查看": "Enlarge",
+  "图片预览": "Image preview"
 }

@@ -166,7 +166,7 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
                 <div className="spine-strip" ref={strip} data-start={edges.start ? "1" : undefined} data-end={edges.end ? "1" : undefined} onScroll={measureEdges}>
                   <Tabs id={uid} className="spine-track" itemClassName="spine-tab" label={ui("学习站点")} wrap={false} value={index} onChange={select}
                     items={stations.map((item, i) => ({
-                      value: i, ariaLabel: `${item.step}. ${item.term}`, title: item.term,
+                      value: i, ariaLabel: `${item.step}. ${item.term}`, tooltip: item.term,
                       content: <>
                         <span className="spine-marker" aria-hidden="true">{item.step}</span>
                         <span className="spine-tab-title" aria-hidden="true">{item.term}</span>

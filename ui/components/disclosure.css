@@ -37,6 +37,8 @@
 }
 :where(.study-app, .study-seat) button.sh-tab:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
 :where(.study-app, .study-seat) button.sh-tab:disabled { opacity: .5; cursor: not-allowed; }
+:where(.study-app, .study-seat) :where(.sh-tab-anchor) { display: flex; min-width: 0; }
+:where(.study-app, .study-seat) :where(.sh-tab-anchor) > button.sh-tab { flex: 1 1 auto; }
 :where(.study-app, .study-seat) :where(.sh-tab__note) { color: var(--text-faint); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
 :where(.study-app, .study-seat) :where(.sh-tabpanel):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
 
