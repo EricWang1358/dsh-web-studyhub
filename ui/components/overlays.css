@@ -1,0 +1,120 @@
+/* ── StudyHub overlay primitives ─────────────────────────────────────────
+   Popover, Tooltip, Menu, InlineConfirm and the busy state of Dialog.
+   Tokens only; the look is the existing raised surface (--bg-raised, hairline
+   --line-strong, --shadow-md). Rules are scoped to the study surfaces so they
+   outrank the bare element defaults in style.css. Only transform and opacity
+   move; reduced motion removes the motion. */
+:is(.study-app, .study-seat) {
+  /* ── Popover surface (also the Tooltip look) ───────────────────────── */
+  .sh-popover-anchor { position: relative; display: inline-flex; }
+  .sh-popover {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    right: 0;
+    z-index: var(--z-popover, 40);
+    box-sizing: border-box;
+    max-width: min(360px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
+    padding: var(--space-3);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow-md);
+    color: var(--text);
+    font-size: var(--fs-md);
+    font-weight: 400;
+    text-align: left;
+    white-space: normal;
+  }
+  .sh-popover[data-placement^="bottom"] { top: calc(100% + var(--space-1)); bottom: auto; }
+  .sh-popover[data-placement^="top"] { top: auto; bottom: calc(100% + var(--space-1)); }
+  .sh-popover[data-placement$="end"] { right: 0; left: auto; }
+  .sh-popover[data-placement$="start"] { left: 0; right: auto; }
+  .sh-popover:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
+
+  .sh-tooltip {
+    width: max-content;
+    max-width: min(280px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-snug, 1.4);
+    pointer-events: none;
+    z-index: var(--z-tooltip, var(--z-popover, 40));
+  }
+  .sh-tooltip[hidden] { display: none; }
+
+  /* ── Menu ──────────────────────────────────────────────────────────── */
+  .sh-menu-anchor { display: inline-flex; }
+  .sh-menu {
+    position: absolute;
+    z-index: var(--z-popover, 40);
+    display: flex;
+    flex-direction: column;
+    min-width: 210px;
+    max-width: calc(100% - var(--space-4));
+    padding: var(--space-1);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow-md);
+    color: var(--text);
+  }
+  .sh-menu-anchor > .sh-menu { top: 100%; right: 0; margin-top: var(--space-1); }
+  .sh-menu__heading { margin: 0; padding: 7px 10px 3px; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.03em; }
+  .sh-menu__heading:first-child { padding-top: var(--space-1); }
+  .sh-menu__item, .sh-menu__item:hover:not(:disabled) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    margin: 0;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text);
+    font-size: var(--fs-md);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .sh-menu__item:hover:not(:disabled), .sh-menu__item:focus-visible { background: var(--bg-hover); outline: none; }
+  .sh-menu__item:focus-visible { background: color-mix(in srgb, var(--text) 10%, transparent); }
+  .sh-menu__item:disabled { color: var(--text-faint); opacity: 0.8; }
+  .sh-menu__item.is-danger, .sh-menu__item.is-danger:hover:not(:disabled) { color: color-mix(in srgb, var(--bad) 72%, var(--text)); }
+  .sh-menu__gap { width: 16px; flex: none; }
+  .sh-menu__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .sh-menu__hint { color: var(--text-muted); font-size: var(--fs-xs); }
+
+  /* ── InlineConfirm: one boxed question with a fixed button order ───── */
+  .sh-confirm { margin: var(--space-2) 0; }
+  .sh-confirm.sh-inline--boxed { flex-direction: column; align-items: stretch; gap: var(--space-2); padding: var(--space-3); }
+  .sh-confirm.sh-inline .sh-inline__text { flex: 1 1 auto; max-width: none; color: var(--text); }
+  .sh-confirm.sh-inline .sh-inline__title { color: var(--text); }
+  .sh-confirm__row { display: flex; align-items: flex-start; gap: var(--space-2); }
+  .sh-confirm__body { margin: var(--space-1) 0 0; color: var(--text-dim); font-weight: 400; }
+  .sh-confirm__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+
+  /* ── Dialog busy: the close button looks off but stays reachable ───── */
+  .sh-btn[aria-disabled="true"] {
+    cursor: default;
+    color: var(--text-faint);
+    background: color-mix(in srgb, var(--text) 3%, transparent);
+    border-color: var(--line);
+    pointer-events: auto;
+  }
+  .sh-btn[aria-disabled="true"]:hover { background: color-mix(in srgb, var(--text) 3%, transparent); border-color: var(--line); }
+  .sh-dialog[aria-busy="true"] { cursor: progress; }
+  .sh-dialog[aria-busy="true"] .sh-dialog__close { cursor: not-allowed; }
+  .sh-confirm-dialog__title { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+
+  @media (max-width: 600px) {
+    .sh-menu { min-width: 190px; }
+    .sh-confirm__actions { justify-content: stretch; }
+    .sh-confirm__actions .sh-btn { flex: 1 1 auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sh-popover, .sh-tooltip, .sh-menu { transition: none; animation: none; }
+  }
+}

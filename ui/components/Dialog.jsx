@@ -1,9 +1,11 @@
-import React, { useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ui } from '../i18n.js';
 import css from './components.css';
+import overlayCss from './overlays.css';
 import { useComponentCss, cx } from './css.js';
 import { IconButton } from './Button.jsx';
 import { DialogToasts } from './Feedback.jsx';
+import { guardFileDrag } from './FileDrop.jsx';
 import { pushDialog, useTopDialog } from './dialog-stack.js';
 
 const SIZES = new Set(['sm', 'md', 'lg', 'full']);
@@ -24,11 +26,17 @@ export const isBackdropClick = (event, dialog, downTarget) => event.target === d
  * click, and returns focus to whatever opened it. Mount it to open it and
  * unmount it to close it; onClose(reason) asks the owner to unmount it.
  * size: sm | md | lg | full. `footer` stays visible while the body scrolls.
+ * `busy` (work is running) implies non-dismissible: the close button stays but
+ * is marked aria-disabled, Escape and the backdrop do nothing, and the dialog
+ * is aria-busy. `guardDrops` keeps a stray file drop on the dialog (its header
+ * or margins) away from the browser and the host chat.
  */
 export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus,
-  bodyLabel, closeLabel, className, ...rest }) {
+  bodyLabel, closeLabel, busy = false, guardDrops = false, className, ...rest }) {
   useComponentCss(css);
+  useComponentCss(overlayCss, 'study-overlays');
   const ref = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose);
+  const canDismiss = dismissible && !busy;
   const [entry] = useState(() => ({ dialog: null }));
   const top = useTopDialog();
   const titleId = useId(), descriptionId = useId();
@@ -55,12 +63,13 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
     // Opening is tied to mounting; the owner unmounts the dialog to close it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const requestClose = reason => { if (!closing.current) onCloseRef.current?.(reason); };
+  useEffect(() => (guardDrops && ref.current ? guardFileDrag(ref.current) : undefined), [guardDrops]);
+  const requestClose = reason => { if (!closing.current && canDismiss) onCloseRef.current?.(reason); };
   return (
     <dialog ref={ref} className={cx('sh-dialog', `sh-dialog--${kind}`, className)} role="dialog" aria-modal="true"
-      aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined}
+      aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} aria-busy={busy || undefined}
       onCancel={event => {
-        const decision = cancelDecision({ cancelable: event.cancelable, dismissible });
+        const decision = cancelDecision({ cancelable: event.cancelable, dismissible: canDismiss });
         if (decision !== 'defer') event.preventDefault();
         if (decision === 'close') requestClose('escape');
       }}
@@ -68,18 +77,19 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
         // The browser closed it without asking (a forced Escape). Tell the
         // owner, and reopen if the owner keeps it mounted.
         if (closing.current) return;
-        if (dismissible) requestClose('escape');
+        if (canDismiss) requestClose('escape');
         requestAnimationFrame(() => { const dialog = ref.current; if (!closing.current && dialog?.isConnected && !dialog.open) dialog.showModal(); });
       }}
       onPointerDown={event => { pointerDown.current = event.target; }}
-      onClick={event => { if (dismissible && isBackdropClick(event, ref.current, pointerDown.current)) requestClose('backdrop'); }}
+      onClick={event => { if (canDismiss && isBackdropClick(event, ref.current, pointerDown.current)) requestClose('backdrop'); }}
       {...rest}>
       <header className="sh-dialog__header">
         <div className="sh-dialog__heading">
           <h2 id={titleId} className="sh-dialog__title" title={typeof title === 'string' ? title : undefined}>{title}</h2>
           {description && <p id={descriptionId} className="sh-dialog__description">{description}</p>}
         </div>
-        {dismissible && <IconButton icon="close" className="sh-dialog__close" label={closeLabel || ui('关闭')} onClick={() => requestClose('button')} />}
+        {dismissible && <IconButton icon="close" className="sh-dialog__close" label={closeLabel || ui('关闭')} aria-disabled={busy || undefined}
+          onClick={() => requestClose('button')} />}
       </header>
       <div className="sh-dialog__body" tabIndex={0} role="region" aria-label={bodyLabel || (typeof title === 'string' ? title : undefined)}>
         <div className="sh-dialog__content">{children}</div>

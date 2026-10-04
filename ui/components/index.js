@@ -12,3 +12,10 @@ export { default as FileDrop, partitionFiles, formatBytes, describeAccept, creat
 export { default as Dialog } from './Dialog.jsx';
 export { useTopDialog } from './dialog-stack.js';
 export { default as ScrollWindow, filterItems, scrollWindowCount, scrollEdges, edgeTracker } from './ScrollWindow.jsx';
+export { default as ConfirmDialog } from './ConfirmDialog.jsx';
+export { default as InlineConfirm } from './InlineConfirm.jsx';
+export { default as Popover } from './Popover.jsx';
+export { default as Menu } from './Menu.jsx';
+export { default as Tooltip } from './Tooltip.jsx';
+export { CloseButton } from './CloseButton.jsx';
+export { useDismiss, useAnchoredPosition, computePlacement } from './use-dismiss.js';
