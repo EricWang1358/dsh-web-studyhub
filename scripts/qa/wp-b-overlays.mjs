@@ -23,7 +23,7 @@ export async function runOverlayQa(options) {
     await sleep(500);
     await step("board-add-first", async () => {
       await page.getByRole("button", { name: t("添加第一张卡片", "Add the first card") }).first().click();
-      const title = page.locator(".board-composer input").first();
+      const title = page.locator(".board-composer textarea").first();
       await title.fill(t("读论文 第 3 章", "Read paper chapter 3"));
       await title.press("Enter");
       await page.locator(".board-card").first().waitFor();
@@ -42,7 +42,7 @@ export async function runOverlayQa(options) {
       if (focused !== t("保留", "Keep")) throw new Error(`focus should start on the cancel button, got ${focused}`);
     });
     await step("delete-undo-toast", async () => {
-      await dialog.getByRole("button", { name: t("确认删除", "Delete") }).click();
+      await dialog.getByRole("button", { name: t("确认删除", "Confirm deletion") }).click();
       await page.locator("dialog[open]").waitFor({ state: "detached" });
       await page.getByRole("button", { name: t("撤销", "Undo") }).waitFor();
       await page.getByRole("button", { name: t("撤销", "Undo") }).hover();
@@ -64,18 +64,43 @@ export async function runOverlayQa(options) {
     await page.keyboard.press("Escape");
     await check("no horizontal overflow on the board", async () => { const probe = await page.evaluate(overflowProbe); if (probe.scrollWidth > probe.clientWidth + 1) throw new Error(JSON.stringify(probe)); });
 
+    // The reader's Aa popover: focus in, Escape back to the button, and the dialog behind stays open.
+    await page.locator('[data-usage="nav.sources"]').first().click();
+    await sleep(600);
+    await page.getByRole("button", { name: /^(全部展开|Expand all)$/ }).click().catch(() => {});
+    await page.locator(".source-doc .source-main").first().click();
+    await page.locator(".study-document-viewer").waitFor();
+    const aa = page.getByRole("button", { name: t("显示设置", "Display settings") });
+    await step("reader-popover", async () => {
+      await aa.click();
+      await page.getByRole("dialog", { name: t("显示设置", "Display settings") }).waitFor();
+      const state = await page.evaluate(() => ({ inPanel: !!document.activeElement?.closest(".reader-popover__panel"), pressed: document.querySelector('[data-usage="reader.display"]')?.getAttribute("aria-pressed") }));
+      if (!state.inPanel) throw new Error("focus did not move into the panel");
+      if (state.pressed !== null) throw new Error("the trigger still carries aria-pressed");
+    });
+    await check("Escape closes the popover and returns focus, not the reader", async () => {
+      await page.keyboard.press("Escape");
+      if (await page.locator(".reader-popover__panel").count()) throw new Error("popover still open");
+      if (!(await page.locator(".study-document-viewer").count())) throw new Error("the reader closed too");
+      if (!(await aa.evaluate((element) => element === document.activeElement))) throw new Error("focus did not return to Aa");
+    });
+    await page.keyboard.press("Escape");
+    await sleep(300);
+
     // Course settings: the rename InlineConfirm.
     await page.locator('[data-usage="nav.settings"]').first().click();
     await sleep(600);
     await step("settings", async () => { await page.locator("main, .page").first().waitFor(); });
-    const opened = await page.getByRole("button", { name: /课程设置|Course settings/ }).first().click().then(() => true, () => false);
+    await page.getByRole("button", { name: t("课程", "Courses"), exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+    await sleep(400);
+    const opened = await page.locator("main").getByRole("button", { name: t("设置", "Settings"), exact: true }).first().click({ timeout: 5000 }).then(() => true, () => false);
     if (opened) {
       await dialog.waitFor();
       await step("rename-inline-confirm", async () => {
         const input = dialog.locator(".course-settings__rename input").first();
         await input.fill(t("平台工程", "Platform Engineering 2"));
         await dialog.getByRole("button", { name: t("改名", "Rename"), exact: true }).click();
-        await dialog.getByRole("group").waitFor();
+        await dialog.locator(".sh-confirm").waitFor();
         const focused = await page.evaluate(() => document.activeElement?.textContent);
         if (focused !== t("取消", "Cancel")) throw new Error(`focus should be on cancel, got ${focused}`);
       });
