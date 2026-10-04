@@ -224,7 +224,7 @@ export function CourseDialog({ item, items, byId, courses, busy, act, onClose })
   const [text, setText] = useState(item.courses.join('; ')), [error, setError] = useState('');
   const save = async () => setError(await saveDocumentCourses(act, courseAssignments(items, [item.key], parseCourses(text), byId), onClose));
   return (
-    <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} onClose={() => { if (!busy) onClose(); }}
+    <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} busy={busy} onClose={onClose}
       footer={<>
         <Button variant="quiet" disabled={busy} onClick={onClose}>{ui("取消")}</Button>
         <Button variant="primary" busy={busy} disabled={busy} onClick={save}>{ui("保存课程")}</Button>

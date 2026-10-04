@@ -1,0 +1,11 @@
+{
+  "合并到「{0}」？": "Merge into “{0}”?",
+  "{0} 题只引用导入题目自身；请先在草稿中换成原始资料引用。": "{0} questions only cite their imported content; replace those citations with original sources in the draft.",
+  "这个 PDF 读不出来（可能已损坏或超过 {0} MB）。请重新导出 PDF 后再试。": "This PDF can’t be read (it may be damaged or larger than {0} MB). Export the PDF again and retry.",
+  "文件超过 {0} MB。请按章节拆分后再导入。": "The file is larger than {0} MB. Split it by chapter and import the parts.",
+  "文件超过 {0} MB。请压缩图片或拆分后再导入。": "The file is larger than {0} MB. Compress its pictures or split it, then import it again.",
+  "PDF 超过 {0} 页。请按章节拆分后再导入。": "The PDF has more than {0} pages. Split it by chapter and import the parts.",
+  "提取出的文字超过 {0} 字符。请按章节拆分后再导入。": "The extracted text is longer than {0} characters. Split the file by chapter and import the parts.",
+  "字幕文件超过 {0} MB。": "The subtitle file exceeds {0} MB.",
+  "{0} / {1} 字符": "{0} / {1} characters"
+}
