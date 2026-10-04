@@ -91,23 +91,17 @@
     .dash-bar.today[role="button"]:hover .dash-bar-fill,
     .dash-bar.today[role="button"]:focus-visible .dash-bar-fill { fill: var(--accent-soft); }
     .dash-bar[role="button"]:focus-visible .dash-bar-fill { stroke: var(--text); stroke-width: 2; }
-    /* Tooltip shared by the two SVG charts. */
+    /* Tooltip shared by the two SVG charts: the surface is the shared .sh-popover .sh-tooltip; this is its layout over the chart. */
     .dash-tip {
-      position: absolute;
-      z-index: var(--z-sticky);
+      right: auto;
+      max-width: none;
+      overflow: visible;
       display: flex;
       flex-direction: column;
       gap: var(--space-half);
       padding: var(--space-2) var(--space-3);
-      border: 1px solid var(--line-strong);
-      border-radius: var(--radius-sm);
-      background: var(--bg-raised);
-      box-shadow: var(--shadow-md);
-      font-size: var(--fs-sm);
-      line-height: var(--lh-snug);
       color: var(--text-dim);
       white-space: nowrap;
-      pointer-events: none;
       transform: translate(-50%, -100%);
     }
     .dash-tip.below { transform: translate(-50%, 14px); }

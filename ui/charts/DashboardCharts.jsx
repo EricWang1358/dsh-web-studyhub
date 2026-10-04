@@ -37,7 +37,7 @@ function Tip({ tip, width }) {
   if (!tip) return null;
   const left = Math.min(Math.max(tip.x, 78), Math.max(78, width - 78));
   return (
-    <div className={`dash-tip${tip.y < 64 ? ' below' : ''}`} aria-hidden="true" style={{ left, top: tip.y }}>
+    <div className={`sh-popover sh-tooltip dash-tip${tip.y < 64 ? ' below' : ''}`} aria-hidden="true" style={{ left, top: tip.y }}>
       <strong>{tip.title}</strong>
       {tip.lines.map((line, i) => <span key={i}>{line}</span>)}
     </div>

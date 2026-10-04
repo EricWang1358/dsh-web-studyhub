@@ -47,6 +47,7 @@
     .board-chip.is-choice:hover:not(:disabled) { background: color-mix(in srgb, var(--hue) 22%, transparent); border-color: color-mix(in srgb, var(--hue) 45%, transparent); }
     .board-chip.is-choice[aria-pressed="true"] { background: color-mix(in srgb, var(--hue) 34%, transparent); border-color: var(--hue); }
     .board-chip.is-choice:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .board-due:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .board-due.is-later, .board-due.is-done, .board-progress { --hue: var(--text-muted); background: transparent; }
     .board-due.is-soon { --hue: var(--info); }
     .board-due.is-tomorrow { --hue: var(--warn); background: transparent; }
