@@ -1,38 +1,73 @@
-:is(.study-app, .study-seat) .daily-plan { margin: 0 0 24px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-surface); color: var(--text); }
-:is(.study-app, .study-seat) .daily-plan__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-:is(.study-app, .study-seat) .daily-plan__heading h2 { margin: 0; font-size: 20px; }
-:is(.study-app, .study-seat) .daily-plan__heading h3 { margin: 0; }
-:is(.study-app, .study-seat) .daily-plan__eyebrow { margin: 0 0 5px; color: var(--text-muted); font-size: 12px; }
-:is(.study-app, .study-seat) .daily-plan__heading-actions, :is(.study-app, .study-seat) .daily-plan__actions, :is(.study-app, .study-seat) .daily-plan__task-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-:is(.study-app, .study-seat) .daily-plan__heading-actions > span { font-variant-numeric: tabular-nums; font-size: 13px; }
-:is(.study-app, .study-seat) .daily-plan__tasks { margin: 10px 0; padding: 0; list-style: none; }
-:is(.study-app, .study-seat) .daily-plan__task { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-:is(.study-app, .study-seat) .daily-plan__task-copy { min-width: 0; overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .daily-plan__task-actions { flex-shrink: 0; }
-:is(.study-app, .study-seat) .daily-plan__task p, :is(.study-app, .study-seat) .daily-plan__proposal li p { margin: 5px 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
-:is(.study-app, .study-seat) .daily-plan__meta { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .daily-plan__actual { margin-top: 8px; font-size: 12px; }
-:is(.study-app, .study-seat) .daily-plan__actual summary { cursor: pointer; color: var(--text-muted); }
-:is(.study-app, .study-seat) .daily-plan__actual form { display: flex; align-items: flex-end; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+:is(.study-app, .study-seat) .daily-plan {
+  margin: 0 0 28px;
+  padding: 26px 28px 12px;
+  background: var(--bg-surface);
+  color: var(--text);
+}
+:is(.study-app, .study-seat) .daily-plan__heading,
+:is(.study-app, .study-seat) .daily-plan__next-bottom,
+:is(.study-app, .study-seat) .daily-plan__editor-bottom {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+}
+:is(.study-app, .study-seat) .daily-plan__heading h2 { margin: 0; font-size: 16px; font-weight: 500; }
+:is(.study-app, .study-seat) .daily-plan__heading h3 { margin: 0; font-size: 18px; }
+:is(.study-app, .study-seat) .daily-plan__eyebrow { display: block; margin: 0 0 6px; color: var(--text-muted); font-size: 12px; }
+:is(.study-app, .study-seat) .daily-plan__pace { display: grid; gap: 5px; text-align: right; font-variant-numeric: tabular-nums; }
+:is(.study-app, .study-seat) .daily-plan__pace strong { font-size: 14px; font-weight: 500; }
+:is(.study-app, .study-seat) .daily-plan__pace span,
+:is(.study-app, .study-seat) .daily-plan__meta { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+:is(.study-app, .study-seat) .daily-plan__meter { display: block; width: 100%; height: 3px; margin: 18px 0 0; border: 0; border-radius: 0; appearance: none; }
+:is(.study-app, .study-seat) .daily-plan__meter::-webkit-progress-bar { background: var(--line); }
+:is(.study-app, .study-seat) .daily-plan__meter::-webkit-progress-value { background: var(--accent); }
+:is(.study-app, .study-seat) .daily-plan__meter::-moz-progress-bar { background: var(--accent); }
+:is(.study-app, .study-seat) .daily-plan__next { padding: 26px 0 22px; }
+:is(.study-app, .study-seat) :is(.daily-plan__next, .daily-plan__proposal) h3 { margin: 0; font-size: clamp(22px, 2.3vw, 30px); line-height: 1.35; letter-spacing: -.025em; overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .daily-plan__subject { margin: 12px 0 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .daily-plan__intro { margin: 10px 0; max-width: 68ch; color: var(--text-muted); line-height: 1.7; font-size: 14px; overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .daily-plan__next-bottom { margin-top: 20px; justify-content: flex-start; gap: 24px; }
+:is(.study-app, .study-seat) .daily-plan .sh-btn--primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+:is(.study-app, .study-seat) .daily-plan__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+:is(.study-app, .study-seat) .daily-plan__list { border-top: 1px solid var(--line); }
+:is(.study-app, .study-seat) .daily-plan__list > summary { display: list-item; padding: 14px 0; cursor: pointer; font-size: 13px; color: var(--text-muted); }
+:is(.study-app, .study-seat) .daily-plan__tasks { padding: 0; margin: 0; list-style: none; }
+:is(.study-app, .study-seat) .daily-plan__task { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+:is(.study-app, .study-seat) .daily-plan__task-copy { display: grid; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .daily-plan__task-copy strong { font-size: 14px; font-weight: 500; }
 :is(.study-app, .study-seat) .daily-plan__task.is-done strong { color: var(--text-muted); }
-:is(.study-app, .study-seat) .daily-plan__proposal { margin-top: 18px; padding: 18px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 10px; }
-:is(.study-app, .study-seat) .daily-plan__proposal ol { padding-left: 24px; }
-:is(.study-app, .study-seat) .daily-plan__proposal li { padding: 8px 0; overflow-wrap: anywhere; }
-:is(.study-app, .study-seat) .daily-plan__proposal li > span, :is(.study-app, .study-seat) .daily-plan__proposal .daily-plan__heading > span { font-size: 12px; color: var(--text-muted); }
-:is(.study-app, .study-seat) .daily-plan__adjust { margin-top: 18px; }
+:is(.study-app, .study-seat) .daily-plan__actual { margin-top: 3px; font-size: 12px; }
+:is(.study-app, .study-seat) .daily-plan__actual summary { cursor: pointer; color: var(--text-muted); padding: 8px 0; }
+:is(.study-app, .study-seat) .daily-plan__actual form { display: flex; align-items: flex-end; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+:is(.study-app, .study-seat) .daily-plan__proposal { padding: 24px 0; }
+:is(.study-app, .study-seat) .daily-plan__proposal ol { list-style: decimal-leading-zero; padding-left: 24px; margin: 16px 0 22px; }
+:is(.study-app, .study-seat) .daily-plan__proposal li { display: list-item; padding: 10px 0 10px 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+:is(.study-app, .study-seat) .daily-plan__proposal li::marker { color: var(--text-muted); font-size: 12px; }
+:is(.study-app, .study-seat) .daily-plan__proposal li strong { font-size: 14px; }
+:is(.study-app, .study-seat) .daily-plan__proposal li p { margin: 5px 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+:is(.study-app, .study-seat) .daily-plan__empty { padding: 18px 0 24px; max-width: 60ch; }
+:is(.study-app, .study-seat) .daily-plan__empty p { color: var(--text-muted); line-height: 1.7; font-size: 14px; }
+:is(.study-app, .study-seat) .daily-plan__tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--line); padding: 6px 0 0; }
+:is(.study-app, .study-seat) .daily-plan__tools .sh-btn { padding-inline: 0; margin-right: 16px; }
+:is(.study-app, .study-seat) .daily-plan__editor { padding: 18px 0 14px; }
 :is(.study-app, .study-seat) .daily-plan label { display: flex; gap: 8px; flex-direction: column; font-size: 13px; }
-:is(.study-app, .study-seat) .daily-plan textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 64px; }
+:is(.study-app, .study-seat) .daily-plan textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 80px; }
 :is(.study-app, .study-seat) .daily-plan input { min-width: 0; width: 80px; }
-:is(.study-app, .study-seat) .daily-plan__adjust-bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+:is(.study-app, .study-seat) .daily-plan__editor-bottom { margin-top: 12px; }
 :is(.study-app, .study-seat) label.daily-plan__minutes { flex-direction: row; align-items: center; flex-wrap: wrap; }
-:is(.study-app, .study-seat) .daily-plan__footnote, :is(.study-app, .study-seat) .daily-related > small { color: var(--text-muted); font-size: 12px; line-height: 1.6; }
-:is(.study-app, .study-seat) .daily-plan__intro { color: var(--text-muted); line-height: 1.7; }
-:is(.study-app, .study-seat) .daily-plan__profile { padding: 14px 0; border-bottom: 1px solid var(--line); }
+:is(.study-app, .study-seat) .daily-plan__footnote { margin: 12px 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 :is(.study-app, .study-seat) .daily-plan__fields { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
-:is(.study-app, .study-seat) .daily-related { padding: 16px; margin: 12px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-surface); }
+:is(.study-app, .study-seat) .daily-related { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 24px; padding: 14px 0; margin: 12px 0; border-block: 1px solid var(--line); }
+:is(.study-app, .study-seat) .daily-related__row { display: flex; align-items: center; gap: 16px; flex: 1 1 240px; min-width: 0; }
+:is(.study-app, .study-seat) .daily-related__row .daily-plan__task-copy { flex: 1; }
+:is(.study-app, .study-seat) .daily-plan :is(button, summary, input),
+:is(.study-app, .study-seat) .daily-related button { min-height: 44px; }
+:is(.study-app, .study-seat) .daily-plan summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 600px) {
-  :is(.study-app, .study-seat) .daily-plan { padding: 16px; }
-  :is(.study-app, .study-seat) .daily-plan__task { align-items: flex-start; flex-direction: column; gap: 8px; }
-  :is(.study-app, .study-seat) .daily-plan__heading-actions { width: 100%; }
-  :is(.study-app, .study-seat) .daily-plan__proposal { padding: 12px; }
+  :is(.study-app, .study-seat) .daily-plan { padding: 18px 14px 10px; }
+  :is(.study-app, .study-seat) .daily-plan__heading { align-items: flex-start; gap: 12px; }
+  :is(.study-app, .study-seat) .daily-plan__pace { text-align: left; }
+  :is(.study-app, .study-seat) .daily-plan__next { padding: 22px 0; }
+  :is(.study-app, .study-seat) .daily-plan__next-bottom { align-items: flex-start; flex-direction: column; }
+  :is(.study-app, .study-seat) .daily-plan__task { align-items: flex-start; }
+  :is(.study-app, .study-seat) .daily-plan__task > button { flex-shrink: 0; }
+  :is(.study-app, .study-seat) .daily-plan__editor-bottom { align-items: flex-start; }
 }

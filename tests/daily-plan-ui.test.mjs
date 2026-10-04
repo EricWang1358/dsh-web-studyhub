@@ -22,7 +22,8 @@ test('proposal shows reasons, estimates and an explicit acceptance control befor
   assert.match(html, /上次混淆了两个概念/);
   assert.match(html, /15/);
   assert.match(html, /接受这份安排/);
-  assert.match(html, /只调整今天/);
+  assert.match(html, /调整今天/);
+  assert.doesNotMatch(html, /<textarea/);
   assert.match(html, /尚未加入待办/);
 });
 
@@ -38,7 +39,7 @@ test('a rest-day proposal can still be accepted and regular pace supports zero',
   const html = render(DailyPlan, { plan: { ...controls, state: { ...state, budgetMinutes: 0, proposal: { ...state.proposal, items: [] } } } });
   assert.match(html, /今天休息/);
   assert.match(html, /接受这份安排/);
-  assert.match(html, /min="0"/);
+  assert.doesNotMatch(html, /<textarea/);
 });
 
 test('real practice progress and unavailable targets are distinct from completion', () => {
@@ -51,11 +52,50 @@ test('real practice progress and unavailable targets are distinct from completio
   assert.doesNotMatch(html, /接受这份安排/);
 });
 
+test('accepted plan foregrounds one in-progress action and keeps adjustments out of the default view', () => {
+  const tasks = [
+    { id: 'done', title: '已完成的阅读', kind: 'reading', minutes: 10, status: 'done' },
+    { id: 'queued', title: '下一份阅读', kind: 'reading', minutes: 10, status: 'todo' },
+    { id: 'active', title: '继续练习概率', kind: 'practice', minutes: 20, status: 'doing', progress: { done: 2, total: 5 } },
+  ];
+  const html = render(DailyPlan, { plan: { ...controls, state: { ...state, proposal: null, spentMinutes: 18, tasks } } });
+  assert.match(html, /今天先做什么/);
+  assert.match(html, /data-next-task="active"/);
+  assert.match(html, /<h3>完成 3 道练习<\/h3>/);
+  assert.match(html, /class="daily-plan__subject">继续练习概率/);
+  assert.match(html, /今天剩余约 22 分钟/);
+  assert.match(html, /<details[^>]*class="daily-plan__list"/);
+  assert.doesNotMatch(html, /<textarea/);
+  assert.equal((html.match(/sh-btn--primary/g) || []).length, 1);
+});
+
+test('an open proposal takes precedence over the accepted next action', () => {
+  const task = { id: 'active', title: '继续练习概率', minutes: 20, kind: 'practice', status: 'doing' };
+  const html = render(DailyPlan, { plan: { ...controls, state: { ...state, tasks: [task] } } });
+  assert.doesNotMatch(html, /data-next-task/);
+  assert.equal((html.match(/sh-btn--primary/g) || []).length, 1);
+});
+
+test('completed and rest-day plans never present a next action or negative remaining allowance', () => {
+  const task = { id: 'done', title: '已完成阅读', minutes: 10, kind: 'reading', status: 'done' };
+  const html = render(DailyPlan, { plan: { ...controls, state: { ...state, proposal: null, budgetMinutes: 0, spentMinutes: 12, tasks: [task] } } });
+  assert.doesNotMatch(html, /data-next-task|剩余约 -/);
+  assert.match(html, /今天休息/);
+});
+
+test('an unavailable action is not presented as completed learning', () => {
+  const task = { id: 'gone', title: '旧资料', kind: 'reading', minutes: 10, status: 'todo', available: false };
+  const html = render(DailyPlan, { plan: { ...controls, state: { ...state, proposal: null, tasks: [task] } } });
+  assert.doesNotMatch(html, /data-next-task|今天的行动告一段落/);
+  assert.match(html, /有行动暂时无法继续/);
+});
+
 test('context strip resolves only exact related content and English copy is complete', () => {
   const ref = { root: '/library', kind: 'source', id: 's1' };
   const task = { id: 't1', title: 'Read chapter 3', kind: 'reading', minutes: 10, status: 'todo', studyRef: ref };
   const html = render(RelatedTasks, { plan: { ...controls, state: { ...state, tasks: [task] } }, reference: ref }, 'en');
   assert.match(html, /Read chapter 3/);
+  assert.doesNotMatch(html, /Start|<ul|<textarea/);
   assert.doesNotMatch(html, /[㐀-鿿]/);
   assert.equal(render(RelatedTasks, { plan: { ...controls, state: { ...state, tasks: [task] } }, reference: { ...ref, root: '/other' } }), '');
 });

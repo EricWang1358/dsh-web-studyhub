@@ -1,5 +1,15 @@
 # Study panel design (1.0)
 
+## Daily learning action hub
+
+Mode: directed by the existing ink-on-desk system. Returning learners should see what to do next and their remaining daily allowance within five seconds. The primary object is the next action, not a dashboard of tasks or a negotiation form.
+
+Thesis: a quiet daily briefing with one large action title and one cinnabar launch control. A thin progress rule and modest time labels orient the learner; the full plan sits behind a native disclosure. An unaccepted AI proposal temporarily takes this focal position so consent stays explicit. AI feedback and regular pace are separate, on-demand editors.
+
+Taste constraints: no equal-weight task cards, no always-visible settings form, no invented precision for remaining task time. In-progress actions come first. Completed history stays accessible for time recording. Learning pages show a compact connection to today's action without a second launch button. Keep the established fonts, colour tokens and keyboard-visible controls; introduce no animation or external assets.
+
+Subtraction: remove the persistent feedback form, the repeated row reasons and launch controls from context strips, the nested proposal box, and the decorative top rule. Preserve explanations where they support a decision: the next action, proposal review and optional editors. The action title owns display scale; the briefing heading stays small. Keep the launch adjacent to its duration rather than across an empty row.
+
 The whole panel follows one idea: **the card is the only physical object; everything else is type on a desk.** Every new surface should either strengthen that idea or solve a named product problem.
 
 ## Thesis
