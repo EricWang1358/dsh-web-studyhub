@@ -2,6 +2,20 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.15 — 2026-10-05
+
+2.5.14 was withdrawn after a few problems were found in use. This release contains everything in 2.5.14 and fixes them.
+
+- **Continue learning no longer loops.** After a round over one or two questions, Continue learning picks one destination in order: back to the original question after a prerequisite round (its unanswered state kept); the same scope while it has questions left; the next unfinished action in today's plan; otherwise the normal learning path. The button names its destination and autopilot follows it; repeating the scope is only Practise this scope again.
+- **Back to the original question after prerequisites.** When a prerequisite round ends, Back to the question is the only primary action; if the original round has ended, StudyHub says so and returns to the learning path.
+- **👎 now feeds 修题.** Rewrite tags (vague stem, weak options, wrong answer, unclear explanation, only asks what the source says) open the same fix box below with the issues prefilled, and the background assistant shows its progress; nothing is rewritten silently any more. Too easy and too hard only shape tailored practice; a bare 👎 is recorded only.
+- **A lighter, foldable daily plan.** What to do today folds to one line with the minutes left and the next step, and remembers whether it is open. The home keeps one filled primary button, and the three tool links are one Adjust menu. When AI planning fails, the plan says why (quota, rate limit, key, timeout, network or an unusable answer) and offers Open model settings or Try again.
+- **Full text in the inbox.** Hovering or focusing a message shows a card beside it with the full deck, question and reply; the list itself does not change.
+- **Notices no longer cover buttons.** Page notices rise from the bottom instead of covering the actions at the top right of every page, and the notes editor reports unavailable browser storage once instead of on every keystroke.
+- **A consistent interface.** Every page uses the same header and panels; buttons, icons, switches, tabs, progress bars and notices share one set of components; font sizes, weights, corners, layers and colours use shared design tokens, so a few texts change size slightly. The three exam formats share one start, timing, submit and resume flow, and timers read like "0:12"; audio import is split into smaller parts and its upload honours the host's chunk size.
+- **Sturdier styles.** The former 4,500-line stylesheet is split into tokens, base, shell and feature sheets; every sheet sits in an ordered cascade layer instead of fighting with `!important`; unused rules are gone and guard checks stop them coming back.
+- **Release packages.** Download links and bilingual setup guides now point to 2.5.15. The release includes the complete plugin, six capability plugins, retrieval extension, two setup guides and SHA-256 checksums.
+
 ## 2.5.14 — 2026-10-04
 
 - **Make the look your own.** Settings › Interface now holds every appearance choice: five accent presets (cinnabar by default, jade, ochre, graphite, plum); pure-black OLED and paper themes; high contrast, which can follow the system, with system colours under Windows high-contrast mode; three density and three corner steps; KaiTi and rounded typefaces or the name of any font installed on your computer; and separate weight, line and paragraph spacing for the reader. Appearance can be reset, exported and imported, and settings saved by older versions still load.
