@@ -35,10 +35,11 @@ test('loading and failed requests stay visible with retry and no fabricated prop
   assert.doesNotMatch(html, /接受这份安排/);
 });
 
-test('a rest-day proposal can still be accepted and regular pace supports zero', () => {
-  const html = render(DailyPlan, { plan: { ...controls, state: { ...state, budgetMinutes: 0, proposal: { ...state.proposal, items: [] } } } });
+test('a rest-day proposal is closed with 今天到此为止, not accepted as a plan, and regular pace supports zero', () => {
+  const html = render(DailyPlan, { plan: { ...controls, state: { ...state, budgetMinutes: 0, proposal: { ...state.proposal, items: [], emptyReason: 'budget' } } } });
   assert.match(html, /今天休息/);
-  assert.match(html, /接受这份安排/);
+  assert.doesNotMatch(html, /接受这份安排/, 'an empty proposal is not a plan waiting to be accepted (#185)');
+  assert.match(html, /今天到此为止/);
   assert.doesNotMatch(html, /<textarea/);
 });
 

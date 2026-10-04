@@ -9,6 +9,7 @@ import { ProgressBar } from './components/Progress.jsx';
 import { InlineMessage } from './components/Feedback.jsx';
 import ModelErrorNote from './ModelErrorNote.jsx';
 import { usePersistentState } from './storage.js';
+import { useStudy } from './study-context.jsx';
 import { normalizeRoot } from './board/meta.js';
 import { Adjustment, Profile } from './daily-plan/Editors.jsx';
 import css from './daily-plan.css';
@@ -89,7 +90,35 @@ function PlanFailure({ failure, plan, onSettings }) {
   return <ModelErrorNote error={failure.message} className="daily-plan__failure" onSettings={onSettings} onRetry={retry} />;
 }
 
-function Proposal({ proposal, plan, primary, onSettings }) {
+/* A proposal with no action is not a plan waiting to be accepted: it says why (the day's time is used up, or there is nothing to schedule)
+   and what to do next. `emptyReason` comes from lib/daily-plan/proposal.js. */
+function EmptyProposal({ proposal, plan, onSettings, onAdjust }) {
+  const { navigate, openModal } = useStudy();
+  const { budgetMinutes: budget, spentMinutes } = plan.state, spent = Math.max(0, spentMinutes || 0);
+  const reason = proposal.emptyReason || 'declined';
+  const title = reason === 'budget' ? (budget === 0 ? ui('今天休息') : ui('今天的学习时间快用完了'))
+    : reason === 'nothing-due' ? ui('没有到期复习或待学内容') : ui('这份建议没有新增行动');
+  const why = reason === 'budget' ? (budget === 0 ? ui('今天安排为休息日，已有待办留待之后安排。') : uiFormat('今天已投入约 {0} / {1} 分钟，剩下的时间不够再安排一项行动。', [spent, budget]))
+    : reason === 'nothing-due' ? ui('学习库里没有到期的复习，也没有待学的内容。可以导入新资料，或去学习库看看。') : ui('可以调整时间或意见，再请 AI 安排一次。');
+  return <div className="daily-plan__proposal daily-plan__proposal--empty" data-empty-reason={reason}>
+    {proposal.failure && <PlanFailure failure={proposal.failure} plan={plan} onSettings={onSettings} />}
+    <h3>{title}</h3>
+    {proposal.summary && <p className="daily-plan__intro">{proposal.summary}</p>}
+    <p className="daily-plan__intro">{why}</p>
+    <div className="daily-plan__actions">
+      {reason === 'nothing-due' ? <>
+        <Button variant="secondary" disabled={!!plan.busy} onClick={() => navigate('library')}>{ui('去学习库')}</Button>
+        <Button variant="quiet" disabled={!!plan.busy} onClick={() => openModal({ type: 'add' })}>{ui('导入资料')}</Button>
+      </> : <>
+        <Button variant="secondary" disabled={!!plan.busy || !onAdjust} onClick={onAdjust}>{ui('今天再学一会儿')}</Button>
+        <Button variant="quiet" busy={plan.busy === 'accept'} disabled={!!plan.busy} onClick={() => plan.accept(proposal.id)}>{ui('今天到此为止')}</Button>
+      </>}
+    </div>
+  </div>;
+}
+
+function Proposal({ proposal, plan, primary, onSettings, onAdjust }) {
+  if (!proposal.items.length) return <EmptyProposal proposal={proposal} plan={plan} onSettings={onSettings} onAdjust={onAdjust} />;
   const total = proposal.items.reduce((sum, item) => sum + item.minutes, 0);
   return <div className="daily-plan__proposal">
     <p className="daily-plan__eyebrow">{proposal.method === 'ai' ? ui('AI 为你建议') : ui('本地建议')} · {ui('尚未加入待办')}</p>
@@ -99,7 +128,6 @@ function Proposal({ proposal, plan, primary, onSettings }) {
     <ol>{proposal.items.map((item, index) => <li key={item.candidateId || index}>
       <div><strong>{item.title}</strong><p>{item.reason}</p></div><span className="daily-plan__meta">{estimated(item.minutes)}</span>
     </li>)}</ol>
-    {!proposal.items.length && <p>{plan.state.budgetMinutes === 0 ? ui('今天休息，已有待办留待之后安排。') : ui('这份建议没有新增行动。')}</p>}
     <Button variant={primary ? 'primary' : 'secondary'} busy={plan.busy === 'accept'} disabled={!!plan.busy} onClick={() => plan.accept(proposal.id)}>{ui('接受这份安排')}</Button>
   </div>;
 }
@@ -136,8 +164,12 @@ function EmptyPlan({ plan, modelReady, primary }) {
 /** The one line the folded block shows: the minutes left and what comes next (or that a plan waits to be accepted). */
 function summaryOf({ state, plan, next, proposal, budget, spent }) {
   if (!state) return plan.error ? '' : ui('正在读取学习安排…');
+  const empty = proposal && !proposal.items.length;
+  // A proposal without actions is not waiting for anything: the row says where the day stands instead.
+  if (empty && proposal.emptyReason === 'budget' && budget > 0) return uiFormat('今天已投入 {0} / {1} 分钟', [spent, budget]);
   const parts = [budget === 0 ? ui('今天休息') : uiFormat('今天剩余约 {0} 分钟', [Math.max(0, budget - spent)])];
-  if (proposal) parts.push(ui('有一份安排等你接受'));
+  if (empty) { if (proposal.emptyReason === 'nothing-due') parts.push(ui('没有到期复习或待学内容')); }
+  else if (proposal) parts.push(ui('有一份安排等你接受'));
   else if (next) parts.push(uiFormat('下一步：{0}', [next.title]));
   return parts.join(' · ');
 }
@@ -192,7 +224,7 @@ export default function DailyPlan({ plan, onBoard, modelReady = true, openModelS
       </div>}
       {plan.error && <InlineMessage tone="error" boxed action={{ label: ui('重试'), onClick: plan.refresh, disabled: !!plan.busy }}>{plan.error}</InlineMessage>}
       {!state ? !plan.error && <p role="status">{ui('正在读取学习安排…')}</p> : <>
-        {proposal ? <Proposal proposal={proposal} plan={plan} primary={primaryAction} onSettings={openModelSettings}
+        {proposal ? <Proposal proposal={proposal} plan={plan} primary={primaryAction} onSettings={openModelSettings} onAdjust={modelReady ? () => choose('adjust') : undefined}
           /> : next ? <NextAction task={next} plan={plan} primary={primaryAction} /> : <EmptyPlan plan={plan} modelReady={modelReady} primary={primaryAction} />}
         {warnings.map(warning => <InlineMessage key={warning} tone="warning">{warning}</InlineMessage>)}
         {tasks.length > 0 && <details className="daily-plan__list"><summary>{uiFormat('完整安排 · 已完成 {0}/{1}', [completed, tasks.length])}</summary>
