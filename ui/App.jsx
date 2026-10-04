@@ -2333,6 +2333,7 @@ export default function App({ call: transportCall, host = {} }) {
                   onMotion: (value) => updateAppearance({ motion: value }),
                   onScale: (value) => updateAppearance({ scale: value }),
                   onFont: (value) => updateAppearance({ font: value }),
+                  onAccent: (value) => updateAppearance({ accent: value }),
                   onReset: resetAppearance, onExport: () => exportAppearance(appearance),
                   onImport: (text) => { const imported = importAppearance(text); if (imported) updateAppearance(imported); return !!imported; } }}
                 tourActive={!!tourStep}

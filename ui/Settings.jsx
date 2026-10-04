@@ -385,6 +385,10 @@ function AppearanceSection({ appearance }) {
         <span>{ui("外观")}</span>
         <SegmentedControl label={ui("外观")} value={appearance.theme} onChange={appearance.onTheme} options={appearanceOptions("theme")} />
       </div>
+      {appearance.onAccent && <div className="settings-field">
+        <span>{ui("强调色")}</span>
+        <SegmentedControl label={ui("强调色")} value={appearance.accent} onChange={appearance.onAccent} options={appearanceOptions("accent")} />
+      </div>}
       {appearance.onScale && <div className="settings-field">
         <span>{ui("界面大小")}</span>
         <SegmentedControl label={ui("界面大小")} value={appearance.scale} onChange={appearance.onScale} options={appearanceOptions("scale")} />
