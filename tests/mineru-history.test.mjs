@@ -20,7 +20,7 @@ test('a record is written when the conversion starts, and says only what happene
   const root = await library(t);
   const record = await start(root, 'job-0001', {}, 1_000_000);
   assert.deepEqual({ ...record }, {
-    version: 1, id: 'job-0001', filename: 'Book.pdf', bytes: 1234, pages: 450, pieces: 3, route: 'cloud', status: 'running', phase: 'split',
+    version: 1, converter: 'mineru', id: 'job-0001', filename: 'Book.pdf', bytes: 1234, pages: 450, pieces: 3, route: 'cloud', status: 'running', phase: 'split',
     pagesDone: 0, attempts: 1, elapsedMs: 0, startedAt: new Date(1_000_000).toISOString(), attemptStartedAt: new Date(1_000_000).toISOString(), updatedAt: new Date(1_000_000).toISOString() });
   const files = await readdir(historyDir(root));
   assert.deepEqual(files, ['job-0001.json'], 'one file per conversion, no temp leftovers');

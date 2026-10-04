@@ -125,8 +125,9 @@ test('the record, the exported library and every file of the library hold no tok
   assert.equal(files.length, 1);
   const raw = await readFile(join(historyDir(h.root), files[0]), 'utf8');
   for (const forbidden of [FAKE_TOKEN, h.home, 'tmp', 'pdf-convert', 'source.pdf', 'local page 1', 'Authorization', 'Bearer']) assert.ok(!raw.includes(forbidden), `the record holds ${forbidden}`);
-  const allowed = ['attemptStartedAt', 'attempts', 'bytes', 'documentId', 'elapsedMs', 'env', 'failure', 'filename', 'finishedAt', 'id', 'importedPages', 'pages', 'pagesDone', 'phase', 'piece', 'pieces', 'plan', 'route', 'skippedPages', 'startedAt', 'status', 'tier', 'title', 'updatedAt', 'version', 'windows'];
+  const allowed = ['attemptStartedAt', 'attempts', 'bytes', 'converter', 'documentId', 'elapsedMs', 'env', 'failure', 'filename', 'finishedAt', 'id', 'importedPages', 'pages', 'pagesDone', 'phase', 'piece', 'pieces', 'plan', 'route', 'skippedPages', 'startedAt', 'status', 'tier', 'title', 'updatedAt', 'version', 'windows'];
   assert.deepEqual(Object.keys(JSON.parse(raw)).filter(key => !allowed.includes(key)), [], 'only the whitelisted facts are stored');
+  assert.equal(JSON.parse(raw).converter, 'mineru');
   const exported = JSON.stringify(await h.call('export', {}));
   assert.ok(!exported.includes(FAKE_TOKEN) && !exported.includes(h.home));
   assert.ok(!exported.includes('conversion-history'), 'the history is a job record: it is not part of the library export');

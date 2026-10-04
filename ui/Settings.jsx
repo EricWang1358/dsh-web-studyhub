@@ -3,7 +3,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import AudioSettings, { audioFocusPending } from "./AudioSettings.jsx";
 import ExtensionsSettings from './ExtensionsSettings.jsx';
 import MineruSettings from './MineruSettings.jsx';
-import MarkerExternal from './MarkerExternal.jsx';
+import MarkerSettings from './MarkerSettings.jsx';
 import JevSettings from './JevSettings.jsx';
 import { ExperimentalSection } from './ExperimentalSettings.jsx';
 import UsageSettings from './UsageSettings.jsx';
@@ -442,8 +442,10 @@ export default function Settings({
     const linked = categoryForAnchor(focusSection);
     if (linked && available.some((item) => item.id === linked)) setCategory(linked);
     // The pane for the linked category renders on the next frame: scroll to the section then.
-    const frame = requestAnimationFrame(() => document.querySelector(`[data-tour="${focusSection}"]`)?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
-    onFocused?.();
+    const frame = requestAnimationFrame(() => {
+      document.querySelector(`[data-tour="${focusSection}"]`)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+      onFocused?.();
+    });
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);
@@ -475,8 +477,8 @@ export default function Settings({
       case "mineru": return <>
         {capabilities.audio && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
         <fieldset className="settings-section" data-tour="settings-marker">
-          <legend className="settings-section__title">{ui('Marker：在本机外部转换')}</legend>
-          <MarkerExternal disabled={busy} settings />
+          <legend className="settings-section__title">{ui('Marker：本机解析')}</legend>
+          <MarkerSettings disabled={busy} call={call} available={capabilities.audio} />
         </fieldset>
       </>;
       case "retrieval": return capabilities.generation ? <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} /> : null;

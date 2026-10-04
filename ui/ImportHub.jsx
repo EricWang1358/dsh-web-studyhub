@@ -5,12 +5,12 @@ import { Button, FileDrop, Icon, InlineMessage, SegmentedControl } from './compo
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
-import MineruRoute from './MineruRoute.jsx';
-import MarkerExternal from './MarkerExternal.jsx';
+import PdfConversion from './PdfConversion.jsx';
 import { looksLikeConvertedJson } from '../lib/converted-document.js';
 import { classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
 import css from './import-hub.css';
+import { hasContext } from './capabilities.js';
 
 /* The one way to add material (O-3, O-4, P19–P21, P05). The course is chosen
    first; one drop zone takes documents, JSON decks and subtitles together and
@@ -199,8 +199,12 @@ export function importDoneMessage({ documents = [], decks = [], subtitles = [], 
   if (decks.length === 1) parts.push(uiFormat('题组「{0}」已存为草稿（{1} 题）', [decks[0].title, decks[0].cards?.length || 0]));
   else if (decks.length > 1) parts.push(uiFormat('{0} 个题组已存为草稿', [decks.length]));
   if (subtitles.length) parts.push(uiFormat('{0} 份字幕正在后台校对，完成后出现在资料页', [subtitles.length]));
-  if (conversions.length === 1) parts.push(uiFormat('「{0}」正在后台用 MinerU 解析（{1} 页），进度在资料页', [conversions[0].name, conversions[0].pages]));
-  else if (conversions.length > 1) parts.push(uiFormat('{0} 份 PDF 正在后台用 MinerU 解析，进度在资料页', [conversions.length]));
+  const providers = new Set(conversions.map(job => job.converter === 'marker' ? 'Marker' : 'MinerU'));
+  const provider = providers.size === 1 ? [...providers][0] : '';
+  if (conversions.length === 1) parts.push(uiFormat('「{0}」正在后台用 {2} 解析（{1} 页），进度在资料页', [conversions[0].name, conversions[0].pages, provider]));
+  else if (conversions.length > 1) parts.push(provider
+    ? uiFormat('{0} 份 PDF 正在后台用 {1} 解析，进度在资料页', [conversions.length, provider])
+    : uiFormat('{0} 份 PDF 正在后台解析，进度在资料页', [conversions.length]));
   return parts.join(ui('；'));
 }
 
@@ -341,8 +345,9 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
   // A file that is too large gets the 大教材建议 card; what DSH can search with is read once, then.
   const largeItem = items.find(item => item.status === 'error' && item.large);
   const [retrieval, setRetrieval] = useState(null);
-  // A PDF to turn into pages of text with MinerU (cloud or local): chosen with the picker, or the file a too-large import was refused for.
-  const [mineruOpen, setMineruOpen] = useState(false), [mineruFile, setMineruFile] = useState(null), [mineruHistory, setMineruHistory] = useState(false);
+  // The PDF conversion panel also handles files refused by the ordinary import size limit.
+  const [converter, setConverter] = useState('mineru');
+  const [conversionOpen, setConversionOpen] = useState(false), [conversionFile, setConversionFile] = useState(null), [conversionHistory, setConversionHistory] = useState(false);
   useEffect(() => {
     if (!largeItem || retrieval || typeof call !== 'function') return undefined;
     let live = true;
@@ -362,7 +367,7 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
   const courses = parseCourses(courseText);
   // The conversion runs in the background as a job (progress is on the Sources page); the hub reports it and closes.
   async function conversionStarted(job) {
-    const summary = { done: 1, failed: 0, documents: [], decks: [], subtitles: [], sourceIds: [], conversions: [{ name: job.filename, pages: job.pages, route: job.route, jobId: job.jobId }] };
+    const summary = { done: 1, failed: 0, documents: [], decks: [], subtitles: [], sourceIds: [], conversions: [{ name: job.filename, pages: job.pages, route: job.route, converter: job.converter, jobId: job.jobId }] };
     await onImported?.(summary);
     if (alive.current) onComplete?.(summary);
   }
@@ -418,33 +423,43 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
           action={finished ? { label: ui('查看已导入的内容'), onClick: () => onComplete?.(importSummary(itemsRef.current)) } : undefined}>
           {ui('原因写在每个文件旁边。修正后可以重新拖进来。')}
         </InlineMessage>}
-        <FileDrop className={stray ? 'is-attention' : undefined} accept={importAccept({ audio: audioOn })} multiple compact={items.length > 0}
+        {(!conversionOpen || items.length > 0 || largeItem) && <FileDrop className={stray ? 'is-attention' : undefined} accept={importAccept({ audio: audioOn })} multiple compact
           label={ui('把讲义、笔记或题组文件拖到这里，可以一次放多个')}
           hint={[audioOn ? ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组 · SRT / VTT 字幕') : ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组'),
             uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
-          onFiles={accepted => add(accepted)} data-tour="import-drop" />
+          onFiles={accepted => add(accepted)} data-tour="import-drop" />}
         {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={onOpenSettings}
           call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course} onRetrieval={setRetrieval}
-          courseNames={courses} onConversionStarted={conversionStarted} />}
-        {!largeItem && mineruOpen && <MineruRoute file={mineruFile} onFile={setMineruFile} call={call} courses={courses} onStarted={conversionStarted} onOpenSettings={onOpenSettings}
-          jobs={data?.jobs} historyOpen={mineruHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route })}
-          onChanged={() => onImported?.()} />}
-        <section className="import-hub__conversion" aria-label={ui('PDF 解析方案')}>
+          conversionAvailable={hasContext(data, 'audio')} courseNames={courses} onConversionStarted={conversionStarted} />}
+        {!largeItem && conversionOpen && <>
+          <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); }}>{ui('返回文件导入')}</Button>
+          <PdfConversion available={hasContext(data, 'audio')} initialConverter={converter} file={conversionFile} onFile={setConversionFile} call={call} courses={courses} onStarted={conversionStarted} onOpenSettings={onOpenSettings}
+          jobs={data?.jobs} historyOpen={conversionHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route, converter: job.converter })}
+          onChanged={() => onImported?.()} />
+        </>}
+        {!conversionOpen && <section className="import-hub__conversion" aria-label={ui('PDF 解析方案')}>
           <p className="import-hub__routes">{ui('扫描件、公式多，或大文件？选择 PDF 解析方案。')}</p>
+          {!hasContext(data, 'audio') && <InlineMessage tone="info">{ui('此安装未启用 PDF 解析组件。请在设置查看启用方式或手动转换说明。')}</InlineMessage>}
           <div className="import-hub__converters">
             <section className="import-hub__converter" aria-label="MinerU" data-tour="import-mineru">
               <h3>MinerU</h3>
               <p>{ui('在应用内解析 PDF，自动分段并导入。')}</p>
               <div className="import-hub__converter-actions">
-                <Button size="sm" disabled={busy || running} onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button>
-                <Button variant="link" size="sm" disabled={busy || running} onClick={() => { setMineruHistory(true); setMineruOpen(true); }}>{ui('解析历史')}</Button>
+                <Button size="sm" disabled={busy || running || !hasContext(data, 'audio')} onClick={() => { setConverter('mineru'); setConversionOpen(true); }}>{ui('用 MinerU 解析')}</Button>
+                <Button variant="link" size="sm" disabled={busy || running} onClick={() => { setConversionHistory(true); setConversionOpen(true); }}>{ui('解析历史')}</Button>
               </div>
             </section>
-            <MarkerExternal disabled={busy || running} onFiles={add} onOpenSettings={onOpenSettings} />
+            <section className="import-hub__converter" aria-label="Marker">
+              <h3>Marker</h3><p>{ui('在应用内解析 PDF，自动分段并导入。')}</p>
+              <div className="import-hub__converter-actions">
+                <Button size="sm" disabled={busy || running || !hasContext(data, 'audio')} onClick={() => { setConverter('marker'); setConversionOpen(true); }}>{ui('用 Marker 解析')}</Button>
+                {onOpenSettings && <Button variant="link" size="sm" disabled={busy || running} onClick={() => onOpenSettings('settings-marker')}>{ui('安装与使用设置')}</Button>}
+              </div>
+            </section>
           </div>
-        </section>
-        {!items.length && <p className="import-hub__routes">{audioOn
+        </section>}
+        {!items.length && !conversionOpen && <p className="import-hub__routes">{audioOn
           ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')
           : ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿。')}</p>}
       </div>}
