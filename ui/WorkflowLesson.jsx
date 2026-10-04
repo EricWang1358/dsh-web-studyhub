@@ -1,7 +1,8 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useMemo, useState } from "react";
 import { renderNoteMarkdown } from "./note-markdown.js";
-import { ModelError } from "./WorkflowScope.jsx";
+import { Button, InlineMessage } from "./components/index.js";
+import ModelErrorNote from "./ModelErrorNote.jsx";
 import { TokenEstimate, TokenUsage } from "./TokenUsage.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
@@ -15,7 +16,7 @@ const IMPROVE = ["太抽象", "步骤跳跃", "例子不够", "依据不清"];
 
 function TeachingCitations({ citations, sources }) {
   if (!citations?.length) return null;
-  return <details className="wf-readings"><summary>{ui("这篇讲解的资料依据 · ")}{citations.length}{ui(" 处")}</summary>{citations.map((ref, index) => <blockquote key={index}><p>{ref.quote}</p><cite>{sources?.find(source => source.id === ref.sourceId)?.title || ui("关联资料")}</cite></blockquote>)}</details>;
+  return <details className="wf-readings"><summary>{uiFormat("这篇讲解的资料依据 · {0} 处", [citations.length])}</summary>{citations.map((ref, index) => <blockquote key={index}><p>{ref.quote}</p><cite>{sources?.find(source => source.id === ref.sourceId)?.title || ui("关联资料")}</cite></blockquote>)}</details>;
 }
 
 export default function WorkflowLesson({ topic, content, record, resources, disabled, onTeach, onUndo, call, sessionId, stepId }) {
@@ -43,14 +44,14 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
     </aside>}
     <header className="wf-teaching-heading"><div><span className="wf-eyebrow">{ui("围绕主题，连起来学")}</span><h3>{content ? ui("本步讲解") : ui("从一篇完整讲解开始")}</h3></div>{content && <span className="wf-reading-label">{ui("阅读 · 理解 · 应用")}</span>}<ReadingSettingsButton className="wf-reading" /></header>
     {content ? <TeachingArticle content={content} /> : <div className="wf-teaching-empty">
-      <p>{ui("把「")}{topic}{ui("」的概念、原理和例子连成一条线，再看看它适用于什么情境。")}</p>
+      <p>{uiFormat("把「{0}」的概念、原理和例子连成一条线，再看看它适用于什么情境。", [topic])}</p>
       <p className="muted">{ui("结合本次材料，生成可直接阅读的讲解；有公式或推导时逐步展开。")}</p>
       {!running && <button type="button" className="primary" disabled={blocked} onClick={() => onTeach("lesson")}>{ui("生成完整讲解")}</button>}
       {!running && <TokenEstimate call={call} action="workflow.teaching.estimate" enabled={!!call && !!sessionId} request={{ id: sessionId, stepId, mode: "lesson" }} />}
     </div>}
     <TeachingCitations citations={record.citations} sources={resources.sources} />
     {running && !remedyRunning && <div className="wf-teaching-progress" role="status"><span className="wf-progress-mark" aria-hidden="true" /><div><strong>{teaching.mode === "improve" ? ui("正在改进这篇讲解") : content ? ui("正在补充讲解") : ui("正在组织概念与例子")}</strong><p>{ui("完成后会显示在这里。你可以继续阅读，也可以稍后回来。")}</p></div></div>}
-    {failed && <div className="wf-notice" role="status">{!interrupted && teaching.message ? <ModelError text={teaching.message} /> : <p>{interrupted ? ui("上次生成已中断，可以重新开始。") : ui("这次讲解没有生成成功，请重试。")}</p>}<button type="button" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>{ui("重新生成")}</button></div>}
+    {failed && <div className="wf-failure">{!interrupted && teaching.message ? <ModelErrorNote error={teaching.message} /> : <InlineMessage tone="warning">{interrupted ? ui("上次生成已中断，可以重新开始。") : ui("这次讲解没有生成成功，请重试。")}</InlineMessage>}<Button size="sm" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>{ui("重新生成")}</Button></div>}
     {unavailable && <p className="wf-model-hint">{ui("连接模型后即可生成讲解；也可以在下方请主对话补充材料。")}</p>}
     {content && <div className="wf-teaching-tools">
       <div className="wf-help-row"><span>{ui("帮我弄懂")}</span><div className="wf-quick-choices" role="group" aria-label={ui("帮助方式")}>{HELP.map((item) => <button type="button" key={item.mode} disabled={blocked} onClick={() => onTeach(item.mode)}>{ui(item.label)}</button>)}<button type="button" disabled={blocked} onClick={() => onTeach("improve")}>{ui("改进讲解")}</button></div></div>

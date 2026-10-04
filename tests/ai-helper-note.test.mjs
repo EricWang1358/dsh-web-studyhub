@@ -31,7 +31,7 @@ test('each reason has its own plain words, and the fallback names what the learn
 
 test('a known provider error reads in plain words and keeps the raw text to look at', () => {
   const note = describeAiUnavailable({ reason: 'failed', message: '429 Too Many Requests: rate limit' }, PATH);
-  assert.match(note.text, /AI 调用没有成功：模型当前限流/);
+  assert.match(note.text, /AI 调用没有成功：模型服务太忙了/);
   assert.equal(note.detail, '429 Too Many Requests: rate limit');
   const none = describeAiUnavailable({ reason: 'failed', message: '' }, PATH);
   assert.match(none.text, /没有说明原因/);

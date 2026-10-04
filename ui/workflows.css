@@ -146,8 +146,7 @@
 .wf-practice-intro { padding: 15px 0; }
 .wf-practice-intro p { line-height: 1.7; }
 .wf-practice-intro strong { font-size: 17px; }
-.wf-practice-progress { height: 4px; max-width: 420px; margin: 4px 0 14px; border-radius: 2px; background: var(--line-soft); overflow: hidden; }
-.wf-practice-progress > span { display: block; height: 100%; background: var(--accent); transition: width .3s var(--ease-out, ease); }
+.wf-practice-progress { max-width: 420px; margin: 4px 0 14px; }
 .workflow-page .md { overflow-wrap: anywhere; }
 .workflow-page .md :is(pre, table) { max-width: 100%; overflow-x: auto; }
 .wf-teaching { margin-top: 26px; padding: 28px 38px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); min-width: 0; }

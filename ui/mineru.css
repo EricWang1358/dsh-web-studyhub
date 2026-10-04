@@ -96,31 +96,19 @@
 .study-app .pdf-history__empty { display: grid; gap: var(--space-1); padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
 .study-app .pdf-history__empty strong { color: var(--text); font-size: var(--fs-sm); }
 .study-app .pdf-history__empty p { margin: 0; max-width: 62ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-.study-app .pdf-history__confirm { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--bad) 8%, transparent); }
-.study-app .pdf-history__confirm p { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
 .study-app .pdf-history__group { display: grid; gap: var(--space-2); min-width: 0; }
 .study-app .pdf-history__day { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; }
 .study-app .pdf-history__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
-.study-app .pdf-history .job.pdf-history__row { margin: 0; padding: var(--space-3) var(--space-4); gap: var(--space-3); min-width: 0; border: 1px solid var(--line-soft); background: var(--bg); }
-.study-app .pdf-history .job.pdf-history__row > span { flex: none; align-self: flex-start; width: 1.2em; font-size: var(--fs-lg); line-height: 1.3; text-align: center; }
-.study-app .pdf-history .job.interrupted > span { color: var(--warn); }
-.study-app .pdf-history .job.cancelled > span { color: var(--text-muted); }
-.study-app .pdf-history .job.complete > span { color: color-mix(in srgb, var(--ok) 75%, var(--text)); }
-.study-app .pdf-history__main { display: grid; flex: 1 1 0; justify-items: start; gap: var(--space-1); min-width: 0; }
-.study-app .pdf-history__name { max-width: 100%; overflow-wrap: anywhere; }
+.study-app .pdf-history__item { min-width: 0; }
+.study-app .pdf-history .sh-job.pdf-history__row { background: var(--bg); border-color: var(--line-soft); }
 .study-app .pdf-history__chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
-.study-app .pdf-history__main small { max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: var(--fs-xs); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
-.study-app .pdf-history__main small.pdf-history__result { color: var(--text); font-size: var(--fs-sm); }
+.study-app .pdf-history__row .sh-job__body small { max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: var(--fs-xs); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
+.study-app .pdf-history__row .sh-job__body small.pdf-history__result { color: var(--text); font-size: var(--fs-sm); }
 .study-app .pdf-history__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1); max-width: 100%; }
 .study-app .pdf-history__actions:empty { display: none; }
-.study-app .pdf-history .job button.sh-btn, .study-app .pdf-history .pdf-history__actions .sh-btn { margin: 0; max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; }
-.study-app .pdf-history .audio-chip--bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: color-mix(in srgb, var(--bad) 75%, var(--text)); }
-.study-app .pdf-history .audio-chip--warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
+.study-app .pdf-history__actions .sh-btn { margin: 0; max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; }
 .study-app .mineru-history { margin: 0; }
 .study-app .mineru-history .sh-disclosure__body { display: grid; gap: var(--space-3); }
-@media (max-width: 480px) {
-  .study-app .pdf-history .job.pdf-history__row { padding: var(--space-3); gap: var(--space-2); }
-}
 .study-app .sources-page .pdf-history { margin: var(--space-3) 0; }
 
 /* 运行环境: what does the work. One block on the live card and (collapsed) on the history rows. */
@@ -144,11 +132,10 @@
 .study-app .pdf-env-details { min-width: 0; max-width: 100%; font-size: var(--fs-xs); }
 .study-app .pdf-env-details > summary { cursor: pointer; width: fit-content; color: var(--accent-text); }
 .study-app .pdf-env-details .pdf-env { margin-top: var(--space-1); }
-.study-app .pdf-convert-jobs .job > span { align-self: flex-start; }
 /* The windows: they wrap INSIDE the card in even columns (never run off its edge), with a state each; many of them fold into one line and a toggle. */
 .study-app .pdf-chunks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 2px var(--space-3); min-width: 0; max-width: 100%; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
 .study-app .pdf-chunks li { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.study-app .pdf-chunks li.current::before { content: '▸ '; }
+.study-app .pdf-chunks li.is-current { color: var(--text); font-weight: var(--fw-strong); }
 .study-app .pdf-chunks__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .study-app .pdf-chunks__summary .sh-btn { margin: 0; }
 

@@ -22,17 +22,11 @@
     border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg);
   }
   .large-doc__tool-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
-  .large-doc__badge {
-    padding: 1px var(--space-2); border-radius: var(--radius-pill);
-    background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); font-size: var(--fs-xs); font-weight: 600;
-  }
   .large-doc__summary { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text); }
   .large-doc__meta { margin: 0; font-size: var(--fs-xs); line-height: var(--lh-snug); color: var(--text-muted); overflow-wrap: anywhere; }
   .large-doc__channels { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .large-doc__channels li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); font-size: var(--fs-sm); }
   .large-doc__channels a { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-text); overflow-wrap: anywhere; }
-  .large-doc__kind { flex: 0 0 auto; font-size: var(--fs-xs); color: var(--text-muted); }
-  .large-doc__kind--mainland { color: var(--ok); font-weight: 600; }
   .large-doc__code {
     margin: 0 0 var(--space-2); padding: var(--space-3); overflow-x: auto;
     border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken, var(--bg));
@@ -63,11 +57,10 @@
   .extension-panel__course select { width: 100%; }
   .extension-panel__plan { margin: 0; font-size: var(--fs-sm); color: var(--text); line-height: var(--lh-snug); }
   .extension-panel__progress { display: grid; gap: var(--space-2); justify-items: start; }
-  .extension-panel__progress progress { width: 100%; height: 10px; accent-color: var(--accent); }
+  .extension-panel__progress .sh-progress { width: 100%; }
   .extension-panel__progress p { margin: 0; font-size: var(--fs-sm); }
   .extension-panel__pending { margin: 0; padding-left: var(--space-5); display: grid; gap: var(--space-2); }
   .extension-panel__purpose { display: block; color: var(--text-dim); font-size: var(--fs-xs); line-height: 1.5; }
-  .large-doc__needs { padding: 1px var(--space-2); border-radius: var(--radius-pill); border: 1px solid var(--line); color: var(--text-dim); font-size: var(--fs-xs); }
   .large-doc__snippet { display: grid; gap: var(--space-2); justify-items: start; min-width: 0; }
   .large-doc__snippet pre { width: 100%; box-sizing: border-box; }
 

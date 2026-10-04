@@ -9,11 +9,11 @@
    Pure; the components are ui/DraftShortfall.jsx. */
 import { ui, uiFormat } from './i18n.js';
 import { describeFailure } from './generation-status.js';
+import { isActiveJob } from './job-visibility.js';
+import { JOB_STATUS } from '../lib/job-status.js';
 import { missingQuestions } from '../lib/draft-continuation.js';
 
 export { missingQuestions, canContinueDraft } from '../lib/draft-continuation.js';
-
-const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 
 /**
  * What is working on this draft right now: `{ kind, job }` with kind
@@ -21,7 +21,7 @@ const ACTIVE = new Set(['queued', 'running', 'cancelling']);
  * writing it), 'publish' or 'repair'; null when nothing is.
  */
 export function draftWork(draft, jobs = []) {
-  const job = (jobs || []).find((item) => item.draftId === draft?.id && ACTIVE.has(item.status));
+  const job = (jobs || []).find((item) => item.draftId === draft?.id && isActiveJob(item));
   if (!job) return null;
   const kind = job.type === 'draft-publish' ? 'publish' : job.type === 'draft-repair' ? 'repair' : job.continued ? 'topup' : 'generating';
   return { kind, job };
@@ -34,7 +34,7 @@ export function draftWorkLabel(work, draft) {
   const progress = Number.isInteger(saved) && Number.isInteger(total) && total > 0;
   if (kind === 'publish') return job.status === 'queued' ? ui('发布检查排队中') : ui('发布检查中…');
   if (kind === 'repair') return job.status === 'queued' ? ui('修题排队中') : ui('后台修题中…');
-  if (job.status === 'cancelling') return ui('正在停止…');
+  if (job.status === JOB_STATUS.CANCELLING) return ui('正在停止…');
   if (job.status === 'queued') return kind === 'topup' ? ui('补题排队中') : ui('排队中…');
   if (kind === 'topup') return progress ? uiFormat('补题中 · 草稿 {0}/{1} 题', [saved, total]) : ui('补题中…');
   return progress ? uiFormat('生成中 · 草稿 {0}/{1} 题', [saved, total]) : ui('生成中…');

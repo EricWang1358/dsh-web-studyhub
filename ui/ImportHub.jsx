@@ -7,8 +7,14 @@ import { sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import PdfConversion from './PdfConversion.jsx';
 import { looksLikeConvertedJson } from '../lib/converted-document.js';
-import { classifyImportFailure } from '../lib/large-documents.js';
+import { LARGE_DOCUMENT_LIMITS, classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
+import { AUDIO_EXTENSIONS, MAX_SUBTITLE_BYTES, SUBTITLE_TIMED_EXTENSIONS } from '../lib/audio-formats.js';
+import { IMPORT_ERROR } from '../lib/import-errors.js';
+import { SELECTION_CHARS } from '../lib/limits.js';
+import { extensionOf } from './file-names.js';
+import { formatNumber } from './format.js';
+import { toBase64 } from './upload.js';
 import css from './import-hub.css';
 import { hasContext } from './capabilities.js';
 
@@ -19,12 +25,10 @@ import { hasContext } from './capabilities.js';
    reason, and a fully successful batch hands its summary to onComplete (the
    App closes the dialog, shows the toast and highlights the new material). */
 
-const MB = 1024 * 1024;
 /** PDF, Markdown, HTML and TXT. Word and PowerPoint have MAX_OFFICE_BYTES (one constant per format: lib/office/limits.js). */
 export const MAX_DOCUMENT_BYTES = MAX_TEXT_DOCUMENT_BYTES;
 export { MAX_OFFICE_BYTES };
 export const MAX_DECK_BYTES = 2_000_000;
-export const MAX_SUBTITLE_BYTES = 8 * MB;
 /** PDF and text documents (the compact DocumentImport takes only these; Word and PowerPoint go through the hub). */
 export const DOCUMENT_EXTENSIONS = ['.pdf', '.md', '.markdown', '.html', '.htm', '.txt'];
 const OFFICE_EXTENSIONS = ['.docx', '.pptx'];
@@ -33,9 +37,7 @@ const HUB_DOCUMENTS = ['.pdf', ...OFFICE_EXTENSIONS, ...DOCUMENT_EXTENSIONS.slic
 /* Old Office and other word-processor formats are accepted only to explain, per file, what to do instead. */
 const LEGACY_EXTENSIONS = ['.doc', '.ppt', '.wps', '.key', '.pages'];
 const DECK_EXTENSIONS = ['.json'];
-const SUBTITLE_EXTENSIONS = ['.srt', '.vtt'];
-const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.opus', '.webm', '.aiff', '.aif'];
-const extensionOf = name => /\.[^./\\]+$/.exec(String(name || '').toLowerCase())?.[0] || '';
+const SUBTITLE_EXTENSIONS = SUBTITLE_TIMED_EXTENSIONS;
 // '.json' is only a document when it is a converter's output (MinerU, Docling); a question deck takes the deck route.
 const FORMAT_OF = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx', '.md': 'md', '.markdown': 'md', '.html': 'html', '.htm': 'html', '.txt': 'txt', '.json': 'json' };
 
@@ -80,48 +82,77 @@ export function looksLikeSubtitleJson(text) {
   } catch { return false; }
 }
 
-/** Base64 of a File/Blob, without FileReader (works in the browser and in Node tests). */
-export async function fileToBase64(file) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = '';
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
-
-const PLAIN_ERRORS = [
-  [/not a valid PDF|不是有效 PDF|PDF 文件无效|PDF is invalid/i, '这个 PDF 读不出来（可能已损坏或超过 8 MB）。请重新导出 PDF 后再试。'],
-  [/exceeds 40 MB|at most 40 MB|超过 40 MB/i, '文件超过 40 MB。请压缩图片或拆分后再导入。'],
-  [/not a valid DOCX/i, '这个 Word 文件读不出来（可能已损坏）。请在 Word 里重新另存为 .docx 后再试。'],
-  [/not a valid PPTX/i, '这个 PowerPoint 文件读不出来（可能已损坏）。请在 PowerPoint 里重新另存为 .pptx 后再试。'],
-  [/password-protected or in an old format/i, '这个文件有密码保护，或是旧版格式。请去掉密码并另存为 .docx、.pptx 或 PDF 后再导入。'],
-  [/too large when unpacked|ZIP64/i, '这个文件展开后太大或格式特殊，无法读取。请拆分，或另存为 PDF 后再导入。'],
-  [/exceeds 8 MB|at most 8 MB|超过 8 MB|8 MB/i, '文件超过 8 MB。请按章节拆分后再导入。'],
-  [/UTF-8/i, '文本文件需要是 UTF-8 编码。请在编辑器里“另存为 UTF-8”后再导入。'],
-  [/200 (?:页|pages)/i, 'PDF 超过 200 页。请按章节拆分后再导入。'],
-  [/600,000/, '提取出的文字超过 60 万字。请按章节拆分后再导入。'],
-  [/Supported document formats/i, '不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。'],
-  [/dataBase64/i, '文件没能完整读取，请重试。', false],
+/* Why an import failed, in words a student can act on. The host sends a code (lib/import-errors.js; Word and PowerPoint
+   failures carry OfficeFileError's own) and, for a limit, the number it enforced: the sentence is picked by the code and
+   prints that number, so a limit changed in lib/ changes what is read here. `format` is the file's own format, known to
+   the panel, for the two Office messages. */
+const damaged = ({ format }) => format === 'pptx'
+  ? ui('这个 PowerPoint 文件读不出来（可能已损坏）。请在 PowerPoint 里重新另存为 .pptx 后再试。')
+  : ui('这个 Word 文件读不出来（可能已损坏）。请在 Word 里重新另存为 .docx 后再试。');
+const protectedFile = () => ui('这个文件有密码保护，或是旧版格式。请去掉密码并另存为 .docx、.pptx 或 PDF 后再导入。');
+const tooBigUnpacked = () => ui('这个文件展开后太大或格式特殊，无法读取。请拆分，或另存为 PDF 后再导入。');
+const IMPORT_COPY = {
+  [IMPORT_ERROR.PDF_INVALID]: ({ limit = MAX_TEXT_DOCUMENT_BYTES }) => uiFormat('这个 PDF 读不出来（可能已损坏或超过 {0} MB）。请重新导出 PDF 后再试。', [megabytes(limit)]),
+  [IMPORT_ERROR.DOCUMENT_TOO_LARGE]: ({ limit = MAX_TEXT_DOCUMENT_BYTES }) => uiFormat('文件超过 {0} MB。请按章节拆分后再导入。', [megabytes(limit)]),
+  [IMPORT_ERROR.OFFICE_TOO_LARGE]: ({ limit = MAX_OFFICE_BYTES }) => uiFormat('文件超过 {0} MB。请压缩图片或拆分后再导入。', [megabytes(limit)]),
+  [IMPORT_ERROR.TOO_MANY_PAGES]: ({ limit = LARGE_DOCUMENT_LIMITS.pdfPages }) => uiFormat('PDF 超过 {0} 页。请按章节拆分后再导入。', [limit]),
+  [IMPORT_ERROR.TEXT_TOO_LONG]: ({ limit = SELECTION_CHARS }) => uiFormat('提取出的文字超过 {0} 字符。请按章节拆分后再导入。', [formatNumber(limit)]),
+  [IMPORT_ERROR.NOT_UTF8]: () => ui('文本文件需要是 UTF-8 编码。请在编辑器里“另存为 UTF-8”后再导入。'),
+  [IMPORT_ERROR.UNSUPPORTED_FORMAT]: () => ui('不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。'),
+  [IMPORT_ERROR.UPLOAD_INCOMPLETE]: () => ui('文件没能完整读取，请重试。'),
+  // OfficeFileError codes (lib/office/zip.js): unreadable package, locked or old file, unpacked size.
+  corrupt: damaged, invalid: damaged, xml: damaged, 'not-zip': damaged, 'unsupported-method': damaged,
+  encrypted: protectedFile, ole: protectedFile,
+  zip64: tooBigUnpacked, bomb: tooBigUnpacked, 'too-many-entries': tooBigUnpacked,
+};
+// Failures that repeat when tried again (size, encoding, format, no text); only an interrupted upload is worth a retry.
+const RETRYABLE = new Set([IMPORT_ERROR.UPLOAD_INCOMPLETE]);
+/* Only for a host that sends words and no code (it predates lib/import-errors.js): the wording picks the code. Delete this
+   table once no such host is supported; the copy above stays. */
+const OLD_HOST_WORDING = [
+  [/not a valid PDF|不是有效 PDF|PDF 文件无效|PDF is invalid/i, IMPORT_ERROR.PDF_INVALID],
+  [/exceeds 40 MB|at most 40 MB|超过 40 MB/i, IMPORT_ERROR.OFFICE_TOO_LARGE],
+  [/not a valid DOCX/i, 'corrupt', { format: 'docx' }],
+  [/not a valid PPTX/i, 'corrupt', { format: 'pptx' }],
+  [/password-protected or in an old format/i, 'encrypted'],
+  [/too large when unpacked|ZIP64/i, 'bomb'],
+  [/exceeds 8 MB|at most 8 MB|超过 8 MB|8 MB/i, IMPORT_ERROR.DOCUMENT_TOO_LARGE],
+  [/UTF-8/i, IMPORT_ERROR.NOT_UTF8],
+  [/200 (?:页|pages)/i, IMPORT_ERROR.TOO_MANY_PAGES],
+  [/600,000/, IMPORT_ERROR.TEXT_TOO_LONG],
+  [/Supported document formats/i, IMPORT_ERROR.UNSUPPORTED_FORMAT],
+  [/dataBase64/i, IMPORT_ERROR.UPLOAD_INCOMPLETE],
 ];
-/* Failures that will repeat on retry (size, encoding, format, no text). */
-const permanentError = message => Object.assign(new Error(message), { permanent: true });
-export function isPermanentImportError(error) {
-  if (error?.permanent) return true;
+const limitOf = error => [error?.limit, error?.details?.limit].find(Number.isFinite);
+
+/** { code, limit?, format? } when the failure is one this panel can explain, else null. */
+function classifyImport(error, context = {}) {
+  if (typeof error?.code === 'string' && Object.hasOwn(IMPORT_COPY, error.code)) return { code: error.code, limit: limitOf(error), format: context.format };
   const message = String(error?.message ?? error ?? '');
-  return PLAIN_ERRORS.some(([pattern, , permanent = true]) => permanent && pattern.test(message));
+  const hit = OLD_HOST_WORDING.find(([pattern]) => pattern.test(message));
+  return hit ? { code: hit[1], format: context.format, ...hit[2] } : null;
+}
+/* Failures that will repeat on retry. */
+const permanentError = (message, extra) => Object.assign(new Error(message), { permanent: true, ...extra });
+const limitError = (code, limit) => permanentError(IMPORT_COPY[code]({ limit }), { code, limit });
+export function isPermanentImportError(error, context) {
+  if (error?.permanent) return true;
+  const found = classifyImport(error, context);
+  return !!found && !RETRYABLE.has(found.code);
 }
 
 /** A failure in words a student can act on; unknown messages are kept as they are. */
-export function plainImportError(error) {
-  const message = String(error?.message ?? error ?? '').trim();
-  for (const [pattern, text] of PLAIN_ERRORS) if (pattern.test(message)) return ui(text);
-  return message || ui('导入失败，请重试。');
+export function plainImportError(error, context) {
+  const found = classifyImport(error, context);
+  if (found) return IMPORT_COPY[found.code](found);
+  return String(error?.message ?? error ?? '').trim() || ui('导入失败，请重试。');
 }
 
 /* One document through the ordinary import (a PDF, Word, text, or a converter's JSON/Markdown). */
 async function importDocumentFile(file, { call, courses = [] }) {
-  if (file.size > documentLimit(file.name)) throw permanentError(documentLimit(file.name) > MAX_DOCUMENT_BYTES
-    ? ui('文件超过 40 MB。请压缩图片或拆分后再导入。') : ui('文件超过 8 MB。请按章节拆分后再导入。'));
-  const value = await call('materials.document.import', { dataBase64: await fileToBase64(file), filename: file.name, courses });
+  const limit = documentLimit(file.name);
+  if (file.size > limit) throw limitError(limit > MAX_DOCUMENT_BYTES ? IMPORT_ERROR.OFFICE_TOO_LARGE : IMPORT_ERROR.DOCUMENT_TOO_LARGE, limit);
+  const value = await call('materials.document.import', { dataBase64: await toBase64(file), filename: file.name, courses });
   const sourceIds = value?.sourceIds || value?.document?.sourceIds || [];
   const format = value?.document?.format || FORMAT_OF[extensionOf(file.name)];
   const converted = value?.document?.sources?.find(source => source?.document?.converter)?.document.converter;
@@ -148,7 +179,7 @@ async function importOne(file, { call, courses = [], audio = false }) {
     return { kind: 'deck', title: deck.title, deck, count: deck.cards?.length || 0 };
   }
   if (!audio) throw permanentError(ui('这是字幕文件，需要启用音频组件后才能导入。'));
-  if (file.size > MAX_SUBTITLE_BYTES) throw permanentError(ui('字幕文件超过 8 MB。'));
+  if (file.size > MAX_SUBTITLE_BYTES) throw permanentError(uiFormat('字幕文件超过 {0} MB。', [megabytes(MAX_SUBTITLE_BYTES)]));
   const job = await call('audio.subtitles.import', { filename: file.name, text, courses });
   return { kind: 'subtitle', title: file.name, job };
 }
@@ -168,7 +199,8 @@ export async function runImport(files, { call, courses = [], audio = false, onUp
       results.push({ file, status: 'done', result });
       onUpdate?.(index, { status: 'done', result });
     } catch (error) {
-      const message = plainImportError(error), permanent = isPermanentImportError(error);
+      const context = { format: routeImportFile(file, { audio }) === 'document' ? FORMAT_OF[extensionOf(file.name)] : undefined };
+      const message = plainImportError(error, context), permanent = isPermanentImportError(error, context);
       // Too large to import as it is (WP28): the hub explains how a big book is used instead.
       const kind = classifyImportFailure(error), large = kind === 'pdf-size' || kind === 'pdf-pages' || kind === 'text-chars' ? kind : undefined;
       results.push({ file, status: 'error', error: message, permanent, ...(large ? { large } : {}) });
@@ -235,22 +267,11 @@ const swallow = event => {
 };
 
 /**
- * Native listener for the dialog element: a file dragged over any part of the
- * dialog outside the hub (header, padding, backdrop) is refused there, so it
- * neither opens in the browser nor reaches the host's chat composer.
- */
-export function createDialogDropGuard({ contains, onStray }) {
-  return event => {
-    if (!isFileDrag(event) || contains?.(event.target)) return;
-    swallow(event);
-    if (event.type === 'dragover' || event.type === 'drop') onStray?.(event.type);
-  };
-}
-
-/**
- * React handler for the hub's own area. Inner drop zones that took the file
- * (they call preventDefault) keep it; anything else is refused with a hint.
- * Either way propagation stops at React's root, before the host sees it.
+ * Listener for the hub's own area, attached natively so it runs before the
+ * dialog's drop guard (Dialog guardDrops refuses what lands on the header and
+ * margins). Inner drop zones that took the file (they call preventDefault) keep
+ * it; anything else is refused with a hint. Either way propagation stops here,
+ * before the host sees it.
  */
 export function hubDropHandler(onStray) {
   return event => {
@@ -267,7 +288,8 @@ export function hubDropHandler(onStray) {
 const WORKING = { document: '正在保存并提取文字…', deck: '正在检查题目…', subtitle: '正在读取字幕…' };
 const PENDING = { document: '讲义 / 笔记 → 资料', deck: '题组 JSON → 草稿', subtitle: '字幕 → 后台校对', audio: '音频' };
 
-function itemDetail(item) {
+/** The line under a file in the hub: what it is, or what happened to it. */
+export function itemDetail(item) {
   if (item.status === 'error') return item.error;
   if (item.status === 'working') return ui(WORKING[item.kind] || '处理中');
   if (item.status !== 'done') return PENDING[item.kind] ? ui(PENDING[item.kind]) : '';
@@ -300,12 +322,12 @@ function PasteForm({ call, courses, disabled, draft, onDraft, onSaved }) {
     <form className="import-hub__paste" onSubmit={submit}>
       <label>{ui('资料名称')}<input required value={draft.title} disabled={disabled || saving} placeholder={ui('例如：设计模式 · 第 4 章')}
         onChange={event => onDraft({ ...draft, title: event.target.value })} /></label>
-      <label>{ui('原文')}<textarea required rows={10} maxLength={600000} value={draft.text} disabled={disabled || saving}
+      <label>{ui('原文')}<textarea required rows={10} maxLength={SELECTION_CHARS} value={draft.text} disabled={disabled || saving}
         aria-describedby={error ? errorId : undefined} placeholder={ui('粘贴讲义、笔记或材料。生成内容将引用这里的原文。')}
         onChange={event => onDraft({ ...draft, text: event.target.value })} /></label>
       {error && <InlineMessage id={errorId}>{error}</InlineMessage>}
       <div className="import-hub__paste-footer">
-        <small>{draft.text.length.toLocaleString()}{ui(' / 600,000 字符')}</small>
+        <small>{uiFormat('{0} / {1} 字符', [formatNumber(draft.text.length), formatNumber(SELECTION_CHARS)])}</small>
         <Button type="submit" variant="primary" busy={saving} disabled={disabled}>{ui('保存资料')}</Button>
       </div>
     </form>
@@ -356,13 +378,10 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
   }, [!!largeItem]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     alive.current = true;
-    const element = root.current, dialog = element?.closest?.('dialog');
-    if (!dialog) return () => { alive.current = false; clearTimeout(strayTimer.current); };
-    const guard = createDialogDropGuard({ contains: target => element.contains(target), onStray: type => strayRef.current?.(type) });
-    const types = ['dragenter', 'dragover', 'drop'];
-    types.forEach(type => dialog.addEventListener(type, guard));
-    return () => { alive.current = false; clearTimeout(strayTimer.current); types.forEach(type => dialog.removeEventListener(type, guard)); };
-  }, []);
+    const element = root.current, types = ['dragenter', 'dragover', 'dragleave', 'drop'];
+    types.forEach(type => element?.addEventListener(type, handleDrag));
+    return () => { alive.current = false; clearTimeout(strayTimer.current); types.forEach(type => element?.removeEventListener(type, handleDrag)); };
+  }, [handleDrag]);
 
   const courses = parseCourses(courseText);
   // The conversion runs in the background as a job (progress is on the Sources page); the hub reports it and closes.
@@ -409,8 +428,7 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
     ...(audioOn ? [{ value: 'audio', label: ui('音频 / 录音'), icon: 'audio' }] : [])];
   const strayText = tab === 'audio' ? ui('把音频放进虚线框里才会导入。') : ui('把文件放进虚线框里才会导入。');
   return (
-    <div ref={root} className={`import-hub${className ? ` ${className}` : ''}`} data-tab={tab}
-      onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrag} {...rest}>
+    <div ref={root} className={`import-hub${className ? ` ${className}` : ''}`} data-tab={tab} {...rest}>
       <div className="import-hub__course">
         <CourseField label={ui('这些资料属于哪门课？')} value={courseText} onChange={setCourseText} courses={data?.focus?.courses || []}
           multiple disabled={busy || running} />

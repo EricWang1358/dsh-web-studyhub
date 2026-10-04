@@ -93,7 +93,8 @@ test('progress: the model preparation, then pages counted, with a way to stop', 
   assert.match(model, /正在准备检索模型/);
   assert.match(model, /首次需要下载/);
   const indexing = panel({ status: running, initialPlan: plan, initialRun: { status: 'running', stage: 'indexing', done: 12, total: 48 } });
-  assert.match(indexing, /<progress[^>]*value="12"[^>]*max="48"|<progress[^>]*max="48"[^>]*value="12"/);
+  assert.match(indexing, /role="progressbar"[^>]*aria-label="索引进度"[^>]*aria-valuemax="48"[^>]*aria-valuenow="12"/);
+  assert.doesNotMatch(indexing, /<progress/);
   assert.match(indexing, /12 \/ 48/);
   assert.match(indexing, /停止/);
   assert.doesNotMatch(indexing, /为这门课建立检索索引/, 'one build at a time');

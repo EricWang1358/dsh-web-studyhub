@@ -49,7 +49,7 @@ test('too-large PDF: a calm card with the recommended converters, download chann
 test('each trigger has its own reason in words', () => {
   const text = reason => render(h(LargeDocumentCard, { reason, detail: { name: 'book.pdf', chars: 812345, pages: 412 }, retrieval: none }));
   assert.match(text('pdf-pages'), /200 页/);
-  assert.match(text('text-chars'), /60 万字/);
+  assert.match(text('text-chars'), /超过 600,000 字符/);
   assert.match(text('selection'), /812,345/);
   assert.match(text('selection'), /按章节/);
   assert.match(text('long-document'), /412 页/);

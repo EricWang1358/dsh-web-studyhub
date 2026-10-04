@@ -9,7 +9,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const compiled = await build({ stdin: { contents: `
   export * from './ui/generation-status.js';
-  export { ScopeBar, Readings, ModelError } from './ui/WorkflowScope.jsx';
+  export { ScopeBar, Readings } from './ui/WorkflowScope.jsx';
+  export { default as ModelErrorNote } from './ui/ModelErrorNote.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
@@ -104,9 +105,9 @@ test("readings show a compact card for bank imports and keep real quotes as quot
 test("the model-error mapper turns rate limits, connection errors and timeouts into plain advice", () => {
   const cases = [
     [RATE, "rate-limit", /限流.*一两分钟/, /rate-limited.*minute/i],
-    ["Connection error.", "network", /连接模型失败.*网络/, /connect to the model.*network/i],
-    ["fetch failed", "network", /连接模型失败/, /connect/i],
-    ["read ECONNRESET", "network", /连接模型失败/, /connect/i],
+    ["Connection error.", "network", /连不上模型服务.*网络/, /reach the model service.*network/i],
+    ["fetch failed", "network", /连不上模型服务/, /reach the model/i],
+    ["read ECONNRESET", "network", /连不上模型服务/, /reach the model/i],
     ["Request timed out after 180000 ms", "timeout", /没有回应|太久/, /did not respond|too long|timed out/i],
     ["HTTP 429 Too Many Requests", "rate-limit", /限流/, /rate-limited/i],
   ];
@@ -129,14 +130,14 @@ test("an unknown error passes through unchanged", () => {
   assert.equal(m.describeModelError("").kind, "unknown");
 });
 
-test("the model-error note shows plain words first and the raw text behind 详情", () => {
-  const html = render("zh", React.createElement(m.ModelError, { text: RATE }));
-  assert.match(html, /模型当前限流/);
+test("the model-error note shows plain words first and the raw text behind 技术详情", () => {
+  const html = render("zh", React.createElement(m.ModelErrorNote, { error: RATE }));
+  assert.match(html, /模型服务太忙了/);
   assert.match(html, /<details/);
-  assert.match(html, /详情/);
-  assert.ok(html.indexOf("模型当前限流") < html.indexOf("exceeded token rate limit"));
-  const plain = render("zh", React.createElement(m.ModelError, { text: "上次没有生成成功" }));
+  assert.match(html, /技术详情/);
+  assert.ok(html.indexOf("模型服务太忙了") < html.indexOf("exceeded token rate limit"));
+  const plain = render("zh", React.createElement(m.ModelErrorNote, { error: "上次没有生成成功" }));
   assert.doesNotMatch(plain, /<details/, "an unknown message has no toggle");
   assert.match(plain, /上次没有生成成功/);
-  assert.match(render("en", React.createElement(m.ModelError, { text: "Connection error." })), /Details/);
+  assert.match(render("en", React.createElement(m.ModelErrorNote, { error: "Connection error." })), /Technical details/);
 });

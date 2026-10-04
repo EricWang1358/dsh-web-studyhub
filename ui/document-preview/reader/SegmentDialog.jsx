@@ -61,7 +61,7 @@ export default function SegmentDialog({ call, args, onClose, onApplied, onRestor
     } catch (error) { setState({ status: 'error', message: error.message }); }
   };
   const busy = state.status === 'saving';
-  return <Dialog title={ui('用这份目录重新分段')} size="lg" onClose={() => { if (!busy) onClose(); }}
+  return <Dialog title={ui('用这份目录重新分段')} size="lg" busy={busy} onClose={onClose}
     footer={<>
       {preview?.applied && <Button variant="quiet" disabled={busy} onClick={() => apply(null)}>{ui('恢复自动分段')}</Button>}
       <Button variant="quiet" disabled={busy} onClick={onClose}>{ui('取消')}</Button>

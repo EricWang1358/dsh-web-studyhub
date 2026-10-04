@@ -235,7 +235,7 @@ test("a live summary sits above the one primary button", () => {
 test("the PDF page warning, tour anchors and the gate keep working", () => {
   const pdf = [1, 2, 3, 4].map((page) => ({ id: `p${page}`, title: `s.pdf · p.${page}`, text: "x".repeat(500), courses: ["数据库"], document: { id: "h".repeat(64), format: "pdf", page } }));
   const html = render({ sources: pdf }, { selectedSources: pdf.map((page) => page.id), gen: { ...gen, count: 2 } });
-  assert.match(html, /role="status"[^>]*>已选 4 页 PDF，计划生成 2 题。题数少于页数/);
+  assert.match(html, /sh-inline--warning[^>]*role="status"[^>]*>(?:(?!<\/div>).)*已选 4 页 PDF，计划生成 2 题。题数少于页数/s);
   assert.match(html, /data-tour="generate-submit"/);
   const gated = render({ modelReady: false });
   assert.match(gated, /sh-setup/);
@@ -282,7 +282,7 @@ test("local suggestions are labelled as coming from the learner's own data, with
 test("a model failure says why in plain words next to the local fallback, with a retry", () => {
   const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "429 Too Many Requests: rate limit" } } });
   assert.match(html, /AI 调用没有成功/);
-  assert.match(html, /模型当前限流/);
+  assert.match(html, /模型服务太忙了/);
   assert.match(html, /先给你来自本地数据的建议/);
   assert.match(html, /来自你的错题与资料目录/, "the suggestions that remain are labelled as local");
   assert.match(html, />再试一次<\/button>/);
