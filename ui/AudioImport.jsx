@@ -286,17 +286,17 @@ export function AudioCorrections({ audio, onReview }) {
       <summary>{uiFormat("校对改动 {0} 处 · 未改动的存疑处 {1} 处", [audio.corrections.appliedCount ?? applied.length, unsure.length])}</summary>
       {applied.length > 0 && <ul>{applied.map((item, index) => row(item, `a${index}`))}</ul>}
       {unsure.length > 0 && <>
-        <p className="muted">{ui("下面这些把握不大，没有改动，需要时请对照录音核对：")}</p>
+        <Hint>{ui("下面这些把握不大，没有改动，需要时请对照录音核对：")}</Hint>
         {onReview && pending > 0 && <><p>
           <button type="button" disabled={review.status !== "idle"} onClick={start}
             title={ui("用对话模型结合上下文再判一次：能确定的直接改进正稿（译文里的同一处一起改），仍拿不准的留在这里")}>
             {uiFormat("让模型复核这 {0} 处", [pending])}</button>
-          {review.status === "started" && <small className="muted"> {ui("已开始复核，进度见音频任务卡片")}</small>}
+          {review.status === "started" && <Hint as="small"> {ui("已开始复核，进度见音频任务卡片")}</Hint>}
         </p>
         {review.error && <InlineMessage tone="error">{review.error}</InlineMessage>}</>}
         <ul>{unsure.map((item, index) => row(item, `u${index}`))}</ul>
       </>}
-      {kept > 0 && <p className="muted">{uiFormat("另有 {0} 处经复核判定原文无误，已不再列出", [kept])}</p>}
+      {kept > 0 && <Hint>{uiFormat("另有 {0} 处经复核判定原文无误，已不再列出", [kept])}</Hint>}
     </details>
   );
 }
@@ -304,7 +304,7 @@ export function AudioCorrections({ audio, onReview }) {
 /** Progress and results of audio imports; shown in the add-source form and at the top of the sources page. */
 export function AudioJobs({ data, busy, act, openAgent, onOpenSources, onLegacyRetry, onOpenSettings }) {
   const jobs = (data.jobs || []).filter((job) => job.type === "audio-import");
-  return jobs.length ? <div className="jobs audio-jobs">{jobs.map((job) => <AudioJob key={job.id} job={job} busy={busy} act={act} openAgent={openAgent}
+  return jobs.length ? <div className="jobs audio-jobs sh-job-list">{jobs.map((job) => <AudioJob key={job.id} job={job} busy={busy} act={act} openAgent={openAgent}
     onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onOpenSettings={onOpenSettings} />)}</div> : null;
 }
 
@@ -327,9 +327,9 @@ function WorkspaceAudio({ call, onPick }) {
     <details className="audio-workspace" onToggle={(event) => setOpened(event.currentTarget.open)}>
       <summary>{ui("从工作区里找")}</summary>
       <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={ui("搜索文件名")} aria-label={ui("搜索文件名")} />
-      {state.status === "loading" && !state.files.length && <p className="muted">{ui("正在查找…")}</p>}
+      {state.status === "loading" && !state.files.length && <Hint>{ui("正在查找…")}</Hint>}
       {state.status === "error" && <InlineMessage tone="error">{uiFormat("无法列出工作区里的文件：{0}", [state.error])}</InlineMessage>}
-      {state.status === "ready" && !state.files.length && <p className="muted">{ui("工作区里没有找到音频文件。把录音放进工作区，或用上面的方式选择。")}</p>}
+      {state.status === "ready" && !state.files.length && <Hint>{ui("工作区里没有找到音频文件。把录音放进工作区，或用上面的方式选择。")}</Hint>}
       {state.files.length > 0 && <ul className="audio-files">
         {state.files.map((file) => (
           <li key={file.path}>
@@ -341,7 +341,7 @@ function WorkspaceAudio({ call, onPick }) {
           </li>
         ))}
       </ul>}
-      {state.truncated && <p className="muted">{ui("只列出最近的一部分，请用搜索缩小范围。")}</p>}
+      {state.truncated && <Hint>{ui("只列出最近的一部分，请用搜索缩小范围。")}</Hint>}
     </details>
   );
 }
@@ -618,7 +618,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
       <strong>{ui("音频 / 录音 → 中英对照逐字稿")}</strong>
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
         <button type="button" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</button></p>}
-      <p className="muted">{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</p>
+      <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${[...EXTENSIONS, ...SUBTITLES].join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings}
@@ -636,13 +636,13 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
         <FileDrop multiple accept={[...EXTENSIONS, ...SUBTITLES]} disabled={busy}
           label={ui("把音频文件拖到这里，或点击选择")} hint={`MP3 · WAV · M4A · AAC · OGG · FLAC · OPUS · WEBM · AIFF · ${ui("最大 512 MB")}`}
           onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
-        <small className="muted">{ui("也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。")}</small>
+        <Hint as="small">{ui("也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。")}</Hint>
       </div>}
       {problem && <InlineMessage tone="warning">{problem}</InlineMessage>}
       {!upload && !gated && <>
         {files.length > 0 && <div className="audio-add" onDragOver={event => event.preventDefault()} onDrop={drop}>
           <button type="button" disabled={busy} onClick={() => picker.current?.click()}>{ui('添加音频')}</button>
-          <small className="muted">{ui('也可把更多音频拖到这里')}</small>
+          <Hint as="small">{ui('也可把更多音频拖到这里')}</Hint>
         </div>}
         <div className="audio-ways">
           <WorkspaceAudio call={call} onPick={(picked) => pickPath(picked.path, picked.size)} />
@@ -668,7 +668,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
           <small className="muted">{uiFormat("正在上传 {0} / {1}", [formatSize(upload.sent), formatSize(upload.size)])}</small></>}
       </div>}
       {files.length > 0 && <form onSubmit={start}>
-        {files.length > 1 && <small className="muted">{ui('按下面的顺序合成一份逐字稿，可拖动或用按钮调整。')}</small>}
+        {files.length > 1 && <Hint as="small">{ui('按下面的顺序合成一份逐字稿，可拖动或用按钮调整。')}</Hint>}
         <ol className={`audio-selection${files.length === 1 ? ' single' : ''}`}>{files.map((file, index) => {
           const note = notes[file.key];
           return <li key={file.key} className="audio-chosen" draggable={!busy && files.length > 1}

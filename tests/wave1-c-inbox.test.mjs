@@ -73,6 +73,17 @@ test('registry helpers answer from the table: job kinds, hints, deck titles, mis
   assert.equal(registry.inboxDeckTitle('improve'), '');
 });
 
+test('the letters that open the explanation panel are named in the table', () => {
+  const kinds = Object.keys(registry.INBOX_REGISTRY).filter(kind => registry.opensExplanation(kind));
+  assert.deepEqual(kinds.sort(), ['followup', 'improve', 'rewrite']);
+  assert.equal(registry.opensExplanation('pdf-result'), false);
+  assert.equal(registry.opensExplanation('nope'), false);
+  assert.equal(registry.jobDomainOf('pdf-failed'), 'pdf');
+  assert.equal(registry.jobDomainOf('audio-result'), 'audio');
+  assert.equal(registry.jobDomainOf('translate-result'), 'translate');
+  assert.equal(registry.jobDomainOf('improve'), null);
+});
+
 test('the topics list covers every kind, so the empty state never goes stale', () => {
   const topics = registry.inboxTopics();
   assert.equal(new Set(topics).size, topics.length, 'no duplicate topic');

@@ -109,12 +109,15 @@
 .study-app .mailbox__item:disabled { opacity: 0.5; cursor: default; }
 .study-app .mailbox__top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: 2px var(--space-2);
   min-width: 0;
   color: var(--text-muted);
   font-size: var(--fs-sm);
 }
+/* A long kind label (English) wraps inside its pill instead of pushing the time out of the panel. */
+.study-app .mailbox__top .sh-badge { flex: 0 1 auto; white-space: normal; }
 .study-app .mailbox__deck {
   min-width: 0;
   overflow: hidden;
