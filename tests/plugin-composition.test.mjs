@@ -15,6 +15,29 @@ import { acquireContexts } from '../lib/runtime/lifecycle.js';
 
 const turn = () => new Promise(resolve => setTimeout(resolve, 20));
 
+test('independent runtime uses the same waking terminal notifier as the workbench', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'study-runtime-notice-'));
+  const ctx = new Context();
+  ctx.provide('llm', {});
+  const installed = ctx.plugin(bank);
+  await installed;
+  t.after(async () => { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); });
+  const pending = [], turns = [];
+  const agent = { id: 'initiating-chat', session: { header: { cwd: directory },
+    requestHeader: () => ({ config: { provider: 'test', model: 'test' } }) },
+    inject: message => pending.push(message), followup: message => turns.push(message) };
+  const services = await ctx.studyRuntime.requestServices({ agent });
+  assert.equal(typeof services.notify, 'function');
+  services.notify({ text: 'Final receipt', summary: 'Done', wakeup: true });
+  assert.equal(turns.length, 1);
+  assert.equal(turns[0].source.kind, 'plugin:daily-flashcard');
+  assert.equal(turns[0].role, 'user');
+  assert.ok(turns[0].id);
+  services.notify({ text: 'Passive observation', summary: 'Question changed' });
+  assert.equal(pending.length, 1);
+  assert.equal(turns.length, 1);
+});
+
 test('published bundle imports its real package exports and allows independent capability removal', async t => {
   const root = await mkdtemp(join(tmpdir(), 'study-bundle-'));
   const ctx = new Context();
