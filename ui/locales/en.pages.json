@@ -53,5 +53,11 @@
   "AI 给出的安排没有通过检查": "The AI’s plan did not pass the checks",
   "下面是依据已有内容和时间预算的本地建议，可以再请 AI 安排一次。": "Below is a local suggestion based on your existing content and time budget. You can ask the AI to plan again.",
   "AI 选了不可用的内容或格式不对，没有采用。下面是本地建议，可以再请 AI 安排一次。": "The AI picked unavailable content or answered in the wrong format, so it was not used. Below is a local suggestion; you can ask the AI to plan again.",
-  "AI 建议暂不可用": "AI suggestions are unavailable"
+  "AI 建议暂不可用": "AI suggestions are unavailable",
+  "继续这个范围 →": "Continue this scope →",
+  "回到学习路径 →": "Back to the learning path →",
+  "下一步：{0} →": "Next: {0} →",
+  "原来的那一轮已经结束或不存在了，回到学习路径继续。": "The round you came from has ended or no longer exists, so you are going back to the learning path.",
+  "自动驾驶：{0} 秒后执行 ·": "Autopilot: acting in {0} s ·",
+  "自动驾驶：{0} 秒后{1} ·": "Autopilot: {1} in {0} s ·"
 }

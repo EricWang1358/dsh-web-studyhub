@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ui, uiFormat, uiLocale, setUiLanguage } from '../i18n.js';
 import { pageAvailable } from '../capabilities.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
@@ -240,6 +240,8 @@ function SettingsView() {
 function ReviewView({ feedback }) {
   const { data, core, nav, lib, set, session, learn, intents, dailyPlan, settingsEntry } = useApp();
   const run = session.run;
+  // A finished round may change what today's plan shows next (practice progress is counted from the answers), so read it again once.
+  useEffect(() => { if (run?.complete) dailyPlan.refresh?.(); }, [run?.id, run?.complete]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!run) return null;
   const detour = lib.detour && !(lib.detour.runId === run.id && lib.detour.index === run.index) ? lib.detour : null;
   const links = {
@@ -261,7 +263,7 @@ function ReviewView({ feedback }) {
     <>
       <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => nav.navigate('board')} />
       <Review session={session} data={data} shellTitle={shellTitleOf('review', { run, decks: data?.decks })} feedback={feedback}
-        coachProps={data ? session.coach : undefined} links={links}
+        coachProps={data ? { ...session.coach, destination: run.complete ? session.continueTo(dailyPlan) : undefined } : undefined} links={links}
         context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour }} />
     </>
   );

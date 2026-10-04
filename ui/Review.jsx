@@ -24,6 +24,7 @@ import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "./agent-prompts/card.js";
 import { weakTopicsPrompt } from "./agent-prompts/library.js";
+import { fixSuggestionFor } from "./card-fix.js";
 import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
@@ -64,6 +65,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
   const assistTasks = data?.assist;
+  // Where 继续学习 goes (the page decided it with today's plan in view): the coach card and this page's own way back share it.
+  const destination = coachProps?.destination;
   useInjectCss(resultCss, "review-results");
   const pageRef = React.useRef(null);
   // A learning-flow practice round: the page is the same, only the way back differs.
@@ -282,8 +285,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               {flow.current ? ui("回到学习流，继续下一步 →") : ui("回到学习流 →")}</button>}
             {contextReturnLabel && <button disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</button>}
             {detour && <button className="primary" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题 →", [detour.index + 1])}</button>}
-            {run.returnTo && !detour && <button className="primary" disabled={busy}
-              onClick={() => act("review.get", { runId: run.returnTo }, enterRun)}>{ui("回到原题 →")}</button>}
+            {destination?.kind === "original" && !detour && <Button variant="primary" disabled={busy} onClick={destination.go}>{destination.label}</Button>}
             {summaryCase && <>
               <button disabled={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
                 setCaseNote(uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count])))}>
@@ -293,6 +295,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </>}
             <button onClick={() => navigate("library")}>{ui("回到学习目录")}</button>
           </div>
+          {destination?.note && <p className="muted" role="status">{destination.note}</p>}
           {caseNote && <p className="muted" role="status">{caseNote}</p>}
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
@@ -608,7 +611,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
               onToggleEn={toggleEn}
               thumbs={coachProps && run.mode !== "exam" && (
-                <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()} />
+                <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
+                  onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />
               )}
             />
             {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
