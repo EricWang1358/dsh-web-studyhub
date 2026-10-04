@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { uiMessage } from './i18n.js';
 
 /* The busy / error / unmounted bookkeeping every action button used to write by hand.
@@ -50,7 +50,6 @@ export function useAsyncAction({ exclusive = false } = {}) {
     runner.current.attach();
     return () => runner.current.detach();
   }, []);
-  const run = useCallback((kind, fn) => runner.current.run(kind, fn), []);
-  const clearError = useCallback(() => runner.current.clearError(), []);
+  const { run, clearError } = runner.current; // closures, not methods: their identity is stable for the life of the component
   return { run, working: view.working, error: view.error, clearError };
 }
