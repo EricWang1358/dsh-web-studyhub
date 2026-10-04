@@ -28,11 +28,28 @@ export async function runShots(options) {
     await narrowMenu();
     await step("board", async () => { await go("nav.board"); });
     await step("mailbox", async () => { await page.locator(".mailbox__toggle").click(); await page.locator(".mailbox__panel").waitFor(); await sleep(300); });
+    await step("mailbox-hover", async () => {
+      // The full text of a truncated entry: a card beside it on hover (and on keyboard focus), the open hint as its last line.
+      await page.locator(".mailbox__item").nth(1).hover();
+      await page.locator('.mailbox-preview:popover-open').waitFor({ timeout: 5000 });
+      await sleep(300);
+    });
+    await check("the hovered entry is described by its card and carries no native title", async () => {
+      const probe = await page.evaluate(() => {
+        const button = document.querySelectorAll(".mailbox__item")[1], card = document.getElementById(button.getAttribute("aria-describedby") || "");
+        return { title: button.getAttribute("title"), open: !!card?.matches(":popover-open"), text: card?.textContent || "", width: card?.getBoundingClientRect().width || 0 };
+      });
+      if (probe.title !== null || !probe.open || probe.width > 362 || probe.text.length < 20) throw new Error(JSON.stringify(probe));
+    });
+    // The first Escape hides the entry's card, the second closes the panel.
+    await page.mouse.move(2, 2);
     await page.keyboard.press("Escape");
+    await sleep(200);
+    if (await page.locator(".mailbox__panel").count()) await page.locator(".mailbox__toggle").click();
     await step("add-material", async () => {
       await narrowMenu();
       await go("nav.sources");
-      await page.getByRole("button", { name: t("添加资料", "Add material") }).first().click();
+      await page.getByRole("button", { name: t("添加资料", "Add source") }).first().click();
       await page.locator("dialog[open]").waitFor();
       await sleep(400);
     });

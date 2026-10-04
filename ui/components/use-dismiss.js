@@ -51,10 +51,26 @@ export function useDismiss({ open: isOpen, onClose, refs, escape = true, returnF
  * Where a panel of `size` goes next to `anchor` inside `bounds` (all in
  * viewport pixels). It opens on the requested side, switches to the other when
  * that side has more room, is pulled back inside the bounds and told how tall
- * it may be. placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'.
+ * it may be. placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start', or beside the anchor with 'left-start' | 'left-end' |
+ * 'right-start' | 'right-end' (the panel's top, or bottom, lines up with the anchor's; it switches to the roomier side and, when neither
+ * side fits its width, opens below or above instead).
  */
 export function computePlacement({ anchor, size, bounds, placement = 'bottom-end', flip = true, gap = 4, margin = 8 }) {
   const [wanted, align] = placement.split('-');
+  if (wanted === 'left' || wanted === 'right') {
+    const roomLeft = anchor.left - gap - (bounds.left + margin), roomRight = bounds.right - margin - (anchor.right + gap);
+    let side = wanted;
+    if (flip) {
+      if (side === 'left' && size.width > roomLeft && roomRight > roomLeft) side = 'right';
+      else if (side === 'right' && size.width > roomRight && roomLeft > roomRight) side = 'left';
+    }
+    if (size.width <= (side === 'left' ? roomLeft : roomRight)) {
+      const natural = align === 'end' ? anchor.bottom - size.height : anchor.top;
+      const top = Math.max(bounds.top + margin, Math.min(natural, bounds.bottom - margin - size.height));
+      return { placement: `${side}-${align === 'end' ? 'end' : 'start'}`, left: side === 'left' ? anchor.left - gap - size.width : anchor.right + gap, top, maxHeight: Math.max(0, Math.floor(bounds.bottom - margin - top)) };
+    }
+    return computePlacement({ anchor, size, bounds, placement: `bottom-${align === 'end' ? 'end' : 'start'}`, flip, gap, margin });
+  }
   const below = bounds.bottom - margin - (anchor.bottom + gap);
   const above = anchor.top - gap - (bounds.top + margin);
   let side = wanted === 'top' ? 'top' : 'bottom';

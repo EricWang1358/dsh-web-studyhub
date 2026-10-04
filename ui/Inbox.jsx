@@ -1,11 +1,12 @@
 import { ui, uiFormat, uiLocale } from "./i18n.js";
 import { formatAgo } from "./format.js";
 import React from "react";
-import { Badge, Button, EmptyState, IconButton, InlineMessage, ScrollWindow, useNow } from "./components/index.js";
+import { Badge, Button, EmptyState, IconButton, InlineMessage, ScrollWindow, Tooltip, useNow } from "./components/index.js";
 import { useDismiss } from "./components/use-dismiss.js";
 import { useInjectCss } from "./shared.js";
 import { inboxMissingPrompt, inboxOpenHint, inboxTone, inboxTopics } from "../lib/inbox-kinds.js";
 import css from "./inbox.css";
+import previewCss from "./inbox-preview.css";
 
 /* 顶栏信箱：会话或后台替学习者做完的事（改题、前置题、陪学回复、讲解追问、笔记草稿、
    音频转写、PDF 转换、译文、批改、原文补题）都投递到这里。点一条直接跳回那道题或那份
@@ -21,15 +22,25 @@ function EmptyMailbox() {
     description={uiFormat("{0}的结果会投递到这里，点一下就能跳回对应的地方。", [topics])} />;
 }
 
+/** The card beside an entry: everything the list truncates, then what a click does. */
+function Preview({ m }) {
+  return <>
+    {m.deckTitle && <span className="mailbox-preview__deck">{m.deckTitle}</span>}
+    <span className="mailbox-preview__prompt">{m.missing ? ui(inboxMissingPrompt(m.kind)) : m.prompt}</span>
+    {m.detail && <span className="mailbox-preview__detail">{m.detail}</span>}
+    <span className="mailbox-preview__hint">{ui(inboxOpenHint(m.kind, { missing: m.missing }))}</span>
+  </>;
+}
+
 function Letter({ m, busy, now, onOpen, onUndo, close }) {
   const tone = inboxTone(m.kind);
   return (
     <>
+      <Tooltip layer interactive placement="left-start" anchorClassName="mailbox__tip" className="mailbox-preview" content={<Preview m={m} />}>
       <button
         type="button"
         className={"mailbox__item" + (m.read ? "" : " is-unread")}
         disabled={busy || m.missing}
-        title={ui(inboxOpenHint(m.kind, { missing: m.missing }))}
         onClick={() => {
           close();
           onOpen(m);
@@ -45,6 +56,7 @@ function Letter({ m, busy, now, onOpen, onUndo, close }) {
         <span className="mailbox__prompt">{m.missing ? ui(inboxMissingPrompt(m.kind)) : m.prompt}</span>
         {m.detail && <span className="mailbox__detail">{m.detail}</span>}
       </button>
+      </Tooltip>
       {m.canRevert && onUndo && <Button variant="link" size="sm" className="mailbox__undo"
         disabled={busy} onClick={() => onUndo(m)}>{ui("回退这次改题")}</Button>}
     </>
@@ -53,6 +65,7 @@ function Letter({ m, busy, now, onOpen, onUndo, close }) {
 
 export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readError = "", defaultOpen = false }) {
   useInjectCss(css, "study-inbox");
+  useInjectCss(previewCss, "study-inbox-preview");
   const [open, setOpen] = React.useState(defaultOpen);
   const root = React.useRef(null);
   const unread = inbox?.unread || 0,
