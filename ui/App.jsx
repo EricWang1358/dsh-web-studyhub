@@ -9,6 +9,7 @@ import { hasContext, pageAvailable } from './capabilities.js';
 import { uiLocale } from "./i18n.js";
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import StudyMap from "./StudyMap.jsx";
+import RemoveDeckDialog from "./RemoveDeckDialog.jsx";
 import Welcome, { SampleBanner } from "./Welcome.jsx";
 import Tour from "./tour/Tour.jsx";
 import TourGlyph from "./tour/TourGlyph.jsx";
@@ -170,6 +171,7 @@ export default function App({ call: transportCall, host = {} }) {
   const sidebarNarrow = sidebarCollapsed || narrowWindow;
   const [managedDeck, setManagedDeck] = useState(null),
     [folderDraft, setFolderDraft] = useState("");
+  const [removingDeck, setRemovingDeck] = useState(null);
   const [noteInitialId, setNoteInitialId] = useState("");
   const [contextTrail, setContextTrail] = useState([]), [focusRequest, setFocusRequest] = useState(null);
   const examLocation = useRef(null);
@@ -400,6 +402,7 @@ export default function App({ call: transportCall, host = {} }) {
           setDraft(null);
           setRecovery(null);
           setManagedDeck(null);
+          setRemovingDeck(null);
           setGraphScope(null);
           setGraphCanvas(false);
           setSelectedSources([]);
@@ -1814,6 +1817,9 @@ export default function App({ call: transportCall, host = {} }) {
     : data?.lastRun;
   const feedback = <ActionFeedback error={error} notice={notice} busy={busy}
     onCloseError={() => setError("")} onCloseNotice={() => setNotice("")} />;
+  const deckToRemove = removingDeck?.root === data?.root
+    ? data?.decks.find(deck => deck.id === removingDeck?.id) : null;
+  const openDeckRemoval = id => setRemovingDeck({ id, root: data.root });
   return (
     <SciencePreferencesContext.Provider value={sciencePrefs}>
     <QuickActionsContext.Provider value={quickApi}>
@@ -2068,6 +2074,8 @@ export default function App({ call: transportCall, host = {} }) {
                 start={(args) => act("review.start", args, enterRun)}
                 resume={(runId) => act("review.get", { runId }, enterRun)}
                 endRun={(runId) => act("review.end", { runId })}
+                restoreDeck={id => act("deck.archive", { id, archived: false }, () => setNotice(ui("题组已恢复。")))}
+                removeDeck={openDeckRemoval}
                 manage={(id) =>
                   act("deck.get", { id }, (deck) => {
                     setManagedDeck(deck);
@@ -2258,6 +2266,7 @@ export default function App({ call: transportCall, host = {} }) {
                 setManagedDeck={setManagedDeck}
                 folderDraft={folderDraft}
                 setFolderDraft={setFolderDraft}
+                onRemoveDeck={openDeckRemoval}
               />
             )}
             {page === "sources" && (
@@ -2472,6 +2481,13 @@ export default function App({ call: transportCall, host = {} }) {
         setNotice={setNotice} onClose={() => setCourseSettings(null)} />}
       {removingSample && <RemoveSampleDialog busy={sampleBusy} onConfirm={removeSampleData}
         onClose={() => { if (!sampleBusy) setRemovingSample(false); }} />}
+      {deckToRemove && <RemoveDeckDialog key={`${data.root}:${deckToRemove.id}`} deck={deckToRemove} busy={busy} act={act}
+        onClose={() => setRemovingDeck(null)} onRemoved={deck => {
+          setRemovingDeck(null);
+          if (managedDeck?.id === deck.id) setManagedDeck(null);
+          if (page === "manage") navigatePage("library");
+          setNotice(ui("题组已永久删除，原始资料和作答记录已保留。"));
+        }} />}
       {modal && (
         <ModalFrame fullscreen={modal.type === 'source'} onClose={() => setModal(null)}
           title={modal.type === "add"

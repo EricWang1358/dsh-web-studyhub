@@ -139,6 +139,8 @@ export default function StudyMap({
   resume,
   endRun,
   manage,
+  restoreDeck,
+  removeDeck,
   openDraft,
   continueDraft,
   call,
@@ -387,7 +389,13 @@ export default function StudyMap({
             </button>
             {menu === d.id && (
               <div className="map-menu" role="menu">
-                {[
+                {(d.archived ? [
+                  ...(!d.systemKind ? [
+                    [ui("恢复题组"), () => restoreDeck(d.id), false],
+                    [ui("永久删除"), () => removeDeck(d.id), false, "danger-text"],
+                  ] : []),
+                  [ui("管理题组"), () => manage(d.id), false],
+                ] : [
                   [ui("从新题开始"), () => start({ deckId: d.id, mode: "new", fresh: true }), !p?.counts?.new],
                   [ui("闪卡翻看"), () => start({ deckId: d.id, mode: "flashcard" }), !d.available],
                   [ui("测验"), () => start({ deckId: d.id, mode: "quiz" }), !d.quizCount],
@@ -401,11 +409,12 @@ export default function StudyMap({
                     false,
                   ],
                   [ui("管理题组"), () => manage(d.id), false],
-                ].map(([label, run, disabled]) => (
+                ]).map(([label, run, disabled, className]) => (
                   <button
                     key={label}
                     role="menuitem"
-                    disabled={busy || disabled || (d.archived && label !== ui("管理题组"))}
+                    className={className}
+                    disabled={busy || disabled}
                     onClick={() => {
                       setMenu(null);
                       run();

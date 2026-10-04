@@ -1,0 +1,80 @@
+/* global localStorage */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { StudyService } from '../lib/service.js';
+import { createPreviewServer } from '../scripts/preview-server.mjs';
+import { buildPreview } from '../scripts/build.mjs';
+import { launchChromium } from '../scripts/qa/browser.mjs';
+
+test('archived deck menu restores or deletes directly, with safe focus, cancellation and retry', { timeout: 90000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'deck-archive-browser-'));
+  const service = new StudyService(join(root, 'library'));
+  const card = id => ({ id, kind: 'flashcard', topic: 'Topic', objective: 'Recall', prompt: id, answer: 'Answer', hint: '', explanation: '', misconception: '', citations: [] });
+  await service.store.update(s => {
+    s.sources.push({ id: 's', title: 'Retained source', text: 'Evidence' });
+    s.decks.push({ id: 'active', title: 'Active deck', cards: [card('a')] });
+    s.decks.push({ id: 'delete', title: 'Delete deck', archived: true, cards: [card('d'), { ...card('suspended'), suspended: true }] });
+    s.decks.push({ id: 'restore', title: 'Restore deck', archived: true, cards: [card('r')] });
+    s.drafts.push({ id: 'editing', title: 'Editing draft', editingDeckId: 'delete', cards: [card('d')] });
+  });
+  const distDir = join(root, 'dist'); await buildPreview({ outdir: distDir });
+  const server = await createPreviewServer({ libraryRoot: service.store.root, home: join(root, 'home'), port: 0, model: null, distDir });
+  let browser;
+  t.after(async () => { await browser?.close(); await server.close(); await service.dispose(); await rm(root, { recursive: true, force: true }); });
+  try { browser = await launchChromium(); }
+  catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } }), errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
+  await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); });
+  await page.goto(server.url);
+  const row = title => page.locator('.map-deck').filter({ has: page.getByText(title, { exact: true }) });
+  const menu = page.getByRole('menu');
+  await row('Active deck').getByRole('button', { name: 'More actions', exact: true }).click();
+  assert.equal(await menu.getByRole('menuitem', { name: 'Permanently delete', exact: true }).count(), 0);
+  const archived = page.getByRole('button', { name: 'Archived', exact: true });
+  await archived.click();
+  const openDeletion = async () => {
+    await row('Delete deck').getByRole('button', { name: 'More actions', exact: true }).click();
+    assert.deepEqual(await menu.getByRole('menuitem').allTextContents(), ['Restore deck', 'Permanently delete', 'Manage deck']);
+    await menu.getByRole('menuitem', { name: 'Permanently delete', exact: true }).click();
+    return page.getByRole('dialog');
+  };
+  let dialog = await openDeletion();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).waitFor();
+  assert.match(await dialog.innerText(), /its 2 questions/);
+  assert.equal(await page.locator(':focus').textContent(), 'Cancel');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  assert.equal(await row('Delete deck').count(), 1);
+  dialog = await openDeletion();
+  await dialog.getByRole('button', { name: 'Confirm permanent deletion', exact: true }).click();
+  await dialog.getByRole('alert').filter({ hasText: '草稿' }).waitFor();
+  assert.equal(await dialog.isVisible(), true);
+  const draft = await service.call('draft.get', { id: 'editing' });
+  await service.call('draft.delete', { id: draft.id, draftVersion: draft.draftVersion });
+  await dialog.getByRole('button', { name: 'Confirm permanent deletion', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  await row('Delete deck').waitFor({ state: 'hidden' });
+  assert.equal(await archived.getAttribute('aria-pressed'), 'true');
+  assert.equal((await service.call('export')).sources.length, 1);
+  await row('Restore deck').getByRole('button', { name: 'More actions', exact: true }).click();
+  await menu.getByRole('menuitem', { name: 'Restore deck', exact: true }).click();
+  await row('Restore deck').waitFor({ state: 'hidden' });
+  await archived.click();
+  await row('Restore deck').waitFor();
+  assert.equal((await service.call('deck.get', { id: 'restore' })).archived, false);
+  await row('Restore deck').getByRole('button', { name: 'More actions', exact: true }).click();
+  await menu.getByRole('menuitem', { name: 'Manage deck', exact: true }).click();
+  await page.getByRole('button', { name: 'Archive deck & end practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Permanently delete', exact: true }).click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Confirm permanent deletion', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  await archived.waitFor();
+  await assert.rejects(service.call('deck.get', { id: 'restore' }), /not found/i);
+  assert.deepEqual(errors, []);
+});
