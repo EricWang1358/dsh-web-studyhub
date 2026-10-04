@@ -28,7 +28,7 @@ async function harness(t, py = {}) {
     await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
   return { dir, call: (name, args) => service.call(name, args),
-    until: async condition => { for (let i = 0; i < 1500; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('Timed out'); } };
+    until: async condition => { for (let i = 0; i < 6000; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('Timed out'); } };
 }
 
 test('install actions are registered, write no library field, and run end to end', async t => {

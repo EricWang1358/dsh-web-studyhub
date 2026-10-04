@@ -14,7 +14,6 @@
 
     .marker-install { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
     .marker-install__offer, .marker-install__problem, .marker-install__done { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
-    .marker-install .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
     .marker-install__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .marker-install__where { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-sm); min-width: 0; }
     .marker-install__where > span { color: var(--text-muted); }
@@ -24,8 +23,8 @@
     .marker-install__facts > div { display: grid; grid-template-columns: minmax(5.5em, max-content) minmax(0, 1fr); gap: var(--space-1) var(--space-3); align-items: baseline; }
     .marker-install__facts dt { color: var(--text-muted); font-size: var(--fs-sm); }
     .marker-install__facts dd { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-    .marker-install__facts dd .sh-icon { flex: none; margin-top: var(--space-half); color: var(--ok-ink); }
-    .marker-install__facts dd[data-ok="false"] .sh-icon { color: var(--warn-ink, var(--warn)); }
+    .marker-install__fact-mark { display: inline-flex; flex: none; margin-top: var(--space-half); color: var(--ok-ink); }
+    .marker-install__facts dd[data-ok="false"] .marker-install__fact-mark { color: var(--warn-ink, var(--warn)); }
     .marker-install__channels { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: var(--warn-bg); }
     .marker-install__channels ul { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
     .marker-install__channels li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); font-size: var(--fs-sm); }

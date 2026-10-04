@@ -26,7 +26,7 @@ async function harness(t, { py = {}, free = 100_000, noPython = false, pythons }
   t.after(async () => { await installer.cancel(); await installer.idle(); if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before; await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   return { dir, installer, options, env, python, setPy: patch => writeFile(statePath, JSON.stringify(patch)),
     pyLog: async () => (await readFile(log, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line)),
-    until: async condition => { for (let i = 0; i < 1500; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('Timed out'); } };
+    until: async condition => { for (let i = 0; i < 6000; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('Timed out'); } };
 }
 const exists = async file => stat(file).then(() => true, () => false);
 

@@ -40,8 +40,8 @@ function Facts({ plan }) {
   const disk = free == null ? uiFormat('至少需要 {0}', [sizeLabel(plan.disk?.neededMb)]) : uiFormat('剩余 {0} · 至少需要 {1}', [sizeLabel(free), sizeLabel(plan.disk?.neededMb)]);
   const low = free != null && free < plan.disk.neededMb;
   return <dl className="marker-install__facts">
-    <div><dt>{ui('Python')}</dt><dd data-ok={plan.python ? 'true' : 'false'}><Icon name={plan.python ? 'success' : 'warning'} size={16} />{python}</dd></div>
-    <div><dt>{ui('磁盘空间')}</dt><dd data-ok={low ? 'false' : 'true'}><Icon name={low ? 'warning' : 'success'} size={16} />{disk}</dd></div>
+    <div><dt>{ui('Python')}</dt><dd data-ok={plan.python ? 'true' : 'false'}><span className="marker-install__fact-mark"><Icon name={plan.python ? 'success' : 'warning'} size={16} /></span>{python}</dd></div>
+    <div><dt>{ui('磁盘空间')}</dt><dd data-ok={low ? 'false' : 'true'}><span className="marker-install__fact-mark"><Icon name={low ? 'warning' : 'success'} size={16} /></span>{disk}</dd></div>
     <div><dt>{ui('下载与时间')}</dt><dd>{uiFormat('约 {0}，通常 {1}–{2} 分钟（估算，取决于网速）', [sizeLabel(plan.estimate?.downloadMb), plan.estimate?.minutes?.[0], plan.estimate?.minutes?.[1]])}</dd></div>
   </dl>;
 }
@@ -156,7 +156,7 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
         <Hint>{ui('只在上面的安装位置里创建环境，不修改系统的 Python，也不需要管理员权限。')}</Hint>
       </Disclosure>}
       <div className="marker-install__row">
-        <Button variant={primary ? 'primary' : 'secondary'} icon="download" busy={working === 'start'} disabled={locked || !canInstall(plan)} onClick={start}>
+        <Button variant={primary ? 'primary' : 'secondary'} wrap icon="download" busy={working === 'start'} disabled={locked || !canInstall(plan)} onClick={start}>
           {moving ? ui('安装到这个位置并删除旧环境') : ui('一键安装 Marker')}
         </Button>
         <Button variant="quiet" size="sm" disabled={locked} onClick={recheck}>{ui('重新检测')}</Button>
