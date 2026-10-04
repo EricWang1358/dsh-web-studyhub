@@ -32,7 +32,7 @@
   .reader-stepper__value { min-width: 2.5em; font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-align: center; }
   .reader-popover__reset { justify-self: start; }
   .reader-select { width: 100%; min-width: 0; margin: 0; }
-  .reader-more { display: grid; gap: var(--space-3); }
+  .reader-more { display: grid; gap: var(--space-4); }
   .reader-more > summary { cursor: pointer; }
   .reader-more[open] > summary { margin-bottom: var(--space-1); }
 

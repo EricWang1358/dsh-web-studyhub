@@ -140,7 +140,9 @@ test('the interface typeface sets the body AND the headings; 保持系统 puts t
   for (const face of ['kai', 'round', 'mono', 'serif']) assert.match(style, new RegExp(`\\[data-face='${face}'\\][^{]*\\{[^}]*--reader-face:\\s*var\\(--font-stack-${face}\\)`), `reader face ${face}`);
 });
 
-test('the paragraph gap is read by the reader and the reading blocks, with today\'s spacing as the fallback', () => {
+test('the paragraph gap is read by the reader and the reading blocks, with today\'s spacing as the fallback, and reader paragraphs take the column leading', () => {
+  assert.match(read('ui/document-preview/reader/reader.css'), /\.reader-p\s*\{[^}]*line-height:\s*inherit/, 'the global p rule would otherwise pin the leading at 1.8');
+  assert.match(read('ui/document-preview/reader/reader.css'), /\.reader-html p\s*\{[^}]*line-height:\s*inherit/);
   assert.match(read('ui/document-preview/reader/reader.css'), /\.reader-p\s*\{[^}]*margin:\s*0 0 var\(--reader-gap,\s*1em\)/);
   assert.match(read('ui/reading-settings/reading.css'), /\.md p[^{]*\{[^}]*margin-bottom:\s*var\(--reader-gap,\s*0\.7em\)/);
 });
