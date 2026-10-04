@@ -43,7 +43,4 @@
 
 /* A parked course in a list: dimmed, still selectable. */
 :is(.study-app, .study-seat) .is-parked-row { opacity: 0.72; }
-:is(.study-app, .study-seat) .parked-courses { margin-top: var(--space-3); }
-:is(.study-app, .study-seat) .parked-courses > summary,
 :is(.study-app, .study-seat) .parked-toggle { cursor: pointer; color: var(--text-dim); font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .course-list__row-controls { display: flex; align-items: center; gap: var(--space-3); flex: none; }

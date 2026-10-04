@@ -41,7 +41,7 @@ export const ALLOW = {
     { name: '--dsh-frame-top-clearance', reason: 'host-provided' },
     /* Optional overrides: the default sits in the var() fallback on purpose. */
     { name: '--sh-toast-offset', reason: 'optional override set by a host page' },
-    { name: '--dur-leave', reason: 'optional override, ui/quick-actions.css fallback is the default' },
+    { name: '--dur-leave', reason: 'optional override, ui/components/feedback.css fallback is the default' },
     /* Stale token names that never existed. Each is a latent bug; replace the use, then delete the entry. */
     { name: '--bg', reason: 'use --bg-surface (large-documents.css, mineru.css)' },
     { name: '--font-mono', reason: 'no mono token exists (mineru.css fallback is used)' },

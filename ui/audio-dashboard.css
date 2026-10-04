@@ -84,7 +84,6 @@
 .study-app .audio-dashboard-footer span { flex: 1 1 320px; }
 .study-app .audio-dashboard-footer a { color: var(--text-dim); }
 .study-app .audio-dashboard-error { color: var(--bad); margin-bottom: 16px !important; }
-.study-app .audio-dashboard-loading { min-height: 180px; }
 @container (max-width: 560px) {
   .study-app .audio-provider-list { grid-template-columns: 1fr; gap: 22px; }
   .study-app .audio-provider-heading { grid-template-columns: 7px minmax(0,1fr) auto; }

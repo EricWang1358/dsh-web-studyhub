@@ -23,5 +23,3 @@
 .study-app .audio-submit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
 .study-app .audio-submit .sh-inline { flex: 1 1 100%; }
 .study-app .audio-member-reason { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
-.study-app .audio-job-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-.study-app .audio-job-actions .sh-btn { margin: 0; }

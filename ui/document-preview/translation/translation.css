@@ -192,7 +192,7 @@
   .tr-toolbar-button[data-busy='true'] .tr-toolbar-button__tag { animation: tr-pulse 1.2s ease-in-out infinite; }
   .tr-panel { gap: var(--space-3); width: 348px; max-width: calc(100cqw - var(--space-4)); }
   .tr-panel__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-  .tr-panel__note, .tr-scope__note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+  .tr-panel__note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
   .tr-scope { display: grid; justify-items: start; gap: 6px; padding-top: var(--space-3); border-top: 1px solid var(--line); }
   .tr-scope__head { display: grid; gap: 2px; min-width: 0; }
   .tr-scope__head small { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }

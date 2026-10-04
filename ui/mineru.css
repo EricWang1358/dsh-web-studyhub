@@ -31,14 +31,10 @@
 .study-app .mineru-route__body { display: grid; gap: var(--space-1); min-width: 0; }
 .study-app .mineru-route__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
 .study-app .mineru-route__body small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-.study-app .mineru-gate { margin: 0; }
-.study-app .mineru-gate .sh-secret { margin-top: var(--space-4); max-width: 560px; }
 .study-app .mineru-gate--local { padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
 .study-app .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-size: var(--fs-sm); }
 .study-app .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .study-app .mineru-start .sh-btn { margin: 0; }
-.study-app .mineru-advanced p { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); max-width: 70ch; }
-.study-app .mineru-advanced a { color: var(--accent-text); text-underline-offset: 3px; }
 
 .study-app .mineru-privacy { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--warn) 10%, transparent); }
@@ -65,10 +61,6 @@
 .study-app .mineru-route { flex-direction: row; }
 
 /* Legacy chip of the conversion card and history rows (PdfConversion, PdfConvertJob). They move to Badge in the import work package; delete this block then. */
-.study-app .audio-chip { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--text) 7%, transparent);
-  color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1.6; white-space: nowrap; }
-.study-app .audio-chip--good { background: color-mix(in srgb, var(--ok) 16%, transparent); color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
-.study-app .audio-chip--accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); }
 /* The only definition left of the old provider note: PdfConversion still writes it. It becomes a Hint there; delete this rule then. */
 .study-app .audio-provider-note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
 

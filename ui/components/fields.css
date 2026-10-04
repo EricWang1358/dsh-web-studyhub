@@ -70,7 +70,6 @@
   .settings-section__lead { max-width: 70ch; margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
   /* Legacy note class of the sections still written by hand (UpdateCenter, tour/SampleControls): their notes are Hints in all but name. */
   .settings-section .sh-hint { overflow-wrap: anywhere; }
-  .settings-section__note { max-width: 72ch; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
 
   /* ── Provider card and steps ───────────────────────────────────────── */
   .sh-provider-grid { min-width: 0; }

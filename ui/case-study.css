@@ -308,44 +308,6 @@
   font: inherit;
 }
 .case-paper__write.is-active { border-style: solid; border-color: var(--accent-soft); color: var(--text); }
-.case-paper__decks {
-  display: grid;
-  gap: var(--space-2);
-}
-.case-paper__deck {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--bg-surface);
-  cursor: pointer;
-}
-.case-paper__deck.is-picked { border-color: var(--accent-soft); background: var(--bg-selected); }
-.case-paper__deck span { display: grid; gap: 2px; }
-.case-paper__deck small { color: var(--text-muted); }
-.case-paper__settings {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 12rem)) minmax(0, 1fr);
-  gap: var(--space-3) var(--space-4);
-  align-items: end;
-  margin-top: var(--space-4);
-}
-.case-paper__settings label { display: grid; gap: var(--space-1); color: var(--text-dim); font-size: var(--fs-sm); }
-.case-paper__check { display: flex !important; gap: var(--space-2); align-items: flex-start; }
-.case-paper__check span { display: grid; gap: 2px; }
-.case-paper__check small { color: var(--text-muted); }
-.case-paper__plan { color: var(--text-dim); margin: var(--space-3) 0; font-size: var(--fs-sm); }
-.case-paper__start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
-.case-paper__history {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-2);
-}
-.case-paper__history li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
 
 /* ---------- creating a case set ---------- */
 .case-create {
@@ -423,19 +385,13 @@
   .case-paper__body.show-questions .case-scenario { display: none; }
 }
 @container study (max-width: 560px) {
-  .case-paper__settings, .case-create__grid { grid-template-columns: minmax(0, 1fr); }
+  .case-create__grid { grid-template-columns: minmax(0, 1fr); }
   .case-create__question { grid-template-columns: minmax(0, 1fr) 5rem; }
   .case-scenario { padding: var(--space-3); }
   .case-paper__clock { font-size: var(--fs-xl); }
 }
 
 /* the exam page's mode switch */
-.exam-mode-switch {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-}
 
 /* checking a case draft */
 .case-draft { margin: var(--space-4) 0; }

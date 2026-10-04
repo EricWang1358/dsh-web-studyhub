@@ -26,7 +26,6 @@
   .study-document-body[data-link-hover] { cursor: pointer; }
 
   /* The Aa popover's underline row sits on one line so the popover stays short. */
-  .reader-setting.reader-setting--inline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 
   /* ── Save an answer as a flashcard ──────────────────────────────────── */
   .study-qa-save { margin-top: var(--space-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }

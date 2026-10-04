@@ -92,30 +92,6 @@
   font-size: var(--fs-md);
   line-height: var(--lh-body);
 }
-.welcome-card__facts {
-  display: grid;
-  gap: 6px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-}
-.welcome-card__facts li {
-  position: relative;
-  padding-left: 18px;
-}
-.welcome-card__facts li::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 0.5em;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-soft);
-}
 .welcome-card__action {
   margin-top: auto;
   padding-top: var(--space-4);

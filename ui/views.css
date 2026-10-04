@@ -222,108 +222,8 @@
 .exam-setup .page-heading p {
   margin: 0;
 }
-.exam-rules {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
-  gap: 2px 28px;
-  color: var(--text-faint);
-  font-size: 15px;
-  line-height: 1.7;
-}
-.exam-rules li::before {
-  content: "— ";
-}
-.exam-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px 18px;
-  background: var(--bg-surface);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-}
 /* The setup is the exam paper itself: the same card stock and cinnabar head
    rule as a question, so "the thing you are about to sit" is one object. */
-.exam-sheet {
-  gap: 20px;
-  max-width: 860px;
-  padding: 22px 30px 20px;
-  background: var(--bg-raised);
-  border-color: var(--line);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-}
-.exam-sheet > .exam-panel-head {
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--accent);
-}
-.exam-sheet > .exam-panel-head strong {
-  font-family: var(--font-display);
-  font-size: var(--fs-xl);
-}
-.exam-sheet .exam-setup-tools button {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text-muted);
-}
-.exam-sheet .exam-setup-tools button:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-.exam-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.exam-panel-head > div:first-child {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.exam-panel-head small {
-  font-size: 15px;
-}
-.exam-setup-tools {
-  display: flex;
-  gap: 6px;
-}
-.exam-setup-tools button {
-  padding: 6px 12px;
-  font-size: 15px;
-}
-.exam-history ul { list-style: none; margin: 0; padding: 0; }
-.exam-history li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
-.exam-history li > span { min-width: 0; }
-.exam-history li small { display: block; margin-top: 3px; color: var(--text-muted); overflow-wrap: anywhere; }
-.exam-history li button { flex: none; }
-.exam-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 48px 28px;
-}
-.exam-empty h2 {
-  margin: 12px 0 6px;
-}
-.exam-empty p {
-  max-width: 440px;
-  margin: 0 auto;
-}
-.exam-empty-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 20px;
-}
-.exam-empty-actions:empty {
-  display: none;
-}
 .exam-decks {
   list-style: none;
   margin: 0;
@@ -341,86 +241,10 @@
 /* The base layer in style.css is :where()-scoped, so single-class rules here
    out-rank its bare element defaults (button, label, h1..p) without needing
    extra parent prefixes. */
-.exam-deck {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  margin: 0;
-  padding: 12px 8px;
-  border: 0;
-  border-bottom: 1px solid var(--line-soft);
-  border-radius: 0;
-  background: transparent;
-  cursor: pointer;
-  transition:
-    border-color 0.15s var(--ease),
-    background 0.15s var(--ease);
-}
-.exam-deck:hover {
-  background: var(--bg-hover);
-}
-.exam-deck.picked {
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
-}
-.exam-deck input {
-  accent-color: var(--accent);
-}
-.exam-deck-name {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.exam-deck-name strong {
-  font-size: 15px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.exam-deck-name small {
-  color: var(--text-muted);
-  font-size: 15px;
-}
 .exam-type-settings { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 .exam-type-settings .sh-seg { align-self: flex-start; }
 .exam-type-settings small { font-size: 15px; }
 .exam-type-settings .warning { margin: 0; }
-.exam-setup-foot {
-  padding-top: 14px;
-  border-top: 1px solid var(--line-soft);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.exam-count {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  color: var(--text-dim);
-  font-size: 15px;
-}
-.exam-count input {
-  width: 68px;
-  padding: 7px 10px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-.exam-sheet .exam-setup-foot .primary {
-  padding: 12px 26px;
-  font-size: 16px;
-}
-.exam-count small {
-  color: var(--text-muted);
-}
 
 /* ── Exam: running ───────────────────────────────────────────────────── */
 .exam-head {
@@ -553,53 +377,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-.exam-score-row {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  flex-wrap: wrap;
-}
-.exam-score {
-  display: flex;
-  flex-direction: column;
-}
-.exam-score strong {
-  font-size: 52px;
-  line-height: 1;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-.exam-score strong i {
-  font-style: normal;
-  font-size: 24px;
-  margin-left: 2px;
-  color: var(--text-muted);
-}
-.exam-score small {
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 15px;
-}
-.exam-stats {
-  list-style: none;
-  display: flex;
-  gap: 18px;
-  margin: 0;
-  padding: 0;
-  flex-wrap: wrap;
-}
-.exam-stats li {
-  display: flex;
-  flex-direction: column;
-}
-.exam-stats strong {
-  font-size: var(--fs-xl);
-  font-variant-numeric: tabular-nums;
-}
-.exam-stats small {
-  color: var(--text-muted);
-  font-size: 15px;
 }
 .exam-bars {
   display: flex;
