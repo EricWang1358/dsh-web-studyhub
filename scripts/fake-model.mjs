@@ -362,6 +362,24 @@ function gradeCaseAnswers(input, english) {
 /* ---------- handlers, first match wins ---------- */
 
 const HANDLERS = [
+  { name: 'notes.daily-recap', text: true, match: system => system.startsWith('DAILY_COURSE_RECAP:'),
+    reply: ({ input, system }) => {
+      const english = system.includes('in English,'), friendly = system.includes('friendly, warm');
+      const title = `# ${input.course} · ${input.day} ${english ? 'Daily recap' : '学习总结'}`;
+      const summary = english
+        ? `You practised ${input.answeredCount} distinct questions today; ${input.wrongCount} showed a weak point. Review the evidence below, then check your reasoning on your next practice round.`
+        : `今天练习了 ${input.answeredCount} 道不同题目，${input.wrongCount} 道曾需要巩固。${friendly ? '我们一起把今天的收获串起来。' : '以下按知识点整理作答依据。'}请对照题目核对推理，再安排下一次复习。`;
+      const pending = input.unassessedCount > 0 ? (english
+        ? `${input.unassessedCount} submitted answers are awaiting grading. Review their content without inferring correctness or mastery.`
+        : `其中 ${input.unassessedCount} 道作答尚待批改，先回顾作答内容，不据此判断对错或是否掌握。`) : '';
+      const sections = input.sections || (input.questions || []).map(question => {
+        const answer = question.answer || (question.options || []).filter(option => option.correct).map(option => option.text).join('；');
+        return `## ${question.topic || (english ? 'Key idea' : '知识点')}\n\n${question.question}\n\n${english ? 'Expected answer' : '正确思路'}：${answer}\n\n${question.explanation || (english ? 'Check the stated conditions before applying the conclusion.' : '先核对题目条件，再应用结论。')}`;
+      });
+      const plan = english ? '## Next review\n\nRecall the conditions without looking at the answer, then retry the related questions. A recap alone does not establish mastery.'
+        : '## 下次复习\n\n先不看答案复述成立条件，再重做关联题目。读完总结后仍要用练习检查是否掌握。（预览用的模拟模型输出）';
+      return [title, summary, pending, ...sections, plan].filter(Boolean).join('\n\n');
+    } },
   { name: "generation.plan", slow: true, match: (s) => s.startsWith("Plan a source-grounded assessment"),
     reply: ({ prompt, nextNumber }) => planTargets(after(prompt, "REQUEST DATA:\n"), nextNumber) },
   { name: 'generation.blueprint', slow: true, match: (s) => s.startsWith('Prepare supported answers'),

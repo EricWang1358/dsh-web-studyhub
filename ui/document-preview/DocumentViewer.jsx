@@ -40,11 +40,11 @@ const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayout
 // 看原页 (pdf.js and its worker) is fetched on the first peek, never with the reader.
 const PagePeek = lazy(() => import('./peek/PagePeek.jsx'));
 
-/** HTML is inert reading content: scripts, embedded browsing and external resource loads are removed. */
-export function safeDocumentHtml(text) {
+/** HTML is inert reading content. Only Markdown already filtered by renderNoteMarkdown may keep its safe images. */
+export function safeDocumentHtml(text, { markdownImages = false } = {}) {
   return DOMPurify.sanitize(String(text || ''), { USE_PROFILES: { html: true, mathMl: true },
-    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'form', 'input', 'button', 'textarea', 'select', 'svg', 'canvas', 'mglyph', 'img', 'picture', 'audio', 'video', 'source', 'track'],
-    FORBID_ATTR: ['src', 'srcset', 'poster', 'xlink:href', 'style', 'autofocus', 'contenteditable'], ADD_ATTR: ['target'] });
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'form', 'input', 'button', 'textarea', 'select', 'svg', 'canvas', 'mglyph', ...(!markdownImages ? ['img'] : []), 'picture', 'audio', 'video', 'source', 'track'],
+    FORBID_ATTR: [...(!markdownImages ? ['src'] : []), 'srcset', 'poster', 'xlink:href', 'style', 'autofocus', 'contenteditable'], ADD_ATTR: ['target'] });
 }
 
 /**
@@ -87,16 +87,21 @@ function QuotedText({ text, quote, anchor, format }) {
  * exactly, for checking citations) and 原始 PDF. Props: source, quote, call, data, host,
  * onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows "从这份资料出题" as the
  * toolbar's primary action), generateDisabled, initialMode ('read' | 'text' | 'original').
+ * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
  */
 export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onNotice, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, resume, backLabel, onBack }) {
+  onPracticePages, onGeneratePages, resume, backLabel, onBack, localContent }) {
   const language = useUiLanguage();
+  const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
   useInjectCss(readerCss, 'study-reader');
   useInjectCss(linksCss, 'study-reader-links');
   useInjectCss(translationCss, 'study-reader-translation');
-  const [document, setDocument] = useState(null), [content, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
-  const [error, setError] = useState(''), [loading, setLoading] = useState(true), [mode, setMode] = useState(initialMode);
+  const [loadedDocument, setDocument] = useState(null), [loadedContent, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
+  const [error, setError] = useState(''), [fetching, setLoading] = useState(true), [mode, setMode] = useState(initialMode);
+  // Local writing is authoritative on every render, including edits and a switch from an open material.
+  const document = localMode ? null : loadedDocument, content = localMode ? String(localContent.markdown ?? '') : loadedContent;
+  const loading = !localMode && fetching;
   const [capture, setCapture] = useState(null), [links, setLinks] = useState([]), [focusedKey, setFocusedKey] = useState(null);
   const [settings, updateSettings, resetSettings] = useReaderSettings();
   const [narrow, setNarrow] = useState(false), [overlay, setOverlay] = useState(null);
@@ -111,6 +116,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   useEffect(() => {
     let current = true, objectUrl = '';
     setLoading(true); setError(''); setDocument(null); setContent(''); setFileUrl(''); setCapture(null);
+    setLinks([]);
+    if (localMode) { setLoading(false); return undefined; }
     (async () => {
       try {
         const value = await call('materials.document.get', { sourceId: source.id,
@@ -140,8 +147,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       } finally { if (current) setLoading(false); }
     })();
     return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [call, source.id, source.text, source.selection?.revision, reload]);
-  const format = viewerFormat(document, source), paged = PAGED.has(format);
+  }, [call, source.id, source.text, source.selection?.revision, reload, localMode]);
+  const format = localMode ? 'md' : viewerFormat(document, source), paged = PAGED.has(format);
   const view = mode === 'original' && !(format === 'pdf' && fileUrl) ? 'read' : mode, reading = view === 'read';
   const downloadOriginal = async () => {
     try {
@@ -154,13 +161,13 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { setError(e.message); }
   };
-  const groups = useMemo(() => groupPassageLinks(links), [links]);
+  const groups = useMemo(() => groupPassageLinks(localMode ? [] : links), [links, localMode]);
   // Which passages are underlined (resolved links) and which must be selected again; notes follow their cards.
   const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges }), [groups, data?.noteBadges]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
-  const sources = useMemo(() => document?.sources || [source], [document, source]);
-  const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderNoteMarkdown(content))
-    : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading]);
+  const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
+  const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderNoteMarkdown(content), { markdownImages: localMode })
+    : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
   const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content }) : [],
     [reading, html, paged, sources, content]);
   const pageLabel = page => format === 'pptx' ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]);
@@ -173,10 +180,10 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   useEffect(() => { setAiOutline(document?.outline ?? null); }, [document]);
   useIsoLayoutEffect(() => {
     const drawn = body.current;
-    if (!aiOutline || view === 'original' || loading) { clearOutlineTags(drawn); setAiItems(items => items.length ? [] : items); return; }
+    if (localMode || !aiOutline || view === 'original' || loading) { clearOutlineTags(drawn); setAiItems(items => items.length ? [] : items); return; }
     setAiItems(applyOutline(drawn, aiOutline.entries));
-  }, [aiOutline, view, html, sections, content, document, loading]);
-  const aiOn = view !== 'original' && aiItems.length > 0;
+  }, [aiOutline, view, html, sections, content, document, loading, localMode]);
+  const aiOn = !localMode && view !== 'original' && aiItems.length > 0;
   const outlineItems = aiOn ? aiItems : autoOutline;
   const outline = useMemo(() => structureOutline(outlineItems, { fold: !aiOn }), [outlineItems, aiOn]);
   const [position, jump] = useReadingPosition(scroller, outline, `${view}:${html.length}:${sections.length}:${aiItems.length}`);
@@ -210,11 +217,12 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   // The panel is also there when no headings were found, so "让 AI 帮你" can be asked for (it then opens only on request).
   const canOutline = outline.length > 0 || (!!assistTarget && view !== 'original' && !loading && !!call);
   const outlineOn = canOutline && (narrow ? overlay === 'outline' : outline.length > 0 ? settings.outline : emptyOpen);
-  const toolsOn = narrow ? overlay === 'tools' : settings.tools;
+  const toolsOn = !localMode && (narrow ? overlay === 'tools' : settings.tools);
   const toggle = panel => narrow ? setOverlay(current => current === panel ? null : panel)
     : panel === 'outline' && outline.length === 0 ? setEmptyOpen(open => !open) : updateSettings({ [panel]: !settings[panel] });
 
   const select = () => {
+    if (localMode) return;
     const value = captureSelection(body.current);
     if (!value) return;
     setCapture(value);
@@ -236,7 +244,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   };
   usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle });
   // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
-  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, onNotice });
+  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, onNotice, enabled: !localMode });
   const quoteState = quote ? locateQuote(sources.find(item => item.id === source.id)?.text || content, quote, source.selection) : null;
   useEffect(() => {
     if (!reading || !quote || quoteState?.status !== 'resolved') return undefined;
@@ -265,7 +273,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume });
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
-  const meters = loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
+  const meters = !localMode && loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
@@ -293,7 +301,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const onKeyDown = event => {
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f' && view !== 'original') { event.preventDefault(); openFind(); }
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
-    else if (onPracticePages && view !== 'original' && event.key.toLowerCase() === 'p' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+    else if (!localMode && onPracticePages && view !== 'original' && event.key.toLowerCase() === 'p' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
       && !event.target.closest?.('input,textarea,select,[contenteditable]')) { event.preventDefault(); loop.setOpen(!loop.open); }
   };
 
@@ -304,15 +312,15 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), title: fileUrl ? undefined : ui('还没有原始 PDF，点击查看如何补全') }] : [])];
   const notices = [
     loading && <p key="loading" role="status">{ui('正在打开资料…')}</p>,
-    <OriginalNotice key="original" document={document} onAction={setAttaching} />,
+    !localMode && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     view === 'original' && <p key="pdf">{ui('原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。')}</p>,
-    error && <p key="error" className="is-warning" role="alert">{error}</p>,
+    !localMode && error && <p key="error" className="is-warning" role="alert">{error}</p>,
     quoteState?.status === 'ambiguous' && <p key="ambiguous" className="is-warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</p>,
     quoteState?.status === 'stale' && <p key="stale" className="is-warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</p>,
     source.selection && document?.currentRevision && document.currentRevision !== source.selection.revision
       && <p key="revision" className="is-warning">{ui('此引用来自较早版本，当前资料已有更新。')}</p>,
     bilingual.notice,
-    loop.resumeNote === 'updated' && <p key="resume" className="reader-resume-note" role="status">{ui('资料已更新，已回到该章节大致的位置。')}</p>,
+    !localMode && loop.resumeNote === 'updated' && <p key="resume" className="reader-resume-note" role="status">{ui('资料已更新，已回到该章节大致的位置。')}</p>,
   ].filter(Boolean);
   const pagerTitle = item => [itemLabel(item), item.title].filter(Boolean).join(' · ');
   const pageText = (section, index) => sources[index]?.text ?? '';
@@ -334,20 +342,20 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       <p className="reader-toolbar__where" title={where || undefined}>{where}</p>
       {meters && <span className="reader-toolbar__mastery"><MasteryLine summary={loop.current} title={ui('本节掌握度')} /></span>}
       <div className="reader-toolbar__group reader-toolbar__group--end">
-        {view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} />}
+        {!localMode && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} />}
         {view !== 'original' && <>
           <IconButton icon="search" label={ui('在文中查找')} aria-pressed={finding} onClick={() => finding ? closeFind() : openFind()} />
           {bilingual.toolbar}
-          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} extra={bilingual.displayRow} />
+          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} underline={!localMode} extra={bilingual.displayRow} />
         </>}
-        <IconButton icon="panel" label={ui('学习工具')} aria-pressed={toolsOn} aria-controls={toolsId} data-tour="source-tools-toggle"
+        {!localMode && <IconButton icon="panel" label={ui('学习工具')} aria-pressed={toolsOn} aria-controls={toolsId} data-tour="source-tools-toggle"
           data-attention={capture && !toolsOn ? 'true' : undefined} onClick={() => toggle('tools')}>
           {groups.length > 0 && <span className="reader-badge" aria-hidden="true">{groups.length}</span>}
-        </IconButton>
+        </IconButton>}
         {originalHandling(document) === 'download' && <Button size="sm" variant="quiet" icon="download" onClick={downloadOriginal}>{ui('下载原文件')}</Button>}
         {document?.preview?.kind === 'file' && host?.openDocument && <Button size="sm" variant="quiet" icon="external"
           onClick={() => host.openDocument(document.preview.path)}>{ui('使用宿主文件预览')}</Button>}
-        {onGenerate && <Button variant="primary" icon="sparkle" disabled={generateDisabled} onClick={onGenerate}>{ui('从这份资料出题')}</Button>}
+        {!localMode && onGenerate && <Button variant="primary" icon="sparkle" disabled={generateDisabled} onClick={onGenerate}>{ui('从这份资料出题')}</Button>}
       </div>
     </div>
     <div className="reader-progress" aria-hidden="true"><span style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>
@@ -356,14 +364,14 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
       {quote && <blockquote className="highlight-quote">{quote}</blockquote>}
-      <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />
+      {!localMode && <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
       {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters}
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
-      <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={ui('资料内容')} data-mode={view}>
+      <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={localMode ? localContent.title || source.title || ui('资料内容') : ui('资料内容')} data-mode={view}>
         <div className="reader-page">
           <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select}>
             {view === 'original'
@@ -387,7 +395,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
           </nav>}
         </div>
       </div>
-      <aside className="study-document-side reader-tools" data-tour="source-tools" id={toolsId} aria-label={ui('学习工具')} hidden={!toolsOn}>
+      {!localMode && <aside className="study-document-side reader-tools" data-tour="source-tools" id={toolsId} aria-label={ui('学习工具')} hidden={!toolsOn}>
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
           <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>
@@ -398,12 +406,12 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
         <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} />
-      </aside>
+      </aside>}
     </div>
     {bilingual.layer}
     {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
       status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }} /></Suspense>}
-    {attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
+    {!localMode && attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
       call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;
 }

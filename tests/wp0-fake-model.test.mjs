@@ -8,6 +8,7 @@ import { createAssistService } from "../lib/assist.js";
 import { languageSystem } from "../lib/language.js";
 import { TITLE_SYSTEM, PROOFREAD_SYSTEM, TRANSLATE_SYSTEM, TRANSLATE_TO_ENGLISH_SYSTEM, normalizeTranslation } from "../lib/transcript.js";
 import { createFakeModel } from "../scripts/fake-model.mjs";
+import { recapPrompt, checkedRecapMarkdown } from '../lib/daily-recap.js';
 import { sampleMaterial } from "../scripts/qa/fixtures.mjs";
 
 const repo = fileURLToPath(new URL("../", import.meta.url));
@@ -30,6 +31,20 @@ async function generate(service, source, args) {
 }
 
 const unhandled = (log) => log.filter((entry) => !entry.handler).map((entry) => entry.system.slice(0, 80));
+
+test('fake model supports daily recap preparation, all-correct review and consolidation', async () => {
+  const log = [], model = createFakeModel({ log });
+  const input = { day: '2026-10-04', course: '数学', answeredCount: 10, wrongCount: 0, stage: 'recap',
+    questions: [{ topic: '平方', question: '解释平方', answer: '$x^2$', explanation: '变量乘以自身。', wrong: false }] };
+  const review = checkedRecapMarkdown(await model(recapPrompt('friendly', 'zh'), JSON.stringify(input)));
+  assert.match(review, /平方/); assert.match(review, /\$x\^2\$/);
+  const prepared = checkedRecapMarkdown(await model(recapPrompt('professional', 'en'), JSON.stringify({ ...input, stage: 'prepare', wrongCount: 1 })));
+  const combined = checkedRecapMarkdown(await model(recapPrompt('professional', 'en'), JSON.stringify({ ...input, stage: 'consolidate', sections: [prepared] })));
+  assert.match(combined, /2026-10-04/); assert.match(combined, /平方/);
+  const pending = checkedRecapMarkdown(await model(recapPrompt('friendly', 'zh'), JSON.stringify({ ...input, unassessedCount: 2 })));
+  assert.match(pending, /2 道作答尚待批改/);
+  assert.deepEqual(unhandled(log), []);
+});
 
 for (const [kind, count] of [["quiz", 3], ["multi", 3], ["cloze", 3], ["flashcard", 3], ["open", 2], ["mixed", 4]]) {
   test(`fake model drives the real generation pipeline for ${kind} cards`, async (t) => {

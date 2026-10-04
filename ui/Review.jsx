@@ -18,6 +18,7 @@ import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
+import DailyRecap from './DailyRecap.jsx';
 
 /* 修题: the usual problems, as one click each. The text goes into the box (editable) and is sent as the learner's own feedback. */
 const IMPROVE_SUGGESTIONS = [
@@ -109,6 +110,8 @@ export default function Review({
   contextReturnLabel,
   onReturnContext,
   onReturnToReading,
+  onRecapSettings,
+  onModelSettings,
 }) {
   useInjectCss(resultCss, "review-results");
   const pageRef = React.useRef(null);
@@ -295,6 +298,8 @@ export default function Review({
             </div>
             <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct} />
           </div>
+          {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap} call={call} act={act}
+            busy={busy} poll onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
           {/* The 雷霆建议 sits right under the score: it carries the one-click
               「刷 N 道为你定制的题」, so it must not hide inside the fold. */}
           {coachProps && run.mode !== "exam" && run.answered > 0 && (

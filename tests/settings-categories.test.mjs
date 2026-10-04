@@ -10,7 +10,7 @@ const full = { audio: true, generation: true, system: true };
 test('settings categories under the three group headings, each with a plain title', () => {
   assert.deepEqual(SETTINGS_GROUPS.map(group => group.id), ['common', 'once', 'advanced']);
   assert.deepEqual(SETTINGS_CATEGORIES.map(category => category.id),
-    ['appearance', 'science', 'model', 'generation', 'courses', 'audio', 'mineru', 'retrieval', 'profile', 'data', 'update', 'usage', 'experimental']);
+    ['appearance', 'science', 'model', 'generation', 'daily-recap', 'courses', 'audio', 'mineru', 'retrieval', 'profile', 'data', 'update', 'usage', 'experimental']);
   for (const category of SETTINGS_CATEGORIES) {
     assert.ok(SETTINGS_GROUPS.some(group => group.id === category.group), `${category.id} sits in a group`);
     assert.ok(category.title && /[㐀-鿿]/.test(category.title), `${category.id} has a Chinese title`);
@@ -27,7 +27,7 @@ test('a host without a component shows no category for it', () => {
   assert.ok(!ids({ audio: true, system: true }).includes('generation'));
   assert.ok(!ids({ audio: true, generation: true }).includes('usage'));
   assert.ok(!ids({ audio: true, generation: true }).includes('experimental'));
-  assert.deepEqual(ids({}).slice(0, 4), ['appearance', 'science', 'model', 'courses'], 'the basics are always there');
+  assert.deepEqual(ids({}).slice(0, 5), ['appearance', 'science', 'model', 'daily-recap', 'courses'], 'the basics are always there');
 });
 
 test('every deep link and tour anchor lands on its category', () => {
@@ -35,6 +35,7 @@ test('every deep link and tour anchor lands on its category', () => {
   for (const [anchor, id] of Object.entries(expected)) assert.equal(categoryForAnchor(anchor), id, anchor);
   assert.equal(categoryForAnchor('settings-nowhere'), null);
   assert.equal(categoryForAnchor('settings-science'), 'science');
+  assert.equal(categoryForAnchor('settings-daily-recap'), 'daily-recap');
   assert.equal(categoryForAnchor(''), null);
 });
 

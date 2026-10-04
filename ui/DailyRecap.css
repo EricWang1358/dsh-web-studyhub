@@ -1,0 +1,19 @@
+.daily-recap { border: 1px solid var(--line); border-radius: 14px; padding: 22px; background: var(--bg-surface); text-align: left; margin: 18px 0; }
+.daily-recap-heading, .daily-recap-course-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.daily-recap-heading h2 { margin: 0; font-size: 20px; }
+.daily-recap-kicker { font-size: 12px; color: var(--text-muted); margin: 0 0 6px; }
+.daily-recap-lead, .daily-recap-footnote { color: var(--text-muted); font-size: 13px; line-height: 1.65; }
+.daily-recap-course { border-top: 1px solid var(--line); margin-top: 15px; padding-top: 15px; }
+.daily-recap-course h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.daily-recap-course small { color: var(--text-muted); }
+.daily-recap-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-top: 12px; }
+.daily-recap-tone { display: grid; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.daily-recap-tone select { min-width: 100px; }
+.daily-recap-progress { display: flex; align-items: center; gap: 9px; font-size: 14px; }
+.daily-recap-spinner { flex-shrink: 0; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: daily-recap-spin 1s linear infinite; }
+.daily-recap-replace { margin-top: 12px; font-size: 13px; }
+.daily-recap-replace summary { cursor: pointer; }
+.daily-recap-error { overflow-wrap: anywhere; }
+@keyframes daily-recap-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .daily-recap-spinner { animation: none; } }
+@container study (max-width: 600px) { .daily-recap { padding: 16px; } .daily-recap-heading, .daily-recap-course-heading { flex-wrap: wrap; } .daily-recap-actions > button { flex: 1 1 100%; white-space: normal; } }

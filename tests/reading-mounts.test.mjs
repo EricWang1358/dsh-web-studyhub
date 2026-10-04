@@ -58,7 +58,8 @@ test('review, results, notes, the skeleton canvas and the exam report mount the 
   const coach = await source('ui/CoachDebrief.jsx');
   assert.match(coach, /<ReadingBlock[^>]*className="coach-debrief"/);
   const notes = await source('ui/BlogNotes.jsx');
-  assert.equal((notes.match(/<ReadingBlock[^>]*className="note-preview"/g) || []).length, 2, 'the editor preview and the server version');
+  assert.equal((notes.match(/<ReadingBlock[^>]*className="note-preview"/g) || []).length, 1, 'the conflicting saved version retains the shared reading setting');
+  assert.match(notes, /<DocumentViewer[\s\S]*?localContent=/, 'saved notes use the shared document reader and its reading settings');
   assert.match(notes, /<ReadingSettingsButton/);
   const canvas = await source('ui/SkeletonCanvas.jsx');
   assert.match(canvas, /<ReadingBlock[^>]*className="skc-detail"/);
