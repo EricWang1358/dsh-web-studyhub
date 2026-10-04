@@ -179,7 +179,7 @@
     border-radius: var(--radius);
     background: var(--bg-surface);
   }
-  .sh-job--running { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+  .sh-job--running { border-color: color-mix(in srgb, var(--info) 35%, var(--line)); }
   .sh-job--failed { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
   .sh-job__mark { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--sh-tone-ink); }
   .sh-job__mark .sh-spinner { width: 18px; height: 18px; }
@@ -200,8 +200,10 @@
   .sh-job__body > .sh-inline { margin: 0; }
   .sh-job__detail { width: 100%; color: var(--text-muted); font-size: var(--fs-sm); }
   .sh-job__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }
-  .sh-job__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); min-width: 0; }
+  .sh-job__actions { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: var(--space-1) var(--space-3); min-width: 0; }
   .sh-job__actions .sh-btn { max-width: 100%; white-space: normal; text-align: left; }
+  /* A leading quiet button hangs its own padding and 1px border, so its text starts where the title does. */
+  .sh-job__actions > .sh-btn--quiet:first-child { margin-inline-start: calc(var(--space-3) * -1 - var(--space-half) / 2); }
   .sh-job.is-leaving { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, 150ms) ease-out forwards; }
   @container study (max-width: 560px) {
     .sh-job { grid-template-columns: 22px minmax(0, 1fr); padding: var(--space-3); }

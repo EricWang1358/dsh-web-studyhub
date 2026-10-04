@@ -100,3 +100,84 @@ test('the inbox closes through useDismiss and puts focus inside the panel and ba
   assert.match(page, /formatAgo/);
   assert.doesNotMatch(page, /const ago\b/);
 });
+
+/* ---------- 4. Clocks and polling (#125 #128) ---------- */
+
+test('the live audio monitor reads its clock from useNow, not from a polling loop that sets state', async () => {
+  const page = await source('ui/LiveAudioMonitor.jsx');
+  assert.match(page, /useNow\(500, \{ enabled: visible && state\.phase === 'running' \}\)/);
+  assert.doesNotMatch(page, /usePolling|setNow/);
+});
+
+const POLLERS = ['ui/Workflows.jsx', 'ui/CaseWorkspace.jsx', 'ui/WrongBook.jsx', 'ui/Board.jsx', 'ui/Exam.jsx'];
+
+test('pages that poll use usePolling (paused while hidden) and pages that show a clock use useNow', async () => {
+  for (const file of POLLERS) {
+    const page = await source(file);
+    assert.doesNotMatch(page, /setInterval|clearInterval|visibilitychange|document\.hidden|visibilityState/, `${file} has no timer or visibility plumbing of its own`);
+  }
+  for (const file of ['ui/Workflows.jsx', 'ui/CaseWorkspace.jsx', 'ui/WrongBook.jsx', 'ui/Board.jsx']) assert.match(await source(file), /usePolling\(/, file);
+  for (const file of ['ui/Exam.jsx', 'ui/CaseWorkspace.jsx']) assert.match(await source(file), /useNow\(1000/, file);
+});
+
+test('job activity and cancellability come from lib/job-status, not from local Sets or inline status lists', async () => {
+  for (const file of ['ui/document-preview/selection-job.js', 'ui/document-preview/translation/model.js', 'ui/GenerationTrace.jsx', 'ui/document-preview/SelectionJobs.jsx',
+    'ui/document-preview/translation/TranslationMenu.jsx', 'ui/AudioImport.jsx']) {
+    const page = await source(file);
+    assert.doesNotMatch(page, /new Set\(\[['"]queued['"]/, `${file}: no local ACTIVE set`);
+    assert.doesNotMatch(page, /\[["'](?:queued|running)["'], ["'](?:running|queued|cancelling)["'](?:, ["']cancelling["'])?\]\.includes\(/, `${file}: no inline status list`);
+    assert.match(page, /job-status\.js/, file);
+  }
+});
+
+/* ---------- 5b. Job row layout ---------- */
+
+const jobCss = await source('ui/components/feedback.css');
+const ruleOf = (selector) => jobCss.split('\n').find((line) => line.trim().startsWith(`${selector} {`)) || '';
+
+test('a job row keeps its actions in one wrapping row on a shared baseline and flush with the text column', () => {
+  const row = ruleOf('.sh-job__actions');
+  assert.match(row, /display: flex/);
+  assert.match(row, /flex-wrap: wrap/);
+  assert.match(row, /align-items: baseline/);
+  assert.match(jobCss, /\.sh-job__actions > \.sh-btn--quiet:first-child \{[^}]*margin-inline-start: calc\(/, 'a leading quiet button hangs its padding so the text lines up with the title');
+  assert.match(jobCss, /@container study \(max-width: 560px\) \{[^@]*?\.sh-job__actions \{ grid-column: 2; justify-content: flex-start; \}/);
+});
+
+test('a running job row is neutral or info at the border, never cinnabar', () => {
+  assert.doesNotMatch(ruleOf('.sh-job--running'), /accent/);
+});
+
+test('the transcript link of a finished audio job sits in the actions row beside 知道了', async () => {
+  const audio = await loadUi(`export { AudioJobs } from './ui/AudioImport.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+  audio.setUiLanguage('zh');
+  const job = { type: 'audio-import', id: 'c', status: 'complete', filename: 'lecture.mp3', phase: 'done', sourceIds: ['s1'], finishedAt: new Date().toISOString(), startedAt: new Date(Date.now() - 5000).toISOString(), steps: {}, warnings: [] };
+  const out = renderToStaticMarkup(h(audio.AudioJobs, { data: { jobs: [job] }, busy: false, act() {}, onOpenSources() {} }));
+  const actions = out.match(/<div class="sh-job__actions">(.*?)<\/div>/s)?.[1] || '';
+  assert.match(actions, /打开逐字稿/);
+  assert.match(actions, /知道了/);
+  assert.ok(actions.indexOf('打开逐字稿') < actions.indexOf('知道了'));
+});
+
+/* ---------- 5. Question counts (#121) ---------- */
+
+test('the exam, its setup field and the workflow editor read the question-count range from lib/limits', async () => {
+  for (const file of ['ui/Exam.jsx', 'ui/ExamShell.jsx', 'ui/Workflows.jsx']) {
+    const page = await source(file);
+    assert.match(page, /QUESTION_COUNT/, file);
+    assert.doesNotMatch(page, /max=\{50\}|max = 50\b|Math\.min\(50|1–50/, `${file}: no literal 1-50`);
+  }
+});
+
+/* ---------- 6. Spinner and ErrorState on the exam surfaces (#102 #89) ---------- */
+
+test('the case workspace uses the shared Spinner and the exams use ErrorState; the old rules are gone', async () => {
+  assert.doesNotMatch(await source('ui/CaseWorkspace.jsx'), /assist-spin/);
+  assert.match(await source('ui/CaseWorkspace.jsx'), /<Spinner/);
+  for (const file of ['ui/Exam.jsx', 'ui/OralExam.jsx']) {
+    const page = await source(file);
+    assert.doesNotMatch(page, /exam-error/, file);
+    assert.match(page, /<ErrorState/, file);
+  }
+  assert.doesNotMatch(await source('ui/views.css'), /\.exam-error/);
+});

@@ -13,7 +13,7 @@ import { uploadInChunks } from './upload.js';
 import { baseName, extensionOf } from './file-names.js';
 import { isAbsolutePath, unquotePath } from './paths.js';
 import { AUDIO_EXTENSIONS, MAX_AUDIO_BYTES, MAX_SUBTITLE_BYTES, SUBTITLE_EXTENSIONS } from '../lib/audio-formats.js';
-import { isActiveJob } from '../lib/job-status.js';
+import { isActiveJob, isCancellable } from '../lib/job-status.js';
 
 /* 音频导入：录音 → 转写 → 校对识别错误的词 → 中英对照逐字稿，存为一份资料。
    这里只管导入；出题仍走「资料 → 生成」。转写在后台进行，进度来自快照里的
@@ -167,13 +167,14 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
   const progressed = running && job.phase !== "queued";
   const retry = (args) => () => act("audio.retry", { jobId: job.id, ...args });
   const actions = [
-    ...(["running", "queued"].includes(job.status) ? [{ key: "stop", label: ui("停止（已转写的部分会保留）"), disabled: busy, onClick: () => act("job.cancel", { jobId: job.id }) }] : []),
+    ...(isCancellable(job) ? [{ key: "stop", label: ui("停止（已转写的部分会保留）"), disabled: busy, onClick: () => act("job.cancel", { jobId: job.id }) }] : []),
     ...(held && job.retryable ? [
       { key: "skip", label: ui("跳过此文件继续"), variant: "primary", disabled: busy, onClick: retry({ skip: [job.blocked.index] }) },
       { key: "fix", label: ui("修复后继续"), disabled: busy, title: ui("修好这个文件或音频设置后，从头再检查一遍；已完成的部分不会重复付费"), onClick: retry({}) },
     ] : []),
     ...(!held && ["failed", "cancelled"].includes(job.status) && job.retryable ? [{ key: "retry", label: ui("接着做（不重复付费）"), variant: "primary", disabled: busy,
       title: ui("已转写、校对、翻译好的部分会直接复用，不会重复付费；也不用重新选文件"), onClick: retry({}) }] : []),
+    ...(job.status === "complete" && job.sourceIds?.length > 0 && onOpenSources ? [{ key: "open", label: ui("打开逐字稿"), variant: "link", onClick: () => onOpenSources(job.sourceIds) }] : []),
     ...(job.legacy && onLegacyRetry ? [{ key: "legacy", label: ui("重新选择原录音继续"), variant: "primary", disabled: busy, onClick: () => onLegacyRetry(job) }] : []),
   ];
   const failure = job.status === "failed" ? { hint: <>{job.stage}
@@ -205,8 +206,6 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
           <AudioTasks job={member} now={now} openAgent={openAgent} />
         </li>;
       })}</ol>}
-      {job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources && <Button variant="link" size="sm"
-        onClick={() => onOpenSources(job.sourceIds)}>{ui('打开逐字稿')}</Button>}
       {["failed", "cancelled"].includes(job.status) && savedSteps(job.steps) && <small>{uiFormat("已保存：{0}", [savedSteps(job.steps)])}</small>}
       {job.status === "complete" && !job.reused && job.uncertain > 0 && (
         <small>{uiFormat("另有 {0} 处把握不大的疑似错词没有改，可在资料里查看", [job.uncertain])}
