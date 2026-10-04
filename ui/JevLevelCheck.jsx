@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button } from './components/index.js';
+import { Button, Hint } from './components/index.js';
 import css from './jev.css';
 
 /* EXPERIMENTAL 题目认知层次对照, the developer panel: Jev's reading of a question's level next to the code's keyword heuristic that the 本轮小结
@@ -17,7 +17,7 @@ export function JevLevelCheckView({ result, busy, onRun }) {
   const counts = result?.counts, disagreements = (result?.rows || []).filter(row => row.confident && !row.agree);
   return (
     <div className="jev-levels" data-jev-levels>
-      <p className="audio-provider-note">{ui('只是对照：用 Jev 判断题目属于记忆、概念辨析还是应用分析，与「本轮小结」用的关键词判断比一比。不会改动任何题目或学习记录。')}</p>
+      <Hint>{ui('只是对照：用 Jev 判断题目属于记忆、概念辨析还是应用分析，与「本轮小结」用的关键词判断比一比。不会改动任何题目或学习记录。')}</Hint>
       <div className="jev-field__actions"><Button variant="secondary" busy={busy} disabled={busy} onClick={onRun}>{ui('对照最多 30 道题')}</Button></div>
       {result?.unavailable && <p className="jev-levels__note">{uiMessage(result.unavailable.message)}</p>}
       {counts?.total > 0 && <>

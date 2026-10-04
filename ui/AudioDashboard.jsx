@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 import { formatNumber } from './format.js';
+import { Hint } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 
@@ -63,8 +64,8 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
             {model.source === 'unknown' && model.lastQuota && <small>{ui('上次额度响应已过期')}</small>}
           </div>;
         })}
-        {provider.tier === 'paid' ? <p className="audio-provider-note">{ui('付费余额请查看供应商控制台')}</p>
-          : provider.models.some(model => model.source === 'unknown') && <p className="audio-provider-note">{ui('未知额度不会显示为零；可查看供应商控制台。')}</p>}
+        {provider.tier === 'paid' ? <Hint size="xs" className="audio-provider-footnote">{ui('付费余额请查看供应商控制台')}</Hint>
+          : provider.models.some(model => model.source === 'unknown') && <Hint size="xs" className="audio-provider-footnote">{ui('未知额度不会显示为零；可查看供应商控制台。')}</Hint>}
       </article>)}
     </div>
     <section className="audio-usage-trend" aria-label={ui('近七日请求趋势')}>

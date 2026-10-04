@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
@@ -33,6 +34,7 @@ const han = /[㐀-鿿]/;
 const noop = () => {};
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 const JEV_TRACE = /Jev|jev-|settings-jev|data-experimental|jev\./;
+await warmSettingsPanes(Settings);
 
 const defaults = { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 };
 const data = (extra = {}) => ({ root: 'D:\\Study\\library', settings: { ...defaults }, sources: [], decks: [], drafts: [], courses: [], jobs: [], model: { ready: true }, modelReady: true,
@@ -181,9 +183,9 @@ test('the walk-through goes site by site with next/back/skip, says what is repla
 test('each replaceable site is a plain switch: what it does, what it replaces, the expected trade-off, off by default', () => {
   const html = render(view(ready));
   for (const site of ['cardReview', 'courseOrganize']) {
-    const at = html.indexOf(`data-replace="${site}"`);
+    const at = html.lastIndexOf('<label', html.indexOf(`data-replace="${site}"`));
     assert.ok(at > 0, site);
-    const row = html.slice(at, at + 1400);
+    const row = html.slice(at, at + 1800);
     assert.match(row, /type="checkbox"/);
     assert.doesNotMatch(row.slice(0, row.indexOf('</label>')), /checked/, `${site} starts off`);
     assert.match(row, /替换：/);
@@ -192,7 +194,7 @@ test('each replaceable site is a plain switch: what it does, what it replaces, t
   assert.match(html, /默认全部关闭/);
   assert.match(html, /node scripts\/eval-jev\.mjs/, 'the “compare on my data” pointer');
   const on = render(view({ ...ready, enabled: true, replace: { cardReview: true, courseOrganize: false } }));
-  assert.match(on, /data-replace="cardReview"[^>]*><input[^>]*type="checkbox"[^>]*checked=""/);
+  assert.match(on, /<input[^>]*role="switch"[^>]*data-replace="cardReview"[^>]*checked=""/);
   const en = render(view(ready), 'en');
   assert.match(en, /Replaces: /);
   assert.match(en, /Expected: faster and cheaper, but accuracy may drop/);

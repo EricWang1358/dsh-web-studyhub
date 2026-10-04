@@ -74,7 +74,7 @@ test('settings without a token: unconfigured, the check button is not offered, t
   const html = render(h(MineruSettings, { call, initialSettings: unset, initialLocal: states.missing }));
   assert.match(html, /未配置/);
   assert.doesNotMatch(html, />验证</);
-  assert.match(html, /<input id="[^"]*" type="checkbox"(?![^>]*checked)/);
+  assert.match(html, /<input type="checkbox" class="sh-check__input"(?![^>]*checked)/);
 });
 
 test('every state of the local mineru says one honest thing and offers one next step', () => {

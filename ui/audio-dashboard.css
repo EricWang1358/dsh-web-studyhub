@@ -38,7 +38,8 @@
 .study-app .audio-quota-track i { height: 100%; display: block; background: var(--provider-color); }
 .study-app .audio-quota-track.unknown { opacity: .5; }
 .study-app .audio-model-quota > small { display: block; font-size: 12px; line-height: 1.6; color: var(--text-dim); }
-.study-app .audio-provider-note { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.6; margin-top: 16px !important; }
+/* The footnote under a provider's quota rows is a Hint; the gap above it belongs to the card, not to the note. */
+.study-app .audio-provider > .audio-provider-footnote { margin-top: var(--space-4); }
 .study-app .audio-section-title { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 .study-app .audio-section-title h3 { font-size: 16px; letter-spacing: -.02em; }
 .study-app .audio-section-title :is(span,small) { font-size: var(--fs-xs); color: var(--text-muted); }
