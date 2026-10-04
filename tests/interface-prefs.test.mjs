@@ -76,10 +76,10 @@ test('the Animation setting is in 设置 › 界面 with its four choices, in bo
   } finally { setUiLanguage('zh'); }
 });
 
-test('interface size and typeface: a fixed list of sizes up to 200%, three typefaces, and anything else falls back', async () => {
+test('interface size and typeface: a fixed list of sizes up to 200%, the registry typefaces, and anything else falls back', async () => {
   const { SCALES, FONTS, normalizeInterface: normalize } = await import('../ui/interface-prefs.js');
   assert.deepEqual(SCALES, [90, 100, 110, 125, 150, 175, 200]);
-  assert.deepEqual(FONTS, ['system', 'serif', 'mono']);
+  assert.deepEqual(FONTS, ['system', 'serif', 'kai', 'round', 'mono', 'custom']);
   assert.equal(INTERFACE_DEFAULTS.scale, 100);
   assert.equal(INTERFACE_DEFAULTS.font, 'system');
   assert.equal(normalize({ scale: 150 }).scale, 150);
@@ -88,7 +88,7 @@ test('interface size and typeface: a fixed list of sizes up to 200%, three typef
   assert.equal(normalize({ scale: 400 }).scale, 100);
   assert.equal(normalize({ font: 'serif' }).font, 'serif');
   assert.equal(normalize({ font: 'comic' }).font, 'system');
-  assert.deepEqual(normalize({ motion: 'off', scale: 175, font: 'mono' }), { motion: 'off', scale: 175, font: 'mono' });
+  assert.deepEqual(normalize({ motion: 'off', scale: 175, font: 'mono' }), { ...INTERFACE_DEFAULTS, motion: 'off', scale: 175, font: 'mono' });
 });
 
 test('the stylesheet scales the whole interface with CSS zoom for each size and switches the typeface by attribute', () => {

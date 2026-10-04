@@ -69,10 +69,9 @@
   --shadow-lg: 0 30px 70px -30px #000000f2;
   --ring: 0 0 0 3px #c93d2240;
 
-  --font-ui: "Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC",
-    "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-  --font-display: "Inter Display", "Segoe UI Variable Display", "SF Pro Display",
-    "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+  /* The stacks themselves are the --font-stack-* block at the end of this file (ui/font-presets.js lists them). */
+  --font-ui: var(--font-stack-system);
+  --font-display: var(--font-stack-system-display);
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -4528,5 +4527,25 @@
 .study-app[data-ui-scale='150'] { --study-ui-scale: 1.5; }
 .study-app[data-ui-scale='175'] { --study-ui-scale: 1.75; }
 .study-app[data-ui-scale='200'] { --study-ui-scale: 2; }
-.study-app[data-ui-font='serif'], .study-seat:has(> .study-app[data-ui-font='serif']) { --font-ui: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif; }
-.study-app[data-ui-font='mono'], .study-seat:has(> .study-app[data-ui-font='mono']) { --font-ui: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Microsoft YaHei UI", monospace; }
+
+/* 字体 (#64): the typefaces are defined once, here, and every surface only refers to them: the interface (--font-ui and --font-display
+   together; 保持系统 puts the headings back), the reader and the reading blocks (--reader-face). `custom` is the installed font the person
+   typed: --font-custom is set on the app root from the gated name, and an unknown name falls through to the system stack. */
+:is(.study-app, .study-seat) {
+  --font-stack-system: "Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+  --font-stack-system-display: "Inter Display", "Segoe UI Variable Display", "SF Pro Display", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+  --font-stack-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
+  --font-stack-kai: "KaiTi", "Kaiti SC", "STKaiti", "BiauKai", "DFKai-SB", serif;
+  --font-stack-round: "Yuanti SC", "HarmonyOS Sans SC", "MiSans", "YouYuan", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+  --font-stack-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Microsoft YaHei UI", monospace;
+}
+.study-app[data-ui-font='serif'], .study-seat:has(> .study-app[data-ui-font='serif']) { --font-ui: var(--font-stack-serif); --font-display: var(--font-stack-serif); }
+.study-app[data-ui-font='kai'], .study-seat:has(> .study-app[data-ui-font='kai']) { --font-ui: var(--font-stack-kai); --font-display: var(--font-stack-kai); }
+.study-app[data-ui-font='round'], .study-seat:has(> .study-app[data-ui-font='round']) { --font-ui: var(--font-stack-round); --font-display: var(--font-stack-round); }
+.study-app[data-ui-font='mono'], .study-seat:has(> .study-app[data-ui-font='mono']) { --font-ui: var(--font-stack-mono); --font-display: var(--font-stack-mono); }
+.study-app[data-ui-font='custom'], .study-seat:has(> .study-app[data-ui-font='custom']) { --font-ui: var(--font-custom, var(--font-stack-system)); --font-display: var(--font-custom, var(--font-stack-system-display)); }
+.study-app[data-ui-title='system'], .study-seat:has(> .study-app[data-ui-title='system']) { --font-display: var(--font-stack-system-display); }
+:is(.study-app, .study-seat) :is(.study-document-viewer, .study-reading)[data-face='serif'] { --reader-face: var(--font-stack-serif); }
+:is(.study-app, .study-seat) :is(.study-document-viewer, .study-reading)[data-face='kai'] { --reader-face: var(--font-stack-kai); }
+:is(.study-app, .study-seat) :is(.study-document-viewer, .study-reading)[data-face='round'] { --reader-face: var(--font-stack-round); }
+:is(.study-app, .study-seat) :is(.study-document-viewer, .study-reading)[data-face='mono'] { --reader-face: var(--font-stack-mono); }

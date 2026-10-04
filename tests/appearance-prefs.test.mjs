@@ -21,12 +21,13 @@ const blocked = { getItem() { throw new Error('blocked'); }, setItem() { throw n
 /* ---------- one definition ---------- */
 
 test('one list of settings with defaults and the values each one allows; interface-prefs keeps exporting the same constants', () => {
-  assert.deepEqual({ ...APPEARANCE_DEFAULTS }, { theme: 'auto', motion: 'auto', scale: 100, font: 'system' });
+  assert.deepEqual({ ...APPEARANCE_DEFAULTS }, { theme: 'auto', motion: 'auto', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '' });
   assert.deepEqual(APPEARANCE_OPTIONS.theme, ['auto', 'dark', 'light']);
   assert.equal(APPEARANCE_OPTIONS.motion, legacy.MOTIONS);
   assert.equal(APPEARANCE_OPTIONS.scale, legacy.SCALES);
   assert.equal(APPEARANCE_OPTIONS.font, legacy.FONTS);
-  for (const key of Object.keys(APPEARANCE_DEFAULTS)) assert.ok(APPEARANCE_OPTIONS[key].includes(APPEARANCE_DEFAULTS[key]), `${key}: the default is one of the choices`);
+  // (a typed setting such as the font name has a gate instead of a list)
+  for (const key of Object.keys(APPEARANCE_OPTIONS)) assert.ok(APPEARANCE_OPTIONS[key].includes(APPEARANCE_DEFAULTS[key]), `${key}: the default is one of the choices`);
   assert.equal(THEME_KEY, 'study-theme');
   assert.equal(legacy.INTERFACE_KEY, 'study-interface');
   for (const name of ['normalizeInterface', 'loadInterface', 'saveInterface', 'effectiveMotion', 'leaveDelayMs', 'INTERFACE_DEFAULTS'])
@@ -36,7 +37,7 @@ test('one list of settings with defaults and the values each one allows; interfa
 test('normalize: anything stored that is not an allowed value falls back, a number stored as text still counts, unknown settings are dropped', () => {
   assert.deepEqual(normalizeAppearance(null), { ...APPEARANCE_DEFAULTS });
   assert.deepEqual(normalizeAppearance('nope'), { ...APPEARANCE_DEFAULTS });
-  assert.deepEqual(normalizeAppearance({ theme: 'light', motion: 'off', scale: 175, font: 'mono' }), { theme: 'light', motion: 'off', scale: 175, font: 'mono' });
+  assert.deepEqual(normalizeAppearance({ theme: 'light', motion: 'off', scale: 175, font: 'mono' }), { ...APPEARANCE_DEFAULTS, theme: 'light', motion: 'off', scale: 175, font: 'mono' });
   assert.equal(normalizeAppearance({ scale: '125' }).scale, 125);
   assert.equal(normalizeAppearance({ scale: 137 }).scale, 100);
   assert.equal(normalizeAppearance({ scale: null }).scale, 100);
@@ -50,7 +51,7 @@ test('normalize: anything stored that is not an allowed value falls back, a numb
 test('an old browser: study-theme alone, study-interface alone, or both load exactly what they held', () => {
   assert.deepEqual(loadAppearance(memory({ 'study-theme': 'light' })), { ...APPEARANCE_DEFAULTS, theme: 'light' });
   assert.deepEqual(loadAppearance(memory({ 'study-theme': 'dark' })).theme, 'dark');
-  assert.deepEqual(loadAppearance(memory({ 'study-interface': JSON.stringify({ motion: 'reduced', scale: 150, font: 'serif' }) })), { theme: 'auto', motion: 'reduced', scale: 150, font: 'serif' });
+  assert.deepEqual(loadAppearance(memory({ 'study-interface': JSON.stringify({ motion: 'reduced', scale: 150, font: 'serif' }) })), { ...APPEARANCE_DEFAULTS, motion: 'reduced', scale: 150, font: 'serif' });
   assert.deepEqual(loadAppearance(memory({ 'study-theme': 'light', 'study-interface': JSON.stringify({ scale: 200 }) })), { ...APPEARANCE_DEFAULTS, theme: 'light', scale: 200 });
   assert.deepEqual(loadAppearance(memory()), { ...APPEARANCE_DEFAULTS });
 });
@@ -67,25 +68,25 @@ test('saving writes the old keys in the old shapes: an older version reads what 
   const storage = memory();
   saveAppearance({ theme: 'light', motion: 'off', scale: 125, font: 'mono' }, storage);
   assert.equal(storage.map.get('study-theme'), 'light', 'a plain string, as App always wrote it');
-  assert.deepEqual(JSON.parse(storage.map.get('study-interface')), { motion: 'off', scale: 125, font: 'mono' }, 'no theme in the interface object');
-  assert.deepEqual(legacy.loadInterface(storage), { motion: 'off', scale: 125, font: 'mono' }, 'the previous reader still works');
+  assert.deepEqual(JSON.parse(storage.map.get('study-interface')), { motion: 'off', scale: 125, font: 'mono', fontTitle: 'follow', fontCustom: '' }, 'no theme in the interface object');
+  assert.deepEqual(legacy.loadInterface(storage), { motion: 'off', scale: 125, font: 'mono', fontTitle: 'follow', fontCustom: '' }, 'the previous reader still works');
   // and what an older version wrote, a newer one reads, with a setting this version does not know ignored
   const future = memory({ 'study-interface': JSON.stringify({ motion: 'full', scale: 110, font: 'serif', accent: 'jade', density: 'compact' }) });
   assert.deepEqual(loadAppearance(future), { ...APPEARANCE_DEFAULTS, motion: 'full', scale: 110, font: 'serif' });
-  assert.deepEqual(legacy.loadInterface(future), { motion: 'full', scale: 110, font: 'serif' });
+  assert.deepEqual(legacy.loadInterface(future), { motion: 'full', scale: 110, font: 'serif', fontTitle: 'follow', fontCustom: '' });
 });
 
 /* ---------- the attributes both surfaces wear ---------- */
 
 test('appearanceAttrs: the four data-* attributes, with auto resolved from the system and an explicit choice winning', () => {
   const dark = { light: false, reducedMotion: false };
-  assert.deepEqual(appearanceAttrs({ ...APPEARANCE_DEFAULTS }, dark), { 'data-theme': 'dark', 'data-motion': 'full', 'data-ui-scale': 100, 'data-ui-font': 'system' });
+  assert.deepEqual(appearanceAttrs({ ...APPEARANCE_DEFAULTS }, dark), { 'data-theme': 'dark', 'data-motion': 'full', 'data-ui-scale': 100, 'data-ui-font': 'system', 'data-ui-title': 'follow' });
   assert.equal(appearanceAttrs({ theme: 'auto' }, { light: true, reducedMotion: false })['data-theme'], 'light');
   assert.equal(appearanceAttrs({ theme: 'dark' }, { light: true, reducedMotion: false })['data-theme'], 'dark');
   assert.equal(appearanceAttrs({ theme: 'light' }, dark)['data-theme'], 'light');
   assert.equal(appearanceAttrs({ motion: 'auto' }, { light: false, reducedMotion: true })['data-motion'], 'reduced');
   assert.equal(appearanceAttrs({ motion: 'full' }, { light: false, reducedMotion: true })['data-motion'], 'full');
-  assert.deepEqual(appearanceAttrs({ scale: 150, font: 'serif', motion: 'off' }, dark), { 'data-theme': 'dark', 'data-motion': 'off', 'data-ui-scale': 150, 'data-ui-font': 'serif' });
+  assert.deepEqual(appearanceAttrs({ scale: 150, font: 'serif', motion: 'off' }, dark), { 'data-theme': 'dark', 'data-motion': 'off', 'data-ui-scale': 150, 'data-ui-font': 'serif', 'data-ui-title': 'follow' });
   assert.equal(appearanceAttrs({ scale: 999, font: 'x' }, dark)['data-ui-scale'], 100, 'an invalid value never reaches the DOM');
 });
 
@@ -107,7 +108,7 @@ test('export is one small JSON line and import reads it back through the same wh
   const text = exportAppearance(prefs);
   assert.ok(text.length < 200, 'tiny');
   assert.doesNotMatch(text, /\n/);
-  assert.deepEqual(importAppearance(text), prefs);
+  assert.deepEqual(importAppearance(text), { ...APPEARANCE_DEFAULTS, ...prefs });
   assert.deepEqual(importAppearance(exportAppearance({ theme: 'bogus' })), { ...APPEARANCE_DEFAULTS });
   assert.deepEqual(importAppearance(JSON.stringify({ studyhubAppearance: 1, theme: 'dark', scale: 137, accent: 'jade', __proto__: { x: 1 } })), { ...APPEARANCE_DEFAULTS, theme: 'dark' }, 'out-of-list values and unknown settings are dropped');
   for (const bad of ['', 'nope', '{broken', 'null', '[]', '7', '{"theme":"dark"}', JSON.stringify({ studyhubAppearance: 2, theme: 'dark' }), 'x'.repeat(5000), null, undefined, {}])
@@ -154,7 +155,7 @@ test('another tab changing a key reaches this one without writing anything back'
   watched.get(); watched.reload();
   assert.deepEqual(writes, [], 'reading never writes');
   store.reload();
-  assert.deepEqual(store.get(), { theme: 'dark', motion: 'off', scale: 175, font: 'system' });
+  assert.deepEqual(store.get(), { ...APPEARANCE_DEFAULTS, theme: 'dark', motion: 'off', scale: 175 });
   assert.equal(heard, 1);
   store.reload();
   assert.equal(heard, 1, 'unchanged values are not news');
@@ -237,7 +238,7 @@ test('设置 › 界面 offers 恢复默认外观 and export / import, in both l
     assert.doesNotMatch(render({}), /恢复默认外观/, 'without the handlers there is nothing to restore');
     setUiLanguage('en');
     const en = render(full);
-    for (const label of ['Restore default appearance', 'Export appearance', 'Import appearance', '>Dark<', '>Light<', '>System default<', '>Serif<', '>Monospace<']) assert.match(en, new RegExp(label), label);
+    for (const label of ['Restore default appearance', 'Export appearance', 'Import appearance', '>Dark<', '>Light<', '>System default<', '>Serif .Song.<', '>Kai<', '>Rounded<', '>Monospace<']) assert.match(en, new RegExp(label), label);
   } finally { setUiLanguage('zh'); }
 });
 

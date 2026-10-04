@@ -42,7 +42,7 @@ export async function runInterfaceQa(options) {
         return { legendHeight: bigger };
       });
       await step("typeface-serif", async () => {
-        await choose(t("衬线", "Serif")).click(); await sleep(300);
+        await choose(t("宋体 / 衬线", "Serif (Song)")).click(); await sleep(300);
         const family = await page.locator(".appearance-settings legend").first().evaluate(element => getComputedStyle(element).fontFamily);
         if (!/serif|Songti|SimSun|Noto Serif/i.test(family)) throw new Error(`the typeface did not change: ${family}`);
         return family;
@@ -81,7 +81,7 @@ export async function runInterfaceQa(options) {
       await step("appearance-backup", async () => {
         // 恢复默认外观 and the export / import of the whole look (one small piece of text), through the same whitelist.
         await open();
-        await choose("150%").click(); await choose(t("衬线", "Serif")).click(); await sleep(300);
+        await choose("150%").click(); await choose(t("宋体 / 衬线", "Serif (Song)")).click(); await sleep(300);
         await choose(t("导出外观", "Export appearance")).click(); await sleep(200);
         const box = page.locator(".appearance-backup textarea");
         const exported = await box.inputValue();

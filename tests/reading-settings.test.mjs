@@ -27,13 +27,13 @@ test('the reader keeps its names, its storage key and its defaults: they are the
     'resetReaderSettings', 'stepSize', 'readerVars', 'loadReaderSettings', 'saveReaderSettings'])
     assert.equal(reader[name], shared[name], name);
   assert.equal(shared.READER_STORAGE_KEY, 'study-reader-settings', 'the key the reader always used');
-  assert.deepEqual({ ...shared.READER_DEFAULTS }, { size: 16, width: 'standard', face: 'sans', tone: 'auto', underline: 'show', outline: true, tools: true });
+  assert.deepEqual({ ...shared.READER_DEFAULTS }, { size: 16, width: 'standard', face: 'sans', tone: 'auto', underline: 'show', outline: true, tools: true, weight: 'normal', leading: 'standard', gap: 'standard' });
 });
 
 test('a value stored by an earlier version still loads: kept choices stay, missing ones fall back, junk is dropped', () => {
   // 2.3.0 stored no underline choice and no tone; an even older one stored a size outside today's scale.
   const old = memory({ [shared.READER_STORAGE_KEY]: JSON.stringify({ size: 18, width: 'wide', face: 'serif', outline: false }) });
-  assert.deepEqual(shared.loadReaderSettings(old), { size: 18, width: 'wide', face: 'serif', tone: 'auto', underline: 'show', outline: false, tools: true });
+  assert.deepEqual(shared.loadReaderSettings(old), { ...shared.READER_DEFAULTS, size: 18, width: 'wide', face: 'serif', tone: 'auto', underline: 'show', outline: false, tools: true });
   const odd = memory({ [shared.READER_STORAGE_KEY]: JSON.stringify({ size: 13, width: 'huge', face: 'comic', tone: 'sepia', underline: 'x', tools: 'yes', extra: 1 }) });
   assert.deepEqual(shared.loadReaderSettings(odd), { ...shared.READER_DEFAULTS });
   for (const raw of ['{broken', 'null', '[]', '""', '7']) assert.deepEqual(shared.loadReaderSettings(memory({ [shared.READER_STORAGE_KEY]: raw })), { ...shared.READER_DEFAULTS }, raw);
@@ -142,7 +142,7 @@ test('the Aa button is the reader\'s own control, with the underline row only wh
   inLanguage('en', () => {
     const english = text(controls({ underline: false }));
     assert.doesNotMatch(english, han);
-    for (const word of ['Text size', 'Line width', 'Typeface', 'Background', 'Sans', 'Serif', 'Paper', 'Reset']) assert.match(english, new RegExp(word, 'i'), word);
+    for (const word of ['Text size', 'Line width', 'Typeface', 'Background', 'Match app', 'Serif', 'Kai', 'Rounded', 'Monospace', 'Fine-tune layout', 'Weight', 'Line spacing', 'Paragraph gap', 'Paper', 'Reset']) assert.match(english, new RegExp(word, 'i'), word);
     assert.doesNotMatch(english, /underline/i);
     assert.match(renderToStaticMarkup(h(lib.ReadingSettingsButton, {})), /aria-label="Display settings"/);
   });

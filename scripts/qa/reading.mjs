@@ -114,7 +114,7 @@ export async function runReadingQa(options) {
       return sizes.length;
     });
     await step("serif-and-paper", async () => {
-      await panelButton(t("衬线", "Serif")).click();
+      await popover.locator(".reader-popover__panel .reader-select").selectOption("serif");
       await panelButton(t("纸张", "Paper")).click();
       await sleep(200);
       const face = await family(".explanation.study-reading .md p");
