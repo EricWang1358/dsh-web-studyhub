@@ -67,7 +67,7 @@ test('chapters append to one daily course recap, parallel starts deduplicate, an
   assert.equal(note.daily.answeredCount, 10);
   assert.equal(note.daily.wrongCount, 0);
   assert.equal(calls, 1);
-  assert.match(system, /Do not invent/);
+  assert.match(system, /Never invent/);
   assert.equal(payload.wrongCount, 0);
   assert.equal(payload.questions.length, 10);
   await answers(service, 22, { deckId: 'd2' });

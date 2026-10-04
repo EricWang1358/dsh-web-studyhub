@@ -42,7 +42,7 @@ test('fake model supports daily recap preparation, all-correct review and consol
   const combined = checkedRecapMarkdown(await model(recapPrompt('professional', 'en'), JSON.stringify({ ...input, stage: 'consolidate', sections: [prepared] })));
   assert.match(combined, /2026-10-04/); assert.match(combined, /平方/);
   const pending = checkedRecapMarkdown(await model(recapPrompt('friendly', 'zh'), JSON.stringify({ ...input, unassessedCount: 2 })));
-  assert.match(pending, /2 道作答尚待批改/);
+  assert.match(pending, /2 道作答还在等批改/);
   assert.deepEqual(unhandled(log), []);
 });
 
