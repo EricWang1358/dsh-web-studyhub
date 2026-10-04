@@ -20,6 +20,15 @@ test('#87 the stylesheets no longer define .alert, .notice, .wf-notice or the qu
   assert.deepEqual(jsx.filter(({ text }) => /quality-note warning/.test(text)).map(({ file }) => file), []);
 });
 
+test('#88 nothing renders .warning or .is-warning: an error is an error InlineMessage, a warning a warning one', () => {
+  const used = jsx.filter(({ text }) => /className=(?:"|\{`)[^"`}]*(?<![\w-])(?:is-)?warning(?![\w-])/.test(text.replace(/\$\{[^}]*\}/g, '')) || /['"`]is-warning['"`]/.test(text)).map(({ file }) => file);
+  assert.deepEqual(used, []);
+  const defined = css.flatMap(({ file, text }) => [...text.matchAll(/\.(?:is-)?warning(?![\w-])/g)].map(() => file));
+  assert.deepEqual(defined, []);
+  assert.match(read('ui/ThumbFeedback.jsx'), /<InlineMessage tone="error" className="thumbs__error">\{error\}<\/InlineMessage>/);
+  assert.match(read('ui/Review.jsx'), /<InlineMessage tone="warning" className="review-updated">\{ui\("题目已更新，请按新版重新作答。之前的作答历史已保留。"\)\}<\/InlineMessage>/);
+});
+
 test('#87 the ingest banner is an info Banner and the app banners carry no accent colour', () => {
   const banners = read('ui/app/AppBanners.jsx');
   assert.match(banners, /<Banner role="status" tone="info" title=\{ui\('录题中'\)\}/);

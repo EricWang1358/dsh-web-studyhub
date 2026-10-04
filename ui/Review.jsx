@@ -21,7 +21,7 @@ import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
 import DailyRecap from './DailyRecap.jsx';
-import { Badge, Banner, Button, Chip, Icon, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
+import { Badge, Banner, Button, Chip, Icon, InlineMessage, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
 import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "./agent-prompts/card.js";
@@ -358,7 +358,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             }
             style={readingMeasure ? { "--reading-measure": readingMeasure, "--review-column": "calc(var(--reading-measure) - 4px)", "--card-scale": cardScale } : undefined}
           >
-            {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}
+            {run.contentUpdated && <InlineMessage tone="warning" className="review-updated">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</InlineMessage>}
             {caseSource && <ScenarioPanel className="case-review-scenario" title={caseSource.title} text={caseSource.text}
               highlights={caseHighlights} onChange={saveHighlights} />}
             {/* The card: header, stem and answers on paper stock. Toolbar,

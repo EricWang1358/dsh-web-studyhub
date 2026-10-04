@@ -17,10 +17,6 @@
       width: 100%;
       padding: 14px;
     }
-    .warning {
-      color: var(--warn);
-      font-size: var(--fs-md);
-    }
     .onboarding {
       max-width: 680px;
       padding: 70px 30px;

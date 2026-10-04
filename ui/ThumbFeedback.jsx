@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
-import { Chip, Icon, useToast } from "./components/index.js";
+import { Chip, Icon, InlineMessage, useToast } from "./components/index.js";
 import { feedbackOutcome } from "./card-fix.js";
 import { useComponentCss } from "./components/css.js";
 import thumbCss from "./thumb-feedback.css";
@@ -181,7 +181,7 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
       <button className="tool-icon" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><Icon name="thumb-up" /></button>
       <button className="tool-icon" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><Icon name="thumb-down" /></button>
       {vote === "down" && <span id={voteId} className="sh-visually-hidden">{ui("已标记这题有问题")}</span>}
-      {error && <small className="warning" role="alert">{error}</small>}
+      {error && <InlineMessage tone="error" className="thumbs__error">{error}</InlineMessage>}
       {open && (
         <span id={trayId} className="thumb-tray" role="group" aria-label={ui("哪里不好")}>
           {TAGS.map(([id, label], i) => (

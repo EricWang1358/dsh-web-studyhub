@@ -37,7 +37,7 @@
     .sh-popover:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
     /* One look for every floating panel and menu (#77): the Popover and Menu above, and the feature panels that are not rendered by them yet.
        A feature rule for one of these writes position and size, never the border, corner, fill or shadow. Delete an entry when its markup becomes a Popover. */
-    :is(.reader-popover__panel, .shortcut-sheet, .page-peek, .course-field__panel, .thumb-tray) {
+    :is(.reader-popover__panel, .shortcut-sheet, .page-peek, .course-field__panel, .thumb-tray, .thumbs__error) {
       border: 1px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-raised);

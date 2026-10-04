@@ -87,7 +87,6 @@
     .generate-more { margin-top: var(--space-5); }
     .generate-more .generate-rows { margin-top: 0; }
     .generate-case-hint { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .generate-form > .warning { margin: var(--space-4) 0 0; }
     /* ── Summary above the one primary button ─────────────────────────────── */
     .generate-summary { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
   }

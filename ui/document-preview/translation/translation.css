@@ -100,7 +100,6 @@
     .tr-block__text { margin: 0.3em 0 0; color: var(--text); overflow-wrap: anywhere; white-space: pre-line; }
     .tr-block[data-state='busy'] .tr-block__text { opacity: 0.55; }
     .tr-block__note { margin: 0.4em 0 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-    .tr-block__note.is-warning { color: var(--warn-ink); }
     .tr-block__note .sh-btn, .tr-block__status .sh-btn { margin-left: var(--space-1); }
     .tr-fold {
       display: inline-flex;
@@ -208,7 +207,6 @@
     .tr-job__bar { height: 3px; overflow: hidden; border-radius: var(--radius-pill); background: var(--line); }
     .tr-job__bar > span { display: block; height: 100%; background: var(--info); transform: scaleX(0); transform-origin: left center; transition: transform var(--dur-slow) var(--ease); }
     .tr-job__note { color: var(--text-muted); font-size: var(--fs-xs); }
-    .tr-job__note.is-warning { color: var(--warn-ink); }
     .tr-job__usage { font-size: var(--fs-xs); color: var(--text-muted); }
     .tr-job__usage summary { width: fit-content; cursor: pointer; font-variant-numeric: tabular-nums; }
     .tr-job__usage[open] { padding-bottom: var(--space-2); }

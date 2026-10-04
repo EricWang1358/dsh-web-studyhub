@@ -34,6 +34,16 @@
       padding: 10px;
       animation: coach-pop 160ms var(--ease) both;
     }
+    /* A failed vote: the message floats above the thumbs like the tray, on the shared panel surface. */
+    .thumbs__error {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      z-index: var(--z-popover);
+      width: max-content;
+      max-width: min(360px, 80cqi);
+      padding: var(--space-2) var(--space-3);
+    }
     .thumb-tray small { width: 100%; color: var(--text-faint); font-size: var(--fs-md); }
     .thumb-tray kbd, .shortcut-sheet kbd {
       font: 600 10px/1 ui-monospace, monospace;
