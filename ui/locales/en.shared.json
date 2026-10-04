@@ -95,7 +95,7 @@
   "使用音频设置中选择的文字模型在后台处理，实录与逐批校正继续进行。未完成的请求会保留，方便重试。": "Processed in the background using the text model selected in audio settings, while recording and batch correction continue. Incomplete requests remain available for retry.",
   "待处理 {0} · 未完成 {1}": "{0} pending · {1} incomplete",
   "后台处理中": "Working in background",
-  "待重试": "Retry needed",
+  "待重试": "Retry available",
   "重试历史歧义校正": "Retry historical correction",
   "保存为资料时，会另外保存一份课堂笔记，包含摘要、分批记录和引用。": "Saving sources also saves class notes containing the summary, batch entries and references.",
   "正在采音": "Capturing audio",
