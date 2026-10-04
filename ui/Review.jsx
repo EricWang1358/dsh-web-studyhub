@@ -255,6 +255,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               busy={busy}
               onPractice={coachProps.onPractice}
               onContinue={coachProps.onContinue}
+              destination={coachProps.destination}
               onReviewWeak={coachProps.onReviewWeak}
             />
           )}
