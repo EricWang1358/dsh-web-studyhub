@@ -14,6 +14,7 @@ import CoachDebrief from "./CoachDebrief.jsx";
 import ThumbFeedback from "./ThumbFeedback.jsx";
 import { reviewEntryKey } from "./async.js";
 import ModelErrorNote from "./ModelErrorNote.jsx";
+import TeachingStatus from "./review/TeachingStatus.jsx";
 import { describeModelError, plainAssistFailure } from "./generation-status.js";
 import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
@@ -85,9 +86,9 @@ function AssistFailure({ task, busy, onSettings, onResubmit, onEdit }) {
 
 export default function Review({ session, data, shellTitle, feedback, coachProps, links = {}, context = {} }) {
   useInjectCss(reviewCss, "study-review");
-  const { run, entry, showBack, showEn, enBusyKey, teachingBusy, choice, isCloze, actions } = session;
+  const { run, entry, showBack, showEn, enBusyKey, teachingBusy, teachingError, choice, isCloze, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
-  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, toggleEn } = actions;
+  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
   const { call, act, busy, host, askInChat, navigate, openModal } = useStudy();
   const { onBackToWorkflow, onCourseFlow, openSkeleton, onOpenNote, onMakeNote, onMakeTask, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
@@ -772,7 +773,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                   onClick={() => { if (!teachingBusy) teachingAct("teach.start", { mode: "understanding", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("逐步理解")}</Chip>
                 <Chip selected={teaching?.mode === "calculation"}
                   onClick={() => { if (!teachingBusy) teachingAct("teach.start", { mode: "calculation", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("计算题引导练习")}</Chip>
-                {teachingBusy && <span role="status">{ui("正在准备当前步骤…")}</span>}
+                <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={cancelTeaching} onRetry={retryTeaching} />
               </div>
             )}
             {teaching && <div className="teaching-panel">
