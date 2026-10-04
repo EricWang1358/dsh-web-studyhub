@@ -1,4 +1,5 @@
 import React, { forwardRef } from 'react';
+import { uiFormat } from '../i18n.js';
 import css from './disclosure.css';
 import { useComponentCss, cx } from './css.js';
 import { IconButton } from './Button.jsx';
@@ -14,5 +15,8 @@ export const DisclosureToggle = forwardRef(function DisclosureToggle({ open, onT
   return <IconButton ref={ref} icon="caret" size={size} label={label} aria-expanded={!!open} aria-controls={controls}
     className={cx('sh-disclosure-toggle', className)} onClick={() => onToggle?.(!open)} {...rest} />;
 });
+
+/** The toggle's accessible name: what it opens or closes ("展开 数据结构"). */
+export const foldLabel = (open, name) => (open ? uiFormat('收起 {0}', [name]) : uiFormat('展开 {0}', [name]));
 
 export default DisclosureToggle;

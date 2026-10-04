@@ -73,15 +73,17 @@ export const Tabs = forwardRef(function Tabs({ id, value, onChange, items = [], 
 /**
  * The panel of tab `value` (share `id` with the Tabs). Only the selected
  * panel is rendered; `keepMounted` keeps the others in the document, hidden.
+ * `as` swaps the element or component; the panel takes the tab stop unless it
+ * has focusable content of its own (pass tabIndex={undefined}).
  */
-export function TabPanel({ id, value, selected, keepMounted = false, className, children, ...rest }) {
+export function TabPanel({ as: Tag = 'div', id, value, selected, keepMounted = false, className, children, ...rest }) {
   const active = value === selected;
   if (!active && !keepMounted) return null;
   const ids = tabIds(id, value);
   return (
-    <div role="tabpanel" id={ids.panel} aria-labelledby={ids.tab} hidden={!active || undefined} tabIndex={0} className={cx('sh-tabpanel', className)} {...rest}>
+    <Tag role="tabpanel" id={ids.panel} aria-labelledby={ids.tab} hidden={!active || undefined} tabIndex={0} className={cx('sh-tabpanel', className)} {...rest}>
       {children}
-    </div>
+    </Tag>
   );
 }
 

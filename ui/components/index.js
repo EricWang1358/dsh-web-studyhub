@@ -29,4 +29,4 @@ export { CloseButton } from './CloseButton.jsx';
 export { useDismiss, useAnchoredPosition, computePlacement } from './use-dismiss.js';
 export { default as SecretKeyForm } from './SecretKeyForm.jsx';
 export { Tabs, TabPanel, nextTabIndex, tabIds } from './Tabs.jsx';
-export { DisclosureToggle } from './DisclosureToggle.jsx';
+export { DisclosureToggle, foldLabel } from './DisclosureToggle.jsx';

@@ -40,7 +40,9 @@ test("where the skeleton is the subject the spine opens as a stepper strip with 
   const panelLabel = html.match(/role="tabpanel"[^>]*aria-labelledby="([^"]+)"|aria-labelledby="([^"]+)"[^>]*role="tabpanel"/);
   const labelledBy = panelLabel && (panelLabel[1] || panelLabel[2]);
   assert.ok(labelledBy && tabs[0].includes(`id="${labelledBy}"`), "the pane is labelled by the selected tab");
-  assert.ok(tabs.every((t) => /aria-controls="[^"]+"/.test(t)));
+  const controls = tabs[0].match(/aria-controls="([^"]+)"/);
+  assert.ok(controls && html.includes(`id="${controls[1]}"`), "the selected tab points at the detail pane, which exists");
+  assert.equal(tabs.filter((t) => /aria-controls=/.test(t)).length, 1, "only the selected tab names a panel (the others have none rendered)");
   // The detail pane carries the first station in full: description, point, point description.
   assert.match(html, /用限界上下文划分服务，让每个服务围绕一项业务能力，而不是围绕技术分层。/);
   assert.match(html, /限界上下文/);
