@@ -1,7 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import Markdown from '../Markdown.jsx';
-import { Icon } from '../components/index.js';
+import { Button, Icon } from '../components/index.js';
 import { checklistProgress, dueState, labelHue } from '../../lib/board-model.js';
 import BIcon from './icons.jsx';
 import Menu from './Menu.jsx';
@@ -24,7 +24,7 @@ function Note({ note }) {
   return (
     <div className="board-card__notewrap">
       <div ref={box} className="board-card__note" data-collapsed={open ? 'false' : 'true'}><Markdown text={note} /></div>
-      {(long || open) && <button type="button" className="board-card__toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? ui('收起') : ui('展开')}</button>}
+      {(long || open) && <Button variant="link" size="sm" className="board-card__toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? ui('收起') : ui('展开')}</Button>}
     </div>
   );
 }

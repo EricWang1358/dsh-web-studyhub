@@ -3,6 +3,7 @@ import { ui, uiFormat } from './i18n.js';
 import { courseScope, courseSegments, courseTree } from '../lib/course-tree.js';
 import { isParked, parkedWithin, useCourseActive } from './CourseActive.jsx';
 import { useInjectCss } from './shared.js';
+import { Button } from './components/index.js';
 import activeCss from './course-active.css';
 
 const storageKey = (root, page) => `study-page-scope:v1:${JSON.stringify([root || '', page])}`;
@@ -99,12 +100,12 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
     {chosenCourse && isParked(chosenCourse) && <small className="page-scope__note">
       <span>{ui('这门课未激活')}</span>
       {active && <span aria-hidden="true">·</span>}
-      {active && <button type="button" className="link-btn" onClick={() => active.activate(chosenCourse).catch(() => {})}>{ui('激活')}</button>}
+      {active && <Button variant="link" size="sm" onClick={() => active.activate(chosenCourse).catch(() => {})}>{ui('激活')}</Button>}
     </small>}
     {onShowInactive && hidden > 0 && <small className="page-scope__note">
       <span>{showInactive ? uiFormat('含 {0} 门未激活的课程', [hidden]) : uiFormat('不含 {0} 门未激活的课程', [hidden])}</span>
       <span aria-hidden="true">·</span>
-      <button type="button" className="link-btn" aria-pressed={!!showInactive} onClick={() => onShowInactive(!showInactive)}>{showInactive ? ui('隐藏') : ui('显示')}</button>
+      <Button variant="link" size="sm" aria-pressed={!!showInactive} onClick={() => onShowInactive(!showInactive)}>{showInactive ? ui('隐藏') : ui('显示')}</Button>
     </small>}
   </label>;
 }

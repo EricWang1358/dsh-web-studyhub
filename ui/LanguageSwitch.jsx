@@ -23,6 +23,6 @@ export default function LanguageSwitch({ language = 'zh', narrow = false, onChan
   return <div className="study-language-switch" data-usage="nav.language">
     <Icon><NavGlyph name="language" /></Icon>
     <span className="study-language-switch__label" aria-hidden="true">{ui('语言')}</span>
-    <SegmentedControl size="sm" label={name} value={language} options={OPTIONS} onChange={onChange} />
+    <SegmentedControl size="xs" label={name} value={language} options={OPTIONS} onChange={onChange} />
   </div>;
 }

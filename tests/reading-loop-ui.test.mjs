@@ -192,7 +192,7 @@ test('the result page of a run from reading says the mastery change and offers �
   setUiLanguage('zh');
   const html = render(e(ReadingResult, { run: { reading }, onReturn() {}, busy: false }));
   assert.ok(html.includes('这几页的掌握度 41% → 58%'));
-  assert.match(html, /<button[^>]*class="primary reading-result__return"/);
+  assert.match(html, /<button[^>]*class="sh-btn sh-btn--primary sh-btn--md sh-btn--wrap sh-btn--start reading-result__return"/);
   assert.ok(html.includes('回到阅读') && html.includes('回到「Hash indexes」'));
   assert.equal(render(e(ReadingResult, { run: {}, onReturn() {} })), '', 'a run that did not start from reading shows nothing');
   setUiLanguage('en');

@@ -1,6 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
-import { Icon } from "./components/index.js";
+import { Button, Icon } from "./components/index.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import { modelReadiness } from "./generation-status.js";
 import focusCss from "./focus.css";
@@ -105,9 +105,10 @@ export default function StudyMap({
         // The desk above already says what to do first; the catalogue only explains itself.
         <p className="muted map-empty">{ui("发布第一组题后，这里会按课程列出题组和掌握度。")}</p>
       )}
-      {folders.otherCourseCount > 0 && <button className="show-other-courses" onClick={() => setShowOtherCourses(true)}>{ui("查看其他课程 · ")}{folders.otherCourseCount}</button>}
-      {folders.parkedFolders.length > 0 && !query && <button className="show-other-courses parked-toggle" aria-expanded={showParked}
-        onClick={() => setShowParked((value) => !value)}><Icon name="caret" size={14} className="sh-caret" />{uiFormat("未激活的课程 ({0})", [folders.parkedFolders.length])}</button>}
+      {folders.otherCourseCount > 0 && <Button variant="quiet" size="sm" className="show-other-courses" onClick={() => setShowOtherCourses(true)}>{ui("查看其他课程 · ")}{folders.otherCourseCount}</Button>}
+      {folders.parkedFolders.length > 0 && !query && <Button variant="quiet" size="sm" className="show-other-courses parked-toggle" aria-expanded={showParked}
+        icon={<Icon name="caret" size={14} className="sh-caret" />}
+        onClick={() => setShowParked((value) => !value)}>{uiFormat("未激活的课程 ({0})", [folders.parkedFolders.length])}</Button>}
       {/* Cross-workspace notebooks are for people with decks, or with notebooks elsewhere (P12). */}
       {showNotebooks && <NotebookDirectory notebooks={notebooks} error={notebookError} busy={busy} onPublish={onNotebookPublish}
         onUnpublish={onNotebookUnpublish} onOpen={onNotebookOpen} refresh={refreshNotebooks} onSearch={onNotebookSearch} />}

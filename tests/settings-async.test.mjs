@@ -29,7 +29,7 @@ const effect = (callback, deps) => {
 const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = hook(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
-  useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `test-${active.cursor}`)[1],
+  useContext: () => globalThis.__toast ?? null, useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `test-${active.cursor}`)[1],
   useMemo: (create, deps) => { const [, slot] = hook(() => ({ deps: undefined, value: undefined }));
     if (!slot.deps || !deps || deps.some((value, i) => value !== slot.deps[i])) { slot.value = create(); slot.deps = deps; }
     return slot.value; },

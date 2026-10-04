@@ -1,5 +1,6 @@
 import React from 'react';
 import { ui } from '../../i18n.js';
+import { Button } from '../../components/index.js';
 import { lineBreakPieces, headingMark } from './text-sections.js';
 import { isFigurePlaceholder } from '../peek/peek-logic.js';
 import { splitStudyMath } from '../../study-media.js';
@@ -40,7 +41,7 @@ export default function ReadingSections({ sections, labelOf, onPeek }) {
       {...(paged ? { 'data-study-page': section.page, 'data-study-source': section.sourceId } : {})}>
       {(label || (!paged && section.title)) && <header className="reader-section__head">
         {label && <span className="reader-section__label">{label}</span>}
-        {paged && onPeek && <button type="button" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={event => onPeek(section.page, { figure: false, trigger: event.currentTarget })}>{ui('看原页')}</button>}
+        {paged && onPeek && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={event => onPeek(section.page, { figure: false, trigger: event.currentTarget })}>{ui('看原页')}</Button>}
         {!paged && section.title && <h3 className="reader-section__title">
           <span className="reader-bracket" aria-hidden="true">【</span>{section.title}<span className="reader-bracket" aria-hidden="true">】</span></h3>}
       </header>}

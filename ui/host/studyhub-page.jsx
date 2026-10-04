@@ -1,5 +1,6 @@
 import React from "react";
 import { ui } from "../i18n.js";
+import { Button } from "../components/index.js";
 import { useAppearance, useAppearanceAttrs } from "../use-appearance.js";
 import { appearanceStyle } from "../appearance-prefs.js";
 
@@ -27,7 +28,7 @@ export function NoSessionNotice({ onStart }) {
           <StudyHubGlyph size={40} />
           <h1>{ui("先打开一个会话")}</h1>
           <p>{ui("StudyHub 的学习库存放在会话的工作区里。新建或打开一个会话后，这里会直接显示你的学习库。")}</p>
-          {onStart && <button type="button" onClick={onStart}>{ui("新建会话")}</button>}
+          {onStart && <Button variant="primary" onClick={onStart}>{ui("新建会话")}</Button>}
         </div>
       </div>
     </div>

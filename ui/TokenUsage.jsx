@@ -1,8 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Panel } from './components/index.js';
-import Icon from './components/Icon.jsx';
+import { Button, IconButton, Panel } from './components/index.js';
 import css from './token-usage.css';
 import { totalTokens } from '../lib/token-usage.js';
 import {
@@ -70,8 +69,8 @@ export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = fa
     {estimate && <>
       <p className="token-estimate__line">
         <span>{estimateSummary(estimate)}</span>
-        <button type="button" className="token-estimate__info" aria-expanded={open} aria-controls={panel}
-          aria-label={ui('查看估算明细')} title={ui('查看估算明细')} onClick={() => setOpen(!open)}><Icon name="info" size={16} /></button>
+        <IconButton icon="info" size="sm" className="token-estimate__info" aria-expanded={open} aria-controls={panel}
+          label={ui('查看估算明细')} onClick={() => setOpen(!open)} />
       </p>
       {estimate.blocked && <p className="token-estimate__warn" role="status">{noteText('over-limit', estimate)}</p>}
       {open && <div className="token-estimate__panel" id={panel}>
@@ -155,8 +154,8 @@ export function ModelUsageView({ state = { status: 'idle' }, days = 30, onDays, 
   const lines = summary && features.length ? [...features.map((id) => `${featureLabel(id)}: ${usageText(summary.byFeature[id])}`),
     `${ui('合计')}: ${usageText(summary.total)}`].join('\n') : '';
   const toggle = <div className="model-usage__days" role="group" aria-label={ui('统计范围')}>
-    {DAY_CHOICES.map((choice) => <button key={choice} type="button" className="generate-chip" aria-pressed={days === choice}
-      onClick={() => onDays?.(choice)}>{choice === 7 ? ui('近 7 天') : ui('近 30 天')}</button>)}
+    {DAY_CHOICES.map((choice) => <Button key={choice} size="sm" shape="pill" aria-pressed={days === choice}
+      onClick={() => onDays?.(choice)}>{choice === 7 ? ui('近 7 天') : ui('近 30 天')}</Button>)}
   </div>;
   return <Panel className="dash-chart model-usage" data-model-usage title={ui('模型用量')}
     description={uiFormat('近 {0} 天，各功能的 token 用量', [days])} actions={toggle}>

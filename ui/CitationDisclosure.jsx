@@ -1,6 +1,6 @@
 import { ui } from "./i18n.js";
 import React from "react";
-import { Hint } from "./components/index.js";
+import { Button, Hint } from "./components/index.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
 
 export default function CitationDisclosure({ card, sources = [], onOpenSource }) {
@@ -22,11 +22,11 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource })
         <div className="citations">
           {citations.map((citation, index) => {
             const source = sourceById.get(citation.sourceId);
-            return <button type="button" key={index}
+            return <Button key={index} variant="quiet" wrap block align="start" icon="external"
               onClick={() => onOpenSource(source && citation.selection ? { ...source, selection: citation.selection } : source, citation.quote)}>
-              ↗ {source?.title || ui("资料")}
-              <blockquote>{citation.quote}</blockquote>
-            </button>;
+              <span>{source?.title || ui("资料")}
+                <blockquote>{citation.quote}</blockquote></span>
+            </Button>;
           })}
         </div>
         {selfCited && <Hint tone="warning" role="note">{ui("这些引用来自导入的题目自身，不能独立核实答案。请对照原始资料判断。")}</Hint>}

@@ -120,7 +120,7 @@ export default function AppSidebar() {
         <div className="local-status"><span />{ui('本地学习工作区')}</div>
         {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
         <ThemeCycle />
-        <UpdateCenter call={core.call} host={host} compact={sidebarNarrow} notify={core.notify} />
+        <UpdateCenter call={core.call} host={host} compact={sidebarNarrow} />
         <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} title={ui('设置')} data-tour="nav-settings" data-usage="nav.settings"
           onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
       </div>

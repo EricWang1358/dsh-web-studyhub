@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Checkbox, Hint, Icon, InlineConfirm, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, SettingsSection } from './components/index.js';
+import { Badge, Button, Checkbox, Hint, Icon, InlineConfirm, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, SettingsSection, useToast } from './components/index.js';
 import { sizeLabel } from './mineru-flow.js';
 import css from './mineru.css';
 
@@ -160,7 +160,8 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
 }
 
 /** 设置 › MinerU 解析: local model setup first, then the optional cloud token. `initialSettings` / `initialLocal` skip the first read (previews, tests). */
-export default function MineruSettings({ call, busy = false, setNotice, initialSettings = null, initialLocal = null }) {
+export default function MineruSettings({ call, busy = false, initialSettings = null, initialLocal = null }) {
+  const toast = useToast();
   useInjectCss(css, 'study-mineru');
   const [settings, setSettings] = useState(initialSettings), [local, setLocal] = useState(initialLocal), [error, setError] = useState('');
   const [acknowledging, setAcknowledging] = useState(false);
@@ -172,7 +173,7 @@ export default function MineruSettings({ call, busy = false, setNotice, initialS
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const acknowledge = async checked => {
     setAcknowledging(true); setError('');
-    try { setSettings(await call('mineru.settings.set', { acknowledge: checked })); setNotice?.({ text: checked ? ui('已确认：云端解析会把文档上传到 MinerU。') : ui('已撤回确认；之后用云端解析前会再问一次。'), tone: 'success' }); }
+    try { setSettings(await call('mineru.settings.set', { acknowledge: checked })); toast.success(checked ? ui('已确认：云端解析会把文档上传到 MinerU。') : ui('已撤回确认；之后用云端解析前会再问一次。')); }
     catch (failure) { setError(uiMessage(String(failure?.message || failure))); }
     finally { setAcknowledging(false); }
   };

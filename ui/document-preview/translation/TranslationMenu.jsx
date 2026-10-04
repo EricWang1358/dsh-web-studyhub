@@ -23,9 +23,8 @@ const modeHint = mode => ({
 export function TranslationDisplayRow({ mode, target, narrow, onChange }) {
   return <div className="reader-setting tr-modes">
     <span className="reader-setting__label">{ui('译文显示')}</span>
-    <div className="tr-modes__grid" role="group" aria-label={ui('译文显示')}>
-      {DISPLAY_MODES.map(value => <button key={value} type="button" className="tr-modes__item" aria-pressed={mode === value} title={modeHint(value)} onClick={() => onChange(value)}>{modeLabel(value, target)}</button>)}
-    </div>
+    <SegmentedControl size="sm" wrap stack label={ui('译文显示')} value={mode} onChange={onChange}
+      options={DISPLAY_MODES.map(value => ({ value, label: modeLabel(value, target), title: modeHint(value) }))} />
     {narrow && mode === 'side' && <small className="tr-modes__note">{ui('窗口较窄，现在按逐段对照显示。')}</small>}
   </div>;
 }

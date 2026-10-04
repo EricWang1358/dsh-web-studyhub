@@ -17,7 +17,7 @@ const hook = initial => { const index = active.cursor++; if (!(index in active.s
 const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = hook(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
-  useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `field-${active.cursor}`)[1],
+  useContext: () => globalThis.__toast ?? null, useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `field-${active.cursor}`)[1],
   useEffect: (callback, deps) => { const [, slot] = hook(() => ({ deps: undefined, cleanup: null }));
     if (!slot.deps || deps.some((value, index) => value !== slot.deps[index])) {
       active.effects.push(() => { slot.cleanup?.(); slot.cleanup = callback(); }); slot.deps = deps;
@@ -62,13 +62,16 @@ test('the generation settings section renders nine usable controls with shared l
 });
 
 test('saving submits exact numeric settings and reset only edits the pending form', async () => {
-  const calls = [], notices = [], view = editor({ saved: { ...GENERATION_SETTINGS_DEFAULTS, concurrency: 5 }, setNotice: notice => notices.push(notice),
+  const calls = [], notices = [];
+  globalThis.__toast = { success: text => notices.push(text) };
+  const view = editor({ saved: { ...GENERATION_SETTINGS_DEFAULTS, concurrency: 5 },
     act: async (action, args, after) => { calls.push({ action, args }); after({ generation: args.generation }); } });
   view.render(); view.effects();
   edit(view, 'count', '18'); edit(view, 'batchSize', '2'); edit(view, 'focus', '  Explain conditions  ');
   await submit(view);
   assert.deepEqual(calls, [{ action: 'settings', args: { generation: { ...GENERATION_SETTINGS_DEFAULTS, concurrency: 5, count: 18, batchSize: 2, focus: 'Explain conditions' } } }]);
   assert.equal(notices.length, 1);
+  delete globalThis.__toast;
   find(view.render(), node => node.props?.onClick && node.props.children === '恢复默认值（待保存）').props.onClick();
   assert.equal(control(view, 'count').props.value, 10);
   assert.equal(control(view, 'concurrency').props.value, 3);
@@ -95,7 +98,9 @@ test('an older successful save never overwrites input typed after submission', a
 
 test('departed library saves and failures cannot change the new form or report stale notices', async () => {
   for (const failure of [false, true]) {
-    const response = deferred(), notices = [], old = editor({ setNotice: notice => notices.push(notice),
+    const response = deferred(), notices = [];
+    globalThis.__toast = { success: text => notices.push(text) };
+    const old = editor({
       act: async (_action, args, after) => { await response.promise; after({ generation: args.generation }); } });
     old.render(); old.effects(); edit(old, 'count', '18'); const saving = submit(old); old.unmount();
     const fresh = editor({ root: '/another/library' }); fresh.render(); fresh.effects();
@@ -103,6 +108,7 @@ test('departed library saves and failures cannot change the new form or report s
     await saving;
     assert.equal(control(fresh, 'count').props.value, 10);
     assert.deepEqual(notices, []);
+    delete globalThis.__toast;
     assert.equal(find(old.render(), node => node.props?.role === 'alert'), null);
   }
 });

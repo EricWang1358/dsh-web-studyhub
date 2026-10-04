@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiLabels } from '../i18n.js';
-import { Panel, SegmentedControl } from '../components/index.js';
+import { Button, Panel, SegmentedControl } from '../components/index.js';
 import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks } from './chart-math.js';
 
 /* The dashboard's three charts, all plain inline SVG / CSS (no chart library):
@@ -240,7 +240,7 @@ export function ForecastPanel({ forecast, onStart, parked }) {
         )}
       </div>
       {scopeNote && <p className="dash-scope-note">{scopeNote}
-        {parkedCount > 0 && parked?.onManage && <> <button type="button" className="link-btn" onClick={parked.onManage}>{ui('管理课程')}</button></>}</p>}
+        {parkedCount > 0 && parked?.onManage && <> <Button variant="link" size="sm" onClick={parked.onManage}>{ui('管理课程')}</Button></>}</p>}
       {total > 0 && (
         <table className="dash-sr">
           <caption>{ui('未来 14 天到期复习')}</caption>

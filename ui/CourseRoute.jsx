@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import { TERMS } from "./mastery-terms.js";
+import { Button } from "./components/index.js";
 
 /* 课程路线：课程按题组顺序排成一章一章。进度条每一段是一章（按题量占宽），
    学过的部分填色；展开后能看到每一章学到哪里，并从任意一章开始。 */
@@ -37,9 +38,9 @@ export default function CourseRoute({ route, busy, onStartChapter }) {
                 {ui(STATUS[c.status])} · {c.learned}/{c.total}{c.weak ? uiFormat(" · {0} 道薄弱", [c.weak]) : ""}
               </span>
               {c.learned < c.total && (
-                <button type="button" className="link-btn" disabled={busy} onClick={() => onStartChapter(c.deckId)}>
+                <Button variant="link" size="sm" disabled={busy} onClick={() => onStartChapter(c.deckId)}>
                   {c.status === "current" ? ui("接着学") : ui("从这一章学")}
-                </button>
+                </Button>
               )}
             </li>
           ))}

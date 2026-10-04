@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiLocale } from './i18n.js';
 import { recapTimeZone } from './useDailyRecap.js';
-import { Button, Checkbox, Field, Hint, Select, SettingsSection } from './components/index.js';
+import { Button, Checkbox, Field, Hint, Select, SettingsSection, useToast } from './components/index.js';
 
 const valuesFor = saved => ({ automatic: saved?.automatic === true, tone: saved?.tone === 'professional' ? 'professional' : 'friendly', timeZone: recapTimeZone(saved) });
 
@@ -9,7 +9,8 @@ export default function DailyRecapSettings(props) {
   return <DailyRecapSettingsForm key={props.root} {...props} />;
 }
 
-export function DailyRecapSettingsForm({ root, saved, busy = false, act, setNotice }) {
+export function DailyRecapSettingsForm({ root, saved, busy = false, act }) {
+  const toast = useToast();
   const incoming = JSON.stringify(valuesFor(saved));
   const [editor, setEditor] = useState(() => ({ baseline: incoming, values: JSON.parse(incoming) }));
   const [working, setWorking] = useState(false), [error, setError] = useState('');
@@ -36,7 +37,7 @@ export function DailyRecapSettingsForm({ root, saved, busy = false, act, setNoti
         if (!live() || context?.isCurrent?.() === false) return;
         const next = valuesFor(result.dailyRecap || editor.values);
         setEditor(previous => ({ baseline: JSON.stringify(next), values: version.current === revision ? next : previous.values }));
-        setNotice?.({ text: ui('每日合集设置已保存'), tone: 'success' });
+        toast.success(ui('每日合集设置已保存'));
       }, { rethrow: true });
     } catch (cause) { if (live()) setError(cause.message || String(cause)); }
     finally { if (live()) { pending.current = null; setWorking(false); } }

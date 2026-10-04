@@ -2,12 +2,13 @@ import React, { cloneElement, useEffect, useId, useLayoutEffect, useRef, useStat
 import css from './components.css';
 import overlayCss from './overlays.css';
 import layerCss from './tooltip-layer.css';
+import interactiveCss from './tooltip-interactive.css';
 import { useComponentCss, cx } from './css.js';
 import { computePlacement, useAnchoredPosition, useDismiss } from './use-dismiss.js';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-const HOVER_DELAY = 250, PRESS_DELAY = 500, TOUCH_LINGER = 3000;
+const HOVER_DELAY = 250, PRESS_DELAY = 500, TOUCH_LINGER = 3000, LEAVE_DELAY = 150;
 const chain = (own, extra) => event => { own?.(event); extra(event); };
 
 /**
@@ -19,11 +20,14 @@ const chain = (own, extra) => event => { own?.(event); extra(event); };
  * layer: show it in the top layer (a manual popover placed from the anchor's
  * rectangle) so a scrolling or clipping ancestor cannot cut it off; it follows
  * its anchor on scroll and resize. anchorClassName: a class for the wrapping span.
+ * interactive: the pointer may move onto the card (to scroll long text) without closing it; the card then takes pointer events.
+ * placement may also be 'left-start' and friends (beside the anchor, layer only; see computePlacement).
  */
-export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName }) {
+export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
+  useComponentCss(interactiveCss, 'study-tooltip-interactive');
   const [open, setOpen] = useState(false);
   const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0);
   useAnchoredPosition({ anchorRef: anchor, panelRef: panel, placement, flip, open: open && !layer });
@@ -60,7 +64,7 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
       {cloneElement(child, {
         'aria-describedby': describedBy,
         onPointerEnter: chain(own.onPointerEnter, event => { if (event.pointerType !== 'touch') later(HOVER_DELAY, true); }),
-        onPointerLeave: chain(own.onPointerLeave, event => { if (event.pointerType !== 'touch') now(false); }),
+        onPointerLeave: chain(own.onPointerLeave, event => { if (event.pointerType !== 'touch') { if (interactive) later(LEAVE_DELAY, false); else now(false); } }),
         onFocus: chain(own.onFocus, () => now(true)),
         onBlur: chain(own.onBlur, () => now(false)),
         onPointerDown: chain(own.onPointerDown, event => {
@@ -72,7 +76,9 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
         onPointerCancel: chain(own.onPointerCancel, () => { if (!open) clearTimeout(timer.current); }),
       })}
       <span id={id} role="tooltip" ref={panel} hidden={layer ? undefined : !open} popover={layer ? 'manual' : undefined} data-placement={placement}
-        className={cx('sh-popover', 'sh-tooltip', className)}>{content}</span>
+        onPointerEnter={interactive ? () => clearTimeout(timer.current) : undefined}
+        onPointerLeave={interactive ? event => { if (event.pointerType !== 'touch') later(LEAVE_DELAY, false); } : undefined}
+        className={cx('sh-popover', 'sh-tooltip', interactive && 'sh-tooltip--interactive', className)}>{content}</span>
     </span>
   );
 }

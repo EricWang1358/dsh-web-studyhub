@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage, useUiLanguage } from '../i18n.js';
-import { Dialog } from '../components/index.js';
+import { Button, Dialog, InlineMessage } from '../components/index.js';
 import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
 import { safeDocumentHtml } from './DocumentViewer.jsx';
 import { annotatePassages, captureSelection, groupPassageLinks } from './selection.js';
@@ -65,10 +65,10 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
     }
     if (!hasMaterials) return null;
     return <span className="study-document-native">
-      <button ref={button} type="button" onPointerDown={captureBeforeBlur} onClick={launch}>{ui('选段学习')}</button>
+      <Button ref={button} size="sm" onPointerDown={captureBeforeBlur} onClick={launch}>{ui('选段学习')}</Button>
       {open && <Dialog title={ui('资料选段学习')} size="md" onClose={() => setOpen(false)}>
         {busy && <p role="status">{ui('正在连接资料与原文位置…')}</p>}
-        {error && <p role="alert">{uiMessage(error)}</p>}
+        {error && <InlineMessage tone="error">{uiMessage(error)}</InlineMessage>}
         {!capture && <p>{ui(/\.html?$/i.test(absolutePath) ? '选中一段文字后点击此按钮。HTML 请切换到「学习 HTML」预览。' : '选中预览中的一段文字后，再点击「选段学习」。')}</p>}
         {document && <DocumentLearning call={call} document={document} capture={capture} onPublished={published} isCurrent={current}
           onOpenCard={navigate} />}
@@ -103,7 +103,7 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
     useEffect(() => annotatePassages(ref.current, groups, setGroup, count => uiFormat('{0} 道相关题目与解析', [count])), [groups, html, language]);
     return <div className="study-html-document" ref={scrollportRef}>
       <div ref={ref} dangerouslySetInnerHTML={{ __html: html }} />
-      {error && <p role="alert">{uiMessage(error)}</p>}
+      {error && <InlineMessage tone="error">{uiMessage(error)}</InlineMessage>}
       {group && <PassageLinks groups={[group]} onOpenCard={async link => {
         try { await openCard(sessionId, link); } catch (e) { setError(e.message); }
       }} />}

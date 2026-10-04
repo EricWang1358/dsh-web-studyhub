@@ -1,0 +1,6 @@
+/* ── Interactive tooltip ─────────────────────────────────────────────────
+   <Tooltip interactive>: the pointer may rest on the card (to scroll long
+   text), so the card takes pointer events instead of letting them through. */
+:is(.study-app, .study-seat) {
+  .sh-tooltip.sh-tooltip--interactive { pointer-events: auto; }
+}

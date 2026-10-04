@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
-import { Button, Field, Hint, NumberInput, Select, SettingsSection, TextArea } from './components/index.js';
+import { Button, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
 import { kinds } from './shared.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_KINDS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
@@ -34,7 +34,8 @@ export default function GenerationSettings(props) {
   return <GenerationSettingsForm key={props.root} {...props} />;
 }
 
-export function GenerationSettingsForm({ root, saved, busy = false, act, setNotice }) {
+export function GenerationSettingsForm({ root, saved, busy = false, act }) {
+  const toast = useToast();
   const savedKey = JSON.stringify(normalizeGenerationSettings(saved));
   const [editor, setEditor] = useState(() => ({ observed: savedKey, baseline: JSON.parse(savedKey), values: JSON.parse(savedKey) }));
   const [working, setWorking] = useState(false), [error, setError] = useState('');
@@ -70,7 +71,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, setNoti
         if (!current() || context?.isCurrent?.() === false) return;
         const next = normalizeGenerationSettings(result.generation);
         setEditor(previous => ({ ...previous, baseline: next, values: version.current === revision ? next : previous.values }));
-        setNotice?.({ text: ui(version.current === revision ? '出题偏好已保存' : '出题偏好已保存；后续修改尚未保存。'), tone: 'success' });
+        toast.success(ui(version.current === revision ? '出题偏好已保存' : '出题偏好已保存；后续修改尚未保存。'));
       }, { rethrow: true });
     } catch (cause) { if (current()) setError(cause?.message || String(cause)); }
     finally { if (current()) { pending.current = null; setWorking(false); } }

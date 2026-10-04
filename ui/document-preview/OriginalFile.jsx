@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, Dialog, FileDrop, Icon } from '../components/index.js';
+import { Button, Dialog, FileDrop, Icon, InlineMessage } from '../components/index.js';
 import css from './original-file.css';
 import { ORIGINAL_MAX_BYTES, canAttach, defaultMode, explainFailure, issueOf, modeOptions, originalLine, reportHeadline, reportLines } from './original-file.js';
 import { formatBytes } from '../format.js';
@@ -24,20 +24,20 @@ export function OriginalNotice({ document, onAction }) {
   if (!document || document.originalAvailable) return null;
   const issue = issueOf(document.original);
   if (!issue) return null;
-  if (issue.kind === 'none') return <div className="original-notice" data-kind="none">
+  if (issue.kind === 'none') return <InlineMessage tone="info" boxed data-kind="none">
     <p>{document.format === 'pdf'
       ? ui('这份资料只保存了提取出的文字，没有原文件，所以「原始 PDF」打不开。提问、补题和查看引用仍然可用。')
       : ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用。')}</p>
     <p>{ui('补上原文件有两种办法：指给它文件的位置（只记路径，不占空间），或复制一份进资料库。已保存的文字、引用和题目不会变。')}</p>
     <div className="original-notice__actions"><Button size="sm" variant="secondary" icon="file" onClick={() => onAction?.('attach')}>{ui('补全原文件…')}</Button></div>
-  </div>;
-  return <div className="original-notice is-warning" data-kind={issue.kind}>
+  </InlineMessage>;
+  return <InlineMessage tone="warning" boxed data-kind={issue.kind}>
     <p>{issue.message}</p>
     <div className="original-notice__actions">
       <Button size="sm" variant="secondary" onClick={() => onAction?.('relink')}>{ui('重新指定…')}</Button>
       {issue.canCopy && <Button size="sm" variant="quiet" onClick={() => onAction?.('copy')}>{ui('改为复制到资料库')}</Button>}
     </div>
-  </div>;
+  </InlineMessage>;
 }
 
 function Status({ tone, children, alert = false }) {
@@ -213,7 +213,7 @@ export function OriginalMenuEntry({ item, call, busy = false, host, initial }) {
   };
   return <>
     {line && <small className="source-row-menu__note" data-tone={line.tone} title={line.title}>{line.text}</small>}
-    <button type="button" ref={anchor} disabled={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</button>
+    <Button ref={anchor} variant="quiet" size="sm" busy={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</Button>
     {portal && createPortal(<OriginalDialog target={{ sourceId, title: item.title, format: item.format }} call={call} host={host} intent="attach"
       onClose={() => setPortal(null)} onChanged={() => Promise.resolve(call('materials.original.status', { sourceId })).then(setInfo, () => {})} />, portal)}
   </>;

@@ -45,6 +45,9 @@ const FEATURES = {
   }),
 };
 
+/** The one-line wording of the gate for a feature, for a message that is thrown or toasted rather than drawn (feature: see FEATURES). */
+export const gateMessage = (feature = 'generate', model) => (FEATURES[feature] || FEATURES.generate)(model || {}).line;
+
 /**
  * variant: 'block' | 'inline' | 'banner'; feature: 'generate' | 'grade' | 'ingest' | 'translate'. `model` is the readiness
  * ({ ready, reason, label }, see modelReadiness): a ready model renders nothing. Without onOpenSettings there is no button.

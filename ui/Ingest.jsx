@@ -1,7 +1,7 @@
 import { ui } from "./i18n.js";
 import React, { useState } from "react";
 import CourseField from './CourseField.jsx';
-import { SegmentedControl } from './components/index.js';
+import { Button, SegmentedControl } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
 
@@ -88,7 +88,7 @@ export default function Ingest({ data, busy, start, onOpenSettings }) {
         <small className="sh-seg-note">{ui(MISTAKES.find(([id]) => id === mistakes)[2])}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
       </fieldset>
       <ModelSetupGate variant="inline" feature="ingest" model={modelReadiness(data)} onOpenSettings={onOpenSettings} />
-      <button className="primary wide" disabled={busy || !data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题 → 去对话里粘贴")}</button>
+      <Button type="submit" variant="primary" block busy={busy} disabled={!data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题 → 去对话里粘贴")}</Button>
     </form>
   );
 }

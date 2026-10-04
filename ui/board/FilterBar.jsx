@@ -27,8 +27,8 @@ export default function FilterBar({ query, labels, onChange, open, onToggle, mat
           <input type="search" value={query.text || ''} placeholder={ui('搜索待办')} aria-label={ui('搜索待办')} onChange={(event) => set({ text: event.target.value })} />
         </label>
         <div className="board-filter__group" role="group" aria-label={ui('按到期筛选')}>
-          <button type="button" className="board-toggle" aria-pressed={query.due === 'overdue'} onClick={() => due('overdue')}>{ui('只看逾期')}</button>
-          <button type="button" className="board-toggle" aria-pressed={query.due === 'week'} onClick={() => due('week')}>{ui('本周截止')}</button>
+          <Button size="sm" shape="pill" aria-pressed={query.due === 'overdue'} onClick={() => due('overdue')}>{ui('只看逾期')}</Button>
+          <Button size="sm" shape="pill" aria-pressed={query.due === 'week'} onClick={() => due('week')}>{ui('本周截止')}</Button>
         </div>
         {labels.length > 0 && <div className="board-filter__group" role="group" aria-label={ui('按标签筛选')}>
           {labels.slice(0, MAX_LABELS).map(({ label, count }) => <button key={label} type="button" className={`board-chip is-choice board-hue-${labelHue(label)}`}

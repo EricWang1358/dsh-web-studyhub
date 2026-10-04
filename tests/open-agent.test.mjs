@@ -88,10 +88,10 @@ test('attemptOpen returns an empty string on success and the reason on failure',
 test('the button shows only when there is an assistant and a host that can open it', () => {
   const link = props => renderToStaticMarkup(h(AgentLink, { label: '查看后台助手', ...props }));
   const html = link({ childId: 'c1', openAgent() {} });
-  assert.match(html, /^<button type="button">查看后台助手<\/button>$/);
+  assert.match(html, /^<button type="button" class="sh-btn sh-btn--link sh-btn--sm">查看后台助手<\/button>$/);
   assert.equal(link({ childId: 'c1' }), '', 'no host support, no button');
   assert.equal(link({ openAgent() {} }), '', 'no assistant id, no button');
-  assert.match(link({ childId: 'c1', openAgent() {}, className: 'link-btn', ariaLabel: '查看子代理：校对 1/30' }), /class="link-btn" aria-label="查看子代理：校对 1\/30"/);
+  assert.match(link({ childId: 'c1', openAgent() {}, className: 'link-btn', ariaLabel: '查看子代理：校对 1/30' }), /class="sh-btn sh-btn--link sh-btn--sm link-btn" aria-label="查看子代理：校对 1\/30"/);
 });
 
 test('the generation trace offers the assistant of a step only when the host can open one', () => {
@@ -113,7 +113,7 @@ test('the assistant button prevents duplicate opens and recovers after a visible
       window.finishOpen = resolve; window.failOpen = reject;
     }); };
     createRoot(document.getElementById('root')).render(<AgentLink childId="child-1" openAgent={openAgent} label="查看后台助手" />);
-  `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', logLevel: 'silent' });
+  `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
   let browser;
   try { browser = await launchChromium(); }
   catch (error) {

@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Banner, Button, Dialog, Hint, Icon, InlineMessage } from './components/index.js';
+import { Badge, Banner, Button, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
 import { formatDateTime } from './format.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
@@ -141,8 +141,9 @@ function Installed({ phase, host }) {
 }
 
 /** The upgrade dialog: version, release notes, and one-click or guided upgrade. */
-export function UpdateDialog({ update, call, host, onClose, notify, initialPhase = null }) {
+export function UpdateDialog({ update, call, host, onClose, initialPhase = null }) {
   useInjectCss(css, 'study-update');
+  const toast = useToast();
   const available = canUpgrade(update);
   // A pending install is complete only for that version; a later release stays actionable.
   const [savedPhase, setPhase] = useState(initialPhase || (update.pendingRestart && !available
@@ -163,8 +164,8 @@ export function UpdateDialog({ update, call, host, onClose, notify, initialPhase
     if (next.phase === 'installed') refreshUpdate(call);
   }
   async function later() {
-    try { await savePreferences(call, { snooze: update.latest }); notify?.({ text: uiFormat('{0} 先不提醒了，可在「设置 › 关于与更新」里随时升级。', [update.latest]), tone: 'info' }); }
-    catch { notify?.({ text: ui('没能保存「稍后提醒」，请再试一次。'), tone: 'error' }); return; }
+    try { await savePreferences(call, { snooze: update.latest }); toast.info(uiFormat('{0} 先不提醒了，可在「设置 › 关于与更新」里随时升级。', [update.latest])); }
+    catch { toast.error(ui('没能保存「稍后提醒」，请再试一次。')); return; }
     onClose('later');
   }
   const published = formatDateTime(update.publishedAt, 'day');
@@ -265,7 +266,7 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
    same page (conversation tab + right sidebar) never opens a hidden copy. */
 
 /** Connected settings section for the Settings page. */
-export function UpdateSettingsPanel({ call, host, notify }) {
+export function UpdateSettingsPanel({ call, host }) {
   const { update, checking } = useUpdateStore();
   const [open, setOpen] = useState(false), [extension, setExtension] = useState();
   useEffect(() => { if (!snapshot.update && !snapshot.checking) refreshUpdate(call); }, [call]);
@@ -274,12 +275,12 @@ export function UpdateSettingsPanel({ call, host, notify }) {
   useEffect(() => { loadExtension(); }, [loadExtension]);
   return <>
     <UpdateSettings update={update} call={call} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setExtension(value?.extension)} onCheck={loadExtension} />
-    {open && update && <UpdateDialog update={update} call={call} host={host} notify={notify} onClose={() => setOpen(false)} />}
+    {open && update && <UpdateDialog update={update} call={call} host={host} onClose={() => setOpen(false)} />}
   </>;
 }
 
 /** Sidebar chip and its dialog. The first mounted App asks once per page load. */
-export default function UpdateCenter({ call, host, compact = false, notify }) {
+export default function UpdateCenter({ call, host, compact = false }) {
   const { update } = useUpdateStore();
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -289,6 +290,6 @@ export default function UpdateCenter({ call, host, compact = false, notify }) {
   }, [call]);
   return <>
     <UpdateChip update={update} compact={compact} onOpen={() => setOpen(true)} />
-    {open && update && <UpdateDialog update={update} call={call} host={host} notify={notify} onClose={() => setOpen(false)} />}
+    {open && update && <UpdateDialog update={update} call={call} host={host} onClose={() => setOpen(false)} />}
   </>;
 }
