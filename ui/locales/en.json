@@ -1,4 +1,6 @@
 {
+  "已归档题组": "Archived decks",
+  "已归档题组不参与学习。恢复后可继续学习；永久删除会保留原始资料和作答记录。": "Archived decks are excluded from study. Restore to resume studying; permanent deletion keeps original sources and answer history.",
   "👎 标签展开时：选标签": "Choose a tag when 👎 is open",
   "也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。": "You can also import timestamped subtitles downloaded from Bilibili or other sites (SRT · VTT · JSON · TXT). They skip transcription, go straight to proofreading and translation, and keep their timestamps.",
   "字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。": "Import subtitles separately: choose one subtitle file at a time, without audio files.",

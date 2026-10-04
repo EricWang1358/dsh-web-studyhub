@@ -9,7 +9,7 @@ import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 
-test('archived deck menu restores or deletes directly, with safe focus, cancellation and retry', { timeout: 90000 }, async t => {
+test('archived decks show management actions directly, with safe focus, cancellation and retry', { timeout: 90000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'deck-archive-browser-'));
   const service = new StudyService(join(root, 'library'));
   const card = id => ({ id, kind: 'flashcard', topic: 'Topic', objective: 'Recall', prompt: id, answer: 'Answer', hint: '', explanation: '', misconception: '', citations: [] });
@@ -37,10 +37,18 @@ test('archived deck menu restores or deletes directly, with safe focus, cancella
   assert.equal(await menu.getByRole('menuitem', { name: 'Permanently delete', exact: true }).count(), 0);
   const archived = page.getByRole('button', { name: 'Archived', exact: true });
   await archived.click();
+  assert.equal(await row('Delete deck').getByRole('checkbox').count(), 0);
+  assert.equal(await row('Delete deck').getByRole('button', { name: 'Start studying Delete deck' }).count(), 0);
+  assert.equal(await row('Delete deck').getByRole('button', { name: 'Restore deck', exact: true }).count(), 1);
+  await row('Delete deck').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: join(tmpdir(), 'study-archive-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await row('Delete deck').scrollIntoViewIfNeeded();
+  assert.equal(await row('Delete deck').evaluate(el => el.scrollWidth <= el.clientWidth), true);
+  await page.screenshot({ path: join(tmpdir(), 'study-archive-mobile.png') });
+  await page.setViewportSize({ width: 1100, height: 900 });
   const openDeletion = async () => {
-    await row('Delete deck').getByRole('button', { name: 'More actions', exact: true }).click();
-    assert.deepEqual(await menu.getByRole('menuitem').allTextContents(), ['Restore deck', 'Permanently delete', 'Manage deck']);
-    await menu.getByRole('menuitem', { name: 'Permanently delete', exact: true }).click();
+    await row('Delete deck').getByRole('button', { name: 'Permanently delete', exact: true }).click();
     return page.getByRole('dialog');
   };
   let dialog = await openDeletion();
@@ -61,8 +69,7 @@ test('archived deck menu restores or deletes directly, with safe focus, cancella
   await row('Delete deck').waitFor({ state: 'hidden' });
   assert.equal(await archived.getAttribute('aria-pressed'), 'true');
   assert.equal((await service.call('export')).sources.length, 1);
-  await row('Restore deck').getByRole('button', { name: 'More actions', exact: true }).click();
-  await menu.getByRole('menuitem', { name: 'Restore deck', exact: true }).click();
+  await row('Restore deck').getByRole('button', { name: 'Restore deck', exact: true }).click();
   await row('Restore deck').waitFor({ state: 'hidden' });
   await archived.click();
   await row('Restore deck').waitFor();
@@ -76,5 +83,23 @@ test('archived deck menu restores or deletes directly, with safe focus, cancella
   await dialog.waitFor({ state: 'hidden' });
   await archived.waitFor();
   await assert.rejects(service.call('deck.get', { id: 'restore' }), /not found/i);
+  await page.locator('[data-tour="nav-sources"]').click();
+  const material = page.locator('.source-doc').filter({ hasText: 'Retained source' });
+  await material.getByText('More', { exact: true }).click();
+  await material.getByRole('button', { name: 'Archive', exact: true }).click();
+  await page.getByRole('button', { name: /^Archived/ }).click();
+  await material.getByRole('button', { name: 'Restore source', exact: true }).waitFor();
+  assert.equal(await material.getByRole('button', { name: 'Restore source', exact: true }).count(), 1);
+  await material.getByRole('button', { name: 'Permanently delete', exact: true }).click();
+  dialog = page.getByRole('dialog');
+  assert.equal(await page.locator(':focus').textContent(), 'Cancel');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  assert.equal(await material.count(), 1);
+  await material.getByRole('button', { name: 'Permanently delete', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Confirm permanent deletion', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  await material.waitFor({ state: 'hidden' });
+  assert.equal((await service.call('export')).sources.length, 0);
   assert.deepEqual(errors, []);
 });

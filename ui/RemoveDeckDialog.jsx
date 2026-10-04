@@ -1,26 +1,17 @@
-import React, { useRef, useState } from 'react';
-import { Button, Dialog, InlineMessage } from './components/index.js';
+import React from 'react';
+import { InlineMessage } from './components/index.js';
+import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 import { ui, uiFormat } from './i18n.js';
 
 export default function RemoveDeckDialog({ deck, busy, act, onClose, onRemoved }) {
-  const cancelRef = useRef(null);
-  const [error, setError] = useState('');
   const eligible = deck.archived && !deck.systemKind;
   async function confirm() {
-    if (busy || !eligible) return;
-    setError('');
-    try {
-      await act('deck.remove', { id: deck.id, confirm: true }, () => onRemoved(deck), { rethrow: true });
-    } catch (failure) { setError(failure.message || String(failure)); }
+    const result = await act('deck.remove', { id: deck.id, confirm: true }, undefined, { rethrow: true });
+    if (result === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
   }
-  return <Dialog size="sm" title={uiFormat('永久删除「{0}」？', [deck.title])}
-    initialFocus={cancelRef} dismissible={!busy} onClose={onClose}
-    footer={<>
-      <Button ref={cancelRef} variant="quiet" disabled={busy} onClick={onClose}>{ui('取消')}</Button>
-      <Button variant="danger" busy={busy} disabled={!eligible} onClick={confirm}>{ui('确认永久删除')}</Button>
-    </>}>
+  return <PermanentDeleteDialog title={deck.title} busy={busy} blocked={!eligible}
+    onConfirm={confirm} onDeleted={() => onRemoved(deck)} onClose={onClose}>
     <p>{uiFormat('将永久删除这个题组及其中的 {0} 道题，无法撤销。原始资料和已有作答记录会保留。', [deck.count])}</p>
     {!eligible && <InlineMessage>{ui('请先归档题组，再永久删除。')}</InlineMessage>}
-    {error && <InlineMessage>{error}</InlineMessage>}
-  </Dialog>;
+  </PermanentDeleteDialog>;
 }

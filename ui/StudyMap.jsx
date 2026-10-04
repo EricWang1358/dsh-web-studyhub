@@ -23,6 +23,7 @@ import SetupChecklist from "./SetupChecklist.jsx";
 import { TERMS, LEVEL_HINT } from "./mastery-terms.js";
 import tiersCss from "./home-tiers.css";
 import { missingQuestions } from "./draft-shortfall.js";
+import ArchivedDeckRow from './ArchivedDeckRow.jsx';
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
@@ -328,6 +329,8 @@ export default function StudyMap({
   const selectedRun = scope.length ? runFor(scope) : null;
 
   function deckRow(d) {
+    if (d.archived) return <ArchivedDeckRow key={d.id} deck={d} busy={busy}
+      onRestore={restoreDeck} onRemove={removeDeck} onManage={manage} />;
     const p = progress[d.id],
       key = topicKey(d.id),
       whole = selected.has(key),
@@ -389,13 +392,7 @@ export default function StudyMap({
             </button>
             {menu === d.id && (
               <div className="map-menu" role="menu">
-                {(d.archived ? [
-                  ...(!d.systemKind ? [
-                    [ui("恢复题组"), () => restoreDeck(d.id), false],
-                    [ui("永久删除"), () => removeDeck(d.id), false, "danger-text"],
-                  ] : []),
-                  [ui("管理题组"), () => manage(d.id), false],
-                ] : [
+                {[
                   [ui("从新题开始"), () => start({ deckId: d.id, mode: "new", fresh: true }), !p?.counts?.new],
                   [ui("闪卡翻看"), () => start({ deckId: d.id, mode: "flashcard" }), !d.available],
                   [ui("测验"), () => start({ deckId: d.id, mode: "quiz" }), !d.quizCount],
@@ -409,11 +406,10 @@ export default function StudyMap({
                     false,
                   ],
                   [ui("管理题组"), () => manage(d.id), false],
-                ]).map(([label, run, disabled, className]) => (
+                ].map(([label, run, disabled]) => (
                   <button
                     key={label}
                     role="menuitem"
-                    className={className}
                     disabled={busy || disabled}
                     onClick={() => {
                       setMenu(null);
@@ -840,7 +836,7 @@ export default function StudyMap({
       </div>
 
       <div className="section-heading map-heading" data-tour="home-catalog">
-        <h2>{ui("学习目录 ")}<span>{data.decks.filter((d) => !d.archived).length}</span>
+        <h2>{showArchived ? ui('已归档题组') : ui("学习目录 ")} <span>{data.decks.filter(d => !!d.archived === showArchived).length}</span>
         </h2>
         <div className="section-heading-actions">
           {data.decks.length > 0 && <button
@@ -928,19 +924,20 @@ export default function StudyMap({
             <button
               className={showArchived ? "chip active" : "chip"}
               aria-pressed={showArchived}
-              onClick={() => setShowArchived((v) => !v)}
+              onClick={() => { setShowArchived(v => !v); setSelected(new Set()); setMenu(null); }}
             >{ui("已归档")}</button>
           </div>
-          <div className="map-legend" aria-label={ui("掌握程度图例")}>
+          {!showArchived && <div className="map-legend" aria-label={ui("掌握程度图例")}>
             {BAR_ORDER.map((l) => (
               <span key={l} title={ui(LEVEL_HINT[l])}>
                 <i className={"lv-" + l} />
                 {LEVEL_LABEL[l]}
               </span>
             ))}
-          </div>
+          </div>}
         </div>
       )}
+      {showArchived && <p className="muted archive-explanation">{ui('已归档题组不参与学习。恢复后可继续学习；永久删除会保留原始资料和作答记录。')}</p>}
       {visible.length ? (
         <ul className={"map-tree" + (singleCourse ? " single-course" : "")}>
           {shownFolders.map(([folder, decks]) => {
@@ -948,7 +945,7 @@ export default function StudyMap({
             // The arrow alone opens and closes a course. When the course is the
             // only one on screen its header is hidden, so it is always open.
             const open = singleCourse || isOpen("folder:" + folder),
-              truncated = inFocus(folder) && !query && decks.length > 3,
+              truncated = inFocus(folder) && !query && !showArchived && decks.length > 3,
               shown = truncated && !showAllCurrent ? decks.slice(0, 3) : decks,
               parked = parkedByName.get(folder);
             return (
@@ -964,7 +961,7 @@ export default function StudyMap({
                   >
                     {open ? "▾" : "▸"}
                   </button>
-                  <input
+                  {!showArchived && <input
                     type="checkbox"
                     aria-label={uiFormat("选择目录 {0}", [folder])}
                     checked={decks.every((d) => selected.has(topicKey(d.id)))}
@@ -974,16 +971,16 @@ export default function StudyMap({
                         e.target.checked,
                       )
                     }
-                  />
+                  />}
                   <span className="map-folder-icon">▤</span>
                   <button className="map-name" onClick={() => toggleOpen("folder:" + folder)}>
                     <strong title={folder}>{courseRelative(folder, data.focus?.course, courseNamesOf(data)) ?? folder}</strong>
                     <small>{decks.length}{ui(" 个题组")}</small>
                   </button>
                   {parked && <ParkedChip course={parked} />}
-                  <MasteryBar
+                  {!showArchived && <MasteryBar
                     node={mergeProgress(decks.map((d) => progress[d.id]).filter(Boolean))}
-                  />
+                  />}
                 </div>
                 {open && (
                   <ul className="map-children">
