@@ -1,0 +1,46 @@
+/* ── Tabs and DisclosureToggle ───────────────────────────────────────────
+   Tokens only; the look is the existing quiet controls. The caret turns with
+   transform (the one thing that moves) and reduced motion removes the turn. */
+:is(.study-app, .study-seat) {
+  .sh-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .sh-tab {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-height: 2rem;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-regular);
+    text-align: left;
+    cursor: pointer;
+  }
+  .sh-tab:hover:not(:disabled) { border-color: var(--line-strong); color: var(--text); }
+  .sh-tab.is-active, .sh-tab[aria-selected="true"] {
+    border-color: var(--line-strong);
+    background: var(--bg-surface);
+    color: var(--text);
+    font-weight: var(--fw-medium);
+  }
+  .sh-tab:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+  .sh-tab:disabled { opacity: .5; cursor: not-allowed; }
+  .sh-tab__note { color: var(--text-faint); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+  .sh-tabpanel:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+
+  .sh-disclosure-toggle .sh-icon { transition: transform var(--dur-fast) var(--ease); }
+  .sh-disclosure-toggle[aria-expanded="true"] .sh-icon { transform: rotate(90deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .sh-disclosure-toggle .sh-icon { transition: none; }
+  }
+}
