@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { INTERFACE_KEY, LIGHT_QUERY, REDUCED_MOTION_QUERY, THEME_KEY, appearanceAttrs, createAppearanceStore } from './appearance-prefs.js';
+import { CONTRAST_QUERY, INTERFACE_KEY, LIGHT_QUERY, REDUCED_MOTION_QUERY, THEME_KEY, appearanceAttrs, createAppearanceStore } from './appearance-prefs.js';
 
 /* The one appearance of this browser as a store: the app, the empty page before a session and every panel subscribe, so a change is a
    change everywhere that is open; another tab's change arrives through the storage event. */
@@ -18,10 +18,11 @@ const watch = query => [
   listener => { const media = typeof matchMedia === 'function' ? matchMedia(query) : null; media?.addEventListener?.('change', listener); return () => media?.removeEventListener?.('change', listener); },
   () => typeof matchMedia === 'function' && matchMedia(query).matches,
 ];
-const [subscribeLight, isLight] = watch(LIGHT_QUERY), [subscribeReduced, isReduced] = watch(REDUCED_MOTION_QUERY);
+const [subscribeLight, isLight] = watch(LIGHT_QUERY), [subscribeReduced, isReduced] = watch(REDUCED_MOTION_QUERY), [subscribeContrast, isContrast] = watch(CONTRAST_QUERY);
 
 /** The data-* attributes for the root of anything wearing the study tokens, resolved against the live OS settings. */
 export function useAppearanceAttrs(prefs) {
   const light = useSyncExternalStore(subscribeLight, isLight, () => false), reducedMotion = useSyncExternalStore(subscribeReduced, isReduced, () => false);
-  return appearanceAttrs(prefs, { light, reducedMotion });
+  const contrast = useSyncExternalStore(subscribeContrast, isContrast, () => false);
+  return appearanceAttrs(prefs, { light, reducedMotion, contrast });
 }

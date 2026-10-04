@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 // (plugin styles on apply, view styles on first mount), and equal-specificity
 // ties must resolve the same way in the preview as they do in the host.
 import "./style.css";
+import "./appearance-themes.css";
 import "./accent.css";
 import './audio-dashboard.css';
 import App from "./App.jsx";

@@ -26,7 +26,7 @@ import { useDailyPlan, useStudyReferenceHandoff } from './daily-plan.js';
 import { dueSummary } from "../lib/board-model.js";
 import { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
-import { APPEARANCE_LABELS, THEMES as THEME_IDS, exportAppearance, importAppearance, leaveDelayMs } from "./appearance-prefs.js";
+import { APPEARANCE_LABELS, THEME_CYCLE, exportAppearance, importAppearance, leaveDelayMs } from "./appearance-prefs.js";
 import { useAppearance, useAppearanceAttrs } from "./use-appearance.js";
 import { loadScienceSettings, saveScienceSettings, normalizeScienceSettings, scienceVars } from './science-settings.js';
 import { SciencePreferencesContext } from './SciencePreferences.jsx';
@@ -76,7 +76,8 @@ import { ReaderHeading } from './document-preview/RenameTitle.jsx';
 import localeCss from './language.css';
 
 const AUTO_ADVANCE_MS = 1500;
-const THEMES = THEME_IDS.map((id) => [id, APPEARANCE_LABELS.theme[id]]);
+/* The sidebar toggle cycles auto, dark, light only; OLED black and paper are chosen in 设置 › 界面 (and show on the toggle with their base mode's glyph). */
+const THEMES = THEME_CYCLE.map((id) => [id, APPEARANCE_LABELS.theme[id]]);
 
 export default function App({ call: transportCall, host = {} }) {
   const language = useUiLanguage();
@@ -1915,8 +1916,8 @@ export default function App({ call: transportCall, host = {} }) {
             <span />{ui("本地学习工作区")}</div>
           {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
           {(() => {
-            const i = Math.max(0, THEMES.findIndex(([id]) => id === theme)),
-              [current, label] = THEMES[i],
+            const i = Math.max(0, THEMES.findIndex(([id]) => id === (THEME_CYCLE.includes(theme) ? theme : resolvedTheme))),
+              [current] = THEMES[i], label = APPEARANCE_LABELS.theme[theme],
               [nextId, nextLabel] = THEMES[(i + 1) % THEMES.length];
             return (
               <NavItem
@@ -2358,6 +2359,9 @@ export default function App({ call: transportCall, host = {} }) {
                 appearance={{ language, onLanguage: setUiLanguage, ...appearance, onTheme: setTheme,
                   onScience: (value) => setSciencePrefs(normalizeScienceSettings(value)),
                   onMotion: (value) => updateAppearance({ motion: value }),
+                  onContrast: (value) => updateAppearance({ contrast: value }),
+                  onDensity: (value) => updateAppearance({ density: value }),
+                  onRadius: (value) => updateAppearance({ radius: value }),
                   onScale: (value) => updateAppearance({ scale: value }),
                   onFont: (value) => updateAppearance({ font: value }),
                   onAccent: (value) => updateAppearance({ accent: value }),

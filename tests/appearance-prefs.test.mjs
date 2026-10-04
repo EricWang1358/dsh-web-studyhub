@@ -21,8 +21,8 @@ const blocked = { getItem() { throw new Error('blocked'); }, setItem() { throw n
 /* ---------- one definition ---------- */
 
 test('one list of settings with defaults and the values each one allows; interface-prefs keeps exporting the same constants', () => {
-  assert.deepEqual({ ...APPEARANCE_DEFAULTS }, { theme: 'auto', motion: 'auto', scale: 100, font: 'system', accent: 'cinnabar' });
-  assert.deepEqual(APPEARANCE_OPTIONS.theme, ['auto', 'dark', 'light']);
+  assert.deepEqual({ ...APPEARANCE_DEFAULTS }, { theme: 'auto', motion: 'auto', scale: 100, font: 'system', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard' });
+  assert.deepEqual(APPEARANCE_OPTIONS.theme, ['auto', 'dark', 'light', 'oled', 'paper']);
   assert.equal(APPEARANCE_OPTIONS.motion, legacy.MOTIONS);
   assert.equal(APPEARANCE_OPTIONS.scale, legacy.SCALES);
   assert.equal(APPEARANCE_OPTIONS.font, legacy.FONTS);
@@ -67,25 +67,29 @@ test('saving writes the old keys in the old shapes: an older version reads what 
   const storage = memory();
   saveAppearance({ theme: 'light', motion: 'off', scale: 125, font: 'mono' }, storage);
   assert.equal(storage.map.get('study-theme'), 'light', 'a plain string, as App always wrote it');
-  assert.deepEqual(JSON.parse(storage.map.get('study-interface')), { motion: 'off', scale: 125, font: 'mono', accent: 'cinnabar' }, 'no theme in the interface object');
-  assert.deepEqual(legacy.loadInterface(storage), { motion: 'off', scale: 125, font: 'mono', accent: 'cinnabar' }, 'the previous reader still works');
+  const rest = { ...APPEARANCE_DEFAULTS, motion: 'off', scale: 125, font: 'mono' };
+  delete rest.theme;
+  assert.deepEqual(JSON.parse(storage.map.get('study-interface')), rest, 'no theme in the interface object');
+  assert.deepEqual(legacy.loadInterface(storage), rest, 'the previous reader still works');
   // and what an older version wrote, a newer one reads, with a setting this version does not know ignored
-  const future = memory({ 'study-interface': JSON.stringify({ motion: 'full', scale: 110, font: 'serif', accent: 'jade', density: 'compact' }) });
+  const future = memory({ 'study-interface': JSON.stringify({ motion: 'full', scale: 110, font: 'serif', accent: 'jade', sparkle: 'on' }) });
   assert.deepEqual(loadAppearance(future), { ...APPEARANCE_DEFAULTS, motion: 'full', scale: 110, font: 'serif', accent: 'jade' });
-  assert.deepEqual(legacy.loadInterface(future), { motion: 'full', scale: 110, font: 'serif', accent: 'jade' });
+  assert.deepEqual(legacy.loadInterface(future), { ...rest, motion: 'full', scale: 110, font: 'serif', accent: 'jade' });
 });
 
 /* ---------- the attributes both surfaces wear ---------- */
 
 test('appearanceAttrs: the four data-* attributes, with auto resolved from the system and an explicit choice winning', () => {
   const dark = { light: false, reducedMotion: false };
-  assert.deepEqual(appearanceAttrs({ ...APPEARANCE_DEFAULTS }, dark), { 'data-theme': 'dark', 'data-motion': 'full', 'data-ui-scale': 100, 'data-ui-font': 'system', 'data-accent': 'cinnabar' });
+  assert.deepEqual(appearanceAttrs({ ...APPEARANCE_DEFAULTS }, dark), { 'data-theme': 'dark', 'data-palette': 'standard', 'data-motion': 'full', 'data-ui-scale': 100, 'data-ui-font': 'system',
+    'data-contrast': 'standard', 'data-density': 'standard', 'data-radius': 'standard', 'data-accent': 'cinnabar' });
   assert.equal(appearanceAttrs({ theme: 'auto' }, { light: true, reducedMotion: false })['data-theme'], 'light');
   assert.equal(appearanceAttrs({ theme: 'dark' }, { light: true, reducedMotion: false })['data-theme'], 'dark');
   assert.equal(appearanceAttrs({ theme: 'light' }, dark)['data-theme'], 'light');
   assert.equal(appearanceAttrs({ motion: 'auto' }, { light: false, reducedMotion: true })['data-motion'], 'reduced');
   assert.equal(appearanceAttrs({ motion: 'full' }, { light: false, reducedMotion: true })['data-motion'], 'full');
-  assert.deepEqual(appearanceAttrs({ scale: 150, font: 'serif', motion: 'off' }, dark), { 'data-theme': 'dark', 'data-motion': 'off', 'data-ui-scale': 150, 'data-ui-font': 'serif', 'data-accent': 'cinnabar' });
+  assert.deepEqual(appearanceAttrs({ scale: 150, font: 'serif', motion: 'off' }, dark), { 'data-theme': 'dark', 'data-palette': 'standard', 'data-motion': 'off', 'data-ui-scale': 150, 'data-ui-font': 'serif',
+    'data-contrast': 'standard', 'data-density': 'standard', 'data-radius': 'standard', 'data-accent': 'cinnabar' });
   assert.equal(appearanceAttrs({ scale: 999, font: 'x' }, dark)['data-ui-scale'], 100, 'an invalid value never reaches the DOM');
 });
 
@@ -103,9 +107,9 @@ test('appearanceAttrs asks the browser when no system state is given, and the em
 /* ---------- export / import ---------- */
 
 test('export is one small JSON line and import reads it back through the same whitelist', () => {
-  const prefs = { theme: 'light', motion: 'reduced', scale: 150, font: 'serif', accent: 'jade' };
+  const prefs = { ...APPEARANCE_DEFAULTS, theme: 'light', motion: 'reduced', scale: 150, font: 'serif', accent: 'jade' };
   const text = exportAppearance(prefs);
-  assert.ok(text.length < 200, 'tiny');
+  assert.ok(text.length < 260, 'tiny');
   assert.doesNotMatch(text, /\n/);
   assert.deepEqual(importAppearance(text), prefs);
   assert.deepEqual(importAppearance(exportAppearance({ theme: 'bogus' })), { ...APPEARANCE_DEFAULTS });

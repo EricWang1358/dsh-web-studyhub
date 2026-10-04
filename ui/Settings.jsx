@@ -405,6 +405,20 @@ function AppearanceSection({ appearance }) {
         <SegmentedControl label={ui("动画")} value={appearance.motion} onChange={appearance.onMotion} options={appearanceOptions("motion")} />
         <small className="muted">{ui("减弱只保留很短的淡入淡出；无动画则不再有页面切换和卡片动画（转圈提示仍会转）。页面切换卡顿时可以试试。")}</small>
       </div>}
+      {appearance.onContrast && <div className="settings-field">
+        <span>{ui("对比度")}</span>
+        <SegmentedControl label={ui("对比度")} value={appearance.contrast} onChange={appearance.onContrast} options={appearanceOptions("contrast")} />
+        <small className="muted">{ui("高对比会加深边框和次要文字、加粗焦点框；跟随系统时遵循系统的“增加对比度”设置。")}</small>
+      </div>}
+      {appearance.onDensity && <div className="settings-field">
+        <span>{ui("界面密度")}</span>
+        <SegmentedControl label={ui("界面密度")} value={appearance.density} onChange={appearance.onDensity} options={appearanceOptions("density")} />
+        <small className="muted">{ui("密度只改间距和行距，不改字号。")}</small>
+      </div>}
+      {appearance.onRadius && <div className="settings-field">
+        <span>{ui("圆角")}</span>
+        <SegmentedControl label={ui("圆角")} value={appearance.radius} onChange={appearance.onRadius} options={appearanceOptions("radius")} />
+      </div>}
       {appearance.onReset && <AppearanceBackup appearance={appearance} />}
     </fieldset>
   );
