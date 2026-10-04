@@ -19,10 +19,6 @@
     .oral-report { display: grid; gap: 18px; }
     .oral-report h2 { margin: 0; font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-5xl)); }
     .oral-report > p { margin: 0; }
-    .oral-band-bar { display: flex; gap: var(--space-1); height: 22px; background: var(--bg-sunken); border-radius: var(--radius-pill); overflow: hidden; }
-    .oral-band-bar .strong { background: var(--ok); }
-    .oral-band-bar .developing { background: var(--warn); }
-    .oral-band-bar .weak { background: var(--bad); }
     .oral-band-legend { display: flex; gap: var(--space-4); flex-wrap: wrap; color: var(--text-dim); font-size: var(--fs-md); }
     .oral-report .result-weak { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-card); }
     .oral-report .result-weak h3 { margin: 0 0 10px; }

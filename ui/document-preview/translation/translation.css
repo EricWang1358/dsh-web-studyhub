@@ -204,8 +204,7 @@
     .tr-job__title { min-width: 0; color: var(--text); font-weight: var(--fw-strong); }
     .tr-job__counts { color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .tr-job__actions { display: inline-flex; margin-left: auto; }
-    .tr-job__bar { height: 3px; overflow: hidden; border-radius: var(--radius-pill); background: var(--line); }
-    .tr-job__bar > span { display: block; height: 100%; background: var(--info); transform: scaleX(0); transform-origin: left center; transition: transform var(--dur-slow) var(--ease); }
+    .tr-job__meter { height: 3px; background: var(--line); box-shadow: none; }
     .tr-job__note { color: var(--text-muted); font-size: var(--fs-xs); }
     .tr-job__usage { font-size: var(--fs-xs); color: var(--text-muted); }
     .tr-job__usage summary { width: fit-content; cursor: pointer; font-variant-numeric: tabular-nums; }
@@ -236,7 +235,7 @@
   @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) {
       .tr-toolbar-button[data-busy='true'] .tr-toolbar-button__tag, .tr-mark[data-tr-state='translating'] .tr-mark__btn::before { animation: none; }
-      .tr-job__bar > span, .tr-fold .tr-glyph, .tr-mark { transition: none; }
+      .tr-fold .tr-glyph, .tr-mark { transition: none; }
     }
   }
 }

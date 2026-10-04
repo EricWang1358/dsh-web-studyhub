@@ -38,9 +38,7 @@
     .audio-model-quota > div:first-child { display: flex; gap: var(--space-2); justify-content: space-between; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-dim); }
     .audio-model-quota > div:first-child > span { overflow-wrap: anywhere; }
     .audio-model-quota > div:first-child small { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-    .audio-quota-track { height: 4px; background: var(--line); margin-block: var(--space-2); overflow: hidden; border-radius: var(--radius-xs); }
-    .audio-quota-track i { height: 100%; display: block; background: var(--provider-color); }
-    .audio-quota-track.unknown { opacity: .5; }
+    .audio-quota-bar { margin-block: var(--space-2); --sh-tone: var(--provider-color); }
     .audio-model-quota > small { display: block; font-size: var(--fs-xs); line-height: 1.6; color: var(--text-dim); }
     /* The footnote under a provider's quota rows is a Hint; the gap above it belongs to the card, not to the note. */
     .audio-provider > .audio-provider-footnote { margin-top: var(--space-4); }

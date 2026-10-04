@@ -91,8 +91,8 @@ test('on with data: the report is there, folded until opened, with a period sele
   assert.match(html, /互动次数/);
   assert.match(html, /用过的控件/);
   assert.match(html, /最常用的控件/);
-  // ranked rows: plain name, the count and the share as text, and a decorative bar
-  assert.match(html, /<li[^>]*class="[^"]*usage-rank__row[^"]*"[^]*?学习库[^]*?140[^]*?<span[^>]*class="[^"]*usage-meter[^"]*"[^>]*aria-hidden="true"/);
+  // ranked rows: plain name, the count and the share as text, and a named progress bar
+  assert.match(html, /<li[^>]*class="[^"]*usage-rank__row[^"]*"[^]*?学习库[^]*?140[^]*?<div[^>]*class="sh-progress[^"]*usage-share__meter[^"]*"[^>]*role="progressbar"/);
   assert.match(html, /\d+(\.\d)?%/);
   assert.match(html, /按页面/);
   assert.match(html, /按使用时机/);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge } from './components/index.js';
+import { Badge, ProgressBar } from './components/index.js';
 import { percentText, triageRows } from './jev-flow.js';
 import css from './jev.css';
 
@@ -50,7 +50,7 @@ export function JevCardSignals({ signal, threshold }) {
       <ul className="jev-probs__list">
         {rows.map(row => <li key={row.id} className={`jev-prob${row.failed ? ' is-picked' : ''}`}>
           <span className="jev-prob__name">{row.label}</span>
-          <span className="jev-prob__bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.round(row.value * 100))}%` }} /></span>
+          <ProgressBar size="sm" className="jev-prob__meter" tone={row.failed ? 'accent' : 'info'} label={row.label} value={Math.max(2, Math.round(row.value * 100))} />
           <span className="jev-prob__value">{percentText(row.value)}</span>
         </li>)}
       </ul>

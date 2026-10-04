@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, getUiLanguage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { IconButton } from './components/index.js';
+import { IconButton, StackedBar } from './components/index.js';
 import css from './library-usage.css';
 
 const MB = 1024 ** 2;
@@ -9,6 +9,7 @@ const SHORT = {
   materials: (size) => uiFormat('资料 {0}', [size]), audio: (size) => uiFormat('音频 {0}', [size]),
   bank: (size) => uiFormat('题库 {0}', [size]), backups: (size) => uiFormat('备份 {0}', [size]), other: (size) => uiFormat('其他 {0}', [size]),
 };
+const PART_TONE = { materials: 'accent', audio: 'info', bank: 'success', backups: 'warning', other: 'neutral' };
 const FULL = { materials: '资料原文与提取文字', audio: '音频与转写', bank: '题库与复习记录', backups: '备份', other: '其他' };
 
 /** "1.2 GB", "820 MB", "12 KB": B/KB/MB/GB, one decimal below 100, none above. */
@@ -53,9 +54,8 @@ export function LibraryUsageView({ state, onRefresh }) {
   return <>
     <div className="usage-line">
       <small className="usage-text">{text}</small>
-      <span className="usage-bar" role="img" aria-label={`${ui('占用比例')}：${shares}`}>
-        {parts.map((part) => <span key={part.id} className={`usage-seg usage-seg--${part.id}`} style={{ flexGrow: Math.max(1, Math.round(part.bytes)) }} title={`${ui(FULL[part.id] || part.label)} · ${formatUsageBytes(part.bytes)}`} />)}
-      </span>
+      <StackedBar className="usage-bar" name={`${ui('占用比例')}：${shares}`}
+        segments={parts.map((part) => ({ value: Math.max(1, Math.round(part.bytes)), tone: PART_TONE[part.id] || 'neutral', title: `${ui(FULL[part.id] || part.label)} · ${formatUsageBytes(part.bytes)}` }))} />
       <IconButton icon="refresh" size="sm" variant="quiet" label={ui('重新计算')} busy={!!state.refreshing} onClick={onRefresh} />
     </div>
     {shouldHintBackups(usage) && <small className="usage-hint">{uiFormat('旧备份可以手动删除：{0}（程序不会自动删除）', [usage.paths?.backups || 'backups'])}</small>}

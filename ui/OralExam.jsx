@@ -5,7 +5,7 @@ import css from "./oral-exam.css";
 import { useInjectCss } from "./shared.js";
 import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
-import { Badge, Button, ErrorState, Hint, Icon, PageHeader, Panel } from './components/index.js';
+import { Badge, Button, ErrorState, Hint, Icon, PageHeader, Panel, StackedBar } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { ExamSetupCard, CountField } from './ExamShell.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -150,12 +150,8 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
       <div className="result-kicker">{ui("口头模拟报告")}</div>
       <h2>{report.feedbackStatus === "assessed" ? uiFormat("{0} 题回答扎实", [report.strong]) : ui("回答已保存，尚未评估")}</h2>
       <p className="muted">{uiFormat("{0}/{1} 题已回答 · {2} 题已评估", [report.answered, report.total, report.assessed])}</p>
-      {report.feedbackStatus === "assessed" ? <div className="oral-band-bar" role="img"
-        aria-label={uiFormat("回答扎实 {0} 题，有待补充 {1} 题，需要巩固 {2} 题", [report.strong, report.developing, report.weak])}>
-        {!!report.strong && <span className="strong" style={{ flexGrow: report.strong }} />}
-        {!!report.developing && <span className="developing" style={{ flexGrow: report.developing }} />}
-        {!!report.weak && <span className="weak" style={{ flexGrow: report.weak }} />}
-      </div> : <p>{ui("当前没有可用的模型反馈；未据此更改复习进度。你仍可展开查看回答与参考答案。")}</p>}
+      {report.feedbackStatus === "assessed" ? <StackedBar size="lg" name={uiFormat("回答扎实 {0} 题，有待补充 {1} 题，需要巩固 {2} 题", [report.strong, report.developing, report.weak])}
+        segments={[{ value: report.strong, tone: "success" }, { value: report.developing, tone: "warning" }, { value: report.weak, tone: "error" }]} /> : <p>{ui("当前没有可用的模型反馈；未据此更改复习进度。你仍可展开查看回答与参考答案。")}</p>}
       {report.feedbackStatus === "assessed" && <div className="oral-band-legend">
         <span>{uiFormat("回答扎实 {0}", [report.strong])}</span><span>{uiFormat("有待补充 {0}", [report.developing])}</span><span>{uiFormat("需要巩固 {0}", [report.weak])}</span></div>}
       <div className="result-weak"><h3>{ui("优先补的知识点")}</h3>

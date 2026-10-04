@@ -107,19 +107,7 @@
       font-size: var(--fs-xs);
       font-variant-numeric: tabular-nums;
     }
-    .tour-pop__bar {
-      height: 3px;
-      margin-bottom: 14px;
-      overflow: hidden;
-      border-radius: var(--radius-pill);
-      background: var(--line);
-    }
-    .tour-pop__bar > span {
-      display: block;
-      height: 100%;
-      border-radius: inherit;
-      background: var(--accent);
-    }
+    .tour-pop__meter { height: 3px; margin-bottom: 14px; background: var(--line); box-shadow: none; }
     .tour-pop__title {
       margin: 0 0 6px;
       color: var(--text);
@@ -176,7 +164,6 @@
         animation: tour-rise 0.26s var(--ease-out) both;
       }
       .tour-shade { animation: tour-fade 0.22s var(--ease) both; }
-      .tour-pop__bar > span { transition: width var(--dur-slow) var(--ease-out); }
     }
   }
 }

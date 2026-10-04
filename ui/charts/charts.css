@@ -130,19 +130,12 @@
       gap: var(--space-3);
     }
     .dash-mname { font-size: var(--fs-md); font-weight: var(--fw-strong); color: var(--text); overflow-wrap: anywhere; }
-    .dash-mastery-track {
-      position: relative;
-      height: 12px;
+    .dash-mbar { height: 12px; }
+    .dash-mbar--empty {
+      display: block;
       border-radius: var(--radius-pill);
-      background: color-mix(in srgb, var(--text) 8%, transparent);
-      overflow: hidden;
-    }
-    .dash-mrow.thin .dash-mastery-track {
       background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text) 10%, transparent) 0 4px, transparent 4px 8px);
     }
-    .dash-mastery-fill { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--ok); }
-    .dash-mastery-fill[data-tone="mid"] { background: var(--warn); }
-    .dash-mastery-fill[data-tone="low"] { background: var(--bad); }
     .dash-mvalue { display: flex; flex-direction: column; align-items: flex-end; line-height: var(--lh-tight); text-align: right; }
     .dash-mvalue b { font-size: var(--fs-lg); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; color: var(--text); }
     .dash-mvalue em { font-size: var(--fs-sm); font-style: normal; color: var(--text-muted); }

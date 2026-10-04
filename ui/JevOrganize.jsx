@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, InlineMessage } from './components/index.js';
+import { Badge, Button, InlineMessage, ProgressBar } from './components/index.js';
 import { lineText, percentText, probabilityRows } from './jev-flow.js';
 import css from './jev.css';
 
@@ -61,7 +61,7 @@ export function JevProbabilities({ jev }) {
       <ul className="jev-probs__list">
         {rows.map(row => <li key={row.id} className={`jev-prob${row.picked ? ' is-picked' : ''}${row.none ? ' is-none' : ''}`}>
           <span className="jev-prob__name">{row.label}</span>
-          <span className="jev-prob__bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.round(row.value * 100))}%` }} /></span>
+          <ProgressBar size="sm" className="jev-prob__meter" tone={row.picked ? 'accent' : 'info'} label={row.label} value={Math.max(2, Math.round(row.value * 100))} />
           <span className="jev-prob__value">{percentText(row.value)}</span>
         </li>)}
       </ul>

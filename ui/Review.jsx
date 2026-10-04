@@ -361,8 +361,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               highlights={caseHighlights} onChange={saveHighlights} />}
             {/* The card: header, stem and answers on paper stock. Toolbar,
                 status and explanation sit below it on the desk. */}
-            <div className="question-card" data-tour="review-question"
-              style={{ "--progress": `${Math.round(((run.index + 1) / Math.max(1, run.total)) * 100)}%` }}>
+            <div className="question-card" data-tour="review-question">
               <div className="question-meta">
                 <span>
                   {run.index + 1} / {run.total}
@@ -397,14 +396,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                   </Button>
                 </div>
               </div>
-              <div
-                className="card-progress"
-                role="progressbar"
-                aria-label={ui("复习进度")}
-                aria-valuemin={0}
-                aria-valuemax={run.total}
-                aria-valuenow={run.index + 1}
-              />
+              <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={run.index + 1} max={Math.max(1, run.total)} />
               {(choice || isCloze || run.card.publicationUngrable) && prereqStrip}
               {run.card.publicationUngrable ? (
                 <Banner tone="warning" role="status" className="review-ungrable"

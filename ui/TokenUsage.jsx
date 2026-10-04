@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, IconButton, Panel } from './components/index.js';
+import { Button, IconButton, Panel, ProgressBar } from './components/index.js';
 import css from './token-usage.css';
 import { totalTokens } from '../lib/token-usage.js';
 import {
@@ -165,7 +165,7 @@ export function ModelUsageView({ state = { status: 'idle' }, days = 30, onDays, 
       <ul className="model-usage__list">
         {features.map((id) => <li key={id} className="model-usage__item">
           <div className="model-usage__name"><strong>{featureLabel(id)}</strong></div>
-          <span className="model-usage__bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.round(totalTokens(summary.byFeature[id]) / biggest * 100))}%` }} /></span>
+          <ProgressBar tone="info" className="model-usage__meter" label={featureLabel(id)} value={Math.max(2, Math.round(totalTokens(summary.byFeature[id]) / biggest * 100))} />
           <TokenUsage usage={summary.byFeature[id]} inline copy={false} />
         </li>)}
         <li className="model-usage__item model-usage__item--total">

@@ -85,14 +85,7 @@
     }
     .question-card .options,
     .question-card .cloze { animation-delay: 70ms; }
-    .card-progress {
-      height: 2px;
-      margin: 0 0 var(--space-6);
-      background:
-        linear-gradient(var(--accent), var(--accent)) 0 0 / var(--progress, 100%) 100% no-repeat,
-        var(--line);
-      transition: background-size 0.5s var(--ease-out);
-    }
+    .card-progress { height: 2px; margin: 0 0 var(--space-6); background: var(--line); box-shadow: none; }
     .question-meta > span:first-child {
       font-variant-numeric: tabular-nums;
       letter-spacing: 0.02em;

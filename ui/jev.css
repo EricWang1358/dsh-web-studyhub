@@ -80,9 +80,6 @@
     .jev-probs__list { display: grid; gap: var(--space-half); margin: 0; padding: 0; list-style: none; }
     .jev-prob { display: grid; grid-template-columns: minmax(0, 14em) minmax(40px, 1fr) 3.5em; align-items: center; gap: var(--space-2); font-size: var(--fs-sm); }
     .jev-prob__name { overflow-wrap: anywhere; min-width: 0; }
-    .jev-prob__bar { display: block; height: 6px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--text) 8%, transparent); overflow: hidden; }
-    .jev-prob__bar i { display: block; height: 100%; background: color-mix(in srgb, var(--accent) 55%, transparent); }
-    .jev-prob.is-picked .jev-prob__bar i { background: var(--accent); }
     .jev-prob.is-picked .jev-prob__name { font-weight: var(--fw-strong); }
     .jev-prob.is-none { color: var(--text-muted); }
     .jev-prob__value { text-align: right; font-variant-numeric: tabular-nums; }
@@ -114,7 +111,7 @@
       .jev-guide__list dd { margin-bottom: var(--space-2); }
       .jev-privacy, .jev-switches { padding: var(--space-4); }
       .jev-prob { grid-template-columns: minmax(0, 1fr) 3.5em; }
-      .jev-prob__bar { grid-column: 1 / -1; grid-row: 2; }
+      .jev-prob__meter { grid-column: 1 / -1; grid-row: 2; }
     }
   }
 }

@@ -32,8 +32,6 @@
     .result-headline span { display: block; margin-top: 10px; color: var(--text-muted); font-size: var(--fs-md); }
     .result-headline small { display: block; margin-top: var(--space-2); color: var(--text-muted); }
     .result-breakdown { min-width: 0; }
-    .result-breakdown-track { display: flex; gap: var(--space-1); height: 22px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); }
-    .result-segment { min-width: 0; }
     .result-segment-correct { background: var(--ok); }
     .result-segment-practice { background: var(--warn); }
     .result-segment-remaining { background: var(--decor-faint); }

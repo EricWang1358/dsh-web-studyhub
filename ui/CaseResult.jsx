@@ -2,7 +2,7 @@ import React from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
-import { Badge, Button, Disclosure, InlineMessage, Panel, Spinner } from "./components/index.js";
+import { Badge, Button, Disclosure, InlineMessage, Panel, ProgressBar, Spinner } from "./components/index.js";
 import { rubricSkills } from "../lib/case-study.js";
 import css from "./case-result.css";
 
@@ -18,7 +18,7 @@ export const bandLabel = (band) => ({ excellent: ui("优秀"), good: ui("良好"
 const noteLabel = (note) => note === "unanswered" ? ui("这道题没有作答，按 0 分计。") : note === "not-scored" ? ui("评分助手没有给这一项打分，按 0 分计。") : "";
 
 function Bar({ ratio, label }) {
-  return <span className="rubric-bar" role="img" aria-label={label}><span style={{ width: percent(ratio) }} /></span>;
+  return <ProgressBar className="rubric-meter" label={label} value={Math.max(0, Math.min(1, ratio || 0))} max={1} />;
 }
 
 /** One graded answer, criterion by criterion. */

@@ -29,20 +29,21 @@ export function ProgressBar({ value = 0, max = 100, label, tone = 'accent', inde
 }
 
 /**
- * Parts of a whole in one bar. segments: [{ value, tone, label }]; empty ones
- * are not drawn. The bar is one image named by `label` plus its parts; `legend`
- * adds a visible key (outside the image, so it stays readable).
+ * Parts of a whole in one bar. segments: [{ value, tone, label, title? }]; empty
+ * ones are not drawn. The bar is one image named by `label` plus its parts (or by
+ * `name` when the caller's own sentence reads better); `legend` adds a visible key
+ * (outside the image, so it stays readable). size: md | lg (a taller bar for a result).
  */
-export function StackedBar({ segments = [], label, legend = false, className, ...rest }) {
+export function StackedBar({ segments = [], label, name: sentence, legend = false, size = 'md', className, ...rest }) {
   useComponentCss(css, 'study-feedback');
   const parts = segments.filter(part => Number(part?.value) > 0);
   const list = new Intl.ListFormat(uiLocale(), { style: 'narrow', type: 'unit' });
   const spoken = parts.map(part => `${part.label ?? ''} ${part.value}`.trim());
-  const name = spoken.length ? uiFormat('{0}：{1}', [label || ui('分布'), list.format(spoken)]) : label || ui('分布');
+  const name = sentence || (spoken.length ? uiFormat('{0}：{1}', [label || ui('分布'), list.format(spoken)]) : label || ui('分布'));
   return (
-    <div className={cx('sh-stacked', className)} {...rest}>
+    <div className={cx('sh-stacked', size === 'lg' && 'sh-stacked--lg', className)} {...rest}>
       <div className="sh-stacked__bar" role="img" aria-label={name}>
-        {parts.map((part, index) => <span key={index} className="sh-stacked__segment" data-tone={toneOf(part.tone)} style={{ flexGrow: Number(part.value) }} />)}
+        {parts.map((part, index) => <span key={index} className="sh-stacked__segment" data-tone={toneOf(part.tone)} title={part.title} style={{ flexGrow: Number(part.value) }} />)}
       </div>
       {legend && parts.length > 0 && <ul className="sh-stacked__legend">
         {parts.map((part, index) => <li key={index} className="sh-stacked__key" data-tone={toneOf(part.tone)}>

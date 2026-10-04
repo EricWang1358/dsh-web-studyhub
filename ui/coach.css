@@ -90,11 +90,7 @@
     .coach-debrief > p { margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); line-height: 1.7; }
     .coach-score-split { display: flex; flex-wrap: wrap; gap: 6px var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); }
     .coach-score-split strong { color: var(--text); }
-    .coach-levels { display: flex; gap: 6px; margin: 0 0 var(--space-3); height: 8px; border-radius: var(--radius-sm); overflow: hidden; background: var(--line-soft); }
-    .coach-levels span { display: block; height: 100%; transition: flex-grow 400ms var(--ease); }
-    .coach-levels .recall { background: var(--decor-faint); }
-    .coach-levels .concept { background: var(--info); }
-    .coach-levels .apply { background: var(--ok); }
+    .coach-stack { margin: 0 0 var(--space-3); }
     .coach-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-md); color: var(--text-muted); margin: -4px 0 var(--space-3); }
     .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-xs); margin-right: var(--space-1); vertical-align: 0; }
     .coach-insights { margin: 0 0 14px; padding-left: 18px; font-size: var(--fs-md); line-height: 1.8; color: var(--text-dim); }

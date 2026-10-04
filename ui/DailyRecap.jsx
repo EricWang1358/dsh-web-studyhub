@@ -2,6 +2,7 @@ import React, { useId } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button } from './components/Button.jsx';
+import { ProgressBar } from './components/Progress.jsx';
 import { recapGroupKey, useDailyRecap } from './useDailyRecap.js';
 import css from './DailyRecap.css';
 
@@ -53,7 +54,7 @@ export function DailyRecapPanel(props) {
           <span className="daily-recap-state">{ui(stateLabels[phase])}</span></div>
         <p className="daily-recap-meta">{group.day !== status.day && <>{group.day} · </>}{uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [group.answeredCount, group.wrongCount])}</p>
         {!group.eligible && !group.hasContent && <div className="daily-recap-threshold">
-          <progress value={group.answeredCount} max={group.answeredCount + group.remaining} aria-label={ui('今日合集生成进度')} />
+          <ProgressBar size="sm" className="daily-recap-bar" label={ui('今日合集生成进度')} value={group.answeredCount} max={group.answeredCount + group.remaining} />
           <p>{uiFormat('再做 {0} 道不同题目，就能生成今天的合集。', [group.remaining])}</p></div>}
         {running && <div role="status" className="daily-recap-progress"><span className="daily-recap-spinner" aria-hidden="true" />
           <div><p>{ui(progress?.phase === 'organizing' ? '正在统一语言与结构…' : '正在整理今天的讲解…')}</p>

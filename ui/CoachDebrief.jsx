@@ -4,7 +4,7 @@ import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
 import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
-import { Button, ErrorState } from "./components/index.js";
+import { Button, ErrorState, StackedBar } from "./components/index.js";
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
@@ -111,11 +111,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       </div>}
       {m.answered > 0 && (
         <>
-          <div className="coach-levels" aria-hidden="true">
-            {LEVELS.map(([id]) => (
-              <span key={id} className={id} style={{ flexGrow: m.levels?.[id]?.n || 0 }} />
-            ))}
-          </div>
+          <StackedBar className="coach-stack" aria-hidden="true" segments={LEVELS.map(([id]) => ({ value: m.levels?.[id]?.n || 0, tone: id === "recall" ? "neutral" : id === "concept" ? "info" : "success" }))} />
           <div className="coach-legend">
             {LEVELS.map(([id, name]) => (
               <span key={id}>
