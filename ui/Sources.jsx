@@ -107,7 +107,7 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery })
     {item.chapters.map(chapter => {
       const inside = chapter.sourceIds.length === 0, partial = chapter.partial && item.chapterUnit !== 'text';
       return <li key={chapter.index} data-chapter-index={chapter.index}>
-        <Button onClick={() => onOpen(chapter.startSourceId || chapter.sourceIds[0])}>
+        <Button variant="quiet" block align="start" className="source-doc__row" onClick={() => onOpen(chapter.startSourceId || chapter.sourceIds[0])}>
           <span>{chapterLabel(chapter, item.chapterUnit)}</span>
           <small>{[partial && (item.chapterUnit === 'part' ? ui('从文件中间开始') : ui('从页中间开始')),
             item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, formatNumber(chapter.chars)])].filter(Boolean).join(' · ')}</small>
@@ -200,7 +200,7 @@ function DocumentRow({ item, source, busy, isNew, organizing, selected, onSelect
         {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={onOpen} onGenerate={onGenerate} listId={listId} mastery={mastery} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
-            <Button onClick={() => onOpen(page.sourceId)}>
+            <Button variant="quiet" block align="start" className="source-doc__row" onClick={() => onOpen(page.sourceId)}>
               <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [formatNumber(page.chars)])}</small>
               <MasteryLine className="source-doc__mastery" summary={mastery?.pages?.[page.sourceId] ?? null} title={pageLabel(item, page)} />
             </Button>
