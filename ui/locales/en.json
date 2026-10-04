@@ -2358,5 +2358,11 @@
   "已归档（{0}）": "Archived ({0})",
   "没有已归档的资料。": "There are no archived sources.",
   "请先归档这份资料，再永久删除。": "Archive this source before permanently deleting it.",
-  "永久删除": "Permanently delete"
+  "永久删除": "Permanently delete",
+  "题组顺序": "Deck order",
+  "已选 {0} / {1} 个主题": "{0} of {1} topics selected",
+  "检索扩展已更新": "Search extension updated",
+  "已更新，无需重启。": "Updated; no restart needed.",
+  "正在更新…": "Updating…",
+  "正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。": "Downloading and installing the search extension, usually a few minutes. You can keep studying; do not close DSH."
 }

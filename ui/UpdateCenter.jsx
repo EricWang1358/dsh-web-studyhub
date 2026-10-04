@@ -4,7 +4,7 @@
    A failed check is silent. The dialog upgrades in one click when the host
    reports DSH's plugin manager (`update.install`), otherwise it guides a
    reinstall from the exact package address. */
-import React, { useEffect, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat, uiLocale } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Dialog, Icon, InlineMessage } from './components/index.js';
@@ -219,11 +219,12 @@ export function UpdateDialog({ update, call, host, onClose, notify, initialPhase
 }
 
 /** Settings › 关于与更新. */
-export function UpdateSettings({ update, call, onOpen, checking = false, extension, onExtension }) {
+export function UpdateSettings({ update, call, onOpen, checking = false, extension, onExtension, onCheck }) {
   useInjectCss(css, 'study-update');
   const [saving, setSaving] = useState(false);
   // The check compares StudyHub only; the search extension is installed once and is not updated with it.
   const staleExtension = extension?.installed && extension.outdated ? extension : null;
+  const checkUpdates = () => { refreshUpdate(call, { force: true }); onCheck?.(); };
   const available = canUpgrade(update);
   const status = !update ? null
     : update.pendingRestart ? uiFormat('已安装 {0}，重启 DSH 后生效。', [update.pendingRestart])
@@ -251,9 +252,9 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
       </div>}
       {status && <p className="update-status" role="status">{status}</p>}
       {update?.error && <p className="update-status" role="status">{ui('暂时无法连接 GitHub 检查更新，稍后会自动重试。')}</p>}
-      {staleExtension && <ExtensionUpdateNotice call={call} status={{ extension: staleExtension }} onStatus={onExtension} />}
+      {extension?.installed && <ExtensionUpdateNotice call={call} status={{ extension }} onStatus={onExtension} />}
       <div className="update-settings__actions">
-        <Button size="sm" busy={checking} onClick={() => refreshUpdate(call, { force: true })}>{ui('检查更新')}</Button>
+        <Button size="sm" busy={checking} onClick={checkUpdates}>{ui('检查更新')}</Button>
         <label className="inline-check">
           <input type="checkbox" checked={update?.autoCheck !== false} disabled={saving || !update} onChange={toggle} />
           {ui('自动检查更新')}
@@ -273,9 +274,10 @@ export function UpdateSettingsPanel({ call, host, notify }) {
   const [open, setOpen] = useState(false), [extension, setExtension] = useState();
   useEffect(() => { if (!snapshot.update && !snapshot.checking) refreshUpdate(call); }, [call]);
   // Whether the search extension is behind this StudyHub rides along with the retrieval status.
-  useEffect(() => { let live = true; Promise.resolve(call('retrieval.status', {})).then(value => { if (live) setExtension(value?.extension); }, () => {}); return () => { live = false; }; }, [call]);
+  const loadExtension = useCallback(() => Promise.resolve(call('retrieval.status', {})).then(value => setExtension(value?.extension), () => {}), [call]);
+  useEffect(() => { loadExtension(); }, [loadExtension]);
   return <>
-    <UpdateSettings update={update} call={call} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setExtension(value?.extension)} />
+    <UpdateSettings update={update} call={call} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setExtension(value?.extension)} onCheck={loadExtension} />
     {open && update && <UpdateDialog update={update} call={call} host={host} notify={notify} onClose={() => setOpen(false)} />}
   </>;
 }
