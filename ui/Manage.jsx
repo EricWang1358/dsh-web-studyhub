@@ -5,6 +5,7 @@ import { useInjectCss } from "./shared.js";
 import css from "./manage.css";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
+import { Button } from "./components/index.js";
 
 /* 题组管理视图：编辑先进入草稿（deck.edit → openDraft），归档/暂停/标记
    与目录移动就地生效。managedDeck 由 App 在进入本视图时 deck.get 取得。 */
@@ -21,6 +22,7 @@ export default function Manage({
   setManagedDeck,
   folderDraft,
   setFolderDraft,
+  onRemoveDeck,
 }) {
   useInjectCss(css, "study-manage");
   const [targetId, setTargetId] = useState("");
@@ -79,8 +81,10 @@ export default function Manage({
           >
             {managedDeck.archived ? ui("恢复题组") : ui("归档题组并结束练习")}
           </button>
-          <button onClick={() => setPage("library")}>{ui("返回学习库")}</button>
-        </div>
+        <button onClick={() => setPage("library")}>{ui("返回学习库")}</button>
+        {managedDeck.archived && !managedDeck.systemKind && <Button variant="danger" disabled={busy}
+          onClick={() => onRemoveDeck(managedDeck.id)}>{ui("永久删除")}</Button>}
+      </div>
       </header>
       {!slainView && (unreviewed > 0 || selfCited > 0) && (
         <p className="quality-note warning" role="status">
