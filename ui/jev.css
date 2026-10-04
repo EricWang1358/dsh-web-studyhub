@@ -132,13 +132,8 @@
 .study-app .jev-levels__list small { color: var(--text-muted); }
 
 /* The draft: the badge on a card's summary line and the probabilities inside the opened card. */
-.study-app .jev-badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600;
-  background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-text); }
-.study-app .jev-badge--decided { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .study-app .jev-decided-note, .study-app .jev-run-note { overflow-wrap: anywhere; }
 .study-app .jev-badge__exp { margin-left: 0; opacity: .85; font-weight: 500; white-space: pre; }
-.study-app .jev-badge--flagged { background: color-mix(in srgb, var(--warn) 18%, transparent); color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
-.study-app .jev-badge--clear { background: color-mix(in srgb, var(--ok) 14%, transparent); color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
 .study-app .jev-card-signals { display: grid; gap: var(--space-1); margin: var(--space-2) 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--accent) 6%, transparent); min-width: 0; }
 .study-app .jev-card-signals__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; }

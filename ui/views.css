@@ -20,9 +20,7 @@
 .exam .page-heading {
   margin-bottom: 4px;
 }
-.dash-error,
-.exam-error,
-.wb-error {
+.exam-error {
   margin: 0;
   padding: 10px 14px;
   border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent);

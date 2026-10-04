@@ -10,6 +10,7 @@ import { useCourseActive } from './CourseActive.jsx';
 import { ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
 import { ModelUsage } from "./TokenUsage.jsx";
+import { EmptyState, ErrorState, LoadingState } from "./components/index.js";
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
    用于展示当前到期概览（data.today）。热力图为 CSS grid；三张图（每日平均分、
@@ -59,13 +60,10 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
 
   return (
     <>
-      {!totals.attempts && <div className="empty dash-empty">
-        <span className="empty-icon">◔</span>
-        <h2>{ui("还没有作答记录")}</h2>
-        <p className="muted">{ui("开始学习后，这里会显示作答热力、分数趋势和薄弱主题。")}</p>
+      {!totals.attempts && <EmptyState icon="list" title={ui("还没有作答记录")} description={ui("开始学习后，这里会显示作答热力、分数趋势和薄弱主题。")}>
         <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onStartScope((localDecks || []).map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
           onCreate={onCreate} onSources={onSources} />
-      </div>}
+      </EmptyState>}
       {/* Rubric skills over time (WP12), weakest first. */}
       <RubricSkills attempts={data?.attempts} />
       <div className="dash-hero" data-tour="dashboard-summary">
@@ -201,8 +199,8 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
         </button>
       </div>
 
-      {err && <p className="dash-error">{err}</p>}
-      {loading && !stats && <p className="muted">{ui("正在统计学习记录…")}</p>}
+      {err && <ErrorState error={err} onRetry={load} />}
+      {loading && !stats && <LoadingState label={ui("正在统计学习记录…")} />}
 
       {stats && (
         <StatsView stats={stats} course={course} data={data} busy={busy} localDecks={localDecks}

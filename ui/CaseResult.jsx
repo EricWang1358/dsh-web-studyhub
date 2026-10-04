@@ -2,7 +2,7 @@ import React from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
-import { Button, Disclosure, Panel } from "./components/index.js";
+import { Button, Disclosure, InlineMessage, Panel, Spinner } from "./components/index.js";
 import { rubricSkills } from "../lib/case-study.js";
 import css from "./case-result.css";
 
@@ -97,9 +97,8 @@ export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, on
           <strong>{paper.pending ? uiFormat("已批改 {0}/{1} 题，其余正在后台批改", [graded, paper.questions.length]) : ui("全部批改完成")}</strong>
           <p className="muted">{uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟", [minutes(paper.pacing.readingMs), minutes(paper.pacing.writingMs)])}
             {paper.handwriting ? uiFormat(" · 录入 {0} 分钟（不计入考试时间）", [minutes(paper.pacing.transcribeMs)]) : ""}</p>
-          {paper.pending > 0 && <p className="case-report__pending" role="status"><i className="assist-spin" aria-hidden="true" />{ui("批改结果会自动出现在这里，也会进信箱。")}</p>}
-          {gradingErrors.length > 0 && <p className="warning" role="alert">{gradingErrors.join("；")}
-            {onRetryGrading && <Button size="sm" variant="link" onClick={onRetryGrading}>{ui("重新提交批改")}</Button>}</p>}
+          {paper.pending > 0 && <p className="case-report__pending" role="status"><Spinner size="sm" />{ui("批改结果会自动出现在这里，也会进信箱。")}</p>}
+          {gradingErrors.length > 0 && <InlineMessage tone="error" action={onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{gradingErrors.join("；")}</InlineMessage>}
         </div>
       </div>
       <section className="case-report__section">
@@ -117,7 +116,7 @@ export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, on
             </li>;
           })}
         </ol>
-        {paper.pacing.unanswered.length > 0 && <p className="warning">{uiFormat("{0} 道题没有作答：漏答一道就丢掉它的全部分数，先保证每题都写到。", [paper.pacing.unanswered.length])}</p>}
+        {paper.pacing.unanswered.length > 0 && <InlineMessage tone="warning">{uiFormat("{0} 道题没有作答：漏答一道就丢掉它的全部分数，先保证每题都写到。", [paper.pacing.unanswered.length])}</InlineMessage>}
         {paper.pacing.overBudget.length > 0 && <p className="muted">{uiFormat("{0} 道题超出建议用时；按每分约 {1} 分钟分配时间更稳。", [paper.pacing.overBudget.length, paper.pacing.writingMinutes && paper.max ? marks(paper.pacing.writingMinutes / paper.max) : 3])}</p>}
       </section>
       {paper.weakest.length > 0 && <section className="case-report__section">

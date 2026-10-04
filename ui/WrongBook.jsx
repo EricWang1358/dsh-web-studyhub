@@ -6,7 +6,7 @@ import { useInjectCss, plainPrompt } from "./shared.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Banner, Button, Icon, InlineMessage, SegmentedControl, SetupRequired } from './components/index.js';
+import { Banner, Button, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, SegmentedControl, SetupRequired } from './components/index.js';
 import { RECS_PREVIEW, VARIANT_BATCH_CAP, groupRows, reasonText, retrainOptions, shortDeckNames, variantFailureText, variantState } from './wrongbook-model.js';
 
 const PAGE_SIZE = 100;
@@ -79,7 +79,7 @@ function DetailLine({ label, children }) {
 function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, disabled }) {
   return (
     <div className="wb-detail" id={id}>
-      {detail === "loading" || detail === undefined ? <p className="muted" role="status">{ui("正在读取详情…")}</p>
+      {detail === "loading" || detail === undefined ? <LoadingState label={ui("正在读取详情…")} />
         : detail?.error ? <InlineMessage tone="error">{ui("读取详情失败，稍后再试")}</InlineMessage>
           : (
             <dl className="wb-facts">
@@ -221,8 +221,8 @@ export function WrongBookView({
         </div>
       </div>
 
-      {err && <p className="wb-error">{items ? uiFormat("读取失败，仍显示上次结果：{0}", [err]) : err}</p>}
-      {loading && !items && <p className="muted">{ui("正在读取待巩固题…")}</p>}
+      {err && <ErrorState error={items ? uiFormat("读取失败，仍显示上次结果：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
+      {loading && !items && <LoadingState label={ui("正在读取待巩固题…")} />}
 
       {hasCoach && onPracticePrepared && coach.ready > 0 && (
         <Banner tone="success" icon="sparkle" title={uiFormat("已为你备好 {0} 道变式题", [coach.ready])}
@@ -251,15 +251,13 @@ export function WrongBookView({
           ? () => onPractice(data.decks.filter((deck) => deck.format === "case-study" && !deck.archived).map((deck) => ({ deckId: deck.id }))) : undefined} />
 
       {items && !counts.total && (
-        <div className="empty wb-empty" data-tour="wrongbook-list">
-          <span className="empty-icon">✓</span>
-          <h2>{data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录")}</h2>
-          <p className="muted">{data?.attempts?.length
+        <EmptyState data-tour="wrongbook-list" icon="success" title={data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录")}
+          description={data?.attempts?.length
             ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
-            : ui("完成一次学习后，答错或自评未掌握的题会收在这里。")}</p>
+            : ui("完成一次学习后，答错或自评未掌握的题会收在这里。")}>
           <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
             onCreate={onCreate} onSources={onSources} />
-        </div>
+        </EmptyState>
       )}
 
       {showRecs && (
