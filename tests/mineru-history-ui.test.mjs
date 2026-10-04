@@ -93,7 +93,7 @@ test('empty: it says what will appear here, and offers nothing to clear', () => 
   const html = render(view([]));
   assert.match(html, /解析历史/);
   assert.match(html, /还没有解析记录/);
-  assert.match(html, /文件名、页数、用了哪种方式、花了多久、结果在哪里/);
+  assert.match(html, /文件名、解析工具、耗时和结果/);
   assert.match(html, /不保存文档内容/);
   assert.doesNotMatch(html, /清空历史/);
 });

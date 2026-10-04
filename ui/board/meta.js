@@ -15,7 +15,7 @@ export function dueText({ kind, days }) {
 /** The long form for tooltips and the detail dialog: the date itself plus how far away it is. */
 export const dueTitle = (due, state) => state ? `${due} · ${dueText(state)}` : due;
 
-const normalizeRoot = (value) => String(value || '').replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+export const normalizeRoot = (value) => String(value || '').replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
 
 const KIND = {
   card: () => ui('题目'), source: () => ui('资料'), note: () => ui('笔记'), skeleton: () => ui('知识骨架'), deck: () => ui('题组'),

@@ -1,0 +1,18 @@
+/* 强调色预设 (设置 › 界面, #63): each rule swaps the accent tokens of one preset, dark first and the light theme nested; cinnabar (the default) needs none, it is style.css.
+   The seat carries them too, like the typeface. Contrast of every preset x theme x card is checked in tests/accent-presets. */
+:is(.study-app, .study-seat):is([data-accent=jade], :has(> [data-accent=jade])) {
+  --accent: #187a69; --accent-soft: #46c0a6; --accent-text: #4fc4ab; --bg-selected: #252b26;
+  &:is([data-theme=light], :has(> [data-theme=light])) { --accent: #17776a; --accent-soft: #1f8f7e; --accent-text: #146b5f; --bg-selected: #e2eae6; }
+}
+:is(.study-app, .study-seat):is([data-accent=ochre], :has(> [data-accent=ochre])) {
+  --accent: #9c5c16; --accent-soft: #e0a04e; --accent-text: #e0a04e; --bg-selected: #31281e;
+  &:is([data-theme=light], :has(> [data-theme=light])) { --accent: #9a5a12; --accent-soft: #b06d1c; --accent-text: #86500f; --bg-selected: #f0e7dc; }
+}
+:is(.study-app, .study-seat):is([data-accent=graphite], :has(> [data-accent=graphite])) {
+  --accent: #6f6a62; --accent-soft: #cfc9bf; --accent-text: #d6d0c6; --bg-selected: #2d2925;
+  &:is([data-theme=light], :has(> [data-theme=light])) { --accent: #4a443c; --accent-soft: #5f584e; --accent-text: #4a443c; --bg-selected: #e8e5e1; }
+}
+:is(.study-app, .study-seat):is([data-accent=plum], :has(> [data-accent=plum])) {
+  --accent: #a24a7c; --accent-soft: #d57fb0; --accent-text: #dd8cb9; --bg-selected: #312727;
+  &:is([data-theme=light], :has(> [data-theme=light])) { --accent: #8f3a6b; --accent-soft: #a24a7c; --accent-text: #8a3566; --bg-selected: #efe4e6; }
+}

@@ -25,6 +25,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 - **Move between questions and sources.** A citation opens the passage it came from. In a source, paragraph and table markers lead to the questions and explanations linked to them.
 - **Practise and review.** Start today's study from the **Study library**, follow a **Learning flow** (a short lesson, then practice), click **Help me understand** on any question, and let SM-2 schedule your reviews.
 - **Find weak points.** Use **Mistakes & weak points**, **Statistics** and **Mock exam**, which offers a multiple-choice paper, a case paper or an oral interview.
+- **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps use the source reader; saving one as a source and publishing on CSDN are separate actions.
 - **Turn recordings into text.** Import a lecture recording, or transcribe a **Live class** as it happens, and get a Chinese–English transcript you can generate questions from.
 - **Read and organise.** The reader has a table of contents, search, **Translate this page** and **Practise these pages**. Courses, **Study notes**, **Tasks** and a **Knowledge outline** keep a term's work together.
 
@@ -104,6 +105,12 @@ To add to an existing deck, choose that deck: approved questions are added, and 
 Save a default question type, count, content language, difficulty and focus in **Settings › Question defaults**; each new request can override them. Questions per batch, parallel batches and the time budget are there too, initially 5, 3 and 20 minutes. Started tasks and continued drafts keep their original choices. See [Generation pace](docs/generation-agents-sidebar.md#what-a-generation-task-does).
 
 ### Practise and review
+
+Today's learning plan connects tasks to the library home. Ask AI for a plan based on real due reviews, weak areas, available materials, unfinished learning flows and accepted tasks. Give feedback to revise it, or accept. Each action has a reason and estimated duration; suggestions become board tasks only after acceptance, with direct start and resume controls.
+
+Today's time budget is separate from your saved weekday/weekend pace; zero minutes supports a rest day. Unfinished actions are allocated within the budget, and completed actions still count toward today's workload. Record actual time after completion. After at least five comparable completed-day records, the median estimates your usual pace; explicitly saved preferences always take priority.
+
+Practice progress counts actual answers, flows use completed steps, and you explicitly mark a reading block complete. Opening content or skipping questions does not count, and completing an action does not establish mastery. AI sees compact titles, progress and exam dates, not full materials. Invalid or unavailable AI results are clearly labelled as local suggestions. Plans are saved by library and date, alongside ordinary board tasks.
 
 - Answer, then read the explanation. **Help me understand** asks a tutor about the current question.
 - Rate flashcards and open answers from 0 to 5; SM-2 picks the next review date. Answering and scheduling make no model calls.

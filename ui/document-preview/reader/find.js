@@ -2,6 +2,7 @@
    column (case, width and extra whitespace ignored), turned into DOM ranges, and
    painted with the CSS Custom Highlight API: the page is never changed, so a
    search cannot disturb the passage marks or the selection tools. */
+import { spanFormulas } from './formula.js';
 
 /**
  * Folds text for matching: NFKC, lower case, runs of whitespace as one space, no leading
@@ -73,6 +74,7 @@ export function findRanges(root, query, { limit = 1000 } = {}) {
     try {
       range.setStart(first.node, Math.min(from - first.start, first.node.textContent.length));
       range.setEnd(last.node, Math.min(to - last.start, last.node.textContent.length));
+      spanFormulas(range); // a match inside a formula paints the drawn formula, not its hidden source
       ranges.push(range);
     } catch { /* a node changed under us: skip this match */ }
   }

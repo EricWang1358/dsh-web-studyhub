@@ -34,7 +34,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
   // The adaptive plan decides its windows one at a time: "第 3 段", never "第 3/N 段".
   const adaptive = job.route === 'local' && !!job.local?.adaptive;
   const piece = adaptive ? (index > 0 ? uiFormat('第 {0} 段', [index]) : '') : count > 1 && index > 0 ? uiFormat('第 {0}/{1} 段', [index, count]) : '';
-  const route = job.route === 'local' ? ui('本地') : ui('云端');
+  const route = job.converter === 'marker' ? 'Marker · ' + ui('本地') : job.route === 'local' ? ui('本地') : ui('云端');
   const title = job.status === 'complete' ? uiFormat('已存为 {0} 页资料 · {1}解析', [job.sourceIds?.length ?? 0, route])
     : job.status === 'failed' ? ui('转换未完成')
       : job.status === 'cancelled' ? ui('转换已取消')
@@ -47,7 +47,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
   };
   const retry = () => run('retry', async () => {
     // A stopped local service is started again first, which is the usual reason a local window failed.
-    if (job.errorCode === 'server-stopped') await send('mineru.local.start', { restart: true });
+    if (job.converter !== 'marker' && job.errorCode === 'server-stopped') await send('mineru.local.start', { restart: true });
     await send('mineru.retry', { jobId: job.id });
   });
   const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
@@ -57,7 +57,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
       <div>
         <strong>{job.filename}</strong>
         <small>{title}{took !== null && (running || job.finishedAt) ? uiFormat(running ? ' · 已用 {0}' : ' · 用时 {0}', [spent(took)]) : ''}</small>
-        <ConversionEnvironment env={job.env} service={job.service} now={now} />
+        <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
         {running && job.phase !== 'queued' && <div className="audio-progress">
           <div className="audio-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
             aria-label={uiFormat('已解析 {0}/{1} 页', [job.done, job.total])}><span style={{ width: `${percent}%` }} /></div>
@@ -151,6 +151,17 @@ function LocalWindow({ job, now }) {
 const TIER_MEANING = { basic: () => ui('速度较快'), standard: () => ui('版面理解更好，稍慢') };
 const MB = 1024 * 1024;
 
+function environmentHeading(env, converter) {
+  if (converter === 'marker') return ui('本地 Marker');
+  if (env.kind !== 'local') return env.modelVersion ? uiFormat('云端 MinerU · {0} 模型', [env.modelVersion]) : ui('云端 MinerU');
+  if (env.mineruVersion && env.tier) {
+    const meaning = TIER_MEANING[env.tier]?.();
+    return meaning ? uiFormat('本地 mineru {0} · {1} 档（{2}）', [env.mineruVersion, env.tier, meaning]) : uiFormat('本地 mineru {0} · {1} 档', [env.mineruVersion, env.tier]);
+  }
+  if (env.tier) return uiFormat('本地 mineru · {0} 档', [env.tier]);
+  return env.mineruVersion ? uiFormat('本地 mineru {0}', [env.mineruVersion]) : ui('本地 mineru');
+}
+
 /**
  * The 运行环境 of a conversion: WHAT is doing the work, so a slow or failed run is never a mystery. Local: the mineru version, the tier and what it means,
  * the model folder in use (and where the models live, in a disclosure: the folder may be a link to another drive), a device only when the CLI said one,
@@ -158,16 +169,14 @@ const MB = 1024 * 1024;
  * piece limits and the size of the book. One component for the live card (`service`: the state kept honest while it runs) and the history rows
  * (`bare`, no service, `stoppedAtFailure` from the record).
  */
-export function ConversionEnvironment({ env, service, stoppedAtFailure = false, bare = false, now = Date.now(), timings }) {
+export function ConversionEnvironment({ env, converter, service, stoppedAtFailure = false, bare = false, now = Date.now(), timings }) {
   if (!env) return null;
   const local = env.kind === 'local';
+  const managesService = local && converter !== 'marker';
   const timed = (timings?.windows || []).filter(window => window.seconds > 0);
   const pages = timed.reduce((sum, window) => sum + (window.pages || 0), 0);
   const pace = timings?.secondsPerPage > 0 ? timings.secondsPerPage : pages > 0 ? Math.round(timed.reduce((sum, window) => sum + window.seconds, 0) / pages * 100) / 100 : 0;
-  const meaning = local ? TIER_MEANING[env.tier]?.() : '';
-  const head = !local ? (env.modelVersion ? uiFormat('云端 MinerU · {0} 模型', [env.modelVersion]) : ui('云端 MinerU'))
-    : env.mineruVersion && env.tier ? (meaning ? uiFormat('本地 mineru {0} · {1} 档（{2}）', [env.mineruVersion, env.tier, meaning]) : uiFormat('本地 mineru {0} · {1} 档', [env.mineruVersion, env.tier]))
-      : env.tier ? uiFormat('本地 mineru · {0} 档', [env.tier]) : env.mineruVersion ? uiFormat('本地 mineru {0}', [env.mineruVersion]) : ui('本地 mineru');
+  const head = environmentHeading(env, converter);
   const state = service?.state, confirmed = service?.at ? historyAgo(service.at, now) : '';
   const serviceText = state === 'running' ? ui('本地服务运行中') : state === 'stopped' ? ui('本地服务已停止') : ui('无法确认本地服务是否在运行');
   return (
@@ -193,10 +202,10 @@ export function ConversionEnvironment({ env, service, stoppedAtFailure = false, 
           <ol>{(timings.windows).map((window, position) => <li key={`${window.start}-${window.end}`}>{uiFormat('第 {0} 段 · 第 {1} 页', [position + 1, pageRange(window.start, window.end)])}
             {window.seconds > 0 ? ` · ${historyDuration(window.seconds * 1000)}` : window.state === 'failed' ? ` · ${ui('没有完成')}` : ''}</li>)}</ol>
         </details></li>}
-        {local && service && <li className={`pdf-env__service${state === 'stopped' ? ' pdf-env__warning' : ''}`} data-state={['running', 'stopped'].includes(state) ? state : 'unknown'}>
+        {managesService && service && <li className={`pdf-env__service${state === 'stopped' ? ' pdf-env__warning' : ''}`} data-state={['running', 'stopped'].includes(state) ? state : 'unknown'}>
           <span className="pdf-env__dot" aria-hidden="true" />{serviceText}{state === 'running' && confirmed ? ` ${uiFormat('（{0}确认）', [confirmed])}` : ''}</li>}
-        {local && state === 'stopped' && <li className="pdf-env__hint">{ui('点「重新启动本地服务并接着做」，已完成的段落会保留。')}</li>}
-        {local && !service && stoppedAtFailure && <li className="pdf-env__note">{ui('失败时本地服务已停止')}</li>}
+        {managesService && state === 'stopped' && <li className="pdf-env__hint">{ui('点「重新启动本地服务并接着做」，已完成的段落会保留。')}</li>}
+        {managesService && !service && stoppedAtFailure && <li className="pdf-env__note">{ui('失败时本地服务已停止')}</li>}
       </ul>
     </div>
   );
@@ -265,7 +274,7 @@ const STAGE_TEXT = { start: () => ui('启动'), queued: () => ui('排队'), spli
 
 function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, onOpenSettings }) {
   const status = row.status, finished = !!row.finishedAt && status !== 'running' && status !== 'interrupted';
-  const route = row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : capital(ui('云端'));
+  const route = row.converter === 'marker' ? 'Marker · ' + ui('本地') : row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : capital(ui('云端'));
   const size = Number.isFinite(row.bytes) ? formatBytes(row.bytes) : '', pages = Number.isFinite(row.pages) ? (row.pages === 1 ? ui('1 页') : uiFormat('{0} 页', [row.pages])) : '';
   const facts = [size, pages].filter(Boolean).join(' · ');
   const took = finished && Number.isFinite(row.elapsedMs) ? historyDuration(row.elapsedMs) : '';
@@ -301,7 +310,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
         {progress && <small>{progress}</small>}
         {stuck && <small className="muted">{ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。')}</small>}
-        {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
+        {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment converter={row.converter} env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
           timings={row.route === 'local' ? { windows: row.windows, secondsPerPage: row.plan?.secondsPerPage } : undefined} /></details>}
         <div className="pdf-history__actions">
           {status === 'complete' && document?.exists && <Button variant="link" size="sm" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
@@ -361,7 +370,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   const clear = () => work('clear', async () => { await call('mineru.history.clear', { confirm: true }); setConfirming(false); await load(); toHeading(); });
   const retry = row => work(row.id, async () => {
     // A stopped local service is started again first, which is the usual reason a local window failed.
-    if (row.failure?.code === 'server-stopped') await send('mineru.local.start', { restart: true });
+    if (row.converter !== 'marker' && row.failure?.code === 'server-stopped') await send('mineru.local.start', { restart: true });
     await send('mineru.retry', { jobId: row.id });
     await load(); onChanged?.();
   });
@@ -379,7 +388,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
     {readError && <p className="job-error" role="alert">{uiFormat('没能读取解析历史：{0}', [readError])}</p>}
     {records !== null && !list.length && <div className="pdf-history__empty">
       <strong>{ui('还没有解析记录')}</strong>
-      <p>{ui('每次用 MinerU 解析 PDF（云端或本地）都会在这里留下一条记录：文件名、页数、用了哪种方式、花了多久、结果在哪里。不保存文档内容。')}</p>
+      <p>{ui('每次解析 PDF 都会记录文件名、解析工具、耗时和结果，不保存文档内容。')}</p>
     </div>}
     {list.length > 0 && <div className="pdf-history__bar">
       <small>{uiFormat('{0} 条记录 · 保留最近 50 条，以及 90 天内的所有记录。删除记录不会删除已导入的资料。', [list.length])}</small>

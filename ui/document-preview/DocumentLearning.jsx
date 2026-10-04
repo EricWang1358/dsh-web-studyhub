@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import Markdown from '../Markdown.jsx';
 import { ui, getUiLanguage } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
+import MathText from '../MathText.jsx';
 import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
@@ -17,7 +18,7 @@ const statusLabels = {
 export function PassageLinks({ groups = [], onOpenCard }) {
   if (!groups.length) return <p className="muted">{ui('这份资料还没有关联题目。选中文字即可补充到现有题组。')}</p>;
   return <div className="study-passage-links">{groups.map((group, index) => <details key={JSON.stringify(group.selection)}>
-    <summary><sup>[{group.number || index + 1}]</sup> {group.selection.quote} <small>· {group.links.length} {ui('道题')}</small></summary>
+    <summary><sup>[{group.number || index + 1}]</sup> <MathText text={group.selection.quote} /> <small>· {group.links.length} {ui('道题')}</small></summary>
     {group.links.map(link => <article key={`${link.deckId}:${link.cardId}`}>
       <p><strong>{link.prompt || link.cardId}</strong>{link.status !== 'resolved' && <span className="warning"> · {ui(link.status === 'stale' ? '引用待核对' : '原文位置不可用')}</span>}</p>
       {link.answer && <p>{Array.isArray(link.answer) ? link.answer.join('、') : String(link.answer)}</p>}
@@ -45,7 +46,7 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
   </section>;
   return <section className="study-document-learning" aria-label={ui('选段学习')} ref={sectionRef}>
     {list}
-    <blockquote>{capture.quote}</blockquote>
+    <blockquote><MathText text={capture.quote} /></blockquote>
     {resolving && <p role="status">{ui('正在核实原文位置…')}</p>}
     {resolution && !resolved && <p className="warning" role="status">{ui(statusLabels[resolution.status] || '这段文字暂时无法使用。')}</p>}
     {error && <p className="warning" role="alert">{error}</p>}

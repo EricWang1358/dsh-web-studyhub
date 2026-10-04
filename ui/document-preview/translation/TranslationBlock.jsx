@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { Button } from '../../components/index.js';
+import MathText from '../../MathText.jsx';
 import Glyph from './Glyph.jsx';
 import { failureKind, shortQuote, versionOf } from './model.js';
 
@@ -63,7 +64,7 @@ function History({ item }) {
   if (!item.history?.length) return null;
   return <details className="tr-history">
     <summary>{uiFormat('历史版本 · {0}', [item.history.length])}</summary>
-    <ol>{[...item.history].reverse().map(entry => <li key={entry.version}><strong>{uiFormat('v{0}', [entry.version])}</strong>{entry.comment && <small>{uiFormat('意见：{0}', [entry.comment])}</small>}<span lang={targetLang(item.target)}>{entry.text}</span></li>)}</ol>
+    <ol>{[...item.history].reverse().map(entry => <li key={entry.version}><strong>{uiFormat('v{0}', [entry.version])}</strong>{entry.comment && <small>{uiFormat('意见：{0}', [entry.comment])}</small>}<span lang={targetLang(item.target)}><MathText text={entry.text} /></span></li>)}</ol>
   </details>;
 }
 
@@ -114,7 +115,7 @@ export default function TranslationBlock({ state, item, target, open, pendingKin
   return <div className="tr-block" role="note" aria-label={ui('译文')} lang={lang} data-state={busy ? 'busy' : 'ok'} data-open={open ? 'true' : 'false'} data-kind={item.kind}>
     <Bar open={open} onToggle={onToggle} target={target} item={item} menu={menu} preview={item.text} />
     {open && <>
-      <p className="tr-block__text">{item.text}</p>
+      <p className="tr-block__text"><MathText text={item.text} /></p>
       {busy && <p className="tr-block__status" role="status"><span className="sh-spinner" aria-hidden="true" />{ui('正在重新翻译…')}<Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></p>}
       {!busy && item.warnings?.includes('numbers') && <p className="tr-block__note is-warning">{ui('译文里的数字和原文对不上，请核对。')}</p>}
       {!busy && item.parts > 1 && <p className="tr-block__note">{uiFormat('这段很长，已分成 {0} 小段翻译。', [item.parts])}</p>}
