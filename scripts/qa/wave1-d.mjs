@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
 
 const options = parseQaArgs(process.argv.slice(2), "wave1-d", {});
-process.env.DSH_HOME = join(options.out, "work", "dsh-home");
+// The preview server keeps its DSH home here (and points DSH_HOME at it), so the seeded keys and usage are the ones it reads.
+process.env.DSH_HOME = join(options.out, "work", "home");
 const { saveAudioSettings } = await import("../../lib/audio-settings.js");
 const { keyId, recordAudioUsage } = await import("../../lib/audio-dashboard.js");
 
