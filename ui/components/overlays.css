@@ -23,7 +23,7 @@
     box-shadow: var(--shadow-md);
     color: var(--text);
     font-size: var(--fs-md);
-    font-weight: 400;
+    font-weight: var(--fw-regular);
     text-align: left;
     white-space: normal;
   }
@@ -41,7 +41,7 @@
     font-size: var(--fs-sm);
     line-height: var(--lh-snug, 1.4);
     pointer-events: none;
-    z-index: var(--z-tooltip, var(--z-popover, 40));
+    z-index: var(--z-tooltip);
   }
   .sh-tooltip[hidden] { display: none; }
 
@@ -62,7 +62,7 @@
     color: var(--text);
   }
   .sh-menu-anchor > .sh-menu { top: 100%; right: 0; margin-top: var(--space-1); }
-  .sh-menu__heading { margin: 0; padding: 7px 10px 3px; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.03em; }
+  .sh-menu__heading { margin: 0; padding: var(--space-2) calc(var(--space-2) + var(--space-half)) var(--space-half); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.03em; }
   .sh-menu__heading:first-child { padding-top: var(--space-1); }
   .sh-menu__item, .sh-menu__item:hover:not(:disabled) {
     display: flex;
@@ -70,9 +70,9 @@
     gap: var(--space-2);
     width: 100%;
     margin: 0;
-    padding: 7px 10px;
+    padding: var(--space-2) calc(var(--space-2) + var(--space-half));
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: none;
     color: var(--text);
     font-size: var(--fs-md);
@@ -93,7 +93,7 @@
   .sh-confirm.sh-inline .sh-inline__text { flex: 1 1 auto; max-width: none; color: var(--text); }
   .sh-confirm.sh-inline .sh-inline__title { color: var(--text); }
   .sh-confirm__row { display: flex; align-items: flex-start; gap: var(--space-2); }
-  .sh-confirm__body { margin: var(--space-1) 0 0; color: var(--text-dim); font-weight: 400; }
+  .sh-confirm__body { margin: var(--space-1) 0 0; color: var(--text-dim); font-weight: var(--fw-regular); }
   .sh-confirm__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
 
   /* ── Dialog busy: the close button looks off but stays reachable ───── */
@@ -107,7 +107,7 @@
   .sh-btn[aria-disabled="true"]:hover { background: color-mix(in srgb, var(--text) 3%, transparent); border-color: var(--line); }
   .sh-dialog[aria-busy="true"] { cursor: progress; }
   .sh-dialog[aria-busy="true"] .sh-dialog__close { cursor: not-allowed; }
-  .sh-confirm-dialog__title { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .sh-confirm-dialog__title { margin: 0; font-weight: var(--fw-strong); overflow-wrap: anywhere; }
 
   @media (max-width: 600px) {
     .sh-menu { min-width: 190px; }

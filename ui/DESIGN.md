@@ -33,7 +33,7 @@ Defined at the top of `ui/components/components.css` (scoped to `.study-app` / `
 | `--ok-ink` / `--warn-ink` / `--bad-ink` / `--info-ink` | Coloured words on a tinted or plain surface (the tone mixed 82% into `--text`, AA in both themes). `--warn-text` is an alias of `--warn-ink`. |
 | `--ok-bg` / `--warn-bg` / `--bad-bg` / `--info-bg` | Light tinted surface for notes and banners (tone 8% into `--bg-surface`). |
 | `--ok-line` / `--warn-line` / `--bad-line` / `--info-line` | Border of such a surface (tone 30% into `--line`). |
-| `--z-raised` 1, `--z-sticky` 10, `--z-toast` 11, `--z-popover` 30, `--z-overlay` 40, `--z-tour` 80, `--z-fullscreen` 90 | The only stacking order. Pick a layer; never write a number above 2. |
+| `--z-raised` 1, `--z-sticky` 10, `--z-toast` 11, `--z-popover` 30, `--z-overlay` 40, `--z-tooltip` 50, `--z-tour` 80, `--z-fullscreen` 90 | The only stacking order. Pick a layer; never write a number above 2. |
 | `--scrim` / `--scrim-strong` | Page dimming behind dialogs, sheets and `::backdrop` (dark on every theme). |
 | `--fw-light` 300, `--fw-regular` 400, `--fw-medium` 550, `--fw-strong` 650 | Font weights; no other numbers. |
 | `--radius-xs` 4px | Chips, keys and inline code; larger shapes keep `--radius-sm`, `--radius`, `--radius-card`, `--radius-pill`. |

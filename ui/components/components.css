@@ -35,7 +35,7 @@
   --z-popover: 30;
   --z-overlay: 40;
   --z-tour: 80;
-  --z-fullscreen: 90;
+  --z-fullscreen: 90; --z-tooltip: 50;
 
   /* Page-dimming scrims: the sunken desk colour on dark themes, the ink on light ones. */
   --scrim: color-mix(in srgb, var(--bg-sunken) 60%, transparent);
