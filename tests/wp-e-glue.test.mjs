@@ -72,3 +72,31 @@ test('audio import has no local copy of the upload loop, the size and clock form
   }
   for (const from of ['./format.js', './upload.js', './file-names.js', './paths.js', '../lib/audio-formats.js']) assert.ok(page.includes(`'${from}'`) || page.includes(`"${from}"`), from);
 });
+
+/* ---------- 3. Inbox: shared "ago" and dismiss (#94 #82 #80) ---------- */
+
+const inboxModule = await loadUi(`export { default as Inbox } from './ui/Inbox.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+const letterAt = (ms, id = 'm') => ({ id, kind: 'pdf-result', label: 'PDF 转换完成', prompt: 'ok.pdf', deckTitle: 'PDF 转换', detail: '', at: new Date(Date.now() - ms).toISOString(), read: true });
+const timeLabels = (ms, language) => {
+  inboxModule.setUiLanguage(language);
+  try { return renderToStaticMarkup(h(inboxModule.Inbox, { inbox: { unread: 0, items: [letterAt(ms)] }, onOpen() {}, onReadAll() {}, defaultOpen: true })).match(/<small class="mailbox__time">(.*?)<\/small>/)?.[1]; }
+  finally { inboxModule.setUiLanguage('zh'); }
+};
+
+test('the inbox writes its ages with the shared formatter: singular and plural are right in English', () => {
+  assert.equal(timeLabels(30_000, 'en'), 'Just now');
+  assert.equal(timeLabels(61_000, 'en'), '1 minute ago');
+  assert.equal(timeLabels(5 * 60_000, 'en'), '5 minutes ago');
+  assert.equal(timeLabels(70 * 60_000, 'en'), '1 hour ago');
+  assert.equal(timeLabels(3 * 3600_000, 'en'), '3 hours ago');
+  for (const days of [1, 2, 5]) assert.doesNotMatch(timeLabels(days * 86_400_000 + 3600_000, 'en'), /days? ago/, 'older than a day is a date, never "1 days ago"');
+  assert.equal(timeLabels(5 * 60_000, 'zh'), '5 分钟前');
+});
+
+test('the inbox closes through useDismiss and puts focus inside the panel and back on the toggle', async () => {
+  const page = await source('ui/Inbox.jsx');
+  assert.doesNotMatch(page, /addEventListener|removeEventListener/, 'no document listeners of its own');
+  assert.match(page, /useDismiss\(\{[^}]*returnFocusRef/s);
+  assert.match(page, /formatAgo/);
+  assert.doesNotMatch(page, /const ago\b/);
+});
