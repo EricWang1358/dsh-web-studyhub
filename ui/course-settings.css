@@ -21,7 +21,6 @@
 :is(.study-app, .study-seat) .course-settings__sections { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 :is(.study-app, .study-seat) .course-settings__section-row { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
 :is(.study-app, .study-seat) .course-settings__section-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-sm); color: var(--text-dim); }
-:is(.study-app, .study-seat) .course-settings__confirm { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 :is(.study-app, .study-seat) .course-settings .sh-inline p { margin: var(--space-1) 0 0; }
 :is(.study-app, .study-seat) .course-settings__disclosure .sh-disclosure__body { display: grid; gap: var(--space-3); }
 :is(.study-app, .study-seat) .course-settings__disclosure .sh-disclosure__body > button { justify-self: start; }

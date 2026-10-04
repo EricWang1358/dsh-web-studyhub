@@ -52,8 +52,6 @@
 .wf-notice details { margin-bottom: 10px; }
 .wf-notice h3 { margin: 0 0 10px; font-size: 16px; }
 .wf-status { padding: 8px 0; color: var(--ok); font-size: 15px; line-height: 1.65; }
-.wf-confirm { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; padding: 13px 15px; background: var(--bg-sunken); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); font-size: 15px; grid-column: 1 / -1; width: 100%; box-sizing: border-box; }
-.wf-confirm span { flex-basis: 100%; line-height: 1.7; }
 .workflow-page .wf-danger { color: var(--bad); }
 .wf-fields { display: grid; gap: 18px; }
 .wf-fields label, .wf-output-label { display: grid; gap: 8px; color: var(--text-dim); font-size: 15px; line-height: 1.5; }
@@ -72,7 +70,6 @@
 .wf-step-move button { padding: 4px 10px; }
 .wf-step-body { padding: 4px 20px 20px; }
 .wf-step-body > .wf-danger { margin-top: 16px; }
-.wf-step-body > .wf-confirm { margin-top: 12px; }
 .wf-branch-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .wf-components { padding: 16px 0; }
 .wf-components h3 { font-size: 15px; font-weight: 500; color: var(--text-muted); margin: 0 0 12px; }
@@ -255,7 +252,7 @@
   .wf-step-move button { padding-inline: 8px; }
   .wf-branch-fields { grid-template-columns: 1fr; }
   .wf-history time { flex-basis: 100%; margin-left: 0; }
-  .wf-confirm button, .wf-notice .wf-actions button { flex: 1; }
+  .wf-notice .wf-actions button { flex: 1; }
 }
 
 /* ── AI 带学: one sentence to start ─────────────────────────────────── */

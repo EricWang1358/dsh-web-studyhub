@@ -1,12 +1,10 @@
-import React, { useEffect, useId, useLayoutEffect, useRef } from 'react';
+import React, { useId } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button } from '../../components/index.js';
+import { Button, Popover } from '../../components/index.js';
 import { useInjectCss } from '../../shared.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { countsLine, meaningLine, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
 import css from './practice.css';
-
-const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /** The note about parked courses: the learner is reading this document, so those questions are offered, and said to be parked. */
 export function InactiveNote({ summary, courses = [] }) {
@@ -25,32 +23,16 @@ export function InactiveNote({ summary, courses = [] }) {
  */
 export default function ReadingPractice({ loop, unit = 'section', busy = false, onStart, onGenerate }) {
   useInjectCss(css, 'study-reading-loop');
-  const { open, setOpen, status, options, kind, setKind, selected } = loop;
-  const root = useRef(null), panel = useRef(null), panelId = useId(), groupName = useId();
-  // On a narrow pane the button can sit anywhere along the wrapped toolbar: slide the panel back inside the viewer.
-  useIsoLayoutEffect(() => {
-    const element = panel.current, viewer = root.current?.closest('.study-document-viewer');
-    if (!open || !element || !viewer) return;
-    element.style.transform = '';
-    const box = element.getBoundingClientRect(), bounds = viewer.getBoundingClientRect(), margin = 8;
-    let shift = Math.min(0, bounds.right - margin - box.right);
-    shift = Math.max(shift, bounds.left + margin - box.left);
-    if (shift) element.style.transform = `translateX(${Math.round(shift)}px)`;
-  }, [open, status, kind, options.length]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = event => { if (root.current && !root.current.contains(event.target)) setOpen(false); };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [open, setOpen]);
-  const onKeyDown = event => { if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); } };
+  const { open, setOpen, status, options, setKind, selected } = loop;
+  const groupName = useId();
   const summary = selected?.summary, total = summary?.total || 0, ready = status === 'ready';
-  return <div className="reader-popover reader-practice" ref={root} onKeyDown={onKeyDown} data-tour="reader-practice">
-    <Button size="sm" variant="secondary" icon="success" className="reader-practice__button" aria-expanded={open} aria-controls={open ? panelId : undefined}
-      aria-haspopup="dialog" aria-keyshortcuts="P" data-usage="reader.practice" title={ui('做这几页的题 · 快捷键 P')} onClick={() => setOpen(state => !state)}>
+  // On a narrow pane the button can sit anywhere along the wrapped toolbar: Popover slides the panel back inside the viewer.
+  return <Popover open={open} onOpenChange={setOpen} label={ui('做这几页的题')} className="reader-popover reader-practice" panelClassName="reader-popover__panel reader-practice__panel"
+    boundsSelector=".study-document-viewer" flip={false} data-tour="reader-practice"
+    trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="secondary" icon="success" className="reader-practice__button" {...props}
+      aria-keyshortcuts="P" data-usage="reader.practice" title={ui('做这几页的题 · 快捷键 P')}>
       <span className="reader-practice__label">{ui('做这几页的题')}</span>
-    </Button>
-    {open && <div className="reader-popover__panel reader-practice__panel" ref={panel} id={panelId} role="dialog" aria-label={ui('做这几页的题')}>
+    </Button>}>
       {status === 'loading' && <p className="reader-practice__status" role="status">{ui('正在读取这几页的题…')}</p>}
       {(status === 'error' || status === 'unavailable') && <>
         <p className="reader-practice__status" role="alert">{status === 'unavailable' ? ui('这个版本暂时读不到这几页的题。') : ui('没能读取这几页的题。')}</p>
@@ -79,6 +61,5 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           <Button variant="primary" icon="sparkle" disabled={busy} onClick={() => onGenerate(selected)}>{ui('为这几页出题')}</Button>
         </>}
       </>}
-    </div>}
-  </div>;
+  </Popover>;
 }

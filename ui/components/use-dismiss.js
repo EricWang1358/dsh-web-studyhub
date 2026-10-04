@@ -69,8 +69,8 @@ export function computePlacement({ anchor, size, bounds, placement = 'bottom-end
 }
 
 const viewport = () => ({ left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight });
-const within = (box, outer) => ({ left: Math.max(box.left, outer.left), top: Math.max(box.top, outer.top),
-  right: Math.min(box.right, outer.right), bottom: Math.min(box.bottom, outer.bottom) });
+const within = (box, outer) => ({ left: Math.max(box.left ?? outer.left, outer.left), top: Math.max(box.top ?? outer.top, outer.top),
+  right: Math.min(box.right ?? outer.right, outer.right), bottom: Math.min(box.bottom ?? outer.bottom, outer.bottom) });
 
 /**
  * Keep a panel that CSS places under (or over) its anchor inside `boundsRef`
@@ -94,8 +94,10 @@ export function useAnchoredPosition({ anchorRef, panelRef, boundsRef, placement 
         placement, flip, margin, gap: gap * scale });
       panel.setAttribute('data-placement', result.placement);
       const moved = panel.getBoundingClientRect();
-      const shift = Math.round((result.left - moved.left) / (scale || 1));
-      panel.style.transform = shift ? `translateX(${shift}px)` : '';
+      // Sideways: pull the box CSS placed back inside the bounds.
+      let shift = Math.min(0, bounds.right - margin - moved.right);
+      shift = Math.max(shift, bounds.left + margin - moved.left);
+      panel.style.transform = shift ? `translateX(${Math.round(shift / (scale || 1))}px)` : '';
       // Height from where the panel really sits, not from the assumed gap.
       const room = result.placement.startsWith('bottom') ? bounds.bottom - margin - moved.top : moved.bottom - bounds.top - margin;
       panel.style.maxHeight = `${Math.max(0, Math.floor(room / (scale || 1)))}px`;

@@ -558,28 +558,6 @@
 .exam-foot p {
   margin: 0;
 }
-.exam-confirm {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warn) 12%, transparent);
-}
-.exam-confirm p {
-  margin: 0;
-  font-size: 15px;
-}
-.exam-confirm strong {
-  color: var(--warn);
-}
-.exam-confirm-actions {
-  display: flex;
-  gap: 8px;
-}
 
 /* ── Exam: report ────────────────────────────────────────────────────── */
 .exam-report {

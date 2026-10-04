@@ -4,6 +4,7 @@ import Markdown from '../Markdown.jsx';
 import { Button, Dialog, Icon, IconButton, InlineMessage, SegmentedControl } from '../components/index.js';
 import { CHECKLIST_MAX_ITEMS, CHECKLIST_MAX_TEXT, checklistProgress, dueState, isMeaningfulTitle, labelHue } from '../../lib/board-model.js';
 import BIcon from './icons.jsx';
+import DeleteCardDialog from './DeleteCardDialog.jsx';
 import { dueText, stamp, studyRefLabel } from './meta.js';
 
 const newItemId = () => `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -60,13 +61,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
   };
   const dirty = draft.title !== card.title || draft.note !== (card.note || '') || draft.due !== (card.due || '') || !sameList(draft.labels, card.labels) || !sameList(draft.checklist, card.checklist);
 
-  const footer = confirming ? (
-    <div className="board-editor__confirm" role="alertdialog" aria-label={ui('确认删除')}>
-      <span>{ui('删除这张卡片？删除后会立刻提示，可撤销。')}</span>
-      <Button variant="danger" size="sm" icon={<BIcon name="trash" />} disabled={saving || readOnly} onClick={() => onDelete(card)}>{ui('确认删除')}</Button>
-      <Button variant="quiet" size="sm" onClick={() => setConfirming(false)}>{ui('保留')}</Button>
-    </div>
-  ) : (
+  const footer = (
     <>
       <div className="board-editor__danger">
         <Button variant="quiet" size="sm" icon={<BIcon name="archive" />} disabled={saving || readOnly} onClick={() => onArchive(card)}>{ui('归档')}</Button>
@@ -80,7 +75,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
   );
 
   return (
-    <Dialog title={ui('编辑待办')} size="md" onClose={() => { if (!saving) onClose(); }} footer={footer} initialFocus={titleField} className="board-editor">
+    <Dialog title={ui('编辑待办')} size="md" busy={saving} onClose={onClose} footer={footer} initialFocus={titleField} className="board-editor">
       <form id={formId} className="board-editor__form" onSubmit={submit}>
         {error && <InlineMessage tone={conflict ? 'warning' : 'error'}>{error}</InlineMessage>}
         {stale && <InlineMessage tone="warning" boxed action={latest ? { label: ui('载入最新卡片（替换当前输入）'), onClick: () => { setDraft(fromCard(latest)); setBase(board.revision); } } : undefined}>
@@ -158,6 +153,8 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
           <span className="board-meta__item"><BIcon name="clock" size={13} /><span>{uiFormat('创建于 {0}', [stamp(card.createdAt)])} · {uiFormat('更新于 {0}', [stamp(card.updatedAt)])}</span></span>
         </div>
       </form>
+      {confirming && <DeleteCardDialog card={card} onClose={() => setConfirming(false)}
+        onConfirm={async () => { if (!(await onDelete(card))) throw new Error(ui('没有完成，请再试一次。')); }} />}
     </Dialog>
   );
 }

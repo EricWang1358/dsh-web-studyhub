@@ -135,7 +135,7 @@ test('Menu keeps its API, uses sh-menu classes and needs no board icon set', () 
 
 test('the board menu is a thin wrapper over the shared Menu', () => {
   const wrapper = read('ui/board/Menu.jsx');
-  assert.match(wrapper, /components\/(index|Menu)\.jsx/);
+  assert.match(wrapper, /components\/(index\.js|Menu\.jsx)/);
   assert.ok(wrapper.split('\n').length < 40, 'only maps board icon names to nodes');
 });
 

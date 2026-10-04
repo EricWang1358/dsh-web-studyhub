@@ -1,1 +1,7 @@
-{}
+{
+  "还有 {0} 题未作答，交卷后将立即判分并结束本次考试。": "{0} question(s) are unanswered. Submitting grades the exam at once and ends it.",
+  "删除骨架「{0}」？": "Delete the skeleton “{0}”?",
+  "只删骨架，题目不受影响。": "Only the skeleton is deleted; your questions are not affected.",
+  "移除「{0}」及其预置内容？": "Remove “{0}” and its preset content?",
+  "删除「{0}」？已开始的学习记录会保留。": "Delete “{0}”? Learning sessions already started are kept."
+}

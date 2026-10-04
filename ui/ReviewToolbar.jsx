@@ -1,28 +1,15 @@
 import { ui } from "./i18n.js";
 import React from "react";
+import { useDismiss } from "./components/index.js";
 import { ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
 const NEXT_HINT_ID = "review-next-hint";
 
 export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode }) {
-  const moreRef = React.useRef(null);
-  React.useEffect(() => {
-    const closeOutside = (event) => {
-      if (moreRef.current && !moreRef.current.contains(event.target)) moreRef.current.open = false;
-    };
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape" && moreRef.current?.open) {
-        moreRef.current.open = false;
-        moreRef.current.querySelector("summary")?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, []);
+  const moreRef = React.useRef(null), moreSummary = React.useRef(null);
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  // The listeners exist only while the menu is open; Escape gives focus back to 更多.
+  useDismiss({ open: moreOpen, onClose: () => { if (moreRef.current) moreRef.current.open = false; }, refs: moreRef, returnFocusRef: moreSummary });
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
   const needsAnswer = !run.feedback && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
@@ -50,10 +37,11 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}
       <div className="question-navigation">
         <details className="review-more" ref={moreRef} onToggle={() => {
+          setMoreOpen(!!moreRef.current?.open);
           if (moreRef.current?.open) requestAnimationFrame(() => {
             moreRef.current?.querySelector(".review-more-menu")?.scrollIntoView({ block: "nearest" });
           });
-        }}><summary className="tool-action">{ui("更多")}</summary><div className="review-more-menu">
+        }}><summary ref={moreSummary} className="tool-action">{ui("更多")}</summary><div className="review-more-menu">
           <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onNote(); }}>{ui("写笔记")}</button>
           {onTask && <button type="button" disabled={busy} onClick={(event) => { event.currentTarget.closest("details").open = false; onTask(); }}>{ui("记待办")}</button>}
           <button type="button" aria-expanded={assistMode === "improve"} onClick={(event) => { event.currentTarget.closest("details").open = false; onImprove(); }}>{ui("修题")}</button>

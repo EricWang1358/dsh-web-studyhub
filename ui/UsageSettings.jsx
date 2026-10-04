@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from './i18n.js';
-import { Button, Dialog, InlineMessage, SegmentedControl } from './components/index.js';
+import { Button, ConfirmDialog, InlineMessage, SegmentedControl } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { USAGE_AREAS, USAGE_GROUPS, usageArea } from './usage/registry.js';
 import { displayName } from './usage/names.js';
@@ -174,14 +174,11 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
           <p className="settings-section__note usage-file">{uiFormat('记录文件：{0}', [status.file || 'usage-frequency.json'])}</p>
         </details>
       )}
-      {confirming && <Dialog size="sm" title={ui('删除全部使用记录？')} onClose={onCancelClear}
+      {confirming && <ConfirmDialog title={ui('删除全部使用记录？')} onClose={onCancelClear} onDone={onCancelClear}
         description={ui('将删除所有已记录的次数和日期。不影响学习库，也不改变记录开关。')}
-        footer={<>
-          <Button variant="quiet" disabled={!!working} onClick={onCancelClear}>{ui('取消')}</Button>
-          <Button variant="danger" busy={working === 'clear'} onClick={onClear}>{ui('删除全部记录')}</Button>
-        </>}>
+        confirmLabel={ui('删除全部记录')} busy={working === 'clear'} blocked={!!working} onConfirm={onClear}>
         <p className="settings-section__note">{ui('之后可以重新开始记录；已经导出的文件不受影响。')}</p>
-      </Dialog>}
+      </ConfirmDialog>}
     </fieldset>
   );
 }
@@ -264,15 +261,15 @@ export default function UsageSettings({ call, busy = false, setNotice, initial =
         catch { setError(ui('这个窗口不允许复制；请改用「导出 Markdown」。')); }
       }}
       onAskClear={() => setConfirming(true)}
-      onCancelClear={() => { if (working !== 'clear') setConfirming(false); }}
+      onCancelClear={() => setConfirming(false)}
       onClear={async () => {
+        // A failure is thrown to the confirmation, which shows it and lets the learner try again.
         setWorking('clear'); setError('');
         try {
           const next = await ask('usage.frequency.clear', {});
           if (live.current) { setStatus(next); setReport(null); setConfirming(false); setNotice2(ui('已删除全部使用记录。')); }
           notifyUsageChanged();
-        } catch (reason) { failure(reason); }
-        finally { if (live.current) setWorking(''); }
+        } finally { if (live.current) setWorking(''); }
       }} />
   );
 }

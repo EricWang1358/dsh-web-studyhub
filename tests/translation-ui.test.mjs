@@ -150,7 +150,9 @@ const menu = (props, language) => render(h(lib.TranslationMenu, { open: true, on
 
 test('the 译 popover prices each scope before anything starts, says what is left, and starts only on a click', () => {
   const markup = menu();
-  assert.match(markup, /aria-label="中英对照翻译"/);
+  assert.match(markup, /role="dialog"[^>]*aria-labelledby="([^"]+)"/);
+  assert.match(markup, new RegExp(`id="${markup.match(/role="dialog"[^>]*aria-labelledby="([^"]+)"/)[1]}"[^>]*>中英对照翻译<`), 'the panel is named by its label');
+  assert.doesNotMatch(markup, /aria-pressed="(true|false)"[^>]*aria-expanded|aria-expanded[^>]*aria-pressed="(true|false)"[^>]*tr-toolbar-button/, 'the 译 button is expanded, not pressed');
   assert.match(markup, /翻译本页/);
   assert.match(markup, /还有 8 段要译 · 已译 4 段/);
   assert.match(markup, /预计/, 'the price (the shared token estimate line) comes first');

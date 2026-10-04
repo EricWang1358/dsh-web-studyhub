@@ -1,10 +1,11 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import css from './components.css';
 import overlayCss from './overlays.css';
 import { useComponentCss, cx } from './css.js';
 import { IconButton } from './Button.jsx';
 import { useAnchoredPosition, useDismiss } from './use-dismiss.js';
 
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
 /**
@@ -23,15 +24,17 @@ const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:
  * chooser use Dialog instead.
  */
 export default function Popover({ label, icon, trigger, children, open: controlled, defaultOpen = false, onOpenChange, placement = 'bottom-end',
-  flip = true, boundsRef, className, panelClassName, triggerClassName, triggerProps }) {
+  flip = true, boundsRef, boundsSelector, className, panelClassName, triggerClassName, triggerProps, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   const [inner, setInner] = useState(defaultOpen);
   const isOpen = controlled ?? inner;
   const setOpen = value => { if (controlled === undefined) setInner(value); onOpenChange?.(value); };
-  const anchor = useRef(null), triggerRef = useRef(null), panel = useRef(null), was = useRef(false);
+  const anchor = useRef(null), triggerRef = useRef(null), panel = useRef(null), was = useRef(false), bounds = useRef(null);
   const panelId = useId(), labelId = useId();
-  useAnchoredPosition({ anchorRef: anchor, panelRef: panel, boundsRef, placement, flip, open: isOpen });
+  // `boundsSelector` finds the bounds from the trigger's own ancestors (the reader keeps its panels inside the viewer).
+  useIsoLayoutEffect(() => { bounds.current = boundsRef?.current ?? (boundsSelector ? anchor.current?.closest(boundsSelector) : null) ?? null; });
+  useAnchoredPosition({ anchorRef: anchor, panelRef: panel, boundsRef: bounds, placement, flip, open: isOpen });
   useDismiss({ open: isOpen, onClose: () => setOpen(false), refs: anchor, returnFocusRef: triggerRef });
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +50,7 @@ export default function Popover({ label, icon, trigger, children, open: controll
   const props = { 'aria-haspopup': 'dialog', 'aria-expanded': isOpen, 'aria-controls': isOpen ? panelId : undefined,
     onClick: () => setOpen(!isOpen), ...triggerProps };
   return (
-    <div className={cx('sh-popover-anchor', className)} ref={anchor}>
+    <div className={cx(className, 'sh-popover-anchor')} ref={anchor} {...rest}>
       {trigger ? trigger({ props, ref: triggerRef, open: isOpen })
         : <IconButton ref={triggerRef} icon={icon} label={label} className={triggerClassName} {...props} />}
       {isOpen && <div ref={panel} id={panelId} role="dialog" aria-labelledby={labelId} tabIndex={-1} data-placement={placement}
