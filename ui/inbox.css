@@ -144,21 +144,6 @@
   font-size: var(--fs-sm);
   line-height: var(--lh-snug);
 }
-/* A letter shows its whole deck title, prompt and reply while the pointer or the keyboard is on it, and folds back after (#178).
-   The text is in the DOM all along; only the clamp lifts. The entry grows downward, so the pointer stays on it, and nothing animates. */
-.study-app .mailbox__item:is(:hover, :focus-visible, :focus-within) :is(.mailbox__deck, .mailbox__prompt) {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.study-app .mailbox__item:is(:hover, :focus-visible, :focus-within) .mailbox__detail {
-  display: block;
-  overflow: visible;
-  -webkit-line-clamp: unset;
-  line-clamp: unset;
-  overflow-wrap: anywhere;
-}
 .study-app .mailbox .mailbox__undo { margin: 0 0 var(--space-1) var(--space-5); }
 .study-app .mailbox__empty { padding: var(--space-6) var(--space-4); }
 @media (prefers-reduced-motion: reduce) {
