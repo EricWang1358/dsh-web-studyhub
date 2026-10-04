@@ -19,7 +19,7 @@ import { seedLibrary } from './perf-seed.mjs';
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-const PROPS = [
+export const PROPS = [
   'display', 'position', 'top', 'right', 'bottom', 'left', 'z-index', 'float', 'visibility', 'opacity', 'overflow-x', 'overflow-y',
   'box-sizing', 'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
   'margin-top', 'margin-right', 'margin-bottom', 'margin-left', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
@@ -32,11 +32,12 @@ const PROPS = [
   'grid-template-columns', 'grid-template-rows', 'grid-column-start', 'grid-column-end', 'grid-row-start', 'grid-row-end', 'order', 'list-style-type',
   'transition-property', 'transition-duration', 'animation-name', 'appearance', 'accent-color', 'resize', 'content-visibility', 'zoom',
 ];
-const HOVER_PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'border-top-width', 'box-shadow', 'opacity', 'transform', 'outline-style', 'text-decoration-line', 'cursor', 'filter'];
-const PSEUDO_PROPS = ['content', 'display', 'color', 'background-color', 'width', 'height', 'position', 'border-top-width', 'opacity', 'transform', 'font-size', 'font-weight'];
+export const HOVER_PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'border-top-width', 'box-shadow', 'opacity', 'transform', 'outline-style', 'text-decoration-line', 'cursor', 'filter'];
+export const FOCUS_PROPS = ['outline-style', 'outline-width', 'outline-color', 'outline-offset', 'box-shadow', 'border-top-color', 'border-top-width', 'background-color', 'color'];
+export const PSEUDO_PROPS = ['content', 'display', 'color', 'background-color', 'width', 'height', 'position', 'border-top-width', 'opacity', 'transform', 'font-size', 'font-weight'];
 
 /* Runs in the page: { key: "p1|p2|..." } for every element, plus the pseudo-elements that render. */
-function collect([props, pseudoProps]) {
+export function collect([props, pseudoProps]) {
   const out = {};
   const round = (value) => value.replace(/-?\d+\.\d+/g, (n) => String(Math.round(parseFloat(n) * 10) / 10));
   const counters = new WeakMap();
@@ -101,12 +102,18 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
     };
     const settle = (ms = 450) => sleep(ms);
     /* Hover each of the first interactive elements and record its look (hover rules, tooltips, focus rings follow the same cascade). */
-    const hoverPass = async (name, selector, limit = 18) => {
-      const rects = await page.evaluate(([sel, max]) => [...document.querySelectorAll(sel)].filter((el) => {
+    const hoverPass = async (name, selector, limit = 40) => {
+      /* One element per distinct class list (the first of each kind), so every variant of a control is sampled, not the first screenful of one kind. */
+      const rects = await page.evaluate(([sel, max]) => { const seen = new Set(); return [...document.querySelectorAll(sel)].filter((el) => {
         const r = el.getBoundingClientRect();
-        return r.width > 4 && r.height > 4 && r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth && getComputedStyle(el).visibility !== 'hidden';
-      }).slice(0, max).map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]; }), [selector, limit]).catch(() => []);
-      const record = {};
+        if (!(r.width > 4 && r.height > 4 && r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth && getComputedStyle(el).visibility !== 'hidden')) return false;
+        const sig = `${el.tagName}.${typeof el.className === 'string' ? el.className : ''}`;
+        if (seen.has(sig)) return false;
+        seen.add(sig);
+        return true;
+      }).slice(0, max).map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]; }); }, [selector, limit]).catch(() => []);
+      const record = {}, focusRecord = {};
+      await page.keyboard.press('Tab');
       for (let i = 0; i < rects.length; i++) {
         await page.mouse.move(rects[i][0], rects[i][1]);
         await sleep(90);
@@ -119,9 +126,24 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
           return [path(el), props.map((p) => round(cs.getPropertyValue(p))).join('|')];
         }, [rects[i][0], rects[i][1], HOVER_PROPS]).catch(() => null);
         if (one) record[`hover:${one[0]}`] = one[1];
+        /* and the same element focused from the keyboard */
+        const focused = await page.evaluate(([x, y, props]) => {
+          const el = document.elementFromPoint(x, y);
+          if (!el || typeof el.focus !== 'function') return null;
+          el.focus({ focusVisible: true });
+          if (document.activeElement !== el) return null;
+          const path = (node) => { const parent = node.parentElement; const idx = parent ? [...parent.children].indexOf(node) : 0; const cls = (typeof node.className === 'string' ? node.className : '').trim().split(/\s+/)[0] || ''; return `${parent ? path(parent) : ''}>${node.tagName.toLowerCase()}${cls ? '.' + cls : ''}[${idx}]`; };
+          const cs = getComputedStyle(el);
+          const round = (v) => v.replace(/-?\d+\.\d+/g, (n) => String(Math.round(parseFloat(n) * 10) / 10));
+          const out = [path(el), props.map((p) => round(cs.getPropertyValue(p))).join('|')];
+          el.blur();
+          return out;
+        }, [rects[i][0], rects[i][1], FOCUS_PROPS]).catch(() => null);
+        if (focused) focusRecord[`focus:${focused[0]}`] = focused[1];
       }
       await page.mouse.move(0, 0);
       result.states[`hover-${name}`] = record;
+      result.states[`focus-${name}`] = focusRecord;
     };
     const closeOverlays = async () => {
       for (let i = 0; i < 3; i++) {
@@ -135,7 +157,7 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
       const go = async () => { await closeOverlays(); await page.locator(`[data-tour="nav-${id}"]`).first().click({ timeout: 5000 }).catch(() => {}); await settle(); };
       await go();
       await snap(`page-${id}`);
-      await hoverPass(`page-${id}`, 'main button, main a[href], main [role="tab"], main summary, .sidebar button');
+      await hoverPass(`page-${id}`, 'main button, main a[href], main [role="tab"], main summary, main input, main select, main textarea, .sidebar button');
       /* Reach what the page hides: tabs, disclosures, segmented controls, menus. */
       const probes = await page.locator('main [role="tab"][aria-selected="false"], main summary, main [aria-expanded="false"]:not([data-tour^="nav-"]), main .sh-seg button[aria-pressed="false"], main .sh-seg button[aria-checked="false"], .settings-nav__item').evaluateAll((items) => items.slice(0, 40).map((_, index) => index)).catch(() => []);
       const sel = 'main [role="tab"][aria-selected="false"], main summary, main [aria-expanded="false"]:not([data-tour^="nav-"]), main .sh-seg button[aria-pressed="false"], main .sh-seg button[aria-checked="false"], .settings-nav__item';
@@ -264,8 +286,15 @@ export function diffCaptures(a, b) {
       if (x === y) continue;
       if (x === undefined || y === undefined) { out.push({ state, key, prop: '(element)', before: x === undefined ? 'missing' : 'present', after: y === undefined ? 'missing' : 'present' }); continue; }
       const xs = x.split('|'), ys = y.split('|');
-      const pseudo = key.endsWith('::before') || key.endsWith('::after'), hover = key.startsWith('hover:');
-      for (let i = 0; i < Math.max(xs.length, ys.length); i++) if (xs[i] !== ys[i]) out.push({ state, key, prop: hover ? `hover.${HOVER_PROPS[i] ?? i}` : pseudo ? `pseudo.${PSEUDO_PROPS[i] ?? i}` : names[i] ?? i, before: xs[i], after: ys[i] });
+      const pseudo = key.endsWith('::before') || key.endsWith('::after'), hover = key.startsWith('hover:'), focus = key.startsWith('focus:');
+      /* The colour of a border that is not drawn (zero width on that side) is not a visible difference. */
+      const invisible = (i) => {
+        const side = /^border-(top|right|bottom|left)-color$/.exec(names[i])?.[1];
+        if (!side || hover || focus || pseudo) return false;
+        const at = (list, name) => list[names.indexOf(name)];
+        return at(xs, `border-${side}-width`) === '0px' && at(ys, `border-${side}-width`) === '0px';
+      };
+      for (let i = 0; i < Math.max(xs.length, ys.length); i++) if (xs[i] !== ys[i] && !invisible(i)) out.push({ state, key, prop: focus ? `focus.${FOCUS_PROPS[i] ?? i}` : hover ? `hover.${HOVER_PROPS[i] ?? i}` : pseudo ? `pseudo.${PSEUDO_PROPS[i] ?? i}` : names[i] ?? i, before: xs[i], after: ys[i] });
     }
   }
   return out;
