@@ -14,8 +14,8 @@ const compiled = await build({ stdin: { contents: `export * from './ui/ImportHub
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { default: ImportHub, routeImportFile, importAccept, looksLikeSubtitleJson, fileToBase64, runImport, importSummary,
-  importDoneMessage, plainImportError, createDialogDropGuard, hubDropHandler, setUiLanguage } = module.exports;
+const { default: ImportHub, routeImportFile, importAccept, looksLikeSubtitleJson, runImport, importSummary,
+  importDoneMessage, plainImportError, hubDropHandler, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const SHA = '9'.repeat(64);
 const data = { root: 'lib', sources: [], decks: [], drafts: [], focus: { course: '操作系统', courses: [{ name: '操作系统' }, { name: 'Databases' }] },
@@ -45,13 +45,6 @@ test('Bilibili subtitle JSON is told apart from a JSON deck', () => {
   assert.equal(looksLikeSubtitleJson(JSON.stringify(JSON.parse(bilibili).body)), true);
   assert.equal(looksLikeSubtitleJson(deckJson), false);
   assert.equal(looksLikeSubtitleJson('not json'), false);
-});
-
-test('file bytes are encoded the way materials.document.import expects', async () => {
-  const bytes = Buffer.from('# 标题\nhéllo', 'utf8');
-  assert.equal(await fileToBase64(new File([bytes], 'notes.md')), bytes.toString('base64'));
-  const large = Buffer.alloc(200_000, 7);
-  assert.equal(await fileToBase64(new File([large], 'big.pdf')), large.toString('base64'));
 });
 
 test('one batch imports documents, decks and subtitles, each with its own status and plain reasons', async () => {
@@ -181,25 +174,9 @@ function dragEvent(type, { files = true, target = {} } = {}) {
     preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.propagationStopped = true; } };
 }
 
-test('a file dropped anywhere in the dialog is swallowed with a hint and never reaches the host', () => {
-  const inside = { id: 'hub' }, outside = { id: 'header' };
-  const strays = [];
-  const guard = createDialogDropGuard({ contains: target => target === inside, onStray: type => strays.push(type) });
-  const over = dragEvent('dragover', { target: outside });
-  guard(over);
-  assert.ok(over.defaultPrevented && over.propagationStopped);
-  assert.equal(over.dataTransfer.dropEffect, 'none');
-  const drop = dragEvent('drop', { target: outside });
-  guard(drop);
-  assert.ok(drop.defaultPrevented && drop.propagationStopped);
-  assert.deepEqual(strays, ['dragover', 'drop']);
-  const text = dragEvent('dragover', { files: false, target: outside });
-  guard(text);
-  assert.ok(!text.defaultPrevented && !text.propagationStopped, 'text drags pass through');
-  const hub = dragEvent('dragover', { target: inside });
-  guard(hub);
-  assert.ok(!hub.propagationStopped, 'drags inside the hub are left to its own handlers');
-  // Inside the hub (React handlers): an inner zone that already took the file only loses propagation.
+test('a file dropped in the hub outside a drop zone is swallowed with a hint and never reaches the host', () => {
+  // The dialog around the hub guards its own header and margins (Dialog guardDrops, tests/wp-b-overlays-browser.test.mjs).
+  // Inside the hub: an inner zone that already took the file only loses propagation.
   const handled = [];
   const handler = hubDropHandler(type => handled.push(type));
   const zoneDrop = { ...dragEvent('drop'), isDefaultPrevented: () => true };

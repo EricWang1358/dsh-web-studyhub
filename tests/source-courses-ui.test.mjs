@@ -6,12 +6,12 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const compiled = await build({ stdin: { contents: `export {default as Sources, CourseDialog, courseAssignments, saveDocumentCourses} from './ui/Sources.jsx';
-  export {default as Generate} from './ui/Generate.jsx'; export {default as PdfImport} from './ui/PdfImport.jsx';
+  export {default as Generate} from './ui/Generate.jsx'; export {default as ImportHub} from './ui/ImportHub.jsx';
   export {usePageScope} from './ui/PageScope.jsx'; export {setUiLanguage} from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Sources, CourseDialog, courseAssignments, saveDocumentCourses, Generate, PdfImport, usePageScope, setUiLanguage } = module.exports;
+const { Sources, CourseDialog, courseAssignments, saveDocumentCourses, Generate, ImportHub, usePageScope, setUiLanguage } = module.exports;
 const data = { root: 'library-A', decks: [], drafts: [], sources: [{ id: 'a', title: 'Database notes', text: 'Transactions keep changes consistent.', courses: ['Databases'], createdAt: '2026-09-30' }],
   focus: { course: 'Systems', courses: [{ name: 'Databases' }, { name: 'Systems' }] }, jobs: [], modelReady: true };
 const noop = () => {};
@@ -37,12 +37,12 @@ test('generation displays the source course ahead of global focus and sends an e
     assert.match(html, /value="Databases"/);
     assert.match(html, /Your selection includes sources from other scopes/);
     assert.doesNotMatch(html.replace(/<[^>]+>/g, ''), /[㐀-鿿]/);
-    const pdf = renderToStaticMarkup(React.createElement(PdfImport, { data, act: noop, onImported: noop }));
+    const pdf = renderToStaticMarkup(React.createElement(ImportHub, { data, call: noop }));
     assert.match(pdf, /value="Systems"/);
     assert.doesNotMatch(pdf, /[㐀-鿿]/);
-    const local = renderToStaticMarkup(React.createElement(PdfImport, { data, courseText: 'Databases', onCourseTextChange: noop, act: noop, onImported: noop }));
+    const local = renderToStaticMarkup(React.createElement(ImportHub, { data, call: noop, course: 'Databases', onCourseChange: noop }));
     assert.match(local, /placeholder="Leave blank for unassigned" value="Databases"/);
-    const all = renderToStaticMarkup(React.createElement(PdfImport, { data, courseText: '', onCourseTextChange: noop, act: noop, onImported: noop }));
+    const all = renderToStaticMarkup(React.createElement(ImportHub, { data, call: noop, course: '', onCourseChange: noop }));
     assert.match(all, /placeholder="Leave blank for unassigned" value=""/);
   } finally { setUiLanguage('zh'); }
 });
