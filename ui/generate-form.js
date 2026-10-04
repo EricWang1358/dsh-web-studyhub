@@ -5,6 +5,7 @@
 import { ui, uiFormat } from './i18n.js';
 import { sourceFormat } from '../lib/source-groups.js';
 import { documentCount } from './generation-status.js';
+import { normalizeNotation } from '../lib/notation.js';
 
 export const COUNT_MIN = 1;
 export const COUNT_MAX = 30;
@@ -71,6 +72,17 @@ export const LANGUAGES = Object.freeze([
   { value: 'English', get label() { return 'English'; } },
   { value: '中英双语', get label() { return ui('中英双语'); } },
 ]);
+
+/** 公式写法: how generated questions write formulas. Plain text is the most stable; LaTeX suits maths and chemistry. */
+export const NOTATION_CHOICES = Object.freeze([
+  { value: 'auto', get label() { return ui('自动'); } },
+  { value: 'text', get label() { return ui('纯文本'); } },
+  { value: 'latex', get label() { return ui('公式（LaTeX）'); } },
+]);
+export const notationNote = () => ui('纯文本更稳定；公式适合数学、化学');
+
+/** The generation request the form sends: the form as typed, with a count the backend can read and a known notation. */
+export const generationRequest = (gen, { course, sourceIds }) => ({ ...gen, course, count: Number(gen.count), sourceIds, notation: normalizeNotation(gen.notation) });
 
 /** One line on what the chosen difficulty means. */
 export function difficultyNote(value) {

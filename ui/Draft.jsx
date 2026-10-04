@@ -10,7 +10,7 @@ import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
 import { renderRubric } from "../lib/case-study.js";
 import { DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
-import { describeGenerationRecord, draftWork, missingQuestions } from "./draft-shortfall.js";
+import { draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
 import { modelReadiness } from "./generation-status.js";
 import LocalImagePicker from './LocalImagePicker.jsx';
 import { useSciencePreferences } from './SciencePreferences.jsx';
@@ -54,6 +54,7 @@ export default function Draft({
   const rawAudits = draft.editorial?.audits ?? [draft.editorial?.audit];
   const audits = (Array.isArray(rawAudits) ? rawAudits : []).filter((audit) =>
     audit && Array.isArray(audit.targets) && Array.isArray(audit.changes) && Array.isArray(audit.checks));
+  const failureLines = generationRecordLines(draft.editorial?.failures), previousLines = generationRecordLines(draft.editorial?.previousFailures);
   const incomplete = Number.isInteger(draft.editorial?.completedParts) &&
     Number.isInteger(draft.editorial?.parts) && draft.editorial.completedParts < draft.editorial.parts;
   // Whatever is working on this draft right now (a top-up, the run still writing it, a repair, a publication check) owns it:
@@ -276,9 +277,9 @@ export default function Draft({
         <ul>{audit.changes.filter((change) => typeof change?.summary === "string").map((change, index) => <li key={index}>{change.summary}</li>)}</ul>
         <ul>{audit.checks.filter((check) => typeof check?.explanation === "string").map((check, index) => <li key={index}>{check.explanation}</li>)}</ul>
       </details>)}
-      {draft.editorial?.failures?.length > 0 && <details className="warning">
+      {failureLines.length > 0 && <details className="warning">
         <summary>{ui("部分题目未生成成功，合格题目已保留")}</summary>
-        <ul>{draft.editorial.failures.map((failure, i) => <li key={i}>{describeGenerationRecord(failure)}</li>)}</ul>
+        <ul>{failureLines.map((line, i) => <li key={i}>{line}</li>)}</ul>
       </details>}
       {!shortBlock && <OmittedQuestions draft={draft} />}
       {rejectedCount > 0 && <div className="quality-note warning" role="status">
@@ -313,9 +314,9 @@ export default function Draft({
           {repairJob.status === "cancelling" ? ui("正在停止修题…") : ui("停止修题，保留草稿")}
         </button>}
       </div>}
-      {draft.editorial?.previousFailures?.length > 0 && <details className="warning">
+      {previousLines.length > 0 && <details className="warning">
         <summary>{ui("之前未完成的批次")}</summary>
-        <ul>{draft.editorial.previousFailures.map((failure, i) => <li key={i}>{describeGenerationRecord(failure)}</li>)}</ul>
+        <ul>{previousLines.map((line, i) => <li key={i}>{line}</li>)}</ul>
       </details>}
       {draft.editorial?.coverage && <details>
         <summary>{ui("逐份资料出题记录 · 已引用 ")}{draft.editorial.coverage.cited} / {draft.editorial.coverage.selected}{ui(" 份")}</summary>

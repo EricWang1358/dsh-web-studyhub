@@ -8,7 +8,7 @@ import { normalizeGenerationSettings, normalizeGenerationPerformance, resolveGen
   validateGenerationPatch, validateGenerationPerformance } from '../lib/generation-settings.js';
 
 const expected = { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20,
-  kind: 'quiz', count: 10, language: 'auto', difficulty: 'mixed', focus: '' };
+  kind: 'quiz', count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto' };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-generation-settings-'));
   const service = new StudyService(root);
@@ -61,10 +61,10 @@ test('corrupt persisted generation values fall back without replacing valid sibl
 test('new requests use defaults and explicit one-off choices without mutating the saved settings', () => {
   const saved = { ...expected, concurrency: 6, batchSize: 2, count: 20, language: 'English', difficulty: 'advanced', focus: 'Explain trade-offs' };
   const before = structuredClone(saved);
-  assert.deepEqual(resolveGenerationRequest(saved), { kind: 'quiz', count: 20, language: 'English', difficulty: 'advanced', focus: 'Explain trade-offs',
+  assert.deepEqual(resolveGenerationRequest(saved), { kind: 'quiz', count: 20, language: 'English', difficulty: 'advanced', focus: 'Explain trade-offs', notation: 'auto',
     performance: { concurrency: 6, batchSize: 2, jobTimeoutMinutes: 20 } });
   assert.deepEqual(resolveGenerationRequest(saved, { kind: 'case', count: 2, language: 'Français', difficulty: 'Expert', focus: '', performance: { concurrency: 1 } }),
-    { kind: 'case', count: 2, language: 'Français', difficulty: 'Expert', focus: '', performance: { concurrency: 1, batchSize: 2, jobTimeoutMinutes: 20 } });
+    { kind: 'case', count: 2, language: 'Français', difficulty: 'Expert', focus: '', notation: 'auto', performance: { concurrency: 1, batchSize: 2, jobTimeoutMinutes: 20 } });
   assert.deepEqual(saved, before);
 });
 
@@ -81,12 +81,12 @@ test('continued work inherits original choices and performance instead of change
   const before = structuredClone(continuation);
   const actual = resolveGenerationRequest({ ...expected, count: 30, concurrency: 6, batchSize: 1, language: '中文' },
     { count: 4, performance: { concurrency: 2 } }, { language: 'zh', continuation });
-  assert.deepEqual(actual, { kind: 'mixed', count: 4, language: 'English', difficulty: 'application', focus: 'Original scope',
+  assert.deepEqual(actual, { kind: 'mixed', count: 4, language: 'English', difficulty: 'application', focus: 'Original scope', notation: 'auto',
     performance: { concurrency: 2, batchSize: 3, jobTimeoutMinutes: 40 } });
   assert.deepEqual(continuation, before);
   const legacy = resolveGenerationRequest({ ...expected, concurrency: 6, language: 'English', difficulty: 'advanced', focus: 'New setting' },
     { count: 2 }, { language: 'en', continuation: { kind: 'flashcard' } });
-  assert.deepEqual(legacy, { kind: 'flashcard', count: 2, language: '中文', difficulty: 'mixed', focus: '',
+  assert.deepEqual(legacy, { kind: 'flashcard', count: 2, language: '中文', difficulty: 'mixed', focus: '', notation: 'auto',
     performance: { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20 } });
 });
 
