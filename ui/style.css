@@ -45,7 +45,7 @@
   --accent: #c93d22;
   --accent-soft: #ec6a4a;
   --accent-ink: #fff8f2;
-  --accent-glow: #c93d2247;
+  --accent-glow: color-mix(in srgb, var(--accent) 28%, transparent);
   /* Accent-coloured words and links (AA on every surface). */
   --accent-text: #ec6a4a;
 
@@ -67,7 +67,7 @@
   --shadow-sm: 0 1px 2px #0000004d, 0 2px 8px -4px #00000080;
   --shadow-md: 0 14px 34px -20px #000000d9;
   --shadow-lg: 0 30px 70px -30px #000000f2;
-  --ring: 0 0 0 3px #c93d2240;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
 
   --font-ui: "Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC",
     "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
@@ -131,7 +131,7 @@
   --accent: #c03a1f;
   --accent-soft: #d44f2e;
   --accent-ink: #fffaf5;
-  --accent-glow: #c03a1f33;
+  --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
   --accent-text: #ad4025;
 
   --ok: #1e724d;
@@ -148,12 +148,12 @@
   --shadow-sm: 0 1px 2px #2a1c0e14, 0 2px 8px -4px #2a1c0e26;
   --shadow-md: 0 14px 34px -20px #2a1c0e38;
   --shadow-lg: 0 30px 70px -30px #2a1c0e45;
-  --ring: 0 0 0 3px #c03a1f33;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 
   color-scheme: light;
 }
 
-/* Card stock. Anything drawn on a card uses these, whatever the theme. */
+/* Card stock. Anything drawn on a card uses these, whatever the theme. The accent tints derive from --accent (the presets of accent.css change it). */
 .study-app :is(.today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta,
   .flash-area .card-progress, .flip-face, .exam-sheet) {
   --text: var(--paper-ink);
@@ -168,14 +168,14 @@
   --bg-surface: #20160c08;
   --bg-sunken: #20160c0d;
   --bg-raised: var(--paper);
-  --bg-selected: #c93d2214;
-  --accent-soft: #b3361c;
-  --accent-glow: #c93d2233;
+  --bg-selected: color-mix(in srgb, var(--accent) 8%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 89%, black);
+  --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
   --ok: #2c7a53;
   --warn: #93600f;
   --bad: #a8345f;
   --info: #3b6f9c;
-  --ring: 0 0 0 3px #c93d2233;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   color: var(--text);
   color-scheme: light;
 }
@@ -2522,6 +2522,8 @@
   }
   .md-math-display:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
   .md-math math { font-size: 1em; font-weight: 400; font-family: math, "Cambria Math", serif; }
+  /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
+  .md-math math:has(mphantom) { padding-inline-end: 0.2em; }
   .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
   .md-math-source { white-space: pre-wrap; }
   .md-image { display: inline-block; max-width: 100%; margin-block: 0.5em; vertical-align: middle; }

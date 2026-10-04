@@ -188,3 +188,10 @@ test('English: no Chinese in any state of the environment block or the window li
   assert.match(cloud, /Uses your saved token \(the token is never shown\)/);
   assert.match(cloud, /Up to 200 pages \/ 180 MB per piece · this book 96 MB/);
 });
+
+test('Marker environment does not display MinerU daemon states or restart instructions', () => {
+  const html = render(jobs([job({ converter: 'marker', env: { kind: 'local', windows: { kind: 'fixed', pages: 5 } }, service: { state: 'stopped' } })]));
+  assert.match(html, /本地 Marker/);
+  assert.doesNotMatch(html, /本地服务|重新启动|pdf-env__service/);
+  assert.match(html, /每次 5 页/);
+});

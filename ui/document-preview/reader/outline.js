@@ -19,6 +19,14 @@ const levelOf = node => Number(node.tagName[1]);
  * data-outline-id. Levels are relative to the shallowest heading, so a document that
  * starts at h2 still lists its top headings at level 1.
  */
+/** A heading's stored text: a drawn formula (a data-study-marker) is left out, its hidden source stays. */
+function headingText(node) {
+  if (!node.querySelector?.('[data-study-marker]')) return node.textContent;
+  const copy = node.cloneNode(true);
+  copy.querySelectorAll('[data-study-marker]').forEach(marker => marker.remove());
+  return copy.textContent;
+}
+
 export function collectHeadings(root, { max = 400 } = {}) {
   if (!root) return [];
   const nodes = [...root.querySelectorAll('h1,h2,h3,h4')].filter(node => !node.closest('[data-study-marker]') && node.textContent.trim());
@@ -26,7 +34,7 @@ export function collectHeadings(root, { max = 400 } = {}) {
   return nodes.slice(0, max).map((node, index) => {
     const id = `h-${index}`;
     node.dataset.outlineId = id;
-    return { id, level: levelOf(node) - base + 1, title: node.textContent.trim().replace(/\s+/g, ' ') };
+    return { id, level: levelOf(node) - base + 1, title: headingText(node).trim().replace(/\s+/g, ' ') };
   });
 }
 

@@ -22,7 +22,7 @@ test('a host without a component shows no category for it', () => {
   const ids = capabilities => categoriesFor(capabilities).map(category => category.id);
   assert.deepEqual(ids(full), SETTINGS_CATEGORIES.map(category => category.id));
   assert.ok(!ids({ generation: true, system: true }).includes('audio'));
-  assert.ok(!ids({ generation: true, system: true }).includes('mineru'));
+  assert.ok(ids({ generation: true, system: true }).includes('mineru'), 'external Marker remains available without the audio component');
   assert.ok(!ids({ audio: true, system: true }).includes('retrieval'));
   assert.ok(!ids({ audio: true, system: true }).includes('generation'));
   assert.ok(!ids({ audio: true, generation: true }).includes('usage'));
@@ -36,6 +36,7 @@ test('every deep link and tour anchor lands on its category', () => {
   assert.equal(categoryForAnchor('settings-nowhere'), null);
   assert.equal(categoryForAnchor('settings-science'), 'science');
   assert.equal(categoryForAnchor('settings-daily-recap'), 'daily-recap');
+  assert.equal(categoryForAnchor('settings-marker'), 'mineru');
   assert.equal(categoryForAnchor(''), null);
 });
 

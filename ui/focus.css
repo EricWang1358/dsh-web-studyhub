@@ -1,5 +1,12 @@
 .show-other-courses { margin: 14px 0 18px; padding: 6px 0; border: 0; background: transparent; color: var(--text-muted); font-size: 15px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
 .show-other-courses:hover:not(:disabled) { background: transparent; color: var(--text); text-decoration-color: var(--accent-soft); }
+.archive-explanation { margin: 0 0 12px; font-size: 14px; line-height: 1.6; }
+.archived-deck { display: flex; align-items: center; gap: 12px 24px; flex-wrap: wrap; padding: 14px 0; }
+.archived-deck__info { display: grid; gap: 4px; flex: 1 1 220px; min-width: 0; }
+.archived-deck__info strong { overflow-wrap: anywhere; font-size: 15px; }
+.archived-deck__info small { color: var(--text-muted); font-size: 14px; }
+.archived-deck__actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.study-app .archived-deck__actions .danger-text { color: var(--bad); }
 .role-prep { margin: -8px 0 18px; }
 .role-prep details { max-width: 640px; }
 .role-prep summary { cursor: pointer; color: var(--text-muted); font-size: 15px; }

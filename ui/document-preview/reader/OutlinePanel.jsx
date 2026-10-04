@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../../i18n.js';
 import { Icon } from '../../components/index.js';
 import { defaultExpanded, filterOutline, outlineRows } from './outline.js';
 import { MasteryMark } from '../practice/MasteryMark.jsx';
+import MathText from '../../MathText.jsx';
 
 /* A filter box appears once the outline is too long to scan by eye. */
 const FILTER_FROM = 12;
@@ -59,7 +60,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
             <button type="button" className="reader-outline__link" aria-current={item.id === current ? 'location' : undefined}
               title={[name(item), filtering && item.trail?.length ? item.trail.join(' › ') : ''].filter(Boolean).join('\n')} onClick={() => onJump(item)}>
               {label && <span className="reader-outline__label">{label}</span>}
-              {item.title && <span className="reader-outline__title">{item.title}</span>}
+              {item.title && <span className="reader-outline__title"><MathText text={item.title} /></span>}
               {filtering && item.trail?.length > 0 && <small className="reader-outline__trail">{item.trail.at(-1)}</small>}
             </button>
             {/* 资料掌握度 of this entry (and what is below it); present only when the document has questions at all. */}
