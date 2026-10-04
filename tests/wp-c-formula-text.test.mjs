@@ -144,7 +144,8 @@ test('the plain-text notation (公式写法 text) keeps Unicode math as written 
   assert.deepEqual(deck.cards[0].options.map(option => option.text), ['5√4', '√26', '5√2']);
   assert.equal(deck.cards[0].prompt, '化简 √8+√18，当 x≠1 时，H₂SO₄ 的 a/b。');
   assert.equal(deck.cards[0].explanation, '得到 x² 与 TeX a²。', 'TeX and caret powers become Unicode in the text notation');
-  assert.equal(formulaIssues({ cards: [goodCard({ prompt: '化简 √8+√18，当 x≠1 时，H2SO4 的 a/b。' })] }, { notation: 'text' }).length, 0);
+  assert.equal(formulaIssues({ cards: [goodCard({ prompt: '化简 √8+√18，当 x≠1 时，H₂SO₄ 的 a/b。' })] }, { notation: 'text' }).length, 0);
+  assert.equal(formulaIssues({ cards: [goodCard({ prompt: '由 2 个 H⁺ 与 1 个 SO42− 组成' })] }, { notation: 'text' }).length, 1, 'an ambiguous ion is a defect in either notation');
   assert.equal(formulaIssues({ cards: [goodCard({ prompt: '化简 √8+√18' })] }).length, 1);
   assert.equal(formulaIssues({ cards: [goodCard({ prompt: 'bare a^{2} here' })] }, { notation: 'text' }).length, 1);
   const request = { count: 1, kind: 'quiz', sources: [source], notation: 'text' };

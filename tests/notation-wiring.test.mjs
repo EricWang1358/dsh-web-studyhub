@@ -11,6 +11,10 @@ test("text notation turns TeX and chemistry into Unicode instead of wrapping the
   assert.equal(wrapBareMath("$x^{2}+1$", "text"), "x²+1");
   assert.equal(wrapBareMath("硫酸为 H2SO4，由 2 个 H+ 组成", "text").includes("H₂SO₄"), true);
   assert.equal(wrapBareMath("$5\\sqrt{2}$", "text"), "5√2");
+  assert.equal(wrapBareMath("由1个H+与1个HSO4-组成，OH-与NH4+", "text"), "由1个H⁺与1个HSO₄⁻组成，OH⁻与NH₄⁺");
+  assert.equal(wrapBareMath("C++ 和 A/B 测试", "text"), "C++ 和 A/B 测试");
+  // an ambiguous ion is not guessed at; the gate sends it back to the model
+  assert.equal(wrapBareMath("1个SO42−", "text"), "1个SO42−");
   // latex keeps the opposite direction
   assert.equal(wrapBareMath("5√2", "latex"), "$5\\sqrt{2}$");
 });
