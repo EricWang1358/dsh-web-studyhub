@@ -40,12 +40,12 @@ export function ScopeBar({ session, resources, disabled, onRescope, onStartNew }
     if (resources.rescope?.allowed === false) setAsking(next);
     else onRescope?.(next);
   };
-  const topicLine = shown ? `${shown}${total > 4 ? uiFormat(" 等 {0} 个主题", [total]) : ""}` : "";
+  const topicLine = shown ? (total > 4 ? uiFormat("{0} 等 {1} 个主题", [shown, total]) : shown) : "";
   return <div className="wf-scope">
     <p className={`wf-scope-line${fallback ? " is-fallback" : ""}`} title={topics.join("、")}>
       {named ? <span>{scopeSentence(session, course, total, session.goal)}</span>
         : <span>{ui(PICKED[session.pickedBy]) || ui("本次范围")}{topicLine ? "：" : ""}{!named && topicLine}</span>}
-      {resources.cardCount > 0 && <span className="wf-scope-count">{` · ${resources.cardCount}${ui(" 题")}`}</span>}
+      {resources.cardCount > 0 && <span className="wf-scope-count"><span aria-hidden="true"> · </span>{uiFormat("{0} 题", [resources.cardCount])}</span>}
     </p>
     {named && topicLine && <p className="wf-scope-topics" title={(resources.scopeDecks || []).join("、")}>{session.pickedBy === "course" ? ui("先从这些主题学起：") : ""}{topicLine}</p>}
     {session.aiFailed && <p className="wf-scope-note">{ui("模型暂时不可用，已按名称匹配主题")}</p>}
@@ -78,7 +78,7 @@ export const Readings = React.memo(function Readings({ resources }) {
   useInjectCss(css, "study-workflow-scope");
   const titles = new Map((resources.sources || []).map((source) => [source.id, source.title]));
   if (!resources.readings?.length) return <p className="muted">{ui("本次范围还没有关联资料。可以请主对话围绕这个主题补充讲解，或把自己的资料写在笔记里。")}</p>;
-  return <details className="wf-readings"><summary>{ui("参考已有题解与引用材料 ")}<span className="muted">{resources.readings.length}{ui(" 条")}</span></summary>
+  return <details className="wf-readings"><summary>{ui("参考已有题解与引用材料")} <span className="muted">{uiFormat("{0} 条", [resources.readings.length])}</span></summary>
     <p className="muted small">{ui("这些是所选范围内的现有内容，可请主对话整理成连贯讲解。")}</p>
     {resources.readings.map((reading, index) => <article key={`${reading.deckId}:${reading.cardId}`}>
       <h4>{index + 1}. {reading.topic || ui("参考材料")}</h4>

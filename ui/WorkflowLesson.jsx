@@ -16,7 +16,7 @@ const IMPROVE = ["太抽象", "步骤跳跃", "例子不够", "依据不清"];
 
 function TeachingCitations({ citations, sources }) {
   if (!citations?.length) return null;
-  return <details className="wf-readings"><summary>{ui("这篇讲解的资料依据 · ")}{citations.length}{ui(" 处")}</summary>{citations.map((ref, index) => <blockquote key={index}><p>{ref.quote}</p><cite>{sources?.find(source => source.id === ref.sourceId)?.title || ui("关联资料")}</cite></blockquote>)}</details>;
+  return <details className="wf-readings"><summary>{uiFormat("这篇讲解的资料依据 · {0} 处", [citations.length])}</summary>{citations.map((ref, index) => <blockquote key={index}><p>{ref.quote}</p><cite>{sources?.find(source => source.id === ref.sourceId)?.title || ui("关联资料")}</cite></blockquote>)}</details>;
 }
 
 export default function WorkflowLesson({ topic, content, record, resources, disabled, onTeach, onUndo, call, sessionId, stepId }) {
@@ -44,7 +44,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
     </aside>}
     <header className="wf-teaching-heading"><div><span className="wf-eyebrow">{ui("围绕主题，连起来学")}</span><h3>{content ? ui("本步讲解") : ui("从一篇完整讲解开始")}</h3></div>{content && <span className="wf-reading-label">{ui("阅读 · 理解 · 应用")}</span>}<ReadingSettingsButton className="wf-reading" /></header>
     {content ? <TeachingArticle content={content} /> : <div className="wf-teaching-empty">
-      <p>{ui("把「")}{topic}{ui("」的概念、原理和例子连成一条线，再看看它适用于什么情境。")}</p>
+      <p>{uiFormat("把「{0}」的概念、原理和例子连成一条线，再看看它适用于什么情境。", [topic])}</p>
       <p className="muted">{ui("结合本次材料，生成可直接阅读的讲解；有公式或推导时逐步展开。")}</p>
       {!running && <button type="button" className="primary" disabled={blocked} onClick={() => onTeach("lesson")}>{ui("生成完整讲解")}</button>}
       {!running && <TokenEstimate call={call} action="workflow.teaching.estimate" enabled={!!call && !!sessionId} request={{ id: sessionId, stepId, mode: "lesson" }} />}

@@ -11,7 +11,7 @@ import useIndexCoverage from './use-index-coverage.js';
 import GenerationPath from './GenerationPath.jsx';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
-import { Button, Disclosure, EmptyState, PageHeader, SegmentedControl } from './components/index.js';
+import { Button, Disclosure, EmptyState, InlineMessage, PageHeader, SegmentedControl } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
@@ -314,7 +314,7 @@ export default function Generate({
                 format={gen.referenceFormat} onFormatChange={referenceFormat => setGen({ ...gen, referenceFormat })}
                 onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
                 courses={data.focus?.courses} busy={busy} />
-              {selectedPdfPages > Number(gen.count) && <p className="warning" role="status">{ui("已选 ")}{selectedPdfPages}{ui(" 页 PDF，计划生成 ")}{gen.count}{ui(" 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。")}</p>}
+              {selectedPdfPages > Number(gen.count) && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。", [selectedPdfPages, gen.count])}</InlineMessage>}
               <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、公式写法、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
                 <div className="generate-rows">
                   <FormRow label={ui("公式写法")}>
@@ -345,8 +345,8 @@ export default function Generate({
                   course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
-                {advice.blocked && <p className="warning" role="status">{advice.needsTopic ? ui("所选资料太大。先在「这次想练什么？」写下主题，再生成。")
-                  : ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</p>}
+                {advice.blocked && <InlineMessage tone="warning">{advice.needsTopic ? ui("所选资料太大。先在「这次想练什么？」写下主题，再生成。")
+                  : ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
                 <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason}
                   data-tour="generate-submit" data-usage="generate.submit">

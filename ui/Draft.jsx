@@ -1,5 +1,9 @@
 import { ui, uiFormat } from "./i18n.js";
+import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
+import { Banner, Button, Disclosure, Hint } from "./components/index.js";
+import { isActiveJob, isCancellable } from "./job-visibility.js";
+import { JOB_STATUS } from "../lib/job-status.js";
 import { kinds } from "./shared.js";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { readableQualityIssue } from "./quality.js";
@@ -89,10 +93,10 @@ export default function Draft({
     ? ui("保存并更新题组 →")
     : draft.editorial?.repairOfDeckId ? ui("保存并补发到原题组 →") : ui("保存并发布 →");
   const repairJob = data.jobs?.find((job) => job.draftId === draft.id &&
-    job.type === "draft-repair" && ["queued", "running", "cancelling"].includes(job.status));
+    job.type === "draft-repair" && isActiveJob(job));
   const repairRunning = !!repairJob;
   const publishJob = data.jobs?.find((job) => job.draftId === draft.id &&
-    job.type === "draft-publish" && ["queued", "running"].includes(job.status));
+    job.type === "draft-publish" && isCancellable(job));
   const latestDraft = data.drafts.find((item) => item.id === draft.id);
   const missingDraft = draft.draftVersion > 0 && !latestDraft;
   const staleDraft = latestDraft && latestDraft.draftVersion !== draft.draftVersion;
@@ -109,7 +113,7 @@ export default function Draft({
     try {
       copy = structuredClone(jsonMode ? parseDraft(draftText) : draft);
     } catch (error) {
-      setError(ui("JSON 格式不正确：") + error.message);
+      setError(uiFormat("JSON 格式不正确：{0}", [error.message]));
       return;
     }
     copy.id = crypto.randomUUID();
@@ -126,7 +130,7 @@ export default function Draft({
       try {
         setDraft(parseDraft(draftText));
       } catch (error) {
-        setError(ui("JSON 格式不正确：") + error.message);
+        setError(uiFormat("JSON 格式不正确：{0}", [error.message]));
         return;
       }
     }
@@ -144,7 +148,7 @@ export default function Draft({
       {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
       </label>}
       {!jsonMode && draft.format === "case-study" && <CaseDraftHeader draft={draft} data={data} />}
-      <p className="draft-count">{ui("当前草稿 ")}<strong>{draft.cards.length}</strong>{ui(" 题")}{unsavedDraft && <span>{ui(" · 有未保存修改")}</span>}</p>
+      <p className="draft-count">{uiRich("当前草稿 {0} 题", <strong>{draft.cards.length}</strong>)}{unsavedDraft && <><span aria-hidden="true"> · </span><span>{ui("有未保存修改")}</span></>}</p>
       <div className="sticky-actions" data-tour="draft-publish">
         <button
           disabled={busy || updatingDraft || staleDraft || missingDraft}
@@ -221,133 +225,123 @@ export default function Draft({
             : updatingDraft ? ui("删除草稿并停止任务") : ui("删除草稿")}
         </button>
       </div>
-      {staleDraft && unsavedDraft && <div className="quality-note warning" role="status">
-        <strong>{ui("草稿已在后台更新")}</strong>
-        <p>{ui("载入最新草稿可查看修题结果。本页尚未保存的修改会被替换。")}</p>
-        <button type="button" onClick={() => openDraft(latestDraft)}>{ui("载入最新草稿")}</button>
-      </div>}
-      {missingDraft && <div className="quality-note warning" role="status">
-        <strong>{ui("这份草稿已删除或发布")}</strong>
-        <p>{ui("当前页面是旧版本，无法继续保存。可以把页面中的内容另存为独立的新草稿，发布前会重新检查。")}</p>
-        <button type="button" disabled={busy} onClick={saveAsNewDraft}>{ui("另存为新草稿")}</button>
-      </div>}
-      {staleDraft && !unsavedDraft && <p className="quality-note" role="status">
-        {updatingDraft ? ui("后台修题正在更新草稿，完成后会自动载入。") : ui("正在载入后台修好的题目…")}
-      </p>}
-      {updatingDraft && !staleDraft && <p className="quality-note" role="status">
-        {publishJob ? publishJob.stage : ui("后台任务正在更新这份草稿，完成后可继续保存或发布。")}
-      </p>}
-      {activeReview && <p className="quality-note warning" role="status">{ui("原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。")}</p>}
-      {rejectedCount > 0 && unsavedDraft && !staleDraft && <p className="quality-note warning" role="status">{ui("当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。")}</p>}
-      {shortBlock && <div className="quality-note warning draft-shortfall" role="status">
-        <strong>{uiFormat("比计划少 {0} 题", [missing])}</strong>
-        <ShortfallReasons draft={draft} />
-        <OmittedQuestions draft={draft} />
-        <DraftTopUp draft={draft} jobs={data.jobs} busy={busy || unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} call={call} onContinue={continueDraft} />
-        {unsavedDraft && <small className="muted">{ui("先保存草稿，再补题。")}</small>}
-      </div>}
+      <div className="draft-notices">
+        {staleDraft && unsavedDraft && <Banner tone="warning" role="status" title={ui("草稿已在后台更新")}
+          action={{ label: ui("载入最新草稿"), onClick: () => openDraft(latestDraft) }}>
+          {ui("载入最新草稿可查看修题结果。本页尚未保存的修改会被替换。")}
+        </Banner>}
+        {missingDraft && <Banner tone="warning" role="status" title={ui("这份草稿已删除或发布")}
+          action={{ label: ui("另存为新草稿"), disabled: busy, onClick: saveAsNewDraft }}>
+          {ui("当前页面是旧版本，无法继续保存。可以把页面中的内容另存为独立的新草稿，发布前会重新检查。")}
+        </Banner>}
+        {staleDraft && !unsavedDraft && <Banner tone="info" role="status">
+          {updatingDraft ? ui("后台修题正在更新草稿，完成后会自动载入。") : ui("正在载入后台修好的题目…")}
+        </Banner>}
+        {updatingDraft && !staleDraft && <Banner tone="info" role="status">
+          {publishJob ? publishJob.stage : ui("后台任务正在更新这份草稿，完成后可继续保存或发布。")}
+        </Banner>}
+        {activeReview && <Banner tone="warning" role="status">{ui("原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。")}</Banner>}
+        {rejectedCount > 0 && unsavedDraft && !staleDraft && <Banner tone="warning" role="status">{ui("当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。")}</Banner>}
+        {shortBlock && <Banner tone="warning" role="status" className="draft-shortfall" title={uiFormat("比计划少 {0} 题", [missing])}>
+          <ShortfallReasons draft={draft} />
+          <OmittedQuestions draft={draft} />
+          <DraftTopUp draft={draft} jobs={data.jobs} busy={busy || unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} call={call} onContinue={continueDraft} />
+          {unsavedDraft && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
+        </Banner>}
+      </div>
       <details className="draft-generation-details">
-        <summary>{ui("生成详情")}{draft.editorial?.failures?.length ? uiFormat(" · {0} 条生成记录", [draft.editorial.failures.length]) : ""}</summary>
+        <summary>{draft.editorial?.failures?.length ? uiFormat("生成详情 · {0} 条生成记录", [draft.editorial.failures.length]) : ui("生成详情")}</summary>
       {draft.editorial && (
         <>
-          {draft.editorial.summary && <details className="quality-note editorial-summary">
-            <summary>{ui("生成审阅摘要 · 点击展开")}</summary>
+          {draft.editorial.summary && <Disclosure className="editorial-summary" summary={ui("生成审阅摘要 · 点击展开")}>
             <p>{draft.editorial.summary}</p>
-          </details>}
+          </Disclosure>}
           {experimentalShown(data) && <JevDecidedNote decided={draft.editorial.jevDecided} />}
-          <p className="quality-note"><small>
-              {reviewStatus
-                ? uiFormat("{0} / {1} 题与上次模型审阅时一致。", [reviewStatus.unchanged, reviewStatus.total])
-                : ui("这份草稿没有可核对的逐题审阅版本。")}
-              {needsReview > 0
-                ? uiFormat(" {0} 题未经过模型审阅。", [needsReview])
-                : ""}
-          </small></p>
+          <Hint>
+            {[reviewStatus
+              ? uiFormat("{0} / {1} 题与上次模型审阅时一致。", [reviewStatus.unchanged, reviewStatus.total])
+              : ui("这份草稿没有可核对的逐题审阅版本。"),
+            needsReview > 0 ? uiFormat("{0} 题未经过模型审阅。", [needsReview]) : ""].filter(Boolean).join(" ")}
+          </Hint>
         </>
       )}
-      {!draft.editorial && <p className="quality-note" role="status">{ui("这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。")}</p>}
-      {selfCited > 0 && <p className="quality-note warning" role="status">
-        {selfCited}{ui(" 道题只引用了导入的题目自身。模型可以检查题目是否自洽，但无法据此独立核实答案；如需事实依据，请把引用换成原始资料。")}</p>}
-      {draft.editorial?.requested && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit && <p>{ui("本次生成通过检查 ")}{draft.editorial.generated ?? draft.cards.length} / {draft.editorial.requested}{ui(" 题；当前草稿 ")}{draft.cards.length}{ui(" 题。")}</p>}
-      {incomplete && <p className="warning" role="status">
-        {generating ? ui("仍在生成") : ui("本次生成已中断")}{ui("：已完成 ")}{draft.editorial.completedParts} / {draft.editorial.parts}{ui(" 批。当前草稿只包含已保存的题目；其余批次尚未完成检查。")}</p>}
-      {audits.map((audit, i) => <details key={i}>
-        <summary>{ui("质量自查记录 · 第 ")}{audit.part || i + 1}{ui(" 批 · 主动改写 ")}{audit.changes.length}{ui(" 项")}</summary>
-        <p className="muted">{ui("已规划 ")}{audit.targets.length}{ui(" 个考点；独立验收逐题检查自足性、泄题风险、选项质量、学习价值和证据支持。这是生成时的检查记录。")}</p>
+      {!draft.editorial && <Banner tone="info" role="status">{ui("这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。")}</Banner>}
+      {selfCited > 0 && <Banner tone="warning" role="status">
+        {uiFormat("{0} 道题只引用了导入的题目自身。模型可以检查题目是否自洽，但无法据此独立核实答案；如需事实依据，请把引用换成原始资料。", [selfCited])}</Banner>}
+      {draft.editorial?.requested && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit && <p>{uiFormat("本次生成通过检查 {0} / {1} 题；当前草稿 {2} 题。", [draft.editorial.generated ?? draft.cards.length, draft.editorial.requested, draft.cards.length])}</p>}
+      {incomplete && <Banner tone="warning" role="status">
+        {uiFormat("{0}：已完成 {1} / {2} 批。当前草稿只包含已保存的题目；其余批次尚未完成检查。", [generating ? ui("仍在生成") : ui("本次生成已中断"), draft.editorial.completedParts, draft.editorial.parts])}</Banner>}
+      {audits.map((audit, i) => <Disclosure key={i} summary={uiFormat("质量自查记录 · 第 {0} 批 · 主动改写 {1} 项", [audit.part || i + 1, audit.changes.length])}>
+        <p className="muted">{uiFormat("已规划 {0} 个考点；独立验收逐题检查自足性、泄题风险、选项质量、学习价值和证据支持。这是生成时的检查记录。", [audit.targets.length])}</p>
         <ul>{audit.changes.filter((change) => typeof change?.summary === "string").map((change, index) => <li key={index}>{change.summary}</li>)}</ul>
         <ul>{audit.checks.filter((check) => typeof check?.explanation === "string").map((check, index) => <li key={index}>{check.explanation}</li>)}</ul>
-      </details>)}
-      {failureLines.length > 0 && <details className="warning">
-        <summary>{ui("部分题目未生成成功，合格题目已保留")}</summary>
-        <ul>{failureLines.map((line, i) => <li key={i}>{line}</li>)}</ul>
-      </details>}
+      </Disclosure>)}
+      {failureLines.length > 0 && <Banner tone="warning" title={ui("部分题目未生成成功，合格题目已保留")}>
+        <Disclosure summary={ui("查看记录")}><ul>{failureLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
+      </Banner>}
       {!shortBlock && <OmittedQuestions draft={draft} />}
-      {rejectedCount > 0 && <div className="quality-note warning" role="status">
-        <strong>{rejectedCount}{ui(" 道题待处理")}{retryPublishCount > 0 ? uiFormat(" · {0} 道待重新检查发布", [retryPublishCount]) : ""}</strong>
-        <p>{draft.editorial?.partialEdit
+      {rejectedCount > 0 && <Banner tone="warning" role="status"
+        title={retryPublishCount > 0 ? uiFormat("{0} 道题待处理 · {1} 道待重新检查发布", [rejectedCount, retryPublishCount]) : uiFormat("{0} 道题待处理", [rejectedCount])}>
+        <p>{[draft.editorial?.partialEdit
           ? ui("通过检查的修改已更新到原题组；未通过的修改留在草稿。原有题目仍按旧内容供学习，新加的题尚未发布。")
           : draft.editorial?.repairOfDeckId
             ? ui("先前通过检查的题目已发布；当前草稿中的题目尚未发布。")
-            : ui("当前草稿中的题目尚未发布。")}
-          {retryPublishCount > 0 && ui(" 可点击「保存并发布」重新检查其余题目。")}
-          {ui(" 待处理题目可自行修改，或选择交给后台修题。")}</p>
-        {publishedDeck && <p>{ui("已发布题组「")}{publishedDeck.title}{ui("」现有 ")}{publishedDeck.count}{ui(" 题。")}{" "}
-          <button type="button" disabled={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</button>
+            : ui("当前草稿中的题目尚未发布。"),
+        retryPublishCount > 0 && ui("可点击「保存并发布」重新检查其余题目。"),
+        ui("待处理题目可自行修改，或选择交给后台修题。")].filter(Boolean).join(" ")}</p>
+        {publishedDeck && <p>{uiFormat("已发布题组「{0}」现有 {1} 题。", [publishedDeck.title, publishedDeck.count])}{" "}
+          <Button variant="link" size="sm" disabled={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>
         </p>}
-        <details><summary>{ui("查看待处理问题")}</summary>
+        <Disclosure summary={ui("查看待处理问题")}>
           <ul>{rejectedCards.map((card) =>
             <li key={card.id}><strong>{card.prompt || ui("问题尚未填写")}</strong>：{rejectedIssues[card.id]
               .map((issue) => readableQualityIssue(issue).replace(/^第 \d+ 题：/, "")).join("；")}</li>)}</ul>
-        </details>
+        </Disclosure>
         {missingRepairEvidence > 0 && <p>
-          {missingRepairEvidence}{ui(" 题没有可定位的资料。请先在题目中添加引用来源；")}{repairableCount > 0 ? uiFormat("后台仍可先处理其余 {0} 题。", [repairableCount]) : ui("补充后才能启动后台修题。")}
+          {uiFormat("{0} 题没有可定位的资料。请先在题目中添加引用来源；{1}", [missingRepairEvidence, repairableCount > 0 ? uiFormat("后台仍可先处理其余 {0} 题。", [repairableCount]) : ui("补充后才能启动后台修题。")])}
         </p>}
-        <button type="button" disabled={busy || repairRunning || staleDraft || unsavedDraft || !data.modelReady || !repairableCount}
-          title={unsavedDraft ? ui("先保存草稿") : !data.modelReady ? ui("先在设置中选择模型") : !repairableCount ? ui("先给待处理题目添加引用来源") : ui("后台逐题修复并独立复审")}
-          onClick={() => act("draft.repair", { id: draft.id, draftVersion: draft.draftVersion },
-            () => setNotice(ui("后台修题已启动；完成后可回来发布通过的题目。")))}>
-          {repairRunning ? ui("后台修题中…") : ui("交给后台修题")}
-        </button>
-        {repairJob && <button type="button" disabled={busy || repairJob.status === "cancelling"}
-          onClick={() => act("job.cancel", { jobId: repairJob.id },
-            () => setNotice(ui("正在停止后台修题；已修好的题目会保留在草稿中。")))}>
-          {repairJob.status === "cancelling" ? ui("正在停止修题…") : ui("停止修题，保留草稿")}
-        </button>}
-      </div>}
-      {previousLines.length > 0 && <details className="warning">
-        <summary>{ui("之前未完成的批次")}</summary>
-        <ul>{previousLines.map((line, i) => <li key={i}>{line}</li>)}</ul>
-      </details>}
-      {draft.editorial?.coverage && <details>
-        <summary>{ui("逐份资料出题记录 · 已引用 ")}{draft.editorial.coverage.cited} / {draft.editorial.coverage.selected}{ui(" 份")}</summary>
+        <div className="draft-banner__actions">
+          <Button size="sm" disabled={busy || repairRunning || staleDraft || unsavedDraft || !data.modelReady || !repairableCount}
+            title={unsavedDraft ? ui("先保存草稿") : !data.modelReady ? ui("先在设置中选择模型") : !repairableCount ? ui("先给待处理题目添加引用来源") : ui("后台逐题修复并独立复审")}
+            onClick={() => act("draft.repair", { id: draft.id, draftVersion: draft.draftVersion },
+              () => setNotice(ui("后台修题已启动；完成后可回来发布通过的题目。")))}>
+            {repairRunning ? ui("后台修题中…") : ui("交给后台修题")}
+          </Button>
+          {repairJob && <Button size="sm" variant="quiet" disabled={busy || repairJob.status === JOB_STATUS.CANCELLING}
+            onClick={() => act("job.cancel", { jobId: repairJob.id },
+              () => setNotice(ui("正在停止后台修题；已修好的题目会保留在草稿中。")))}>
+            {repairJob.status === JOB_STATUS.CANCELLING ? ui("正在停止修题…") : ui("停止修题，保留草稿")}
+          </Button>}
+        </div>
+      </Banner>}
+      {previousLines.length > 0 && <Banner tone="warning" title={ui("之前未完成的批次")}>
+        <Disclosure summary={ui("查看记录")}><ul>{previousLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
+      </Banner>}
+      {draft.editorial?.coverage && <Disclosure summary={uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 份", [draft.editorial.coverage.cited, draft.editorial.coverage.selected])}>
         <p className="muted">{ui("“规划”是模型选出的考点次数，“通过”是最终引用该资料的合格题数；即使有题，也不代表整页或全部知识点都已覆盖。")}</p>
         {coveredSources.length > 0 && <ul>{coveredSources.map((source) => <li key={source.id}>
-          {source.title}{ui("：规划 ")}{source.planned}{ui(" 个考点，通过 ")}{source.accepted}{ui(" 题")}</li>)}</ul>}
-        {untestedSourceIds.length > 0 && !generating && <button type="button" disabled={busy}
+          {uiFormat("{0}：规划 {1} 个考点，通过 {2} 题", [source.title, source.planned, source.accepted])}</li>)}</ul>}
+        {untestedSourceIds.length > 0 && !generating && <Button size="sm" disabled={busy}
           onClick={() => {
             setSelectedSources(untestedSourceIds);
             setGenSource("files");
             setPage("generate");
-          }}>{ui("用未覆盖的 ")}{untestedSourceIds.length}{ui(" 份资料补题 →")}</button>}
-        {uncoveredSources.length > 0 && <details>
-          <summary>{uncoveredSources.length}{ui(" 份资料本次没有合格题 · 查看清单")}</summary>
+          }}>{uiFormat("用未覆盖的 {0} 份资料补题 →", [untestedSourceIds.length])}</Button>}
+        {uncoveredSources.length > 0 && <Disclosure summary={uiFormat("{0} 份资料本次没有合格题 · 查看清单", [uncoveredSources.length])}>
           <ul>{uncoveredSources.map((source) => <li key={source.id}>
             {source.title}{source.planned ? uiFormat("：规划 {0} 个考点", [source.planned]) : ""}
           </li>)}</ul>
-        </details>}
-      </details>}
-      {draft.quality?.warnings?.map((w, i) => (
-        <p className="warning" key={i}>
-          {w}
-        </p>
-      ))}
-      {draft.quality?.errors?.length > 0 && <details className="quality-note warning">
-        <summary>{draft.quality.errors.length}{ui(" 项题目问题 · 查看详情")}</summary>
-        <ul>{draft.quality.errors.map((issue, index) => <li key={index}>{readableQualityIssue(issue)}</li>)}</ul>
-      </details>}
+        </Disclosure>}
+      </Disclosure>}
+      {draft.quality?.warnings?.map((w, i) => <Banner tone="warning" key={i}>{w}</Banner>)}
+      {draft.quality?.errors?.length > 0 && <Banner tone="warning" title={uiFormat("{0} 项题目问题", [draft.quality.errors.length])}>
+        <Disclosure summary={ui("查看详情")}>
+          <ul>{draft.quality.errors.map((issue, index) => <li key={index}>{readableQualityIssue(issue)}</li>)}</ul>
+        </Disclosure>
+      </Banner>}
       </details>
       {!jsonMode && <div className="draft-edit-heading">
-        <div><h2>{ui("题目")}</h2><span>{draft.cards.length}{ui(" 题 · 按需展开编辑")}</span></div>
+        <div><h2>{ui("题目")}</h2><span>{uiFormat("{0} 题 · 按需展开编辑", [draft.cards.length])}</span></div>
         <details className="draft-advanced">
           <summary>{ui("高级编辑")}</summary>
           <button type="button" onClick={toggleJsonMode}>{ui("JSON 编辑")}</button>
@@ -453,7 +447,7 @@ export default function Draft({
                       }
                     />{ui("正确选项")}</label>
                   <input
-                    aria-label={ui("选项 ") + o.id}
+                    aria-label={uiFormat("选项 {0}", [o.id])}
                     value={o.text}
                     onChange={(e) =>
                       patchCard(
@@ -468,7 +462,7 @@ export default function Draft({
                     }
                   />
                   <textarea
-                    aria-label={ui("选项解析 ") + o.id}
+                    aria-label={uiFormat("选项解析 {0}", [o.id])}
                     value={o.explanation}
                     onChange={(e) =>
                       patchCard(
@@ -489,7 +483,7 @@ export default function Draft({
               {["quiz", "multi"].includes(q.kind) && <button type="button"
                 disabled={(q.options?.length || 0) >= 6}
                 onClick={() => patchCard(i, "options", [...(q.options || []),
-                  { id: crypto.randomUUID(), text: "", correct: false, explanation: "" }])}>{ui("＋ 添加选项（")}{q.options?.length || 0}/6）
+                  { id: crypto.randomUUID(), text: "", correct: false, explanation: "" }])}>{uiFormat("＋ 添加选项（{0}/6）", [q.options?.length || 0])}
               </button>}
               <button
                 disabled={draft.cards.length <= 1}

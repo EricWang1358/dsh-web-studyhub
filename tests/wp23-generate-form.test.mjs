@@ -235,7 +235,7 @@ test("a live summary sits above the one primary button", () => {
 test("the PDF page warning, tour anchors and the gate keep working", () => {
   const pdf = [1, 2, 3, 4].map((page) => ({ id: `p${page}`, title: `s.pdf · p.${page}`, text: "x".repeat(500), courses: ["数据库"], document: { id: "h".repeat(64), format: "pdf", page } }));
   const html = render({ sources: pdf }, { selectedSources: pdf.map((page) => page.id), gen: { ...gen, count: 2 } });
-  assert.match(html, /role="status"[^>]*>已选 4 页 PDF，计划生成 2 题。题数少于页数/);
+  assert.match(html, /sh-inline--warning[^>]*role="status"[^>]*>(?:(?!<\/div>).)*已选 4 页 PDF，计划生成 2 题。题数少于页数/s);
   assert.match(html, /data-tour="generate-submit"/);
   const gated = render({ modelReady: false });
   assert.match(gated, /sh-setup/);
