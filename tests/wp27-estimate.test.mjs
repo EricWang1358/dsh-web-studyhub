@@ -55,7 +55,7 @@ test('question generation prices evidence per group and answer design, authoring
   assert.equal(result.calls.low, groups + 3 * planned.length, 'evidence per group, answer design, author and review per batch');
   const quiz = estimateRun('generate', { ...base, kind: 'quiz', sources });
   assert.equal(quiz.calls.low, 11, 'two evidence groups and three batches with answer design, authoring and review');
-  assert.equal(result.calls.high, result.calls.low + groups + planned.length, 'evidence and answer design may each receive one correction');
+  assert.equal(result.calls.high, result.calls.low + groups + planned.length + planned.length * 5, 'evidence and answer design may each receive one correction; a part may add a patch call and review and a reserve top-up');
   const ids = result.stages.map((stage) => stage.id);
   assert.deepEqual([...new Set(ids)].sort(), ['author', 'blueprint', 'plan', 'review']);
   assert.equal(result.stages.find((stage) => stage.id === 'plan').calls, groups);
@@ -75,7 +75,7 @@ test('the estimate prices the very strings the pipeline sends', async () => {
   assert.ok(actual >= estimate.inputTokens.low && actual <= estimate.inputTokens.high, `sent ${actual} outside ${range(estimate.inputTokens)}`);
   // The planning call of the first chunk is built by the same function the estimate uses.
   const first = planGeneration({ sources, count: 10, kind: 'quiz' })[0];
-  const plan = planPrompts({ ...request, sources: first.sources, count: 7, kind: 'quiz', existing: [] });
+  const plan = planPrompts({ ...request, sources: first.sources, count: 9, kind: 'quiz', existing: [] }); // 7 questions plus the 2 reserve targets
   const recorded = sent.find((call) => call.system === plan.system && call.prompt === plan.prompt);
   assert.ok(recorded, 'planPrompts is what generateBatched sends');
   assert.ok(typeof authorPrompts === 'function' && typeof reviewPrompts === 'function');

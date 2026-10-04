@@ -53,7 +53,8 @@ test("the batched draft collects every part's dropped questions with their part 
     if (system.startsWith("Plan a source-grounded assessment")) return JSON.stringify(qualityPlan(JSON.parse(prompt.split("REQUEST DATA:\n")[1])));
     if (system.startsWith("Act as a strict assessment editor")) {
       const candidate = JSON.parse(prompt).candidate, review = qualityReview(candidate);
-      review.checks.forEach((check) => { if (check.cardId === "q2") check.optionQuality = "na", check.sourceSupport = "fail"; });
+      // The reserve target the part now tops up from (lib/generation-yield.js) is rejected too: this test is about what a dropped candidate reports.
+      review.checks.forEach((check) => { if (check.cardId === "q2" || check.cardId.startsWith("reserve-")) check.optionQuality = "na", check.sourceSupport = "fail"; });
       return JSON.stringify(review);
     }
     const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
