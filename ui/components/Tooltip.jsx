@@ -10,6 +10,8 @@ const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayout
 
 const HOVER_DELAY = 250, PRESS_DELAY = 500, TOUCH_LINGER = 3000, LEAVE_DELAY = 150;
 const chain = (own, extra) => event => { own?.(event); extra(event); };
+// The open tooltip of each `group`: opening one closes the one before at once, so two cards are never on screen together.
+const openInGroup = new Map();
 
 /**
  * Words for a control, shown on hover, on keyboard focus and on a long press,
@@ -22,14 +24,26 @@ const chain = (own, extra) => event => { own?.(event); extra(event); };
  * its anchor on scroll and resize. anchorClassName: a class for the wrapping span.
  * interactive: the pointer may move onto the card (to scroll long text) without closing it; the card then takes pointer events.
  * placement may also be 'left-start' and friends (beside the anchor, layer only; see computePlacement).
+ * group: tooltips of one group are mutually exclusive (entering another anchor of the group, or opening it, closes this one at once).
+ * outside: a selector of an ancestor the card keeps clear of when it opens beside the anchor (layer only): it is placed outside that
+ * ancestor's edge, level with the anchor, and below the anchor itself when there is no room beside.
  */
-export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false }) {
+export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
   useComponentCss(interactiveCss, 'study-tooltip-interactive');
   const [open, setOpen] = useState(false);
-  const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0);
+  const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null);
+  if (!self.current) self.current = { close: () => {} };
+  self.current.close = () => { clearTimeout(timer.current); setOpen(false); };
+  const closeOthers = () => { const other = group && openInGroup.get(group); if (other && other !== self.current) other.close(); };
+  useIsoLayoutEffect(() => {
+    if (!group || !open) return undefined;
+    closeOthers();
+    openInGroup.set(group, self.current);
+    return () => { if (openInGroup.get(group) === self.current) openInGroup.delete(group); };
+  }, [group, open]);
   useAnchoredPosition({ anchorRef: anchor, panelRef: panel, placement, flip, open: open && !layer });
   useDismiss({ open, onClose: () => setOpen(false), refs: anchor });
   useIsoLayoutEffect(() => {
@@ -39,8 +53,11 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     // Place from the anchor's rectangle: top-layer coordinates are the window's, through the interface zoom.
     const place = () => {
       const box = element.getBoundingClientRect(), scale = element.offsetWidth ? box.width / element.offsetWidth : 1;
-      const spot = computePlacement({ anchor: anchor.current.getBoundingClientRect(), size: { width: box.width, height: box.height },
-        bounds: { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }, placement, flip, gap: 4 * scale });
+      const rect = anchor.current.getBoundingClientRect(), wall = outside ? anchor.current.closest(outside)?.getBoundingClientRect() : null;
+      const args = { size: { width: box.width, height: box.height }, bounds: { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }, placement, flip, gap: 4 * scale };
+      let spot = computePlacement({ ...args, anchor: wall ? { left: wall.left, right: wall.right, top: rect.top, bottom: rect.bottom } : rect });
+      // No room beside the container: open under (or over) the anchor itself.
+      if (wall && !/^(left|right)-/.test(spot.placement)) spot = computePlacement({ ...args, anchor: rect });
       element.style.left = `${spot.left / scale}px`;
       element.style.top = `${spot.top / scale}px`;
     };
@@ -52,7 +69,7 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     window.addEventListener('scroll', place, true);
     window.addEventListener('resize', place);
     return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
-  }, [layer, open, placement, flip]);
+  }, [layer, open, placement, flip, outside]);
   useEffect(() => () => clearTimeout(timer.current), []);
   const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen(visible), delay); };
   const now = visible => { clearTimeout(timer.current); setOpen(visible); };
@@ -63,7 +80,7 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     <span ref={anchor} className={cx('sh-popover-anchor', anchorClassName)}>
       {cloneElement(child, {
         'aria-describedby': describedBy,
-        onPointerEnter: chain(own.onPointerEnter, event => { if (event.pointerType !== 'touch') later(HOVER_DELAY, true); }),
+        onPointerEnter: chain(own.onPointerEnter, event => { if (event.pointerType !== 'touch') { closeOthers(); later(HOVER_DELAY, true); } }),
         onPointerLeave: chain(own.onPointerLeave, event => { if (event.pointerType !== 'touch') { if (interactive) later(LEAVE_DELAY, false); else now(false); } }),
         onFocus: chain(own.onFocus, () => now(true)),
         onBlur: chain(own.onBlur, () => now(false)),

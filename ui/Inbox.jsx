@@ -26,8 +26,8 @@ function EmptyMailbox() {
 function Preview({ m }) {
   return <>
     {m.deckTitle && <span className="mailbox-preview__deck">{m.deckTitle}</span>}
-    <span className="mailbox-preview__prompt">{m.missing ? ui(inboxMissingPrompt(m.kind)) : m.prompt}</span>
-    {m.detail && <span className="mailbox-preview__detail">{m.detail}</span>}
+    <span className="mailbox-preview__prompt">{m.missing ? ui(inboxMissingPrompt(m.kind)) : m.promptFull || m.prompt}</span>
+    {(m.detailFull || m.detail) && <span className="mailbox-preview__detail">{m.detailFull || m.detail}</span>}
     <span className="mailbox-preview__hint">{ui(inboxOpenHint(m.kind, { missing: m.missing }))}</span>
   </>;
 }
@@ -36,7 +36,7 @@ function Letter({ m, busy, now, onOpen, onUndo, close }) {
   const tone = inboxTone(m.kind);
   return (
     <>
-      <Tooltip layer interactive placement="left-start" anchorClassName="mailbox__tip" className="mailbox-preview" content={<Preview m={m} />}>
+      <Tooltip layer interactive group="mailbox" outside=".mailbox__panel" placement="left-start" anchorClassName="mailbox__tip" className="mailbox-preview" content={<Preview m={m} />}>
       <button
         type="button"
         className={"mailbox__item" + (m.read ? "" : " is-unread")}
