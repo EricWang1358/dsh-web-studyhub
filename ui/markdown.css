@@ -62,7 +62,7 @@
     .md-image-caption { display: block; min-width: 0; font-family: var(--font-ui); font-size: var(--fs-sm); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
     .md-image-static > .md-image-caption { margin-top: var(--space-2); }
     .md-image-action { margin-left: auto; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--text); }
-    .md-image-fallback { display: inline-grid; gap: 3px; padding: 10px var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); color: var(--text-muted); }
+    .md-image-fallback { display: inline-grid; gap: var(--space-1); padding: 10px var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); color: var(--text-muted); }
     .md-image-dialog-canvas { margin-top: var(--space-4); padding: var(--space-3); border-radius: var(--radius-sm); background: var(--bg-sunken); }
     .md > :first-child {
       margin-top: 0;
@@ -184,7 +184,7 @@
     }
     .md details.md-details > summary {
       cursor: pointer;
-      padding: 9px 0;
+      padding: var(--space-2) 0;
       color: var(--text-dim);
       list-style-position: inside;
     }

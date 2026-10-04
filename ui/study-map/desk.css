@@ -85,7 +85,7 @@
     .draft-open > span:first-child { min-width: 0; overflow-wrap: anywhere; }
     .draft-row small {
       display: block;
-      margin-top: 5px;
+      margin-top: var(--space-1);
     }
     .draft-open > span:last-child {
       font-size: var(--fs-md);
@@ -241,7 +241,7 @@
       display: flex;
       justify-content: space-between;
       gap: var(--space-3);
-      padding-bottom: 11px;
+      padding-bottom: var(--space-3);
       border-bottom: 2px solid var(--accent);
       font-size: var(--fs-md);
       font-weight: var(--fw-medium);
@@ -269,7 +269,7 @@
       align-items: center;
       width: 100%;
       margin-top: auto;
-      padding: 13px 18px;
+      padding: var(--space-3) 18px;
       border-radius: var(--radius);
       font-size: var(--fs-lg);
     }
@@ -314,7 +314,7 @@
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .resume {
-        padding: 15px;
+        padding: var(--space-4);
       }
       .resume strong {
         font-size: var(--fs-md);

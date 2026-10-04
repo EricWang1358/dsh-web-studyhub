@@ -73,7 +73,7 @@
     .sh-btn[aria-busy="true"] { cursor: progress; }
     .sh-btn--sm {
       min-height: 32px;
-      padding: 5px var(--space-3);
+      padding: var(--space-1) var(--space-3);
       gap: 6px;
       font-size: var(--fs-sm);
     }
@@ -153,7 +153,7 @@
       flex-wrap: wrap;
       max-width: 100%;
       gap: var(--space-half);
-      padding: 3px;
+      padding: var(--space-1);
       border: 1px solid var(--line);
       border-radius: calc(var(--radius-sm) + var(--radius-xs));
       background: var(--bg-sunken);
@@ -395,7 +395,7 @@
       align-items: flex-start;
       gap: var(--space-3);
       width: 100%;
-      padding: 11px var(--space-2) 11px 14px;
+      padding: var(--space-3) var(--space-2) var(--space-3) 14px;
       border: 1px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-raised);
@@ -476,7 +476,7 @@
     }
     :is(.sh-toasts--inline, .action-feedback-slot .sh-toasts--auto) .sh-toast {
       margin: 6px 0;
-      padding: 7px 6px 7px var(--space-3);
+      padding: var(--space-2) 6px var(--space-2) var(--space-3);
       border-color: color-mix(in srgb, var(--sh-tone) 30%, var(--line));
       background: color-mix(in srgb, var(--sh-tone) 8%, var(--bg-surface));
       box-shadow: none;
@@ -571,7 +571,7 @@
     .sh-setup__badge {
       display: inline-block;
       margin: 0 0 var(--space-2);
-      padding: var(--space-half) 9px;
+      padding: var(--space-half) var(--space-2);
       border-radius: var(--radius-pill);
       background: color-mix(in srgb, var(--text) 7%, transparent);
       color: var(--text-muted);
@@ -699,9 +699,9 @@
       --sh-tone: var(--text-muted);
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: var(--space-1);
       flex: none;
-      padding: 3px 9px;
+      padding: var(--space-1) var(--space-2);
       border-radius: var(--radius-pill);
       background: color-mix(in srgb, var(--sh-tone) 13%, transparent);
       color: color-mix(in srgb, var(--sh-tone) 80%, var(--text));

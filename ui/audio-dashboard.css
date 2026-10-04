@@ -13,7 +13,7 @@
     .audio-dashboard-heading h2 { font-size: var(--fs-2xl); margin-top: 6px; letter-spacing: -.04em; }
     .audio-dashboard button { min-height: 40px; }
     .audio-dashboard-summary { display: grid; grid-template-columns: 156px minmax(0,1fr); align-items: center; gap: 36px; margin-bottom: var(--space-7); }
-    .audio-usage-dial { aspect-ratio: 1; border-radius: 50%; padding: 7px; background: conic-gradient(var(--usage-free) var(--share), var(--line) 0); }
+    .audio-usage-dial { aspect-ratio: 1; border-radius: 50%; padding: var(--space-2); background: conic-gradient(var(--usage-free) var(--share), var(--line) 0); }
     .audio-usage-dial > div { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: inherit; background: var(--bg-sunken); }
     .audio-usage-dial strong { font-size: var(--fs-3xl); letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
     .audio-usage-dial span { color: var(--text-dim); font-size: var(--fs-sm); margin-top: 6px; }
@@ -32,7 +32,7 @@
     .audio-provider-heading h3 { font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .audio-provider-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--provider-color); }
     .audio-provider-heading > small { grid-column: 2; color: var(--text-muted); font-size: var(--fs-xs); }
-    .audio-provider-heading strong { grid-column: 2; font-size: var(--fs-3xl); font-variant-numeric: tabular-nums; margin-block: 9px; }
+    .audio-provider-heading strong { grid-column: 2; font-size: var(--fs-3xl); font-variant-numeric: tabular-nums; margin-block: var(--space-2); }
     .audio-provider-heading strong span { font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--text-muted); margin-left: var(--space-2); }
     .audio-model-quota { margin-top: var(--space-4); }
     .audio-model-quota > div:first-child { display: flex; gap: var(--space-2); justify-content: space-between; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-dim); }
@@ -56,13 +56,13 @@
     .audio-dashboard article.audio-provider { background: transparent; }
     .audio-usage-trend { padding-block: var(--space-6); }
     .audio-trend-bars { height: 118px; display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: var(--space-4); }
-    .audio-trend-day { display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
+    .audio-trend-day { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); min-width: 0; }
     .audio-trend-day > span { font-size: var(--fs-xs); color: var(--text-dim); font-variant-numeric: tabular-nums; }
     .audio-trend-column { flex: 1; width: min(100%,36px); display: flex; flex-direction: column; justify-content: flex-end; }
     .audio-trend-column i { display: block; min-height: 0; }
     .audio-trend-day > small { color: var(--text-muted); font-size: var(--fs-xs); }
     .audio-reasoning { padding-top: var(--space-6); border-top: 1px solid var(--line); }
-    .audio-reasoning .audio-section-title small { display: block; margin-bottom: 7px; letter-spacing: .13em; }
+    .audio-reasoning .audio-section-title small { display: block; margin-bottom: var(--space-2); letter-spacing: .13em; }
     .audio-reasoning-body { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: var(--space-7); align-items: center; }
     .audio-matrix-axis { color: var(--text-muted); font-size: var(--fs-xs); display: block; margin-bottom: var(--space-2); }
     .audio-matrix-current { color: var(--text-dim); font-size: var(--fs-xs); line-height: 1.7; margin-bottom: 10px !important; }
@@ -75,8 +75,8 @@
     .audio-reasoning-grid button.selected { border-color: var(--accent-soft); background: var(--bg-selected); }
     .audio-reasoning-grid button.selected .audio-matrix-dot { background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-glow); }
     .audio-reasoning-fields label { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,160px); align-items: center; gap: var(--space-4); margin: 0 0 var(--space-5); font-size: var(--fs-md); }
-    .audio-reasoning-fields label small { display: block; font-size: var(--fs-xs); color: var(--text-muted); margin-top: 5px; }
-    .audio-reasoning-fields select { width: 100%; min-width: 0; padding: 9px; font-size: var(--fs-xs); }
+    .audio-reasoning-fields label small { display: block; font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--space-1); }
+    .audio-reasoning-fields select { width: 100%; min-width: 0; padding: var(--space-2); font-size: var(--fs-xs); }
     .audio-reasoning-fields p { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.7; }
     .audio-quota-settings { margin-top: 26px; font-size: var(--fs-xs); }
     .audio-quota-settings summary { cursor: pointer; color: var(--text-dim); }

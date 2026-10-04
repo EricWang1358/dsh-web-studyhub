@@ -124,7 +124,7 @@
       flex: 0 1 auto;
       min-width: 0;
       max-width: 16em;
-      padding: 0 7px;
+      padding: 0 var(--space-2);
       overflow: hidden;
       border: 1px solid var(--line-strong);
       border-radius: var(--radius-pill);

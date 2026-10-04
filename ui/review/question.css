@@ -5,7 +5,7 @@
     .tag {
       border: 1px solid var(--line);
       border-radius: var(--radius-card);
-      padding: var(--space-1) 9px;
+      padding: var(--space-1) var(--space-2);
       color: var(--text-dim);
       font-size: var(--fs-md);
       display: inline-block;
@@ -39,7 +39,7 @@
       display: block;
       width: 100%;
       text-align: left;
-      padding: 13px;
+      padding: var(--space-3);
       margin-top: var(--space-3);
       font-size: var(--fs-md);
       color: var(--text-dim);
@@ -60,7 +60,7 @@
       color: var(--text-dim);
       font-size: var(--fs-md);
       line-height: 1.8;
-      margin: 9px 0 0;
+      margin: var(--space-2) 0 0;
       padding-left: var(--space-3);
       border-left: 2px solid var(--line-strong);
     }
@@ -129,7 +129,7 @@
     .question-meta > div {
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: var(--space-2);
     }
     .question-meta > div > span {
       font-size: var(--fs-md);
@@ -140,7 +140,7 @@
       white-space: nowrap;
     }
     .question-meta button {
-      padding: var(--space-1) 9px;
+      padding: var(--space-1) var(--space-2);
       border: 0;
     }
     .question {
@@ -183,7 +183,7 @@
       border-top: 1px solid var(--line-soft);
       background: transparent;
       border-radius: 0;
-      padding: 15px 10px;
+      padding: var(--space-4) 10px;
       font-size: calc(var(--fs-lg) * var(--card-scale, 1));
       line-height: 1.6;
       width: 100%;
@@ -288,7 +288,7 @@
       display: block;
       font-size: var(--fs-md);
       color: var(--ok);
-      margin: 9px 0 5px;
+      margin: var(--space-2) 0 var(--space-1);
     }
     .option.incorrect .answer-state {
       color: var(--bad);
@@ -310,7 +310,7 @@
     .option p {
       font-size: var(--fs-md);
       line-height: 1.7;
-      margin: 5px 0 0;
+      margin: var(--space-1) 0 0;
     }
     .question-toolbar {
       display: flex;
@@ -325,7 +325,7 @@
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 3px;
+      gap: var(--space-1);
     }
     .question-toolbar .tool-action,
     .question-toolbar .tool-icon {
@@ -333,7 +333,7 @@
       align-items: center;
       justify-content: center;
       min-height: 38px;
-      padding: 7px 11px;
+      padding: var(--space-2) var(--space-3);
       border: 1px solid transparent;
       border-radius: var(--radius-sm);
       background: transparent;
@@ -357,12 +357,12 @@
     .question-toolbar .thumbs svg { display: block; width: 17px; height: 17px; }
     .question-navigation { margin-left: auto; }
     .question-toolbar > .next-hint { flex: 1 0 100%; margin: 0; text-align: right; }
-    .question-toolbar .question-navigation { gap: 7px; }
+    .question-toolbar .question-navigation { gap: var(--space-2); }
     /* A drawn chevron: the "⌄" glyph sits below the baseline and read as a subscript. */
     /* EN 附文：始终紧跟其中文原文之后，弱一级、左侧一道色杠。 */
     .en-block {
       margin-top: 10px;
-      padding: 9px 13px;
+      padding: var(--space-2) var(--space-3);
       border-left: 3px solid var(--accent-glow);
       border-radius: 0 var(--radius) var(--radius) 0;
       background: var(--bg-sunken);
@@ -378,7 +378,7 @@
       color: var(--accent-soft);
       border: 1px solid var(--accent-glow);
       border-radius: var(--radius-sm);
-      padding: 0 5px;
+      padding: 0 var(--space-1);
       margin-right: var(--space-2);
       vertical-align: 2px;
     }
@@ -408,7 +408,7 @@
     .next-due {
       font-size: var(--fs-md);
       color: var(--ok);
-      margin: 17px 0;
+      margin: var(--space-4) 0;
     }
     .next-due.retry {
       color: var(--text-muted);
@@ -492,14 +492,14 @@
   @container study (max-width: 480px) {
     :where(.study-app, .study-seat) {
       .teaching-panel .explanation { padding: var(--space-4); }
-      .teaching-context > div { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+      .teaching-context > div { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
       .teaching-panel form > button { width: 100%; }
     }
   }
   :where(.study-app, .study-seat) {
     .teaching-feedback {
       margin: 0 0 14px;
-      padding: 11px 14px;
+      padding: var(--space-3) 14px;
       background: color-mix(in srgb, var(--accent) 8%, transparent);
       border-left: 2px solid var(--accent-soft);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
@@ -792,7 +792,7 @@
       justify-content: flex-start;
       min-width: 0;
       min-height: 74px;
-      padding: 10px 3px var(--space-2);
+      padding: 10px var(--space-1) var(--space-2);
       border: 0;
       border-radius: var(--radius);
       background: transparent;
@@ -854,7 +854,7 @@
     .summary-topics {
       background: var(--bg-surface);
       border-radius: var(--radius-card);
-      padding: 23px;
+      padding: var(--space-6);
       margin: 30px 0;
       text-align: left;
     }
@@ -919,7 +919,7 @@
       .option {
         font-size: var(--fs-md);
         padding: 14px var(--space-3);
-        gap: 9px;
+        gap: var(--space-2);
       }
       .option p {
         font-size: var(--fs-md);

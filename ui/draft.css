@@ -5,7 +5,7 @@
     .file-input {
       font-size: var(--fs-md);
       border: 1px dashed var(--line-strong);
-      padding: 13px;
+      padding: var(--space-3);
       border-radius: var(--radius-sm);
     }
     .file-input input {
@@ -23,7 +23,7 @@
     .draft-card summary {
       display: flex;
       align-items: center;
-      gap: 13px;
+      gap: var(--space-3);
       cursor: pointer;
       line-height: 1.65;
     }

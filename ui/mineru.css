@@ -31,7 +31,7 @@
     .mineru-route:hover { border-color: var(--line-strong); }
     .mineru-route.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
     .mineru-route:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .mineru-route input { flex: none; margin: 3px 0 0; }
+    .mineru-route input { flex: none; margin: var(--space-1) 0 0; }
     .mineru-route__body { display: grid; gap: var(--space-1); min-width: 0; }
     .mineru-route__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
     .mineru-route__body small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }

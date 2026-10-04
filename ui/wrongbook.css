@@ -46,7 +46,7 @@
     }
     .wb-recs-head p { margin: 0; font-size: var(--fs-md); }
     .wb-free {
-      padding: 1px 9px;
+      padding: 1px var(--space-2);
       border: 1px solid var(--ok-line);
       border-radius: var(--radius-pill);
       background: var(--ok-bg);

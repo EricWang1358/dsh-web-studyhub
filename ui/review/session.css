@@ -45,14 +45,14 @@
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .review-heading {
-        padding: 21px 17px 0;
+        padding: var(--space-5) var(--space-4) 0;
       }
       .review-heading h1 {
         font-size: var(--fs-xl);
       }
       .review-heading > button {
         font-size: var(--fs-md);
-        padding: 5px 0;
+        padding: var(--space-1) 0;
         white-space: nowrap;
       }
       .review-return-full { display: none; }

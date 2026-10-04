@@ -6,7 +6,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin: 36px 0 17px;
+      margin: 36px 0 var(--space-4);
       gap: var(--space-3);
       flex-wrap: wrap;
     }
@@ -190,7 +190,7 @@
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 3px;
+      gap: var(--space-1);
       min-width: 0;
       flex: 1 1 auto;
       border: 0;
@@ -320,7 +320,7 @@
       color: var(--text);
     }
     .map-topics { padding: var(--space-half) 0 10px 34px; }
-    .topic-row { min-height: 42px; padding: 7px 10px 7px var(--space-2); }
+    .topic-row { min-height: 42px; padding: var(--space-2) 10px var(--space-2) var(--space-2); }
     .map-menu-wrap { position: relative; flex-shrink: 0; }
     .map-empty { padding: var(--space-5) var(--space-1); }
     .selection-bar {
@@ -342,7 +342,7 @@
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .map-tools { flex: 1 1 100%; }
-      .map-legend { gap: 5px 10px; font-size: var(--fs-md); margin-left: 0; }
+      .map-legend { gap: var(--space-1) 10px; font-size: var(--fs-md); margin-left: 0; }
       .map-topics { padding: 0 0 var(--space-2) var(--space-3); }
       /* Row keeps name + play + menu on line one; mastery spans line two. */
       .map-row {
@@ -371,7 +371,7 @@
       .map-row > input[type="checkbox"] { order: 0; }
       .map-row > .map-dot { order: 1; }
       .map-ask { display: none; }
-      .map-play { padding: 5px 10px; }
+      .map-play { padding: var(--space-1) 10px; }
       .map-play { width: 56px; min-width: 56px; }
       .section-heading {
         align-items: flex-start;
@@ -437,7 +437,7 @@
       color: var(--accent-soft);
       border: 1px solid var(--line);
       border-radius: var(--radius-pill);
-      padding: var(--space-half) 9px;
+      padding: var(--space-half) var(--space-2);
       white-space: nowrap;
     }
     .nb-main {
@@ -450,7 +450,7 @@
     }
     .nb-main small {
       display: block;
-      margin-top: 3px;
+      margin-top: var(--space-1);
       color: var(--text-muted);
       font-size: var(--fs-md);
     }

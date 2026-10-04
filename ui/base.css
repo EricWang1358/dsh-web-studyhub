@@ -38,7 +38,7 @@
       background: color-mix(in srgb, var(--text) 5%, transparent);
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
-      padding: 9px 14px;
+      padding: var(--space-2) 14px;
       transition:
         background var(--dur-fast) var(--ease),
         border-color var(--dur-fast) var(--ease);
@@ -69,7 +69,7 @@
       display: flex;
       flex-direction: column;
       gap: var(--space-2);
-      margin: 19px 0;
+      margin: var(--space-5) 0;
       color: var(--text);
     }
     & label small,
@@ -139,7 +139,7 @@
       font-size: var(--fs-md);
       letter-spacing: 2px;
       color: var(--text-muted);
-      margin-bottom: 13px;
+      margin-bottom: var(--space-3);
     }
     & fieldset {
       min-width: 0;

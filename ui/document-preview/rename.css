@@ -11,7 +11,7 @@
     .rename-field small.rename-field__hint { display: block; max-width: none; margin: 0; overflow: visible; text-overflow: clip; white-space: normal; }
     .rename-field__error { margin: 0; color: var(--bad-ink); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .rename-field__input[aria-invalid="true"] { border-color: var(--bad-line); }
-    .source-doc .source-main--editing { display: flex; align-items: flex-start; gap: var(--space-3); flex: 1 1 auto; min-width: 0; padding: 5px; }
+    .source-doc .source-main--editing { display: flex; align-items: flex-start; gap: var(--space-3); flex: 1 1 auto; min-width: 0; padding: var(--space-1); }
     .source-doc .source-main--editing .source-doc__icon { margin-top: 10px; }
     .source-doc .source-original { color: var(--text-muted); }
     .sh-dialog__title .reader-heading { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; max-width: 100%; }

@@ -22,8 +22,8 @@
       font-size: var(--fs-md);
     }
     .alert {
-      margin: 15px 25px 0;
-      padding: 11px var(--space-4);
+      margin: var(--space-4) var(--space-6) 0;
+      padding: var(--space-3) var(--space-4);
       border-radius: var(--radius-sm);
       display: flex;
       justify-content: space-between;
@@ -34,7 +34,7 @@
     }
     .alert button {
       border: 0;
-      padding: 0 5px;
+      padding: 0 var(--space-1);
     }
     .alert span {
       flex: 1;
@@ -71,7 +71,7 @@
         gap: 0;
       }
       .alert {
-        margin: var(--space-3) 15px 0;
+        margin: var(--space-3) var(--space-4) 0;
       }
       .onboarding {
         padding: var(--space-8) var(--space-5);
