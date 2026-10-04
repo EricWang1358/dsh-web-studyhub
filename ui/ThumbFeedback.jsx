@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
 import { useToast } from "./components/index.js";
-import { splitFeedbackTags } from "./card-fix.js";
+import { feedbackOutcome } from "./card-fix.js";
 import { useComponentCss } from "./components/css.js";
 import thumbCss from "./thumb-feedback.css";
 
@@ -66,7 +66,8 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
     flushRef.current?.();
   }, []);
 
-  const post = (args, key = cardKey) => {
+  // `implicit`: the bare 👎 fallback, which only records (no tag was picked, so there is nothing to hand to 修题).
+  const post = (args, key = cardKey, implicit = false) => {
     pending.current = pending.current.catch(() => {}).then(() =>
       call("coach.feedback", { deckId: run.deckId, cardId: run.card.id, ...(callbacks.current.onFix ? { rewriteVia: "assist" } : {}), ...args }));
     return pending.current
@@ -83,7 +84,7 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
           setError("");
         }
         callbacks.current.onSent?.(r);
-        if (activeKey.current === key) announce(args, r);
+        if (activeKey.current === key) announce(args, r, implicit);
       })
       .catch((failure) => {
         if (activeKey.current === key) {
@@ -97,10 +98,10 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
       });
   };
   // What the learner is told once a batch of tags is saved. A rewrite tag opens the 修题 box (its own visible feedback); difficulty tags only record.
-  function announce(args, r) {
-    const { fix, difficulty } = splitFeedbackTags(r?.tags ?? args.tags);
+  function announce(args, r, implicit) {
+    const { fix, note } = feedbackOutcome(args, r, { implicit });
     if (fix.length) callbacks.current.onFix?.(fix);
-    if (difficulty.length) callbacks.current.toast.info(r?.scheduled?.includes("prep") ? ui("已记下，下一轮据此准备定制题") : ui("已记下这个反馈"));
+    if (note) callbacks.current.toast.info(note);
   }
   function thumb(next) {
     setVote(next);
@@ -116,7 +117,7 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
       const fallback = () => {
         if (flushRef.current !== fallback) return;
         flushRef.current = null;
-        if (!tagsRef.current.length) post({ vote: "down", tags: ["general-quality"] });
+        if (!tagsRef.current.length) post({ vote: "down", tags: ["general-quality"] }, cardKey, true);
         setOpen(false);
       };
       flushRef.current = fallback;

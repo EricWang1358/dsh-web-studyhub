@@ -82,6 +82,19 @@ for (const lang of langs) for (const theme of themes) for (const width of [1280,
   }
 }
 
+// 2b. A bare 👎 (no tag picked) records only: the general-quality fallback, the short note, and 修题 stays closed.
+for (const lang of langs) {
+  const { tab, close } = await open(lang, 'dark', 1280);
+  await tab.locator('button[aria-keyshortcuts="B"]').click();
+  await tab.waitForSelector('.sh-toast', { timeout: 4000 });
+  const note = await tab.locator('.sh-toast').allTextContents();
+  const sent = await feedbackCalls(tab);
+  check(`bare 👎 records only, 修题 stays closed [${lang}]`, await tab.locator('textarea').count() === 0 && sent.some(call => call.tags?.[0] === 'general-quality') && note.length === 1
+    && (lang === 'zh' ? /已记下这个反馈/.test(note[0]) : /Feedback noted/.test(note[0])), `${note.join('|')} ${JSON.stringify(sent.map(call => call.tags))}`);
+  await tab.screenshot({ path: join(out, `bare-note-${lang}-dark-1280.png`) });
+  await close();
+}
+
 // 3. Old host contract: without onFix the request carries no flag and nothing opens.
 {
   const { tab, close } = await open('zh', 'dark', 1280, '&onFix=0');

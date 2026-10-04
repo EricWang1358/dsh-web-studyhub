@@ -29,3 +29,14 @@ export function splitFeedbackTags(tags = []) {
 export function fixSuggestionFor(tags = []) {
   return splitFeedbackTags(tags).fix.map(tag => ui(SUGGESTION[tag])).join('\n');
 }
+
+/**
+ * What a saved 👎 batch leads to: the rewrite tags the learner picked, to hand to 修题, and the short note for what only records.
+ * `implicit` is the bare 👎 (no tag picked, recorded as general-quality): it only records, so 修题 stays closed.
+ */
+export function feedbackOutcome(args, result, { implicit = false } = {}) {
+  if (implicit) return { fix: [], note: ui('已记下这个反馈') };
+  const { fix, difficulty } = splitFeedbackTags(result?.tags ?? args.tags);
+  if (!difficulty.length) return { fix, note: '' };
+  return { fix, note: ui(result?.scheduled?.includes('prep') ? '已记下，下一轮据此准备定制题' : '已记下这个反馈') };
+}

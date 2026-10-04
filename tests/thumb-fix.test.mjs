@@ -116,3 +116,30 @@ test("the 👎 control never carries aria-pressed together with aria-expanded", 
   assert.match(markup({ vote: "down", tags: [] }), /data-vote="on"/, "and as a styled state (ui/thumb-feedback.css)");
   assert.doesNotMatch(markup(undefined), /data-vote|已标记/);
 });
+
+const { feedbackOutcome } = await loadUi("export * from './ui/card-fix.js';");
+
+test("a bare 👎 only records: no 修题, just the short note", () => {
+  const bare = feedbackOutcome({ tags: ["general-quality"] }, { tags: ["general-quality"], scheduled: [], fix: ["general-quality"] }, { implicit: true });
+  assert.deepEqual(bare, { fix: [], note: "已记下这个反馈" });
+});
+
+test("explicitly picked rewrite tags open 修题; difficulty tags get the prep note", () => {
+  assert.deepEqual(feedbackOutcome({ tags: ["stem-vague"] }, { tags: ["stem-vague"], scheduled: [] }), { fix: ["stem-vague"], note: "" });
+  assert.deepEqual(feedbackOutcome({ tags: ["too-hard"] }, { tags: ["too-hard"], scheduled: ["prep"] }), { fix: [], note: "已记下，下一轮据此准备定制题" });
+  assert.deepEqual(feedbackOutcome({ tags: ["too-hard"] }, { tags: ["too-hard"], scheduled: [] }), { fix: [], note: "已记下这个反馈" });
+  assert.deepEqual(feedbackOutcome({ tags: ["too-hard", "bad-options"] }, { tags: ["too-hard", "bad-options"], scheduled: ["prep"] }),
+    { fix: ["bad-options"], note: "已记下，下一轮据此准备定制题" });
+  assert.deepEqual(feedbackOutcome({ tags: ["general-quality"] }, { tags: ["general-quality"] }), { fix: ["general-quality"], note: "" }, "an explicit general-quality pick counts");
+});
+
+test("the bare 👎 fallback is recorded without a rewrite on the server", async (t) => {
+  const { service, log } = await setup(t);
+  const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  const result = await service.call("coach.feedback", { deckId: "d", cardId: run.card.id, vote: "down", rewriteVia: "assist", tags: ["general-quality"] });
+  assert.deepEqual(result.tags, ["general-quality"]);
+  assert.deepEqual(result.scheduled, []);
+  await service.call("coach.prepare");
+  assert.deepEqual(await rewriteTasks(service), []);
+  assert.equal(rewriteCalls(log), 0);
+});
