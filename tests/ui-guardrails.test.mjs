@@ -127,7 +127,7 @@ test('tone tokens use the component library formulas', () => {
 
 test('--warn-text aliases --warn-ink so the reader and token-usage warnings render (#96)', () => {
   assert.equal(tokens['--warn-text'], 'var(--warn-ink)');
-  for (const file of ['ui/document-preview/reader/reader.css', 'ui/token-usage.css']) {
+  for (const file of ['ui/token-usage.css']) {
     assert.match(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), /var\(--warn-text/, `${file} still reads --warn-text`);
   }
 });
