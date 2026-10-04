@@ -143,11 +143,11 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
   const saveCustom = event => { event.preventDefault(); onCustom?.({ customEndpoint: endpoint.trim(), customModel: model.trim() }); };
   const resultText = outcome => (outcome.ok ? TEST_STATE.valid() : uiMessage(outcome.message || failureCode('unexpected', provider)));
   const keyEnvForm = (
-    <form className="audio-key-form jev-keyenv__form" onSubmit={useVariable}>
+    <form className="jev-keyenv__form" onSubmit={useVariable}>
       <label className="jev-keyenv__label" htmlFor={`${providerId}-env`}>{ui('存放密钥的环境变量名')}</label>
-      <input id={`${providerId}-env`} name="jev-key-env" className="audio-key-input" type="text" autoComplete="off" spellCheck={false} value={envName} disabled={locked}
+      <input id={`${providerId}-env`} name="jev-key-env" className="jev-field__input" type="text" autoComplete="off" spellCheck={false} value={envName} disabled={locked}
         placeholder={settings.keyEnvDefault || meta?.defaultKeyEnv || 'OPENCODE_GO_API_KEY_2'} onChange={event => setEnvName(event.target.value)} />
-      <div className="audio-key-actions"><Button type="submit" variant="secondary" size="sm" disabled={locked}>{ui('使用这个环境变量')}</Button></div>
+      <div className="jev-field__actions"><Button type="submit" variant="secondary" size="sm" disabled={locked}>{ui('使用这个环境变量')}</Button></div>
       <p className="audio-provider-note">{ui('只保存变量的名字，不保存它的值；留空就用默认名字。')}</p>
     </form>
   );
@@ -165,12 +165,12 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
         {meta && !custom && <p className="audio-provider-note jev-provider__where">{uiFormat('发送到 {0}，模型 {1}。', [meta.host, meta.model])}</p>}
         {custom && <form className="jev-custom" onSubmit={saveCustom}>
           <label htmlFor={`${providerId}-endpoint`}>{ui('接口地址')}</label>
-          <input id={`${providerId}-endpoint`} name="jev-custom-endpoint" type="text" className="audio-key-input" autoComplete="off" spellCheck={false} value={endpoint} disabled={locked}
+          <input id={`${providerId}-endpoint`} name="jev-custom-endpoint" type="text" className="jev-field__input" autoComplete="off" spellCheck={false} value={endpoint} disabled={locked}
             placeholder="https://gateway.example.com/v1/systemone" onChange={event => setEndpoint(event.target.value)} />
           <label htmlFor={`${providerId}-model`}>{ui('模型名')}</label>
-          <input id={`${providerId}-model`} name="jev-custom-model" type="text" className="audio-key-input" autoComplete="off" spellCheck={false} value={model} disabled={locked}
+          <input id={`${providerId}-model`} name="jev-custom-model" type="text" className="jev-field__input" autoComplete="off" spellCheck={false} value={model} disabled={locked}
             placeholder="jev-1.13" onChange={event => setModel(event.target.value)} />
-          <div className="audio-key-actions"><Button type="submit" variant="secondary" size="sm" disabled={locked || !endpoint.trim() || !model.trim()}>{ui('保存端点')}</Button></div>
+          <div className="jev-field__actions"><Button type="submit" variant="secondary" size="sm" disabled={locked || !endpoint.trim() || !model.trim()}>{ui('保存端点')}</Button></div>
           <p className="audio-provider-note">{ui('只会发送到这个地址。需要 https（本机可以用 http）；地址里不要带用户名、密码或查询参数。')}</p>
           {settings.custom?.host && <p className="audio-provider-note jev-provider__where">{uiFormat('当前发送到 {0}，模型 {1}。', [settings.custom.host, settings.custom.model])}</p>}
         </form>}

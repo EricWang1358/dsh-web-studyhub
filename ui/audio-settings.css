@@ -13,7 +13,7 @@
   @supports (grid-template-rows: subgrid) {
     .study-app .audio-provider-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); column-gap: var(--space-4); row-gap: 0; }
     .study-app .audio-provider-card { display: grid; grid-row: span 6; grid-template-rows: subgrid; row-gap: var(--space-3); }
-    .study-app .audio-provider-card :is(.audio-key-form, .sh-secret) { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: var(--space-3); }
+    .study-app .audio-provider-card .sh-secret { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: var(--space-3); }
   }
 }
 .study-app .audio-provider-card__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
@@ -31,15 +31,6 @@
 .study-app .audio-provider-steps a { color: var(--accent-text); text-underline-offset: 3px; overflow-wrap: anywhere; }
 .study-app .audio-step-num { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; border: 1px solid var(--line-strong);
   border-radius: 50%; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; line-height: 1; }
-.study-app .audio-key-form { display: grid; gap: var(--space-3); min-width: 0; }
-.study-app .audio-key-input { width: 100%; min-width: 0; margin: 0; align-self: end; }
-.study-app .audio-key-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.study-app .audio-key-actions .sh-btn { margin: 0; }
-.study-app .audio-key-actions .audio-key-clear { margin-left: auto; color: var(--text-muted); }
-.study-app .audio-key-clear:hover:not(:disabled) { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
-.study-app .audio-key-foot { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
-.study-app .audio-key-foot:empty { display: none; }
-.study-app .audio-key-foot .sh-inline { overflow-wrap: anywhere; }
 .study-app .audio-provider-note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
 .study-app .audio-settings-path { margin: var(--space-4) 0 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
 .study-app .audio-advanced { margin-top: var(--space-5); }
@@ -54,7 +45,7 @@
 
 /* The setup gate in the audio tab. */
 .study-app .audio-setup { margin: var(--space-4) 0; }
-.study-app .audio-setup :is(.audio-key-form, .sh-secret) { margin-top: var(--space-4); max-width: 560px; }
+.study-app .audio-setup .sh-secret { margin-top: var(--space-4); max-width: 560px; }
 .study-app .audio-setup-alt { margin: var(--space-3) 0 0; color: var(--text-muted); font-size: var(--fs-xs); }
 .study-app .audio-setup-alt a { color: var(--accent-text); }
 .study-app .audio-subtitle-only { margin-top: var(--space-4); }
@@ -75,5 +66,4 @@
 
 @container (max-width: 420px) {
   .study-app .audio-provider-card { padding: var(--space-4); }
-  .study-app .audio-key-actions .audio-key-clear { margin-left: 0; }
 }

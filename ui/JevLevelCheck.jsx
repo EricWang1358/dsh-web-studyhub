@@ -18,7 +18,7 @@ export function JevLevelCheckView({ result, busy, onRun }) {
   return (
     <div className="jev-levels" data-jev-levels>
       <p className="audio-provider-note">{ui('只是对照：用 Jev 判断题目属于记忆、概念辨析还是应用分析，与「本轮小结」用的关键词判断比一比。不会改动任何题目或学习记录。')}</p>
-      <div className="audio-key-actions"><Button variant="secondary" busy={busy} disabled={busy} onClick={onRun}>{ui('对照最多 30 道题')}</Button></div>
+      <div className="jev-field__actions"><Button variant="secondary" busy={busy} disabled={busy} onClick={onRun}>{ui('对照最多 30 道题')}</Button></div>
       {result?.unavailable && <p className="jev-levels__note">{uiMessage(result.unavailable.message)}</p>}
       {counts?.total > 0 && <>
         <p className="jev-levels__counts"><strong>{uiFormat('一致 {0}', [counts.agree])}</strong> · <strong>{uiFormat('不一致 {0}', [counts.disagree])}</strong> · {uiFormat('把握不足 {0}', [counts.unsure])} <small>{uiFormat('共 {0} 道', [counts.total])}</small></p>

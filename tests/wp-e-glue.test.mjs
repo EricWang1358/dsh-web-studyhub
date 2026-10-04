@@ -1,0 +1,59 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile, readdir } from 'node:fs/promises';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { loadUi } from './helpers/ui-module.mjs';
+
+/* Wave 1, package E: call sites that moved onto the shared primitives and logic once packages A to D were merged. */
+
+const h = React.createElement;
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+
+/* ---------- 1. MinerU token form (#118) ---------- */
+
+const mineru = await loadUi(`export { MineruTokenForm } from './ui/MineruSettings.jsx'; export { SecretKeyForm } from './ui/components/index.js'; export { setUiLanguage } from './ui/i18n.js';`);
+
+test('the MinerU token form is a thin adapter over SecretKeyForm', async () => {
+  const calls = [];
+  const call = async (name, args) => { calls.push([name, args]); return name === 'mineru.test' ? { ok: true, state: 'valid' } : { token: { set: true, hint: '••••abcd' } }; };
+  const saved = [];
+  const element = mineru.MineruTokenForm({ call, settings: { token: { set: true, hint: '••••abcd', source: 'file' } }, onSaved: (next) => saved.push(next) });
+  assert.equal(element.type, mineru.SecretKeyForm);
+  const props = element.props;
+  assert.equal(props.name, 'mineru-token');
+  assert.equal(props.saved.hint, '••••abcd');
+  await props.onSave('tok');
+  assert.deepEqual(calls[0], ['mineru.settings.set', { token: 'tok' }]);
+  assert.equal(saved.length, 1);
+  const verdict = await props.onVerify();
+  assert.deepEqual(calls[1], ['mineru.test', {}]);
+  assert.equal(verdict.ok, true);
+  await props.onClear();
+  assert.deepEqual(calls[2], ['mineru.settings.set', { token: '' }]);
+  assert.match(props.resultText({ ok: false, state: 'invalid' }), /令牌无效/);
+  assert.equal(props.clearLabel, '清除已保存的令牌');
+});
+
+test('the MinerU token form renders the shared form, not hand-made key classes', () => {
+  mineru.setUiLanguage('zh');
+  const html = renderToStaticMarkup(h(mineru.MineruTokenForm, { call: async () => ({}), settings: { token: { set: true, hint: '••••abcd', source: 'file' } } }));
+  assert.match(html, /sh-secret/);
+  assert.doesNotMatch(html, /audio-key-/);
+  assert.match(html, /name="mineru-token"/);
+});
+
+test('type="password" lives only inside ui/components', async () => {
+  const walk = async (dir) => (await readdir(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }))
+    .flatMap((entry) => (entry.isDirectory() ? [] : [`${dir}/${entry.name}`]));
+  const offenders = [];
+  const roots = ['ui', 'ui/document-preview', 'ui/tour', 'ui/usage', 'ui/board', 'ui/charts', 'ui/host', 'ui/reading-settings'];
+  for (const dir of roots) for (const file of await walk(dir)) if (/\.(jsx?|css)$/.test(file) && /type="password"/.test(await read(file))) offenders.push(file);
+  assert.deepEqual(offenders, []);
+});
+
+test('the old audio-key-* classes are gone from the stylesheets and the pages', async () => {
+  for (const file of ['ui/audio-settings.css', 'ui/jev.css', 'ui/mineru.css', 'ui/MineruSettings.jsx', 'ui/JevSettings.jsx', 'ui/JevLevelCheck.jsx']) {
+    assert.doesNotMatch(await read(file), /audio-key-(form|input|actions|foot|clear)\b/, file);
+  }
+});

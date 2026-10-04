@@ -32,7 +32,7 @@
 .study-app .mineru-route__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
 .study-app .mineru-route__body small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
 .study-app .mineru-gate { margin: 0; }
-.study-app .mineru-gate .audio-key-form { margin-top: var(--space-4); max-width: 560px; }
+.study-app .mineru-gate .sh-secret { margin-top: var(--space-4); max-width: 560px; }
 .study-app .mineru-gate--local { padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
 .study-app .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-size: var(--fs-sm); }
 .study-app .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
@@ -54,7 +54,7 @@
    grid still stretches the two cards to one height, and the section is its own container, so two columns need 760 px of ITS width. */
 .study-app .mineru-settings .audio-provider-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: stretch; }
 .study-app .mineru-settings .audio-provider-card { display: flex; flex-direction: column; grid-row: auto; grid-template-rows: none; gap: var(--space-3); }
-.study-app .mineru-settings .audio-provider-card .audio-key-form { display: grid; grid-row: auto; grid-template-rows: none; row-gap: var(--space-3); }
+.study-app .mineru-settings .audio-provider-card .sh-secret { display: grid; grid-row: auto; grid-template-rows: none; row-gap: var(--space-3); }
 @container (min-width: 760px) {
   .study-app .mineru-settings .audio-provider-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-4); row-gap: var(--space-4); }
 }
@@ -63,6 +63,8 @@
 .study-app .mineru-local .sh-btn, .study-app .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
 .study-app .mineru-local__summary { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }
 .study-app .mineru-local[data-state="ready"] .mineru-local__summary { color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-weight: 600; }
+.study-app .mineru-local__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.study-app .mineru-local__actions .sh-btn { margin: 0; }
 .study-app .mineru-local__steps { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
 .study-app .mineru-local__setup { display: grid; gap: var(--space-3); }
 .study-app .mineru-tier { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
