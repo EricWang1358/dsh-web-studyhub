@@ -28,3 +28,7 @@ export { default as Tooltip } from './Tooltip.jsx';
 export { CloseButton } from './CloseButton.jsx';
 export { useDismiss, useAnchoredPosition, computePlacement } from './use-dismiss.js';
 export { default as SecretKeyForm } from './SecretKeyForm.jsx';
+export { Field, TextInput, TextArea, Select, NumberInput } from './Field.jsx';
+export { Checkbox, Switch, RadioCard, RadioCardGroup } from './Choice.jsx';
+export { SettingsSection } from './SettingsSection.jsx';
+export { ProviderCard, ProviderGrid, StepList } from './ProviderCard.jsx';

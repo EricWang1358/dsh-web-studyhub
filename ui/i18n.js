@@ -42,6 +42,7 @@ import science from './locales/en.science.json';
 import feedback from './locales/en.feedback.json';
 import overlays from './locales/en.overlays.json';
 import shared from './locales/en.shared.json';
+import fields from './locales/en.fields.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -85,6 +86,7 @@ export const ENGLISH_SOURCES = {
   'en.feedback.json': feedback,
   'en.overlays.json': overlays,
   'en.shared.json': shared,
+  'en.fields.json': fields,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,
