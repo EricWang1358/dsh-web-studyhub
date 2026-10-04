@@ -2522,6 +2522,8 @@
   }
   .md-math-display:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
   .md-math math { font-size: 1em; font-weight: 400; font-family: math, "Cambria Math", serif; }
+  /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
+  .md-math math:has(mphantom) { padding-inline-end: 0.2em; }
   .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
   .md-math-source { white-space: pre-wrap; }
   .md-image { display: inline-block; max-width: 100%; margin-block: 0.5em; vertical-align: middle; }
