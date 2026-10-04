@@ -20,7 +20,7 @@ import RetrievalPanel from './RetrievalPanel.jsx';
 import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import {
   COUNT_MAX, COUNT_MIN, COUNT_PRESETS, DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, clampCount, courseHasCaseExam,
-  difficultyNote, estimateMinutes, kindNote, roleOpenByDefault, selectionStats, stepCount, suggestCount, summaryLine,
+  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, notationNote, roleOpenByDefault, selectionStats, stepCount, suggestCount, summaryLine,
 } from './generate-form.js';
 import homeCss from './generate-home.css';
 import formCss from './generate-form.css';
@@ -138,7 +138,7 @@ export default function Generate({
     event.preventDefault();
     if (!model.ready || busy || !selectedSources.length || advice.blocked || referenceState.reason) return;
     const materials = documentCount(data.sources.filter((source) => selectedSources.includes(source.id)));
-    act("generate", { ...gen, course: generationCourse, count: Number(gen.count), sourceIds: selectedSources }, (job) => {
+    act("generate", generationRequest(gen, { course: generationCourse, sourceIds: selectedSources }), (job) => {
       // Confirm with the deck's name, start the next deck from a clean form (P27),
       // and land where the progress card is (P26).
       setNotice(generationStartedNotice(job, gen, materials));
@@ -322,8 +322,13 @@ export default function Generate({
                 onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
                 courses={data.focus?.courses} busy={busy} />
               {selectedPdfPages > Number(gen.count) && <p className="warning" role="status">{ui("已选 ")}{selectedPdfPages}{ui(" 页 PDF，计划生成 ")}{gen.count}{ui(" 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。")}</p>}
-              <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
+              <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、公式写法、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
                 <div className="generate-rows">
+                  <FormRow label={ui("公式写法")}>
+                    <SegmentedControl label={ui("公式写法")} size="sm" value={gen.notation ?? 'auto'} options={NOTATION_CHOICES.map(({ value, label }) => ({ value, label }))}
+                      onChange={(notation) => setGen({ ...gen, notation })} />
+                    <p className="generate-note">{notationNote()}</p>
+                  </FormRow>
                   <FormRow label={ui("题组名称（可选）")} htmlFor="generate-title">
                     <input id="generate-title" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
                   </FormRow>
