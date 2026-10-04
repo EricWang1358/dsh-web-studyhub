@@ -1,0 +1,10 @@
+{
+  "进度": "Progress",
+  "分布": "Breakdown",
+  "正在载入…": "Loading…",
+  "出了点问题，请重试。": "Something went wrong. Please try again.",
+  "这部分没能显示": "This part could not be shown",
+  "学习记录没有受到影响。重试一次；如果还是不行，刷新页面。": "Your study records are not affected. Try again; if it still fails, reload the page.",
+  "部分完成": "Partly done",
+  "{0}：{1}": "{0}: {1}"
+}

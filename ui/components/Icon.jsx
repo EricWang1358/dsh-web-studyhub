@@ -30,6 +30,7 @@ const PATHS = {
   type: <><path d="M3.5 18 8.5 6l5 12M5.4 14h6.2" /><circle cx="17.2" cy="15.2" r="2.8" /><path d="M20 12.4V18" /></>,
   panel: <><rect x="4" y="5" width="16" height="14" rx="2.5" /><path d="M14.5 5v14" /></>,
   model: <><rect x="5" y="5" width="14" height="14" rx="3" /><path d="M9.5 9.5h5v5h-5zM9 2.5v2.5M15 2.5v2.5M9 19v2.5M15 19v2.5M2.5 9H5M2.5 15H5M19 9h2.5M19 15h2.5" /></>,
+  mail: <><path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h12a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5v-9Z" /><path d="m4 7.5 8 6 8-6" /></>,
 };
 
 export const ICON_NAMES = Object.keys(PATHS);
