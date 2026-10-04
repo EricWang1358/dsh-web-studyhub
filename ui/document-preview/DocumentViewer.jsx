@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
-import { renderNoteMarkdown } from '../note-markdown.js';
+import MathText from '../MathText.jsx';
 import { AudioCorrections } from '../AudioImport.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
@@ -24,6 +24,8 @@ import OutlineAssist from './reader/OutlineAssist.jsx';
 import FindBar from './reader/FindBar.jsx';
 import DisplaySettings from './reader/DisplaySettings.jsx';
 import ReadingSections from './reader/ReadingSections.jsx';
+import { renderReaderMarkdown } from './reader/markdown.js';
+import { copyText, pickFormula } from './reader/formula.js';
 import { useReaderSettings } from './reader/useReaderSettings.js';
 import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js';
 import { readerVars, underlineShown } from './reader/settings.js';
@@ -159,7 +161,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges }), [groups, data?.noteBadges]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
   const sources = useMemo(() => document?.sources || [source], [document, source]);
-  const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderNoteMarkdown(content))
+  const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content))
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading]);
   const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content }) : [],
     [reading, html, paged, sources, content]);
@@ -219,6 +221,13 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     if (!value) return;
     setCapture(value);
     if (!narrow && !settings.tools) updateSettings({ tools: true });
+  };
+  // A click on a formula selects it whole, so one click asks about one formula (on click: the browser has collapsed any selection it was in).
+  const pick = event => { if (pickFormula(window.getSelection(), event.target)) select(); };
+  // A copy that touches a formula carries the stored text (the formula's source), not the glyphs it is drawn with.
+  const copy = event => {
+    const text = copyText(window.getSelection());
+    if (text !== null) { event.clipboardData.setData('text/plain', text); event.preventDefault(); }
   };
   const refreshLinks = async value => {
     if (document) {
@@ -355,7 +364,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
-      {quote && <blockquote className="highlight-quote">{quote}</blockquote>}
+      {quote && <blockquote className="highlight-quote"><MathText text={quote} /></blockquote>}
       <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
@@ -365,7 +374,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={ui('资料内容')} data-mode={view}>
         <div className="reader-page">
-          <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select}>
+          <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select} onClick={pick} onCopy={copy}>
             {view === 'original'
               ? <div className="reader-original"><iframe src={`${fileUrl}#page=${pdfPage}`} title={source.title || ui('原始 PDF')} /></div>
               : reading

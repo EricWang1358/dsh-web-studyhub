@@ -4,6 +4,7 @@
    the stored text unchanged (only blank-line separators are dropped), so
    passage capture and citation highlighting, which match the rendered text
    without whitespace, keep working. Pure helpers, no DOM. */
+import { splitStudyMath } from '../../study-media.js';
 
 const SENTENCE_END = /[。．.!！?？；;:：,，、…)）”"』」\]]$/;
 const HEADING_MAX = 60;
@@ -20,10 +21,11 @@ const MARKDOWN_HEADING = /^(#{1,6}[ \t]+)\S/;
 /** The "# " of a Markdown heading line (hidden when drawn, kept in the text), or ''. */
 export const headingMark = line => MARKDOWN_HEADING.exec(String(line || ''))?.[1] || '';
 
-/** A short single line without sentence punctuation reads as a heading. */
+/** A short single line without sentence punctuation reads as a heading, unless it holds a formula (a line that is just a formula is body text). */
 export function looksLikeHeading(line) {
   const text = String(line || '').trim();
-  return text.length > 0 && text.length <= HEADING_MAX && !SENTENCE_END.test(text) && !LIST_MARK.test(text) && !LAYOUT.test(text);
+  return text.length > 0 && text.length <= HEADING_MAX && !SENTENCE_END.test(text) && !LIST_MARK.test(text) && !LAYOUT.test(text)
+    && splitStudyMath(text).every(piece => typeof piece === 'string');
 }
 
 /** 'layout' keeps every space and break, 'lines' keeps the breaks of a list, 'prose' reflows. */

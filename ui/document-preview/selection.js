@@ -1,3 +1,5 @@
+import { spanFormulas } from './reader/formula.js';
+
 /** A quote without a verified position never silently chooses its first occurrence. */
 export function locateQuote(text, quote, anchor = {}) {
   if (!quote) return { status: 'missing' };
@@ -81,6 +83,8 @@ export function captureSelection(container, selection = window.getSelection()) {
   if (!selection?.rangeCount || selection.isCollapsed) return null;
   const range = selection.getRangeAt(0);
   if (container && (!container.contains(range.startContainer) || !container.contains(range.endContainer))) return null;
+  // A formula is quoted whole: a selection that starts or ends inside a drawn one is widened, on screen too.
+  if (spanFormulas(range)) { selection.removeAllRanges(); selection.addRange(range); }
   // A translation block (data-tr-key) is not the document: text selected inside one is never a passage of it.
   if (range.startContainer.parentElement?.closest('[data-tr-key]') || range.endContainer.parentElement?.closest('[data-tr-key]')) return null;
   const quote = range.toString();
@@ -115,6 +119,7 @@ export function renderedPassageRange(container, selection) {
   if (!first || !last) return null;
   const range = container.ownerDocument.createRange();
   range.setStart(first.node, hit.start - first.start); range.setEnd(last.node, hit.end - last.start);
+  spanFormulas(range); // a [n] mark goes after a formula, never into its hidden source
   return range;
 }
 
