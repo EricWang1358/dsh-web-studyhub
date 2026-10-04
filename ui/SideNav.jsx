@@ -1,6 +1,7 @@
 import React from "react";
 import Icon from "./Icon.jsx";
 import NavGlyph from "./NavGlyph.jsx";
+import Tooltip from "./components/Tooltip.jsx";
 import { ui, uiFormat } from "./i18n.js";
 
 /* One row of the sidebar, whatever it is: icon, a label, and an optional trailing hint (a count, a run's
@@ -10,15 +11,18 @@ import { ui, uiFormat } from "./i18n.js";
 
    One definition of the states: `active` (the page the learner is on) is bold, sits on the gliding highlight and carries
    aria-current; `disabled` is dimmed, does nothing and is never current. Nothing else is dimmed or bold. */
-export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hintTitle, upkeep = false, active = false, disabled = false, className = "", ...button }) {
+export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hintTitle, upkeep = false, active = false, disabled = false, className = "", title, ...button }) {
   const classes = ["nav", className, upkeep && "nav-upkeep", active && "active"].filter(Boolean).join(" ");
-  return (
+  const row = (
     <button type="button" {...button} className={classes} disabled={disabled} aria-current={active && !disabled ? "page" : undefined}>
       <Icon>{icon || <NavGlyph name={glyph} />}</Icon>
       <span className="nav-label">{label}</span>
-      {hint !== undefined && hint !== null && hint !== false && <span className={hintClass} title={hintTitle}>{hint}</span>}
+      {hint !== undefined && hint !== null && hint !== false && <span className={hintClass}>{hint}</span>}
     </button>
   );
+  // What the row says beyond its label (a run's title, a drag hint, what the count means) is a Tooltip: it shows on keyboard focus too.
+  const words = [title, hintTitle].filter(Boolean).join("\n");
+  return words ? <Tooltip layer anchorClassName="nav-tip" className="nav-tooltip" placement="bottom-start" content={words}>{row}</Tooltip> : row;
 }
 
 /* A group of rows by when they are used (每天 / 阶段性 / 课程准备与管理, ui/nav-order.js). The label is one fixed-height line

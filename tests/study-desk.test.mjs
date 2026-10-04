@@ -119,10 +119,10 @@ test("finished job cards can be acknowledged and removed, running ones cannot", 
     notebooks: [], onFocus: noop, cancelJob: noop, dismissJob: noop,
   }));
   const mixed = html([job("a", "failed"), job("b", "running")]);
-  assert.equal((mixed.match(/class="job-dismiss"/g) || []).length, 1, "only the finished job offers 知道了");
+  assert.equal((mixed.match(/class="[^"]*sh-job__dismiss[^"]*"/g) || []).length, 1, "only the finished job offers 知道了");
   assert.doesNotMatch(mixed, /全部知道了/, "one finished card needs no bulk action");
   const done = html([job("a", "failed"), job("b", "partial"), job("c", "complete")]);
-  assert.equal((done.match(/class="job-dismiss"/g) || []).length, 3);
+  assert.equal((done.match(/class="[^"]*sh-job__dismiss[^"]*"/g) || []).length, 3);
   assert.match(done, /全部知道了/);
 });
 
@@ -132,5 +132,5 @@ test("a finished generation with missing questions remains visibly incomplete", 
     stage: 'Draft ready with 9/12 questions; 2 part(s) failed' }] });
   assert.match(html, /草稿待补齐 · 9\/12 题/);
   assert.doesNotMatch(html, /草稿已生成|Draft ready with/);
-  assert.match(html, /class="job-actions"/);
+  assert.match(html, /sh-job--partial/);
 });

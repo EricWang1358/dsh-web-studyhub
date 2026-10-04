@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Dialog, InlineMessage } from '../../components/index.js';
+import { Button, Dialog, IconButton, InlineMessage } from '../../components/index.js';
 import { TokenEstimateView } from '../../TokenUsage.jsx';
 
 /* The document's glossary (术语表): a term and what to do with it, kept as written or always rendered one way. It is passed
@@ -19,7 +19,7 @@ function Row({ row, index, onChange, onRemove, autoFocus }) {
     </select>
     <input id={id} className="tr-gloss__to" aria-label={uiFormat('术语 {0} 的固定译法', [index + 1])} value={row.mode === 'fixed' ? row.to : ''} maxLength={160} disabled={row.mode !== 'fixed'}
       placeholder={row.mode === 'fixed' ? ui('固定译成…') : ''} onChange={event => onChange({ to: event.target.value })} />
-    <button type="button" className="tr-iconbtn" aria-label={uiFormat('删除术语 {0}', [index + 1])} title={ui('删除这一行')} onClick={onRemove}>×</button>
+    <IconButton icon="close" size="sm" label={uiFormat('删除术语 {0}', [index + 1])} title={ui('删除这一行')} onClick={onRemove} />
   </li>;
 }
 

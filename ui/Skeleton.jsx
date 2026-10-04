@@ -7,7 +7,7 @@ import css from "./skeleton.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { ConfirmDialog, InlineMessage, SegmentedControl } from "./components/index.js";
+import { ConfirmDialog, DisclosureToggle, InlineMessage, SegmentedControl, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
@@ -234,6 +234,12 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
     }
   }
 
+  const toggleFold = (key) => setOpen((prev) => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+
   const renderTopic = (t) => {
     const keys = t.decks.map((d) => pairKey(d.deckId, d.topic));
     const on = keys.filter((k) => picked.has(k)).length;
@@ -241,6 +247,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
     return (
       <li key={t.key} className={on ? "picked" : ""}>
         <div className="sk-topic-row">
+          <DisclosureToggle open={expanded} label={foldLabel(expanded, t.topic)} onToggle={() => toggleFold(t.key)} />
           <input
             type="checkbox"
             aria-label={uiFormat("选择主题 {0}", [t.topic])}
@@ -254,15 +261,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
             type="button"
             className="sk-topic-name"
             aria-expanded={expanded}
-            onClick={() =>
-              setOpen((prev) => {
-                const next = new Set(prev);
-                next.has(t.key) ? next.delete(t.key) : next.add(t.key);
-                return next;
-              })
-            }
+            onClick={() => toggleFold(t.key)}
           >
-            <span className="sk-caret" aria-hidden="true">▸</span>
             <span className="sk-topic-title">{t.topic}</span>
             {t.decks.length > 1 && <span className="sk-badge">{ui("跨 ")}{t.decks.length}{ui(" 个题组")}</span>}
             <small>{t.count}{ui(" 题")}</small>
@@ -366,6 +366,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                 return (
                   <li key={g.id} className={"sk-group" + (on ? " picked" : "") + (g.loose ? " loose" : "")}>
                     <div className="sk-topic-row">
+                      <DisclosureToggle open={!!expanded} label={foldLabel(!!expanded, g.title)} onToggle={() => toggleFold("g:" + g.id)} />
                       <input
                         type="checkbox"
                         aria-label={uiFormat("选择主题组 {0}", [g.title])}
@@ -380,15 +381,8 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                         className="sk-topic-name"
                         aria-expanded={!!expanded}
                         title={g.description || g.title}
-                        onClick={() =>
-                          setOpen((prev) => {
-                            const next = new Set(prev);
-                            next.has("g:" + g.id) ? next.delete("g:" + g.id) : next.add("g:" + g.id);
-                            return next;
-                          })
-                        }
+                        onClick={() => toggleFold("g:" + g.id)}
                       >
-                        <span className="sk-caret" aria-hidden="true">▸</span>
                         <span className="sk-topic-title sk-group-title">{g.title}</span>
                         <span className="sk-badge dim">{g.members.length}{ui(" 个主题")}</span>
                         <small>{cards}{ui(" 题")}</small>

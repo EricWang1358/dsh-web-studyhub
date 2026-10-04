@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-const compiled = await build({ stdin: { contents: `export { default as Markdown } from './ui/Markdown.jsx'; export { default as FlipCard } from './ui/FlipCard.jsx';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], logLevel: 'silent' });
+const compiled = await build({ stdin: { contents: `export { default as Markdown } from './ui/Markdown.jsx'; export { default as FlipCard } from './ui/FlipCard.jsx';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Markdown, FlipCard } = module.exports;

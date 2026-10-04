@@ -104,15 +104,6 @@
 .study-app button.sk-topic-name:hover:not(:disabled) {
   background: transparent;
 }
-.sk-caret {
-  flex: none;
-  color: var(--text-muted);
-  font-size: 15px;
-  transition: transform 0.15s var(--ease);
-}
-[aria-expanded="true"] > .sk-caret {
-  transform: rotate(90deg);
-}
 .sk-topic-title {
   min-width: 0;
   overflow: hidden;
@@ -409,15 +400,12 @@
   flex-wrap: wrap;
   margin-left: auto;
 }
-.study-app .skc-tabs button {
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-}
-.study-app .skc-tabs button.on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--text);
+.skc-tabs .sh-tab {
+  flex-direction: row;
+  min-height: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
 }
 .skc-seq-title {
   margin: 0;
@@ -634,13 +622,8 @@
 .skc-detail-head strong {
   font-size: 14.5px;
 }
-.study-app button.skc-close {
+.skc-close {
   margin-left: auto;
-  padding: 0 8px;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 18px;
 }
 .skc-attrs,
 .skc-rels {
@@ -919,16 +902,8 @@
   background: var(--ok);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent);
 }
-.study-app .skc-change button {
-  padding: 3px 10px;
-  font-size: 12px;
-}
-.study-app .skc-change button.skc-change-close {
+.skc-change-close {
   margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 16px;
 }
 .study-app button.skc-class.fresh {
   border-color: var(--ok);
@@ -998,7 +973,6 @@
 }
 .skc-component { fill: color-mix(in srgb, var(--bg-surface) 70%, transparent); stroke: var(--line-soft); stroke-width: 1; }
 .skc:fullscreen, .skc-expanded { box-sizing: border-box; padding: 20px; background: var(--bg-surface); overflow: auto; }
-.skc-expanded { position: fixed; inset: 0; z-index: 10000; }
 .skc:fullscreen .skc-view, .skc-expanded .skc-view { height: calc(100dvh - 200px); min-height: 260px; }
 .skc:fullscreen .skc-body, .skc-expanded .skc-body { flex: 1; }
 .skc-toolbar select { max-width: 150px; }
@@ -1008,13 +982,8 @@
   .skc:fullscreen .skc-view, .skc-expanded .skc-view { height: calc(100dvh - 280px); }
   .skc-toolbar select { min-height: 44px; }
 }
-.skc-expanded[popover] { margin: 0; width: auto; height: auto; max-width: none; max-height: none; border: 0; color: var(--text); }
-.skc-expanded::backdrop { background: var(--bg-canvas); }
 .skc-component-title { fill: var(--text-dim); font-size: 14px; font-weight: 600; }
-.skc-zoom-value { min-width: 40px; text-align: center; color: var(--text-dim); font-size: 12px; font-variant-numeric: tabular-nums; }
-.skc-layout-menu { position: relative; }
-.skc-layout-menu summary { cursor: pointer; padding: 7px 10px; font-size: 12px; }
-.skc-layout-menu > div { position: absolute; top: 100%; right: 0; z-index: 5; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); width: 170px; }
+.skc-layout-panel { display: flex; flex-direction: column; gap: var(--space-2); width: 11rem; }
 .study-app button.skc-minimap { position: absolute; right: 12px; bottom: 12px; width: 140px; height: 88px; padding: 4px; z-index: 2; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg-surface); opacity: .94; cursor: crosshair; }
 .skc-minimap svg { width: 100%; height: 100%; overflow: hidden; }
 .skc-minimap rect { fill: var(--text-muted); }
@@ -1026,7 +995,6 @@
   .skc-hint { display: none; }
   .skc-search { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
   .skc-search input, .skc-search select { width: 100%; max-width: 100%; height: 44px; }
-  .skc-layout-menu summary { min-height: 44px; display: flex; align-items: center; box-sizing: border-box; }
   .skc-view { height: min(65dvh, 600px); min-height: 300px; }
 }
 .sqc-message-text { display: inline-block; max-width: calc(100% - 25px); overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
@@ -1037,11 +1005,11 @@
 .skc-narrow .skc-search input, .skc-narrow .skc-search select { width: 100%; max-width: 100%; height: 44px; }
 .skc-narrow .skc-detail { position: static; width: auto; max-height: 360px; margin-top: 12px; }
 .study-app .skc-narrow .skc-toolbar button { min-height: 44px; }
-.skc-narrow .skc-layout-menu summary { min-height: 44px; display: flex; align-items: center; box-sizing: border-box; }
 /* Re-layout and camera changes are atomic; moving every node independently
    briefly overlays unrelated concepts while a narrow pane changes direction. */
 .study-app button.skc-class { transition: opacity .15s var(--ease), border-color .15s var(--ease), box-shadow .15s var(--ease); }
-.skc-attributes-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.skc-attributes-toggle { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; }
+.skc-layout-panel select { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); }
 .skc-attributes-toggle input { width: auto; }
 .skc-compact .skc-class-name { border-bottom: 0; border-radius: 6px; }
 .skc-focus-chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
@@ -1148,23 +1116,25 @@
   grid-auto-flow: column;
   grid-auto-columns: minmax(132px, 1fr);
   align-items: start;
+  column-gap: 16px;
   width: 100%;
   margin: 0;
   padding: 0;
-  list-style: none;
 }
-.spine-track > li { display: flex; align-items: flex-start; min-width: 0; }
 /* The axis: a short rule between two tabs, level with the circles. */
-.spine-track > li:not(:last-child)::after {
+.study-app .spine-track > .sh-tab-anchor:not(:last-child) > .spine-tab::after {
   content: "";
-  flex: none;
+  position: absolute;
+  top: 17px;
+  left: 100%;
   width: 16px;
   height: 2px;
-  margin-top: 17px;
   background: var(--line-strong);
 }
 .study-app .spine-tab {
+  position: relative;
   display: flex;
+  flex-direction: row;
   align-items: flex-start;
   gap: 8px;
   flex: 1 1 auto;
@@ -1178,7 +1148,7 @@
   text-align: left;
 }
 .study-app .spine-tab:hover:not(:disabled) { background: var(--bg-hover); }
-.study-app .spine-tab.is-current { background: var(--bg-selected); }
+.study-app .spine-tab.is-active { background: var(--bg-selected); }
 .spine-marker {
   display: grid;
   place-items: center;
@@ -1192,7 +1162,7 @@
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
-.spine-tab.is-current .spine-marker { background: var(--text); box-shadow: none; color: var(--bg-canvas); }
+.spine-tab.is-active .spine-marker { background: var(--text); box-shadow: none; color: var(--bg-canvas); }
 .spine-tab-title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1205,7 +1175,7 @@
   color: var(--text-dim);
   overflow-wrap: anywhere;
 }
-.spine-tab.is-current .spine-tab-title { color: var(--text); font-weight: 650; }
+.spine-tab.is-active .spine-tab-title { color: var(--text); font-weight: 650; }
 
 /* The detail pane: the whole of one station, nothing truncated. */
 .spine-detail { margin-top: 12px; padding: 0 2px 2px; }
@@ -1342,7 +1312,7 @@
   background: var(--bg-surface);
 }
 .wf-spine-peek .spine-marker { background: var(--bg-surface); }
-.wf-spine-peek .spine-tab.is-current .spine-marker { background: var(--text); }
+.wf-spine-peek .spine-tab.is-active .spine-marker { background: var(--text); }
 .wf-spine-peek.is-folded { padding-bottom: 2px; }
 .wf-spine-peek 
 .spine :is(button, summary):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
@@ -1359,9 +1329,9 @@
    detail pane), so five stations fit without sideways scrolling. */
 @container study (max-width: 820px) {
   .spine-tab-title { display: none; }
-  .spine-track { grid-auto-columns: minmax(34px, 1fr); }
+  .spine-track { grid-auto-columns: minmax(34px, 1fr); column-gap: 12px; }
   .study-app .spine-tab { flex: none; padding: 4px; border-radius: 999px; }
-  .spine-track > li:not(:last-child)::after { flex: 1 1 12px; width: auto; min-width: 10px; }
+  .study-app .spine-track > .sh-tab-anchor:not(:last-child) > .spine-tab::after { width: 12px; }
 }
 /* Narrow panes: the folded chip takes its own line and the points stack. */
 @container study (max-width: 640px) {

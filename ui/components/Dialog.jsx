@@ -6,9 +6,20 @@ import { useComponentCss, cx } from './css.js';
 import { IconButton } from './Button.jsx';
 import { DialogToasts } from './Feedback.jsx';
 import { guardFileDrag } from './FileDrop.jsx';
+import mediaCss from './dialog-media.css';
 import { pushDialog, useTopDialog } from './dialog-stack.js';
+import { appearanceAttrs, appearanceStyle, loadAppearance } from '../appearance-prefs.js';
 
-const SIZES = new Set(['sm', 'md', 'lg', 'full']);
+const SIZES = new Set(['sm', 'md', 'lg', 'media', 'full']);
+
+/** True when the dialog sits outside every study surface (the host's own page, DSH's preview slot): then it has no tokens to inherit. */
+export const needsOwnScope = (dialog) => !dialog?.parentElement?.closest?.('.study-app, .study-seat');
+
+/** What such a dialog wears to be a study surface of its own: the saved appearance as the app root would stamp it. */
+export function ownScope() {
+  const prefs = loadAppearance();
+  return { attrs: appearanceAttrs(prefs), style: appearanceStyle(prefs) };
+}
 
 /** What Escape does: close, nothing (non-dismissible) or wait for the browser's close event. */
 export function cancelDecision({ cancelable, dismissible }) {
@@ -25,7 +36,8 @@ export const isBackdropClick = (event, dialog, downTarget) => event.target === d
  * the rest of the page inert, closes on Escape / the close button / a backdrop
  * click, and returns focus to whatever opened it. Mount it to open it and
  * unmount it to close it; onClose(reason) asks the owner to unmount it.
- * size: sm | md | lg | full. `footer` stays visible while the body scrolls.
+ * size: sm | md | lg | media (fits an image, below 70dvh) | full. `footer` stays visible while the body scrolls.
+ * Outside every study surface it carries its own scope (the .study-app class and the saved appearance), so it is styled wherever it opens.
  * `busy` (work is running) implies non-dismissible: the close button stays but
  * is marked aria-disabled, Escape and the backdrop do nothing, and the dialog
  * is aria-busy. `guardDrops` keeps a stray file drop on the dialog (its header
@@ -35,6 +47,8 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
   bodyLabel, closeLabel, busy = false, guardDrops = false, className, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
+  useComponentCss(mediaCss, 'study-dialog-media');
+  const [own, setOwn] = useState(null);
   const ref = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose);
   const canDismiss = dismissible && !busy;
   const [entry] = useState(() => ({ dialog: null }));
@@ -47,6 +61,7 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
     const opener = document.activeElement;
     closing.current = false;
     entry.dialog = dialog;
+    if (needsOwnScope(dialog)) setOwn(ownScope());
     if (!dialog.open) {
       try { dialog.showModal(); } catch { dialog.setAttribute('open', ''); }
     }
@@ -66,7 +81,7 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
   useEffect(() => (guardDrops && ref.current ? guardFileDrag(ref.current) : undefined), [guardDrops]);
   const requestClose = reason => { if (!closing.current && canDismiss) onCloseRef.current?.(reason); };
   return (
-    <dialog ref={ref} className={cx('sh-dialog', `sh-dialog--${kind}`, className)} role="dialog" aria-modal="true"
+    <dialog ref={ref} className={cx('sh-dialog', `sh-dialog--${kind}`, own && 'study-app', className)} style={own?.style} {...own?.attrs} role="dialog" aria-modal="true"
       aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} aria-busy={busy || undefined}
       onCancel={event => {
         const decision = cancelDecision({ cancelable: event.cancelable, dismissible: canDismiss });

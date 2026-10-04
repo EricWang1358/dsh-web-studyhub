@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Dialog } from '../../components/index.js';
+import { Button, Dialog, InlineMessage } from '../../components/index.js';
 import { TokenEstimateView, TokenUsage } from '../../TokenUsage.jsx';
 import { useInjectCss } from '../../shared.js';
 import { ASSIST_IDLE, assistReducer, rejectionKind } from './ai-outline.js';
@@ -80,18 +80,18 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 
     <div className="reader-assist__actions"><Button size="sm" variant="quiet" onClick={onDiscard}>{ui('知道了')}</Button></div>
   </div>;
   if (phase === 'rejected') return <div className="reader-assist" data-phase="rejected">
-    <p className="reader-assist__note is-warning" role="alert">{rejectionText(state.code)}</p>
+    <InlineMessage tone="error" className="reader-assist__note">{rejectionText(state.code)}</InlineMessage>
     {state.usage && <TokenUsage usage={state.usage} />}
     <div className="reader-assist__actions"><Button size="sm" onClick={() => onStart(state.mode)}>{ui('重新生成')}</Button><Button size="sm" variant="quiet" onClick={onDiscard}>{ui('关闭')}</Button></div>
   </div>;
   if (phase === 'failed') return <div className="reader-assist" data-phase="failed">
-    <p className="reader-assist__note is-warning" role="alert">{uiFormat('没能完成：{0}', [state.message || ui('出现未知错误')])}</p>
+    <InlineMessage tone="error" className="reader-assist__note">{uiFormat('没能完成：{0}', [state.message || ui('出现未知错误')])}</InlineMessage>
     <div className="reader-assist__actions"><Button size="sm" onClick={() => onStart(state.mode)}>{ui('重试')}</Button><Button size="sm" variant="quiet" onClick={onDiscard}>{ui('关闭')}</Button></div>
   </div>;
   return <div className="reader-assist" data-phase="idle">
     {saved && <>
       <p className="reader-assist__note" role="status">{uiFormat(saved.mode === 'chapters' ? 'AI 章节 · {0} 项' : 'AI 目录 · {0} 项', [saved.entries.length])}</p>
-      {missing > 0 && <p className="reader-assist__note is-warning">{uiFormat('有 {0} 项在当前版面里找不到，已略过。', [missing])}</p>}
+      {missing > 0 && <InlineMessage tone="warning" className="reader-assist__note">{uiFormat('有 {0} 项在当前版面里找不到，已略过。', [missing])}</InlineMessage>}
       {segmentation && <p className="reader-assist__note" role="status">{uiFormat('已按第 {0} 级分成 {1} 章。', [segmentation.level, segmentation.chapters])}</p>}
       <div className="reader-assist__actions">
         {onSegment && <Button size="sm" variant="quiet" onClick={onSegment}>{ui('用它重新分段')}</Button>}

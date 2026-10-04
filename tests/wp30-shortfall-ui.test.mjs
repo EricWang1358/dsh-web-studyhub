@@ -174,11 +174,11 @@ test("home: an active top-up exposes saved progress and stop while execution and
     estimate: { totalTokens: { low: 139000, high: 235000 }, calls: { low: 18, high: 22 } },
     steps: [{ id: "s", stage: "Planning evidence and learning targets", stageCode: "planning", status: "running" }] };
   const html = home({ drafts: [legacyDraft()], jobs: [job] });
-  assert.match(html, /class="job-progress"/);
-  assert.match(html, /aria-valuenow="10"[^>]*aria-valuemax="20"/);
+  assert.match(html, /class="sh-job__progress"/);
+  assert.match(html, /aria-valuemax="20"[^>]*aria-valuenow="10"/);
   assert.match(html, /本次计划补 10 题/);
   assert.match(html, /当前阶段/);
-  assert.match(html, /class="[^"]*job-stop[^"]*"/);
+  assert.match(html, /<button[^>]*>[^]*?停止<\/button>/, "the stop control is a JobRow action");
   assert.doesNotMatch(/<details[^>]*class="generation-trace"[^>]*>/.exec(html)?.[0] || "", /\bopen\b/);
   assert.match(html, /生成方式、用量与技术详情/);
   assert.doesNotMatch(html, /已保存 10 题到草稿；其余批次仍在生成/, "saved count belongs to the progress summary once");

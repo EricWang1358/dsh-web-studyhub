@@ -4,7 +4,7 @@ import MathText from '../MathText.jsx';
 import { AudioCorrections } from '../AudioImport.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, IconButton, SegmentedControl } from '../components/index.js';
+import { Button, IconButton, InlineMessage, SegmentedControl } from '../components/index.js';
 import DocumentLearning from './DocumentLearning.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { issueOf } from './original-file.js';
@@ -323,11 +323,11 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     loading && <p key="loading" role="status">{ui('正在打开资料…')}</p>,
     !localMode && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     view === 'original' && <p key="pdf">{ui('原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。')}</p>,
-    !localMode && error && <p key="error" className="is-warning" role="alert">{error}</p>,
-    quoteState?.status === 'ambiguous' && <p key="ambiguous" className="is-warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</p>,
-    quoteState?.status === 'stale' && <p key="stale" className="is-warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</p>,
+    !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,
+    quoteState?.status === 'ambiguous' && <InlineMessage key="ambiguous" tone="warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</InlineMessage>,
+    quoteState?.status === 'stale' && <InlineMessage key="stale" tone="warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</InlineMessage>,
     source.selection && document?.currentRevision && document.currentRevision !== source.selection.revision
-      && <p key="revision" className="is-warning">{ui('此引用来自较早版本，当前资料已有更新。')}</p>,
+      && <InlineMessage key="revision" tone="warning">{ui('此引用来自较早版本，当前资料已有更新。')}</InlineMessage>,
     bilingual.notice,
     !localMode && loop.resumeNote === 'updated' && <p key="resume" className="reader-resume-note" role="status">{ui('资料已更新，已回到该章节大致的位置。')}</p>,
   ].filter(Boolean);

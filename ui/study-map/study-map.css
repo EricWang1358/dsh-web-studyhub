@@ -1,0 +1,23 @@
+/* ── The library home's own pieces ───────────────────────────────────────
+   What the split of StudyMap left to style: the fold button of a row (it was
+   .map-caret in style.css) and the caret beside the course heading. Tokens only. */
+.study-app {
+  .map-row .map-fold {
+    flex: none;
+    width: var(--space-6);
+    min-height: 0;
+    height: var(--space-6);
+    padding: 0;
+    color: var(--text-faint);
+  }
+  .map-row .map-fold:hover:not(:disabled) { background: transparent; color: var(--text); }
+  .nb-dir .map-fold { margin-inline-end: var(--space-1); }
+
+  .course-heading__caret {
+    flex: none;
+    color: var(--text-faint);
+    transform: rotate(90deg);
+    transition: color var(--dur-fast) var(--ease);
+  }
+  .course-heading:hover .course-heading__caret { color: var(--text); }
+}

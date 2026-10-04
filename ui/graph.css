@@ -9,10 +9,12 @@
   gap: 10px;
   min-width: 0;
 }
-/* 「大画布」 promotes the section to the browser's fullscreen element. That
-   escapes the study panel's paint containment, so the section really does own
-   the whole screen instead of being clipped to the sidebar's width. */
-.graph:fullscreen {
+/* 全屏查看 promotes the section to the browser's fullscreen element (or, where
+   the host blocks that, to the top layer: .canvas-expanded). Either escapes
+   the study panel's paint containment, so the section really does own the
+   whole screen instead of being clipped to the sidebar's width. */
+.graph:fullscreen,
+.graph.canvas-expanded {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -74,48 +76,25 @@
   border-radius: var(--radius-sm);
   background: var(--bg-sunken);
 }
-.graph-zoom button {
-  border: none;
-  background: transparent;
-  padding: 4px 9px;
-  border-radius: 7px;
-  font-size: 13px;
-  min-width: 30px;
-}
-.graph-zoom button:hover:not(:disabled) {
-  background: var(--bg-hover);
-}
-.graph-zoom-value {
-  min-width: 44px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-.graph-zoom .graph-fit {
-  min-width: 0;
-}
 .graph-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
 }
-.graph-notice {
-  font-size: 12px;
-  color: var(--text-muted);
-}
 .graph-truncated {
   font-size: 12px;
   color: var(--warn);
 }
 
-/* The viewport scrolls the WHOLE drawing — nothing is clipped the way the old
-   fixed-height SVG was. In the panel it is bounded so the page stays
+/* The viewport pans and zooms the WHOLE drawing (the shared canvas kit moves
+   .graph-plane with a transform). In the panel it is bounded so the page stays
    navigable; in the canvas it takes every remaining pixel. */
 .graph-viewport {
   position: relative;
-  overflow: auto;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
   max-width: 100%;
   /* A fixed height, not max-height: a content-sized box would feed its own
      scaled content back into the fit calculation and collapse to the minimum
@@ -137,12 +116,18 @@
   cursor: grabbing;
   user-select: none;
 }
+.graph-viewport:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
 .graph-plane {
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
 }
 .graph-svg {
   display: block;
-  transform-origin: 0 0;
 }
 .graph-state {
   padding: 32px 16px;

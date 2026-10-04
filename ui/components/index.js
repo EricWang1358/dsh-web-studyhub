@@ -33,3 +33,5 @@ export { Field, TextInput, TextArea, Select, NumberInput } from './Field.jsx';
 export { Checkbox, Switch, RadioCard, RadioCardGroup } from './Choice.jsx';
 export { SettingsSection } from './SettingsSection.jsx';
 export { ProviderCard, ProviderGrid, StepList } from './ProviderCard.jsx';
+export { Tabs, TabPanel, nextTabIndex, tabIds } from './Tabs.jsx';
+export { DisclosureToggle, foldLabel } from './DisclosureToggle.jsx';

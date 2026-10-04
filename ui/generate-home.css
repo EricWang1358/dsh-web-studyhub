@@ -5,54 +5,17 @@
 /* ── Home: progress and drafts at the top ─────────────────────────────── */
 .home-activity { display: grid; gap: var(--space-4); margin: var(--space-4) 0 var(--space-2); }
 .home-activity .generation-jobs { display: grid; gap: var(--space-2); margin: 0; }
-.home-activity .job {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--space-1) var(--space-3);
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-surface);
-}
-.home-activity .job.running { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
-.home-activity .job.failed { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
-.home-activity .job-mark { display: flex; align-items: center; justify-content: center; height: 24px; font-size: var(--fs-md); color: var(--ok); }
-.home-activity .job.running .job-mark { color: var(--accent-text); }
-.home-activity .job.failed .job-mark { color: var(--bad); }
-.home-activity .job.partial .job-mark { color: var(--warn); }
-.home-activity .job.cancelled .job-mark { color: var(--text-muted); }
-.home-activity .job-content { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
-.home-activity .job-title { font-size: var(--fs-md); font-weight: 600; line-height: var(--lh-snug); color: var(--text); }
-.home-activity .job-stage { display: block; margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
-.home-activity .job-stage__label { margin-right: var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); }
-.home-activity .job-progress { display: grid; gap: var(--space-2); min-width: 0; margin-block: var(--space-2); max-width: 420px; }
-.home-activity .job-progress__line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
-.home-activity .job-progress__line strong { color: var(--text); font-size: var(--fs-lg); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
-.home-activity .job-progress__bar { height: 4px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); }
-.home-activity .job-progress__bar > span { display: block; height: 100%; background: var(--accent); }
-.home-activity .job-progress__note { color: var(--text-muted); font-size: var(--fs-xs); }
-.home-activity .job-failure { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-1); }
-.home-activity .job-failure .sh-inline { width: 100%; }
-.home-activity .job-failure .tech-details { width: 100%; margin-top: 0; }
-.home-activity .job .generation-trace { margin-top: var(--space-1); font-size: var(--fs-sm); }
-.home-activity .job .generation-trace > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
-.home-activity .job .generation-trace > summary:hover { color: var(--text); }
-.home-activity .job .tech-details { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); }
+/* A generation job is the shared JobRow (.sh-job, components/feedback.css); these only dress what the home puts inside it. */
+.home-activity .sh-job .job-stage__label { margin-right: var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); }
+.home-activity .sh-job .job-progress__note { color: var(--text-muted); font-size: var(--fs-xs); }
+.home-activity .sh-job .generation-trace { margin-top: var(--space-1); font-size: var(--fs-sm); }
+.home-activity .sh-job .generation-trace > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
+.home-activity .sh-job .generation-trace > summary:hover { color: var(--text); }
+.home-activity .sh-job .tech-details { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); }
 .home-activity .job-raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-xs); color: var(--text-muted); }
-.home-activity .job-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-2); margin: 0; }
-.home-activity .job-actions:empty { display: none; }
-.home-activity .job-actions .job-dismiss { margin: 0; padding: 4px 10px; font-size: var(--fs-sm); }
-.home-activity .job-stop { white-space: nowrap; }
-.home-activity .job button { margin-left: 0; }
 .home-activity .jobs-actions { display: flex; justify-content: flex-end; }
 .home-activity .home-drafts > .section-heading { margin-top: 0; }
 .home-activity .draft-row:last-child { border-bottom: 0; }
-@container study (max-width: 560px) {
-  .home-activity .job { grid-template-columns: 22px minmax(0, 1fr); padding: var(--space-3); }
-  .home-activity .job-actions { grid-column: 2; justify-content: flex-start; }
-}
 
 /* ── Home: a newcomer's first deck, three steps on the card ───────────── */
 .today-card .starter-steps { list-style: none; display: grid; margin: 0 0 var(--space-5); padding: 0; }

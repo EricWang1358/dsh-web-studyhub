@@ -10,6 +10,7 @@ import {
 } from './model.js';
 import TranslationBlock from './TranslationBlock.jsx';
 import GlossaryDialog from './GlossaryDialog.jsx';
+import FloatingTranslation from './FloatingTranslation.jsx';
 import { SelectionChip, TranslationDisplayRow, TranslationJobCard, TranslationMenu } from './TranslationMenu.jsx';
 
 /* The bilingual reading of the reader (译), as one hook the viewer calls once. It owns the translations of the document, the
@@ -432,8 +433,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const layerNodes = <>
     {[...hosts].map(([key, host]) => createPortal(blockFor(key), host, key))}
     {page && chip && !floating && createPortal(<SelectionChip left={chip.left} top={chip.top} target={target} onClick={() => translateSelection(captureSelection(body.current))} />, page)}
-    {page && floating && blockFor(floating.key) && createPortal(<div className="tr-float" style={{ left: floating.left, top: floating.top }}>{blockFor(floating.key)}
-      <button type="button" className="tr-float__close" aria-label={ui('关闭')} onClick={() => setFloating(null)}>×</button></div>, page)}
+    {page && floating && blockFor(floating.key) && createPortal(<FloatingTranslation left={floating.left} top={floating.top} onClose={() => setFloating(null)}>{blockFor(floating.key)}</FloatingTranslation>, page)}
     {glossaryOpen && <GlossaryDialog glossary={state.glossary} target={target} onSave={saveGlossary} onPrice={priceAgain} onRetranslate={retranslateMany} onClose={() => setGlossaryOpen(false)} />}
   </>;
   const hasTranslations = Object.keys(state.items).length > 0;

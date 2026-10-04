@@ -34,13 +34,18 @@ test("where the skeleton is the subject the spine opens as a stepper strip with 
   assert.equal(tabs.length, 5, "one tab per station");
   assert.deepEqual(tabs.map((t) => /aria-selected="true"/.test(t)), [true, false, false, false, false]);
   assert.deepEqual(tabs.map((t) => /tabindex="0"/.test(t)), [true, false, false, false, false], "roving tabindex: one stop in the strip");
-  for (const station of ["领域驱动的初始服务边界", "服务之间怎样通信", "服务发现与负载均衡", "微服务的数据访问与读写分离", "故障隔离与可观测性"])
-    assert.ok(tabs.some((t) => t.includes(`title="${station}"`)), `the full title of ${station} is the tooltip`);
+  for (const station of ["领域驱动的初始服务边界", "服务之间怎样通信", "服务发现与负载均衡", "微服务的数据访问与读写分离", "故障隔离与可观测性"]) {
+    assert.match(html, new RegExp(`role="tooltip"[^>]*>${station}<`), `the full title of ${station} is a Tooltip (it also shows on keyboard focus)`);
+    assert.ok(tabs.some((t) => t.includes(`aria-label="`) && /aria-describedby="[^"]+"/.test(t)), "every tab is tied to its tooltip");
+  }
+  assert.ok(tabs.every((t) => !/\btitle=/.test(t)), "no native title attributes on the station tabs");
   assert.equal([...html.matchAll(/role="tabpanel"/g)].length, 1, "ONE detail pane, not one column per station");
   const panelLabel = html.match(/role="tabpanel"[^>]*aria-labelledby="([^"]+)"|aria-labelledby="([^"]+)"[^>]*role="tabpanel"/);
   const labelledBy = panelLabel && (panelLabel[1] || panelLabel[2]);
   assert.ok(labelledBy && tabs[0].includes(`id="${labelledBy}"`), "the pane is labelled by the selected tab");
-  assert.ok(tabs.every((t) => /aria-controls="[^"]+"/.test(t)));
+  const controls = tabs[0].match(/aria-controls="([^"]+)"/);
+  assert.ok(controls && html.includes(`id="${controls[1]}"`), "the selected tab points at the detail pane, which exists");
+  assert.equal(tabs.filter((t) => /aria-controls=/.test(t)).length, 1, "only the selected tab names a panel (the others have none rendered)");
   // The detail pane carries the first station in full: description, point, point description.
   assert.match(html, /用限界上下文划分服务，让每个服务围绕一项业务能力，而不是围绕技术分层。/);
   assert.match(html, /限界上下文/);
