@@ -12,7 +12,7 @@ import LocalImagePicker from './LocalImagePicker.jsx';
 import { useSciencePreferences } from './SciencePreferences.jsx';
 import DailyRecap, { recapTimeZone } from './DailyRecap.jsx';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
-import { existingNoteMaterial, noteMaterial } from './DailyRecap-material.js';
+import { existingNoteMaterial } from './DailyRecap-material.js';
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
@@ -89,7 +89,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     const token = identity.current, submitted = current.current;
     const key = draftKey(data.root, 'note', submitted.id), recovery = readDraft(key);
     const saved = await call('note.save', { id: submitted.id, title: submitted.title,
-      markdown: submitted.markdown, cards: submitted.cards, expectedRevision: submitted.revision });
+      markdown: submitted.markdown, ...(!isDailyNote(submitted) ? { cards: submitted.cards } : {}), expectedRevision: submitted.revision });
     if (recovery) clearDraft(key, recovery.revision);
     if (identity.current !== token) return saved;
     if (current.current?.status === 'published' && !isDailyNote(current.current)) return saved;
@@ -149,7 +149,8 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     return perform(async live => {
       const submitted = writable ? await persistCurrent() : current.current;
       if (!live()) return;
-      const material = await noteMaterial(submitted);
+      const material = await call('note.material.prepare', { id: submitted.id, expectedRevision: submitted.revision });
+      if (!live()) return;
       const existing = await existingNoteMaterial(call, material);
       if (!live()) return;
       if (!existing) {

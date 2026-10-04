@@ -57,7 +57,10 @@ export function DailyRecapPanel({ root, runId, course, saved, call, act, busy = 
         ? { ...item, noteId: result.id, protected: result.status === 'protected', hasContent: result.status === 'done' || item.hasContent,
           generation: { status: result.status }, stale: result.status === 'done' ? false : item.stale }
         : item) }));
-      if (result.status === 'running' && poll) token.timer = setTimeout(() => refreshRef.current?.(), 1500);
+      if (result.status === 'running' && poll) {
+        clearTimeout(token.timer);
+        token.timer = setTimeout(() => refreshRef.current?.(), 1500);
+      }
     } catch (cause) { if (live()) setError(cause.message || String(cause)); }
     finally { if (live()) { pending.current = null; setWorking(''); } }
   }
@@ -74,6 +77,7 @@ export function DailyRecapPanel({ root, runId, course, saved, call, act, busy = 
       clearTimeout(token.timer);
       setStatus(previous => ({ ...previous, groups: previous.groups.map(item => item.noteId === group.noteId
         ? { ...item, generation: result.generation || { status: 'cancelled' } } : item) }));
+      if (poll) await refreshRef.current?.();
     } catch (cause) { if (live()) setError(cause.message || String(cause)); }
     finally { if (live()) { pending.current = null; setWorking(''); } }
   }

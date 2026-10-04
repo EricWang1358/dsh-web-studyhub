@@ -116,6 +116,10 @@ test('a protected manual edit stays intact unless replacement is explicitly chos
   assert.match(renderToStaticMarkup(editor.render()), /手动修改/);
   assert.equal(requests.filter(item => item.action === 'note.daily.generate').length, 1);
   assert.equal(requests.at(-1).args.force, undefined);
+  await button(editor, '替换手动内容并重新整理').props.onClick();
+  assert.equal(requests.filter(item => item.action === 'note.daily.generate').length, 2);
+  assert.equal(requests.at(-1).args.force, true);
+  assert.equal(requests.at(-1).args.day, '2026-10-04');
 });
 
 test('stopping a running recap preserves the existing reading action and permits a manual retry', async () => {
@@ -148,6 +152,27 @@ test('a notes-list generation refreshes while running, then offers its completed
   assert.doesNotMatch(renderToStaticMarkup(editor.render()), /正在整理/);
   t.mock.timers.tick(10000); await settle();
   assert.equal(reads, 2, 'polling stops once the job completes');
+  editor.unmount();
+});
+
+test('cancelling one course keeps refreshing another running recap until it is readable', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let cancelled = false, reads = 0;
+  const editor = panel({ poll: true, call: async (action) => {
+    if (action === 'note.daily.cancel') { cancelled = true; return { id: 'db-recap', generation: { status: 'cancelled' } }; }
+    reads++;
+    return status([group({ noteId: 'db-recap', generation: { status: cancelled ? 'cancelled' : 'running' } }),
+      group({ course: 'Networks', courseId: 'net', noteId: 'net-recap', hasContent: reads >= 3,
+        generation: { status: reads >= 3 ? 'done' : 'running' } })]);
+  }, onOpenNote() {} });
+  editor.render(); editor.effects(); await settle();
+  await button(editor, '停止生成').props.onClick();
+  t.mock.timers.tick(3000); await settle();
+  assert.ok(button(editor, '阅读今日合集'), 'the other course becomes readable without reopening the panel');
+  assert.doesNotMatch(renderToStaticMarkup(editor.render()), /正在整理今天的讲解/);
+  const finalReads = reads;
+  t.mock.timers.tick(10000); await settle();
+  assert.equal(reads, finalReads);
   editor.unmount();
 });
 

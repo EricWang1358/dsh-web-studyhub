@@ -868,7 +868,8 @@ export default function App({ call: transportCall, host = {} }) {
     if (!origin || origin.root !== dataRef.current?.root) { setContextTrail([]); return; }
     try {
       if (origin.page === 'review') {
-        const next = await call('review.move', { runId: origin.runId, index: origin.index });
+        const next = origin.runComplete ? await call('review.get', { runId: origin.runId })
+          : await call('review.move', { runId: origin.runId, index: origin.index });
         if (!live()) return;
         enterRun(next, origin.input);
       } else if (origin.page === 'notes') {

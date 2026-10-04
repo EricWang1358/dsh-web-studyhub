@@ -27,13 +27,19 @@ async function answers(service, count, { deckId = 'd', offset = 0, timestamp = n
       runId, deckId, quiz_id: `${deckId}-${i}`, timestamp, grade, assessment: 'graded', retry });
   });
 }
-async function ready(service, id) {
+async function settled(service, id) {
   for (let i = 0; i < 150; i++) {
     const note = await service.call('note.get', { id });
     if (note.generation?.status !== 'running') return note;
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   throw new Error('daily recap did not finish');
+}
+async function ready(service, id) {
+  const note = await settled(service, id);
+  assert.equal(note.generation?.status, 'done', note.generation?.message);
+  assert.ok(note.markdown?.trim(), 'successful generation must contain readable writing');
+  return note;
 }
 
 test('daily recap defaults off, counts distinct answered questions, and refuses fewer than ten before model or note creation', async t => {
@@ -157,10 +163,11 @@ test('manual edits survive late completion and automatic updates, explicit repla
   const service = await fixture(t, { complete: async () => { calls++; if (calls === 1) await gate; return writing; } });
   await answers(service, 10);
   const first = await service.call('note.daily.generate', { course: '数学' });
-  await service.call('note.save', { id: first.id, markdown: '# 我写的总结' });
+  await service.call('note.save', { id: first.id, title: '我的标题', markdown: '# 我写的总结' });
   release();
   await new Promise(resolve => setTimeout(resolve, 40));
-  assert.equal((await ready(service, first.id)).markdown, '# 我写的总结');
+  assert.equal((await settled(service, first.id)).markdown, '# 我写的总结');
+  assert.equal((await service.call('note.get', { id: first.id })).title, '我的标题');
   assert.equal((await service.call('note.daily.generate', { course: '数学' })).status, 'protected');
   await service.call('settings', { dailyRecap: { automatic: true } });
   await answers(service, 5, { offset: 10 });
@@ -169,6 +176,7 @@ test('manual edits survive late completion and automatic updates, explicit repla
   await service.call('note.daily.generate', { course: '数学', force: true });
   const updated = await ready(service, first.id);
   assert.equal(updated.daily.manualEditedAt, undefined);
+  assert.match(updated.title, /数学 · 每日学习总结$/);
   await service.call('note.home', { home: 'https://blog.csdn.net/example' });
   await service.call('note.link', { id: first.id, url: 'https://blog.csdn.net/example/article/details/12345' });
   assert.equal((await service.call('note.get', { id: first.id })).markdown, writing);
@@ -185,7 +193,7 @@ test('failed updates preserve successful content and automatic retries do not lo
   failing = true;
   await service.call('settings', { dailyRecap: { automatic: true } });
   await service.call('note.daily.advance', { course: '数学', final: true });
-  const failed = await ready(service, first.id);
+  const failed = await settled(service, first.id);
   assert.equal(failed.generation.status, 'failed');
   assert.equal(failed.markdown, writing);
   await service.call('note.daily.advance', { course: '数学', final: true });
@@ -287,7 +295,7 @@ test('cancellation and deletion prevent late writes; an interrupted generation c
   const started = await service.call('note.daily.generate', { course: '数学' });
   await service.call('note.daily.cancel', { id: started.id });
   release();
-  assert.equal((await ready(service, started.id)).generation.status, 'cancelled');
+  assert.equal((await settled(service, started.id)).generation.status, 'cancelled');
   assert.equal((await service.call('note.get', { id: started.id })).markdown, '');
   service.complete = async () => writing;
   await service.call('note.daily.generate', { course: '数学' });
@@ -423,4 +431,101 @@ test('rubric feedback refreshes an already summarized submitted answer without c
   assert.equal(prompt.unassessedCount, 0);
   assert.equal(prompt.questions.find(question => question.cardId === 'd-9').attempts.length, 1);
   assert.equal(prompt.questions.find(question => question.cardId === 'd-9').attempts[0].learnerAnswer, '先核对条件，再解释推理。');
+});
+
+test('merged history with more than thirty questions keeps local writing and remains editable after public linking', async t => {
+  const service = await fixture(t, { complete: async () => writing });
+  await answers(service, 35);
+  await answers(service, 10, { deckId: 'other' });
+  const math = await service.call('course.save', { name: '数学' });
+  const english = (await service.call('course.list')).courses.find(course => course.name === '英语');
+  const a = await service.call('note.daily.generate', { course: math.id });
+  const b = await service.call('note.daily.generate', { course: english.id });
+  await ready(service, a.id); await ready(service, b.id);
+  await service.call('note.save', { id: b.id, markdown: '# 保留的手动内容' });
+  await service.call('course.merge', { from: [english.id], into: math.id });
+  const history = await service.call('note.get', { id: a.id });
+  assert.equal(history.kind, 'daily-recap-history');
+  assert.equal(history.cards.length, 35);
+  await service.call('note.save', { id: history.id, cards: history.cards, markdown: `${writing}\n\n补充内容` });
+  await service.call('note.home', { home: 'https://blog.csdn.net/example' });
+  const linked = await service.call('note.link', { id: history.id, url: 'https://blog.csdn.net/example/article/details/12345' });
+  assert.equal(linked.status, 'draft');
+  assert.equal(linked.markdown, `${writing}\n\n补充内容`);
+  const saved = await service.call('note.save', { id: history.id, markdown: '# 关联后仍能编辑' });
+  assert.equal(saved.markdown, '# 关联后仍能编辑');
+  await assert.rejects(service.call('note.generate', { id: history.id }), /更新今日总结/);
+});
+
+test('failed forced replacement and opting out during generation preserve the previous title and body', async t => {
+  const service = await fixture(t, { complete: async () => writing });
+  await answers(service, 10);
+  const first = await service.call('note.daily.generate', { course: '数学' });
+  const original = await ready(service, first.id);
+  await service.call('note.save', { id: first.id, title: '我保存的标题', markdown: '# 我保存的正文' });
+  service.complete = async () => { throw new Error('provider unavailable'); };
+  await service.call('note.daily.generate', { course: '数学', force: true });
+  const failed = await settled(service, first.id);
+  assert.equal(failed.generation.status, 'failed');
+  assert.equal(failed.title, '我保存的标题');
+  assert.equal(failed.markdown, '# 我保存的正文');
+  assert.ok(failed.daily.manualEditedAt);
+  service.complete = async () => writing;
+  await service.call('note.daily.generate', { course: '数学', force: true });
+  await ready(service, first.id);
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  service.complete = async () => { await gate; return `${writing}\n\nNew content`; };
+  await service.call('settings', { dailyRecap: { automatic: true } });
+  await answers(service, 5, { offset: 10 });
+  await service.call('note.daily.advance', { course: '数学', final: true });
+  await service.call('settings', { dailyRecap: { automatic: false } });
+  release();
+  const cancelled = await settled(service, first.id);
+  assert.equal(cancelled.generation.status, 'cancelled');
+  assert.equal(cancelled.title, original.title);
+  assert.equal(cancelled.markdown, writing);
+});
+
+test('completed explanation batches survive a later failure and are reused after reopening the library', async t => {
+  let firstBatchCalls = 0;
+  const service = await fixture(t, { complete: async (_system, input) => {
+    const payload = JSON.parse(input);
+    if (payload.questions?.[0]?.cardId === 'd-0') { firstBatchCalls++; return writing; }
+    throw new Error('second batch unavailable');
+  } });
+  await answers(service, 35);
+  const started = await service.call('note.daily.generate', { course: '数学' });
+  assert.equal((await settled(service, started.id)).generation.status, 'failed');
+  const reopened = new StudyService(service.store.root, { complete: async (_system, input) => {
+    if (JSON.parse(input).questions?.[0]?.cardId === 'd-0') firstBatchCalls++;
+    return writing;
+  } });
+  t.after(() => reopened.dispose());
+  await reopened.call('note.daily.generate', { course: '数学' });
+  assert.equal((await ready(reopened, started.id)).daily.answeredCount, 35);
+  assert.equal(firstBatchCalls, 1, 'retry resumes from the durably saved first batch');
+});
+
+test('a failed post-commit merge reconciliation recovers from persisted note metadata in a fresh runtime', async t => {
+  const service = await fixture(t, { complete: async () => writing });
+  await answers(service, 10); await answers(service, 10, { deckId: 'other' });
+  const math = await service.call('course.save', { name: '数学' });
+  const english = (await service.call('course.list')).courses.find(course => course.name === '英语');
+  const a = await service.call('note.daily.generate', { course: math.id });
+  const b = await service.call('note.daily.generate', { course: english.id });
+  await ready(service, a.id); await ready(service, b.id);
+  const invoke = service.runtime.invoke.bind(service.runtime);
+  service.runtime.invoke = (...args) => args[1] === 'note.daily.reconcile'
+    ? Promise.reject(new Error('temporary notes write failure')) : invoke(...args);
+  await service.call('course.merge', { from: [english.id], into: math.id });
+  service.runtime.invoke = invoke;
+  assert.equal((await service.store.read()).notes.filter(note => note.kind === 'daily-recap').length, 2);
+  const reopened = new StudyService(service.store.root, { complete: async () => writing });
+  t.after(() => reopened.dispose());
+  await reopened.call('note.daily.status', { course: math.id });
+  const notes = (await reopened.call('note.list')).notes;
+  assert.equal(notes.filter(note => note.kind === 'daily-recap').length, 1);
+  assert.equal(notes.filter(note => note.kind === 'daily-recap-history').length, 1);
+  assert.ok(notes.every(note => note.daily.course === '数学' && note.markdown === writing));
 });

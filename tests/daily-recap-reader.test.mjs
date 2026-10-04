@@ -3,6 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { StudyService } from '../lib/service.js';
 
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII=';
 const markdown = `# 今日学习回顾\n\n## 概念与错因\n\n检索练习帮助记忆，检索练习需要解释原因。\n\n公式：$x^2 + \\frac{1}{2}$\n\n![知识关系](${image})\n\n<script>window.unsafeRecap = true</script>\n\n${'这一段完整解释学习方法，以及为什么要回看自己的判断。\n\n'.repeat(24)}## 明天的复习\n\n${'用自己的话再讲一遍，把判断与理由一一对应起来。\n\n'.repeat(14)}`;
@@ -21,7 +25,7 @@ const bundle = await build({ stdin: { contents: `
   const material = { id: 'material-document', documentId: 'material-document', revision: 'r1', format: 'md', originalAvailable: false, sources: [materialSource], original: { status: 'none' } };
   const call = async (name, params) => {
     window.readerCalls.push({ name, params });
-    if (name === 'materials.document.get') return window.holdMaterialLoad ? new Promise(resolve => { window.releaseMaterialLoad = () => resolve(material); }) : material;
+    if (name === 'materials.document.get') return window.convertedMaterial?.document || (window.holdMaterialLoad ? new Promise(resolve => { window.releaseMaterialLoad = () => resolve(material); }) : material);
     if (name === 'materials.links.list') return { links: [] };
     if (name === 'materials.translation.list') return { items: [] };
     if (name === 'materials.pages.cards') return { cards: [] };
@@ -35,6 +39,10 @@ const bundle = await build({ stdin: { contents: `
     localContent={{ id: 'recap-local', title: '今日学习回顾', markdown: text }} call={call} data={data}
     onGenerate={() => {}} onPracticePages={() => {}} onCaseFromPassage={() => {}} />);
   window.showMaterial = () => root.render(<DocumentViewer source={materialSource} call={call} data={data} onGenerate={() => {}} />);
+  window.showConverted = (source, document) => {
+    window.convertedMaterial = { source, document };
+    root.render(<DocumentViewer source={source} call={call} data={{ sources: [source], decks: [] }} />);
+  };
   window.unmountReader = () => root.render(null);
   window.showLocal();
 `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife',
@@ -93,6 +101,26 @@ test('local recap shares the reader, renders math/images and never exposes mater
   assert.deepEqual(await page.evaluate(() => window.readerCalls), []);
   assert.deepEqual(errors, []);
   assert.deepEqual(requests, []);
+});
+
+test('a real converted recap reopens as Markdown with math and a heading outline in the material reader', { timeout: 45000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'recap-material-reader-'));
+  const service = new StudyService(root);
+  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
+  await service.store.update(state => { state.notes.push({ id: 'converted-recap', kind: 'daily-recap-history', cards: [],
+    title: '资料里的当日总结', markdown, status: 'draft', revision: 0, daily: { course: '学习方法' } }); });
+  const payload = await service.call('note.material.prepare', { id: 'converted-recap', expectedRevision: 0 });
+  const source = await service.call('source.add', payload);
+  const document = await service.call('materials.document.get', { sourceId: source.id });
+  assert.equal(document.format, 'md');
+  const opened = await openReader(t); if (!opened) return;
+  const { page, errors } = opened;
+  await page.evaluate(({ source, document }) => window.showConverted(source, document), { source, document });
+  await page.waitForFunction(() => window.readerCalls.some(call => call.name === 'materials.document.get'));
+  await page.getByRole('heading', { name: '概念与错因', exact: true }).waitFor();
+  assert.equal(await page.locator('.study-document-body math').count(), 1);
+  await page.locator('.reader-outline__link').filter({ hasText: '明天的复习' }).waitFor();
+  assert.deepEqual(errors, []);
 });
 
 test('recap edits update the reading and outline while retaining the shared reading preferences', { timeout: 45000 }, async t => {
