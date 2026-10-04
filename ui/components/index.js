@@ -5,7 +5,7 @@ export { default as SegmentedControl } from './SegmentedControl.jsx';
 export { default as PageHeader } from './PageHeader.jsx';
 export { default as EmptyState } from './EmptyState.jsx';
 export { Panel, Disclosure, PANEL_TONES } from './Panel.jsx';
-export { default as Icon, ICON_NAMES } from './Icon.jsx';
+export { default as Icon, ICON_NAMES, IconBox } from './Icon.jsx';
 export { Toast, ToastRegion, InlineMessage, Banner, shouldAutoDismiss, TOAST_TIMEOUT } from './Feedback.jsx';
 export { default as SetupRequired } from './SetupRequired.jsx';
 export { default as FileDrop, partitionFiles, formatBytes, describeAccept, createDropHandlers, guardFileDrag } from './FileDrop.jsx';

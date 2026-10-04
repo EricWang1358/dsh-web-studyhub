@@ -8,8 +8,7 @@ import Icon from './Icon.jsx';
 import { computePlacement, useDismiss } from './use-dismiss.js';
 
 const glyph = (icon, size) => typeof icon === 'string' ? <Icon name={icon} size={size} /> : icon || null;
-const More = <svg className="sh-icon" viewBox="0 0 24 24" width={18} height={18} fill="currentColor" aria-hidden="true" focusable="false">
-  <circle cx="6" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="18" cy="12" r="1.6" /></svg>;
+const More = <Icon name="more" size={18} />;
 
 /**
  * A small action menu behind a button (⋯ by default). In the browser the list

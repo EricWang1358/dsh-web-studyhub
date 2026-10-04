@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
-import { useToast } from "./components/index.js";
+import { Icon, useToast } from "./components/index.js";
 import { feedbackOutcome } from "./card-fix.js";
 import { useComponentCss } from "./components/css.js";
 import thumbCss from "./thumb-feedback.css";
@@ -20,13 +20,6 @@ const TAGS = [
   ["source-recall", "只问资料怎么说"],
 ];
 const IDLE_MS = 1200;
-function ThumbGlyph({ down = false }) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path transform={down ? "rotate(180 12 12)" : undefined}
-      d="M8 10v10H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 0 4.4-7a1.5 1.5 0 0 1 2.7 1.2L14 9h5a2 2 0 0 1 1.95 2.45l-1.6 7A2 2 0 0 1 17.4 20H8" />
-  </svg>;
-}
 
 export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix }) {
   const [vote, setVote] = useState(run.vote?.vote || null),
@@ -185,8 +178,8 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
       // Keyboard activation retains normal button focus and accessibility.
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
     }}>
-      <button className="tool-icon" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><ThumbGlyph /></button>
-      <button className="tool-icon" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><ThumbGlyph down /></button>
+      <button className="tool-icon" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><Icon name="thumb-up" /></button>
+      <button className="tool-icon" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><Icon name="thumb-down" /></button>
       {vote === "down" && <span id={voteId} className="sh-visually-hidden">{ui("已标记这题有问题")}</span>}
       {error && <small className="warning" role="alert">{error}</small>}
       {open && (

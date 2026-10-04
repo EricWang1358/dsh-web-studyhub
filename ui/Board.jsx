@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
-import { Button, EmptyState, IconButton, InlineMessage, PageHeader, useToast } from "./components/index.js";
+import { Button, EmptyState, Icon, IconButton, InlineMessage, Menu, PageHeader, useToast } from "./components/index.js";
 import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
 import { createBoardStore } from "./board/store.js";
 import BoardCard from "./board/Card.jsx";
@@ -10,8 +10,6 @@ import Composer from "./board/Composer.jsx";
 import CardEditor from "./board/CardEditor.jsx";
 import DeleteCardDialog from "./board/DeleteCardDialog.jsx";
 import FilterBar from "./board/FilterBar.jsx";
-import Menu from "./board/Menu.jsx";
-import BIcon from "./board/icons.jsx";
 import { boardColumnLabel, cardsText, stamp, studyRefLabel } from "./board/meta.js";
 import css from "./board/board.css";
 
@@ -62,8 +60,8 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
     if (id && board.cards[id]) onDropTo(id, column.id, realIndex(target));
   };
   const items = [
-    { id: "rename", label: ui("重命名"), icon: "rename" },
-    { id: "fold", label: collapsed ? ui("展开列") : ui("折叠"), icon: "fold" },
+    { id: "rename", label: ui("重命名"), icon: "edit" },
+    { id: "fold", label: collapsed ? ui("展开列") : ui("折叠"), icon: "chevron-down" },
     { id: "remove", label: ui("删除空列"), icon: "trash", danger: true, disabled: column.cardIds.length > 0 || board.columns.length <= 1,
       hint: column.cardIds.length > 0 ? ui("只能删除空列") : undefined },
   ];
@@ -150,8 +148,8 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
           <span className="board-archive-list__title">{card.title}</span>
           <span className="board-archive-list__meta">{uiFormat("更新于 {0}", [stamp(card.updatedAt)])}{card.studyRef ? ` · ${studyRefLabel(card.studyRef, library).text}` : ""}</span>
         </div>
-        <Button variant="secondary" size="sm" icon={<BIcon name="undo" />} disabled={readOnly || !board.columns.length} onClick={() => onRestore(card)}>{ui("恢复")}</Button>
-        <IconButton icon={<BIcon name="trash" size={18} />} size="sm" label={uiFormat("永久删除：{0}", [card.title])} disabled={readOnly} onClick={() => onDelete(card)} />
+        <Button variant="secondary" size="sm" icon={<Icon name="undo" />} disabled={readOnly || !board.columns.length} onClick={() => onRestore(card)}>{ui("恢复")}</Button>
+        <IconButton icon={<Icon name="trash" size={18} />} size="sm" label={uiFormat("永久删除：{0}", [card.title])} disabled={readOnly} onClick={() => onDelete(card)} />
       </li>)}
     </ul>
   </section>;
@@ -285,8 +283,8 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   return <section className="page board-page">
     <PageHeader title={ui("待办看板")} eyebrow={ui("所有工作区")} description={ui("所有工作区共用。把想做的事记下来，逐步完成。")}
       actions={<>
-        <IconButton icon={<BIcon name="refresh" size={18} />} label={ui("刷新")} size="sm" disabled={busy} onClick={() => refresh({ force: true })} />
-        <Button variant="quiet" size="sm" icon={<BIcon name="archive" />} aria-pressed={archive} onClick={() => setArchive(!archive)}>{ui("归档")}{board ? ` (${board.archived.length})` : ""}</Button>
+        <IconButton icon={<Icon name="sync" size={18} />} label={ui("刷新")} size="sm" disabled={busy} onClick={() => refresh({ force: true })} />
+        <Button variant="quiet" size="sm" icon={<Icon name="archive" />} aria-pressed={archive} onClick={() => setArchive(!archive)}>{ui("归档")}{board ? ` (${board.archived.length})` : ""}</Button>
         {!archive && <Button variant="primary" icon="plus" disabled={readOnly || !board?.columns.length} onClick={() => setComposer(board.columns[0].id)}>{ui("添加卡片")}</Button>}
       </>} />
     {message && <InlineMessage tone={board?.readOnly ? "error" : conflict ? "warning" : "error"} boxed onDismiss={board?.readOnly ? undefined : () => { setOriginError(""); clearError?.(); }}>{message}</InlineMessage>}
@@ -301,7 +299,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
         {total === 0 && !archive && <EmptyState icon="check" title={ui("还没有待办")} className="board-empty"
           description={ui("把想做的事记在这里。在复习、题目或学习流里点「加入待办」，会把当前内容一起记下来。")}
           primary={{ label: ui("添加第一张卡片"), icon: "plus", disabled: readOnly, onClick: () => setComposer(board.columns[0].id) }} />}
-        {filtering && matched === 0 && total > 0 && <EmptyState size="sm" icon={<BIcon name="search" size={22} />} title={ui("没有符合筛选的卡片")} className="board-empty"
+        {filtering && matched === 0 && total > 0 && <EmptyState size="sm" icon={<Icon name="search" size={22} />} title={ui("没有符合筛选的卡片")} className="board-empty"
           secondary={{ label: ui("清除筛选"), onClick: () => setQuery({}) }} />}
         <div className="board-columns" style={{ "--board-cols": board.columns.length }}>
           {view.columns.map((column, at) => <Column key={column.id} column={board.columns[at]} view={column} board={board} today={today} library={library} drag={drag} drop={drop}

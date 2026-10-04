@@ -3,14 +3,12 @@ import { ui, uiFormat, setUiLanguage } from '../i18n.js';
 import { PAGES } from '../pages.js';
 import { pageAvailable } from '../capabilities.js';
 import { countDocuments } from '../../lib/source-groups.js';
-import { BrandMark } from '../NavGlyph.jsx';
 import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from '../SideNav.jsx';
 import { NAV_DEFAULTS, NAV_GROUPS, groupIsOpen, useNavGroups, useNavOrder } from '../nav-order.js';
 import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
 import UpdateCenter from '../UpdateCenter.jsx';
-import TourGlyph from '../tour/TourGlyph.jsx';
-import { Button } from '../components/index.js';
+import { Button, Icon } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import css from './app-shell.css';
 import { useApp } from './app-context.js';
@@ -65,7 +63,7 @@ export default function AppSidebar() {
   return (
     <aside className={sidebarNarrow ? 'sidebar is-narrow' : 'sidebar'}>
       <div className="brand">
-        <span className="brand-mark" aria-hidden="true"><BrandMark /></span>
+        <span className="brand-mark" aria-hidden="true"><Icon name="brand" size={30} /></span>
         <div>{ui('StudyHub')}<small>{ui('自己的资料，扎实地学')}</small></div>
         <Button variant="quiet" size="sm" className="collapse-toggle" data-usage="nav.collapse" aria-label={toggleLabel} aria-expanded={!sidebarNarrow}
           title={toggleLabel} onClick={() => shell.setSidebarCollapsed((value) => !value)}>
@@ -112,7 +110,7 @@ export default function AppSidebar() {
       <div className="sidebar-bottom">
         <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
         {data && (
-          <NavItem className="tour-nav" data-tour="tour-reopen" data-usage="nav.tour" icon={<TourGlyph />} label={ui('功能导览')} disabled={tour.sampleBusy}
+          <NavItem className="tour-nav" data-tour="tour-reopen" data-usage="nav.tour" icon={<Icon name="nav-tour" />} label={ui('功能导览')} disabled={tour.sampleBusy}
             aria-disabled={!!tour.tourStep || undefined} hint={tour.tourResume ? `${tour.tourResume.index + 1}/${tour.tourResume.total}` : undefined}
             title={[ui('功能导览：切到每个关键功能，看看怎么用'), tour.tourResume && uiFormat('继续 {0}/{1}', [tour.tourResume.index + 1, tour.tourResume.total])].filter(Boolean).join('\n')}
             onClick={() => { if (!tour.tourStep) tour.startTour(); }} />

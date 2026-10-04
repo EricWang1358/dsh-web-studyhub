@@ -1,8 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { Button, CloseButton } from '../components/index.js';
+import { Button, CloseButton, Icon } from '../components/index.js';
 import { isMeaningfulTitle } from '../../lib/board-model.js';
-import BIcon from './icons.jsx';
 import { studyRefLabel } from './meta.js';
 
 export const TITLE_LIMIT = 500;
@@ -68,7 +67,7 @@ export default function Composer({ columnTitle, studyRef, library, labelSuggesti
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent?.isComposing) { event.preventDefault(); submit(); } }} />
       {problem && <p id={hintId} role="alert" className="board-hint">{problem}</p>}
       {link && <span className="board-study-chip">
-        <BIcon name="link" size={13} />
+        <Icon name="link" size={13} />
         <span className="board-study-chip__text" title={studyRef.root}>{uiFormat('关联：{0}', [link.text])}</span>
         <CloseButton className="board-study-chip__remove" label={ui('取消关联')} onClick={onClearStudyRef} />
       </span>}
