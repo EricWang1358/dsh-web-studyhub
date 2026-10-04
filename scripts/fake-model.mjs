@@ -362,6 +362,17 @@ function gradeCaseAnswers(input, english) {
 /* ---------- handlers, first match wins ---------- */
 
 const HANDLERS = [
+  { name: 'daily.plan', match: (s) => s.startsWith('You propose a realistic daily learning plan.'),
+    reply: ({ input, english }) => {
+      let remaining = input.availableMinutes || 0;
+      const items = [];
+      for (const candidate of input.candidates || []) {
+        if (candidate.minutes > remaining || items.length >= 6) continue;
+        remaining -= candidate.minutes;
+        items.push({ candidateId: candidate.candidateId, reason: candidate.reason });
+      }
+      return { items, summary: english ? 'Preview plan based on your current learning progress.' : '预览安排：根据当前学习进度和今天的时间预算。' };
+    } },
   { name: "generation.plan", slow: true, match: (s) => s.startsWith("Plan a source-grounded assessment"),
     reply: ({ prompt, nextNumber }) => planTargets(after(prompt, "REQUEST DATA:\n"), nextNumber) },
   { name: 'generation.blueprint', slow: true, match: (s) => s.startsWith('Prepare supported answers'),
