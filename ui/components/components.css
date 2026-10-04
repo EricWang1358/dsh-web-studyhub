@@ -410,38 +410,32 @@
     }
   }
   :is(.study-app, .study-seat) {
-    /* Wide page placement: a zero-height sticky rail under the top bar, so a toast is
-       visible wherever the learner has scrolled and never shifts the page. */
+    /* Page placement: a zero-height sticky rail at the end of the page, pinned to the bottom of the
+       view, so a toast is visible wherever the learner has scrolled, never shifts the page and never
+       covers the PageHeader actions at the top right. */
     :is(.sh-toasts--page, .sh-toasts--auto) {
       position: sticky;
-      top: var(--sh-toast-offset, 51px);
+      bottom: var(--sh-toast-offset, var(--space-4));
       z-index: var(--z-toast);
       height: 0;
     }
     :is(.sh-toasts--page, .sh-toasts--auto) > .sh-toasts__inner {
       position: absolute;
-      top: var(--space-3);
+      bottom: 0;
       left: 50%;
       width: min(560px, calc(100% - 2 * var(--space-4)));
       transform: translateX(-50%);
       pointer-events: none;
     }
+    /* Rising from the bottom edge. */
+    :is(.sh-toasts--page, .sh-toasts--auto):not(.action-feedback-slot .sh-toasts--auto) .sh-toast { animation-name: sh-toast-up; }
   }
   @container study (max-width: 720px) {
     :is(.study-app, .study-seat) {
-      /* In a compact Study viewport, readable notices need their own space:
-         an overlay can cover the next control even when the message wraps well. */
-      :is(.sh-toasts--page, .sh-toasts--auto):not(.action-feedback-slot .sh-toasts--auto) {
-        position: static;
-        height: auto;
-      }
+      /* Compact Study viewport: the bottom rail stays (an in-flow notice at the end of the page would be
+         out of sight); the stack uses the full width so a message wraps instead of covering more height. */
       :is(.sh-toasts--page, .sh-toasts--auto):not(.action-feedback-slot .sh-toasts--auto) > .sh-toasts__inner {
-        position: static;
-        margin-inline: auto;
-        transform: none;
-      }
-      :is(.sh-toasts--page, .sh-toasts--auto):not(.action-feedback-slot .sh-toasts--auto) > .sh-toasts__inner:has(.sh-toast) {
-        padding-block: var(--space-3);
+        width: calc(100% - 2 * var(--space-3));
       }
     }
   }

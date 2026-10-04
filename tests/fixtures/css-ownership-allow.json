@@ -10,9 +10,17 @@
       "ui/sources-page.css",
       "ui/study-map/catalog.css"
     ],
+    "audio-dashboard": [
+      "ui/audio-dashboard.css",
+      "ui/audio-panels.css"
+    ],
     "audio-reasoning": [
       "ui/audio-dashboard.css",
       "ui/audio-settings.css"
+    ],
+    "audio-usage-panel": [
+      "ui/audio-dashboard.css",
+      "ui/audio-panels.css"
     ],
     "binding-actions": [
       "ui/binding.css",
@@ -61,7 +69,8 @@
     "course-heading": [
       "ui/course-settings.css",
       "ui/home-tiers.css",
-      "ui/study-map/catalog.css"
+      "ui/study-map/catalog.css",
+      "ui/study-map/home-headings.css"
     ],
     "course-heading-input": [
       "ui/home-tiers.css",
@@ -88,12 +97,6 @@
       "ui/DailyRecap.css",
       "ui/blog-notes.css"
     ],
-    "danger-text": [
-      "ui/draft.css",
-      "ui/focus.css",
-      "ui/legacy.css",
-      "ui/sources.css"
-    ],
     "desk": [
       "ui/home-tiers.css",
       "ui/study-map/desk.css"
@@ -119,6 +122,10 @@
       "ui/skeleton.css",
       "ui/views.css"
     ],
+    "draft-card": [
+      "ui/draft.css",
+      "ui/panel-migrations.css"
+    ],
     "draft-row": [
       "ui/generate-home.css",
       "ui/study-map/desk.css"
@@ -134,17 +141,12 @@
     "eyebrow": [
       "ui/base.css",
       "ui/coach.css",
-      "ui/draft.css",
       "ui/study-map/catalog.css",
       "ui/study-map/desk.css"
     ],
     "generation-trace": [
       "ui/generate-home.css",
       "ui/review/question.css"
-    ],
-    "ghost-btn": [
-      "ui/legacy.css",
-      "ui/study-map/desk.css"
     ],
     "highlight-quote": [
       "ui/document-preview/reader/reader.css",
@@ -168,7 +170,8 @@
       "ui/components/disclosure.css",
       "ui/course-field.css",
       "ui/review/question.css",
-      "ui/skeleton.css"
+      "ui/skeleton.css",
+      "ui/generate-tabs.css"
     ],
     "is-compact": [
       "ui/course-settings.css",
@@ -225,10 +228,6 @@
       "ui/mineru.css",
       "ui/source-picker.css"
     ],
-    "is-warning": [
-      "ui/document-preview/original-file.css",
-      "ui/document-preview/translation/translation.css"
-    ],
     "jobs-actions": [
       "ui/generate-home.css",
       "ui/study-map/desk.css"
@@ -236,16 +235,6 @@
     "library-chip": [
       "ui/app/app-shell.css",
       "ui/library-chip.css"
-    ],
-    "link-btn": [
-      "ui/audio-import.css",
-      "ui/charts/charts.css",
-      "ui/course-active.css",
-      "ui/focus.css",
-      "ui/followup.css",
-      "ui/legacy.css",
-      "ui/workflow-scope.css",
-      "ui/workflows.css"
     ],
     "local-status": [
       "ui/shell.css",
@@ -330,10 +319,6 @@
       "ui/app/app-shell.css",
       "ui/shell.css"
     ],
-    "note-header-tools": [
-      "ui/blog-notes.css",
-      "ui/reading-settings/reading.css"
-    ],
     "on": [
       "ui/coach.css",
       "ui/live-class.css",
@@ -355,17 +340,6 @@
       "ui/exam-setup.css",
       "ui/skeleton.css",
       "ui/views.css"
-    ],
-    "pill": [
-      "ui/coach.css",
-      "ui/legacy.css",
-      "ui/review/question.css",
-      "ui/review/session.css"
-    ],
-    "primary": [
-      "ui/coach.css",
-      "ui/legacy.css",
-      "ui/workflows.css"
     ],
     "quality-note": [
       "ui/draft.css",
@@ -469,13 +443,11 @@
       "ui/DailyRecap.css",
       "ui/app/app-shell.css",
       "ui/audio-settings.css",
-      "ui/blog-notes.css",
       "ui/board/board.css",
       "ui/components/components.css",
       "ui/components/feedback.css",
       "ui/components/secret-key.css",
       "ui/course-settings.css",
-      "ui/daily-plan.css",
       "ui/document-preview/document-preview.css",
       "ui/document-preview/peek/peek.css",
       "ui/document-preview/practice/practice.css",
@@ -490,7 +462,9 @@
       "ui/setup-checklist.css",
       "ui/sources.css",
       "ui/tour/onboarding.css",
-      "ui/wrongbook.css"
+      "ui/wrongbook.css",
+      "ui/components/button-variants.css",
+      "ui/review-buttons.css"
     ],
     "sh-btn--icon": [
       "ui/components/components.css",
@@ -501,14 +475,15 @@
       "ui/components/components.css",
       "ui/course-settings.css",
       "ui/welcome.css",
-      "ui/wrongbook.css"
+      "ui/wrongbook.css",
+      "ui/components/button-variants.css"
     ],
     "sh-btn--primary": [
       "ui/components/components.css",
-      "ui/daily-plan.css",
       "ui/exam-setup.css",
       "ui/generate-home.css",
-      "ui/workflows.css"
+      "ui/workflows.css",
+      "ui/coach.css"
     ],
     "sh-btn--quiet": [
       "ui/components/components.css",
@@ -597,13 +572,28 @@
       "ui/components/components.css",
       "ui/sources.css"
     ],
+    "sh-page-header__eyebrow": [
+      "ui/components/components.css",
+      "ui/components/page-header.css"
+    ],
+    "sh-page-header__text": [
+      "ui/components/components.css",
+      "ui/study-map/home-headings.css"
+    ],
+    "sh-page-header__title": [
+      "ui/components/components.css",
+      "ui/components/page-header.css"
+    ],
     "sh-panel": [
       "ui/charts/charts.css",
-      "ui/components/components.css"
+      "ui/components/components.css",
+      "ui/audio-panels.css",
+      "ui/panel-migrations.css"
     ],
     "sh-panel__head": [
       "ui/charts/charts.css",
-      "ui/components/components.css"
+      "ui/components/components.css",
+      "ui/components/panel-tones.css"
     ],
     "sh-progress": [
       "ui/components/feedback.css",
@@ -631,7 +621,8 @@
       "ui/blog-notes.css",
       "ui/components/components.css",
       "ui/exam-setup.css",
-      "ui/wrongbook.css"
+      "ui/wrongbook.css",
+      "ui/components/button-variants.css"
     ],
     "sh-setup": [
       "ui/components/components.css",
@@ -646,9 +637,22 @@
       "ui/components/disclosure.css",
       "ui/skeleton.css"
     ],
+    "sh-tab__note": [
+      "ui/components/disclosure.css",
+      "ui/generate-tabs.css"
+    ],
+    "sh-tooltip": [
+      "ui/components/tooltip-interactive.css",
+      "ui/components/tooltip-layer.css",
+      "ui/inbox-preview.css"
+    ],
     "sidebar": [
       "ui/shell.css",
       "ui/side-groups.css"
+    ],
+    "sk-panel": [
+      "ui/panel-migrations.css",
+      "ui/skeleton.css"
     ],
     "source-doc__icon": [
       "ui/document-preview/rename.css",
@@ -668,11 +672,16 @@
     ],
     "source-mode": [
       "ui/generate-home.css",
-      "ui/sources-page.css"
+      "ui/sources-page.css",
+      "ui/generate-tabs.css"
     ],
     "source-row-actions": [
       "ui/sources-page.css",
       "ui/sources.css"
+    ],
+    "source-tab": [
+      "ui/generate-tabs.css",
+      "ui/sources-page.css"
     ],
     "source-text--pdf": [
       "ui/document-preview/document-preview.css",
@@ -752,6 +761,14 @@
       "ui/generate-form.css",
       "ui/legacy.css",
       "ui/views.css"
+    ],
+    "welcome-card": [
+      "ui/panel-migrations.css",
+      "ui/welcome.css"
+    ],
+    "welcome-card--lead": [
+      "ui/panel-migrations.css",
+      "ui/welcome.css"
     ],
     "wf-scope": [
       "ui/workflow-scope.css",

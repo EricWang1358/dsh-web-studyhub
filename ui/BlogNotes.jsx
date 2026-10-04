@@ -14,7 +14,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
-import { Button, PageHeader, useToast } from './components/index.js';
+import { Button, InlineMessage, PageHeader, useToast } from './components/index.js';
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
@@ -32,6 +32,8 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
   const current = useRef(null), identity = useRef(null), pending = useRef(false);
   const setId = next => { changeId(next); rememberId(next); onSelect?.(next); };
   const [home, setHome] = useState(data.csdnHome || "");
+  // Browser storage refused the recovery copy: say it once beside the editor, never as a toast per keystroke.
+  const [storageWarning, setStorageWarning] = useState(false);
   const [lookup, setLookup] = useState(null), [link, setLink] = useState("");
   const [query, setQuery] = useState(""), [results, setResults] = useState([]);
   const [picked, setPicked] = useState([]), [newTitle, setNewTitle] = useState("");
@@ -89,7 +91,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     applyNote(next);
     try { writeDraft(draftKey(data.root, 'note', next.id), { title: next.title, markdown: next.markdown,
       cards: next.cards, baseRevision: next.revision }); }
-    catch { toast.warning(ui('浏览器暂存不可用，请及时保存草稿。')); }
+    catch { setStorageWarning(true); }
   }
   async function persistCurrent() {
     const token = identity.current, submitted = current.current;
@@ -191,6 +193,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
         <Button onClick={onBack}>{backLabel || ui('返回学习库')}</Button>
       </>}>
       {dirty && <span className="note-unsaved">{ui('有未保存的修改')}</span>}
+      {editing && storageWarning && <InlineMessage tone="warning">{ui('浏览器暂存不可用，请及时保存草稿。')}</InlineMessage>}
     </PageHeader>
     {!note && <div className="note-list">
       <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} call={call} act={act} busy={busy} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
