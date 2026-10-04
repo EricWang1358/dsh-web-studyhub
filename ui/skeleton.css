@@ -1008,7 +1008,8 @@
 /* Re-layout and camera changes are atomic; moving every node independently
    briefly overlays unrelated concepts while a narrow pane changes direction. */
 .study-app button.skc-class { transition: opacity .15s var(--ease), border-color .15s var(--ease), box-shadow .15s var(--ease); }
-.skc-attributes-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.skc-attributes-toggle { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; }
+.skc-layout-panel select { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); }
 .skc-attributes-toggle input { width: auto; }
 .skc-compact .skc-class-name { border-bottom: 0; border-radius: 6px; }
 .skc-focus-chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }

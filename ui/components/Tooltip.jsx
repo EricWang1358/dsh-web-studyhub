@@ -17,8 +17,8 @@ const chain = (own, extra) => event => { own?.(event); extra(event); };
  * carries something the label does not; a title attribute that only repeats
  * the label can stay. Escape hides it. `children` is one element.
  * layer: show it in the top layer (a manual popover placed from the anchor's
- * rectangle) so a scrolling or clipping ancestor cannot cut it off; it hides
- * on scroll and resize. anchorClassName: a class for the wrapping span.
+ * rectangle) so a scrolling or clipping ancestor cannot cut it off; it follows
+ * its anchor on scroll and resize. anchorClassName: a class for the wrapping span.
  */
 export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName }) {
   useComponentCss(css);
@@ -32,19 +32,22 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     const element = panel.current;
     if (!layer || !element?.showPopover) return undefined;
     if (!open) { if (element.matches(':popover-open')) element.hidePopover(); return undefined; }
-    // Measure first (hidden), then place: top-layer coordinates are the window's, through the interface zoom.
+    // Place from the anchor's rectangle: top-layer coordinates are the window's, through the interface zoom.
+    const place = () => {
+      const box = element.getBoundingClientRect(), scale = element.offsetWidth ? box.width / element.offsetWidth : 1;
+      const spot = computePlacement({ anchor: anchor.current.getBoundingClientRect(), size: { width: box.width, height: box.height },
+        bounds: { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }, placement, flip, gap: 4 * scale });
+      element.style.left = `${spot.left / scale}px`;
+      element.style.top = `${spot.top / scale}px`;
+    };
     element.style.visibility = 'hidden';
     element.showPopover();
-    const box = element.getBoundingClientRect(), scale = element.offsetWidth ? box.width / element.offsetWidth : 1;
-    const spot = computePlacement({ anchor: anchor.current.getBoundingClientRect(), size: { width: box.width, height: box.height },
-      bounds: { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }, placement, flip, gap: 4 * scale });
-    element.style.left = `${spot.left / scale}px`;
-    element.style.top = `${spot.top / scale}px`;
+    place();
     element.style.visibility = '';
-    const away = () => setOpen(false);
-    window.addEventListener('scroll', away, true);
-    window.addEventListener('resize', away);
-    return () => { window.removeEventListener('scroll', away, true); window.removeEventListener('resize', away); };
+    // The anchor moves when something scrolls (a focused tab scrolling into view): follow it.
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
   }, [layer, open, placement, flip]);
   useEffect(() => () => clearTimeout(timer.current), []);
   const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen(visible), delay); };

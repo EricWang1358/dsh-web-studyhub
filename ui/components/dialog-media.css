@@ -5,6 +5,8 @@
 :is(.study-app, .study-seat) {
   .sh-dialog.sh-dialog--media, &.sh-dialog.sh-dialog--media {
     --sh-dialog-width: 960px;
+    /* A size container has no intrinsic width: without this the dialog would shrink to its minimum, not to the picture. */
+    container-type: normal;
     width: fit-content;
     min-width: min(20rem, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
     max-width: min(var(--sh-dialog-width), calc(100vw / var(--study-ui-scale, 1) - var(--space-7)));
