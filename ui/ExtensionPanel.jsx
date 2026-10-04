@@ -30,7 +30,7 @@ function StartupWait({ refresh }) {
 
 /** Install (or update) the extension: the approval step, the busy state, the error. Shared by the panel and the update notice. */
 function useExtensionInstall({ call, onStatus, initialApproval = null }) {
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [approval, setApproval] = useState(initialApproval), [restart, setRestart] = useState(false);
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [approval, setApproval] = useState(initialApproval), [restart, setRestart] = useState(false), [done, setDone] = useState(false);
   async function install(approved) {
     setBusy(true); setError('');
     const result = await runInstall(call, approved);
@@ -38,10 +38,10 @@ function useExtensionInstall({ call, onStatus, initialApproval = null }) {
     if (result.phase === 'approval') { setApproval(result.pending); return; }
     setApproval(null);
     if (result.phase === 'error') { setError(result.message); return; }
-    setRestart(result.restartRequired);
+    setRestart(result.restartRequired); setDone(true);
     if (result.status) onStatus?.(result.status);
   }
-  return { busy, error, approval, restart, install, setApproval };
+  return { busy, error, approval, restart, done, install, setApproval };
 }
 
 function ApprovalDialog({ approval, busy, install, close }) {
@@ -58,17 +58,26 @@ function ApprovalDialog({ approval, busy, install, close }) {
   </Dialog>;
 }
 
-/** An installed extension older than this StudyHub (DSH's update of StudyHub does not touch it): say so, and update it in one click. */
+/** An installed extension older than this StudyHub (DSH's update of StudyHub does not touch it): say so, and update it in one click.
+ *  Stays mounted once the update finished, so the outcome (and whether DSH must restart) is not lost when the status refresh
+ *  clears `outdated`: the parent keeps rendering it for any installed extension. */
 export function ExtensionUpdateNotice({ call, status, onStatus }) {
   const flow = useExtensionInstall({ call, onStatus });
   const extension = status?.extension;
-  if (!extension?.installed || !extension.outdated) return null;
+  if (!extension?.installed || (!extension.outdated && !flow.done)) return null;
+  if (flow.done) return (
+    <div className="extension-panel__update">
+      <InlineMessage tone={flow.restart ? 'warning' : 'success'} boxed title={ui('检索扩展已更新')}>
+        {flow.restart ? ui('这次更新要重启 DSH 之后才会生效。') : ui('已更新，无需重启。')}
+      </InlineMessage>
+    </div>
+  );
   return (
     <div className="extension-panel__update">
       <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>{uiFormat('已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。', [extension.version, extension.expected])}</InlineMessage>
-      <div><Button variant="primary" icon="download" busy={flow.busy} onClick={() => flow.install()}>{ui('更新检索扩展')}</Button></div>
+      <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('更新检索扩展')}</Button></div>
+      {flow.busy && <p className="large-doc__note" role="status">{ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。')}</p>}
       {flow.error && <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>}
-      {flow.restart && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
       <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
     </div>
   );
@@ -182,7 +191,7 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
       {extension.canInstall && extension.installed && <>
         {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p> : extension.outdated ? null : <StartupWait refresh={refresh} />}
         {restart && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
-        {extension.outdated && <ExtensionUpdateNotice call={call} status={status} onStatus={onStatus} />}
+        <ExtensionUpdateNotice call={call} status={status} onStatus={onStatus} />
       </>}
       {(error || removeError) && <InlineMessage boxed title={ui('没能完成')}>{error || removeError}</InlineMessage>}
       {running && <IndexBuilder call={call} courses={courses} defaultCourse={defaultCourse} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}

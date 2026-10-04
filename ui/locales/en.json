@@ -2351,5 +2351,11 @@
   "保存课程": "Save course",
   "只更改归属，原文与引用保持不变。留空就是「未分类」。": "Only the course changes; the text and its citations stay as they are. Leave it blank for “Uncategorised”.",
   "章节列表": "Chapter list",
-  "页面列表": "Page list"
+  "页面列表": "Page list",
+  "题组顺序": "Deck order",
+  "已选 {0} / {1} 个主题": "{0} of {1} topics selected",
+  "检索扩展已更新": "Search extension updated",
+  "已更新，无需重启。": "Updated; no restart needed.",
+  "正在更新…": "Updating…",
+  "正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。": "Downloading and installing the search extension, usually a few minutes. You can keep studying; do not close DSH."
 }
