@@ -65,7 +65,7 @@ function fakeModel({ kind = "quiz", reviewFail = {}, defects = {}, patch } = {})
     }
     if (system.startsWith("Rewrite only the wording")) {
       log.calls.push("patch");
-      const body = JSON.parse(prompt); log.patchPrompts.push(body);
+      const body = JSON.parse(prompt.split("REQUEST DATA:\n")[1]); log.patchPrompts.push(body);
       return JSON.stringify(patch ? patch(body) : { cards: body.cards.map((card) => ({ id: card.id, explanation: `Rewritten for ${card.id}: the decisive condition, then the result, then the nearest wrong path.` })) });
     }
     throw new Error(`unexpected call: ${system.slice(0, 40)}`);
@@ -107,7 +107,7 @@ test("a card failing only explanationQuality is patched in the run; its answer f
   assert.deepEqual(model.log.calls, ["plan", "blueprint", "author", "review", "patch", "review"]);
   assert.equal(model.log.reviewSizes[1], 1, "only the patched card is re-reviewed");
   assert.equal(result.cards.length, 3);
-  const patched = byObjective(result, 2), original = quizCard(2, 1);
+  const patched = byObjective(result, 2), original = { ...quizCard(2, 1), citations: [{ sourceId: "s", quote: source.text.slice(0, 40) }] }; // citations are the plan target's, bound by the program
   assert.match(patched.explanation, /^Rewritten/);
   for (const key of ["answer", "options", "citations", "objective", "kind"]) assert.equal(JSON.stringify(patched[key]), JSON.stringify(original[key]), key);
   assert.equal(patched.targetId, "target-2");
