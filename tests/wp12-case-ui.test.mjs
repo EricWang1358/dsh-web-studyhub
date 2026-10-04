@@ -171,7 +171,7 @@ test("a rubric question is answered in writing and submitted for grading; the mo
   assert.match(before, /评分维度[\s\S]*Case linkage/);
   assert.doesNotMatch(before, /参考答案/);
   const gated = render(RubricAnswer, { run: { id: "run", card }, data: { ...data, model: { ready: false, reason: "no-route" } }, onSubmit: noop });
-  assert.match(gated, /批改需要先配置 AI 模型/);
+  assert.match(gated, /批改需要模型；答案会先保存/);
   assert.doesNotMatch(gated, />提交批改</);
   const grading = render(RubricAnswer, { run: { id: "run", card }, data, task: { status: "running" } });
   assert.match(grading, /正在按评分标准逐项批改/);

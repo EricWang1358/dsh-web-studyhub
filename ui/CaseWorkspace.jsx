@@ -8,8 +8,10 @@ import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
-import { Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, SetupRequired, Spinner, useNow } from "./components/index.js";
-import { usePolling } from "./use-polling.js";
+import { Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, Spinner, useToast } from "./components/index.js";
+import ModelSetupGate, { gateTitle } from "./ModelSetupGate.jsx";
+import { formatClock } from "./format.js";
+import { useExamRun } from "./exam/useExamRun.js";
 import SubmitBlanksDialog from "./SubmitBlanksDialog.jsx";
 import { ExamSetupCard } from "./ExamShell.jsx";
 import {
@@ -18,7 +20,7 @@ import {
 } from "../lib/case-study.js";
 import {
   HIGHLIGHT_COLORS, addHighlight, removeHighlight, recolorHighlight, annotateHighlight, segmentParagraph,
-  paperPhase, phaseRemaining, canType, livePace, tickQuestion, readSession, writeSession,
+  paperPhase, phaseRemaining, canType, livePace, tickQuestion, paperTimings, readSession, writeSession,
 } from "./case-session.js";
 import { RubricResult, CaseReport } from "./CaseResult.jsx";
 import css from "./case-study.css";
@@ -30,10 +32,6 @@ import css from "./case-study.css";
    pacing, paper-practice mode, blank-question warning, graded report). */
 
 const COLOR_LABEL = { yellow: "黄色高亮", green: "绿色高亮", blue: "蓝色高亮", pink: "粉色高亮" };
-const clock = (ms) => {
-  const seconds = Math.max(0, Math.ceil(ms / 1000));
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-};
 export function lengthHintLabel(marks) {
   const words = suggestedWords(marks, getUiLanguage() === "en" ? "en" : "zh");
   const kind = { paragraph: ui("一段话"), short: ui("两三段：观点 + 理由"), structured: ui("分点作答，附例子"), extended: ui("分点作答：例子、论证与取舍") }[lengthHint(marks)];
@@ -180,8 +178,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, busy, 
             {model.ready
               ? <Button variant="primary" icon="sparkle" busy={grading} disabled={busy || grading || !draft.trim()} onClick={() => onSubmit?.(draft)}>
                 {grading ? ui("正在批改…") : ui("提交批改")}</Button>
-              : <InlineMessage tone="warning" action={{ label: ui("打开模型设置"), onClick: onSetupModel }}>
-                {ui("批改需要先配置 AI 模型；你的回答会先保存在本机。")}</InlineMessage>}
+              : <ModelSetupGate variant="inline" feature="grade" model={model} onOpenSettings={onSetupModel} />}
           </div>
           {/* What marking this answer is expected to use: the case, the rubric and the answer as typed (WP27). */}
           <TokenEstimate call={call} enabled={!!call && !!draft.trim() && !rubric}
@@ -201,8 +198,9 @@ const phaseLabel = (phase, handwriting) => ({ reading: ui("阅读时间"), writi
   transcribe: ui("录入答案（不计时）"), over: ui("时间到"), submitted: ui("已交卷") })[phase] || "";
 const paceLabel = (pace) => ({ ahead: ui("节奏从容"), "on-track": ui("节奏正常"), behind: ui("时间偏紧：先保证每题都写到") })[pace];
 
-export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, initialRunId, onLocation, header, recent, course: courseProp, onCourseChange, onSetupModel }) {
+export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRunId, onLocation, header, recent, course: courseProp, onCourseChange, onSetupModel }) {
   useInjectCss(css, "study-case-workspace");
+  const toast = useToast();
   // 模拟考试 owns the course scope and the header; used on its own the paper keeps its own scope.
   const [ownCourse] = usePageScope(data?.root, "exam", data?.focus?.course ?? "*");
   const course = courseProp ?? ownCourse;
@@ -216,14 +214,14 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
   const profile = useMemo(() => courseProfileFromState({ courses: data?.courses }, course === "*" ? "" : course), [data?.courses, course]);
   const [settings, setSettings] = useState(() => ({ minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
     readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null, handwriting: false }));
-  const [phase, setPhase] = useState("setup");
-  const [run, setRun] = useState(null), [report, setReport] = useState(null);
   const [answers, setAnswers] = useState({}), [highlights, setHighlights] = useState([]), [session, setSession] = useState(null);
   const [activeId, setActiveId] = useState(null), [view, setView] = useState("questions");
-  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [confirming, setConfirming] = useState(false);
-  const [gradingErrors, setGradingErrors] = useState([]);
-  const now = useNow(1000, { enabled: phase === "running" });
-  const writes = useRef(createWriteQueue()), savedHighlights = useRef(""), lastTick = useRef(Date.now()), submitting = useRef(false);
+  const [confirming, setConfirming] = useState(false), [gradingErrors, setGradingErrors] = useState([]);
+  // A typed paper is submitted when its time is up; paper practice moves on to transcription instead. The report follows the background grading.
+  const exam = useExamRun({ kind: "case", call, initialRunId, onLocation, pollReport: (value) => !!value?.case?.pending,
+    autoSubmit: { when: () => currentPhase === "over", run: () => submit() } });
+  const { phase, run, report, busy, error, now } = exam;
+  const writes = useRef(createWriteQueue()), savedHighlights = useRef(""), lastTick = useRef(Date.now());
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
   const model = modelReadiness(data);
@@ -241,29 +239,10 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
     return (data?.sources || []).find((source) => source.id === summary?.caseSourceId) || null;
   }, [data, run?.paper?.deckId, deck?.id]);
 
-  /* resume an unfinished paper */
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      const ids = initialRunId ? [initialRunId] : (data?.runs || []).filter((item) => item.mode === "exam").map((item) => item.id).reverse().slice(0, 3);
-      for (const id of ids) {
-        try {
-          const value = await call("review.get", { runId: id });
-          if (!live) return;
-          if (!value.paper) continue;
-          if (value.closed) { if (initialRunId) { setRun(value); setReport(await call("exam.report", { runId: id })); setPhase("report"); } return; }
-          enter(value);
-          return;
-        } catch { /* not a paper any more */ }
-      }
-    })();
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function enter(value) {
+  /** What the page holds for a paper that is being sat: the answers (server, then this browser), the highlights and the clock's bookkeeping. */
+  function setUpPaper(value) {
     const stored = readSession(data?.root, value.id);
     const fromServer = Object.fromEntries((value.responses || []).map((item) => [item.cardId, item.response || ""]));
-    setRun(value);
     setAnswers({ ...fromServer, ...(stored?.answers || {}) });
     setHighlights(value.highlights?.length ? value.highlights : stored?.highlights || []);
     savedHighlights.current = JSON.stringify(value.highlights || []);
@@ -271,8 +250,22 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
       handwriting: value.paper.handwriting, perQuestion: {}, transcribeMs: 0, ...stored?.session });
     setActiveId(value.paperCards?.[0]?.id || null);
     writes.current = createWriteQueue();
-    setPhase("running");
   }
+
+  /* resume an unfinished paper */
+  useEffect(() => {
+    const ids = initialRunId ? [initialRunId] : (data?.runs || []).filter((item) => item.mode === "exam").map((item) => item.id).reverse().slice(0, 3);
+    void exam.restore({ ids,
+      load: async (id) => {
+        const value = await call("review.get", { runId: id });
+        if (!value.paper) return null;
+        if (!value.closed) return { phase: "running", run: value };
+        return initialRunId ? { phase: "report", run: value, report: await call("exam.report", { runId: id }) } : { stop: true };
+      },
+      onFound: (found) => { if (found.phase === "running") setUpPaper(found.run); },
+      // Not a paper any more, or not readable: try the next candidate.
+      onError: () => "continue" });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* the clock: phases, time per question, transcription time */
   const currentPhase = phase === "running" && session ? paperPhase(session, now) : phase;
@@ -292,7 +285,6 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
     });
   }, [now, phase]);
   useEffect(() => { if (run && phase === "running") writeSession(data?.root, run.id, { answers, highlights, session }); }, [answers, highlights, session]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { onLocation?.({ kind: "exam", runId: run?.id }); }, [run?.id, onLocation]);
 
   /* saving: answers per question, highlights on the run */
   const saveTimers = useRef({});
@@ -300,7 +292,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
     setAnswers((current) => ({ ...current, [cardId]: text }));
     clearTimeout(saveTimers.current[cardId]);
     saveTimers.current[cardId] = setTimeout(() => {
-      writes.current.enqueue(() => call("review.answer", { runId: run.id, cardId, response: text })).catch((failure) => setError(failure.message));
+      writes.current.enqueue(() => call("review.answer", { runId: run.id, cardId, response: text })).catch((failure) => exam.setError(failure.message));
     }, 1200);
   }
   useEffect(() => {
@@ -314,17 +306,16 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
     return () => clearTimeout(timer);
   }, [highlights, run, phase, call]);
 
-  async function start() {
-    if (!deck || busy) return;
-    setBusy(true); setError("");
-    try {
+  const start = () => {
+    if (!deck) return;
+    return exam.perform(async () => {
       const value = await call("review.start", { mode: "exam", examKinds: "case", scope: [{ deckId: deck.id }], fresh: true,
         paper: { minutesPerMark: settings.minutesPerMark, readingMinutes: settings.readingMinutes ?? defaultReadingMinutes(deck.caseMarks, settings.minutesPerMark),
           handwriting: settings.handwriting } });
-      enter(value);
-    } catch (failure) { setError(failure.message); }
-    finally { setBusy(false); }
-  }
+      setUpPaper(value);
+      exam.enter(value);
+    });
+  };
 
   const grade = useCallback(async (value, responses) => {
     const errors = [];
@@ -342,61 +333,45 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
     setGradingErrors(errors);
   }, [call]);
 
-  async function submit() {
-    if (!run || submitting.current) return;
-    submitting.current = true;
-    setBusy(true); setError(""); setConfirming(false);
-    try {
-      for (const timer of Object.values(saveTimers.current)) clearTimeout(timer);
-      for (const card of paperCards) writes.current.enqueue(() => call("review.answer", { runId: run.id, cardId: card.id, response: answers[card.id] || "" }));
-      await writes.current.flush();
-      if (JSON.stringify(highlights) !== savedHighlights.current) await call("review.highlights", { runId: run.id, highlights }).catch(() => {});
-      const at = Date.now(), start = Date.parse(session.startedAt), readingEnd = session.readingEndedAt ? Date.parse(session.readingEndedAt) : start + session.readingMinutes * 60000;
-      const timings = { readingMs: Math.max(0, Math.min(at, readingEnd) - start), writingMs: Math.max(0, Math.min(at, session.writingEndedAt ? Date.parse(session.writingEndedAt) : readingEnd + session.writingMinutes * 60000) - readingEnd),
-        transcribeMs: session.transcribeMs || 0, perQuestion: session.perQuestion || {} };
-      const value = await call("exam.submit", { runId: run.id, timings });
-      writeSession(data?.root, run.id, null);
-      setReport(value);
-      setPhase("report");
-      if (model.ready) await grade(value, answers);
-      else setGradingErrors([ui("还没有可用的 AI 模型，答案已保存；配置模型后点「重新提交批改」。")]);
-    } catch (failure) { setError(failure.message); }
-    finally { setBusy(false); submitting.current = false; }
+  function submit() {
+    setConfirming(false);
+    return exam.submit({
+      before: async () => {
+        for (const timer of Object.values(saveTimers.current)) clearTimeout(timer);
+        for (const card of paperCards) writes.current.enqueue(() => call("review.answer", { runId: run.id, cardId: card.id, response: answers[card.id] || "" }));
+        await writes.current.flush();
+        if (JSON.stringify(highlights) !== savedHighlights.current) await call("review.highlights", { runId: run.id, highlights }).catch(() => {});
+      },
+      args: () => ({ timings: paperTimings(session, Date.now()) }),
+      after: async (value) => {
+        writeSession(data?.root, run.id, null);
+        if (model.ready) await grade(value, answers);
+        else setGradingErrors([uiFormat("{0}，答案已保存；配置模型后点「重新提交批改」。", [gateTitle("inline")])]);
+      },
+    });
   }
-  // A typed paper is submitted when its time is up; paper practice moves on to transcription instead.
-  useEffect(() => { if (currentPhase === "over" && phase === "running") void submit(); }, [currentPhase]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Results arrive in the background; the report follows them.
-  usePolling(() => call("exam.report", { runId: report.runId }).then(setReport).catch(() => {}), { intervalMs: 4000, enabled: phase === "report" && !!report?.case?.pending });
 
-  async function drills(criteria) {
-    setBusy(true); setError("");
-    try {
-      const value = await call("case.drills", { deckId: report.case.deckId, ...(criteria ? { criteria } : {}) });
-      onNotice?.({ text: uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count]), tone: "success" });
-    } catch (failure) { setError(failure.message); }
-    finally { setBusy(false); }
-  }
-  async function again() {
-    setBusy(true); setError("");
-    try {
-      await call("generate", { kind: "case", fromDeckId: report.case.deckId, uiLanguage: getUiLanguage() });
-      onNotice?.({ text: ui("已开始出一套同类案例，完成后草稿会出现在学习库。"), tone: "success" });
-    } catch (failure) { setError(failure.message); }
-    finally { setBusy(false); }
-  }
+  const drills = (criteria) => exam.perform(async () => {
+    const value = await call("case.drills", { deckId: report.case.deckId, ...(criteria ? { criteria } : {}) });
+    toast.success(uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count]));
+  });
+  const again = () => exam.perform(async () => {
+    await call("generate", { kind: "case", fromDeckId: report.case.deckId, uiLanguage: getUiLanguage() });
+    toast.success(ui("已开始出一套同类案例，完成后草稿会出现在学习库。"));
+  });
 
   /* ---------- views ---------- */
 
   if (phase === "report" && report) return (
     <section className="page exam case-paper">
       <PageHeader eyebrow={ui("案例分析卷")} title={ui("案例分析卷 · 报告")} description={report.case?.title}
-        back={{ label: ui("回到模拟考试"), onClick: () => { setPhase("setup"); setRun(null); setReport(null); } }} />
+        back={{ label: ui("回到模拟考试"), onClick: () => exam.leave() }} />
       <CaseReport report={report} busy={busy} gradingErrors={gradingErrors}
         onRetryGrading={() => grade(report, answers)}
         onDrills={model.ready ? drills : undefined} onAgain={model.ready ? again : undefined}
         onPracticeDeck={onStartRun ? async () => {
           try { onStartRun(await call("review.start", { mode: "path", scope: [{ deckId: report.case.deckId }], fresh: true })); }
-          catch (failure) { setError(failure.message); }
+          catch (failure) { exam.setError(failure.message); }
         } : undefined} />
       {error && <InlineMessage>{error}</InlineMessage>}
     </section>
@@ -413,7 +388,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
         {paperCards.map((card, index) => {
           const spent = session.perQuestion?.[card.id] || 0, budget = questionMinutes(card.marks, run.paper.minutesPerMark) * 60000;
           return (
-            <article key={card.id} className={"case-question" + (activeId === card.id ? " is-active" : "")}>
+            <Panel as="article" key={card.id} className={"case-question" + (activeId === card.id ? " is-active" : "")}>
               <header className="case-question__head">
                 <strong>{uiFormat("第 {0} 题", [index + 1])}</strong>
                 <span className="case-chip">{uiFormat("{0} 分", [card.marks])}</span>
@@ -433,7 +408,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
                   <small className="muted">{uiFormat("{0} 字/词", [countWords(answers[card.id] || "")])}</small>
                 </label>
               )}
-            </article>
+            </Panel>
           );
         })}
       </div>
@@ -447,7 +422,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
             <span className="eyebrow">{ui("案例分析卷")}</span>
             <strong>{phaseLabel(currentPhase, session.handwriting)}</strong>
           </div>
-          {["reading", "writing"].includes(currentPhase) && <span className="case-paper__clock" aria-live="off">{clock(remaining)}</span>}
+          {["reading", "writing"].includes(currentPhase) && <span className="case-paper__clock" aria-live="off">{formatClock(remaining)}</span>}
           {pace && <span className={`case-chip pace-${pace}`}>{paceLabel(pace)}</span>}
           <div className="case-paper__bar-actions">
             {currentPhase === "reading" && <Button size="sm" variant="secondary" onClick={() => setSession({ ...session, readingEndedAt: new Date().toISOString() })}>{ui("提前开始作答")}</Button>}
@@ -533,11 +508,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
             <span><strong>{ui("纸笔练习模式")}</strong><small>{ui("计时阶段隐藏输入框，你在纸上写；时间到后再录入要点批改，录入时间不计时。")}</small></span>
           </label>
         </div>}
-        {!model.ready && <div className="es-gate">
-          <SetupRequired tone="warning" icon="model" badge={ui("批改需要模型")} title={ui("批改需要 AI 模型")}
-            why={ui("交卷后按评分标准逐条给分、给出改写建议，这一步由 AI 模型完成。现在也可以先考：答案会保存在本机，配置好模型后再批改。")}
-            primary={onSetupModel ? { label: ui("打开模型设置"), icon: "model", onClick: onSetupModel } : undefined} />
-        </div>}
+        {!model.ready && <div className="es-gate"><ModelSetupGate variant="block" feature="grade" model={model} onOpenSettings={onSetupModel} /></div>}
       </ExamSetupCard>
       {recent}
       {error && <InlineMessage>{error}</InlineMessage>}

@@ -5,7 +5,8 @@ import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { importedReferences, referenceSelection } from './reference-questions.js';
-import { Button, SegmentedControl, SetupRequired, IconButton } from "./components/index.js";
+import { Button, SegmentedControl, IconButton, useToast } from "./components/index.js";
+import ModelSetupGate from "./ModelSetupGate.jsx";
 import { modelReadiness, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords } from "../lib/case-study.js";
@@ -19,9 +20,10 @@ import css from "./case-study.css";
 
 const blankQuestion = () => ({ prompt: "", marks: 10, answer: "" });
 
-export default function CaseCreate({ data, busy, act, call, setNotice, onStarted, openImport, openReferenceImport, openSettings, onCourseSettings, initial = {} }) {
+export default function CaseCreate({ data, busy, act, call, onStarted, openImport, openReferenceImport, openSettings, onCourseSettings, initial = {} }) {
   useInjectCss(css, "study-case-workspace");
   const model = modelReadiness(data);
+  const toast = useToast();
   const [mode, setMode] = useState(initial.mode || "new");
   const [course, setCourse] = useState(initial.course ?? (data.focus?.course && data.focus.course !== "*" ? data.focus.course : ""));
   const [sourceIds, setSourceIds] = useState(initial.sourceIds || []);
@@ -59,9 +61,9 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
       : { ...shared, title: form.title.trim() || undefined, sourceIds, referenceSourceIds, referenceLimits, referenceFormat, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
         ...(mode === "style" ? { styleText: form.styleText } : {}) };
     act("generate", args, () => {
-      setNotice({ tone: "success", text: mode === "import"
+      toast.success(mode === "import"
         ? answered ? uiFormat("已开始导入案例并批改你的 {0} 个回答；结果会进信箱。", [answered]) : ui("已开始导入案例；评分标准写好后草稿出现在学习库。")
-        : ui("已开始出一套案例题：写案例、出题、独立审阅。完成后草稿出现在学习库。") });
+        : ui("已开始出一套案例题：写案例、出题、独立审阅。完成后草稿出现在学习库。"));
       onStarted?.();
     });
   }
@@ -149,10 +151,7 @@ export default function CaseCreate({ data, busy, act, call, setNotice, onStarted
             {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}
           </Button>
         ) : (
-          <SetupRequired icon="model" title={ui("先配置一个 AI 模型")}
-            why={ui("写案例、出评分标准和批改都要调用 AI 模型。配置好之后回到这里，已填的内容会保留。")}
-            steps={[{ text: ui("打开模型设置，选择一个服务商") }, { text: ui("填入这个服务商的 API Key") }, { text: ui("回到这里继续") }]}
-            primary={{ label: ui("打开模型设置"), icon: "model", onClick: openSettings }} />
+          <ModelSetupGate variant="block" feature="generate" model={model} onOpenSettings={openSettings} />
         )}
       </div>
     </form>

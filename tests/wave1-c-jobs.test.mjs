@@ -73,18 +73,18 @@ test('a collapsed generation trace does not keep a clock running', async () => {
   assert.doesNotMatch(source, /setInterval/);
   const out = renderToStaticMarkup(h(GenerationTrace, { job: { status: 'running', steps: [{ id: 'a', stage: 'x', status: 'running', startedAt: new Date().toISOString() }] } }));
   assert.match(out, /<details class="generation-trace">/);
-  const audio = await read('ui/AudioImport.jsx');
+  const audio = await read('ui/audio/AudioJobs.jsx');
   assert.match(audio, /useNow\(/);
   assert.doesNotMatch(audio, /setInterval/);
 });
 
 test('this package leaves no .warning class, text status glyph or private progress bar behind', async () => {
-  for (const file of ['ui/AudioImport.jsx', 'ui/Ingest.jsx', 'ui/CitationDisclosure.jsx', 'ui/ExplanationFollowup.jsx', 'ui/document-preview/links/SaveAnswerAsCard.jsx']) {
+  for (const file of ['ui/AudioImport.jsx', 'ui/audio/AudioJobs.jsx', 'ui/Ingest.jsx', 'ui/CitationDisclosure.jsx', 'ui/ExplanationFollowup.jsx', 'ui/document-preview/links/SaveAnswerAsCard.jsx']) {
     const source = await read(file);
     assert.doesNotMatch(source, /className="warning"/, `${file} uses InlineMessage or Hint, not .warning`);
     assert.doesNotMatch(source, /className="job-error"/, `${file}`);
   }
-  const audio = await read('ui/AudioImport.jsx');
+  const audio = await read('ui/audio/AudioJobs.jsx');
   assert.doesNotMatch(audio, /["'`](?:◌|✓|×|!)["'` ]/, 'no text glyph as a status mark');
   assert.doesNotMatch(audio, /audio-bar/);
 });

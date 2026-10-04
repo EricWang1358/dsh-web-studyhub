@@ -1,8 +1,9 @@
 import React, { useId, useState } from "react";
-import { ui, uiFormat, uiLocale } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import PageScope from "./PageScope.jsx";
-import { Button, PageHeader, SegmentedControl } from "./components/index.js";
+import { Button, PageHeader, Panel, SegmentedControl } from "./components/index.js";
+import { formatDateTime } from "./format.js";
 import { filterRecent } from "./exam-format.js";
 import { QUESTION_COUNT } from "../lib/limits.js";
 import css from "./exam-setup.css";
@@ -91,15 +92,13 @@ export function CountField({ label = ui("题数"), value, onChange, presets = []
   );
 }
 
-const when = (value) => { const at = new Date(value); return Number.isNaN(at.getTime()) ? "" : at.toLocaleDateString(uiLocale()); };
-
 function Row({ item, onOpen, busy }) {
   const tags = TAGS();
   const score = item.kind === "oral"
     ? (item.assessed ? uiFormat("{0} 题回答扎实", [item.strong]) : ui("尚未评估"))
     : item.kind === "case" ? uiFormat("{0}%", [Math.round(item.scorePct ?? 0)])
       : uiFormat("{0}% · {1}/{2} 题", [Math.round(item.scorePct ?? 0), item.correct ?? 0, item.total ?? 0]);
-  const detail = [when(item.submittedAt), item.course || (item.role ? item.role : ""), item.decks?.join("、")].filter(Boolean).join(" · ");
+  const detail = [formatDateTime(item.submittedAt, "day"), item.course || (item.role ? item.role : ""), item.decks?.join("、")].filter(Boolean).join(" · ");
   return (
     <li className="es-recent__row">
       <span className={`es-tag es-tag--${item.kind}`}>{tags[item.kind]}</span>
@@ -118,7 +117,7 @@ export function RecentExams({ items = [], format, filter, onFilter, onOpen, busy
   const shown = filterRecent(items, mode === "all" ? "all" : format);
   const names = { written: ui("还没有选择题笔试记录。"), case: ui("还没有案例分析卷记录。"), oral: ui("还没有口头面试记录。") };
   return (
-    <section className="es-recent" aria-label={ui("最近考试")}>
+    <Panel className="es-recent" aria-label={ui("最近考试")}>
       <div className="es-recent__head">
         <h2>{ui("最近考试")}</h2>
         <SegmentedControl size="sm" label={ui("显示范围")} value={mode} onChange={choose}
@@ -127,6 +126,6 @@ export function RecentExams({ items = [], format, filter, onFilter, onOpen, busy
       {shown.length
         ? <ul className="es-recent__list">{shown.map((item) => <Row key={`${item.kind}:${item.runId}`} item={item} onOpen={onOpen} busy={busy} />)}</ul>
         : <p className="es-recent__empty">{names[format]} <Button size="sm" variant="link" onClick={() => choose("all")}>{ui("查看全部")}</Button></p>}
-    </section>
+    </Panel>
   );
 }

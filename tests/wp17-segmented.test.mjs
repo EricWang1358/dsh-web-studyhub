@@ -104,7 +104,7 @@ test('the recording setup rows are segmented controls with the same labels and p
 
 test('every single-choice segment row uses the shared control and the old hand-rolled CSS is gone', () => {
   const rows = [
-    ['ui/Exam.jsx', '考试题型'], ['ui/Skeleton.jsx', '主题视图'], ['ui/Skeleton.jsx', '骨架视图'], ['ui/Graph.jsx', '视图模式'],
+    ['ui/exam/WrittenSetup.jsx', '考试题型'], ['ui/Skeleton.jsx', '主题视图'], ['ui/Skeleton.jsx', '骨架视图'], ['ui/Graph.jsx', '视图模式'],
     ['ui/Ingest.jsx', null], ['ui/Generate.jsx', null], ['ui/study-map/DeskIntro.jsx', '学习模式'], ['ui/SkeletonCanvas.jsx', '想做什么'],
   ];
   for (const [file, label] of rows) {
@@ -116,7 +116,7 @@ test('every single-choice segment row uses the shared control and the old hand-r
     ['ui/views.css', /\.exam-type-settings button/], ['ui/skeleton.css', /\.sk-seg\b/], ['ui/skeleton.css', /\.skc-extend-intents button/],
     ['ui/graph.css', /\.graph-mode\b/], ['ui/style.css', /\.focus-switch button/], ['ui/style.css', /\.choice-grid/], ['ui/style.css', /\.kind-grid|\.kind\.selected/],
   ]) assert.doesNotMatch(read(file), pattern, `${file} no longer carries ${pattern}`);
-  assert.doesNotMatch(read('ui/Exam.jsx'), /className=\{typeMode === kind/);
+  assert.doesNotMatch(read('ui/exam/WrittenSetup.jsx'), /className=\{typeMode === kind/);
 });
 
 test('wrapped segments: the thumb follows both axes, so a row that wraps (narrow sidebar) still slides to the right line', () => {

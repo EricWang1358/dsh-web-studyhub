@@ -86,6 +86,17 @@ export function writingElapsedMs(session, now = Date.now()) {
 /** Live pacing of a paper from the answers so far. */
 export const livePace = (plan, session, answers = {}, now = Date.now()) =>
   paceStatus(plan, { elapsedMs: writingElapsedMs(session, now), answeredIds: Object.keys(answers).filter((id) => !isBlank(answers[id])) });
+/**
+ * What a submitted paper tells the host about its time: reading and writing time actually used (each cut where the learner
+ * ended it early, never past its window), transcription time and the time per question.
+ */
+export function paperTimings(session, at = Date.now()) {
+  const start = Date.parse(session.startedAt);
+  const readingEnd = session.readingEndedAt ? Date.parse(session.readingEndedAt) : start + session.readingMinutes * 60000;
+  const writingEnd = session.writingEndedAt ? Date.parse(session.writingEndedAt) : readingEnd + session.writingMinutes * 60000;
+  return { readingMs: Math.max(0, Math.min(at, readingEnd) - start), writingMs: Math.max(0, Math.min(at, writingEnd) - readingEnd),
+    transcribeMs: session.transcribeMs || 0, perQuestion: session.perQuestion || {} };
+}
 /** Time on each question: the active question collects the elapsed time of each tick. */
 export function tickQuestion(perQuestion = {}, activeId, deltaMs) {
   if (!activeId || !(deltaMs > 0)) return perQuestion;
