@@ -88,7 +88,7 @@ test('interface size and typeface: a fixed list of sizes up to 200%, three typef
   assert.equal(normalize({ scale: 400 }).scale, 100);
   assert.equal(normalize({ font: 'serif' }).font, 'serif');
   assert.equal(normalize({ font: 'comic' }).font, 'system');
-  assert.deepEqual(normalize({ motion: 'off', scale: 175, font: 'mono' }), { motion: 'off', scale: 175, font: 'mono' });
+  assert.deepEqual(normalize({ motion: 'off', scale: 175, font: 'mono' }), { ...normalize({}), motion: 'off', scale: 175, font: 'mono' });
 });
 
 test('the stylesheet scales the whole interface with CSS zoom for each size and switches the typeface by attribute', () => {

@@ -84,3 +84,78 @@ test('decorative paints use --decor-faint and text never uses it', async () => {
   }
   assert.deepEqual(offenders, []);
 });
+
+// #66: the extra themes and the high-contrast setting (ui/appearance-themes.css) must reach the same bar. Each scope is built the way the cascade
+// does it: the dark base, then the light theme where the palette sits on it, then the palette, then high contrast, then card stock on top.
+const themesCss = (await readFile('ui/appearance-themes.css', 'utf8')).replace(/\r\n/g, '\n');
+function themeBlock(selectorStart) {
+  const start = themesCss.indexOf(selectorStart);
+  assert.ok(start >= 0, `theme block ${selectorStart}`);
+  const open = themesCss.indexOf('{', start), close = themesCss.indexOf('\n}', open);
+  const body = themesCss.slice(open + 1, close).replace(/\/\*[\s\S]*?\*\//g, '');
+  return Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+}
+const oled = themeBlock(".study-app[data-palette='oled'],");
+const paper = themeBlock(".study-app[data-palette='paper'],");
+const highDark = themeBlock(".study-app[data-contrast='high'],");
+const highLight = themeBlock(".study-app[data-contrast='high'][data-theme='light'],");
+const highCard = themeBlock(".study-app[data-contrast='high'] :is(");
+const lightScope = { ...dark, ...light };
+const scopes = [
+  ['oled', { ...dark, ...oled }], ['paper', { ...lightScope, ...paper }],
+  ['dark + high contrast', { ...dark, ...highDark }], ['light + high contrast', { ...lightScope, ...highLight }],
+  ['oled + high contrast', { ...dark, ...oled, ...highDark }], ['paper + high contrast', { ...lightScope, ...paper, ...highLight }],
+];
+
+for (const [name, scope] of scopes) {
+  test(`${name}: text tokens reach 4.5:1 on every surface`, () => {
+    const failures = [];
+    for (const fg of TEXT) for (const bg of SURFACES) {
+      const ratio = contrast(resolve(scope[fg], scope), resolve(scope[bg], scope));
+      if (ratio < 4.5) failures.push(`${fg} on ${bg}: ${ratio.toFixed(2)}`);
+    }
+    assert.deepEqual(failures, []);
+  });
+}
+
+test('text on card stock reaches 4.5:1 on paper in the extra themes and under high contrast', () => {
+  const failures = [];
+  for (const [name, theme] of scopes) {
+    const scope = { ...theme, ...card, ...(name.includes('high') ? highCard : {}) };
+    for (const fg of ['--text', '--text-dim', '--text-muted', '--text-faint']) {
+      const ratio = contrast(resolve(scope[fg], scope), resolve(scope['--bg-raised'], scope));
+      if (ratio < 4.5) failures.push(`${name} ${fg} on paper: ${ratio.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('high contrast: lines are visible (3:1) on the surfaces, faint text and decoration are clearly stronger than standard', () => {
+  const failures = [];
+  for (const [name, scope] of scopes.filter(([name]) => name.includes('high'))) {
+    for (const line of ['--line', '--line-strong']) for (const bg of ['--bg-canvas', '--bg-surface', '--bg-raised']) {
+      const ratio = contrast(resolve(scope[line], scope), resolve(scope[bg], scope));
+      if (ratio < 3) failures.push(`${name} ${line} on ${bg}: ${ratio.toFixed(2)}`);
+    }
+    for (const bg of SURFACES) {
+      const ratio = contrast(resolve(scope['--text-faint'], scope), resolve(scope[bg], scope));
+      if (ratio < 7) failures.push(`${name} --text-faint on ${bg}: ${ratio.toFixed(2)} (7:1 expected)`);
+    }
+    const decor = contrast(resolve(scope['--decor-faint'], scope), resolve(scope['--bg-canvas'], scope));
+    if (decor < 3) failures.push(`${name} --decor-faint on canvas: ${decor.toFixed(2)}`);
+    const cardScope = { ...scope, ...card, ...highCard };
+    for (const line of ['--line', '--line-strong']) {
+      const ratio = contrast(resolve(cardScope[line], cardScope), resolve(cardScope['--bg-raised'], cardScope));
+      if (ratio < 3) failures.push(`${name} card ${line} on paper: ${ratio.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('the new themes keep the desk hierarchy and the cinnabar accent', () => {
+  const luminances = ['--bg-sunken', '--bg-canvas', '--bg-surface', '--bg-raised'].map(name => luminance(oled[name]));
+  assert.deepEqual([...luminances].sort((a, b) => a - b), luminances, 'oled layers grow lighter from the sunken desk to the raised card');
+  assert.ok(luminance(oled['--bg-canvas']) <= luminance('#0b0a09'), 'oled canvas is near black');
+  assert.ok(luminance(paper['--bg-canvas']) < luminance(paper['--bg-surface']), 'paper surfaces sit lighter than the desk');
+  assert.equal(oled['--accent'] ?? dark['--accent'], dark['--accent'], 'oled keeps the same accent');
+});

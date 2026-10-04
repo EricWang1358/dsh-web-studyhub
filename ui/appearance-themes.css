@@ -1,0 +1,59 @@
+/* 设置 › 界面 (#66): token overrides on the data-* attributes of .study-app (the seat mirrors them for overlays); a default has no rule. */
+
+/* OLED black: dark ink on a near-black desk, same accent; the card stays paper. */
+.study-app[data-palette='oled'],
+.study-seat:has(> .study-app[data-palette='oled']) {
+  --bg-canvas: #060505; --bg-sunken: #000000; --bg-surface: #0e0c0b; --bg-raised: #181513;
+  --bg-glass: #0e0c0bf0; --bg-glass-strong: #0e0c0bfa; --bg-selected: #231a16;
+  --line: #2a2622; --line-strong: #433d35; --decor-faint: #6a635a;
+}
+
+/* 护眼纸色: warm sepia paper, soft ink. */
+.study-app[data-palette='paper'],
+.study-seat:has(> .study-app[data-palette='paper']) {
+  --bg-canvas: #f1e8d3; --bg-sunken: #e7dcc3; --bg-surface: #f7efdd; --bg-raised: #fbf5e8;
+  --bg-glass: #f7efddf0; --bg-glass-strong: #f7efddfa; --bg-hover: #4a35180d; --bg-selected: #efd9c6;
+  --line-soft: #4a351814; --line: #d8cbb0; --line-strong: #bfae8d;
+  --text: #231d12; --text-dim: #433929; --text-muted: #5d513c; --text-faint: #64583f; --decor-faint: #968a72;
+  --accent-text: #a33a1f; --ok: #1c6c48; --warn: #7f510c; --bad: #a23461; --info: #346287; --paper: #fcf6e6;
+}
+
+/* High contrast: stronger lines, solid faint text, 3px focus outline (dark, light, card stock). */
+.study-app[data-contrast='high'],
+.study-seat:has(> .study-app[data-contrast='high']) {
+  --line: #847c70; --line-strong: #a69d8f; --text-faint: #c0b8ac; --decor-faint: #8a8276;
+}
+.study-app[data-contrast='high'][data-theme='light'],
+.study-seat:has(> .study-app[data-contrast='high'][data-theme='light']) {
+  --line: #766c5a; --line-strong: #5a5143; --text-faint: #433b30; --decor-faint: #7a705f;
+}
+.study-app[data-contrast='high'] :is(.today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta,
+  .flash-area .card-progress, .flip-face, .exam-sheet) {
+  --line: #6e6252; --line-strong: #4d4438; --text-faint: #4a4236; --decor-faint: #7a705f;
+}
+.study-app[data-contrast='high'] :is(button, a, input, textarea, select):focus-visible { outline-width: 3px; outline-offset: 2px; }
+
+/* Density: spacing and line height only. Corners: the three radius tokens only. */
+.study-app[data-density='compact'],
+.study-seat:has(> .study-app[data-density='compact']) {
+  --space-1: 3px; --space-2: 6px; --space-3: 9px; --space-4: 12px; --space-5: 16px; --space-6: 18px; --space-7: 24px; --space-8: 32px; --space-9: 44px;
+  --lh-tight: 1.25; --lh-snug: 1.35; --lh-body: 1.5;
+}
+.study-app[data-density='comfortable'],
+.study-seat:has(> .study-app[data-density='comfortable']) {
+  --space-1: 5px; --space-2: 10px; --space-3: 15px; --space-4: 20px; --space-5: 24px; --space-6: 30px; --space-7: 40px; --space-8: 48px; --space-9: 64px;
+  --lh-tight: 1.35; --lh-snug: 1.55; --lh-body: 1.8;
+}
+.study-app[data-radius='sharp'],
+.study-seat:has(> .study-app[data-radius='sharp']) { --radius: 4px; --radius-sm: 2px; --radius-card: 6px; }
+.study-app[data-radius='soft'],
+.study-seat:has(> .study-app[data-radius='soft']) { --radius: 18px; --radius-sm: 12px; --radius-card: 24px; }
+
+/* Forced colours (Windows high contrast): say with system colours what colour alone said. */
+@media (forced-colors: active) {
+  .study-app :is(button, a, input, textarea, select):focus-visible { outline: 3px solid Highlight; outline-offset: 2px; box-shadow: none; }
+  .study-app :is(button, .sh-btn) { border: 1px solid ButtonText; }
+  .study-app :is(button, .sh-btn):disabled { border-color: GrayText; color: GrayText; }
+  .study-app :is([aria-pressed='true'], [aria-selected='true'], [aria-current='page'], [aria-current='step'], .nav.active, .chip.active,
+    .source-tab.active, .is-active, .primary, .sh-btn--primary) { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+}
