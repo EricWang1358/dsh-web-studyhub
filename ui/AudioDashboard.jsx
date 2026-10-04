@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 import { formatNumber } from './format.js';
-import { Hint } from './components/index.js';
+import { Button, Hint, Panel } from './components/index.js';
+import { useInjectCss } from './shared.js';
+import panelCss from './audio-panels.css';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 
@@ -19,6 +21,7 @@ export function dashboardVisible(settings, usage) {
 }
 
 export function AudioDashboardView({ data, settings, busy, refresh, save, error }) {
+  useInjectCss(panelCss, 'study-audio-panels');
   const providers = [...data.providers].sort((a, b) => AUDIO_TIERS.indexOf(a.tier) - AUDIO_TIERS.indexOf(b.tier));
   const sum = field => providers.reduce((n, provider) => n + provider.today[field], 0);
   const total = sum('requests');
@@ -27,9 +30,9 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
   const share = freeQuota ? Math.max(0, Math.min(100, Math.round(usedQuota / freeQuota.limit * 100))) : 0;
   const dayTotal = day => AUDIO_TIERS.reduce((n, tier) => n + (day[tier] || 0), 0);
   const max = Math.max(1, ...data.trend.map(dayTotal));
-  return <section className="audio-dashboard" aria-labelledby="audio-dashboard-title">
-    <header className="audio-dashboard-heading"><div><small>AUDIO / USAGE</small><h2 id="audio-dashboard-title">{ui('用量控制台')}</h2></div>
-      <button type="button" disabled={busy} onClick={refresh}>{ui('刷新')} ↻</button></header>
+  return <Panel tone="sunken" className="audio-dashboard" aria-labelledby="audio-dashboard-title">
+    <header className="audio-dashboard-heading"><div><small>{ui('音频 / 用量')}</small><h2 id="audio-dashboard-title">{ui('用量控制台')}</h2></div>
+      <Button variant="quiet" size="sm" icon="refresh" disabled={busy} onClick={refresh}>{ui('刷新')}</Button></header>
     {error && <p className="audio-dashboard-error" role="alert">{uiMessage(error)}</p>}
     <div className="audio-dashboard-summary">
       <div className="audio-usage-dial" style={{ '--share': `${share}%` }}><div><strong>{freeQuota ? fmt(freeQuota.remaining) : '—'}</strong>
@@ -82,21 +85,22 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
       <form onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); const dailyLimits = { ...settings.dailyLimits };
         for (const [model, value] of values) dailyLimits[model] = Number(value); save({ dailyLimits }); }}>
         {[...new Set([settings.transcribeModel, settings.textModel].filter(Boolean))].map(model => <label key={model}>{model}<input type="number" name={model} min="0" max="1000000000" step="1" defaultValue={settings.dailyLimits?.[model] || 0} required disabled={busy} /></label>)}
-        <button type="submit" disabled={busy}>{ui('保存上限')}</button>
+        <Button type="submit" disabled={busy}>{ui('保存上限')}</Button>
       </form>
     </details>
     <footer className="audio-dashboard-footer"><span>{ui('今日按太平洋时间 · 从启用此统计起记录模型请求，包含失败及重试。课堂实时音频与 DSH Token 不计入。')}</span>
       {AUDIO_PROVIDERS.filter(provider => provider.tier !== 'paid').map(provider => <a key={provider.tier} href={provider.usageUrl} target="_blank" rel="noreferrer">{providerName(provider.tier)} ↗</a>)}</footer>
-  </section>;
+  </Panel>;
 }
 
 /** The console folded away under one line with today's count; it opens on demand. */
 export function AudioDashboardPanel({ data, settings, busy, refresh, save, error, onToggle }) {
+  useInjectCss(panelCss, 'study-audio-panels');
   const today = data.providers.reduce((n, provider) => n + (provider.today?.requests || 0), 0);
-  return <details className="audio-usage-panel" onToggle={onToggle ? event => onToggle(event.currentTarget.open) : undefined}>
+  return <Panel as="details" className="audio-usage-panel" onToggle={onToggle ? event => onToggle(event.currentTarget.open) : undefined}>
     <summary><span>{ui('用量与额度')}</span><small>{uiFormat('今日 {0} 次请求', [today])}</small></summary>
     <AudioDashboardView data={data} settings={settings} busy={busy} refresh={refresh} save={save} error={error} />
-  </details>;
+  </Panel>;
 }
 
 export default function AudioDashboard({ call }) {

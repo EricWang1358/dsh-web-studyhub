@@ -37,6 +37,12 @@ const FEATURES = {
     line: ui('录题需要模型整理题目。'),
     note: ui('可以先设置题组；录题前需要先配置模型。'),
   }),
+  variants: () => ({
+    why: ui('生成变式要调用 AI 模型；上面的「为你推荐」不需要模型，现在就能练。'),
+    then: ui('回到这里，让 AI 为错题写变式'),
+    line: ui('生成变式需要先配置模型。'),
+    note: ui('「为你推荐」现在就能练；生成变式前需要先配置模型。'),
+  }),
   translate: () => ({
     why: ui('翻译要调用 AI 模型。配置好之后回到这里再试一次。'),
     then: ui('回到这里，再翻译一次'),
@@ -45,8 +51,11 @@ const FEATURES = {
   }),
 };
 
+/** The one-line wording of the gate for a feature, for a message that is thrown or toasted rather than drawn (feature: see FEATURES). */
+export const gateMessage = (feature = 'generate', model) => (FEATURES[feature] || FEATURES.generate)(model || {}).line;
+
 /**
- * variant: 'block' | 'inline' | 'banner'; feature: 'generate' | 'grade' | 'ingest' | 'translate'. `model` is the readiness
+ * variant: 'block' | 'inline' | 'banner'; feature: 'generate' | 'grade' | 'ingest' | 'translate' | 'variants'. `model` is the readiness
  * ({ ready, reason, label }, see modelReadiness): a ready model renders nothing. Without onOpenSettings there is no button.
  * Other props (data-tour…) go to the outer element.
  */

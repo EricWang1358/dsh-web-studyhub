@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "2.5.14",
+  "version": "2.5.15",
   "description": "StudyHub: turn course materials and lecture recordings into source-cited flashcards, quizzes and SM-2 spaced review.",
   "repository": {
     "type": "git",

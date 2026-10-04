@@ -46,14 +46,14 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
         <Menu label={ui("更多")} items={more.map(({ run: _run, ...item }) => item)} defaultOpen={moreDefaultOpen}
           onSelect={(id) => more.find((item) => item.id === id)?.run?.()}
           trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" {...props}>{ui("更多")}</Button>} />
-        <button className="pill" data-usage="review.prev" disabled={busy || run.index === 0} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
-          onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</button>
-        <button className="primary pill" data-usage="review.next" disabled={nextBlocked}
+        <Button size="sm" data-usage="review.prev" disabled={busy || run.index === 0} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
+          onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</Button>
+        <Button variant="primary" size="sm" data-usage="review.next" disabled={nextBlocked}
           aria-describedby={needsAnswer && !busy ? NEXT_HINT_ID : undefined}
           title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: 1 })}>
           {run.index === run.total - 1 ? ui("完成") : ui("下一题")} →
-        </button>
+        </Button>
       </div>
       {needsAnswer && !busy && !run.card?.publicationUngrable && <p className="muted small next-hint" id={NEXT_HINT_ID}>{ui("请先作答，才能进入下一题")}</p>}
     </div>

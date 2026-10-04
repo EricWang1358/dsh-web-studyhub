@@ -121,7 +121,6 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                   <main className={nav.pageTarget ? 'is-leaving' : undefined}>
                     <AppTopbar title={shellTitleOf(page, { run, decks: data?.decks })} />
                     <IngestBanner />
-                    {!(page === 'review' && run && !run.complete) && feedback}
                     <StorageIssuesBanner />
                     <ContextReturn />
                     {data && pageAvailable(data, 'live') && <LiveClass key={connection.binding.root} data={data} call={core.call} visible={page === 'live'}
@@ -135,6 +134,8 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                     ) : !data ? <StartPage />
                       : !pageAvailable(data, page) ? <DisabledPage />
                         : <PageView page={page} feedback={feedback} />}
+                    {/* Page toasts stick to the bottom of the view: the top-right is where every PageHeader keeps its actions. */}
+                    {!(page === 'review' && run && !run.complete) && feedback}
                   </main>
                   {session.shortcutHelp && <ShortcutHelp page={page} onClose={session.actions.closeShortcutHelp} />}
                   {tour.tourStep && data && (

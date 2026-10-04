@@ -2,160 +2,165 @@
    Tokens only; both themes. The card is a quiet panel (the home's one big action stays the today card); the chip is a single
    line; below the container's narrow width the actions drop under their step. Injected as <style data-study-setup-checklist>. */
 
-.study-app .setup-card,
-.study-app .setup-chip,
-.study-app .setup-done {
-  margin: 0 0 var(--space-5);
-}
-.study-app .setup-card {
-  padding: var(--space-4) var(--space-5) var(--space-3);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-card);
-  background: var(--bg-surface);
-}
-.study-app .setup-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-5);
-  margin-bottom: var(--space-3);
-}
-.study-app .setup-heading {
-  margin: 2px 0 0;
-  font-size: var(--fs-xl);
-  line-height: var(--lh-tight);
-}
-.study-app .setup-lead {
-  margin: 0;
-  max-width: 46ch;
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-}
-.study-app .setup-steps {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.study-app .setup-step {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--line-soft);
-}
-.study-app .setup-step:first-child {
-  border-top: none;
-}
-.study-app .setup-mark {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--line-strong, var(--line));
-  border-radius: 50%;
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-  font-variant-numeric: tabular-nums;
-}
-/* The next step is marked, not given a second filled button: the home's one primary action is its today card. */
-.study-app .setup-step[data-next="true"] .setup-mark {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--bg-canvas);
-  font-weight: 700;
-}
-.study-app .setup-step[data-status="done"] .setup-mark {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--ok) 18%, transparent);
-  color: var(--ok);
-}
-.study-app .setup-body {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.study-app .setup-title {
-  font-size: var(--fs-md);
-  font-weight: 600;
-  line-height: var(--lh-snug);
-}
-.study-app .setup-step[data-status="done"] .setup-title {
-  color: var(--text-dim);
-  font-weight: 500;
-}
-.study-app .setup-optional {
-  margin-left: var(--space-2);
-  color: var(--text-faint);
-  font-size: var(--fs-xs);
-  font-weight: 400;
-}
-.study-app .setup-text {
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-  overflow-wrap: anywhere;
-}
-.study-app .setup-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-/* A long label (English, a course name) wraps inside the button instead of leaving the column. */
-.study-app .setup-actions { min-width: 0; max-width: 100%; }
-.study-app .setup-actions .sh-btn { max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; line-height: 1.3; }
-.study-app .setup-later {
-  margin: 0;
-  padding: var(--space-2) 0 var(--space-1);
-  border-top: 1px solid var(--line-soft);
-}
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-/* One quiet line: it carries no colour of its own and is a button, so it reads as "there is a list here". */
-.study-app .setup-chip-toggle {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  padding: 5px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
-}
-.study-app .setup-chip-toggle:hover {
-  border-color: var(--line-strong, var(--line));
-  color: var(--text);
-}
-.study-app .setup-chip > .setup-steps {
-  margin-top: var(--space-2);
-  padding: var(--space-1) var(--space-4);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-card);
-  background: var(--bg-surface);
-}
-.study-app .setup-chip > .setup-later {
-  padding-inline: var(--space-4);
-}
-
-.study-app .setup-done {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-}
-.study-app .setup-done .icon { color: var(--ok); }
-
-@container study (max-width: 760px) {
-  .study-app .setup-card { padding-inline: var(--space-4); }
-  .study-app .setup-step { grid-template-columns: 24px minmax(0, 1fr); }
-  .study-app .setup-actions { grid-column: 2; flex-wrap: wrap; padding-top: var(--space-1); }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .setup-card,
+    .setup-chip,
+    .setup-done {
+      margin: 0 0 var(--space-5);
+    }
+    .setup-card {
+      padding: var(--space-4) var(--space-5) var(--space-3);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius-card);
+      background: var(--bg-surface);
+    }
+    .setup-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-1) var(--space-5);
+      margin-bottom: var(--space-3);
+    }
+    .setup-heading {
+      margin: var(--space-half) 0 0;
+      font-size: var(--fs-xl);
+      line-height: var(--lh-tight);
+    }
+    .setup-lead {
+      margin: 0;
+      max-width: 46ch;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+    .setup-steps {
+      display: grid;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .setup-step {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      padding: var(--space-3) 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    .setup-step:first-child {
+      border-top: none;
+    }
+    .setup-mark {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--line-strong, var(--line));
+      border-radius: 50%;
+      color: var(--text-dim);
+      font-size: var(--fs-xs);
+      font-variant-numeric: tabular-nums;
+    }
+    /* The next step is marked, not given a second filled button: the home's one primary action is its today card. */
+    .setup-step[data-next="true"] .setup-mark {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--bg-canvas);
+      font-weight: var(--fw-strong);
+    }
+    .setup-step[data-status="done"] .setup-mark {
+      border-color: transparent;
+      background: var(--ok-bg);
+      color: var(--ok);
+    }
+    .setup-body {
+      display: grid;
+      gap: var(--space-half);
+      min-width: 0;
+    }
+    .setup-title {
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-snug);
+    }
+    .setup-step[data-status="done"] .setup-title {
+      color: var(--text-dim);
+      font-weight: var(--fw-medium);
+    }
+    .setup-optional {
+      margin-left: var(--space-2);
+      color: var(--text-faint);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-regular);
+    }
+    .setup-text {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      overflow-wrap: anywhere;
+    }
+    .setup-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    /* A long label (English, a course name) wraps inside the button instead of leaving the column. */
+    .setup-actions { min-width: 0; max-width: 100%; }
+    .setup-actions .sh-btn { max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; line-height: 1.3; }
+    .setup-later {
+      margin: 0;
+      padding: var(--space-2) 0 var(--space-1);
+      border-top: 1px solid var(--line-soft);
+    }
+    /* One quiet line: it carries no colour of its own and is a button, so it reads as "there is a list here". */
+    .setup-chip-toggle {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      padding: 5px var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: 1.4;
+      text-align: left;
+      cursor: pointer;
+      transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+    }
+    .setup-chip-toggle:hover {
+      border-color: var(--line-strong, var(--line));
+      color: var(--text);
+    }
+    .setup-chip > .setup-steps {
+      margin-top: var(--space-2);
+      padding: var(--space-1) var(--space-4);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-card);
+      background: var(--bg-surface);
+    }
+    .setup-chip > .setup-later {
+      padding-inline: var(--space-4);
+    }
+    .setup-done {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+    }
+    .setup-done .icon { color: var(--ok); }
+  }
+  @container study (max-width: 760px) {
+    :is(.study-app, .study-seat) {
+      .setup-card { padding-inline: var(--space-4); }
+      .setup-step { grid-template-columns: 24px minmax(0, 1fr); }
+      .setup-actions { grid-column: 2; flex-wrap: wrap; padding-top: var(--space-1); }
+    }
+  }
 }

@@ -3,84 +3,85 @@
    saved from an answer, a dashed muted one a note. The text is never changed: these are Custom Highlight API
    ranges (like search), so selecting, searching and every stored character work as before. */
 
-::highlight(study-link-question) {
-  text-decoration-line: underline;
-  text-decoration-style: solid;
-  text-decoration-thickness: 1.5px;
-  text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
-}
-::highlight(study-link-qa) {
-  text-decoration-line: underline;
-  text-decoration-style: dotted;
-  text-decoration-thickness: 2px;
-  text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
-}
-::highlight(study-link-note) {
-  text-decoration-line: underline;
-  text-decoration-style: dashed;
-  text-decoration-thickness: 1.5px;
-  text-decoration-color: var(--text-muted);
-}
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-:is(.study-app, .study-seat) {
-  .study-document-body[data-link-hover] { cursor: pointer; }
-
-  /* The Aa popover's underline row sits on one line so the popover stays short. */
-  .reader-setting.reader-setting--inline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-
-  /* ── Save an answer as a flashcard ──────────────────────────────────── */
-  .study-qa-save { margin-top: var(--space-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-  .study-qa-save .muted { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
-  .study-qa-save .sh-inline { flex-basis: 100%; margin: 0; }
-  .study-qa-saved { margin: 0; color: var(--text); }
-  .study-qa-saved .study-qa-saved__open {
-    width: auto;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--text);
-    text-decoration: underline;
-    text-underline-offset: 0.2em;
-    cursor: pointer;
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    ::highlight(study-link-question) {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
+    }
+    ::highlight(study-link-qa) {
+      text-decoration-line: underline;
+      text-decoration-style: dotted;
+      text-decoration-thickness: 2px;
+      text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
+    }
+    ::highlight(study-link-note) {
+      text-decoration-line: underline;
+      text-decoration-style: dashed;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: var(--text-muted);
+    }
   }
-
-  /* ── The linked passages in the learning panel ──────────────────────── */
-  .reader-links { display: grid; gap: var(--space-2); }
-  .reader-links__list { display: grid; }
-  .reader-link-group, .reader-links__stale { border-bottom: 1px solid var(--line); }
-  .reader-link-group > summary {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    column-gap: var(--space-2);
-    padding: var(--space-2) var(--space-1);
-    cursor: pointer;
+  :is(.study-app, .study-seat) {
+    .study-document-body[data-link-hover] { cursor: pointer; }
+    /* The Aa popover's underline row sits on one line so the popover stays short. */
+    /* ── Save an answer as a flashcard ──────────────────────────────────── */
+    .study-qa-save { margin-top: var(--space-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+    .study-qa-save .muted { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
+    .study-qa-save .sh-inline { flex-basis: 100%; margin: 0; }
+    .study-qa-saved { margin: 0; color: var(--text); }
+    .study-qa-saved .study-qa-saved__open {
+      width: auto;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--text);
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+      cursor: pointer;
+    }
+    /* ── The linked passages in the learning panel ──────────────────────── */
+    .reader-links { display: grid; gap: var(--space-2); }
+    .reader-links__list { display: grid; }
+    .reader-link-group, .reader-links__stale { border-bottom: 1px solid var(--line); }
+    .reader-link-group > summary {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      column-gap: var(--space-2);
+      padding: var(--space-2) var(--space-1);
+      cursor: pointer;
+    }
+    .reader-link-group[data-focused] { background: var(--bg-hover); }
+    .reader-link-group__no { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .reader-link-group[data-kind='question'] .reader-link-group__no { text-decoration: underline solid; }
+    .reader-link-group[data-kind='qa'] .reader-link-group__no { text-decoration: underline dotted; }
+    .reader-link-group[data-kind='note'] .reader-link-group__no { text-decoration: underline dashed; }
+    .reader-link-group__quote {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      font-size: var(--fs-sm);
+    }
+    .reader-link-group[open] > summary .reader-link-group__quote { -webkit-line-clamp: 6; }
+    .reader-link-group__count { grid-column: 2; color: var(--text-muted); font-size: var(--fs-xs); }
+    .reader-link-item { display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-1) var(--space-3) var(--space-3); border-left: 1px solid var(--line-strong); margin-left: var(--space-1); }
+    .reader-link-item__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: 0; overflow-wrap: anywhere; }
+    .reader-link-item__head strong { font-size: var(--fs-sm); }
+    .reader-link-item__deck { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+    .reader-link-item__answer { color: var(--text-dim); font-size: var(--fs-sm); max-height: 9em; overflow: hidden; }
+    .reader-link-item__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .reader-link-item__qa > summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-xs); }
+    .reader-link-item__followup { display: grid; gap: var(--space-1); margin-top: var(--space-2); padding-left: var(--space-3); border-left: 1px solid var(--line); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+    .reader-link-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-3); font-size: var(--fs-sm); }
+    .reader-link-note__label { color: var(--text-muted); font-size: var(--fs-xs); }
+    .reader-link-note__title { overflow-wrap: anywhere; }
+    .reader-links__stale > summary { padding: var(--space-2) var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); cursor: pointer; }
   }
-  .reader-link-group[data-focused] { background: var(--bg-hover); }
-  .reader-link-group__no { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-  .reader-link-group[data-kind='question'] .reader-link-group__no { text-decoration: underline solid; }
-  .reader-link-group[data-kind='qa'] .reader-link-group__no { text-decoration: underline dotted; }
-  .reader-link-group[data-kind='note'] .reader-link-group__no { text-decoration: underline dashed; }
-  .reader-link-group__quote {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    font-size: var(--fs-sm);
-  }
-  .reader-link-group[open] > summary .reader-link-group__quote { -webkit-line-clamp: 6; }
-  .reader-link-group__count { grid-column: 2; color: var(--text-muted); font-size: var(--fs-xs); }
-  .reader-link-item { display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-1) var(--space-3) var(--space-3); border-left: 1px solid var(--line-strong); margin-left: var(--space-1); }
-  .reader-link-item__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: 0; overflow-wrap: anywhere; }
-  .reader-link-item__head strong { font-size: var(--fs-sm); }
-  .reader-link-item__deck { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
-  .reader-link-item__answer { color: var(--text-dim); font-size: var(--fs-sm); max-height: 9em; overflow: hidden; }
-  .reader-link-item__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-  .reader-link-item__qa > summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-xs); }
-  .reader-link-item__followup { display: grid; gap: var(--space-1); margin-top: var(--space-2); padding-left: var(--space-3); border-left: 1px solid var(--line); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-  .reader-link-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-3); font-size: var(--fs-sm); }
-  .reader-link-note__label { color: var(--text-muted); font-size: var(--fs-xs); }
-  .reader-link-note__title { overflow-wrap: anywhere; }
-  .reader-links__stale > summary { padding: var(--space-2) var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); cursor: pointer; }
 }

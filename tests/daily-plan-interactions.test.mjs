@@ -57,12 +57,16 @@ test('daily plan editors preserve consent, zero minutes and keyboard focus; read
   page.on('pageerror', error => errors.push(error.message));
   await page.setContent('<main id="root"></main>');
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
-  const adjust = page.getByRole('button', { name: '调整今天', exact: true });
+  // Wave 3 (#173): the block is folded to one row (the choice is remembered); the adjustments are one 调整 menu.
+  const adjust = page.getByRole('button', { name: '调整', exact: true });
   await adjust.waitFor();
+  assert.equal(await page.getByRole('button', { name: '展开 今天先做什么' }).count(), 1, 'folded by default');
   assert.equal(await page.getByRole('textbox').count(), 0, 'negotiation is on demand');
   assert.deepEqual(await page.evaluate(() => window.calls.suggest), [], 'reading the plan never asks AI');
-  await adjust.focus();
-  await page.keyboard.press('Enter');
+  await adjust.click();
+  await page.getByRole('menuitem', { name: '调整今天' }).click();
+  await page.getByRole('textbox').waitFor();
+  assert.equal(await page.getByRole('button', { name: '收起 今天先做什么' }).count(), 1, 'choosing an adjustment opens the block');
   assert.equal(await page.getByRole('textbox').evaluate(node => node === document.activeElement), true);
   await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('textbox').count(), 0);
@@ -71,11 +75,14 @@ test('daily plan editors preserve consent, zero minutes and keyboard focus; read
   await page.evaluate(() => window.updatePlan({ proposal: { id: 'proposal-1', method: 'ai', items: [] } }));
   await page.getByRole('button', { name: '接受这份安排' }).waitFor();
   await adjust.click();
+  await page.getByRole('menuitem', { name: '调整今天' }).click();
   await page.getByRole('textbox').fill('今天休息');
   await page.getByRole('spinbutton').fill('0');
   await page.getByRole('button', { name: '按我的意见重新建议' }).click();
   await page.waitForFunction(() => window.calls.suggest.length === 1);
-  assert.equal(await adjust.isDisabled(), true, 'the actual controller disables triggers during the request');
+  await adjust.click();
+  assert.equal(await page.getByRole('menuitem', { name: '调整今天' }).isDisabled(), true, 'the actual controller disables the entries during the request');
+  await page.keyboard.press('Escape');
   await page.evaluate(() => window.failSuggest());
   await page.waitForFunction(() => !document.querySelector('textarea')?.disabled);
   assert.deepEqual(await page.evaluate(() => window.calls.suggest[0]), { feedback: '今天休息', minutes: 0, proposalId: 'proposal-1' });
@@ -87,7 +94,8 @@ test('daily plan editors preserve consent, zero minutes and keyboard focus; read
   assert.equal(await adjust.evaluate(node => node === document.activeElement), true);
   assert.deepEqual(await page.evaluate(() => window.calls.profile), [], 'today-only feedback leaves the regular pace alone');
 
-  await page.getByRole('button', { name: '学习量习惯', exact: true }).click();
+  await adjust.click();
+  await page.getByRole('menuitem', { name: '学习量习惯' }).click();
   const weekdays = page.getByRole('spinbutton', { name: '工作日（分钟）' });
   await weekdays.fill('');
   assert.equal(await page.getByRole('button', { name: '保存长期习惯' }).isDisabled(), true);
@@ -98,7 +106,7 @@ test('daily plan editors preserve consent, zero minutes and keyboard focus; read
   await page.evaluate(() => window.finishProfile());
   await page.waitForFunction(() => !document.querySelector('input'));
   assert.deepEqual(await page.evaluate(() => window.calls.profile), [{ weekdayMinutes: 0, weekendMinutes: 60 }]);
-  assert.equal(await page.getByRole('button', { name: '学习量习惯', exact: true }).evaluate(node => node === document.activeElement), true);
+  assert.equal(await adjust.evaluate(node => node === document.activeElement), true, 'focus returns to the 调整 menu button');
 
   await page.evaluate(() => window.showRelated());
   const strip = page.getByRole('complementary', { name: '相关学习待办' });

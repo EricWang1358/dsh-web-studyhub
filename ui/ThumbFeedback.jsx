@@ -1,9 +1,13 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
+import { useToast } from "./components/index.js";
+import { feedbackOutcome } from "./card-fix.js";
+import { useComponentCss } from "./components/css.js";
+import thumbCss from "./thumb-feedback.css";
 
 /* 👍/👎 一键反馈。👎 立即记录并展开标签，停手 1.2 秒把新选的标签一次提交，
-   服务端据此在后台改题或备更难/更基础的题。G/B 与标签数字键由这里自己处理，
+   服务端据此备更难/更基础的题；改题类标签交给复习页的「修题」（onFix），不再静默改题。G/B 与标签数字键由这里自己处理，
    是否响应快捷键由 App 的 canShortcut 判断（焦点在面板、不在输入框）。 */
 
 const TAGS = [
@@ -24,11 +28,16 @@ function ThumbGlyph({ down = false }) {
   </svg>;
 }
 
-export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
+export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix }) {
   const [vote, setVote] = useState(run.vote?.vote || null),
     [tags, setTags] = useState(run.vote?.tags || []),
     [open, setOpen] = useState(false),
     [error, setError] = useState("");
+  useComponentCss(thumbCss, "study-thumb-feedback");
+  const toast = useToast(), trayId = useId(), voteId = useId();
+  // The timers and queued posts outlive the render that created them: they read the latest callbacks.
+  const callbacks = useRef({});
+  callbacks.current = { toast, onFix, onSent };
   const sent = useRef(new Set(run.vote?.tags || [])),
     submitting = useRef(new Set()),
     saved = useRef({ vote: run.vote?.vote || null, tags: run.vote?.tags || [] }),
@@ -57,9 +66,10 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
     flushRef.current?.();
   }, []);
 
-  const post = (args, key = cardKey) => {
+  // `implicit`: the bare 👎 fallback, which only records (no tag was picked, so there is nothing to hand to 修题).
+  const post = (args, key = cardKey, implicit = false) => {
     pending.current = pending.current.catch(() => {}).then(() =>
-      call("coach.feedback", { deckId: run.deckId, cardId: run.card.id, ...args }));
+      call("coach.feedback", { deckId: run.deckId, cardId: run.card.id, ...(callbacks.current.onFix ? { rewriteVia: "assist" } : {}), ...args }));
     return pending.current
       .then((r) => {
         if (activeKey.current === key) {
@@ -73,7 +83,8 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
           setTags((current) => args.vote === "up" ? [] : [...new Set([...current, ...saved.current.tags])]);
           setError("");
         }
-        onSent?.(r);
+        callbacks.current.onSent?.(r);
+        if (activeKey.current === key) announce(args, r, implicit);
       })
       .catch((failure) => {
         if (activeKey.current === key) {
@@ -86,6 +97,12 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
         }
       });
   };
+  // What the learner is told once a batch of tags is saved. A rewrite tag opens the 修题 box (its own visible feedback); difficulty tags only record.
+  function announce(args, r, implicit) {
+    const { fix, note } = feedbackOutcome(args, r, { implicit });
+    if (fix.length) callbacks.current.onFix?.(fix);
+    if (note) callbacks.current.toast.info(note);
+  }
   function thumb(next) {
     setVote(next);
     setError("");
@@ -100,7 +117,7 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
       const fallback = () => {
         if (flushRef.current !== fallback) return;
         flushRef.current = null;
-        if (!tagsRef.current.length) post({ vote: "down", tags: ["general-quality"] });
+        if (!tagsRef.current.length) post({ vote: "down", tags: ["general-quality"] }, cardKey, true);
         setOpen(false);
       };
       flushRef.current = fallback;
@@ -169,16 +186,17 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent }) {
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
     }}>
       <button className="tool-icon" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><ThumbGlyph /></button>
-      <button className="tool-icon" aria-label={ui("这题有问题")} aria-pressed={vote === "down"} aria-expanded={open} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签后自动优化")} onClick={() => (open ? setOpen(false) : thumb("down"))}><ThumbGlyph down /></button>
+      <button className="tool-icon" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><ThumbGlyph down /></button>
+      {vote === "down" && <span id={voteId} className="sr-only">{ui("已标记这题有问题")}</span>}
       {error && <small className="warning" role="alert">{error}</small>}
       {open && (
-        <span className="thumb-tray" role="group" aria-label={ui("哪里不好")}>
+        <span id={trayId} className="thumb-tray" role="group" aria-label={ui("哪里不好")}>
           {TAGS.map(([id, label], i) => (
             <button key={id} className={"coach-chip" + (tags.includes(id) ? " on" : "")} aria-pressed={tags.includes(id)} disabled={sent.current.has(id) || submitting.current.has(id)} onClick={() => toggle(id)}>
               <kbd>{i + 1}</kbd>{ui(label)}
             </button>
           ))}
-          <small>{ui("选好停一下就自动提交；已提交的标签不能撤销，改题在后台进行。")}</small>
+          <small>{ui("选好停一下就自动提交；已提交的标签不能撤销。改题类问题会带到下方的「修题」。")}</small>
         </span>
       )}
     </span>

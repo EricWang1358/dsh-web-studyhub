@@ -63,7 +63,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
     <section className="nb-dir" aria-label={ui('全局笔记本目录')}>
       <div className="section-heading map-heading">
         <h2>
-          <DisclosureToggle className="map-fold" open={open} label={foldLabel(open, ui('全局笔记本'))} onToggle={toggle} />{' '}{ui('全局笔记本 ')}<span>{published}</span>
+          <DisclosureToggle className="map-fold" open={open} label={foldLabel(open, ui('全局笔记本'))} onToggle={toggle} />{' '}{ui('全局笔记本')}{' '}<span>{published}</span>
         </h2>
         <div className="section-heading-actions">
           <Button size="sm" onClick={refresh} disabled={busy} title={ui('重新读取全局目录')}>{ui('刷新')}</Button>
@@ -83,7 +83,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
                   <li key={`${n.root}:${d.id}`}>
                     <button className="nb-row due" disabled={busy || !n.exists} title={n.exists ? uiFormat('在新对话中打开：{0}', [n.workspace]) : n.workspace} onClick={() => onOpen?.(n)}>
                       <span className="nb-main"><strong>{n.title}</strong><small className="nb-path">{d.title}</small></span>
-                      <span className="nb-stats">{d.due}{ui(' 道到期')}</span>
+                      <span className="nb-stats">{uiFormat('{0} 道到期', [d.due])}</span>
                       <span className="nb-go" aria-hidden="true">→</span>
                     </button>
                   </li>

@@ -1,0 +1,25 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The audio form's reorder buttons share one chevron icon, turned to point up or down (Icon has no vertical arrows yet). */
+    .audio-order-icon--up { transform: rotate(-90deg); }
+    .audio-order-icon--down { transform: rotate(90deg); }
+    /* A workspace file is a list row (name, folder, size) that is also a Button: it takes the row's width and layout. */
+    .audio-files .audio-file {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: normal;
+      justify-content: normal;
+      gap: var(--space-1) var(--space-3);
+      width: 100%;
+      min-height: 0;
+      padding: var(--space-2) var(--space-3);
+      border: 0;
+      border-radius: 0;
+      font-weight: inherit;
+      text-align: left;
+      white-space: normal;
+    }
+  }
+}

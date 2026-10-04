@@ -125,12 +125,13 @@ test('the course heading is a named course switcher, or the role input in interv
   m.setUiLanguage('zh');
   const data = baseData();
   const heading = html(m.CourseHeading, { data, headline: '今天', onFocus: noop, role: { draft: '', setDraft: noop } });
-  assert.match(heading, /<h1[^>]*class="course-heading"/);
+  assert.match(heading, /<h1[^>]*class="sh-page-header__title course-heading"/, "the course heading is the PageHeader title");
   assert.match(heading, /<select[^>]*aria-label="切换当前课程"/);
   assert.doesNotMatch(heading, /▾/);
   assert.match(heading, /<svg/, 'the caret beside the course is an icon');
   const interview = html(m.CourseHeading, { data: baseData({ focus: { ...data.focus, mode: 'interview', role: '后端' } }), headline: '今天', onFocus: noop, role: { draft: '后端', setDraft: noop } });
   assert.match(interview, /<input[^>]*aria-label="岗位方向"[^>]*value="后端"/);
+  assert.match(interview, /<h1[^>]*><input/, 'the role input is inside the h1: the page keeps its title in interview mode');
 });
 
 test('role suggestions keep their own state and speak an error as an alert', () => {

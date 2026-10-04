@@ -12,6 +12,7 @@ import { USAGE_REGISTRY, USAGE_TIERS, USAGE_GROUPS, USAGE_NAV_GROUPS, USAGE_AREA
 import * as uiRegistry from '../ui/usage/registry.js';
 import { StudyService } from '../lib/service.js';
 import { reviewElement } from './helpers/review-render.mjs';
+import { mapProps } from './helpers/study-map-props.mjs';
 
 /* The registry is the one list of controls the report speaks about. It must stay honest: unique keys, names in both languages, a tier
    (docs/feature-tiers.md), every control a page marks with data-usage listed, every listed control actually marked, and the keys the
@@ -131,8 +132,8 @@ function keysOf(html, area) {
 const deck = { id: 'd1', title: '行为型模式', folder: 'CS3219', course: 'CS3219', topics: ['Memento'], available: 5, count: 5, quizCount: 3, createdAt: '2026-09-01T00:00:00Z' };
 const progress = { d1: { counts: { mastered: 1, familiar: 1, learning: 1, weak: 1, new: 1 }, total: 5, mastery: 60, due: 1, status: 'active', topics: [] } };
 const sources = [{ id: 'p1', title: '讲义 第 1 页', text: 'x', document: { id: 'pdf', page: 1 } }, { id: 'p2', title: '讲义 第 2 页', text: 'x', document: { id: 'pdf', page: 2 } }];
-const home = () => renderToStaticMarkup(h(pages.StudyMap, { data: { root: '/tmp/lib', decks: [deck], progress, sources, drafts: [], jobs: [], runs: [], today: { due: 1, weak: 2, new: 0, size: 3 }, focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } },
-  busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: { notebooks: [] }, onFocus: noop, cancelJob: noop, dismissJob: noop, generateFromSources: noop, openModelSettings: noop, canChat: false }));
+const home = () => renderToStaticMarkup(h(pages.StudyMap, mapProps({ data: { root: '/tmp/lib', decks: [deck], progress, sources, drafts: [], jobs: [], runs: [], today: { due: 1, weak: 2, new: 0, size: 3 }, focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } },
+  busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: { notebooks: [] }, onFocus: noop, cancelJob: noop, dismissJob: noop, generateFromSources: noop, openModelSettings: noop, canChat: false })));
 const review = kind => renderToStaticMarkup(reviewElement(pages.Review, pages.StudyServicesContext, { run: { id: 'r', index: 0, total: 3, card: { id: 'q', kind, topic: 'Context', prompt: 'Who processes payments?', options: [{ id: 'a', text: 'Payment System' }, { id: 'b', text: 'Ledger' }] }, revealed: kind !== 'quiz', feedback: null, solution: null },
   data: { sources: [] }, host: {}, choice: kind === 'quiz', isCloze: false, selected: [], clozeValues: {}, shellTitle: 'Review', busy: false }));
 const settings = () => renderToStaticMarkup(h(pages.Settings, { data: { sources: [], contexts: ['system'], settings: {}, root: '/tmp/lib' }, busy: false, act: noop, call: async () => ({}), host: {}, setNotice: noop,

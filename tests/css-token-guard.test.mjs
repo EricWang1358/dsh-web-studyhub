@@ -11,6 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
+import { GLOBAL_CSS_FILES } from './helpers/global-css.mjs';
 
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -40,14 +41,11 @@ function literalsEqualToTokens(source) {
 /** Files (relative to ui/) that still hold raw hex colours, and how many. Only lower these. */
 const HEX_BASELINE = {
   'board/board.css': 2,
-  'components/components.css': 4,
   'components/scroll-window.css': 4,
   'document-preview/document-preview.css': 4,
   'document-preview/peek/peek.css': 1,
-  'review-results.css': 5,
-  'side-groups.css': 1,
   'skeleton.css': 4,
-  'style.css': 4,
+  'review/question.css': 1,
 };
 
 test('the counters understand the shapes they guard (fixtures)', () => {
@@ -80,9 +78,9 @@ test('the new stylesheet is entirely tokens and system colours: no raw hex at al
   assert.equal(countRawHex(await readFile('ui/appearance-themes.css', 'utf8')), 0);
 });
 
-test('radius and font-size literals that equal a token are written as the token in style.css, views.css and components.css', async () => {
+test('radius and font-size literals that equal a token are written as the token in the global sheets, views.css and components.css', async () => {
   const offenders = [];
-  for (const name of ['ui/style.css', 'ui/views.css', 'ui/components/components.css']) {
+  for (const name of [...GLOBAL_CSS_FILES, 'ui/views.css', 'ui/components/components.css']) {
     const found = literalsEqualToTokens(await readFile(name, 'utf8'));
     if (found.length) offenders.push(`${name}: ${found.length} (${[...new Set(found)].join('; ')})`);
   }

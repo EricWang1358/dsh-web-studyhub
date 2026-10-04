@@ -40,7 +40,7 @@ export default function AppModalHost() {
       {courseSettings && (
         <CourseSettings key={courseSettings.id ? `${courseSettings.id}:${courseSettings.mergeFrom.join(',')}` : courseSettings} data={data}
           courseId={courseSettings.id || courseSettings} mergeFrom={courseSettings.mergeFrom} act={core.act} busy={core.busy}
-          setNotice={core.notify} onClose={() => setCourseSettings(null)} />
+          onClose={() => setCourseSettings(null)} />
       )}
       {tour.removingSample && <RemoveSampleDialog busy={tour.sampleBusy} onConfirm={tour.removeSampleData} onClose={() => tour.setRemovingSample(false)} />}
       {removing && (

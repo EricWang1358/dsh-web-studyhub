@@ -1,14 +1,20 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
 import LibraryUsage from '../LibraryUsage.jsx';
 import ReasoningEffortField from '../ReasoningEffortField.jsx';
-import { useApp } from './app-context.js';
+import { AppContext } from './app-context.js';
 
 /* Which folder the library lives in and which model makes the questions: the panel on the empty start page and in Settings.
-   The folder and model drafts (the typed-in alternatives to the picker) are its own; everything else is the app's binding. */
+   The folder and model drafts (the typed-in alternatives to the picker) are its own; everything else is the app's binding.
+   Settings and the start page render it themselves; outside the app (a preview, a pane under test) it draws nothing. */
 export default function WorkspaceBindingPanel() {
-  const { host, data, core, connection } = useApp();
+  const app = useContext(AppContext);
+  return app ? <Binding app={app} /> : null;
+}
+
+function Binding({ app }) {
+  const { host, data, core, connection } = app;
   const { call, busy } = core;
   const { binding, setBinding, updateBinding } = connection;
   const [rootDraft, setRootDraft] = useState(null), [modelDraft, setModelDraft] = useState(null);

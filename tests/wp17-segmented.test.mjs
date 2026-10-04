@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { globalCss } from './helpers/global-css.mjs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -68,7 +69,7 @@ test('keyboard focus moves without changing the value; Enter and Space still sel
 
 test('the thumb animates position and size only, and reduced motion removes every transition', () => {
   assert.match(css, /\.sh-seg__thumb\s*\{[^}]*position:\s*absolute/);
-  assert.match(css, /\.sh-seg__thumb\s*\{[^}]*transition:[^;}]*transform\s+0?\.2s[^;}]*width[^;}]*height/);
+  assert.match(css, /\.sh-seg__thumb\s*\{[^}]*transition:[^;}]*transform\s+var\(--dur\)[^;}]*width[^;}]*height/);
   assert.match(css, /\.sh-seg__item\s*\{[^}]*transition:[^;}]*color/, 'text colour cross-fades');
   assert.match(css, /\.sh-seg\[data-thumb="on"\]\s+\.sh-seg__item\.is-active\s*\{[^}]*background:\s*transparent/, 'the item fill hands over to the thumb');
   assert.match(css, /\.sh-seg__item:active:not\(:disabled\)\s*\{[^}]*scale\(0\.98\)/, 'press feedback');
@@ -104,7 +105,7 @@ test('the recording setup rows are segmented controls with the same labels and p
 
 test('every single-choice segment row uses the shared control and the old hand-rolled CSS is gone', () => {
   const rows = [
-    ['ui/Exam.jsx', '考试题型'], ['ui/Skeleton.jsx', '主题视图'], ['ui/Skeleton.jsx', '骨架视图'], ['ui/Graph.jsx', '视图模式'],
+    ['ui/exam/WrittenSetup.jsx', '考试题型'], ['ui/Skeleton.jsx', '主题视图'], ['ui/Skeleton.jsx', '骨架视图'], ['ui/Graph.jsx', '视图模式'],
     ['ui/Ingest.jsx', null], ['ui/Generate.jsx', null], ['ui/study-map/DeskIntro.jsx', '学习模式'], ['ui/SkeletonCanvas.jsx', '想做什么'],
   ];
   for (const [file, label] of rows) {
@@ -114,9 +115,10 @@ test('every single-choice segment row uses the shared control and the old hand-r
   }
   for (const [file, pattern] of [
     ['ui/views.css', /\.exam-type-settings button/], ['ui/skeleton.css', /\.sk-seg\b/], ['ui/skeleton.css', /\.skc-extend-intents button/],
-    ['ui/graph.css', /\.graph-mode\b/], ['ui/style.css', /\.focus-switch button/], ['ui/style.css', /\.choice-grid/], ['ui/style.css', /\.kind-grid|\.kind\.selected/],
+    ['ui/graph.css', /\.graph-mode\b/],
   ]) assert.doesNotMatch(read(file), pattern, `${file} no longer carries ${pattern}`);
-  assert.doesNotMatch(read('ui/Exam.jsx'), /className=\{typeMode === kind/);
+  for (const pattern of [/\.focus-switch button/, /\.choice-grid/, /\.kind-grid|\.kind\.selected/]) assert.doesNotMatch(globalCss(), pattern, `the global sheets no longer carry ${pattern}`);
+  assert.doesNotMatch(read('ui/exam/WrittenSetup.jsx'), /className=\{typeMode === kind/);
 });
 
 test('wrapped segments: the thumb follows both axes, so a row that wraps (narrow sidebar) still slides to the right line', () => {

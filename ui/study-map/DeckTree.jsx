@@ -37,7 +37,7 @@ export default function DeckTree({ data, folders, tree, query, showArchived, sin
                 onChange={(event) => tree.toggleSelect(decks.filter((deck) => !deck.archived).map((deck) => topicKey(deck.id)), event.target.checked)} />}
               <button className="map-name" onClick={() => tree.toggleOpen(id)}>
                 <strong title={folder}>{name}</strong>
-                <small>{decks.length}{ui(' 个题组')}</small>
+                <small>{uiFormat('{0} 个题组', [decks.length])}</small>
               </button>
               {parked && <ParkedChip course={parked} />}
               {!showArchived && <MasteryBar node={mergeProgress(decks.map((deck) => progress[deck.id]).filter(Boolean))} />}

@@ -174,7 +174,7 @@ export async function runTranslationQa(options) {
     const mark = (text) => paragraph(text).locator(".tr-mark__btn");
     const blockAfter = (text) => paragraph(text).locator("xpath=following-sibling::*[1][contains(@class,'tr-host')]");
     const openDisplay = async () => { if (!(await viewer.locator(".reader-popover__panel[aria-label]").count())) await viewer.getByRole("button", { name: t("显示设置", "Display settings"), exact: true }).click(); await viewer.locator(".tr-modes").waitFor(); };
-    const setMode = async (label) => { await openDisplay(); await viewer.locator(".tr-modes__item", { hasText: label }).click(); await page.keyboard.press("Escape"); await sleep(250); };
+    const setMode = async (label) => { await openDisplay(); await viewer.locator(".tr-modes .sh-seg__item", { hasText: label }).click(); await page.keyboard.press("Escape"); await sleep(250); };
     const labels = { pairs: t("逐段对照", "Paragraph pairs"), side: t("左右分栏", "Side by side"), only: t("仅中文", "English only"), hidden: t("隐藏译文", "Hide translations") };
     const toggleTools = async () => { await viewer.getByRole("button", { name: t("学习工具", "Study tools"), exact: true }).click(); await sleep(300); };
     const toggleOutline = async () => { await viewer.getByRole("button", { name: t("目录", "Contents"), exact: true }).click().catch(() => {}); await sleep(300); };

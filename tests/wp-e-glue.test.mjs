@@ -63,14 +63,15 @@ test('the old audio-key-* classes are gone from the stylesheets and the pages', 
 const source = async (path) => (await read(path)).replace(/\r\n/g, '\n');
 
 test('audio import has no local copy of the upload loop, the size and clock formats, the extension lists or the path helpers', async () => {
-  const page = await source('ui/AudioImport.jsx');
+  // The form lives in AudioImport.jsx; its upload loop, formats and limits in ui/audio (WP-X, #131).
+  const page = (await Promise.all(['ui/AudioImport.jsx', 'ui/audio/audio-upload.js', 'ui/audio/formats.js'].map(source))).join('\n');
   assert.match(page, /uploadInChunks\(call, 'audio', /);
-  assert.match(page, /maxChunkBytes: 3 \* 1024 \* 1024/);
+  assert.match(page, /PIECE_CAP = 3 \* 1024 \* 1024/);
   for (const [name, pattern] of [['toBase64', /const toBase64/], ['formatSize', /formatSize/], ['spent', /const spent/], ['extensionOf', /const extensionOf/], ['baseName', /const baseName/],
     ['isAbsolutePath', /const isAbsolutePath/], ['unquote', /const unquote/], ['MAX_BYTES', /const MAX_BYTES/], ['MAX_SUBTITLE_BYTES', /const MAX_SUBTITLE_BYTES/], ['EXTENSIONS', /const EXTENSIONS/], ['SUBTITLES', /const SUBTITLES/]]) {
     assert.doesNotMatch(page, pattern, `${name} comes from a shared module`);
   }
-  for (const from of ['./format.js', './upload.js', './file-names.js', './paths.js', '../lib/audio-formats.js']) assert.ok(page.includes(`'${from}'`) || page.includes(`"${from}"`), from);
+  for (const from of ['./format.js', '../upload.js', '../file-names.js', '../paths.js', '../../lib/audio-formats.js']) assert.ok(page.includes(`'${from}'`) || page.includes(`"${from}"`), from);
 });
 
 /* ---------- 3. Inbox: shared "ago" and dismiss (#94 #82 #80) ---------- */
@@ -103,8 +104,8 @@ test('the inbox closes through useDismiss and puts focus inside the panel and ba
 
 test('the mailbox margins on Buttons out-rank the Button reset whatever order the stylesheets load in', async () => {
   const css = await source('ui/inbox.css');
-  assert.match(css, /\.study-app \.mailbox \.mailbox__read-all \{ margin-left: auto; \}/);
-  assert.match(css, /\.study-app \.mailbox \.mailbox__undo \{/);
+  assert.match(css, /\.mailbox \.mailbox__read-all \{ margin-left: auto; \}/);
+  assert.match(css, /\.mailbox \.mailbox__undo \{/);
 });
 
 /* ---------- 4. Clocks and polling (#125 #128) ---------- */
@@ -122,13 +123,14 @@ test('pages that poll use usePolling (paused while hidden) and pages that show a
     const page = await source(file);
     assert.doesNotMatch(page, /setInterval|clearInterval|visibilitychange|document\.hidden|visibilityState/, `${file} has no timer or visibility plumbing of its own`);
   }
-  for (const file of ['ui/Workflows.jsx', 'ui/CaseWorkspace.jsx', 'ui/WrongBook.jsx', 'ui/Board.jsx']) assert.match(await source(file), /usePolling\(/, file);
-  for (const file of ['ui/Exam.jsx', 'ui/CaseWorkspace.jsx']) assert.match(await source(file), /useNow\(1000/, file);
+  // The exam pages poll a report and show a clock through the shared lifecycle hook (WP-X, #132).
+  for (const file of ['ui/Workflows.jsx', 'ui/exam/useExamRun.js', 'ui/WrongBook.jsx', 'ui/Board.jsx']) assert.match(await source(file), /usePolling\(/, file);
+  for (const file of ['ui/exam/useExamRun.js']) assert.match(await source(file), /useNow\(1000/, file);
 });
 
 test('job activity and cancellability come from lib/job-status, not from local Sets or inline status lists', async () => {
   for (const file of ['ui/document-preview/selection-job.js', 'ui/document-preview/translation/model.js', 'ui/GenerationTrace.jsx', 'ui/document-preview/SelectionJobs.jsx',
-    'ui/document-preview/translation/TranslationMenu.jsx', 'ui/AudioImport.jsx']) {
+    'ui/document-preview/translation/TranslationMenu.jsx', 'ui/audio/AudioJobs.jsx']) {
     const page = await source(file);
     assert.doesNotMatch(page, /new Set\(\[['"]queued['"]/, `${file}: no local ACTIVE set`);
     assert.doesNotMatch(page, /\[["'](?:queued|running)["'], ["'](?:running|queued|cancelling)["'](?:, ["']cancelling["'])?\]\.includes\(/, `${file}: no inline status list`);
@@ -168,7 +170,7 @@ test('the transcript link of a finished audio job sits in the actions row beside
 /* ---------- 5. Question counts (#121) ---------- */
 
 test('the exam, its setup field and the workflow editor read the question-count range from lib/limits', async () => {
-  for (const file of ['ui/Exam.jsx', 'ui/ExamShell.jsx', 'ui/Workflows.jsx']) {
+  for (const file of ['ui/exam/exam-written.js', 'ui/exam/WrittenSetup.jsx', 'ui/ExamShell.jsx', 'ui/Workflows.jsx']) {
     const page = await source(file);
     assert.match(page, /QUESTION_COUNT/, file);
     assert.doesNotMatch(page, /max=\{50\}|max = 50\b|Math\.min\(50|1–50/, `${file}: no literal 1-50`);

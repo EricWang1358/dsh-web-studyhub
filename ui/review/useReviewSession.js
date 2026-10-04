@@ -10,9 +10,10 @@ import { AUTOPILOT_KEY, EN_KEY, flag } from '../app/use-app-shell.js';
 import { askAboutCardPrompt, improveCardPrompt } from '../agent-prompts/card.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
-  AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, reviewChoiceKind,
+  AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, reviewChoiceKind,
   shortcutAction, shortcutGate, shouldResetEntry,
 } from './session-logic.js';
+import { continueLabel, continueNote } from './continue-labels.js';
 
 /* The practice session (ui-consistency #112): the open run, what the learner has typed on its question, the teaching
    panel, the EN translation, the autopilot and the keyboard. It used to live in App, which re-rendered it on every
@@ -213,8 +214,12 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
       notify({ text: ui('已恢复到原题组，复习进度不变；本轮练习不再出现这道题。'), scope })) } });
   }, [act, notify, refs]);
   // Practise the given prerequisites (learned ones included), then offer a way back to this question.
-  const studyPrerequisites = useCallback((list) => act('review.start',
-    practiceArgs(list.map(({ deckId, cardId }) => ({ deckId, cardId })), { returnTo: runRef.current.id }), enterRun), [act, enterRun]);
+  // The way back remembers what was typed or picked on the original question, so it is found as it was left.
+  const returnInput = useRef(null);
+  const studyPrerequisites = useCallback((list) => {
+    returnInput.current = { runId: runRef.current.id, input: { key: reviewEntryKey(runRef.current), ...entryRef.current } };
+    return act('review.start', practiceArgs(list.map(({ deckId, cardId }) => ({ deckId, cardId })), { returnTo: runRef.current.id }), enterRun);
+  }, [act, enterRun]);
   const deckTitle = () => refs.dataRef.current?.decks.find((deck) => deck.id === runRef.current.deckId)?.title || '';
   const askAboutCard = useCallback((extra = '') => core.askInChat(askAboutCardPrompt({ run: runRef.current, deckTitle: deckTitle(), extra })), [core]); // eslint-disable-line react-hooks/exhaustive-deps
   const improveCard = useCallback((extra = '') => core.askInChat(improveCardPrompt({ run: runRef.current, deckTitle: deckTitle(), extra })), [core]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -267,9 +272,25 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
 
   /* ── what Review and the result page's coach strip are handed ── */
   const onCoachPractice = useCallback(() => act('coach.practice', {}, enterRun), [act, enterRun]);
+  /* Where 继续学习 goes (ui/review/session-logic.js continueDestination): the original question after a prerequisite round, the scope while it has
+     questions left, else the next unfinished action of today's plan (`plan` is the daily plan controller, when the page has one), else the path.
+     Returns the decision with its label, a note for the learner and `go()`; the results page and the coach card's autopilot take the same one. */
+  const continueTo = useCallback((plan) => {
+    const data = refs.dataRef.current;
+    const destination = continueDestination({ run, runs: data?.runs, progress: data?.progress, tasks: plan?.state?.tasks });
+    const go = () => {
+      if (destination.kind === 'original') {
+        return act('review.get', { runId: destination.runId },
+          (result) => enterRun(result, returnInput.current?.runId === destination.runId ? returnInput.current.input : undefined));
+      }
+      if (destination.kind === 'plan' && plan?.start) return plan.start(destination.taskId);
+      return act('review.start', practiceArgs(destination.kind === 'scope' ? destination.scope : []), enterRun);
+    };
+    return { ...destination, label: continueLabel(destination), note: continueNote(destination), go };
+  }, [run, act, enterRun, refs]);
   const coach = {
     call, autopilot, onStatus: () => core.refresh().catch(() => {}), onPractice: onCoachPractice,
-    onContinue: () => act('review.start', practiceArgs(run?.returnTo ? [] : run?.scope || []), enterRun),
+    onContinue: () => continueTo(null).go(),
     onReviewWeak: () => act('review.weak.start', { runId: run.id }, enterRun),
     canShortcut, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,
   };
@@ -283,5 +304,5 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
     closeShortcutHelp: () => setShortcutHelp(false),
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, toggleEn, askAboutCard, improveCard, patch]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], autopilot, autoAdvance, advanceKey,
-    shortcutHelp, ...kind, coach, onCoachPractice, enterRun, reset, clearRun, patchRun, actions };
+    shortcutHelp, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions };
 }

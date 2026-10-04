@@ -18,8 +18,8 @@ const slot = initial => { const index = active.cursor++; if (!(index in active.s
 const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = slot(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
-  useRef: initial => slot(() => ({ current: initial }))[1], useId: () => slot(() => `field-${active.cursor}`)[1],
-  useEffect: (callback, dependencies) => { const [, effect] = slot(() => ({ dependencies: undefined, cleanup: null }));
+  useContext: () => globalThis.__toast ?? null, useRef: initial => slot(() => ({ current: initial }))[1], useId: () => slot(() => `field-${active.cursor}`)[1],
+  useInsertionEffect: () => {}, useEffect: (callback, dependencies) => { const [, effect] = slot(() => ({ dependencies: undefined, cleanup: null }));
     if (!effect.dependencies || dependencies.some((value, index) => value !== effect.dependencies[index])) {
       active.effects.push(() => { effect.cleanup?.(); effect.cleanup = callback(); }); effect.dependencies = dependencies;
     } },
@@ -121,7 +121,8 @@ test('a scheduling save applies the returned baseline without overwriting later 
 test('departed scheduling saves and failures cannot change another library or show stale notices', async () => {
   for (const failure of [false, true]) {
     const response = deferred(), notices = []; let writing;
-    const view = editor({ setNotice: notice => notices.push(notice), act: (_action, args, after) => {
+    globalThis.__toast = { success: text => notices.push(text) };
+    const view = editor({ act: (_action, args, after) => {
       writing = response.promise.then(() => after({ ...defaults, ...args })); return writing;
     } });
     view.render(); view.effects(); edit(view, 'first_interval_days', '3'); const saving = submit(view);
@@ -130,6 +131,7 @@ test('departed scheduling saves and failures cannot change another library or sh
     await Promise.allSettled([saving, writing]);
     assert.equal(input(view, 'first_interval_days').props.value, 7);
     assert.deepEqual(notices, []);
+    delete globalThis.__toast;
     assert.equal(findAll(view.render(), node => node.props?.role === 'alert').length, 0);
   }
 });

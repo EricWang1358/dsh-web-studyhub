@@ -108,7 +108,7 @@ test('the old stored reader settings (no weight, leading or gap) still load as t
 });
 
 test('one definition of each stack: the stylesheet defines every --font-stack-* once and reader.css / reading.css only refer to them', () => {
-  const style = read('ui/style.css'), reader = read('ui/document-preview/reader/reader.css'), reading = read('ui/reading-settings/reading.css');
+  const style = read('ui/tokens.css'), reader = read('ui/document-preview/reader/reader.css'), reading = read('ui/reading-settings/reading.css');
   for (const id of FONT_IDS) {
     const definitions = style.match(new RegExp(`^\\s*--font-stack-${id}:`, 'gm')) || [];
     assert.equal(definitions.length, 1, `--font-stack-${id} is defined exactly once`);
@@ -124,7 +124,7 @@ test('one definition of each stack: the stylesheet defines every --font-stack-* 
 });
 
 test('the interface typeface sets the body AND the headings; 保持系统 puts the headings back; every preset has its rule', () => {
-  const style = read('ui/style.css');
+  const style = read('ui/tokens.css');
   for (const id of ['serif', 'kai', 'round', 'mono']) {
     const rule = style.match(new RegExp(`\\.study-app\\[data-ui-font='${id}'\\][^{]*\\{([^}]*)\\}`));
     assert.ok(rule, `${id}: a rule`);

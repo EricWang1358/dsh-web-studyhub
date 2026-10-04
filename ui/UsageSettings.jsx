@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from './i18n.js';
-import { Button, ConfirmDialog, Hint, InlineMessage, SegmentedControl, SettingsSection, Switch } from './components/index.js';
+import { Button, ConfirmDialog, Hint, InlineMessage, SegmentedControl, SettingsSection, Switch, useToast } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { USAGE_AREAS, USAGE_GROUPS, usageArea } from './usage/registry.js';
 import { displayName } from './usage/names.js';
@@ -131,7 +131,7 @@ const stateOf = status => {
 };
 
 /** The section, from what the host said. Pure: every action is a callback. */
-export function UsageSettingsView({ status, report, period, busy = false, working = '', error = '', notice = '', confirming = false,
+export function UsageSettingsView({ status, report, period, busy = false, working = '', error = '', confirming = false,
   onSwitch, onPause, onPeriod, onReportToggle, onExport, onCopy, onAskClear, onCancelClear, onClear }) {
   const language = getUiLanguage();
   const state = stateOf(status);
@@ -150,7 +150,6 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
         checked={!!status.enabled} disabled={busy || !!working} onChange={onSwitch} />
       <p className="usage-status" role="status">{line}</p>
       {error && <InlineMessage>{error}</InlineMessage>}
-      {notice && <Hint tone="success" className="usage-notice" role="status">{notice}</Hint>}
       {state !== 'off' && state !== 'off-data' && (
         <div className="settings-actions">
           <Button variant="secondary" size="sm" disabled={busy || !!working} onClick={onPause}>{status.paused ? ui('继续记录') : ui('暂停记录')}</Button>
@@ -190,13 +189,14 @@ function download(file) {
 }
 
 /** The container: reads the status once, loads the report only when the learner opens it, and turns the switch through the host. */
-export default function UsageSettings({ call, busy = false, setNotice, initial = null }) {
+export default function UsageSettings({ call, busy = false, initial = null }) {
   useInjectCss(css, 'study-usage');
+  const toast = useToast();
   const [status, setStatus] = useState(initial?.status || EMPTY);
   const [report, setReport] = useState(initial?.report || null);
   const [period, setPeriod] = useState(30);
   const [open, setOpen] = useState(false);
-  const [working, setWorking] = useState(''), [error, setError] = useState(''), [notice, setNotice2] = useState(''), [confirming, setConfirming] = useState(false);
+  const [working, setWorking] = useState(''), [error, setError] = useState(''), [confirming, setConfirming] = useState(false);
   const live = useRef(true), callRef = useRef(call);
   useEffect(() => { callRef.current = call; });
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
@@ -222,7 +222,7 @@ export default function UsageSettings({ call, busy = false, setNotice, initial =
   useEffect(() => { if (open && status.hasData) void loadReport(period); }, [open, period, status.hasData, status.daysWithData, loadReport]);
 
   const change = async (action, args, label) => {
-    setWorking(label); setError(''); setNotice2('');
+    setWorking(label); setError('');
     try {
       // What was counted in the last seconds goes out before the host stops accepting it.
       if (args.enabled === false || args.paused === true) await flushUsageNow();
@@ -233,7 +233,7 @@ export default function UsageSettings({ call, busy = false, setNotice, initial =
     finally { if (live.current) setWorking(''); }
   };
   const exportAs = async (format) => {
-    setWorking('export'); setError(''); setNotice2('');
+    setWorking('export'); setError('');
     try {
       await flushUsageNow();
       const labels = {};
@@ -244,16 +244,16 @@ export default function UsageSettings({ call, busy = false, setNotice, initial =
     finally { if (live.current) setWorking(''); }
   };
   return (
-    <UsageSettingsView status={status} report={report} period={period} busy={busy} working={working} error={error} notice={notice} confirming={confirming}
+    <UsageSettingsView status={status} report={report} period={period} busy={busy} working={working} error={error} confirming={confirming}
       onSwitch={enabled => change('usage.frequency.set', { enabled }, 'switch')}
       onPause={() => change('usage.frequency.set', { paused: !status.paused }, 'pause')}
       onPeriod={setPeriod}
       onReportToggle={setOpen}
-      onExport={async format => { const file = await exportAs(format); if (file) { download(file); const text = uiFormat('已导出 {0}', [file.filename]); setNotice2(text); setNotice?.({ text, tone: 'success' }); } }}
+      onExport={async format => { const file = await exportAs(format); if (file) { download(file); toast.success(uiFormat('已导出 {0}', [file.filename])); } }}
       onCopy={async () => {
         const file = await exportAs('markdown');
         if (!file) return;
-        try { await navigator.clipboard.writeText(file.content); setNotice2(ui('报告已复制，可以粘贴到任何地方。')); }
+        try { await navigator.clipboard.writeText(file.content); toast.success(ui('报告已复制，可以粘贴到任何地方。')); }
         catch { setError(ui('这个窗口不允许复制；请改用「导出 Markdown」。')); }
       }}
       onAskClear={() => setConfirming(true)}
@@ -263,7 +263,7 @@ export default function UsageSettings({ call, busy = false, setNotice, initial =
         setWorking('clear'); setError('');
         try {
           const next = await ask('usage.frequency.clear', {});
-          if (live.current) { setStatus(next); setReport(null); setConfirming(false); setNotice2(ui('已删除全部使用记录。')); }
+          if (live.current) { setStatus(next); setReport(null); setConfirming(false); toast.success(ui('已删除全部使用记录。')); }
           notifyUsageChanged();
         } finally { if (live.current) setWorking(''); }
       }} />

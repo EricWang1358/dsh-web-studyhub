@@ -7,7 +7,7 @@ import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
 import { formatClock } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
-import { Button, PageHeader, SetupRequired } from './components/index.js';
+import { Button, IconButton, InlineMessage, PageHeader, SetupRequired, useToast } from './components/index.js';
 import { requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
@@ -77,7 +77,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const [sessions, setSessions] = useState([]), [title, setTitle] = useState(''), [subject, setSubject] = useState('');
   const [terms, setTerms] = useState(''), [kind, setKind] = useState('microphone'), [paidOnly, setPaidOnly] = useState(false);
   const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [working, setWorking] = useState(false);
-  const [notice, setNotice] = useState(''), [follow, setFollow] = useState(true);
+  const toast = useToast();
+  const [follow, setFollow] = useState(true);
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
   const [readiness, setReadiness] = useState(initialReadiness);
@@ -108,7 +109,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   }, [visible, follow, session?.revision, session?.interim]);
   const perform = async (action) => {
     if (operation.current) return;
-    operation.current = true; setWorking(true); setNotice(''); client.update({ error: '' });
+    operation.current = true; setWorking(true); client.update({ error: '' });
     try { await action(); } catch (failure) { client.fail(failure); }
     finally { operation.current = false; setWorking(false); }
   };
@@ -136,8 +137,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
     <PageHeader title={ui('课堂实录')}
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
       actions={<Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>} />
-    {error && <p className="alert error" role="alert">{uiMessage(error)}</p>}
-    {notice && <p className="alert" role="status">{notice}</p>}
+    {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
     {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={onSettings} />}
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); void perform(async () => { setSelected(new Set()); await client.start(kind, { title, course, subject, terms, paidOnly }); await refresh(); });
@@ -152,7 +152,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
         <label>{ui('术语（逗号或换行分隔）')}<textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={2} /></label></details>
       <div className="live-setup-foot">
         <label className="live-check"><input type="checkbox" checked={paidOnly} onChange={(event) => setPaidOnly(event.target.checked)} /><span>{ui('只用付费密钥')}</span></label>
-        <button className="primary" disabled={disabled}>{busy ? ui('正在连接…') : ui('开始实录')}</button></div>
+        <Button variant="primary" disabled={disabled} type="submit">{busy ? ui('正在连接…') : ui('开始实录')}</Button></div>
       <small className="muted">{ui('转写使用 Gemini；简体中文翻译使用音频设置中选定的模型。免费额度用完会切到付费密钥。')}</small>
     </form>}
     {!session && busy && <LiveAudioMonitor health={client.health} visible={visible} recording={capturing} />}
@@ -165,9 +165,9 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
           <span className="muted live-meta">{formatClock(session.elapsedMs)} · {uiFormat('{0} 句', [total])}
             {session.tier && active(session) ? ` · ${session.tier === 'free' ? ui('免费额度') : ui('付费密钥')}` : ''}</span>
         </div>
-        <div className="live-actions">{capturing && <button disabled={disabled} onClick={() => void perform(() => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</button>}
-          {active(session) && <button disabled={disabled} onClick={() => void perform(async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</button>}
-          {!active(session) && !session.archivedAt && readiness?.live !== false && <button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly }); })}>{ui('接着录')}</button>}</div></div>
+        <div className="live-actions">{capturing && <Button disabled={disabled} onClick={() => void perform(() => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</Button>}
+          {active(session) && <Button disabled={disabled} onClick={() => void perform(async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</Button>}
+          {!active(session) && !session.archivedAt && readiness?.live !== false && <Button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly }); })}>{ui('接着录')}</Button>}</div></div>
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
         <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>
@@ -176,7 +176,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
           <span><i className="live-dot polished" aria-hidden="true" />{ui('已润色')}</span>
           <span><i className="live-dot checked" aria-hidden="true" />{ui('已检查未改')}</span></span>
         {!correction.running && correction.pending > 0 && (correction.error || !active(session)) &&
-          <button disabled={disabled} onClick={() => void perform(async () => { client.accept(await call('live.correct', { id: session.id })); })}>{ui('重试待校正内容')}</button>}
+          <Button disabled={disabled} onClick={() => void perform(async () => { client.accept(await call('live.correct', { id: session.id })); })}>{ui('重试待校正内容')}</Button>}
         <details className="live-correction-more"><summary>{ui('说明与用量')}</summary>
           <p className="muted">{ui('每 30 秒检查一次，按顺序分批：每批最多 8 句新内容，再带上前批最后 2 句作上下文（共约 10 句）；结束后补齐剩余内容。只有模型高置信度改动过的句子才会亮绿点，实心表示已润色，空心圈表示检查过、无需修改。')}</p>
           <p>{uiFormat('模型调用 {0} 次 · 本地结果复用 {1} 次', [correction.calls, correction.cacheHits])}</p>
@@ -192,8 +192,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
         <div className="live-feed-head">
           <span className="muted">{ui('原文在上，简体中文在下；勾选句子或划选文字即可出题。')}</span>
           <div className="live-actions">
-            {segments.some((segment) => segment.zhState === 'error') && <button disabled={disabled} onClick={() => void perform(async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</button>}
-            <button className={`link-btn live-follow${follow ? ' on' : ''}`} onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</button></div>
+            {segments.some((segment) => segment.zhState === 'error') && <Button disabled={disabled} onClick={() => void perform(async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</Button>}
+            <Button variant="link" size="sm" className={`live-follow${follow ? ' on' : ''}`} onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
         </div>
         <div className="live-feed" ref={feed} tabIndex={0} onMouseUp={selectText} onKeyUp={selectText} onScroll={() => {
           const node = feed.current; if (node && node.scrollHeight - node.scrollTop - node.clientHeight > 80) setFollow(false);
@@ -208,19 +208,19 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
             <span className="muted">{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
               : uiFormat('再多选约 {0} 个字符才能出题', [MIN_CHARS - selectedChars]))
               : ui('至少选约 120 个原文字符')}</span></div>
-          <div className="live-actions"><button disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{ui('最近 8 句')}</button>
-            <button disabled={!selected.size} onClick={() => setSelected(new Set())}>{ui('清空')}</button>
+          <div className="live-actions"><Button disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{ui('最近 8 句')}</Button>
+            <Button disabled={!selected.size} onClick={() => setSelected(new Set())}>{ui('清空')}</Button>
             <div className="live-count" role="group" aria-label={ui('题数')}>
               <span className="live-count-label">{ui('题数')}</span>
-              <button type="button" aria-label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))}>−</button>
+              <IconButton icon="minus" size="sm" label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))} />
               <output aria-live="polite">{count}</output>
-              <button type="button" aria-label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))}>+</button></div>
-            <button className="primary" disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
+              <IconButton icon="plus" size="sm" label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))} /></div>
+            <Button variant="primary" disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
               onClick={() => void perform(async () => {
                 const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: GENERATION_LANGUAGE[language] });
-                setNotice(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));
+                toast.success(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));
                 setSelected(new Set()); await client.poll(); onJobs?.(result);
-              })}>{ui('选中内容出题')}</button></div></div>
+              })}>{ui('选中内容出题')}</Button></div></div>
       </div>
       {correction && <LiveNotes correction={correction} disabled={disabled} onSentence={id => {
         setFollow(false);
@@ -228,11 +228,11 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
         node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true });
       }} onRetry={() => void perform(async () => { client.accept(await call('live.correct.background', { id: session.id })); })} />}
       <footer className="live-footer"><p className="muted">{ui('付费转写估算')} ${session.usage?.estimatedPaidUsd || 0} · {ui('不含翻译费用')}</p>
-        {!active(session) && segments.length > 0 && <div className="live-actions"><button disabled={disabled || session.translating > 0 || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
-          await call('live.save', { id: session.id }); setNotice(ui('已保存中英对照资料与课堂笔记（如有）。')); onJobs?.();
-        })}>{ui('保存为资料')}</button><button disabled={disabled || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
-          await call('live.save', { id: session.id, proofread: true, paidOnly }); setNotice(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
-        })}>{ui('校对后保存')}</button><button className="link-btn" onClick={onSources}>{ui('打开资料')}</button></div>}</footer>
+        {!active(session) && segments.length > 0 && <div className="live-actions"><Button disabled={disabled || session.translating > 0 || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
+          await call('live.save', { id: session.id }); toast.success(ui('已保存中英对照资料与课堂笔记（如有）。')); onJobs?.();
+        })}>{ui('保存为资料')}</Button><Button disabled={disabled || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
+          await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
+        })}>{ui('校对后保存')}</Button><Button variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
     </>}
     <LiveHistory sessions={sessions} disabled={disabled} capturing={capturing}
       onOpen={id => void perform(async () => { setSelected(new Set()); await client.open(id); })}

@@ -1,0 +1,521 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .sidebar {
+      width: 244px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--line-soft);
+      background: var(--bg-canvas);
+      position: sticky;
+      top: 0;
+      align-self: flex-start;
+      height: 100%;
+      min-height: min(700px, 100dvh);
+      padding: 26px 14px var(--space-4);
+      display: flex;
+      flex-direction: column;
+      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). */
+      --nav-row: 38px;
+      --nav-row-upkeep: 34px;
+      /* How far the sidebar's own padding is: the active bar sits on its outer edge. */
+      --sidebar-pad: 14px;
+      --nav-highlight: color-mix(in srgb, var(--text) 8%, transparent);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin: 0 var(--space-2) 34px;
+      font-family: var(--font-display);
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-strong);
+      letter-spacing: -0.01em;
+    }
+    .brand small {
+      display: block;
+      font-family: var(--font-ui);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-regular);
+      letter-spacing: 0;
+      margin-top: 3px;
+      white-space: nowrap;
+    }
+    /* Brand: a line-drawn exercise book carrying the one red tick. */
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+      color: var(--text);
+    }
+    .brand-mark svg { display: block; }
+    .collapse-toggle {
+      margin-left: auto;
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+      line-height: 1;
+      cursor: pointer;
+      transition:
+        background 0.18s var(--ease),
+        color 0.18s var(--ease);
+    }
+    .collapse-toggle:not(.sh-btn) {
+      border: none;
+    }
+    .collapse-toggle:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+    .nav {
+      position: relative;
+      display: flex;
+      width: 100%;
+      align-items: center;
+      gap: var(--space-3);
+      border: none;
+      background: transparent;
+      text-align: left;
+      height: var(--nav-row);
+      padding: 0 var(--space-3);
+      margin: 1px 0;
+      color: var(--text-dim);
+      transition:
+        background var(--dur-fast) var(--ease),
+        color var(--dur-fast) var(--ease);
+    }
+    /* Hover only brightens the label; the gliding highlight is the one pill,
+       so hovering while it moves never stacks two backgrounds. */
+    .nav:hover:not(:disabled) {
+      background: transparent;
+      color: var(--text);
+    }
+    .nav .icon {
+      transition: transform var(--dur) var(--ease-out), color var(--dur-fast) var(--ease);
+    }
+    /* The row keeps its one height: a label that does not fit takes a second line (tight leading) and past that is cut with an
+       ellipsis, the tooltip has the whole text. */
+    .nav-label {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: left;
+      line-height: 1.15;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow-wrap: anywhere;
+    }
+    .nav:hover:not(:disabled):not(.active) .icon {
+      transform: translateX(2px);
+    }
+    .nav.active {
+      background: transparent;
+      color: var(--text);
+      font-weight: var(--fw-strong);
+    }
+    /* The one highlight behind the active item; it glides between items. */
+    .side-nav {
+      position: relative;
+    }
+    .side-nav > .nav {
+      z-index: 1;
+    }
+    .nav-mark {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      border-radius: var(--radius-sm);
+      background: var(--nav-highlight);
+      pointer-events: none;
+      transition:
+        transform 0.42s var(--ease-out),
+        height 0.42s var(--ease-out);
+      animation: mark-in var(--dur-slow) var(--ease-out);
+    }
+    .nav-mark::before,
+    .sidebar-bottom .nav.active::before {
+      content: "";
+      position: absolute;
+      left: calc(var(--sidebar-pad) * -1);
+      top: 9px;
+      bottom: 9px;
+      width: 3px;
+      border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+      background: var(--text);
+    }
+    /* Rows below the rail (Settings) are not on the gliding highlight; they get the same one directly. */
+    .sidebar-bottom .nav.active {
+      border-radius: var(--radius-sm);
+      background: var(--nav-highlight);
+    }
+    /* Library upkeep sits below study, smaller and quieter. */
+    .nav-upkeep {
+      height: var(--nav-row-upkeep);
+      padding-block: 0;
+      font-size: var(--fs-md);
+      color: var(--text-muted);
+    }
+    .nav:not(.nav-upkeep) + .nav-upkeep {
+      margin-top: 21px;
+    }
+    /* Reordering: hold an item, then drag; the lifted one follows the pointer while the others make way. */
+    .side-nav.is-reordering, .side-nav.is-reordering .nav { cursor: grabbing; user-select: none; }
+    .side-nav > .nav.is-dragging {
+      z-index: var(--z-sticky);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-drag);
+      color: var(--text);
+    }
+    .nav.is-dragging::after { display: none; }
+    .nav-reset {
+      display: block;
+      margin: 10px var(--space-3) 0;
+      padding: var(--space-half) 0;
+      border: none;
+      background: none;
+      color: var(--text-faint);
+      font-size: var(--fs-xs);
+      text-align: left;
+    }
+    .nav-reset:hover { color: var(--text-dim); }
+    .nav:not(.nav-upkeep) + .nav-upkeep::after {
+      content: "";
+      position: absolute;
+      top: -11px;
+      left: 12px;
+      right: 12px;
+      height: 1px;
+      background: var(--line-soft);
+    }
+    /* Sidebar glyphs share one fixed slot so labels line up; Unicode glyphs
+       differ in optical size, so the outliers get a nudge. */
+    .sidebar .icon {
+      width: 20px;
+      justify-content: center;
+    }
+    .sidebar .icon svg {
+      display: block;
+    }
+    .nav-count {
+      flex: none;
+      margin-left: auto;
+      font-size: var(--fs-md);
+      font-variant-numeric: tabular-nums;
+      color: var(--text-faint);
+      font-weight: var(--fw-regular);
+    }
+    .nav-count.is-due {
+      color: var(--danger, var(--accent));
+      font-weight: var(--fw-strong);
+    }
+    /* ── Collapsed rail ─────────────────────────────────────────────────────
+       .is-narrow is set manually via the toggle, or automatically when the
+       workspace is ≤720px (ResizeObserver in App.jsx). */
+    .sidebar.is-narrow {
+      width: 62px;
+      padding: var(--space-5) 6px;
+      --sidebar-pad: 6px;
+      --nav-row: 42px;
+      --nav-row-upkeep: 42px;
+    }
+    .sidebar.is-narrow .brand {
+      flex-direction: column;
+      margin: 0 auto 28px;
+    }
+    .sidebar.is-narrow .collapse-toggle {
+      margin: var(--space-1) auto 0;
+    }
+    .sidebar.is-narrow .brand > div,
+    .sidebar.is-narrow .nav-count,
+    .sidebar.is-narrow .local-status {
+      display: none;
+    }
+    .sidebar.is-narrow .nav {
+      font-size: 0;
+      gap: 0;
+      padding: 0;
+      justify-content: center;
+    }
+    /* The label stays in the tree for assistive technology and the tooltip names the row; it just takes no room. */
+    .sidebar.is-narrow .nav-label {
+      flex: none;
+      width: 0;
+    }
+    /* A run in progress folds into a dot on the icon, as the coach count does. */
+    .sidebar.is-narrow .nav-progress {
+      display: block;
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      width: 9px;
+      height: 9px;
+      margin: 0;
+      padding: 0;
+      border-radius: 50%;
+      background: var(--accent);
+      font-size: 0;
+    }
+    .sidebar.is-narrow .nav .icon svg {
+      width: 20px;
+      height: 20px;
+    }
+    /* Three segments don't fit a 62px rail; it gets one cycling button instead. */
+    .sidebar-bottom {
+      margin-top: auto;
+    }
+    /* The dot sits in the same 20px slot as a row's icon, so the text lines up with the labels above. */
+    .local-status {
+      font-size: var(--fs-md);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-5) var(--space-3);
+    }
+    .local-status span {
+      width: 6px;
+      height: 6px;
+      margin: 0 7px;
+      flex: none;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 3px var(--ok-halo);
+    }
+    & main {
+      flex: 1;
+      min-width: 0;
+      min-height: 100%;
+    }
+    .topbar {
+      height: 51px;
+      border-bottom: 1px solid var(--line-soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 25px;
+      font-size: var(--fs-md);
+      position: sticky;
+      top: 0;
+      z-index: calc(var(--z-sticky) + 2);
+      background: var(--bg-canvas);
+    }
+    .crumbs {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .crumb {
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .crumb.current {
+      color: var(--text);
+      font-weight: var(--fw-strong);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .breadcrumb {
+      color: var(--text-faint);
+      margin: 0 var(--space-3);
+    }
+    .top-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: var(--fs-md);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    /* Live connection dot: pulses while the app is busy or generating. */
+    .top-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--decor-faint);
+      flex-shrink: 0;
+    }
+    .top-status .dot.on {
+      background: var(--ok);
+      box-shadow: 0 0 0 3px var(--ok-halo);
+    }
+    .top-status .dot.busy {
+      background: var(--warn);
+      animation: dot-pulse 1.4s var(--ease) infinite;
+    }
+  }
+  @container study (max-width: 640px) {
+    :where(.study-app, .study-seat) {
+      /* A narrow pane gives the page title the room: the decorative "Study ›"
+         goes, and the steady "已连接" shrinks to its dot (busy and failing
+         states keep their words). */
+      .crumbs > .crumb:first-child,
+      .crumbs > .breadcrumb {
+        display: none;
+      }
+      .top-status.idle .top-status-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+    }
+  }
+  :where(.study-app, .study-seat) {
+    /* ── Top-bar mailbox ────────────────────────────────────────────────── */
+    .top-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      margin-left: var(--space-3);
+    }
+    .inbox {
+      position: relative;
+    }
+    /* One width for every page so switching tabs never shifts the left edge. */
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-7) 36px var(--space-9);
+    }
+    /* Switching pages: the new page settles in as ONE block (opacity and a few
+       pixels of rise), 0.2s. It used to animate every child of the page with a
+       stagger: a composited layer per block while React was still mounting the
+       page, which is what made a heavy page (Generate, 资料) stutter on arrival. */
+    :is(.page, .review-page) {
+      animation: page-in var(--dur) var(--ease-out) backwards;
+    }
+    /* Leaving: the current page lifts and fades for a beat before the switch
+       (90ms: see leaveDelayMs in interface-prefs.js, which must match). */
+    & main > :is(.page, .review-page, .board-page) {
+      transition:
+        opacity 0.09s ease-in,
+        transform 0.09s ease-in;
+    }
+    & main.is-leaving > :is(.page, .review-page, .board-page) {
+      opacity: 0;
+      transform: translateY(-6px);
+      pointer-events: none;
+    }
+    .page-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-6);
+      margin-bottom: 22px;
+    }
+    .page-heading p {
+      margin-bottom: 0;
+    }
+    .page-heading > :first-child { min-width: 0; }
+    .page-heading > .section-heading-actions { flex-shrink: 0; max-width: 100%; }
+    .page-heading button {
+      flex-shrink: 0;
+    }
+    /* A run's progress in the resume row: a count like the others, a little brighter because it is live. */
+    .nav-progress {
+      color: var(--text-muted);
+    }
+    /* In the rail the guide is a quiet footnote, not another card. */
+    .sidebar {
+      overflow-y: auto;
+    }
+  }
+  @container study (max-width:1050px) {
+    :where(.study-app, .study-seat) {
+      .sidebar {
+        width: 190px;
+        padding-left: 10px;
+        padding-right: 10px;
+        --sidebar-pad: 10px;
+      }
+      .brand {
+        font-size: var(--fs-md);
+        gap: 7px;
+      }
+      .brand small {
+        font-size: var(--fs-md);
+      }
+      & main {
+        min-width: 0;
+      }
+      .page {
+        padding: 35px 25px;
+      }
+      .page-heading {
+        align-items: flex-start;
+      }
+    }
+  }
+  @container study (max-width:720px) {
+    :where(.study-app, .study-seat) {
+      & main {
+        min-width: 0;
+      }
+      .topbar {
+        padding: 0 var(--space-4);
+      }
+      .breadcrumb {
+        margin: 0 7px;
+      }
+      .page {
+        padding: 30px 19px;
+      }
+      .page-heading {
+        display: block;
+      }
+      .page-heading > button {
+        margin-top: 17px;
+      }
+      .page h1 {
+        font-size: var(--fs-2xl);
+      }
+    }
+  }
+  :where(.study-app, .study-seat) {
+    /* The sidebar keeps its own `position: sticky` (sticky already creates a
+       stacking context); resetting it to relative made the rail scroll away on
+       long pages, leaving a bare strip. */
+    .sidebar,
+    & main {
+      z-index: 1;
+    }
+    & main {
+      position: relative;
+    }
+  }
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--warn-mid);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+    opacity: 0.55;
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}

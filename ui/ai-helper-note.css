@@ -1,6 +1,10 @@
-/* AiHelperNote: the line that says why an AI helper did not work, and the answer to look at. */
-:is(.study-app, .study-seat) {
-  .ai-helper-note { display: grid; gap: var(--space-2); min-width: 0; }
-  .ai-helper-note__sample { color: var(--text-muted); font-size: var(--fs-sm); }
-  .ai-helper-note__sample pre { margin: var(--space-2) 0 0; padding: var(--space-2); max-width: 100%; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-xs); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* AiHelperNote: the line that says why an AI helper did not work, and the answer to look at. */
+    .ai-helper-note { display: grid; gap: var(--space-2); min-width: 0; }
+    .ai-helper-note__sample { color: var(--text-muted); font-size: var(--fs-sm); }
+    .ai-helper-note__sample pre { margin: var(--space-2) 0 0; padding: var(--space-2); max-width: 100%; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-xs); }
+  }
 }

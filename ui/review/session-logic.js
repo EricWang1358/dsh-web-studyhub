@@ -117,3 +117,49 @@ export function createFlightSet() {
     has: (key) => flights.has(key),
   };
 }
+
+/* ── where 继续学习 goes after a round (#175, #177) ──────────────────────────────────────────────────────────────────────
+   One decision, four answers, in this order: a prerequisite round goes back to the question it was started from; a scope
+   with questions left carries on; a finished scope moves on to the next unfinished action of today's plan; otherwise the
+   normal learning path (an empty scope). It never starts the same finished scope again: 再练此范围 is the one explicit repeat. */
+
+/**
+ * How many questions of a finished run's scope are still waiting: the questions of the round nobody answered (an early
+ * end), plus, for deck and topic scopes, the new and due questions the snapshot's progress still shows. A scope of chosen
+ * questions has none beyond the round. The whole path (no scope) never runs out.
+ */
+export function scopeRemaining(run, progress = {}) {
+  const scope = run?.scope || [];
+  if (!scope.length) return Infinity;
+  let left = Math.max(0, (run.questions ?? run.total ?? 0) - (run.answered ?? 0));
+  for (const item of scope) {
+    if (item.cardId || item.cardIds) continue;
+    const deck = progress?.[item.deckId];
+    if (!deck) continue;
+    const unit = item.topic ? (deck.topics || []).find((topic) => topic.name === item.topic) : deck;
+    left += (unit?.counts?.new || 0) + (unit?.due || 0);
+  }
+  return left;
+}
+
+const planActionable = (task) => task.status !== 'done' && task.available !== false;
+
+/**
+ * The destination of 继续学习. run: the finished run (id, scope, returnTo, questions, answered); runs: the open runs of the
+ * snapshot (undefined when unknown); progress: the snapshot's per-deck progress; tasks: today's plan tasks (the one linked to
+ * this run, if any, is skipped: it is the work just done). Returns { kind: 'original', runId } | { kind: 'scope', scope } |
+ * { kind: 'plan', taskId, title } | { kind: 'path', reason: 'continuing' | 'scope-done' | 'original-gone' }.
+ */
+export function continueDestination({ run, runs, progress = {}, tasks = [] } = {}) {
+  if (!run) return { kind: 'path', reason: 'continuing' };
+  if (run.returnTo) {
+    const original = Array.isArray(runs) ? runs.find((item) => item.id === run.returnTo) : { id: run.returnTo };
+    return original && !original.complete ? { kind: 'original', runId: original.id } : { kind: 'path', reason: 'original-gone' };
+  }
+  if (!run.scope?.length) return { kind: 'path', reason: 'continuing' };
+  if (scopeRemaining(run, progress) > 0) return { kind: 'scope', scope: run.scope };
+  const linked = tasks.find((task) => task.runId === run.id);
+  const candidates = tasks.filter((task) => task !== linked && planActionable(task));
+  const next = candidates.find((task) => task.status === 'doing') || candidates[0];
+  return next ? { kind: 'plan', taskId: next.id, title: next.title } : { kind: 'path', reason: 'scope-done' };
+}

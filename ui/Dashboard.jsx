@@ -1,4 +1,5 @@
 import { ui, uiFormat } from "./i18n.js";
+import { uiRich } from "./i18n-rich.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import css from "./views.css";
 import chartCss from "./charts/charts.css";
@@ -10,7 +11,7 @@ import { useCourseActive } from './CourseActive.jsx';
 import { ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
 import { ModelUsage } from "./TokenUsage.jsx";
-import { EmptyState, ErrorState, LoadingState } from "./components/index.js";
+import { Button, EmptyState, ErrorState, LoadingState, PageHeader } from "./components/index.js";
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
    用于展示当前到期概览（data.today）。热力图为 CSS grid；三张图（每日平均分、
@@ -71,8 +72,8 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
           <strong>{totals.streak ?? 0}</strong>
           <span>{ui("天连续学习")}</span>
           <p className="dash-summary">
-            <span><b>{totals.activeDays ?? 0}</b>{ui(" 个活跃日 · 累计作答 ")}<b>{totals.attempts ?? 0}</b>{ui(" 次")}</span>
-            <span>{ui("到期待复习 ")}<b>{totals.due ?? 0}</b>{ui(" 题")}</span>
+            <span>{uiRich("{0} 个活跃日 · 累计作答 {1} 次", <b>{totals.activeDays ?? 0}</b>, <b>{totals.attempts ?? 0}</b>)}</span>
+            <span>{uiRich("到期待复习 {0} 题", <b>{totals.due ?? 0}</b>)}</span>
           </p>
         </div>
         <div className="dash-heat-wrap">
@@ -102,7 +103,7 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
 
       <div className="dash-split">
         <section className="dash-section">
-          <h2>{ui("需要补强")}{weak.length ? <small>{ui(" · 前 ")}{weak.length}</small> : null}</h2>
+          <h2>{ui("需要补强")}{weak.length ? <small>{" · "}{uiFormat("前 {0}", [weak.length])}</small> : null}</h2>
           {weak.length ? (
             <ul className="dash-weak">
               {weak.map((w) => (
@@ -111,14 +112,13 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
                     <strong>{w.topic || ui("未分类")}</strong>
                     <small>{w.detail}</small>
                   </span>
-                  <button
-                    className="link-btn"
+                  <Button variant="link" size="sm" iconEnd="arrow-right"
                     onClick={() =>
                       onStartScope([
                         w.topic ? { deckId: w.deckId, topic: w.topic } : { deckId: w.deckId },
                       ])
                     }
-                  >{ui("练这个主题 →")}</button>
+                  >{ui("练这个主题")}</Button>
                 </li>
               ))}
             </ul>
@@ -130,7 +130,7 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
         </section>
 
         <section className="dash-section dash-metrics">
-          <h2>{ui("判分与自评")}<small>{ui(" · 近 30 天")}</small></h2>
+          <h2>{ui("判分与自评")}<small>{" · "}{ui("近 30 天")}</small></h2>
           <div className="dash-rates">
             <div title={ui("近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练")}>
               <strong>{totals.gradedRate == null ? "—" : totals.gradedRate}<small>{totals.gradedRate == null ? "" : "%"}</small></strong>
@@ -189,15 +189,9 @@ export default function Dashboard({ call, data, busy, onStartScope, onLibrary, o
 
   return (
     <section className="page dash">
-      <div className="page-heading">
-        <div>
-          <h1>{ui("学习统计")}</h1>
-          <PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} />
-        </div>
-        <button className="ghost-btn" onClick={load} disabled={loading}>
-          {loading ? ui("统计中…") : ui("刷新")}
-        </button>
-      </div>
+      <PageHeader title={ui("学习统计")}
+        scope={<PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} />}
+        actions={<Button variant="quiet" icon="refresh" onClick={load} disabled={loading}>{loading ? ui("统计中…") : ui("刷新")}</Button>} />
 
       {err && <ErrorState error={err} onRetry={load} />}
       {loading && !stats && <LoadingState label={ui("正在统计学习记录…")} />}

@@ -13,12 +13,12 @@ import { readAppSource } from './helpers/app-source.mjs';
 const compiled = await build({ stdin: { contents: `
   export { default as Workflows, FlowEditor, StartFlow } from './ui/Workflows.jsx';
   export { default as LiveClass } from './ui/LiveClass.jsx';
-  export { AudioPageHeader } from './ui/AudioPageHeader.jsx';
+  export { AudioHeader } from './ui/app/page-views.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Workflows, FlowEditor, StartFlow, LiveClass, AudioPageHeader, setUiLanguage } = module.exports;
+const { Workflows, FlowEditor, StartFlow, LiveClass, AudioHeader, setUiLanguage } = module.exports;
 const h = React.createElement;
 const noop = () => {};
 const HAN = /[㐀-鿿]/;
@@ -45,7 +45,7 @@ const screens = {
   'start': (language) => render(h(StartFlow, { template, listing, call: noop, askInChat: noop, onRefresh: noop, onStarted: noop, onBack: noop }), language),
   'live class': (language) => render(h(LiveClass, { data, call: noop, visible: true, onSettings: noop, initialReadiness: { live: false } }), language),
   'live class form': (language) => render(h(LiveClass, { data, call: noop, visible: true, onSettings: noop, initialReadiness: { live: true } }), language),
-  'audio': (language) => render(h(AudioPageHeader, { onSettings: noop, onSources: noop }), language),
+  'audio': (language) => render(h(AudioHeader, { onSettings: noop, onSources: noop }), language),
 };
 
 for (const [name, page] of Object.entries(screens)) {

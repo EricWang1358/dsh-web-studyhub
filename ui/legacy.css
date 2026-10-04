@@ -1,0 +1,87 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+/* ── LEGACY LAYOUT RULES ───────────────────────────────────────────────────────
+   Do not add to this sheet. The old button classes (.primary, .link-btn, .ghost-btn, .pill, .danger-text, .wf-danger) are gone:
+   every button is <Button>/<IconButton> (#135, #136; the guard-rail ratchet keeps legacyButtonClass at 0). What remains (.alert,
+   .notice, .two-col, ...) is old page furniture that no primitive covers yet. */
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .two-col {
+      display: grid;
+      gap: 18px;
+    }
+    .two-col {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .wide {
+      width: 100%;
+      padding: 14px;
+    }
+    .warning {
+      color: var(--warn);
+      font-size: var(--fs-md);
+    }
+    .alert {
+      margin: 15px 25px 0;
+      padding: 11px var(--space-4);
+      border-radius: var(--radius-sm);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-4);
+      font-size: var(--fs-md);
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+    .alert button {
+      border: 0;
+      padding: 0 5px;
+    }
+    .alert span {
+      flex: 1;
+    }
+    .error {
+      background: var(--bad-tint);
+      color: var(--bad);
+    }
+    .notice {
+      background: color-mix(in srgb, var(--text) 4%, var(--bg-surface));
+      color: var(--text-dim);
+    }
+    .onboarding {
+      max-width: 680px;
+      padding: 70px 30px;
+      margin: auto;
+    }
+    .onboarding h1 {
+      font-size: var(--fs-3xl);
+    }
+    .intro {
+      color: var(--text-dim);
+      margin: var(--space-5) 0 35px;
+    }
+    .loading {
+      padding: 80px;
+      color: var(--text-dim);
+    }
+  }
+  @container study (max-width:720px) {
+    :where(.study-app, .study-seat) {
+      .two-col {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+      .alert {
+        margin: var(--space-3) 15px 0;
+      }
+      .onboarding {
+        padding: var(--space-8) var(--space-5);
+      }
+      .onboarding h1 {
+        font-size: var(--fs-3xl);
+      }
+    }
+  }
+  :where(.study-app, .study-seat) {
+    /* Menus and panels open with a short rise; lists simply appear. */
+  }
+}

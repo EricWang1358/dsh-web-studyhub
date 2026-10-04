@@ -1,0 +1,41 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* Panel tones and density (ui-consistency #143). The default (plain) panel is styled in components.css; these
+       modifiers change only the surface. Desktop panels use --radius; only the paper tone is a physical card
+       (--radius-card, --shadow-card, ink re-scoped to the card stock like the other paper surfaces). Tokens only. */
+    .sh-panel--sunken {
+      border-color: var(--line-soft);
+      background: var(--bg-sunken);
+    }
+    .sh-panel--accent {
+      border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+      background: color-mix(in srgb, var(--accent) 5%, var(--bg-surface));
+    }
+    .sh-panel--dashed {
+      border-style: dashed;
+      border-color: var(--line-strong);
+      background: transparent;
+    }
+    .sh-panel--paper {
+      --text: var(--paper-ink);
+      --text-dim: var(--paper-dim);
+      --text-muted: var(--paper-dim);
+      --line: var(--paper-rule);
+      --line-soft: var(--paper-rule);
+      --bg-surface: var(--paper);
+      border-color: transparent;
+      border-radius: var(--radius-card);
+      background: var(--paper);
+      box-shadow: var(--shadow-card);
+      color: var(--paper-ink);
+    }
+    .sh-panel--compact {
+      padding: var(--space-3) var(--space-4);
+    }
+    .sh-panel--compact .sh-panel__head {
+      margin-bottom: var(--space-3);
+    }
+  }
+}

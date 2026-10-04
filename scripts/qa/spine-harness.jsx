@@ -3,7 +3,7 @@
    Query: ?lang=zh|en&theme=dark|light&mode=peek|subject */
 import React from "react";
 import { createRoot } from "react-dom/client";
-import styleCss from "../../ui/style.css";
+import styleCss from "../../ui/styles.js";
 import skeletonCss from "../../ui/skeleton.css";
 import workflowsCss from "../../ui/workflows.css";
 import { setUiLanguage } from "../../ui/i18n.js";

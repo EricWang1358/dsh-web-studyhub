@@ -27,8 +27,8 @@ function harness() {
       return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
     useRef: value => slot(() => ({ current: value }))[1],
     useMemo: memo, useCallback: (callback, deps) => memo(() => callback, deps),
-    useSyncExternalStore: (subscribe, get) => get(),
-    useEffect: (callback, deps) => {
+    useSyncExternalStore: (subscribe, get) => get(), useContext: () => null,
+    useInsertionEffect: () => {}, useEffect: (callback, deps) => {
       const [, value] = slot(() => ({ deps: undefined, cleanup: null }));
       if (!value.deps || deps.some((item, index) => item !== value.deps[index])) {
         active.effects.push(() => { value.cleanup?.(); value.cleanup = callback(); }); value.deps = deps;
@@ -185,7 +185,7 @@ test('related workflow tasks follow the actual portal, disappear on back, and fo
   assert.equal(find(tree, node => node.type === 'aside'), null);
   assert.deepEqual(related, ['first']);
   const second = find(tree, node => node.type === 'li' && find(node, child => child.type === 'strong' && child.props.children === 'Second'));
-  find(second, node => node.type === 'button' && node.props.children === '查看记录').props.onClick();
+  find(second, node => node.props?.children === '查看记录' && node.props.onClick).props.onClick();
   tree = view.render();
   assert.equal(find(tree, node => node.type === 'aside').props['data-session'], 'second');
 });

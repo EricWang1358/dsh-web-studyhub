@@ -5,89 +5,71 @@ import css from "./oral-exam.css";
 import { useInjectCss } from "./shared.js";
 import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
-import { Button, ErrorState, Icon, InlineMessage } from './components/index.js';
+import { Button, ErrorState, Hint, Icon, PageHeader, Panel } from './components/index.js';
+import ModelSetupGate from './ModelSetupGate.jsx';
 import { ExamSetupCard, CountField } from './ExamShell.jsx';
 import { modelReadiness } from './generation-status.js';
+import { useExamRun } from './exam/useExamRun.js';
+
+/* 口头面试：lifecycle (restore, submit, report) in ui/exam/useExamRun.js; this file keeps the answering UI and the
+   answer drafts the browser holds while the learner types. */
 
 const bandName = { strong: "回答扎实", developing: "有待补充", weak: "需要巩固" };
+const FIELDS = ['answer', 'followupAnswer'];
 
 export default function OralExam({ call, data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
   useInjectCss(css, "study-oral-exam");
-  const [run, setRun] = React.useState(null);
-  const [report, setReport] = React.useState(null);
+  const exam = useExamRun({ kind: 'oral', call, initialRunId, onLocation });
+  const { run, report, busy, error, loading } = exam;
   const [count, setCount] = React.useState(5);
   const [answer, setAnswer] = React.useState("");
   const [followupAnswer, setFollowupAnswer] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState("");
-  const [loading, setLoading] = React.useState(true);
-  const identity = React.useRef(null), pending = React.useRef(false);
   const current = React.useRef({ run: null, answer: '', followupAnswer: '' });
   const availableDecks = decksInCourse(data, course, selection.includeInactive === true).filter(deck => deck.available &&
     (!selection.scope || selection.scope.some(ref => ref.deckId === deck.id)));
 
+  /** Put a run on screen with the answers the browser still holds for its question (else what the server saved). */
   function showRun(next) {
-    if (!identity.current) return;
     const recovered = field => next?.entry
       ? readDraft(draftKey(data.root, 'oral', [next.id, next.entry.cardId, field]))?.value ?? next.entry[field] ?? '' : '';
     const answer = recovered('answer'), followupAnswer = recovered('followupAnswer');
     current.current = { run: next, answer, followupAnswer };
-    setRun(next);
     setAnswer(answer);
     setFollowupAnswer(followupAnswer);
-    if (next) onLocation?.({ kind: 'oral', runId: next.id });
+    exam.enter(next);
   }
 
-  function showReport(next) {
-    setReport(next); setRun(null);
-    for (const entry of next.entries || []) for (const field of ['answer', 'followupAnswer'])
-      clearDraft(draftKey(data.root, 'oral', [next.runId, entry.cardId, field]));
-    onLocation?.({ kind: 'oral', runId: next.runId });
-  }
+  const forgetDrafts = (finished) => {
+    for (const entry of finished.entries || []) for (const field of FIELDS) clearDraft(draftKey(data.root, 'oral', [finished.runId, entry.cardId, field]));
+  };
 
   function editAnswer(field, value) {
     current.current = { ...current.current, [field]: value };
     (field === 'answer' ? setAnswer : setFollowupAnswer)(value);
     const active = current.current.run;
     try { writeDraft(draftKey(data.root, 'oral', [active.id, active.entry.cardId, field]), value); }
-    catch { setError(ui('浏览器暂存不可用，请及时保存草稿。')); }
+    catch { exam.setError(ui('浏览器暂存不可用，请及时保存草稿。')); }
   }
 
   React.useEffect(() => {
-    const token = {};
-    identity.current = token;
-    const live = () => identity.current === token;
-    setLoading(true);
-    (async () => {
-      const active = await call(initialRunId ? 'oral.get' : 'oral.active', initialRunId ? { runId: initialRunId } : {});
-      if (!live() || !active) return;
-      if (active.submitted) {
-        const result = await call('oral.report', { runId: active.id });
-        if (live()) showReport(result);
-      } else showRun(active);
-    })().catch(cause => { if (live()) setError(cause.message || String(cause)); })
-      .finally(() => { if (live()) setLoading(false); });
-    return () => { if (live()) identity.current = null; };
+    exam.begin();
+    void exam.restore({ ids: [initialRunId || ''],
+      load: async () => {
+        const active = await call(initialRunId ? 'oral.get' : 'oral.active', initialRunId ? { runId: initialRunId } : {});
+        if (!active) return { stop: true };
+        return active.submitted
+          ? { phase: 'report', run: null, report: await call('oral.report', { runId: active.id }) }
+          : { phase: 'running', run: active };
+      },
+      onFound: (found) => { if (found.phase === 'report') forgetDrafts(found.report); else showRun(found.run); } });
   }, [call, data.root, initialRunId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function perform(work) {
-    if (pending.current) return;
-    const token = identity.current, live = () => identity.current === token;
-    pending.current = true;
-    setBusy(true);
-    setError("");
-    try { await work(live); }
-    catch (cause) { if (live()) setError(cause.message || String(cause)); }
-    finally { if (live()) { pending.current = false; setBusy(false); } }
-  }
-
+  /** Send what is typed that the server does not have yet; resolves the run as the server now knows it. */
   async function saveAnswers() {
-    const token = identity.current;
     const submitted = current.current, active = submitted.run;
     if (!active?.entry) return active;
     let next = active;
-    for (const field of ['answer', 'followupAnswer']) {
-      if (identity.current !== token) return next;
+    for (const field of FIELDS) {
       if (field === 'followupAnswer' && !active.entry.followup) continue;
       const key = draftKey(data.root, 'oral', [active.id, active.entry.cardId, field]);
       const recovery = readDraft(key);
@@ -99,38 +81,34 @@ export default function OralExam({ call, data, onExit, onStartRun, initialRunId,
     return next;
   }
 
-  const start = () => perform(async live => {
+  const start = () => exam.perform(async alive => {
     const next = await call("oral.start", { ...selection, count: Number(count) });
-    if (live()) showRun(next);
+    if (alive()) showRun(next);
   });
-  const followup = () => perform(async live => {
-    const current = await saveAnswers();
-    if (!live()) return;
-    if (!current.entry?.answer) throw new Error(ui("请先写下当前回答，再请求追问"));
-    const next = await call('oral.followup', { runId: current.id, cardId: current.entry.cardId });
-    if (live()) showRun(next);
+  const followup = () => exam.perform(async alive => {
+    const saved = await saveAnswers();
+    if (!alive()) return;
+    if (!saved.entry?.answer) throw new Error(ui("请先写下当前回答，再请求追问"));
+    const next = await call('oral.followup', { runId: saved.id, cardId: saved.entry.cardId });
+    if (alive()) showRun(next);
   });
-  const nextQuestion = () => perform(async live => {
-    const current = await saveAnswers();
-    if (!live()) return;
-    const next = await call('oral.next', { runId: current.id });
-    if (live()) showRun(next);
+  const nextQuestion = () => exam.perform(async alive => {
+    const saved = await saveAnswers();
+    if (!alive()) return;
+    const next = await call('oral.next', { runId: saved.id });
+    if (alive()) showRun(next);
   });
-  const submit = () => perform(async live => {
-    const current = await saveAnswers();
-    if (!live()) return;
-    const result = await call("oral.submit", { runId: current.id });
-    if (live()) showReport(result);
-  });
-  const practiceWeak = () => perform(async live => {
+  const submit = () => exam.submit({ before: saveAnswers, clearRun: true, after: forgetDrafts });
+  const practiceWeak = () => exam.perform(async alive => {
     const next = await call("review.start", { mode: "path", scope: report.weakScope, fresh: true });
-    if (!live()) return;
+    if (!alive()) return;
     if (onStartRun) onStartRun(next, { kind: 'oral', runId: report.runId });
     else onExit();
   });
 
-  const heading = <div className="oral-heading"><div><div className="eyebrow">{ui("岗位模拟")}</div><h1 tabIndex={-1} data-context-heading>{ui("口头面试")}</h1></div></div>;
+  const heading = <PageHeader eyebrow={ui("岗位模拟")} title={ui("口头面试")} />;
   const scopeNote = selection.scope ? uiFormat('沿用勾选的 {0} 个题组', [selection.scope.length]) : "";
+  const last = run && run.index >= run.total - 1;
   return <section className="page exam oral-exam">
     {!loading && (run || report) ? heading : header || heading}
     {loading && <p className="muted">{ui("正在恢复口头模拟…")}</p>}
@@ -140,8 +118,8 @@ export default function OralExam({ call, data, onExit, onStartRun, initialRunId,
       {recent}
     </>}
     {run?.entry && !report && <>
-      <div className="oral-progress"><span>{ui("第 ")}{run.index + 1} / {run.total}{ui(" 题")}</span><span>{ui("本轮已回答 ")}{run.answered}{ui(" 题")}</span></div>
-      <div className="oral-question">
+      <div className="oral-progress"><span>{uiFormat("第 {0} / {1} 题", [run.index + 1, run.total])}</span><span>{uiFormat("本轮已回答 {0} 题", [run.answered])}</span></div>
+      <Panel className="oral-question">
         <span className="exam-chip">{run.entry.topic}</span>
         <div className="oral-prompt"><Markdown text={run.entry.prompt} links={false} /></div>
         {run.entry.options?.length > 0 && <details><summary>{ui("查看题目选项")}</summary><ul>
@@ -156,37 +134,38 @@ export default function OralExam({ call, data, onExit, onStartRun, initialRunId,
               placeholder={ui("补充回答后继续下一题。")} />
           </label>
         </div>}
-      </div>
+      </Panel>
       <div className="oral-actions">
-        {!run.entry.followup && <button disabled={busy || !answer.trim()} onClick={followup}>{ui("追问一次")}</button>}
-        {run.index < run.total - 1
-          ? <button className="primary" disabled={busy} onClick={nextQuestion}>{ui("保存并继续 →")}</button>
-          : <button className="primary" disabled={busy} onClick={submit}>{busy ? ui("正在集中评估…") : ui("结束模拟，查看反馈 →")}</button>}
-        {run.index < run.total - 1 && <button disabled={busy} onClick={submit}>{ui("提前结束")}</button>}
+        {!run.entry.followup && <Button disabled={busy || !answer.trim()} onClick={followup}>{ui("追问一次")}</Button>}
+        {last
+          ? <Button variant="primary" busy={busy} onClick={submit}>{busy ? ui("正在集中评估…") : ui("结束模拟，查看反馈 →")}</Button>
+          : <Button variant="primary" disabled={busy} onClick={nextQuestion}>{ui("保存并继续 →")}</Button>}
+        {!last && <Button disabled={busy} onClick={submit}>{ui("提前结束")}</Button>}
       </div>
       <p className="muted small">{ui("模拟过程中不会显示对错；回答在本地学习库保存。")}</p>
     </>}
-    {report && <div className="oral-report">
+    {report && <Panel className="oral-report">
       <div className="result-kicker">{ui("口头模拟报告")}</div>
       <h2>{report.feedbackStatus === "assessed" ? uiFormat("{0} 题回答扎实", [report.strong]) : ui("回答已保存，尚未评估")}</h2>
-      <p className="muted">{report.answered}/{report.total}{ui(" 题已回答 · ")}{report.assessed}{ui(" 题已评估")}</p>
+      <p className="muted">{uiFormat("{0}/{1} 题已回答 · {2} 题已评估", [report.answered, report.total, report.assessed])}</p>
       {report.feedbackStatus === "assessed" ? <div className="oral-band-bar" role="img"
         aria-label={uiFormat("回答扎实 {0} 题，有待补充 {1} 题，需要巩固 {2} 题", [report.strong, report.developing, report.weak])}>
         {!!report.strong && <span className="strong" style={{ flexGrow: report.strong }} />}
         {!!report.developing && <span className="developing" style={{ flexGrow: report.developing }} />}
         {!!report.weak && <span className="weak" style={{ flexGrow: report.weak }} />}
       </div> : <p>{ui("当前没有可用的模型反馈；未据此更改复习进度。你仍可展开查看回答与参考答案。")}</p>}
-      {report.feedbackStatus === "assessed" && <div className="oral-band-legend"><span>{ui("回答扎实 ")}{report.strong}</span><span>{ui("有待补充 ")}{report.developing}</span><span>{ui("需要巩固 ")}{report.weak}</span></div>}
+      {report.feedbackStatus === "assessed" && <div className="oral-band-legend">
+        <span>{uiFormat("回答扎实 {0}", [report.strong])}</span><span>{uiFormat("有待补充 {0}", [report.developing])}</span><span>{uiFormat("需要巩固 {0}", [report.weak])}</span></div>}
       <div className="result-weak"><h3>{ui("优先补的知识点")}</h3>
         {report.weakTopics?.length ? <ol>{report.weakTopics.map((topic) => <li key={topic.topic}>{topic.topic}</li>)}</ol>
           : <p className="muted">{ui("本次没有已评估的薄弱主题。")}</p>}
-        {!!report.weakScope?.length && <button disabled={busy} onClick={practiceWeak}>{ui("直接练这些题 →")}</button>}
+        {!!report.weakScope?.length && <Button busy={busy} onClick={practiceWeak}>{ui("直接练这些题 →")}</Button>}
       </div>
-      <div className="oral-actions"><button className="primary" onClick={onExit}>{ui("回到学习库")}</button>
-        <button onClick={() => setReport(null)}>{ui("再来一轮")}</button></div>
+      <div className="oral-actions"><Button variant="primary" onClick={onExit}>{ui("回到学习库")}</Button>
+        <Button onClick={() => exam.leave()}>{ui("再来一轮")}</Button></div>
       <details className="result-details"><summary>{ui("查看逐题反馈与原回答")}</summary>
         {report.entries.map((entry, index) => <article key={`${entry.deckId}:${entry.cardId}`} className="oral-report-entry">
-          <strong>{index + 1}. {entry.topic} · {entry.assessment ? bandName[entry.assessment.band] : ui("未评估")}</strong>
+          <strong>{index + 1}. {entry.topic} · {entry.assessment ? ui(bandName[entry.assessment.band]) : ui("未评估")}</strong>
           <Markdown text={entry.prompt} links={false} />
           <p>{ui("你的回答：")}{entry.answer || ui("未答")}</p>
           {entry.followup && <p>{ui("追问：")}{entry.followup}<br />{ui("补充回答：")}{entry.followupAnswer || ui("未答")}</p>}
@@ -194,7 +173,7 @@ export default function OralExam({ call, data, onExit, onStartRun, initialRunId,
           <p>{ui("参考答案：")}{entry.expected || ui("本题无参考答案")}</p>
         </article>)}
       </details>
-    </div>}
+    </Panel>}
     {error && <ErrorState error={error} />}
   </section>;
 }
@@ -220,7 +199,7 @@ export function OralSetup({ data, count, onCount, onStart, busy = false, canStar
     {scopeNote && <p className="es-hint">{scopeNote}</p>}
     {!canStart && <p className="es-warning">{ui("学习库里还没有可用于口头模拟的题；先出题再来。")}</p>}
     <p className="es-note"><Icon name="info" size={16} /><span>{ui("发给 AI 模型的内容：追问时是当前题目和你的回答；结束评估时是题目、参考答案和你的全部回答。学习库的其他内容不会发送。")}</span></p>
-    {!model.ready && <InlineMessage tone="warning" action={onSetupModel ? { label: ui("打开模型设置"), onClick: onSetupModel } : undefined}>
-      {ui("还没有连接 AI 模型：追问会用固定问题，结束后只保存回答、不评估。")}</InlineMessage>}
+    <ModelSetupGate variant="inline" feature="grade" model={model} onOpenSettings={onSetupModel} />
+    {!model.ready && <Hint>{ui("没有模型时：追问会用固定问题，结束后只保存回答、不评估。")}</Hint>}
   </ExamSetupCard>;
 }

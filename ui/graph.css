@@ -2,308 +2,309 @@
    Colours come only from the .study-app token layer in ui/style.css, so both
    themes work. Injected once per document as <style data-study-graph>. */
 
-/* ── Graph shell ──────────────────────────────────────────────────────── */
-.graph {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-/* 全屏查看 promotes the section to the browser's fullscreen element (or, where
-   the host blocks that, to the top layer: .canvas-expanded). Either escapes
-   the study panel's paint containment, so the section really does own the
-   whole screen instead of being clipped to the sidebar's width. */
-.graph:fullscreen,
-.graph.canvas-expanded {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  max-height: none;
-  min-height: 0;
-  padding: 10px 14px 8px;
-  overflow: hidden;
-  background: var(--bg-canvas);
-  color: var(--text);
-}
-.graph-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.graph-legend {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.graph-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-}
-.graph-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  flex: none;
-}
-.graph-swatch.gn-mastered { background: var(--ok); }
-.graph-swatch.gn-familiar { background: color-mix(in srgb, var(--ok) 42%, transparent); }
-.graph-swatch.gn-learning { background: var(--warn); }
-.graph-swatch.gn-weak { background: var(--bad); }
-.graph-swatch.gn-new { background: var(--decor-faint); }
-.graph-line-demo { flex: none; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-.graph-toolbar-sub {
-  gap: 10px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.graph-scope {
-  white-space: nowrap;
-}
-.graph-zoom {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-}
-.graph-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-.graph-truncated {
-  font-size: 12px;
-  color: var(--warn);
-}
-
-/* The viewport pans and zooms the WHOLE drawing (the shared canvas kit moves
-   .graph-plane with a transform). In the panel it is bounded so the page stays
-   navigable; in the canvas it takes every remaining pixel. */
-.graph-viewport {
-  position: relative;
-  overflow: hidden;
-  touch-action: none;
-  user-select: none;
-  max-width: 100%;
-  /* A fixed height, not max-height: a content-sized box would feed its own
-     scaled content back into the fit calculation and collapse to the minimum
-     zoom. */
-  height: min(1200px, 68vh);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  background: var(--bg-surface);
-  cursor: grab;
-  overscroll-behavior: contain;
-}
-.graph.graph-canvas .graph-viewport {
-  flex: 1 1 auto;
-  height: auto;
-  max-height: none;
-  min-height: 0;
-}
-.graph-viewport.is-panning {
-  cursor: grabbing;
-  user-select: none;
-}
-.graph-viewport:focus-visible {
-  outline: 2px solid var(--accent-soft);
-  outline-offset: 2px;
-}
-.graph-plane {
-  position: absolute;
-  left: 0;
-  top: 0;
-  transform-origin: 0 0;
-}
-.graph-svg {
-  display: block;
-}
-.graph-state {
-  padding: 32px 16px;
-  text-align: center;
-  color: var(--text-muted);
-}
-.graph-state.sh-loading { justify-content: center; }
-.graph-state .sh-inline { max-width: 480px; margin-inline: auto; text-align: left; }
-.graph-hint {
-  font-size: 11.5px;
-  color: var(--text-faint);
-}
-
-/* ── SVG nodes: soft level fill + solid level stroke ─────────────────── */
-.gn-node {
-  stroke-width: 1.2;
-  transition: stroke-width 0.12s var(--ease);
-}
-.gn-deck {
-  stroke-width: 1.5;
-}
-.gn-mastered {
-  fill: color-mix(in srgb, var(--ok) 22%, var(--bg-surface));
-  stroke: var(--ok);
-}
-.gn-familiar {
-  /* Same familiar green as the mastery bars (.lv-familiar), not --info. */
-  fill: color-mix(in srgb, var(--ok) 14%, var(--bg-surface));
-  stroke: color-mix(in srgb, var(--ok) 55%, var(--bg-surface));
-}
-.gn-learning {
-  fill: color-mix(in srgb, var(--warn) 24%, var(--bg-surface));
-  stroke: var(--warn);
-}
-.gn-weak {
-  fill: color-mix(in srgb, var(--bad) 22%, var(--bg-surface));
-  stroke: var(--bad);
-}
-.gn-new {
-  fill: color-mix(in srgb, var(--decor-faint) 16%, var(--bg-surface));
-  stroke: var(--decor-faint);
-}
-.gn-ghost {
-  fill: transparent;
-  stroke: var(--line);
-  stroke-dasharray: 4 3;
-}
-.gn-label {
-  fill: var(--text);
-  font-size: 12px;
-}
-.gn-deck-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-.gn-card-label {
-  font-size: 11.5px;
-}
-.gn-meta {
-  fill: var(--text-muted);
-  font-size: 10.5px;
-}
-.gn-ghost-label {
-  fill: var(--text-faint);
-}
-.gn-clickable {
-  cursor: pointer;
-}
-.gn-clickable:hover .gn-node {
-  stroke-width: 2.2;
-}
-.gn-clickable:focus {
-  outline: none;
-}
-.gn-clickable:focus-visible .gn-node {
-  stroke: var(--accent);
-  stroke-width: 2.2;
-}
-
-/* ── SVG edges ────────────────────────────────────────────────────────── */
-.gn-tree {
-  fill: none;
-  stroke: var(--line);
-  stroke-width: 1.4;
-}
-.gn-prereq {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.4;
-  stroke-dasharray: 5 4;
-}
-.gn-order {
-  fill: none;
-  stroke: var(--decor-faint);
-  stroke-width: 1.4;
-}
-.gn-arrow {
-  stroke: none;
-}
-.gn-arrow-prereq {
-  fill: var(--accent);
-}
-.gn-arrow-order {
-  fill: var(--decor-faint);
-}
-
-/* ── Cloze (fill-in-the-blank) ────────────────────────────────────────── */
-.cloze {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.cloze-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.cloze-text {
-  line-height: 2.15;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.cloze-blank {
-  display: inline-block;
-  vertical-align: baseline;
-  box-sizing: border-box;
-  min-width: 6ch;
-}
-input.cloze-blank {
-  font: inherit;
-  color: var(--text);
-  background: var(--bg-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  padding: 1px 8px;
-  text-align: center;
-  transition:
-    border-color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
-}
-input.cloze-blank:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: var(--ring);
-}
-input.cloze-blank:disabled {
-  opacity: 0.65;
-}
-.cloze-right,
-.cloze-wrong {
-  border-radius: 8px;
-  padding: 1px 8px;
-  font-size: 13px;
-}
-.cloze-right {
-  color: var(--ok);
-  border: 1px solid var(--ok);
-  background: color-mix(in srgb, var(--ok) 10%, transparent);
-}
-.cloze-wrong {
-  color: var(--bad);
-  border: 1px solid var(--bad);
-  background: color-mix(in srgb, var(--bad) 10%, transparent);
-}
-.cloze-mark {
-  margin-left: 4px;
-}
-.cloze-yours {
-  display: block;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--text-dim);
-}
-.cloze-expected {
-  color: var(--text);
-}
-.cloze-missing {
-  margin: 0;
-  color: var(--text-muted);
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* ── Graph shell ──────────────────────────────────────────────────────── */
+    .graph {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+    /* 全屏查看 promotes the section to the browser's fullscreen element (or, where
+       the host blocks that, to the top layer: .canvas-expanded). Either escapes
+       the study panel's paint containment, so the section really does own the
+       whole screen instead of being clipped to the sidebar's width. */
+    .graph:fullscreen,
+    .graph.canvas-expanded {
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      max-height: none;
+      min-height: 0;
+      padding: 10px 14px var(--space-2);
+      overflow: hidden;
+      background: var(--bg-canvas);
+      color: var(--text);
+    }
+    .graph-toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+    .graph-legend {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-left: auto;
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+    }
+    .graph-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .graph-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: var(--radius-xs);
+      flex: none;
+    }
+    .graph-swatch.gn-mastered { background: var(--ok); }
+    .graph-swatch.gn-familiar { background: var(--ok-mid); }
+    .graph-swatch.gn-learning { background: var(--warn); }
+    .graph-swatch.gn-weak { background: var(--bad); }
+    .graph-swatch.gn-new { background: var(--decor-faint); }
+    .graph-line-demo { flex: none; }
+    .graph-toolbar-sub {
+      gap: 10px;
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+    }
+    .graph-scope {
+      white-space: nowrap;
+    }
+    .graph-zoom {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-half);
+      padding: var(--space-half);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+    }
+    .graph-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-left: auto;
+    }
+    .graph-truncated {
+      font-size: var(--fs-xs);
+      color: var(--warn);
+    }
+    /* The viewport pans and zooms the WHOLE drawing (the shared canvas kit moves
+       .graph-plane with a transform). In the panel it is bounded so the page stays
+       navigable; in the canvas it takes every remaining pixel. */
+    .graph-viewport {
+      position: relative;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      max-width: 100%;
+      /* A fixed height, not max-height: a content-sized box would feed its own
+         scaled content back into the fit calculation and collapse to the minimum
+         zoom. */
+      height: min(1200px, 68vh);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+      cursor: grab;
+      overscroll-behavior: contain;
+    }
+    .graph.graph-canvas .graph-viewport {
+      flex: 1 1 auto;
+      height: auto;
+      max-height: none;
+      min-height: 0;
+    }
+    .graph-viewport.is-panning {
+      cursor: grabbing;
+      user-select: none;
+    }
+    .graph-viewport:focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
+    }
+    .graph-plane {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+    }
+    .graph-svg {
+      display: block;
+    }
+    .graph-state {
+      padding: var(--space-7) var(--space-4);
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .graph-state.sh-loading { justify-content: center; }
+    .graph-state .sh-inline { max-width: 480px; margin-inline: auto; text-align: left; }
+    .graph-hint {
+      font-size: var(--fs-xs);
+      color: var(--text-faint);
+    }
+    /* ── SVG nodes: soft level fill + solid level stroke ─────────────────── */
+    .gn-node {
+      stroke-width: 1.2;
+      transition: stroke-width 0.12s var(--ease);
+    }
+    .gn-deck {
+      stroke-width: 1.5;
+    }
+    .gn-mastered {
+      fill: var(--ok-tint);
+      stroke: var(--ok);
+    }
+    .gn-familiar {
+      /* Same familiar green as the mastery bars (.lv-familiar), not --info. */
+      fill: var(--ok-tint);
+      stroke: var(--ok-solid);
+    }
+    .gn-learning {
+      fill: var(--warn-tint);
+      stroke: var(--warn);
+    }
+    .gn-weak {
+      fill: var(--bad-tint);
+      stroke: var(--bad);
+    }
+    .gn-new {
+      fill: color-mix(in srgb, var(--decor-faint) 16%, var(--bg-surface));
+      stroke: var(--decor-faint);
+    }
+    .gn-ghost {
+      fill: transparent;
+      stroke: var(--line);
+      stroke-dasharray: 4 3;
+    }
+    .gn-label {
+      fill: var(--text);
+      font-size: var(--fs-xs);
+    }
+    .gn-deck-label {
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+    }
+    .gn-card-label {
+      font-size: var(--fs-xs);
+    }
+    .gn-meta {
+      fill: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+    .gn-ghost-label {
+      fill: var(--text-faint);
+    }
+    .gn-clickable {
+      cursor: pointer;
+    }
+    .gn-clickable:hover .gn-node {
+      stroke-width: 2.2;
+    }
+    .gn-clickable:focus {
+      outline: none;
+    }
+    .gn-clickable:focus-visible .gn-node {
+      stroke: var(--accent);
+      stroke-width: 2.2;
+    }
+    /* ── SVG edges ────────────────────────────────────────────────────────── */
+    .gn-tree {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 1.4;
+    }
+    .gn-prereq {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 1.4;
+      stroke-dasharray: 5 4;
+    }
+    .gn-order {
+      fill: none;
+      stroke: var(--decor-faint);
+      stroke-width: 1.4;
+    }
+    .gn-arrow {
+      stroke: none;
+    }
+    .gn-arrow-prereq {
+      fill: var(--accent);
+    }
+    .gn-arrow-order {
+      fill: var(--decor-faint);
+    }
+    /* ── Cloze (fill-in-the-blank) ────────────────────────────────────────── */
+    .cloze {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .cloze-hint {
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+    }
+    .cloze-text {
+      line-height: 2.15;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .cloze-blank {
+      display: inline-block;
+      vertical-align: baseline;
+      box-sizing: border-box;
+      min-width: 6ch;
+    }
+    & input.cloze-blank {
+      font: inherit;
+      color: var(--text);
+      background: var(--bg-raised);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      padding: 1px var(--space-2);
+      text-align: center;
+      transition:
+        border-color var(--dur-fast) var(--ease),
+        box-shadow var(--dur-fast) var(--ease);
+    }
+    & input.cloze-blank:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: var(--ring);
+    }
+    & input.cloze-blank:disabled {
+      opacity: 0.65;
+    }
+    .cloze-right,
+    .cloze-wrong {
+      border-radius: var(--radius-sm);
+      padding: 1px var(--space-2);
+      font-size: var(--fs-sm);
+    }
+    .cloze-right {
+      color: var(--ok);
+      border: 1px solid var(--ok);
+      background: var(--ok-bg);
+    }
+    .cloze-wrong {
+      color: var(--bad);
+      border: 1px solid var(--bad);
+      background: var(--bad-bg);
+    }
+    .cloze-mark {
+      margin-left: var(--space-1);
+    }
+    .cloze-yours {
+      display: block;
+      font-size: var(--fs-xs);
+      line-height: 1.5;
+      color: var(--text-dim);
+    }
+    .cloze-expected {
+      color: var(--text);
+    }
+    .cloze-missing {
+      margin: 0;
+      color: var(--text-muted);
+    }
+  }
 }

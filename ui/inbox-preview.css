@@ -1,0 +1,30 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* ── Mailbox entry preview ──────────────────────────────────────────────
+       Hovering or focusing an entry opens a card beside it (the shared Tooltip) with the full deck title, prompt and detail; the list itself
+       stays truncated. The card is narrow, scrolls when the text is very long, and ends with the short "what a click does" line. Tokens only. */
+    .mailbox__tip { display: block; }
+    .mailbox-preview.sh-tooltip {
+      display: grid;
+      gap: var(--space-1);
+      max-width: min(360px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
+      max-height: min(60vh, 24rem);
+      padding: var(--space-3);
+      overflow-y: auto;
+      overflow-wrap: anywhere;
+      text-align: start;
+    }
+    .mailbox-preview__deck { color: var(--text-muted); font-size: var(--fs-xs); }
+    .mailbox-preview__prompt { color: var(--text); font-weight: var(--fw-medium); }
+    .mailbox-preview__detail { color: var(--text-dim); }
+    .mailbox-preview__hint {
+      margin-top: var(--space-1);
+      padding-top: var(--space-1);
+      border-top: 1px solid var(--line-soft);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+  }
+}

@@ -2,331 +2,272 @@
    sheet. Colours come from the .study-app tokens in ui/style.css.
    Injected once per document as <style data-study-coach>. */
 
-.coach-chip {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 3px 9px;
-  font-size: 15px;
-  line-height: 1.5;
-  background: transparent;
-  color: var(--text-dim);
-  white-space: nowrap;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-.coach-chip:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
-.coach-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.coach-chip:disabled { opacity: 0.55; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-.coach-options { display: flex; flex-wrap: wrap; gap: 6px; }
-.coach-options .coach-chip { font-size: 15px; padding: 4px 10px; }
-.coach-card {
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--accent-glow);
-  font-size: 15px;
-  line-height: 1.7;
-  animation: coach-rise 240ms var(--ease) both;
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .coach-chip {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 3px 9px;
+      font-size: var(--fs-md);
+      line-height: 1.5;
+      background: transparent;
+      color: var(--text-dim);
+      white-space: nowrap;
+      transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+    .coach-chip:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+    .coach-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .coach-chip:disabled { opacity: 0.55; }
+    .coach-options { display: flex; flex-wrap: wrap; gap: 6px; }
+    .coach-options .coach-chip { font-size: var(--fs-md); padding: var(--space-1) 10px; }
+    .coach-card {
+      padding: 10px var(--space-3);
+      border-radius: var(--radius-sm);
+      background: var(--accent-glow);
+      font-size: var(--fs-md);
+      line-height: 1.7;
+      animation: coach-rise 240ms var(--ease) both;
+    }
+    .coach-card p { margin: 0 0 var(--space-2); color: var(--text); }
+    .coach-card .coach-options { gap: 6px; }
+    /* ── Thumbs ───────────────────────────────────────────────────────────── */
+    .thumbs { display: inline-flex; align-items: center; gap: var(--space-1); position: relative; }
+    .thumbs > button { min-width: 34px; padding-left: 10px; padding-right: 10px; }
+    .thumbs > button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
+    .thumb-tray {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      z-index: var(--z-popover);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      width: max-content;
+      max-width: min(360px, 80cqi);
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      background: var(--bg-glass-strong);
+      backdrop-filter: blur(var(--glass-blur));
+      box-shadow: var(--shadow-md);
+      animation: coach-pop 160ms var(--ease) both;
+    }
+    .thumb-tray small { width: 100%; color: var(--text-faint); font-size: var(--fs-md); }
+    .thumb-tray kbd, .shortcut-sheet kbd {
+      font: 600 10px/1 ui-monospace, monospace;
+      padding: var(--space-half) var(--space-1);
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--line);
+      color: var(--text-muted);
+      margin-right: var(--space-1);
+    }
+    /* ── Autopilot ────────────────────────────────────────────────────────── */
+    .autopilot-bar {
+      position: relative;
+      height: 3px;
+      margin: 14px var(--space-3) 0;
+      border-radius: var(--radius-xs);
+      background: var(--line-soft);
+      overflow: hidden;
+    }
+    .autopilot-bar::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--accent);
+      transform-origin: left;
+      animation: autopilot-fill var(--autopilot-ms, 1500ms) linear both;
+    }
+    .autopilot-note { display: block; margin: 6px var(--space-3) 0; font-size: var(--fs-md); color: var(--text-faint); }
+    /* ── Debrief (session summary) ───────────────────────────────────────── */
+    .coach-debrief {
+      width: min(560px, 100%);
+      margin: 18px auto 6px;
+      padding: 18px var(--space-5);
+      border-radius: var(--radius);
+      text-align: left;
+      border: 1px solid var(--line-soft);
+      background: linear-gradient(160deg, var(--accent-glow), transparent 70%), var(--bg-surface);
+      box-shadow: var(--shadow-md);
+      animation: coach-rise 320ms var(--ease) both;
+    }
+    /* On the result page it lines up with the score card above it. */
+    .result-page .coach-debrief { width: 100%; margin: var(--space-5) 0; }
+    .coach-debrief .eyebrow { margin-bottom: 6px; }
+    .coach-debrief h2 { margin: 0 0 6px; font-size: var(--fs-2xl); line-height: 1.4; color: var(--text); }
+    .coach-debrief > p { margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); line-height: 1.7; }
+    .coach-score-split { display: flex; flex-wrap: wrap; gap: 6px var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); }
+    .coach-score-split strong { color: var(--text); }
+    .coach-levels { display: flex; gap: 6px; margin: 0 0 var(--space-3); height: 8px; border-radius: var(--radius-sm); overflow: hidden; background: var(--line-soft); }
+    .coach-levels span { display: block; height: 100%; transition: flex-grow 400ms var(--ease); }
+    .coach-levels .recall { background: var(--decor-faint); }
+    .coach-levels .concept { background: var(--info); }
+    .coach-levels .apply { background: var(--ok); }
+    .coach-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-md); color: var(--text-muted); margin: -4px 0 var(--space-3); }
+    .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-xs); margin-right: var(--space-1); vertical-align: 0; }
+    .coach-insights { margin: 0 0 14px; padding-left: 18px; font-size: var(--fs-md); line-height: 1.8; color: var(--text-dim); }
+    .coach-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+    /* A question, not a second primary: neutral stock and outlined chips. */
+    .coach-consent {
+      margin-top: 14px;
+      background: color-mix(in srgb, var(--text) 5%, transparent);
+      border: 1px solid var(--line-soft);
+    }
+    .coach-chip.coach-yes { border-color: var(--accent-soft); color: var(--text); font-weight: var(--fw-strong); }
+    .coach-consent .coach-consent-error { margin: var(--space-2) 0 0; color: var(--bad); }
+    .coach-consent-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
+    /* One filled primary per screen: when the 雷霆建议 hands over its own next
+       step (定制题 or 补薄弱), the generic next-step buttons on the page step back. */
+    /* Features sit above components in the cascade layers, so no !important is needed. */
+    .result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .sh-btn--primary:not(:disabled)) .summary-actions > .sh-btn--primary {
+      background: color-mix(in srgb, var(--text) 5%, transparent);
+      border-color: var(--line);
+      color: inherit;
+      box-shadow: none;
+      font-weight: var(--fw-regular);
+    }
+    .result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .sh-btn--primary:not(:disabled)) .summary-actions > .sh-btn--primary:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--text) 11%, transparent);
+      border-color: var(--line-strong);
+      box-shadow: none;
+      transform: none;
+    }
+    .coach-countdown { font-size: var(--fs-md); color: var(--text-muted); }
+    .skeleton {
+      border-radius: var(--radius-sm);
+      background: linear-gradient(90deg, var(--line-soft) 25%, var(--bg-hover) 50%, var(--line-soft) 75%);
+      background-size: 200% 100%;
+      animation: sh-coach-shimmer 1.2s infinite linear;
+    }
+    .skeleton.h { height: 22px; width: 70%; margin-bottom: 10px; }
+    .skeleton.l { height: 12px; width: 92%; margin-bottom: var(--space-2); }
+    .skeleton.s { height: 12px; width: 55%; }
+    /* ── Library offer ───────────────────────────────────────────────────── */
+    /* ── Sidebar entry: shows on every page while 定制题 are ready ─────────── */
+    .coach-nav .icon { color: var(--accent-soft); }
+    .nav-badge {
+      flex: none;
+      margin-left: auto;
+      min-width: 24px;
+      padding: 0 7px;
+      border-radius: var(--radius-pill);
+      border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+      color: var(--accent-soft);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+      line-height: 1.4;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    /* On the collapsed rail the count folds into a dot on the icon. */
+    .sidebar.is-narrow .coach-nav .nav-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      min-width: 0;
+      width: 9px;
+      height: 9px;
+      padding: 0;
+      border: 0;
+      background: var(--accent);
+      font-size: 0;
+    }
+    /* ── Shortcut sheet ──────────────────────────────────────────────────── */
+    .shortcut-sheet {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: var(--z-overlay);
+      width: min(340px, calc(100cqi - 40px));
+      padding: 14px var(--space-4);
+      font-size: var(--fs-md);
+      color: var(--text-dim);
+      animation: coach-pop 180ms var(--ease) both;
+    }
+    .shortcut-sheet h3 { margin: 0 0 var(--space-2); font-size: var(--fs-md); color: var(--text); display: flex; justify-content: space-between; }
+    .shortcut-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: 6px var(--space-3); margin: 0; }
+    .shortcut-sheet dt { white-space: nowrap; }
+    .shortcut-sheet dd { margin: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .coach-card, .coach-debrief, .thumb-tray, .shortcut-sheet { animation: none; }
+      .skeleton { animation-duration: 2.4s; }
+    }
+  }
+  :where(.study-app, .study-seat) {
+    /* ── Settings ────────────────────────────────────────────────────────── */
+    .inline-check { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); }
+    .inline-check input { width: auto; margin: 0; }
+    .origin-tag {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 1px var(--space-2);
+      color: var(--text-dim);
+      white-space: nowrap;
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* 后台助教：题目工具条下方的委托表单与状态。 */
+    .assist-area {
+      margin-top: var(--space-2);
+    }
+    .assist-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-3) 14px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+    }
+    .assist-form label {
+      display: grid;
+      gap: 6px;
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+    }
+    .assist-form textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: var(--fs-md);
+    }
+    .assist-form > strong {
+      color: var(--text);
+      font-size: var(--fs-md);
+    }
+    .assist-quick-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+    .assist-form > p {
+      margin: 0;
+    }
+    .assist-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .assist-status {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: var(--space-2) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+    }
+    .assist-status.failed {
+      color: var(--warn);
+    }
+  }
 }
-.coach-card p { margin: 0 0 8px; color: var(--text); }
-.coach-card .coach-options { gap: 6px; }
-
-/* ── Thumbs ───────────────────────────────────────────────────────────── */
-.thumbs { display: inline-flex; align-items: center; gap: 4px; position: relative; }
-.thumbs > button { min-width: 34px; padding-left: 10px; padding-right: 10px; }
-.thumbs > button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
-.thumb-tray {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  z-index: 5;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  width: max-content;
-  max-width: min(360px, 80cqi);
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--bg-glass-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow-md);
-  animation: coach-pop 160ms var(--ease) both;
-}
-.thumb-tray small { width: 100%; color: var(--text-faint); font-size: 15px; }
-.thumb-tray kbd, .shortcut-sheet kbd {
-  font: 600 10px/1 ui-monospace, monospace;
-  padding: 2px 4px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-  color: var(--text-muted);
-  margin-right: 4px;
-}
-
-/* ── Autopilot ────────────────────────────────────────────────────────── */
-.autopilot-bar {
-  position: relative;
-  height: 3px;
-  margin: 14px 12px 0;
-  border-radius: 3px;
-  background: var(--line-soft);
-  overflow: hidden;
-}
-.autopilot-bar::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--accent);
-  transform-origin: left;
-  animation: autopilot-fill var(--autopilot-ms, 1500ms) linear both;
-}
-.autopilot-note { display: block; margin: 6px 12px 0; font-size: 15px; color: var(--text-faint); }
-
-/* ── Debrief (session summary) ───────────────────────────────────────── */
-.coach-debrief {
-  width: min(560px, 100%);
-  margin: 18px auto 6px;
-  padding: 18px 20px;
-  border-radius: var(--radius);
-  text-align: left;
-  border: 1px solid var(--line-soft);
-  background: linear-gradient(160deg, var(--accent-glow), transparent 70%), var(--bg-surface);
-  box-shadow: var(--shadow-md);
-  animation: coach-rise 320ms var(--ease) both;
-}
-/* On the result page it lines up with the score card above it. */
-.result-page .coach-debrief { width: 100%; margin: 20px 0; }
-.coach-debrief .eyebrow { margin-bottom: 6px; }
-.coach-debrief h2 { margin: 0 0 6px; font-size: 21px; line-height: 1.4; color: var(--text); }
-.coach-debrief > p { margin: 0 0 12px; color: var(--text-dim); font-size: 15px; line-height: 1.7; }
-.coach-score-split { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; color: var(--text-dim); font-size: 15px; }
-.coach-score-split strong { color: var(--text); }
-.coach-levels { display: flex; gap: 6px; margin: 0 0 12px; height: 8px; border-radius: 6px; overflow: hidden; background: var(--line-soft); }
-.coach-levels span { display: block; height: 100%; transition: flex-grow 400ms var(--ease); }
-.coach-levels .recall { background: var(--decor-faint); }
-.coach-levels .concept { background: var(--info); }
-.coach-levels .apply { background: var(--ok); }
-.coach-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 15px; color: var(--text-muted); margin: -4px 0 12px; }
-.coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
-.coach-insights { margin: 0 0 14px; padding-left: 18px; font-size: 15px; line-height: 1.8; color: var(--text-dim); }
-.coach-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-/* A question, not a second primary: neutral stock and outlined chips. */
-.coach-consent {
-  margin-top: 14px;
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-  border: 1px solid var(--line-soft);
-}
-.coach-chip.coach-yes { border-color: var(--accent-soft); color: var(--text); font-weight: 600; }
-.coach-consent .coach-consent-error { margin: 8px 0 0; color: var(--bad); }
-.coach-consent-note { margin: 12px 0 0; font-size: 15px; color: var(--text-muted); }
-/* One filled primary per screen: when the 雷霆建议 hands over its own next
-   step (定制题 or 补薄弱), the generic next-step buttons on the page step back. */
-/* style.css forces .primary with !important, so the step-back needs it too. */
-.result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .primary:not(:disabled)) .summary-actions > button.primary {
-  background: color-mix(in srgb, var(--text) 5%, transparent) !important;
-  border-color: var(--line) !important;
-  color: inherit !important;
-  box-shadow: none;
-  font-weight: 400;
-}
-.result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .primary:not(:disabled)) .summary-actions > button.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text) 11%, transparent) !important;
-  border-color: var(--line-strong) !important;
-  box-shadow: none;
-  transform: none;
-}
-.coach-countdown { font-size: 15px; color: var(--text-muted); }
-.skeleton {
-  border-radius: 6px;
-  background: linear-gradient(90deg, var(--line-soft) 25%, var(--bg-hover) 50%, var(--line-soft) 75%);
-  background-size: 200% 100%;
-  animation: sh-coach-shimmer 1.2s infinite linear;
-}
-.skeleton.h { height: 22px; width: 70%; margin-bottom: 10px; }
-.skeleton.l { height: 12px; width: 92%; margin-bottom: 8px; }
-.skeleton.s { height: 12px; width: 55%; }
-
-/* ── Library offer ───────────────────────────────────────────────────── */
-.coach-offer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 15px 25px 0;
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  background: linear-gradient(120deg, var(--accent-glow), transparent 80%), var(--bg-surface);
-  animation: coach-rise 300ms var(--ease) both;
-}
-.coach-offer > div { flex: 1; min-width: 0; }
-.coach-offer .eyebrow { display: block; margin-bottom: 2px; }
-.coach-offer strong { display: block; color: var(--text); font-size: 15px; }
-.coach-offer small { color: var(--text-dim); font-size: 15px; }
-.coach-offer button.primary { white-space: nowrap; }
-.coach-offer-mark {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent-soft);
-}
-.coach-offer-mark svg { width: 20px; height: 20px; }
-@container study (max-width: 600px) {
-  .coach-offer { flex-wrap: wrap; }
-}
-
-/* ── Sidebar entry: shows on every page while 定制题 are ready ─────────── */
-.coach-nav .icon { color: var(--accent-soft); }
-.nav-badge {
-  flex: none;
-  margin-left: auto;
-  min-width: 24px;
-  padding: 0 7px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  color: var(--accent-soft);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-/* On the collapsed rail the count folds into a dot on the icon. */
-.sidebar.is-narrow .coach-nav .nav-badge {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 0;
-  width: 9px;
-  height: 9px;
-  padding: 0;
-  border: 0;
-  background: var(--accent);
-  font-size: 0;
-}
-
-/* ── Shortcut sheet ──────────────────────────────────────────────────── */
-.shortcut-sheet {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 40;
-  width: min(340px, calc(100cqi - 40px));
-  padding: 14px 16px;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--bg-glass-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow-lg);
-  font-size: 15px;
-  color: var(--text-dim);
-  animation: coach-pop 180ms var(--ease) both;
-}
-.shortcut-sheet h3 { margin: 0 0 8px; font-size: 15px; color: var(--text); display: flex; justify-content: space-between; }
-.shortcut-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; }
-.shortcut-sheet dt { white-space: nowrap; }
-.shortcut-sheet dd { margin: 0; }
 
 @keyframes coach-rise { from { opacity: 0; transform: translateY(8px); } }
 @keyframes coach-pop { from { opacity: 0; transform: scale(0.96); } }
 @keyframes autopilot-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes sh-coach-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) {
-  .coach-card, .coach-debrief, .coach-offer, .thumb-tray, .shortcut-sheet { animation: none; }
-  .skeleton { animation-duration: 2.4s; }
-}
-
-/* ── Settings ────────────────────────────────────────────────────────── */
-.inline-check { display: flex; flex-direction: row; align-items: center; gap: 8px; }
-.inline-check input { width: auto; margin: 0; }
-.origin-tag {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 1px 8px;
-  color: var(--text-dim);
-  white-space: nowrap;
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.coach-answer { display: block; margin-bottom: 6px; font-size: 15px; color: var(--text-dim); }
-.coach-answer b { color: var(--text); font-weight: 600; }
-
-/* 后台助教：题目工具条下方的委托表单与状态。 */
-.assist-area {
-  margin-top: 8px;
-}
-.assist-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-}
-.assist-form label {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  color: var(--text-dim);
-  font-size: 15px;
-}
-.assist-form textarea {
-  width: 100%;
-  box-sizing: border-box;
-  font-size: 15px;
-}
-.assist-form > strong {
-  color: var(--text);
-  font-size: 15px;
-}
-.assist-quick-choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-.assist-quick-choices .pill {
-  font-size: 15px;
-  padding: 7px 11px;
-}
-.assist-form > p {
-  margin: 0;
-}
-.assist-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.assist-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0 0;
-  color: var(--text-muted);
-  font-size: 15px;
-}
-.assist-status.failed {
-  color: var(--warn);
-}
-.assist-spin {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  border-top-color: var(--accent);
-  animation: assist-spin 0.9s linear infinite;
-}
-@keyframes assist-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .assist-spin {
-    animation: none;
-  }
-}

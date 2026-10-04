@@ -1,0 +1,79 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* ── Button and SegmentedControl layout variants ─────────────
+       Multi-line, full-width and start-aligned buttons, the pill toggle, and the
+       fill / wrap / stack / xs segmented controls. Tokens only. Loaded after
+       components.css; every rule sits one class above the base rule so no
+       feature stylesheet needs to re-skin .sh-btn or .sh-seg to get these. */
+    /* A long label runs over several lines, starts at the leading edge and keeps its line height. */
+    .sh-btn--wrap {
+      max-width: 100%;
+      height: auto;
+      white-space: normal;
+      text-align: start;
+      line-height: var(--lh-snug);
+      overflow-wrap: anywhere;
+    }
+    .sh-btn--block {
+      display: flex;
+      width: 100%;
+    }
+    /* Busy keeps the width the press measured (Button stores it in --sh-held-width). */
+    .sh-btn[aria-busy="true"] { min-width: var(--sh-held-width, 0); }
+    .sh-btn--start { justify-content: flex-start; text-align: start; }
+    .sh-btn--center { justify-content: center; text-align: center; }
+    /* Pill is for toggle buttons only (Button drops it without aria-pressed). */
+    .sh-btn--pill {
+      border-radius: var(--radius-pill);
+      padding-inline: var(--space-3);
+    }
+    /* Any toggle button reads as selected when pressed (a primary keeps its own fill). */
+    .sh-btn[aria-pressed="true"]:not(.sh-btn--primary, .sh-btn--link) {
+      background: var(--bg-selected);
+      border-color: var(--line-strong);
+      color: var(--text);
+    }
+    /* A link-style button that wraps still reads as running text. */
+    .sh-btn--link.sh-btn--wrap { display: inline; text-align: start; }
+    .sh-seg--fill {
+      display: flex;
+      width: 100%;
+    }
+    .sh-seg--fill > .sh-seg__item {
+      flex: 1 1 0;
+      justify-content: center;
+      min-width: 0;
+    }
+    .sh-seg--wrap > .sh-seg__item {
+      white-space: normal;
+      text-align: start;
+      overflow-wrap: anywhere;
+    }
+    .sh-seg--xs > .sh-seg__item {
+      min-height: 24px;
+      padding: 0 var(--space-2);
+      gap: var(--space-1);
+      font-size: var(--fs-xs);
+    }
+    .sh-seg--xs { padding: calc(var(--space-1) / 2); }
+  }
+  @container study (max-width: 480px) {
+    :is(.study-app, .study-seat) {
+      /* Stack: the row becomes a column when its container is narrow. */
+      .sh-seg--stack {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+      }
+      .sh-seg--stack > .sh-seg__item { justify-content: flex-start; text-align: start; }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .sh-btn--pill { transition: none; }
+    }
+  }
+}

@@ -2,152 +2,140 @@
    banner on the home page. Tokens only; both themes; one column under the
    study container's narrow widths. Injected as <style data-study-welcome>. */
 
-.study-app .welcome {
-  max-width: 980px;
-  padding-top: 48px;
-}
-.welcome__intro { max-width: 640px; margin-bottom: 28px; }
-.welcome__eyebrow {
-  margin: 0 0 10px;
-  color: var(--accent-text);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-.welcome__title {
-  margin: 0 0 12px;
-  font-family: var(--font-display);
-  font-size: var(--fs-3xl);
-  font-weight: 700;
-  line-height: var(--lh-tight);
-  letter-spacing: -0.02em;
-}
-.welcome__lead {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: var(--fs-lg);
-  line-height: var(--lh-body);
-}
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-.welcome__choices {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-}
-/* An empty library: one lead card for the learner's own material, the sample as a line under it. */
-.welcome__choices--first { grid-template-columns: minmax(0, 640px); }
-.welcome__sample {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  margin: 0;
-  color: var(--text-dim);
-  font-size: var(--fs-md);
-  line-height: var(--lh-body);
-}
-.welcome__sample small { flex: 1 1 100%; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-.welcome-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-  padding: 22px 22px 20px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--bg-surface);
-}
-.welcome-card--lead {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
-    var(--bg-raised);
-  box-shadow: var(--shadow-md);
-}
-.welcome-card__icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: 4px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--text) 7%, transparent);
-  color: var(--text);
-}
-.welcome-card--lead .welcome-card__icon {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent-text);
-}
-.welcome-card__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-xl);
-  font-weight: 650;
-  line-height: var(--lh-tight);
-}
-.welcome-card__text {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: var(--fs-md);
-  line-height: var(--lh-body);
-}
-.welcome-card__facts {
-  display: grid;
-  gap: 6px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-}
-.welcome-card__facts li {
-  position: relative;
-  padding-left: 18px;
-}
-.welcome-card__facts li::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 0.5em;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-soft);
-}
-.welcome-card__action {
-  margin-top: auto;
-  padding-top: var(--space-4);
-}
-
-.welcome__model { margin-bottom: var(--space-4); }
-.welcome__model-action { margin-top: var(--space-3); }
-.welcome__footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-4);
-  color: var(--text-muted);
-}
-/* "Later" is the quiet way out, not a call to action. */
-.welcome__footer .sh-btn--link { color: var(--text-muted); }
-.welcome__footer .sh-btn--link:hover { color: var(--text); }
-
-/* The sample banner rides at the top of the home page. */
-.study-app .sample-banner {
-  max-width: 1200px;
-  margin: 18px auto 0;
-  width: calc(100% - 72px);
-}
-.study-app .sample-banner .sh-banner__icon { color: var(--accent-text); }
-
-@container study (max-width: 760px) {
-  .study-app .welcome { padding-top: 28px; }
-  .welcome__choices { grid-template-columns: minmax(0, 1fr); }
-  .welcome__title { font-size: var(--fs-2xl); }
-  .welcome__lead { font-size: var(--fs-md); }
-  .welcome__footer { justify-content: flex-start; }
-  .study-app .sample-banner { width: calc(100% - 32px); }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .welcome {
+      max-width: 980px;
+      padding-top: 48px;
+    }
+  }
+  :where(.study-app, .study-seat) {
+    .welcome__intro { max-width: 640px; margin-bottom: 28px; }
+    .welcome__eyebrow {
+      margin: 0 0 10px;
+      color: var(--accent-text);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+      letter-spacing: 0.06em;
+    }
+    .welcome__title {
+      margin: 0 0 var(--space-3);
+      font-family: var(--font-display);
+      font-size: var(--fs-3xl);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-tight);
+      letter-spacing: -0.02em;
+    }
+    .welcome__lead {
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-lg);
+      line-height: var(--lh-body);
+    }
+    .welcome__choices {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+    }
+    /* An empty library: one lead card for the learner's own material, the sample as a line under it. */
+    .welcome__choices--first { grid-template-columns: minmax(0, 640px); }
+    .welcome__sample {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+      line-height: var(--lh-body);
+    }
+    .welcome__sample small { flex: 1 1 100%; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .welcome-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      min-width: 0;
+      padding: 22px 22px var(--space-5);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      background: var(--bg-surface);
+    }
+    .welcome-card--lead {
+      border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
+        var(--bg-raised);
+      box-shadow: var(--shadow-md);
+    }
+    .welcome-card__icon {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      margin-bottom: var(--space-1);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--text) 7%, transparent);
+      color: var(--text);
+    }
+    .welcome-card--lead .welcome-card__icon {
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      color: var(--accent-text);
+    }
+    .welcome-card__title {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-tight);
+    }
+    .welcome-card__text {
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+      line-height: var(--lh-body);
+    }
+    .welcome-card__action {
+      margin-top: auto;
+      padding-top: var(--space-4);
+    }
+    .welcome__model { margin-bottom: var(--space-4); }
+    .welcome__model-action { margin-top: var(--space-3); }
+    .welcome__footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-4);
+      color: var(--text-muted);
+    }
+    /* "Later" is the quiet way out, not a call to action. */
+    .welcome__footer .sh-btn--link { color: var(--text-muted); }
+    .welcome__footer .sh-btn--link:hover { color: var(--text); }
+  }
+  :is(.study-app, .study-seat) {
+    /* The sample banner rides at the top of the home page. */
+    .sample-banner {
+      max-width: 1200px;
+      margin: 18px auto 0;
+      width: calc(100% - 72px);
+    }
+    .sample-banner .sh-banner__icon { color: var(--accent-text); }
+  }
+  @container study (max-width: 760px) {
+    :is(.study-app, .study-seat) {
+      .welcome { padding-top: 28px; }
+    }
+    :where(.study-app, .study-seat) {
+      .welcome__choices { grid-template-columns: minmax(0, 1fr); }
+      .welcome__title { font-size: var(--fs-2xl); }
+      .welcome__lead { font-size: var(--fs-md); }
+      .welcome__footer { justify-content: flex-start; }
+    }
+    :is(.study-app, .study-seat) {
+      .sample-banner { width: calc(100% - 32px); }
+    }
+  }
 }

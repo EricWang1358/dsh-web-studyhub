@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useMemo } from "react";
 import css from "./graph.css";
 import { useInjectCss } from "./shared.js";
+import { Icon } from "./components/index.js";
 
 /* Fill-in-the-blank card, display only: grading lives on the server
    (review.answer → feedback.details, contract §5). `card.cloze` is the
@@ -68,12 +69,12 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
             return detail.correct ? (
               <span key={i} className="cloze-blank cloze-right" title={ui("回答正确")}>
                 {val || solution?.cloze?.answers?.find((answer) => answer.id === id)?.value || ui("回答正确")}
-                <span className="cloze-mark">✓</span>
+                <span className="cloze-mark"><Icon name="check" size={14} strokeWidth={2.2} /></span>
               </span>
             ) : (
               <span key={i} className="cloze-blank cloze-wrong" title={ui("回答错误")}>
                 <span className="cloze-expected">{detail.expected ?? "—"}</span>
-                <span className="cloze-mark" aria-label={ui("回答错误")}>✗</span>
+                <span className="cloze-mark" role="img" aria-label={ui("回答错误")}><Icon name="close" size={14} strokeWidth={2.2} /></span>
                 {Object.hasOwn(values || {}, id) && <span className="cloze-yours">{ui("你的答案：")}{val || ui("未填写")}</span>}
               </span>
             );

@@ -26,7 +26,7 @@ The whole panel follows one idea: **the card is the only physical object; everyt
 | Token | Role |
 | --- | --- |
 | `--bg-canvas` / `--bg-surface` / `--bg-raised` | Desk, flat panels, menus |
-| `--paper`, `--paper-ink`, `--paper-dim`, `--paper-rule` | Card stock. Inside a card the ink tokens are re-scoped to paper values (`style.css`, "Card stock"). |
+| `--paper`, `--paper-ink`, `--paper-dim`, `--paper-rule` | Card stock. Inside a card the ink tokens are re-scoped to paper values, once, in `ui/paper.css`: give an element `.sh-paper` (a `<Panel tone="paper">`) and nothing else. |
 | `--accent` (朱砂 cinnabar) | The single primary action, the card head rule / progress, the heatmap. Nothing else. |
 | `--ok` jade | Correct, mastered |
 | `--warn` ochre | Learning, contrasts to watch |
@@ -38,7 +38,7 @@ Accent presets (设置 › 界面 › 强调色): cinnabar stays the default and
 
 ## Semantic tokens
 
-Defined at the top of `ui/components/components.css` (scoped to `.study-app` / `.study-seat`, derived with `color-mix`, so every theme adapts). Feature CSS uses these, not literals; `tests/ui-guardrails.test.mjs` ratchets the old literals down per file.
+Defined in `ui/tokens.css` (on `.study-app` / `.study-seat`, derived with `color-mix`, so every theme adapts; `ui/paper.css` rebuilds the derived ones on paper). Feature CSS uses these, not literals; `tests/ui-guardrails.test.mjs` ratchets the old literals down per file.
 
 | Token | Use |
 | --- | --- |
@@ -51,6 +51,9 @@ Defined at the top of `ui/components/components.css` (scoped to `.study-app` / `
 | `--radius-xs` 4px | Chips, keys and inline code; larger shapes keep `--radius-sm`, `--radius`, `--radius-card`, `--radius-pill`. |
 | `--space-half` 2px | Hairline gaps and badge padding below `--space-1`; everything larger uses `--space-1…9`. |
 | `--dur-fast` .15s, `--dur` .2s, `--dur-slow` .3s | Transition and animation durations, with `--ease` / `--ease-out`. |
+| `--ok-halo` / `-mid` / `-mark` / `-tint` / `-solid` (and the same for `warn`, `bad`, `info`) | Strengths of a tone beyond ink / bg / line: a ring or glow, a stroke or tick, a highlighter, a graph fill, a swatch. |
+| `--hue-violet` / `--hue-teal` / `--hue-orange` | Mixed hues of the board's columns and chips. |
+| `--shadow-contact`, `--shadow-contact-toast`, `--shadow-up`, `--shadow-drag`, `--sheen`, `--sheen-strong` | The few shadows and highlights that are not an elevation step. |
 
 Where a rule re-themes `--text` or a tone (card stock), re-declare the derived tones there too.
 
@@ -167,5 +170,13 @@ One question, one component. Pick by what the action does, not by where the butt
 
 A settings page is built from the same few parts; it never styles a label or a switch of its own.
 - `SettingsSection` is the shell of a section (fieldset, legend title, lead, `tour` anchor). `Field` is one label + control + hint + error: it generates the id, wires `aria-describedby` / `aria-invalid` and adds the alert; `width` is `sm | md | full`, `inline` puts the label beside the control, `group` is for a control that names itself (SegmentedControl). One label weight (`--fw-medium`), one hint size (`Hint`, `--fs-sm`).
-- `TextInput`, `TextArea`, `Select`, `NumberInput` render `.sh-input`; the bare `input` / `select` rules in style.css are legacy and are not relied on. `Checkbox` is a labelled row, `Switch` the same row with `role="switch"` and a track (for a setting that acts at once), `RadioCard` + `RadioCardGroup` for a few choices that deserve a sentence each. `ProviderCard` + `StepList` are the card of a service that needs a key.
+- `TextInput`, `TextArea`, `Select`, `NumberInput` render `.sh-input`; the bare `input` / `select` rules in base.css are legacy (they only reach elements without an `sh-` class) and are not relied on. `Checkbox` is a labelled row, `Switch` the same row with `role="switch"` and a track (for a setting that acts at once), `RadioCard` + `RadioCardGroup` for a few choices that deserve a sentence each. `ProviderCard` + `StepList` are the card of a service that needs a key.
 - A settings category is declared once in `ui/settings-groups.js`: title, group, anchors, `needs` (the host component it requires), `partNeeds` (one gated part inside a category that stays visible) and its pane, loaded lazily. `Settings` renders `<category.Component {...services} />` and decides nothing else per category.
+
+## Stylesheets
+
+`ui/style.css` is gone. The global sheets are listed in `ui/styles.js` in cascade order: `tokens.css` (theme, fonts, the semantic tokens), `paper.css`, `base.css` (element defaults), `legacy.css` (old buttons and page furniture; do not add), `shell.css` (sidebar, top bar), the feature sheets beside their components (`review/question.css`, `review/session.css`, `study-map/desk.css`, `study-map/catalog.css`, `draft.css`, `sources-page.css`, `audio-import.css`, `binding.css`, `markdown.css`, `followup.css`) and `motion.css`. A feature's rules go in its own sheet; `tests/css-structure.test.mjs` fails when a feature selector lands in tokens, base or shell.
+
+Every sheet is wrapped once: `@layer study.<layer> { :is(.study-app, .study-seat) { ... } }`. Layers, lowest to highest: `reset` (element defaults, motion), `tokens`, `components` (ui/components, legacy.css), `features`, `overrides` (host chrome). A feature beats a component because of its layer, not because of a longer selector; !important inverts the order, so keep it to the motion switches. Root rules (the theme attributes, the app box) keep their own selector; host-world sheets (host/studyhub.css, panel-bridge.css, the unscoped part of document-preview.css) are the only exceptions and are listed in `scripts/qa/css-layers.mjs`. `node scripts/qa/css-layers.mjs wrap <file>` wraps a new sheet; `node scripts/qa/css-layers.mjs check` lists problems. One hook injects a sheet (`useComponentCss`, also exported as `useInjectCss`), and once per document by marker.
+
+Checks that keep it so: `node scripts/qa/dead-css.mjs` (a class nothing renders), `tests/css-ownership.test.mjs` (a class is written by one sheet; the allow-list only shrinks), `scripts/qa/css-fingerprint.mjs` (computed styles of every page before and after a stylesheet refactor).

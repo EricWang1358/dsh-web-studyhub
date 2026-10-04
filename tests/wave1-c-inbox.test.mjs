@@ -148,9 +148,11 @@ test('the panel shows kind pills by tone, with an icon, never the old accent pil
 test('the panel reads tooltips from the registry and limits its height with ScrollWindow', () => {
   setUiLanguage('zh');
   const out = panel();
-  assert.match(out, /title="打开 PDF 转换结果"/);
-  assert.match(out, /title="打开音频转写结果"/);
-  assert.match(out, /title="跳到这道题"/);
+  // The open hint is the last line of the entry's card (#178), not a native title, so two tooltips never show.
+  assert.match(out, /mailbox-preview__hint">打开 PDF 转换结果</);
+  assert.match(out, /mailbox-preview__hint">打开音频转写结果</);
+  assert.match(out, /mailbox-preview__hint">跳到这道题</);
+  assert.doesNotMatch(out, /class="mailbox__item[^"]*"[^>]*\btitle=/);
   assert.match(out, /class="sh-scroll /);
   assert.match(out, /role="region"[^>]*aria-label="信箱消息"|aria-label="信箱消息"[^>]*role="region"/);
   assert.doesNotMatch(out, /max-height:\s*\d+px/, 'no hand-measured height');

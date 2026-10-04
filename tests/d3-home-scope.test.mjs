@@ -4,7 +4,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
+import { globalCss } from './helpers/global-css.mjs';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { mapProps } from './helpers/study-map-props.mjs';
 
 /* D3 (2.5.9, design consistency): the shared course-scope control looks the same on every page, and the home has one clear
    hierarchy (mode tabs above the title, title on its own line, one primary button). */
@@ -27,8 +29,8 @@ function home(runs = []) {
   const data = { root: '/tmp/lib', decks: [deck], progress, sources: [{ id: 's' }], drafts: [], jobs: [], runs, today: { due: 1, weak: 2, new: 1, size: 4 },
     focus: { mode: 'class', course: 'CS3219', courses, fresh: [] } };
   const noop = () => {};
-  return renderToStaticMarkup(h(StudyMap, { data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop,
-    retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop }));
+  return renderToStaticMarkup(h(StudyMap, mapProps({ data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop,
+    retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop })));
 }
 
 test('PageScope renders the same wrapper on every page, whatever the page passes', () => {
@@ -52,7 +54,7 @@ test('the scope control has one fixed width in its own css, and no page css re-s
   assert.match(rule, /max-width:\s*100%/);
   assert.match(rule, /display:\s*grid/);
   assert.match(own, /\.page-scope\s+select\s*\{[^}]*width:\s*100%/);
-  assert.doesNotMatch(css('style.css'), /\.page-scope\s*\{[^}]*max-width/, 'the old per-page 36rem cap is gone');
+  assert.doesNotMatch(globalCss(), /\.page-scope\s*\{[^}]*max-width/, 'the old per-page 36rem cap is gone');
   for (const file of readdirSync(new URL('../ui', import.meta.url)).filter(name => name.endsWith('.css') && name !== 'course-active.css')) {
     for (const [, selector, body] of css(file).matchAll(/([^{}]*\.page-scope(?![-\w])[^{}]*)\{([^}]*)\}/g)) {
       const widths = [...body.matchAll(/(?:^|[;\s])(max-width|width|min-width)\s*:\s*([^;]+)/g)].map(match => [match[1], match[2].trim()]);
@@ -67,7 +69,7 @@ test('the home has one h1, one primary button, and the mode tabs sit before the 
   setUiLanguage('zh');
   for (const html of [home(), home([{ id: 'r', mode: 'path', scope: [], index: 1, total: 4, title: 'Today' }])]) {
     assert.equal((html.match(/<h1/g) || []).length, 1);
-    assert.equal((html.match(/class="primary today-go"/g) || []).length, 1);
+    assert.equal((html.match(/class="sh-btn sh-btn--primary sh-btn--md today-go"/g) || []).length, 1);
     assert.ok(html.indexOf('focus-switch') < html.indexOf('<h1'), 'tabs come before the title in reading order');
   }
   setUiLanguage('en');

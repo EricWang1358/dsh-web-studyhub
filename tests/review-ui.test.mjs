@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { globalCss } from "./helpers/global-css.mjs";
 import { reviewElement } from "./helpers/review-render.mjs";
 
 const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx';", resolveDir: process.cwd() }, bundle: true,
@@ -168,18 +169,17 @@ test("a failed background assist offers 重新提交 and 改一改再提交 butt
 });
 
 test("the review page's column follows the shared reading width, so 版心宽度 changes the card and the explanation, not only the text inside a fixed 700px column", async () => {
-  const { readFileSync } = await import("node:fs");
   const html = render("quiz", true);
   const area = /<div class="question-area[^"]*"[^>]*style="([^"]*)"/.exec(html)?.[1] ?? "";
   assert.match(area, /--reading-measure:\s*\d+px/, "the reading measure reaches the column");
   assert.match(area, /--review-column:\s*calc\(var\(--reading-measure\)\s*-\s*4px\)/);
   assert.match(area, /--card-scale:\s*1(;|$)/, "16px is the designed size: scale 1");
-  const css = readFileSync(new URL("../ui/style.css", import.meta.url), "utf8");
+  const css = globalCss();
   assert.match(css, /\.question-area\s*\{[^}]*width:\s*min\(var\(--review-column,\s*700px\),\s*calc\(100% - 48px\)\)/, "the column is no longer a fixed 700px");
   for (const [name, pattern] of [
-    ["the stem", /\.question \{[^}]*font-size:\s*calc\(21px \* var\(--card-scale, 1\)\)/],
-    ["the options", /\.option \{[^}]*font-size:\s*calc\(16\.5px \* var\(--card-scale, 1\)\)/],
-    ["the flashcard face", /\.flash-prompt \{[^}]*font-size:\s*calc\(27px \* var\(--card-scale, 1\)\)/],
+    ["the stem", /\.question \{[^}]*font-size:\s*calc\(var\(--fs-2xl\) \* var\(--card-scale, 1\)\)/],
+    ["the options", /\.option \{[^}]*font-size:\s*calc\(var\(--fs-lg\) \* var\(--card-scale, 1\)\)/],
+    ["the flashcard face", /\.flash-prompt \{[^}]*font-size:\s*calc\(var\(--fs-3xl\) \* var\(--card-scale, 1\)\)/],
   ]) assert.match(css, pattern, `${name} follows the reading size`);
 });
 

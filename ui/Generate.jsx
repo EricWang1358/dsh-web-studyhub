@@ -1,6 +1,8 @@
-import { ui, uiFormat, getUiLanguage } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
+import { ingestPrompt } from "./agent-prompts/ingest.js";
+import { useStudy } from "./study-context.jsx";
+import generateTabsCss from "./generate-tabs.css";
 import React from "react";
-import Icon from "./Icon.jsx";
 import Ingest from "./Ingest.jsx";
 import JsonImport from "./JsonImport.jsx";
 import { kinds, useInjectCss } from "./shared.js";
@@ -11,7 +13,7 @@ import useIndexCoverage from './use-index-coverage.js';
 import GenerationPath from './GenerationPath.jsx';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
-import { Button, Disclosure, EmptyState, InlineMessage, PageHeader, SegmentedControl } from './components/index.js';
+import { Button, Chip, Disclosure, EmptyState, Icon, IconButton, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
@@ -40,7 +42,6 @@ export default function Generate({
   call,
   openDraft,
   setPage,
-  setNotice,
   genSource,
   setGenSource,
   gen,
@@ -58,6 +59,8 @@ export default function Generate({
   initialRetrieval = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
+  useInjectCss(generateTabsCss, "study-generate-tabs");
+  const { notify } = useStudy();
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
@@ -119,22 +122,14 @@ export default function Generate({
     // Only on entering the page, so 清空选择 still sticks.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = [
-    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", tour: "generate-from-sources" },
+    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", attrs: { "data-tour": "generate-from-sources" } },
     { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), icon: "file" },
     // Case-study papers (WP12): a long case with open questions, graded criterion by criterion.
-    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", tour: "generate-case" },
+    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", attrs: { "data-tour": "generate-case" } },
     // Recording into the conversation needs a chat that can take it (plan C3).
     ...(canChat ? [{ id: "chat", label: ui("在对话里录题"), note: ui("刷题软件、错题或截图") }] : []),
   ];
   const current = tabs.some((tab) => tab.id === genSource) ? genSource : "files";
-  function moveTab(event, index) {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
-    if (!step) return;
-    event.preventDefault();
-    const next = tabs[(index + step + tabs.length) % tabs.length];
-    setGenSource(next.id);
-    event.currentTarget.parentElement?.querySelector(`#generate-tab-${next.id}`)?.focus();
-  }
   function submit(event) {
     event.preventDefault();
     if (!model.ready || busy || !selectedSources.length || advice.blocked || referenceState.reason) return;
@@ -142,7 +137,7 @@ export default function Generate({
     act("generate", generationRequest(gen, { course: generationCourse, sourceIds: selectedSources }), (job) => {
       // Confirm with the deck's name, start the next deck from a clean form (P27),
       // and land where the progress card is (P26).
-      setNotice(generationStartedNotice(job, gen, materials));
+      notify(generationStartedNotice(job, gen, materials));
       setGen(current => freshGeneration(current, data.settings?.generation));
       if (onStarted) onStarted(job);
       else setPage("library");
@@ -155,31 +150,13 @@ export default function Generate({
     <section className="page generate-page">
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
         description={ui("用你的资料让 AI 出题，逐题检查后再发布；已经有现成的题目，也可以直接导入。")} />
-      <div className="source-mode" role="tablist" aria-label={ui("创建方式")}>
-        {tabs.map((tab, index) => (
-          <button
-            key={tab.id}
-            id={`generate-tab-${tab.id}`}
-            type="button"
-            role="tab"
-            aria-selected={current === tab.id}
-            aria-controls="generate-panel"
-            tabIndex={current === tab.id ? 0 : -1}
-            className={current === tab.id ? "source-tab active" : "source-tab"}
-            data-tour={tab.tour}
-            onClick={() => setGenSource(tab.id)}
-            onKeyDown={(event) => moveTab(event, index)}
-          >
-            <strong>{tab.label}</strong>
-            <small>{tab.note}</small>
-          </button>
-        ))}
-      </div>
-      <div className="generate-panel" role="tabpanel" id="generate-panel" aria-labelledby={`generate-tab-${current}`}>
+      <Tabs id="generate" className="source-mode" itemClassName="source-tab" label={ui("创建方式")} value={current} onChange={setGenSource}
+        items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
+      <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
       {current === "json" ? (
-        <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
+        <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={notify} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={setNotice} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={notify} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
@@ -188,41 +165,7 @@ export default function Generate({
           onOpenSettings={openSettings}
           start={(config) =>
             act("ingest.start", config, (mode) => {
-              const kindText = {
-                auto: "自动识别（有选项的保持单选/多选，没有选项的做成问答闪卡）",
-                flashcard: "一律闪卡",
-                quiz: "一律单选 MQ",
-                multi: "一律多选",
-                open: "一律开放问答",
-              }[mode.kind];
-              const mistakeText = {
-                auto: "我标明自己选错的记为错题",
-                all: "这批全部当错题",
-                none: "都不记为错题",
-              }[mode.mistakes];
-              askInChat(
-                getUiLanguage() === "en" ? [
-                  'Start recording questions: use study_workspace ingest to add questions I paste in this conversation (including quiz apps, Canvas mistakes and screenshots) directly to my study library without asking for confirmation again.',
-                  `- Deck: “${mode.deckTitle}”${mode.folder ? ` (folder: ${mode.folder})` : ''}`,
-                  `- Question type: ${{ auto: 'Preserve single/multiple-choice questions when options are present; otherwise create Q&A flashcards.', flashcard: 'Create Q&A flashcards.', quiz: 'Create single-choice questions; add distractors where options are missing.', multi: 'Create multiple-choice questions.', open: 'Create open-response questions with grading criteria.' }[mode.kind]}`,
-                  `- Mistakes: ${{ auto: 'Only mark questions I explicitly identify as answered incorrectly.', all: 'Mark every question in this batch as a mistake.', none: 'Do not mark any questions as mistakes.' }[mode.mistakes]}`,
-                  '- Preserve the original language of questions, options and answers. Reply in English.',
-                  '- For screenshots, transcribe questions, options and answers before importing. Large batches may be split.',
-                  '- If I paste a lecture PDF rather than existing questions, import its pages with source.import, then use generate to create a draft under the deck name above. Do not record lecture material as mistakes.',
-                  '- After each batch, briefly report the imported count, duplicates, failures with reasons, and inferred answers that need checking.',
-                  '- When I say “stop recording”, call ingest.stop.',
-                  'First batch of questions:', ''
-                ].join('\n') :
-                "开始录题：接下来这段对话里我贴的题目（刷题软件、Canvas 错题记录、截图都可能），请都用 study_workspace 的 ingest 直接录入学习库，不用再问我确认。\n" +
-                  "- 题组：「" + mode.deckTitle + "」" + (mode.folder ? "（目录 " + mode.folder + "）" : "") + "\n" +
-                  "- 题型：" + kindText + "\n" +
-                  "- 错题：" + mistakeText + "\n" +
-                  "- 截图请先逐字转写题目、选项和答案再录入；一次贴很多题时可以分批。\n" +
-                  "- 如果我贴的是讲义 PDF 而不是现成题目，请用 source.import 按页导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n" +
-                  "- 每批录完简短告诉我：录入几道、哪些重复、哪些没录成功及原因、哪些答案是推断的需要我核对。\n" +
-                  "- 我说「停止录题」时调用 ingest.stop。\n" +
-                  "第一批题目：\n",
-              );
+              askInChat(ingestPrompt({ deckTitle: mode.deckTitle, folder: mode.folder, kind: mode.kind, mistakes: mode.mistakes }));
             })
           }
         />
@@ -250,7 +193,7 @@ export default function Generate({
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
               <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal} call={call} askInChat={askInChat}
-                indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} setNotice={setNotice} onSettings={openSettings}
+                indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} setNotice={notify} onSettings={openSettings}
                 onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
                 onQueued={() => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); }} />
             </fieldset>
@@ -270,20 +213,20 @@ export default function Generate({
                 <FormRow label={ui("题数")} htmlFor="generate-count">
                   <div className="generate-count">
                     <div className="generate-stepper" role="group" aria-label={ui("题数")}>
-                      <button type="button" aria-label={ui("减少题数")} disabled={clampCount(gen.count) <= COUNT_MIN} onClick={() => setGen({ ...gen, count: stepCount(gen.count, -1) })}>−</button>
+                      <IconButton icon="minus" size="sm" label={ui("减少题数")} disabled={clampCount(gen.count) <= COUNT_MIN} onClick={() => setGen({ ...gen, count: stepCount(gen.count, -1) })} />
                       <input id="generate-count" type="number" min={COUNT_MIN} max={COUNT_MAX} inputMode="numeric" required value={gen.count}
                         onChange={(e) => setGen({ ...gen, count: e.target.value })}
                         onBlur={(e) => setGen({ ...gen, count: clampCount(e.target.value) })} />
-                      <button type="button" aria-label={ui("增加题数")} disabled={clampCount(gen.count) >= COUNT_MAX} onClick={() => setGen({ ...gen, count: stepCount(gen.count, 1) })}>+</button>
+                      <IconButton icon="plus" size="sm" label={ui("增加题数")} disabled={clampCount(gen.count) >= COUNT_MAX} onClick={() => setGen({ ...gen, count: stepCount(gen.count, 1) })} />
                     </div>
                     <div className="generate-chips" role="group" aria-label={ui("常用题数")}>
                       {COUNT_PRESETS.map((preset) => (
-                        <button type="button" key={preset} className="generate-chip generate-preset" aria-pressed={Number(gen.count) === preset}
-                          onClick={() => setGen({ ...gen, count: preset })}>{preset}</button>
+                        <Chip key={preset} className="generate-preset" selected={Number(gen.count) === preset}
+                          onClick={() => setGen({ ...gen, count: preset })}>{preset}</Chip>
                       ))}
                       {suggestedCount && suggestedCount !== Number(gen.count) && (
-                        <button type="button" className="generate-chip generate-hint" title={ui("按资料大小估算，点一下采用")}
-                          onClick={() => setGen({ ...gen, count: suggestedCount })}>{uiFormat("建议 {0} 题", [suggestedCount])}</button>
+                        <Chip className="generate-hint" title={ui("按资料大小估算，点一下采用")}
+                          onClick={() => setGen({ ...gen, count: suggestedCount })}>{uiFormat("建议 {0} 题", [suggestedCount])}</Chip>
                       )}
                     </div>
                   </div>
@@ -333,7 +276,7 @@ export default function Generate({
             </fieldset>
             <div className="generate-submit" data-tour="generate-summary">
               <div className="quality-note">
-                <Icon>✧</Icon>
+                <Icon name="sparkle" />
                 <p>{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}<br />
                   <small>{ui("发布时会再次逐题检查；合格题先发布，未通过的题可选择交给后台修复。")}</small>
                 </p>
@@ -360,7 +303,7 @@ export default function Generate({
           </form>
         </>
       )}
-      </div>
+      </TabPanel>
     </section>
   );
 }

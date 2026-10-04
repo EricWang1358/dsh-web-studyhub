@@ -22,7 +22,7 @@ test('proposal shows reasons, estimates and an explicit acceptance control befor
   assert.match(html, /上次混淆了两个概念/);
   assert.match(html, /15/);
   assert.match(html, /接受这份安排/);
-  assert.match(html, /调整今天/);
+  assert.match(html, /aria-haspopup="menu"[^>]*>(?:<[^>]*>)*调整</, 'the adjustments are one menu (wave 3, #173)');
   assert.doesNotMatch(html, /<textarea/);
   assert.match(html, /尚未加入待办/);
 });

@@ -46,7 +46,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
     {content ? <TeachingArticle content={content} /> : <div className="wf-teaching-empty">
       <p>{uiFormat("把「{0}」的概念、原理和例子连成一条线，再看看它适用于什么情境。", [topic])}</p>
       <p className="muted">{ui("结合本次材料，生成可直接阅读的讲解；有公式或推导时逐步展开。")}</p>
-      {!running && <button type="button" className="primary" disabled={blocked} onClick={() => onTeach("lesson")}>{ui("生成完整讲解")}</button>}
+      {!running && <Button variant="primary" disabled={blocked} onClick={() => onTeach("lesson")}>{ui("生成完整讲解")}</Button>}
       {!running && <TokenEstimate call={call} action="workflow.teaching.estimate" enabled={!!call && !!sessionId} request={{ id: sessionId, stepId, mode: "lesson" }} />}
     </div>}
     <TeachingCitations citations={record.citations} sources={resources.sources} />
@@ -54,12 +54,12 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
     {failed && <div className="wf-failure">{!interrupted && teaching.message ? <ModelErrorNote error={teaching.message} /> : <InlineMessage tone="warning">{interrupted ? ui("上次生成已中断，可以重新开始。") : ui("这次讲解没有生成成功，请重试。")}</InlineMessage>}<Button size="sm" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>{ui("重新生成")}</Button></div>}
     {unavailable && <p className="wf-model-hint">{ui("连接模型后即可生成讲解；也可以在下方请主对话补充材料。")}</p>}
     {content && <div className="wf-teaching-tools">
-      <div className="wf-help-row"><span>{ui("帮我弄懂")}</span><div className="wf-quick-choices" role="group" aria-label={ui("帮助方式")}>{HELP.map((item) => <button type="button" key={item.mode} disabled={blocked} onClick={() => onTeach(item.mode)}>{ui(item.label)}</button>)}<button type="button" disabled={blocked} onClick={() => onTeach("improve")}>{ui("改进讲解")}</button></div></div>
-      <details className="wf-improve"><summary>{ui("提升讲解质量")}</summary><p className="muted small">{ui("选一个最需要改进的地方，会重写本步讲解。")}</p><div className="wf-quick-choices" role="group" aria-label={ui("改进方向")}>{IMPROVE.map((item) => <button type="button" key={item} disabled={blocked} onClick={() => onTeach("improve", item)}>{item}</button>)}<button type="button" disabled={blocked} onClick={() => onTeach("improve")}>{ui("整体改进")}</button></div></details>
+      <div className="wf-help-row"><span>{ui("帮我弄懂")}</span><div className="wf-quick-choices" role="group" aria-label={ui("帮助方式")}>{HELP.map((item) => <Button key={item.mode} disabled={blocked} onClick={() => onTeach(item.mode)}>{ui(item.label)}</Button>)}<Button disabled={blocked} onClick={() => onTeach("improve")}>{ui("改进讲解")}</Button></div></div>
+      <details className="wf-improve"><summary>{ui("提升讲解质量")}</summary><p className="muted small">{ui("选一个最需要改进的地方，会重写本步讲解。")}</p><div className="wf-quick-choices" role="group" aria-label={ui("改进方向")}>{IMPROVE.map((item) => <Button key={item} disabled={blocked} onClick={() => onTeach("improve", item)}>{item}</Button>)}<Button disabled={blocked} onClick={() => onTeach("improve")}>{ui("整体改进")}</Button></div></details>
       {record.previousContent && <button type="button" className="wf-undo" disabled={disabled || running} onClick={onUndo}>{ui("撤销上次改写")}</button>}
     </div>}
     {teaching?.status === "done" && teaching.tokenUsage && <details className="wf-teaching-usage"><summary>{ui("本次讲解的用量")}</summary><TokenUsage usage={teaching.tokenUsage} /></details>}
     {others.length > 0 && <section className="wf-teaching-help" aria-label={ui("补充讲解")}><h4>{ui("再换一种方式理解")}</h4>{others.map((item, index) => <details key={item.id} open={index === others.length - 1}><summary>{item.title || HELP.find((entry) => entry.mode === item.kind)?.label || ui("补充讲解")}</summary><TeachingArticle content={item.content} /><TeachingCitations citations={item.citations} sources={resources.sources} /></details>)}</section>}
-    <details className="wf-teaching-custom"><summary>{ui("补充我的具体疑问")}</summary><form onSubmit={(event) => { event.preventDefault(); if (request.trim()) onTeach(content ? "steps" : "lesson", request.trim()); }}><label>{ui("想弄懂哪一点？")}<textarea rows={2} maxLength={1000} value={request} disabled={blocked} onChange={(event) => setRequest(event.target.value)} placeholder={ui("例如：用一个日常例子解释这两个概念的区别。")} /></label><button type="submit" disabled={blocked || !request.trim()}>{ui("按我的问题讲解")}</button></form></details>
+    <details className="wf-teaching-custom"><summary>{ui("补充我的具体疑问")}</summary><form onSubmit={(event) => { event.preventDefault(); if (request.trim()) onTeach(content ? "steps" : "lesson", request.trim()); }}><label>{ui("想弄懂哪一点？")}<textarea rows={2} maxLength={1000} value={request} disabled={blocked} onChange={(event) => setRequest(event.target.value)} placeholder={ui("例如：用一个日常例子解释这两个概念的区别。")} /></label><Button type="submit" disabled={blocked || !request.trim()}>{ui("按我的问题讲解")}</Button></form></details>
   </section>;
 }

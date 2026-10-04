@@ -1,0 +1,292 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.reset {
+  .study-seat {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    contain: layout paint;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  /* Dark is the product identity, so `auto` stays dark by default. Learners who
+     want the light palette opt in explicitly via the theme toggle. */
+  /* The element layer (#137): typography, form-control fonts and the plain look of a raw <button>, <input>, <label> and <small>. It sits
+     in the lowest cascade layer, so every component and feature rule outranks it; the hover / disabled / focus states are the block
+     below the layer, because those used to out-rank a feature's own rules. */
+  .study-app {
+    font-family: var(--font-ui);
+    color: var(--text);
+    background: transparent;
+    font-synthesis: none;
+    font-size: var(--fs-md);
+  }
+  :where(.study-app, .study-seat) {
+    * {
+      box-sizing: border-box;
+    }
+    & button,
+    & input,
+    & textarea,
+    & select {
+      font: inherit;
+    }
+    & button {
+      cursor: pointer;
+      color: inherit;
+      background: color-mix(in srgb, var(--text) 5%, transparent);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 9px 14px;
+      transition:
+        background var(--dur-fast) var(--ease),
+        border-color var(--dur-fast) var(--ease);
+    }
+    & input,
+    & textarea,
+    & select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      padding: var(--space-3);
+      color: var(--text);
+      line-height: 1.6;
+      transition:
+        border-color var(--dur-fast) var(--ease),
+        box-shadow var(--dur-fast) var(--ease),
+        background var(--dur-fast) var(--ease);
+    }
+    & input::placeholder,
+    & textarea::placeholder {
+      color: var(--text-faint);
+    }
+    & textarea {
+      resize: vertical;
+    }
+    & label {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      margin: 19px 0;
+      color: var(--text);
+    }
+    & label small,
+    & small,
+    .muted {
+      color: var(--text-muted);
+    }
+    & small {
+      font-size: var(--fs-md);
+      line-height: 1.6;
+    }
+    & h1,
+    & h2,
+    & h3,
+    & h4,
+    & p {
+      margin-top: 0;
+    }
+    & h1 {
+      font-family: var(--font-display);
+      font-size: var(--fs-3xl);
+      font-weight: var(--fw-strong);
+      letter-spacing: -0.02em;
+      line-height: 1.35;
+      margin-bottom: 10px;
+    }
+    & h2 {
+      font-family: var(--font-display);
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-strong);
+      letter-spacing: -0.01em;
+    }
+    & h3 {
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-medium);
+    }
+    & h4 {
+      font-size: var(--fs-md);
+    }
+    & p {
+      line-height: 1.8;
+    }
+    & strong {
+      font-weight: var(--fw-medium);
+    }
+  }
+  .study-app {
+    height: 100%;
+    min-height: 100%;
+    display: flex;
+    overflow: auto;
+    /* Reserve the scrollbar lane so short and long pages centre identically. */
+    scrollbar-gutter: stable;
+    position: relative;
+    container-type: inline-size;
+    isolation: isolate;
+    container-name: study;
+  }
+  :where(.study-app, .study-seat) {
+    .icon {
+      font-size: var(--fs-2xl);
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .eyebrow {
+      font-size: var(--fs-md);
+      letter-spacing: 2px;
+      color: var(--text-muted);
+      margin-bottom: 13px;
+    }
+    & fieldset {
+      min-width: 0;
+      border: 0;
+      border-top: 1px solid var(--line);
+      padding: 22px 0;
+      margin: 30px 0 var(--space-3);
+    }
+    & legend {
+      font-size: var(--fs-md);
+      padding-right: var(--space-4);
+      color: var(--text-dim);
+    }
+    .small {
+      font-size: var(--fs-md);
+    }
+  }
+  .study-app::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .study-app::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .study-app::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: var(--radius-sm);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .study-app::-webkit-scrollbar-thumb:hover {
+    background: var(--decor-faint);
+  }
+  @container study (max-width:1050px) {
+    :where(.study-app, .study-seat) {
+      & h1 {
+        font-size: var(--fs-2xl);
+      }
+    }
+  }
+  @container study (max-width:720px) {
+    :where(.study-app, .study-seat) {
+      .eyebrow {
+        font-size: var(--fs-md);
+      }
+    }
+  }
+  /* ── Surfaces ───────────────────────────────────────────────────────────
+     Flat, opaque desk surfaces. Depth is reserved for the card itself, so
+     panels get a hairline and no shadow. */
+  /* ── Desk ───────────────────────────────────────────────────────────────
+     Painted on the panel itself, never on the host viewport. No ambient glow:
+     the only lit object on the desk is the card. */
+  .study-app {
+    background-color: var(--bg-canvas);
+  }
+  :where(.study-app, .study-seat) {
+    /* ── Focus ring ──────────────────────────────────────────────────────── */
+  }
+  /* 界面大小 / 界面字体 (设置 › 界面): the whole interface scales with CSS zoom (text, controls and spacing together; the app box keeps filling the window), and the
+     typeface of its text switches by attribute. 100% and the system typeface are the defaults and need no rule. Reading text keeps its own Aa settings. */
+  .study-app { zoom: var(--study-ui-scale, 1); }
+  .study-app[data-ui-scale='90'] { --study-ui-scale: 0.9; }
+  .study-app[data-ui-scale='110'] { --study-ui-scale: 1.1; }
+  .study-app[data-ui-scale='125'] { --study-ui-scale: 1.25; }
+  .study-app[data-ui-scale='150'] { --study-ui-scale: 1.5; }
+  .study-app[data-ui-scale='175'] { --study-ui-scale: 1.75; }
+  .study-app[data-ui-scale='200'] { --study-ui-scale: 2; }
+}
+
+/* The element states (#137). A raw <button>, <input> or link keeps its hover, disabled and focus look, and these rules beat the
+   plain class rules of a feature (a feature's own button background used to lose to the hover rule: it still does). They sit in the
+   features layer for that reason, and an element that carries an sh- class is left out: the primitives own their states. */
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    & button:where(:not([class^="sh-"], [class*=" sh-"])):hover:not(:disabled) {
+      background: color-mix(in srgb, var(--text) 11%, transparent);
+      border-color: var(--line-strong);
+    }
+    & button:where(:not([class^="sh-"], [class*=" sh-"])):disabled {
+      cursor: default;
+      opacity: 0.4;
+    }
+    & button:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & a:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & input:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 3px;
+    }
+    & input:where(:not([class^="sh-"], [class*=" sh-"])):focus,
+    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus,
+    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus {
+      border-color: var(--accent-soft);
+      background: var(--bg-surface);
+      box-shadow: var(--ring);
+      outline: none;
+    }
+    & input:where(:not([class^="sh-"], [class*=" sh-"]))[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--accent);
+    }
+    & button:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & a:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & input:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
+      box-shadow: var(--ring);
+    }
+  }
+}
+
+/* Keyframes live at the top level: browsers ignore @keyframes nested inside
+   a style rule, so animations referenced from the :where(.study-app) block
+   above find their frames here. */
+@keyframes mark-in {
+  from { opacity: 0; }
+}
+@keyframes badge-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+@keyframes follow-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes card-deal {
+  from {
+    opacity: 0;
+    transform: translateY(22px) rotate(2.5deg);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.994);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

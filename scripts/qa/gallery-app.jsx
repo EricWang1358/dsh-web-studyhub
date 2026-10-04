@@ -2,7 +2,7 @@
    scripts/qa/gallery.mjs. Query: ?lang=zh|en&theme=dark|light&scene=all|toast|dialog|full|drop */
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import styleCss from '../../ui/style.css';
+import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
 import ActionFeedback from '../../ui/ActionFeedback.jsx';
 import ModalFrame from '../../ui/ModalFrame.jsx';

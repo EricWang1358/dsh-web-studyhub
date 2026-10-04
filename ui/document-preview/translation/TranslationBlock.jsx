@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, InlineMessage, Menu, Spinner } from '../../components/index.js';
+import { Button, Icon, InlineMessage, Menu, Spinner } from '../../components/index.js';
+import { useCopyFeedback } from '../../use-copy-feedback.js';
 import MathText from '../../MathText.jsx';
 import Glyph from './Glyph.jsx';
 import { failureKind, shortQuote, versionOf } from './model.js';
@@ -53,9 +54,10 @@ function History({ item }) {
 function Bar({ open, onToggle, target, item, menu, preview, copied }) {
   const version = versionOf(item), selection = item?.kind === 'selection';
   return <div className="tr-block__bar">
-    <button type="button" className="tr-fold" aria-expanded={open} aria-label={open ? ui('收起译文') : ui('展开译文')} title={open ? ui('收起译文') : ui('展开译文')} onClick={onToggle}>
-      <Glyph name="down" /><span className="tr-block__tag" aria-hidden="true">{targetTag(target)}</span>
-    </button>
+    <Button variant="quiet" size="sm" className="tr-fold" aria-expanded={open} aria-label={open ? ui('收起译文') : ui('展开译文')} title={open ? ui('收起译文') : ui('展开译文')} onClick={onToggle}
+      icon={<Glyph name="down" />}>
+      <span className="tr-block__tag" aria-hidden="true">{targetTag(target)}</span>
+    </Button>
     {selection && <span className="tr-chip tr-chip--quote" title={item.quote}>{shortQuote(item.quote, 40)}</span>}
     {version && <span className="tr-chip" title={version.comment || undefined}>{version.comment ? uiFormat('v{0} · 意见：{1}', [version.version, shortQuote(version.comment, 36)]) : uiFormat('v{0}', [version.version])}</span>}
     {item?.outdated && <span className="tr-chip tr-chip--warn" title={ui('术语表改过了，这段译文可能还没按新术语翻译；可以重新翻译。')}>{ui('术语表已改')}</span>}
@@ -70,9 +72,9 @@ function Bar({ open, onToggle, target, item, menu, preview, copied }) {
  * spinner (with the old translation, dimmed, when it is a retranslation), in 'error' the reason and a retry, in 'undo' the few seconds
  * in which a deleted translation can come back.
  */
-export default function TranslationBlock({ state, item, target, open, pendingKind, error, onToggle, onCopy, onDelete, onRetranslate, onGlossary, onCancel, onRetry, onUndo, onDismiss }) {
-  const [asking, setAsking] = useState(false), [copied, setCopied] = useState(false), timer = useRef(0);
-  useEffect(() => () => clearTimeout(timer.current), []);
+export default function TranslationBlock({ state, item, target, open, pendingKind, error, onToggle, onDelete, onRetranslate, onGlossary, onCancel, onRetry, onUndo, onDismiss }) {
+  const [asking, setAsking] = useState(false);
+  const { copied, copy } = useCopyFeedback(() => item?.text ?? '', { resetMs: 1600 });
   const lang = targetLang(target), tag = targetTag(target);
   if (state === 'undo') return <div className="tr-block tr-block--note" role="status" data-state="undo">
     <span>{ui('已删除这段翻译')}</span><Button size="sm" variant="quiet" onClick={onUndo}>{ui('撤销')}</Button>
@@ -87,11 +89,10 @@ export default function TranslationBlock({ state, item, target, open, pendingKin
   // Collapsed: no frame at all. The paragraph's own 译 (filled) opens it again.
   if (!open) return null;
   const busy = state === 'pending';
-  const copy = async () => { const ok = await onCopy?.(); setCopied(ok !== false); clearTimeout(timer.current); timer.current = setTimeout(() => setCopied(false), 1600); };
   const choose = { copy, again: () => setAsking(true), glossary: onGlossary, delete: onDelete };
   const menu = <Menu className="tr-menu" label={ui('这段译文的更多操作')} onSelect={id => choose[id]()} items={[
     { id: 'copy', icon: <Glyph name="copy" />, label: ui('复制译文') },
-    { id: 'again', icon: <Glyph name="retry" />, label: ui('重新翻译…'), disabled: busy },
+    { id: 'again', icon: <Icon name="refresh" size={16} />, label: ui('重新翻译…'), disabled: busy },
     { id: 'glossary', icon: <Glyph name="book" />, label: ui('术语表…') },
     { id: 'delete', icon: <Glyph name="trash" />, label: ui('删除这段翻译'), danger: true, disabled: busy },
   ]} />;

@@ -4,16 +4,18 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { mapProps } from './helpers/study-map-props.mjs';
 
 // D1 / P08 / P12 / P15 / P26 / P28 / P29: the library home guides a newcomer
 // from materials to a first deck, shows generation progress at the top in
 // plain words, and keeps advanced blocks out of an empty library.
-const compiled = await build({ stdin: { contents: `export { default as StudyMap } from './ui/StudyMap.jsx'; export { setUiLanguage } from './ui/i18n.js';`,
+const compiled = await build({ stdin: { contents: `export { default as StudyMap } from './ui/StudyMap.jsx'; export { StudyServicesContext } from './ui/study-context.jsx';
+  export { ModelSettingsContext } from './ui/ModelErrorNote.jsx'; export { setUiLanguage } from './ui/i18n.js';`,
   resolveDir: process.cwd() }, bundle: true, write: false, platform: "node", format: "cjs", external: ["react"],
   loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { StudyMap, setUiLanguage } = module.exports;
+const { StudyMap, StudyServicesContext, ModelSettingsContext, setUiLanguage } = module.exports;
 const noop = () => {};
 const deck = { id: "d1", title: "行为型模式", folder: "CS3219", course: "CS3219", topics: ["Memento"],
   available: 5, count: 5, quizCount: 3, createdAt: "2026-09-01T00:00:00Z" };
@@ -23,17 +25,22 @@ const pdfPages = [{ id: "p1", title: "讲义 第 1 页", text: "x", document: { 
   { id: "p2", title: "讲义 第 2 页", text: "x", document: { id: "pdf", page: 2 } }];
 const empty = { decks: [], progress: {}, sources: [], drafts: [], jobs: [], runs: [],
   today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: "class", course: "", courses: [], fresh: [] } };
+/* The home reads its services from the app (chat ability, the model settings entry); the test supplies just those. */
 function render(patch = {}, props = {}) {
   const data = { root: "/tmp/lib", ...empty, ...patch };
-  return renderToStaticMarkup(React.createElement(StudyMap, {
-    data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop,
+  const { canChat = false, openModelSettings = noop, ...rest } = props;
+  const services = { call: async () => undefined, act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: { capabilities: { chat: canChat } },
+    openSettings: noop, navigate: noop, openModal: noop };
+  const home = React.createElement(StudyMap, mapProps({
+    data, start: noop, resume: noop, manage: noop, openDraft: noop,
     continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop,
-    askInChat: noop, notebooks: { notebooks: [] }, onFocus: noop, cancelJob: noop, dismissJob: noop,
-    generateFromSources: noop, openModelSettings: noop, canChat: false, ...props,
+    notebooks: { notebooks: [] }, generateFromSources: noop, ...rest,
   }));
+  return renderToStaticMarkup(React.createElement(ModelSettingsContext.Provider, { value: openModelSettings },
+    React.createElement(StudyServicesContext.Provider, { value: services }, home)));
 }
-const primaries = (html) => (html.match(/class="primary[^"]*"/g) || []).length;
-const primaryLabel = (html) => html.match(/<button class="primary today-go"[^>]*>(.*?)<span/)?.[1];
+const primaries = (html) => (html.match(/class="[^"]*sh-btn--primary[^"]*"/g) || []).length;
+const primaryLabel = (html) => html.match(/<button[^>]*class="[^"]*sh-btn--primary[^"]*today-go[^"]*"[^>]*>(.*?)<svg/)?.[1];
 // Technical details may keep raw provider wording; everything else must read in the UI language.
 const withoutTechDetails = (html) => html.replace(/<details class="sh-disclosure tech-details"[\s\S]*?<\/details>/g, "");
 const visibleText = (html) => html.replace(/<[^>]+>/g, " ");

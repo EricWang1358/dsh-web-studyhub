@@ -1,120 +1,123 @@
-/* WP27 · token usage the way DSH's session panel shows it: the rows of one usage
-   or estimate, the estimate line with its info panel, a job's usage and the
-   stats section. Injected by TokenUsage.jsx ('study-token-usage'). Tokens only;
-   narrow panes follow the `study` container. */
-:is(.study-app, .study-seat) .token-usage {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 0;
-}
-:is(.study-app, .study-seat) .token-usage:not(.token-usage--inline) { max-width: 34rem; }
-:is(.study-app, .study-seat) .token-usage__rows {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  margin: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-  overflow: hidden;
-}
-:is(.study-app, .study-seat) .token-usage__row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: 5px var(--space-4);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-  font-variant-numeric: tabular-nums;
-}
-:is(.study-app, .study-seat) .token-usage__row + .token-usage__row { border-top: 1px solid var(--line); }
-:is(.study-app, .study-seat) .token-usage__row dt { margin: 0; color: var(--text-dim); font-weight: 400; }
-:is(.study-app, .study-seat) .token-usage__row dd { margin: 0; color: var(--text); text-align: right; white-space: nowrap; }
-/* DSH puts the total first and larger: it is the one number most people want. */
-:is(.study-app, .study-seat) .token-usage__row--total { background: var(--bg-sunken); }
-:is(.study-app, .study-seat) .token-usage__row--total dt { color: var(--text); font-weight: 600; }
-:is(.study-app, .study-seat) .token-usage__row--total dd { font-weight: 700; }
-:is(.study-app, .study-seat) .token-usage__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-:is(.study-app, .study-seat) .token-usage__calls { color: var(--text-muted); }
-:is(.study-app, .study-seat) .token-usage__copy { margin-inline-start: auto; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-/* Side by side: a feature in the stats keeps every field on one wrapped line. */
-:is(.study-app, .study-seat) .token-usage--inline .token-usage__rows {
-  display: flex;
-  flex-wrap: wrap;
-  border: 0;
-  background: transparent;
-  gap: 2px var(--space-5);
-}
-:is(.study-app, .study-seat) .token-usage--inline .token-usage__row { padding: 0; gap: var(--space-2); border: 0; background: transparent; }
-:is(.study-app, .study-seat) .token-usage--inline .token-usage__row + .token-usage__row { border-top: 0; }
-:is(.study-app, .study-seat) .token-usage--inline .token-usage__row dd { text-align: left; }
-:is(.study-app, .study-seat) .token-usage--inline .token-usage__row--total { background: transparent; }
-:is(.study-app, .study-seat) .token-usage--inline .token-usage__foot { display: none; }
-
-/* ── The estimate line ─────────────────────────────────────────────────── */
-:is(.study-app, .study-seat) .token-estimate { display: grid; gap: var(--space-2); min-width: 0; }
-:is(.study-app, .study-seat) .token-estimate:empty { display: none; }
-:is(.study-app, .study-seat) .token-estimate__line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-snug);
-  font-variant-numeric: tabular-nums;
-}
-:is(.study-app, .study-seat) .token-estimate__quiet { color: var(--text-muted); }
-:is(.study-app, .study-seat) .token-estimate__info {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text-dim);
-}
-:is(.study-app, .study-seat) .token-estimate__info:hover { background: var(--bg-hover); color: var(--text); }
-:is(.study-app, .study-seat) .token-estimate__info[aria-expanded='true'] { background: var(--bg-sunken); color: var(--accent-text); }
-:is(.study-app, .study-seat) .token-estimate__warn { margin: 0; color: var(--warn-text, var(--text)); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .token-estimate__panel {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md, var(--radius-sm));
-  background: var(--bg-surface);
-}
-:is(.study-app, .study-seat) .token-estimate__stages,
-:is(.study-app, .study-seat) .token-estimate__notes { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-:is(.study-app, .study-seat) .token-estimate__stages li { display: flex; justify-content: space-between; gap: var(--space-4); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .token-estimate__stages small { color: var(--text-muted); }
-:is(.study-app, .study-seat) .token-estimate__notes li { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-
-/* ── A job's usage ─────────────────────────────────────────────────────── */
-:is(.study-app, .study-seat) .job-usage { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
-:is(.study-app, .study-seat) .job-usage__title { font-size: var(--fs-sm); }
-:is(.study-app, .study-seat) .job-usage__expected { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .job-usage__note { color: var(--text-dim); line-height: var(--lh-snug); }
-
-/* ── 模型用量 in 学习统计 ──────────────────────────────────────────────── */
-:is(.study-app, .study-seat) .model-usage { display: grid; gap: var(--space-4); }
-:is(.study-app, .study-seat) .model-usage__days { display: flex; gap: var(--space-2); }
-:is(.study-app, .study-seat) .model-usage__list { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-:is(.study-app, .study-seat) .model-usage__item { display: grid; gap: 4px; min-width: 0; }
-:is(.study-app, .study-seat) .model-usage__item--total { padding-top: var(--space-3); border-top: 1px solid var(--line); }
-:is(.study-app, .study-seat) .model-usage__name { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .model-usage__bar { display: block; height: 6px; border-radius: var(--radius-pill); background: var(--bg-sunken); overflow: hidden; }
-:is(.study-app, .study-seat) .model-usage__bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent-soft); }
-:is(.study-app, .study-seat) .model-usage__foot { display: flex; justify-content: flex-end; }
-:is(.study-app, .study-seat) .model-usage__audio { margin: 0; font-size: var(--fs-sm); }
-
-@container study (max-width: 520px) {
-  :is(.study-app, .study-seat) .token-usage--inline .token-usage__rows { flex-direction: column; gap: 2px; }
-  :is(.study-app, .study-seat) .token-usage--inline .token-usage__row { justify-content: space-between; }
-  :is(.study-app, .study-seat) .token-usage--inline .token-usage__row dd { text-align: right; }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* WP27 · token usage the way DSH's session panel shows it: the rows of one usage
+       or estimate, the estimate line with its info panel, a job's usage and the
+       stats section. Injected by TokenUsage.jsx ('study-token-usage'). Tokens only;
+       narrow panes follow the `study` container. */
+    .token-usage {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .token-usage:not(.token-usage--inline) { max-width: 34rem; }
+    .token-usage__rows {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      overflow: hidden;
+    }
+    .token-usage__row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: 5px var(--space-4);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      font-variant-numeric: tabular-nums;
+    }
+    .token-usage__row + .token-usage__row { border-top: 1px solid var(--line); }
+    .token-usage__row dt { margin: 0; color: var(--text-dim); font-weight: var(--fw-regular); }
+    .token-usage__row dd { margin: 0; color: var(--text); text-align: right; white-space: nowrap; }
+    /* DSH puts the total first and larger: it is the one number most people want. */
+    .token-usage__row--total { background: var(--bg-sunken); }
+    .token-usage__row--total dt { color: var(--text); font-weight: var(--fw-strong); }
+    .token-usage__row--total dd { font-weight: var(--fw-strong); }
+    .token-usage__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .token-usage__calls { color: var(--text-muted); }
+    .token-usage__copy { margin-inline-start: auto; }
+    /* Side by side: a feature in the stats keeps every field on one wrapped line. */
+    .token-usage--inline .token-usage__rows {
+      display: flex;
+      flex-wrap: wrap;
+      border: 0;
+      background: transparent;
+      gap: var(--space-half) var(--space-5);
+    }
+    .token-usage--inline .token-usage__row { padding: 0; gap: var(--space-2); border: 0; background: transparent; }
+    .token-usage--inline .token-usage__row + .token-usage__row { border-top: 0; }
+    .token-usage--inline .token-usage__row dd { text-align: left; }
+    .token-usage--inline .token-usage__row--total { background: transparent; }
+    .token-usage--inline .token-usage__foot { display: none; }
+    /* ── The estimate line ─────────────────────────────────────────────────── */
+    .token-estimate { display: grid; gap: var(--space-2); min-width: 0; }
+    .token-estimate:empty { display: none; }
+    .token-estimate__line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      font-variant-numeric: tabular-nums;
+    }
+    .token-estimate__quiet { color: var(--text-muted); }
+    .token-estimate__info {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: transparent;
+      color: var(--text-dim);
+    }
+    .token-estimate__info:hover { background: var(--bg-hover); color: var(--text); }
+    .token-estimate__info[aria-expanded='true'] { background: var(--bg-sunken); color: var(--accent-text); }
+    .token-estimate__warn { margin: 0; color: var(--warn-text, var(--text)); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .token-estimate__panel {
+      display: grid;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md, var(--radius-sm));
+      background: var(--bg-surface);
+    }
+    .token-estimate__stages,
+    .token-estimate__notes { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+    .token-estimate__stages li { display: flex; justify-content: space-between; gap: var(--space-4); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .token-estimate__stages small { color: var(--text-muted); }
+    .token-estimate__notes li { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    /* ── A job's usage ─────────────────────────────────────────────────────── */
+    .job-usage { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
+    .job-usage__title { font-size: var(--fs-sm); }
+    .job-usage__expected { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .job-usage__note { color: var(--text-dim); line-height: var(--lh-snug); }
+    /* ── 模型用量 in 学习统计 ──────────────────────────────────────────────── */
+    .model-usage { display: grid; gap: var(--space-4); }
+    .model-usage__days { display: flex; gap: var(--space-2); }
+    .model-usage__list { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+    .model-usage__item { display: grid; gap: var(--space-1); min-width: 0; }
+    .model-usage__item--total { padding-top: var(--space-3); border-top: 1px solid var(--line); }
+    .model-usage__name { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-variant-numeric: tabular-nums; }
+    .model-usage__bar { display: block; height: 6px; border-radius: var(--radius-pill); background: var(--bg-sunken); overflow: hidden; }
+    .model-usage__bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent-soft); }
+    .model-usage__foot { display: flex; justify-content: flex-end; }
+    .model-usage__audio { margin: 0; font-size: var(--fs-sm); }
+  }
+  @container study (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      .token-usage--inline .token-usage__rows { flex-direction: column; gap: var(--space-half); }
+      .token-usage--inline .token-usage__row { justify-content: space-between; }
+      .token-usage--inline .token-usage__row dd { text-align: right; }
+    }
+  }
 }

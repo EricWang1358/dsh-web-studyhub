@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ui } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 import { Button, InlineMessage } from '../components/index.js';
 
 /** The role the learner is preparing for (interview mode), as an editable draft that follows the saved focus. */
@@ -45,9 +45,9 @@ export default function RoleSuggestion({ data, role, suggestRole, onFocus, start
       </details>
       {!!focus.roleWeak?.length && <div className="role-weak">
         <strong>{ui('优先练这些薄弱点')}</strong>
-        {focus.roleWeak.slice(0, 3).map((item) => <Button key={`${item.deckId}:${item.topic}`} size="sm"
+        {focus.roleWeak.slice(0, 3).map((item) => <Button key={`${item.deckId}:${item.topic}`} size="sm" iconEnd="arrow-right"
           onClick={() => start({ mode: 'path', scope: [{ deckId: item.deckId, topic: item.topic }] })}>
-          {item.topic} · {item.weak}{ui(' 道薄弱题 →')}</Button>)}
+          {uiFormat('{0} · {1} 道薄弱题', [item.topic, item.weak])}</Button>)}
       </div>}
     </div>
   );

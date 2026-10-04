@@ -1,0 +1,14 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* Surfaces that became <Panel> (ui-consistency #143). The feature classes (.draft-card, .sk-panel, .welcome-card) stay for their
+       inner layout; what they said about the surface (border, radius, padding, background) is now the Panel's, and these rules only
+       settle what the Panel does not know: the spacing between neighbours, and the one place a desk panel had borrowed the paper
+       card's radius. The old declarations in style.css, skeleton.css and welcome.css are superseded and can be deleted. Tokens only. */
+    .draft-card.sh-panel { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); }
+    .sk-panel.sh-panel { border-color: var(--line-soft); }
+    .welcome-card.sh-panel { padding: var(--space-5); border-radius: var(--radius); }
+    .welcome-card--lead.sh-panel { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%), var(--bg-raised); }
+  }
+}

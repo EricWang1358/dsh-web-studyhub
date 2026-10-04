@@ -1,0 +1,11 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The practice page's buttons are the shared <Button> (ui-consistency #135). A shared button never wraps its label; a long label in a
+       narrow column (the teaching form at 320px, the question toolbar) must be allowed to, or it widens the whole column. Tokens only. */
+    .teaching-panel form > .sh-btn { min-width: 0; max-width: 100%; white-space: normal; text-align: center; }
+    .question-navigation > .sh-btn { min-width: 0; white-space: normal; }
+    .assist-actions > .sh-btn { white-space: normal; }
+  }
+}

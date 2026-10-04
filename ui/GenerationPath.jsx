@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat, uiLocale, getUiLanguage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, InlineMessage } from './components/index.js';
+import { Button, InlineMessage, useToast } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
 import { applyPathRefinement, planGenerationPath, stepTitleOf, STEP_CHARS } from '../lib/generation-path.js';
 import { MATTER_WORDS, pathBrief, queueSteps, selectedItems } from './generation-path-flow.js';
@@ -34,7 +34,8 @@ const matterWord = step => ui(MATTER_WORDS[step.matter]?.zh || MATTER_WORDS.fron
 /** What an optional step is, in words: "可选 · 默认跳过（索引）" / "Optional · skipped by default (Index)". */
 const optionalTag = step => uiFormat('可选 · 默认跳过（{0}）', [matterWord(step)]);
 
-export default function GenerationPath({ sources, selectedIds, onUseStep, gen, course = '', goal = '', call, askInChat, indexCoverage = null, disabled = false, onQueued, setNotice, onSettings }) {
+export default function GenerationPath({ sources, selectedIds, onUseStep, gen, course = '', goal = '', call, askInChat, indexCoverage = null, disabled = false, onQueued, onSettings }) {
+  const toast = useToast();
   useInjectCss(css, 'study-generation-path');
   const items = useMemo(() => selectedItems(sources, selectedIds), [sources, selectedIds]);
   const total = items.reduce((sum, item) => sum + (item.chars || 0), 0);
@@ -63,7 +64,7 @@ export default function GenerationPath({ sources, selectedIds, onUseStep, gen, c
     setQueueing(true); setReport(null);
     const result = await queueSteps(call, included, gen, { course });
     setQueueing(false); setReport(result);
-    if (result.started.length) { setNotice?.({ text: uiFormat('已按顺序排队 {0} 个出题任务。', [result.started.length]), tone: 'success' }); onQueued?.(result); }
+    if (result.started.length) { toast.success(uiFormat('已按顺序排队 {0} 个出题任务。', [result.started.length])); onQueued?.(result); }
   }
   // The conversation gets every step (in the language of the screen): the ones switched off are listed as steps to skip.
   const chat = () => askInChat?.(pathBrief({ steps: steps.map(step => ({ ...step, title: stepTitle(step) })), course, goal, indexed, language: getUiLanguage() }));

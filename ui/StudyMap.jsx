@@ -1,6 +1,9 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useEffect, useRef, useState } from "react";
-import { Icon } from "./components/index.js";
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { Button, Icon, useToast } from "./components/index.js";
+import { useStudy } from "./study-context.jsx";
+import { ModelSettingsContext } from "./ModelErrorNote.jsx";
+import { dismissJobs, useQuickActions } from "./quick-actions.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import { modelReadiness } from "./generation-status.js";
 import focusCss from "./focus.css";
@@ -30,14 +33,32 @@ import SelectionBar from "./study-map/SelectionBar.jsx";
 /* The library home: the day's one card, the course heading, generation
    progress and drafts, and the catalogue of decks by course. Each part lives in
    ui/study-map; this component wires the data to them and owns the few
-   switches (search, archived, other and parked courses). */
-export default function StudyMap({
-  data, busy, start, resume, endRun, manage, restoreDeck, removeDeck, openDraft, continueDraft, call, retryGeneration, openAgent,
-  cancelJob, dismissJob, addSource, createManual, importLibrary, askInChat, notebooks, notebookError, onNotebookPublish,
-  onNotebookUnpublish, onNotebookOpen, refreshNotebooks, onNotebookSearch, onShowGraph, onFocus, onCourseSettings, suggestRole,
-  suggestMerges, mergeDecks, startCourseFlow, generateFromSources, setupHandlers, onCoachPractice, onWeakPoints, openModelSettings,
-  canChat = false, reveal, onRevealed, children,
-}) {
+   switches (search, archived, other and parked courses).
+   The services (call, act, busy, askInChat, host) come from useStudy(); what is left to pass is the
+   library snapshot and the verbs only the app can do:
+     actions        { start, resume, manage, removeDeck, openDraft, continueDraft, retryGeneration, addSource, createManual,
+                      importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph,
+                      onCourseSettings } (see ui/app/page-views.jsx)
+     setupHandlers  the 课程准备 checklist's handlers (createSetupHandlers)
+     notebooks      the cross-workspace notebook directory (useNotebooks: notebooks, notebookError, publish, unpublish, open,
+                    loadNotebooks, search)
+     reveal / onRevealed   scroll the progress card into view after a generation starts */
+export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, children }) {
+  const { call, act, busy, askInChat, host } = useStudy();
+  const toast = useToast();
+  const quick = useQuickActions();
+  const openModelSettings = useContext(ModelSettingsContext) || undefined;
+  const canChat = host.capabilities?.chat ?? !!host.askInChat;
+  const { start, resume, manage, removeDeck, openDraft, continueDraft, retryGeneration, addSource, createManual, importLibrary,
+    generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph, onCourseSettings } = actions;
+  const endRun = (runId) => act("review.end", { runId });
+  const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
+  const cancelJob = (jobId) => act("job.cancel", jobId ? { jobId } : { all: true });
+  const dismissJob = (jobId) => dismissJobs(quick, jobId);
+  const onFocus = (next) => act("focus.set", next);
+  const suggestRole = (args) => call("focus.suggest", args);
+  const suggestMerges = (args) => call("deck.merge.suggest", args);
+  const mergeDecks = (args) => act("deck.merge", args, null, { rethrow: true });
   useInjectCss(focusCss, "study-focus");
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(caseCss, "study-case-workspace");
@@ -72,14 +93,14 @@ export default function StudyMap({
   const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, canChat, revealActivity,
     actions: { start, resume, openDraft, addSource, importLibrary, askInChat, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } });
   const drafts = data.drafts || [];
-  const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks || []).some((notebook) => !notebook.current);
+  const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
-  const actions = { start, resume, manage, askInChat, restoreDeck, removeDeck };
+  const deckActions = { start, resume, manage, askInChat, restoreDeck, removeDeck };
   return (
     <section className="page library-page map-page" ref={pageRef}>
       {children}
       <HomeActivity sectionRef={activityRef} jobs={visibleJobs} drafts={drafts} data={data} busy={busy} modelReady={modelReadiness(data).ready} call={call}
-        start={start} manage={manage} openDraft={openDraft} openAgent={openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
+        start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
         retryGeneration={retryGeneration} openModelSettings={openModelSettings} continueDraft={continueDraft} />
       {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after. */}
       <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} call={call} busy={busy} on={setupHandlers} />
@@ -98,19 +119,20 @@ export default function StudyMap({
       {showArchived && <p className="muted archive-explanation">{ui('已归档题组不参与学习。恢复后可继续学习；永久删除会保留原始资料和作答记录。')}</p>}
       {folders.visible.length ? (
         <DeckTree data={data} folders={folders.shownFolders} tree={tree} query={query} showArchived={showArchived} singleCourse={folders.singleCourse}
-          inFocus={folders.inFocus} parkedByName={folders.parkedByName} progress={progress} runFor={runFor} busy={busy} actions={actions} />
+          inFocus={folders.inFocus} parkedByName={folders.parkedByName} progress={progress} runFor={runFor} busy={busy} actions={deckActions} />
       ) : data.decks.length ? (
         <p className="muted map-empty">{ui("没有符合条件的题组。")}</p>
       ) : (
         // The desk above already says what to do first; the catalogue only explains itself.
         <p className="muted map-empty">{ui("发布第一组题后，这里会按课程列出题组和掌握度。")}</p>
       )}
-      {folders.otherCourseCount > 0 && <button className="show-other-courses" onClick={() => setShowOtherCourses(true)}>{ui("查看其他课程 · ")}{folders.otherCourseCount}</button>}
-      {folders.parkedFolders.length > 0 && !query && <button className="show-other-courses parked-toggle" aria-expanded={showParked}
-        onClick={() => setShowParked((value) => !value)}><Icon name="caret" size={14} className="sh-caret" />{uiFormat("未激活的课程 ({0})", [folders.parkedFolders.length])}</button>}
+      {folders.otherCourseCount > 0 && <Button variant="quiet" size="sm" className="show-other-courses" onClick={() => setShowOtherCourses(true)}>{uiFormat("查看其他课程 · {0}", [folders.otherCourseCount])}</Button>}
+      {folders.parkedFolders.length > 0 && !query && <Button variant="quiet" size="sm" className="show-other-courses parked-toggle" aria-expanded={showParked}
+        icon={<Icon name="caret" size={14} className="sh-caret" />}
+        onClick={() => setShowParked((value) => !value)}>{uiFormat("未激活的课程 ({0})", [folders.parkedFolders.length])}</Button>}
       {/* Cross-workspace notebooks are for people with decks, or with notebooks elsewhere (P12). */}
-      {showNotebooks && <NotebookDirectory notebooks={notebooks} error={notebookError} busy={busy} onPublish={onNotebookPublish}
-        onUnpublish={onNotebookUnpublish} onOpen={onNotebookOpen} refresh={refreshNotebooks} onSearch={onNotebookSearch} />}
+      {showNotebooks && <NotebookDirectory notebooks={notebooks?.notebooks} error={notebooks?.notebookError} busy={busy} onPublish={notebooks?.publish}
+        onUnpublish={notebooks?.unpublish} onOpen={notebooks?.open} refresh={notebooks?.loadNotebooks} onSearch={notebooks?.search} />}
       <SelectionBar scope={tree.scope} run={selectedRun} busy={busy} onClear={tree.clearSelection} onShowGraph={onShowGraph} onStart={start} onResume={resume} />
     </section>
   );

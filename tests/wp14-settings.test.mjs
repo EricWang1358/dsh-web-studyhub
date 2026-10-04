@@ -10,6 +10,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { schedule, initialReview, defaults } from '../lib/domain.js';
+import { inApp } from './helpers/fake-app.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -21,12 +22,14 @@ const compiled = await build({ stdin: { contents: `
   export { CourseList } from './ui/CourseSettings.jsx';
   export { OnboardingPanel } from './ui/tour/SampleControls.jsx';
   export { previewSchedule } from './lib/sm2.js';
+  export { AppContext } from './ui/app/app-context.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { Settings, CoachSection, coachActions, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName, AudioSettings, ProviderKeyForm, PROVIDERS,
-  CourseList, OnboardingPanel, previewSchedule, setUiLanguage } = module.exports;
+  previewSchedule, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const h = React.createElement;
 const noop = () => {};
@@ -42,9 +45,8 @@ const view = {
 const profile = { consent: true, goal: 'exam', summary: '偏好先看例子再看定义；在分布式一致性和调度器相关题目上反复出错，选择题容易被“看起来更全面”的干扰项吸引。复盘时更愿意看到对比表。'.repeat(2),
   signals: { got: 44, confused: 20, easy: 3, hard: 5, up: 2, down: 67 }, updatedAt: '2026-09-30T08:15:00.000Z', ready: 3 };
 const data = { root: 'D:\\Study\\library', settings: { ...defaults }, sources: [], decks: [], drafts: [], courses: [], focus: { courses: [] } };
-const settingsPage = (language, props = {}) => render(h(Settings, { data, busy: false, act: noop, call: noop, setNotice: noop, settings: { ...defaults }, setSettings: noop,
-  legacy: '', setLegacy: noop, workspacePanel: h('div', { className: 'binding-panel' }, 'library'), exportData: noop, onRestored: noop,
-  coursePanel: h(CourseList, { courses: [] }), onboardingPanel: h(OnboardingPanel, { sample: null, onTour: noop }), initialProfile: profile, ...props }), language);
+const settingsPage = (language, props = {}) => render(inApp(module.exports, h(Settings, { data, settings: { ...defaults }, setSettings: noop,
+  legacy: '', setLegacy: noop, exportData: noop, onRestored: noop, initialProfile: profile, ...props }), { data, call: noop, act: noop }), language);
 
 /* ---------- one left edge, one header style ---------- */
 

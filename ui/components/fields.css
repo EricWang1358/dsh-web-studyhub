@@ -1,104 +1,109 @@
-/* Field primitives (tracker #161 #138 #139 #140 #141): Field, the text inputs, Checkbox / Switch / RadioCard, SettingsSection, ProviderCard.
-   Tokens only; one label weight (--fw-medium) and one hint size (Hint's --fs-sm). Scoped like the other component sheets so the bare
-   element defaults in style.css never need undoing here. */
-:is(.study-app, .study-seat) {
-  /* ── Field ─────────────────────────────────────────────────────────── */
-  .sh-field { display: grid; gap: var(--space-1); align-content: start; min-width: 0; margin: 0; }
-  .sh-field--sm { max-width: 14rem; }
-  .sh-field--md { max-width: 36rem; }
-  .sh-field--inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-3); max-width: none; }
-  .sh-field--inline > .sh-hint { flex: 1 0 100%; }
-  .sh-field__label { display: block; margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
-  .sh-field__required { margin-inline-start: var(--space-half); color: var(--bad-ink); }
-  .sh-field .sh-seg { justify-self: start; max-width: 100%; flex-wrap: wrap; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-  /* ── Inputs ────────────────────────────────────────────────────────── */
-  .sh-input {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    margin: 0;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    background: var(--bg-sunken);
-    color: var(--text);
-    font: inherit;
-    line-height: var(--lh-snug);
-    transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* Field primitives (tracker #161 #138 #139 #140 #141): Field, the text inputs, Checkbox / Switch / RadioCard, SettingsSection, ProviderCard.
+       Tokens only; one label weight (--fw-medium) and one hint size (Hint's --fs-sm). Scoped like the other component sheets so the bare
+       element defaults in style.css never need undoing here. */
+    /* ── Field ─────────────────────────────────────────────────────────── */
+    .sh-field { display: grid; gap: var(--space-1); align-content: start; min-width: 0; margin: 0; }
+    .sh-field--sm { max-width: 14rem; }
+    .sh-field--md { max-width: 36rem; }
+    .sh-field--inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-3); max-width: none; }
+    .sh-field--inline > .sh-hint { flex: 1 0 100%; }
+    .sh-field__label { display: block; margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
+    .sh-field__required { margin-inline-start: var(--space-half); color: var(--bad-ink); }
+    .sh-field .sh-seg { justify-self: start; max-width: 100%; flex-wrap: wrap; }
+    /* ── Inputs ────────────────────────────────────────────────────────── */
+    .sh-input {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      color: var(--text);
+      font: inherit;
+      line-height: var(--lh-snug);
+      transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+    }
+    .sh-input::placeholder { color: var(--text-faint); }
+    .sh-input:focus { border-color: var(--accent-soft); background: var(--bg-surface); box-shadow: var(--ring); outline: none; }
+    .sh-input:disabled { opacity: 0.5; cursor: default; }
+    .sh-input[aria-invalid="true"] { border-color: var(--bad); }
+    & textarea.sh-input { resize: vertical; }
+    .sh-number { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+    .sh-number .sh-input { flex: 1 1 0; width: auto; }
+    .sh-number__suffix { flex: none; color: var(--text-muted); font-size: var(--fs-sm); }
+    /* ── Checkbox / Switch rows ────────────────────────────────────────── */
+    .sh-check { position: relative; display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
+    .sh-check.is-disabled { cursor: default; opacity: 0.6; }
+    .sh-check__input:focus-visible, .sh-radio-card__input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
+    .sh-check__input { flex: none; width: 1.15em; height: 1.15em; min-width: 0; margin: 0.1em 0 0; padding: 0; accent-color: var(--accent); }
+    .sh-check__text { display: grid; gap: var(--space-half); min-width: 0; }
+    .sh-check__label { font-weight: var(--fw-medium); }
+    .sh-switch .sh-check__input { position: absolute; width: 2.4em; height: 1.4em; margin: 0; opacity: 0; cursor: inherit; }
+    .sh-switch__track { position: relative; flex: none; pointer-events: none; box-sizing: border-box; width: 2.4em; height: 1.4em; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--bg-sunken); }
+    .sh-switch__thumb { position: absolute; top: 50%; left: 0.2em; width: 0.9em; height: 0.9em; border-radius: 50%; background: var(--text-muted); transform: translate(0, -50%); transition: transform var(--dur-fast) var(--ease); }
+    .sh-switch .sh-check__input:checked + .sh-switch__track { border-color: var(--text); background: var(--text); }
+    .sh-switch .sh-check__input:checked + .sh-switch__track .sh-switch__thumb { background: var(--bg-surface); transform: translate(1em, -50%); }
+    .sh-switch .sh-check__input:focus-visible + .sh-switch__track { box-shadow: var(--ring); }
+    .sh-switch .sh-check__input:disabled + .sh-switch__track { opacity: 0.6; }
+    /* ── Radio cards ───────────────────────────────────────────────────── */
+    .sh-radio-group { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+    .sh-radio-group > legend { margin: 0 0 var(--space-2); padding: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+    .sh-radio-card { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
+    .sh-radio-card:hover:not(.is-disabled) { border-color: var(--line-strong); }
+    .sh-radio-card.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface)); }
+    .sh-radio-card:focus-within { box-shadow: var(--ring); }
+    .sh-radio-card.is-disabled { cursor: default; opacity: 0.6; }
+    .sh-radio-card__input { flex: none; width: 1.15em; height: 1.15em; min-width: 0; margin: 0.1em 0 0; padding: 0; accent-color: var(--accent); }
+    .sh-radio-card__body { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
+    .sh-radio-card__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-weight: var(--fw-medium); }
+    .sh-radio-card__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+    /* ── Settings section shell ────────────────────────────────────────── */
+    .settings-section { display: grid; gap: var(--space-3); align-content: start; min-width: 0; margin: var(--space-7) 0 0; padding: var(--space-5) 0 0; border: 0; border-top: 1px solid var(--line); }
+    /* A floated legend is laid out as ordinary content: the title sits under the rule, at the section's edge. */
+    .settings-section__title { float: left; width: 100%; margin: 0; padding: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
+    .settings-section__lead { max-width: 70ch; margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    /* Legacy note class of the sections still written by hand (UpdateCenter, tour/SampleControls): their notes are Hints in all but name. */
+    .settings-section .sh-hint { overflow-wrap: anywhere; }
+    /* ── Provider card and steps ───────────────────────────────────────── */
+    .sh-provider-grid { min-width: 0; }
+    .sh-provider-grid__items { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--space-4); }
+    .sh-provider-grid__items--two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
+    .sh-provider { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
+    .sh-provider.is-set { border-color: var(--ok-line); }
+    .sh-provider__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+    .sh-provider__title { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
+    .sh-provider__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; max-width: 100%; }
+    .sh-provider__badges .sh-badge { max-width: 100%; white-space: normal; }
+    .sh-provider__status { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .sh-provider__status.is-set { color: var(--ok-ink); font-weight: var(--fw-medium); }
+    .sh-steps { display: grid; align-content: start; gap: var(--space-2); margin: 0; padding: var(--space-3) 0 0; border-top: 1px solid var(--line-soft); list-style: none; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .sh-steps li { display: flex; align-items: baseline; gap: var(--space-2); }
+    .sh-steps a { color: var(--accent-text); text-underline-offset: 3px; overflow-wrap: anywhere; }
+    .sh-steps__num { display: inline-grid; place-items: center; flex: none; width: 1.5em; height: 1.5em; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); line-height: 1; }
   }
-  .sh-input::placeholder { color: var(--text-faint); }
-  .sh-input:focus { border-color: var(--accent-soft); background: var(--bg-surface); box-shadow: var(--ring); outline: none; }
-  .sh-input:disabled { opacity: 0.5; cursor: default; }
-  .sh-input[aria-invalid="true"] { border-color: var(--bad); }
-  textarea.sh-input { resize: vertical; }
-  .sh-number { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-  .sh-number .sh-input { flex: 1 1 0; width: auto; }
-  .sh-number__suffix { flex: none; color: var(--text-muted); font-size: var(--fs-sm); }
-
-  /* ── Checkbox / Switch rows ────────────────────────────────────────── */
-  .sh-check { position: relative; display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
-  .sh-check.is-disabled { cursor: default; opacity: 0.6; }
-  .sh-check__input { flex: none; width: 1.15em; height: 1.15em; min-width: 0; margin: 0.1em 0 0; padding: 0; accent-color: var(--accent); }
-  .sh-check__text { display: grid; gap: var(--space-half); min-width: 0; }
-  .sh-check__label { font-weight: var(--fw-medium); }
-  .sh-switch .sh-check__input { position: absolute; width: 2.4em; height: 1.4em; margin: 0; opacity: 0; cursor: inherit; }
-  .sh-switch__track { position: relative; flex: none; pointer-events: none; box-sizing: border-box; width: 2.4em; height: 1.4em; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--bg-sunken); }
-  .sh-switch__thumb { position: absolute; top: 50%; left: 0.2em; width: 0.9em; height: 0.9em; border-radius: 50%; background: var(--text-muted); transform: translate(0, -50%); transition: transform var(--dur-fast) var(--ease); }
-  .sh-switch .sh-check__input:checked + .sh-switch__track { border-color: var(--text); background: var(--text); }
-  .sh-switch .sh-check__input:checked + .sh-switch__track .sh-switch__thumb { background: var(--bg-surface); transform: translate(1em, -50%); }
-  .sh-switch .sh-check__input:focus-visible + .sh-switch__track { box-shadow: var(--ring); }
-  .sh-switch .sh-check__input:disabled + .sh-switch__track { opacity: 0.6; }
-
-  /* ── Radio cards ───────────────────────────────────────────────────── */
-  .sh-radio-group { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
-  .sh-radio-group > legend { margin: 0 0 var(--space-2); padding: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
-  .sh-radio-card { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
-  .sh-radio-card:hover:not(.is-disabled) { border-color: var(--line-strong); }
-  .sh-radio-card.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface)); }
-  .sh-radio-card:focus-within { box-shadow: var(--ring); }
-  .sh-radio-card.is-disabled { cursor: default; opacity: 0.6; }
-  .sh-radio-card__input { flex: none; width: 1.15em; height: 1.15em; min-width: 0; margin: 0.1em 0 0; padding: 0; accent-color: var(--accent); }
-  .sh-radio-card__body { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
-  .sh-radio-card__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-weight: var(--fw-medium); }
-  .sh-radio-card__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
-
-  /* ── Settings section shell ────────────────────────────────────────── */
-  .settings-section { display: grid; gap: var(--space-3); align-content: start; min-width: 0; margin: var(--space-7) 0 0; padding: var(--space-5) 0 0; border: 0; border-top: 1px solid var(--line); }
-  /* A floated legend is laid out as ordinary content: the title sits under the rule, at the section's edge. */
-  .settings-section__title { float: left; width: 100%; margin: 0; padding: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
-  .settings-section__lead { max-width: 70ch; margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-  /* Legacy note class of the sections still written by hand (UpdateCenter, tour/SampleControls): their notes are Hints in all but name. */
-  .settings-section .sh-hint { overflow-wrap: anywhere; }
-  .settings-section__note { max-width: 72ch; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-
-  /* ── Provider card and steps ───────────────────────────────────────── */
-  .sh-provider-grid { min-width: 0; }
-  .sh-provider-grid__items { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--space-4); }
-  .sh-provider-grid__items--two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
-  .sh-provider { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
-  .sh-provider.is-set { border-color: var(--ok-line); }
-  .sh-provider__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
-  .sh-provider__title { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
-  .sh-provider__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; max-width: 100%; }
-  .sh-provider__badges .sh-badge { max-width: 100%; white-space: normal; }
-  .sh-provider__status { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-  .sh-provider__status.is-set { color: var(--ok-ink); font-weight: var(--fw-medium); }
-  .sh-steps { display: grid; align-content: start; gap: var(--space-2); margin: 0; padding: var(--space-3) 0 0; border-top: 1px solid var(--line-soft); list-style: none; font-size: var(--fs-sm); line-height: var(--lh-snug); }
-  .sh-steps li { display: flex; align-items: baseline; gap: var(--space-2); }
-  .sh-steps a { color: var(--accent-text); text-underline-offset: 3px; overflow-wrap: anywhere; }
-  .sh-steps__num { display: inline-grid; place-items: center; flex: none; width: 1.5em; height: 1.5em; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); line-height: 1; }
-}
-/* Cards that sit side by side take one row per part through subgrid (head · saved state · steps · key input · actions · message), so inputs
-   and buttons sit at the same height in every card, whatever wraps above them. A `stack` card keeps its own column. The columns come from
-   the grid's own sizing, with no container of its own: one inside a lazily mounted pane made Chromium skip laying out the cards now and then. */
-@supports (grid-template-rows: subgrid) {
-  :is(.study-app, .study-seat) .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) { display: grid; grid-row: span 6; grid-template-rows: subgrid; }
-  :is(.study-app, .study-seat) .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) .sh-secret { display: grid; grid-row: span 3; grid-template-rows: subgrid; }
-}
-@container study (max-width: 520px) {
-  :is(.study-app, .study-seat) .sh-provider { padding: var(--space-4); }
-}
-@media (prefers-reduced-motion: reduce) {
-  :is(.study-app, .study-seat) .sh-switch__thumb, :is(.study-app, .study-seat) .sh-input { transition: none; }
+  @supports (grid-template-rows: subgrid) {
+    :is(.study-app, .study-seat) {
+      /* Cards that sit side by side take one row per part through subgrid (head · saved state · steps · key input · actions · message), so inputs
+         and buttons sit at the same height in every card, whatever wraps above them. A `stack` card keeps its own column. The columns come from
+         the grid's own sizing, with no container of its own: one inside a lazily mounted pane made Chromium skip laying out the cards now and then. */
+      .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) { display: grid; grid-row: span 6; grid-template-rows: subgrid; }
+      .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) .sh-secret { display: grid; grid-row: span 3; grid-template-rows: subgrid; }
+    }
+  }
+  @container study (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      .sh-provider { padding: var(--space-4); }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .sh-switch__thumb, .sh-input { transition: none; }
+    }
+  }
 }

@@ -1,13 +1,22 @@
 import React from 'react';
 import css from './components.css';
+import toneCss from './panel-tones.css';
 import { useComponentCss, cx } from './css.js';
 import Icon from './Icon.jsx';
 
-/** A flat desk surface with an optional heading row and actions. */
-export function Panel({ title, description, actions, children, as: Tag = 'section', className, ...rest }) {
+export const PANEL_TONES = Object.freeze(['plain', 'sunken', 'accent', 'dashed', 'paper']);
+
+/**
+ * A flat desk surface with an optional heading row and actions.
+ * tone: plain (default) | sunken (a recessed well) | accent (the one highlighted block) | dashed (an optional or
+ * empty area) | paper (a physical card: the only tone with --radius-card). density: normal | compact.
+ * `as` swaps the element (section, article, li, div…).
+ */
+export function Panel({ title, description, actions, children, tone = 'plain', density = 'normal', as: Tag = 'section', className, ...rest }) {
   useComponentCss(css);
+  useComponentCss(toneCss, 'study-panel-tones');
   return (
-    <Tag className={cx('sh-panel', className)} {...rest}>
+    <Tag className={cx('sh-panel', tone !== 'plain' && PANEL_TONES.includes(tone) && `sh-panel--${tone}`, density === 'compact' && 'sh-panel--compact', className)} {...rest}>
       {(title || description || actions) && <div className="sh-panel__head">
         <div className="sh-panel__heading">
           {title && <h3 className="sh-panel__title">{title}</h3>}

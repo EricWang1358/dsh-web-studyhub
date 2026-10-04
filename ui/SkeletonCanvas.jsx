@@ -114,7 +114,7 @@ function ExtendBox({ node, onAsk }) {
         }}
       >
         <input value={value} onChange={(ev) => setValue(ev.target.value)} placeholder={placeholder} aria-label={placeholder} />
-        <button type="submit" disabled={intent === "contrast" && !value.trim()}>{ui("发到对话")}</button>
+        <Button type="submit" size="sm" disabled={intent === "contrast" && !value.trim()}>{ui("发到对话")}</Button>
       </form>
       {sent && <small className="muted">{ui("已交给对话；改好后图会自动刷新并高亮变化。")}</small>}
     </div>
@@ -356,7 +356,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
       </div>
       {query.trim() && <div className="skc-results" aria-label={ui("概念搜索结果")}>
         {skeleton.nodes.filter((n) => `${n.term} ${n.meaning}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 30).map((n) => (
-          <button key={n.id} type="button" onClick={() => { setQuery(""); setComponentId(""); setFocusMode(true); onSelect(n.id); }}>{n.term}</button>
+          <Button key={n.id} size="sm" onClick={() => { setQuery(""); setComponentId(""); setFocusMode(true); onSelect(n.id); }}>{n.term}</Button>
         ))}
         {!skeleton.nodes.some((n) => `${n.term} ${n.meaning}`.toLowerCase().includes(query.trim().toLowerCase())) && <span className="muted">{ui("没有匹配的概念")}</span>}
       </div>}
@@ -461,7 +461,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
                   {nodeRelations.map((r) => (
                     <li key={r.key}>
                       <span className="skc-rel-type">{ui(r.text)}</span>
-                      <button type="button" className="skc-link" onClick={() => onSelect(r.other)}>{term(r.other)}</button>
+                      <Button variant="link" size="sm" className="skc-link" onClick={() => onSelect(r.other)}>{term(r.other)}</Button>
                       {r.note && <small>{r.note}</small>}
                     </li>
                   ))}
@@ -476,7 +476,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
             )}
             {onAsk && <ExtendBox node={node} onAsk={onAsk} />}
             {onPractice && node.cards.length > 0 && (
-              <button type="button" className="primary skc-practice" onClick={() => onPractice(node.cards)}>{ui("练关联的 ")}{node.cards.length}{ui(" 题")}</button>
+              <Button variant="primary" className="skc-practice" onClick={() => onPractice(node.cards)}>{ui("练关联的 ")}{node.cards.length}{ui(" 题")}</Button>
             )}
           </ReadingBlock>
         )}

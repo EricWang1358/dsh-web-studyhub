@@ -11,6 +11,7 @@ import { StudyService } from "../lib/service.js";
 import { createJobNotifier } from "../lib/runtime/job-notice.js";
 import { describePartReport, failureReason, summarizePartOutcomes } from "../lib/generation-report.js";
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
+import { mapProps } from './helpers/study-map-props.mjs';
 
 /* The owner's report: a 36-page generation said "5 parts failed because the quoted source text could not be found", and the agent
    advised retrying by hand with fewer pages. The job and the draft now say how many parts passed or failed and why, in the learner's
@@ -121,10 +122,10 @@ test("the draft reads how many parts passed or failed and why: '5 个部分的�
 });
 
 const noop = () => {};
-const home = (data) => renderToStaticMarkup(React.createElement(map.StudyMap, { data: { root: "/tmp/lib", decks: [], progress: {}, sources: [{ id: "s" }], runs: [], jobs: [], drafts: [],
+const home = (data) => renderToStaticMarkup(React.createElement(map.StudyMap, mapProps({ data: { root: "/tmp/lib", decks: [], progress: {}, sources: [{ id: "s" }], runs: [], jobs: [], drafts: [],
   today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: "class", course: "", courses: [], fresh: [] }, modelReady: true, ...data },
 busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop, retryGeneration: noop, addSource: noop,
-createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop, cancelJob: noop, dismissJob: noop }));
+createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop, cancelJob: noop, dismissJob: noop })));
 const job = { id: "a", status: "complete", stageCode: "partial", draftId: "dr", savedCount: 4, requestedTotal: 25, parts: 6, stage: "Draft ready with 4/25 questions; 5 part(s) failed" };
 
 test("the job card of a partly failed generation says why in the learner's language and offers the one top-up", () => {

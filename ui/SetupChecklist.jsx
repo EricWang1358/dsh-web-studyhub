@@ -160,10 +160,10 @@ export default function SetupChecklist({ data, call, busy = false, on = {}, late
   if (setup.mode === "chip") {
     return (
       <section className="setup-chip" data-setup-checklist="" data-mode="chip" aria-label={ui("课程准备")}>
-        <button type="button" className="setup-chip-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}
+        <Button size="sm" className="setup-chip-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}
           title={uiFormat("{0} · 每门课开头做一次的准备", [name])}>
           {open ? uiFormat("课程准备 {0}/{1} · 收起", [setup.done, setup.total]) : uiFormat("课程准备 {0}/{1} · 查看", [setup.done, setup.total])}
-        </button>
+        </Button>
         {open && list}
       </section>
     );
