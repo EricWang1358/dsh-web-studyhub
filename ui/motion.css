@@ -1,0 +1,53 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.reset {
+  @media (prefers-reduced-motion: reduce) {
+    /* Motion preferences (设置 › 界面 › 动画 and the OS reduce-motion setting). These rules name animations of several features on purpose:
+       one place decides what stops moving. data-motion is stamped on the app root by the appearance store. */
+    /* Motion is decorative: honour the OS setting. */
+    .study-app::before {
+      animation: none !important;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .today-card,
+      .today-stack::before,
+      .today-stack::after,
+      .question-card,
+      .mastery-bar,
+      .question-card .question,
+      .question-card .options,
+      .question-card .cloze,
+      :is(.page, .review-page) > *,
+      .nav-mark {
+        animation: none !important;
+      }
+      * {
+        transition-duration: 0.01ms !important;
+      }
+    }
+  }
+  /* 动画 (设置 › 界面): the learner's motion choice is stamped on the app root (data-motion = full | reduced | off; "auto" resolves to one of them from the
+     system's reduce-motion setting). 'reduced' keeps short fades and drops movement; 'off' stops transitions and animations, except the ones that tell the
+     learner something is busy (spinners and progress shimmer). */
+  .study-app[data-motion='reduced'] *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
+  .study-app[data-motion='reduced'] *::before,
+  .study-app[data-motion='reduced'] *::after {
+    animation-duration: 0.12s !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.12s !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  .study-app[data-motion='off'] *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
+  .study-app[data-motion='off'] *::before,
+  .study-app[data-motion='off'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

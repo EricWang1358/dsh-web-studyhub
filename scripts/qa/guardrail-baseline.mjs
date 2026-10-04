@@ -41,11 +41,11 @@ export const ALLOW = {
     { name: '--dsh-frame-top-clearance', reason: 'host-provided' },
     /* Optional overrides: the default sits in the var() fallback on purpose. */
     { name: '--sh-toast-offset', reason: 'optional override set by a host page' },
-    { name: '--dur-leave', reason: 'optional override, ui/quick-actions.css fallback is the default' },
+    { name: '--dur-leave', reason: 'optional override, ui/components/feedback.css fallback is the default' },
     /* Stale token names that never existed. Each is a latent bug; replace the use, then delete the entry. */
     { name: '--bg', reason: 'use --bg-surface (large-documents.css, mineru.css)' },
     { name: '--font-mono', reason: 'no mono token exists (mineru.css fallback is used)' },
-    { name: '--danger', reason: 'use --bad (style.css:561, blocked in wave 1)' },
+    { name: '--danger', reason: 'use --bad (blocked in wave 1)' },
     { name: '--radius-md', reason: 'use --radius (token-usage.css)' },
     { name: '--fs-15', reason: 'use --fs-md (workflow-scope.css)' },
   ],
@@ -128,7 +128,7 @@ function isAllowedImportant(file, decl) {
 }
 
 /** The theme files: their custom properties are the palette itself (base tokens, accent presets, high-contrast / OLED / paper themes). */
-const TOKEN_FILES = new Set(['ui/style.css', 'ui/accent.css', 'ui/appearance-themes.css']);
+const TOKEN_FILES = new Set(['ui/tokens.css', 'ui/paper.css', 'ui/accent.css', 'ui/appearance-themes.css']);
 
 function isTokenDefinition(file, decl) {
   return TOKEN_FILES.has(file) && decl.prop.startsWith('--');

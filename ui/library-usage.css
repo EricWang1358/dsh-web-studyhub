@@ -1,39 +1,45 @@
-/* Disk-use line in the library card (Settings). One reserved row, so the card
-   keeps its height from "calculating" to the result. Segment colours are the
-   status/accent tokens; the bar is non-text paint, the words carry the data. */
-:is(.study-app, .study-seat) .usage-line {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  min-height: 32px;
-}
-:is(.study-app, .study-seat) .usage-line .usage-text {
-  color: var(--text-muted);
-  min-width: 0;
-}
-:is(.study-app, .study-seat) .usage-bar {
-  display: flex;
-  flex: 1 1 120px;
-  min-width: 96px;
-  max-width: 240px;
-  height: 8px;
-  gap: 1px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--bg-sunken);
-}
-:is(.study-app, .study-seat) .usage-seg {
-  flex-basis: 0;
-  min-width: 3px;
-}
-:is(.study-app, .study-seat) .usage-seg--materials { background: var(--accent-soft); }
-:is(.study-app, .study-seat) .usage-seg--audio { background: var(--info); }
-:is(.study-app, .study-seat) .usage-seg--bank { background: var(--ok); }
-:is(.study-app, .study-seat) .usage-seg--backups { background: var(--warn); }
-:is(.study-app, .study-seat) .usage-seg--other { background: var(--decor-faint); }
-:is(.study-app, .study-seat) .usage-hint {
-  display: block;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* Disk-use line in the library card (Settings). One reserved row, so the card
+       keeps its height from "calculating" to the result. Segment colours are the
+       status/accent tokens; the bar is non-text paint, the words carry the data. */
+    .usage-line {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px var(--space-3);
+      min-height: 32px;
+    }
+    .usage-line .usage-text {
+      color: var(--text-muted);
+      min-width: 0;
+    }
+    .usage-bar {
+      display: flex;
+      flex: 1 1 120px;
+      min-width: 96px;
+      max-width: 240px;
+      height: 8px;
+      gap: 1px;
+      overflow: hidden;
+      border-radius: var(--radius-pill);
+      background: var(--bg-sunken);
+    }
+    .usage-seg {
+      flex-basis: 0;
+      min-width: 3px;
+    }
+    .usage-seg--materials { background: var(--accent-soft); }
+    .usage-seg--audio { background: var(--info); }
+    .usage-seg--bank { background: var(--ok); }
+    .usage-seg--backups { background: var(--warn); }
+    .usage-seg--other { background: var(--decor-faint); }
+    .usage-hint {
+      display: block;
+      color: var(--text-muted);
+      overflow-wrap: anywhere;
+    }
+  }
 }

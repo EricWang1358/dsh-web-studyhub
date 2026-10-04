@@ -3,7 +3,7 @@
    offer) and a Disclosure, in one page. Query: ?lang=zh|en&theme=dark|light */
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import styleCss from '../../ui/style.css';
+import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
 import Ingest from '../../ui/Ingest.jsx';
 import { Disclosure, SegmentedControl } from '../../ui/components/index.js';

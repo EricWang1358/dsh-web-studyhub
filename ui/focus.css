@@ -1,44 +1,65 @@
-.show-other-courses { margin: 14px 0 18px; padding: 6px 0; border: 0; background: transparent; color: var(--text-muted); font-size: 15px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
-.show-other-courses:hover:not(:disabled) { background: transparent; color: var(--text); text-decoration-color: var(--accent-soft); }
-.archive-explanation { margin: 0 0 12px; font-size: 14px; line-height: 1.6; }
-.archived-deck { display: flex; align-items: center; gap: 12px 24px; flex-wrap: wrap; padding: 14px 0; }
-.archived-deck__info { display: grid; gap: 4px; flex: 1 1 220px; min-width: 0; }
-.archived-deck__info strong { overflow-wrap: anywhere; font-size: 15px; }
-.archived-deck__info small { color: var(--text-muted); font-size: 14px; }
-.archived-deck__actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.study-app .archived-deck__actions .danger-text { color: var(--bad); }
-.role-prep { margin: -8px 0 18px; }
-.role-prep details { max-width: 640px; }
-.role-prep summary { cursor: pointer; color: var(--text-muted); font-size: 15px; }
-.role-prep textarea { display: block; width: 100%; margin: 10px 0; }
-.role-proposal { margin: 10px 0; }
-.role-weak { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
-.role-weak strong { margin-right: 4px; }
-.course-route { display: grid; gap: 8px; max-width: 520px; margin: 18px 0 22px; font-size: 15px; }
-.course-route-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; color: var(--text-dim); }
-.course-route-label { color: var(--text-muted); }
-.course-route-head strong { color: var(--text); font-weight: 600; }
-.course-route-total { margin-left: auto; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.course-route-bar { display: flex; gap: 3px; height: 6px; }
-.course-route-bar > span { position: relative; min-width: 4px; border-radius: 3px; overflow: hidden; background: var(--line); }
-.course-route-bar > span > i { position: absolute; inset: 0 auto 0 0; background: var(--ok); }
-.course-route-bar > span.is-current > i, .course-route-bar > span.is-started > i { background: var(--accent); }
-.course-route-bar > span.is-current { box-shadow: 0 0 0 1px var(--accent-soft); }
-.course-route-list > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
-.course-route-list ol { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: 2px; }
-.course-route-list li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; align-items: baseline; gap: 4px 10px; padding: 6px 0; border-top: 1px solid var(--line-soft); }
-.course-route-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); transform: translateY(-1px); }
-.course-route-list li.is-done .course-route-dot { background: var(--ok); }
-.course-route-list li.is-current .course-route-dot, .course-route-list li.is-started .course-route-dot { background: var(--accent); }
-.course-route-list li.is-current .course-route-title { font-weight: 600; color: var(--text); }
-.course-route-title { min-width: 0; overflow-wrap: anywhere; color: var(--text-dim); }
-.course-route-meta { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-@container (max-width: 520px) { .course-route-list li { grid-template-columns: 10px minmax(0, 1fr) auto; } .course-route-meta { grid-column: 2; } }
-.group-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; margin: 0 0 18px; padding: 10px 0 10px 14px; border-left: 3px solid var(--accent); font-size: 15px; line-height: 1.6; color: var(--text-dim); }
-.group-reminder-actions { display: inline-flex; align-items: center; gap: 14px; }
-.group-reminder .link-btn { font-weight: 600; }
-.merge-suggestions { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
-.merge-suggestions-head, .merge-suggestion { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.merge-suggestion { padding: 12px 0; border-top: 1px solid var(--line-soft); }
-.merge-suggestion p { margin: 5px 0 0; color: var(--text-muted); }
-@container study (max-width: 600px) { .merge-suggestion { align-items: flex-start; flex-direction: column; } }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .show-other-courses { margin: 14px 0 18px; padding: 6px 0; border: 0; background: transparent; color: var(--text-muted); font-size: var(--fs-md); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+    .show-other-courses:hover:not(:disabled) { background: transparent; color: var(--text); text-decoration-color: var(--accent-soft); }
+    .archive-explanation { margin: 0 0 var(--space-3); font-size: var(--fs-md); line-height: 1.6; }
+    .archived-deck { display: flex; align-items: center; gap: var(--space-3) var(--space-6); flex-wrap: wrap; padding: 14px 0; }
+    .archived-deck__info { display: grid; gap: var(--space-1); flex: 1 1 220px; min-width: 0; }
+    .archived-deck__info strong { overflow-wrap: anywhere; font-size: var(--fs-md); }
+    .archived-deck__info small { color: var(--text-muted); font-size: var(--fs-md); }
+    .archived-deck__actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  }
+  :is(.study-app, .study-seat) {
+    .archived-deck__actions .danger-text { color: var(--bad); }
+  }
+  :where(.study-app, .study-seat) {
+    .role-prep { margin: -8px 0 18px; }
+    .role-prep details { max-width: 640px; }
+    .role-prep summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-md); }
+    .role-prep textarea { display: block; width: 100%; margin: 10px 0; }
+    .role-proposal { margin: 10px 0; }
+    .role-weak { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: var(--space-3); }
+    .role-weak strong { margin-right: var(--space-1); }
+    .course-route { display: grid; gap: var(--space-2); max-width: 520px; margin: 18px 0 22px; font-size: var(--fs-md); }
+    .course-route-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; color: var(--text-dim); }
+    .course-route-label { color: var(--text-muted); }
+    .course-route-head strong { color: var(--text); font-weight: var(--fw-strong); }
+    .course-route-total { margin-left: auto; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .course-route-bar { display: flex; gap: 3px; height: 6px; }
+    .course-route-bar > span { position: relative; min-width: 4px; border-radius: var(--radius-xs); overflow: hidden; background: var(--line); }
+    .course-route-bar > span > i { position: absolute; inset: 0 auto 0 0; background: var(--ok); }
+    .course-route-bar > span.is-current > i, .course-route-bar > span.is-started > i { background: var(--accent); }
+    .course-route-bar > span.is-current { box-shadow: 0 0 0 1px var(--accent-soft); }
+    .course-route-list > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
+    .course-route-list ol { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: var(--space-half); }
+    .course-route-list li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; align-items: baseline; gap: var(--space-1) 10px; padding: 6px 0; border-top: 1px solid var(--line-soft); }
+    .course-route-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); transform: translateY(-1px); }
+    .course-route-list li.is-done .course-route-dot { background: var(--ok); }
+    .course-route-list li.is-current .course-route-dot, .course-route-list li.is-started .course-route-dot { background: var(--accent); }
+    .course-route-list li.is-current .course-route-title { font-weight: var(--fw-strong); color: var(--text); }
+    .course-route-title { min-width: 0; overflow-wrap: anywhere; color: var(--text-dim); }
+    .course-route-meta { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  }
+  @container (max-width: 520px) {
+    :where(.study-app, .study-seat) {
+      .course-route-list li { grid-template-columns: 10px minmax(0, 1fr) auto; }
+      .course-route-meta { grid-column: 2; }
+    }
+  }
+  :where(.study-app, .study-seat) {
+    .group-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) 18px; margin: 0 0 18px; padding: 10px 0 10px 14px; border-left: 3px solid var(--accent); font-size: var(--fs-md); line-height: 1.6; color: var(--text-dim); }
+    .group-reminder-actions { display: inline-flex; align-items: center; gap: 14px; }
+    .group-reminder .link-btn { font-weight: var(--fw-strong); }
+    .merge-suggestions { margin: 0 0 18px; padding: 14px var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
+    .merge-suggestions-head, .merge-suggestion { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+    .merge-suggestion { padding: var(--space-3) 0; border-top: 1px solid var(--line-soft); }
+    .merge-suggestion p { margin: 5px 0 0; color: var(--text-muted); }
+  }
+  @container study (max-width: 600px) {
+    :where(.study-app, .study-seat) {
+      .merge-suggestion { align-items: flex-start; flex-direction: column; }
+    }
+  }
+}

@@ -1,39 +1,47 @@
-/* Top-bar library location chip (P03): quiet, one click to Settings. */
-:where(.study-app) .library-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: min(30ch, 34cqi);
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-:where(.study-app) .library-chip svg {
-  flex-shrink: 0;
-}
-:where(.study-app) .library-chip span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-:where(.study-app) .library-chip:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--line-strong);
-  background: var(--bg-hover);
-}
-/* The ~420px DSH sidebar: keep the folder visible, drop the icon. */
-@container study (max-width: 640px) {
-  :where(.study-app) .library-chip {
-    max-width: 16ch;
-    padding: 3px 8px;
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* Top-bar library location chip (P03): quiet, one click to Settings. */
+    .library-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      max-width: min(30ch, 34cqi);
+      padding: var(--space-1) 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .library-chip svg {
+      flex-shrink: 0;
+    }
+    .library-chip span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .library-chip:hover:not(:disabled) {
+      color: var(--text);
+      border-color: var(--line-strong);
+      background: var(--bg-hover);
+    }
   }
-  :where(.study-app) .library-chip svg {
-    display: none;
+  @container study (max-width: 640px) {
+    :where(.study-app, .study-seat) {
+      /* The ~420px DSH sidebar: keep the folder visible, drop the icon. */
+      .library-chip {
+        max-width: 16ch;
+        padding: 3px var(--space-2);
+      }
+      .library-chip svg {
+        display: none;
+      }
+    }
   }
 }

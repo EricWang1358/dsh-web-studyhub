@@ -1,152 +1,145 @@
-/* MinerU conversion: the import entry (route panel), the local setup panel, the privacy confirmation. Tokens only; 12 px floor.
-   The job card uses the audio import card's classes (style.css), so nothing here styles it. */
-.study-app .mineru-route-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; margin: var(--space-4) 0; padding: var(--space-5);
-  border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
-.study-app .mineru-route-panel.is-compact { padding: var(--space-4); margin: var(--space-3) 0; }
-.study-app .mineru-route-panel__head { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
-.study-app .mineru-route-panel__head .sh-icon { flex: none; margin-top: 2px; color: var(--accent-text); }
-.study-app .mineru-route-panel__head h3 { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: 650; line-height: var(--lh-tight); }
-.study-app .mineru-route-panel__head p { margin: var(--space-1) 0 0; max-width: 70ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-.study-app .mineru-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.study-app .mineru-pick small, .study-app .mineru-reading small { color: var(--text-muted); font-size: var(--fs-xs); }
-.study-app .mineru-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-sm); min-width: 0; }
-.study-app .mineru-file strong { overflow-wrap: anywhere; }
-.study-app .mineru-file span { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-.study-app .mineru-reading { display: grid; gap: var(--space-1); }
-.study-app .mineru-plan { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent) 7%, transparent); }
-.study-app .mineru-plan__line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; }
-.study-app .mineru-plan__line strong { color: var(--text); font-size: var(--fs-md, var(--fs-sm)); }
-.study-app .mineru-plan__line span { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-.study-app .mineru-plan__why { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-.study-app .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-.study-app .mineru-routes { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
-.study-app .mineru-routes > legend { padding: 0; margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
-.study-app .mineru-route { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; }
-.study-app .mineru-route:hover { border-color: var(--line-strong); }
-.study-app .mineru-route.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
-.study-app .mineru-route:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-.study-app .mineru-route input { flex: none; margin: 3px 0 0; }
-.study-app .mineru-route__body { display: grid; gap: var(--space-1); min-width: 0; }
-.study-app .mineru-route__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
-.study-app .mineru-route__body small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-.study-app .mineru-gate { margin: 0; }
-.study-app .mineru-gate .sh-secret { margin-top: var(--space-4); max-width: 560px; }
-.study-app .mineru-gate--local { padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
-.study-app .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-size: var(--fs-sm); }
-.study-app .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.study-app .mineru-start .sh-btn { margin: 0; }
-.study-app .mineru-advanced p { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); max-width: 70ch; }
-.study-app .mineru-advanced a { color: var(--accent-text); text-underline-offset: 3px; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-.study-app .mineru-privacy { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warn) 10%, transparent); }
-
-.study-app .mineru-local { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
-.study-app .mineru-local .sh-btn, .study-app .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
-.study-app .mineru-local__summary { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-.study-app .mineru-local[data-state="ready"] .mineru-local__summary { color: color-mix(in srgb, var(--ok) 75%, var(--text)); font-weight: 600; }
-.study-app .mineru-local__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.study-app .mineru-local__actions .sh-btn { margin: 0; }
-.study-app .mineru-local__steps { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-.study-app .mineru-local__setup { display: grid; gap: var(--space-3); }
-.study-app .mineru-progress { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 7%, transparent); }
-.study-app .mineru-progress p { margin: 0; font-size: var(--fs-sm); }
-.study-app .mineru-progress__line { color: var(--text-muted); font-size: var(--fs-xs); font-family: var(--font-mono, ui-monospace, monospace); overflow-wrap: anywhere; }
-
-@media (max-width: 480px) {
-  .study-app .mineru-route-panel { padding: var(--space-4); }
-  .study-app .mineru-route { padding: var(--space-3); }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* MinerU conversion: the import entry (route panel), the local setup panel, the privacy confirmation. Tokens only; 12 px floor.
+       The job card uses the audio import card's classes (style.css), so nothing here styles it. */
+    .mineru-route-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; margin: var(--space-4) 0; padding: var(--space-5);
+      border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
+    .mineru-route-panel.is-compact { padding: var(--space-4); margin: var(--space-3) 0; }
+    .mineru-route-panel__head { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
+    .mineru-route-panel__head .sh-icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
+    .mineru-route-panel__head h3 { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
+    .mineru-route-panel__head p { margin: var(--space-1) 0 0; max-width: 70ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .mineru-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .mineru-pick small, .mineru-reading small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .mineru-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-sm); min-width: 0; }
+    .mineru-file strong { overflow-wrap: anywhere; }
+    .mineru-file span { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .mineru-reading { display: grid; gap: var(--space-1); }
+    .mineru-plan { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--accent) 7%, transparent); }
+    .mineru-plan__line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; }
+    .mineru-plan__line strong { color: var(--text); font-size: var(--fs-md, var(--fs-sm)); }
+    .mineru-plan__line span { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .mineru-plan__why { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .mineru-routes { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+    .mineru-routes > legend { padding: 0; margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+    .mineru-route { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; }
+    .mineru-route:hover { border-color: var(--line-strong); }
+    .mineru-route.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
+    .mineru-route:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .mineru-route input { flex: none; margin: 3px 0 0; }
+    .mineru-route__body { display: grid; gap: var(--space-1); min-width: 0; }
+    .mineru-route__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+    .mineru-route__body small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ok-ink); font-size: var(--fs-sm); }
+    .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .mineru-start .sh-btn { margin: 0; }
+    .mineru-privacy { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
+      background: var(--warn-bg); }
+    .mineru-local { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
+    .mineru-local .sh-btn, .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
+    .mineru-local__summary { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .mineru-local[data-state="ready"] .mineru-local__summary { color: var(--ok-ink); font-weight: var(--fw-strong); }
+    .mineru-local__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .mineru-local__actions .sh-btn { margin: 0; }
+    .mineru-local__steps { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .mineru-local__setup { display: grid; gap: var(--space-3); }
+    .mineru-progress { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+    .mineru-progress p { margin: 0; font-size: var(--fs-sm); }
+    .mineru-progress__line { color: var(--text-muted); font-size: var(--fs-xs); font-family: var(--font-mono, ui-monospace, monospace); overflow-wrap: anywhere; }
+  }
+  @media (max-width: 480px) {
+    :is(.study-app, .study-seat) {
+      .mineru-route-panel { padding: var(--space-4); }
+      .mineru-route { padding: var(--space-3); }
+    }
+  }
+  :is(.study-app, .study-seat) {
+    /* The global input rules make radios full-width blocks; keep the route's radio beside its text (MineruRoute, not yet a RadioCard). */
+    .mineru-route input[type="radio"] { display: inline-block; width: auto; min-width: 0; height: auto; padding: 0; }
+    .mineru-route { flex-direction: row; }
+    /* Legacy chip of the conversion card and history rows (PdfConversion, PdfConvertJob). They move to Badge in the import work package; delete this block then. */
+    /* The only definition left of the old provider note: PdfConversion still writes it. It becomes a Hint there; delete this rule then. */
+    .audio-provider-note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    /* The conversion history (解析历史): the rows are the conversion job card's own markup (.job), so they look like every other background job;
+       only what a finished record needs is added here. It sits in the MinerU panel and under the running cards on the Sources page. */
+    .pdf-history { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
+    .pdf-history__title { margin: 0; color: var(--text); font-size: var(--fs-md, var(--fs-sm)); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
+    .pdf-history__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pdf-history__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); min-width: 0; }
+    .pdf-history__bar small, .pdf-history__note { flex: 1 1 260px; min-width: 0; margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .pdf-history__bar .sh-btn { flex: none; margin: 0; }
+    .pdf-history__empty { display: grid; gap: var(--space-1); padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
+    .pdf-history__empty strong { color: var(--text); font-size: var(--fs-sm); }
+    .pdf-history__empty p { margin: 0; max-width: 62ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .pdf-history__group { display: grid; gap: var(--space-2); min-width: 0; }
+    .pdf-history__day { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .pdf-history__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
+    .pdf-history__item { min-width: 0; }
+    .pdf-history .sh-job.pdf-history__row { background: var(--bg); border-color: var(--line-soft); }
+    .pdf-history__chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+    .pdf-history__row .sh-job__body small { max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: var(--fs-xs); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
+    .pdf-history__row .sh-job__body small.pdf-history__result { color: var(--text); font-size: var(--fs-sm); }
+    .pdf-history__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1); max-width: 100%; }
+    .pdf-history__actions:empty { display: none; }
+    .pdf-history__actions .sh-btn { margin: 0; max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; }
+    .mineru-history { margin: 0; }
+    .mineru-history .sh-disclosure__body { display: grid; gap: var(--space-3); }
+    .sources-page .pdf-history { margin: var(--space-3) 0; }
+    /* 运行环境: what does the work. One block on the live card and (collapsed) on the history rows. */
+    .pdf-env { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--text) 5%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .pdf-env__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .pdf-env__list { display: grid; gap: var(--space-half); margin: 0; padding: 0; list-style: none; min-width: 0; }
+    .pdf-env__list li { min-width: 0; overflow-wrap: anywhere; color: var(--text-dim); }
+    .pdf-env__service { display: flex; align-items: baseline; gap: var(--space-2); }
+    .pdf-env__dot { flex: none; width: 8px; height: 8px; margin-top: 1px; border-radius: 50%; background: var(--text-muted); transform: translateY(0); align-self: center; }
+    .pdf-env__service[data-state="running"] { color: var(--ok-ink); }
+    .pdf-env__service[data-state="running"] .pdf-env__dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-halo); }
+    .pdf-env__service[data-state="stopped"], .pdf-env__warning { color: var(--bad-ink); font-weight: var(--fw-strong); }
+    .pdf-env__service[data-state="stopped"] .pdf-env__dot { background: var(--bad); }
+    .pdf-env__service[data-state="unknown"] .pdf-env__dot { background: var(--warn); }
+    .pdf-env__hint { color: var(--bad-ink); }
+    .pdf-env__where summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
+    .pdf-env__where summary:focus-visible, .pdf-env-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pdf-env__where p { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+    .pdf-env__where code { font-size: var(--fs-xs); overflow-wrap: anywhere; word-break: break-all; }
+    .pdf-env-details { min-width: 0; max-width: 100%; font-size: var(--fs-xs); }
+    .pdf-env-details > summary { cursor: pointer; width: fit-content; color: var(--accent-text); }
+    .pdf-env-details .pdf-env { margin-top: var(--space-1); }
+    /* The windows: they wrap INSIDE the card in even columns (never run off its edge), with a state each; many of them fold into one line and a toggle. */
+    .pdf-chunks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: var(--space-half) var(--space-3); min-width: 0; max-width: 100%; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
+    .pdf-chunks li { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+    .pdf-chunks li.is-current { color: var(--text); font-weight: var(--fw-strong); }
+    .pdf-chunks__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .pdf-chunks__summary .sh-btn { margin: 0; }
+    /* The window in progress (adaptive local plan): which pages and for how long, what the service says about it, and why a scan can take minutes. */
+    .pdf-live { display: grid; justify-items: start; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--accent) 6%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .pdf-live p, .pdf-live small { max-width: 100%; margin: 0; overflow-wrap: anywhere; }
+    .pdf-live__window { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); color: var(--text); font-variant-numeric: tabular-nums; }
+    .pdf-live__window span { color: var(--text-dim); }
+    .pdf-live__state { display: flex; align-items: center; gap: var(--space-2); color: var(--text); }
+    .pdf-live__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+    .pdf-live__state[data-state="parsing"] .pdf-live__dot, .pdf-live__state[data-state="starting"] .pdf-live__dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-halo); }
+    .pdf-live__state[data-state="queued"] .pdf-live__dot, .pdf-live__state[data-state="quiet"] .pdf-live__dot, .pdf-live__state[data-state="unknown"] .pdf-live__dot { background: var(--warn); }
+    .pdf-live__state--warn { color: var(--bad-ink); }
+    .pdf-live__state--warn .pdf-live__dot { background: var(--bad); }
+    .pdf-live__advice { color: var(--text-dim); }
+    .pdf-live__advice--warn { color: var(--text); padding-left: var(--space-2); border-left: 3px solid var(--bad-line); }
+    .pdf-live__why { min-width: 0; max-width: 100%; }
+    .pdf-live__why summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
+    .pdf-live__why summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pdf-live__why p { margin: var(--space-1) 0 0; color: var(--text-dim); max-width: 62ch; }
+    .pdf-eta { color: var(--text); font-variant-numeric: tabular-nums; }
+    .pdf-chunks__next { display: block; margin-top: var(--space-half); font-variant-numeric: tabular-nums; }
+    .pdf-env__windows summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
+    .pdf-env__windows summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pdf-env__windows ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: var(--space-half) var(--space-3); margin: var(--space-1) 0 0; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }
+    .pdf-env__windows li { min-width: 0; overflow-wrap: anywhere; }
+  }
 }
-
-/* The global input rules make radios full-width blocks; keep the route's radio beside its text (MineruRoute, not yet a RadioCard). */
-.study-app .mineru-route input[type="radio"] { display: inline-block; width: auto; min-width: 0; height: auto; padding: 0; }
-.study-app .mineru-route { flex-direction: row; }
-
-/* Legacy chip of the conversion card and history rows (PdfConversion, PdfConvertJob). They move to Badge in the import work package; delete this block then. */
-.study-app .audio-chip { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--text) 7%, transparent);
-  color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1.6; white-space: nowrap; }
-.study-app .audio-chip--good { background: color-mix(in srgb, var(--ok) 16%, transparent); color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
-.study-app .audio-chip--accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); }
-/* The only definition left of the old provider note: PdfConversion still writes it. It becomes a Hint there; delete this rule then. */
-.study-app .audio-provider-note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-
-/* The conversion history (解析历史): the rows are the conversion job card's own markup (.job), so they look like every other background job;
-   only what a finished record needs is added here. It sits in the MinerU panel and under the running cards on the Sources page. */
-.study-app .pdf-history { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
-.study-app .pdf-history__title { margin: 0; color: var(--text); font-size: var(--fs-md, var(--fs-sm)); font-weight: 650; line-height: var(--lh-tight); }
-.study-app .pdf-history__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.study-app .pdf-history__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); min-width: 0; }
-.study-app .pdf-history__bar small, .study-app .pdf-history__note { flex: 1 1 260px; min-width: 0; margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-.study-app .pdf-history__bar .sh-btn { flex: none; margin: 0; }
-.study-app .pdf-history__empty { display: grid; gap: var(--space-1); padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
-.study-app .pdf-history__empty strong { color: var(--text); font-size: var(--fs-sm); }
-.study-app .pdf-history__empty p { margin: 0; max-width: 62ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-.study-app .pdf-history__group { display: grid; gap: var(--space-2); min-width: 0; }
-.study-app .pdf-history__day { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; }
-.study-app .pdf-history__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
-.study-app .pdf-history__item { min-width: 0; }
-.study-app .pdf-history .sh-job.pdf-history__row { background: var(--bg); border-color: var(--line-soft); }
-.study-app .pdf-history__chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
-.study-app .pdf-history__row .sh-job__body small { max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: var(--fs-xs); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
-.study-app .pdf-history__row .sh-job__body small.pdf-history__result { color: var(--text); font-size: var(--fs-sm); }
-.study-app .pdf-history__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1); max-width: 100%; }
-.study-app .pdf-history__actions:empty { display: none; }
-.study-app .pdf-history__actions .sh-btn { margin: 0; max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; }
-.study-app .mineru-history { margin: 0; }
-.study-app .mineru-history .sh-disclosure__body { display: grid; gap: var(--space-3); }
-.study-app .sources-page .pdf-history { margin: var(--space-3) 0; }
-
-/* 运行环境: what does the work. One block on the live card and (collapsed) on the history rows. */
-.study-app .pdf-env { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--text) 5%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-.study-app .pdf-env__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 650; }
-.study-app .pdf-env__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; min-width: 0; }
-.study-app .pdf-env__list li { min-width: 0; overflow-wrap: anywhere; color: var(--text-dim); }
-.study-app .pdf-env__service { display: flex; align-items: baseline; gap: var(--space-2); }
-.study-app .pdf-env__dot { flex: none; width: 8px; height: 8px; margin-top: 1px; border-radius: 50%; background: var(--text-muted); transform: translateY(0); align-self: center; }
-.study-app .pdf-env__service[data-state="running"] { color: color-mix(in srgb, var(--ok) 75%, var(--text)); }
-.study-app .pdf-env__service[data-state="running"] .pdf-env__dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
-.study-app .pdf-env__service[data-state="stopped"], .study-app .pdf-env__warning { color: color-mix(in srgb, var(--bad) 80%, var(--text)); font-weight: 600; }
-.study-app .pdf-env__service[data-state="stopped"] .pdf-env__dot { background: var(--bad); }
-.study-app .pdf-env__service[data-state="unknown"] .pdf-env__dot { background: var(--warn); }
-.study-app .pdf-env__hint { color: color-mix(in srgb, var(--bad) 70%, var(--text)); }
-.study-app .pdf-env__where summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
-.study-app .pdf-env__where summary:focus-visible, .study-app .pdf-env-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.study-app .pdf-env__where p { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
-.study-app .pdf-env__where code { font-size: var(--fs-xs); overflow-wrap: anywhere; word-break: break-all; }
-.study-app .pdf-env-details { min-width: 0; max-width: 100%; font-size: var(--fs-xs); }
-.study-app .pdf-env-details > summary { cursor: pointer; width: fit-content; color: var(--accent-text); }
-.study-app .pdf-env-details .pdf-env { margin-top: var(--space-1); }
-/* The windows: they wrap INSIDE the card in even columns (never run off its edge), with a state each; many of them fold into one line and a toggle. */
-.study-app .pdf-chunks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 2px var(--space-3); min-width: 0; max-width: 100%; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
-.study-app .pdf-chunks li { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.study-app .pdf-chunks li.is-current { color: var(--text); font-weight: var(--fw-strong); }
-.study-app .pdf-chunks__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-.study-app .pdf-chunks__summary .sh-btn { margin: 0; }
-
-/* The window in progress (adaptive local plan): which pages and for how long, what the service says about it, and why a scan can take minutes. */
-.study-app .pdf-live { display: grid; justify-items: start; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent) 6%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-.study-app .pdf-live p, .study-app .pdf-live small { max-width: 100%; margin: 0; overflow-wrap: anywhere; }
-.study-app .pdf-live__window { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-2); color: var(--text); font-variant-numeric: tabular-nums; }
-.study-app .pdf-live__window span { color: var(--text-dim); }
-.study-app .pdf-live__state { display: flex; align-items: center; gap: var(--space-2); color: var(--text); }
-.study-app .pdf-live__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
-.study-app .pdf-live__state[data-state="parsing"] .pdf-live__dot, .study-app .pdf-live__state[data-state="starting"] .pdf-live__dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
-.study-app .pdf-live__state[data-state="queued"] .pdf-live__dot, .study-app .pdf-live__state[data-state="quiet"] .pdf-live__dot, .study-app .pdf-live__state[data-state="unknown"] .pdf-live__dot { background: var(--warn); }
-.study-app .pdf-live__state--warn { color: color-mix(in srgb, var(--bad) 80%, var(--text)); }
-.study-app .pdf-live__state--warn .pdf-live__dot { background: var(--bad); }
-.study-app .pdf-live__advice { color: var(--text-dim); }
-.study-app .pdf-live__advice--warn { color: var(--text); padding-left: var(--space-2); border-left: 3px solid color-mix(in srgb, var(--bad) 55%, transparent); }
-.study-app .pdf-live__why { min-width: 0; max-width: 100%; }
-.study-app .pdf-live__why summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
-.study-app .pdf-live__why summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.study-app .pdf-live__why p { margin: var(--space-1) 0 0; color: var(--text-dim); max-width: 62ch; }
-.study-app .pdf-eta { color: var(--text); font-variant-numeric: tabular-nums; }
-.study-app .pdf-chunks__next { display: block; margin-top: 2px; font-variant-numeric: tabular-nums; }
-.study-app .pdf-env__windows summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
-.study-app .pdf-env__windows summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.study-app .pdf-env__windows ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 2px var(--space-3); margin: var(--space-1) 0 0; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }
-.study-app .pdf-env__windows li { min-width: 0; overflow-wrap: anywhere; }

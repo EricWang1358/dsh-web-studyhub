@@ -1,118 +1,119 @@
-/* WP23 · the 创建题组 form: label-left rows, a count stepper with presets,
-   the focus box with its AI assist, 更多选项 and the summary line. Injected by
-   Generate (useInjectCss 'study-generate-form'). Tokens only; narrow panes
-   follow the `study` container. */
-:is(.study-app, .study-seat) .generate-form { padding-top: var(--space-5); }
-:is(.study-app, .study-seat) .generate-rows { display: grid; gap: var(--space-5); margin: var(--space-5) 0 0; }
-:is(.study-app, .study-seat) .generate-row {
-  display: grid;
-  grid-template-columns: 8em minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-2) var(--space-5);
-}
-:is(.study-app, .study-seat) .generate-row__label {
-  display: block;
-  margin: 0;
-  padding-top: 6px;
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  line-height: var(--lh-snug);
-}
-:is(.study-app, .study-seat) .generate-row__control { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
-:is(.study-app, .study-seat) .generate-row__control > :is(input, textarea) { width: 100%; }
-:is(.study-app, .study-seat) .generate-note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-/* Six question types wrap instead of overflowing a narrow pane. */
-:is(.study-app, .study-seat) .generate-form .sh-seg { max-width: 100%; }
-:is(.study-app, .study-seat) .generate-form .generate-kind { display: flex; flex-wrap: wrap; }
-
-/* ── Count: stepper, presets, suggested count ─────────────────────────── */
-:is(.study-app, .study-seat) .generate-count { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
-:is(.study-app, .study-seat) .generate-stepper {
-  display: inline-flex;
-  align-items: stretch;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  overflow: hidden;
-}
-:is(.study-app, .study-seat) .generate-stepper:focus-within { border-color: var(--accent-soft); box-shadow: var(--ring); }
-:is(.study-app, .study-seat) .generate-stepper button {
-  width: 36px;
-  min-height: 36px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: var(--fs-lg);
-  line-height: 1;
-}
-:is(.study-app, .study-seat) .generate-stepper button:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-:is(.study-app, .study-seat) .generate-stepper input {
-  width: 3.4em;
-  padding: 6px 4px;
-  border: 0;
-  border-inline: 1px solid var(--line);
-  border-radius: 0;
-  background: var(--bg-surface);
-  box-shadow: none;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-:is(.study-app, .study-seat) .generate-stepper input:focus { box-shadow: none; background: var(--bg-surface); }
-:is(.study-app, .study-seat) .generate-stepper input::-webkit-outer-spin-button,
-:is(.study-app, .study-seat) .generate-stepper input::-webkit-inner-spin-button { appearance: none; margin: 0; }
-
-/* ── Chips: presets, suggested count, focus suggestions ──────────────── */
-:is(.study-app, .study-seat) .generate-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
-:is(.study-app, .study-seat) .generate-chip {
-  min-height: 28px;
-  max-width: 100%;
-  padding: 3px var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  background: var(--bg-surface);
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-tight);
-  text-align: left;
-}
-:is(.study-app, .study-seat) .generate-chip:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-surface); color: var(--text); }
-:is(.study-app, .study-seat) .generate-chip[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
-  color: var(--accent-text);
-}
-:is(.study-app, .study-seat) .generate-chip:focus-visible { outline: none; box-shadow: var(--ring); }
-:is(.study-app, .study-seat) .generate-preset { min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
-:is(.study-app, .study-seat) .generate-hint { border-style: dashed; color: var(--accent-text); }
-
-/* ── Focus box and its assist ─────────────────────────────────────────── */
-:is(.study-app, .study-seat) .generate-focus { min-height: 62px; padding: 8px 12px; resize: none; overflow: hidden; line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .generate-assist { display: grid; gap: var(--space-2); width: 100%; min-width: 0; }
-:is(.study-app, .study-seat) .generate-assist__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-:is(.study-app, .study-seat) .generate-assist__sent { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .generate-assist__result { display: grid; gap: var(--space-2); }
-:is(.study-app, .study-seat) .generate-assist__label { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; }
-:is(.study-app, .study-seat) .generate-assist__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .generate-assist__apply { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-:is(.study-app, .study-seat) .generate-assist__why { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); min-width: 0; overflow-wrap: anywhere; }
-
-/* ── 更多选项 and the case-exam hint ──────────────────────────────────── */
-:is(.study-app, .study-seat) .generate-more { margin-top: var(--space-5); }
-:is(.study-app, .study-seat) .generate-more .generate-rows { margin-top: 0; }
-:is(.study-app, .study-seat) .generate-case-hint { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-:is(.study-app, .study-seat) .generate-form > .warning { margin: var(--space-4) 0 0; }
-
-/* ── Summary above the one primary button ─────────────────────────────── */
-:is(.study-app, .study-seat) .generate-summary { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: 600; line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
-
-@container study (max-width: 640px) {
-  :is(.study-app, .study-seat) .generate-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
-  :is(.study-app, .study-seat) .generate-row__label { padding-top: 0; }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* WP23 · the 创建题组 form: label-left rows, a count stepper with presets,
+       the focus box with its AI assist, 更多选项 and the summary line. Injected by
+       Generate (useInjectCss 'study-generate-form'). Tokens only; narrow panes
+       follow the `study` container. */
+    .generate-form { padding-top: var(--space-5); }
+    .generate-rows { display: grid; gap: var(--space-5); margin: var(--space-5) 0 0; }
+    .generate-row {
+      display: grid;
+      grid-template-columns: 8em minmax(0, 1fr);
+      align-items: start;
+      gap: var(--space-2) var(--space-5);
+    }
+    .generate-row__label {
+      display: block;
+      margin: 0;
+      padding-top: 6px;
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-snug);
+    }
+    .generate-row__control { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
+    .generate-row__control > :is(input, textarea) { width: 100%; }
+    .generate-note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    /* Six question types wrap instead of overflowing a narrow pane. */
+    .generate-form .sh-seg { max-width: 100%; }
+    .generate-form .generate-kind { display: flex; flex-wrap: wrap; }
+    /* ── Count: stepper, presets, suggested count ─────────────────────────── */
+    .generate-count { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+    .generate-stepper {
+      display: inline-flex;
+      align-items: stretch;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      overflow: hidden;
+    }
+    .generate-stepper:focus-within { border-color: var(--accent-soft); box-shadow: var(--ring); }
+    .generate-stepper button {
+      width: 36px;
+      min-height: 36px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: var(--fs-lg);
+      line-height: 1;
+    }
+    .generate-stepper button:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+    .generate-stepper input {
+      width: 3.4em;
+      padding: 6px var(--space-1);
+      border: 0;
+      border-inline: 1px solid var(--line);
+      border-radius: 0;
+      background: var(--bg-surface);
+      box-shadow: none;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      font-weight: var(--fw-strong);
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+    .generate-stepper input:focus { box-shadow: none; background: var(--bg-surface); }
+    .generate-stepper input::-webkit-outer-spin-button,
+    .generate-stepper input::-webkit-inner-spin-button { appearance: none; margin: 0; }
+    /* ── Chips: presets, suggested count, focus suggestions ──────────────── */
+    .generate-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
+    .generate-chip {
+      min-height: 28px;
+      max-width: 100%;
+      padding: 3px var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      background: var(--bg-surface);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-tight);
+      text-align: left;
+    }
+    .generate-chip:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-surface); color: var(--text); }
+    .generate-chip[aria-pressed="true"] {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
+      color: var(--accent-text);
+    }
+    .generate-chip:focus-visible { outline: none; box-shadow: var(--ring); }
+    .generate-preset { min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
+    .generate-hint { border-style: dashed; color: var(--accent-text); }
+    /* ── Focus box and its assist ─────────────────────────────────────────── */
+    .generate-focus { min-height: 62px; padding: var(--space-2) var(--space-3); resize: none; overflow: hidden; line-height: var(--lh-snug); }
+    .generate-assist { display: grid; gap: var(--space-2); width: 100%; min-width: 0; }
+    .generate-assist__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+    .generate-assist__sent { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-assist__result { display: grid; gap: var(--space-2); }
+    .generate-assist__label { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+    .generate-assist__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-assist__apply { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+    .generate-assist__why { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); min-width: 0; overflow-wrap: anywhere; }
+    /* ── 更多选项 and the case-exam hint ──────────────────────────────────── */
+    .generate-more { margin-top: var(--space-5); }
+    .generate-more .generate-rows { margin-top: 0; }
+    .generate-case-hint { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-form > .warning { margin: var(--space-4) 0 0; }
+    /* ── Summary above the one primary button ─────────────────────────────── */
+    .generate-summary { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
+  }
+  @container study (max-width: 640px) {
+    :is(.study-app, .study-seat) {
+      .generate-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+      .generate-row__label { padding-top: 0; }
+    }
+  }
 }

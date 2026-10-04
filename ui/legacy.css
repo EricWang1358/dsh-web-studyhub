@@ -1,0 +1,177 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+/* ── LEGACY BUTTON AND LAYOUT RULES ────────────────────────────────────────────
+   Do not add to this sheet. `.primary` (with its !important accent block), `.link-btn`, `.ghost-btn`, `.pill`, `.danger-text` and
+   `.wf-danger` are the old button classes that <Button variant="primary|quiet|link|danger"> replaces (#135, #136). They stay only
+   until the last className that uses one is migrated (the ratchet `legacyButtonClass` in tests/ui-guardrails.test.mjs counts what is
+   left); the integration step deletes this block when that count is 0. The rest of the sheet (.alert, .notice, .two-col, ...) is the
+   old page furniture that no primitive covers yet. */
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    & button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+      font-weight: var(--fw-strong);
+    }
+    & button.primary:hover:not(:disabled) {
+      background: var(--accent-soft);
+    }
+    .ghost-btn {
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      padding: 6px 10px;
+      font-size: var(--fs-md);
+      border-radius: var(--radius-sm);
+    }
+    .ghost-btn:hover:not(:disabled) {
+      color: var(--text);
+      background: var(--bg-hover);
+      border: 0;
+    }
+    .two-col {
+      display: grid;
+      gap: 18px;
+    }
+    .two-col {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .wide {
+      width: 100%;
+      padding: 14px;
+    }
+    .warning {
+      color: var(--warn);
+      font-size: var(--fs-md);
+    }
+    .danger-text {
+      color: var(--bad);
+    }
+    .pill {
+      border-radius: var(--radius-card);
+      padding: 7px var(--space-4);
+      font-size: var(--fs-md);
+    }
+    .pill-on {
+      border-color: var(--accent);
+      color: var(--accent-soft);
+      background: var(--bg-selected);
+    }
+    .alert {
+      margin: 15px 25px 0;
+      padding: 11px var(--space-4);
+      border-radius: var(--radius-sm);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-4);
+      font-size: var(--fs-md);
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+    .alert button {
+      border: 0;
+      padding: 0 5px;
+    }
+    .alert span {
+      flex: 1;
+    }
+    .error {
+      background: var(--bad-tint);
+      color: var(--bad);
+    }
+    .notice {
+      background: color-mix(in srgb, var(--text) 4%, var(--bg-surface));
+      color: var(--text-dim);
+    }
+    .onboarding {
+      max-width: 680px;
+      padding: 70px 30px;
+      margin: auto;
+    }
+    .onboarding h1 {
+      font-size: var(--fs-3xl);
+    }
+    .intro {
+      color: var(--text-dim);
+      margin: var(--space-5) 0 35px;
+    }
+    .loading {
+      padding: 80px;
+      color: var(--text-dim);
+    }
+    & button.link-btn {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+      text-decoration: underline;
+      text-decoration-color: var(--line-strong);
+      text-underline-offset: 5px;
+      transition:
+        color var(--dur-fast) var(--ease),
+        text-decoration-color var(--dur-fast) var(--ease);
+    }
+    & button.link-btn:hover:not(:disabled) {
+      background: transparent;
+      color: var(--text);
+      text-decoration-color: var(--accent-soft);
+    }
+  }
+  @container study (max-width:720px) {
+    :where(.study-app, .study-seat) {
+      .two-col {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+      .alert {
+        margin: var(--space-3) 15px 0;
+      }
+      .onboarding {
+        padding: var(--space-8) var(--space-5);
+      }
+      .onboarding h1 {
+        font-size: var(--fs-3xl);
+      }
+    }
+  }
+  :where(.study-app, .study-seat) {
+    /* Menus and panels open with a short rise; lists simply appear. */
+    /* ── Accent glow on primary actions ────────────────────────────────────
+       Hover lifts and blooms; active presses back down. */
+    .primary {
+      background: var(--accent) !important;
+      border-color: var(--accent) !important;
+      color: var(--accent-ink) !important;
+      box-shadow:
+        0 8px 20px -12px var(--accent-glow),
+        inset 0 1px 0 var(--sheen);
+      transition:
+        transform 0.16s var(--ease),
+        box-shadow 0.16s var(--ease),
+        background 0.16s var(--ease);
+    }
+    .primary:hover:not(:disabled) {
+      background: var(--accent-soft) !important;
+      transform: translateY(-1px);
+      box-shadow:
+        0 12px 28px -10px var(--accent-glow),
+        inset 0 1px 0 var(--sheen-strong);
+    }
+    .primary:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 4px 12px -8px var(--accent-glow);
+    }
+    /* Cinnabar means "there is something to do". A primary that cannot act
+       goes neutral instead of fading to a muddy red. */
+    .primary:disabled {
+      background: color-mix(in srgb, var(--text) 7%, transparent) !important;
+      border-color: transparent !important;
+      color: var(--text-faint) !important;
+      box-shadow: none;
+      opacity: 1;
+    }
+  }
+}

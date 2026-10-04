@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
+import { globalCss } from './helpers/global-css.mjs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { mapProps } from './helpers/study-map-props.mjs';
 
@@ -53,7 +54,7 @@ test('the scope control has one fixed width in its own css, and no page css re-s
   assert.match(rule, /max-width:\s*100%/);
   assert.match(rule, /display:\s*grid/);
   assert.match(own, /\.page-scope\s+select\s*\{[^}]*width:\s*100%/);
-  assert.doesNotMatch(css('style.css'), /\.page-scope\s*\{[^}]*max-width/, 'the old per-page 36rem cap is gone');
+  assert.doesNotMatch(globalCss(), /\.page-scope\s*\{[^}]*max-width/, 'the old per-page 36rem cap is gone');
   for (const file of readdirSync(new URL('../ui', import.meta.url)).filter(name => name.endsWith('.css') && name !== 'course-active.css')) {
     for (const [, selector, body] of css(file).matchAll(/([^{}]*\.page-scope(?![-\w])[^{}]*)\{([^}]*)\}/g)) {
       const widths = [...body.matchAll(/(?:^|[;\s])(max-width|width|min-width)\s*:\s*([^;]+)/g)].map(match => [match[1], match[2].trim()]);

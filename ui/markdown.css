@@ -1,0 +1,207 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .md,
+    .md p,
+    .md li {
+      white-space: normal;
+    }
+    .md {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .md-math {
+      font-size: calc(1em * var(--study-formula-scale, 1));
+      display: inline-block;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      vertical-align: middle;
+      padding-block: 0.15em;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line-strong) transparent;
+      overscroll-behavior-x: contain;
+      line-height: normal;
+      letter-spacing: normal;
+    }
+    .md-math-display {
+      display: block;
+      margin: 0.75em 0;
+      padding: 0.8em 1em;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      text-align: center;
+    }
+    /* Center fitting equations; oversized ones start at the scroll origin. */
+    .md-math-display > .md-math-content {
+      display: flex;
+      width: max-content;
+      min-width: 100%;
+      justify-content: var(--study-formula-align, center);
+    }
+    .md-math-display:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
+    .md-math math { font-size: 1em; font-weight: var(--fw-regular); font-family: math, "Cambria Math", serif; }
+    /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
+    .md-math math:has(mphantom) { padding-inline-end: 0.2em; }
+    .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
+    .md-math-source { white-space: pre-wrap; }
+    .md-image { display: inline-block; max-width: 100%; margin-block: 0.5em; vertical-align: middle; }
+    .md-image img { display: block; max-width: 100%; max-height: var(--study-image-height, 360px); width: auto; height: auto; object-fit: contain; border-radius: var(--radius-sm); margin-inline: auto; }
+    .md-image-open, .md-image-static {
+      max-width: 100%;
+      padding: var(--space-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+    }
+    .md-image-open { display: block; cursor: zoom-in; text-align: left; }
+    .md-image-open:hover { background: var(--bg-hover); border-color: var(--line-strong); }
+    .md-image-info { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); }
+    .md-image-caption { display: block; min-width: 0; font-family: var(--font-ui); font-size: var(--fs-sm); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
+    .md-image-static > .md-image-caption { margin-top: var(--space-2); }
+    .md-image-action { margin-left: auto; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--text); }
+    .md-image-fallback { display: inline-grid; gap: 3px; padding: 10px var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); color: var(--text-muted); }
+    .md-image-dialog-canvas { margin-top: var(--space-4); padding: var(--space-3); border-radius: var(--radius-sm); background: var(--bg-sunken); }
+    .md > :first-child {
+      margin-top: 0;
+    }
+    .md > :last-child {
+      margin-bottom: 0;
+    }
+    .md p {
+      margin: 0 0 0.7em;
+      line-height: inherit;
+    }
+    .md ul,
+    .md ol {
+      margin: 0.2em 0 0.8em;
+      padding-left: 1.4em;
+    }
+    .md li {
+      margin: 0.25em 0;
+    }
+    .md li > ul,
+    .md li > ol {
+      margin: 0.2em 0;
+    }
+    .md li::marker {
+      color: var(--accent-soft);
+    }
+    .md strong {
+      font-weight: var(--fw-strong);
+      color: var(--text);
+    }
+    .md em {
+      font-style: italic;
+    }
+    .md del {
+      color: var(--text-muted);
+    }
+    .md code {
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 1em;
+      padding: 0.1em 0.38em;
+      border-radius: var(--radius-xs);
+      background: var(--bg-sunken);
+      border: 1px solid var(--line);
+    }
+    .md .md-code {
+      margin: 0.4em 0 0.9em;
+      padding: var(--space-3) 14px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      border: 1px solid var(--line);
+      overflow-x: auto;
+      font-size: var(--fs-md);
+      line-height: 1.6;
+      white-space: pre;
+    }
+    .md .md-code code {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      font-size: inherit;
+    }
+    .md blockquote {
+      margin: 0.4em 0 0.9em;
+      padding: var(--space-half) 0 var(--space-half) var(--space-3);
+      border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+      color: var(--text-dim);
+    }
+    .md .md-heading {
+      margin: 0.9em 0 0.4em;
+      font-size: 1.05em;
+      font-weight: var(--fw-strong);
+      line-height: 1.5;
+    }
+    .md hr {
+      border: 0;
+      border-top: 1px solid var(--line);
+      margin: 1em 0;
+    }
+    .md a,
+    .md .md-link {
+      color: var(--accent-soft);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .md .md-link {
+      text-decoration-style: dotted;
+    }
+    .md-table {
+      margin: 0.4em 0 0.9em;
+      overflow-x: auto;
+    }
+    .md table {
+      border-collapse: collapse;
+      font-size: 1em;
+      min-width: 100%;
+    }
+    .md th,
+    .md td {
+      border: 1px solid var(--line);
+      padding: 6px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .md th {
+      background: var(--bg-surface);
+      font-weight: var(--fw-strong);
+    }
+    .md .md-color strong,
+    .md .md-color em,
+    .md .md-color code {
+      color: inherit;
+    }
+    .md details.md-details {
+      margin: 0.5em 0 0.9em;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      padding: 0 var(--space-3);
+    }
+    .md details.md-details > summary {
+      cursor: pointer;
+      padding: 9px 0;
+      color: var(--text-dim);
+      list-style-position: inside;
+    }
+    .md details.md-details[open] > summary {
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 10px;
+    }
+    .md details.md-details[open] {
+      padding-bottom: 10px;
+    }
+    .md-compact p {
+      margin-bottom: 0.3em;
+    }
+    .md-title {
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-medium);
+      margin: 6px 0 10px;
+    }
+  }
+}

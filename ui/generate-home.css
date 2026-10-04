@@ -2,58 +2,62 @@
    (useInjectCss 'study-generate-home'). Tokens only; narrow widths follow the
    `study` container. */
 
-/* ── Home: progress and drafts at the top ─────────────────────────────── */
-.home-activity { display: grid; gap: var(--space-4); margin: var(--space-4) 0 var(--space-2); }
-.home-activity .generation-jobs { display: grid; gap: var(--space-2); margin: 0; }
-/* A generation job is the shared JobRow (.sh-job, components/feedback.css); these only dress what the home puts inside it. */
-.home-activity .sh-job .job-stage__label { margin-right: var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); }
-.home-activity .sh-job .job-progress__note { color: var(--text-muted); font-size: var(--fs-xs); }
-.home-activity .sh-job .generation-trace { margin-top: var(--space-1); font-size: var(--fs-sm); }
-.home-activity .sh-job .generation-trace > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
-.home-activity .sh-job .generation-trace > summary:hover { color: var(--text); }
-.home-activity .sh-job .tech-details { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); }
-.home-activity .job-raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-xs); color: var(--text-muted); }
-.home-activity .jobs-actions { display: flex; justify-content: flex-end; }
-.home-activity .home-drafts > .section-heading { margin-top: 0; }
-.home-activity .draft-row:last-child { border-bottom: 0; }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-/* ── Home: a newcomer's first deck, three steps on the card ───────────── */
-.today-card .starter-steps { list-style: none; display: grid; margin: 0 0 var(--space-5); padding: 0; }
-.today-card .starter-steps li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 32px;
-  font-size: var(--fs-md);
-  color: var(--paper-dim);
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* ── Home: progress and drafts at the top ─────────────────────────────── */
+    .home-activity { display: grid; gap: var(--space-4); margin: var(--space-4) 0 var(--space-2); }
+    .home-activity .generation-jobs { display: grid; gap: var(--space-2); margin: 0; }
+    /* A generation job is the shared JobRow (.sh-job, components/feedback.css); these only dress what the home puts inside it. */
+    .home-activity .sh-job .job-stage__label { margin-right: var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); }
+    .home-activity .sh-job .job-progress__note { color: var(--text-muted); font-size: var(--fs-xs); }
+    .home-activity .sh-job .generation-trace { margin-top: var(--space-1); font-size: var(--fs-sm); }
+    .home-activity .sh-job .generation-trace > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
+    .home-activity .sh-job .generation-trace > summary:hover { color: var(--text); }
+    .home-activity .sh-job .tech-details { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); }
+    .home-activity .job-raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-xs); color: var(--text-muted); }
+    .home-activity .jobs-actions { display: flex; justify-content: flex-end; }
+    .home-activity .home-drafts > .section-heading { margin-top: 0; }
+    .home-activity .draft-row:last-child { border-bottom: 0; }
+    /* ── Home: a newcomer's first deck, three steps on the card ───────────── */
+    .today-card .starter-steps { list-style: none; display: grid; margin: 0 0 var(--space-5); padding: 0; }
+    .today-card .starter-steps li {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 32px;
+      font-size: var(--fs-md);
+      color: var(--paper-dim);
+    }
+    .today-card .starter-steps li.is-current { font-weight: var(--fw-strong); color: var(--paper-ink); }
+    .today-card .starter-steps li.is-done { color: var(--paper-dim); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--paper-dim) 55%, transparent); }
+    .today-card .starter-mark {
+      display: inline-grid;
+      place-items: center;
+      flex: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1.5px solid currentColor;
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-strong);
+      font-variant-numeric: tabular-nums;
+      text-decoration: none;
+    }
+    .today-card .starter-steps li.is-current .starter-mark { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+    .today-card .starter-steps li.is-done .starter-mark { border-color: transparent; background: color-mix(in srgb, var(--paper-ink) 10%, transparent); }
+    .desk.is-empty .today-card-empty { margin-bottom: var(--space-3); }
+    /* ── 创建题组 ─────────────────────────────────────────────────────────── */
+    .generate-page .source-mode { margin-top: var(--space-5); }
+    .generate-page .source-tab strong { display: flex; align-items: center; gap: var(--space-2); }
+    .generate-page .source-tab small { font-size: var(--fs-sm); }
+    .generate-page .generate-panel { margin-top: var(--space-4); }
+    .generate-page .generate-panel > .sh-banner { margin-bottom: var(--space-4); }
+    .generate-page .generate-sources-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); }
+    .generate-page .generate-submit { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
+    .generate-page .generate-submit .quality-note { margin: 0; }
+    .generate-page .generate-submit > .sh-btn--primary { width: 100%; justify-content: center; }
+    .generate-page .generate-submit .muted { margin: 0; }
+  }
 }
-.today-card .starter-steps li.is-current { font-weight: 650; color: var(--paper-ink); }
-.today-card .starter-steps li.is-done { color: var(--paper-dim); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--paper-dim) 55%, transparent); }
-.today-card .starter-mark {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-decoration: none;
-}
-.today-card .starter-steps li.is-current .starter-mark { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
-.today-card .starter-steps li.is-done .starter-mark { border-color: transparent; background: color-mix(in srgb, var(--paper-ink) 10%, transparent); }
-.desk.is-empty .today-card-empty { margin-bottom: var(--space-3); }
-
-/* ── 创建题组 ─────────────────────────────────────────────────────────── */
-.generate-page .source-mode { margin-top: var(--space-5); }
-.generate-page .source-tab strong { display: flex; align-items: center; gap: var(--space-2); }
-.generate-page .source-tab small { font-size: var(--fs-sm); }
-.generate-page .generate-panel { margin-top: var(--space-4); }
-.generate-page .generate-panel > .sh-banner { margin-bottom: var(--space-4); }
-.generate-page .generate-sources-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); }
-.generate-page .generate-submit { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
-.generate-page .generate-submit .quality-note { margin: 0; }
-.generate-page .generate-submit > .sh-btn--primary { width: 100%; justify-content: center; }
-.generate-page .generate-submit .muted { margin: 0; }

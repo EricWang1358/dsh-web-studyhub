@@ -1,5 +1,9 @@
-/* ModelErrorNote: the provider's own text behind the plain-words error. */
-:is(.study-app, .study-seat) {
-  .model-note__detail { margin-top: var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); }
-  .model-note__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* ModelErrorNote: the provider's own text behind the plain-words error. */
+    .model-note__detail { margin-top: var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); }
+    .model-note__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }
+  }
 }

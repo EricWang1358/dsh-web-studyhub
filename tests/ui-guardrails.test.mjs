@@ -44,7 +44,7 @@ test('no window.confirm / alert / prompt in ui (#67)', () => {
 
 test('every var(--x) used in ui CSS is defined (#96)', () => {
   assert.deepEqual(scan.undefinedVars.map((v) => `${v.name} first used at ${v.site}`), [],
-    'define the token (ui/style.css or ui/components/components.css) or fix the name; host-provided variables go in ALLOW.undefinedVars with a reason');
+    'define the token (ui/tokens.css or ui/components/components.css) or fix the name; host-provided variables go in ALLOW.undefinedVars with a reason');
 });
 
 test('allow-list entries that no longer match anything are removed', () => {
@@ -112,9 +112,9 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
   }
 });
 
-// ── Semantic tokens (components.css, scoped so every theme derives them) ──
-const components = parseCss(readFileSync(new URL('../ui/components/components.css', import.meta.url), 'utf8'));
-const tokenDecls = components.declarations.filter((d) => d.prop.startsWith('--') && d.ctx.length === 1 && d.ctx[0] === ':is(.study-app, .study-seat)');
+// ── Semantic tokens (tokens.css, on the app root and the seat so every theme derives them) ──
+const tokenSheet = parseCss(readFileSync(new URL('../ui/tokens.css', import.meta.url), 'utf8'));
+const tokenDecls = tokenSheet.declarations.filter((d) => d.prop.startsWith('--') && d.ctx.length === 2 && d.ctx[1] === '.study-app, .study-seat');
 const tokens = Object.fromEntries(tokenDecls.map((d) => [d.prop, d.value]));
 
 test('tone tokens use the component library formulas', () => {

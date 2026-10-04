@@ -3,7 +3,7 @@ import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Field, IconButton, ScrollWindow, TextInput, useDismiss } from './components/index.js';
 import { groupCourseNames, isParkedCourse, rankCourses } from './course-names.js';
-import css from './course-field-css.js';
+import css from './course-field.css';
 
 export const parseCourses = value => [...new Set(String(value || '').split(/[;；\n]/).map(name => name.trim()).filter(Boolean))];
 

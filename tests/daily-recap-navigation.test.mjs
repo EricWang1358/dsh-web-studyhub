@@ -14,7 +14,7 @@ const bundle = await build({ stdin: { contents: `
   import { createRoot } from 'react-dom/client';
   import App from './ui/App.jsx';
   import { setUiLanguage } from './ui/i18n.js';
-  import css from './ui/style.css';
+  import css from './ui/styles.js';
   setUiLanguage('zh');
   const style = document.createElement('style'); style.textContent = css; document.head.append(style);
   window.callStudy = async (action, args) => {

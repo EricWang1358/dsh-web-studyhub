@@ -3,7 +3,7 @@ import { Dialog, InlineMessage } from "../components/index.js";
 import { getUiLanguage, ui } from "../i18n.js";
 import React from "react";
 import App from "../App.jsx";
-import css from "../style.css";
+import css from "../styles.js";
 import themesCss from "../appearance-themes.css";
 import accentCss from "../accent.css";
 import bridgeCss from "../panel-bridge.css";

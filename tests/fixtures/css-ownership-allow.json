@@ -1,0 +1,769 @@
+{
+  "note": "Classes that more than one stylesheet writes a rule for. May only shrink: regenerate with node scripts/qa/css-ownership.mjs --update.",
+  "classes": {
+    "action-feedback-slot": [
+      "ui/components/components.css",
+      "ui/review/question.css"
+    ],
+    "active": [
+      "ui/shell.css",
+      "ui/sources-page.css",
+      "ui/study-map/catalog.css"
+    ],
+    "audio-reasoning": [
+      "ui/audio-dashboard.css",
+      "ui/audio-settings.css"
+    ],
+    "binding-actions": [
+      "ui/binding.css",
+      "ui/settings.css"
+    ],
+    "binding-panel": [
+      "ui/binding.css",
+      "ui/settings.css"
+    ],
+    "binding-row": [
+      "ui/binding.css",
+      "ui/settings.css"
+    ],
+    "board-page": [
+      "ui/board/board.css",
+      "ui/shell.css"
+    ],
+    "brand": [
+      "ui/shell.css",
+      "ui/side-groups.css"
+    ],
+    "canvas-expanded": [
+      "ui/canvas/canvas.css",
+      "ui/graph.css"
+    ],
+    "case-chip": [
+      "ui/case-result.css",
+      "ui/case-study.css"
+    ],
+    "cloze": [
+      "ui/graph.css",
+      "ui/review/question.css"
+    ],
+    "collapse-toggle": [
+      "ui/app/app-shell.css",
+      "ui/shell.css"
+    ],
+    "course-active": [
+      "ui/course-active.css",
+      "ui/course-settings.css"
+    ],
+    "course-active__row": [
+      "ui/course-active.css",
+      "ui/course-settings.css"
+    ],
+    "course-heading": [
+      "ui/course-settings.css",
+      "ui/home-tiers.css",
+      "ui/study-map/catalog.css"
+    ],
+    "course-heading-input": [
+      "ui/home-tiers.css",
+      "ui/study-map/catalog.css"
+    ],
+    "course-list__window": [
+      "ui/course-settings.css",
+      "ui/settings.css"
+    ],
+    "course-parked-line": [
+      "ui/course-active.css",
+      "ui/home-tiers.css"
+    ],
+    "course-route": [
+      "ui/focus.css",
+      "ui/home-tiers.css"
+    ],
+    "current": [
+      "ui/shell.css",
+      "ui/skeleton.css",
+      "ui/study-map/catalog.css"
+    ],
+    "daily-recap": [
+      "ui/DailyRecap.css",
+      "ui/blog-notes.css"
+    ],
+    "danger-text": [
+      "ui/draft.css",
+      "ui/focus.css",
+      "ui/legacy.css",
+      "ui/sources.css"
+    ],
+    "desk": [
+      "ui/home-tiers.css",
+      "ui/study-map/desk.css"
+    ],
+    "desk-also": [
+      "ui/home-tiers.css",
+      "ui/study-map/desk.css"
+    ],
+    "desk-intro": [
+      "ui/home-tiers.css",
+      "ui/study-map/desk.css"
+    ],
+    "desk-mastery": [
+      "ui/home-tiers.css",
+      "ui/study-map/desk.css"
+    ],
+    "desk-next": [
+      "ui/home-tiers.css",
+      "ui/study-map/desk.css"
+    ],
+    "dim": [
+      "ui/review/question.css",
+      "ui/skeleton.css",
+      "ui/views.css"
+    ],
+    "draft-row": [
+      "ui/generate-home.css",
+      "ui/study-map/desk.css"
+    ],
+    "empty": [
+      "ui/skeleton.css",
+      "ui/study-map/catalog.css"
+    ],
+    "extensions-settings__choice": [
+      "ui/large-documents.css",
+      "ui/settings.css"
+    ],
+    "eyebrow": [
+      "ui/base.css",
+      "ui/coach.css",
+      "ui/draft.css",
+      "ui/study-map/catalog.css",
+      "ui/study-map/desk.css"
+    ],
+    "generation-trace": [
+      "ui/generate-home.css",
+      "ui/review/question.css"
+    ],
+    "ghost-btn": [
+      "ui/legacy.css",
+      "ui/study-map/desk.css"
+    ],
+    "highlight-quote": [
+      "ui/document-preview/reader/reader.css",
+      "ui/sources-page.css"
+    ],
+    "icon": [
+      "ui/base.css",
+      "ui/coach.css",
+      "ui/review/question.css",
+      "ui/setup-checklist.css",
+      "ui/shell.css",
+      "ui/sources-page.css"
+    ],
+    "inline-check": [
+      "ui/coach.css",
+      "ui/update.css"
+    ],
+    "is-active": [
+      "ui/case-study.css",
+      "ui/components/components.css",
+      "ui/components/disclosure.css",
+      "ui/course-field.css",
+      "ui/review/question.css",
+      "ui/skeleton.css"
+    ],
+    "is-compact": [
+      "ui/course-settings.css",
+      "ui/mineru.css",
+      "ui/update.css"
+    ],
+    "is-current": [
+      "ui/components/feedback.css",
+      "ui/course-settings.css",
+      "ui/focus.css",
+      "ui/generate-home.css",
+      "ui/mineru.css",
+      "ui/workflows.css"
+    ],
+    "is-done": [
+      "ui/board/board.css",
+      "ui/components/feedback.css",
+      "ui/generate-home.css"
+    ],
+    "is-dragging": [
+      "ui/board/board.css",
+      "ui/shell.css",
+      "ui/side-groups.css"
+    ],
+    "is-narrow": [
+      "ui/shell.css",
+      "ui/side-groups.css"
+    ],
+    "is-open": [
+      "ui/case-study.css",
+      "ui/workflows.css"
+    ],
+    "is-over": [
+      "ui/board/board.css",
+      "ui/case-result.css",
+      "ui/case-study.css",
+      "ui/components/components.css"
+    ],
+    "is-panning": [
+      "ui/graph.css",
+      "ui/skeleton.css"
+    ],
+    "is-parked": [
+      "ui/course-active.css",
+      "ui/course-field.css"
+    ],
+    "is-ready": [
+      "ui/tour/tour.css",
+      "ui/wrongbook.css"
+    ],
+    "is-selected": [
+      "ui/components/feedback.css",
+      "ui/components/fields.css",
+      "ui/mineru.css",
+      "ui/source-picker.css"
+    ],
+    "is-warning": [
+      "ui/document-preview/original-file.css",
+      "ui/document-preview/translation/translation.css"
+    ],
+    "jobs-actions": [
+      "ui/generate-home.css",
+      "ui/study-map/desk.css"
+    ],
+    "library-chip": [
+      "ui/app/app-shell.css",
+      "ui/library-chip.css"
+    ],
+    "link-btn": [
+      "ui/audio-import.css",
+      "ui/charts/charts.css",
+      "ui/course-active.css",
+      "ui/focus.css",
+      "ui/followup.css",
+      "ui/legacy.css",
+      "ui/workflow-scope.css",
+      "ui/workflows.css"
+    ],
+    "local-status": [
+      "ui/shell.css",
+      "ui/side-groups.css"
+    ],
+    "lv-familiar": [
+      "ui/review/session.css",
+      "ui/study-map/catalog.css"
+    ],
+    "lv-learning": [
+      "ui/review/session.css",
+      "ui/study-map/catalog.css"
+    ],
+    "lv-mastered": [
+      "ui/review/session.css",
+      "ui/study-map/catalog.css"
+    ],
+    "lv-new": [
+      "ui/review/session.css",
+      "ui/study-map/catalog.css"
+    ],
+    "lv-weak": [
+      "ui/review/session.css",
+      "ui/study-map/catalog.css"
+    ],
+    "map-dot": [
+      "ui/review/question.css",
+      "ui/study-map/catalog.css"
+    ],
+    "mastery": [
+      "ui/study-map/catalog.css",
+      "ui/study-map/desk.css"
+    ],
+    "mastery-bar": [
+      "ui/study-map/catalog.css",
+      "ui/study-map/desk.css"
+    ],
+    "mastery-value": [
+      "ui/study-map/catalog.css",
+      "ui/study-map/desk.css"
+    ],
+    "md": [
+      "ui/markdown.css",
+      "ui/reading-settings/reading.css",
+      "ui/review/question.css",
+      "ui/skeleton.css",
+      "ui/workflows.css"
+    ],
+    "md-code": [
+      "ui/markdown.css",
+      "ui/review/question.css"
+    ],
+    "md-details": [
+      "ui/markdown.css",
+      "ui/review/question.css"
+    ],
+    "md-image-open": [
+      "ui/markdown.css",
+      "ui/review/question.css"
+    ],
+    "md-math": [
+      "ui/markdown.css",
+      "ui/review/question.css"
+    ],
+    "md-table": [
+      "ui/markdown.css",
+      "ui/reading-settings/reading.css"
+    ],
+    "muted": [
+      "ui/base.css",
+      "ui/document-preview/links/links.css",
+      "ui/generate-home.css",
+      "ui/live-class.css",
+      "ui/review-results.css",
+      "ui/workflows.css"
+    ],
+    "nav": [
+      "ui/shell.css",
+      "ui/side-groups.css"
+    ],
+    "nav-reset": [
+      "ui/app/app-shell.css",
+      "ui/shell.css"
+    ],
+    "note-header-tools": [
+      "ui/blog-notes.css",
+      "ui/reading-settings/reading.css"
+    ],
+    "on": [
+      "ui/coach.css",
+      "ui/live-class.css",
+      "ui/shell.css",
+      "ui/skeleton.css"
+    ],
+    "page-heading": [
+      "ui/reading-settings/reading.css",
+      "ui/shell.css",
+      "ui/skeleton.css",
+      "ui/views.css"
+    ],
+    "page-scope": [
+      "ui/course-active.css",
+      "ui/exam-setup.css",
+      "ui/source-picker.css"
+    ],
+    "picked": [
+      "ui/exam-setup.css",
+      "ui/skeleton.css",
+      "ui/views.css"
+    ],
+    "pill": [
+      "ui/coach.css",
+      "ui/legacy.css",
+      "ui/review/question.css",
+      "ui/review/session.css"
+    ],
+    "primary": [
+      "ui/coach.css",
+      "ui/legacy.css",
+      "ui/workflows.css"
+    ],
+    "quality-note": [
+      "ui/draft.css",
+      "ui/generate-home.css",
+      "ui/review/question.css"
+    ],
+    "question-area": [
+      "ui/case-study.css",
+      "ui/review/question.css",
+      "ui/review/session.css"
+    ],
+    "reader-p": [
+      "ui/document-preview/reader/reader.css",
+      "ui/document-preview/translation/translation.css"
+    ],
+    "reader-page": [
+      "ui/document-preview/reader/reader.css",
+      "ui/document-preview/translation/translation.css"
+    ],
+    "reader-toolbar": [
+      "ui/blog-notes.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "reader-toolbar__group": [
+      "ui/blog-notes.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "reader-toolbar__group--end": [
+      "ui/blog-notes.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "result-details": [
+      "ui/oral-exam.css",
+      "ui/review-results.css"
+    ],
+    "result-weak": [
+      "ui/oral-exam.css",
+      "ui/review-results.css"
+    ],
+    "resume-list": [
+      "ui/home-tiers.css",
+      "ui/study-map/desk.css"
+    ],
+    "review-page": [
+      "ui/review/session.css",
+      "ui/shell.css"
+    ],
+    "role-prep": [
+      "ui/focus.css",
+      "ui/home-tiers.css"
+    ],
+    "section-heading": [
+      "ui/generate-home.css",
+      "ui/study-map/catalog.css"
+    ],
+    "section-heading-actions": [
+      "ui/shell.css",
+      "ui/study-map/catalog.css"
+    ],
+    "selected": [
+      "ui/audio-dashboard.css",
+      "ui/live-class.css",
+      "ui/review/question.css",
+      "ui/skeleton.css",
+      "ui/study-map/catalog.css"
+    ],
+    "self": [
+      "ui/charts/charts.css",
+      "ui/views.css",
+      "ui/wrongbook.css"
+    ],
+    "session-summary": [
+      "ui/review-results.css",
+      "ui/review/question.css"
+    ],
+    "settings-section": [
+      "ui/components/fields.css",
+      "ui/settings.css"
+    ],
+    "sh-badge": [
+      "ui/components/feedback.css",
+      "ui/components/fields.css",
+      "ui/inbox.css",
+      "ui/update.css"
+    ],
+    "sh-banner": [
+      "ui/app/app-shell.css",
+      "ui/components/components.css",
+      "ui/generate-home.css",
+      "ui/update.css"
+    ],
+    "sh-banner__body": [
+      "ui/components/components.css",
+      "ui/draft-shortfall.css"
+    ],
+    "sh-banner__icon": [
+      "ui/components/components.css",
+      "ui/welcome.css"
+    ],
+    "sh-btn": [
+      "ui/DailyRecap.css",
+      "ui/app/app-shell.css",
+      "ui/audio-settings.css",
+      "ui/blog-notes.css",
+      "ui/board/board.css",
+      "ui/components/components.css",
+      "ui/components/feedback.css",
+      "ui/components/secret-key.css",
+      "ui/course-settings.css",
+      "ui/daily-plan.css",
+      "ui/document-preview/document-preview.css",
+      "ui/document-preview/peek/peek.css",
+      "ui/document-preview/practice/practice.css",
+      "ui/document-preview/reader/reader.css",
+      "ui/document-preview/translation/translation.css",
+      "ui/exam-setup.css",
+      "ui/generation-path.css",
+      "ui/jev.css",
+      "ui/mineru.css",
+      "ui/review/review.css",
+      "ui/settings.css",
+      "ui/setup-checklist.css",
+      "ui/sources.css",
+      "ui/tour/onboarding.css",
+      "ui/wrongbook.css"
+    ],
+    "sh-btn--icon": [
+      "ui/components/components.css",
+      "ui/components/feedback.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "sh-btn--link": [
+      "ui/components/components.css",
+      "ui/course-settings.css",
+      "ui/welcome.css",
+      "ui/wrongbook.css"
+    ],
+    "sh-btn--primary": [
+      "ui/components/components.css",
+      "ui/daily-plan.css",
+      "ui/exam-setup.css",
+      "ui/generate-home.css",
+      "ui/workflows.css"
+    ],
+    "sh-btn--quiet": [
+      "ui/components/components.css",
+      "ui/components/feedback.css"
+    ],
+    "sh-check": [
+      "ui/components/fields.css",
+      "ui/course-settings.css"
+    ],
+    "sh-dialog": [
+      "ui/components/components.css",
+      "ui/components/dialog-media.css"
+    ],
+    "sh-dialog__body": [
+      "ui/components/components.css",
+      "ui/course-settings.css"
+    ],
+    "sh-dialog__content": [
+      "ui/components/components.css",
+      "ui/document-preview/original-file.css"
+    ],
+    "sh-dialog__footer": [
+      "ui/board/board.css",
+      "ui/components/components.css"
+    ],
+    "sh-disclosure__body": [
+      "ui/components/components.css",
+      "ui/course-settings.css",
+      "ui/mineru.css",
+      "ui/settings.css"
+    ],
+    "sh-disclosure__summary": [
+      "ui/components/components.css",
+      "ui/settings.css"
+    ],
+    "sh-drop": [
+      "ui/components/components.css",
+      "ui/import-hub.css"
+    ],
+    "sh-empty--sm": [
+      "ui/board/board.css",
+      "ui/components/components.css"
+    ],
+    "sh-field": [
+      "ui/components/fields.css",
+      "ui/course-settings.css"
+    ],
+    "sh-hint": [
+      "ui/components/feedback.css",
+      "ui/components/fields.css",
+      "ui/update.css"
+    ],
+    "sh-icon": [
+      "ui/board/board.css",
+      "ui/components/components.css",
+      "ui/components/disclosure.css",
+      "ui/course-settings.css",
+      "ui/import-hub.css",
+      "ui/large-documents.css",
+      "ui/mineru.css",
+      "ui/source-picker.css",
+      "ui/sources.css",
+      "ui/tour/tour.css"
+    ],
+    "sh-inline": [
+      "ui/audio-settings.css",
+      "ui/components/components.css",
+      "ui/components/feedback.css",
+      "ui/components/secret-key.css",
+      "ui/document-preview/links/links.css",
+      "ui/graph.css",
+      "ui/import-hub.css",
+      "ui/update.css",
+      "ui/workflow-scope.css"
+    ],
+    "sh-job": [
+      "ui/components/feedback.css",
+      "ui/mineru.css"
+    ],
+    "sh-loading": [
+      "ui/components/feedback.css",
+      "ui/graph.css"
+    ],
+    "sh-page-header": [
+      "ui/board/board.css",
+      "ui/components/components.css",
+      "ui/sources.css"
+    ],
+    "sh-panel": [
+      "ui/charts/charts.css",
+      "ui/components/components.css"
+    ],
+    "sh-panel__head": [
+      "ui/charts/charts.css",
+      "ui/components/components.css"
+    ],
+    "sh-progress": [
+      "ui/components/feedback.css",
+      "ui/large-documents.css"
+    ],
+    "sh-scroll__frame": [
+      "ui/components/scroll-window.css",
+      "ui/course-field.css",
+      "ui/inbox.css"
+    ],
+    "sh-secret": [
+      "ui/audio-settings.css",
+      "ui/components/fields.css",
+      "ui/components/secret-key.css"
+    ],
+    "sh-seg": [
+      "ui/components/components.css",
+      "ui/components/fields.css",
+      "ui/exam-setup.css",
+      "ui/generate-form.css",
+      "ui/views.css",
+      "ui/wrongbook.css"
+    ],
+    "sh-seg__item": [
+      "ui/blog-notes.css",
+      "ui/components/components.css",
+      "ui/exam-setup.css",
+      "ui/wrongbook.css"
+    ],
+    "sh-setup": [
+      "ui/components/components.css",
+      "ui/exam-setup.css"
+    ],
+    "sh-spinner": [
+      "ui/components/components.css",
+      "ui/components/feedback.css",
+      "ui/wrongbook.css"
+    ],
+    "sh-tab": [
+      "ui/components/disclosure.css",
+      "ui/skeleton.css"
+    ],
+    "sidebar": [
+      "ui/shell.css",
+      "ui/side-groups.css"
+    ],
+    "source-doc__icon": [
+      "ui/document-preview/rename.css",
+      "ui/sources.css"
+    ],
+    "source-group-head": [
+      "ui/sources-page.css",
+      "ui/sources.css"
+    ],
+    "source-main": [
+      "ui/sources-page.css",
+      "ui/sources.css"
+    ],
+    "source-md": [
+      "ui/document-preview/document-preview.css",
+      "ui/sources-page.css"
+    ],
+    "source-mode": [
+      "ui/generate-home.css",
+      "ui/sources-page.css"
+    ],
+    "source-row-actions": [
+      "ui/sources-page.css",
+      "ui/sources.css"
+    ],
+    "source-text--pdf": [
+      "ui/document-preview/document-preview.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "source-text--reading": [
+      "ui/document-preview/document-preview.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "study-document-body": [
+      "ui/document-preview/document-preview.css",
+      "ui/document-preview/links/links.css",
+      "ui/document-preview/reader/reader.css",
+      "ui/document-preview/translation/translation.css"
+    ],
+    "study-document-links-heading": [
+      "ui/document-preview/document-preview.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "study-document-page": [
+      "ui/document-preview/document-preview.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "study-document-selection": [
+      "ui/document-preview/document-preview.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "study-document-viewer": [
+      "ui/blog-notes.css",
+      "ui/document-preview/reader/reader.css"
+    ],
+    "summary-actions": [
+      "ui/review-results.css",
+      "ui/review/question.css"
+    ],
+    "summary-topics": [
+      "ui/review-results.css",
+      "ui/review/question.css"
+    ],
+    "thumbs": [
+      "ui/coach.css",
+      "ui/review/question.css"
+    ],
+    "today-card-empty": [
+      "ui/generate-home.css",
+      "ui/study-map/desk.css"
+    ],
+    "today-card-head": [
+      "ui/home-tiers.css",
+      "ui/study-map/desk.css"
+    ],
+    "today-stack": [
+      "ui/home-tiers.css",
+      "ui/study-map/desk.css"
+    ],
+    "token-estimate": [
+      "ui/draft-shortfall.css",
+      "ui/token-usage.css"
+    ],
+    "token-usage": [
+      "ui/jev.css",
+      "ui/token-usage.css"
+    ],
+    "token-usage__row": [
+      "ui/jev.css",
+      "ui/token-usage.css"
+    ],
+    "token-usage__rows": [
+      "ui/jev.css",
+      "ui/token-usage.css"
+    ],
+    "two-col": [
+      "ui/legacy.css",
+      "ui/settings.css"
+    ],
+    "warning": [
+      "ui/generate-form.css",
+      "ui/legacy.css",
+      "ui/views.css"
+    ],
+    "wf-scope": [
+      "ui/workflow-scope.css",
+      "ui/workflows.css"
+    ],
+    "wf-scope-line": [
+      "ui/workflow-scope.css",
+      "ui/workflows.css"
+    ],
+    "wf-spine-status": [
+      "ui/workflow-scope.css",
+      "ui/workflows.css"
+    ]
+  }
+}

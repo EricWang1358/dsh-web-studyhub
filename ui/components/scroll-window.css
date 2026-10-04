@@ -1,50 +1,61 @@
-/* ScrollWindow (WP14): one bounded, scrollable list window. Tokens only. The
-   fades are a mask on the viewport, so they work on any surface colour. */
-:is(.study-app, .study-seat) {
-  .sh-scroll { display: grid; gap: var(--space-2); min-width: 0; }
-  .sh-scroll__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
-  .sh-scroll__filter {
-    flex: 1 1 220px;
-    width: auto;
-    min-width: 0;
-    max-width: 420px;
-    min-height: 36px;
-    margin: 0;
-    padding: 6px var(--space-3);
-    font-size: var(--fs-sm);
-    line-height: var(--lh-tight);
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* ScrollWindow (WP14): one bounded, scrollable list window. Tokens only. The
+       fades are a mask on the viewport, so they work on any surface colour. */
+    .sh-scroll { display: grid; gap: var(--space-2); min-width: 0; }
+    .sh-scroll__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
+    /* focuses like a .sh-input (an input with its own class loses the base focus rules to the primitives layer) */
+    .sh-scroll__filter:focus { border-color: var(--accent-soft); background: var(--bg-surface); box-shadow: var(--ring); outline: none; }
+    .sh-scroll__filter:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
+    .sh-scroll__filter {
+      flex: 1 1 220px;
+      width: auto;
+      min-width: 0;
+      max-width: 420px;
+      min-height: 36px;
+      margin: 0;
+      padding: 6px var(--space-3);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-tight);
+    }
+    .sh-scroll__count { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .sh-scroll__frame {
+      position: relative;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+    }
+    .sh-scroll__frame:has(> .sh-scroll__viewport:focus-visible) { border-color: var(--accent-soft); box-shadow: var(--ring); }
+    .sh-scroll__viewport {
+      max-height: var(--sh-scroll-max, 380px);
+      overflow: auto;
+      overscroll-behavior: contain;
+      scroll-behavior: smooth;
+      border-radius: inherit;
+      outline: none;
+      --sh-fade-top: 0px;
+      --sh-fade-bottom: 0px;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--sh-fade-top), #000 calc(100% - var(--sh-fade-bottom)), transparent 100%);
+      mask-image: linear-gradient(to bottom, transparent 0, #000 var(--sh-fade-top), #000 calc(100% - var(--sh-fade-bottom)), transparent 100%);
+    }
+    .sh-scroll__frame[data-fade-top] > .sh-scroll__viewport { --sh-fade-top: 22px; }
+    .sh-scroll__frame[data-fade-bottom] > .sh-scroll__viewport { --sh-fade-bottom: 22px; }
+    .sh-scroll__list { list-style: none; margin: 0; padding: 0; min-width: 0; }
+    .sh-scroll__item { min-width: 0; }
+    .sh-scroll__empty { margin: 0; padding: var(--space-4); color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
   }
-  .sh-scroll__count { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .sh-scroll__frame {
-    position: relative;
-    min-width: 0;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--bg-surface);
-  }
-  .sh-scroll__frame:has(> .sh-scroll__viewport:focus-visible) { border-color: var(--accent-soft); box-shadow: var(--ring); }
-  .sh-scroll__viewport {
-    max-height: var(--sh-scroll-max, 380px);
-    overflow: auto;
-    overscroll-behavior: contain;
-    scroll-behavior: smooth;
-    border-radius: inherit;
-    outline: none;
-    --sh-fade-top: 0px;
-    --sh-fade-bottom: 0px;
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--sh-fade-top), #000 calc(100% - var(--sh-fade-bottom)), transparent 100%);
-    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--sh-fade-top), #000 calc(100% - var(--sh-fade-bottom)), transparent 100%);
-  }
-  .sh-scroll__frame[data-fade-top] > .sh-scroll__viewport { --sh-fade-top: 22px; }
-  .sh-scroll__frame[data-fade-bottom] > .sh-scroll__viewport { --sh-fade-bottom: 22px; }
-  .sh-scroll__list { list-style: none; margin: 0; padding: 0; min-width: 0; }
-  .sh-scroll__item { min-width: 0; }
-  .sh-scroll__empty { margin: 0; padding: var(--space-4); color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
   @container study (max-width: 520px) {
-    .sh-scroll__viewport { max-height: min(var(--sh-scroll-max, 380px), 300px); }
-    .sh-scroll__filter { max-width: none; }
+    :is(.study-app, .study-seat) {
+      .sh-scroll__viewport { max-height: min(var(--sh-scroll-max, 380px), 300px); }
+      .sh-scroll__filter { max-width: none; }
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    .sh-scroll__viewport { scroll-behavior: auto; }
+    :is(.study-app, .study-seat) {
+      .sh-scroll__viewport { scroll-behavior: auto; }
+    }
   }
 }

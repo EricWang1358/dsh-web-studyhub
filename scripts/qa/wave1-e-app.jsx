@@ -3,7 +3,7 @@
    Query: ?lang=zh|en&theme=dark|light&scene=mineru|audio|inbox|exam */
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import styleCss from '../../ui/style.css';
+import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
 import Inbox from '../../ui/Inbox.jsx';
 import { AudioJobs } from '../../ui/AudioImport.jsx';

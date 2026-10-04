@@ -1,0 +1,161 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .review-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 22px 28px 0;
+      gap: var(--space-5);
+    }
+    .review-detour {
+      display: block;
+      max-width: 100%;
+      margin: 14px auto 0;
+      padding: var(--space-1) var(--space-3);
+      border: 1px solid var(--accent-soft);
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--accent) 7%, transparent);
+      color: var(--text);
+      font-size: var(--fs-md);
+      text-align: left;
+      overflow-wrap: anywhere;
+      animation: follow-in var(--dur-slow) var(--ease-out) both;
+    }
+    .review-detour:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+    .review-flow-origin {
+      margin: 0 0 var(--space-1);
+      font-size: var(--fs-md);
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+    .review-heading h1 {
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-strong);
+      margin-bottom: var(--space-2);
+      letter-spacing: -0.01em;
+    }
+    .review-heading .pill {
+      padding: var(--space-1) 11px;
+      border-color: var(--line);
+      background: transparent;
+      color: var(--text-muted);
+    }
+    .review-heading .pill:hover:not(:disabled) {
+      color: var(--text);
+    }
+    .review-heading > button,
+    .review-return {
+      font-size: var(--fs-md);
+      border-color: transparent;
+      background: transparent;
+      color: var(--text-dim);
+    }
+    .review-return { white-space: nowrap; }
+    .review-return-short { display: none; }
+    .review-heading-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+  }
+  @container study (max-width:720px) {
+    :where(.study-app, .study-seat) {
+      .review-heading {
+        padding: 21px 17px 0;
+      }
+      .review-heading h1 {
+        font-size: var(--fs-xl);
+      }
+      .review-heading > button {
+        font-size: var(--fs-md);
+        padding: 5px 0;
+        white-space: nowrap;
+      }
+      .review-return-full { display: none; }
+      .review-return-short { display: inline; }
+    }
+  }
+  :where(.study-app, .study-seat) {
+    /* Rail column spans the whole review page; everything else sits beside it. */
+    .review-page.has-rail {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr);
+      column-gap: var(--space-3);
+      padding-left: 14px;
+      align-items: start;
+    }
+    .review-page.has-rail > :not(.review-navigator) { grid-column: 2; }
+    .review-page.has-rail > .review-heading { padding-left: 0; }
+    .review-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+    }
+    .review-body > .question-area { grid-column: 1; grid-row: 1; min-width: 0; }
+    /* Sticky applies at scroll 0 too: a top below the natural position pushes the
+       rail there immediately (just under the 51px top bar), so it never moves. */
+    .review-navigator {
+      grid-column: 1;
+      grid-row: 1 / span 20;
+      position: sticky;
+      top: 72px;
+      max-height: min(680px, calc(100dvh - 200px));
+      min-height: 80px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      padding: var(--space-2) 0;
+    }
+    .review-navigator::-webkit-scrollbar { display: none; }
+    .review-tick {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 16px;
+      min-height: 16px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--radius-xs);
+      background: transparent;
+      box-shadow: none;
+    }
+    /* Each tick is a 2px top border, not a rounded fill: border widths snap to
+       whole device pixels, so at 125%, 150% or any panel zoom every tick is
+       equally thick and crisp instead of a blur whose weight varies by row.
+       The current question is longer, not thicker. */
+    .review-tick .review-tick-line {
+      width: 9px;
+      height: 0;
+      border-top: 2px solid var(--tick, var(--line-strong));
+      border-radius: 0;
+      background: none;
+      transition: width 180ms ease, border-color 250ms ease;
+    }
+    .review-tick .lv-new { --tick: color-mix(in srgb, var(--text) 34%, transparent); }
+    .review-tick .lv-weak { --tick: var(--bad); }
+    .review-tick .lv-learning { --tick: var(--warn); }
+    .review-tick .lv-familiar { --tick: var(--ok-mid); }
+    .review-tick .lv-mastered { --tick: var(--ok); }
+    .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
+    .review-tick:hover .review-tick-line { width: 15px; }
+    .review-tick[aria-current="step"] .review-tick-line { width: 22px; }
+    .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+  }
+  @container study (max-width: 600px) {
+    :where(.study-app, .study-seat) {
+      .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--space-1); padding-left: 6px; padding-right: var(--space-3); }
+      .review-tick { width: 28px; height: 24px; }
+      .review-body > .question-area { width: 100%; min-width: 0; }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .review-tick-line { transition: none; }
+    }
+  }
+}

@@ -1,49 +1,49 @@
-/* 补全原文件 (attach the original to a document that only kept its text): the reader notice, the dialog, the row-menu line.
-   Tokens only; the dialog follows the shared Dialog component. */
-:is(.study-app, .study-seat) {
-  .study-document-notices .original-notice { display: grid; gap: var(--space-2); justify-items: start; justify-self: start; width: fit-content; max-width: 100%;
-    padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); }
-  .study-document-notices .original-notice > p { max-width: 60em; }
-  .study-document-notices .original-notice.is-warning { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
-  .original-notice__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-  .original-dialog .sh-dialog__content { display: grid; gap: var(--space-4); align-content: start; }
-  .original-dialog p { margin: 0; line-height: var(--lh-snug); }
-  .original-status { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
-    border: 1px solid var(--line); background: var(--bg-surface); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-  .original-status > svg { flex: none; margin-top: 1px; }
-  .original-status > div { min-width: 0; display: grid; gap: 2px; }
-  .original-status[data-tone="ok"] { border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
-  .original-status[data-tone="ok"] > svg { color: var(--ok); }
-  .original-status[data-tone="warn"] { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
-  .original-status[data-tone="warn"] > svg { color: var(--warn); }
-  .original-status[data-tone="info"] > svg { color: var(--accent-text); }
-  .original-file-name { color: var(--text-muted); overflow-wrap: anywhere; }
-  .original-lines { margin: 2px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; color: var(--text-dim); }
-  .original-lines li[data-tone="warn"] { color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
-
-  .original-pick { display: grid; gap: var(--space-2); }
-  .original-step { font-size: var(--fs-sm); }
-  .original-pathrow { display: flex; gap: var(--space-2); align-items: stretch; }
-  .original-pathrow input { flex: 1 1 auto; min-width: 0; margin: 0; }
-  .original-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-
-  /* The global label and input rules stack and stretch; these are rows of a radio (or checkbox) and its words. */
-  .original-dialog .original-modes { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
-  .original-dialog .original-modes legend { padding: 0; margin: 0 0 var(--space-2); font-size: var(--fs-sm); font-weight: 650; }
-  .original-dialog .original-mode { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); margin: 0; padding: var(--space-3);
-    border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer; }
-  .original-dialog .original-mode:has(input:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-  .original-dialog .original-mode[data-selected] { border-color: var(--line-strong); background: var(--bg-hover); }
-  .original-dialog .original-mode:has(input:disabled) { cursor: default; opacity: 0.7; }
-  .original-dialog .original-mode input, .original-dialog .original-confirm input { flex: none; width: 17px; height: 17px; margin: 2px 0 0; padding: 0; accent-color: var(--accent); }
-  .original-dialog .original-mode > span { display: grid; gap: 2px; min-width: 0; }
-  .original-dialog .original-mode strong { font-size: var(--fs-md); }
-  .original-dialog .original-mode small { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-  .original-dialog .original-mode .original-mode__note { color: var(--text-muted); }
-  .original-dialog .original-confirm { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); }
-
-  .source-row-menu .source-row-menu__note { display: block; max-width: 18em; padding: 4px var(--space-2); color: var(--text-muted);
-    font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-  .source-row-menu .source-row-menu__note[data-tone="warn"] { color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 补全原文件 (attach the original to a document that only kept its text): the reader notice, the dialog, the row-menu line.
+       Tokens only; the dialog follows the shared Dialog component. */
+    .study-document-notices .original-notice { display: grid; gap: var(--space-2); justify-items: start; justify-self: start; width: fit-content; max-width: 100%;
+      padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); }
+    .study-document-notices .original-notice > p { max-width: 60em; }
+    .study-document-notices .original-notice.is-warning { border-color: var(--warn-line); }
+    .original-notice__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .original-dialog .sh-dialog__content { display: grid; gap: var(--space-4); align-content: start; }
+    .original-dialog p { margin: 0; line-height: var(--lh-snug); }
+    .original-status { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+      border: 1px solid var(--line); background: var(--bg-surface); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .original-status > svg { flex: none; margin-top: 1px; }
+    .original-status > div { min-width: 0; display: grid; gap: var(--space-half); }
+    .original-status[data-tone="ok"] { border-color: var(--ok-line); }
+    .original-status[data-tone="ok"] > svg { color: var(--ok); }
+    .original-status[data-tone="warn"] { border-color: var(--warn-line); }
+    .original-status[data-tone="warn"] > svg { color: var(--warn); }
+    .original-status[data-tone="info"] > svg { color: var(--accent-text); }
+    .original-file-name { color: var(--text-muted); overflow-wrap: anywhere; }
+    .original-lines { margin: var(--space-half) 0 0; padding: 0; list-style: none; display: grid; gap: var(--space-half); color: var(--text-dim); }
+    .original-lines li[data-tone="warn"] { color: var(--warn-ink); }
+    .original-pick { display: grid; gap: var(--space-2); }
+    .original-step { font-size: var(--fs-sm); }
+    .original-pathrow { display: flex; gap: var(--space-2); align-items: stretch; }
+    .original-pathrow input { flex: 1 1 auto; min-width: 0; margin: 0; }
+    .original-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    /* The global label and input rules stack and stretch; these are rows of a radio (or checkbox) and its words. */
+    .original-dialog .original-modes { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
+    .original-dialog .original-modes legend { padding: 0; margin: 0 0 var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+    .original-dialog .original-mode { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); margin: 0; padding: var(--space-3);
+      border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer; }
+    .original-dialog .original-mode:has(input:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .original-dialog .original-mode[data-selected] { border-color: var(--line-strong); background: var(--bg-hover); }
+    .original-dialog .original-mode:has(input:disabled) { cursor: default; opacity: 0.7; }
+    .original-dialog .original-mode input, .original-dialog .original-confirm input { flex: none; width: 17px; height: 17px; margin: var(--space-half) 0 0; padding: 0; accent-color: var(--accent); }
+    .original-dialog .original-mode > span { display: grid; gap: var(--space-half); min-width: 0; }
+    .original-dialog .original-mode strong { font-size: var(--fs-md); }
+    .original-dialog .original-mode small { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .original-dialog .original-mode .original-mode__note { color: var(--text-muted); }
+    .original-dialog .original-confirm { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); }
+    .source-row-menu .source-row-menu__note { display: block; max-width: 18em; padding: var(--space-1) var(--space-2); color: var(--text-muted);
+      font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .source-row-menu .source-row-menu__note[data-tone="warn"] { color: var(--warn-ink); }
+  }
 }

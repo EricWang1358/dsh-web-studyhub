@@ -19,7 +19,7 @@ const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = slot(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
   useContext: () => globalThis.__toast ?? null, useRef: initial => slot(() => ({ current: initial }))[1], useId: () => slot(() => `field-${active.cursor}`)[1],
-  useEffect: (callback, dependencies) => { const [, effect] = slot(() => ({ dependencies: undefined, cleanup: null }));
+  useInsertionEffect: () => {}, useEffect: (callback, dependencies) => { const [, effect] = slot(() => ({ dependencies: undefined, cleanup: null }));
     if (!effect.dependencies || dependencies.some((value, index) => value !== effect.dependencies[index])) {
       active.effects.push(() => { effect.cleanup?.(); effect.cleanup = callback(); }); effect.dependencies = dependencies;
     } },
