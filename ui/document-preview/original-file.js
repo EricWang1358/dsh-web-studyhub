@@ -1,5 +1,6 @@
 import { ui, uiFormat } from '../i18n.js';
 import { MAX_OFFICE_BYTES } from '../../lib/office/limits.js';
+import { formatBytes } from '../format.js';
 
 /* Pure logic and wording of the "补全原文件" flow: attach the ORIGINAL file to a document that only kept its text.
    The screens are in OriginalFile.jsx; everything that can be decided without React is here (and tested). */
@@ -7,25 +8,7 @@ import { MAX_OFFICE_BYTES } from '../../lib/office/limits.js';
 /** The largest file the host accepts as an original (mirrors lib/contexts/materials/original-file.js). */
 export const ORIGINAL_MAX_BYTES = MAX_OFFICE_BYTES;
 
-/** "23.5 MB", "640 KB", "1.2 GB": one decimal from a megabyte up, as a person says it. */
-export function sizeText(bytes) {
-  const value = Math.max(0, Number(bytes) || 0);
-  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1).replace(/\.0$/, '')} MB`;
-  return `${(value / 1024 ** 3).toFixed(1).replace(/\.0$/, '')} GB`;
-}
-
-/** A path as a person pastes it: quoted, with an @ in front (a file mention), or a file:// address. */
-export function unquotePath(text) {
-  let value = String(text ?? '').trim().replace(/^"(.*)"$/, '$1').trim().replace(/^@/, '').trim();
-  if (/^file:\/\//i.test(value)) {
-    try { value = decodeURIComponent(value.replace(/^file:\/\//i, '')); } catch { return ''; }
-    if (/^\/[A-Za-z]:/.test(value)) value = value.slice(1);
-  }
-  return value;
-}
-
-export const isAbsolutePath = value => /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('/') || value.startsWith('\\\\');
+export { unquotePath, isAbsolutePath } from '../paths.js';
 
 /** "D:\…\book.pdf": the drive (or first folder) and the file name; a short path stays whole. */
 export function shortPath(path, max = 32) {
@@ -49,7 +32,7 @@ export function originalLine(original) {
     return { tone: 'warn', text: ui('原文件：已被修改'), title };
   }
   if (state.mode === 'copy') {
-    return state.status === 'ok' ? { tone: 'ok', text: uiFormat('原文件：已复制到资料库 · {0}', [sizeText(state.bytes)]) }
+    return state.status === 'ok' ? { tone: 'ok', text: uiFormat('原文件：已复制到资料库 · {0}', [formatBytes(state.bytes)]) }
       : { tone: 'warn', text: ui('原文件：资料库里的副本丢失') };
   }
   return { tone: 'muted', text: ui('原文件：未保存') };
@@ -93,7 +76,7 @@ export function modeOptions({ size, hasPath }) {
     { value: 'reference', label: ui('只记住位置'), disabled: !hasPath,
       detail: ui('指给它原文件的位置（只记路径，不复制，不占空间；文件移动或删除后预览会提示找不到）'),
       ...(hasPath ? {} : { note: ui('浏览器不会告诉我们文件在哪里；要只记路径，请在上面填写完整路径。') }) },
-    { value: 'copy', label: ui('复制一份到资料库'), disabled: false, detail: uiFormat('复制一份到资料库（约 {0}，文件移动也不受影响）', [sizeText(size)]) },
+    { value: 'copy', label: ui('复制一份到资料库'), disabled: false, detail: uiFormat('复制一份到资料库（约 {0}，文件移动也不受影响）', [formatBytes(size)]) },
   ];
 }
 

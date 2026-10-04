@@ -78,10 +78,10 @@ export function formatNumber(value, options) {
 }
 
 const UNITS = ['B', 'KB', 'MB', 'GB'];
-/** A size: 1024-based, one decimal below ten, none above ("900 B", "1.5 KB", "8 MB", "1.3 GB"). The one style for every file size. */
+/** A size: 1024-based, one decimal below 100 (a trailing .0 is dropped), none from 100 up ("900 B", "1.5 KB", "23.5 MB", "820 MB", "1.3 GB"). The one style for every file size. */
 export function formatBytes(bytes) {
   let value = Math.max(0, Number(bytes) || 0), unit = 0;
   while (value >= 1024 && unit < UNITS.length - 1) { value /= 1024; unit += 1; }
-  const digits = unit === 0 || value >= 10 ? 0 : 1;
+  const digits = unit === 0 || value >= 100 ? 0 : 1;
   return `${formatNumber(value, { maximumFractionDigits: digits, useGrouping: false })} ${UNITS[unit]}`;
 }

@@ -69,14 +69,17 @@ test('formatAgo is relative for a day, then a date and time; the same rule every
   m.setUiLanguage('zh');
 });
 
-test('formatBytes is 1024-based, one decimal below ten, whole above, one style everywhere', () => {
+test('formatBytes is 1024-based, one decimal below 100, whole from 100 up, one style everywhere', () => {
   assert.equal(m.formatBytes(0), '0 B');
   assert.equal(m.formatBytes(900), '900 B');
   assert.equal(m.formatBytes(1536), '1.5 KB');
   assert.equal(m.formatBytes(KB), '1 KB');
   assert.equal(m.formatBytes(512 * KB), '512 KB');
   assert.equal(m.formatBytes(8 * MB), '8 MB');
-  assert.equal(m.formatBytes(23.5 * MB), '24 MB');
+  assert.equal(m.formatBytes(23.5 * MB), '23.5 MB');
+  assert.equal(m.formatBytes(99.96 * MB), '100 MB');
+  assert.equal(m.formatBytes(640 * KB), '640 KB');
+  assert.equal(m.formatBytes(1536 * MB), '1.5 GB');
   assert.equal(m.formatBytes(4.25 * MB), '4.3 MB');
   assert.equal(m.formatBytes(820 * MB), '820 MB');
   assert.equal(m.formatBytes(1200 * MB), '1.2 GB');
