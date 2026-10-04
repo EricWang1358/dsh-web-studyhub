@@ -46,5 +46,12 @@
   "所有课程": "All courses",
   "{0} + Enter 请 AI 查看": "{0} + Enter to ask AI",
   "{0} + Enter 保存": "{0} + Enter to save",
-  "回到这里，让 AI 为错题写变式": "Come back here and let the AI write variants for your mistakes"
+  "回到这里，让 AI 为错题写变式": "Come back here and let the AI write variants for your mistakes",
+  "调整": "Adjust",
+  "下一步：{0}": "Next: {0}",
+  "有一份安排等你接受": "A plan is waiting for your decision",
+  "AI 给出的安排没有通过检查": "The AI’s plan did not pass the checks",
+  "下面是依据已有内容和时间预算的本地建议，可以再请 AI 安排一次。": "Below is a local suggestion based on your existing content and time budget. You can ask the AI to plan again.",
+  "AI 选了不可用的内容或格式不对，没有采用。下面是本地建议，可以再请 AI 安排一次。": "The AI picked unavailable content or answered in the wrong format, so it was not used. Below is a local suggestion; you can ask the AI to plan again.",
+  "AI 建议暂不可用": "AI suggestions are unavailable"
 }
