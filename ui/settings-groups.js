@@ -32,7 +32,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   { id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation'], needs: 'generation' },
   { id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'] },
   { id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio' },
-  { id: 'mineru', group: 'once', title: 'PDF 转换（MinerU）', anchors: ['settings-mineru'], needs: 'audio' },
+  { id: 'mineru', group: 'once', title: 'PDF 转换（MinerU / Marker）', anchors: ['settings-mineru', 'settings-marker'] },
   { id: 'retrieval', group: 'once', title: '检索扩展', anchors: ['settings-extensions'], needs: 'generation' },
   { id: 'profile', group: 'once', title: '学习画像与导览', anchors: ['settings-profile', 'settings-sample'] },
   { id: 'data', group: 'once', title: '导入、计划与备份', anchors: ['settings-data'] },

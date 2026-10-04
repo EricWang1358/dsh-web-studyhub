@@ -33,20 +33,30 @@ test('optional Marker guidance is bilingual, explains local workflow and separat
   try {
     for (const language of ['zh', 'en']) {
       components.setUiLanguage(language);
-      const html = renderToStaticMarkup(React.createElement(components.MarkerExternal));
+      const html = renderToStaticMarkup(React.createElement(components.MarkerExternal, { settings: true }));
       assert.match(html, /marker#installation/);
       assert.match(html, /marker#commercial-usage/);
-      assert.match(html, /Apache-2.0/);
       assert.match(html, /python studyhub-marker-convert.py/);
-      assert.match(html, /accept=".md,.markdown"/);
+      assert.doesNotMatch(html, /type="file"/);
       if (language === 'en') {
         assert.doesNotMatch(html.replace(/<[^>]*>/g, ''), /[㐀-鿿]/);
         assert.match(html, /does not install or start Marker/);
         assert.match(html, /LLM enhancement off/);
-        assert.match(html, /does not remove these requirements/);
-      } else assert.match(html, /不会扫描你的电脑/);
+      } else assert.match(html, /添加资料/);
     }
   } finally { components.setUiLanguage('zh'); }
+});
+
+test('import portal presents peer converters and keeps installation details in settings', () => {
+  const html = renderToStaticMarkup(React.createElement(components.ImportHub, { data: { focus: {} }, call: async () => ({}), onOpenSettings: () => {} }));
+  assert.match(html, /aria-label="MinerU"/);
+  assert.match(html, /aria-label="Marker"/);
+  assert.match(html, /安装与使用设置/);
+  assert.doesNotMatch(html, /marker#installation|studyhub-marker-convert.py|Apache-2.0|llama-server/);
+  let anchor;
+  const marker = events.MarkerExternal({ onOpenSettings: value => { anchor = value; } });
+  find(marker, item => item.props.children === '安装与使用设置').props.onClick();
+  assert.equal(anchor, 'settings-marker');
 });
 
 test('the native picker forwards validated Markdown into the normal course import and completion callbacks', async () => {
@@ -90,7 +100,7 @@ test('invalid formats and oversized output produce a visible error without impor
 
 test('busy Marker controls block file handling and keep ordinary import unchanged', async () => {
   const html = renderToStaticMarkup(React.createElement(components.MarkerExternal, { disabled: true }));
-  assert.equal((html.match(/<button[^>]*disabled/g) || []).length, 2);
+  assert.equal((html.match(/<button[^>]*disabled/g) || []).length, 1);
   assert.match(html, /type="file"[^>]*disabled/);
   const tree = events.MarkerExternal({ disabled: true, onFiles: () => assert.fail('busy must not enqueue') });
   await find(tree, item => item.props.type === 'file').props.onChange({ target: { files: [output], value: 'output.md' } });
@@ -122,7 +132,7 @@ test('closing the import dialog during validation cancels queueing and updates t
   let release;
   const pending = new Promise(resolve => { release = resolve; });
   const mounted = load({ ...React, useState: initial => [initial, value => states.push(value)],
-    useEffect: effect => cleanups.push(effect()), useRef: initial => ({ current: initial }) });
+    useEffect: (effect, dependencies) => { if (!dependencies.length) cleanups.push(effect()); }, useRef: initial => ({ current: initial }) });
   let imports = 0;
   const tree = mounted.MarkerExternal({ onFiles: () => { imports++; } });
   const selection = find(tree, item => item.props.type === 'file').props.onChange({ target: {

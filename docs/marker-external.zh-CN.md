@@ -1,6 +1,6 @@
 # 用外部 Marker 转换 PDF
 
-在 **添加资料 → 文件 → Marker：在本机外部转换** 中查看安装说明，下载转换脚本，或选择已经转换好的文件。StudyHub 只生成脚本和读取你选中的结果，不安装、启动或捆绑 Marker 及其模型。MinerU 入口仍然可用。
+在 **添加资料 → 文件** 中，MinerU 和 Marker 是并列的 PDF 解析方案。Marker 的 **选择转换结果** 用于导入分页 Markdown，**安装与使用设置** 跳转到 **设置 → PDF 转换（MinerU / Marker）** 的 Marker 区域，查看安装说明并下载转换脚本。StudyHub 只生成脚本和读取你选中的结果，不安装、启动或捆绑 Marker 及其模型。
 
 ## 安装与运行条件
 
@@ -28,7 +28,7 @@ python3 -m venv .venv-marker
 
 ## 下载并运行脚本
 
-1. 在入口点击 **下载 Marker 转换脚本**，保存 `studyhub-marker-convert.py`。
+1. 在设置的 Marker 区域点击 **下载 Marker 转换脚本**，保存 `studyhub-marker-convert.py`。
 2. 用安装 Marker 的 Python 环境运行脚本。无 PDF 参数时会打开文件选择框；没有图形界面或 Tk 支持时，直接传入路径：
 
    Windows PowerShell：
@@ -44,7 +44,7 @@ python3 -m venv .venv-marker
    ```
 
 3. 脚本调用已安装的 `marker_single`，使用 `--output_format markdown --paginate_output`，在新的输出目录写入结果并打印 `.md` 的位置，不覆盖旧结果。转换失败或未找到有效结果时会明确报错。
-4. 回到 StudyHub 点击 **选择 Marker 转换后的文件**，选择打印路径中的分页 `.md`。也可以拖入普通文件区域。当前专用入口不接收原 PDF 或 Marker 原生 JSON。
+4. 回到 **添加资料 → 文件**，在 Marker 方案中点击 **选择转换结果**，选择打印路径中的分页 `.md`。也可以拖入普通文件区域。当前专用入口不接收原 PDF 或 Marker 原生 JSON。
 
 如果不使用脚本，也可以自己运行：
 

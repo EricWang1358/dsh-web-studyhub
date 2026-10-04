@@ -1429,7 +1429,7 @@ export default function App({ call: transportCall, host = {} }) {
   ) : (
     <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sourceFormCourse} onCourseChange={changeSourceFormCourse}
       pasteDraft={{ title: sourceTitle, text: sourceText }} onPasteDraftChange={draft => { setSourceTitle(draft.title); setSourceText(draft.text); }}
-      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setSettingsFocus("settings-mineru"); navigatePage('settings'); }}
+      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={section => { setModal(null); setSettingsFocus(section === 'settings-marker' ? section : "settings-mineru"); navigatePage('settings'); }}
       onOpenSources={ids => { navigatePage('sources'); openAudioSources(ids); }}
       audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); navigatePage('settings'); }} /> : undefined} />
   );
@@ -2274,7 +2274,7 @@ export default function App({ call: transportCall, host = {} }) {
                 openAgent={host.openAgent}
                 onOpenSources={openAudioSources}
                 onLegacyRetry={job => { setLegacyAudioJobId(job.id); navigatePage('audio'); }}
-                onOpenSettings={() => { setSettingsFocus("settings-mineru"); navigatePage('settings'); }}
+                onOpenSettings={section => { setSettingsFocus(section === 'settings-marker' ? section : "settings-mineru"); navigatePage('settings'); }}
                 onGenerate={generateFromSources}
               />
             )}

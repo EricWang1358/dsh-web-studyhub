@@ -3,6 +3,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import AudioSettings, { audioFocusPending } from "./AudioSettings.jsx";
 import ExtensionsSettings from './ExtensionsSettings.jsx';
 import MineruSettings from './MineruSettings.jsx';
+import MarkerExternal from './MarkerExternal.jsx';
 import JevSettings from './JevSettings.jsx';
 import { ExperimentalSection } from './ExperimentalSettings.jsx';
 import UsageSettings from './UsageSettings.jsx';
@@ -471,7 +472,13 @@ export default function Settings({
       case "generation": return capabilities.generation ? <GenerationSettings root={data.root} saved={data.settings?.generation} busy={busy} act={act} setNotice={setNotice} /> : null;
       case "courses": return coursePanel;
       case "audio": return capabilities.audio ? <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} /> : null;
-      case "mineru": return capabilities.audio ? <MineruSettings busy={busy} call={call} setNotice={setNotice} /> : null;
+      case "mineru": return <>
+        {capabilities.audio && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
+        <fieldset className="settings-section" data-tour="settings-marker">
+          <legend className="settings-section__title">{ui('Marker：在本机外部转换')}</legend>
+          <MarkerExternal disabled={busy} settings />
+        </fieldset>
+      </>;
       case "retrieval": return capabilities.generation ? <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} /> : null;
       case "profile": return <>{onboardingPanel}{profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}</>;
       case "data": return <>{legacyPanel}<ScheduleSection key={data.root} root={data.root} settings={settings} saved={data.settings} setSettings={setSettings} act={act} busy={busy} setNotice={setNotice} /><BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} /></>;

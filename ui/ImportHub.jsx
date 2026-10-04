@@ -430,11 +430,20 @@ export default function ImportHub({ data, call, busy = false, course, onCourseCh
         {!largeItem && mineruOpen && <MineruRoute file={mineruFile} onFile={setMineruFile} call={call} courses={courses} onStarted={conversionStarted} onOpenSettings={onOpenSettings}
           jobs={data?.jobs} historyOpen={mineruHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route })}
           onChanged={() => onImported?.()} />}
-        {!largeItem && !mineruOpen && !running && <p className="import-hub__routes import-hub__mineru" data-tour="import-mineru">{ui('扫描件、公式多，或超过 200 页的 PDF？')}{' '}
-          <Button variant="link" size="sm" onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button>{' '}<span aria-hidden="true">·</span>{' '}
-          <Button variant="link" size="sm" onClick={() => { setMineruHistory(true); setMineruOpen(true); }}>{ui('解析历史')}</Button></p>}
-        <MarkerExternal disabled={busy || running} onFiles={add} />
-        {!items.length && <p className="import-hub__routes">{ui('PDF 太大或有几百页？点上面的「用 MinerU 解析」，会自动分段处理；也可以自己转换后，把结果（MinerU / Docling 的 .json，或带分页标记的 Markdown）拖进来。')}</p>}
+        <section className="import-hub__conversion" aria-label={ui('PDF 解析方案')}>
+          <p className="import-hub__routes">{ui('扫描件、公式多，或大文件？选择 PDF 解析方案。')}</p>
+          <div className="import-hub__converters">
+            <section className="import-hub__converter" aria-label="MinerU" data-tour="import-mineru">
+              <h3>MinerU</h3>
+              <p>{ui('在应用内解析 PDF，自动分段并导入。')}</p>
+              <div className="import-hub__converter-actions">
+                <Button size="sm" disabled={busy || running} onClick={() => setMineruOpen(true)}>{ui('用 MinerU 解析')}</Button>
+                <Button variant="link" size="sm" disabled={busy || running} onClick={() => { setMineruHistory(true); setMineruOpen(true); }}>{ui('解析历史')}</Button>
+              </div>
+            </section>
+            <MarkerExternal disabled={busy || running} onFiles={add} onOpenSettings={onOpenSettings} />
+          </div>
+        </section>
         {!items.length && <p className="import-hub__routes">{audioOn
           ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')
           : ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿。')}</p>}

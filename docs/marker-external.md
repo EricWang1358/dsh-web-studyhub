@@ -1,6 +1,6 @@
 # Convert PDFs with external Marker
 
-Open **Add material → Files → Marker: convert outside StudyHub** for installation guidance, a downloadable conversion script, and a picker for existing results. StudyHub generates the script and imports the file you choose. It does not install, launch or bundle Marker or its models. MinerU remains available.
+Open **Add material → Files** to choose between the MinerU and Marker PDF converters. Under Marker, **Choose converted file** imports paginated Markdown; **Setup and usage** opens the Marker section of **Settings → PDF conversion (MinerU / Marker)** for installation guidance and the conversion script. StudyHub generates the script and imports the file you choose. It does not install, launch or bundle Marker or its models.
 
 ## Install separately
 
@@ -28,7 +28,7 @@ Installation and initial execution may download dependencies and model files, an
 
 ## Generate the conversion script
 
-1. Select **Download Marker conversion script** and save `studyhub-marker-convert.py`.
+1. In the Marker settings section, select **Download Marker conversion script** and save `studyhub-marker-convert.py`.
 2. Run it using the Python environment where you installed Marker. Without an input path, it opens a PDF picker. If a GUI or Tk is unavailable, provide the PDF path explicitly:
 
    Windows PowerShell:
@@ -44,7 +44,7 @@ Installation and initial execution may download dependencies and model files, an
    ```
 
 3. The script runs installed `marker_single` with `--output_format markdown --paginate_output`. It writes to a fresh output directory and prints the resulting `.md` paths without overwriting earlier output. A failed conversion or missing valid result produces an error.
-4. Return to StudyHub and select **Choose Marker output file**. Choose the paginated `.md` at the printed location, or drop it into the ordinary file area. The dedicated picker accepts neither the original PDF nor Marker JSON.
+4. Return to **Add material → Files** and select **Choose converted file** under Marker. Choose the paginated `.md` at the printed location, or drop it into the ordinary file area. The dedicated picker accepts neither the original PDF nor Marker JSON.
 
 Alternatively, run Marker yourself:
 
