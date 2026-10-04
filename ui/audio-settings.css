@@ -13,7 +13,7 @@
   @supports (grid-template-rows: subgrid) {
     .study-app .audio-provider-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); column-gap: var(--space-4); row-gap: 0; }
     .study-app .audio-provider-card { display: grid; grid-row: span 6; grid-template-rows: subgrid; row-gap: var(--space-3); }
-    .study-app .audio-provider-card .audio-key-form { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: var(--space-3); }
+    .study-app .audio-provider-card :is(.audio-key-form, .sh-secret) { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: var(--space-3); }
   }
 }
 .study-app .audio-provider-card__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
@@ -54,7 +54,7 @@
 
 /* The setup gate in the audio tab. */
 .study-app .audio-setup { margin: var(--space-4) 0; }
-.study-app .audio-setup .audio-key-form { margin-top: var(--space-4); max-width: 560px; }
+.study-app .audio-setup :is(.audio-key-form, .sh-secret) { margin-top: var(--space-4); max-width: 560px; }
 .study-app .audio-setup-alt { margin: var(--space-3) 0 0; color: var(--text-muted); font-size: var(--fs-xs); }
 .study-app .audio-setup-alt a { color: var(--accent-text); }
 .study-app .audio-subtitle-only { margin-top: var(--space-4); }

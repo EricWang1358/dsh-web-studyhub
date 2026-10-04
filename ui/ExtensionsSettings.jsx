@@ -4,6 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Button, Disclosure, InlineMessage } from './components/index.js';
 import { AdvancedTools, ConverterMain, DetectionLine, providerLabel } from './LargeDocumentCard.jsx';
 import ExtensionPanel from './ExtensionPanel.jsx';
+import { useAsyncAction } from './use-async.js';
 import css from './large-documents.css';
 
 export { providerLabel };
@@ -21,7 +22,8 @@ const stripTool = value => String(value ?? '').replace(/^mcp:/, '');
 export default function ExtensionsSettings({ call, initialStatus = null, courses = [], defaultCourse = '', setNotice, onStatus, initialPlan, initialRun }) {
   useInjectCss(css, 'study-large-documents');
   const [status, setStatus] = useState(initialStatus);
-  const [working, setWorking] = useState(false), [probe, setProbe] = useState(null), [error, setError] = useState('');
+  const [probe, setProbe] = useState(null);
+  const { run, working, error } = useAsyncAction({ exclusive: true });
   const [endpoint, setEndpoint] = useState(initialStatus?.hfEndpoint || '');
   const endpointEdited = useRef(false);
   const selectId = useId(), endpointId = useId();
@@ -33,29 +35,15 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
     return () => { live = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const current = status || NOTHING;
-  const choose = async provider => {
-    setWorking(true); setError(''); setProbe(null);
-    try {
-      const next = await call('retrieval.set', { provider });
-      accept(next);
-      setNotice?.({ text: provider === 'builtin' ? ui('已改为不使用检索。') : ui('已选择检索工具。出题时，超过 15 万字的选择会先用它挑出相关页面。'), tone: 'success' });
-    } catch (failure) { setError(failure?.message || String(failure)); }
-    finally { setWorking(false); }
-  };
-  const test = async () => {
-    setWorking(true); setError(''); setProbe(null);
-    try { setProbe(await call('retrieval.test', {})); }
-    catch (failure) { setError(failure?.message || String(failure)); }
-    finally { setWorking(false); }
-  };
-  const saveEndpoint = async () => {
-    setWorking(true); setError('');
-    try {
-      accept(await call('retrieval.endpoint.set', { endpoint }));
-      setNotice?.({ text: endpoint ? ui('已保存模型下载地址。重启 DSH 后生效。') : ui('已恢复默认的模型下载地址。重启 DSH 后生效。'), tone: 'success' });
-    } catch (failure) { setError(failure?.message || String(failure)); }
-    finally { setWorking(false); }
-  };
+  const choose = provider => { setProbe(null); return run('choose', async () => {
+    accept(await call('retrieval.set', { provider }));
+    setNotice?.({ text: provider === 'builtin' ? ui('已改为不使用检索。') : ui('已选择检索工具。出题时，超过 15 万字的选择会先用它挑出相关页面。'), tone: 'success' });
+  }); };
+  const test = () => { setProbe(null); return run('test', async () => { setProbe(await call('retrieval.test', {})); }); };
+  const saveEndpoint = () => run('endpoint', async () => {
+    accept(await call('retrieval.endpoint.set', { endpoint }));
+    setNotice?.({ text: endpoint ? ui('已保存模型下载地址。重启 DSH 后生效。') : ui('已恢复默认的模型下载地址。重启 DSH 后生效。'), tone: 'success' });
+  });
   const mcpOthers = current.otherTools || [];
   const canChoose = current.providers.length > 0 || mcpOthers.length > 0;
   return (
@@ -75,7 +63,7 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
         <div className="extensions-settings__advanced">
           {canChoose && <div className="extensions-settings__choice">
             <label htmlFor={selectId}>{ui('用哪个工具检索')}
-              <select id={selectId} value={current.effective} disabled={working} onChange={event => choose(event.target.value)}>
+              <select id={selectId} value={current.effective} disabled={!!working} onChange={event => choose(event.target.value)}>
                 <option value="builtin">{ui('不使用检索（把选中的资料全部交给 AI）')}</option>
                 {current.providers.map(provider => <option key={provider.id} value={provider.id}>{providerLabel(provider)}</option>)}
                 {mcpOthers.length > 0 && <optgroup label={ui('其他 MCP 工具')}>
@@ -83,7 +71,7 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
                 </optgroup>}
               </select>
             </label>
-            <Button variant="secondary" busy={working} disabled={current.effective === 'builtin'} onClick={test}>{ui('测试')}</Button>
+            <Button variant="secondary" busy={working === 'test'} disabled={!!working || current.effective === 'builtin'} onClick={test}>{ui('测试')}</Button>
           </div>}
           {error && <InlineMessage className="extensions-settings__result">{error}</InlineMessage>}
           {probe?.ok && <InlineMessage tone={probe.matched || !probe.hits ? 'success' : 'warning'} className="extensions-settings__result">
@@ -94,10 +82,10 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
           {probe && !probe.ok && probe.reason !== 'builtin' && <InlineMessage className="extensions-settings__result">{probe.message || ui('检索工具没有回应。')}</InlineMessage>}
           <div className="extensions-settings__endpoint">
             <label htmlFor={endpointId}>{ui('模型下载地址')}
-              <input id={endpointId} type="url" value={endpoint} placeholder="https://huggingface.co" disabled={working} onChange={event => { endpointEdited.current = true; setEndpoint(event.target.value); }} />
+              <input id={endpointId} type="url" value={endpoint} placeholder="https://huggingface.co" disabled={!!working} onChange={event => { endpointEdited.current = true; setEndpoint(event.target.value); }} />
             </label>
             <p className="large-doc__note">{ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}</p>
-            <Button size="sm" variant="secondary" busy={working} onClick={saveEndpoint}>{ui('保存下载地址')}</Button>
+            <Button size="sm" variant="secondary" busy={working === 'endpoint'} disabled={!!working} onClick={saveEndpoint}>{ui('保存下载地址')}</Button>
           </div>
           <AdvancedTools />
         </div>

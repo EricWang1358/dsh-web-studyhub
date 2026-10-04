@@ -5,22 +5,17 @@ import { useComponentCss, cx } from './css.js';
 import { Button } from './Button.jsx';
 import { InlineMessage } from './Feedback.jsx';
 import Icon from './Icon.jsx';
+import { formatBytes } from '../format.js';
+import { extensionOf } from '../file-names.js';
+
+export { formatBytes };
 
 const DRAG_EVENTS = ['dragenter', 'dragover', 'dragleave', 'drop'];
 
-/** "8 MB", "1.5 KB": one decimal below ten, none above. */
-export function formatBytes(bytes) {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = Math.max(0, Number(bytes) || 0), unit = 0;
-  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
-  const text = unit === 0 || value >= 10 || Number.isInteger(value) ? String(Math.round(value)) : value.toFixed(1).replace(/\.0$/, '');
-  return `${text} ${units[unit]}`;
-}
 
 /* Accept entries are extensions (".pdf", "md") or MIME types ("audio/*"). */
 const rulesOf = accept => (accept || []).map(item => String(item).trim().toLowerCase()).filter(Boolean)
   .map(item => item.includes('/') || item.startsWith('.') ? item : `.${item}`);
-const extensionOf = name => /\.[^./\\]+$/.exec(String(name || '').toLowerCase())?.[0] || '';
 function accepts(file, rules) {
   if (!rules.length) return true;
   const extension = extensionOf(file.name), type = String(file.type || '').toLowerCase();

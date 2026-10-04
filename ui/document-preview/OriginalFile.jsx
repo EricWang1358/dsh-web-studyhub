@@ -4,21 +4,19 @@ import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, Dialog, FileDrop, Icon } from '../components/index.js';
 import css from './original-file.css';
-import { ORIGINAL_MAX_BYTES, sizeText, canAttach, defaultMode, explainFailure, isAbsolutePath, issueOf, modeOptions, originalLine, reportHeadline, reportLines, unquotePath } from './original-file.js';
+import { ORIGINAL_MAX_BYTES, canAttach, defaultMode, explainFailure, issueOf, modeOptions, originalLine, reportHeadline, reportLines } from './original-file.js';
+import { formatBytes } from '../format.js';
+import { toBase64 } from '../upload.js';
+import { isAbsolutePath, unquotePath } from '../paths.js';
+import { baseName } from '../file-names.js';
 
 /* 补全原文件: attach the ORIGINAL file to a document that only kept its text, by reference (the path is remembered, nothing
    is copied) or as a copy in the library. The host verifies the file against the stored text first (no model); nothing about
    the text, the revision, the citations or the card links changes. Three entry points share this one dialog: the reader's
    notice (and its disabled 原始 PDF tab), and the 资料 row menu. */
 
-const toBase64 = blob => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-  reader.onerror = () => reject(new Error(ui('读取文件失败，请重试。')));
-  reader.readAsDataURL(blob);
-});
+const readBase64 = async blob => { try { return await toBase64(blob); } catch { throw new Error(ui('读取文件失败，请重试。')); } };
 const identityOf = target => target.documentId ? { documentId: target.documentId, ...(target.revision ? { revision: target.revision } : {}) } : { sourceId: target.sourceId };
-const baseName = path => String(path || '').replace(/^.*[\\/]/, '');
 
 /** The reader's explanation when a document has no (usable) original, with the buttons that fix it. onAction('attach' | 'relink' | 'copy'). */
 export function OriginalNotice({ document, onAction }) {
@@ -103,7 +101,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
     if (!file) return;
     setPicked({ kind: 'file', name: file.name, size: file.size }); setPhase('verifying'); setPathText('');
     try {
-      bytes.current = { dataBase64: await toBase64(file), filename: file.name };
+      bytes.current = { dataBase64: await readBase64(file), filename: file.name };
       await verify({ args: { ...identity, ...bytes.current }, picked: { kind: 'file', name: file.name, size: file.size } }, file.size);
     } catch (failure) { settle(setError, failure?.message || ''); settle(setPhase, 'error'); }
   }
@@ -146,10 +144,10 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   return <Dialog size="md" className="original-dialog" title={title} onClose={() => { if (phase !== 'attaching') onClose?.(); }} footer={footer}>
     {!info && <p role="status" className="muted">{ui('正在读取原文件状态…')}</p>}
     {info && info.status === 'none' && !done && <p>{ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用；补上原文件后，还能对照原版排版和图表。已保存的文字、引用和题目不会变。')}</p>}
-    {done && <Status tone="ok"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [sizeText(info?.bytes)])}</span>}</Status>}
+    {done && <Status tone="ok"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [formatBytes(info?.bytes)])}</span>}</Status>}
     {!done && !report && issue?.message && <Status tone="warn" alert>{issue.message}</Status>}
     {!done && info && !issue && !choosing && <>
-      <Status tone="ok"><span title={info.path}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [sizeText(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Status>
+      <Status tone="ok"><span title={info.path}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [formatBytes(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Status>
       {info.mode === 'reference' && <div className="original-actions">
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{ui('重新指定…')}</Button>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => { setChoosing(true); void checkPath(info.path, 'copy'); }}>{ui('改为复制到资料库')}</Button>
@@ -171,11 +169,11 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
         label={ui('或把文件拖到这里（浏览器不提供路径，只能复制）')} buttonLabel={host?.pickFile ? ui('从浏览器选择…') : ui('选择文件…')}
         onFiles={accepted => void chooseFile(accepted)} />
     </section>}
-    {phase === 'verifying' && <Status tone="info">{uiFormat('正在核对文字…{0}', [picked?.size ? `（${sizeText(picked.size)}）` : ''])} <span className="muted">{ui('大文件需要一点时间。')}</span></Status>}
+    {phase === 'verifying' && <Status tone="info">{uiFormat('正在核对文字…{0}', [picked?.size ? `（${formatBytes(picked.size)}）` : ''])} <span className="muted">{ui('大文件需要一点时间。')}</span></Status>}
     {report && phase !== 'verifying' && !done && <>
       <Status tone={headline.tone} alert={headline.tone === 'warn'}>
         <strong>{headline.text}</strong>
-        {picked && <small className="original-file-name" title={picked.path}>{picked.kind === 'path' ? baseName(picked.path) : picked.name}{picked.size ? ` · ${sizeText(picked.size)}` : ''}</small>}
+        {picked && <small className="original-file-name" title={picked.path}>{picked.kind === 'path' ? baseName(picked.path) : picked.name}{picked.size ? ` · ${formatBytes(picked.size)}` : ''}</small>}
         {lines.length > 0 && <ul className="original-lines">{lines.map((item, index) => <li key={index} data-tone={item.tone}>{item.text}</li>)}</ul>}
       </Status>
       <fieldset className="original-modes" disabled={phase === 'attaching'}>

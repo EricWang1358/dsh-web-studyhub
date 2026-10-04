@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Icon, InlineMessage } from './components/index.js';
+import { Button, Icon, InlineMessage, SecretKeyForm } from './components/index.js';
+import { readJSON, writeJSON } from './storage.js';
+import { useAsyncAction } from './use-async.js';
 import { TokenUsage } from './TokenUsage.jsx';
 import JevLevelCheck from './JevLevelCheck.jsx';
 import { JEV_FEATURE_META, JEV_PROVIDER_META, JEV_REPLACE_META, dshUsage, failureCode, keySourceText, percentText, privacyPoints, providerChoices, providerOf, setupStep, thresholdChoices } from './jev-flow.js';
@@ -22,8 +24,8 @@ import css from './jev.css';
 
 const TEST_STATE = { valid: () => ui('可用：密钥有效，Jev 连得上') };
 const GUIDE_KEY = 'study-jev-guide-seen';
-const guideSeen = () => { try { return globalThis.localStorage?.getItem(GUIDE_KEY) === '1'; } catch { return false; } };
-const rememberGuide = () => { try { globalThis.localStorage?.setItem(GUIDE_KEY, '1'); } catch { /* private window: it simply asks again next time */ } };
+const guideSeen = () => readJSON(GUIDE_KEY, 0) === 1;
+const rememberGuide = () => writeJSON(GUIDE_KEY, 1); // a private window just asks again next time
 
 /** The privacy note and the one-time confirmation of ONE provider: what is sent, where it goes, what the provider says (and does not say). */
 export function JevPrivacy({ confirmed, onChange, disabled, privacyUrl, provider, host }) {
@@ -130,17 +132,16 @@ export function JevReplaceList({ settings, onToggle, onGoto, initialBlocked = ''
 
 /** The controls of one saved state. `settings` is jev.settings.get, `usage` is jev.usage's `usage`; `failure` its last failure. */
 export function JevSettingsView({ call, settings, usage, failure, busy, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold, onProvider, onKeyEnv, onReplace, onCustom, onGoto }) {
-  const [value, setValue] = useState(''), [envName, setEnvName] = useState(settings.keyEnv || '');
+  const [envName, setEnvName] = useState(settings.keyEnv || '');
   const [endpoint, setEndpoint] = useState(settings.custom?.endpoint || ''), [model, setModel] = useState(settings.custom?.model || '');
-  const messageId = useId(), providerId = useId(), step = setupStep(settings), ready = step === 'ready';
+  const providerId = useId(), step = setupStep(settings), ready = step === 'ready';
   const locked = busy || !!working;
   const provider = providerOf(settings), meta = settings.providers?.find(item => item.id === provider);
   const family = meta?.family ?? (provider === 'typesafe' ? 'typesafe' : 'opencode'), outside = family !== 'typesafe', custom = family === 'custom';
-  const source = keySourceText(settings), fromFile = settings.key.set && settings.key.source === 'file';
-  const save = event => { event.preventDefault(); const key = value.trim(); if (key) { onKey(key); setValue(''); } };
+  const source = keySourceText(settings);
   const useVariable = event => { event.preventDefault(); onKeyEnv?.(envName.trim()); };
   const saveCustom = event => { event.preventDefault(); onCustom?.({ customEndpoint: endpoint.trim(), customModel: model.trim() }); };
-  const text = result && (result.ok ? TEST_STATE.valid() : uiMessage(result.message || failureCode('unexpected', provider)));
+  const resultText = outcome => (outcome.ok ? TEST_STATE.valid() : uiMessage(outcome.message || failureCode('unexpected', provider)));
   const keyEnvForm = (
     <form className="audio-key-form jev-keyenv__form" onSubmit={useVariable}>
       <label className="jev-keyenv__label" htmlFor={`${providerId}-env`}>{ui('存放密钥的环境变量名')}</label>
@@ -186,22 +187,15 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
           {source.text}
         </p>
         {source.note && <p className="audio-provider-note jev-keysource__note">{source.note}</p>}
-        <form className="audio-key-form" onSubmit={save}>
-          <input name="jev-key" className="audio-key-input" type="password" autoComplete="off" spellCheck={false} value={value} disabled={locked}
-            aria-label={ui('Jev 密钥')} aria-describedby={result ? messageId : undefined}
-            placeholder={fromFile ? uiFormat('已保存 {0}；粘贴新的会替换它', [settings.key.hint]) : outside ? (custom ? ui('自定义端点的密钥（可选，也可以只用环境变量）') : ui('OpenCode 密钥（可选，也可以只用环境变量）')) : ui('粘贴 TypeSafe 控制台里的 Jev 密钥')}
-            onChange={event => setValue(event.target.value)} />
-          <div className="audio-key-actions">
-            <Button type="submit" variant="primary" busy={working === 'save'} disabled={locked || !value.trim()}>{ui('保存 Jev 密钥')}</Button>
-            {settings.key.set && <Button variant="secondary" busy={working === 'verify'} disabled={locked || step !== 'ready'} onClick={onVerify}>{ui('验证 Jev 密钥')}</Button>}
-            {settings.key.set && settings.key.source !== 'env' && <Button variant="quiet" size="sm" className="audio-key-clear" disabled={locked} onClick={onClearKey}>{ui('清除已保存的密钥')}</Button>}
-          </div>
-          <div className="audio-key-foot">
+        {/* The page runs save, check and clear itself (it re-reads the settings and the usage after each), so the form only displays. */}
+        <SecretKeyForm name="jev-key" label={ui('Jev 密钥')} saved={settings.key} busy={busy} working={working} result={result} resultText={resultText}
+          placeholder={outside ? (custom ? ui('自定义端点的密钥（可选，也可以只用环境变量）') : ui('OpenCode 密钥（可选，也可以只用环境变量）')) : ui('粘贴 TypeSafe 控制台里的 Jev 密钥')}
+          saveLabel={ui('保存 Jev 密钥')} verifyLabel={ui('验证 Jev 密钥')} verifyDisabled={step !== 'ready'} verifyAfterSave={false} envNote={false}
+          onSave={onKey} onVerify={onVerify} onClear={onClearKey}
+          footnote={<>
             {step === 'confirm' && <p className="audio-provider-note">{ui('先确认上面的隐私说明，才能验证密钥或使用任何 Jev 功能。')}</p>}
-            {result && <InlineMessage id={messageId} tone={result.ok ? 'success' : 'error'}>{text}</InlineMessage>}
             <p className="audio-provider-note">{ui('验证只发一句不含你内容的话；密钥只保存在 DSH 主目录里，不进学习库、备份或快照。')}</p>
-          </div>
-        </form>
+          </>} />
         {custom && keyEnvForm}
         {outside && !custom && <details className="jev-keyenv">
           <summary>{ui('更换环境变量名')}</summary>
@@ -242,21 +236,17 @@ export default function JevSettings({ call, busy = false, setNotice, initial = n
   useInjectCss(css, 'study-jev');
   const section = useRef(null);
   const [settings, setSettings] = useState(initial?.settings ?? null), [usage, setUsage] = useState(initial?.usage ?? null), [failure, setFailure] = useState(initial?.failure ?? null);
-  const [working, setWorking] = useState(''), [result, setResult] = useState(initialResult), [error, setError] = useState('');
+  const [result, setResult] = useState(initialResult);
+  const { run, working, error } = useAsyncAction({ exclusive: true });
   const refresh = useCallback(async () => {
     const page = await call('jev.usage', {});
     setSettings(page.settings); setUsage(page.usage); setFailure(page.failure);
   }, [call]);
   useEffect(() => {
-    let live = true;
-    if (!initial && typeof call === 'function') Promise.resolve(call('jev.usage', {})).then(page => { if (live) { setSettings(page.settings); setUsage(page.usage); setFailure(page.failure); } }, () => { if (live) setError(ui('读不到 Jev 设置。')); });
-    return () => { live = false; };
+    if (initial || typeof call !== 'function') return;
+    void run('load', () => Promise.resolve(call('jev.usage', {})).then(page => { setSettings(page.settings); setUsage(page.usage); setFailure(page.failure); },
+      () => { throw new Error(ui('读不到 Jev 设置。')); }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const run = async (kind, work) => {
-    if (working) return;
-    setWorking(kind); setError('');
-    try { await work(); } catch (failed) { setError(String(failed?.message || failed)); } finally { setWorking(''); }
-  };
   const change = (kind, patch, then) => run(kind, async () => { const next = await call('jev.settings.set', patch); setSettings(next); await then?.(next); await refresh(); });
   const verify = async () => { setResult(null); setResult(await call('jev.test', {})); await refresh(); };
   // A switch that turned out to be missing a step: scroll to and focus the control that completes it.

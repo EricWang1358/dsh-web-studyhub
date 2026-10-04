@@ -3,7 +3,10 @@ import { LiveClient } from './live-client.js';
 import LiveAudioMonitor from './LiveAudioMonitor.jsx';
 import LiveNotes from './LiveNotes.jsx';
 import LiveHistory from './LiveHistory.jsx';
-import { getUiLanguage, ui, useUiLanguage, uiMessage } from './i18n.js';
+import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
+import { formatClock } from './format.js';
+import { usePolling } from './use-polling.js';
+import { providerOf } from '../lib/audio-providers.js';
 import { Button, PageHeader, SetupRequired } from './components/index.js';
 import { requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
@@ -11,15 +14,12 @@ import css from './live-class.css';
 import CourseField from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
 
-const t = (zh, en) => getUiLanguage() === 'en' ? en : zh;
-const time = (ms = 0) => {
-  const seconds = Math.floor(ms / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-};
+// What the host's generator is told to write in, by interface language.
+const GENERATION_LANGUAGE = { en: 'English', zh: '中文' };
 const active = (session) => session && !['ended', 'error'].includes(session.status);
 const statusText = (status) => ({
-  live: t('正在实录', 'Recording'), paused: t('已暂停', 'Paused'), connecting: t('正在连接', 'Connecting'),
-  reconnecting: t('正在重连', 'Reconnecting'), ending: t('正在结束', 'Finishing'), ended: t('已结束', 'Ended'), error: t('连接中断', 'Disconnected'),
+  live: ui('正在实录'), paused: ui('已暂停'), connecting: ui('正在连接'),
+  reconnecting: ui('正在重连'), ending: ui('正在结束'), ended: ui('已结束'), error: ui('连接中断'),
 })[status] || status;
 const MIN_CHARS = 120;
 
@@ -29,11 +29,11 @@ const MIN_CHARS = 120;
  */
 export function SentenceMark({ segment, checked }) {
   if (segment.correctedAt) {
-    const label = `${t('已由 AI 润色（上下文校正）', 'Polished by AI (context correction)')}${segment.correctionReason ? ` · ${segment.correctionReason}` : ''}`;
+    const label = `${ui('已由 AI 润色（上下文校正）')}${segment.correctionReason ? ` · ${segment.correctionReason}` : ''}`;
     return <span className="live-marks"><span className="live-dot polished" data-mark="polished" role="img" tabIndex={0} aria-label={label} title={label} /></span>;
   }
   if (checked) {
-    const label = t('已检查，无需修改', 'Checked, no change needed');
+    const label = ui('已检查，无需修改');
     return <span className="live-marks"><span className="live-dot checked" data-mark="checked" role="img" aria-label={label} title={label} /></span>;
   }
   return <span className="live-marks" aria-hidden="true" />;
@@ -42,14 +42,14 @@ export function SentenceMark({ segment, checked }) {
 export const Sentence = memo(function Sentence({ segment, selected, generated, checked, onToggle, language }) {
   return <article className={`live-sentence${selected ? ' selected' : ''}${segment.correctedAt ? ' polished' : ''}`} data-segment-id={segment.id} tabIndex={-1}>
     <label className="live-select"><input type="checkbox" checked={selected} onChange={() => onToggle(segment.id)}
-      aria-label={`${language === 'en' ? 'Select sentence' : '选择句子'} ${segment.id}`} />
-      <time>{time(segment.t)}</time></label>
+      aria-label={uiFormat('选择句子 {0}', [segment.id])} />
+      <time>{formatClock(segment.t)}</time></label>
     <div className="live-words"><p lang="en">{segment.en}</p>
-      <p className="live-chinese" lang="zh-Hans">{segment.zh || (segment.zhState === 'error' ? t('译文暂不可用，可重试', 'Translation unavailable; use Retry failed translations') : t('正在翻译…', 'Translating…'))}</p>
-      {segment.correctedAt && <details className="live-correction-original"><summary>{t('查看识别原稿', 'View original recognition')}</summary>
+      <p className="live-chinese" lang="zh-Hans">{segment.zh || (segment.zhState === 'error' ? ui('译文暂不可用，可重试') : ui('正在翻译…'))}</p>
+      {segment.correctedAt && <details className="live-correction-original"><summary>{ui('查看识别原稿')}</summary>
         <p>{segment.originalEn}</p>{segment.correctionReason && <small>{segment.correctionReason}</small>}
       </details>}
-      {generated && <small className="live-used">{t('已用于出题', 'Used for questions')}</small>}
+      {generated && <small className="live-used">{ui('已用于出题')}</small>}
     </div>
     <SentenceMark segment={segment} checked={checked} />
   </article>;
@@ -62,8 +62,8 @@ export const Sentence = memo(function Sentence({ segment, selected, generated, c
 function LiveSetup({ onSettings }) {
   return <SetupRequired className="live-setup-gate" icon="audio" title={ui('课堂实录需要 Gemini 密钥')}
     why={ui('边听边转写只支持 Google Gemini 的实时接口（需要海外网络）。硅基流动和 Groq 只用于导入录音文件：课后可以在「音频转写」里导入录音。')}
-    steps={[{ text: ui('用 Google 账号登录 AI Studio'), href: 'https://aistudio.google.com' },
-      { text: ui('在「Get API key」页创建一个密钥（这个项目不要开通计费）'), href: 'https://aistudio.google.com/apikey' },
+    steps={[{ text: ui('用 Google 账号登录 AI Studio'), href: providerOf('free').consoleUrl },
+      { text: ui('在「Get API key」页创建一个密钥（这个项目不要开通计费）'), href: providerOf('free').keyUrl },
       { text: ui('在音频设置的 Google Gemini 卡片里粘贴，点「保存并验证」') }]}
     primary={onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: () => { requestAudioSettingsFocus(); onSettings(); } } : undefined} />;
 }
@@ -95,16 +95,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
     if (visible) refresh().catch((failure) => client.fail(failure));
   }, [visible, refresh, client]);
   const needsPoll = !!session && (active(session) || session.translating > 0 || session.correction?.running || session.correction?.background?.running);
-  useEffect(() => {
-    if (!session?.id || !needsPoll) return;
-    let disposed = false, timer;
-    const tick = async () => {
-      try { await client.poll(); } catch (failure) { if (!disposed) client.fail(failure); }
-      if (!disposed) timer = setTimeout(tick, 1000);
-    };
-    timer = setTimeout(tick, 1000);
-    return () => { disposed = true; clearTimeout(timer); };
-  }, [client, session?.id, needsPoll]);
+  // Not paused in a background tab: the poll is also how the page learns that the host ended the session and stops the microphone.
+  usePolling(async () => { try { await client.poll(); } catch (failure) { client.fail(failure); } }, { intervalMs: 1000, enabled: !!session?.id && needsPoll, pauseWhenHidden: false });
   useEffect(() => {
     if (!capturing) return;
     const warn = (event) => { event.preventDefault(); event.returnValue = ''; };
@@ -140,107 +132,107 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
     const ids = [...feed.current.querySelectorAll('[data-segment-id]')].filter((node) => range.intersectsNode(node)).map((node) => Number(node.dataset.segmentId));
     if (ids.length) { setSelected(new Set(ids)); setFollow(false); }
   }
-  return <section className="page live-class" hidden={!visible} aria-label={t('课堂实录', 'Live class')}>
-    <PageHeader title={t('课堂实录', 'Live class')}
-      description={session ? undefined : t('边听边看简体中文，选中重点就能出题。', 'Follow along in Simplified Chinese and turn key passages into questions.')}
-      actions={<Button variant="quiet" onClick={onSettings}>{t('音频设置', 'Audio settings')}</Button>} />
+  return <section className="page live-class" hidden={!visible} aria-label={ui('课堂实录')}>
+    <PageHeader title={ui('课堂实录')}
+      description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
+      actions={<Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>} />
     {error && <p className="alert error" role="alert">{uiMessage(error)}</p>}
     {notice && <p className="alert" role="status">{notice}</p>}
     {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={onSettings} />}
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); void perform(async () => { setSelected(new Set()); await client.start(kind, { title, course, subject, terms, paidOnly }); await refresh(); });
     }}>
-      <div className="live-fields"><label>{t('课堂名称', 'Class title')}<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={t('例如：数据库 · 分区与索引', 'e.g. Databases · partitions and indexes')} /></label>
-        <label>{t('声音来源', 'Audio source')}<select value={kind} onChange={(event) => setKind(event.target.value)}>
-          <option value="microphone">{t('麦克风（现场课堂）', 'Microphone (in-person class)')}</option><option value="tab">{t('标签页 / 系统声音（网课）', 'Tab / system audio (online class)')}</option></select></label></div>
-      {kind === 'tab' && <p className="muted">{t('选择正在播放课程的标签页，并勾选「共享标签页音频」。只发送声音，不发送画面。', 'Select the class tab and enable “Share tab audio”. Only audio is sent, never video.')}</p>}
+      <div className="live-fields"><label>{ui('课堂名称')}<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
+        <label>{ui('声音来源')}<select value={kind} onChange={(event) => setKind(event.target.value)}>
+          <option value="microphone">{ui('麦克风（现场课堂）')}</option><option value="tab">{ui('标签页 / 系统声音（网课）')}</option></select></label></div>
+      {kind === 'tab' && <p className="muted">{ui('选择正在播放课程的标签页，并勾选「共享标签页音频」。只发送声音，不发送画面。')}</p>}
       <CourseField value={course} onChange={setCourse} courses={data?.focus?.courses} disabled={disabled} />
-      <details><summary>{t('课程背景与术语（可选）', 'Subject and terminology (optional)')}</summary>
-        <label>{t('这堂课讲什么', 'Subject')}<input value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>
-        <label>{t('术语（逗号或换行分隔）', 'Terms (comma or line separated)')}<textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={2} /></label></details>
+      <details><summary>{ui('课程背景与术语（可选）')}</summary>
+        <label>{ui('这堂课讲什么')}<input value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>
+        <label>{ui('术语（逗号或换行分隔）')}<textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={2} /></label></details>
       <div className="live-setup-foot">
-        <label className="live-check"><input type="checkbox" checked={paidOnly} onChange={(event) => setPaidOnly(event.target.checked)} /><span>{t('只用付费密钥', 'Use paid key only')}</span></label>
-        <button className="primary" disabled={disabled}>{busy ? t('正在连接…', 'Connecting…') : t('开始实录', 'Start recording')}</button></div>
-      <small className="muted">{t('转写使用 Gemini；简体中文翻译使用音频设置中选定的模型。免费额度用完会切到付费密钥。', 'Gemini transcribes audio; the model chosen in audio settings translates it. When free quota runs out, the paid key is used.')}</small>
+        <label className="live-check"><input type="checkbox" checked={paidOnly} onChange={(event) => setPaidOnly(event.target.checked)} /><span>{ui('只用付费密钥')}</span></label>
+        <button className="primary" disabled={disabled}>{busy ? ui('正在连接…') : ui('开始实录')}</button></div>
+      <small className="muted">{ui('转写使用 Gemini；简体中文翻译使用音频设置中选定的模型。免费额度用完会切到付费密钥。')}</small>
     </form>}
     {!session && busy && <LiveAudioMonitor health={client.health} visible={visible} recording={capturing} />}
     {session && <>
       <div className="live-bar">
         <div className="live-bar-main">
-          <span className={`live-state ${tone}`}><i aria-hidden="true" />{session.archivedAt ? t('已归档', 'Archived') : statusText(session.status)}</span>
+          <span className={`live-state ${tone}`}><i aria-hidden="true" />{session.archivedAt ? ui('已归档') : statusText(session.status)}</span>
           <strong className="live-title">{session.title}</strong>
-          <span className="muted">{session.course || t('未分类', 'Uncategorised')}</span>
-          <span className="muted live-meta">{time(session.elapsedMs)} · {total} {t('句', 'sentences')}
-            {session.tier && active(session) ? ` · ${session.tier === 'free' ? t('免费额度', 'Free tier') : t('付费密钥', 'Paid key')}` : ''}</span>
+          <span className="muted">{session.course || ui('未分类')}</span>
+          <span className="muted live-meta">{formatClock(session.elapsedMs)} · {uiFormat('{0} 句', [total])}
+            {session.tier && active(session) ? ` · ${session.tier === 'free' ? ui('免费额度') : ui('付费密钥')}` : ''}</span>
         </div>
-        <div className="live-actions">{capturing && <button disabled={disabled} onClick={() => void perform(() => client.pause())}>{session.status === 'paused' ? t('继续', 'Resume') : t('暂停', 'Pause')}</button>}
-          {active(session) && <button disabled={disabled} onClick={() => void perform(async () => { await client.stop(); await refresh(); })}>{t('结束实录', 'End recording')}</button>}
-          {!active(session) && !session.archivedAt && readiness?.live !== false && <button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly }); })}>{t('接着录', 'Continue recording')}</button>}</div></div>
+        <div className="live-actions">{capturing && <button disabled={disabled} onClick={() => void perform(() => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</button>}
+          {active(session) && <button disabled={disabled} onClick={() => void perform(async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</button>}
+          {!active(session) && !session.archivedAt && readiness?.live !== false && <button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly }); })}>{ui('接着录')}</button>}</div></div>
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
-        <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? t('正在按上下文润色…', 'Polishing with context…') : t('上下文润色', 'Context polish')}</span>
-        <span className="muted">{t(`已检查 ${correction.covered} / ${total} 句 · 已润色 ${polished} 句`, `Checked ${correction.covered} / ${total} · polished ${polished}`)}{correction.pending > 0 ? t(` · 待处理 ${correction.pending}`, ` · ${correction.pending} pending`) : ''}</span>
-        <span className="live-legend" aria-label={t('右侧标记说明', 'Marker legend')}>
-          <span><i className="live-dot polished" aria-hidden="true" />{t('已润色', 'Polished')}</span>
-          <span><i className="live-dot checked" aria-hidden="true" />{t('已检查未改', 'Checked')}</span></span>
+        <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>
+        <span className="muted">{uiFormat('已检查 {0} / {1} 句 · 已润色 {2} 句', [correction.covered, total, polished])}{correction.pending > 0 ? uiFormat(' · 待处理 {0}', [correction.pending]) : ''}</span>
+        <span className="live-legend" aria-label={ui('右侧标记说明')}>
+          <span><i className="live-dot polished" aria-hidden="true" />{ui('已润色')}</span>
+          <span><i className="live-dot checked" aria-hidden="true" />{ui('已检查未改')}</span></span>
         {!correction.running && correction.pending > 0 && (correction.error || !active(session)) &&
-          <button disabled={disabled} onClick={() => void perform(async () => { client.accept(await call('live.correct', { id: session.id })); })}>{t('重试待校正内容', 'Retry pending correction')}</button>}
-        <details className="live-correction-more"><summary>{t('说明与用量', 'Details and usage')}</summary>
-          <p className="muted">{t('每 30 秒检查一次，按顺序分批：每批最多 8 句新内容，再带上前批最后 2 句作上下文（共约 10 句）；结束后补齐剩余内容。只有模型高置信度改动过的句子才会亮绿点，实心表示已润色，空心圈表示检查过、无需修改。', 'Checked every 30s in ordered batches: up to 8 new sentences plus the last 2 of the previous batch as context (about 10). Remaining sentences are checked when recording ends. A solid green dot means the model changed the sentence; a ring means it was checked and left alone.')}</p>
-          <p>{t(`模型调用 ${correction.calls} 次 · 本地结果复用 ${correction.cacheHits} 次`, `${correction.calls} model calls · ${correction.cacheHits} local cache hits`)}</p>
-          <p>{correction.usage ? t(`服务商缓存命中 ${(correction.usage.free?.cachedInputTokens || 0) + (correction.usage.paid?.cachedInputTokens || 0)} 输入 tokens`, `Provider cache: ${(correction.usage.free?.cachedInputTokens || 0) + (correction.usage.paid?.cachedInputTokens || 0)} input tokens`)
-            : t('当前模型未提供缓存用量。', 'Cache usage is unavailable from this model.')}</p>
-          <small>{t('没有新句子时跳过调用；新上下文中的重叠句会重新判断。', 'No new sentences means no call; overlapping sentences are reconsidered with their new context.')}</small>
+          <button disabled={disabled} onClick={() => void perform(async () => { client.accept(await call('live.correct', { id: session.id })); })}>{ui('重试待校正内容')}</button>}
+        <details className="live-correction-more"><summary>{ui('说明与用量')}</summary>
+          <p className="muted">{ui('每 30 秒检查一次，按顺序分批：每批最多 8 句新内容，再带上前批最后 2 句作上下文（共约 10 句）；结束后补齐剩余内容。只有模型高置信度改动过的句子才会亮绿点，实心表示已润色，空心圈表示检查过、无需修改。')}</p>
+          <p>{uiFormat('模型调用 {0} 次 · 本地结果复用 {1} 次', [correction.calls, correction.cacheHits])}</p>
+          <p>{correction.usage ? uiFormat('服务商缓存命中 {0} 输入 tokens', [(correction.usage.free?.cachedInputTokens || 0) + (correction.usage.paid?.cachedInputTokens || 0)])
+            : ui('当前模型未提供缓存用量。')}</p>
+          <small>{ui('没有新句子时跳过调用；新上下文中的重叠句会重新判断。')}</small>
         </details>
         {correction.error && <p className="live-correction-error" role="status">{correction.error}</p>}
       </div>}
       {session.message && <p role="status" className="muted">{session.message}</p>}
-      {session.warnings?.length > 0 && <details><summary>{t('连接与额度提示', 'Connection and quota notices')}</summary>{session.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</details>}
+      {session.warnings?.length > 0 && <details><summary>{ui('连接与额度提示')}</summary>{session.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</details>}
       <div className="live-stage">
         <div className="live-feed-head">
-          <span className="muted">{t('原文在上，简体中文在下；勾选句子或划选文字即可出题。', 'Original above, Simplified Chinese below. Check sentences or highlight text to make questions.')}</span>
+          <span className="muted">{ui('原文在上，简体中文在下；勾选句子或划选文字即可出题。')}</span>
           <div className="live-actions">
-            {segments.some((segment) => segment.zhState === 'error') && <button disabled={disabled} onClick={() => void perform(async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{t('重试失败的翻译', 'Retry failed translations')}</button>}
-            <button className={`link-btn live-follow${follow ? ' on' : ''}`} onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? t('正在跟随最新', 'Following latest') : t('回到最新', 'Jump to latest')}</button></div>
+            {segments.some((segment) => segment.zhState === 'error') && <button disabled={disabled} onClick={() => void perform(async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</button>}
+            <button className={`link-btn live-follow${follow ? ' on' : ''}`} onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</button></div>
         </div>
         <div className="live-feed" ref={feed} tabIndex={0} onMouseUp={selectText} onKeyUp={selectText} onScroll={() => {
           const node = feed.current; if (node && node.scrollHeight - node.scrollTop - node.clientHeight > 80) setFollow(false);
-        }} aria-label={t('课堂原文与译文', 'Class transcript and translation')}>
-          {!segments.length && <p className="live-empty">{active(session) ? t('开始说话后，原文和译文会出现在这里。', 'The transcript and translation appear here when speech is detected.') : t('这场实录还没有文字。', 'This recording has no transcript yet.')}</p>}
+        }} aria-label={ui('课堂原文与译文')}>
+          {!segments.length && <p className="live-empty">{active(session) ? ui('开始说话后，原文和译文会出现在这里。') : ui('这场实录还没有文字。')}</p>}
           {segments.map((segment) => <Sentence key={segment.id} segment={segment} selected={selected.has(segment.id)} generated={generated.has(segment.id)}
             checked={checkedThrough >= segment.id && !segment.correctedAt} onToggle={toggle} language={language} />)}
           {session.interim && <p className="live-interim">{session.interim}<span aria-hidden="true"> …</span></p>}
         </div>
         <div className="live-selection">
-          <div className="live-selection-info"><strong>{t(`已选 ${chosen.length} 句`, `${chosen.length} sentences selected`)}</strong>
-            <span className="muted">{chosen.length ? (selectedChars >= MIN_CHARS ? t(`约 ${selectedChars} 个原文字符`, `about ${selectedChars} original characters`)
-              : t(`再多选约 ${MIN_CHARS - selectedChars} 个字符才能出题`, `select about ${MIN_CHARS - selectedChars} more characters to create questions`))
-              : t('至少选约 120 个原文字符', 'Select at least 120 original characters')}</span></div>
-          <div className="live-actions"><button disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{t('最近 8 句', 'Last 8 sentences')}</button>
-            <button disabled={!selected.size} onClick={() => setSelected(new Set())}>{t('清空', 'Clear')}</button>
-            <div className="live-count" role="group" aria-label={t('题数', 'Number of questions')}>
-              <span className="live-count-label">{t('题数', 'Questions')}</span>
-              <button type="button" aria-label={t('减少题数', 'Fewer questions')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))}>−</button>
+          <div className="live-selection-info"><strong>{uiFormat('已选 {0} 句', [chosen.length])}</strong>
+            <span className="muted">{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
+              : uiFormat('再多选约 {0} 个字符才能出题', [MIN_CHARS - selectedChars]))
+              : ui('至少选约 120 个原文字符')}</span></div>
+          <div className="live-actions"><button disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{ui('最近 8 句')}</button>
+            <button disabled={!selected.size} onClick={() => setSelected(new Set())}>{ui('清空')}</button>
+            <div className="live-count" role="group" aria-label={ui('题数')}>
+              <span className="live-count-label">{ui('题数')}</span>
+              <button type="button" aria-label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))}>−</button>
               <output aria-live="polite">{count}</output>
-              <button type="button" aria-label={t('增加题数', 'More questions')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))}>+</button></div>
-            <button className="primary" disabled={!canGenerate} title={selectedChars < MIN_CHARS ? t(`至少约 ${MIN_CHARS} 个原文字符，目前 ${selectedChars}`, `At least about ${MIN_CHARS} original characters; now ${selectedChars}`) : undefined}
+              <button type="button" aria-label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))}>+</button></div>
+            <button className="primary" disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
               onClick={() => void perform(async () => {
-                const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: language === 'en' ? 'English' : '中文' });
-                setNotice(t('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。', 'Question generation queued; recording continues. Open the draft from the inbox when it is ready.'));
+                const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: GENERATION_LANGUAGE[language] });
+                setNotice(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));
                 setSelected(new Set()); await client.poll(); onJobs?.(result);
-              })}>{t('选中内容出题', 'Create questions from selection')}</button></div></div>
+              })}>{ui('选中内容出题')}</button></div></div>
       </div>
       {correction && <LiveNotes correction={correction} disabled={disabled} onSentence={id => {
         setFollow(false);
         const node = feed.current?.querySelector(`[data-segment-id="${id}"]`);
         node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true });
       }} onRetry={() => void perform(async () => { client.accept(await call('live.correct.background', { id: session.id })); })} />}
-      <footer className="live-footer"><p className="muted">{t('付费转写估算', 'Estimated paid transcription')} ${session.usage?.estimatedPaidUsd || 0} · {t('不含翻译费用', 'translation excluded')}</p>
+      <footer className="live-footer"><p className="muted">{ui('付费转写估算')} ${session.usage?.estimatedPaidUsd || 0} · {ui('不含翻译费用')}</p>
         {!active(session) && segments.length > 0 && <div className="live-actions"><button disabled={disabled || session.translating > 0 || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
-          await call('live.save', { id: session.id }); setNotice(t('已保存中英对照资料与课堂笔记（如有）。', 'Saved bilingual sources and class notes (if available).')); onJobs?.();
-        })}>{t('保存为资料', 'Save as source')}</button><button disabled={disabled || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
-          await call('live.save', { id: session.id, proofread: true, paidOnly }); setNotice(t('已加入校对任务，完成后会保存为资料。', 'Proofreading queued; the result will be saved as a source.')); onJobs?.();
-        })}>{t('校对后保存', 'Proofread and save')}</button><button className="link-btn" onClick={onSources}>{t('打开资料', 'Open sources')}</button></div>}</footer>
+          await call('live.save', { id: session.id }); setNotice(ui('已保存中英对照资料与课堂笔记（如有）。')); onJobs?.();
+        })}>{ui('保存为资料')}</button><button disabled={disabled || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
+          await call('live.save', { id: session.id, proofread: true, paidOnly }); setNotice(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
+        })}>{ui('校对后保存')}</button><button className="link-btn" onClick={onSources}>{ui('打开资料')}</button></div>}</footer>
     </>}
     <LiveHistory sessions={sessions} disabled={disabled} capturing={capturing}
       onOpen={id => void perform(async () => { setSelected(new Set()); await client.open(id); })}

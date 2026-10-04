@@ -15,7 +15,7 @@
 .study-app .jev-card { max-width: 640px; }
 /* The wide audio layout lays a provider card on six subgrid rows; this card has more parts (source row, notes, two forms), so it stacks. */
 .study-app .audio-provider-card.jev-card { display: flex; flex-direction: column; grid-row: auto; grid-template-rows: none; }
-.study-app .audio-provider-card.jev-card .audio-key-form { display: grid; grid-row: auto; grid-template-rows: none; }
+.study-app .audio-provider-card.jev-card :is(.audio-key-form, .sh-secret) { display: grid; grid-row: auto; grid-template-rows: none; }
 
 /* The walk-through. */
 .study-app .jev-guide { display: grid; gap: var(--space-2); max-width: 640px; min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
