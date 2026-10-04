@@ -60,15 +60,12 @@ const walk = (dir, out = []) => {
   return out;
 };
 
-/* Pages that keep their own <h1>: the shared header, the welcome card and the app's pre-library start page. WP-X (exam and
-   oral-exam files) and the host page are listed for the coordinator until they migrate. */
+/* Pages that keep their own <h1>: the shared header, the welcome card and the app's pre-library start page, and the host seat's no-session screen. */
 const H1_ALLOWED = new Map([
   ['ui/components/PageHeader.jsx', 'the shared header'],
   ['ui/Welcome.jsx', 'the welcome card is not a page frame'],
   ['ui/app/page-views.jsx', 'StartPage: the pre-library start screen'],
   ['ui/host/studyhub-page.jsx', 'the "open a session first" screen of the host seat'],
-  ['ui/Exam.jsx', 'WP-X file: migrate to PageHeader'],
-  ['ui/OralExam.jsx', 'WP-X file: migrate to PageHeader'],
 ]);
 
 test('<h1 appears only in PageHeader and the allow-listed frames (#142)', () => {
