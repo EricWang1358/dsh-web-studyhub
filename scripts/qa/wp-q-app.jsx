@@ -2,7 +2,7 @@
    and a stand-in for the review page's 修题 box that fills from onFix. Query: ?lang=zh|en&theme=dark|light&rewriteVia=1|0 */
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import styleCss from '../../ui/style.css';
+import styleCss from '../../ui/styles.js';
 import coachCss from '../../ui/coach.css';
 import { setUiLanguage } from '../../ui/i18n.js';
 import ThumbFeedback from '../../ui/ThumbFeedback.jsx';

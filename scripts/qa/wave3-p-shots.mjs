@@ -49,7 +49,7 @@ const summary = await runQa({ name: "wave3-p-shots", options,
         import { PageHeader, Panel, Button } from './ui/components/index.js';
         import PageScope from './ui/PageScope.jsx';
         import { setUiLanguage } from './ui/i18n.js';
-        import baseCss from './ui/style.css';
+        import baseCss from './ui/styles.js';
         const base = document.createElement('style'); base.textContent = baseCss; document.head.appendChild(base);
         const zh = ${JSON.stringify(options.lang === "zh")};
         setUiLanguage(zh ? 'zh' : 'en');
