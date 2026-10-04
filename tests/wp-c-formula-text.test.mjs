@@ -137,6 +137,24 @@ test('prompts: chemistry in \\ce, ions with a caret, equations in one \\ce, and 
   }
 });
 
+test('the plain-text notation (公式写法 text) keeps Unicode math and chemistry as written: nothing is wrapped, flagged or prompted', async () => {
+  const options = [opt('a', '5√4', false), opt('b', '√26', false), opt('c', '5√2', true)];
+  const card = goodCard({ answer: '5√2', options, prompt: '化简 √8+√18，当 x≠1 时，H2SO4 的 a/b。', explanation: '得到 x^2 与 TeX a^{2}。' });
+  const { deck } = autofixDeck({ title: 't', cards: [card] }, { assessmentPlan: plan(), answerBlueprint: blueprint(options, '5√2'), expectedKind: 'quiz', language: 'English', notation: 'text' });
+  assert.deepEqual(deck.cards[0].options.map(option => option.text), ['5√4', '√26', '5√2']);
+  assert.equal(deck.cards[0].prompt, '化简 √8+√18，当 x≠1 时，H2SO4 的 a/b。');
+  assert.equal(deck.cards[0].explanation, '得到 x^2 与 TeX $a^{2}$。', 'real TeX is still delimited');
+  assert.equal(formulaIssues({ cards: [goodCard({ prompt: '化简 √8+√18，当 x≠1 时，H2SO4 的 a/b。' })] }, { notation: 'text' }).length, 0);
+  assert.equal(formulaIssues({ cards: [goodCard({ prompt: '化简 √8+√18' })] }).length, 1);
+  assert.equal(formulaIssues({ cards: [goodCard({ prompt: 'bare a^{2} here' })] }, { notation: 'text' }).length, 1);
+  const request = { count: 1, kind: 'quiz', sources: [source], notation: 'text' };
+  assert.doesNotMatch(authorPrompts(request, plan(), blueprint([opt('a', 'one', true), opt('b', 'two', false)])).prompt, /Chemical formulas, ions and equations always go in/);
+  assert.doesNotMatch(blueprintPrompts(request, plan()).prompt, /Chemical formulas, ions and equations always go in/);
+  assert.match(blueprintPrompts({ ...request, notation: 'latex' }, plan()).prompt, /Chemical formulas, ions and equations always go in/);
+  const asked = await blueprintAssessment(async () => ({ items: [blueprint(options, '5√2').items[0]] }), request, plan());
+  assert.deepEqual(asked.items[0].options.map(option => option.text), ['5√4', '√26', '5√2']);
+});
+
 test('generateDeck keeps a chemistry card with bare neutral formulas without any extra model call', async () => {
   const req = { count: 1, kind: 'quiz', language: 'English', sources: [source] };
   const planned = qualityPlan(req);
