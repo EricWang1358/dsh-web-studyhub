@@ -3,7 +3,7 @@ import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./draft-shortfall.css";
-import { canContinueDraft, draftWork, draftWorkLabel, missingQuestions, reasonLabel, shortfall } from "./draft-shortfall.js";
+import { canContinueDraft, draftWork, draftWorkLabel, missingQuestions, omissionTitle, reasonLabel, shortfall } from "./draft-shortfall.js";
 
 /* The two pieces every place that shows a short draft uses, so the same thing
    reads and acts the same way on the home card, the job card and the draft
@@ -68,9 +68,9 @@ export function OmittedQuestions({ draft }) {
     <summary>{uiFormat("没进入草稿的题 · {0}", [records.length])}</summary>
     <ul>
       {records.map((item, index) => <li key={index}>
-        <strong>{item.prompt || uiFormat("第 {0} 批的一道题", [item.part])}</strong>
-        <small>{item.codes.map((code) => reasonLabel(code)).join(getUiLanguage() === "en" ? "; " : "；")}</small>
-        {item.note && <small className="muted">{item.note}</small>}
+        <strong>{omissionTitle(item)}</strong>{" "}
+        <span className="omitted-questions__why">{item.codes.map((code) => reasonLabel(code)).join(getUiLanguage() === "en" ? "; " : "；")}</span>{" "}
+        {item.note && <span className="omitted-questions__note muted">{uiFormat("审阅意见：{0}", [item.note])}</span>}
       </li>)}
     </ul>
   </details>;

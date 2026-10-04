@@ -19,8 +19,11 @@ const load = async (entry, exports) => {
 const m = await load("status", `export * from './ui/draft-shortfall.js'; export * from './ui/generation-status.js'; export { setUiLanguage } from './ui/i18n.js';`);
 const map = await load("map", `export { default as StudyMap } from './ui/StudyMap.jsx'; export { default as Draft } from './ui/Draft.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
 
+const view = await load("view", `export { OmittedQuestions } from './ui/DraftShortfall.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+const omittedMarkup = (draft) => renderToStaticMarkup(React.createElement(view.OmittedQuestions, { draft }));
+
 const han = /[㐀-鿿]/;
-const inLanguage = (language, fn) => { m.setUiLanguage(language); map.setUiLanguage(language); try { return fn(); } finally { m.setUiLanguage("zh"); map.setUiLanguage("zh"); } };
+const inLanguage = (language, fn) => { m.setUiLanguage(language); map.setUiLanguage(language); view.setUiLanguage(language); try { return fn(); } finally { m.setUiLanguage("zh"); map.setUiLanguage("zh"); view.setUiLanguage("zh"); } };
 
 /* The shape a draft from before `omitted` existed has: what one real library holds. */
 const legacyDraft = (extra = {}) => ({ id: "dr", title: "微服务边界、共享数据与 CQRS", draftVersion: 3,
@@ -203,4 +206,99 @@ test("the draft page has the same top-up button as the home card instead of send
   const english = inLanguage("en", () => draftPage({ ...legacyDraft(), title: "CQRS", editorial: { ...legacyDraft().editorial, audits: [], failures: legacyDraft().editorial.failures, omitted: [
     { part: 1, kind: "quiz", objective: "o", prompt: "Which one?", reasons: ["q2: answerLeak failed or was not checked"] }] } }));
   assert.doesNotMatch(english.replace(/<[^>]+>/g, " "), han);
+});
+
+/* The owner's report: "题目格式不完整 x3" said nothing (every line starting "Card N:" was one catch-all), and the 3-row list under it was empty. */
+const shortCodes = (lines) => m.shortfall({ id: "d", cards: [], editorial: { requested: 3, omitted: [{ part: 1, prompt: "p", reasons: lines }] } }).records[0].codes;
+
+test("a dropped question names its real defect, not the catch-all 'incomplete format'", () => {
+  const cases = [
+    ["Card 2: formula outside math delimiters ([\"x^2\"]); wrap every formula in $\u2026$", "formula", /公式没有放进公式格式/],
+    ["Card 2: the stem asks what the source says (recall of a document's wording); rewrite it", "source-voice", /题干在问「资料怎么说」/],
+    ["Card 3: hint is required", "missing-field", /缺少必要字段/],
+    ["Card 3: misconception must be text", "missing-field", /缺少必要字段/],
+    ["Card 1: need 3\u20136 options", "options-shape", /选项结构不完整/],
+    ["Card 1: invalid correct option count", "options-shape", /选项结构不完整/],
+    ["Card 1: duplicate option id", "options-shape", /选项结构不完整/],
+    ["Card 1: duplicate option text", "options-shape", /选项结构不完整/],
+    ["Card 1: each option requires id, text, correct and explanation", "options-shape", /选项结构不完整/],
+    ["Card 1: hint reveals the answer", "answer-leak", /泄露了答案/],
+    ["q2: missing, unknown or duplicate targetId; the question has no unique verified knowledge point and answer", "binding", /没有对上已核实的考点/],
+    ["Card 4: unsupported kind", "structure", /题目格式不完整/],
+  ];
+  for (const [line, code, label] of cases) {
+    assert.deepEqual(shortCodes([line]), [code], line);
+    assert.match(m.reasonLabel(code), label, code);
+  }
+  const english = inLanguage("en", () => ["formula", "source-voice", "missing-field", "options-shape", "binding"].map(m.reasonLabel));
+  for (const line of english) assert.doesNotMatch(line, han, line);
+  assert.equal(new Set(english).size, 5, "five distinct English labels");
+});
+
+const omittedHtml = (omitted) => omittedMarkup({ id: "d", cards: [], editorial: { requested: 3, omitted } });
+const rows = (html) => [...html.matchAll(/<li>(.*?)<\/li>/gs)].map((match) => match[1]);
+
+test("the dropped-question list never shows an empty row: prompt, then objective, then topic, then the batch", () => {
+  const html = omittedHtml([
+    { part: 2, prompt: "写了题干的题", objective: "o1", topic: "t1", reasons: ["Card 1: formula outside math delimiters (x)"] },
+    { part: 2, prompt: "   ", objective: "只有考点", topic: "t2", reasons: ["Card 2: hint is required"] },
+    { part: 3, prompt: "", objective: "", topic: "只有主题", reasons: ["Card 3: need 3\u20136 options"] },
+    { part: 4, reasons: ["q4: missing, unknown or duplicate targetId; no unique verified knowledge point"] },
+    { reasons: [] },
+  ]);
+  const list = rows(html);
+  assert.equal(list.length, 5);
+  assert.match(list[0], /<strong>写了题干的题<\/strong>/);
+  assert.match(list[1], /<strong>只有考点<\/strong>/);
+  assert.match(list[2], /<strong>只有主题<\/strong>/);
+  assert.match(list[3], /<strong>第 4 批的一道题<\/strong>/);
+  assert.match(list[3], /没有对上已核实的考点/, "the reason is shown on the row");
+  assert.match(list[4], /<strong>[^<]+<\/strong>/, "even a record without part or reasons has a title");
+  assert.doesNotMatch(html, /undefined|NaN|\[object/);
+  for (const row of list) assert.ok(row.replace(/<[^>]+>/g, "").trim().length > 3, row);
+  const english = inLanguage("en", () => omittedHtml([{ part: 4, reasons: ["Card 1: hint is required"] }, {}]));
+  assert.doesNotMatch(english.replace(/<[^>]+>/g, " "), han);
+  assert.match(english, /A question from batch 4/);
+});
+
+test("generation records are always real sentences: described, else the raw line clipped, never an empty row", () => {
+  const lines = ["", "   ", null, { message: "Part 3: socket hang up" }, "Part 2: something odd happened in the pipeline", "Part 1: retained 1/2 reviewed questions; omitted or missing candidates: q2 leaks", "x".repeat(400)];
+  const out = m.generationRecordLines(lines);
+  assert.equal(out.length, 4, "empty, blank and null lines are dropped");
+  assert.ok(out.every((line) => line.trim().length > 3), JSON.stringify(out));
+  assert.match(out[0], /第 3 批没有完成：连不上模型服务/, "an object carrying a message is read");
+  assert.match(out[1], /第 2 批没有完成/);
+  assert.match(out[1], /something odd happened/, "an unrecognised reason keeps the raw text instead of saying nothing");
+  assert.match(out[2], /第 1 批：计划 2 题，通过检查 1 题/);
+  assert.ok(out[3].length <= 201, "a long raw line is clipped");
+  assert.deepEqual(m.generationRecordLines(["", " ", undefined]), []);
+  assert.deepEqual(m.generationRecordLines(undefined), []);
+  const english = inLanguage("en", () => m.generationRecordLines(["Part 2: something odd happened"]));
+  assert.doesNotMatch(english[0].replace(/something odd happened/, ""), han);
+});
+
+test("the draft page hides a failures section with nothing to say and never renders an empty bullet in it", () => {
+  const base = legacyDraft();
+  const html = draftPage({ ...base, editorial: { ...base.editorial, failures: ["", " "], previousFailures: [null, ""] } });
+  assert.doesNotMatch(html, /部分题目未生成成功/);
+  assert.doesNotMatch(html, /之前未完成的批次/);
+  const shown = draftPage({ ...base, editorial: { ...base.editorial, failures: ["", "Part 2: something odd happened"], previousFailures: ["Part 1: socket hang up", " "] } });
+  assert.match(shown, /部分题目未生成成功/);
+  assert.match(shown, /之前未完成的批次/);
+  assert.doesNotMatch(shown, /<li>\s*<\/li>/);
+  assert.match(shown, /第 1 批没有完成：连不上模型服务/);
+});
+
+test("a dropped-question row keeps the stem, the reasons and the reviewer's note apart, in markup and in copied text", () => {
+  const html = omittedHtml([{ part: 1, prompt: "写出 O(n) 的表达式。", reasons: ["Card 1: formula outside math delimiters (x)", "Card 1: hint reveals the answer", "q1 prompt gives away the answer"] }]);
+  const [row] = rows(html);
+  assert.doesNotMatch(row, /<\/strong><small/, "markup is not glued");
+  const text = row.replace(/<\/(?:strong|span|small|div)>/g, "$&\n").replace(/<[^>]+>/g, "");
+  assert.match(text, /表达式。\s+\S/, "a gap follows the stem");
+  assert.doesNotMatch(text, /答案q1|答案q3|。题目|。公式/, "no reason starts right where the stem ends");
+  assert.match(row, /omitted-questions__why/);
+  assert.match(row, /omitted-questions__note/);
+  assert.match(text, /审阅意见/, "the reviewer's note says whose words they are");
+  const english = inLanguage("en", () => omittedHtml([{ part: 1, prompt: "Q?", reasons: ["Card 1: hint is required", "q1 gives it away"] }]));
+  assert.match(english.replace(/<[^>]+>/g, " "), /Reviewer note/);
 });

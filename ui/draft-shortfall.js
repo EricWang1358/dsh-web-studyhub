@@ -56,6 +56,13 @@ export function issueCode(issue) {
   if (/must use requested kind/.test(text)) return 'kind';
   if (/duplicate (?:learning objective|prompt|id)|repeats an already covered/.test(text)) return 'duplicate';
   if (/citation|quote|unknown source/i.test(text)) return 'source';
+  /* The structural gate's `Card N:` lines, one precise code each; 'structure' is only what none of them says. */
+  if (/formula outside math delimiters/.test(text)) return 'formula';
+  if (/the stem asks what the source says/.test(text)) return 'source-voice';
+  if (/hint reveals the answer/.test(text)) return 'answer-leak';
+  if (/missing, unknown or duplicate targetId/.test(text)) return 'binding';
+  if (/need 3.6 options|options have an invalid shape|invalid correct option count|duplicate option|each option requires/.test(text)) return 'options-shape';
+  if (/\b(?:id|kind|topic|objective|prompt|answer|hint|explanation|misconception) (?:is required|must be text)/.test(text)) return 'missing-field';
   if (/^Card \d+:/.test(text)) return 'structure';
   return null;
 }
@@ -69,6 +76,11 @@ export const reasonLabel = (code) => ({
   'self-contained': ui('离开资料读不懂题干'),
   kind: ui('题型和要求的不一致'),
   duplicate: ui('与已有的题重复'),
+  formula: ui('公式没有放进公式格式（会显示成原始文本）'),
+  'source-voice': ui('题干在问「资料怎么说」，没有考概念本身'),
+  'missing-field': ui('缺少必要字段（如提示、易错点）'),
+  'options-shape': ui('选项结构不完整'),
+  binding: ui('题目没有对上已核实的考点'),
   structure: ui('题目格式不完整'),
   'over-count': ui('这一批已满额，多出的候选没有采用'),
   review: ui('独立审阅没有通过'),
@@ -79,11 +91,20 @@ const cardToken = (line) => {
   return match ? `q${match[1] || match[2]}` : null;
 };
 
+const words = (value) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '');
+
 function record(part, lines, extra = {}) {
   const codes = [...new Set(lines.map(issueCode).filter(Boolean))];
   const note = lines.find((line) => issueCode(line) === null);
-  return { part, prompt: extra.prompt || '', objective: extra.objective || '', codes: codes.length ? codes : ['review'],
+  return { part, prompt: words(extra.prompt), objective: words(extra.objective), topic: words(extra.topic), codes: codes.length ? codes : ['review'],
     note: note ? String(note).slice(0, 220) : '' };
+}
+
+/** What a dropped question is called in the list: its stem, else its objective, else its topic, else its batch; never blank (an author can leave the stem out). */
+export function omissionTitle(item) {
+  const found = words(item?.prompt) || words(item?.objective) || words(item?.topic);
+  if (found) return found;
+  return Number.isInteger(item?.part) ? uiFormat('第 {0} 批的一道题', [item.part]) : ui('一道没进入草稿的题');
 }
 
 /** Dropped questions as one record each: from `editorial.omitted`, else (older drafts) rebuilt from each batch's omitted issues. */
@@ -143,15 +164,32 @@ export function describePartReport(report) {
     ...(report.citationsRepaired ? { repaired: uiFormat('已自动重试并修正了 {0} 道题的引用。', [report.citationsRepaired]) } : {}) };
 }
 
+const clipLine = (value, size = 200) => (value.length > size ? value.slice(0, size - 1) + '…' : value);
+/** The text of a record line: a string as is, an object by its message / error / reason / text, anything else nothing. */
+const recordText = (line) => {
+  if (typeof line === 'string') return line.trim();
+  if (line && typeof line === 'object') for (const key of ['message', 'error', 'reason', 'text']) if (typeof line[key] === 'string' && line[key].trim()) return line[key].trim();
+  return '';
+};
+
 /** A generation record kept on the draft by the backend (English prose with a part number), as a sentence in the UI language. */
 export function describeGenerationRecord(line) {
-  const text = String(line ?? '');
+  const text = recordText(line);
   const retained = RETAINED.exec(text);
   if (retained) return uiFormat('第 {0} 批：计划 {2} 题，通过检查 {1} 题；其余没有通过，原因见「没进入草稿的题」。', [retained[1], retained[2], retained[3]]);
   const duplicate = DUPLICATE.exec(text);
   if (duplicate) return uiFormat('第 {0} 批：有一道题与前面的题考点重复，已略过。', [duplicate[1]]);
   if (text === '补题时跳过了一道与已有草稿重复的题') return ui('补题时跳过了一道与已有草稿重复的题');
   const part = PART.exec(text);
-  if (part) return uiFormat('第 {0} 批没有完成：{1}', [part[1], describeFailure(part[2]).title]);
-  return text;
+  if (part) {
+    const found = describeFailure(part[2]);
+    // A reason none of the patterns knows would read "没有完成：生成没有完成"; keep the pipeline's own words next to it.
+    return uiFormat('第 {0} 批没有完成：{1}', [part[1], found.kind === 'unknown' ? `${found.title}（${clipLine(part[2].trim(), 160)}）` : found.title]);
+  }
+  return clipLine(text);
+}
+
+/** The records of a draft as sentences, one per line that has anything to say: an empty or unreadable line is dropped, so no list shows a blank row. */
+export function generationRecordLines(lines) {
+  return (Array.isArray(lines) ? lines : []).map(describeGenerationRecord).filter((line) => line.trim());
 }
