@@ -36,7 +36,7 @@ async function open(lang, theme, width, query = '') {
   await tab.waitForSelector('.thumbs');
   return { tab, close: () => context.close() };
 }
-const tag = (tab, index) => tab.locator('.thumb-tray .coach-chip').nth(index);
+const tag = (tab, index) => tab.locator('.thumb-tray .sh-chip__main').nth(index);
 const feedbackCalls = tab => tab.evaluate(() => window.__calls.filter(call => call.action === 'coach.feedback').map(call => call.args));
 
 for (const lang of langs) for (const theme of themes) for (const width of [1280, 420]) {

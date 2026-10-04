@@ -260,7 +260,7 @@ const assist = (props = {}) => renderToStaticMarkup(React.createElement(Generate
 
 test("model suggestions show as chips with an apply button and the reason", () => {
   const html = assist({ phase: "done", focus: "Replication", result: { source: "model", focus: ["Replication", "Raft vs Paxos"], count: 8, difficulty: "application", kind: "quiz", why: "Weak on Raft elections." } });
-  const chips = [...html.matchAll(/<button[^>]*class="generate-chip generate-suggestion"[^>]*>(.*?)<\/button>/g)];
+  const chips = [...html.matchAll(/<span[^>]*class="sh-chip[^"]*generate-suggestion"[^>]*>.*?<\/button><\/span>/g)];
   assert.equal(chips.length, 2);
   assert.match(chips[0][0], /aria-pressed="true"/, "a chip already in the box is marked");
   assert.match(chips[1][0], /aria-pressed="false"/);

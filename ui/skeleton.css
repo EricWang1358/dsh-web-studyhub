@@ -62,14 +62,7 @@
     }
   }
   :is(.study-app, .study-seat) {
-    & button.sk-link {
-      margin-left: auto;
-      padding: var(--space-half) var(--space-2);
-      border: 0;
-      background: transparent;
-      color: var(--accent-soft);
-      font-size: var(--fs-md);
-    }
+    .sk-link { margin-left: auto; }
     .sk-search {
       padding: var(--space-2) 11px;
       font-size: var(--fs-md);
@@ -192,11 +185,7 @@
     }
   }
   :is(.study-app, .study-seat) {
-    & button.sk-mini {
-      flex: none;
-      padding: var(--space-1) 10px;
-      font-size: var(--fs-md);
-    }
+    .sk-mini { flex: none; }
     & button.sk-danger {
       color: var(--bad);
     }
@@ -227,16 +216,6 @@
     }
   }
   :is(.study-app, .study-seat) {
-    & button.sk-filter {
-      padding: 3px 10px;
-      border-radius: var(--radius-pill);
-      font-size: var(--fs-md);
-    }
-    & button.sk-filter.on {
-      border-color: var(--accent);
-      background: color-mix(in srgb, var(--accent) 16%, transparent);
-      color: var(--text);
-    }
   }
   :where(.study-app, .study-seat) {
     .sk-lint-list {

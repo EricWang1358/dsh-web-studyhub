@@ -111,21 +111,6 @@
       background: var(--bg-sunken);
       color: var(--text);
     }
-    .chip {
-      border-radius: var(--radius-pill);
-      padding: 6px var(--space-3);
-      font-size: var(--fs-md);
-      white-space: nowrap;
-      color: var(--text-muted);
-      border-color: var(--line);
-      background: transparent;
-      flex-shrink: 0;
-    }
-    .chip.active {
-      background: var(--bg-raised);
-      border-color: var(--line-strong);
-      color: var(--text);
-    }
     .map-legend {
       display: flex;
       flex-wrap: wrap;

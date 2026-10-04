@@ -7,8 +7,7 @@
     ],
     "active": [
       "ui/shell.css",
-      "ui/sources-page.css",
-      "ui/study-map/catalog.css"
+      "ui/sources-page.css"
     ],
     "audio-reasoning": [
       "ui/audio-dashboard.css",
@@ -307,7 +306,6 @@
       "ui/shell.css"
     ],
     "on": [
-      "ui/coach.css",
       "ui/live-class.css",
       "ui/shell.css",
       "ui/skeleton.css"
@@ -429,12 +427,10 @@
     "sh-btn": [
       "ui/DailyRecap.css",
       "ui/app/app-shell.css",
-      "ui/audio-settings.css",
       "ui/board/board.css",
       "ui/components/button-variants.css",
       "ui/components/components.css",
       "ui/components/feedback.css",
-      "ui/components/secret-key.css",
       "ui/course-settings.css",
       "ui/document-preview/document-preview.css",
       "ui/document-preview/peek/peek.css",
@@ -446,10 +442,8 @@
       "ui/jev.css",
       "ui/mineru.css",
       "ui/review/review.css",
-      "ui/settings.css",
       "ui/setup-checklist.css",
       "ui/sources.css",
-      "ui/tour/onboarding.css",
       "ui/wrongbook.css"
     ],
     "sh-btn--icon": [

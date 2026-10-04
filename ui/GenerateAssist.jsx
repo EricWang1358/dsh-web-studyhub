@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { kinds } from './shared.js';
-import { Button } from './components/index.js';
+import { Button, Chip } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
 import { DIFFICULTIES, focusIncludes, hasSettings } from './generate-form.js';
 
@@ -36,8 +36,7 @@ export default function GenerateAssist({ ready = false, phase = 'idle', result =
           {items.length ? (
             <div className="generate-chips" role="group" aria-label={ui('练习重点建议')}>
               {items.map((item) => (
-                <button type="button" key={item} className="generate-chip generate-suggestion" aria-pressed={focusIncludes(focus, item)}
-                  title={item} onClick={() => onPick?.(item)}>{item}</button>
+                <Chip key={item} className="generate-suggestion" selected={focusIncludes(focus, item)} title={item} onClick={() => onPick?.(item)}>{item}</Chip>
               ))}
             </div>
           ) : <p className="generate-assist__note">{ui('还没有可以推荐的内容。先选好资料，或多做几轮练习再来。')}</p>}

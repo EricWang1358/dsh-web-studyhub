@@ -6,22 +6,7 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .coach-chip {
-      border: 1px solid var(--line);
-      border-radius: var(--radius-pill);
-      padding: 3px 9px;
-      font-size: var(--fs-md);
-      line-height: 1.5;
-      background: transparent;
-      color: var(--text-dim);
-      white-space: nowrap;
-      transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-    }
-    .coach-chip:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
-    .coach-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-    .coach-chip:disabled { opacity: 0.55; }
     .coach-options { display: flex; flex-wrap: wrap; gap: 6px; }
-    .coach-options .coach-chip { font-size: var(--fs-md); padding: var(--space-1) 10px; }
     .coach-card {
       padding: 10px var(--space-3);
       border-radius: var(--radius-sm);
@@ -115,7 +100,6 @@
       background: color-mix(in srgb, var(--text) 5%, transparent);
       border: 1px solid var(--line-soft);
     }
-    .coach-chip.coach-yes { border-color: var(--accent-soft); color: var(--text); font-weight: var(--fw-strong); }
     .coach-consent .coach-consent-error { margin: var(--space-2) 0 0; color: var(--bad); }
     .coach-consent-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
     /* One filled primary per screen: when the 雷霆建议 hands over its own next

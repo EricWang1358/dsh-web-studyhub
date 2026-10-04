@@ -71,25 +71,6 @@
     .generate-stepper input::-webkit-inner-spin-button { appearance: none; margin: 0; }
     /* ── Chips: presets, suggested count, focus suggestions ──────────────── */
     .generate-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
-    .generate-chip {
-      min-height: 28px;
-      max-width: 100%;
-      padding: 3px var(--space-3);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-pill);
-      background: var(--bg-surface);
-      color: var(--text-dim);
-      font-size: var(--fs-sm);
-      line-height: var(--lh-tight);
-      text-align: left;
-    }
-    .generate-chip:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-surface); color: var(--text); }
-    .generate-chip[aria-pressed="true"] {
-      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-      background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
-      color: var(--accent-text);
-    }
-    .generate-chip:focus-visible { outline: none; box-shadow: var(--ring); }
     .generate-preset { min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
     .generate-hint { border-style: dashed; color: var(--accent-text); }
     /* ── Focus box and its assist ─────────────────────────────────────────── */

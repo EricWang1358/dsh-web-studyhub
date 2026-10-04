@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
-import { Icon, useToast } from "./components/index.js";
+import { Chip, Icon, useToast } from "./components/index.js";
 import { feedbackOutcome } from "./card-fix.js";
 import { useComponentCss } from "./components/css.js";
 import thumbCss from "./thumb-feedback.css";
@@ -185,9 +185,9 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
       {open && (
         <span id={trayId} className="thumb-tray" role="group" aria-label={ui("哪里不好")}>
           {TAGS.map(([id, label], i) => (
-            <button key={id} className={"coach-chip" + (tags.includes(id) ? " on" : "")} aria-pressed={tags.includes(id)} disabled={sent.current.has(id) || submitting.current.has(id)} onClick={() => toggle(id)}>
+            <Chip key={id} selected={tags.includes(id)} disabled={sent.current.has(id) || submitting.current.has(id)} onClick={() => toggle(id)}>
               <kbd>{i + 1}</kbd>{ui(label)}
-            </button>
+            </Chip>
           ))}
           <small>{ui("选好停一下就自动提交；已提交的标签不能撤销。改题类问题会带到下方的「修题」。")}</small>
         </span>
