@@ -10,7 +10,7 @@ import {
    remember where the learner was, and return there. What each kind loads and shows is the table in ui/learning-navigation.js;
    this hook owns the trail, the stale-request guard and the focus that follows an arrival. */
 export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
-  const { call, act, setError, notify, refresh, refs } = core;
+  const { call, setError, notify, refresh, refs } = core;
   const { setModal, setContextTrail, setFocusRequest, setDetour } = lib.set;
   const latest = useRef(null);
   latest.current = { page: nav.page, run: session.run, entry: session.entry, state: lib.state };
@@ -149,6 +149,5 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
 
   const trail = lib.state.contextTrail;
   return { captureContext, rememberContext, contextLabel, openLearningTarget, currentStudyReference, openBoardReference, openBoardWithContext,
-    returnFromContext, returnFromDetour, returnToReading, openAudioSources, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', hasTrail: trail.length > 0,
-    act };
+    returnFromContext, returnFromDetour, returnToReading, openAudioSources, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', hasTrail: trail.length > 0 };
 }

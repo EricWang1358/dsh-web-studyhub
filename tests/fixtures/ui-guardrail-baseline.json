@@ -3,7 +3,6 @@
   "metrics": {
     "rawButton": {
       "ui/AgentLink.jsx": 1,
-      "ui/App.jsx": 18,
       "ui/AudioDashboard.jsx": 2,
       "ui/AudioImport.jsx": 12,
       "ui/AudioReasoning.jsx": 1,
@@ -37,9 +36,9 @@
       "ui/PageScope.jsx": 2,
       "ui/PdfConvertJob.jsx": 1,
       "ui/PdfImport.jsx": 1,
-      "ui/Review.jsx": 40,
+      "ui/Review.jsx": 39,
       "ui/ReviewNavigator.jsx": 1,
-      "ui/ReviewToolbar.jsx": 10,
+      "ui/ReviewToolbar.jsx": 5,
       "ui/Settings.jsx": 1,
       "ui/SetupChecklist.jsx": 1,
       "ui/SideNav.jsx": 2,
@@ -79,7 +78,6 @@
       "ui/host/workspace.jsx": 2
     },
     "legacyButtonClass": {
-      "ui/App.jsx": 4,
       "ui/ArchivedDeckRow.jsx": 1,
       "ui/AudioImport.jsx": 5,
       "ui/BlogNotes.jsx": 1,
@@ -98,7 +96,7 @@
       "ui/Manage.jsx": 1,
       "ui/OralExam.jsx": 3,
       "ui/PageScope.jsx": 2,
-      "ui/Review.jsx": 31,
+      "ui/Review.jsx": 30,
       "ui/ReviewToolbar.jsx": 3,
       "ui/Skeleton.jsx": 2,
       "ui/SkeletonCanvas.jsx": 1,
@@ -114,7 +112,6 @@
       "ui/document-preview/practice/ReadingReturn.jsx": 3
     },
     "glyphIcon": {
-      "ui/App.jsx": 1,
       "ui/AudioImport.jsx": 2,
       "ui/Cloze.jsx": 1,
       "ui/Generate.jsx": 2,
@@ -156,7 +153,7 @@
       "ui/settings.css": 2,
       "ui/side-groups.css": 1,
       "ui/skeleton.css": 71,
-      "ui/style.css": 183,
+      "ui/style.css": 182,
       "ui/views.css": 30,
       "ui/workflow-scope.css": 8,
       "ui/workflows.css": 98
@@ -216,7 +213,7 @@
       "ui/wrongbook.css": 4
     },
     "radiusPx": {
-      "ui/DailyRecap.css": 6,
+      "ui/DailyRecap.css": 5,
       "ui/audio-dashboard.css": 3,
       "ui/blog-notes.css": 3,
       "ui/board/board.css": 4,

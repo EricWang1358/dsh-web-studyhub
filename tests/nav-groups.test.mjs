@@ -5,7 +5,6 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { readAppSource } from './helpers/app-source.mjs';
 
 /* The sidebar is grouped by when a page is used (docs/feature-tiers.md): 每天 (every day), 阶段性 (now and then) and
    课程准备与管理 (once at the start of a course). The grouping removes nothing: every page, anchor, shortcut and the

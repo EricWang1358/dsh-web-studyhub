@@ -44,6 +44,8 @@ export function useAppCore(transportCall, host) {
       notify({ text, persistent: true });
     }
   }, [notify]);
-  return { refs: { epoch, navigation, requestSequence, notebookRequest, dataRef, snapshotKey, leaveTimer, examLocation, bindingRoot, actRunner, refreshRef, noticeRef },
+  // One stable bag: hooks list it as a dependency and it must never change identity.
+  const refs = useMemo(() => ({ epoch, navigation, requestSequence, notebookRequest, dataRef, snapshotKey, leaveTimer, examLocation, bindingRoot, actRunner, refreshRef, noticeRef }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  return { refs,
     call, act, refresh, notify, toast, askInChat, error, setError, busy, setBusy, quick, quickApi, quickStamp };
 }
