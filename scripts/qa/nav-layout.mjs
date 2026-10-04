@@ -185,8 +185,8 @@ export async function collectStates({ browser, running, lang, theme, width, mode
     await api("card.update", { cardId: "c3", patch: { hint: "Count the reasons to change." }, reason: "补充提示" });
     await open();
     await page.locator(".resume-nav").click(); await settle(900);
-    await page.locator(".inbox-toggle").click(); await settle(400);
-    await page.locator(".inbox-item").first().click().catch(() => {}); await settle(900);
+    await page.locator(".mailbox__toggle").click(); await settle(400);
+    await page.locator(".mailbox__item").first().click().catch(() => {}); await settle(900);
     await record("6-detour");
     await nav("settings");
     await record("7-settings");

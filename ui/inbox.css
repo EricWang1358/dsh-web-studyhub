@@ -1,0 +1,147 @@
+/* The top-bar mailbox (ui/Inbox.jsx). Injected by Inbox (useInjectCss 'study-inbox').
+   Tokens only: the kind pills are Badges (ui/components/feedback.css), the list is
+   a ScrollWindow, so this file only places things. It replaces the .inbox-* rules
+   that used to live in style.css. */
+.study-app .mailbox { position: relative; }
+.study-app .mailbox__toggle {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.study-app .mailbox__toggle:hover:not(:disabled),
+.study-app .mailbox__toggle[aria-expanded="true"] {
+  background: var(--bg-hover);
+  border-color: var(--line-soft);
+  color: var(--text);
+}
+.study-app .mailbox__toggle.has-unread { color: var(--text); }
+.study-app .mailbox__toggle:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+.study-app .mailbox__count {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg-canvas);
+  animation: badge-in 0.28s var(--ease);
+}
+
+.study-app .mailbox__panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: -6px;
+  z-index: var(--z-popover, 30);
+  display: flex;
+  flex-direction: column;
+  width: min(380px, calc(100cqi - 32px));
+  max-height: min(70vh, 520px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-lg);
+  animation: rise-in 0.2s var(--ease);
+}
+.study-app .mailbox__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line-soft);
+}
+.study-app .mailbox__head strong { font-size: var(--fs-md); }
+.study-app .mailbox__sub { color: var(--text-muted); font-size: var(--fs-sm); }
+.study-app .mailbox__read-all { margin-left: auto; }
+.study-app .mailbox__error { margin: var(--space-2) var(--space-3) 0; }
+
+/* The list is a ScrollWindow; inside the panel its frame is the panel's own edge. */
+.study-app .mailbox__scroll { gap: 0; min-height: 0; }
+.study-app .mailbox__scroll .sh-scroll__frame { border: 0; border-radius: 0; background: none; }
+.study-app .mailbox__list { padding: var(--space-2); }
+.study-app .mailbox__row { display: block; }
+.study-app .mailbox__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.study-app .mailbox__item:hover:not(:disabled) { background: var(--bg-hover); }
+.study-app .mailbox__item:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
+.study-app .mailbox__item.is-unread { color: var(--text); }
+.study-app .mailbox__item.is-unread::before {
+  content: "";
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-4);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.study-app .mailbox__item:disabled { opacity: 0.5; cursor: default; }
+.study-app .mailbox__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+.study-app .mailbox__deck {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+.study-app .mailbox__time { flex: none; margin-left: auto; font-size: var(--fs-sm); }
+.study-app .mailbox__multi { flex: none; font-size: var(--fs-sm); }
+.study-app .mailbox__prompt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-md);
+  font-weight: 550;
+}
+.study-app .mailbox__detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+.study-app .mailbox__undo { margin: 0 0 var(--space-1) var(--space-5); }
+.study-app .mailbox__empty { padding: var(--space-6) var(--space-4); }
+@media (prefers-reduced-motion: reduce) {
+  .study-app .mailbox__count, .study-app .mailbox__panel { animation: none; }
+}
