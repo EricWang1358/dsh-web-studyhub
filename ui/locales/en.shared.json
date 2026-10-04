@@ -1,3 +1,19 @@
 {
-  "这个密钥来自环境变量，不能在这里清除；要换掉它，请改系统的环境变量。": "This key comes from an environment variable and cannot be cleared here. To replace it, change the environment variable on your system."
+  "这个密钥来自环境变量，不能在这里清除；要换掉它，请改系统的环境变量。": "This key comes from an environment variable and cannot be cleared here. To replace it, change the environment variable on your system.",
+  "之前的版本 · {0}": "Previous versions · {0}",
+  "从本次范围里练 {0} 道题。打开的是完整的刷题页：提示、讲解、AI 追问和教学都能用，练完点「回到学习流」回到这里。": "Practise {0} questions from this scope. This opens the full practice page with hints, explanations, AI follow-ups and teaching; choose “Back to learning flow” afterward to return here.",
+  "本步练完了：答对 {0} / {1} 道。": "Step practice finished: {0} of {1} correct.",
+  "这一轮提前结束了，做了 {0} / {1} 道。可以再练一轮，或在下方如实选择跳过。": "This round ended early after {0} of {1} questions. Practise again or honestly mark this step as skipped below.",
+  "已做 {0} / {1} 道，答对 {2} 道。": "Answered {0} / {1} questions, {2} correct.",
+  "已做 {0} / {1} 道。": "Answered {0} / {1} questions.",
+  "AI 正在整理本次范围的骨架（{0} 题），好了会直接显示在这里；也可以先往下学。": "AI is organising an outline for this scope ({0} questions). It will appear here when ready; you can continue learning meanwhile.",
+  "选择会记入你的目标，由你决定何时继续。": "Your choice will be saved in your goal; you decide when to continue.",
+  "选择会记入你的回顾，由你决定何时继续。": "Your choice will be saved in your reflection; you decide when to continue.",
+  "学习足迹 · {0} 次活动": "Learning trail · {0} activities",
+  "AI 正在后台整理本次的知识骨架（{0} 题），好了会出现在这里，学习不用等它。": "AI is building the knowledge outline in the background ({0} questions). It will appear here when ready; continue learning meanwhile.",
+  "想一想：{0}": "Consider: {0}",
+  "下一站：{0}": "Next stop: {0}",
+  "完成活动 {0} 次 · 需要巩固 {1} 次 · 跳过 {2} 次": "Completed {0} · Need review {1} · Skipped {2}",
+  "完成 / 跳过 → {0}": "Complete / skip → {0}",
+  "需巩固 → {0}": "Needs review → {0}"
 }
