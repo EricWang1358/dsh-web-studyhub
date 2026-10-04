@@ -20,6 +20,7 @@ import { CourseActiveProvider } from './CourseActive.jsx';
 import { QuickActionsContext } from './quick-actions.js';
 import { ToastContext } from './components/Feedback.jsx';
 import { StudyServicesContext } from './study-context.jsx';
+import { ModelSettingsContext } from './ModelErrorNote.jsx';
 import { useInjectCss } from './shared.js';
 import sideGroupsCss from './side-groups.css';
 import quickCss from './quick-actions.css';
@@ -109,6 +110,7 @@ export default function App({ call: transportCall, host = {} }) {
         <CourseActiveProvider value={courseActive}>
           <ToastContext.Provider value={core.toast}>
             <StudyServicesContext.Provider value={study}>
+            <ModelSettingsContext.Provider value={settingsEntry.openModelSettings}>
               <AppContext.Provider value={app}>
                 <div className="study-app" {...shell.appearanceAttrs} style={{ ...scienceVars(shell.sciencePrefs), ...appearanceStyle(shell.appearance) }}
                   lang={LANG_ATTR[language]} ref={shell.attachRoot} data-usage-area={page} tabIndex={-1}
@@ -143,6 +145,7 @@ export default function App({ call: transportCall, host = {} }) {
                   <AppModalHost />
                 </div>
               </AppContext.Provider>
+            </ModelSettingsContext.Provider>
             </StudyServicesContext.Provider>
           </ToastContext.Provider>
         </CourseActiveProvider>

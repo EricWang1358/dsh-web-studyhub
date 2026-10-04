@@ -119,7 +119,7 @@ test('the hub keeps no private copy of what a shared module already says (#120 #
   lacks('ui/ImportHub.jsx', /const MB = /, /const extensionOf/, /const AUDIO_EXTENSIONS = \[/, /MAX_SUBTITLE_BYTES = /, /maxLength=\{600000\}/, /\/ 600,000/, /toLocaleString\(/,
     /async function fileToBase64/, /createDialogDropGuard/, /closest\('dialog'\)/);
   has('ui/ImportHub.jsx', /from '\.\/upload\.js'/, /from '\.\/file-names\.js'/, /from '\.\.\/lib\/audio-formats\.js'/, /SELECTION_CHARS/, /formatNumber/);
-  has('ui/ModalFrame.jsx', /guardDrops/);
+  has('ui/app/modals/AddSourceDialog.jsx', /guardDrops/);
   assert.equal(typeof hub.fileToBase64, 'undefined', 'the one Base64 lives in ui/upload.js');
   assert.equal(typeof hub.createDialogDropGuard, 'undefined');
 });

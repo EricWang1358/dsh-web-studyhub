@@ -59,6 +59,6 @@ test('every busy dialog says so once, through Dialog (#72)', () => {
 
 test('one drop guard: the dialogs that hold a FileDrop ask Dialog for it (#85)', () => {
   has('ui/document-preview/OriginalFile.jsx', /<Dialog[^>]*\bguardDrops\b/);
-  has('ui/ModalFrame.jsx', /<Dialog[^>]*\bguardDrops\b/);
+  has('ui/app/modals/AddSourceDialog.jsx', /<Dialog[^>]*\bguardDrops\b/);
   lacks('ui/ImportHub.jsx', /createDialogDropGuard/, /closest\('dialog'\)/, /closest\("dialog"\)/);
 });
