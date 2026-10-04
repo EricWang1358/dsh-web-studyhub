@@ -17,7 +17,7 @@
     .oral-followup { padding: 18px; border-left: 3px solid var(--accent); background: var(--bg-raised); border-radius: var(--radius); }
     .oral-followup p { margin: var(--space-2) 0 18px; }
     .oral-report { display: grid; gap: 18px; }
-    .oral-report h2 { margin: 0; font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-3xl)); }
+    .oral-report h2 { margin: 0; font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-5xl)); }
     .oral-report > p { margin: 0; }
     .oral-band-bar { display: flex; gap: var(--space-1); height: 22px; background: var(--bg-sunken); border-radius: var(--radius-pill); overflow: hidden; }
     .oral-band-bar .strong { background: var(--ok); }

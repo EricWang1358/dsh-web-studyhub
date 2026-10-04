@@ -16,7 +16,7 @@
       letter-spacing: .17em;
       text-transform: uppercase;
     }
-    .result-page .result-title { margin: 10px 0 6px; font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-3xl)); }
+    .result-page .result-title { margin: 10px 0 6px; font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-5xl)); }
     .result-page .result-subtitle { margin: 0 0 26px; color: var(--text-muted); }
     .result-hero {
       display: grid;
@@ -28,7 +28,7 @@
       border-radius: var(--radius-card);
       background: radial-gradient(circle at 0 0, color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%), var(--bg-surface);
     }
-    .result-headline strong { display: block; font-size: clamp(var(--fs-3xl), 8cqi, var(--fs-3xl)); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.06em; }
+    .result-headline strong { display: block; font-size: clamp(var(--fs-6xl), 8cqi, var(--fs-7xl)); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.06em; }
     .result-headline span { display: block; margin-top: 10px; color: var(--text-muted); font-size: var(--fs-md); }
     .result-headline small { display: block; margin-top: var(--space-2); color: var(--text-muted); }
     .result-breakdown { min-width: 0; }

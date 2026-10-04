@@ -15,12 +15,12 @@
     .audio-dashboard-summary { display: grid; grid-template-columns: 156px minmax(0,1fr); align-items: center; gap: 36px; margin-bottom: var(--space-7); }
     .audio-usage-dial { aspect-ratio: 1; border-radius: 50%; padding: var(--space-2); background: conic-gradient(var(--usage-free) var(--share), var(--line) 0); }
     .audio-usage-dial > div { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: inherit; background: var(--bg-sunken); }
-    .audio-usage-dial strong { font-size: var(--fs-3xl); letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+    .audio-usage-dial strong { font-size: var(--fs-4xl); letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
     .audio-usage-dial span { color: var(--text-dim); font-size: var(--fs-sm); margin-top: 6px; }
     .audio-usage-dial small { color: var(--text-muted); font-size: var(--fs-xs); margin-top: var(--space-1); }
     .audio-dashboard-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px 30px; }
     .audio-dashboard-metrics > div > span { color: var(--text-muted); font-size: var(--fs-xs); }
-    .audio-dashboard-metrics strong { display: block; font-size: var(--fs-3xl); font-weight: var(--fw-strong); letter-spacing: -.045em; font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
+    .audio-dashboard-metrics strong { display: block; font-size: var(--fs-4xl); font-weight: var(--fw-strong); letter-spacing: -.045em; font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
     .audio-dashboard-metrics strong small { color: var(--text-muted); font-size: var(--fs-xs); margin-left: var(--space-2); letter-spacing: 0; font-weight: var(--fw-regular); }
     .audio-dashboard-metrics .audio-token-count { font-size: var(--fs-2xl); }
     .audio-provider-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,170px),1fr)); gap: var(--space-6); padding-block: var(--space-6); border-block: 1px solid var(--line); }
@@ -100,7 +100,7 @@
       .audio-dashboard-metrics { gap: var(--space-4) var(--space-3); }
       .audio-dashboard-metrics strong { font-size: var(--fs-2xl); }
       .audio-dashboard-metrics .audio-token-count { font-size: var(--fs-xl); }
-      .audio-usage-dial strong { font-size: var(--fs-3xl); }
+      .audio-usage-dial strong { font-size: var(--fs-4xl); }
       .audio-trend-bars { gap: var(--space-2); }
     }
   }

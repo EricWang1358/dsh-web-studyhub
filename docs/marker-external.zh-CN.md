@@ -8,9 +8,22 @@
 
 已完成的片段会缓存，失败后继续或重新导入同一份 PDF 可以复用；Marker 与 MinerU 的缓存独立。取消会停止当前转换进程。首次转换可能下载模型，缺失依赖或后端无法连接会显示在任务错误中，修复环境后可以继续。
 
-## 安装与运行条件
+## 一键安装
 
-先查看 [Marker 官方安装说明](https://github.com/datalab-to/marker#installation)、[推理后端要求](https://github.com/datalab-to/marker#inference-backend-prerequisites)和 [PyPI 安装包](https://pypi.org/project/marker-pdf/)。以下命令在你自己打开的终端中执行，StudyHub 不会代为执行。
+在 **设置 → PDF 转换 → Marker** 点 **一键安装 Marker**。点之前不会安装任何东西。面板先做只读检查：有没有 3.10 及以上的 Python、磁盘空间够不够（估算：Windows 约 4 GB，macOS 约 3.5 GB，Linux 约 8 GB）、安装位置能不能写，并列出将要运行的命令。然后后台任务创建一个独立的虚拟环境并安装 `marker-pdf`，分四步：创建环境、安装、验证（`marker_single --help` 必须支持 StudyHub 用到的选项）、把程序路径写进 Marker 设置，所以路径框会自动填好。进度、**取消**、**重试** 和折叠的 pip 原始日志都在面板里，重启后结果仍在。
+
+- 位置：默认 `<DSH 主目录>/studyhub/marker`（例如 `~/.dsh/studyhub/marker`）。**更改位置** 使用宿主的文件夹选择器；宿主没有时输入完整路径。环境放在 `venv` 子文件夹，旁边有一个很小的 `.studyhub-marker.json` 标记文件。里面已有其他文件的文件夹不会被安装进去：改为在其中新建 `StudyHub-Marker` 文件夹。
+- 下载源：清华 PyPI 镜像（大陆可直连）或官方 PyPI（需要海外网络），面板上各有标注。
+- 运行的命令（用你自己的用户身份，不需要管理员权限）：`python -m venv <文件夹>/venv`，然后 `<文件夹>/venv/Scripts/python.exe`（Windows）或 `<文件夹>/venv/bin/python`（macOS / Linux）`-m pip install --disable-pip-version-check --no-input --progress-bar off --timeout 60 [--index-url <镜像>] marker-pdf`，最后 `<文件夹>/venv/Scripts/marker_single.exe --help`（Windows）或 `<文件夹>/venv/bin/marker_single --help`。Windows 上依次找 `py -3`、`python`、`python3`，macOS / Linux 上依次找 `python3`、`python3.12`、`python3.11`、`python3.10`、`python`。
+- 没有 Python 或版本太旧：不算失败。面板会列出获取渠道（先给大陆可直连的镜像，再给 python.org），装好后点 **重新检测** 即可启用按钮。Debian 类 Linux 还需要 `python3-venv` 和 `python3-pip`。
+- 卸载与迁移：**卸载**（确认后）只删除安装器创建的 `venv` 文件夹和标记文件，并在程序路径指向它时清空路径。**安装到其他位置…** 会在新环境通过检测后才删除旧环境。你自己装的 Marker 不会被动。
+- 状态保存在 `<DSH 主目录>/study/marker-install.json`（保留最近 200 行日志）。助手不能启动或删除安装，只能由你点击。
+
+第一次解析仍会下载 Marker 的模型；做 OCR 还可能需要下面说明的推理后端，只装 Python 包并不会准备好它们。
+
+## 手动安装与运行条件
+
+先查看 [Marker 官方安装说明](https://github.com/datalab-to/marker#installation)、[推理后端要求](https://github.com/datalab-to/marker#inference-backend-prerequisites)和 [PyPI 安装包](https://pypi.org/project/marker-pdf/)。想手动安装时，以下命令在你自己打开的终端中执行。
 
 需要 Python 3.10 或以上及 Marker 所需的 PyTorch 环境。建议使用独立虚拟环境，避免影响其他项目。Windows PowerShell：
 

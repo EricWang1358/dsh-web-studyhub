@@ -846,7 +846,7 @@
       padding: 0 var(--space-6);
     }
     .session-summary h1 {
-      font-size: var(--fs-3xl);
+      font-size: var(--fs-4xl);
     }
     .session-summary > p {
       color: var(--text-dim);
