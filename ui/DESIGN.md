@@ -50,6 +50,7 @@ Defined in `ui/tokens.css` (on `.study-app` / `.study-seat`, derived with `color
 | `--fw-light` 300, `--fw-regular` 400, `--fw-medium` 550, `--fw-strong` 650 | Font weights; no other numbers. |
 | `--radius-xs` 4px | Chips, keys and inline code; larger shapes keep `--radius-sm`, `--radius`, `--radius-card`, `--radius-pill`. |
 | `--space-half` 2px | Hairline gaps and badge padding below `--space-1`; everything larger uses `--space-1…9`. |
+| `--fs-4xl` 34 … `--fs-10xl` 156px | The display scale for focal numerals (streak, today count, result headline, rates, scores) and page titles. Never snap a display numeral down to a body size; `tests/display-sizes.test.mjs` guards it. |
 | `--dur-fast` .15s, `--dur` .2s, `--dur-slow` .3s | Transition and animation durations, with `--ease` / `--ease-out`. |
 | `--ok-halo` / `-mid` / `-mark` / `-tint` / `-solid` (and the same for `warn`, `bad`, `info`) | Strengths of a tone beyond ink / bg / line: a ring or glow, a stroke or tick, a highlighter, a graph fill, a swatch. |
 | `--hue-violet` / `--hue-teal` / `--hue-orange` | Mixed hues of the board's columns and chips. |
