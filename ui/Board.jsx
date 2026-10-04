@@ -154,7 +154,7 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
   </section>;
 }
 
-export default function Board({ state, library, today: todayProp, onOrigin, onStudyRef, studyRef, onClearStudyRef }) {
+export default function Board({ state, library, today: todayProp, onOrigin, onStudyRef, studyRef, onClearStudyRef, dailyPlan }) {
   useInjectCss(css, "study-board");
   const { board, error, conflict, busy, mutate, refresh, clearError } = state;
   const today = todayProp || localDate();
@@ -293,6 +293,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
         {!archive && <Button variant="primary" icon="plus" disabled={readOnly || !board?.columns.length} onClick={() => setComposer(board.columns[0].id)}>{ui("添加卡片")}</Button>}
       </>} />
     {message && <InlineMessage tone={board?.readOnly ? "error" : conflict ? "warning" : "error"} boxed onDismiss={board?.readOnly ? undefined : () => { setOriginError(""); clearError?.(); }}>{message}</InlineMessage>}
+    {!archive && dailyPlan}
     {!board && <p className="muted board-loading" role="status">{ui("正在读取待办…")}</p>}
     {board && (archive
       ? <ArchiveList board={board} readOnly={readOnly} library={library} onBack={() => setArchive(false)}

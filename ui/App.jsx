@@ -9,6 +9,7 @@ import { hasContext, pageAvailable } from './capabilities.js';
 import { uiLocale } from "./i18n.js";
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import StudyMap from "./StudyMap.jsx";
+import RemoveDeckDialog from "./RemoveDeckDialog.jsx";
 import Welcome, { SampleBanner } from "./Welcome.jsx";
 import Tour from "./tour/Tour.jsx";
 import TourGlyph from "./tour/TourGlyph.jsx";
@@ -20,6 +21,8 @@ import Dashboard from "./Dashboard.jsx";
 import Exam from "./Exam.jsx";
 import WrongBook from "./WrongBook.jsx";
 import Board, { useBoard } from "./Board.jsx";
+import DailyPlan, { RelatedTasks } from './DailyPlan.jsx';
+import { useDailyPlan, useStudyReferenceHandoff } from './daily-plan.js';
 import { dueSummary } from "../lib/board-model.js";
 import { BrandMark } from "./NavGlyph.jsx";
 import { useNavOrder, useNavGroups, groupIsOpen, NAV_DEFAULTS, NAV_GROUPS } from "./nav-order.js";
@@ -138,6 +141,7 @@ export default function App({ call: transportCall, host = {} }) {
   const sidebarNarrow = sidebarCollapsed || narrowWindow;
   const [managedDeck, setManagedDeck] = useState(null),
     [folderDraft, setFolderDraft] = useState("");
+  const [removingDeck, setRemovingDeck] = useState(null);
   const [noteInitialId, setNoteInitialId] = useState("");
   const [contextTrail, setContextTrail] = useState([]), [focusRequest, setFocusRequest] = useState(null);
   const examLocation = useRef(null);
@@ -313,6 +317,15 @@ export default function App({ call: transportCall, host = {} }) {
   const [notebooks, setNotebooks] = useState(null),
     [notebookError, setNotebookError] = useState("");
   const boardState = useBoard(call, page === "board");
+  const dailyPlan = useDailyPlan({ call, root: data && pageAvailable(data, 'review') ? data.root : null,
+    navigation: () => navigationRequest.current,
+    progressKey: run ? `${run.id}:${run.answered}:${run.complete}` : '',
+    visible: ['library', 'board', 'review', 'workflows'].includes(page) || modal?.type === 'source',
+    onLaunch: async (result) => {
+      if (result.run) enterRun(result.run);
+      else if (result.studyRef) await openBoardReference(result.studyRef);
+    },
+    onChanged: () => boardState.refresh({ force: true }) });
   const [boardStudyRef, setBoardStudyRef] = useState(null);
   const [legacyAudioJobId, setLegacyAudioJobId] = useState('');
   const boardCount = boardState.board?.columns.reduce((n, column) => n + (column.done ? 0 : column.cardIds.length), 0);
@@ -368,6 +381,7 @@ export default function App({ call: transportCall, host = {} }) {
           setDraft(null);
           setRecovery(null);
           setManagedDeck(null);
+          setRemovingDeck(null);
           setGraphScope(null);
           setGraphCanvas(false);
           setSelectedSources([]);
@@ -498,6 +512,8 @@ export default function App({ call: transportCall, host = {} }) {
     () => takeHandoff?.((runId) => handoffAction.current?.(runId)),
     [takeHandoff],
   );
+  useStudyReferenceHandoff(host.takeStudyReference, data?.root,
+    ref => openBoardReference(ref).catch(failure => setError(failure.message)));
   // Links and fixes made in the conversation reach the open question without a reload.
   useEffect(() => {
     if (page !== "review" || !run?.card?.id) return;
@@ -1397,7 +1413,7 @@ export default function App({ call: transportCall, host = {} }) {
   ) : (
     <ImportHub key={data?.root} data={data} call={call} busy={busy} course={sourceFormCourse} onCourseChange={changeSourceFormCourse}
       pasteDraft={{ title: sourceTitle, text: sourceText }} onPasteDraftChange={draft => { setSourceTitle(draft.title); setSourceText(draft.text); }}
-      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={() => { setModal(null); setSettingsFocus("settings-mineru"); navigatePage('settings'); }}
+      onImported={() => refresh().catch(() => {})} onComplete={finishImport} onOpenSettings={section => { setModal(null); setSettingsFocus(section === 'settings-marker' ? section : "settings-mineru"); navigatePage('settings'); }}
       onOpenSources={ids => { navigatePage('sources'); openAudioSources(ids); }}
       audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sourceFormCourse)} busy={busy} act={act} call={call} setNotice={setNotice} askInChat={askInChat} canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={openAudioSources} onOpenSettings={() => { setModal(null); navigatePage('settings'); }} /> : undefined} />
   );
@@ -1782,6 +1798,9 @@ export default function App({ call: transportCall, host = {} }) {
     : data?.lastRun;
   const feedback = <ActionFeedback error={error} notice={notice} busy={busy}
     onCloseError={() => setError("")} onCloseNotice={() => setNotice("")} />;
+  const deckToRemove = removingDeck?.root === data?.root
+    ? data?.decks.find(deck => deck.id === removingDeck?.id) : null;
+  const openDeckRemoval = id => setRemovingDeck({ id, root: data.root });
   return (
     <SciencePreferencesContext.Provider value={sciencePrefs}>
     <QuickActionsContext.Provider value={quickApi}>
@@ -1991,6 +2010,7 @@ export default function App({ call: transportCall, host = {} }) {
           onJobs={() => { void refresh().catch((failure) => setError(failure.message)); }} />}
         {page === "board" ? (
           <Board state={boardState} library={data} onOrigin={host.openWorkspaceNotebook} studyRef={boardStudyRef}
+            dailyPlan={data && pageAvailable(data, 'review') ? <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} modelReady={data.model?.ready !== false} openModelSettings={openModelSettings} /> : null}
             onClearStudyRef={() => setBoardStudyRef(null)} onStudyRef={openBoardReference} />
         ) : !data ? (
           <section className="onboarding">
@@ -2033,6 +2053,8 @@ export default function App({ call: transportCall, host = {} }) {
                 start={(args) => act("review.start", args, enterRun)}
                 resume={(runId) => act("review.get", { runId }, enterRun)}
                 endRun={(runId) => act("review.end", { runId })}
+                restoreDeck={id => act("deck.archive", { id, archived: false }, () => setNotice(ui("题组已恢复。")))}
+                removeDeck={openDeckRemoval}
                 manage={(id) =>
                   act("deck.get", { id }, (deck) => {
                     setManagedDeck(deck);
@@ -2095,6 +2117,8 @@ export default function App({ call: transportCall, host = {} }) {
                 suggestMerges={(args) => call("deck.merge.suggest", args)}
                 mergeDecks={(args) => act("deck.merge", args, null, { rethrow: true })}
               >
+                {pageAvailable(data, 'review') && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} onBoard={() => navigatePage('board')}
+                  modelReady={data.model?.ready !== false} openModelSettings={openModelSettings} />}
                 {recovery && (
                   <div className="alert notice">
                     <span>{ui("有本窗口暂存的编辑：")}{recovery.draft.title}{ui("（尚未发布）")}</span>
@@ -2114,6 +2138,7 @@ export default function App({ call: transportCall, host = {} }) {
               </StudyMap>
             )}
             {page === "workflows" && <Workflows key={workflowReturn?.nonce || "workflows"} call={call} askInChat={askInChat} data={data}
+              renderRelated={sessionId => <RelatedTasks plan={dailyPlan} reference={{ root: data.root, kind: 'workflow', sessionId }} onBoard={() => navigatePage('board')} />}
               openSession={workflowReturn?.sessionId} openRun={(runId) => act("review.get", { runId }, enterRun)} />}
             {page === "skeleton" && (
               <Skeleton
@@ -2223,6 +2248,7 @@ export default function App({ call: transportCall, host = {} }) {
                 setManagedDeck={setManagedDeck}
                 folderDraft={folderDraft}
                 setFolderDraft={setFolderDraft}
+                onRemoveDeck={openDeckRemoval}
               />
             )}
             {page === "sources" && (
@@ -2239,7 +2265,7 @@ export default function App({ call: transportCall, host = {} }) {
                 openAgent={host.openAgent}
                 onOpenSources={openAudioSources}
                 onLegacyRetry={job => { setLegacyAudioJobId(job.id); navigatePage('audio'); }}
-                onOpenSettings={() => { setSettingsFocus("settings-mineru"); navigatePage('settings'); }}
+                onOpenSettings={section => { setSettingsFocus(section === 'settings-marker' ? section : "settings-mineru"); navigatePage('settings'); }}
                 onGenerate={generateFromSources}
               />
             )}
@@ -2337,6 +2363,7 @@ export default function App({ call: transportCall, host = {} }) {
                   onRadius: (value) => updateAppearance({ radius: value }),
                   onScale: (value) => updateAppearance({ scale: value }),
                   onFont: (value) => updateAppearance({ font: value }),
+                  onAccent: (value) => updateAppearance({ accent: value }),
                   onReset: resetAppearance, onExport: () => exportAppearance(appearance),
                   onImport: (text) => { const imported = importAppearance(text); if (imported) updateAppearance(imported); return !!imported; } }}
                 tourActive={!!tourStep}
@@ -2360,6 +2387,7 @@ export default function App({ call: transportCall, host = {} }) {
                 }}
               />
             )}
+            {page === 'review' && run && <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => navigatePage('board')} />}
             {page === "review" && run && (
               <Review
                 feedback={feedback}
@@ -2442,6 +2470,13 @@ export default function App({ call: transportCall, host = {} }) {
         setNotice={setNotice} onClose={() => setCourseSettings(null)} />}
       {removingSample && <RemoveSampleDialog busy={sampleBusy} onConfirm={removeSampleData}
         onClose={() => { if (!sampleBusy) setRemovingSample(false); }} />}
+      {deckToRemove && <RemoveDeckDialog key={`${data.root}:${deckToRemove.id}`} deck={deckToRemove} busy={busy} act={act}
+        onClose={() => setRemovingDeck(null)} onRemoved={deck => {
+          setRemovingDeck(null);
+          if (managedDeck?.id === deck.id) setManagedDeck(null);
+          if (page === "manage") navigatePage("library");
+          setNotice(ui("题组已永久删除，原始资料和作答记录已保留。"));
+        }} />}
       {modal && (
         <ModalFrame fullscreen={modal.type === 'source'} onClose={() => setModal(null)}
           title={modal.type === "add"
@@ -2501,6 +2536,8 @@ export default function App({ call: transportCall, host = {} }) {
                 )}
                 {modal.source ? (
                   <>
+                    <RelatedTasks plan={dailyPlan} reference={{ root: data.root, kind: 'source', id: modal.source.id }}
+                      onBoard={() => { setModal(null); navigatePage('board'); }} />
                     {!!modal.source.usedBy?.length && <div className="source-connections">
                       <small className="muted">{ui('使用这份资料的题组')}</small>
                       {modal.source.usedBy.map(deck => <button key={`${deck.kind}:${deck.id}`} disabled={busy || deck.kind === 'draft'}

@@ -3,6 +3,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import AudioSettings, { audioFocusPending } from "./AudioSettings.jsx";
 import ExtensionsSettings from './ExtensionsSettings.jsx';
 import MineruSettings from './MineruSettings.jsx';
+import MarkerSettings from './MarkerSettings.jsx';
 import JevSettings from './JevSettings.jsx';
 import { ExperimentalSection } from './ExperimentalSettings.jsx';
 import UsageSettings from './UsageSettings.jsx';
@@ -385,6 +386,10 @@ function AppearanceSection({ appearance }) {
         <span>{ui("外观")}</span>
         <SegmentedControl label={ui("外观")} value={appearance.theme} onChange={appearance.onTheme} options={appearanceOptions("theme")} />
       </div>
+      {appearance.onAccent && <div className="settings-field">
+        <span>{ui("强调色")}</span>
+        <SegmentedControl label={ui("强调色")} value={appearance.accent} onChange={appearance.onAccent} options={appearanceOptions("accent")} />
+      </div>}
       {appearance.onScale && <div className="settings-field">
         <span>{ui("界面大小")}</span>
         <SegmentedControl label={ui("界面大小")} value={appearance.scale} onChange={appearance.onScale} options={appearanceOptions("scale")} />
@@ -478,8 +483,10 @@ export default function Settings({
     const linked = categoryForAnchor(focusSection);
     if (linked && available.some((item) => item.id === linked)) setCategory(linked);
     // The pane for the linked category renders on the next frame: scroll to the section then.
-    const frame = requestAnimationFrame(() => document.querySelector(`[data-tour="${focusSection}"]`)?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
-    onFocused?.();
+    const frame = requestAnimationFrame(() => {
+      document.querySelector(`[data-tour="${focusSection}"]`)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+      onFocused?.();
+    });
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);
@@ -508,7 +515,13 @@ export default function Settings({
       case "generation": return capabilities.generation ? <GenerationSettings root={data.root} saved={data.settings?.generation} busy={busy} act={act} setNotice={setNotice} /> : null;
       case "courses": return coursePanel;
       case "audio": return capabilities.audio ? <AudioSettings busy={busy} act={act} call={call} setNotice={setNotice} /> : null;
-      case "mineru": return capabilities.audio ? <MineruSettings busy={busy} call={call} setNotice={setNotice} /> : null;
+      case "mineru": return <>
+        {capabilities.audio && <MineruSettings busy={busy} call={call} setNotice={setNotice} />}
+        <fieldset className="settings-section" data-tour="settings-marker">
+          <legend className="settings-section__title">{ui('Marker：本机解析')}</legend>
+          <MarkerSettings disabled={busy} call={call} available={capabilities.audio} />
+        </fieldset>
+      </>;
       case "retrieval": return capabilities.generation ? <ExtensionsSettings call={call} setNotice={setNotice} courses={data.focus?.courses} defaultCourse={data.focus?.course} /> : null;
       case "profile": return <>{onboardingPanel}{profile && <CoachSection profile={profile} busy={busy} act={act} call={call} setProfile={setProfile} setNotice={setNotice} />}</>;
       case "data": return <>{legacyPanel}<ScheduleSection key={data.root} root={data.root} settings={settings} saved={data.settings} setSettings={setSettings} act={act} busy={busy} setNotice={setNotice} /><BackupSection root={data.root} busy={busy} exportData={exportData} act={act} onRestored={onRestored} /></>;

@@ -4,6 +4,7 @@ import React from "react";
 import App from "../App.jsx";
 import css from "../style.css";
 import themesCss from "../appearance-themes.css";
+import accentCss from "../accent.css";
 import bridgeCss from "../panel-bridge.css";
 import audioDashboardCss from '../audio-dashboard.css';
 import hostCss from './studyhub.css';
@@ -23,16 +24,35 @@ const PLUGIN_CAPABILITIES = Object.freeze({ edition: "plugin", chat: true, agent
 // A run handed from the main view to the right sidebar (session id → run id).
 const handoff = new Map(),
   handoffListeners = new Set();
+const studyReferences = new Map(),
+  studyReferenceListeners = new Set();
 const knownSessions = new Map(),
   candidates = new Map(),
   candidateListeners = new Set();
 function deliverRun(sessionId, runId) {
+  studyReferences.delete(sessionId);
   handoff.set(sessionId, runId);
   handoffListeners.forEach((fn) => fn(sessionId));
+}
+function deliverStudyReference(sessionId, studyRef) {
+  handoff.delete(sessionId);
+  studyReferences.set(sessionId, studyRef);
+  studyReferenceListeners.forEach((fn) => fn(sessionId));
 }
 function deliverCandidates(sessionId, intent) {
   candidates.set(sessionId, intent);
   candidateListeners.forEach((fn) => fn(sessionId));
+}
+function takeDelivery(values, listeners, sessionId, listener) {
+  const take = () => {
+    const value = values.get(sessionId);
+    values.delete(sessionId);
+    if (value) listener(value);
+  };
+  take();
+  const update = target => target === sessionId && setTimeout(take);
+  listeners.add(update);
+  return () => listeners.delete(update);
 }
 /** Read an optional host snapshot store; absent stores read as undefined. */
 function useHostStore(store) {
@@ -73,7 +93,7 @@ export function apply(ctx, registerDocumentLearning) {
   const t = ctx.locale.bind("study-workspace");
   ctx.effect(() => {
     const el = document.createElement("style");
-    el.textContent = css + "\n" + themesCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
+    el.textContent = css + "\n" + themesCss + "\n" + accentCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
     document.head.appendChild(el);
     return () => el.remove();
   }, "study styles");
@@ -91,6 +111,7 @@ export function apply(ctx, registerDocumentLearning) {
           const intent = pending?.intent;
           if (!intent) continue;
           if (intent.type === "run") deliverRun(sessionId, intent.runId);
+          if (intent.type === "studyRef") deliverStudyReference(sessionId, intent.studyRef);
           if (intent.type === "candidates") deliverCandidates(sessionId, intent);
           ctx.get("sidebarRight")?.openTab("study-workspace");
         }
@@ -233,17 +254,11 @@ export function apply(ctx, registerDocumentLearning) {
             : undefined,
         takeHandoff:
           placement === "sidebar"
-            ? (listener) => {
-                const take = () => {
-                  const runId = handoff.get(sessionId);
-                  handoff.delete(sessionId);
-                  if (runId) listener(runId);
-                };
-                take();
-                const fn = (targetSessionId) => targetSessionId === sessionId && setTimeout(take);
-                handoffListeners.add(fn);
-                return () => handoffListeners.delete(fn);
-              }
+            ? listener => takeDelivery(handoff, handoffListeners, sessionId, listener)
+            : undefined,
+        takeStudyReference:
+          placement === "sidebar"
+            ? listener => takeDelivery(studyReferences, studyReferenceListeners, sessionId, listener)
             : undefined,
         };
       },
