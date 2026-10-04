@@ -3,13 +3,16 @@ import React, { useRef, useState } from "react";
 import { kinds } from "./shared.js";
 import { importExample, importPrompt } from "./json-prompts.js";
 import CourseField from './CourseField.jsx';
-import { FileDrop } from './components/index.js';
+import { Button, FileDrop, InlineMessage, useToast } from './components/index.js';
+import { useCopyFeedback } from './use-copy-feedback.js';
 
-export default function JsonImport({ data, busy, act, call, openDraft, setNotice }) {
+export default function JsonImport({ data, busy, act, call, openDraft }) {
+  const toast = useToast();
   const [text, setText] = useState("");
   const [kind, setKind] = useState("mixed");
   const [reading, setReading] = useState(false);
   const [message, setMessage] = useState("");
+  const promptCopy = useCopyFeedback(() => importPrompt(kind, kinds[kind], getUiLanguage()));
   const [proposal, setProposal] = useState(null);
   const [proposing, setProposing] = useState(false);
   const [merge, setMerge] = useState(false);
@@ -34,10 +37,10 @@ export default function JsonImport({ data, busy, act, call, openDraft, setNotice
       <legend>{ui("01 / 各题型 JSON 提示词")}</legend>
       <label>{ui("题型")}<select value={kind} onChange={(e) => { setKind(e.target.value); setMessage(""); }}>{Object.entries({ mixed: ui("混合题型（一次复制全部）"), ...kinds }).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
       <label>{ui("复制给 AI，追加你的资料与出题要求")}<textarea readOnly rows={8} value={importPrompt(kind, kinds[kind], getUiLanguage())} /></label>
-      <button type="button" onClick={async () => {
-        try { await navigator.clipboard.writeText(importPrompt(kind, kinds[kind], getUiLanguage())); setMessage(ui("提示词已复制")); }
-        catch { setMessage(ui("无法访问剪贴板，请在上方文本框中手动复制提示词")); }
-      }}>{ui("复制提示词")}</button>
+      <Button icon={promptCopy.copied ? "check" : undefined} onClick={async () => {
+        setMessage("");
+        if (!(await promptCopy.copy())) setMessage(ui("无法访问剪贴板，请在上方文本框中手动复制提示词"));
+      }}>{promptCopy.copied ? ui("提示词已复制") : ui("复制提示词")}</Button>
       <details><summary>{ui("查看 JSON 格式示例")}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{importExample(kind, getUiLanguage())}</pre></details>
     </fieldset>
     <form onSubmit={async (e) => {
@@ -49,7 +52,7 @@ export default function JsonImport({ data, busy, act, call, openDraft, setNotice
         finally { setProposing(false); }
       } else act("draft.import", { text, title: proposal.title, course: proposal.course,
         ...(merge && proposal.mergeTargetId ? { mergeTargetId: proposal.mergeTargetId } : {}) }, (deck) => {
-          setNotice(uiFormat("已导入「{0}」共 {1} 题。可检查后直接发布。",[deck.title,deck.cards.length]));
+          toast.success(uiFormat("已导入「{0}」共 {1} 题。可检查后直接发布。",[deck.title,deck.cards.length]));
           openDraft(deck);
         });
     }}>
@@ -66,9 +69,9 @@ export default function JsonImport({ data, busy, act, call, openDraft, setNotice
           {proposal.mergeTargetId && <label><input type="checkbox" checked={merge} onChange={(e) => setMerge(e.target.checked)} />{ui("发布时并入建议的同知识点题组（保留全部题和记录）")}</label>}
           {proposal.mergeTargetId && <p className="muted">{data?.decks?.find(deck => deck.id === proposal.mergeTargetId)?.title} · {proposal.course || ui('未分类')}</p>}
         </div>}
-        <button className="primary" disabled={busy || reading || proposing || !text.trim()}>{reading ? ui("正在读取文件…") : proposing ? ui("正在整理建议…") : proposal ? ui("确认并导入草稿 →") : ui("检查并建议归类 →")}</button>
+        <Button type="submit" variant="primary" busy={reading || proposing} busyLabel={reading ? ui("正在读取文件…") : ui("正在整理建议…")} disabled={busy || !text.trim()}>{proposal ? ui("确认并导入草稿 →") : ui("检查并建议归类 →")}</Button>
       </fieldset>
     </form>
-    {message && <p role="status">{message}</p>}
+    {message && <InlineMessage tone="error">{message}</InlineMessage>}
   </div>;
 }

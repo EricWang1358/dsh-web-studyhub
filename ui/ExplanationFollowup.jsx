@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
-import { InlineMessage } from "./components/index.js";
+import { Button, InlineMessage } from "./components/index.js";
 
 export default function ExplanationFollowup({ run, call, readOnly = false, onDerive, deriving = false }) {
   const [open, setOpen] = React.useState(false);
@@ -70,9 +70,9 @@ export default function ExplanationFollowup({ run, call, readOnly = false, onDer
       {items.length > 1 && (
         <div className="followup-head">
           <span>{uiFormat("{0} 条问答", [items.length])}</span>
-          <button type="button" className="link-btn" onClick={() => setOpenIds(allOpen ? new Set() : new Set(items.map((item) => item.id)))}>
+          <Button variant="link" size="sm" onClick={() => setOpenIds(allOpen ? new Set() : new Set(items.map((item) => item.id)))}>
             {allOpen ? ui("全部收起") : ui("全部展开")}
-          </button>
+          </Button>
         </div>
       )}
       {items.map((item) => (
@@ -84,39 +84,39 @@ export default function ExplanationFollowup({ run, call, readOnly = false, onDer
           {/* A long answer can be folded from its end, landing back on its question. */}
           {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}
           {onDerive && <div className="followup-derive" role="group" aria-label={ui("用这个问答出题")}>
-            <button type="button" className="link-btn" data-usage="review.derive-prereq" disabled={deriving} onClick={() => onDerive(item.id, "prerequisite")}>{ui("出成前置题")}</button>
-            <button type="button" className="link-btn" data-usage="review.derive-standalone" disabled={deriving} onClick={() => onDerive(item.id, "standalone")}>{ui("出成独立题")}</button>
+            <Button variant="link" size="sm" data-usage="review.derive-prereq" disabled={deriving} onClick={() => onDerive(item.id, "prerequisite")}>{ui("出成前置题")}</Button>
+            <Button variant="link" size="sm" data-usage="review.derive-standalone" disabled={deriving} onClick={() => onDerive(item.id, "standalone")}>{ui("出成独立题")}</Button>
           </div>}
-          <button type="button" className="link-btn followup-fold" onClick={(event) => {
+          <Button variant="link" size="sm" className="followup-fold" onClick={(event) => {
             const summary = event.currentTarget.closest("details")?.querySelector("summary");
             toggle(item.id, false);
             requestAnimationFrame(() => summary?.scrollIntoView({ block: "nearest" }));
-          }}>{ui("收起 ↑")}</button>
+          }}>{ui("收起")}</Button>
         </details>
       ))}
-      {!readOnly && <><button type="button" className="pill" aria-expanded={open} disabled={!call || !!pending}
-        onClick={() => open ? setOpen(false) : suggest()}>{ui("追问？")}</button>
+      {!readOnly && <><Button size="sm" aria-expanded={open} disabled={!call || !!pending}
+        onClick={() => open ? setOpen(false) : suggest()}>{ui("追问？")}</Button>
       {" "}
-      <button type="button" className="pill" disabled={!call || !!pending}
-        onClick={() => ask(ui("请重新讲清楚这道题：先解释必要概念，再从题目条件一步步推到答案，用最小例子说明最容易混淆的地方，最后告诉我下次遇到类似题该怎么判断。若原题解有错或依据不足，请明确指出。"))}>{ui("重新讲清楚")}</button>
+      <Button size="sm" disabled={!call || !!pending}
+        onClick={() => ask(ui("请重新讲清楚这道题：先解释必要概念，再从题目条件一步步推到答案，用最小例子说明最容易混淆的地方，最后告诉我下次遇到类似题该怎么判断。若原题解有错或依据不足，请明确指出。"))}>{ui("重新讲清楚")}</Button>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       {open && (
         <div className="followup-picker">
           {questions.map((text) => (
-            <button type="button" key={text} disabled={!!pending} onClick={() => ask(text)}>{text}</button>
+            <Button key={text} size="sm" wrap align="start" disabled={!!pending} onClick={() => ask(text)}>{text}</Button>
           ))}
-          <button type="button" className="pill" disabled={pending === "answer"} aria-expanded={custom}
-            onClick={() => setCustom(!custom)}>{ui("你的疑问")}</button>
+          <Button size="sm" disabled={pending === "answer"} aria-expanded={custom}
+            onClick={() => setCustom(!custom)}>{ui("你的疑问")}</Button>
           {custom && (
             <form onSubmit={(event) => { event.preventDefault(); ask(question); }}>
               <label>{ui("你的疑问")}<textarea autoFocus value={question} maxLength={1000} rows={3} disabled={pending === "answer"}
                   placeholder={ui("写下你想弄清楚的地方，也可以接着上面的回答问…")}
                   onChange={(event) => setQuestion(event.target.value)} />
               </label>
-              <button type="submit" className="primary pill" disabled={!!pending || !question.trim()}>{ui("解答并添加")}</button>
+              <Button type="submit" variant="primary" size="sm" busy={pending === "answer"} disabled={!!pending || !question.trim()}>{ui("解答并添加")}</Button>
             </form>
           )}
-          {error && !questions.length && !pending && <button type="button" className="pill" onClick={suggest}>{ui("重新推荐问题")}</button>}
+          {error && !questions.length && !pending && <Button size="sm" onClick={suggest}>{ui("重新推荐问题")}</Button>}
         </div>
       )}
       {pending && <p className="muted small" role="status">{pending === "suggest" ? ui("正在准备 3 个追问…") : ui("正在解答，完成后会保存到本题，可继续下一题。")}</p>}</>}

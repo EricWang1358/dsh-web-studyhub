@@ -24,7 +24,8 @@
     border-radius: var(--radius-pill);
     padding-inline: var(--space-3);
   }
-  .sh-btn--pill[aria-pressed="true"] {
+  /* Any toggle button reads as selected when pressed (a primary keeps its own fill). */
+  .sh-btn[aria-pressed="true"]:not(.sh-btn--primary, .sh-btn--link) {
     background: var(--bg-selected);
     border-color: var(--line-strong);
     color: var(--text);

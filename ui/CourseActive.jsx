@@ -109,7 +109,7 @@ export function ParkedChip({ course, className = '' }) {
   };
   return <span className={`course-parked-chip ${className}`.trim()} title={sentence(course)}>
     <span>{ui('未激活')}</span>
-    {api && <button type="button" className="link-btn" disabled={state.working} onClick={activate}>{ui('激活')}</button>}
+    {api && <Button variant="link" size="sm" busy={state.working} onClick={activate}>{ui('激活')}</Button>}
     {state.error && <span role="alert" className="course-parked-chip__error">{state.error}</span>}
   </span>;
 }

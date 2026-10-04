@@ -3,6 +3,7 @@ import Markdown from '../Markdown.jsx';
 import { ui, getUiLanguage } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import MathText from '../MathText.jsx';
+import { Badge, Button, InlineMessage } from '../components/index.js';
 import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
@@ -20,10 +21,10 @@ export function PassageLinks({ groups = [], onOpenCard }) {
   return <div className="study-passage-links">{groups.map((group, index) => <details key={JSON.stringify(group.selection)}>
     <summary><sup>[{group.number || index + 1}]</sup> <MathText text={group.selection.quote} /> <small>· {group.links.length} {ui('道题')}</small></summary>
     {group.links.map(link => <article key={`${link.deckId}:${link.cardId}`}>
-      <p><strong>{link.prompt || link.cardId}</strong>{link.status !== 'resolved' && <span className="warning"> · {ui(link.status === 'stale' ? '引用待核对' : '原文位置不可用')}</span>}</p>
+      <p><strong>{link.prompt || link.cardId}</strong>{link.status !== 'resolved' && <> <Badge tone="warning" size="sm">{ui(link.status === 'stale' ? '引用待核对' : '原文位置不可用')}</Badge></>}</p>
       {link.answer && <p>{Array.isArray(link.answer) ? link.answer.join('、') : String(link.answer)}</p>}
       {link.explanation && <Markdown text={link.explanation} />}
-      {onOpenCard && <button type="button" onClick={() => onOpenCard(link)}>{ui('打开题目与解析')}</button>}
+      {onOpenCard && <Button size="sm" onClick={() => onOpenCard(link)}>{ui('打开题目与解析')}</Button>}
     </article>)}
   </details>)}</div>;
 }
@@ -48,13 +49,13 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
     {list}
     <blockquote><MathText text={capture.quote} /></blockquote>
     {resolving && <p role="status">{ui('正在核实原文位置…')}</p>}
-    {resolution && !resolved && <p className="warning" role="status">{ui(statusLabels[resolution.status] || '这段文字暂时无法使用。')}</p>}
-    {error && <p className="warning" role="alert">{error}</p>}
+    {resolution && !resolved && <InlineMessage tone="warning">{ui(statusLabels[resolution.status] || '这段文字暂时无法使用。')}</InlineMessage>}
+    {error && <InlineMessage tone="error">{error}</InlineMessage>}
     {resolved && <>
       <form onSubmit={onAsk}>
         <label>{ui('针对这段原文提问')}<textarea value={question} required rows={2} disabled={asking}
           onChange={event => onQuestion?.(event.target.value)} placeholder={ui('例如：这里的因果关系是什么？')} /></label>
-        <button type="submit" disabled={asking || !askReady || !question.trim()}>{asking ? ui('正在回答…') : ui('依据原文回答')}</button>
+        <Button type="submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim()}>{ui('依据原文回答')}</Button>
       </form>
       {answer && <div className="study-grounded-answer"><Markdown text={answer} /></div>}
       {answer && <SaveAnswerAsCard key={answer} call={call} selection={resolution.selection} question={question} answer={answer} deckId={deckId} decks={decks}
@@ -74,7 +75,7 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
         {generateReady && deckId && typeof call === 'function' && <TokenEstimate call={call} enabled
           request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: getUiLanguage() === 'en' ? 'English' : '中文' }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}
-        <button type="submit" className="primary" disabled={starting || !generateReady || !deckId || !!blocking}>{starting ? ui('正在启动…') : ui('生成、审核并补充题目')}</button>
+        <Button type="submit" variant="primary" busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
       </form>
       {!modelReady && <p className="muted">{ui('连接模型后可提问和补题；原文与已有引用仍可浏览。')}</p>}
     </>}

@@ -1,7 +1,7 @@
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Icon from "./components/Icon.jsx";
-import { TabPanel, Tabs } from "./components/index.js";
+import { Button, IconButton, TabPanel, Tabs } from "./components/index.js";
 import { skeletonSpine, spineCounts, readSpineOpen, writeSpineOpen } from "./skeleton-spine.js";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
@@ -23,7 +23,7 @@ function Branch({ items, onPractice }) {
               <span className="spine-contrast">{ui("对比 · ")}{item.contrasts.join("、")}</span>
             )}
             {onPractice && item.subtreeCards.length > 0 && (
-              <button type="button" className="link-btn spine-practice" onClick={() => onPractice(item.subtreeCards)}>{ui("练 ")}{item.subtreeCards.length}{ui(" 题")}</button>
+              <Button variant="link" size="sm" className="spine-practice" onClick={() => onPractice(item.subtreeCards)}>{ui("练 ")}{item.subtreeCards.length}{ui(" 题")}</Button>
             )}
           </div>
           <Branch items={item.children} onPractice={onPractice} />
@@ -39,7 +39,7 @@ function StationBody({ station, onPractice }) {
     <>
       {station.meaning && <p className="spine-station-meaning">{station.meaning}</p>}
       {onPractice && station.subtreeCards.length > 0 && (
-        <button type="button" className="link-btn spine-practice spine-station-practice" onClick={() => onPractice(station.subtreeCards)}>{ui("学这一站 · ")}{station.subtreeCards.length}{ui(" 题 →")}</button>
+        <Button variant="link" size="sm" className="spine-practice spine-station-practice" onClick={() => onPractice(station.subtreeCards)}>{ui("学这一站 · ")}{station.subtreeCards.length}{ui(" 题 →")}</Button>
       )}
       <Branch items={station.children} onPractice={onPractice} />
     </>
@@ -108,29 +108,27 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
     writeSpineOpen(stepKind, next);
   };
   const arrow = (dir, className, label) => (
-    <button type="button" className={className} aria-label={label} disabled={dir < 0 ? index === 0 : index === count - 1} onClick={() => select(index + dir)}>
-      <Icon name="chevron" size={16} className={dir < 0 ? "spine-flip" : undefined} />
-    </button>
+    <IconButton icon={dir < 0 ? "chevron-left" : "chevron"} size="sm" className={className} label={label} disabled={dir < 0 ? index === 0 : index === count - 1} onClick={() => select(index + dir)} />
   );
 
   return (
     <section className={"spine" + (open ? " is-open" : " is-folded") + (className ? " " + className : "")} aria-label={uiFormat("学习脉络：{0}", [skeleton.title])}>
       <div className="spine-bar">
         {collapsible ? (
-          <button type="button" className="spine-toggle" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
-            <Icon name="chevron" size={16} className="spine-chevron" />
+          <Button variant="quiet" wrap align="start" className="spine-toggle" aria-expanded={open} aria-controls={bodyId} onClick={toggle}
+            icon={<Icon name="chevron" size={16} className="spine-chevron" />}>
             <span className="spine-label">
               <span className="spine-heading">{heading || ui("学习脉络")}</span>
               <span className="spine-count">{countLabel(count, points)}</span>
             </span>
-          </button>
+          </Button>
         ) : (
           <span className="spine-count">{countLabel(count, points)}</span>
         )}
         {open && count > 1 && (
           <span className="spine-bar-tools">
             <span className="spine-pos" aria-live="polite">{uiFormat("{0} / {1}", [index + 1, count])}</span>
-            <button type="button" className="link-btn spine-all-toggle" aria-expanded={all} onClick={() => setAll((value) => !value)}>{all ? ui("只看一站") : ui("展开全部")}</button>
+            <Button variant="link" size="sm" className="spine-all-toggle" aria-expanded={all} onClick={() => setAll((value) => !value)}>{all ? ui("只看一站") : ui("展开全部")}</Button>
           </span>
         )}
         {open && <ReadingSettingsButton className="spine-reading" />}

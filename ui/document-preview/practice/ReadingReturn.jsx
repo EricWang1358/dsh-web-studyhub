@@ -1,6 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { useInjectCss } from '../../shared.js';
+import { Button } from '../../components/index.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { meaningLine, scopeLabel } from './mastery-copy.js';
 import { firstCitation } from './citations.js';
@@ -32,8 +33,8 @@ export function ReadingResult({ run, onReturn, busy }) {
   return <section className="reading-result" aria-label={ui('这几页的掌握度')} data-rose={rose || undefined}>
     {text && <p className="reading-result__change" data-testid="mastery-change"><MasteryMark summary={reading.after} size={18} /> <strong>{text}</strong></p>}
     <p className="reading-result__meaning muted">{scopeLabel(reading.scope)} · {meaningLine()}</p>
-    <button type="button" className="primary reading-result__return" disabled={busy} onClick={() => onReturn(reading)}>{ui('回到阅读')} →
-      <small>{placeText(reading)}</small></button>
+    <Button variant="primary" wrap align="start" className="reading-result__return" disabled={busy} onClick={() => onReturn(reading)}>{ui('回到阅读')} →
+      <small>{placeText(reading)}</small></Button>
   </section>;
 }
 
@@ -41,7 +42,7 @@ export function ReadingResult({ run, onReturn, busy }) {
 export function ReadingBackButton({ run, onReturn, busy }) {
   useInjectCss(css, 'study-reading-loop');
   if (!run?.reading) return null;
-  return <button type="button" className="ghost-btn reading-back" disabled={busy} title={placeText(run.reading)} onClick={() => onReturn(run.reading)}>{ui('回到原文')}</button>;
+  return <Button variant="quiet" size="sm" className="reading-back" disabled={busy} title={placeText(run.reading)} onClick={() => onReturn(run.reading)}>{ui('回到原文')}</Button>;
 }
 
 /** After a wrong answer: open the passage the question points at, with a way back to this very question. */
@@ -50,5 +51,5 @@ export function WrongAnswerSource({ run, sources, onOpen }) {
   if (!run?.feedback || run.feedback.correct || !run.solution) return null;
   const found = firstCitation(run.solution, sources || []);
   if (!found) return null;
-  return <button type="button" className="pill reading-source" onClick={() => onOpen(found.source, found.quote)}>{ui('看这题的原文')}</button>;
+  return <Button size="sm" className="reading-source" onClick={() => onOpen(found.source, found.quote)}>{ui('看这题的原文')}</Button>;
 }

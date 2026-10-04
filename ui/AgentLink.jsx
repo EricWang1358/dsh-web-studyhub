@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui } from './i18n.js';
+import { Button } from './components/index.js';
 
 /** Try to open an assistant: '' when DSH opened it, otherwise the reason to show. */
 export async function attemptOpen(openAgent, id) {
@@ -17,7 +18,7 @@ export async function attemptOpen(openAgent, id) {
  * shows the reason when it cannot be opened. Without a host that can open assistants, or
  * without an id to open, it draws nothing.
  */
-export default function AgentLink({ childId, openAgent, label, ariaLabel, className }) {
+export default function AgentLink({ childId, openAgent, label, ariaLabel, className, variant = 'link' }) {
   const [state, setState] = useState({ opening: false, error: '' });
   const busy = useRef(false), alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -31,8 +32,8 @@ export default function AgentLink({ childId, openAgent, label, ariaLabel, classN
     if (alive.current) setState({ opening: false, error });
   };
   return <>
-    <button type="button" className={className} aria-label={ariaLabel} aria-busy={state.opening || undefined} disabled={state.opening} onClick={open}>
-      {state.opening ? ui('正在打开…') : label}</button>
+    <Button variant={variant} size="sm" className={className} aria-label={ariaLabel} busy={state.opening} busyLabel={ui('正在打开…')} onClick={open}>
+      {label}</Button>
     {state.error && <small className="agent-link__error" role="alert">{state.error}</small>}
   </>;
 }
