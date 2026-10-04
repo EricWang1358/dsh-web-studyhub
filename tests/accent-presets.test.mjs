@@ -33,9 +33,9 @@ test('every preset has a zh label and an English one', async () => {
 });
 
 test('Settings offers the accent row, App wires it to the store, and the empty page gets it through the shared attributes', async () => {
-  const [settings, app, page] = await Promise.all(['ui/Settings.jsx', 'ui/App.jsx', 'ui/host/studyhub-page.jsx'].map(read));
+  const [settings, app, page] = await Promise.all(['ui/settings/AppearanceSection.jsx', 'ui/App.jsx', 'ui/host/studyhub-page.jsx'].map(read));
   assert.match(settings, /appearance\.onAccent/);
-  assert.match(settings, /appearanceOptions\(["']accent["']\)/);
+  assert.match(settings, /kind=["']accent["']/);
   assert.match(app, /onAccent:\s*\(value\)\s*=>\s*updateAppearance\(\{\s*accent:\s*value\s*\}\)/);
   assert.match(page, /useAppearanceAttrs/);
 });

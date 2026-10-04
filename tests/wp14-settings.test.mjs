@@ -3,6 +3,7 @@
    cards, a 陪学 section that says what the profile changes, a compact SM-2
    form with a live schedule preview, and a guided backup / restore. */
 import test from 'node:test';
+import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
@@ -12,7 +13,10 @@ import { schedule, initialReview, defaults } from '../lib/domain.js';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
-  export { default as Settings, CoachSection, coachActions, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName } from './ui/Settings.jsx';
+  export { default as Settings } from './ui/Settings.jsx';
+  export { CoachSection, coachActions } from './ui/settings/CoachSection.jsx';
+  export { ScheduleSection } from './ui/settings/ScheduleSection.jsx';
+  export { BackupSection, RestorePreview, backupSummary, backupFileName } from './ui/settings/BackupSection.jsx';
   export { default as AudioSettings, ProviderKeyForm, PROVIDERS } from './ui/AudioSettings.jsx';
   export { CourseList } from './ui/CourseSettings.jsx';
   export { OnboardingPanel } from './ui/tour/SampleControls.jsx';
@@ -26,6 +30,7 @@ const { Settings, CoachSection, coachActions, ScheduleSection, BackupSection, Re
 const han = /[㐀-鿿]/;
 const h = React.createElement;
 const noop = () => {};
+await warmSettingsPanes(Settings);
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 
 const view = {
@@ -60,7 +65,7 @@ test('every Settings section is a settings-section with the same title treatment
 
 test('the audio section and its 高级 disclosure share the page edge', () => {
   const html = render(h(AudioSettings, { busy: false, act: noop, call: noop, setNotice: noop, initialView: view }));
-  assert.match(html, /<fieldset class="audio-settings settings-section"/);
+  assert.match(html, /<fieldset class="settings-section audio-settings"/);
   assert.match(html, /<legend class="settings-section__title">音频转写<\/legend>/);
   assert.match(html, /class="sh-disclosure audio-advanced settings-disclosure"/, 'the page styles flatten this disclosure to the section edge');
 });
@@ -69,22 +74,22 @@ test('the audio section and its 高级 disclosure share the page edge', () => {
 
 test('provider cards: the same rows in the same order, the key input full width, actions below it', () => {
   const html = render(h(AudioSettings, { busy: false, act: noop, call: noop, setNotice: noop, initialView: view }));
-  const cards = html.match(/<article class="audio-provider-card[\s\S]*?<\/article>/g) || [];
+  const cards = html.match(/<article class="sh-provider[\s\S]*?<\/article>/g) || [];
   assert.equal(cards.length, 3);
   for (const card of cards) {
-    const order = ['audio-provider-card__head', 'audio-key-state', 'audio-provider-steps', 'sh-secret__input', 'sh-secret__actions', 'sh-secret__foot'].map(name => card.indexOf(name));
+    const order = ['sh-provider__head', 'sh-provider__status', 'sh-steps', 'sh-secret__input', 'sh-secret__actions', 'sh-secret__foot'].map(name => card.indexOf(name));
     assert.ok(order.every(at => at > 0), `all rows present: ${order}`);
     assert.deepEqual([...order].sort((a, b) => a - b), order, 'rows in the shared order');
     assert.match(card, /<form class="sh-secret"/);
     assert.doesNotMatch(card, /audio-key-row/, 'no input and buttons squeezed into one row');
-    assert.match(card, /audio-provider-note/);
+    assert.match(card, /class="sh-hint sh-hint--sm"/);
   }
   const saved = cards.find(card => card.includes('••••mtzj'));
   const actions = saved.match(/<div class="sh-secret__actions">[\s\S]*?<\/div>/)[0];
   assert.match(actions, /sh-btn--primary[^>]*>[\s\S]*?保存并验证/);
   assert.match(actions, /sh-btn--secondary[^>]*>[\s\S]*?验证/);
   assert.match(actions, /sh-secret__clear[^>]*>[\s\S]*?清除已保存的密钥/);
-  assert.match(saved, /class="audio-key-state is-set"/);
+  assert.match(saved, /class="sh-provider__status is-set"/);
 });
 
 test('a failed check shows an inline message under the actions', () => {
@@ -154,7 +159,7 @@ test('the SM-2 form is one compact row of number fields with a live preview char
   const html = render(h(ScheduleSection, { settings: { ...defaults }, saved: { ...defaults }, setSettings: noop, act: noop, busy: false, setNotice: noop }));
   assert.equal((html.match(/<input type="number"/g) || []).length, 4);
   assert.match(html, /class="sm2-fields"/);
-  assert.equal((html.match(/class="sm2-unit"/g) || []).length, 2, '天 beside the two interval fields');
+  assert.equal((html.match(/class="sh-number__suffix"/g) || []).length, 2, '天 beside the two interval fields');
   assert.match(html, /熟练系数越大，间隔增长越快；答得吃力时会下降，但不低于最低系数。/);
   assert.match(html, /<svg[^>]*role="img"[^>]*aria-labelledby="[^"]+"/);
   assert.match(html, /<title[^>]*>/);

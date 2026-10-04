@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
@@ -24,6 +25,7 @@ const { UsageSettingsView, usageRowName, usagePrivacyPoints, Settings, SETTINGS_
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const noop = () => {};
+await warmSettingsPanes(Settings);
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 
 const TODAY = '2026-10-03', DAY = 86400000;
