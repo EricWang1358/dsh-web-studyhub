@@ -46,6 +46,7 @@ import appShell from './locales/en.app.json';
 import materials from './locales/en.materials.json';
 import fields from './locales/en.fields.json';
 import canvas from './locales/en.canvas.json';
+import feedbackLoop from './locales/en.feedback-loop.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -93,6 +94,7 @@ export const ENGLISH_SOURCES = {
   'en.materials.json': materials,
   'en.fields.json': fields,
   'en.canvas.json': canvas,
+  'en.feedback-loop.json': feedbackLoop,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,
