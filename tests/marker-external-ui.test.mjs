@@ -167,15 +167,15 @@ test('Marker settings load the path promptly and reject a stale initial probe af
   } };
   const mounted = mountPdf(props, 'MarkerSettings');
   let tree = mounted.render();
-  assert.equal(find(tree, item => item.type === 'input').props.disabled, true);
+  assert.equal(find(tree, item => item.props?.placeholder === 'marker_single').props.disabled, true);
   releaseSettings({ command: 'old-path' }); await flush();
   tree = mounted.render();
-  assert.equal(find(tree, item => item.type === 'input').props.disabled, false, 'editing does not wait for the CLI probe');
-  find(tree, item => item.type === 'input').props.onChange({ target: { value: 'new-path' } });
+  assert.equal(find(tree, item => item.props?.placeholder === 'marker_single').props.disabled, false, 'editing does not wait for the CLI probe');
+  find(tree, item => item.props?.placeholder === 'marker_single').props.onChange({ target: { value: 'new-path' } });
   tree = mounted.render(); await find(tree, item => item.props.children === '保存并检测').props.onClick();
   releaseStatus({ state: 'not-installed' }); await flush();
   tree = mounted.render();
-  assert.equal(find(tree, item => item.type === 'input').props.value, 'new-path');
+  assert.equal(find(tree, item => item.props?.placeholder === 'marker_single').props.value, 'new-path');
   assert.equal(mounted.states[1].state, 'ready');
   assert.deepEqual(calls.find(item => item.action === 'marker.settings.set').args, { command: 'new-path' });
   mounted.close();
@@ -184,7 +184,7 @@ test('a host without audio offers external guidance and never calls unavailable 
   const calls = [], call = async action => { calls.push(action); return {}; };
   const settings = mountPdf({ call, available: false }, 'MarkerSettings');
   const tree = settings.render();
-  assert.equal(find(tree, item => item.type === 'input').props.disabled, true);
+  assert.equal(find(tree, item => item.props?.placeholder === 'marker_single').props.disabled, true);
   assert.equal(find(tree, item => item.props.children === '保存并检测').props.disabled, true);
   assert.equal(find(tree, item => item.props.children === '下载 Marker 转换脚本').props.disabled, false);
   const pdf = mountPdf({ call, available: false, file: new Blob(['PDF']) }); pdf.render(); await flush();

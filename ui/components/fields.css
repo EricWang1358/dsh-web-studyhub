@@ -43,7 +43,7 @@
   .sh-check__text { display: grid; gap: var(--space-half); min-width: 0; }
   .sh-check__label { font-weight: var(--fw-medium); }
   .sh-switch .sh-check__input { position: absolute; width: 2.4em; height: 1.4em; margin: 0; opacity: 0; cursor: inherit; }
-  .sh-switch__track { position: relative; flex: none; box-sizing: border-box; width: 2.4em; height: 1.4em; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--bg-sunken); }
+  .sh-switch__track { position: relative; flex: none; pointer-events: none; box-sizing: border-box; width: 2.4em; height: 1.4em; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--bg-sunken); }
   .sh-switch__thumb { position: absolute; top: 50%; left: 0.2em; width: 0.9em; height: 0.9em; border-radius: 50%; background: var(--text-muted); transform: translate(0, -50%); transition: transform var(--dur-fast) var(--ease); }
   .sh-switch .sh-check__input:checked + .sh-switch__track { border-color: var(--text); background: var(--text); }
   .sh-switch .sh-check__input:checked + .sh-switch__track .sh-switch__thumb { background: var(--bg-surface); transform: translate(1em, -50%); }
@@ -69,6 +69,7 @@
   .settings-section__title { float: left; width: 100%; margin: 0; padding: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
   .settings-section__lead { max-width: 70ch; margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
   /* Legacy note class of the sections still written by hand (UpdateCenter, tour/SampleControls): their notes are Hints in all but name. */
+  .settings-section .sh-hint { overflow-wrap: anywhere; }
   .settings-section__note { max-width: 72ch; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
 
   /* ── Provider card and steps ───────────────────────────────────────── */

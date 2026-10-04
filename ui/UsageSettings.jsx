@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from './i18n.js';
-import { Button, ConfirmDialog, InlineMessage, SegmentedControl } from './components/index.js';
+import { Button, ConfirmDialog, Hint, InlineMessage, SegmentedControl, SettingsSection, Switch } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { USAGE_AREAS, USAGE_GROUPS, usageArea } from './usage/registry.js';
 import { displayName } from './usage/names.js';
@@ -57,8 +57,8 @@ function ShareList({ title, note, rows, nameOf }) {
   return (
     <section className="usage-block">
       <h4 className="settings-subtitle">{title}</h4>
-      <p className="settings-section__note">{note}</p>
-      {rows.length === 0 ? <p className="settings-section__note">{ui('这段时间没有记录。')}</p>
+      <Hint>{note}</Hint>
+      {rows.length === 0 ? <Hint>{ui('这段时间没有记录。')}</Hint>
         : <ul className="usage-shares">{rows.map(row => <li key={row.area || row.tier} className="usage-share__row">
           <span className="usage-share__name">{nameOf(row)}</span><span className="usage-share__num">{row.count} · {pct(row.share)}</span><Bar share={row.share} max={max} />
         </li>)}</ul>}
@@ -77,7 +77,7 @@ function Rhythm({ rhythm, period }) {
           <span className="usage-sr">{`${day.day}: ${day.n}`}</span>
         </li>)}
       </ol>
-      <p className="settings-section__note">{peak.n > 0 ? uiFormat('最忙的一天：{0}（{1} 次）', [peak.day, peak.n]) : ui('这段时间没有记录。')}</p>
+      <Hint>{peak.n > 0 ? uiFormat('最忙的一天：{0}（{1} 次）', [peak.day, peak.n]) : ui('这段时间没有记录。')}</Hint>
     </section>
   );
 }
@@ -97,7 +97,7 @@ export function UsageReportView({ report, period, onPeriod, language = getUiLang
       </dl>
       <section className="usage-block">
         <h4 className="settings-subtitle">{ui('最常用的控件')}</h4>
-        {report.ranking.length === 0 ? <p className="settings-section__note">{ui('这段时间没有记录。')}</p>
+        {report.ranking.length === 0 ? <Hint>{ui('这段时间没有记录。')}</Hint>
           : <ol className="usage-rank">{report.ranking.map(row => <li key={row.key} className="usage-rank__row">
             <span className="usage-rank__name">{usageRowName(row, language)}</span>
             <span className="usage-rank__num">{row.count} · {pct(row.share)}</span>
@@ -111,13 +111,13 @@ export function UsageReportView({ report, period, onPeriod, language = getUiLang
       <Rhythm rhythm={report.rhythm} period={period} />
       <details className="usage-never">
         <summary>{uiFormat('从没用过的功能（{0}）', [report.neverUsed.length])}</summary>
-        <p className="settings-section__note">{ui('这些功能在记录期间一次都没被用过：可能你不需要，也可能你不知道它在那里。')}</p>
+        <Hint>{ui('这些功能在记录期间一次都没被用过：可能你不需要，也可能你不知道它在那里。')}</Hint>
         {Object.entries(never).map(([group, rows]) => <p key={group} className="usage-never__group"><strong>{USAGE_GROUPS[group]?.[language === 'en' ? 'en' : 'zh'] || group}</strong>
           {`${language === 'en' ? ': ' : '：'}${rows.map(row => row.name).join(language === 'en' ? ', ' : '、')}`}</p>)}
       </details>
       <section className="usage-block usage-hints">
         <h4 className="settings-subtitle">{ui('小提示')}</h4>
-        <p className="settings-section__note">{ui('这些只是提示，每一条都可以不管。')}</p>
+        <Hint>{ui('这些只是提示，每一条都可以不管。')}</Hint>
         <ul className="usage-hints__list">{report.observations.map(item => <li key={`${item.id}-${item.key || ''}`}><span className="usage-chip">{ui('可选')}</span><span>{item.text}</span></li>)}</ul>
       </section>
     </div>
@@ -133,7 +133,7 @@ const stateOf = status => {
 /** The section, from what the host said. Pure: every action is a callback. */
 export function UsageSettingsView({ status, report, period, busy = false, working = '', error = '', notice = '', confirming = false,
   onSwitch, onPause, onPeriod, onReportToggle, onExport, onCopy, onAskClear, onCancelClear, onClear }) {
-  const switchId = useId(), language = getUiLanguage();
+  const language = getUiLanguage();
   const state = stateOf(status);
   const line = {
     off: ui('已关闭：什么都没有记录。'),
@@ -143,18 +143,14 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
     'off-data': ui('已关闭：不再记录。之前的记录还在，可以继续查看、导出或删除。'),
   }[state];
   return (
-    <fieldset className="settings-section usage-settings" data-usage-ignore data-tour="settings-usage" data-state={state}>
-      <legend className="settings-section__title">{ui('使用频率记录')}</legend>
-      <p className="settings-section__lead">{ui('记下你用了哪些控件、各用了多少次，帮你看清自己的使用习惯。默认关闭，打开之前什么都不会记。')}</p>
+    <SettingsSection className="usage-settings" data-usage-ignore data-state={state} tour="settings-usage" title={ui('使用频率记录')}
+      lead={ui('记下你用了哪些控件、各用了多少次，帮你看清自己的使用习惯。默认关闭，打开之前什么都不会记。')}>
       <ul className="usage-promises">{usagePrivacyPoints().map(point => <li key={point}>{point}</li>)}</ul>
-      <label className="experimental-switch usage-switch" htmlFor={switchId}>
-        <input id={switchId} name="usage-frequency" type="checkbox" checked={!!status.enabled} disabled={busy || !!working} onChange={event => onSwitch?.(event.target.checked)} />
-        <span><strong>{ui('记录使用频率')}</strong>
-          <small>{ui('关掉后，已有的记录保留，可以继续查看、导出或删除。')}</small></span>
-      </label>
+      <Switch name="usage-frequency" label={ui('记录使用频率')} hint={ui('关掉后，已有的记录保留，可以继续查看、导出或删除。')}
+        checked={!!status.enabled} disabled={busy || !!working} onChange={onSwitch} />
       <p className="usage-status" role="status">{line}</p>
       {error && <InlineMessage>{error}</InlineMessage>}
-      {notice && <p className="settings-section__note usage-notice" role="status">{notice}</p>}
+      {notice && <Hint tone="success" className="usage-notice" role="status">{notice}</Hint>}
       {state !== 'off' && state !== 'off-data' && (
         <div className="settings-actions">
           <Button variant="secondary" size="sm" disabled={busy || !!working} onClick={onPause}>{status.paused ? ui('继续记录') : ui('暂停记录')}</Button>
@@ -164,22 +160,22 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
         <details className="usage-report" onToggle={event => onReportToggle?.(event.currentTarget.open)}>
           <summary className="usage-report__summary">{ui('我的使用报告')}</summary>
           {report ? <UsageReportView report={report} period={period} onPeriod={onPeriod} language={language} />
-            : <p className="settings-section__note">{ui('正在整理报告…')}</p>}
+            : <Hint>{ui('正在整理报告…')}</Hint>}
           <div className="settings-actions usage-actions">
             <Button variant="secondary" size="sm" icon="download" disabled={busy || !!working} onClick={() => onExport?.('markdown')}>{ui('导出 Markdown')}</Button>
             <Button variant="secondary" size="sm" icon="download" disabled={busy || !!working} onClick={() => onExport?.('json')}>{ui('导出 JSON')}</Button>
             <Button variant="secondary" size="sm" disabled={busy || !!working} onClick={onCopy}>{ui('复制报告')}</Button>
             <Button variant="danger" size="sm" disabled={busy || !!working} onClick={onAskClear}>{ui('删除全部记录')}</Button>
           </div>
-          <p className="settings-section__note usage-file">{uiFormat('记录文件：{0}', [status.file || 'usage-frequency.json'])}</p>
+          <Hint className="usage-file">{uiFormat('记录文件：{0}', [status.file || 'usage-frequency.json'])}</Hint>
         </details>
       )}
       {confirming && <ConfirmDialog title={ui('删除全部使用记录？')} onClose={onCancelClear} onDone={onCancelClear}
         description={ui('将删除所有已记录的次数和日期。不影响学习库，也不改变记录开关。')}
         confirmLabel={ui('删除全部记录')} busy={working === 'clear'} blocked={!!working} onConfirm={onClear}>
-        <p className="settings-section__note">{ui('之后可以重新开始记录；已经导出的文件不受影响。')}</p>
+        <Hint>{ui('之后可以重新开始记录；已经导出的文件不受影响。')}</Hint>
       </ConfirmDialog>}
-    </fieldset>
+    </SettingsSection>
   );
 }
 

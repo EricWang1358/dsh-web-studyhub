@@ -1,6 +1,6 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
-import { Button } from './components/Button.jsx';
+import { Button, Field, Hint, NumberInput, Select, SettingsSection, TextArea } from './components/index.js';
 import { kinds } from './shared.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_KINDS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
@@ -39,7 +39,6 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, setNoti
   const [editor, setEditor] = useState(() => ({ observed: savedKey, baseline: JSON.parse(savedKey), values: JSON.parse(savedKey) }));
   const [working, setWorking] = useState(false), [error, setError] = useState('');
   const scope = useRef({ root, live: true }), version = useRef(0), pending = useRef(null);
-  const prefix = useId();
   useEffect(() => {
     const owner = { root, live: true }; scope.current = owner;
     return () => { owner.live = false; };
@@ -76,41 +75,33 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, setNoti
     } catch (cause) { if (current()) setError(cause?.message || String(cause)); }
     finally { if (current()) { pending.current = null; setWorking(false); } }
   };
-  const field = (key, control, note) => <label className="settings-field" key={key} htmlFor={`${prefix}-${key}`}>
-    <span>{ui(labels[key])}</span>{control}
-    {note && <small id={`${prefix}-${key}-note`}>{note}</small>}
-    {errors[key] && <small id={`${prefix}-${key}-error`} role="alert">{errors[key]}</small>}
-  </label>;
-  const propsFor = (key, note = true) => ({ id: `${prefix}-${key}`, name: key, value: editor.values[key], disabled,
-    'aria-invalid': errors[key] ? true : undefined,
-    'aria-describedby': [...(note ? [`${prefix}-${key}-note`] : []), ...(errors[key] ? [`${prefix}-${key}-error`] : [])].join(' ') || undefined,
-    onChange: event => edit(key, event.target.value) });
-  const numberField = (key, note) => field(key, <input {...propsFor(key)} type="number" required inputMode="numeric" step="1"
+  const field = (key, control, note) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]}>{control}</Field>;
+  const propsFor = key => ({ name: key, value: editor.values[key], disabled, onChange: event => edit(key, event.target.value) });
+  const numberField = (key, note) => field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1"
     min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
-  const choiceField = (key, options, label) => field(key, <select {...propsFor(key, false)}>
+  const choiceField = (key, options, label) => field(key, <Select {...propsFor(key)}>
     {options.map(value => <option key={value} value={value}>{label(value)}</option>)}
-  </select>);
+  </Select>);
   return <form className="settings-form" onSubmit={save}>
-    <fieldset className="settings-section generation-settings" data-tour="settings-generation" disabled={disabled}>
-      <legend className="settings-section__title">{ui('出题偏好')}</legend>
-      <p className="settings-section__lead">{ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}</p>
+    <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
+      lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
       {choiceField('kind', GENERATION_KINDS, value => value === 'mixed' ? ui('测验 + 闪卡') : kinds[value])}
       {numberField('count', ui('一次请求的总题数，与每批题数分别设置。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
       {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}
-      {field('focus', <textarea {...propsFor('focus')} rows={3} maxLength={GENERATION_SETTINGS_LIMITS.focus.max}
+      {field('focus', <TextArea {...propsFor('focus')} rows={3} maxLength={GENERATION_SETTINGS_LIMITS.focus.max}
         placeholder={ui('例如：重点解释成立条件，再比较相似概念。')} />, ui('可留空；这次出题的侧重点可以覆盖这里的默认值。'))}
       <h3 className="settings-subtitle">{ui('生成安排')}</h3>
       {numberField('concurrency', ui('同时处理更多批次通常更快；服务容易限流时可以调低。'))}
       {numberField('batchSize', ui('小批更早保存已核验题目，但会增加调用次数。'))}
       {numberField('jobTimeoutMinutes', ui('从任务开始运行计时，不含排队；达到时限会保留已核验题目。'))}
-      {error && <p role="alert">{error}</p>}
+      {error && <Hint tone="error" role="alert">{error}</Hint>}
       <div className="settings-actions">
         <Button variant="primary" type="submit" busy={working} disabled={busy || !dirty || invalid}>{ui('保存出题偏好')}</Button>
         <Button disabled={disabled} onClick={reset}>{ui('恢复默认值（待保存）')}</Button>
       </div>
-      <p className="settings-section__note" role="status">{ui(dirty ? '有未保存的修改；保存后用于新的出题任务。' : '更改这些偏好不会自动开始出题。')}</p>
-    </fieldset>
+      <Hint role="status">{ui(dirty ? '有未保存的修改；保存后用于新的出题任务。' : '更改这些偏好不会自动开始出题。')}</Hint>
+    </SettingsSection>
   </form>;
 }

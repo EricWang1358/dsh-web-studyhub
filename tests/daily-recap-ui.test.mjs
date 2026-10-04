@@ -270,7 +270,7 @@ test('daily recap settings default to manual and submit opt-in plus the chosen t
   editor.render(); editor.effects();
   let control = find(editor.render(), node => node.props?.name === 'automatic');
   assert.equal(control.props.checked, false);
-  control.props.onChange({ target: { checked: true } });
+  control.props.onChange(true);
   control = find(editor.render(), node => node.props?.name === 'tone');
   control.props.onChange({ target: { value: 'professional' } });
   await editor.render().props.onSubmit({ preventDefault() {} });

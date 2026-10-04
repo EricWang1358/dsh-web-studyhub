@@ -1,7 +1,7 @@
 import React, { createElement } from 'react';
 import { ui } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, IconButton, Popover, SegmentedControl } from '../components/index.js';
+import { Button, Field, IconButton, Popover, SegmentedControl, Select } from '../components/index.js';
 import { FONT_PRESETS } from '../font-presets.js';
 import { FACES, SIZES, readingProps, stepSize } from './settings.js';
 import { useReadingSettings } from './store.js';
@@ -21,8 +21,7 @@ const FINE_TUNING = [['weight', '字重', [['normal', '标准'], ['medium', '稍
 export function DisplayControls({ settings, onChange, onReset, underline = true, extra = null }) {
   const pick = key => value => onChange({ [key]: value });
   return <>
-    <div className="reader-setting">
-      <span className="reader-setting__label">{ui('字号')}</span>
+    <Field group label={ui('字号')} width="full">
       <div className="reader-stepper">
         <Button size="sm" aria-label={ui('减小字号')} title={ui('减小字号')} disabled={settings.size <= SIZES[0]}
           onClick={() => onChange({ size: stepSize(settings.size, -1) })}><span aria-hidden="true">A−</span></Button>
@@ -30,36 +29,31 @@ export function DisplayControls({ settings, onChange, onReset, underline = true,
         <Button size="sm" aria-label={ui('增大字号')} title={ui('增大字号')} disabled={settings.size >= SIZES.at(-1)}
           onClick={() => onChange({ size: stepSize(settings.size, 1) })}><span aria-hidden="true">A＋</span></Button>
       </div>
-    </div>
-    <div className="reader-setting">
-      <span className="reader-setting__label">{ui('版心宽度')}</span>
+    </Field>
+    <Field group label={ui('版心宽度')} width="full">
       <SegmentedControl size="sm" label={ui('版心宽度')} value={settings.width} onChange={pick('width')}
         options={[{ value: 'narrow', label: ui('窄') }, { value: 'standard', label: ui('标准') }, { value: 'wide', label: ui('宽') }]} />
-    </div>
-    <div className="reader-setting">
-      <span className="reader-setting__label">{ui('字体')}</span>
-      <select className="reader-select" aria-label={ui('字体')} value={settings.face} onChange={event => onChange({ face: event.target.value })}>
+    </Field>
+    <Field label={ui('字体')} width="full">
+      <Select className="reader-select" value={settings.face} onChange={event => onChange({ face: event.target.value })}>
         {faceOptions().map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-    </div>
-    <div className="reader-setting">
-      <span className="reader-setting__label">{ui('背景')}</span>
+      </Select>
+    </Field>
+    <Field group label={ui('背景')} width="full">
       <SegmentedControl size="sm" label={ui('背景')} value={settings.tone} onChange={pick('tone')}
         options={[{ value: 'auto', label: ui('跟随界面') }, { value: 'paper', label: ui('纸张') }]} />
-    </div>
+    </Field>
     <details className="reader-more">
-      <summary className="reader-setting__label">{ui('排版微调')}</summary>
-      {FINE_TUNING.map(([key, label, options]) => <div className="reader-setting" key={key}>
-        <span className="reader-setting__label">{ui(label)}</span>
+      <summary>{ui('排版微调')}</summary>
+      {FINE_TUNING.map(([key, label, options]) => <Field group key={key} label={ui(label)} width="full">
         <SegmentedControl size="sm" label={ui(label)} value={settings[key]} onChange={pick(key)}
           options={options.map(([value, text]) => ({ value, label: ui(text) }))} />
-      </div>)}
+      </Field>)}
     </details>
-    {underline && <div className="reader-setting reader-setting--inline">
-      <span className="reader-setting__label">{ui('下划线')}</span>
+    {underline && <Field group inline label={ui('下划线')} width="full">
       <SegmentedControl size="sm" label={ui('下划线')} value={settings.underline} onChange={pick('underline')}
         options={[{ value: 'show', label: ui('显示') }, { value: 'hide', label: ui('隐藏') }]} />
-    </div>}
+    </Field>}
     {extra}
     <Button size="sm" variant="quiet" className="reader-popover__reset" onClick={onReset}>{ui('恢复默认')}</Button>
   </>;
