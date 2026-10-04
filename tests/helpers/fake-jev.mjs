@@ -68,12 +68,14 @@ export function defaultAnswer(question) {
  *  answer(name, question, state, payload)   the answer object for one question (default: defaultAnswer)
  *  failures             array of HTTP statuses (or { status, headers, body }) consumed one per request, before any answer
  *  delayMs              hold each response this long (timeouts)
+ *  holdUntilInFlight    hold the first responses until this many requests are in flight at once (then `peak` has seen them together)
  *  model                the model name echoed back (default jev-1.13.0)
  *  usage(payload)       custom usage
  *  onRequest(entry)     observe each request
  */
 export async function startFakeJev(options = {}) {
   const key = options.key ?? FAKE_KEY, requests = [], failures = [...(options.failures || [])];
+  let inFlight = 0, peak = 0, released = false;
   const origin = () => `http://127.0.0.1:${server.address().port}`;
   const server = createServer(async (request, response) => {
     const chunks = [];
@@ -83,6 +85,14 @@ export async function startFakeJev(options = {}) {
     const entry = { method: request.method, path: new URL(request.url, origin()).pathname, headers: { ...request.headers }, body: text, payload };
     requests.push(entry);
     options.onRequest?.(entry);
+    // `inFlight` is counted from the request's arrival to the end of its response: what the server saw at once, whatever the speed of this machine.
+    inFlight++; peak = Math.max(peak, inFlight);
+    response.once('close', () => { inFlight--; });
+    if (options.holdUntilInFlight && !released) { // hold the first wave until that many requests are in flight together (a concurrency test)
+      const deadline = Date.now() + 30_000;
+      while (!released && inFlight < options.holdUntilInFlight && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
+      released = true;
+    }
     if (options.delayMs) await new Promise(resolve => setTimeout(resolve, options.delayMs));
     const fail = failures.shift();
     if (fail !== undefined) {
@@ -103,6 +113,8 @@ export async function startFakeJev(options = {}) {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
     baseUrl: origin(), key, requests,
+    /** The most requests the server has had in flight at once. */
+    get peak() { return peak; },
     /** Queue more failures. */
     fail(...statuses) { failures.push(...statuses); },
     /** Forget failures nobody asked for yet. */

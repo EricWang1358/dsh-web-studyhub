@@ -9,6 +9,7 @@ import { StudyService } from "../lib/service.js";
 import { paceTracker, taskTracker } from "../lib/audio-job.js";
 import { checkpoints, digest, finishTranscript, plainModel } from "../lib/audio-import.js";
 import { notify } from "../lib/inbox.js";
+import { settleJob as settled, until } from "./helpers/wait.mjs";
 
 const KEY = "AIzaRetryTestKey_000000000000001";
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
@@ -82,14 +83,14 @@ test('an old failed inbox letter becomes a selectable recovery card without gues
   await assert.rejects(service.call('audio.retry', { jobId: old.id }), /不能重试/);
   await assert.rejects(service.call('audio.import', { path: file, recoveryJobId: 'wrong-job' }), /不可恢复/);
   const started = await service.call('audio.import', { path: file, recoveryJobId: old.id });
-  assert.equal((await service.call('job.wait', { jobId: started.jobId, timeoutSeconds: 20 })).status, 'complete');
+  assert.equal((await settled(service, started.jobId)).status, 'complete');
   const snapshot = await service.call('snapshot');
   assert.ok(!snapshot.jobs.some(job => job.id === old.id));
   assert.ok(!snapshot.inbox.items.some(item => item.jobId === old.id && item.kind === 'audio-failed'));
 });
 test('a failed single import refuses to attach saved progress to a changed local recording', async t => {
   const { service, file } = await fixture(t, { failTranslate: () => true });
-  const failed = await service.call('job.wait', { jobId: (await service.call('audio.import', { path: file })).jobId, timeoutSeconds: 30 });
+  const failed = await settled(service, (await service.call('audio.import', { path: file })).jobId);
   assert.equal(failed.status, 'failed');
   await writeFile(file, pcmWav(6));
   await assert.rejects(service.call('audio.retry', { jobId: failed.id }), /原录音内容已变化/);
@@ -116,7 +117,7 @@ test("on the host model route every text request is a DSH sub-agent task with a 
     return text;
   };
   const { service, file } = await fixture(t, { complete: host, textProvider: "host", counts });
-  const job = await service.call("job.wait", { jobId: (await service.call("audio.import", { path: file })).jobId, timeoutSeconds: 30 });
+  const job = await settled(service, (await service.call("audio.import", { path: file })).jobId);
   assert.equal(job.status, "complete", job.stage);
   assert.equal(seen.length, 3, "proofread, translate and title");
   assert.deepEqual([job.textProvider, job.usage.paid.requests], ["host", 1], "only the transcription went to Gemini; the host model does the text");
@@ -141,14 +142,14 @@ test('a missing host adapter stops on the first text call and resumes without re
     if (missing) throw Object.assign(new Error('no adapter registered for provider "opencode2-deepseek"'), { code: 'NO_ADAPTER' });
     return answer(system, prompt);
   } });
-  const first = await service.call('job.wait', { jobId: (await service.call('audio.import', { path: file })).jobId, timeoutSeconds: 30 });
+  const first = await settled(service, (await service.call('audio.import', { path: file })).jobId);
   assert.equal(first.status, 'failed');
   assert.match(first.stage, /opencode2-deepseek/);
   assert.equal(calls, 1, 'adapter absence cannot be repaired by asking for different JSON');
   assert.equal(counts.transcribe, 1);
   assert.equal(first.steps.transcribe.done, 1);
   missing = false;
-  const next = await service.call('job.wait', { jobId: (await service.call('audio.retry', { jobId: first.id })).jobId, timeoutSeconds: 30 });
+  const next = await settled(service, (await service.call('audio.retry', { jobId: first.id })).jobId);
   assert.equal(next.status, 'complete', next.stage);
   assert.equal(counts.transcribe, 1);
   assert.equal(next.usageRun.paid.requests, 0, 'host text completion must reuse the Gemini transcript checkpoint');
@@ -158,7 +159,7 @@ test("a failed import is resumed from what is saved: no second transcription, no
   let failing = true;
   const { service, root, counts } = await fixture(t, { failTranslate: () => failing });
   const id = await upload(service, "谷歌地图应用案例讲解.mp3", pcmWav(5));
-  const first = await service.call("job.wait", { jobId: (await service.call("audio.import", { uploadId: id })).jobId, timeoutSeconds: 30 });
+  const first = await settled(service, (await service.call("audio.import", { uploadId: id })).jobId);
   assert.equal(first.status, "failed");
   assert.match(first.stage, /翻译第 1\/1 部分失败：模型没有按要求返回 JSON（回复开头是「this is not json at all」）/, "a reply that is not JSON is described in words, not as a parser error");
   assert.equal(first.retryable, true);
@@ -173,7 +174,7 @@ test("a failed import is resumed from what is saved: no second transcription, no
   failing = false;
   const restarted = await service.call("audio.retry", { jobId: first.id });
   assert.notEqual(restarted.jobId, first.id);
-  const second = await service.call("job.wait", { jobId: restarted.jobId, timeoutSeconds: 30 });
+  const second = await settled(service, restarted.jobId);
   assert.equal(second.status, "complete", second.stage);
   assert.deepEqual([counts.transcribe, counts.proofread, counts.translate], [1, 1, 3], "only the missing translation was done");
   assert.deepEqual([second.usageRun.paid.requests, second.usage.paid.requests, second.usage.paid.audioSeconds], [2, 6, 5],
@@ -193,17 +194,17 @@ test("a retry uses the settings as they are now, and dismissing a failed card re
   let failing = true;
   const { service, root, counts } = await fixture(t, { failTranslate: () => failing });
   const id = await upload(service, "retry-later.mp3", pcmWav(5));
-  const first = await service.call("job.wait", { jobId: (await service.call("audio.import", { uploadId: id })).jobId, timeoutSeconds: 30 });
+  const first = await settled(service, (await service.call("audio.import", { uploadId: id })).jobId);
   assert.equal(first.status, "failed");
   await service.call("audio.settings.set", { paidKey: "" });
   const restarted = await service.call("audio.retry", { jobId: first.id });
-  const broken = await service.call("job.wait", { jobId: restarted.jobId, timeoutSeconds: 30 });
+  const broken = await settled(service, restarted.jobId);
   assert.equal(broken.status, "failed");
   assert.match(broken.stage, /还没有配置转写服务/, "the key that was removed is not remembered from the first attempt");
   assert.equal(counts.transcribe, 1);
   assert.equal(broken.retryable, true);
   await service.call("job.dismiss", { jobId: broken.id });
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await until(async () => !(await uploadFolders(root)).includes(id), "the kept upload to be discarded");
   assert.ok(!(await uploadFolders(root)).includes(id), "dismissing the card discards the upload it was keeping");
   await assert.rejects(service.call("audio.retry", { jobId: broken.id }), /不能重试/);
   failing = false;
@@ -275,13 +276,13 @@ test("the task list is capped, and a request that was cancelled is marked cancel
 test("work saved before the tally existed still counts: a retry adds to what its transcript cost", async (t) => {
   let failing = true;
   const { service, root, file } = await fixture(t, { failTranslate: () => failing });
-  const first = await service.call("job.wait", { jobId: (await service.call("audio.import", { path: file })).jobId, timeoutSeconds: 30 });
+  const first = await settled(service, (await service.call("audio.import", { path: file })).jobId);
   assert.equal(first.status, "failed");
   const [folder] = await readdir(join(root, "audio-cache"));
   assert.ok(JSON.parse(await readFile(join(root, "audio-cache", folder, "usage.json"), "utf8")).paid.requests > 0, "the tally is kept next to the saved work");
   await rm(join(root, "audio-cache", folder, "usage.json"));
   failing = false;
-  const second = await service.call("job.wait", { jobId: (await service.call("audio.retry", { jobId: first.id })).jobId, timeoutSeconds: 30 });
+  const second = await settled(service, (await service.call("audio.retry", { jobId: first.id })).jobId);
   assert.equal(second.status, "complete", second.stage);
   assert.deepEqual([second.usageRun.paid.requests, second.usage.paid.requests, second.usage.paid.audioSeconds], [2, 3, 5],
     "one saved transcript counted from its file (one request, 5 s of audio), plus this run's two requests");
@@ -290,14 +291,14 @@ test("work saved before the tally existed still counts: a retry adds to what its
 test("by default only the transcription is a Gemini request: the text steps go to the conversation model when there is one", async (t) => {
   const counts = {}, answer = textAnswers(counts);
   const withModel = await fixture(t, { complete: async (system, prompt) => answer(system, prompt), textProvider: "auto", counts });
-  const job = await withModel.service.call("job.wait", { jobId: (await withModel.service.call("audio.import", { path: withModel.file })).jobId, timeoutSeconds: 30 });
+  const job = await settled(withModel.service, (await withModel.service.call("audio.import", { path: withModel.file })).jobId);
   assert.equal(job.status, "complete", job.stage);
   assert.deepEqual([job.textProvider, counts.transcribe, job.usage.paid.requests], ["host", 1, 1], "one Gemini request, for the audio");
   assert.equal((await withModel.service.call("audio.settings.get", {})).textProvider, "auto", "the setting stays automatic; only the run resolves it");
 
   const gemini = {};
   const without = await fixture(t, { textProvider: "auto", counts: gemini });
-  const plain = await without.service.call("job.wait", { jobId: (await without.service.call("audio.import", { path: without.file })).jobId, timeoutSeconds: 30 });
+  const plain = await settled(without.service, (await without.service.call("audio.import", { path: without.file })).jobId);
   assert.equal(plain.status, "complete", plain.stage);
   assert.deepEqual([plain.textProvider, plain.usage.paid.requests], ["gemini", 4], "with no conversation model the text steps fall back to Gemini: 1 + proofread + translate + title");
   await assert.rejects(without.service.call("audio.settings.set", { textProvider: "somewhere" }), /auto、gemini 或 host/);

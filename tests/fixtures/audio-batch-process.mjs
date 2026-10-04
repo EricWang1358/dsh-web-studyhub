@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StudyService } from '../../lib/service.js';
+import { settleJob } from '../helpers/wait.mjs';
 
 const [root, mode] = process.argv.slice(2), calls = [], transcribed = [];
 const reply = text => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: {} }));
@@ -33,9 +34,11 @@ if (mode === 'interrupt') {
   await service.call('audio.upload.chunk', { uploadId, offset: 0, data: b.toString('base64') });
   await service.call('audio.upload.finish', { uploadId });
   const started = await service.call('audio.import', { files: [{ path: a }, { uploadId }], courses: ['Frozen A'] });
-  for (let i = 0; i < 400; i++) {
-    const batch = JSON.parse(await readFile(join(root, 'audio-batches', started.batchId, 'manifest.json'), 'utf8'));
-    if (batch.members[0].status === 'complete') { process.stdout.write(JSON.stringify(started)); process.exit(0); }
+  // The manifest is replaced while this reads it (a half-written read is read again) and a busy machine can take long: wait for the condition, not for a count of polls.
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    const batch = await readFile(join(root, 'audio-batches', started.batchId, 'manifest.json'), 'utf8').then(JSON.parse, () => null);
+    if (batch?.members[0].status === 'complete') { process.stdout.write(JSON.stringify(started)); process.exit(0); }
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   throw new Error('First member never completed');
@@ -45,7 +48,7 @@ if (mode === 'interrupt') {
   const upload = await service.call('audio.upload.start', { name: 'new.wav', size: 1 });
   await service.call('audio.upload.cancel', upload);
   const started = await service.call('audio.retry', { jobId: before.id });
-  const done = await service.call('job.wait', { jobId: started.jobId, timeoutSeconds: 20 });
+  const done = await settleJob(service, started.jobId);
   const state = await service.store.read();
   process.stdout.write(JSON.stringify({ before, callsBeforeRetry, done, transcribed, sources: state.sources,
     oldFailureLetters: state.inbox.filter(item => item.jobId === before.id && item.kind === 'audio-failed').length }));

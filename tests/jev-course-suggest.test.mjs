@@ -174,14 +174,13 @@ test('a hierarchy: unsure between chapters but sure about the course, the parent
 });
 
 test('many sources are asked with bounded concurrency', async t => {
-  let active = 0, peak = 0;
-  const h = await harness(t, { delayMs: 15, onRequest: () => { active++; peak = Math.max(peak, active); setTimeout(() => { active--; }, 15); } });
+  const h = await harness(t, { holdUntilInFlight: 2 }); // the first answers wait until two requests are in flight together
   await h.open();
   const s = state([...Array.from({ length: 12 }, (_, index) => source(`n${index}`, `N${index}`, 'x', [])), source('d', 'Anchor', 'x', ['Databases'])]);
   const result = await suggestCourses({ runtime: h.runtime, state: s, sources: sourcesWithCourses(s).filter(item => item.id.startsWith('n')), threshold: 0.8, language: 'en', concurrency: 3 });
   assert.equal(result.proposals.length, 12);
-  assert.ok(peak <= 3, `peak ${peak}`);
-  assert.ok(peak >= 2, 'it did run in parallel');
+  assert.ok(h.fake.peak <= 3, `peak ${h.fake.peak}`);
+  assert.ok(h.fake.peak >= 2, 'it did run in parallel');
 });
 
 test('the gate: without the switches nothing is sent and the result says why', async t => {

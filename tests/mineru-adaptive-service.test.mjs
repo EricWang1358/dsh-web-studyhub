@@ -9,6 +9,7 @@ import { LOCAL, LocalMineruError } from '../lib/mineru-local.js';
 import { convertHome, prepareJob, saveManifest } from '../lib/mineru-job.js';
 import { listRecords } from '../lib/mineru-history.js';
 import { makePdf } from './helpers/pdf.mjs';
+import { patientCli, sleep, until } from './helpers/wait.mjs';
 
 /* The adaptive local plan through the real service: windows of 10, 20 and 20 pages, then sized from the measured speed of this computer; a failed window is retried
    halved; finished page ranges are reused whatever window plan converted them; the card is told the window, the pace, the next size and the estimate; the history keeps the
@@ -31,7 +32,7 @@ async function harness(t, { pages = 120, limits = {}, speed = (start, end) => (e
   const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl');
   await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: pages, modelsReady: true, ...cliState })); await writeFile(logPath, '');
   const env = { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath };
-  const cli = { file: process.execPath, prefix: [FAKE], env };
+  const cli = patientCli({ file: process.execPath, prefix: [FAKE], env });
   const clock = { ms: 5_000_000 }, calls = [], gates = new Map(), attempts = new Map(), held = [], books = new Map();
   const parseWindow = async ({ startPage, endPage, signal }) => {
     const index = calls.length, key = `${startPage}-${endPage}`;
@@ -56,7 +57,7 @@ async function harness(t, { pages = 120, limits = {}, speed = (start, end) => (e
     jobs: async () => (await service.call('snapshot')).jobs.filter(job => job.type === 'pdf-convert'),
     history: async () => service.call('mineru.history.list', {}),
     spans: () => calls.map(span),
-    until: async (condition, what) => { for (let i = 0; i < 1500; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error(`Timed out waiting for ${what}`); },
+    until,
     gate(index) { const gate = { entered: false }; gates.set(index, gate); held.push(gate); return gate; },
     upload: async (bytes, name = 'Book.pdf') => {
       const { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name, size: bytes.length });
@@ -67,12 +68,12 @@ async function harness(t, { pages = 120, limits = {}, speed = (start, end) => (e
     // the same book is the same bytes (a book is known by the hash of its file)
     book: async (count = pages) => { books.set(count, books.get(count) ?? await makePdf({ pages: count })); return books.get(count); },
     start: async (count = pages) => service.call('mineru.import', { uploadId: await h.upload(await h.book(count)), route: 'local' }),
-    finished: async (status = 'complete') => { const job = await h.until(async () => { const [entry] = await h.jobs(); return entry?.status === status ? entry : null; }, `the job to be ${status}`); await service.call('job.wait', { jobId: job.id, timeoutSeconds: 10 }); return job; },
+    finished: async (status = 'complete') => { const job = await h.until(async () => { const [entry] = await h.jobs(); return entry?.status === status ? entry : null; }, `the job to be ${status}`); await service.call('job.wait', { jobId: job.id, timeoutSeconds: 120 }); return job; },
     sources: async () => (await service.call('snapshot')).sources.filter(source => source.document?.converter === 'mineru').length,
   };
   t.after(async () => {
     for (const gate of held) gate.release?.();
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await sleep(20);
     service.dispose();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });

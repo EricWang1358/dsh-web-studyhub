@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MARKER_INSTALL, MarkerInstallError, createMarkerInstaller, defaultMarkerFolder, venvLayout } from '../lib/marker-install.js';
 import { readMarkerSettings, saveMarkerSettings } from '../lib/marker-settings.js';
+import { patientCli, until, writeJsonFile } from './helpers/wait.mjs';
 
 /* One-click Marker install, with no network: a fake python makes the folders and a fake pip writes a fake marker_single. */
 const FAKE_PYTHON = fileURLToPath(new URL('./helpers/fake-python.mjs', import.meta.url));
@@ -18,15 +19,16 @@ async function harness(t, { py = {}, free = 100_000, noPython = false, pythons }
   const statePath = join(dir, 'py-state.json'), log = join(dir, 'py-log.jsonl');
   await writeFile(statePath, JSON.stringify(py)); await writeFile(log, '');
   const env = { FAKE_PY_STATE: statePath, FAKE_PY_LOG: log };
-  const python = { file: process.execPath, prefix: [FAKE_PYTHON], env };
+  // (starting a Node process takes seconds on a machine busy with other work: the installer's own per-command limits are stretched, not removed)
+  const python = patientCli({ file: process.execPath, prefix: [FAKE_PYTHON], env });
   const options = { pythons: noPython ? [{ file: join(dir, 'no-such-python') }] : pythons ?? [python], freeMegabytes: async () => options.free,
-    venvPython: folder => ({ file: process.execPath, prefix: [FAKE_PYTHON], env: { ...env, FAKE_PY_VENV: venvLayout(folder).venv } }),
-    markerCli: () => ({ file: process.execPath, prefix: [FAKE_MARKER], env: {} }), free };
+    venvPython: folder => patientCli({ file: process.execPath, prefix: [FAKE_PYTHON], env: { ...env, FAKE_PY_VENV: venvLayout(folder).venv } }),
+    markerCli: () => patientCli({ file: process.execPath, prefix: [FAKE_MARKER], env: {} }), free };
   const installer = createMarkerInstaller(options);
   t.after(async () => { await installer.cancel(); await installer.idle(); if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before; await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
-  return { dir, installer, options, env, python, setPy: patch => writeFile(statePath, JSON.stringify(patch)),
-    pyLog: async () => (await readFile(log, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line)),
-    until: async condition => { for (let i = 0; i < 6000; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('Timed out'); } };
+  return { dir, installer, options, env, python, setPy: patch => writeJsonFile(statePath, patch),
+    pyLog: async () => (await readFile(log, 'utf8')).split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }),
+    until: condition => until(condition, 'the installer', { timeoutMs: 240_000 }) };
 }
 const exists = async file => stat(file).then(() => true, () => false);
 

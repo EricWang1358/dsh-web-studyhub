@@ -159,7 +159,7 @@ export async function collectStates({ browser, running, lang, theme, width, mode
     return route.fulfill({ response, body: JSON.stringify(body) });
   });
   const settle = async (ms = 700) => { await page.waitForLoadState("networkidle").catch(() => {}); await sleep(ms); };
-  const open = async () => { await page.goto(server.url); await page.locator(".sidebar").first().waitFor({ timeout: 30000 }); await settle(900); };
+  const open = async () => { await page.goto(server.url); await page.locator(".sidebar").first().waitFor({ timeout: 120000 }); await settle(900); };
   const states = {};
   const record = async (name) => {
     await sleep(700); // let the sliding highlight and any transition finish

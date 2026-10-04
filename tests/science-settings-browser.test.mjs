@@ -9,7 +9,7 @@ import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 
-test('science settings apply, persist and run exact local tools in the real app', { timeout: 90000 }, async t => {
+test('science settings apply, persist and run exact local tools in the real app', { timeout: 480000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'science-browser-')); t.after(() => rm(root, { recursive: true, force: true }));
   const out = resolve('output/playwright/science-settings'); await mkdir(out, { recursive: true });
   const service = new StudyService(join(root, 'library'));

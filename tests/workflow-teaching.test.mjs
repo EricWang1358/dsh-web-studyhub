@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
+import { until } from "./helpers/wait.mjs";
 
 const article = "## 从一次请求开始\n\n" + "这是根据缓存复用条件构造的例子：先检查请求是否能使用保存的结果，再检查结果是否仍然有效。两项条件都满足时可以复用；否则回到原始服务取得结果。".repeat(5) +
   "\n\n## 一步一步推演\n\n" + "假设有效期是六十秒，这是为说明机制而设定的演示条件。十秒后的相同请求可以按这个策略复用，七十秒后的请求则需要回源。检查每一步的条件，而不是看到缓存就直接返回。".repeat(3) +
@@ -13,7 +14,7 @@ const generated = (markdown = article) => JSON.stringify({ markdown, citations: 
 const approved = JSON.stringify({ grounded: true, coherent: true, explained: true, example: true, boundaries: true, issues: [] });
 async function setup(t, complete) {
   const root = await mkdtemp(join(tmpdir(), "study-workflow-teaching-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const service = new StudyService(root, { complete });
   await service.store.update(s => {
     s.sources.push({ id: "source", title: "缓存资料", text: quote + "未命中时仍需访问原始服务。" });
@@ -23,14 +24,12 @@ async function setup(t, complete) {
   const session = await service.call("workflow.session.start", { templateId: template.id, topic: "缓存", scope: [{ deckId: "deck" }], requestId: "start" });
   return { service, session };
 }
-async function settled(service, id) {
-  for (let n = 0; n < 100; n++) {
-    const result = await service.call("workflow.session.get", { id });
-    if (result.session.records.lesson?.teaching?.status !== "running") return result;
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
-  throw new Error("Teaching did not settle");
-}
+const settled = (service, id) => until(async () => {
+  const result = await service.call("workflow.session.get", { id });
+  return result.session.records.lesson?.teaching?.status !== "running" && result;
+}, "the teaching to settle");
+// The detached worker has retired its job once it has made (or skipped) its guarded write.
+const workerDone = service => until(() => service.runtime.work.workflowTeachingJobs.size === 0, "the teaching worker to finish");
 
 test("background teaching preserves learner notes and progress after leaving its originating step", async t => {
   let release, called = 0;
@@ -116,8 +115,7 @@ test("concurrent clicks share one job and deleting the session prevents a late r
   assert.equal(calls, 1);
   await service.call("workflow.session.delete", { id: session.id, version: a.session.version });
   release();
-  // Let the detached worker reach its guarded persistence write.
-  await new Promise(resolve => setTimeout(resolve, 60));
+  await workerDone(service); // the detached worker has reached its guarded persistence write
   assert.equal((await service.store.read()).workflowSessions.length, 0);
 });
 
@@ -166,15 +164,16 @@ test("a failed start-result read releases the job so the persisted interruption 
 test("a timed-out model call cannot trigger review or repair after it eventually returns", async t => {
   const setTimeoutOriginal = globalThis.setTimeout;
   t.mock.method(globalThis, "setTimeout", (callback, ms, ...args) => setTimeoutOriginal(callback, ms === 240000 ? 20 : ms, ...args));
-  let release, calls = 0;
+  let release, calls = 0, returned = false;
   const gate = new Promise(resolve => { release = resolve; });
-  const { service, session } = await setup(t, async () => { calls++; await gate; return generated(); });
+  const { service, session } = await setup(t, async () => { calls++; await gate; returned = true; return generated(); });
   await service.call("workflow.teaching.start", { id: session.id, version: session.version, stepId: "lesson" });
   const failed = await settled(service, session.id);
   assert.equal(failed.session.records.lesson.teaching.status, "failed");
   assert.match(failed.session.records.lesson.teaching.message, /超时/);
   release();
-  await new Promise(resolve => setTimeoutOriginal(resolve, 40));
+  await until(() => returned, "the late model call to return");
+  for (let turn = 0; turn < 25; turn++) await new Promise(resolve => setImmediate(resolve)); // a review or repair would have been requested by now
   assert.equal(calls, 1);
   assert.equal((await service.call("workflow.session.get", { id: session.id })).session.records.lesson.content, undefined);
 });

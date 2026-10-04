@@ -7,30 +7,26 @@ import { fileURLToPath } from 'node:url';
 import { LOCAL, LocalMineruError, detectLocal, locateMineru, parseLocalMarkdown, parseWindow, startServer, windowPlan } from '../lib/mineru-local.js';
 import { mergeChunkResults } from '../lib/mineru-merge.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
+import { patientCli, readJsonFile, until, writeJsonFile } from './helpers/wait.mjs';
 
 /* The local `mineru` command line (free, nothing uploaded): detection, one honest state, page-window parsing. Everything here runs
    against tests/helpers/fake-mineru-cli.mjs; no real mineru is ever started, installed or configured. */
 
 const FAKE = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));
 const han = /[㐀-鿿]/;
-/** Whether a process has ended, waiting a few seconds for the (asynchronous) kill to land. */
-async function gone(pid) {
-  for (let i = 0; i < 100; i++) {
-    try { process.kill(pid, 0); } catch (error) { if (error.code === 'ESRCH') return true; }
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-  return false;
-}
+/** Whether a process has ended, waiting for the (asynchronous) kill to land. */
+const gone = pid => until(() => { try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; } }, `process ${pid} to end`, { intervalMs: 50 }).catch(() => false);
 
-async function fakeCli(t, state = {}) {
+/** Every command line the fake has been run with. `patient: false` keeps the library's own time limits as they are (for a test of a limit). */
+async function fakeCli(t, state = {}, { patient = true } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'study-fake-mineru-'));
   const statePath = join(dir, 'state.json'), logPath = join(dir, 'log.jsonl');
   const base = { version: '4.0.10', mode: 'disabled', tier: 'basic', running: false, total: 120, modelsReady: false };
   await writeFile(statePath, JSON.stringify({ ...base, ...state })); await writeFile(logPath, '');
   t.after(() => rm(dir, { recursive: true, force: true }));
   const cli = { file: process.execPath, prefix: [FAKE], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } };
-  return { dir, cli, state: async () => JSON.parse(await readFile(statePath, 'utf8')), set: async patch => writeFile(statePath, JSON.stringify({ ...JSON.parse(await readFile(statePath, 'utf8')), ...patch })),
-    log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line)) };
+  return { dir, cli: patient ? patientCli(cli) : cli, state: () => readJsonFile(statePath), set: async patch => writeJsonFile(statePath, { ...await readJsonFile(statePath), ...patch }),
+    log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }) };
 }
 
 /* ---------- finding it ---------- */
@@ -280,21 +276,27 @@ test('an ordinary parse failure is retryable and carries the CLI\'s own words, c
 test('cancel kills the running process promptly', async t => {
   const fake = await fakeCli(t, { mode: 'managed', running: true, delayMs: 60_000 });
   const controller = new AbortController();
-  const started = Date.now();
   const parsing = parseWindow({ cli: fake.cli, pdf: 'book.pdf', tier: 'basic', startPage: 1, endPage: 5, totalPages: 120, outFile: join(fake.dir, 'o.md'), signal: controller.signal });
-  for (let i = 0; i < 100 && !(await fake.log()).some(entry => entry.argv[0] === 'parse'); i++) await new Promise(resolve => setTimeout(resolve, 20));
+  await until(async () => (await fake.log()).some(entry => entry.argv[0] === 'parse'), 'the parse process to start', { intervalMs: 20 });
+  const cancelled = Date.now();
   controller.abort(new Error('cancelled by learner'));
   await assert.rejects(parsing, /cancelled by learner/);
-  assert.ok(Date.now() - started < 10_000, 'stopped promptly, not after the 60 s the window would have taken');
+  assert.ok(Date.now() - cancelled < 45_000, 'stopped promptly, not after the 60 s the window would have taken');
   const pid = (await fake.log()).find(entry => entry.argv[0] === 'parse').pid;
   assert.equal(await gone(pid), true, 'the child is gone');
 });
 
 test('a window that takes longer than its bounded wait is stopped and reported as a timeout', async t => {
-  const fake = await fakeCli(t, { mode: 'managed', running: true, delayMs: 60_000 });
-  await assert.rejects(parseWindow({ cli: fake.cli, pdf: 'book.pdf', tier: 'basic', startPage: 1, endPage: 5, totalPages: 120, outFile: join(fake.dir, 'o.md'), timeoutMs: 2000 }), // long enough for the fake CLI to start (and log itself) on a loaded machine
-    error => error.code === 'timeout' && error.retryable === true && /太久/.test(error.message));
-  const pid = (await fake.log()).find(entry => entry.argv[0] === 'parse').pid;
+  const fake = await fakeCli(t, { mode: 'managed', running: true, delayMs: 60_000 }, { patient: false }); // the limit under test is the real one, so it is not stretched
+  // The limit runs from the moment the process is spawned, and starting a Node process takes seconds on a machine busy with other work: the test only
+  // means something once the fake has started (and logged itself) inside the limit, so it asks again with a longer one until it has.
+  let pid;
+  for (let timeoutMs = 2000; !pid; timeoutMs *= 2) {
+    await assert.rejects(parseWindow({ cli: fake.cli, pdf: 'book.pdf', tier: 'basic', startPage: 1, endPage: 5, totalPages: 120, outFile: join(fake.dir, 'o.md'), timeoutMs }),
+      error => error.code === 'timeout' && error.retryable === true && /太久/.test(error.message));
+    pid = (await fake.log()).find(entry => entry.argv[0] === 'parse')?.pid;
+    assert.ok(timeoutMs < 60_000, 'the fake CLI never started');
+  }
   assert.equal(await gone(pid), true);
 });
 

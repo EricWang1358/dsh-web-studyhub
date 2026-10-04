@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StudyService } from '../../lib/service.js';
+import { settleJob } from '../helpers/wait.mjs';
 
 const [root, mode] = process.argv.slice(2);
 let transcriptions = 0;
@@ -31,12 +32,12 @@ if (mode === 'fail') {
   header.writeUInt32LE(16000, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34); header.write('data', 36); header.writeUInt32LE(data.length, 40);
   const file = join(root, 'lecture.mp3'); await writeFile(file, Buffer.concat([header, data]));
   const started = await service.call('audio.import', { path: file, course: '' });
-  const failed = await service.call('job.wait', { jobId: started.jobId, timeoutSeconds: 20 });
+  const failed = await settleJob(service, started.jobId);
   process.stdout.write(JSON.stringify({ failed, transcriptions }));
 } else {
   const before = (await service.call('snapshot')).jobs.find(job => job.type === 'audio-import');
   const beforeCalls = transcriptions;
   const started = await service.call('audio.retry', { jobId: before.id });
-  const done = await service.call('job.wait', { jobId: started.jobId, timeoutSeconds: 20 });
+  const done = await settleJob(service, started.jobId);
   process.stdout.write(JSON.stringify({ before, beforeCalls, done, transcriptions }));
 }

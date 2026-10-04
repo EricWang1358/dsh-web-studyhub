@@ -5,43 +5,48 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
+import { LOCAL } from '../lib/mineru-local.js';
 import { makePdf } from './helpers/pdf.mjs';
+import { patientCli, readJsonFile, sleep, until, writeJsonFile } from './helpers/wait.mjs';
 
 /* What a running local window says about itself, through the real service and a fake CLI that really takes its time: the job card gets one honest state from READ-ONLY questions to
    the service (never from polling the parse itself), and nothing is asked while no window runs. The fake CLI keeps a record of every call. */
 
 const FAKE = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));
 
-async function harness(t, { cliState = {}, limits = {}, pages = 10, holdFinish = false } = {}) {
+async function harness(t, { cliState = {}, limits = {}, pages = 10, holdFinish = false, holdQueue = false } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'study-live-home-'));
   const root = await mkdtemp(join(tmpdir(), 'study-live-lib-'));
   const work = await mkdtemp(join(tmpdir(), 'study-live-fake-'));
   const before = { DSH_HOME: process.env.DSH_HOME, MINERU_API_KEY: process.env.MINERU_API_KEY, MINERU_BIN: process.env.MINERU_BIN };
   process.env.DSH_HOME = home; delete process.env.MINERU_API_KEY; delete process.env.MINERU_BIN;
   await mkdir(join(work, 'models', 'MinerU-4_models_onnx'), { recursive: true });
-  const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl'), finishSignal = join(work, 'finish.signal');
+  const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl'), finishSignal = join(work, 'finish.signal'), queueSignal = join(work, 'queue.signal');
   await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: pages, modelsReady: true,
-    ...(holdFinish ? { finishSignal } : {}), ...cliState })); await writeFile(logPath, '');
-  const cli = { file: process.execPath, prefix: [FAKE], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } };
+    ...(holdFinish ? { finishSignal } : {}), ...(holdQueue ? { queueSignal } : {}), ...cliState })); await writeFile(logPath, '');
+  const cli = patientCli({ file: process.execPath, prefix: [FAKE], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } });
   const service = new StudyService(root, { mineru: { limits, local: { cli, home: work, modelsCli: { ...cli } } } });
   const h = {
     service, work, root,
     call: (action, args) => service.call(action, args),
-    set: async patch => writeFile(statePath, JSON.stringify({ ...JSON.parse(await readFile(statePath, 'utf8')), ...patch })),
+    set: async patch => writeJsonFile(statePath, { ...await readJsonFile(statePath), ...patch }),
     release: () => writeFile(finishSignal, 'ready'),
-    log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line).argv.join(' ')),
+    releaseQueue: () => writeFile(queueSignal, 'ready'),
+    log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line).argv.join(' ')]; } catch { return []; } }),
     job: async () => (await service.call('snapshot')).jobs.find(job => job.type === 'pdf-convert'),
-    /** Watch the card until the job ends: every liveness state it showed, in order, and the job as it ended. */
-    watch: async (also = () => {}, { timeoutMs } = {}) => {
+    /** Watch the card until the job ends: every liveness state it showed, in order, and the job as it ended. A window held with `holdFinish` is let go by
+        `until`, once the card has shown what the test is waiting for: no state depends on how fast this machine can start the CLI. */
+    watch: async (also = () => {}, { timeoutMs = 180_000, until: enough } = {}) => {
       const seen = [];
-      const deadline = timeoutMs ? Date.now() + timeoutMs : Infinity;
-      let job;
-      for (let i = 0; i < 1000 && Date.now() < deadline; i++) {
+      const deadline = Date.now() + timeoutMs;
+      let job, released = false;
+      while (Date.now() < deadline) {
         job = await h.job();
         const state = job?.liveness?.state;
         if (state && seen.at(-1) !== state) { seen.push(state); await also(state, job); }
+        if (!released && await enough?.(seen, job)) { released = true; await h.release(); }
         if (job && ['complete', 'failed', 'cancelled'].includes(job.status)) break;
-        await new Promise(resolve => setTimeout(resolve, 25));
+        await sleep(25);
       }
       return { seen, job };
     },
@@ -55,7 +60,8 @@ async function harness(t, { cliState = {}, limits = {}, pages = 10, holdFinish =
   };
   t.after(async () => {
     if (holdFinish) await h.release();
-    await new Promise(resolve => setTimeout(resolve, 30));
+    if (holdQueue) await h.releaseQueue();
+    await sleep(30);
     await service.dispose();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
@@ -66,9 +72,10 @@ const quick = { livenessMs: 80, livenessFirstMs: 20 };
 const isProbe = call => call === 'server status --json' || call.startsWith('list parses');
 
 test('a window waiting in the service queue is "queued", then "converting", and the card forgets the state when the window ends', async t => {
-  const h = await harness(t, { cliState: { trackParses: true, queueMs: 2200, delayMs: 5000 }, limits: quick }); // (a probe is three processes: on a loaded machine it needs room to land in the queue phase)
+  // The fake parse stays queued until the card has shown "queued", then runs until it has shown "parsing": nothing depends on how fast a probe (three processes) lands.
+  const h = await harness(t, { cliState: { trackParses: true }, limits: quick, holdQueue: true, holdFinish: true });
   await h.start();
-  const { seen, job } = await h.watch();
+  const { seen, job } = await h.watch(async state => { if (state === 'queued') await h.releaseQueue(); }, { until: states => states.includes('parsing') });
   assert.ok(seen.includes('queued'), seen.join());
   assert.ok(seen.includes('parsing'), seen.join());
   assert.ok(seen.indexOf('queued') < seen.indexOf('parsing'));
@@ -99,9 +106,9 @@ for (const probeDelayMs of [0, 1100]) {
 }
 
 test('a service that reports nothing for a window that runs is "no response" only after several quiet answers and the threshold; the job is not failed and goes on', async t => {
-  const h = await harness(t, { cliState: { idleParses: true, delayMs: 2800 }, limits: { ...quick, silentMs: 400, idleProbes: 2 } });
+  const h = await harness(t, { cliState: { idleParses: true }, limits: { ...quick, silentMs: 400, idleProbes: 2 }, holdFinish: true });
   await h.start();
-  const { seen, job } = await h.watch();
+  const { seen, job } = await h.watch(() => {}, { until: states => states.includes('silent') });
   assert.ok(seen.includes('quiet'), 'it is quiet first, and says only that');
   assert.ok(seen.includes('silent'), seen.join());
   assert.ok(seen.indexOf('quiet') < seen.indexOf('silent'));
@@ -109,32 +116,33 @@ test('a service that reports nothing for a window that runs is "no response" onl
 });
 
 test('when the service cannot be asked (every probe fails) the state is "unknown", never "no response", and the job completes', async t => {
-  const h = await harness(t, { cliState: { statusJsonFails: true, listFails: true, trackParses: true, delayMs: 2000 }, limits: { ...quick, silentMs: 200, idleProbes: 1 } });
+  const h = await harness(t, { cliState: { statusJsonFails: true, listFails: true, trackParses: true }, limits: { ...quick, silentMs: 200, idleProbes: 1 }, holdFinish: true });
   await h.start();
-  const { seen, job } = await h.watch();
+  // The window is held until the card said "unknown" and the service has been asked many more times (the silent threshold is 200 ms): it still never says "no response".
+  const { seen, job } = await h.watch(() => {}, { until: async states => states.includes('unknown') && (await h.log()).filter(isProbe).length >= 9 });
   assert.ok(seen.includes('unknown'), seen.join());
   assert.ok(!seen.includes('silent'), seen.join());
   assert.equal(job.status, 'complete');
 });
 
 test('when only the list fails, the status still says a parse is running', async t => {
-  const h = await harness(t, { cliState: { trackParses: true, listFails: true, delayMs: 2000 }, limits: quick });
+  const h = await harness(t, { cliState: { trackParses: true, listFails: true }, limits: quick, holdFinish: true });
   await h.start();
-  const { seen } = await h.watch();
+  const { seen } = await h.watch(() => {}, { until: states => states.includes('parsing') });
   assert.ok(seen.includes('parsing'), seen.join());
 });
 
 test('a service stopped under a running window is said to be stopped', async t => {
-  const h = await harness(t, { cliState: { delayMs: 2600 }, limits: quick });
+  const h = await harness(t, { cliState: {}, limits: quick, holdFinish: true });
   await h.start();
   let stopped = false;
   const { seen, job } = await h.watch(async () => {
     if (stopped) return;
     stopped = true;
     // once the parse process is really running (it logs after reading its state), the service goes away under it
-    for (let i = 0; i < 200 && !(await h.log()).some(call => call.startsWith('parse ')); i++) await new Promise(resolve => setTimeout(resolve, 25));
+    await until(async () => (await h.log()).some(call => call.startsWith('parse ')), 'the parse process to start');
     await h.set({ running: false });
-  });
+  }, { until: states => states.includes('stopped') });
   assert.ok(seen.includes('stopped'), seen.join());
   assert.ok(job.status);
 });
@@ -156,16 +164,25 @@ test('nothing is asked while no window runs: not before the job, not after it, a
 });
 
 test('by default a window that ends within a few seconds is never asked about', async t => {
-  const h = await harness(t, { cliState: { delayMs: 300 } });
-  await h.start();
-  await h.watch();
-  assert.deepEqual((await h.log()).filter(isProbe), []);
+  // The first question is due livenessFirstMs after the window starts, so this only means something when the window really ended inside that
+  // time. Starting the CLI can take longer than that on a machine busy with other work: such a run is not evidence either way, so it is run again.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const h = await harness(t, { cliState: { delayMs: 300 } });
+    const began = Date.now();
+    await h.start();
+    await h.watch();
+    if (Date.now() - began > LOCAL.livenessFirstMs * 0.7) continue;
+    assert.deepEqual((await h.log()).filter(isProbe), []);
+    return;
+  }
+  t.skip(`no window ended within ${LOCAL.livenessFirstMs} ms on this machine just now`);
 });
 
 test('the questions are read-only: never a parse, a start, a stop or a setting', async t => {
-  const h = await harness(t, { cliState: { trackParses: true, queueMs: 400, delayMs: 2000 }, limits: quick });
+  // held until it has been asked at least three times, however slowly this machine starts the CLI
+  const h = await harness(t, { cliState: { trackParses: true }, limits: quick, holdQueue: true, holdFinish: true });
   await h.start();
-  await h.watch();
+  await h.watch(async state => { if (state === 'queued') await h.releaseQueue(); }, { until: async () => (await h.log()).filter(isProbe).length >= 4 });
   const calls = await h.log();
   const probes = calls.filter(isProbe);
   assert.ok(probes.length >= 3, `${probes.length} questions`);

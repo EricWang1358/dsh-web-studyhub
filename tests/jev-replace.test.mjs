@@ -207,11 +207,10 @@ test('the model path keeps its own errors: a failing fallback rejects as it woul
 });
 
 test('it never sends more than the concurrency in flight and keeps tokens apart, per site, from the study model', async t => {
-  let inFlight = 0, peak = 0;
-  const h = await harness(t, { delayMs: 15, onRequest: () => { inFlight++; peak = Math.max(peak, inFlight); setTimeout(() => { inFlight--; }, 14); } });
+  const h = await harness(t, { holdUntilInFlight: 2 });
   await h.open();
   await route(h, Array.from({ length: 9 }, (_, index) => item(`i${index}`, 0.99)), { concurrency: 3 });
-  assert.ok(peak <= 3, `peak ${peak}`);
+  assert.ok(h.fake.peak <= 3 && h.fake.peak >= 2, `peak ${h.fake.peak}`);
   const summary = await h.meter.summary();
   assert.equal(summary.byFeature[SITE].calls, 9);
   assert.equal(summary.byFeature.preReview, undefined);

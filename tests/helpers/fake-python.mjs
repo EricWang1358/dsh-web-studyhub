@@ -5,7 +5,14 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
-const state = process.env.FAKE_PY_STATE ? JSON.parse(await readFile(process.env.FAKE_PY_STATE, 'utf8')) : {};
+// The test rewrites the state file while this starts: a read that lands in the middle of that is read again.
+async function readState() {
+  for (let attempt = 0; ; attempt++) {
+    try { return JSON.parse(await readFile(process.env.FAKE_PY_STATE, 'utf8')); }
+    catch (error) { if (attempt > 400) throw error; await new Promise(resolve => setTimeout(resolve, 15)); }
+  }
+}
+const state = process.env.FAKE_PY_STATE ? await readState() : {};
 if (process.env.FAKE_PY_LOG) await appendFile(process.env.FAKE_PY_LOG, `${JSON.stringify(args)}\n`);
 const bin = folder => join(folder, process.platform === 'win32' ? 'Scripts' : 'bin');
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
