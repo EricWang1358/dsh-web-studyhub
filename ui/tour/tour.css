@@ -107,7 +107,6 @@
       font-size: var(--fs-xs);
       font-variant-numeric: tabular-nums;
     }
-    .tour-pop__close { margin: -8px -10px -8px -4px; }
     .tour-pop__bar {
       height: 3px;
       margin-bottom: 14px;
@@ -165,7 +164,6 @@
       padding-top: var(--space-3);
       border-top: 1px solid var(--line-soft);
     }
-    .tour-pop__skip { color: var(--text-muted); }
     .tour-pop__spacer { flex: 1; }
   }
   @media (prefers-reduced-motion: no-preference) {
