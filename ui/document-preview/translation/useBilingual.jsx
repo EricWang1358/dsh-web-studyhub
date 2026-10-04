@@ -79,7 +79,7 @@ const selectionPassage = capture => ({ sourceId: capture.sourceId, kind: 'select
 export default function useBilingual({ call, document: doc, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled = true }) {
   const language = useUiLanguage();
   const toast = useToast();
-  const onNotice = useCallback(({ text, tone }) => toast.show({ tone, message: text }), [toast]);
+  const announce = useCallback(({ text, tone }) => toast.show({ tone, message: text }), [toast]);
   const [settings, setSettings] = useState(loadTranslationSettings), [state, dispatch] = useReducer(reducer, initialState);
   const [available, setSupported] = useState(false), [version, setVersion] = useState(0), [hosts, setHosts] = useState(() => new Map()), [page, setPage] = useState(null);
   const supported = enabled && available;
@@ -360,10 +360,10 @@ export default function useBilingual({ call, document: doc, source, view, paged,
         void refresh();
         setFinishedHere(set => new Set(set).add(item.id));
         const tone = item.status === 'complete' ? (item.rejected ? 'warning' : 'success') : item.status === 'cancelled' ? 'info' : 'error';
-        onNotice({ text: item.status === 'complete' ? uiFormat('已译好 {0} 段。', [item.savedCount ?? item.translated ?? 0]) : item.status === 'cancelled' ? ui('已停止翻译，已译的段落保留。') : ui('翻译没有完成，已译的段落保留。'), tone });
+        announce({ text: item.status === 'complete' ? uiFormat('已译好 {0} 段。', [item.savedCount ?? item.translated ?? 0]) : item.status === 'cancelled' ? ui('已停止翻译，已译的段落保留。') : ui('翻译没有完成，已译的段落保留。'), tone });
       }
     }
-  }, [jobs, refresh, onNotice]);
+  }, [jobs, refresh, announce]);
 
   const openMenu = useCallback(async open => {
     setMenuOpen(open);
@@ -388,17 +388,17 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       const started = await call('generation.translation.start', { ...identity, target, passages: def.paragraphs.map(passageOf), label: def.short });
       if (started?.available === false) { dispatch({ type: 'unavailable', keys: [] }); return; }
       setMenuOpen(false);
-      if (started.status === 'nothing') { onNotice({ text: ui('这里没有还需要翻译的段落。'), tone: 'info' }); return; }
-      onNotice({ text: started.alreadyRunning ? ui('这部分已经在翻译了。') : uiFormat('已开始翻译，共 {0} 段，后台进行，完成后进信箱。', [started.job?.total ?? 0]), tone: 'info' });
+      if (started.status === 'nothing') { announce({ text: ui('这里没有还需要翻译的段落。'), tone: 'info' }); return; }
+      announce({ text: started.alreadyRunning ? ui('这部分已经在翻译了。') : uiFormat('已开始翻译，共 {0} 段，后台进行，完成后进信箱。', [started.job?.total ?? 0]), tone: 'info' });
       await loadJobs();
-    } catch (error) { onNotice({ text: error?.message || ui('出现未知错误'), tone: 'error' }); }
-  }, [call, identity, target, loadJobs, onNotice]);
+    } catch (error) { announce({ text: error?.message || ui('出现未知错误'), tone: 'error' }); }
+  }, [call, identity, target, loadJobs, announce]);
   const stopJob = useCallback(async () => { if (job) { try { await call('job.cancel', { jobId: job.id }); } catch { /* it had ended */ } await loadJobs(); } }, [call, job, loadJobs]);
 
   const setTarget = useCallback(async next => {
     if (!identity || next === target) return;
-    try { await call('materials.translation.glossary.set', { ...identity, target: next }); await refresh(); void openMenu(true); } catch (error) { onNotice({ text: error?.message || ui('出现未知错误'), tone: 'error' }); }
-  }, [call, identity, target, refresh, onNotice, openMenu]);
+    try { await call('materials.translation.glossary.set', { ...identity, target: next }); await refresh(); void openMenu(true); } catch (error) { announce({ text: error?.message || ui('出现未知错误'), tone: 'error' }); }
+  }, [call, identity, target, refresh, announce, openMenu]);
 
   const showAll = useCallback(value => {
     const spans = spanKeys(), keys = spans.page.map(paragraph => paragraph.key).filter(key => state.items[key]);
