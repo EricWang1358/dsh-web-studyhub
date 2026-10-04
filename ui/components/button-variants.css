@@ -49,11 +49,11 @@
   }
   .sh-seg--xs > .sh-seg__item {
     min-height: 24px;
-    padding: 1px var(--space-2);
+    padding: 0 var(--space-2);
     gap: var(--space-1);
     font-size: var(--fs-xs);
   }
-  .sh-seg--xs { padding: 2px; }
+  .sh-seg--xs { padding: calc(var(--space-1) / 2); }
 
   /* Stack: the row becomes a column when its container is narrow. */
   @container study (max-width: 480px) {

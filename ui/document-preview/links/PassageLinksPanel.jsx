@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import Markdown from '../../Markdown.jsx';
 import MathText from '../../MathText.jsx';
-import { Button } from '../../components/index.js';
+import { Button, InlineMessage } from '../../components/index.js';
 import { ui, uiFormat } from '../../i18n.js';
 import { answerText, clip, displayPrompt, groupTitle, linkKind } from './link-model.js';
 
@@ -84,7 +84,7 @@ export default function PassageLinksPanel({ model, focusedKey, onFocus, onOpen }
     {!focused && model.stale.length > 0 && <LazyDetails className="reader-links__stale" summary={uiFormat('需要重新选择 · {0}', [model.stale.length])}>
       {model.stale.map(group => <article className="reader-link-item" key={group.key}>
         <p className="reader-link-item__head"><span className="reader-link-group__no">[{group.number}]</span> <span className="reader-link-group__quote"><MathText text={group.selection.quote} /></span></p>
-        <p className="reader-link-item__deck warning">{ui(REASON_TEXT[group.reason] || REASON_TEXT.unavailable)}</p>
+        <InlineMessage tone="warning">{ui(REASON_TEXT[group.reason] || REASON_TEXT.unavailable)}</InlineMessage>
         {group.links.map(link => <p className="reader-link-item__deck" key={`${link.deckId}:${link.cardId}`}>{displayPrompt(link) || link.cardId}</p>)}
       </article>)}
     </LazyDetails>}
