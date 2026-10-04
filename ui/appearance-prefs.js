@@ -12,13 +12,16 @@ export const MOTIONS = Object.freeze(['auto', 'full', 'reduced', 'off']);
 /** The sizes of the whole interface, in percent (CSS zoom on the app: text, controls and spacing scale together), and the typefaces of its text. */
 export const SCALES = Object.freeze([90, 100, 110, 125, 150, 175, 200]);
 export const FONTS = Object.freeze(['system', 'serif', 'mono']);
-export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', scale: 100, font: 'system' });
+/** The accent colours (强调色, ui/accent.css): cinnabar is the default and needs no override; there is no free colour picker, so contrast stays verifiable. */
+export const ACCENTS = Object.freeze(['cinnabar', 'jade', 'ochre', 'graphite', 'plum']);
+export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', scale: 100, font: 'system', accent: 'cinnabar' });
 /** Per setting, its allowed values (in display order): the whitelist and the option list of the settings page. */
-export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, scale: SCALES, font: FONTS });
+export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, scale: SCALES, font: FONTS, accent: ACCENTS });
 /** The zh label of each value, passed through ui() where shown; a scale shows as its percent, a value with no label as itself. */
 export const APPEARANCE_LABELS = Object.freeze({
   theme: { auto: '跟随系统', dark: '深色', light: '浅色' },
   motion: { auto: '跟随系统', full: '标准', reduced: '减弱', off: '无动画' },
+  accent: { cinnabar: '朱砂', jade: '青玉', ochre: '赭石', graphite: '墨灰', plum: '梅紫' },
   font: { system: '系统默认', serif: '衬线', mono: '等宽' },
 });
 
@@ -70,6 +73,7 @@ export function appearanceAttrs(value, system = systemNow()) {
     'data-motion': effectiveMotion(prefs.motion, system.reducedMotion),
     'data-ui-scale': prefs.scale,
     'data-ui-font': prefs.font,
+    'data-accent': prefs.accent,
   };
 }
 
