@@ -196,7 +196,7 @@ test('blueprint items get deterministic delimiters, and only what cannot be wrap
   assert.equal(fixed.items[0].reasoning, 'Since $q^{n-1}$ scales the first term.');
   // A formula next to a link cannot be wrapped safely: the one correction round names it.
   const prompts = [];
-  await assert.rejects(blueprintAssessment(async (system, prompt) => { prompts.push(prompt); return { items: [item({ reasoning: 'See https://example.com for q^{n-1}.' })] }; }, request, plan()), /formula outside math delimiters/);
+  await assert.rejects(blueprintAssessment(async (system, prompt) => { prompts.push(prompt); return { items: [item({ reasoning: 'See https://example.com for \\frac{n}{b}.' })] }; }, request, plan()), /formula outside math delimiters/);
   assert.equal(prompts.length, 2);
   assert.match(prompts[1], /formula outside math delimiters/);
 });
