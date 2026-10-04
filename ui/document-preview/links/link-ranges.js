@@ -2,6 +2,7 @@
    The reader never changes the text for this: ranges are computed once per document or links change from one
    walk over the text nodes of each page, painted with the CSS Custom Highlight API (like search), and looked up
    again with Range.isPointInRange on click. Pure helpers over a DOM-like container, so they run under node:test. */
+import { spanFormulas } from '../reader/formula.js';
 
 export const HIGHLIGHT_NAMES = Object.freeze({ question: 'study-link-question', qa: 'study-link-qa', note: 'study-link-note' });
 /** Where two kinds overlap, the higher priority decides the look: a question over a Q&A card over a note. */
@@ -80,6 +81,7 @@ export function locateGroups(container, groups) {
       const range = container.ownerDocument.createRange();
       range.setStart(first.node, Math.min(from - first.start, first.node.textContent.length));
       range.setEnd(last.node, Math.min(to - last.start, last.node.textContent.length));
+      spanFormulas(range); // an underline over part of a formula covers the drawn formula
       entries.push({ group, range });
     } catch { /* the text changed under us: this passage is simply not underlined */ }
   }

@@ -351,6 +351,16 @@
   .reader-join { font-size: 0; }
   .reader-p { margin: 0 0 1em; white-space: normal; text-wrap: pretty; }
   .reader-p--lines { white-space: pre-line; }
+  /* A formula, one look for text and Markdown sources (formula.js): its stored text is the hidden source, the drawing a marker beside it.
+     Inline sits on the baseline; display is a centred block of the document that scrolls sideways when it is wide. */
+  .reader-math { position: relative; }
+  .reader-math__source { position: absolute; inset-inline-start: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: pre; }
+  .reader-math__view math { font-family: math, "Cambria Math", serif; font-size: 1em; font-weight: 400; }
+  /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
+  .reader-math__view math:has(mphantom) { padding-inline-end: 0.2em; }
+  .reader-math--display { display: block; margin: 0.9em 0; overflow-x: auto; overflow-y: hidden; text-align: center; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .reader-math--display > .reader-math__view { display: block; width: max-content; min-width: 100%; }
+  .reader-math__label { margin-inline-start: 1.2em; color: var(--text-muted); }
   .reader-p--layout {
     padding: 0.7em 1em;
     overflow-x: auto;
