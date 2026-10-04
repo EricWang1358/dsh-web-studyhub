@@ -167,7 +167,7 @@ try {
     const where = `app/${lang}/${theme}/${width}`;
     const server = await createPreviewServer({ libraryRoot: join(scratch, `lib-${lang}-${theme}-${width}`), home: join(scratch, `app-home-${lang}-${theme}-${width}`), port: port++ });
     try {
-      const context = await browser.newContext({ viewport: { width, height: 1000 }, deviceScaleFactor: 1, locale: lang === 'en' ? 'en-US' : 'zh-CN', colorScheme: theme });
+      const context = await browser.newContext({ viewport: { width, height: width < 700 ? 1800 : 1100 }, deviceScaleFactor: 1, locale: lang === 'en' ? 'en-US' : 'zh-CN', colorScheme: theme });
       await context.addInitScript(([l, t]) => { try { localStorage.setItem('study-ui-language', l); localStorage.setItem('study-theme', t); } catch { /* blocked */ } }, [lang, theme]);
       const tab = await open(context, server.url, where);
       await tab.locator('aside, nav').first().waitFor({ timeout: 30000 });

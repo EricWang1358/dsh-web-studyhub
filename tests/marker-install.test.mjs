@@ -258,3 +258,12 @@ test('move: reinstalling elsewhere removes the previous environment only after t
   assert.equal(await exists(venvLayout(first).venv), false);
   assert.equal((await readMarkerSettings()).command, venvLayout(second).marker);
 });
+
+test('an uninstall right after the result is shown waits for the result to be saved, never refuses', async t => {
+  const h = await harness(t);
+  await h.installer.start({ confirm: true });
+  await h.until(async () => (await h.installer.status()).status === 'complete');
+  const result = await h.installer.uninstall({ confirm: true });
+  assert.equal(result.status, 'idle');
+  assert.equal((await createMarkerInstaller(h.options).status()).status, 'idle', 'the late result did not overwrite the uninstall');
+});

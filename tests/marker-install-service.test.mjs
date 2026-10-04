@@ -48,6 +48,13 @@ test('install actions are registered, write no library field, and run end to end
   assert.equal((await h.call('marker.settings.get')).command, '');
 });
 
+test('the assistant tool refuses to install or uninstall: it is the learner\'s click in Settings', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8');
+  assert.match(source, /\["marker\.install\.start", "marker\.install\.uninstall"\]\.includes\(a\.action\)/);
+  assert.match(source, /is not available to the assistant: it installs or removes software/);
+});
+
 test('cancel and a failed install through the service', async t => {
   const h = await harness(t, { delayPip: true });
   await h.call('marker.install.start', { confirm: true });
