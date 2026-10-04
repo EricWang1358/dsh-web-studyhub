@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Checkbox, Field, Hint, InlineMessage, ProviderCard, SecretKeyForm, SettingsSection, Select, Switch, TextInput, useToast } from './components/index.js';
+import { Badge, Button, Checkbox, Field, Hint, InlineMessage, LoadingState, ProviderCard, SecretKeyForm, SettingsSection, Select, Switch, TextInput, useToast } from './components/index.js';
 import { readJSON, writeJSON } from './storage.js';
 import { useAsyncAction } from './use-async.js';
 import { TokenUsage } from './TokenUsage.jsx';
@@ -242,7 +242,7 @@ export default function JevSettings({ call, busy = false, initial = null, initia
     <SettingsSection className="jev-settings" tour="settings-jev" data-experimental="true" ref={section}
       title={<>{ui('实验性 · Jev 判断服务')}<ExperimentalBadge /></>}
       lead={ui('Jev 是 TypeSafe AI 的「System One」模型：按服务商的说法又快又便宜（我们没有核实），擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。它在本插件里始终只是实验功能，其他功能都不依赖它。')}>
-      {!settings && !error && <Hint>{ui('正在读取 Jev 设置…')}</Hint>}
+      {!settings && !error && <LoadingState label={ui('正在读取 Jev 设置…')} />}
       {settings && <JevSettingsView call={call} settings={settings} usage={usage} failure={failure} busy={busy} working={working} result={result} error={error}
         onKey={key => change('save', { key }, async next => { setResult(null); if (next.confirmed) await verify(); })}
         onVerify={() => run('verify', verify)}

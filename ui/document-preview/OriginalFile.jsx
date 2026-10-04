@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, Dialog, FileDrop, Icon, InlineMessage } from '../components/index.js';
+import { Button, Dialog, FileDrop, Icon, InlineMessage, LoadingState } from '../components/index.js';
 import css from './original-file.css';
 import { ORIGINAL_MAX_BYTES, canAttach, defaultMode, explainFailure, issueOf, modeOptions, originalLine, reportHeadline, reportLines } from './original-file.js';
 import { formatBytes } from '../format.js';
@@ -142,7 +142,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
       {!picked && pickerOn && <Button variant="primary" disabled>{ui('附上原文件')}</Button>}</>;
 
   return <Dialog size="md" className="original-dialog" title={title} busy={phase === 'attaching'} guardDrops onClose={onClose} footer={footer}>
-    {!info && <p role="status" className="muted">{ui('正在读取原文件状态…')}</p>}
+    {!info && <LoadingState label={ui('正在读取原文件状态…')} />}
     {info && info.status === 'none' && !done && <p>{ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用；补上原文件后，还能对照原版排版和图表。已保存的文字、引用和题目不会变。')}</p>}
     {done && <Status tone="success"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [formatBytes(info?.bytes)])}</span>}</Status>}
     {!done && !report && issue?.message && <Status tone="warning" alert>{issue.message}</Status>}

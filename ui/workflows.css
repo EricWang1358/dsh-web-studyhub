@@ -268,13 +268,6 @@
     .wf-quick-option input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); }
     .wf-quick-option .muted { font-size: var(--fs-md); }
     .wf-spine-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin: 0 0 22px; font-size: var(--fs-md); }
-    .wf-pulse { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 10px; vertical-align: middle; border-radius: 50%; background: var(--accent); animation: wf-pulse 1.4s ease-in-out infinite; }
-    .wf-spine-status .wf-pulse { margin-right: 0; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    :where(.study-app, .study-seat) {
-      .wf-pulse { animation: none; }
-    }
   }
   :where(.study-app, .study-seat) {
     .wf-quick-hint { max-width: 680px; margin: 14px 0 0; padding: 10px 14px; border-left: 3px solid var(--warn); background: var(--bg-surface); font-size: var(--fs-md); line-height: 1.7; }
@@ -325,4 +318,3 @@
   }
 }
 
-@keyframes wf-pulse { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }

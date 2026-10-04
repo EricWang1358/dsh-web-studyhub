@@ -39,7 +39,6 @@
     .daily-recap-progress { display: flex; align-items: flex-start; gap: 10px; margin: var(--space-4) 0; }
     .daily-recap-progress p { margin: 0 0 var(--space-1); font-size: var(--fs-md); }
     .daily-recap-progress small { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.6; }
-    .daily-recap-spinner { flex-shrink: 0; margin-top: var(--space-1); width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: daily-recap-spin 1s linear infinite; }
     .daily-recap-replace { margin-top: 14px; font-size: var(--fs-sm); }
     .daily-recap-replace > p { line-height: 1.7; color: var(--text-muted); }
     .daily-recap-replace .daily-recap-tone { margin: var(--space-3) 0; }
@@ -53,7 +52,6 @@
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
-      .daily-recap-spinner { animation: none; }
     }
   }
   @container study (max-width: 600px) {
@@ -68,4 +66,3 @@
   }
 }
 
-@keyframes daily-recap-spin { to { transform: rotate(360deg); } }

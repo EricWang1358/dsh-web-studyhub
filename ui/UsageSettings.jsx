@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from './i18n.js';
-import { Badge, Button, ConfirmDialog, Hint, InlineMessage, ProgressBar, SegmentedControl, SettingsSection, Switch, useToast } from './components/index.js';
+import { Badge, Button, ConfirmDialog, Hint, InlineMessage, LoadingState, ProgressBar, SegmentedControl, SettingsSection, Switch, useToast } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { USAGE_AREAS, USAGE_GROUPS, usageArea } from './usage/registry.js';
 import { displayName } from './usage/names.js';
@@ -159,7 +159,7 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
         <details className="usage-report" onToggle={event => onReportToggle?.(event.currentTarget.open)}>
           <summary className="usage-report__summary">{ui('我的使用报告')}</summary>
           {report ? <UsageReportView report={report} period={period} onPeriod={onPeriod} language={language} />
-            : <Hint>{ui('正在整理报告…')}</Hint>}
+            : <LoadingState label={ui('正在整理报告…')} />}
           <div className="settings-actions usage-actions">
             <Button variant="secondary" size="sm" icon="download" disabled={busy || !!working} onClick={() => onExport?.('markdown')}>{ui('导出 Markdown')}</Button>
             <Button variant="secondary" size="sm" icon="download" disabled={busy || !!working} onClick={() => onExport?.('json')}>{ui('导出 JSON')}</Button>

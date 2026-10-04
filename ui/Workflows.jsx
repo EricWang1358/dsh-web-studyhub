@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiLocale, useUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
-import { Banner, Button, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, PageHeader, useToast } from "./components/index.js";
+import { Banner, Button, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, useToast } from "./components/index.js";
 import { workflowDesignPrompt, workflowSkeletonPrompt } from "./agent-prompts/workflow.js";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
@@ -280,7 +280,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   const unfinished = listing?.sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && uiFormat("{0} 的核心概念", [data.focus.course])].filter(Boolean);
   if (screen.kind === "portal") return <>{renderRelated?.(screen.id)}<WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} onOpenRun={openRun} onOpenSession={(sessionId) => setScreen({ kind: "portal", id: sessionId })} onBack={back} revision={data?.revision} /></>;
-  if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <p className="muted" role="status">{ui("正在读取学习流…")}</p>}</section>;
+  if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <LoadingState label={ui("正在读取学习流…")} />}</section>;
   if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
   if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} askInChat={askInChat} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
   return <section className="page workflow-page">
@@ -296,7 +296,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
       </div>
       {suggestions.length > 0 && <div className="wf-quick-suggest">{suggestions.map((text) =>
         <Button variant="link" size="sm" key={text} disabled={!!pending} onClick={() => setGoal(text)}>{text}</Button>)}</div>}
-      {pending === "quick" && <p className="wf-quick-status" role="status"><span className="wf-pulse" aria-hidden="true" />{modelReady ? ui("AI 正在从你的学习库里挑选相关主题、排好顺序…") : ui("正在按名称匹配学习库里的主题…")}</p>}
+      {pending === "quick" && <LoadingState className="wf-quick-status" label={modelReady ? ui("AI 正在从你的学习库里挑选相关主题、排好顺序…") : ui("正在按名称匹配学习库里的主题…")} />}
       {modelReady && <label className="wf-quick-option"><input type="checkbox" checked={autoSkeleton} disabled={!!pending} onChange={(e) => toggleSkeleton(e.target.checked)} />{ui("没有现成的知识骨架时，在后台按本次范围生成一份")}<span className="muted">{ui("不用等它，学习照常开始")}</span></label>}
     </form>
     {error && <ErrorState error={error} />}

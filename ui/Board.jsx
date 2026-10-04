@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
-import { Button, EmptyState, Icon, IconButton, InlineMessage, Menu, PageHeader, useToast } from "./components/index.js";
+import { Button, EmptyState, Icon, IconButton, InlineMessage, LoadingState, Menu, PageHeader, useToast } from "./components/index.js";
 import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
 import { createBoardStore } from "./board/store.js";
 import BoardCard from "./board/Card.jsx";
@@ -289,7 +289,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
       </>} />
     {message && <InlineMessage tone={board?.readOnly ? "error" : conflict ? "warning" : "error"} boxed onDismiss={board?.readOnly ? undefined : () => { setOriginError(""); clearError?.(); }}>{message}</InlineMessage>}
     {!archive && dailyPlan}
-    {!board && <p className="muted board-loading" role="status">{ui("正在读取待办…")}</p>}
+    {!board && <LoadingState className="board-loading" label={ui("正在读取待办…")} />}
     {board && (archive
       ? <ArchiveList board={board} readOnly={readOnly} library={library} onBack={() => setArchive(false)}
         onRestore={async (card) => { if (await run("board.card.restore", { id: card.id })) say(uiFormat("已恢复：{0}", [card.title])); }}

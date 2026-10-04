@@ -9,7 +9,7 @@ import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import { designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { Badge, Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
+import { Badge, Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, LoadingState, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 import { useStudy } from "./study-context.jsx";
 
@@ -306,7 +306,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
             onChange={(e) => { setStale(false); setQuery(e.target.value); }}
           />
           {!topics ? (
-            <p className="muted small">{ui("正在读取主题…")}</p>
+            <LoadingState label={ui("正在读取主题…")} />
           ) : loadFailed ? (
             <p className="muted small">{ui("主题暂时读不出来，点上面的「重试」再试一次。")}</p>
           ) : !(grouped ? groupRows.length : shown.length) ? (

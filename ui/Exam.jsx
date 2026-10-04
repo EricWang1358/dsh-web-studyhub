@@ -11,7 +11,7 @@ import { readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
 import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 import caseCss from './case-study.css';
-import { Badge, Button, ErrorState, PageHeader, Panel } from './components/index.js';
+import { Badge, Button, ErrorState, LoadingState, PageHeader, Panel } from './components/index.js';
 import { ExamHeader, RecentExams } from './ExamShell.jsx';
 import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from './exam-format.js';
 import { formatClock } from './format.js';
@@ -292,7 +292,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       )}
 
       {phase === "running" && !run?.card && (
-        <p className="muted">{ui("正在载入试卷…")}</p>
+        <LoadingState label={ui("正在载入试卷…")} />
       )}
 
       {phase === "report" && report && <WrittenReport report={report} busy={busy} pathNote={pathNote} error={err}

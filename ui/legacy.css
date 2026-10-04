@@ -29,10 +29,7 @@
       color: var(--text-dim);
       margin: var(--space-5) 0 35px;
     }
-    .loading {
-      padding: 80px;
-      color: var(--text-dim);
-    }
+    .app-loading { padding: 80px; }
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, IconButton, Panel, ProgressBar } from './components/index.js';
+import { Button, IconButton, LoadingState, Panel, ProgressBar } from './components/index.js';
 import css from './token-usage.css';
 import { totalTokens } from '../lib/token-usage.js';
 import {
@@ -159,7 +159,7 @@ export function ModelUsageView({ state = { status: 'idle' }, days = 30, onDays, 
   </div>;
   return <Panel className="dash-chart model-usage" data-model-usage title={ui('模型用量')}
     description={uiFormat('近 {0} 天，各功能的 token 用量', [days])} actions={toggle}>
-    {state.status === 'loading' && <p className="muted">{ui('正在统计模型用量…')}</p>}
+    {state.status === 'loading' && <LoadingState label={ui('正在统计模型用量…')} />}
     {summary && !features.length && <p className="muted">{ui('还没有模型用量记录。出题、陪学或生成讲解之后，这里会显示 token 用量。')}</p>}
     {summary && features.length > 0 && <>
       <ul className="model-usage__list">

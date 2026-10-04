@@ -6,6 +6,7 @@ import { DisclosureToggle, foldLabel } from './components/DisclosureToggle.jsx';
 import { Disclosure } from './components/Panel.jsx';
 import { Field, NumberInput } from './components/Field.jsx';
 import { Hint } from './components/Hint.jsx';
+import { LoadingState } from './components/Loading.jsx';
 import Menu from './components/Menu.jsx';
 import { ProgressBar } from './components/Progress.jsx';
 import { InlineMessage } from './components/Feedback.jsx';
@@ -236,7 +237,7 @@ export default function DailyPlan({ plan, onBoard, modelReady = true, openModelS
         <ProgressBar className="daily-plan__meter" size="sm" value={Math.min(budget, spent)} max={budget} label={ui('今日学习进度')} />
       </div>}
       {plan.error && <InlineMessage tone="error" boxed action={{ label: ui('重试'), onClick: plan.refresh, disabled: !!plan.busy }}>{plan.error}</InlineMessage>}
-      {!state ? !plan.error && <p role="status">{ui('正在读取学习安排…')}</p> : <>
+      {!state ? !plan.error && <LoadingState label={ui('正在读取学习安排…')} /> : <>
         {proposal ? <Proposal proposal={proposal} plan={plan} primary={primaryAction} onSettings={openModelSettings} onAdjust={modelReady ? () => choose('adjust') : undefined}
           /> : next ? <NextAction task={next} plan={plan} primary={primaryAction} /> : <EmptyPlan plan={plan} modelReady={modelReady} primary={primaryAction} />}
         {warnings.map(warning => <InlineMessage key={warning} tone="warning">{warning}</InlineMessage>)}

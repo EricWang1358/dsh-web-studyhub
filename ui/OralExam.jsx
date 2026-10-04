@@ -5,7 +5,7 @@ import css from "./oral-exam.css";
 import { useInjectCss } from "./shared.js";
 import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
-import { Badge, Button, ErrorState, Hint, Icon, PageHeader, Panel, StackedBar } from './components/index.js';
+import { Badge, Button, ErrorState, Hint, Icon, LoadingState, PageHeader, Panel, StackedBar } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { ExamSetupCard, CountField } from './ExamShell.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -113,7 +113,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
   const last = run && run.index >= run.total - 1;
   return <section className="page exam oral-exam">
     {!loading && (run || report) ? heading : header || heading}
-    {loading && <p className="muted">{ui("正在恢复口头模拟…")}</p>}
+    {loading && <LoadingState label={ui("正在恢复口头模拟…")} />}
     {!loading && !run && !report && <>
       <OralSetup data={data} count={count} onCount={setCount} onStart={start} busy={busy} canStart={availableDecks.length > 0}
         scopeNote={scopeNote} onSetupModel={onSetupModel} />
