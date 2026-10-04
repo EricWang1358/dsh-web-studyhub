@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
 import SourcePicker from './SourcePicker.jsx';
-import { Button, Disclosure } from './components/index.js';
+import { Button, Disclosure, InlineMessage } from './components/index.js';
 import { referenceSelection } from './reference-questions.js';
 import { QUESTION_REFERENCE_LIMITS, QUESTION_REFERENCE_HARD_LIMITS, QUESTION_REFERENCE_FORMAT_DEFAULT } from '../lib/question-references.js';
 
@@ -40,11 +40,11 @@ export default function ReferenceQuestions({ sources, selected = [], evidenceIds
     {selected.length > 0 && <Button variant="link" disabled={busy} onClick={() => onChange([])}>{ui('清空样题选择')}</Button>}
     <small className="muted">{ui('TXT / Markdown 可直接上传；PDF / Word 沿用资料解析。图片请先转成文本。导入后保存在资料库，可再次选择。')}</small>
     <p role="status" className="muted">{uiFormat('已选择 {0} 个样题片段 · {1} 字符', [state.ids.length, state.chars])}</p>
-    {state.reason && <p role="alert" className="warning">{state.reason === 'limits'
+    {state.reason && <InlineMessage tone="error">{state.reason === 'limits'
       ? uiFormat('请填写正整数上限：片段为 1–{0}，字符为 1–{1}。', [QUESTION_REFERENCE_HARD_LIMITS.sources, QUESTION_REFERENCE_HARD_LIMITS.chars.toLocaleString('en-US')])
       : ui(state.reason === 'format' ? '请选择有效的样题格式贴合度。' : state.reason === 'size'
       ? '参考样题超过当前设置的片段或字符上限。请取消部分选择，或在允许范围内提高上限；不会自动截断样题。'
       : state.reason === 'overlap' ? '同一资料不能同时作为教材依据和参考样题。请取消其中一处选择。'
-        : '部分参考样题已被删除。请清空样题选择后重新选择。')}</p>}
+        : '部分参考样题已被删除。请清空样题选择后重新选择。')}</InlineMessage>}
   </Disclosure>;
 }

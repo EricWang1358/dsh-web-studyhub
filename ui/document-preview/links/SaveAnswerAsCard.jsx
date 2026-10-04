@@ -8,7 +8,7 @@ export function QaSavedLine({ result, onOpenCard }) {
     <span>{result.status === 'duplicate' ? ui('这道题已经存过') : ui('已存为闪卡')}</span>
     {result.cardId && onOpenCard && <>
       {' · '}
-      <button type="button" className="study-qa-saved__open" onClick={() => onOpenCard({ deckId: result.deckId, cardId: result.cardId })}>{ui('打开这道题')}</button>
+      <Button variant="link" size="sm" className="study-qa-saved__open" onClick={() => onOpenCard({ deckId: result.deckId, cardId: result.cardId })}>{ui('打开这道题')}</Button>
     </>}
   </p>;
 }

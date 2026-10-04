@@ -391,7 +391,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
                 : paged ? sections.map((section, index) => <section key={section.id} className="study-document-page reader-section reader-section--page"
                   data-outline-id={section.id} data-study-page={section.page} data-study-source={section.sourceId}>
                   <span className="reader-section__label">{labelOf(section)}</span>
-                  {canPeek && <button type="button" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</button>}
+                  {canPeek && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</Button>}
                   <QuotedText format={format} text={pageText(section, index)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} />
                 </section>)
                   : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} />}

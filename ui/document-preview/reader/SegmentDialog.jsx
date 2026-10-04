@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ui, uiFormat, uiLocale } from '../../i18n.js';
-import { Button, Dialog } from '../../components/index.js';
+import { Button, Dialog, InlineMessage } from '../../components/index.js';
 import { chapterLabel } from '../../SourcePicker.jsx';
 
 /* Using a kept outline as the document's chapters (materials.outline.segment): which level defines a chapter, what each
@@ -68,7 +68,7 @@ export default function SegmentDialog({ call, args, onClose, onApplied, onRestor
       <Button variant="primary" busy={busy} disabled={busy || !preview || !preview.levels[level]?.count} onClick={() => apply(level)}>{ui('用这个分段')}</Button>
     </>}>
     {state.status === 'loading' && <p role="status">{ui('正在计算每一级的章节…')}</p>}
-    {state.status === 'error' && <p className="is-warning" role="alert">{uiFormat('没能完成：{0}', [state.message])}</p>}
+    {state.status === 'error' && <InlineMessage tone="error">{uiFormat('没能完成：{0}', [state.message])}</InlineMessage>}
     {preview && <SegmentPreview preview={preview} level={level} onLevel={setLevel} />}
   </Dialog>;
 }
