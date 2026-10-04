@@ -30,7 +30,7 @@ export default function ModelErrorNote({ error, onSettings, onRetry, context, ha
   return (
     <InlineMessage tone="error" title={info.title} action={action} className={className} data-context={context} {...rest}>
       {info.hint}
-      {info.detail && known && <Disclosure summary={ui('技术详情')} className="model-note__detail"><code className="model-note__raw">{info.detail}</code></Disclosure>}
+      {info.detail && <Disclosure summary={ui('技术详情')} className="model-note__detail"><code className="model-note__raw">{info.detail}</code></Disclosure>}
     </InlineMessage>
   );
 }

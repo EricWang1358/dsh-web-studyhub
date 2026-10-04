@@ -55,7 +55,9 @@ export { LibraryChip, libraryFolderName } from './app/AppTopbar.jsx';
 
 const LANG_ATTR = { en: 'en', zh: 'zh-CN' };
 
-export default function App({ call: transportCall, host = {} }) {
+/** One empty host for previews and tests, so the services and model-settings contexts keep a stable value across renders. */
+const NO_HOST = Object.freeze({});
+export default function App({ call: transportCall, host = NO_HOST }) {
   const language = useUiLanguage();
   useInjectCss(localeCss, 'study-language');
   useInjectCss(sideGroupsCss, 'study-side-groups');

@@ -125,11 +125,15 @@ export default function Settings({
     if (!focusSection) return undefined;
     const linked = categoryForAnchor(focusSection);
     if (linked && available.some((item) => item.id === linked)) setActive(linked);
-    // The pane for the linked category renders on the next frame: scroll to the section then.
-    const frame = requestAnimationFrame(() => {
-      document.querySelector(`[data-tour="${focusSection}"]`)?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    // The linked pane is lazy: wait (up to ~2 s of frames) until its section exists, then scroll and clear the request.
+    let frame = 0, tries = 0;
+    const seek = () => {
+      const anchor = document.querySelector(`[data-tour="${focusSection}"]`);
+      if (!anchor && tries++ < 120) { frame = requestAnimationFrame(seek); return; }
+      anchor?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
       onFocused?.();
-    });
+    };
+    frame = requestAnimationFrame(seek);
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);

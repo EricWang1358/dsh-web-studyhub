@@ -94,7 +94,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       if (origin.modal) {
         const source = await call('source.get', { id: origin.modal.sourceId });
         if (!live()) return;
-        setModal({ type: 'source', source: refs.dataRef.current.sources.find((item) => item.id === source.id) || source, quote: origin.modal.quote });
+        setModal({ type: 'source', source: refs.dataRef.current?.sources?.find((item) => item.id === source.id) || source, quote: origin.modal.quote });
       } else setModal(null);
       setContextTrail((previous) => previous.slice(0, -1));
       setFocusRequest({ element: origin.invoker });
@@ -126,7 +126,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
 
   // Letters about a transcript or a conversion open the sources they produced; a letter about several opens the list.
   const openAudioSources = useCallback((sourceIds) => {
-    const available = sourceIds.map((id) => refs.dataRef.current.sources.find((source) => source.id === id)).filter(Boolean);
+    const available = sourceIds.map((id) => (refs.dataRef.current?.sources || []).find((source) => source.id === id)).filter(Boolean);
     if (!available.length) { notify(ui('逐字稿资料已被删除。')); return; }
     setModal(available.length === 1 ? { type: 'source', source: available[0] } : { type: 'sources', sourceIds });
   }, [notify, refs, setModal]);
