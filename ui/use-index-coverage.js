@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { usePolling } from "./use-polling.js";
 
 /* The search index coverage of the library (retrieval.index.coverage), read once when a page that shows material opens, and again every few seconds
    while a build is running so the rows follow it. `null` until known or when the host cannot say (no search component): the rows then say nothing. */
@@ -13,10 +14,6 @@ export default function useIndexCoverage(call, { enabled = true } = {}) {
   }, [call]);
   useEffect(() => { if (enabled) refresh(); }, [enabled, refresh]);
   const building = !!coverage?.building;
-  useEffect(() => {
-    if (!enabled || !building) return undefined;
-    const timer = setInterval(refresh, POLL_MS);
-    return () => clearInterval(timer);
-  }, [enabled, building, refresh]);
+  usePolling(refresh, { intervalMs: POLL_MS, enabled: enabled && building });
   return [coverage, refresh];
 }

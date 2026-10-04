@@ -7,9 +7,9 @@ import { backoffDelay } from './poll-schedule.js';
    nothing moves (pass backoffDelay from poll-schedule.js for the standard table). */
 
 const browserEnv = () => ({
-  hidden: () => typeof document !== 'undefined' && document.hidden === true,
+  hidden: () => typeof document !== 'undefined' && document?.hidden === true,
   onVisibility(callback) {
-    if (typeof document === 'undefined') return () => {};
+    if (typeof document?.addEventListener !== 'function') return () => {};
     document.addEventListener('visibilitychange', callback);
     return () => document.removeEventListener('visibilitychange', callback);
   },
