@@ -20,15 +20,6 @@
 .exam .page-heading {
   margin-bottom: 4px;
 }
-.exam-error {
-  margin: 0;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bad) 12%, transparent);
-  color: var(--bad);
-  font-size: 15px;
-}
 
 /* ── Dashboard ───────────────────────────────────────────────────────── */
 /* One statement (the streak) beside one picture (half a year of stamps);

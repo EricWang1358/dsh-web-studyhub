@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
+import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
@@ -442,11 +443,7 @@ export default function WrongBook({ call, data, busy, onPractice, onPracticePrep
 
   // While variants are being written, watch the cheap status call until they land.
   const preparing = !!coach?.preparing;
-  useEffect(() => {
-    if (!preparing) return;
-    const timer = setInterval(() => call("coach.status").then(setCoachLive).catch(() => {}), POLL_MS);
-    return () => clearInterval(timer);
-  }, [preparing, call]);
+  usePolling(() => call("coach.status").then(setCoachLive).catch(() => {}), { intervalMs: POLL_MS, enabled: preparing });
 
   const generate = useCallback(async (cards, { consent } = {}) => {
     const res = await call("coach.variants", { cards, ...(consent ? { consent: true } : {}) });

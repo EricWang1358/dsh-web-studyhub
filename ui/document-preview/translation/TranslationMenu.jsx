@@ -4,6 +4,7 @@ import { Button, Popover, SegmentedControl } from '../../components/index.js';
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
 import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
+import { isCancellable } from '../../../lib/job-status.js';
 import Glyph from './Glyph.jsx';
 import { DISPLAY_MODES, jobActive, jobClock, jobFraction } from './model.js';
 
@@ -86,7 +87,7 @@ export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss })
       <strong className="tr-job__title">{label ? `${headline} · ${label}` : headline}</strong>
       <span className="tr-job__counts">{counts}{clock && <> · {active ? uiFormat('已用 {0}', [clock]) : uiFormat('用时 {0}', [clock])}</>}</span>
       <span className="tr-job__actions">
-        {active && ['queued', 'running'].includes(job.status) && <Button size="sm" variant="quiet" onClick={onStop}>{ui('停止')}</Button>}
+        {isCancellable(job) && <Button size="sm" variant="quiet" onClick={onStop}>{ui('停止')}</Button>}
         {!active && <Button size="sm" variant="quiet" onClick={onDismiss}>{ui('知道了')}</Button>}
       </span>
     </div>

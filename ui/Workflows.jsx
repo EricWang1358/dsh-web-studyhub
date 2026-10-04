@@ -3,6 +3,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
 import { Button, InlineConfirm, PageHeader } from "./components/index.js";
 import { useInjectCss } from "./shared.js";
+import { usePolling } from "./use-polling.js";
+import { QUESTION_COUNT } from "../lib/limits.js";
 import css from "./workflows.css";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -137,7 +139,7 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
             <label>{ui("步骤名称")}<input value={step.title} maxLength={60} onChange={(e) => changeStep(step.id, { title: e.target.value })} /></label>
             <label>{ui("学习要求")}<textarea rows={3} value={step.instructions} maxLength={2000} onChange={(e) => changeStep(step.id, { instructions: e.target.value })} /></label>
             <label>{step.kind === "recall" ? ui("复述提示（不要放参考答案）") : ui("预置材料（可选）")}<textarea rows={4} maxLength={20000} value={step.content} placeholder={ui("支持 Markdown；也可在学习时请主对话补充材料。")} onChange={(e) => changeStep(step.id, { content: e.target.value })} /></label>
-            {step.kind === "practice" && <label>{ui("本步练习题数")}<input type="number" min={1} max={50} value={step.count} onChange={(e) => changeStep(step.id, { count: Number(e.target.value) })} /></label>}
+            {step.kind === "practice" && <label>{ui("本步练习题数")}<input type="number" min={QUESTION_COUNT.min} max={QUESTION_COUNT.max} value={step.count} onChange={(e) => changeStep(step.id, { count: Number(e.target.value) })} /></label>}
             <div className="wf-branch-fields"><BranchSelect label={ui("完成或跳过后")} value={step.next} onChange={(next) => changeStep(step.id, { next })} steps={draft.steps} /><BranchSelect label={ui("还需巩固时")} value={step.retry} onChange={(retry) => changeStep(step.id, { retry })} steps={draft.steps} /></div>
           </fieldset>
           <button type="button" className="wf-danger" disabled={!!pending || draft.steps.length <= 1} onClick={askConfirm(step.id)}>{ui("移除这一步")}</button>
@@ -248,13 +250,7 @@ export default function Workflows({ call, askInChat, data, openSession, openRun,
     if (screen.kind !== "portal") void refresh();
     return invalidateReads;
   }, [refresh, data?.revision, screen.kind, invalidateReads, language]);
-  useEffect(() => {
-    if (screen.kind === "portal") return;
-    const sync = () => { if (document.visibilityState !== "hidden") void refresh({ automatic: true }); };
-    const timer = setInterval(sync, 10000);
-    document.addEventListener("visibilitychange", sync);
-    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", sync); };
-  }, [refresh, screen.kind]);
+  usePolling(() => refresh({ automatic: true }), { intervalMs: 10000, enabled: screen.kind !== "portal" });
   const back = () => { setScreen({ kind: "list" }); setConfirm(""); void refresh(); };
   async function remove(type, item) {
     if (lock.current) return;

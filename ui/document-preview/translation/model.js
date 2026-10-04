@@ -6,6 +6,7 @@
    it may disagree with it), error (the last attempt did not work). The translation block under it can be shown, collapsed
    (only its bar) or, in 隐藏译文, hidden unless the learner asked for this one. */
 import { paragraphKey } from '../../../lib/passage-translation.js';
+import { isActiveJob } from '../../../lib/job-status.js';
 
 /** 逐段对照 | 左右分栏 | 仅译文 | 隐藏译文. */
 export const DISPLAY_MODES = Object.freeze(['pairs', 'side', 'only', 'hidden']);
@@ -125,8 +126,7 @@ export function failureKind(code) {
 
 /* ---------- the job ---------- */
 
-const ACTIVE = new Set(['queued', 'running', 'cancelling']);
-export const jobActive = job => ACTIVE.has(job?.status);
+export const jobActive = isActiveJob;
 
 /** "1:05": how long the job has run, frozen at its end. */
 export function jobClock(job, now = Date.now()) {

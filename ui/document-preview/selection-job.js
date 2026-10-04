@@ -6,9 +6,9 @@ import { ui, uiFormat } from '../i18n.js';
 import { jobCode, describeFailure, stageCodeLabel } from '../generation-status.js';
 import { shortfall } from '../draft-shortfall.js';
 import { passageKey } from '../../lib/selection-evidence.js';
+import { isActiveJob } from '../../lib/job-status.js';
 
-const ACTIVE = new Set(['queued', 'running', 'cancelling']);
-export const isActive = (job) => ACTIVE.has(job?.status);
+export const isActive = isActiveJob;
 
 const savedOf = (job) => job.savedCount ?? job.publication?.added ?? 0;
 const requestedOf = (job) => job.requestedTotal ?? job.count ?? 0;

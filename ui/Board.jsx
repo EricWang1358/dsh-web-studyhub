@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useInjectCss } from "./shared.js";
+import { usePolling } from "./use-polling.js";
 import { Button, EmptyState, IconButton, InlineMessage, PageHeader, ToastRegion } from "./components/index.js";
 import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
 import { createBoardStore } from "./board/store.js";
@@ -24,9 +25,9 @@ export function useBoard(call, visible) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   useEffect(() => {
     store.refresh();
-    const timer = setInterval(() => { if (!document.hidden) store.refresh(); }, visible ? 5000 : 30000);
-    return () => { clearInterval(timer); store.invalidate(); };
+    return () => store.invalidate();
   }, [store, visible]);
+  usePolling(() => store.refresh(), { intervalMs: visible ? 5000 : 30000 });
   return useMemo(() => ({ ...snapshot, mutate: store.mutate, refresh: store.refresh, clearError: store.clearError }), [snapshot, store]);
 }
 

@@ -6,6 +6,7 @@ import { legacyStageText, stepLabel } from "./generation-status.js";
 import { JobUsage } from "./TokenUsage.jsx";
 import { formatExactTokens, totalTokens } from "../lib/token-usage.js";
 import { retrievalSummary } from "./large-document-advice.js";
+import { isActiveJob } from "../lib/job-status.js";
 
 /** Kept for older callers: generation prose from an older backend, in Chinese. */
 export const generationStage = legacyStageText;
@@ -18,7 +19,7 @@ const seconds = (from, to) => Math.max(0, Math.round((to - Date.parse(from)) / 1
    stays behind 技术详情 for whoever wants to look (P29). */
 export default function GenerationTrace({ job, openAgent }) {
   const steps = job.steps || [];
-  const active = ["running", "queued", "cancelling"].includes(job.status);
+  const active = isActiveJob(job);
   // The waited-seconds readout only exists while the trace is open: a collapsed trace never re-renders on a clock.
   const [open, setOpen] = useState(false);
   const now = useNow(1000, { enabled: active && open });

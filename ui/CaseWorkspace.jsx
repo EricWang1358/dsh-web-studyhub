@@ -8,7 +8,8 @@ import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
-import { Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, SetupRequired } from "./components/index.js";
+import { Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, SetupRequired, Spinner, useNow } from "./components/index.js";
+import { usePolling } from "./use-polling.js";
 import SubmitBlanksDialog from "./SubmitBlanksDialog.jsx";
 import { ExamSetupCard } from "./ExamShell.jsx";
 import {
@@ -185,7 +186,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, busy, 
           {/* What marking this answer is expected to use: the case, the rubric and the answer as typed (WP27). */}
           <TokenEstimate call={call} enabled={!!call && !!draft.trim() && !rubric}
             request={{ feature: "grade", deckId: run.deckId, cardId: card.id, answerChars: draft.length }} />
-          {grading && <p className="assist-status" role="status"><i className="assist-spin" aria-hidden="true" />
+          {grading && <p className="assist-status" role="status"><Spinner size="sm" />
             {ui("正在按评分标准逐项批改：完成后结果显示在这里，也会进信箱。可以先去做别的题。")}</p>}
           {task?.status === "failed" && <InlineMessage>{uiFormat("批改没有完成：{0}。可以重新提交。", [task.message || ui("任务失败")])}</InlineMessage>}
         </>
@@ -221,7 +222,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
   const [activeId, setActiveId] = useState(null), [view, setView] = useState("questions");
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [confirming, setConfirming] = useState(false);
   const [gradingErrors, setGradingErrors] = useState([]);
-  const [now, setNow] = useState(() => Date.now());
+  const now = useNow(1000, { enabled: phase === "running" });
   const writes = useRef(createWriteQueue()), savedHighlights = useRef(""), lastTick = useRef(Date.now()), submitting = useRef(false);
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
@@ -275,23 +276,21 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
 
   /* the clock: phases, time per question, transcription time */
   const currentPhase = phase === "running" && session ? paperPhase(session, now) : phase;
+  useEffect(() => { lastTick.current = Date.now(); }, [phase]);
+  // The seconds that passed since the last tick belong to the question being written or to transcription.
   useEffect(() => {
     if (phase !== "running") return;
-    lastTick.current = Date.now();
-    const timer = setInterval(() => {
-      const at = Date.now(), delta = at - lastTick.current;
-      lastTick.current = at;
-      setNow(at);
-      setSession((current) => {
-        if (!current) return current;
-        const step = paperPhase(current, at);
-        if (step === "writing") return { ...current, perQuestion: tickQuestion(current.perQuestion, activeRef.current, delta) };
-        if (step === "transcribe") return { ...current, transcribeMs: (current.transcribeMs || 0) + Math.min(delta, 5000) };
-        return current;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [phase]);
+    const delta = now - lastTick.current;
+    if (delta <= 0) return;
+    lastTick.current = now;
+    setSession((current) => {
+      if (!current) return current;
+      const step = paperPhase(current, now);
+      if (step === "writing") return { ...current, perQuestion: tickQuestion(current.perQuestion, activeRef.current, delta) };
+      if (step === "transcribe") return { ...current, transcribeMs: (current.transcribeMs || 0) + Math.min(delta, 5000) };
+      return current;
+    });
+  }, [now, phase]);
   useEffect(() => { if (run && phase === "running") writeSession(data?.root, run.id, { answers, highlights, session }); }, [answers, highlights, session]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onLocation?.({ kind: "exam", runId: run?.id }); }, [run?.id, onLocation]);
 
@@ -367,11 +366,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
   // A typed paper is submitted when its time is up; paper practice moves on to transcription instead.
   useEffect(() => { if (currentPhase === "over" && phase === "running") void submit(); }, [currentPhase]); // eslint-disable-line react-hooks/exhaustive-deps
   // Results arrive in the background; the report follows them.
-  useEffect(() => {
-    if (phase !== "report" || !report?.case?.pending) return;
-    const timer = setInterval(() => { call("exam.report", { runId: report.runId }).then(setReport).catch(() => {}); }, 4000);
-    return () => clearInterval(timer);
-  }, [phase, report?.case?.pending, report?.runId, call]);
+  usePolling(() => call("exam.report", { runId: report.runId }).then(setReport).catch(() => {}), { intervalMs: 4000, enabled: phase === "report" && !!report?.case?.pending });
 
   async function drills(criteria) {
     setBusy(true); setError("");

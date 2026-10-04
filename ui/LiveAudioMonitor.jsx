@@ -1,8 +1,8 @@
-import React, { useState, useSyncExternalStore } from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { audioInputStatus } from './live-audio-health.js';
 import { ui, uiFormat } from './i18n.js';
 import { formatElapsed } from './format.js';
-import { usePolling } from './use-polling.js';
+import { useNow } from './components/index.js';
 
 /**
  * Input level and upload health. `compact` is the recording view: one slim line
@@ -11,8 +11,7 @@ import { usePolling } from './use-polling.js';
  */
 export default function LiveAudioMonitor({ health, visible, recording, compact = false }) {
   const state = useSyncExternalStore(health.subscribe, health.getSnapshot, health.getSnapshot);
-  const [now, setNow] = useState(Date.now);
-  usePolling(() => setNow(Date.now()), { intervalMs: 500, enabled: visible && state.phase === 'running' });
+  const now = useNow(500, { enabled: visible && state.phase === 'running' });
   if (state.phase === 'idle' || !visible) return null;
   const current = Math.max(now, state.lastFrameAt ?? state.startedAt);
   const status = audioInputStatus(state, current);

@@ -5,7 +5,7 @@ import css from "./oral-exam.css";
 import { useInjectCss } from "./shared.js";
 import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
-import { Button, Icon, InlineMessage } from './components/index.js';
+import { Button, ErrorState, Icon, InlineMessage } from './components/index.js';
 import { ExamSetupCard, CountField } from './ExamShell.jsx';
 import { modelReadiness } from './generation-status.js';
 
@@ -195,7 +195,7 @@ export default function OralExam({ call, data, onExit, onStartRun, initialRunId,
         </article>)}
       </details>
     </div>}
-    {error && <p className="exam-error" role="alert">{error}</p>}
+    {error && <ErrorState error={error} />}
   </section>;
 }
 
