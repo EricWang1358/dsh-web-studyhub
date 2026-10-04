@@ -63,5 +63,8 @@
   "自己拼一条": "Build my own",
   "添加选项（{0}/6）": "Add option ({0}/6)",
   "添加原文引用": "Add source citation",
-  "添加闪卡": "Add flashcard"
+  "添加闪卡": "Add flashcard",
+  "第 {0}/{1} 步 {2}": "Step {0}/{1} {2}",
+  "{0} 达标 {1}/{2}": "{0} met {1}/{2}",
+  "{0} · {1} 道薄弱题": "{0} · {1} weak questions"
 }

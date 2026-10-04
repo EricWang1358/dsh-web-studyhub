@@ -60,7 +60,7 @@ export default function Generate({
 }) {
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(generateTabsCss, "study-generate-tabs");
-  const { notify: setNotice } = useStudy();
+  const { notify } = useStudy();
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
@@ -137,7 +137,7 @@ export default function Generate({
     act("generate", generationRequest(gen, { course: generationCourse, sourceIds: selectedSources }), (job) => {
       // Confirm with the deck's name, start the next deck from a clean form (P27),
       // and land where the progress card is (P26).
-      setNotice(generationStartedNotice(job, gen, materials));
+      notify(generationStartedNotice(job, gen, materials));
       setGen(current => freshGeneration(current, data.settings?.generation));
       if (onStarted) onStarted(job);
       else setPage("library");
@@ -154,9 +154,9 @@ export default function Generate({
         items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
       <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
       {current === "json" ? (
-        <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={setNotice} />
+        <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={notify} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={setNotice} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={notify} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
@@ -193,7 +193,7 @@ export default function Generate({
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
               <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal} call={call} askInChat={askInChat}
-                indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} setNotice={setNotice} onSettings={openSettings}
+                indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} setNotice={notify} onSettings={openSettings}
                 onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
                 onQueued={() => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); }} />
             </fieldset>

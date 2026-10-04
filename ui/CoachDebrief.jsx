@@ -120,7 +120,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
             {LEVELS.map(([id, name]) => (
               <span key={id}>
                 <i className={"coach-levels-dot " + id} style={{ background: `var(--${id === "recall" ? "decor-faint" : id === "concept" ? "info" : "ok"})` }} />
-                {ui(name)}{ui("达标 ")}{m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0}/{m.levels?.[id]?.n || 0}
+                {uiFormat("{0} 达标 {1}/{2}", [ui(name), m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0, m.levels?.[id]?.n || 0])}
               </span>
             ))}
           </div>
