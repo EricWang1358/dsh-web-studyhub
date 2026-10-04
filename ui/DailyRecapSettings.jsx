@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiLocale } from './i18n.js';
-import { recapTimeZone } from './DailyRecap.jsx';
+import { recapTimeZone } from './useDailyRecap.js';
 import { Button } from './components/Button.jsx';
 
 const valuesFor = saved => ({ automatic: saved?.automatic === true, tone: saved?.tone === 'professional' ? 'professional' : 'friendly', timeZone: recapTimeZone(saved) });

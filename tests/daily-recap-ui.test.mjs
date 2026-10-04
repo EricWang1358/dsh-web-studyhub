@@ -42,7 +42,7 @@ const find = (tree, predicate) => {
   for (const child of React.Children.toArray(tree.props?.children)) { const match = find(child, predicate); if (match) return match; }
   return null;
 };
-const button = (editor, text) => find(editor.render(), node => node.type === 'button' && node.props.children === text);
+const button = (editor, text) => find(editor.render(), node => node.props?.onClick && node.props.children === text);
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => { let resolve; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; };
 const group = extra => ({ day: '2026-10-04', course: 'Databases', courseId: 'db', answeredCount: 10, wrongCount: 0, eligible: true, remaining: 0, ...extra });
@@ -54,7 +54,7 @@ test('fewer than ten distinct answers explains the remaining count and cannot ge
   editor.render(); editor.effects(); await settle();
   const html = renderToStaticMarkup(editor.render());
   assert.match(html, /再做 1 道不同题目/);
-  assert.equal(button(editor, '生成今日错题讲解合集').props.disabled, true);
+  assert.equal(button(editor, '生成今日合集').props.disabled, true);
 });
 
 test('submitted answers awaiting assessment are counted without claiming they are all correct', async () => {
@@ -63,7 +63,7 @@ test('submitted answers awaiting assessment are counted without claiming they ar
   const html = renderToStaticMarkup(editor.render());
   assert.match(html, /10 题尚待批改/);
   assert.doesNotMatch(html, /今天没有错题/);
-  assert.equal(button(editor, '生成今日错题讲解合集').props.disabled, false);
+  assert.equal(button(editor, '生成今日合集').props.disabled, false);
 });
 
 test('ten answers with no mistakes still permits a summary and duplicate clicks queue only one job', async () => {
@@ -73,9 +73,9 @@ test('ten answers with no mistakes still permits a summary and duplicate clicks 
     return action === 'note.daily.status' ? status([group()]) : pending.promise;
   } });
   editor.render(); editor.effects(); await settle();
-  assert.equal(button(editor, '生成今日错题讲解合集').props.disabled, false);
-  const generating = button(editor, '生成今日错题讲解合集').props.onClick();
-  await button(editor, '生成今日错题讲解合集').props.onClick();
+  assert.equal(button(editor, '生成今日合集').props.disabled, false);
+  const generating = button(editor, '生成今日合集').props.onClick();
+  await button(editor, '生成今日合集').props.onClick();
   assert.equal(requests.filter(item => item.action === 'note.daily.generate').length, 1);
   assert.equal(requests.at(-1).args.course, 'db');
   assert.equal(requests.at(-1).args.tone, 'friendly');
@@ -112,7 +112,7 @@ test('a protected manual edit stays intact unless replacement is explicitly chos
     return action === 'note.daily.status' ? status([group()]) : { id: 'recap-db', status: 'protected' };
   } });
   editor.render(); editor.effects(); await settle();
-  await button(editor, '生成今日错题讲解合集').props.onClick();
+  await button(editor, '生成今日合集').props.onClick();
   assert.match(renderToStaticMarkup(editor.render()), /手动修改/);
   assert.equal(requests.filter(item => item.action === 'note.daily.generate').length, 1);
   assert.equal(requests.at(-1).args.force, undefined);
@@ -145,7 +145,7 @@ test('a notes-list generation refreshes while running, then offers its completed
     return status([group(++reads === 1 ? {} : { noteId: 'recap-db', hasContent: true, generation: { status: 'done' } })]);
   }, onOpenNote() {} });
   editor.render(); editor.effects(); await settle();
-  await button(editor, '生成今日错题讲解合集').props.onClick();
+  await button(editor, '生成今日合集').props.onClick();
   assert.match(renderToStaticMarkup(editor.render()), /正在整理/);
   t.mock.timers.tick(1500); await settle();
   assert.ok(button(editor, '阅读今日合集'));
@@ -183,11 +183,84 @@ test('a round crossing midnight updates only the selected day for the course', a
     return action === 'note.daily.status' ? status([group(), group({ day: '2026-10-03' })]) : { id: 'today-recap', status: 'running' };
   } });
   editor.render(); editor.effects(); await settle();
-  await button(editor, '生成今日错题讲解合集').props.onClick();
+  await button(editor, '生成今日合集').props.onClick();
   assert.equal(requests.at(-1).args.day, '2026-10-04');
   const html = renderToStaticMarkup(editor.render());
   assert.equal((html.match(/正在整理今天的讲解/g) || []).length, 1);
   assert.match(html, /2026-10-03/);
+});
+
+test('a manually edited recap offers reading and explicit replacement without a misleading update action', async () => {
+  const editor = panel({ call: async () => status([group({ noteId: 'recap-db', hasContent: true, protected: true, stale: true })]), onOpenNote() {} });
+  editor.render(); editor.effects(); await settle();
+  assert.ok(button(editor, '阅读今日合集'));
+  assert.equal(button(editor, '更新今日合集'), null);
+  assert.ok(button(editor, '替换手动内容并重新整理'));
+});
+
+test('completed writing previews the saved summary while an update keeps the previous version readable', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let progress = { phase: 'explaining', completed: 1, total: 2 };
+  const editor = panel({ poll: true, call: async () => status([group({ noteId: 'recap-db', hasContent: true,
+    preview: '先辨清条件，再展开推理。', generation: { status: 'running', progress } })]), onOpenNote() {} });
+  editor.render(); editor.effects(); await settle();
+  assert.match(renderToStaticMarkup(editor.render()), /已整理 1\/2 组讲解/);
+  progress = { phase: 'organizing', completed: 2, total: 2 };
+  t.mock.timers.tick(3000); await settle();
+  const html = renderToStaticMarkup(editor.render());
+  assert.match(html, /先辨清条件，再展开推理/);
+  assert.match(html, /上一版/);
+  assert.match(html, /统一语言与结构/);
+  assert.ok(button(editor, '阅读今日合集'));
+});
+
+test('a transient status failure keeps polling a known running recap until completion', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let reads = 0;
+  const editor = panel({ poll: true, call: async () => {
+    reads++;
+    if (reads === 2) throw new Error('Temporary connection failure');
+    return status([group({ noteId: 'recap-db', hasContent: reads >= 3, generation: { status: reads >= 3 ? 'done' : 'running' } })]);
+  }, onOpenNote() {} });
+  editor.render(); editor.effects(); await settle();
+  t.mock.timers.tick(3000); await settle();
+  assert.match(renderToStaticMarkup(editor.render()), /Temporary connection failure/);
+  t.mock.timers.tick(5000); await settle();
+  assert.ok(button(editor, '阅读今日合集'));
+  assert.doesNotMatch(renderToStaticMarkup(editor.render()), /Temporary connection failure/);
+  editor.unmount();
+});
+
+test('a status read started before generation cannot erase the newly accepted job', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let reads = 0;
+  const oldRead = deferred(), groups = [group(), group({ course: 'Networks', courseId: 'net', generation: { status: 'running' } })];
+  const editor = panel({ poll: true, call: async action => {
+    if (action === 'note.daily.generate') return { id: 'recap-db', status: 'running' };
+    return ++reads === 1 ? status(groups) : oldRead.promise;
+  } });
+  editor.render(); editor.effects(); await settle();
+  t.mock.timers.tick(3000); await settle();
+  await button(editor, '生成今日合集').props.onClick();
+  oldRead.resolve(status(groups)); await settle();
+  assert.equal((renderToStaticMarkup(editor.render()).match(/正在整理今天的讲解/g) || []).length, 2);
+  editor.unmount();
+});
+
+test('the same course on two days keeps each manually chosen tone separate', async () => {
+  const requests = [];
+  const editor = panel({ call: async (action, args) => {
+    if (action === 'note.daily.status') return status([group(), group({ day: '2026-10-03' })]);
+    requests.push(args); return { id: 'recap-db', status: 'running' };
+  } });
+  editor.render(); editor.effects(); await settle();
+  find(editor.render(), node => node.type === 'input' && node.props.value === 'professional' && node.props.name.includes('2026-10-03')).props.onChange();
+  await button(editor, '生成今日合集').props.onClick();
+  assert.equal(requests[0].tone, 'friendly', 'the other day retains its original tone');
+  const previousDay = find(editor.render(), node => node.type === 'article' && node.key.includes('2026-10-03'));
+  await find(previousDay, node => node.props?.onClick && node.props.children === '生成今日合集').props.onClick();
+  assert.equal(requests[1].day, '2026-10-03');
+  assert.equal(requests[1].tone, 'professional');
 });
 
 test('daily recap settings default to manual and submit opt-in plus the chosen tone', async () => {

@@ -40,6 +40,10 @@ Rules: one filled primary button per screen; a primary that cannot act turns neu
 - Dislikes: formulaic blue-violet, pages that list everything at equal weight, dense maps.
 - Knowledge skeleton: prefers a single learning axis with vertical branches and further side branches over a dense web.
 
+## Daily study recaps
+
+The recap is the day's closing feedback: course, saved insight, then one primary action. Use the existing desk surfaces and controls; course rows stay typographic under a shared rule. Show the saved article's opening prose so the learner receives feedback before opening the reader. Thresholds and actual batch progress explain the current state; general rules stay collapsed. Reading and editing share one document, and returning to reading saves changed text. Manual edits, the ten-distinct-answer threshold, same-day course grouping and explicit automatic opt-in are fixed product decisions. Material conversion and public publishing remain separate secondary actions. The owner wants clearer feedback and less procedural clutter; avoid stacked toolbars, repeated explanations and competing primary buttons.
+
 ## Knowledge diagram canvas (结构图)
 
 Audience: learners exploring concepts and their relationships inside the DSH plugin.

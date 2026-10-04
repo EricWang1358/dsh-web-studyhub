@@ -507,6 +507,47 @@ test('completed explanation batches survive a later failure and are reused after
   assert.equal(firstBatchCalls, 1, 'retry resumes from the durably saved first batch');
 });
 
+test('generation progress follows completed explanation batches and cancellation blocks consolidation', async t => {
+  let releaseFirst, releaseSecond, releaseOrganizing;
+  const first = new Promise(resolve => { releaseFirst = resolve; });
+  const second = new Promise(resolve => { releaseSecond = resolve; });
+  const organizing = new Promise(resolve => { releaseOrganizing = resolve; });
+  t.after(() => { releaseFirst(); releaseSecond(); releaseOrganizing(); });
+  const stages = [];
+  let organizingSignal;
+  const service = await fixture(t, { complete: async (_system, input, options) => {
+    const payload = JSON.parse(input);
+    stages.push(payload.stage);
+    if (payload.stage === 'consolidate') { organizingSignal = options.signal; await organizing; }
+    else if (payload.questions[0].cardId === 'd-0') await first;
+    else await second;
+    return writing;
+  } });
+  await answers(service, 35);
+  const started = await service.call('note.daily.generate', { course: '数学' });
+  const progress = async () => (await service.call('note.daily.status', { course: '数学' })).groups[0].generation.progress;
+  assert.deepEqual(await progress(), { phase: 'explaining', completed: 0, total: 2 });
+  releaseFirst();
+  for (let i = 0; i < 150 && stages.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.deepEqual(stages, ['prepare', 'prepare']);
+  assert.deepEqual(await progress(), { phase: 'explaining', completed: 1, total: 2 });
+  releaseSecond();
+  for (let i = 0; i < 150 && stages.length < 3; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.deepEqual(stages, ['prepare', 'prepare', 'consolidate']);
+  assert.deepEqual(await progress(), { phase: 'organizing', completed: 2, total: 2 });
+  await service.call('note.daily.cancel', { id: started.id });
+  assert.equal(organizingSignal.aborted, true, 'cancel reaches the in-flight model request');
+  releaseOrganizing();
+  await new Promise(resolve => setImmediate(resolve));
+  const cancelled = await settled(service, started.id);
+  assert.equal(cancelled.generation.status, 'cancelled');
+  assert.equal(cancelled.generation.progress, undefined);
+  assert.equal(cancelled.markdown, '');
+  service.complete = async () => writing;
+  await service.call('note.daily.generate', { course: '数学' });
+  assert.equal((await ready(service, started.id)).generation.progress, undefined);
+});
+
 test('a failed post-commit merge reconciliation recovers from persisted note metadata in a fresh runtime', async t => {
   const service = await fixture(t, { complete: async () => writing });
   await answers(service, 10); await answers(service, 10, { deckId: 'other' });

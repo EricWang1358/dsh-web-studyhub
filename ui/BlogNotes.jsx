@@ -10,13 +10,16 @@ import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 import LocalImagePicker from './LocalImagePicker.jsx';
 import { useSciencePreferences } from './SciencePreferences.jsx';
-import DailyRecap, { recapTimeZone } from './DailyRecap.jsx';
+import DailyRecap from './DailyRecap.jsx';
+import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
+import { Button } from './components/Button.jsx';
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
 const isDailyNote = note => note?.kind?.startsWith('daily-recap');
+const writingStamp = note => JSON.stringify([note?.title, note?.markdown, isDailyNote(note) ? null : note?.cards]);
 
 export default function BlogNotes({ data, call, act, initialId, onSelect, onBack, backLabel, onOpenCard, onRecapSettings, onModelSettings, busy = false, theme = "dark" }) {
   const science = useSciencePreferences();
@@ -33,6 +36,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
   const [picked, setPicked] = useState([]), [newTitle, setNewTitle] = useState("");
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState(false), [materialSaved, setMaterialSaved] = useState(false);
+  const [savedWriting, setSavedWriting] = useState('');
   useEffect(() => { if (initialId) changeId(initialId); }, [initialId]);
   useEffect(() => { rememberId(id); onSelect?.(id); }, [id, data.root, onSelect]); // eslint-disable-line react-hooks/exhaustive-deps
   function applyNote(next) {
@@ -40,6 +44,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     current.current = next; setNote(next);
   }
   function restore(next) {
+    setSavedWriting(writingStamp(next));
     const key = draftKey(data.root, 'note', next.id);
     if (next.status === 'published' && !isDailyNote(next)) {
       clearDraft(key);
@@ -56,7 +61,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     const token = { root: data.root, id };
     identity.current = token;
     current.current = null;
-    setNote(null); setLookup(null); setMessage(''); setSaving(false); setPublishing(false); setServerVersion(null); setEditing(false); setMaterialSaved(false); pending.current = false;
+    setNote(null); setLookup(null); setMessage(''); setSaving(false); setPublishing(false); setServerVersion(null); setEditing(false); setMaterialSaved(false); setSavedWriting(''); pending.current = false;
     if (id) call('note.get', { id }).then(next => { if (identity.current === token) restore(next); })
       .catch(error => { if (identity.current === token) setMessage(error.message); });
     return () => { if (identity.current === token) identity.current = null; };
@@ -73,6 +78,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       .catch(error => { if (identity.current === token) setMessage(error.message); });
   }, [call, id, note?.generation?.status, note?.status, summary?.generation?.status, summary?.status, summary?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const daily = isDailyNote(note), writable = note?.status === 'draft' || daily;
+  const dirty = writable && writingStamp(note) !== savedWriting;
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: recapTimeZone(data.settings?.dailyRecap), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const within = courseMatcher(data, course);
   const notes = (data.notes || []).filter(item => course === '*' || (course === '' ? !item.courses?.length : (item.courses || []).some(within)))
@@ -93,6 +99,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     if (recovery) clearDraft(key, recovery.revision);
     if (identity.current !== token) return saved;
     if (current.current?.status === 'published' && !isDailyNote(current.current)) return saved;
+    setSavedWriting(writingStamp(saved));
     setServerVersion(null);
     if (current.current === submitted) applyNote(saved);
     else {
@@ -114,6 +121,13 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
   }
   async function save() {
     return perform(async live => { await persistCurrent(); if (live()) setMessage(ui(daily ? '合集已保存' : '草稿已保存')); });
+  }
+  async function returnToReading() {
+    if (!dirty) { setEditing(false); return; }
+    return perform(async live => {
+      await persistCurrent();
+      if (live()) { setEditing(false); setMessage(ui(daily ? '合集已保存' : '草稿已保存')); }
+    }, { lockEditing: true });
   }
   async function findPublished() {
     return perform(async live => {
@@ -164,7 +178,18 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
     });
   }
   return <section className="page blog-notes-page">
-    <header className="section-heading"><h1 tabIndex={-1} data-context-heading>{ui("学习笔记")}</h1><span className="note-header-tools"><ReadingSettingsButton /><button onClick={onBack}>{backLabel || ui("返回学习库")}</button></span></header>
+    <header className={`section-heading note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}><div className="note-heading-title">
+      {note && <Button size="sm" variant="link" onClick={() => { setId(''); setLookup(null); }}>{ui('全部笔记')}</Button>}
+      <h1 tabIndex={-1} data-context-heading>{note?.title || ui('学习笔记')}</h1>
+      {daily && <p className="note-daily-meta">{note.daily?.day} · {note.daily?.course} · {uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [note.daily?.answeredCount, note.daily?.wrongCount])}</p>}
+      {dirty && <span className="note-unsaved">{ui('有未保存的修改')}</span>}
+    </div><div className="note-header-tools">
+      {!note && <ReadingSettingsButton />}
+      {note && writable && <Button aria-pressed={editing} disabled={saving || publishing || note.generation?.status === 'running'}
+        onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
+      {editing && writable && <Button variant="primary" disabled={saving || !dirty || note.generation?.status === 'running'} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
+      <Button onClick={onBack}>{backLabel || ui('返回学习库')}</Button>
+    </div></header>
     {message && <p role="status" className="muted">{message}</p>}
     {!note && <div className="note-list">
       <PageScope courses={data.focus?.courses} value={course} onChange={setCourse} />
@@ -193,12 +218,6 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
       </button>) : <p className="muted">{ui("做题时选择“写笔记”，或在这里搜索并挑选题目。")}</p>}
     </div>}
     {note && <>
-      <div className="note-actions">
-        <button onClick={() => { setId(""); setLookup(null); }}>{ui("全部笔记")}</button>
-        {writable && <button aria-pressed={editing} disabled={publishing || note.generation?.status === 'running'} onClick={() => setEditing(value => !value)}>{ui(editing ? '返回阅读' : '编辑内容')}</button>}
-        {editing && writable && <button className="primary" disabled={saving || note.generation?.status === "running"} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</button>}
-      </div>
-      {daily && <p className="note-daily-meta">{note.daily?.day} · {note.daily?.course} · {uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [note.daily?.answeredCount, note.daily?.wrongCount])}</p>}
       {daily && note.daily?.unassessedCount > 0 && <p className="muted">{uiFormat('其中 {0} 题尚待批改，合集先回顾作答内容，批改后可更新。', [note.daily.unassessedCount])}</p>}
       {note.generation?.status === 'running' && <p role="status">{ui('正在整理今天的讲解与总结，你可以继续学习。')}</p>}
       {daily && ['cancelled', 'interrupted'].includes(note.generation?.status) && <p role="status">{ui('生成已停止，已完成的合集仍然保留。')}</p>}
@@ -217,6 +236,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
           <CodeMirror value={note.markdown || ''} height="560px" theme={theme === "light" ? "light" : "dark"} extensions={editorExtensions}
             editable={!publishing && note.generation?.status !== "running"} onChange={(value) => edit({ markdown: value })} /></div></div>
       </>}
+      <div className="note-reuse-actions">
       {note.markdown && <details className="note-linking"><summary>{ui('转成资料')}</summary>
         <p className="muted">{ui('把当前内容单独存入资料库，之后可复用资料页的阅读和学习功能。合集继续保留；以后更新合集不会改动这份资料。')}</p>
         <button disabled={busy || saving || materialSaved || note.generation?.status === 'running'} onClick={saveMaterial}>{ui(materialSaved ? '已保存为资料' : '保存当前内容为资料')}</button>
@@ -262,6 +282,7 @@ export default function BlogNotes({ data, call, act, initialId, onSelect, onBack
           placeholder={ui("找不到时粘贴文章链接")} onChange={(event) => setLink(event.target.value)} />
           <button disabled={saving || !link.trim()} onClick={() => linkArticle(link)}>{ui("手动关联")}</button></div>}
       </details>
+      </div>
       <details className="note-linking"><summary>{uiFormat("关联题目 · {0} 题", [note.cards.length])}</summary>
         <ul>{note.cards.map((ref) => <li key={ref.cardId}>
           <button disabled={ref.missing || !onOpenCard} onClick={() => onOpenCard(ref)}>{ref.missing ? ui('原题已移除') : ref.prompt || ui('查看原题')}</button>

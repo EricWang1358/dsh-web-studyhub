@@ -64,7 +64,7 @@ test('reading a recap returns to completed results without reopening or moving t
   await page.getByRole('button', { name: /尝试回忆并解释推理/ }).click();
   await page.getByRole('button', { name: '完成 →', exact: true }).click();
   await page.getByRole('heading', { name: '这一轮，完成了。', exact: true }).waitFor();
-  await page.getByRole('button', { name: '生成今日错题讲解合集', exact: true }).click();
+  await page.getByRole('button', { name: '生成今日合集', exact: true }).click();
   await page.getByRole('button', { name: '阅读今日合集', exact: true }).click({ timeout: 15000 });
   await page.locator('.note-reader .study-document-body').waitFor();
   // Saved writing stays usable even if one of its original questions is removed later.
@@ -74,6 +74,13 @@ test('reading a recap returns to completed results without reopening or moving t
   await page.getByRole('button', { name: '保存合集', exact: true }).click();
   await page.getByText('合集已保存', { exact: true }).waitFor();
   await page.getByRole('button', { name: '返回阅读', exact: true }).click();
+  await page.getByRole('button', { name: '编辑内容', exact: true }).click();
+  await page.getByLabel('文章标题', { exact: true }).fill('我保留的当日总结（修订）');
+  await page.getByText('有未保存的修改', { exact: true }).waitFor({ timeout: 2000 });
+  await page.getByRole('button', { name: '保存并返回阅读', exact: true }).click();
+  await page.locator('.note-reader .study-document-body').waitFor();
+  const recapId = requests.find(request => request.action === 'note.save').args.id;
+  assert.equal((await previewCall(server, 'note.get', { id: recapId })).title, '我保留的当日总结（修订）');
   await page.locator('summary').getByText('转成资料', { exact: true }).click();
   await page.getByRole('button', { name: '保存当前内容为资料', exact: true }).click();
   await page.getByRole('button', { name: '已保存为资料', exact: true }).waitFor({ timeout: 10000 }).catch(async error => {
