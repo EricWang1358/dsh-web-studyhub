@@ -57,3 +57,18 @@ test('the old audio-key-* classes are gone from the stylesheets and the pages', 
     assert.doesNotMatch(await read(file), /audio-key-(form|input|actions|foot|clear)\b/, file);
   }
 });
+
+/* ---------- 2. Audio import on the shared upload, format and file-name logic (#120 #126 #127) ---------- */
+
+const source = async (path) => (await read(path)).replace(/\r\n/g, '\n');
+
+test('audio import has no local copy of the upload loop, the size and clock formats, the extension lists or the path helpers', async () => {
+  const page = await source('ui/AudioImport.jsx');
+  assert.match(page, /uploadInChunks\(call, 'audio', /);
+  assert.match(page, /maxChunkBytes: 3 \* 1024 \* 1024/);
+  for (const [name, pattern] of [['toBase64', /const toBase64/], ['formatSize', /formatSize/], ['spent', /const spent/], ['extensionOf', /const extensionOf/], ['baseName', /const baseName/],
+    ['isAbsolutePath', /const isAbsolutePath/], ['unquote', /const unquote/], ['MAX_BYTES', /const MAX_BYTES/], ['MAX_SUBTITLE_BYTES', /const MAX_SUBTITLE_BYTES/], ['EXTENSIONS', /const EXTENSIONS/], ['SUBTITLES', /const SUBTITLES/]]) {
+    assert.doesNotMatch(page, pattern, `${name} comes from a shared module`);
+  }
+  for (const from of ['./format.js', './upload.js', './file-names.js', './paths.js', '../lib/audio-formats.js']) assert.ok(page.includes(`'${from}'`) || page.includes(`"${from}"`), from);
+});

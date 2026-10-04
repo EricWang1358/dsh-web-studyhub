@@ -8,6 +8,12 @@ import { TokenEstimate } from './TokenUsage.jsx';
 import AgentLink from './AgentLink.jsx';
 import { dismissJobs, useQuickActions } from './quick-actions.js';
 import settingsCss from './audio-settings.css';
+import { formatBytes, formatElapsed } from './format.js';
+import { uploadInChunks } from './upload.js';
+import { baseName, extensionOf } from './file-names.js';
+import { isAbsolutePath, unquotePath } from './paths.js';
+import { AUDIO_EXTENSIONS, MAX_AUDIO_BYTES, MAX_SUBTITLE_BYTES, SUBTITLE_EXTENSIONS } from '../lib/audio-formats.js';
+import { isActiveJob } from '../lib/job-status.js';
 
 /* 音频导入：录音 → 转写 → 校对识别错误的词 → 中英对照逐字稿，存为一份资料。
    这里只管导入；出题仍走「资料 → 生成」。转写在后台进行，进度来自快照里的
@@ -24,34 +30,13 @@ const PHASES = {
   queued: "排队中", read: "读取并切分音频", transcribe: "转写音频",
   proofread: "校对识别错误的词", translate: "翻译并整理成中英对照", batch: '按顺序整理逐字稿', assemble: '合成逐字稿', done: "完成",
 };
-const EXTENSIONS = [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".opus", ".webm", ".aiff", ".aif"];
-// Downloaded subtitles (Bilibili and the like) skip transcription and start at proofreading.
-const SUBTITLES = [".srt", ".vtt", ".json", ".txt"];
-const MAX_SUBTITLE_BYTES = 8 * 1024 * 1024;
-const MAX_BYTES = 512 * 1024 * 1024;
-const CHUNK = 3 * 1024 * 1024;
-const isActive = (job) => ["queued", "running", "cancelling"].includes(job.status);
-const unquote = (value) => value.trim().replace(/^"(.*)"$/, "$1").trim();
-const extensionOf = (name) => name.slice(name.lastIndexOf(".")).toLowerCase();
-const baseName = (path) => path.replace(/^.*[\\/]/, "");
-const isAbsolutePath = (value) => /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("/") || value.startsWith("\\\\");
+const isActive = isActiveJob;
 /** A failure that the audio settings can fix: offer the way there. */
 const aboutSettings = (message) => /设置|密钥|Settings|API key|\bkey\b/i.test(String(message || ""));
-export const formatSize = (bytes = 0) => (bytes >= 1024 * 1024 * 1024 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 * 1024 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
-const toBase64 = (blob) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-  reader.onerror = () => reject(new Error(ui("读取文件失败，请重试。")));
-  reader.readAsDataURL(blob);
-});
 /** A path dropped as text (from a file tree or an explorer that gives text): quoted, or a file:// address. */
 function droppedPath(text) {
-  let value = unquote(String(text || "").split(/\r?\n/)[0]);
-  if (/^file:\/\//i.test(value)) {
-    try { value = decodeURIComponent(value.replace(/^file:\/\//i, "")); } catch { return ""; }
-    if (/^\/[A-Za-z]:/.test(value)) value = value.slice(1);
-  }
-  return isAbsolutePath(value) && EXTENSIONS.includes(extensionOf(value)) ? value : "";
+  const value = unquotePath(String(text || "").split(/\r?\n/)[0]);
+  return isAbsolutePath(value) && AUDIO_EXTENSIONS.includes(extensionOf(value)) ? value : "";
 }
 
 /** What a failed import already has saved, step by step: a retry does only the rest. */
@@ -59,10 +44,6 @@ const STEP_LABELS = [["transcribe", "转写"], ["proofread", "校对"], ["transl
 const savedSteps = (steps) => STEP_LABELS.filter(([phase]) => steps?.[phase]?.total > 0)
   .map(([phase, label]) => uiFormat("{0} {1}/{2}", [ui(label), steps[phase].done, steps[phase].total])).join(" · ");
 
-const spent = (ms) => {
-  const total = Math.max(0, Math.floor(ms / 1000)), minutes = Math.floor(total / 60);
-  return minutes ? uiFormat("{0} 分 {1} 秒", [minutes, total % 60]) : uiFormat("{0} 秒", [total]);
-};
 const requestsOf = (usage) => (usage?.free?.requests || 0) + (usage?.paid?.requests || 0); // Gemini requests; Groq and SiliconFlow have their own lines
 const roughly = (ms) => (ms < 45000 ? ui("不到 1 分钟") : uiFormat("约 {0} 分钟", [Math.max(1, Math.round(ms / 60000))]));
 
@@ -128,7 +109,7 @@ function AudioTasks({ job, now, openAgent }) {
       <small>{uiFormat('正在执行 {0} 个任务', [active.length])}</small>
       {active.map(task => <small className="audio-now" key={task.id}>
         {uiFormat('正在做：{0}', [taskLabel(task)])}{ui(RUNTIME[task.runtime] || '')}
-        {` · ${ui(TASK_STATUS[task.status] || task.status)}`}{uiFormat(' · 已等待 {0}', [spent(now - Date.parse(task.startedAt))])}
+        {` · ${ui(TASK_STATUS[task.status] || task.status)}`}{uiFormat(' · 已等待 {0}', [formatElapsed(now - Date.parse(task.startedAt))])}
         <OpenAgent task={task} openAgent={openAgent} />
       </small>)}
     </div>}
@@ -137,7 +118,7 @@ function AudioTasks({ job, now, openAgent }) {
       <ol>{[...history].reverse().map(task => <li key={task.id}>
         <strong>{taskLabel(task)}</strong>
         <small>{ui(TASK_STATUS[task.status] || task.status)}{ui(RUNTIME[task.runtime] || '')}
-          {task.finishedAt ? uiFormat(' · {0}', [spent(Date.parse(task.finishedAt) - Date.parse(task.startedAt))]) : ''}</small>
+          {task.finishedAt ? uiFormat(' · {0}', [formatElapsed(Date.parse(task.finishedAt) - Date.parse(task.startedAt))]) : ''}</small>
         {task.note && <Hint as="small" size="xs" tone="warning">{task.note}</Hint>}
         {task.reasoning && <small>{getUiLanguage() === 'en' ? 'Reasoning: ' : '推理：'}{task.reasoning}
           {task.reasoningEffort && task.reasoningEffort !== task.reasoning ? ` → ${task.reasoningEffort}` : ''}</small>}
@@ -182,7 +163,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
           : counted ? uiFormat("{0}（{1}/{2}）", [ui(PHASES[job.phase]), Math.min(job.done + 1, job.total), job.total]) : ui(PHASES[job.phase] || "处理中");
   const order = job.review ? [] : job.subtitle ? ORDER.filter(phase => phase !== "transcribe") : ORDER;
   const meta = <>{title}{job.minutes ? uiFormat(" · 录音时长 {0} 分钟", [job.minutes]) : ""}
-    {took !== null && (running || job.finishedAt) && !held ? uiFormat(running ? " · 已用 {0}" : " · 用时 {0}", [spent(took)]) : ""}</>;
+    {took !== null && (running || job.finishedAt) && !held ? uiFormat(running ? " · 已用 {0}" : " · 用时 {0}", [formatElapsed(took)]) : ""}</>;
   const progressed = running && job.phase !== "queued";
   const retry = (args) => () => act("audio.retry", { jobId: job.id, ...args });
   const actions = [
@@ -336,7 +317,7 @@ function WorkspaceAudio({ call, onPick }) {
             <button type="button" onClick={() => onPick(file)}>
               <strong>{file.name}</strong>
               <small>{file.rel.slice(0, Math.max(0, file.rel.length - file.name.length)).replace(/[\\/]$/, "") || ui("工作区根目录")}</small>
-              <small>{formatSize(file.size)} · {new Date(file.modified).toLocaleDateString(uiLocale())}</small>
+              <small>{formatBytes(file.size)} · {new Date(file.modified).toLocaleDateString(uiLocale())}</small>
             </button>
           </li>
         ))}
@@ -388,14 +369,14 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
   const [readiness, setReadiness] = useState(initialReadiness), [checks, setChecks] = useState(initialChecks || {});
   const [confirmed, setConfirmed] = useState(() => new Set()), [submitError, setSubmitError] = useState(''), [starting, setStarting] = useState(false);
   const course = chosenCourse ?? defaultCourses?.join('; ') ?? defaultCourse ?? data.focus?.course ?? '';
-  const picker = useRef(null), cancelled = useRef(false), uploadId = useRef("");
+  const picker = useRef(null), cancelled = useRef(false), uploadId = useRef(""), abortUpload = useRef(null);
   const pendingUploads = useRef(new Set()), nextKey = useRef(0), moving = useRef(null), sending = useRef(false), checking = useRef(0);
   const courses = data.focus?.courses?.map(item => item.name) || [...new Set((data.decks || []).map((deck) => deck.course).filter(Boolean))];
   const openSettings = onOpenSettings ? () => { requestAudioSettingsFocus(); onOpenSettings(); } : undefined;
   // Only unsubmitted uploads belong to this form; a submitted batch owns durable copies.
   useEffect(() => {
     const owned = pendingUploads.current;
-    return () => { cancelled.current = true; for (const uploadId of owned) if (call) void call('audio.upload.cancel', { uploadId }).catch(() => {}); };
+    return () => { cancelled.current = true; abortUpload.current?.abort(); for (const uploadId of owned) if (call) void call('audio.upload.cancel', { uploadId }).catch(() => {}); };
   }, [call]);
   /** Ask the plugin what is configured; nothing is sent to a provider. */
   const refreshReadiness = async () => {
@@ -434,16 +415,16 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
   const reject = (message) => { setProblem(message); return false; };
   function check(name, size) {
     setProblem("");
-    if (!EXTENSIONS.includes(extensionOf(name))) return reject(ui("这不是支持的音频文件。支持 MP3、WAV、M4A、AAC、OGG、FLAC、OPUS、WEBM、AIFF。"));
+    if (!AUDIO_EXTENSIONS.includes(extensionOf(name))) return reject(ui("这不是支持的音频文件。支持 MP3、WAV、M4A、AAC、OGG、FLAC、OPUS、WEBM、AIFF。"));
     if (size !== undefined && size < 1) return reject(ui("文件是空的。"));
-    if (size !== undefined && size > MAX_BYTES) return reject(ui("文件超过 512 MB，请先压缩成 MP3 或按章节拆分。"));
+    if (size !== undefined && size > MAX_AUDIO_BYTES) return reject(ui("文件超过 512 MB，请先压缩成 MP3 或按章节拆分。"));
     return true;
   }
   /** Send a browser file to the plugin in chunks; the import then uses its upload id. */
   async function send(chosenFiles) {
     if (sending.current) return;
     if (recoveryJobId && chosenFiles.length !== 1) { setProblem(ui('旧任务请选择同一份原录音。')); return; }
-    const subtitles = chosenFiles.filter(chosen => SUBTITLES.includes(extensionOf(chosen.name)));
+    const subtitles = chosenFiles.filter(chosen => SUBTITLE_EXTENSIONS.includes(extensionOf(chosen.name)));
     if (subtitles.length) {
       setProblem("");
       if (subtitles.length !== chosenFiles.length || chosenFiles.length !== 1 || files.length || recoveryJobId)
@@ -465,24 +446,27 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
     if (ready && !ready.transcription) { setProblem(ui("请先配置转写服务，再选择录音：文件还没有上传。")); return; }
     sending.current = true;
     cancelled.current = false;
+    const controller = new AbortController();
+    abortUpload.current = controller;
     let currentFile;
     try {
       for (const chosen of chosenFiles) {
         currentFile = chosen;
         if (cancelled.current) throw new Error("cancelled");
         setUpload({ name: chosen.name, size: chosen.size, sent: 0 });
-        const started = await call("audio.upload.start", { name: chosen.name, size: chosen.size });
-        uploadId.current = started.uploadId;
-        pendingUploads.current.add(started.uploadId);
-        for (let offset = 0; offset < chosen.size; offset += CHUNK) {
-          if (cancelled.current) throw new Error("cancelled");
-          await call("audio.upload.chunk", { uploadId: started.uploadId, offset, data: await toBase64(chosen.slice(offset, offset + CHUNK)) });
-          setUpload(current => current && { ...current, sent: Math.min(chosen.size, offset + CHUNK) });
+        let finished;
+        try {
+          finished = await uploadInChunks(call, 'audio', chosen, { signal: controller.signal, maxChunkBytes: 3 * 1024 * 1024,
+            onStart: (started) => { uploadId.current = started.uploadId; pendingUploads.current.add(started.uploadId); },
+            onProgress: (_fraction, sent) => setUpload(current => current && { ...current, sent }) });
+        } catch (failure) {
+          // uploadInChunks has already told the host to drop its copy.
+          pendingUploads.current.delete(uploadId.current);
+          uploadId.current = '';
+          throw failure;
         }
         if (cancelled.current) throw new Error('cancelled');
-        await call("audio.upload.finish", { uploadId: started.uploadId });
-        if (cancelled.current) throw new Error('cancelled');
-        append({ kind: 'upload', uploadId: started.uploadId, name: chosen.name, size: chosen.size });
+        append({ kind: 'upload', uploadId: finished, name: chosen.name, size: chosen.size });
         uploadId.current = '';
       }
       setUpload(null);
@@ -493,7 +477,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
       setUpload(cancelled.current ? null : { name: currentFile?.name, size: currentFile?.size, sent: 0, error: String(error.message || error) });
     } finally { sending.current = false; }
   }
-  function cancelUpload() { cancelled.current = true; }
+  function cancelUpload() { cancelled.current = true; abortUpload.current?.abort(); }
   function pickPath(path, size) {
     if (sending.current) return;
     if (files.some(file => file.kind === 'subtitle')) return void reject(ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。"));
@@ -619,7 +603,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
         <button type="button" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</button></p>}
       <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>
-      <input ref={picker} type="file" hidden multiple accept={`audio/*,${[...EXTENSIONS, ...SUBTITLES].join(',')}`}
+      <input ref={picker} type="file" hidden multiple accept={`audio/*,${[...AUDIO_EXTENSIONS, ...SUBTITLE_EXTENSIONS].join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings}
         onLegacyRetry={job => { onRecoveryChange?.(job.id); picker.current?.click(); }} />
@@ -628,12 +612,12 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
           onSaved={() => { void refreshReadiness(); }} />
         {readiness.text !== false && <div className="audio-subtitle-only">
           <p>{ui("字幕文件不需要转写服务，现在就可以导入：")}</p>
-          <FileDrop compact accept={SUBTITLES} label={ui("把字幕文件拖到这里")} hint="SRT · VTT · JSON · TXT" buttonLabel={ui("选择字幕文件")}
+          <FileDrop compact accept={SUBTITLE_EXTENSIONS} label={ui("把字幕文件拖到这里")} hint="SRT · VTT · JSON · TXT" buttonLabel={ui("选择字幕文件")}
             disabled={busy} onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
         </div>}
       </>}
       {!gated && !files.length && !upload && <div className="audio-drop-zone" onDragOver={event => { if (!Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault(); }} onDrop={dropText}>
-        <FileDrop multiple accept={[...EXTENSIONS, ...SUBTITLES]} disabled={busy}
+        <FileDrop multiple accept={[...AUDIO_EXTENSIONS, ...SUBTITLE_EXTENSIONS]} disabled={busy}
           label={ui("把音频文件拖到这里，或点击选择")} hint={`MP3 · WAV · M4A · AAC · OGG · FLAC · OPUS · WEBM · AIFF · ${ui("最大 512 MB")}`}
           onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
         <Hint as="small">{ui("也可以放 B 站等网站下载的带时间戳字幕（SRT · VTT · JSON · TXT）：跳过转写，直接校对和翻译，时间戳会保留。")}</Hint>
@@ -653,8 +637,8 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
           <details className="audio-path"><summary>{ui("粘贴文件路径（高级）")}</summary>
             <div className="audio-path-row">
               <input value={pathText} onChange={(event) => setPathText(event.target.value)} placeholder={ui("例如：C:\\Users\\你\\Downloads\\lecture.mp3")}
-                onKeyDown={(event) => { if (event.key === "Enter" && unquote(pathText)) { event.preventDefault(); pickPath(unquote(pathText)); } }} />
-              <button type="button" disabled={!unquote(pathText)} onClick={() => pickPath(unquote(pathText))}>{ui("选用")}</button>
+                onKeyDown={(event) => { if (event.key === "Enter" && unquotePath(pathText)) { event.preventDefault(); pickPath(unquotePath(pathText)); } }} />
+              <button type="button" disabled={!unquotePath(pathText)} onClick={() => pickPath(unquotePath(pathText))}>{ui("选用")}</button>
             </div>
           </details>
         </div>
@@ -665,7 +649,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
             : <button type="button" className="link-btn" onClick={cancelUpload}>{ui("取消上传")}</button>}</div>
         {upload.error ? <InlineMessage tone="error">{uiFormat("上传失败：{0}", [upload.error])}</InlineMessage> : <>
           <ProgressBar value={percent} max={100} size="sm" label={uiFormat("上传 {0}", [upload.name])} />
-          <small className="muted">{uiFormat("正在上传 {0} / {1}", [formatSize(upload.sent), formatSize(upload.size)])}</small></>}
+          <small className="muted">{uiFormat("正在上传 {0} / {1}", [formatBytes(upload.sent), formatBytes(upload.size)])}</small></>}
       </div>}
       {files.length > 0 && <form onSubmit={start}>
         {files.length > 1 && <Hint as="small">{ui('按下面的顺序合成一份逐字稿，可拖动或用按钮调整。')}</Hint>}
@@ -676,7 +660,7 @@ export default function AudioImport({ data, busy, act, call, setNotice, askInCha
             onDragEnd={() => { moving.current = null; }} onDragOver={event => { if (moving.current !== null) event.preventDefault(); }}
             onDrop={event => { if (moving.current !== null) { event.preventDefault(); event.stopPropagation(); move(moving.current, index); moving.current = null; } }}>
             <span className="audio-drop-icon" aria-hidden="true">{files.length > 1 ? index + 1 : '♫'}</span>
-            <div><strong title={file.path || file.name}>{file.name}</strong><small className="muted">{file.size ? `${formatSize(file.size)} · ` : ''}{file.kind === 'subtitle' ? ui('字幕文件 · 不转写，直接校对') : file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small>
+            <div><strong title={file.path || file.name}>{file.name}</strong><small className="muted">{file.size ? `${formatBytes(file.size)} · ` : ''}{file.kind === 'subtitle' ? ui('字幕文件 · 不转写，直接校对') : file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small>
               {note && <span className={`audio-check audio-check--${note.kind}`} role={note.kind === 'blocked' ? 'alert' : undefined}>
                 <span>{note.text}</span>
                 {note.kind === 'split' && <Button size="sm" disabled={busy || starting} onClick={() => confirmSplit(file.key)}>{ui('分段并继续')}</Button>}

@@ -104,7 +104,7 @@ test("English audio import copy is fully translated and keeps user content as wr
       assert.ok(html.includes(text), text);
     const picked = render({ initialFile: chosen }).replace(/lecture\.mp3|数据库|server says no/g, "");
     assert.doesNotMatch(picked, /[㐀-鿿]/);
-    for (const text of ["Start import", "Use the paid key only", "45.0 MB · Uploaded", "Change"]) assert.ok(picked.includes(text), text);
+    for (const text of ["Start import", "Use the paid key only", "45 MB · Uploaded", "Change"]) assert.ok(picked.includes(text), text);
     assert.ok(!picked.includes("Drop an audio file"), "once a file is chosen the drop zone gives way to the options");
     assert.ok(!html.includes("Pick a file with @"), "no @ button when the host cannot fill the composer");
     const asking = render({ canAsk: true, askInChat() {} });
@@ -115,7 +115,7 @@ test("English audio import copy is fully translated and keeps user content as wr
     setUiLanguage("zh");
     assert.match(render(), /转写音频（1\/3）/);
     assert.match(render(), /把音频文件拖到这里，或点击选择/);
-    assert.match(render({ initialFile: chosen }), /45\.0 MB · 已上传/);
+    assert.match(render({ initialFile: chosen }), /45 MB · 已上传/);
     assert.match(render(), /已存为 1 份资料 · 校对修正 4 处/);
   } finally { setUiLanguage("zh"); }
 });
