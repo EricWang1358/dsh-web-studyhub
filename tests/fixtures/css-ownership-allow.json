@@ -10,17 +10,9 @@
       "ui/sources-page.css",
       "ui/study-map/catalog.css"
     ],
-    "audio-dashboard": [
-      "ui/audio-dashboard.css",
-      "ui/audio-panels.css"
-    ],
     "audio-reasoning": [
       "ui/audio-dashboard.css",
       "ui/audio-settings.css"
-    ],
-    "audio-usage-panel": [
-      "ui/audio-dashboard.css",
-      "ui/audio-panels.css"
     ],
     "binding-actions": [
       "ui/binding.css",
@@ -69,8 +61,7 @@
     "course-heading": [
       "ui/course-settings.css",
       "ui/home-tiers.css",
-      "ui/study-map/catalog.css",
-      "ui/study-map/home-headings.css"
+      "ui/study-map/catalog.css"
     ],
     "course-heading-input": [
       "ui/home-tiers.css",
@@ -122,10 +113,6 @@
       "ui/skeleton.css",
       "ui/views.css"
     ],
-    "draft-card": [
-      "ui/draft.css",
-      "ui/panel-migrations.css"
-    ],
     "draft-row": [
       "ui/generate-home.css",
       "ui/study-map/desk.css"
@@ -169,7 +156,7 @@
       "ui/components/components.css",
       "ui/components/disclosure.css",
       "ui/course-field.css",
-      "ui/generate-tabs.css",
+      "ui/generate-home.css",
       "ui/review/question.css",
       "ui/skeleton.css"
     ],
@@ -458,7 +445,6 @@
       "ui/generation-path.css",
       "ui/jev.css",
       "ui/mineru.css",
-      "ui/review-buttons.css",
       "ui/review/review.css",
       "ui/settings.css",
       "ui/setup-checklist.css",
@@ -572,23 +558,17 @@
       "ui/components/components.css",
       "ui/sources.css"
     ],
-    "sh-page-header__eyebrow": [
-      "ui/components/components.css",
-      "ui/components/page-header.css"
-    ],
     "sh-page-header__text": [
       "ui/components/components.css",
-      "ui/study-map/home-headings.css"
-    ],
-    "sh-page-header__title": [
-      "ui/components/components.css",
-      "ui/components/page-header.css"
+      "ui/study-map/catalog.css"
     ],
     "sh-panel": [
-      "ui/audio-panels.css",
+      "ui/audio-dashboard.css",
       "ui/charts/charts.css",
       "ui/components/components.css",
-      "ui/panel-migrations.css"
+      "ui/draft.css",
+      "ui/skeleton.css",
+      "ui/welcome.css"
     ],
     "sh-panel__head": [
       "ui/charts/charts.css",
@@ -639,20 +619,11 @@
     ],
     "sh-tab__note": [
       "ui/components/disclosure.css",
-      "ui/generate-tabs.css"
-    ],
-    "sh-tooltip": [
-      "ui/components/tooltip-interactive.css",
-      "ui/components/tooltip-layer.css",
-      "ui/inbox-preview.css"
+      "ui/generate-home.css"
     ],
     "sidebar": [
       "ui/shell.css",
       "ui/side-groups.css"
-    ],
-    "sk-panel": [
-      "ui/panel-migrations.css",
-      "ui/skeleton.css"
     ],
     "source-doc__icon": [
       "ui/document-preview/rename.css",
@@ -672,7 +643,6 @@
     ],
     "source-mode": [
       "ui/generate-home.css",
-      "ui/generate-tabs.css",
       "ui/sources-page.css"
     ],
     "source-row-actions": [
@@ -680,7 +650,7 @@
       "ui/sources.css"
     ],
     "source-tab": [
-      "ui/generate-tabs.css",
+      "ui/generate-home.css",
       "ui/sources-page.css"
     ],
     "source-text--pdf": [
@@ -761,14 +731,6 @@
       "ui/generate-form.css",
       "ui/legacy.css",
       "ui/views.css"
-    ],
-    "welcome-card": [
-      "ui/panel-migrations.css",
-      "ui/welcome.css"
-    ],
-    "welcome-card--lead": [
-      "ui/panel-migrations.css",
-      "ui/welcome.css"
     ],
     "wf-scope": [
       "ui/workflow-scope.css",

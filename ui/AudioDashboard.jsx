@@ -3,8 +3,6 @@ import { ui, uiFormat, uiMessage } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 import { formatNumber } from './format.js';
 import { Button, Hint, Panel } from './components/index.js';
-import { useInjectCss } from './shared.js';
-import panelCss from './audio-panels.css';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 
@@ -21,7 +19,6 @@ export function dashboardVisible(settings, usage) {
 }
 
 export function AudioDashboardView({ data, settings, busy, refresh, save, error }) {
-  useInjectCss(panelCss, 'study-audio-panels');
   const providers = [...data.providers].sort((a, b) => AUDIO_TIERS.indexOf(a.tier) - AUDIO_TIERS.indexOf(b.tier));
   const sum = field => providers.reduce((n, provider) => n + provider.today[field], 0);
   const total = sum('requests');
@@ -95,7 +92,6 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
 
 /** The console folded away under one line with today's count; it opens on demand. */
 export function AudioDashboardPanel({ data, settings, busy, refresh, save, error, onToggle }) {
-  useInjectCss(panelCss, 'study-audio-panels');
   const today = data.providers.reduce((n, provider) => n + (provider.today?.requests || 0), 0);
   return <Panel as="details" className="audio-usage-panel" onToggle={onToggle ? event => onToggle(event.currentTarget.open) : undefined}>
     <summary><span>{ui('用量与额度')}</span><small>{uiFormat('今日 {0} 次请求', [today])}</small></summary>

@@ -1,6 +1,5 @@
 import React from 'react';
 import css from './components.css';
-import scopeCss from './page-header.css';
 import { useComponentCss, cx } from './css.js';
 import { Button } from './Button.jsx';
 
@@ -14,7 +13,6 @@ import { Button } from './Button.jsx';
  */
 export default function PageHeader({ eyebrow, title, description, actions, scope, back, titleProps, compact = false, children, className, ...rest }) {
   useComponentCss(css);
-  useComponentCss(scopeCss, 'study-page-header');
   return (
     <header className={cx('sh-page-header', compact && 'sh-page-header--compact', className)} {...rest}>
       <div className="sh-page-header__text">

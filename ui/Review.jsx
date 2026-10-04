@@ -20,7 +20,6 @@ import { readableQualityIssue } from "./quality.js";
 import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
-import buttonCss from "./review-buttons.css";
 import DailyRecap from './DailyRecap.jsx';
 import { Badge, Button, Chip, Icon, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
 import { uiRich } from "./i18n-rich.jsx";
@@ -97,7 +96,6 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   // Where 继续学习 goes (the page decided it with today's plan in view): the coach card and this page's own way back share it.
   const destination = coachProps?.destination;
   useInjectCss(resultCss, "review-results");
-  useInjectCss(buttonCss, "study-review-buttons");
   const pageRef = React.useRef(null);
   // A learning-flow practice round: the page is the same, only the way back differs.
   const flow = run.workflow && onBackToWorkflow ? run.workflow : null;

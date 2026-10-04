@@ -61,3 +61,28 @@
     .generate-page .generate-submit .muted { margin: 0; }
   }
 }
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The way-in tabs of 创建题组 are the shared <Tabs> (ui-consistency #144): a row of broad cards, label over note. The shared
+       tab is a quiet pill; here it is the roomy choice card the page always had. Tokens only. */
+    .generate-page .source-mode {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+      gap: var(--space-3);
+      margin: var(--space-5) 0 var(--space-2);
+    }
+    .generate-page .source-mode > button.source-tab {
+      gap: var(--space-1);
+      padding: var(--space-4);
+      border-radius: var(--radius);
+      font-size: var(--fs-md);
+    }
+    .generate-page .source-mode > button.source-tab .sh-tab__label { font-weight: var(--fw-medium); color: var(--text); }
+    .generate-page .source-mode > button.source-tab .sh-tab__note { font-size: var(--fs-sm); color: var(--text-muted); }
+    .generate-page .source-mode > button.source-tab.is-active {
+      background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
+      border-color: var(--accent-soft);
+    }
+  }
+}

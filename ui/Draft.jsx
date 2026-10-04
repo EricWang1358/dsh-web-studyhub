@@ -2,8 +2,6 @@ import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { Banner, Button, Disclosure, Hint, PageHeader, Panel, useToast } from "./components/index.js";
-import { useInjectCss } from "./shared.js";
-import migrationCss from "./panel-migrations.css";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS } from "../lib/job-status.js";
@@ -51,7 +49,6 @@ export default function Draft({
   patchCard,
   parseDraft,
 }) {
-  useInjectCss(migrationCss, "study-panel-migrations");
   const toast = useToast();
   const [deleteArmedId, setDeleteArmedId] = React.useState(null);
   const science = useSciencePreferences();

@@ -6,7 +6,7 @@
        Hovering or focusing an entry opens a card beside it (the shared Tooltip) with the full deck title, prompt and detail; the list itself
        stays truncated. The card is narrow, scrolls when the text is very long, and ends with the short "what a click does" line. Tokens only. */
     .mailbox__tip { display: block; }
-    .mailbox-preview.sh-tooltip {
+    .mailbox-preview {
       display: grid;
       gap: var(--space-1);
       max-width: min(360px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));

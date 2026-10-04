@@ -2,7 +2,6 @@ import React, { cloneElement, useEffect, useId, useLayoutEffect, useRef, useStat
 import css from './components.css';
 import overlayCss from './overlays.css';
 import layerCss from './tooltip-layer.css';
-import interactiveCss from './tooltip-interactive.css';
 import { useComponentCss, cx } from './css.js';
 import { computePlacement, useAnchoredPosition, useDismiss } from './use-dismiss.js';
 
@@ -32,7 +31,6 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
-  useComponentCss(interactiveCss, 'study-tooltip-interactive');
   const [open, setOpen] = useState(false);
   const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null);
   if (!self.current) self.current = { close: () => {} };

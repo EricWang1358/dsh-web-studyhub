@@ -524,3 +524,29 @@
 @keyframes bar-in {
   from { transform: scaleX(0.04); opacity: 0; }
 }
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The home's course heading is the page's PageHeader (ui-consistency #142). The header frame stays out of the desk's
+       rhythm (the desk sets every gap) and the <h1> keeps the course switcher look it had as a bare heading. Tokens only. */
+    .desk > .desk-intro > .course-header { margin: 0; max-width: 100%; }
+    .course-header .sh-page-header__text { flex: 0 1 auto; max-width: 100%; }
+    .course-header .course-heading {
+      position: relative;
+      display: inline-flex;
+      align-items: baseline;
+      gap: var(--space-3);
+      max-width: 100%;
+      font-size: clamp(var(--fs-2xl), 3.2cqi, calc(var(--fs-3xl) * 1.3));
+      font-weight: var(--fw-strong);
+      letter-spacing: -0.025em;
+      line-height: var(--lh-tight);
+    }
+    .course-header .course-heading-title { display: block; font-size: clamp(var(--fs-2xl), 3.6cqi, calc(var(--fs-3xl) * 1.3)); }
+  }
+  @container study (max-width: 760px) {
+    :is(.study-app, .study-seat) {
+      .desk > .desk-intro > .course-header { order: 1; }
+    }
+  }
+}

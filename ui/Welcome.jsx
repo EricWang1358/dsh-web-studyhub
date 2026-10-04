@@ -3,7 +3,6 @@ import { ui, uiFormat } from "./i18n.js";
 import { Banner, Button, Icon, Panel, SetupRequired } from "./components/index.js";
 import { useInjectCss } from "./shared.js";
 import css from "./welcome.css";
-import migrationCss from "./panel-migrations.css";
 
 /**
  * The first screen of an empty library (and of a freshly loaded sample, until
@@ -15,7 +14,6 @@ import migrationCss from "./panel-migrations.css";
  */
 export default function Welcome({ model, sample, busy = false, onStartSample, onStartTour, onImport, onSetupModel, onRemoveSample, onLater }) {
   useInjectCss(css, "study-welcome");
-  useInjectCss(migrationCss, "study-panel-migrations");
   const loaded = !!sample?.loaded;
   const modelReady = model?.ready !== false;
   return (

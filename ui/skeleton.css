@@ -1468,3 +1468,10 @@
     box-shadow: 0 0 0 7px var(--ok-halo), var(--shadow-md);
   }
 }
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The skeleton desk panel is a <Panel> (ui-consistency #143): the Panel owns the surface; this keeps the desk's quieter border. */
+    .sk-panel.sh-panel { border-color: var(--line-soft); }
+  }
+}

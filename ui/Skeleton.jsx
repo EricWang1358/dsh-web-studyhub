@@ -10,7 +10,6 @@ import { groupPrompt } from "./topic-group-prompt.js";
 import { designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
 import { Button, ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
-import migrationCss from "./panel-migrations.css";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
@@ -64,7 +63,6 @@ function NodeTree({ skeleton, onPractice }) {
 
 export default function Skeleton({ call, data, busy, askInChat, onPractice, focusId, onFocus }) {
   useInjectCss(css, "study-skeleton");
-  useInjectCss(migrationCss, "study-panel-migrations");
   const [course, setCourse] = usePageScope(data?.root, 'skeleton', data?.focus?.course ?? '*');
   const [saved, setSaved] = useState(null);
   const [topics, setTopics] = useState(null),

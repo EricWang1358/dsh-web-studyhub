@@ -1,7 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import { ingestPrompt } from "./agent-prompts/ingest.js";
 import { useStudy } from "./study-context.jsx";
-import generateTabsCss from "./generate-tabs.css";
 import React from "react";
 import Ingest from "./Ingest.jsx";
 import JsonImport from "./JsonImport.jsx";
@@ -59,7 +58,6 @@ export default function Generate({
   initialRetrieval = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
-  useInjectCss(generateTabsCss, "study-generate-tabs");
   const { notify } = useStudy();
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');

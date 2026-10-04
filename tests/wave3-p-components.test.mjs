@@ -30,7 +30,7 @@ test('PageHeader titleProps land on the h1 (focus targets and context headings)'
 test('PageHeader compact is the one-line header of a working surface', () => {
   assert.match(html(m.PageHeader, { title: '题', compact: true }), /<header class="sh-page-header sh-page-header--compact">/);
   assert.doesNotMatch(html(m.PageHeader, { title: '题' }), /--compact/);
-  assert.match(readFileSync('ui/components/page-header.css', 'utf8'), /\.sh-page-header--compact \.sh-page-header__title/);
+  assert.match(readFileSync('ui/components/components.css', 'utf8'), /\.sh-page-header--compact \.sh-page-header__title/);
 });
 
 test('Panel tones, density and element', () => {
