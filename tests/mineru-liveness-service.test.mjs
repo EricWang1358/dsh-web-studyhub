@@ -164,18 +164,20 @@ test('nothing is asked while no window runs: not before the job, not after it, a
 });
 
 test('by default a window that ends within a few seconds is never asked about', async t => {
-  // The first question is due livenessFirstMs after the window starts, so this only means something when the window really ended inside that
-  // time. Starting the CLI can take longer than that on a machine busy with other work: such a run is not evidence either way, so it is run again.
-  for (let attempt = 0; attempt < 8; attempt++) {
+  // The first question is due livenessFirstMs after the window starts (tests/mineru-local-liveness.test.mjs pins that with a stopped clock), so a real run only
+  // shows it when the window really ended inside that time. Starting the CLI can take longer than that on a machine busy with other work: such a run
+  // says nothing either way, so it is run again, up to a few times.
+  let ended = false;
+  for (let attempt = 0; attempt < 6 && !ended; attempt++) {
     const h = await harness(t, { cliState: { delayMs: 300 } });
-    const began = Date.now();
     await h.start();
+    const began = Date.now(); // after the upload: from here to the end is the window and nothing else
     await h.watch();
-    if (Date.now() - began > LOCAL.livenessFirstMs * 0.7) continue;
+    if (Date.now() - began > LOCAL.livenessFirstMs * 0.9) continue;
+    ended = true;
     assert.deepEqual((await h.log()).filter(isProbe), []);
-    return;
   }
-  t.skip(`no window ended within ${LOCAL.livenessFirstMs} ms on this machine just now`);
+  if (!ended) t.diagnostic(`no window ended within ${LOCAL.livenessFirstMs} ms on this machine just now; the stopped-clock test covers it`);
 });
 
 test('the questions are read-only: never a parse, a start, a stop or a setting', async t => {

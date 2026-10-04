@@ -202,6 +202,19 @@ test('the question can be switched off: no interval, no command line, no questio
   assert.ok(LOCAL.livenessMs >= 15_000 && LOCAL.livenessMs <= 30_000, 'modest by default');
 });
 
+test('by default the first question is due a few seconds into the window, so a window that ends sooner is never asked about', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] }); // the clock stands still until the test moves it
+  let asks = 0;
+  const watch = watchWindow({ cli: {}, ...mine, probe: async () => { asks++; return probe(); } });
+  assert.equal(watch.enabled, true);
+  assert.ok(LOCAL.livenessFirstMs >= 3000, 'a few seconds');
+  t.mock.timers.tick(LOCAL.livenessFirstMs - 1);
+  assert.equal(asks, 0, 'nothing is asked before the first question is due');
+  watch.stop(); // the window ended
+  t.mock.timers.tick(LOCAL.livenessMs * 3);
+  assert.equal(asks, 0, 'and nothing after the window has ended');
+});
+
 test('the watcher on a real (fake) CLI sees queued, then converting', async t => {
   const fake = await fakeCli(t, { active: active('pending') });
   const states = [];
