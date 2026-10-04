@@ -5,6 +5,7 @@ import { Badge, Button, Checkbox, Hint, Icon, InlineConfirm, InlineMessage, Prov
 import { sizeLabel } from './mineru-flow.js';
 import css from './mineru.css';
 import { refreshMineruLocal, useMineruState } from './use-mineru.js';
+import { usePolling } from './use-polling.js';
 
 /* MinerU: PDF to text with page numbers, for scanned books, formulas, tables and long textbooks.
    Two routes, one place to set up each:
@@ -96,19 +97,14 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
     if (status?.setup?.status === 'running' && !setup) setSetup(status.setup);
   }, [status?.setup?.status]); // eslint-disable-line react-hooks/exhaustive-deps
   // The download and setup run in the background: poll until it ends, then read the state again.
-  useEffect(() => {
-    if (setup?.status !== 'running' || typeof call !== 'function') return undefined;
-    let live = true;
-    const timer = setInterval(async () => {
-      try {
-        const run = await call('mineru.local.setup.status', {});
-        if (!live || !alive.current) return;
-        setSetup(run);
-        if (run.status !== 'running') { clearInterval(timer); await refresh().catch(() => {}); }
-      } catch { /* the next tick tries again */ }
-    }, 1500);
-    return () => { live = false; clearInterval(timer); };
-  }, [setup?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  usePolling(async () => {
+    try {
+      const run = await call('mineru.local.setup.status', {});
+      if (!alive.current) return;
+      setSetup(run);
+      if (run.status !== 'running') await refresh().catch(() => {}); // the poll stops by itself: `setup.status` is no longer 'running'
+    } catch { /* the next tick tries again */ }
+  }, { intervalMs: 1500, enabled: setup?.status === 'running' && typeof call === 'function' });
   const act = async (name, work) => {
     if (working) return;
     setWorking(name); setError('');

@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { ui, uiFormat, useUiLanguage } from '../../i18n.js';
 import { needsTranslation } from '../../../lib/passage-translation.js';
 import { gateMessage } from '../../ModelSetupGate.jsx';
-import { useToast } from '../../components/index.js';
+import { useNow, useToast } from '../../components/index.js';
+import { usePolling } from '../../use-polling.js';
 import { locateGroups } from '../links/link-ranges.js';
 import { captureSelection } from '../selection.js';
 import { createHost, createMark, paragraphAround, scanParagraphs } from './dom.js';
@@ -84,7 +85,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const [available, setSupported] = useState(false), [version, setVersion] = useState(0), [hosts, setHosts] = useState(() => new Map()), [page, setPage] = useState(null);
   const supported = enabled && available;
   const [chip, setChip] = useState(null), [floating, setFloating] = useState(null), [menuOpen, setMenuOpen] = useState(false), [scopes, setScopes] = useState([]);
-  const [glossaryOpen, setGlossaryOpen] = useState(false), [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set()), [now, setNow] = useState(() => Date.now());
+  const [glossaryOpen, setGlossaryOpen] = useState(false), [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set());
   const layer = useRef(emptyLayer()), latest = useRef({}), scopeDefs = useRef([]), reading = view === 'read';
   const identity = useMemo(() => doc ? { documentId: doc.documentId || doc.id, ...(doc.revision ? { revision: doc.revision } : {}) } : null, [doc]);
   const identityKey = identity ? JSON.stringify(identity) : '';
@@ -347,11 +348,8 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const job = jobs.find(jobActive) || jobToShow(jobs.filter(item => finishedHere.has(item.id) && !dismissed.has(item.id)));
   const active = jobs.some(jobActive);
   const seen = useRef(new Map());
-  useEffect(() => {
-    if (!active) return undefined;
-    const timer = setInterval(() => { setNow(Date.now()); void loadJobs(); }, 1500);
-    return () => clearInterval(timer);
-  }, [active, loadJobs]);
+  const now = useNow(1500, { enabled: active });
+  usePolling(loadJobs, { intervalMs: 1500, enabled: active });
   useEffect(() => {
     for (const item of jobs) {
       const before = seen.current.get(item.id);

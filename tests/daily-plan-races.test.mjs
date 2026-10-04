@@ -38,9 +38,11 @@ function harness() {
   const document = { compatMode: 'CSS1Compat', hidden: false, addEventListener: (type, listener) => listeners.add(listener), removeEventListener: (type, listener) => listeners.delete(listener) };
   const module = { exports: {} };
   class Clock extends Date { constructor(...args) { super(...(args.length ? args : [clock])); } }
-  new Function('require', 'module', 'exports', 'document', 'setInterval', 'clearInterval', 'Date', compiled.outputFiles[0].text)(
-    name => name === 'react' ? hooks : require(name), module, module.exports, document,
-    callback => { timers.add(callback); return callback; }, callback => timers.delete(callback), Clock);
+  // The 15 s poll (usePolling) is a chain of timeouts it takes from globalThis: a fake one that advanceDay fires.
+  const fakeSetTimeout = callback => { timers.add(callback); return callback; }, fakeClearTimeout = callback => timers.delete(callback);
+  const fakeGlobal = Object.assign(Object.create(globalThis), { setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout });
+  new Function('require', 'module', 'exports', 'document', 'setTimeout', 'clearTimeout', 'globalThis', 'Date', compiled.outputFiles[0].text)(
+    name => name === 'react' ? hooks : require(name), module, module.exports, document, fakeSetTimeout, fakeClearTimeout, fakeGlobal, Clock);
   return { ...module.exports,
     advanceDay: () => { clock += 86400000; for (const timer of timers) timer(); },
     render(component, props) {

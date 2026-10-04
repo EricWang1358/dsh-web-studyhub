@@ -6,6 +6,7 @@ import { Button, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, T
 import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { readJSON, removeKey, writeJSON } from "./storage.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
+import { usePolling } from './use-polling.js';
 
 /* 知识骨架的两张可交互图：UML 类图（概念结构）+ UML 时序图（动态链路）。
    两张图都能拖动平移、Ctrl/⌘+滚轮或按钮缩放；类图里的概念框可以拖开摆位
@@ -502,19 +503,16 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
     setCurrent(0);
     setPlaying(false);
   }, [sequence]);
-  useEffect(() => {
-    if (!playing) return undefined;
-    const t = setInterval(() => {
-      setCurrent((c) => {
-        if (c >= total) {
-          setPlaying(false);
-          return c;
-        }
-        return c + 1;
-      });
-    }, 1600);
-    return () => clearInterval(t);
-  }, [playing, total]);
+  // The next step of the replay, every 1.6 s (also in a hidden tab: it is the learner's own playback, not a refresh).
+  usePolling(() => {
+    setCurrent((c) => {
+      if (c >= total) {
+        setPlaying(false);
+        return c;
+      }
+      return c + 1;
+    });
+  }, { intervalMs: 1600, enabled: playing, pauseWhenHidden: false });
 
   const step = current ? layout.steps[current - 1] : null;
   const label = (id) => sequence.participants.find((p) => p.id === id)?.label || id;
