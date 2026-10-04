@@ -2,7 +2,8 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
-import { SegmentedControl } from './components/index.js';
+import { Button, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
+import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
 
 /* 知识骨架的两张可交互图：UML 类图（概念结构）+ UML 时序图（动态链路）。
@@ -17,9 +18,6 @@ const useMarkerPrefix = (name) => {
   if (!ref.current) ref.current = `${name}${++markerSeq}`;
   return ref.current;
 };
-const ZOOM_MIN = 0.02,
-  ZOOM_MAX = 2.5;
-const clamp = (k) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
 const RELATION_TEXT = { "part-of": "属于", causes: "导致", contrasts: "对比", prerequisite: "是…的前置", "example-of": "是…的例子", related: "相关" };
 // The same relation read from the other end, e.g. A 导致 B shows on B as 起因 A.
 const RELATION_IN = { "part-of": "包含", causes: "起因", contrasts: "对比", prerequisite: "之后可学", "example-of": "例子", related: "相关" };
@@ -30,140 +28,6 @@ const LEGEND = [
   ["realization", "实现：是…的例子"],
   ["association", "关联：对比 / 相关"],
 ];
-
-function usePanZoom(width, height, { maxFit = 1.2, insetRight = 0, minInitial = 0.9, anchorX = 0, anchorY = 0, vertical = false } = {}) {
-  const viewRef = useRef(null),
-    drag = useRef(null);
-  const [view, setView] = useState({ k: 1, x: 0, y: 0 });
-  const [viewport, setViewport] = useState({ w: 0, h: 0 });
-  const fit = useCallback((initial = false, bounds = { w: width, h: height }) => {
-    const el = viewRef.current;
-    if (!el || !width || !height) return;
-    // insetRight keeps the drawing clear of an overlay panel on the right.
-    const inset = el.clientWidth < 600 ? 0 : Math.min(insetRight, el.clientWidth * 0.6),
-      room = el.clientWidth - inset;
-    const fitK = Math.min(maxFit, (room - 32) / bounds.w, (el.clientHeight - 32) / bounds.h);
-    const k = clamp(Math.max(initial === true ? minInitial : 0, fitK));
-    const cropped = initial === true && k > fitK;
-    setView({ k,
-      x: cropped ? (vertical || room < 600 ? room / 2 : Math.min(room / 4, 160)) - anchorX * k : (room - bounds.w * k) / 2,
-      y: cropped ? (vertical ? Math.min(80, el.clientHeight / 4) : el.clientHeight / 2) - anchorY * k : (el.clientHeight - bounds.h * k) / 2,
-    });
-  }, [width, height, maxFit, insetRight, minInitial, anchorX, anchorY, vertical]);
-  useLayoutEffect(() => {
-    fit(true);
-    const el = viewRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      setViewport((v) => v.w === el.clientWidth && v.h === el.clientHeight ? v : { w: el.clientWidth, h: el.clientHeight });
-      if (el.clientWidth && el.clientHeight) fit(true);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [fit]);
-  const zoomAt = useCallback((factor, clientX, clientY) => {
-    const el = viewRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const cx = clientX === undefined ? el.clientWidth / 2 : clientX - rect.left,
-      cy = clientY === undefined ? el.clientHeight / 2 : clientY - rect.top;
-    setView((v) => {
-      const k = clamp(v.k * factor);
-      return { k, x: cx - ((cx - v.x) * k) / v.k, y: cy - ((cy - v.y) * k) / v.k };
-    });
-  }, []);
-  const readable = useCallback(() => {
-    setView((v) => {
-      const cx = (viewRef.current?.clientWidth || 0) / 2, cy = (viewRef.current?.clientHeight || 0) / 2;
-      return { k: 1, x: cx - (cx - v.x) / v.k, y: cy - (cy - v.y) / v.k };
-    });
-  }, []);
-  const moveTo = useCallback((x, y) => {
-    const el = viewRef.current;
-    if (el) setView((v) => ({ ...v, x: el.clientWidth / 2 - x * v.k, y: el.clientHeight / 2 - y * v.k }));
-  }, []);
-  useEffect(() => {
-    const el = viewRef.current;
-    if (!el) return undefined;
-    // Ctrl/⌘+wheel zooms; a plain wheel keeps scrolling the page.
-    const onWheel = (ev) => {
-      if (!(ev.ctrlKey || ev.metaKey)) return;
-      ev.preventDefault();
-      zoomAt(ev.deltaY < 0 ? 1.15 : 1 / 1.15, ev.clientX, ev.clientY);
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [zoomAt]);
-  const panHandlers = {
-    onPointerDown: (ev) => {
-      if (ev.button !== 0 || ev.target.closest("button, a, input")) return;
-      drag.current = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, view };
-      ev.currentTarget.setPointerCapture?.(ev.pointerId);
-      ev.currentTarget.classList.add("is-panning");
-    },
-    onPointerMove: (ev) => {
-      const d = drag.current;
-      if (!d || d.id !== ev.pointerId) return;
-      setView({ ...d.view, x: d.view.x + ev.clientX - d.x, y: d.view.y + ev.clientY - d.y });
-    },
-    onPointerUp: (ev) => {
-      if (drag.current?.id !== ev.pointerId) return;
-      drag.current = null;
-      ev.currentTarget.classList.remove("is-panning");
-    },
-  };
-  panHandlers.onPointerCancel = panHandlers.onPointerUp;
-  panHandlers.onKeyDown = (ev) => {
-    if (ev.target !== ev.currentTarget) return;
-    const delta = { ArrowLeft: [60, 0], ArrowRight: [-60, 0], ArrowUp: [0, 60], ArrowDown: [0, -60] }[ev.key];
-    if (delta) { ev.preventDefault(); setView((v) => ({ ...v, x: v.x + delta[0], y: v.y + delta[1] })); }
-    else if (ev.key === "+" || ev.key === "=") { ev.preventDefault(); zoomAt(1.2); }
-    else if (ev.key === "-") { ev.preventDefault(); zoomAt(1 / 1.2); }
-    else if (ev.key === "0") { ev.preventDefault(); fit(); }
-  };
-  return { viewRef, view, viewport, fit, zoomAt, readable, moveTo, panHandlers };
-}
-
-function useCanvasFullscreen() {
-  const ref = useRef(null);
-  const [expanded, setExpanded] = useState(false);
-  const [native, setNative] = useState(false);
-  useEffect(() => {
-    const sync = () => setNative(document.fullscreenElement === ref.current);
-    document.addEventListener("fullscreenchange", sync);
-    return () => document.removeEventListener("fullscreenchange", sync);
-  }, []);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!expanded || !el?.showPopover) return;
-    // A manual popover enters the top layer even when the plugin host uses
-    // contain:paint / overflow:hidden and disallows the Fullscreen API.
-    el.setAttribute("popover", "manual");
-    el.showPopover();
-    return () => { el.hidePopover(); el.removeAttribute("popover"); };
-  }, [expanded]);
-  const toggle = async () => {
-    if (document.fullscreenElement === ref.current) { await document.exitFullscreen(); return; }
-    if (expanded) { setExpanded(false); return; }
-    try {
-      if (!ref.current?.requestFullscreen) throw new Error("unsupported");
-      await ref.current.requestFullscreen();
-    } catch { setExpanded(true); }
-  };
-  return { ref, expanded, full: expanded || native, toggle, close: () => setExpanded(false) };
-}
-
-function ZoomBar({ zoomAt, fit, percent, children }) {
-  return (
-    <div className="skc-toolbar">
-      <button type="button" onClick={() => zoomAt(1 / 1.2)} aria-label={ui("缩小")}>−</button>
-      {percent != null && <output className="skc-zoom-value" aria-label={ui("当前缩放")}>{percent}%</output>}
-      <button type="button" onClick={() => zoomAt(1.2)} aria-label={ui("放大")}>＋</button>
-      <button type="button" onClick={fit}>{ui("适应")}</button>
-      {children}
-    </div>
-  );
-}
 
 function Markers({ prefix }) {
   return (
@@ -437,10 +301,10 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
 
   return (
     <div
-      className={`skc${narrow ? " skc-narrow" : ""}${!showAttributes ? " skc-compact" : ""}${fullscreen.expanded ? " skc-expanded" : ""}`}
+      className={`skc${narrow ? " skc-narrow" : ""}${!showAttributes ? " skc-compact" : ""}${fullscreen.expanded ? " skc-expanded" : ""} ${fullscreen.className}`.trim()}
       ref={fullscreen.ref}
       onKeyDown={(ev) => {
-        if (ev.key === "Escape" && fullscreen.expanded) { ev.stopPropagation(); fullscreen.close(); return; }
+        if (fullscreen.onEscape(ev)) return;
         if (ev.key === "Escape" && selected) {
           ev.stopPropagation();
           onSelect(null);
@@ -448,34 +312,32 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
       }}
     >
       <ZoomBar zoomAt={zoomAt} fit={fitDrawing} percent={Math.round(view.k * 100)}>
-        <button type="button" onClick={fullscreen.toggle}>{fullscreen.full ? ui("退出全屏") : ui("全屏查看")}</button>
-        <details className="skc-layout-menu">
-        <summary>{ui("布局")}</summary>
-        <div>
-        <button type="button" onClick={readable} title={ui("按原始字号阅读，可拖动画布")}>{ui("原始大小")}</button>
-        <label className="skc-attributes-toggle"><input type="checkbox" checked={showAttributes} onChange={(ev) => { setShowAttributes(ev.target.checked); setFocusPositions({}); }} />{ui("显示属性")}</label>
-        <select aria-label={ui("布局方向")} value={direction} onChange={(ev) => { setDirection(ev.target.value); setFocusMode(false); setFocusPositions({}); }}>
-          <option value="auto">{ui("自适应方向")}</option><option value="right">{ui("从左到右")}</option><option value="down">{ui("从上到下")}</option>
-        </select>
-        <select aria-label={ui("布局间距")} value={spacing} onChange={(ev) => { setSpacing(Number(ev.target.value)); setFocusMode(false); setFocusPositions({}); }}>
-          <option value="1">{ui("标准间距")}</option><option value="1.6">{ui("宽松间距")}</option>
-        </select>
-        {!!Object.keys(positions).length && <button type="button" onClick={() => setPositions({})} title={ui("恢复自动排版")}>{ui("重置布局")}</button>}
-        </div>
-        </details>
+        <FullscreenButton full={fullscreen.full} onToggle={fullscreen.toggle} />
+        <Popover label={ui("布局")} placement="bottom-start" panelClassName="skc-layout-panel"
+          trigger={({ props, ref }) => <Button ref={ref} size="sm" {...props}>{ui("布局")}</Button>}>
+          <Button size="sm" onClick={readable} title={ui("按原始字号阅读，可拖动画布")}>{ui("原始大小")}</Button>
+          <label className="skc-attributes-toggle"><input type="checkbox" checked={showAttributes} onChange={(ev) => { setShowAttributes(ev.target.checked); setFocusPositions({}); }} />{ui("显示属性")}</label>
+          <select aria-label={ui("布局方向")} value={direction} onChange={(ev) => { setDirection(ev.target.value); setFocusMode(false); setFocusPositions({}); }}>
+            <option value="auto">{ui("自适应方向")}</option><option value="right">{ui("从左到右")}</option><option value="down">{ui("从上到下")}</option>
+          </select>
+          <select aria-label={ui("布局间距")} value={spacing} onChange={(ev) => { setSpacing(Number(ev.target.value)); setFocusMode(false); setFocusPositions({}); }}>
+            <option value="1">{ui("标准间距")}</option><option value="1.6">{ui("宽松间距")}</option>
+          </select>
+          {!!Object.keys(positions).length && <Button size="sm" onClick={() => setPositions({})} title={ui("恢复自动排版")}>{ui("重置布局")}</Button>}
+        </Popover>
         {selected && (
           <>
             <span className="skc-sep" />
-            {!!trail.current.length && <button type="button" onClick={goBack} title={ui("回到上一个聚焦的概念")}>{ui("← 返回")}</button>}
-            <button
-              type="button"
+            {!!trail.current.length && <Button size="sm" icon="arrow-left" onClick={goBack} title={ui("回到上一个聚焦的概念")}>{ui("返回")}</Button>}
+            <Button
+              size="sm"
               className={focusMode ? "on" : ""}
               aria-pressed={focusMode}
               onClick={() => setFocusMode((v) => !v)}
               title={focusMode ? ui("显示全部概念，保留选中") : ui("只看选中概念和它的直接邻居")}
             >
               {focusMode ? ui("显示全图") : ui("只看邻居")}
-            </button>
+            </Button>
             {focusLayout && (
               <span className="skc-focus-chip">{ui("聚焦「")}{node?.term}」· {focusLayout.neighbours}{ui(" 个邻居")}</span>
             )}
@@ -582,7 +444,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
             <div className="skc-detail-head">
               <strong>{node.term}</strong>
               <ReadingSettingsButton className="skc-reading" />
-              <button type="button" className="skc-close" aria-label={ui("收起详情")} title={ui("收起详情（再点这个概念可展开）")} onClick={() => setDetailHidden(true)}>×</button>
+              <CloseButton className="skc-close" label={ui("收起详情")} title={ui("收起详情（再点这个概念可展开）")} onClick={() => setDetailHidden(true)} />
             </div>
             <p>{node.meaning}</p>
             {node.attributes?.length > 0 && (
@@ -676,18 +538,16 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
   };
 
   return (
-    <div ref={fullscreen.ref} className={`skc sqc${fullscreen.expanded ? " skc-expanded" : ""}`} onKeyDown={(ev) => {
-      if (ev.key === "Escape" && fullscreen.expanded) { fullscreen.close(); return; }
+    <div ref={fullscreen.ref} className={`skc sqc${fullscreen.expanded ? " skc-expanded" : ""} ${fullscreen.className}`.trim()} onKeyDown={(ev) => {
+      if (fullscreen.onEscape(ev)) return;
       onKeyDown(ev);
     }}>
       <ZoomBar zoomAt={zoomAt} fit={fit} percent={Math.round(view.k * 100)}>
-        <button type="button" onClick={fullscreen.toggle}>{fullscreen.full ? ui("退出全屏") : ui("全屏查看")}</button>
+        <FullscreenButton full={fullscreen.full} onToggle={fullscreen.toggle} />
         <span className="skc-sep" />
-        <button type="button" disabled={!current} onClick={() => { setPlaying(false); setCurrent((c) => Math.max(0, c - 1)); }} aria-label={ui("上一步")}>
-          ◀
-        </button>
-        <button
-          type="button"
+        <IconButton icon="arrow-left" size="sm" disabled={!current} onClick={() => { setPlaying(false); setCurrent((c) => Math.max(0, c - 1)); }} label={ui("上一步")} />
+        <Button
+          size="sm"
           className={playing ? "on" : ""}
           disabled={!total}
           onClick={() => {
@@ -697,11 +557,9 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
           }}
         >
           {playing ? ui("暂停") : current >= total && total ? ui("重播") : ui("播放")}
-        </button>
-        <button type="button" disabled={current >= total} onClick={() => { setPlaying(false); setCurrent((c) => Math.min(total, c + 1)); }} aria-label={ui("下一步")}>
-          ▶
-        </button>
-        <button type="button" disabled={!current} onClick={() => { setPlaying(false); setCurrent(0); }}>{ui("全部")}</button>
+        </Button>
+        <IconButton icon="arrow-right" size="sm" disabled={current >= total} onClick={() => { setPlaying(false); setCurrent((c) => Math.min(total, c + 1)); }} label={ui("下一步")} />
+        <Button size="sm" disabled={!current} onClick={() => { setPlaying(false); setCurrent(0); }}>{ui("全部")}</Button>
         <span className="skc-hint">{current ? uiFormat("第 {0} / {1} 步", [current, total]) : uiFormat("共 {0} 步 · ← → 逐步看", [total])}</span>
       </ZoomBar>
       <div className="skc-view sqc-view" ref={viewRef} tabIndex={0} {...panHandlers} onKeyDown={onKeyDown} style={fullscreen.full ? undefined : { height: Math.min(480, Math.max(240, layout.height + 40)) }}>
@@ -807,11 +665,9 @@ export default function SkeletonCanvas({ skeleton, onPractice, onAsk }) {
           <span className="skc-change-dot" aria-hidden="true" />
           <span>{change.summary}</span>
           {change.addedNodes?.length > 0 && skeleton.nodes.some((n) => n.id === change.addedNodes[0]) && (
-            <button type="button" onClick={() => setSelected(change.addedNodes[0])}>{ui("聚焦新概念")}</button>
+            <Button size="sm" onClick={() => setSelected(change.addedNodes[0])}>{ui("聚焦新概念")}</Button>
           )}
-          <button type="button" className="skc-change-close" aria-label={ui("知道了")} onClick={() => setDismissed(change.at)}>
-            ×
-          </button>
+          <CloseButton className="skc-change-close" label={ui("知道了")} onClick={() => setDismissed(change.at)} />
         </div>
       )}
       <section className="skc-section">
@@ -829,24 +685,21 @@ export default function SkeletonCanvas({ skeleton, onPractice, onAsk }) {
           <div className="skc-section-head">
             <h4>{ui("时序图 · 动态链路")}</h4>
             {sequences.length > 1 && (
-              <div className="skc-tabs" role="tablist">
-                {sequences.map((q, i) => (
-                  <button key={i} type="button" role="tab" aria-selected={tab === i} className={tab === i ? "on" : ""} onClick={() => setTab(i)}>
-                    {q.title}
-                  </button>
-                ))}
-              </div>
+              <Tabs id="skc-sequences" className="skc-tabs" label={ui("时序图")} value={tab} onChange={setTab}
+                items={sequences.map((q, i) => ({ value: i, label: q.title }))} />
             )}
           </div>
           {sequences.length === 1 && <p className="skc-seq-title">{sequences[0].title}</p>}
-          <SequenceCanvas
-            sequence={sequences[Math.min(tab, sequences.length - 1)]}
-            nodes={skeleton.nodes}
-            onSelectNode={(id) => {
-              setSelected(id);
-              classRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            }}
-          />
+          <TabPanel id="skc-sequences" value={Math.min(tab, sequences.length - 1)} selected={Math.min(tab, sequences.length - 1)} className="skc-seq-panel">
+            <SequenceCanvas
+              sequence={sequences[Math.min(tab, sequences.length - 1)]}
+              nodes={skeleton.nodes}
+              onSelectNode={(id) => {
+                setSelected(id);
+                classRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }}
+            />
+          </TabPanel>
         </section>
       )}
     </div>
