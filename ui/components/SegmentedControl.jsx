@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import css from './components.css';
+import variantsCss from './button-variants.css';
 import { useComponentCss, cx } from './css.js';
 import Icon from './Icon.jsx';
 import { nextSegmentIndex, tabStopIndex } from './segmented.js';
@@ -14,9 +15,12 @@ const ITEMS = ':scope > .sh-seg__item';
  * thumb is measured it takes over without a visible jump. Arrow keys move
  * focus along the row (roving tab stop); Enter and Space select.
  * options: [{ value, label, icon?, title?, disabled? }]
+ * size: md | sm | xs. fill: full width, equal segments. wrap: long labels may
+ * run over lines. stack: becomes a column when its container is narrow.
  */
-export default function SegmentedControl({ label, value, options = [], onChange, size = 'md', disabled = false, className, onKeyDown, ...rest }) {
+export default function SegmentedControl({ label, value, options = [], onChange, size = 'md', fill = false, wrap = false, stack = false, disabled = false, className, onKeyDown, ...rest }) {
   useComponentCss(css);
+  useComponentCss(variantsCss, 'study-button-variants');
   const root = useRef(null);
   const thumb = useRef(null);
   const placed = useRef(-2);
@@ -78,7 +82,7 @@ export default function SegmentedControl({ label, value, options = [], onChange,
   };
 
   return (
-    <div ref={root} role="group" aria-label={label} className={cx('sh-seg', size === 'sm' && 'sh-seg--sm', className)} onKeyDown={handleKeyDown} {...rest}>
+    <div ref={root} role="group" aria-label={label} className={cx('sh-seg', size === 'sm' && 'sh-seg--sm', size === 'xs' && 'sh-seg--xs', fill && 'sh-seg--fill', wrap && 'sh-seg--wrap', stack && 'sh-seg--stack', className)} onKeyDown={handleKeyDown} {...rest}>
       <span ref={thumb} className="sh-seg__thumb" aria-hidden="true" data-index={activeIndex} data-count={options.length} />
       {options.map((option, index) => {
         const active = option.value === value;
