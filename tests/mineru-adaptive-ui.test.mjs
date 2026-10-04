@@ -92,9 +92,9 @@ test('without a liveness reading (the question is off, or a restored job) the ca
 test('the windows are listed as done, current and pending with the pages and the seconds each took, and the size the next one will have', () => {
   const html = render(jobs([job()]));
   const said = text(html);
-  assert.match(said, /✓ 第 1 段 · 第 1–10 页 · 1 分 12 秒/);
-  assert.match(said, /✓ 第 2 段 · 第 11–30 页 · 1 分 1 秒/);
-  assert.match(html, /<li class="current">第 3 段 · 第 31–50 页/);
+  assert.match(said, /已完成 第 1 段 · 第 1–10 页 · 1 分 12 秒/);
+  assert.match(said, /已完成 第 2 段 · 第 11–30 页 · 1 分 1 秒/);
+  assert.match(html, /<li class="is-current"[^>]*>第 3 段 · 第 31–50 页/);
   assert.match(said, /下一段约 22 页（按这台电脑现在的速度）/);
   assert.match(html, /class="[^"]*pdf-chunks/);
 });
