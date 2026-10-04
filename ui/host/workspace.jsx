@@ -3,6 +3,7 @@ import { getUiLanguage, ui } from "../i18n.js";
 import React from "react";
 import App from "../App.jsx";
 import css from "../style.css";
+import themesCss from "../appearance-themes.css";
 import accentCss from "../accent.css";
 import bridgeCss from "../panel-bridge.css";
 import audioDashboardCss from '../audio-dashboard.css';
@@ -93,7 +94,7 @@ export function apply(ctx, registerDocumentLearning) {
   const t = ctx.locale.bind("study-workspace");
   ctx.effect(() => {
     const el = document.createElement("style");
-    el.textContent = css + "\n" + accentCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
+    el.textContent = css + "\n" + accentCss + "\n" + themesCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
     document.head.appendChild(el);
     return () => el.remove();
   }, "study styles");

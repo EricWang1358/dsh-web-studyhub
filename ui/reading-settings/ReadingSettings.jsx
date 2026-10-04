@@ -2,7 +2,8 @@ import React, { createElement } from 'react';
 import { ui } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, IconButton, Popover, SegmentedControl } from '../components/index.js';
-import { SIZES, readingProps, stepSize } from './settings.js';
+import { FONT_PRESETS } from '../font-presets.js';
+import { FACES, SIZES, readingProps, stepSize } from './settings.js';
 import { useReadingSettings } from './store.js';
 import css from './reading.css';
 
@@ -10,6 +11,11 @@ import css from './reading.css';
    恢复默认), and the container that applies the setting. The source reader mounts the same popover with its underline row; every
    other surface (review, results, notes, lessons, the skeleton detail pane, the exam report) mounts <ReadingSettingsButton /> and
    wraps its long-form text in <ReadingBlock>. Only text is styled: a control inside a block keeps its own size and face. */
+
+/** The reader's typefaces from the font registry (`sans` follows the interface), and the three light steps of 排版微调. */
+const faceOptions = () => FACES.map(id => ({ value: id, label: ui(id === 'sans' ? '跟随界面' : FONT_PRESETS[id].label) }));
+const SPACING = [['tight', '紧凑'], ['standard', '标准'], ['loose', '宽松']];
+const FINE_TUNING = [['weight', '字重', [['normal', '标准'], ['medium', '稍粗'], ['bold', '加粗']]], ['leading', '行距', SPACING], ['gap', '段间距', SPACING]];
 
 /** The rows of the popover. `underline` (default on) is the reader's row for link underlines; every other surface passes false. */
 export function DisplayControls({ settings, onChange, onReset, underline = true, extra = null }) {
@@ -32,14 +38,23 @@ export function DisplayControls({ settings, onChange, onReset, underline = true,
     </div>
     <div className="reader-setting">
       <span className="reader-setting__label">{ui('字体')}</span>
-      <SegmentedControl size="sm" label={ui('字体')} value={settings.face} onChange={pick('face')}
-        options={[{ value: 'sans', label: ui('无衬线') }, { value: 'serif', label: ui('衬线') }]} />
+      <select className="reader-select" aria-label={ui('字体')} value={settings.face} onChange={event => onChange({ face: event.target.value })}>
+        {faceOptions().map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
     </div>
     <div className="reader-setting">
       <span className="reader-setting__label">{ui('背景')}</span>
       <SegmentedControl size="sm" label={ui('背景')} value={settings.tone} onChange={pick('tone')}
         options={[{ value: 'auto', label: ui('跟随界面') }, { value: 'paper', label: ui('纸张') }]} />
     </div>
+    <details className="reader-more">
+      <summary className="reader-setting__label">{ui('排版微调')}</summary>
+      {FINE_TUNING.map(([key, label, options]) => <div className="reader-setting" key={key}>
+        <span className="reader-setting__label">{ui(label)}</span>
+        <SegmentedControl size="sm" label={ui(label)} value={settings[key]} onChange={pick(key)}
+          options={options.map(([value, text]) => ({ value, label: ui(text) }))} />
+      </div>)}
+    </details>
     {underline && <div className="reader-setting reader-setting--inline">
       <span className="reader-setting__label">{ui('下划线')}</span>
       <SegmentedControl size="sm" label={ui('下划线')} value={settings.underline} onChange={pick('underline')}

@@ -31,6 +31,10 @@
   .reader-stepper { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
   .reader-stepper__value { min-width: 2.5em; font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-align: center; }
   .reader-popover__reset { justify-self: start; }
+  .reader-select { width: 100%; min-width: 0; margin: 0; }
+  .reader-more { display: grid; gap: var(--space-4); }
+  .reader-more > summary { cursor: pointer; }
+  .reader-more[open] > summary { margin-bottom: var(--space-1); }
 
   /* Where the Aa button sits on each surface. */
   .result-reading { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
@@ -41,14 +45,15 @@
 
   .study-reading {
     --reader-sans: var(--font-ui);
-    --reader-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
     --reader-face: var(--reader-sans);
     min-width: 0;
     overflow-wrap: anywhere;
   }
   .study-reading--measure { max-width: var(--reading-measure, none); }
   /* The serif face is drawn a little heavier (variable CJK serifs such as Noto Serif SC follow it; a static one stays regular): at 16px on a dark page its thin strokes otherwise read as blur. */
-  .study-reading[data-face='serif'] { --reader-face: var(--reader-serif); --reader-weight: 450; }
+  .study-reading[data-face='serif'] { --reader-weight: 450; } /* the faces themselves: --font-stack-* in style.css */
+  /* The paragraph gap (段间距) of the reading blocks; the fallback is the spacing .md has always had. */
+  .study-reading.study-reading .md p { margin-bottom: var(--reader-gap, 0.7em); }
 
   /* The text elements follow the reading size, leading and typeface. The doubled class outranks the page's own px sizes. */
   .study-reading.study-reading :is(p, li, blockquote, dd, dt, figcaption, .md) {
