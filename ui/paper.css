@@ -1,0 +1,26 @@
+/* Card stock. Anything drawn on a card uses these, whatever the theme. The accent tints derive from --accent (the presets of accent.css change it). */
+.study-app :is(.today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta,
+  .flash-area .card-progress, .flip-face) {
+  --text: var(--paper-ink);
+  --text-dim: #463e34;
+  --text-muted: var(--paper-dim);
+  --text-faint: #6c6459;
+  --decor-faint: #867d70;
+  --line: #20160c26;
+  --line-soft: #20160c14;
+  --line-strong: #20160c40;
+  --bg-hover: #20160c0b;
+  --bg-surface: #20160c08;
+  --bg-sunken: #20160c0d;
+  --bg-raised: var(--paper);
+  --bg-selected: color-mix(in srgb, var(--accent) 8%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 89%, black);
+  --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
+  --ok: #2c7a53;
+  --warn: #93600f;
+  --bad: #a8345f;
+  --info: #3b6f9c;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--text);
+  color-scheme: light;
+}

@@ -44,7 +44,7 @@ test('no window.confirm / alert / prompt in ui (#67)', () => {
 
 test('every var(--x) used in ui CSS is defined (#96)', () => {
   assert.deepEqual(scan.undefinedVars.map((v) => `${v.name} first used at ${v.site}`), [],
-    'define the token (ui/style.css or ui/components/components.css) or fix the name; host-provided variables go in ALLOW.undefinedVars with a reason');
+    'define the token (ui/tokens.css or ui/components/components.css) or fix the name; host-provided variables go in ALLOW.undefinedVars with a reason');
 });
 
 test('allow-list entries that no longer match anything are removed', () => {

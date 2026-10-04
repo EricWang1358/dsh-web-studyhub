@@ -463,3 +463,47 @@
   flex-wrap: wrap;
   margin-top: 20px;
 }
+
+/* Dashboard stats strip (moved from style.css: Dashboard is its only user). */
+:where(.study-app) {
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 25px 0;
+    margin: 30px 0 34px;
+  }
+  .stats > div {
+    padding: 0 25px;
+    border-right: 1px solid var(--line);
+  }
+  .stats > div:first-child {
+    padding-left: 0;
+  }
+  .stats > div:last-child {
+    border: 0;
+  }
+  .stats strong {
+    display: block;
+    font-size: 32px;
+    line-height: 1.1;
+    margin-bottom: 12px;
+    font-weight: 450;
+  }
+  .stats span {
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+  @container study (max-width:720px) {
+    .stats > div {
+      padding: 0 15px;
+    }
+    .stats strong {
+      font-size: 25px;
+    }
+    .stats span {
+      font-size: 15px;
+    }
+  }
+}

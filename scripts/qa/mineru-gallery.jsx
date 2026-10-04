@@ -5,7 +5,7 @@
    scene=flow: the settings section with a stand-in backend that behaves like the real service, to click through start -> set up. */
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import styleCss from '../../ui/style.css';
+import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
 import MineruSettings, { LocalMineruPanel } from '../../ui/MineruSettings.jsx';
 import MineruRoute from '../../ui/MineruRoute.jsx';

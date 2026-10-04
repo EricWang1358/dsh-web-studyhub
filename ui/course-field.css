@@ -1,7 +1,5 @@
-/* Course picker (WP13 quick picks; WP14 clear button, hint, ranked chips,
-   chapter groups and the 全部课程 list). A JS string rather than a .css file so
-   every bundle that already includes CourseField keeps building without a CSS loader. */
-export default `:is(.study-app, .study-seat) .course-field { container: course-field / inline-size; display: grid; gap: var(--space-2); min-width: 0; margin: 0 0 var(--space-3); }
+/* Course picker (WP13 quick picks; WP14 clear button, hint, ranked chips, chapter groups and the 全部课程 list). */
+:is(.study-app, .study-seat) .course-field { container: course-field / inline-size; display: grid; gap: var(--space-2); min-width: 0; margin: 0 0 var(--space-3); }
 :is(.study-app, .study-seat) .source-organize > .course-field { max-width: 560px; }
 :is(.study-app, .study-seat) .course-field__control { position: relative; min-width: 0; }
 :is(.study-app, .study-seat) .course-field__control > input { width: 100%; margin: 0; text-overflow: ellipsis; }
@@ -58,4 +56,3 @@ export default `:is(.study-app, .study-seat) .course-field { container: course-f
   :is(.study-app, .study-seat) .course-field__picks > .course-field__pick:not(.course-field__more):nth-child(n+4) { display: none; }
   :is(.study-app, .study-seat) .course-field__pick { max-width: 100%; }
 }
-`;

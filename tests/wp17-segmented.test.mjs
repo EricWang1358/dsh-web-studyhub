@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { globalCss } from './helpers/global-css.mjs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -114,8 +115,9 @@ test('every single-choice segment row uses the shared control and the old hand-r
   }
   for (const [file, pattern] of [
     ['ui/views.css', /\.exam-type-settings button/], ['ui/skeleton.css', /\.sk-seg\b/], ['ui/skeleton.css', /\.skc-extend-intents button/],
-    ['ui/graph.css', /\.graph-mode\b/], ['ui/style.css', /\.focus-switch button/], ['ui/style.css', /\.choice-grid/], ['ui/style.css', /\.kind-grid|\.kind\.selected/],
+    ['ui/graph.css', /\.graph-mode\b/],
   ]) assert.doesNotMatch(read(file), pattern, `${file} no longer carries ${pattern}`);
+  for (const pattern of [/\.focus-switch button/, /\.choice-grid/, /\.kind-grid|\.kind\.selected/]) assert.doesNotMatch(globalCss(), pattern, `the global sheets no longer carry ${pattern}`);
   assert.doesNotMatch(read('ui/Exam.jsx'), /className=\{typeMode === kind/);
 });
 

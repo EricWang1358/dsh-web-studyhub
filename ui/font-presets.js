@@ -1,6 +1,6 @@
 /* The typefaces of StudyHub, in one pure registry that the interface (设置 › 界面) and the reader (Aa) share. A preset is only an id, a zh
    label (passed through ui() where shown) and a reference to its stack; the stacks themselves are CSS variables defined ONCE in
-   style.css (--font-stack-*), so no stylesheet repeats a long font list. No font file is bundled: a typeface is a system stack, or the
+   tokens.css (--font-stack-*), so no stylesheet repeats a long font list. No font file is bundled: a typeface is a system stack, or the
    name of a font the person has installed. */
 const preset = (id, label) => Object.freeze({ label, stack: `var(--font-stack-${id})` });
 

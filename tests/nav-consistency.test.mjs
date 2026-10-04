@@ -112,7 +112,7 @@ test("English renders without Han outside user data, and the run title stays use
 });
 
 test("stylesheet contract: one row height, labels clamped to the row, no second-line subtitles, one active look", async () => {
-  const [style, coach, language] = await Promise.all(["style", "coach", "language"].map((name) => readFile(new URL(`../ui/${name}.css`, import.meta.url), "utf8")));
+  const [style, coach, language] = await Promise.all(["shell", "coach", "language"].map((name) => readFile(new URL(`../ui/${name}.css`, import.meta.url), "utf8")));
   const all = `${style}\n${coach}\n${language}`.replace(/\r/g, "");
   const rule = (css, selector) => [...css.matchAll(new RegExp(`^[ \\t]*${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[ \\t]*\\{([^}]*)\\}`, "gm"))].map((m) => m[1]).join("\n");
   assert.match(rule(all, ".nav"), /height:\s*var\(--nav-row\)/, "every row has the one fixed height");

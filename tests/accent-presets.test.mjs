@@ -1,5 +1,5 @@
 /* 强调色 (设置 › 界面, #63): five presets, cinnabar by default, switched by one data-accent attribute that overrides a handful of tokens per theme.
-   The state lives in the unified appearance store; the colours live in ui/accent.css (injected right after style.css) and in style.css, whose
+   The state lives in the unified appearance store; the colours live in ui/accent.css (injected right after the global sheets) and in tokens.css, whose
    card stock now derives its accent tints from var(--accent). Every preset x dark/light x card stock must keep the contrast the cinnabar
    desk has (tests/wp1-tokens): accent text on every surface, the ink on the accent fill, the accent as a visible rule on the canvas and on paper. */
 import test from 'node:test';
@@ -41,16 +41,16 @@ test('Settings offers the accent row, App wires it to the store, and the empty p
   assert.match(page, /useAppearanceAttrs/);
 });
 
-test('accent.css reaches both builds: the DSH host injects it right after style.css, the preview imports it right after style.css', async () => {
+test('accent.css reaches both builds: the DSH host injects it right after the global sheets, the preview imports it right after them', async () => {
   const [workspace, dev] = await Promise.all(['ui/host/workspace.jsx', 'ui/dev.jsx'].map(read));
   assert.match(workspace, /import accentCss from ["']\.\.\/accent\.css["']/);
   assert.match(workspace, /css \+ ["']\\n["'] \+ accentCss/);
-  assert.ok(dev.indexOf('./style.css') >= 0 && dev.indexOf('./accent.css') > dev.indexOf('./style.css'), 'imported after style.css');
+  assert.ok(dev.indexOf('./styles.js') >= 0 && dev.indexOf('./accent.css') > dev.indexOf('./styles.js'), 'imported after the global sheets');
 });
 
 /* ---------- the colours ---------- */
 
-const styleCss = await read('ui/style.css');
+const styleCss = await read('ui/tokens.css');
 const accentCss = await read('ui/accent.css');
 
 /** A tiny CSS reader: rules with declarations and nested rules; comments dropped. Good enough for custom-property blocks. */
@@ -83,7 +83,7 @@ const rule = (rules, selectorStart) => {
 const styleRules = parse(styleCss);
 const darkBase = rule(styleRules, '.study-app,\n.study-seat').decls;
 const lightBase = rule(styleRules, '.study-app[data-theme="light"],').decls;
-const cardBase = rule(styleRules, '.study-app :is(.today-card').decls;
+const cardBase = rule(parse(await read('ui/paper.css')), '.study-app :is(.today-card').decls;
 const accentRules = parse(accentCss);
 const presetRule = name => accentRules.find(r => r.selector.includes(`[data-accent=${name}]`));
 /** The tokens a preset sets in one theme (the dark values, with the light ones on top for light). */
@@ -120,7 +120,7 @@ const scopeOf = (name, theme) => ({ ...darkBase, ...(theme === 'light' ? lightBa
 
 test('accent.css overrides a handful of tokens for each non-default preset, dark and light, and cinnabar needs no override at all', () => {
   assert.ok(Buffer.byteLength(accentCss) <= 2048, `accent.css is ${Buffer.byteLength(accentCss)} bytes, the budget is 2048`);
-  assert.equal(presetRule('cinnabar'), undefined, 'the default renders from style.css alone');
+  assert.equal(presetRule('cinnabar'), undefined, 'the default renders from tokens.css alone');
   const names = new Set(['--accent', '--accent-soft', '--accent-text', '--bg-selected', '--accent-ink']);
   for (const name of PRESETS.slice(1)) {
     const r = presetRule(name);
@@ -136,7 +136,7 @@ test('accent.css overrides a handful of tokens for each non-default preset, dark
   }
 });
 
-test('the accent is written once: style.css keeps a literal only in the two --accent lines, the card stock and the glow and ring derive from it', () => {
+test('the accent is written once: tokens.css keeps a literal only in the two --accent lines, the card stock and the glow and ring derive from it', () => {
   assert.equal((styleCss.match(/c93d22|c03a1f/gi) || []).length, 2, 'dark and light --accent are the only cinnabar literals');
   assert.match(styleCss, /--accent-glow:\s*color-mix\(in srgb, var\(--accent\)/);
   assert.match(styleCss, /--ring:\s*0 0 0 3px color-mix\(in srgb, var\(--accent\)/);

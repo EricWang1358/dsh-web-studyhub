@@ -16,7 +16,7 @@ const bundle = await build({ stdin: { contents: `
   import { createRoot } from 'react-dom/client';
   import DocumentViewer from './ui/document-preview/DocumentViewer.jsx';
   import { setUiLanguage } from './ui/i18n.js';
-  import css from './ui/style.css';
+  import css from './ui/styles.js';
   setUiLanguage('zh');
   const style = document.createElement('style'); style.textContent = css; document.head.append(style);
   window.readerCalls = [];

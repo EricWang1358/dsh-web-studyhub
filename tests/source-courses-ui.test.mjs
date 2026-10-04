@@ -121,7 +121,7 @@ test('a failed course save is said inside the dialog and never raises the global
 
 test('a long course path is not cut without a trace: the field shows an ellipsis and the whole path as its title', async () => {
   const { readFileSync } = await import('node:fs');
-  assert.match(readFileSync(new URL('../ui/course-field-css.js', import.meta.url), 'utf8'), /course-field__control > input \{[^}]*text-overflow:\s*ellipsis/);
+  assert.match(readFileSync(new URL('../ui/course-field.css', import.meta.url), 'utf8'), /course-field__control > input \{[^}]*text-overflow:\s*ellipsis/);
   const item = { key: 'doc-1', title: 'Book', sourceIds: ['a'], courses: ['Cloud Native Solution Design / 07 微服务设计：边界、通信、发现与兼容演进'], usedBy: [], pages: [] };
   const html = renderToStaticMarkup(React.createElement(CourseDialog, { item, items: [item], byId: new Map([['a', { id: 'a', courses: item.courses }]]), courses: [{ name: 'Databases' }], busy: false, act: noop, onClose: noop }));
   assert.match(html, /title="Cloud Native Solution Design \/ 07 微服务设计：边界、通信、发现与兼容演进"/);

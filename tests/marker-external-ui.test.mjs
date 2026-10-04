@@ -21,7 +21,7 @@ function load(react) {
 const components = load(React);
 const changes = [];
 const events = load({ ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, value => changes.push(value)],
-  useEffect: () => {}, useId: () => 'pdf', useMemo: read => read(), useRef: initial => ({ current: initial }) });
+  useInsertionEffect: () => {}, useEffect: () => {}, useId: () => 'pdf', useMemo: read => read(), useRef: initial => ({ current: initial }) });
 function find(tree, predicate) {
   if (Array.isArray(tree)) return tree.map(item => find(item, predicate)).find(Boolean);
   if (!React.isValidElement(tree)) return undefined;
@@ -100,7 +100,7 @@ function mountPdf(props, component = 'PdfConversion') {
   const mounted = load({ ...React, useId: () => 'mounted-pdf',
     useState: initial => { const index = stateCursor++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }]; },
     useRef: initial => refs[refCursor++] ||= { current: initial },
-    useEffect: (effect, dependencies) => { const index = effectCursor++; if (dependencies?.some(item => typeof item === 'string' && item.includes('{'))) return;
+    useInsertionEffect: () => {}, useEffect: (effect, dependencies) => { const index = effectCursor++; if (dependencies?.some(item => typeof item === 'string' && item.includes('{'))) return;
       if (!effectDependencies[index] || dependencies.some((value, position) => value !== effectDependencies[index][position])) {
         effectDependencies[index] = dependencies; pending.push(() => { cleanups[index]?.(); cleanups[index] = effect(); });
       }

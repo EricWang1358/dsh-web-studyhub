@@ -3,7 +3,7 @@
    Query: ?lang=zh|en&theme=dark|light&scene=merge|import|generate|update */
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import styleCss from '../../ui/style.css';
+import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
 import Manage from '../../ui/Manage.jsx';
 import ImportHub from '../../ui/ImportHub.jsx';

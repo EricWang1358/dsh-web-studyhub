@@ -128,7 +128,7 @@ test('the stylesheet fits the 4 KB budget and loads from both hosts', async () =
   assert.match(workspace, /import \w+ from ["']\.\.\/appearance-themes\.css["']/, 'the DSH host injects it');
   assert.match(workspace, /el\.textContent = [^\n]*\b(themesCss|appearanceThemesCss)\b/);
   assert.match(dev, /import ["']\.\/appearance-themes\.css["']/, 'the standalone preview bundles it');
-  assert.ok(dev.indexOf('./style.css') < dev.indexOf('./appearance-themes.css'), 'after style.css, so equal specificity resolves to the overrides');
+  assert.ok(dev.indexOf('./styles.js') < dev.indexOf('./appearance-themes.css'), 'after the global sheets, so equal specificity resolves to the overrides');
 });
 
 test('every block exists for the app root and for the seat that hosts overlays beside it', () => {
@@ -145,7 +145,7 @@ test('standard, the default, has no rule: it renders exactly as before', () => {
 });
 
 test('density scales only --space-* and --lh-*, in order: compact < standard < comfortable', async () => {
-  const style = normalize(await readFile('ui/style.css', 'utf8'));
+  const style = normalize(await readFile('ui/tokens.css', 'utf8'));
   const base = Object.fromEntries([...style.slice(style.indexOf('.study-app,\n.study-seat {')).split('\n}')[0].matchAll(/(--(?:space|lh)-[\w]+)\s*:\s*([\d.]+)(px)?;/g)].map(([, name, value]) => [name, Number(value)]));
   assert.ok(Object.keys(base).length >= 12, 'the base block has the space and line-height tokens');
   for (const [value, direction] of [['compact', -1], ['comfortable', 1]]) {
@@ -161,7 +161,7 @@ test('density scales only --space-* and --lh-*, in order: compact < standard < c
 });
 
 test('corner style scales only --radius, --radius-sm and --radius-card, in order', async () => {
-  const style = normalize(await readFile('ui/style.css', 'utf8'));
+  const style = normalize(await readFile('ui/tokens.css', 'utf8'));
   const standard = Object.fromEntries(['--radius', '--radius-sm', '--radius-card'].map(name => [name, parseFloat(style.match(new RegExp(`\\n\\s*${name}:\\s*([\\d.]+)px`))[1])]));
   for (const [value, direction] of [['sharp', -1], ['soft', 1]]) {
     const decls = Object.assign({}, ...forAttr('data-radius', value).map(rule => rule.decls));

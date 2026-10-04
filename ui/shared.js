@@ -1,24 +1,14 @@
-import { useEffect } from "react";
 import { uiLabels } from "./i18n.js";
+import { useComponentCss } from "./components/css.js";
 
 /* Shared UI helpers: one-off stylesheet injection and copy used by several
    views. Kept dependency-free so any view can import it cheaply. */
 
-/* Inject a stylesheet once per document, keyed by marker (e.g. "study-views")
-   so repeated mounts — or several views sharing one sheet — never duplicate it. */
-export function useInjectCss(css, marker) {
-  useEffect(() => {
-    const existing = document.querySelector(`style[data-${marker}]`);
-    if (existing) {
-      if (existing.textContent !== css) existing.textContent = css;
-      return;
-    }
-    const el = document.createElement("style");
-    el.setAttribute(`data-${marker}`, "");
-    el.textContent = css;
-    document.head.appendChild(el);
-  }, [css, marker]);
-}
+/* Inject a stylesheet once per document, keyed by marker (e.g. "study-views") so repeated mounts — or several views sharing one
+   sheet — never duplicate it. The one injection hook is useComponentCss (ui/components/css.js: useInsertionEffect, so a view is
+   styled on its first frame); this name stays for the many call sites. Cascade layers (@layer study.*) make the order in which
+   views mount irrelevant. */
+export const useInjectCss = useComponentCss;
 
 export const LEVEL_LABEL = uiLabels({
   mastered: "已掌握",

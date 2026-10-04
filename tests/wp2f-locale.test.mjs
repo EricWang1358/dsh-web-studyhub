@@ -45,7 +45,7 @@ test('the copy is not chosen with language ternaries or hard-coded English in th
 });
 
 test('the fold labels of a follow-up come from the catalogue, not from CSS content (#160)', async () => {
-  const css = await readFile('ui/style.css', 'utf8');
+  const css = await readFile('ui/followup.css', 'utf8');
   assert.doesNotMatch(css, /followup-item[^{]*::after\s*\{[^}]*content/);
   assert.equal(catalogue['展开'], 'Expand');
   assert.equal(catalogue['收起'], 'Collapse');

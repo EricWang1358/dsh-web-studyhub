@@ -1,0 +1,322 @@
+:where(.study-app) {
+  /* Other open runs: a ruled line under the desk, never a second hero. */
+  .resume {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+    width: 100%;
+    padding: 12px 10px;
+    margin-bottom: 0;
+    transition: background 0.15s var(--ease);
+  }
+  .resume:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+  .resume > span:first-child {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+  }
+  .resume .eyebrow {
+    margin: 0;
+    font-size: 15px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-faint);
+  }
+  .resume strong {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .resume > span:last-child {
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+  }
+  .resume b {
+    margin-left: 12px;
+    color: var(--text-dim);
+  }
+  .resume-row {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .resume-row .resume {
+    margin-bottom: 0;
+    flex: 1;
+    min-width: 0;
+  }
+  .resume-row .ghost-btn {
+    flex-shrink: 0;
+    align-self: center;
+  }
+  .draft-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    padding: 10px 4px;
+    text-align: left;
+  }
+  .draft-open {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 0;
+    background: transparent;
+    padding: 8px 0;
+    text-align: left;
+  }
+  .draft-open > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .draft-row small {
+    display: block;
+    margin-top: 5px;
+  }
+  .draft-open > span:last-child {
+    font-size: 15px;
+    color: var(--accent-soft);
+  }
+  .jobs {
+    margin-top: 30px;
+  }
+  .jobs-dismiss-all {
+    align-self: flex-end;
+    font-size: 15px;
+  }
+  .jobs-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .jobs-actions:empty { display: none; }
+  /* ── Desk: the library's opening view ──────────────────────────────────
+     Left, the course as a large statement; right, today's cards as the only
+     physical object on the page. Everything else is type. */
+  .desk {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(270px, 340px);
+    align-items: start;
+    gap: 36px 72px;
+    padding: 34px 0 52px;
+    margin-bottom: 40px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .desk-intro { min-width: 0; }
+  .desk-mastery {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: end;
+    column-gap: 12px;
+    row-gap: 12px;
+    max-width: 440px;
+  }
+  .desk-mastery-value {
+    font-family: var(--font-display);
+    font-size: 46px;
+    font-weight: 300;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .desk-mastery-value small {
+    margin-left: 2px;
+    font-size: 0.4em;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--text-muted);
+  }
+  .desk-mastery-label {
+    padding-bottom: 4px;
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+  .desk-mastery .mastery {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin: 0;
+  }
+  .desk-mastery .mastery-value { display: none; }
+  .desk-mastery .mastery-bar { height: 5px; }
+  .desk-mastery-all {
+    grid-column: 1 / -1;
+    margin-top: -4px;
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+  .desk-mastery-all strong {
+    font-weight: 600;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .desk-next {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 14px;
+    margin: 30px 0 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+  .desk-next-label {
+    font-size: 15px;
+    color: var(--text-faint);
+  }
+  .desk-next-topic strong { color: var(--text); font-weight: 600; }
+  .desk-next-topic small { color: var(--text-muted); font-size: 15px; }
+  .desk-also {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+    margin: 12px 0 0;
+  }
+  /* Today's stack. Cards behind the top one mirror how much is left. */
+  .today-stack {
+    position: relative;
+    justify-self: end;
+    width: 100%;
+    max-width: 340px;
+    isolation: isolate;
+  }
+  .today-stack::before,
+  .today-stack::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: var(--radius-card);
+    background: color-mix(in srgb, var(--paper) 82%, var(--bg-canvas));
+    box-shadow: var(--shadow-md);
+    transition: transform 0.5s var(--ease-out);
+    animation: stack-in 0.6s var(--ease-out) 0.12s backwards;
+  }
+  .today-stack::before {
+    background: color-mix(in srgb, var(--paper) 64%, var(--bg-canvas));
+    transform: translate(12px, 11px) rotate(3.6deg);
+  }
+  .today-stack::after {
+    transform: translate(6px, 5px) rotate(1.6deg);
+  }
+  .today-stack[data-depth="0"]::before,
+  .today-stack[data-depth="0"]::after,
+  .today-stack[data-depth="1"]::before {
+    display: none;
+  }
+  .today-stack:hover::before { transform: translate(20px, 12px) rotate(6.5deg); }
+  .today-stack:hover::after { transform: translate(11px, 6px) rotate(3.2deg); }
+  .today-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 330px;
+    padding: 18px 24px 24px;
+    border-radius: var(--radius-card);
+    color: var(--paper-ink);
+    /* Index-card ruling under the cinnabar header rule. */
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0 31px,
+        var(--paper-rule) 31px 32px
+      )
+      0 52px / 100% calc(100% - 52px) no-repeat,
+      var(--paper);
+    box-shadow: var(--shadow-card);
+    transition: transform 0.5s var(--ease-out);
+    animation: card-deal 0.55s var(--ease-out) backwards;
+  }
+  .today-stack:hover .today-card { transform: translateY(-4px) rotate(-0.6deg); }
+  .today-card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 11px;
+    border-bottom: 2px solid var(--accent);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--paper-dim);
+  }
+  .today-card-head time { font-variant-numeric: tabular-nums; }
+  /* .today-count (the number and its caption): ui/home-tiers.css */
+  .today-detail {
+    margin: 0 0 22px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--paper-dim);
+  }
+  .today-card-empty {
+    margin: 30px 0 18px;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 650;
+    line-height: 1.55;
+    color: var(--paper-ink);
+  }
+  .today-card .today-go {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: auto;
+    padding: 13px 18px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+  .today-go span { transition: transform 0.2s var(--ease-out); }
+  .today-go:hover:not(:disabled) span { transform: translateX(4px); }
+  .today-card .today-go:disabled {
+    background: color-mix(in srgb, var(--paper-ink) 7%, transparent) !important;
+    color: var(--paper-dim) !important;
+  }
+  @container study (max-width: 760px) {
+    .desk {
+      grid-template-columns: minmax(0, 1fr);
+      padding-top: 18px;
+      gap: 0;
+    }
+    /* Narrow: tabs, heading, the card, then the details (the order of every part: ui/home-tiers.css). */
+    .today-card { min-height: 0; }
+  }
+  /* Other open runs: a short list inside the desk, under its links. */
+  .desk .resume-list {
+    max-width: 460px;
+    margin: 26px 0 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .desk .resume { padding: 10px 4px; }
+  .desk .resume-list > summary {
+    padding: 10px 0;
+    list-style: none;
+    cursor: pointer;
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+  .desk .resume-list > summary::-webkit-details-marker { display: none; }
+  .desk .resume-list > summary::before { content: "▸  "; color: var(--text-faint); }
+  .desk .resume-list[open] > summary::before { content: "▾  "; }
+  .desk .resume-list > summary:hover { color: var(--text); }
+  @container study (max-width:720px) {
+    .resume {
+      padding: 15px;
+    }
+    .resume strong {
+      font-size: 15px;
+    }
+  }
+}
+
+@keyframes stack-in {
+  from { opacity: 0; }
+}

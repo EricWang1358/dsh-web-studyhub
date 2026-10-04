@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { globalCss } from './helpers/global-css.mjs';
 import { INTERFACE_DEFAULTS, MOTIONS, normalizeInterface, loadInterface, saveInterface, effectiveMotion, leaveDelayMs, INTERFACE_KEY } from '../ui/interface-prefs.js';
 
 /* Interface preferences (设置 › 界面): how much the interface moves. Stored per browser; "auto" follows the system's reduced-motion setting. */
@@ -44,7 +44,7 @@ test('switching pages waits for the leave animation only when there is one', () 
 });
 
 test('the stylesheet obeys it: no stagger on every child of a page, one entrance for the page itself, and the off/reduced rules keep spinners alive', () => {
-  const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const css = globalCss();
   assert.doesNotMatch(css, /:is\(\.page, \.review-page\) > \* \{\s*animation: page-in/, 'the entrance used to be a composited layer per child of the page');
   assert.match(css, /:is\(\.page, \.review-page\) \{[^}]*animation: page-in 0\.2s/);
   assert.match(css, /\.study-app\[data-motion='off'\][^{]*\{[^}]*animation-duration: 0\.01ms !important/);
@@ -94,7 +94,7 @@ test('interface size and typeface: a fixed list of sizes up to 200%, the registr
 });
 
 test('the stylesheet scales the whole interface with CSS zoom for each size and switches the typeface by attribute', () => {
-  const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const css = globalCss();
   assert.match(css, /\.study-app\s*\{\s*zoom:\s*var\(--study-ui-scale,\s*1\)/, 'dialogs share the applied scale when converting viewport bounds');
   for (const scale of [90, 110, 125, 150, 175, 200])
     assert.match(css, new RegExp(String.raw`\.study-app\[data-ui-scale='${scale}'\]\s*\{\s*--study-ui-scale:\s*${scale / 100}`), `${scale}%`);

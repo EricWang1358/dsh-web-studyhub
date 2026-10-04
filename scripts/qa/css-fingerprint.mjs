@@ -6,7 +6,7 @@
    computed values of the properties that make up its look (box, type, colour, effects) and its rounded layout rectangle.
    `diff` lists what changed between two captures. A pure CSS reorganisation (split, layers, tokens) must produce none.
    Nothing here touches a real library, a key or the network. */
-/* global document, getComputedStyle */
+/* global document, getComputedStyle, window */
 import { mkdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -32,6 +32,7 @@ const PROPS = [
   'grid-template-columns', 'grid-template-rows', 'grid-column-start', 'grid-column-end', 'grid-row-start', 'grid-row-end', 'order', 'list-style-type',
   'transition-property', 'transition-duration', 'animation-name', 'appearance', 'accent-color', 'resize', 'content-visibility', 'zoom',
 ];
+const HOVER_PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'border-top-width', 'box-shadow', 'opacity', 'transform', 'outline-style', 'text-decoration-line', 'cursor', 'filter'];
 const PSEUDO_PROPS = ['content', 'display', 'color', 'background-color', 'width', 'height', 'position', 'border-top-width', 'opacity', 'transform', 'font-size', 'font-weight'];
 
 /* Runs in the page: { key: "p1|p2|..." } for every element, plus the pseudo-elements that render. */
@@ -50,6 +51,7 @@ function collect([props, pseudoProps]) {
   };
   for (const el of document.body.querySelectorAll('*')) {
     if (/^(SCRIPT|STYLE|LINK|META|TITLE|NOSCRIPT|PATH|CIRCLE|LINE|RECT|POLYLINE|POLYGON|G|DEFS|USE|TEXT|TSPAN)$/i.test(el.tagName)) continue;
+    if (el.closest('.mailbox__toggle')) continue;
     const cs = getComputedStyle(el);
     if (cs.display === 'none') { out[keyOf(el)] = 'display:none'; continue; }
     const rect = el.getBoundingClientRect();
@@ -98,6 +100,29 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
       result.states[name] = await page.evaluate(collect, [PROPS, PSEUDO_PROPS]).catch((error) => ({ error: String(error) }));
     };
     const settle = (ms = 450) => sleep(ms);
+    /* Hover each of the first interactive elements and record its look (hover rules, tooltips, focus rings follow the same cascade). */
+    const hoverPass = async (name, selector, limit = 18) => {
+      const rects = await page.evaluate(([sel, max]) => [...document.querySelectorAll(sel)].filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 4 && r.height > 4 && r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth && getComputedStyle(el).visibility !== 'hidden';
+      }).slice(0, max).map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]; }), [selector, limit]).catch(() => []);
+      const record = {};
+      for (let i = 0; i < rects.length; i++) {
+        await page.mouse.move(rects[i][0], rects[i][1]);
+        await sleep(90);
+        const one = await page.evaluate(([x, y, props]) => {
+          const el = document.elementFromPoint(x, y);
+          if (!el) return null;
+          const path = (node) => { const parent = node.parentElement; const idx = parent ? [...parent.children].indexOf(node) : 0; const cls = (typeof node.className === 'string' ? node.className : '').trim().split(/\s+/)[0] || ''; return `${parent ? path(parent) : ''}>${node.tagName.toLowerCase()}${cls ? '.' + cls : ''}[${idx}]`; };
+          const cs = getComputedStyle(el);
+          const round = (v) => v.replace(/-?\d+\.\d+/g, (n) => String(Math.round(parseFloat(n) * 10) / 10));
+          return [path(el), props.map((p) => round(cs.getPropertyValue(p))).join('|')];
+        }, [rects[i][0], rects[i][1], HOVER_PROPS]).catch(() => null);
+        if (one) record[`hover:${one[0]}`] = one[1];
+      }
+      await page.mouse.move(0, 0);
+      result.states[`hover-${name}`] = record;
+    };
     const closeOverlays = async () => {
       for (let i = 0; i < 3; i++) {
         if (!await page.locator('dialog[open], [role=dialog]').count()) break;
@@ -110,6 +135,7 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
       const go = async () => { await closeOverlays(); await page.locator(`[data-tour="nav-${id}"]`).first().click({ timeout: 5000 }).catch(() => {}); await settle(); };
       await go();
       await snap(`page-${id}`);
+      await hoverPass(`page-${id}`, 'main button, main a[href], main [role="tab"], main summary, .sidebar button');
       /* Reach what the page hides: tabs, disclosures, segmented controls, menus. */
       const probes = await page.locator('main [role="tab"][aria-selected="false"], main summary, main [aria-expanded="false"]:not([data-tour^="nav-"]), main .sh-seg button[aria-pressed="false"], main .sh-seg button[aria-checked="false"], .settings-nav__item').evaluateAll((items) => items.slice(0, 40).map((_, index) => index)).catch(() => []);
       const sel = 'main [role="tab"][aria-selected="false"], main summary, main [aria-expanded="false"]:not([data-tour^="nav-"]), main .sh-seg button[aria-pressed="false"], main .sh-seg button[aria-checked="false"], .settings-nav__item';
@@ -167,10 +193,11 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
         if (await page.locator('.flip-control').count()) { await page.locator('.flip-control').first().click().catch(() => {}); await settle(400); await snap(`review-q${i}-flipped`); }
         else if (await page.locator('.options .option').count()) {
           await page.locator('.options .option').first().click().catch(() => {});
-          await settle(200);
+          await page.locator('.options .option.correct').first().waitFor({ timeout: 2500 }).catch(() => {});
+          await settle(300);
           await snap(`review-q${i}-picked`);
           const submit = page.locator('button.primary, .sh-btn--primary').filter({ hasText: /提交|Submit/ }).first();
-          if (await submit.count() && await submit.isEnabled().catch(() => false)) { await submit.click().catch(() => {}); await settle(500); await snap(`review-q${i}-answered`); }
+          if (await submit.count() && await submit.isEnabled().catch(() => false)) { await submit.click().catch(() => {}); await page.locator('.options .option.correct').first().waitFor({ timeout: 2500 }).catch(() => {}); await settle(500); await snap(`review-q${i}-answered`); }
         } else if (await page.locator('main textarea, main input[type="text"]').count()) {
           await page.locator('main textarea, main input[type="text"]').first().fill('sample answer').catch(() => {});
           await settle(200);
@@ -179,6 +206,7 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
           if (await submit.count() && await submit.isEnabled().catch(() => false)) { await submit.click().catch(() => {}); await settle(700); await snap(`review-q${i}-answered`); }
         }
       }
+      await hoverPass('review', 'main button, .review-tick');
       await probe('.question-toolbar button, .review-toolbar button, main .tool-action, main .tool-icon', 'review-tool', 10);
     }
     /* A source in the reader: its toolbar and menus. */
@@ -236,8 +264,8 @@ export function diffCaptures(a, b) {
       if (x === y) continue;
       if (x === undefined || y === undefined) { out.push({ state, key, prop: '(element)', before: x === undefined ? 'missing' : 'present', after: y === undefined ? 'missing' : 'present' }); continue; }
       const xs = x.split('|'), ys = y.split('|');
-      const pseudo = key.endsWith('::before') || key.endsWith('::after');
-      for (let i = 0; i < Math.max(xs.length, ys.length); i++) if (xs[i] !== ys[i]) out.push({ state, key, prop: pseudo ? `pseudo.${PSEUDO_PROPS[i] ?? i}` : names[i] ?? i, before: xs[i], after: ys[i] });
+      const pseudo = key.endsWith('::before') || key.endsWith('::after'), hover = key.startsWith('hover:');
+      for (let i = 0; i < Math.max(xs.length, ys.length); i++) if (xs[i] !== ys[i]) out.push({ state, key, prop: hover ? `hover.${HOVER_PROPS[i] ?? i}` : pseudo ? `pseudo.${PSEUDO_PROPS[i] ?? i}` : names[i] ?? i, before: xs[i], after: ys[i] });
     }
   }
   return out;

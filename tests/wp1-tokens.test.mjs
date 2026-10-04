@@ -5,7 +5,7 @@ import { readFile, readdir } from 'node:fs/promises';
 // P52: text tokens must be readable (WCAG AA, 4.5:1) on every surface they sit
 // on, in both themes and on card stock. Decoration that used --text-faint gets
 // its own --decor-faint so raising text contrast does not brighten dots/rules.
-const css = (await readFile('ui/style.css', 'utf8')).replace(/\r\n/g, '\n');
+const css = ((await readFile('ui/tokens.css', 'utf8')) + '\n' + (await readFile('ui/paper.css', 'utf8'))).replace(/\r\n/g, '\n');
 function block(selectorStart) {
   const start = css.indexOf(selectorStart);
   assert.ok(start >= 0, `token block ${selectorStart}`);
