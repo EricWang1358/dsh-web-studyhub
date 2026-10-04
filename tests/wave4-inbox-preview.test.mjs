@@ -114,6 +114,15 @@ test('on a wide screen the card sits outside the panel, level with its entry (#1
   assert.ok(boxes.card.top <= boxes.entry.bottom && boxes.card.bottom >= boxes.entry.top, 'level with the entry');
 });
 
+test('a card that is not open takes no room: nothing of it shows inside the panel (#181)', { skip: unavailable }, async t => {
+  const page = await open(t);
+  await page.locator('.mailbox__item').nth(0).hover();
+  await page.waitForFunction(() => document.querySelectorAll('.mailbox-preview:popover-open').length === 1);
+  const shown = await page.evaluate(() => [...document.querySelectorAll('.mailbox-preview')].filter(card => !card.matches(':popover-open')).map(card => getComputedStyle(card).display));
+  assert.equal(shown.length, 2);
+  assert.deepEqual(shown, ['none', 'none'], 'closed cards stay display:none');
+});
+
 test('the card scrolls inside itself when the text is very long (#181)', { skip: unavailable }, async t => {
   const page = await open(t);
   await page.locator('.mailbox__item').nth(0).hover();
