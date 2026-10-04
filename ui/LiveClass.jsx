@@ -4,7 +4,7 @@ import LiveAudioMonitor from './LiveAudioMonitor.jsx';
 import LiveNotes from './LiveNotes.jsx';
 import LiveHistory from './LiveHistory.jsx';
 import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
-import { formatClock } from './format.js';
+import { formatClock, joinMeta } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
 import { Button, IconButton, InlineMessage, PageHeader, SetupRequired, useToast } from './components/index.js';
@@ -170,7 +170,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
         <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>
-        <span className="muted">{uiFormat('已检查 {0} / {1} 句 · 已润色 {2} 句', [correction.covered, total, polished])}{correction.pending > 0 ? uiFormat(' · 待处理 {0}', [correction.pending]) : ''}</span>
+        <span className="muted">{joinMeta([uiFormat('已检查 {0} / {1} 句 · 已润色 {2} 句', [correction.covered, total, polished]), correction.pending > 0 ? uiFormat('待处理 {0}', [correction.pending]) : ''])}</span>
         <span className="live-legend" aria-label={ui('右侧标记说明')}>
           <span><i className="live-dot polished" aria-hidden="true" />{ui('已润色')}</span>
           <span><i className="live-dot checked" aria-hidden="true" />{ui('已检查未改')}</span></span>

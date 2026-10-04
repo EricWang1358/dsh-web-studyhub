@@ -7,6 +7,7 @@ import { TERMS } from '../mastery-terms.js';
 import CourseHeading from './CourseHeading.jsx';
 import RoleSuggestion from './RoleSuggestion.jsx';
 import MasteryBar from './MasteryBar.jsx';
+import { META_DOT } from '../format.js';
 
 /** The mastery of the current course (and the whole library when it differs), with what the words mean on hover. */
 function DeskMastery({ mastery }) {
@@ -63,7 +64,7 @@ export default function DeskIntro({ data, home, mastery, role, busy, start, resu
           <>
             <span className="desk-next-label">{ui('推荐下一步')}</span>
             <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>
-              <small title={ui('按课程里题组和主题的顺序，这是第一个还没掌握的主题。')}>{uiFormat(' · 课程里下一个没掌握的主题 · 掌握 {0}%', [data.next.mastery])}</small></span>
+              <small title={ui('按课程里题组和主题的顺序，这是第一个还没掌握的主题。')}>{META_DOT}{uiFormat('课程里下一个没掌握的主题 · 掌握 {0}%', [data.next.mastery])}</small></span>
             <Button variant="link" disabled={busy} onClick={() => start({ mode: 'path', scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui('只学这个主题 →')}</Button>
           </>
         ) : starter ? starter.next : ui('所有主题都已掌握，可以提前巩固。')}

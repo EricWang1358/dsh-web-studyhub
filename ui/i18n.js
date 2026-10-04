@@ -138,7 +138,8 @@ try { const saved = localStorage.getItem(KEY); if (['en', 'zh'].includes(saved))
 export const getUiLanguage = () => language;
 /** For logic that has to pick DATA by language (the language a model answers in, which host text to keep). A sentence of the interface is never chosen with it: that is ui(). */
 export const uiIsEnglish = () => language === 'en';
-export const uiLanguageName = () => (language === 'en' ? 'English' : '中文');
+const LANGUAGE_NAMES = { en: 'English', zh: '中文' };
+export const uiLanguageName = () => LANGUAGE_NAMES[language];
 export const uiLocale = () => language === 'en' ? 'en-US' : 'zh-CN';
 export function setUiLanguage(next) {
   if (!['en','zh'].includes(next)) return;

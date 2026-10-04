@@ -6,7 +6,7 @@ import { useInjectCss } from "./shared.js";
 import { gateTitle } from "./ModelSetupGate.jsx";
 import css from "./draft-shortfall.css";
 import { canContinueDraft, draftWork, draftWorkLabel, missingQuestions, omissionTitle, reasonLabel, shortfall } from "./draft-shortfall.js";
-import { formatClauses } from './format.js';
+import { formatClauses, META_DOT } from './format.js';
 
 /* The two pieces every place that shows a short draft uses, so the same thing
    reads and acts the same way on the home card, the job card and the draft
@@ -49,7 +49,7 @@ export function ShortfallReasons({ draft, compact = false }) {
     {found.reasons.length > 0 && <>
       <p className="shortfall__lead">{ui("没进入草稿的题，原因：")}</p>
       <ul className="shortfall__reasons">
-        {shown.map((reason) => <li key={reason.code}>{reason.label}<small>{uiFormat(" · {0} 题", [reason.count])}</small></li>)}
+        {shown.map((reason) => <li key={reason.code}>{reason.label}<small>{META_DOT}{uiFormat("{0} 题", [reason.count])}</small></li>)}
       </ul>
       {compact && found.reasons.length > shown.length && <small className="muted">{uiFormat("还有 {0} 类原因，打开草稿查看。", [found.reasons.length - shown.length])}</small>}
       {!compact && <small className="muted">{ui("一道题可能同时有几个原因。逐题的说明在下面的「没进入草稿的题」里。")}</small>}

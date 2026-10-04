@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiLocale, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, LoadingState, useNow } from './components/index.js';
-import { formatBytes, formatDuration, formatAgo, formatElapsed } from './format.js';
+import { formatBytes, formatDuration, formatAgo, formatElapsed, joinMeta } from './format.js';
 import { usePolling } from './use-polling.js';
 import { isActiveJob, isCancellable } from './job-visibility.js';
 import { JOB_STATUS } from '../lib/job-status.js';
@@ -46,7 +46,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
     await send('mineru.retry', { jobId: job.id });
   });
   const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
-  const meta = <>{title}{took !== null && (running || job.finishedAt) ? uiFormat(running ? ' · 已用 {0}' : ' · 用时 {0}', [formatElapsed(took)]) : ''}</>;
+  const meta = <>{joinMeta([title, took !== null && (running || job.finishedAt) ? uiFormat(running ? '已用 {0}' : '用时 {0}', [formatElapsed(took)]) : ''])}</>;
   const pages = uiFormat('已解析 {0}/{1} 页', [job.done, job.total]);
   const actions = [
     ...(isCancellable(job) ? [{ key: 'stop', label: ui('停止（已解析好的段落会保留）'), disabled: !!working, onClick: () => run('cancel', () => send('job.cancel', { jobId: job.id })) }] : []),

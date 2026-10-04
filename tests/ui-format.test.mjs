@@ -134,6 +134,15 @@ test('lists and clauses use the separator of the interface language, through the
   } finally { m.setUiLanguage('zh'); }
 });
 
+test('joinMeta joins the parts of a meta line with the middle dot and drops the empty ones (#107)', () => {
+  assert.equal(m.joinMeta(['录音 3 分钟', '已用 0:20']), '录音 3 分钟 · 已用 0:20');
+  assert.equal(m.joinMeta(['标题', '', undefined, null, false, '用时 5']), '标题 · 用时 5');
+  assert.equal(m.joinMeta(['只有一部分']), '只有一部分');
+  assert.equal(m.joinMeta([]), '');
+  assert.equal(m.joinMeta(['a', 0, 'b']), 'a · 0 · b', 'a zero is a value');
+  assert.equal(m.META_DOT, ' · ');
+});
+
 test('the language helpers say which language data is wanted in, without choosing a sentence (#123)', () => {
   m.setUiLanguage('zh');
   assert.deepEqual([m.uiIsEnglish(), m.uiLanguageName()], [false, '中文']);

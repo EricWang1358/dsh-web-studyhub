@@ -78,6 +78,13 @@ test('no inline (zh, en) helper and no { zh, en } pair of sentences: the Chinese
   assert.deepEqual(uiSources().filter(({ file, text }) => !own.has(file) && (pair.test(text) || helper.test(text))).map(({ file }) => file), []);
 });
 
+/* ---------- #107: a meta line is a list of parts, not a sentence with a dot in its key ---------- */
+
+test('no uiFormat template starts with a separator dot: the parts are joined by joinMeta (#107)', () => {
+  const offenders = uiSources().filter(({ text }) => /\buiFormat\(\s*(?:[^'"`(),]*\?\s*)?['"`]\s+·/.test(text)).map(({ file }) => file);
+  assert.deepEqual(offenders, []);
+});
+
 /* ---------- #116: unmount guards and failure text come from ui/use-async.js ---------- */
 
 test('"let live = true" unmount flags are few: effects use useLiveEffect (#116)', () => {

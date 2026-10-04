@@ -10,7 +10,7 @@ import { TokenEstimate } from "./TokenUsage.jsx";
 import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
 import { Badge, Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, Spinner, useToast } from "./components/index.js";
 import ModelSetupGate, { gateTitle } from "./ModelSetupGate.jsx";
-import { formatClock } from "./format.js";
+import { formatClock, joinMeta } from "./format.js";
 import { useExamRun } from "./exam/useExamRun.js";
 import SubmitBlanksDialog from "./SubmitBlanksDialog.jsx";
 import { ExamSetupCard } from "./ExamShell.jsx";
@@ -479,7 +479,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRun
                   <input type="radio" name="case-paper-deck" checked={deck?.id === item.id} onChange={() => setDeckId(item.id)} />
                   <span>
                     <strong>{item.title}</strong>
-                    <small>{uiFormat("{0} 题 · {1} 分", [item.count, item.caseMarks])}{item.caseBest ? uiFormat(" · 最好成绩 {0}/{1}", [item.caseBest.total, item.caseBest.max]) : ""}</small>
+                    <small>{joinMeta([uiFormat("{0} 题 · {1} 分", [item.count, item.caseMarks]), item.caseBest ? uiFormat("最好成绩 {0}/{1}", [item.caseBest.total, item.caseBest.max]) : ""])}</small>
                   </span>
                 </label>
               ))}

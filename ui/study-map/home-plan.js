@@ -2,6 +2,7 @@ import { ui, uiFormat, uiLocale } from '../i18n.js';
 import { documentCount } from '../generation-status.js';
 import { TERMS } from '../mastery-terms.js';
 import { workspaceFilePrompt } from '../agent-prompts/library.js';
+import { joinMeta } from '../format.js';
 
 /**
  * What the home card offers. The card offers exactly one action: a newcomer's
@@ -70,7 +71,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
         : route?.next
           ? { kind: 'course', eyebrow: route.current === null ? ui('课程巩固') : uiFormat('第 {0} / {1} 章', [route.current + 1, route.chapters.length]),
             count: route.next.fresh + route.next.reviews, unit: ui('题 · 这一批'),
-            detail: `${route.next.label}${route.next.reviews ? uiFormat(' · 先巩固 {0} 道', [route.next.reviews]) : ''}`,
+            detail: joinMeta([route.next.label, route.next.reviews ? uiFormat('先巩固 {0} 道', [route.next.reviews]) : '']),
             action: { label: ui('继续课程'), run: startCourse }, also: [...flowLink, ...reviewLink] }
           : !interview && freshCount
             ? { kind: 'fresh', eyebrow: ui('当前课程'), count: freshCount, unit: ui('道新题'),

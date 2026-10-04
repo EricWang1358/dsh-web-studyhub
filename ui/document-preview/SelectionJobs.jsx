@@ -4,6 +4,7 @@ import { Button, Icon, InlineMessage } from '../components/index.js';
 import { JobUsage } from '../TokenUsage.jsx';
 import { stepLabel } from '../generation-status.js';
 import { isCancellable } from '../../lib/job-status.js';
+import { META_DOT } from '../format.js';
 import {
   WORK_PHASES, countsText, deckName, elapsedClock, failureCopy, isActive, jobPhase, phaseLabel, phaseName, resultHeadline, resultReasons,
 } from './selection-job.js';
@@ -38,7 +39,7 @@ function Reasons({ job }) {
   if (!items.length) return null;
   return <div className="selection-job__reasons">
     <p>{ui('没通过审阅的题，原因：')}</p>
-    <ul>{reasons.map((reason) => <li key={reason.code}>{reason.label}<small>{uiFormat(' · {0} 题', [reason.count])}</small></li>)}</ul>
+    <ul>{reasons.map((reason) => <li key={reason.code}>{reason.label}<small>{META_DOT}{uiFormat('{0} 题', [reason.count])}</small></li>)}</ul>
     <details>
       <summary>{uiFormat('没通过审阅的题 · {0}', [items.length])}</summary>
       <ul>{items.map((item, index) => <li key={index}><strong>{item.prompt || ui('候选题目')}</strong>{item.note && <small className="muted">{item.note}</small>}</li>)}</ul>

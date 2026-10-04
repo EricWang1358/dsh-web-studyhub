@@ -6,5 +6,21 @@
   "{0} 站": "{0} stations",
   "1 个要点": "1 key point",
   "{0} 个要点": "{0} key points",
-  "我已口头复述（自我记录，未经过判分或掌握验证）。": "I retold it aloud (self-recorded; not graded or verified for mastery)."
+  "我已口头复述（自我记录，未经过判分或掌握验证）。": "I retold it aloud (self-recorded; not graded or verified for mastery).",
+  "录入 {0} 分钟（不计入考试时间）": "typing up {0} min (not counted as exam time)",
+  "最好成绩 {0}/{1}": "best {0}/{1}",
+  "还差 {0} 题": "{0} more needed",
+  "{0} 道薄弱": "{0} weak questions",
+  "已等待 {0} 秒": "waited {0} seconds",
+  "{0} 个节点": "{0} nodes",
+  "{0} 列": "{0} columns",
+  "{0} 题待处理": "{0} unresolved questions",
+  "生成未完成 {0}/{1} 批": "Generation incomplete: {0}/{1} batches",
+  "先巩固 {0} 道": "review {0} first",
+  "{0} 道到期": "{0} due",
+  "待处理 {0}": "{0} pending",
+  "课程里下一个没掌握的主题 · 掌握 {0}%": "next unmastered topic in the course · mastery {0}%",
+  "转写付费部分约 ${0}": "paid transcription about ${0}",
+  "录音时长 {0} 分钟": "recording length {0} min",
+  "已等待 {0}": "waited {0}"
 }

@@ -67,6 +67,10 @@ export function formatAgo(value, now = Date.now()) {
   return formatDateTime(time, 'stamp');
 }
 
+/** The parts of one meta line ("录音时长 3 分钟 · 已校对"), the empty ones left out, joined by the middle dot every line of that kind uses. Each part is its own translated sentence. */
+export const joinMeta = (parts) => parts.filter(part => part !== undefined && part !== null && part !== false && part !== '').join(META_DOT);
+/** The separator itself, for a part that is appended on its own (a <small> after a label). It is punctuation, not a sentence: not translated. */
+export const META_DOT = ' · ';
 /** Short items in one line: "第 1 步、第 2 步" / "Step 1, Step 2". */
 export const formatList = (items) => items.join(ui('、'));
 /** Clauses of one sentence: "原因甲；原因乙" / "reason a; reason b". */

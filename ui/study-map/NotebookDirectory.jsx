@@ -3,6 +3,7 @@ import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Badge, Button, DisclosureToggle, Hint, InlineMessage, LoadingState, foldLabel } from '../components/index.js';
 import { EMPTY_NOTEBOOKS } from './map-model.js';
 import { readText, writeText } from '../storage.js';
+import { joinMeta } from '../format.js';
 
 const OPEN_KEY = 'study-nb-dir-open';
 const readOpen = () => readText(OPEN_KEY) !== '0';
@@ -41,7 +42,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
     writeText(OPEN_KEY, value ? '0' : '1'); // per-device only
     return !value;
   });
-  const stats = (n) => (n.exists ? uiFormat('{0} 个题组{1}', [n.deckCount, n.dueToday ? uiFormat(' · {0} 道到期', [n.dueToday]) : '']) : ui('学习库目录已不可访问'));
+  const stats = (n) => (n.exists ? joinMeta([uiFormat('{0} 个题组', [n.deckCount]), n.dueToday ? uiFormat('{0} 道到期', [n.dueToday]) : '']) : ui('学习库目录已不可访问'));
   const topics = (n) => n.decks.filter((d) => !d.archived).slice(0, 4).map((d) => d.title).join(' · ');
   const runSearch = async (event) => {
     event.preventDefault();
