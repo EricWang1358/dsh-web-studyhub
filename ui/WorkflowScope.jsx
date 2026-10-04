@@ -6,7 +6,7 @@ import React, { useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
-import { Button, Dialog } from "./components/index.js";
+import { ConfirmDialog } from "./components/index.js";
 import { describeModelError } from "./generation-status.js";
 import css from "./workflow-scope.css";
 
@@ -69,11 +69,11 @@ export function ScopeBar({ session, resources, disabled, onRescope, onStartNew }
       </label>
       {hint && <p className="wf-scope-hint">{uiFormat("「{0}」可能更相关", [courseName(hint.course)])} · <button type="button" className="link-btn" onClick={() => choose(hint.course)}>{ui("切换到这门课")}</button></p>}
     </div>}
-    {asking !== null && <Dialog title={ui("换课程要开始新的学习")} size="sm" onClose={() => setAsking(null)}
-      footer={<><Button variant="secondary" onClick={() => setAsking(null)}>{ui("先不换")}</Button>
-        <Button variant="primary" onClick={() => { const next = asking; setAsking(null); onStartNew?.(next); }}>{uiFormat("为「{0}」开始新的学习", [courseName(asking)])}</Button></>}>
+    {asking !== null && <ConfirmDialog tone="primary" title={ui("换课程要开始新的学习")} cancelLabel={ui("先不换")}
+      confirmLabel={uiFormat("为「{0}」开始新的学习", [courseName(asking)])} onClose={() => setAsking(null)}
+      onConfirm={() => { const next = asking; setAsking(null); onStartNew?.(next); }}>
       <p>{ui("这次学习已经有练习作答，换课程会把记录混在一起。可以为另一门课开始一次新的学习，这次的记录会原样保留。")}</p>
-    </Dialog>}
+    </ConfirmDialog>}
   </div>;
 }
 

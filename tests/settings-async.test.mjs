@@ -33,7 +33,7 @@ const hooks = { ...React,
   useMemo: (create, deps) => { const [, slot] = hook(() => ({ deps: undefined, value: undefined }));
     if (!slot.deps || !deps || deps.some((value, i) => value !== slot.deps[i])) { slot.value = create(); slot.deps = deps; }
     return slot.value; },
-  useEffect: effect, useLayoutEffect: effect,
+  useEffect: effect, useLayoutEffect: effect, useInsertionEffect: () => {},
 };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : realRequire(name), module, module.exports);
 const { BackupSection, CourseSettings, ExtensionsSettings, DisplaySettings } = module.exports;
@@ -76,7 +76,7 @@ async function mergePanel(t) {
 
 test('saving a course after merging preserves the merged exam, focus topics and examiner guidance', async t => {
   const { runtime, target, render } = await mergePanel(t);
-  await find(render(), node => node.props?.children === '确认合并').props.onClick();
+  await find(render(), node => node.props?.confirmLabel === '确认合并').props.onConfirm();
   const merged = render();
   assert.equal(find(merged, node => node.props?.['aria-label'] === '重点知识点').props.value, 'Target topic; Merged topic');
   assert.equal(find(merged, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.value, '100');
@@ -93,7 +93,7 @@ test('merging course profiles keeps pending local edits while adding the newly m
   find(initial, node => node.props?.['aria-label'] === '重点知识点').props.onChange({ target: { value: 'Local topic' } });
   find(initial, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.onChange('45');
   find(initial, node => node.type?.name === 'SourcePicker').props.onChange([]);
-  await find(render(), node => node.props?.children === '确认合并').props.onClick();
+  await find(render(), node => node.props?.confirmLabel === '确认合并').props.onConfirm();
   const merged = render();
   assert.equal(find(merged, node => node.props?.['aria-label'] === '重点知识点').props.value, 'Local topic; Merged topic');
   assert.equal(find(merged, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.value, '45');
@@ -192,13 +192,16 @@ function display(t, { left, width = 304, scale = 1, right = 1220, top = 100, bot
   globalThis.ResizeObserver = class { constructor(callback) { this.callback = callback; observers.push(this); } observe() {} disconnect() { this.disconnected = true; } };
   t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value; } });
   const bounds = { left: 0, right, bottom }, panel = { style: {}, offsetWidth: width, get offsetLeft() { return left / scale; },
+    setAttribute() {}, querySelector: () => null, focus() {},
     getBoundingClientRect() { const shift = Number(/translateX\(([-\d.]+)px\)/.exec(this.style.transform || '')?.[1] || 0) * scale;
       return { left: left + shift, right: left + shift + width * scale, width: width * scale, top }; } };
   const root = { closest: () => ({ getBoundingClientRect: () => bounds }), getBoundingClientRect: () => ({ left: 0 }), contains: () => true };
-  const view = renderHook(DisplaySettings, { settings: {}, onChange() {}, onReset() {} });
+  // DisplaySettings is a Popover; run the Popover itself so its position hook is exercised.
+  const shell = renderHook(DisplaySettings, { settings: {}, onChange() {}, onReset() {} }).render();
+  const view = renderHook(shell.type, shell.props);
   let tree = view.render(); tree.props.ref.current = root; view.effects();
   find(tree, node => node.props?.['data-usage'] === 'reader.display').props.onClick();
-  tree = view.render(); find(tree, node => node.props?.className === 'reader-popover__panel').props.ref.current = panel; view.effects();
+  tree = view.render(); find(tree, node => /reader-popover__panel/.test(node.props?.className || '')).props.ref.current = panel; view.effects();
   return { view, bounds, panel, listeners, observers, move: value => { left = value; } };
 }
 

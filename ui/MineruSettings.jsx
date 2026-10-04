@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Icon, InlineMessage } from './components/index.js';
+import { Button, Icon, InlineConfirm, InlineMessage } from './components/index.js';
 import { sizeLabel } from './mineru-flow.js';
 import audioCss from './audio-settings.css';
 import css from './mineru.css';
@@ -114,7 +114,7 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
   useInjectCss(css, 'study-mineru');
   const [working, setWorking] = useState(''), [error, setError] = useState(''), [tier, setTier] = useState('basic'), [confirm, setConfirm] = useState(initialConfirm);
   const [setup, setSetup] = useState(status?.setup?.status === 'running' ? status.setup : null);
-  const alive = useRef(true);
+  const alive = useRef(true), downloadTrigger = useRef(null);
   useEffect(() => () => { alive.current = false; }, []);
   const refresh = useCallback(async () => {
     const next = await call('mineru.local.status', {});
@@ -166,14 +166,11 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
           </label>)}
         </fieldset>
         {!confirm
-          ? <Button variant="primary" icon="download" disabled={busy || !!working} onClick={() => setConfirm(true)}>{ui('下载模型并启用本地解析…')}</Button>
-          : <div className="mineru-confirm" role="group" aria-label={ui('确认下载')}>
-            <p>{uiFormat('将下载约 {0} 到这台电脑，需要联网并占用磁盘。下载中可以随时取消。', [sizeLabel(mb)])}</p>
-            <div className="audio-key-actions">
-              <Button variant="primary" busy={working === 'setup'} disabled={busy || !!working} onClick={download}>{ui('确认下载')}</Button>
-              <Button variant="quiet" disabled={!!working} onClick={() => setConfirm(false)}>{ui('先不下载')}</Button>
-            </div>
-          </div>}
+          ? <Button ref={downloadTrigger} variant="primary" icon="download" disabled={busy || !!working} onClick={() => setConfirm(true)}>{ui('下载模型并启用本地解析…')}</Button>
+          : <InlineConfirm tone="warning" title={ui('确认下载')} confirmLabel={ui('确认下载')} cancelLabel={ui('先不下载')}
+            busy={working === 'setup' || busy} returnFocusRef={downloadTrigger} onConfirm={download} onCancel={() => setConfirm(false)}>
+            {uiFormat('将下载约 {0} 到这台电脑，需要联网并占用磁盘。下载中可以随时取消。', [sizeLabel(mb)])}
+          </InlineConfirm>}
       </div>}
       {running && <div className="mineru-progress" role="status" aria-live="polite">
         <p><strong>{STEP_TEXT[setup.step]?.() || ui('正在设置')}</strong>{uiFormat('（{0}，已用 {1} 秒）', [sizeLabel(setup.modelsMb), Math.max(0, Math.round((Date.now() - Date.parse(setup.startedAt)) / 1000))])}</p>

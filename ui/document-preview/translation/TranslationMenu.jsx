@@ -1,6 +1,6 @@
-import React, { useEffect, useId, useLayoutEffect, useRef } from 'react';
+import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, SegmentedControl } from '../../components/index.js';
+import { Button, Popover, SegmentedControl } from '../../components/index.js';
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
 import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
@@ -40,35 +40,16 @@ function scopeLine(scope) {
   return done ? uiFormat('还有 {0} 段要译 · 已译 {1} 段', [todo, done]) : uiFormat('还有 {0} 段要译', [todo]);
 }
 
-const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
-
 /** The 译 button of the toolbar and its popover. */
 export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvailable, stale, busy, hasTranslations, onStart, onExpandAll, onCollapseAll, onGlossary, onTarget }) {
-  const root = useRef(null), panel = useRef(null), panelId = useId();
-  // On a narrow reader the button can sit anywhere along the wrapped toolbar: slide the panel back inside the viewer (a style write, no state).
-  useIsoLayoutEffect(() => {
-    const element = panel.current, viewer = root.current?.closest('.study-document-viewer');
-    if (!open || !element || !viewer) return;
-    element.style.transform = '';
-    const box = element.getBoundingClientRect(), bounds = viewer.getBoundingClientRect(), margin = 8;
-    let shift = Math.min(0, bounds.right - margin - box.right);
-    shift = Math.max(shift, bounds.left + margin - box.left);
-    if (shift) element.style.transform = `translateX(${Math.round(shift)}px)`;
-  }, [open, scopes]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = event => { if (root.current && !root.current.contains(event.target)) onOpenChange(false); };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [open, onOpenChange]);
-  const onKeyDown = event => { if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); onOpenChange(false); } };
   const names = TARGET_NAMES();
-  return <div className="reader-popover tr-popover" ref={root} onKeyDown={onKeyDown}>
-    <Button size="sm" variant="quiet" className="tr-toolbar-button" aria-expanded={open} aria-controls={open ? panelId : undefined} aria-pressed={open} aria-busy={busy || undefined}
-      title={ui('中英对照翻译')} data-busy={busy ? 'true' : undefined} data-tour="translation-toggle" data-usage="reader.translate" onClick={() => onOpenChange(!open)}>
+  // On a narrow reader the button can sit anywhere along the wrapped toolbar: Popover slides the panel back inside the viewer.
+  return <Popover open={open} onOpenChange={onOpenChange} label={ui('中英对照翻译')} className="reader-popover tr-popover" panelClassName="reader-popover__panel tr-panel"
+    boundsSelector=".study-document-viewer" flip={false}
+    trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" className="tr-toolbar-button" {...props} aria-busy={busy || undefined}
+      title={ui('中英对照翻译')} data-busy={busy ? 'true' : undefined} data-tour="translation-toggle" data-usage="reader.translate">
       <span className="tr-toolbar-button__tag" aria-hidden="true">{target === 'en' ? 'EN' : ui('译')}</span><span className="tr-toolbar-button__label">{ui('翻译')}</span>
-    </Button>
-    {open && <div className="reader-popover__panel tr-panel" ref={panel} id={panelId} role="group" aria-label={ui('中英对照翻译')}>
+    </Button>}>
       <div className="tr-panel__head">
         <strong>{ui('中英对照')}</strong>
         <SegmentedControl size="sm" label={ui('译成')} value={target} onChange={onTarget} options={[{ value: 'zh', label: names.zh }, { value: 'en', label: names.en }]} />
@@ -86,8 +67,7 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
         <Button size="sm" variant="quiet" icon={<Glyph name="book" />} onClick={onGlossary}>{ui('术语表…')}</Button>
       </div>
       {stale?.length > 0 && <p className="tr-panel__note">{uiFormat('旧版本里还有 {0} 段译文，没有套用到这个版本；文字没变的段落会直接沿用。', [stale.reduce((total, entry) => total + entry.count, 0)])}</p>}
-    </div>}
-  </div>;
+  </Popover>;
 }
 
 /** The progress of a translation job, in the notices of the reader: counts, clock, a stop, what it used. */

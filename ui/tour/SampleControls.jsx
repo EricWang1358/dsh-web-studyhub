@@ -1,6 +1,6 @@
 import React from "react";
 import { ui, uiFormat } from "../i18n.js";
-import { Button, Dialog } from "../components/index.js";
+import { Button, ConfirmDialog } from "../components/index.js";
 import { useInjectCss } from "../shared.js";
 import css from "./onboarding.css";
 
@@ -32,13 +32,9 @@ export function OnboardingPanel({ sample, progress, busy = false, onTour, onRest
 /** Confirms removing the sample: it says exactly what goes and what stays. */
 export function RemoveSampleDialog({ busy = false, onConfirm, onClose }) {
   return (
-    <Dialog size="sm" title={ui("移除示例数据？")} onClose={onClose}
-      description={ui("将删除示例课程的讲义、题组、练习记录、笔记、知识骨架和学习流。你自己创建的资料、题组和记录不受影响。")}
-      footer={<>
-        <Button variant="quiet" disabled={busy} onClick={() => onClose("button")}>{ui("取消")}</Button>
-        <Button variant="danger" busy={busy} onClick={onConfirm}>{ui("移除示例数据")}</Button>
-      </>}>
+    <ConfirmDialog title={ui("移除示例数据？")} onClose={onClose} busy={busy} confirmLabel={ui("移除示例数据")} onConfirm={onConfirm}
+      description={ui("将删除示例课程的讲义、题组、练习记录、笔记、知识骨架和学习流。你自己创建的资料、题组和记录不受影响。")}>
       <p className="muted">{ui("示例课程以后还可以在「设置 › 学习画像与导览」的「上手与示例」里重新载入。")}</p>
-    </Dialog>
+    </ConfirmDialog>
   );
 }

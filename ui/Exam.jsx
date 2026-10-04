@@ -11,6 +11,7 @@ import OralExam from "./OralExam.jsx";
 import { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
+import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 import caseCss from './case-study.css';
 import { Button, Icon, SegmentedControl } from './components/index.js';
 import { ExamHeader, ExamSetupCard, CountField, RecentExams } from './ExamShell.jsx';
@@ -499,27 +500,18 @@ export default function Exam({ call, data, onExit, onCreate, onCreateCase, onSta
               onClick={() => move(1)}
             >{ui("下一题 →")}</button>
           </div>
-          {confirming ? (
-            <div className="exam-confirm" role="alertdialog" aria-label={ui("确认交卷")}>
-              <p>{ui("还有 ")}<strong>{unanswered}</strong>{ui(" 题未作答，交卷后将立即判分并结束本次考试。")}</p>
-              <div className="exam-confirm-actions">
-                <button disabled={busy} onClick={() => setConfirming(false)}>{ui("继续作答")}</button>
-                <button className="primary" disabled={busy} onClick={submit}>
-                  {busy ? ui("正在交卷…") : ui("确认交卷")}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="exam-foot">
-              <button disabled={busy} onClick={expired ? submit : () => setConfirming(true)}>
-                {expired ? ui("重试交卷") : ui("交卷")}
-              </button>
-              <p className="muted small">
-                {expired ? ui("时间已到，已停止作答；交卷失败时会自动重试。")
-                  : ui("未交卷的考试会保留在回到题目里 · 计时满 30 分钟自动交卷")}
-              </p>
-            </div>
-          )}
+          <div className="exam-foot">
+            <button disabled={busy} onClick={expired ? submit : () => setConfirming(true)}>
+              {expired ? ui("重试交卷") : ui("交卷")}
+            </button>
+            <p className="muted small">
+              {expired ? ui("时间已到，已停止作答；交卷失败时会自动重试。")
+                : ui("未交卷的考试会保留在回到题目里 · 计时满 30 分钟自动交卷")}
+            </p>
+          </div>
+          {confirming && <SubmitBlanksDialog onClose={() => setConfirming(false)} onConfirm={submit}>
+            <p>{uiFormat("还有 {0} 题未作答，交卷后将立即判分并结束本次考试。", [unanswered])}</p>
+          </SubmitBlanksDialog>}
           {err && <p className="exam-error">{err}</p>}
         </>
       )}

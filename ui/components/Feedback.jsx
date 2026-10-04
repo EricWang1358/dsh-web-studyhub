@@ -11,10 +11,15 @@ const toneOf = tone => TONES.has(tone) ? tone : 'info';
 /** Info and success toasts leave after this long unless hovered or focused. */
 export const TOAST_TIMEOUT = 6000;
 
-/** Only messages nobody needs to act on or re-read may vanish on their own. */
+/**
+ * Only messages nobody needs to act on or re-read may vanish on their own. An
+ * undo offer (`undo: true`, with its action) is the one action toast that may:
+ * it lives for `timeout`, and hovering or focusing it still holds it.
+ */
 export function shouldAutoDismiss(toast = {}) {
   const tone = toneOf(toast.tone);
-  return (tone === 'info' || tone === 'success') && !toast.action && !toast.persistent;
+  if (toast.persistent || (tone !== 'info' && tone !== 'success')) return false;
+  return !toast.action || !!toast.undo;
 }
 
 const dismissLabel = tone => tone === 'error' ? ui('关闭错误') : ui('关闭提示');
@@ -75,7 +80,7 @@ function ToastStacks({ toasts, onDismiss }) {
 
 /**
  * Live region for toasts. toasts: [{ id, key?, tone, title?, message, action?,
- * persistent?, timeout?, dismissLabel? }]; onDismiss(id).
+ * persistent?, undo?, timeout?, dismissLabel? }]; onDismiss(id).
  * placement: 'page' (sticky under the top bar of the visible Study viewport —
  * render it as a direct child of <main>), 'inline' (in flow, next to the
  * control) or 'auto' (inline inside .action-feedback-slot, page elsewhere).

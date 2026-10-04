@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Dialog, Disclosure, EmptyState, Icon, IconButton, InlineMessage, ScrollWindow, SegmentedControl } from './components/index.js';
+import { Button, Dialog, Disclosure, EmptyState, Icon, IconButton, InlineConfirm, InlineMessage, ScrollWindow, SegmentedControl } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
@@ -218,13 +218,7 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
   // 合并到这里 (WP14) opens the panel with the duplicate chosen and the merge confirmation showing.
   const [confirm, setConfirm] = useState(() => mergeFrom.length ? 'merge' : null); // 'rename' | 'merge'
   const [mergeIds, setMergeIds] = useState(() => mergeFrom.filter(id => id !== courseId && courses.some(item => item.id === id)));
-  const mergeCancel = useRef(null);
-  useEffect(() => {
-    if (!mergeFrom.length) return;
-    const frame = requestAnimationFrame(() => mergeCancel.current?.scrollIntoView?.({ block: 'center' }));
-    return () => cancelAnimationFrame(frame);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const renameTrigger = useRef(null), mergeTrigger = useRef(null);
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
   if (!course) return null;
@@ -258,7 +252,7 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
   const formats = Object.keys(FORMAT_LABELS).map(value => ({ value, label: examFormatLabel(value) }));
   return (
     <Dialog size="lg" className="course-settings" title={course.name}
-      description={[ui('课程设置'), countLine(course)].filter(Boolean).join(' · ')} onClose={() => { if (!working) onClose?.('dismiss'); }}
+      description={[ui('课程设置'), countLine(course)].filter(Boolean).join(' · ')} busy={working} onClose={() => onClose?.('dismiss')}
       footer={<>
         {error && <InlineMessage className="course-settings__error">{error}</InlineMessage>}
         <Button variant="quiet" disabled={working} onClick={() => onClose?.('cancel')}>{ui('关闭')}</Button>
@@ -269,15 +263,12 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
         <div className="course-settings__rename">
           <label className="course-settings__field course-settings__wide"><span>{ui('课程名称')}</span>
             <input value={name} maxLength={200} disabled={disabled} onChange={event => { setName(event.target.value); setConfirm(null); }} /></label>
-          <Button variant="secondary" disabled={disabled || !renamed} onClick={() => setConfirm('rename')}>{ui('改名')}</Button>
+          <Button ref={renameTrigger} variant="secondary" disabled={disabled || !renamed} onClick={() => setConfirm('rename')}>{ui('改名')}</Button>
         </div>
-        {confirm === 'rename' && renamed && <InlineMessage tone="warning" boxed title={uiFormat('把「{0}」改名为「{1}」？', [course.name, name.trim()])}>
+        {confirm === 'rename' && renamed && <InlineConfirm tone="warning" title={uiFormat('把「{0}」改名为「{1}」？', [course.name, name.trim()])}
+          confirmLabel={ui('确认改名')} busy={working || busy} returnFocusRef={renameTrigger} onConfirm={rename} onCancel={() => setConfirm(null)}>
           <p>{ui('所有题组、资料、练习和学习流会一起改名；旧名称保留为别名，旧资料仍能找到这门课。')}</p>
-          <div className="course-settings__confirm">
-            <Button size="sm" variant="primary" busy={working} disabled={busy} onClick={rename}>{ui('确认改名')}</Button>
-            <Button size="sm" variant="quiet" disabled={working} onClick={() => setConfirm(null)}>{ui('取消')}</Button>
-          </div>
-        </InlineMessage>}
+        </InlineConfirm>}
         <p className="course-settings__aliases">
           <span>{ui('别名（旧名称，只读）')}</span>
           {course.aliases?.length ? course.aliases.map(alias => <span key={alias} className="course-settings__alias">{alias}</span>)
@@ -341,15 +332,12 @@ export default function CourseSettings({ data, courseId, act, busy = false, setN
               onChange={event => { setConfirm(null); setMergeIds(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />
             <span><strong>{item.name}</strong>{(countLine(item) || likely.has(item.id)) && <small>{[likely.has(item.id) ? ui('名称几乎相同') : '', countLine(item)].filter(Boolean).join(' · ')}</small>}</span>
           </label>} />
-        <Button variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
-        {confirm === 'merge' && mergeIds.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat('把 {0} 门课程并入「{1}」？', [mergeNames.length, course.name])}>
+        <Button ref={mergeTrigger} variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
+        {confirm === 'merge' && mergeIds.length > 0 && <InlineConfirm tone="warning" title={uiFormat('把 {0} 门课程并入「{1}」？', [mergeNames.length, course.name])}
+          confirmLabel={ui('确认合并')} busy={working || busy} returnFocusRef={mergeTrigger} onConfirm={merge} onCancel={() => setConfirm(null)}>
           <p><strong>{mergeNames.join(' · ')}</strong></p>
           <p>{ui('它们的题组、资料和练习会归入这门课；题目、答题记录、复习进度和前置关系都保留，原名称保留为别名。')}</p>
-          <div className="course-settings__confirm">
-            <Button size="sm" variant="primary" busy={working} disabled={busy} onClick={merge}>{ui('确认合并')}</Button>
-            <Button ref={mergeCancel} size="sm" variant="quiet" disabled={working} onClick={() => setConfirm(null)}>{ui('取消')}</Button>
-          </div>
-        </InlineMessage>}
+        </InlineConfirm>}
       </Disclosure>}
     </Dialog>
   );

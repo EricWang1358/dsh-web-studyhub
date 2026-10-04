@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { IconButton, ScrollWindow } from './components/index.js';
+import { IconButton, ScrollWindow, useDismiss } from './components/index.js';
 import { groupCourseNames, isParkedCourse, rankCourses } from './course-names.js';
 import css from './course-field-css.js';
 
@@ -109,12 +109,8 @@ export default function CourseField({ courses = [], value = '', onChange, multip
     [open, entries, termKey, openGroups, parkedEntries, parkedList, parkedOpen]);
   const activeIndex = Math.min(active, rows.length - 1), activeRow = rows[activeIndex];
   useEffect(() => { setActive(0); }, [query, open]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = event => { if (root.current && !root.current.contains(event.target)) setOpen(false); };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [open]);
+  // Escape is the input's own (a combobox keeps focus in the field).
+  useDismiss({ open, onClose: () => setOpen(false), refs: root, escape: false });
   const pick = name => onChange(pickCourse(value, name, multiple, names));
   const clear = () => { onChange(''); setExpanded(null); input.current?.focus(); };
   const activate = row => {

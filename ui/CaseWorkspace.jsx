@@ -8,7 +8,8 @@ import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
-import { Button, Dialog, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, SetupRequired } from "./components/index.js";
+import { Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, SetupRequired } from "./components/index.js";
+import SubmitBlanksDialog from "./SubmitBlanksDialog.jsx";
 import { ExamSetupCard } from "./ExamShell.jsx";
 import {
   scenarioParagraphs, countWords, questionMinutes, lengthHint, suggestedWords, paperPlan, defaultReadingMinutes,
@@ -467,13 +468,9 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, onNotice, 
           {questions}
         </div>
         {error && <InlineMessage>{error}</InlineMessage>}
-        {confirming && <Dialog title={ui("还有题目没有作答")} size="sm" onClose={() => setConfirming(false)}
-          footer={<>
-            <Button variant="secondary" onClick={() => setConfirming(false)}>{ui("继续作答")}</Button>
-            <Button variant="primary" busy={busy} onClick={submit}>{ui("仍然交卷")}</Button>
-          </>}>
+        {confirming && <SubmitBlanksDialog onClose={() => setConfirming(false)} onConfirm={submit}>
           <p>{uiFormat("第 {0} 题还是空的。漏答一道就会丢掉它的全部分数；哪怕写几行要点也比空着好。", [blanks.map((id) => paperCards.findIndex((card) => card.id === id) + 1).join("、")])}</p>
-        </Dialog>}
+        </SubmitBlanksDialog>}
       </section>
     );
   }

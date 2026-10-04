@@ -40,6 +40,7 @@ import generationSettings from './locales/en.generation-settings.json';
 import calculation from './locales/en.calculation.json';
 import science from './locales/en.science.json';
 import feedback from './locales/en.feedback.json';
+import overlays from './locales/en.overlays.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 
 export const ENGLISH_SOURCES = {
@@ -81,6 +82,7 @@ export const ENGLISH_SOURCES = {
   'en.calculation.json': calculation,
   'en.science.json': science,
   'en.feedback.json': feedback,
+  'en.overlays.json': overlays,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,
