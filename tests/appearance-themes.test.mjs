@@ -10,6 +10,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as appearance from '../ui/appearance-prefs.js';
+import { readAppSource } from './helpers/app-source.mjs';
 
 const { APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, APPEARANCE_LABELS, THEMES, THEME_CYCLE, normalizeAppearance, appearanceAttrs, exportAppearance, importAppearance,
   loadAppearance, saveAppearance } = appearance;
@@ -257,7 +258,7 @@ test('设置 › 界面 offers the new themes, contrast, density and corner styl
 });
 
 test('App wires the three handlers and keeps the sidebar toggle on the three-step cycle', async () => {
-  const app = await readFile('ui/App.jsx', 'utf8');
+  const app = await readAppSource();
   for (const key of ['contrast', 'density', 'radius']) assert.match(app, new RegExp(`on${key[0].toUpperCase()}${key.slice(1)}: \\(value\\) => updateAppearance\\(\\{ ${key}: value \\}\\)`), key);
   assert.match(app, /THEME_CYCLE/, 'the toggle cycles the short list, oled and paper are chosen in Settings');
 });

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readAppSource } from './helpers/app-source.mjs';
 
 /* Settings by when a setting is touched (docs/feature-tiers.md): 常用 (language, appearance, the model: touched whenever
    something is off) and 一次性设置 (keys, search extension, MinerU, audio, courses, import and backup: set once). A group is
@@ -139,11 +139,13 @@ test('the English page has no Han outside user data', () => {
 });
 
 test('every "open settings" link that points at a one-time setting names its section, and Settings turns the name into its category', async () => {
-  const source = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
-  assert.match(source, /setSettingsFocus\(section === 'settings-marker' \? section : "settings-mineru"\)/, 'the import portal routes to the selected converter');
-  assert.equal((source.match(/setSettingsFocus\(section === 'settings-marker' \? section : "settings-mineru"\)/g) || []).length, 2, 'the dialog and materials page route to either converter');
-  assert.match(source, /setSettingsFocus\("settings-extensions"\)/, 'the checklist points at the search settings');
-  assert.match(source, /const openModelSettings = \(\) => \(host\.openModelSettings \? host\.openModelSettings\(\) : \(setSettingsFocus\("settings-model"\), navigatePage\("settings"\)\)\)/);
+  const source = (await readAppSource()).replace(/\r/g, '');
+  const route = /openSettings\(section === 'settings-marker' \? section : 'settings-mineru'\)/;
+  assert.match(source, route, 'the import portal routes to the selected converter');
+  assert.equal((source.match(new RegExp(route.source, 'g')) || []).length, 2, 'the dialog and materials page route to either converter');
+  assert.match(source, /openSettings\('settings-extensions'\)/, 'the checklist points at the search settings');
+  assert.match(source, /const openSettings = useCallback\(\(section\) => \{ setSettingsFocus\(section \|\| ''\); navigate\('settings'\); \}/, 'one way into a Settings section');
+  assert.match(source, /host\.openModelSettings \? host\.openModelSettings\(\) : openSettings\('settings-model'\)/);
   for (const anchor of ['settings-mineru', 'settings-extensions', 'settings-model']) assert.ok(categoryForAnchor(anchor), anchor);
 });
 
@@ -154,7 +156,7 @@ test('Settings keeps the shared-button rule outside the list and never nests a f
   assert.doesNotMatch(html, /<fieldset[^>]*settings-group/);
   const withList = page({});
   assert.deepEqual((withList.match(/<button(?![^>]*class="sh-)[^>]*>/g) || []).filter((button) => !/class="settings-nav__item"/.test(button)), [], 'only the list items are plain buttons');
-  const source = (await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8')).replace(/\r/g, '');
-  assert.match(source, /focusSection=\{settingsFocus\}/);
-  assert.match(source, /tourActive=\{!!tourStep\}/);
+  const source = (await readAppSource()).replace(/\r/g, '');
+  assert.match(source, /focusSection=\{settingsEntry\.settingsFocus\}/);
+  assert.match(source, /tourActive=\{!!tour\.tourStep\}/);
 });

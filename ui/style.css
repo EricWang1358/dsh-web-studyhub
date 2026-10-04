@@ -4393,8 +4393,7 @@
 .followup-item { border-top: 1px solid var(--line); padding: 14px 0; overflow-wrap: anywhere; }
 .followup-item > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none; }
 .followup-item > summary::-webkit-details-marker { display: none; }
-.followup-item > summary::after { content: "展开"; flex: none; margin-left: auto; font-size: 15px; color: var(--text-faint); }
-.followup-item[open] > summary::after { content: "收起"; }
+.followup-item > summary .followup-state { flex: none; margin-left: auto; font-size: var(--fs-md); color: var(--text-faint); }
 .followup-item > summary h4 { flex: 1; min-width: 0; margin: 0; font-size: 16px; font-weight: 600; line-height: 1.6; color: var(--text); }
 .followup-item .followup-fold { display: block; margin: 6px 0 0 auto; font-size: 15px; color: var(--text-muted); }
 .followup-item .followup-derive { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; font-size: 15px; }

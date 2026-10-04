@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readAppSource } from './helpers/app-source.mjs';
 
 const han = /[\u3400-\u9fff]/;
 const compiled = await build({ stdin: { contents: `
@@ -277,7 +278,7 @@ test('the three entry points are mounted where the brief says, and nowhere else'
 });
 
 test('the backup screen says referenced originals are not included, and the export tells how many were left out', async () => {
-  const settings = await readFile('ui/Settings.jsx', 'utf8'), app = await readFile('ui/App.jsx', 'utf8'), catalogue = JSON.parse(await readFile('ui/locales/en.original.json', 'utf8'));
+  const settings = await readFile('ui/Settings.jsx', 'utf8'), app = await readAppSource(), catalogue = JSON.parse(await readFile('ui/locales/en.original.json', 'utf8'));
   const note = '已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。';
   assert.ok(settings.includes(note)); assert.match(catalogue[note], /not in the backup/);
   assert.match(app, /portableMaterials\?\.referencedOriginals\?\.length/);

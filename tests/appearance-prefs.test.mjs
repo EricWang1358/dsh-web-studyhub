@@ -10,6 +10,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as appearance from '../ui/appearance-prefs.js';
+import { readAppSource } from './helpers/app-source.mjs';
 import * as legacy from '../ui/interface-prefs.js';
 
 const { APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, APPEARANCE_LABELS, THEME_KEY, normalizeAppearance, loadAppearance, saveAppearance, appearanceAttrs,
@@ -216,7 +217,7 @@ test('the empty page before a session wears the same attributes as the app, read
 });
 
 test('App and the empty page no longer read or write the theme by hand, and Settings builds its choices from the module', async () => {
-  const [app, page, settings] = await Promise.all(['ui/App.jsx', 'ui/host/studyhub-page.jsx', 'ui/Settings.jsx'].map(file => readFile(new URL(`../${file}`, import.meta.url), 'utf8')));
+  const [page, settings] = await Promise.all(['ui/host/studyhub-page.jsx', 'ui/Settings.jsx'].map(file => readFile(new URL(`../${file}`, import.meta.url), 'utf8'))), app = await readAppSource();
   for (const [name, source] of [['App', app], ['studyhub-page', page]]) {
     assert.doesNotMatch(source, /["']study-theme["']/, `${name} goes through appearance-prefs`);
     assert.match(source, /useAppearance/, name);

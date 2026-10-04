@@ -14,17 +14,19 @@ import {
   tickQuestion, livePace, readSession, writeSession,
 } from "../ui/case-session.js";
 import { paperPlan } from "../lib/case-study.js";
+import { reviewElement } from "./helpers/review-render.mjs";
 
 const compiled = await build({ stdin: { contents: `export { RubricResult, CaseReport, RubricSkills } from './ui/CaseResult.jsx';
   export { ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor } from './ui/CaseWorkspace.jsx'; export { default as Generate } from './ui/Generate.jsx';
   export { default as Exam } from './ui/Exam.jsx'; export { default as Review } from './ui/Review.jsx'; export { setUiLanguage } from './ui/i18n.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';`,
   resolveDir: process.cwd() }, bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { RubricResult, CaseReport, RubricSkills, ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor, Generate, Exam, Review, setUiLanguage } = module.exports;
+const { RubricResult, CaseReport, RubricSkills, ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor, Generate, Exam, Review, StudyServicesContext, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
-const render = (type, props) => renderToStaticMarkup(React.createElement(type, props));
+const render = (type, props) => renderToStaticMarkup(type === Review ? reviewElement(Review, StudyServicesContext, props) : React.createElement(type, props));
 const noop = () => {};
 
 test("highlights: a new mark paints over older ones, pieces cover the paragraph, notes and colours change in place", () => {

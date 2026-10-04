@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readAppSource } from './helpers/app-source.mjs';
 
 /* 课程准备 on the library home: one component, the state from lib/course-setup.js. A full card while the course is being
    set up, one quiet line once the first questions exist or the course is in use, a one-time "done" note, nothing otherwise.
@@ -146,7 +147,7 @@ test('English renders without Han outside the course name, in the card, the line
 });
 
 test('the card is injected with its own stylesheet and App mounts it inside the library page, never in the way of the welcome page', async () => {
-  const [app, map, css] = await Promise.all(['App.jsx', 'StudyMap.jsx', 'setup-checklist.css'].map(async (name) => (await readFile(new URL(`../ui/${name}`, import.meta.url), 'utf8')).replace(/\r/g, '')));
+  const [map, css] = await Promise.all(['StudyMap.jsx', 'setup-checklist.css'].map(async (name) => (await readFile(new URL(`../ui/${name}`, import.meta.url), 'utf8')).replace(/\r/g, ''))), app = await readAppSource();
   assert.match(map, /<SetupChecklist\b/);
   assert.match(app, /setupHandlers|setupOn/);
   assert.match(css, /\.setup-card/);

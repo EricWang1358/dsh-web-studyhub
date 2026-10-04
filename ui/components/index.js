@@ -28,3 +28,4 @@ export { default as Tooltip } from './Tooltip.jsx';
 export { CloseButton } from './CloseButton.jsx';
 export { useDismiss, useAnchoredPosition, computePlacement } from './use-dismiss.js';
 export { default as SecretKeyForm } from './SecretKeyForm.jsx';
+export { ToastContext, useToast, createToastApi } from './Feedback.jsx';

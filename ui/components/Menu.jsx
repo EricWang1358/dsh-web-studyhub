@@ -19,8 +19,9 @@ const More = <svg className="sh-icon" viewBox="0 0 24 24" width={18} height={18}
  * keys/Home/End move, Enter/Space choose, Escape closes and returns focus, Tab
  * closes, ArrowDown on the button opens it.
  *
- * items: [{ id, label, icon?, hint?, danger?, disabled?, heading? }] (`icon` is
- * an Icon name or a node; `heading` makes a non-interactive group title).
+ * items: [{ id, label, icon?, hint?, danger?, disabled?, heading?, attrs? }] (`icon` is
+ * an Icon name or a node; `heading` makes a non-interactive group title; `attrs`
+ * are extra attributes of the item's button, such as a data-usage name).
  * onSelect(id). `icon`: the default trigger's glyph (Icon name or node).
  * trigger({ props, ref, open }): a text trigger instead ("整理与添加"); spread
  * `props` and attach `ref`.
@@ -83,7 +84,7 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
     <div ref={list} id={menuId} role="menu" aria-label={label} className="sh-menu" onKeyDown={onKey} style={style}>
       {items.map((item, index) => item.heading
         ? <p key={`h${index}`} role="presentation" className="sh-menu__heading">{item.label}</p>
-        : <button key={item.id} type="button" role="menuitem" disabled={item.disabled} title={item.hint}
+        : <button key={item.id} type="button" role="menuitem" disabled={item.disabled} title={item.hint} {...item.attrs}
           className={cx('sh-menu__item', item.danger && 'is-danger')}
           onClick={() => { setOpen(false); button.current?.focus(); onSelect(item.id); }}>
           {item.icon ? glyph(item.icon, 16) : <span className="sh-menu__gap" aria-hidden="true" />}

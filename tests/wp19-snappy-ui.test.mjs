@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readAppSource } from "./helpers/app-source.mjs";
 
 /* WP19: "知道了" must not freeze the page. Cards leave at once through the light path
    (ui/quick-actions.js), nothing is disabled, failures come back next to the card. */
@@ -100,7 +101,7 @@ test("the English strings exist for the new error labels", async () => {
 });
 
 test("App wires every 知道了 and 全部知道了 through the light path, not through act", async () => {
-  const app = await readFile("ui/App.jsx", "utf8");
+  const app = await readAppSource();
   assert.match(app, /dismissJob=\{[^}]*dismissJobs\(quick/, "StudyMap dismissJob uses dismissJobs()");
   assert.doesNotMatch(app, /act\("job\.dismiss"/);
   const audioUi = await readFile("ui/AudioImport.jsx", "utf8");
@@ -110,8 +111,8 @@ test("App wires every 知道了 and 全部知道了 through the light path, not 
 });
 
 test("act itself still serialises heavy actions and keeps its busy flag", async () => {
-  const app = await readFile("ui/App.jsx", "utf8");
-  assert.match(app, /function act\(/);
+  const app = await readAppSource();
+  assert.match(app, /const act = useCallback\(/);
   assert.match(app, /createActRunner/, "App's act() is the single-flight runner (see tests/act-runner.test.mjs)");
   const runner = await readFile("ui/act-runner.js", "utf8");
   assert.match(runner, /if \(current\) return;/);

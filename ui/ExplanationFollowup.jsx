@@ -1,4 +1,4 @@
-import { ui } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import { InlineMessage } from "./components/index.js";
@@ -69,7 +69,7 @@ export default function ExplanationFollowup({ run, call, readOnly = false, onDer
     <section className="explanation-followup" aria-label={ui("讲解追问")}>
       {items.length > 1 && (
         <div className="followup-head">
-          <span>{items.length}{ui(" 条问答")}</span>
+          <span>{uiFormat("{0} 条问答", [items.length])}</span>
           <button type="button" className="link-btn" onClick={() => setOpenIds(allOpen ? new Set() : new Set(items.map((item) => item.id)))}>
             {allOpen ? ui("全部收起") : ui("全部展开")}
           </button>
@@ -78,7 +78,8 @@ export default function ExplanationFollowup({ run, call, readOnly = false, onDer
       {items.map((item) => (
         <details className="followup-item" key={item.id} open={openIds.has(item.id)}
           onToggle={(event) => toggle(item.id, event.currentTarget.open)}>
-          <summary><span className="en-tag">Q&amp;A</span><h4>{item.question}</h4></summary>
+          <summary><span className="en-tag">Q&amp;A</span><h4>{item.question}</h4>
+            <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
           {/* A long answer can be folded from its end, landing back on its question. */}
           {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}

@@ -20,7 +20,7 @@ const browserEnv = () => ({
 
 /** The loop itself, without React: `start()`, `stop()`, `refresh()` (ask now). `env` swaps the timers and the visibility source. */
 export function createPoller({ run, intervalMs, backoff, pauseWhenHidden = true, immediate = false, onError, env = browserEnv() }) {
-  let started = false, busy = false, timer = null, unsubscribe = null, unchanged = 0;
+  let started = false, busy = false, timer = null, unsubscribe = null, unchanged = 0, wakeAgain = false;
   const hidden = () => pauseWhenHidden && env.hidden();
   const clear = () => { if (timer !== null) { env.clearTimer(timer); timer = null; } };
   const schedule = (result) => {
@@ -37,6 +37,9 @@ export function createPoller({ run, intervalMs, backoff, pauseWhenHidden = true,
     try { result = await run(); } catch (error) { onError?.(error); }
     busy = false;
     unchanged = result?.unchanged === true ? unchanged + 1 : 0;
+    // The page came back while this call was in flight: ask once more at once instead of waiting out the interval.
+    if (wakeAgain && started && !hidden()) { wakeAgain = false; clear(); timer = env.setTimer(tick, 0); return; }
+    wakeAgain = false;
     schedule(result);
   }
   return {
@@ -47,6 +50,7 @@ export function createPoller({ run, intervalMs, backoff, pauseWhenHidden = true,
         if (!started) return;
         if (hidden()) clear();
         else if (!busy) { clear(); void tick(); }
+        else wakeAgain = true;
       });
       if (hidden()) return;
       if (immediate) void tick(); else schedule();

@@ -115,7 +115,7 @@ test('outside-click and Escape handling for popovers lives in useDismiss (#80)',
     'ui/document-preview/translation/TranslationMenu.jsx'];
   for (const file of files) {
     lacks(file, /document\.addEventListener\(['"](pointerdown|mousedown|click)['"]/);
-    has(file, /useDismiss|<Popover\b/);
+    has(file, /useDismiss|<Popover\b|<Menu\b/);
   }
 });
 

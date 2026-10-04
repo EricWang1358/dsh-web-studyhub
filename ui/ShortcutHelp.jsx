@@ -1,6 +1,6 @@
 import { ui } from "./i18n.js";
 import React, { useEffect, useRef } from "react";
-import { CloseButton, useDismiss } from "./components/index.js";
+import { CloseButton, useDismiss, useTopDialog } from "./components/index.js";
 
 /* 快捷键速查（按 ? 打开）。只列当前页面用得上的，避免一屏说明书。 */
 const REVIEW = [
@@ -34,7 +34,9 @@ export default function ShortcutHelp({ page, onClose }) {
       if (back?.isConnected && (!active || active === document.body)) back.focus?.({ preventScroll: true });
     };
   }, []);
-  useDismiss({ open: true, onClose, refs: sheet, returnFocusRef: opener });
+  // While a dialog is open on top of the sheet, Escape belongs to the dialog alone: one press closes one layer.
+  const dialogOpen = !!useTopDialog();
+  useDismiss({ open: true, onClose, refs: sheet, returnFocusRef: opener, escape: !dialogOpen });
   return (
     <div className="shortcut-sheet" role="dialog" aria-label={ui("快捷键")} tabIndex={-1} ref={sheet}>
       <h3>{ui("快捷键")}<CloseButton label={ui("关闭快捷键")} onClick={onClose} /></h3>
