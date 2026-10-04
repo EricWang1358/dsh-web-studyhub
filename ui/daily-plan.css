@@ -46,7 +46,6 @@
     .daily-plan__actual { margin-top: var(--space-1); font-size: var(--fs-xs); }
     /* One compact row: label, minutes with its unit and 保存 on the same line; it wraps on a narrow screen without leaving a gap. */
     .daily-plan__actual-form { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-    .daily-plan__actual-form .sh-field { margin: 0; }
     .daily-plan__proposal ol { list-style: decimal-leading-zero; padding-left: var(--space-6); margin: var(--space-3) 0 var(--space-4); }
     .daily-plan__proposal li { display: list-item; padding: var(--space-2) 0 var(--space-2) var(--space-2); border-bottom: 1px solid var(--line-soft); overflow-wrap: anywhere; }
     .daily-plan__proposal li::marker { color: var(--text-muted); font-size: var(--fs-xs); }
