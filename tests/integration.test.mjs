@@ -263,7 +263,8 @@ test("improving an answered question refreshes its open view, retains history an
   const history = after.runs[0].entries[0].previousVersions[0];
   assert.equal(history.card.prompt, oldPrompt);
   assert.deepEqual(history.feedback, feedback);
-  await service.call("source.remove", { id: before.sources[0].id });
+  await service.call('source.archive', { id: before.sources[0].id, archived: true });
+  await service.call('source.remove', { id: before.sources[0].id, confirm: true });
   assert.equal((await service.call("review.get", args)).card.importedFromJson, true);
   await assert.rejects(service.call("review.answer", { ...args, selected: ["x"], queueVersion: run.queueVersion }), /changed/);
   const answered = await service.call("review.answer", { ...args, selected: ["x"], queueVersion: updated.queueVersion });

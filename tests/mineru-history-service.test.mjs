@@ -319,7 +319,7 @@ test('a document the learner deleted later shows as deleted in the row; the row 
   await h.finished();
   const [row] = (await h.history()).records;
   assert.equal(row.document.exists, true);
-  for (const source of (await h.call('snapshot')).sources.filter(item => item.document?.converter === 'mineru')) await h.call('source.remove', { id: source.id });
+  for (const source of (await h.call('snapshot')).sources.filter(item => item.document?.converter === 'mineru')) { await h.call('source.archive', { id: source.id, archived: true }); await h.call('source.remove', { id: source.id, confirm: true }); }
   const [after] = (await h.history()).records;
   assert.equal(after.status, 'complete');
   assert.equal(after.document.exists, false);
