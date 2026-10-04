@@ -271,7 +271,8 @@
       min-width: 0;
     }
     /* compact: the header inside a working surface (a practice session): the title is a line, not a poster. */
-    .sh-page-header--compact {
+    /* (two classes: the narrow-container .sh-page-header rule further down would otherwise tie with this one) */
+    .sh-page-header.sh-page-header--compact {
       align-items: flex-start;
       margin-bottom: var(--space-4);
     }
