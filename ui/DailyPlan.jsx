@@ -4,6 +4,8 @@ import { useInjectCss } from './shared.js';
 import { Button } from './components/Button.jsx';
 import { DisclosureToggle, foldLabel } from './components/DisclosureToggle.jsx';
 import { Disclosure } from './components/Panel.jsx';
+import { Field, NumberInput } from './components/Field.jsx';
+import { Hint } from './components/Hint.jsx';
 import Menu from './components/Menu.jsx';
 import { ProgressBar } from './components/Progress.jsx';
 import { InlineMessage } from './components/Feedback.jsx';
@@ -38,16 +40,27 @@ function TaskProgress({ task }) {
   </span>;
 }
 
+/* 记录实际用时: one compact row (minutes with its unit, 保存) behind a Disclosure; the recorded value shows in the disclosure's meta. */
 function ActualTime({ task, plan }) {
-  const [minutes, setMinutes] = useState(task.actualMinutes ?? '');
-  return <details className="daily-plan__actual"><summary>{ui('记录实际用时')}</summary>
-    <form onSubmit={event => {
+  const [minutes, setMinutes] = useState(String(task.actualMinutes ?? task.minutes ?? ''));
+  const [open, setOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const valid = minutes !== '' && Number.isInteger(Number(minutes)) && Number(minutes) >= 1 && Number(minutes) <= 240;
+  return <Disclosure className="daily-plan__actual" summary={ui('记录实际用时')} open={open} onToggle={setOpen}
+    meta={task.actualMinutes !== undefined ? uiFormat('已记录 {0} 分钟', [task.actualMinutes]) : undefined}>
+    <form className="daily-plan__actual-form" onSubmit={async event => {
       event.preventDefault();
-      if (minutes !== '' && Number.isInteger(Number(minutes)) && Number(minutes) > 0 && Number(minutes) <= 240) void plan.complete(task.id, Number(minutes));
-    }}><label>{ui('实际学习分钟数')}<input type="number" min="1" max="240" required value={minutes} disabled={!!plan.busy}
-      onChange={event => setMinutes(event.target.value)} /></label>
-      <Button type="submit" size="sm" disabled={!!plan.busy || minutes === ''}>{ui('保存用时')}</Button></form>
-  </details>;
+      if (!valid) return;
+      setFailed(false);
+      if (await plan.complete(task.id, Number(minutes))) setOpen(false); else setFailed(true);
+    }}>
+      <Field inline width="sm" label={ui('实际用了')}>
+        <NumberInput suffix={ui('分钟')} min="1" max="240" step="1" required value={minutes} disabled={!!plan.busy} onChange={event => setMinutes(event.target.value)} />
+      </Field>
+      <Button type="submit" size="sm" disabled={!!plan.busy || !valid}>{ui('保存')}</Button>
+    </form>
+    {failed && <Hint tone="error" role="alert">{ui('没能保存用时，请再试一次。')}</Hint>}
+  </Disclosure>;
 }
 
 function TaskRow({ task, plan, featured }) {
