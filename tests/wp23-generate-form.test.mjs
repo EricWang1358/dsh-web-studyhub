@@ -291,8 +291,8 @@ test("a model failure says why in plain words next to the local fallback, with a
 });
 
 test("an unknown error shows its short text instead of a generic line", () => {
-  const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "model_not_found: deepseek-x" } } });
-  assert.match(text(html), /AI 调用没有成功：model_not_found: deepseek-x/);
+  const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "boom: deepseek-x" } } });
+  assert.match(text(html), /AI 调用没有成功：boom: deepseek-x/);
   assert.doesNotMatch(html, /生成没有完成/);
 });
 
