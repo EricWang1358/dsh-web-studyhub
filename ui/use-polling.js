@@ -13,7 +13,8 @@ const browserEnv = () => ({
     document.addEventListener('visibilitychange', callback);
     return () => document.removeEventListener('visibilitychange', callback);
   },
-  setTimer: (callback, ms) => globalThis.setTimeout(callback, ms),
+  // unref: in Node (tests, build scripts) a poll must never be what keeps the process alive; browsers have no unref.
+  setTimer: (callback, ms) => { const id = globalThis.setTimeout(callback, ms); id?.unref?.(); return id; },
   clearTimer: id => globalThis.clearTimeout(id),
 });
 

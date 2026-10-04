@@ -1,6 +1,6 @@
 import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
 import { clearStepDraft as clearDraft, keepStepDraft as keepDraft, readStepDraft as readDraft, savedOutput } from "./workflow-draft.js";
-import { formatDateTime } from "./format.js";
+import { formatDateTime, formatNumber } from "./format.js";
 import { usePolling } from "./use-polling.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -404,7 +404,7 @@ export default function WorkflowPortal({ id, libraryKey, call, askInChat, onOpen
     {notice && <p className="wf-status" role="status">{notice}</p>}
     <ol className="wf-portal-route" aria-label={ui("学习步骤")}>{session.template.steps.map((item, stepIndex) => {
       const outcome = session.records[item.id]?.outcome, resume = item.id === session.resumeStepId;
-      const body = <><span>{String(stepIndex + 1).padStart(2, "0")}</span><strong>{item.title}</strong>{resume ? <small className="wf-route-resume">{ui("当前进度 · 回到这里")}</small> : outcome && <small>{ui(OUTCOME[outcome])}</small>}</>;
+      const body = <><span>{formatNumber(stepIndex + 1, { minimumIntegerDigits: 2 })}</span><strong>{item.title}</strong>{resume ? <small className="wf-route-resume">{ui("当前进度 · 回到这里")}</small> : outcome && <small>{ui(OUTCOME[outcome])}</small>}</>;
       const reachable = active && !remote && item.id !== step.id && (outcome || resume);
       return <li key={item.id} aria-current={!completed && item.id === step.id ? "step" : undefined} className={[item.id === step.id && !completed ? "is-current" : "", reachable ? "is-reachable" : ""].filter(Boolean).join(" ") || undefined}>
         {reachable ? <button type="button" className="wf-route-link" disabled={busy} title={resume ? ui("回到刚才的进度") : uiFormat("回到「{0}」看看，记录都会保留", [item.title])} onClick={() => goTo(item.id)}>{body}</button> : body}

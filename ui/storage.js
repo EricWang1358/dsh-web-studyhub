@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
    blocked, and a stored value can be stale or corrupt: none of that may break a page, so every call swallows it. */
 
 const defaultStorage = () => { try { return globalThis.localStorage ?? null; } catch { return null; } };
+/** The browser's persistent storage, or null when it is missing or blocked. */
+export const browserStorage = defaultStorage;
 
 /** The stored JSON value, or `fallback` when it is missing, unreadable or not JSON. */
 export function readJSON(key, fallback = null, storage = defaultStorage()) {
