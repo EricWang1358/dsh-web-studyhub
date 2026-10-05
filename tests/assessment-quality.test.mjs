@@ -574,13 +574,13 @@ test('a partial author response finishes after one audit without filling missing
  assert.equal(result.cards.length,1);assert.equal(result.editorial.reviewRounds,1);assert.equal(replies.length,0);
 });
 
-test('an unusable single-round review is a protocol failure without extra model calls',async()=>{
+test('an unusable single-round review is asked again twice, then a typed protocol failure (tests/review-reask.test.mjs has the cases)',async()=>{
  const badId=qualityReview(candidate());badId.checks[0].cardId='unknown';
  const missing=qualityReview(candidate());delete missing.checks[0].sourceSupport;
  for(const bad of [{issues:[]},badId,missing,'{"issues":']){
-  const replies=[qualityPlan(request),qualityBlueprint(request, qualityPlan(request), candidate()), authored(candidate()),bad];
-  await assert.rejects(generateDeck(async()=>{assert.ok(replies.length);const value=replies.shift();return typeof value==='string'?value:JSON.stringify(value);},request),/Review (?:JSON )?protocol failed/);
-  assert.equal(replies.length,0);
+  const replies=[qualityPlan(request),qualityBlueprint(request, qualityPlan(request), candidate()), authored(candidate()),bad,bad,bad];
+  await assert.rejects(generateDeck(async()=>{assert.ok(replies.length);const value=replies.shift();return typeof value==='string'?value:JSON.stringify(value);},request),/Review (?:JSON )?protocol failed after 3 attempts/);
+  assert.equal(replies.length,0,'exactly the review and its two re-asks');
  }
 });
 

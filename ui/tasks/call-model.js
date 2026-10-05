@@ -2,6 +2,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { STRENGTH_LABEL } from '../../lib/model-effort.js';
 import { formatDuration, joinMeta } from '../format.js';
 import { appliedText } from './task-control.js';
+import { callErrorText } from '../generation-status.js';
 
 /* What the console's panels are drawn from: the timeline's lanes and bars, the list of calls in flight, the log's lines. Plain functions over a job's
    contract (docs/job-contract.md); no React, so a test can read them. */
@@ -13,7 +14,9 @@ const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻�
 export function callLabel(call, { file = false } = {}) {
   if (!call) return '';
   const base = ui(KIND_LABEL[call.kind] || KIND_LABEL.other);
-  const numbered = call.kind !== 'wait' && call.part != null && call.parts ? uiFormat('{0} {1}/{2}', [base, call.part, call.parts]) : base;
+  const counted = call.kind !== 'wait' && call.part != null && call.parts ? uiFormat('{0} {1}/{2}', [base, call.part, call.parts]) : base;
+  // A review asked again because its reply could not be used (lib/generation.js) is a retry of the same review, and is called that.
+  const numbered = call.kind === 'review' && call.retry > 0 ? uiFormat('{0} · 第 {1} 次重新审阅', [counted, call.retry]) : counted;
   // A transcript taken from the saved one is a call too (drawn as a blue bar), and is called what it is.
   const label = call.reused ? uiFormat('{0} · 复用', [numbered]) : numbered;
   return file && call.file ? joinMeta([label, call.file]) : label;
@@ -217,7 +220,7 @@ export function logLines(contract, filter = 'all') {
     lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : failed ? 'warn' : 'info', kind: 'call', tag: call.kind,
       text: joinMeta([`${callLabel(call, { file: true })} ${CALL_STATUS(call.status)}`.trim(), took,
         call.reused ? ui('音频内容和转写设置与之前相同') : '',
-        failed && call.error ? uiFormat('原因：{0}', [call.error]) : '', failed ? retryNote(call, contract.calls) : '']) });
+        failed && call.error ? uiFormat('原因：{0}', [callErrorText(call.error)]) : '', failed ? retryNote(call, contract.calls) : '']) });
   }
   for (const line of lines) if (line.count > 1) line.text = `${line.text} ×${line.count}`;
   const ordered = lines.map((line, index) => ({ line, index })).sort((a, b) => (Date.parse(b.line.at) || 0) - (Date.parse(a.line.at) || 0) || b.index - a.index).map(({ line }) => line);

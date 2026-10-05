@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { READER_DEFAULTS, SIZES, UNDERLINES, READER_STORAGE_KEY, normalizeReaderSettings, stepSize, readerVars, loadReaderSettings, saveReaderSettings, resetReaderSettings, underlineShown } from '../ui/document-preview/reader/settings.js';
-import { looksLikeHeading, classifyParagraph, splitParagraphs, splitSegments, readingSections, lineBreakPieces } from '../ui/document-preview/reader/text-sections.js';
+import { looksLikeHeading, classifyParagraph, splitParagraphs, readingSections, lineBreakPieces } from '../ui/document-preview/reader/text-sections.js';
 import { outlineFromSections, collectHeadings, pickActive, neighbours, readingProgress } from '../ui/document-preview/reader/outline.js';
 import { foldWithMap, foldQuery, matchOffsets, findRanges, paintMatches } from '../ui/document-preview/reader/find.js';
 
@@ -109,15 +109,17 @@ test('splitParagraphs: only a title may be a lone short line; the last short lin
 
 const transcript = ['开场白一句。', '【第一部分：容器基础】', '[Part 1: Containers]', '', '容器是进程。', '【第二部分：编排】', '', 'Pod 是最小单位。', '【第三部分：故障诊断】', '看日志。'].join('\n');
 
-test('splitSegments cuts a transcript at its 【…】 labels and keeps the text before the first one', () => {
-  const parts = splitSegments(transcript);
+test('a transcript is cut at its part headings (the sections of lib/sections.js) and keeps the text before the first one as its opening', () => {
+  const parts = readingSections({ text: transcript });
   assert.deepEqual(parts.map(part => part.title), ['', '第一部分：容器基础', '第二部分：编排', '第三部分：故障诊断']);
-  assert.match(parts[0].text, /开场白/);
-  assert.match(parts[1].text, /\[Part 1: Containers\]/);
-  assert.doesNotMatch(parts[1].text, /【/, 'the label is the title, not body text');
-  assert.equal(splitSegments('【第一部分】\n只有一个'), null, 'one label is not a structure');
-  assert.equal(splitSegments('没有任何标记的一整段文字'), null);
-  assert.equal(splitSegments('正文里提到【某个词】并不是标记\n【孤立】'), null);
+  assert.deepEqual(parts.map(part => part.kind), ['lead', 'part', 'part', 'part']);
+  assert.match(parts[0].paragraphs[0].text, /开场白/);
+  assert.match(parts[1].paragraphs.map(paragraph => paragraph.text).join('\n'), /\[Part 1: Containers\]/);
+  assert.ok(parts.every(part => part.paragraphs.every(paragraph => !/^【第/.test(paragraph.text))), 'the heading is the title, not body text');
+  assert.equal(readingSections({ text: '【第一部分】\n只有一个' }).length, 1, 'one part is not a structure');
+  assert.equal(readingSections({ text: '没有任何标记的一整段文字' }).length, 1);
+  assert.equal(readingSections({ text: '正文里提到【某个词】并不是标记\n【孤立】' }).length, 1);
+  assert.equal(readingSections({ text: '【第一部分：甲】\n正文。\n\n【英文原句】\n正文。' }).length, 1, 'a label is not a part');
 });
 
 test('readingSections: pages and slides one section each, transcripts one per part, other text one section', () => {
@@ -128,7 +130,7 @@ test('readingSections: pages and slides one section each, transcripts one per pa
   assert.equal(new Set(pages.map(section => section.id)).size, 2);
   const parts = readingSections({ text: transcript });
   assert.equal(parts.length, 4);
-  assert.deepEqual(parts.map(section => section.kind), ['part', 'part', 'part', 'part']);
+  assert.deepEqual(parts.map(section => section.kind), ['lead', 'part', 'part', 'part']);
   const plain = readingSections({ text: '一整段正文。\n\n又一段。' });
   assert.equal(plain.length, 1);
   assert.equal(plain[0].paragraphs.length, 2);

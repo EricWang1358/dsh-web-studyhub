@@ -30,7 +30,8 @@ import { useReaderSettings } from './reader/useReaderSettings.js';
 import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js';
 import { readerVars, underlineShown } from './reader/settings.js';
 import { readingSections } from './reader/text-sections.js';
-import { outlineFromSections, collectHeadings, structureOutline, sectionNeighbours, chapterNeighbours, outlinePath } from './reader/outline.js';
+import { sectionAtOffset } from '../../lib/sections.js';
+import { outlineFromSections, collectHeadings, withoutLabels, structureOutline, sectionNeighbours, chapterNeighbours, outlinePath } from './reader/outline.js';
 import { applyOutline, clearOutlineTags } from './reader/ai-outline.js';
 import { findRanges, paintMatches } from './reader/find.js';
 import css from './document-preview.css';
@@ -170,14 +171,17 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content), { markdownImages: localMode })
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
-  const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content }) : [],
+  const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content, sourceId: sources[0]?.id }) : [],
     [reading, html, paged, sources, content]);
   const pageLabel = page => format === 'pptx' ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]);
-  const labelOf = section => section.kind === 'page' ? pageLabel(section.page) : '';
-  const itemLabel = item => item.page ? pageLabel(item.page) : '';
+  // A recording's entry says which one it is; a part that carries on from the previous volume says so.
+  const recordingLabel = item => item.kind === 'recording' ? uiFormat('录音 {0}', [item.recording]) : item.continued ? ui('接上一卷') : '';
+  const labelOf = section => section.kind === 'page' ? pageLabel(section.page) : recordingLabel(section);
+  const itemLabel = item => item.page ? pageLabel(item.page) : recordingLabel(item);
   const textOutline = useMemo(() => outlineFromSections(sections), [sections]);
   const autoOutline = reading && html ? headings : textOutline;
-  useEffect(() => { setHeadings(reading && html ? collectHeadings(body.current) : []); }, [reading, html]);
+  // The labels of a bilingual Markdown transcript (### 英文原句, ### 中文对照) stay in the text; they are not sections of it.
+  useEffect(() => { setHeadings(reading && html ? withoutLabels(collectHeadings(body.current)) : []); }, [reading, html]);
   // A kept AI outline (materials.outline.*) replaces the automatic one wherever its entries can be placed in what is drawn.
   useEffect(() => { setAiOutline(document?.outline ?? null); }, [document]);
   useIsoLayoutEffect(() => {
@@ -278,8 +282,13 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
 
   // 读 → 做这几页的题 → 回到阅读 → 掌握度: the questions linked to this document placed under the outline, the range chooser, and the way back to a stored position.
   const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
+  // A place named by its offset into the text (在资料中查看 on a part of a question run) is the section that offset is in (lib/sections.js; ids are the outline's own); a page of a PDF opens at its page.
+  const place = useMemo(() => resume && Number.isInteger(resume.at) && !paged && !html && !resume.sectionId ? sectionAtOffset([{ id: sources[0]?.id ?? source.id, text: sources[0]?.text || content }], sources[0]?.id ?? source.id, resume.at) : null,
+    [resume, paged, html, sources, content, source.id]);
+  // Only the sections this reader draws (a transcript's recordings and parts) can be started at; Markdown draws its own headings, text without structure has none.
+  const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
   const unit = aiOn || !paged ? 'section' : format === 'pptx' ? 'slide' : 'page';
-  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume });
+  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
   const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };

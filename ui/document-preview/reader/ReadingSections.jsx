@@ -40,6 +40,26 @@ function Rule({ text }) {
   return <div className="reader-p reader-p--rule"><span className="reader-bracket" aria-hidden="true">{text}</span><hr className="reader-rule" /></div>;
 }
 
+/** A transcript's label (【英文原句】, [Chinese translation]): a small caption over its text. Its brackets stay in the text, hidden like a heading's "# ". */
+function Label({ text }) {
+  const open = text.slice(0, 1), close = text.length > 1 ? text.slice(-1) : '';
+  return <p className="reader-p reader-p--label"><span className="reader-bracket" aria-hidden="true">{open}</span>{text.slice(1, close ? -1 : undefined)}
+    <span className="reader-bracket" aria-hidden="true">{close}</span></p>;
+}
+
+/* What a transcript writes at the start of a recording (80 "=", 《file》全量中英对照逐字稿, the English title, 80 "="): kept in the text, hidden like a heading's "# ", except the
+   English title, which is the recording's quiet subtitle. In an English transcript the lines are the rule, "Full Bilingual Transcript: file", the title, the rule. */
+const TITLE_LINE = /^(Full Bilingual Transcript:\s*)(.*)$/;
+function Furniture({ paragraph }) {
+  const lines = paragraph.text.split('\n'), zh = lines[1]?.startsWith('《'), at = lines.length >= 4 ? 2 : -1;
+  return <p className="reader-p reader-p--furniture">{lines.map((line, index) => {
+    const mark = index === at ? (zh ? TITLE_LINE.exec(line) : [line, '', line]) : null, text = index < lines.length - 1 ? `${line}\n` : line;
+    return mark
+      ? <React.Fragment key={index}><span className="reader-bracket" aria-hidden="true">{mark[1]}</span><span className="reader-furniture__title">{mark[2]}</span><span className="reader-bracket" aria-hidden="true">{'\n'}</span></React.Fragment>
+      : <span key={index} className="reader-bracket" aria-hidden="true">{text}</span>;
+  })}</p>;
+}
+
 /**
  * Text sources set for reading. Each section keeps the markers the selection tools use:
  * data-study-page / data-study-source on a page, data-study-text around the paragraphs.
@@ -49,13 +69,13 @@ function Rule({ text }) {
 export default function ReadingSections({ sections, labelOf, onPeek }) {
   return sections.map(section => {
     const label = labelOf(section), paged = section.kind === 'page';
-    return <section key={section.id} className={`reader-section reader-section--${section.kind}`} data-outline-id={section.id}
+    return <section key={section.id} className={`reader-section reader-section--${section.kind}`} data-outline-id={section.kind === 'lead' ? undefined : section.id}
       {...(paged ? { 'data-study-page': section.page, 'data-study-source': section.sourceId } : {})}>
       {(label || (!paged && section.title)) && <header className="reader-section__head">
         {label && <span className="reader-section__label">{label}</span>}
         {paged && onPeek && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={event => onPeek(section.page, { figure: false, trigger: event.currentTarget })}>{ui('看原页')}</Button>}
         {!paged && section.title && <h3 className="reader-section__title">
-          <span className="reader-bracket" aria-hidden="true">【</span>{section.title}<span className="reader-bracket" aria-hidden="true">】</span></h3>}
+          <span className="reader-bracket" aria-hidden="true">{section.open ?? '【'}</span>{section.title}<span className="reader-bracket" aria-hidden="true">{section.close ?? '】'}</span></h3>}
       </header>}
       <div className="reader-prose" data-study-text="true">
         {section.paragraphs.map((paragraph, index) => paged && onPeek && isFigurePlaceholder(paragraph.text)
@@ -67,6 +87,10 @@ export default function ReadingSections({ sections, labelOf, onPeek }) {
           ? <Footnote key={index} paragraph={paragraph} />
           : paragraph.kind === 'heading'
           ? <Heading key={index} text={paragraph.text} />
+          : paragraph.kind === 'label'
+          ? <Label key={index} text={paragraph.text} />
+          : paragraph.kind === 'furniture'
+          ? <Furniture key={index} paragraph={paragraph} />
           : <p key={index} className={`reader-p reader-p--${paragraph.kind}`}>{paragraph.kind === 'layout'
             ? paragraph.text : withFormulas(paragraph.text, paragraph.kind === 'prose')}</p>)}
       </div>

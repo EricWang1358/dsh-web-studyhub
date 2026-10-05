@@ -16,7 +16,9 @@ const STAGES = [['author', '出题'], ['review', '审阅'], ['repair', '修复']
 const STATUS_WORD = { passed: '全部通过', partial: '只保留了部分', failed: '没有出题', running: '进行中', working: '进行中', waiting: '等待中' };
 const dot = (status) => (status === 'passed' ? 'done' : status === 'partial' ? 'partial' : status === 'failed' ? 'fail' : status === 'waiting' ? 'queued' : 'run');
 /* Why a part kept fewer questions than it was asked for, from the reason codes the run's report carries (lib/generation-report.js failureReason). */
-const REASON_WORD = { quote: '引用在资料里找不到', plan: '考点规划未通过检查', quality: '题没有通过质量审阅', other: '其他原因' };
+const REASON_WORD = { quote: '引用在资料里找不到', plan: '考点规划未通过检查', quality: '题没有通过质量审阅', 'review-protocol': '审阅回复格式不对，重新审阅后仍不行',
+  timeout: '模型长时间没有回应', 'rate-limit': '被模型服务限流', 'no-reply': '模型没有返回内容', quota: '模型账户余额或额度不足', credential: '模型密钥缺失或被拒绝',
+  budget: '生成用时到限', cancelled: '被停止', unavailable: '模型服务暂时不可用', other: '其他原因' };
 const shortfallLine = (part) => {
   if (part.kept === undefined || !(part.kept < part.asked) || !part.reasons?.length) return '';
   return uiFormat('原因：{0}', [part.reasons.map((code) => ui(REASON_WORD[code] || REASON_WORD.other)).join(ui('；'))]);

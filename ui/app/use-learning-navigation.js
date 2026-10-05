@@ -131,6 +131,14 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     setModal(available.length === 1 ? { type: 'source', source: available[0] } : { type: 'sources', sourceIds });
   }, [notify, refs, setModal]);
 
+  // A source opened where a place of its text is (a part of a question run, 在资料中查看): the reader is told the offset and finds the section it is in (the library's snapshot has no text to
+  // do it here), the way the way back to a stored reading position hands it a section.
+  const openSourceAt = useCallback((sourceId, offset) => {
+    const source = (refs.dataRef.current?.sources || []).find((item) => item.id === sourceId);
+    if (!source) { notify(ui('逐字稿资料已被删除。')); return; }
+    setModal({ type: 'source', source, resume: { at: Math.max(0, Number(offset) || 0), sectionOffset: 0, scrollTop: 0, progress: 0, nonce: Date.now() } });
+  }, [notify, refs, setModal]);
+
   // After an arrival, the heading (or the control the learner came from) takes focus.
   const focusRequest = lib.state.focusRequest;
   useEffect(() => {
@@ -149,5 +157,5 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
 
   const trail = lib.state.contextTrail;
   return { captureContext, rememberContext, contextLabel, openLearningTarget, currentStudyReference, openBoardReference, openBoardWithContext,
-    returnFromContext, returnFromDetour, returnToReading, openAudioSources, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', hasTrail: trail.length > 0 };
+    returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', hasTrail: trail.length > 0 };
 }

@@ -20,15 +20,20 @@ export function resultOpener(job, app) {
 
 /* Where 在资料中查看 of a part of a question run leads (资料部分): to the first of the sources the part was written from that is still in the library, by the
    same handler 打开结果 uses for a transcript or a conversion (learn.openAudioSources opens the reader on one source). `part` is a partList entry of the job contract
-   (sourceIds, sourceCount, range). Null when the app has no such navigation; otherwise { label, available, count, firstId?, reason?, run }: unavailable when the part has
+   (sourceIds, sourceCount, range, ranges, open). When the part records where it sits (`open` / `ranges`, lib/part-plan.js) and the app can take a position (learn.openSourceAt), the reader
+   opens at that section; else at the top of the source. Null when the app has no such navigation; otherwise { label, available, count, firstId?, reason?, run }: unavailable when the part has
    no recorded sources (an older run) or every one of them has since been deleted, with the reason to show beside the disabled button. */
 export function partOpener(part, app) {
-  const open = app?.learn?.openAudioSources;
+  const open = app?.learn?.openAudioSources, openAt = app?.learn?.openSourceAt;
   if (typeof open !== 'function') return null;
-  const ids = Array.isArray(part?.sourceIds) ? part.sourceIds : [], library = app?.data?.sources;
-  const firstId = Array.isArray(library) ? ids.find((id) => library.some((source) => source.id === id)) : ids[0];
+  const ids = Array.isArray(part?.sourceIds) ? part.sourceIds : [], library = app?.data?.sources, there = (id) => !Array.isArray(library) || library.some((source) => source.id === id);
+  // Where the part opens (lib/part-plan.js: the start of the first section its label names), else where its first range begins; a part with neither (an older run) opens its first source.
+  const places = [part?.open, ...(Array.isArray(part?.ranges) ? part.ranges : [])];
+  const range = places.find((item) => typeof item?.sourceId === 'string' && there(item.sourceId));
+  const firstId = range ? range.sourceId : Array.isArray(library) ? ids.find(there) : ids[0];
   const base = { label: ui('在资料中查看'), count: Math.max(ids.length, Number(part?.sourceCount) || 0) };
-  if (!ids.length) return { ...base, available: false, reason: ui('这次运行没有记录用到的资料。'), run: () => {} };
+  if (!ids.length && !range) return { ...base, available: false, reason: ui('这次运行没有记录用到的资料。'), run: () => {} };
   if (firstId === undefined) return { ...base, available: false, reason: ui('这些资料已被删除，无法查看。'), run: () => {} };
-  return { ...base, available: true, firstId, run: () => open([firstId]) };
+  // The reader is opened at that section when the app can take a position, else at the top of the source.
+  return { ...base, available: true, firstId, run: () => (range && typeof openAt === 'function' ? openAt(range.sourceId, range.start) : open([firstId])) };
 }

@@ -1,5 +1,7 @@
 {
   "第 {0} 张": "Slide {0}",
+  "录音 {0}": "Recording {0}",
+  "接上一卷": "Continued from the previous volume",
   "阅读": "Read",
   "原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。": "The original PDF shows the layout and figures. To select text and ask or add questions, switch to “Read”.",
   "目录": "Contents",

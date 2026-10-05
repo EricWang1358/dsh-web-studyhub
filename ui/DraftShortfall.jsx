@@ -102,7 +102,7 @@ export function ShortfallReasons({ draft, compact = false }) {
     </>}
     {found.duplicates > 0 && <p className="shortfall__line">{uiFormat("{0} 道题与已有的题考点重复，已略过。", [found.duplicates])}</p>}
     {found.partFailures.map((failure) => <p className="shortfall__line" key={failure.part}>
-      {uiFormat("第 {0} 批没有完成：{1}", [failure.part, failure.title])}</p>)}
+      {uiFormat("第 {0} 批没有完成：{1}", [failure.part, failure.sentence])}</p>)}
     {!found.report && !found.reasons.length && !found.partFailures.length && !found.duplicates &&
       <p className="shortfall__line muted">{ui("这份草稿生成时没有留下逐题原因；之后补题的记录会显示在这里。")}</p>}
   </div>;
