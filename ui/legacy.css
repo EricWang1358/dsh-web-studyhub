@@ -8,18 +8,18 @@
   :where(.study-app, .study-seat) {
     .two-col {
       display: grid;
-      gap: 18px;
+      gap: var(--space-4-5);
     }
     .two-col {
       grid-template-columns: repeat(2, 1fr);
     }
     .wide {
       width: 100%;
-      padding: 14px;
+      padding: var(--space-3-5);
     }
     .onboarding {
       max-width: 680px;
-      padding: 70px 30px;
+      padding: 70px var(--space-7-less);
       margin: auto;
     }
     .onboarding h1 {

@@ -6,10 +6,10 @@
     .library-location {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-1-5);
       min-width: 0;
       max-width: min(30ch, 34cqi);
-      padding: var(--space-1) 10px;
+      padding: var(--space-1) var(--space-2-5);
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
       background: transparent;

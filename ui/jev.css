@@ -87,7 +87,7 @@
     .jev-levels__counts, .jev-levels__note { margin: 0; font-size: var(--fs-sm); }
     .jev-levels__counts small { color: var(--text-muted); }
     .jev-levels__matrix { border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; max-width: 100%; }
-    .jev-levels__matrix th, .jev-levels__matrix td { padding: var(--space-1) 10px; border: 1px solid var(--line-soft); text-align: center; }
+    .jev-levels__matrix th, .jev-levels__matrix td { padding: var(--space-1) var(--space-2-5); border: 1px solid var(--line-soft); text-align: center; }
     .jev-levels__matrix th[scope="row"] { text-align: left; }
     .jev-levels__matrix td.is-diagonal { background: var(--ok-bg); }
     .jev-levels__list { display: grid; gap: var(--space-2); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); }

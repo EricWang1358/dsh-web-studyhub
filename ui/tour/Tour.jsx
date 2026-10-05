@@ -25,7 +25,7 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
     : step.readyNote && model?.ready && model.label ? uiFormat(step.readyNote, [model.label]) : "";
   const offerSample = step.id === "welcome" && !sampleLoaded && !!onLoadSample;
   return (
-    <div ref={popoverRef} className={cx("tour-pop", docked && "tour-pop--docked", side && `tour-pop--${side}`)} style={style}
+    <div ref={popoverRef} className={cx("tour-pop", "sh-paper-card", "sh-paper-card--snug", docked && "tour-pop--docked", side && `tour-pop--${side}`)} style={style}
       role="dialog" aria-modal="false" aria-labelledby={titleId} aria-describedby={bodyId} tabIndex={-1} onKeyDown={onKeyDown}>
       <div className="tour-pop__head">
         <span className="tour-pop__eyebrow"><Icon name="sparkle" size={16} />{ui("功能导览")}</span>
@@ -216,11 +216,11 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
   const centred = !anchors.length;
   const layer = (
     <div ref={layerRef} className={cx("tour-layer", centred && "is-centred", !layout && "is-measuring")}>
-      {layout?.spot ? <div className="tour-spot" style={{ left: layout.spot.left, top: layout.spot.top, width: layout.spot.width, height: layout.spot.height }} />
+      {layout?.spot ? <div className="tour-spot" style={{ left: 0, top: 0, width: layout.spot.width, height: layout.spot.height, transform: `translate(${layout.spot.left}px, ${layout.spot.top}px)` }} />
         : centred && <div className="tour-shade" />}
       <TourPopover key={step.id} step={step} index={index} total={steps.length} model={model} sampleLoaded={sampleLoaded} busy={busy}
         popoverRef={popoverRef} docked={place?.docked} side={place?.side} onKeyDown={onKeyDown}
-        style={place && !place.docked ? { left: place.left, top: place.top, ...(layout.caret != null ? { "--tour-caret": `${layout.caret}px` } : {}) }
+        style={place && !place.docked ? { left: 0, top: 0, transform: `translate(${place.left}px, ${place.top}px)`, ...(layout.caret != null ? { "--tour-caret": `${layout.caret}px` } : {}) }
           : undefined}
         onNext={next} onBack={() => onMove(-1)} onClose={() => onClose("close")} onSkip={() => onClose("skip")}
         onLoadSample={onLoadSample} onBrowse={onBrowse} onImport={onImport} onRemoveSample={onRemoveSample} />

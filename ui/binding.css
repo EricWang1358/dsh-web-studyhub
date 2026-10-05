@@ -4,20 +4,20 @@
   :where(.study-app, .study-seat) {
     .binding-panel {
       display: grid;
-      gap: 10px;
-      margin-bottom: 22px;
+      gap: var(--space-2-5);
+      margin-bottom: var(--space-5-5);
     }
     .binding-row {
       display: flex;
       align-items: center;
       gap: var(--space-4);
-      padding: 14px var(--space-4);
+      padding: var(--space-3-5) var(--space-4);
       background: var(--bg-surface);
       border-radius: var(--radius);
     }
     .binding-main {
       display: grid;
-      gap: 6px;
+      gap: var(--space-1-5);
       flex: 1;
       min-width: 0;
       margin: 0;

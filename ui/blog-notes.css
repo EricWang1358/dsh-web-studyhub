@@ -12,18 +12,18 @@
     .note-daily-date { display: block; margin-top: var(--space-1); }
     .note-heading { align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }
     .note-daily-meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.7; margin: 0; }
-    .note-unsaved { display: block; margin-top: 6px; font-size: var(--fs-xs); color: var(--text-muted); }
-    .note-reader { min-width: 0; height: min(78vh, 950px); min-height: 420px; margin: 18px 0; }
+    .note-unsaved { display: block; margin-top: var(--space-1-5); font-size: var(--fs-xs); color: var(--text-muted); }
+    .note-reader { min-width: 0; height: min(78vh, 950px); min-height: 420px; margin: var(--space-4-5) 0; }
     .note-reader > .study-document-viewer { height: 100%; }
     .note-editor.note-editor-single { grid-template-columns: minmax(0, 1fr); }
     .note-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
-    .note-title { display: grid; gap: 6px; max-width: 800px; margin: 14px 0; }
+    .note-title { display: grid; gap: var(--space-1-5); max-width: 800px; margin: var(--space-3-5) 0; }
     .note-title input { width: 100%; }
-    .note-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); margin-top: 18px; }
+    .note-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); margin-top: var(--space-4-5); }
     .note-edit-pane { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--bg-surface); }
-    .note-edit-pane > strong { display: block; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+    .note-edit-pane > strong { display: block; padding: var(--space-2-5) var(--space-3-5); border-bottom: 1px solid var(--line); }
     .note-edit-pane .cm-editor { font-size: var(--fs-md); }
-    .note-preview { height: 560px; overflow: auto; padding: var(--space-4) 22px; line-height: 1.65; overflow-wrap: anywhere; }
+    .note-preview { height: 560px; overflow: auto; padding: var(--space-4) var(--space-5-5); line-height: 1.65; overflow-wrap: anywhere; }
     .note-preview h1, .note-preview h2, .note-preview h3 { margin: 1.2em 0 .45em; }
     .note-preview h1:first-child { margin-top: 0; }
     .note-preview pre { padding: var(--space-3); overflow: auto; border-radius: var(--radius-sm); background: var(--bg-sunken); }
@@ -37,7 +37,7 @@
     .note-reuse-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: var(--space-3); }
     .note-reuse-actions > details { flex: 1 1 250px; margin-top: var(--space-3); border-width: 0 0 1px; border-radius: 0; padding: var(--space-3) 0; }
     .note-reuse-actions > details[open] { flex-basis: 100%; }
-    .note-card-search { display: flex; gap: var(--space-2); margin: 10px 0; }
+    .note-card-search { display: flex; gap: var(--space-2); margin: var(--space-2-5) 0; }
     .note-card-search input { flex: 1; min-width: 0; }
     .note-search-result { display: block; width: 100%; margin: var(--space-1) 0; text-align: left; }
   }
@@ -56,7 +56,7 @@
       .blog-notes-page { padding-top: var(--space-5); }
       .note-heading { gap: var(--space-3); }
       .note-reader { margin-top: var(--space-3); }
-      .blog-notes-page .note-reader .reader-toolbar { gap: var(--space-1); padding: 6px; }
+      .blog-notes-page .note-reader .reader-toolbar { gap: var(--space-1); padding: var(--space-1-5); }
       .blog-notes-page .note-reader .reader-toolbar__group { gap: var(--space-1); }
       .blog-notes-page .note-reader .reader-toolbar__group--end { flex: 1 1 auto; justify-content: flex-end; }
       .blog-notes-page .note-reader .sh-seg__item { min-width: 44px; min-height: 44px; padding-inline: var(--space-1); }

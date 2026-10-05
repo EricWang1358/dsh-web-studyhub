@@ -27,7 +27,7 @@
       margin-top: 0;
     }
     .nav-group + .nav-group {
-      margin-top: 6px;
+      margin-top: var(--space-1-5);
     }
     .nav-group-label {
       display: flex;

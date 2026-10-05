@@ -17,7 +17,7 @@
     .generate-row__label {
       display: block;
       margin: 0;
-      padding-top: 6px;
+      padding-top: var(--space-1-5);
       color: var(--text-dim);
       font-size: var(--fs-sm);
       font-weight: var(--fw-strong);
@@ -54,7 +54,7 @@
     .generate-stepper button:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
     .generate-stepper input {
       width: 3.4em;
-      padding: 6px var(--space-1);
+      padding: var(--space-1-5) var(--space-1);
       border: 0;
       border-inline: 1px solid var(--line);
       border-radius: 0;

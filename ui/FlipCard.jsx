@@ -34,7 +34,7 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
         data-usage="review.flip" aria-label={showBack ? ui("翻回题目") : ui("翻面查看答案")}
         onClick={flipCard} />
       <div className="flip-inner" style={height == null ? undefined : { height }}>
-        <div ref={front} className="flip-face flip-front" aria-hidden={showBack} inert={showBack}>
+        <div ref={front} className="flip-face flip-front sh-paper-card sh-paper-card--roomy" aria-hidden={showBack} inert={showBack}>
           <Markdown
             links={false}
             mediaInteractive
@@ -51,7 +51,7 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
             {run.revealed ? ui("点击看答案 · Space") : ui("点击翻面 · Space")}
           </span>
         </div>
-        <div ref={back} className="flip-face flip-back" aria-hidden={!showBack} inert={!showBack}>
+        <div ref={back} className="flip-face flip-back sh-paper-card sh-paper-card--roomy" aria-hidden={!showBack} inert={!showBack}>
           <Markdown links={false} mediaInteractive className="flip-question" text={run.card.prompt} />
           {run.solution ? (
             <>

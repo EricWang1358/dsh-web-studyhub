@@ -9,7 +9,7 @@
       gap: var(--space-4);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 14px;
+      padding: var(--space-3-5);
       margin: var(--space-3) 0;
       width: 100%;
       text-align: left;
@@ -56,15 +56,15 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--bg-surface);
-      margin: 10px 0;
+      margin: var(--space-2-5) 0;
     }
     .source-group--open {
       padding-bottom: var(--space-1);
     }
     .source-group .source-row {
-      margin: 0 10px var(--space-2);
+      margin: 0 var(--space-2-5) var(--space-2);
       width: auto;
-      padding: 10px var(--space-3);
+      padding: var(--space-2-5) var(--space-3);
       border-color: var(--line-soft);
       background: var(--bg-sunken);
     }
@@ -74,7 +74,7 @@
     & button.source-group-head {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: var(--space-2-5);
       width: 100%;
       padding: var(--space-3) var(--space-4);
       border: 0;
@@ -105,14 +105,14 @@
     .source-mode {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
-      gap: 10px;
-      margin: 18px 0 var(--space-2);
+      gap: var(--space-2-5);
+      margin: var(--space-4-5) 0 var(--space-2);
     }
     .source-tab {
       display: grid;
       gap: var(--space-1);
       text-align: left;
-      padding: 14px var(--space-4);
+      padding: var(--space-3-5) var(--space-4);
       border-radius: var(--radius);
     }
     .source-tab small {
@@ -143,7 +143,7 @@
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .source-row {
-        padding: 10px;
+        padding: var(--space-2-5);
       }
       .source-main small {
         max-width: 180px;
