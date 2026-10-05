@@ -448,7 +448,7 @@ execute: (_args, context) => context.work.start({
 
 ## Checks and benchmarks
 
-- `npm run verify` runs lint, the tests and the build.
+- `npm run verify` runs lint, the tests and the build. `npm run test:fast` runs the tests without the browser, ffmpeg and program-starting files of `tests/slow-tests.json` (see the README for the run order and the full-run queue).
 - `tests/architecture-boundaries.test.mjs` checks context imports and the acyclic API graph. `tests/plugin-composition.test.mjs` checks plugin composition, independent removal and final-owner disposal.
 - `scripts/benchmark-store.mjs` measures scoped storage writes.
 - `scripts/benchmark-study.mjs` measures the real `review.answer` on 5,000 cards and 50,000 attempts. It excludes run preparation and checks that distinct attempts are saved.
