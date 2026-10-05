@@ -133,12 +133,13 @@
     }
     .tc-detail > * { flex: none; }
     .tc-detail > .tc-body { flex: 1 1 0; }
-    .tc-head { flex-wrap: nowrap; padding: 0 var(--space-5); }
+    /* The title keeps 16rem; when the actions of a task (a long label such as the top-up in English, a round control) would take it below that, they wrap onto a second row on the right instead of squeezing the name. */
+    .tc-head { flex-wrap: wrap; height: auto; min-height: 44px; row-gap: var(--space-1); padding: var(--space-1) var(--space-5); }
     /* The name of the task over its one line of facts (not beside it: the facts took the room and the name was cut to three letters); each is cut with an ellipsis, the actions never are. */
-    .tc-head__title { display: flex; flex: 1 1 0; flex-direction: column; justify-content: center; gap: 0; min-width: 0; }
+    .tc-head__title { display: flex; flex: 1 1 16rem; flex-direction: column; justify-content: center; gap: 0; min-width: min(16rem, 100%); }
     .tc-head__title > h2 { line-height: var(--lh-tight, 1.25); }
     .tc-head__sub { overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-tight, 1.25); text-overflow: ellipsis; white-space: nowrap; }
-    .tc-head__actions { display: flex; flex: none; align-items: center; gap: var(--space-2); }
+    .tc-head__actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-1) var(--space-2); max-width: 100%; margin-inline-start: auto; }
     /* 删除 is the one destructive action of the header: a gap from the others, and the danger look of the bar's. */
     .tc-head__delete { margin-inline-start: var(--space-2); }
     .tc-metrics {
