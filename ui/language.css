@@ -3,7 +3,7 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     /* Sidebar language switch (WP14): one nav-height row, "语言" + a small segmented control. */
-    .study-language-switch {display:flex;align-items:center;gap:var(--space-3);height:var(--nav-row);margin:1px 0;padding:0 6px 0 var(--space-3);color:var(--text-dim)}
+    .study-language-switch {display:flex;align-items:center;gap:var(--space-3);height:var(--nav-row);margin:1px 0;padding:0 var(--space-1-5) 0 var(--space-3);color:var(--text-dim)}
     .study-language-switch__label {flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .study-language-switch .sh-seg {flex:none;padding:var(--space-half);gap:1px}
     .study-language-switch .sh-seg__item {min-height:24px;padding:1px var(--space-2);font-size:var(--fs-xs)}

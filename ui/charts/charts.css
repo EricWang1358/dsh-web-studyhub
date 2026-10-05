@@ -6,9 +6,9 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .dash-split > .dash-metrics { padding-top: 6px; }
+    .dash-split > .dash-metrics { padding-top: var(--space-1-5); }
     .dash-footnote {
-      margin: -4px 0 0;
+      margin: calc(var(--space-1) * -1) 0 0;
       font-size: var(--fs-sm);
       line-height: var(--lh-snug);
       color: var(--text-muted);

@@ -13,7 +13,7 @@
     .wb {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: var(--space-3-5);
       min-width: 0;
     }
     /* The shells also carry style.css's `.page` (max-width, centring, padding) so
@@ -31,7 +31,7 @@
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: end;
-      gap: 28px var(--space-9);
+      gap: var(--space-6-5) var(--space-9);
       padding: var(--space-2) 0 44px;
       border-bottom: 1px solid var(--line-soft);
     }
@@ -46,7 +46,7 @@
     }
     .dash-streak > span {
       display: block;
-      margin-top: 14px;
+      margin-top: var(--space-3-5);
       font-size: var(--fs-lg);
       font-weight: var(--fw-strong);
     }
@@ -115,7 +115,7 @@
     .dash-split {
       display: grid;
       gap: 48px;
-      padding-top: 18px;
+      padding-top: var(--space-4-5);
     }
     /* The actionable list gets the full band; accuracy reads beside its chart. */
     .dash-weak {
@@ -124,7 +124,7 @@
       column-gap: var(--space-9);
     }
     .dash-section h2 {
-      margin: 0 0 14px;
+      margin: 0 0 var(--space-3-5);
       font-size: var(--fs-lg);
     }
     .dash-section h2 small {
@@ -136,8 +136,8 @@
     .dash-rates {
       display: flex;
       flex-wrap: wrap;
-      gap: 14px var(--space-8);
-      margin-bottom: 18px;
+      gap: var(--space-3-5) var(--space-8);
+      margin-bottom: var(--space-4-5);
     }
     .dash-rates strong {
       display: block;
@@ -233,7 +233,7 @@
       display: grid;
       /* min(260px, 100%) keeps a single column from overflowing a narrow host pane. */
       grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-      gap: 0 28px;
+      gap: 0 var(--space-6-5);
     }
     /* Grid item: without min-width: 0 a nowrap title would push the card out of
        its track and over the neighbouring card. */
@@ -249,7 +249,7 @@
     /* ── Exam: running ───────────────────────────────────────────────────── */
     .exam-timer,
     .exam-progress {
-      padding: var(--space-1) 10px;
+      padding: var(--space-1) var(--space-2-5);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-pill);
       background: var(--bg-sunken);
@@ -265,8 +265,8 @@
     .exam-card {
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      padding: 18px var(--space-5);
+      gap: var(--space-3-5);
+      padding: var(--space-4-5) var(--space-5);
       background: var(--bg-surface);
       border: 1px solid var(--line);
       border-radius: var(--radius);
@@ -295,7 +295,7 @@
     .exam-option {
       display: flex;
       align-items: flex-start;
-      gap: 10px;
+      gap: var(--space-2-5);
       width: 100%;
       text-align: left;
       padding: var(--space-3) var(--space-3);
@@ -331,12 +331,12 @@
     .exam-toolbar {
       display: flex;
       justify-content: space-between;
-      gap: 10px;
+      gap: var(--space-2-5);
     }
     .exam-foot {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: var(--space-3-5);
       flex-wrap: wrap;
     }
     .exam-foot p {
@@ -357,7 +357,7 @@
       display: grid;
       grid-template-columns: minmax(90px, 180px) 1fr auto;
       align-items: center;
-      gap: 10px;
+      gap: var(--space-2-5);
     }
     .exam-bar-label {
       font-size: var(--fs-md);
@@ -379,13 +379,13 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--space-1-5);
     }
     .exam-wrong-row {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: var(--space-2) 10px;
+      gap: var(--space-2-5);
+      padding: var(--space-2) var(--space-2-5);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
@@ -402,7 +402,7 @@
     .exam-report-actions {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: var(--space-2-5);
       flex-wrap: wrap;
     }
     .exam-path-note {
@@ -422,7 +422,7 @@
       border-top: 1px solid var(--line);
       border-bottom: 1px solid var(--line);
       padding: var(--space-6) 0;
-      margin: 30px 0 34px;
+      margin: var(--space-7-less) 0 34px;
     }
     .stats > div {
       padding: 0 var(--space-6);

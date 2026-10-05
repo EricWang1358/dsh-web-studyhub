@@ -83,7 +83,7 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
   const current = highlights.find((item) => item.id === active);
   useEffect(() => { setNote(current?.note || ""); }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <section ref={rootRef} className={`case-scenario ${className}`} aria-label={label || ui("案例原文")} {...rest}>
+    <section ref={rootRef} className={`case-scenario sh-paper-card sh-paper-card--snug ${className}`} aria-label={label || ui("案例原文")} {...rest}>
       <header className="case-scenario__bar">
         <strong className="case-scenario__title">{title || ui("案例原文")}</strong>
         {editable && <div className="case-highlight-tools" role="toolbar" aria-label={ui("高亮工具")}>

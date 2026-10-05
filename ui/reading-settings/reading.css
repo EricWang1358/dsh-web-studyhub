@@ -77,13 +77,10 @@
     .study-reading--prose.study-reading h2 { font-size: 1.4em; }
     .study-reading--prose.study-reading h3 { font-size: 1.2em; }
     .study-reading--prose.study-reading :is(h4, h5, h6) { font-size: 1em; }
-    /* 纸张: the text sits on a paper sheet. */
+    /* 纸张: the text sits on a paper sheet (the paper card of ui/paper.css, snug size). */
     .study-reading[data-tone='paper'] {
-      box-sizing: border-box;
-      padding: var(--space-4) var(--space-5);
-      border-radius: var(--radius-card);
-      background: var(--paper);
-      color: var(--paper-ink);
+      --paper-pad-y: var(--space-4);
+      --paper-pad-x: var(--space-5);
     }
     .study-reading[data-tone='paper'] :is(.md th, th) { background: var(--paper-rule); }
   }

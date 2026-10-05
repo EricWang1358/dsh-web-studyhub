@@ -102,6 +102,14 @@
     --space-7: 32px;
     --space-8: 40px;
     --space-9: 56px;
+    /* Named half-steps between the whole steps (6 10 14 18 22 28 30px at the default density); calc() of the neighbours so a density setting moves them too. */
+    --space-1-5: calc((var(--space-1) + var(--space-2)) / 2);
+    --space-2-5: calc((var(--space-2) + var(--space-3)) / 2);
+    --space-3-5: calc((var(--space-3) + var(--space-4)) / 2);
+    --space-4-5: calc((var(--space-4) + var(--space-5)) / 2);
+    --space-5-5: calc((var(--space-5) + var(--space-6)) / 2);
+    --space-6-5: calc((var(--space-6) + var(--space-7)) / 2);
+    --space-7-less: calc(var(--space-7) - var(--space-half));
     --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     color-scheme: dark;
