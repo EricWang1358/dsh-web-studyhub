@@ -171,10 +171,16 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
               <option value="low">{ui('低（优先速度）')}</option><option value="default">{ui('模型默认')}</option>
             </Select>
           </Field>
-          <Field label={ui('单条录音的校对与翻译并发数')}
-            hint={ui('录音逐个处理；单条录音内同时处理 2 或 3 个校对或翻译窗口，按原顺序合并，已完成的部分可以复用。并发越高，越容易触发每分钟限流。')}>
+          <Field label={ui('校对与翻译的并行数')}
+            hint={ui('同时发给 DSH 模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。')}>
             <Select value={view.textConcurrency ?? 3} disabled={busy} onChange={(e) => save({ textConcurrency: Number(e.target.value) })}>
-              {[2, 3].map((count) => <option key={count} value={count}>{count === 3 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count])}</option>)}
+              {[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count === 3 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count])}</option>)}
+            </Select>
+          </Field>
+          <Field label={ui('转写的并行数')}
+            hint={ui('同时向转写服务商发送的录音数。免费额度和每分钟限流有限，默认 1 个；后一个录音的转写本来就会和前一个录音的校对、翻译同时进行。')}>
+            <Select value={view.transcribeConcurrency ?? 1} disabled={busy} onChange={(e) => save({ transcribeConcurrency: Number(e.target.value) })}>
+              {[1, 2, 3].map((count) => <option key={count} value={count}>{count === 1 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count])}</option>)}
             </Select>
           </Field>
           <Field label={ui('每次请求最长')}

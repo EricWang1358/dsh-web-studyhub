@@ -23,6 +23,21 @@ const savedSteps = (steps) => STEP_LABELS.filter(([phase]) => steps?.[phase]?.to
   .map(([phase, label]) => uiFormat("{0} {1}/{2}", [ui(label), steps[phase].done, steps[phase].total])).join(" · ");
 
 const requestsOf = (usage) => (usage?.free?.requests || 0) + (usage?.paid?.requests || 0); // Gemini requests; Groq and SiliconFlow have their own lines
+/** How many proofread / translate windows run at once, and, when the model pushed back, that it was lowered (and came back). */
+export function parallelNote(parallel) {
+  if (!parallel || !(parallel.limit >= 1)) return '';
+  if (parallel.effective < parallel.limit) return uiFormat('并行 {0}（已因限流从 {1} 降到 {0}）', [parallel.effective, parallel.limit]);
+  if (parallel.lowest < parallel.limit) return uiFormat('并行 {0}（曾因限流降到 {1}，已恢复）', [parallel.effective, parallel.lowest]);
+  return uiFormat('并行 {0}', [parallel.effective]);
+}
+const inTextSteps = (job) => ['proofread', 'translate'].includes(job.phase) || (job.members || []).some((member) => isActive(member) && ['proofread', 'translate'].includes(member.phase));
+/** A recording that went on from a saved transcript did not ask the transcription provider again: say so, so "0 requests" is explained. */
+export function reuseNote(steps) {
+  const step = steps?.transcribe;
+  if (!(step?.reused > 0)) return '';
+  if (step.reused >= step.total) return ui('复用已保存的转写，没有向转写服务发请求');
+  return uiFormat('复用已保存的转写 {0}/{1} 段，其余 {2} 段重新转写', [step.reused, step.total, step.total - step.reused]);
+}
 const roughly = (ms) => (ms < 45000 ? ui("不到 1 分钟") : uiFormat("约 {0} 分钟", [Math.max(1, Math.round(ms / 60000))]));
 
 /** The work in the order it happens, and how much of the whole each part usually is. */
@@ -175,12 +190,15 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
       {progressed && (progress.eta !== null
         ? <Hint as="small">{uiFormat("本步骤预计还需{0}", [roughly(progress.eta)])}</Hint>
         : job.phase === "transcribe" && <Hint as="small">{ui("转写要等服务商处理完整段录音，长录音需要几分钟，不是卡住了；上面的「已用」时间在走。")}</Hint>)}
+      {!job.members && reuseNote(job.steps) && <Hint as="small">{reuseNote(job.steps)}</Hint>}
+      {running && job.parallel?.text && inTextSteps(job) && <Hint as="small">{parallelNote(job.parallel.text)}</Hint>}
       {job.members?.length > 0 && <ol className="audio-members">{job.members.map((member, index) => {
         const state = memberState(member, running, now);
         return <li key={index}>
           <strong>{member.filename}</strong><small className={state.reason ? 'audio-member-reason' : undefined}>{state.text}</small>
           {ORDER.filter(phase => member.steps?.[phase]?.total > 0).map(phase => <small key={phase}>
             {ui(TASK_KINDS[phase])}{uiFormat(' 已完成 {0}/{1}', [member.steps[phase].done, member.steps[phase].total])}</small>)}
+          {reuseNote(member.steps) && <Hint as="small">{reuseNote(member.steps)}</Hint>}
           <AudioTasks job={member} now={now} openAgent={openAgent} />
         </li>;
       })}</ol>}

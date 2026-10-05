@@ -7,6 +7,7 @@ import components from './locales/en.components.json';
 import importCopy from './locales/en.import.json';
 import generate from './locales/en.generate.json';
 import audio from './locales/en.audio.json';
+import audioPipeline from './locales/en.audio-pipeline.json';
 import practice from './locales/en.practice.json';
 import agent from './locales/en.agent.json';
 import host from './locales/en.host.json';
@@ -62,6 +63,7 @@ export const ENGLISH_SOURCES = {
   'en.import.json': importCopy,
   'en.generate.json': generate,
   'en.audio.json': audio,
+  'en.audio-pipeline.json': audioPipeline,
   'en.practice.json': practice,
   'en.agent.json': agent,
   'en.host.json': host,

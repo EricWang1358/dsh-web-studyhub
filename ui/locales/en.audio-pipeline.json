@@ -1,0 +1,14 @@
+{
+  "校对与翻译的并行数": "Proofreading and translation in parallel",
+  "同时发给 DSH 模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。": "How many proofreading or translation windows are sent to the DSH model at once; a whole batch of recordings shares this number. Results are still merged in source order and finished parts are reused. If the model pushes back (too many requests or too many at once) it is lowered automatically and raised again step by step once it is stable.",
+  "转写的并行数": "Transcriptions in parallel",
+  "同时向转写服务商发送的录音数。免费额度和每分钟限流有限，默认 1 个；后一个录音的转写本来就会和前一个录音的校对、翻译同时进行。": "How many recordings are sent to the transcription provider at once. Free quotas and per-minute limits are small, so the default is 1; the next recording is transcribed while the previous one is being proofread and translated anyway.",
+  "并行 {0}": "{0} in parallel",
+  "并行 {0}（已因限流从 {1} 降到 {0}）": "{0} in parallel (lowered from {1} because of rate limits)",
+  "并行 {0}（曾因限流降到 {1}，已恢复）": "{0} in parallel (was lowered to {1} by rate limits, now restored)",
+  "额度按太平洋时间每天 0 点重置（本地时间 {0}）· 当前额度日 {1}": "The quota resets every day at 00:00 Pacific time ({0} your local time) · current quota day {1}",
+  "其他（未归类的服务或密钥）：今日 {0} 次请求，累计 {1} 次；没有丢失，只是无法归到上面的服务商": "Other (unclassified service or key): {0} requests today, {1} in total. Nothing was lost; they just cannot be assigned to a provider above.",
+  "「今日」和近 7 日按你所在时区的日期；Gemini 免费额度按太平洋时间的额度日计算。从启用此统计起记录模型请求，包含失败及重试。课堂实时音频与 DSH Token 不计入。": "\"Today\" and the 7-day chart use your own calendar days; the Gemini free quota follows the Pacific-time quota day. Model requests are recorded since this statistic was introduced, including failures and retries. Live class audio and DSH tokens are not counted.",
+  "复用已保存的转写，没有向转写服务发请求": "Reused the saved transcript; nothing was sent to the transcription provider",
+  "复用已保存的转写 {0}/{1} 段，其余 {2} 段重新转写": "Reused {0}/{1} saved transcript parts; the other {2} were transcribed again"
+}

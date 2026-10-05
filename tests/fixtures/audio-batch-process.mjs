@@ -21,7 +21,7 @@ const fetch = async (url, init) => {
 const service = new StudyService(root, { fetch });
 if (mode === 'interrupt') {
   await mkdir(root, { recursive: true });
-  await service.call('audio.settings.set', { paidKey: 'AIzaRestartBatch_000000000000001', textProvider: 'gemini', audioConcurrency: 2 });
+  await service.call('audio.settings.set', { paidKey: 'AIzaRestartBatch_000000000000001', textProvider: 'gemini', transcribeConcurrency: 1 });
   const bytes = fill => {
     const data = Buffer.alloc(16000, fill), header = Buffer.alloc(44);
     header.write('RIFF'); header.writeUInt32LE(36 + data.length, 4); header.write('WAVEfmt ', 8);

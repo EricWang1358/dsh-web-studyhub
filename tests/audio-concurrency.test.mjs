@@ -59,7 +59,7 @@ async function harness(t, { limit, transcript, complete } = {}) {
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
     await rm(dir, { recursive: true, force: true });
   });
-  await service.call("audio.settings.set", { paidKey: KEY, textProvider: complete ? 'host' : "gemini", ...(limit ? { audioConcurrency: limit } : {}) });
+  await service.call("audio.settings.set", { paidKey: KEY, textProvider: complete ? 'host' : "gemini", ...(limit ? { transcribeConcurrency: limit } : {}) });
   const files = {};
   const add = async (name, fill) => { files[name] = join(dir, name); await writeFile(files[name], wav(fill)); return files[name]; };
   const start = (name) => service.call("audio.import", { path: files[name] });
@@ -72,7 +72,7 @@ async function harness(t, { limit, transcript, complete } = {}) {
 test("recordings run one at a time and queued recordings take the slot in submitted order", async (t) => {
   const { service, calls, add, start, jobsNow, release } = await harness(t);
   const settings = await service.call('audio.settings.get');
-  assert.equal(settings.audioConcurrency, 1);
+  assert.equal(settings.transcribeConcurrency, 1);
   assert.equal(settings.textConcurrency, 3);
   for (const [name, fill] of [["a.wav", 1], ["b.wav", 2], ["c.wav", 3]]) await add(name, fill);
   const [a, b, c] = [await start("a.wav"), await start("b.wav"), await start("c.wav")];
@@ -105,7 +105,6 @@ test("legacy recording settings and text concurrency changes never release anoth
   await new Promise((resolve) => setTimeout(resolve, 60));
   assert.equal(calls.transcribe, 1, "with one slot the second waits");
 
-  assert.equal((await service.call("audio.settings.set", { audioConcurrency: 2 })).audioConcurrency, 1);
   await service.call('audio.settings.set', { textConcurrency: 2 });
   await service.call('audio.settings.set', { textConcurrency: 3 });
   assert.equal((await jobsNow())["b.wav"].status, "queued");
@@ -116,10 +115,10 @@ test("legacy recording settings and text concurrency changes never release anoth
   release();
   assert.equal((await service.call('job.wait', { jobId: b.jobId, timeoutSeconds: 10 })).status, 'complete');
 
-  await assert.rejects(service.call("audio.settings.set", { audioConcurrency: 0 }), /1 到 6/);
-  await assert.rejects(service.call("audio.settings.set", { audioConcurrency: 7 }), /1 到 6/);
-  await assert.rejects(service.call("audio.settings.set", { audioConcurrency: 2.5 }), /1 到 6/);
-  assert.equal((await service.call("audio.settings.set", { audioConcurrency: 6 })).audioConcurrency, 1);
+  // The old recording-parallelism field is ignored; the transcription limit is its own setting (1 to 3).
+  assert.equal((await service.call("audio.settings.set", { audioConcurrency: 6 })).transcribeConcurrency, 1);
+  await assert.rejects(service.call("audio.settings.set", { transcribeConcurrency: 0 }), /1 到 3/);
+  await assert.rejects(service.call("audio.settings.set", { transcribeConcurrency: 4 }), /1 到 3/);
 });
 
 test('recordings from different libraries share one host processing slot', async t => {

@@ -174,7 +174,7 @@ test("audio settings: one card per provider, SiliconFlow first in Chinese, real 
   assert.ok(page.includes("D:\\Users\\me\\.dsh-test\\study\\audio.json"), "the path the keys are really stored at");
   assert.doesNotMatch(page, /~\/\.dsh\/study\/audio\.json/);
   assert.ok(at("高级") > at("Google Gemini"), "advanced comes after the provider cards");
-  for (const text of ["更快", "均衡", "更准", "付费密钥", "转写模型", "单条录音的校对与翻译并发数"]) assert.ok(at(text) > at("高级"), `${text} is under 高级`);
+  for (const text of ["更快", "均衡", "更准", "付费密钥", "转写模型", "校对与翻译的并行数"]) assert.ok(at(text) > at("高级"), `${text} is under 高级`);
   assert.equal((page.match(/name="audio-key"/g) || []).length, 4, "one key field per provider, the paid key under advanced");
   assert.deepEqual(providerOrder("zh"), ["siliconflow", "groq", "free"]);
   assert.deepEqual(providerOrder("en"), ["groq", "free", "siliconflow"]);

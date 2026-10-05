@@ -272,9 +272,11 @@ When the DSH model does this work, each request runs as a one-shot DSH subagent 
 
 ## Queue and concurrency
 
-- **One recording at a time.** Recordings are processed one at a time per DSH host, in arrival order, across all libraries. Single imports, the files of a multi-file import and **Proofread and save** in **Live class** share this queue. A waiting card shows **Queued**. Subtitle imports and correction reviews do not wait in it.
-- **Windows within a recording.** Proofreading and translation each run 3 windows at a time, or 2 if you choose so under **Expert options**. A group of windows shares the same earlier fixes or part titles, and results are merged in their original order before the next group starts. All proofreading finishes before translation begins. Each finished window is saved at once. A cancel or a fatal error stops the whole group, and a retry reuses finished windows.
-- **Effect of concurrency.** It does not add requests, but it makes per-minute limits more likely. A change applies to the next run or **Continue**; it never interrupts a running recording or lets a second one start.
+- **Transcription queues, proofreading and translation are pipelined.** Per DSH host, transcription is queued in arrival order (by default one recording at a time, across all libraries). As soon as a recording is transcribed its slot goes to the next recording while its own proofreading and translation continue, so file 2 is transcribed while file 1 is proofread and translated. Single imports, the files of a multi-file import and **Proofread and save** in **Live class** share this queue. A waiting card shows **Queued**. Subtitle imports and correction reviews do not wait in it.
+- **Proofreading and translation run on a sliding pool.** 3 windows at a time by default, 1 to 6 under **Expert options**; a whole batch shares that number. The moment a window finishes the next one starts, so one slow window no longer leaves the other slots idle. Results are still merged in source order. A window starts with the fixes and part titles of the windows already finished at that moment (windows that start together do not see each other's fixes; later windows see more than a wave could give them). All proofreading finishes before translation begins. Each finished window is saved at once. A cancel or a fatal error stops every window in flight, and a retry reuses finished windows.
+- **Automatic back-off.** If the model answers "too many requests / too many at once" (429, a sub-agent limit), the rest of the run lowers its parallelism, the refused window is retried after a short wait (it is not failed), and the pool climbs back toward your setting once things are stable. The card shows, for example, "4 in parallel (lowered from 6 because of rate limits)".
+- **Transcription parallelism** can be set to 1 to 3 under **Expert options**, default 1; free quotas and per-minute limits are small, so raising it is rarely useful.
+- **Effect of concurrency.** It does not add requests, but it makes per-minute limits more likely. A change applies to the next run or **Continue**; it never interrupts a running recording.
 - **Queued jobs** can be stopped. They hold no place, and the card still offers **Continue**.
 - **Identical files** (even with different names) are never transcribed at the same time: the later one waits, then reuses the saved source instead of paying again.
 
@@ -290,7 +292,7 @@ For the keys configured now, it shows:
 - the **Proofreading & translation** panel (see [Proofreading and translation depth](#proofreading-and-translation-depth));
 - **Set Gemini free daily limits**.
 
-**What it counts.** Every HTTP request this plugin sends to Gemini `generateContent`, to Groq transcription and chat, and to SiliconFlow transcription, including failures and retries, since this record was introduced. Key checks, file uploads, reused saved work, **Live class** audio streams and DSH model tokens are not counted. "Today" uses Pacific time, to match Gemini's daily reset.
+**What it counts.** Every HTTP request this plugin sends to Gemini `generateContent`, to Groq transcription and chat, and to SiliconFlow transcription, including failures and retries, since this record was introduced. Key checks, file uploads, reused saved work, **Live class** audio streams and DSH model tokens are not counted. A request to a model endpoint the console does not know, or made with a key that is not any configured key, is still recorded and shown as **Other**, never dropped. When a recording is resumed from a saved transcript the card says "Reused the saved transcript", so a count of 0 requests is explained. "Today" and the 7-day chart use **your own calendar days** (your time zone); the Gemini free quota keeps Google's day, which resets at midnight Pacific time, and the console says so next to the quota together with the reset time in your local time.
 
 **Remaining quota:**
 
@@ -339,7 +341,8 @@ Everything below is in **Settings › Audio transcription**.
 | **Gemini text model** | **Expert options** | `gemini-3.8-flash` | Hidden when **The model the conversation uses** is chosen |
 | **SiliconFlow transcription model** | **Expert options** | `FunAudioLLM/SenseVoiceSmall` | |
 | **Groq transcription model** / **Groq text model** | **Expert options** | `whisper-large-v3` / `openai/gpt-oss-120b` | The text model is hidden when **The model the conversation uses** is chosen |
-| **Concurrent proofreading and translation windows per recording** | **Expert options** | 3 | 2 or 3 |
+| **Proofreading and translation in parallel** | **Expert options** | 3 | 1 to 6 |
+| **Transcriptions in parallel** | **Expert options** | 1 | 1 to 3 |
 | **Longest per request** | **Expert options** | 59 minutes | 59, 45, 30, 20 or 10 minutes |
 | **Transcript style** | **Expert options** | **Cleaned up** | Or **Verbatim** |
 | **Proofreading & translation** panel | **Expert options** | Model default / Low | Same as the presets, with every combination |
