@@ -1,3 +1,4 @@
+/* global getComputedStyle */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, until } from '../scripts/qa/layout-late.mjs';
-import { startConsole, startJobs, finishJobsThenHoldOne, openConsole, measure, measureCards } from '../scripts/qa/task-console.mjs';
+import { startConsole, startJobs, finishJobsThenHoldOne, openConsole, measure, measureCards, measureSelection, contrastRatio } from '../scripts/qa/task-console.mjs';
 
 /* WP-TC in the browser, on a seeded temporary library with the fake model: an audio batch and a question run held in flight, and four days of 为你定制 in the
    coach's file. At 1280 the console is as tall as the window and every list scrolls INSIDE its panel (the page never grows); at 420 the columns stack and the page
@@ -238,4 +239,155 @@ test('知道了 on a card of the audio page archives the task: the card goes, th
     assert.deepEqual(errors, []);
     await context.close();
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+/* 2.6.2: the selection and archive UI as the owner saw it on a real screen (a 300px list, a non-default accent): the tooltip of the bar was clipped by the list column to an empty
+   strip, the boxes of the rows sat in the middle of two lines and off the bar's box, a ticked row was a dimmed beige while the bar was the same tint as the picked row, a tick
+   under a hover lost its tint, and the archived header cut the task's name to three letters (or a button off the edge at 420). Measured here in the real page, under every
+   accent preset, in both themes, in both languages, at 1280 and 420. */
+const ACCENTS = ['cinnabar', 'jade', 'ochre', 'graphite', 'plum'];
+const inside = (box, frame, slack = 0.5) => box.left >= frame.left - slack && box.right <= frame.right + slack && box.top >= frame.top - slack && box.bottom <= frame.bottom + slack;
+const ratioText = (sample, ratio) => `${sample.what} "${sample.text}" is ${ratio.toFixed(2)}:1 (text rgb(${sample.fg.slice(0, 3).map(Math.round)}) on rgb(${sample.bg.slice(0, 3).map(Math.round)}))`;
+
+test('the selection bar: its tooltip is in the top layer and inside the window, the boxes line up with the dots and the bar, ticked rows read under every accent, nothing shifts, Esc ends it', { timeout: 900000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-console-dist-'));
+  await buildPreview({ outdir: dist });
+  try {
+    const plan = [
+      ['zh', 1280, ['light', 'dark'], ACCENTS],
+      ['en', 420, ['light', 'dark'], ACCENTS],
+      ['en', 1280, ['light', 'dark'], ['jade']],
+    ];
+    for (const [lang, width, themes, accents] of plan) {
+      const running = await startConsole({ distDir: dist, lang });
+      try {
+        await startJobs(running);
+        await finishJobsThenHoldOne(running);
+        for (const theme of themes) for (const accent of accents) {
+          const where = `${lang} ${theme} ${width}px ${accent}`;
+          const { page, errors, context } = await openConsole(browser, running, { lang, theme, width, height: 900, accent });
+          try {
+            await until(async () => (await page.locator('.tc-item__check input').count()) >= 2, `${where}: the finished tasks to be selectable`);
+            await frames(page, 4);
+            const idle = await measureSelection(page);
+            assert.equal(idle.bar.height, 36, `${where}: the bar is 36px high`);
+            // the words of the box open in the top layer: whole, inside the window, not under anything
+            await page.locator('.tc-pickbar__all').hover();
+            await until(async () => (await page.locator('.sh-tooltip:popover-open').count()) === 1, `${where}: the tooltip of the box`);
+            await frames(page, 3);
+            const hovered = await measureSelection(page);
+            assert.ok(hovered.tooltip.inTopLayer && hovered.tooltip.text.length > 4, `${where}: a tooltip with words, in the top layer`);
+            assert.ok(inside(hovered.tooltip, { left: 0, right: hovered.viewport.width, top: 0, bottom: hovered.viewport.height }), `${where}: the tooltip is inside the window: ${JSON.stringify(hovered.tooltip)}`);
+            assert.equal(hovered.tooltip.covered, false, `${where}: nothing (the list column's edge, a row) cuts or covers the tooltip`);
+            assert.ok(hovered.tooltip.width >= 120 && hovered.tooltip.height >= 20, `${where}: the tooltip shows its whole text, not a strip (${Math.round(hovered.tooltip.width)}x${Math.round(hovered.tooltip.height)})`);
+            await page.mouse.move(width - 2, 2);
+            // one ticked box: the bar's box is mixed, not checked
+            await page.locator('.tc-item__check input').first().click();
+            await until(async () => (await measureSelection(page)).barIndeterminate === true, `${where}: the box of the bar to be mixed with one of two ticked`);
+            const some = await measureSelection(page);
+            assert.equal(some.barChecked, false, `${where}: mixed, not checked`);
+            assert.match(some.barLabel, lang === 'zh' ? /已选 1/ : /1 selected/);
+            // everything: the actions appear and nothing moves
+            await page.locator('.tc-pickbar__all input').click();
+            await page.locator('.tc-pickbar__actions').waitFor({ state: 'attached' });
+            await page.mouse.move(width - 2, 2);
+            await frames(page, 4);
+            const m = await measureSelection(page);
+            assert.equal(m.barIndeterminate, false);
+            assert.equal(m.barChecked, true, `${where}: everything ticked: the box is checked`);
+            assert.deepEqual(m.bar, idle.bar, `${where}: the bar did not move or change size when the actions appeared`);
+            assert.deepEqual(m.itemTops, idle.itemTops, `${where}: no row moved when the bar changed`);
+            assert.equal(m.listScroll.scrollHeight, idle.listScroll.scrollHeight, `${where}: the list did not grow`);
+            assert.ok(m.scrollWidth <= width, `${where}: no sideways scroll`);
+            // the bar: nothing clips, nothing is cut, nothing overlaps
+            assert.equal(await page.locator('.tc-pickbar').evaluate((element) => getComputedStyle(element).overflowX), 'visible', `${where}: the bar clips nothing (a focus ring, a tooltip)`);
+            assert.equal(m.labelCut, false, `${where}: the count is whole ("${m.barLabel}")`);
+            assert.equal(m.actions.length, 3);
+            for (const [index, button] of m.actions.entries()) {
+              assert.ok(inside(button, m.bar, 0.5), `${where}: ${button.text} fits in the bar`);
+              if (index) assert.ok(button.left >= m.actions[index - 1].right - 0.5, `${where}: ${button.text} does not overlap ${m.actions[index - 1].text}`);
+            }
+            assert.ok(m.actions[0].left >= m.barInput.right + 8, `${where}: the actions keep clear of the count`);
+            // the boxes: one column (the bar's and the rows'), on the line of the dot and the title
+            assert.ok(m.ticked.length >= 2, `${where}: the two finished tasks are ticked`);
+            for (const row of [...m.ticked, ...m.unticked]) {
+              assert.ok(Math.abs(row.input.left - m.barInput.left) <= 1 && Math.abs(row.input.width - m.barInput.width) <= 0.5, `${where}: the box of a row lines up with the bar's (${row.input.left} vs ${m.barInput.left}, ${row.input.width} vs ${m.barInput.width})`);
+              assert.ok(Math.abs(row.input.cy - row.dot.cy) <= 1.5, `${where}: the box is level with the status dot (${row.input.cy} vs ${row.dot.cy})`);
+            }
+            // every text on a ticked row, the picked row and the bar is readable (4.5:1) on what it sits on
+            assert.ok(m.contrast.length >= 8, `${where}: samples were taken`);
+            for (const sample of m.contrast) { const ratio = contrastRatio(sample.fg, sample.bg); assert.ok(ratio >= 4.5, `${where}: ${ratioText(sample, ratio)}`); }
+            // 取消选择 hands the focus to the bar (its buttons go away with the selection); Esc ends a selection from the keyboard
+            await page.locator('.tc-pickbar__actions button').nth(2).click();
+            await until(async () => (await page.locator('.tc-pickbar__actions').count()) === 0, `${where}: the selection to end`);
+            assert.equal((await measureSelection(page)).focus.isBar, true, `${where}: the focus moved to the bar, not to the page`);
+            await page.locator('.tc-pickbar__all input').click();
+            await page.locator('.tc-pickbar__actions').waitFor({ state: 'attached' });
+            await page.keyboard.press('Escape');
+            await until(async () => (await page.locator('.tc-pickbar__actions').count()) === 0, `${where}: Esc to end the selection`);
+            assert.equal((await page.locator('.tc-item[data-checked="true"]').count()), 0, `${where}: Esc cleared every tick`);
+            assert.deepEqual(errors, [], where);
+          } finally { await context.close(); }
+        }
+      } finally { await running.close(); }
+    }
+  } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+test('the archived read-only detail: the name keeps its room, the actions fit and are apart from 删除, the note is whole, the bar works on the archive, at 1280 and 420', { timeout: 900000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-console-dist-'));
+  await buildPreview({ outdir: dist });
+  try {
+    for (const lang of ['zh', 'en']) {
+      const running = await startConsole({ distDir: dist, lang });
+      try {
+        await startJobs(running);
+        await finishJobsThenHoldOne(running);
+        const ids = (await running.api('snapshot')).jobs.filter((job) => ['complete', 'failed'].includes(job.status) && job.type !== 'coach-daily').map((job) => job.contract.jobId);
+        assert.equal(ids.length, 2);
+        await running.api('job.archive', { jobIds: ids });
+        for (const [width, theme, accent] of [[1280, 'light', 'jade'], [1280, 'dark', 'plum'], [420, 'light', 'ochre'], [420, 'dark', 'graphite']]) {
+          const where = `${lang} ${theme} ${width}px ${accent}`;
+          const { page, errors, context } = await openConsole(browser, running, { lang, theme, width, height: 900, accent });
+          try {
+            await page.locator('.tc-filter').nth(3).click();
+            await page.locator('.tc-detail[data-archived="true"]').waitFor({ state: 'attached' });
+            await until(async () => (await page.locator('.tc-item__check input').count()) === 2, `${where}: the archived tasks, selectable`);
+            await frames(page, 4);
+            const m = await measureSelection(page);
+            assert.ok(m.scrollWidth <= width, `${where}: no sideways scroll`);
+            const names = m.head.actions.map((action) => action.text);
+            // 全屏 first, 取消归档 and 删除 last; between them whatever the task offers (打开资料 / 打开草稿, and 为没覆盖的部分补题 for a draft that still has uncovered sections).
+            assert.ok(names.length >= 4 && /^(全屏|Full screen)$/.test(names[0]) && /^(取消归档|Unarchive)$/.test(names.at(-2)) && /^(删除|Delete)$/.test(names.at(-1)), `${where}: 全屏, …, 取消归档, 删除: ${names}`);
+            for (const [index, action] of m.head.actions.entries()) {
+              assert.ok(action.left >= m.head.detail.left && action.right <= m.head.detail.right, `${where}: ${action.text} is inside the detail (${Math.round(action.left)}-${Math.round(action.right)} of ${Math.round(m.head.detail.left)}-${Math.round(m.head.detail.right)})`);
+              if (index && Math.abs(action.top - m.head.actions[index - 1].top) < 4) assert.ok(action.left >= m.head.actions[index - 1].right - 0.5, `${where}: ${action.text} does not overlap ${m.head.actions[index - 1].text}`);
+            }
+            const [unarchive, remove] = m.head.actions.slice(-2);
+            if (Math.abs(unarchive.top - remove.top) < 4) assert.ok(remove.left - unarchive.right >= 8, `${where}: 删除 is set apart from the others (${Math.round(remove.left - unarchive.right)}px)`);
+            assert.equal(await page.locator('.tc-head__actions button').last().evaluate((button) => button.classList.contains('sh-btn--danger')), true, `${where}: 删除 looks destructive`);
+            assert.ok(m.head.title.width >= 160, `${where}: the name of the task has room (${Math.round(m.head.title.width)}px)`);
+            if (width === 1280) assert.equal(m.head.titleCut, false, `${where}: the name is not cut`);
+            const note = await page.locator('.tc-controls[data-archived="true"]').evaluate((element) => { const r = element.getBoundingClientRect(), p = element.parentElement.getBoundingClientRect(), text = element.querySelector('.tc-controls__idle'); return { left: r.left, right: r.right, parentLeft: p.left, parentRight: p.right, height: r.height, cut: text.scrollWidth > text.clientWidth + 1 }; });
+            assert.ok(note.left >= note.parentLeft - 0.5 && note.right <= note.parentRight + 0.5 && note.height >= 44 && !note.cut, `${where}: the note of the archive is whole: ${JSON.stringify(note)}`);
+            // the bar on the archive: one task ticked, the actions fit, the words read
+            await page.locator('.tc-item__check input').first().click();
+            await page.locator('.tc-pickbar__actions').waitFor({ state: 'attached' });
+            await page.mouse.move(width - 2, 2);
+            await frames(page, 3);
+            const picked = await measureSelection(page);
+            assert.equal(picked.barIndeterminate, true, `${where}: one of two ticked: mixed`);
+            assert.equal(picked.labelCut, false, `${where}: the count is whole`);
+            for (const button of picked.actions) assert.ok(inside(button, picked.bar, 0.5), `${where}: ${button.text} fits in the bar`);
+            for (const sample of picked.contrast) { const ratio = contrastRatio(sample.fg, sample.bg); assert.ok(ratio >= 4.5, `${where}: ${ratioText(sample, ratio)}`); }
+            assert.deepEqual(errors, [], where);
+          } finally { await context.close(); }
+        }
+      } finally { await running.close(); }
+    }
+  } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });

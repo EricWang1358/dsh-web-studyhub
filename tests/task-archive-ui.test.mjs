@@ -165,3 +165,28 @@ test('a past day of 为你定制 has no box and no 删除: 知道了 removes it 
   assert.match(detail, /只保留最近 14 天/);
   assert.doesNotMatch(detail, />删除</);
 });
+
+// 2.6.2: what a keyboard or a screen reader gets from the bar and the header (the measurements are in tests/task-console-browser.test.mjs).
+test('the bar of the selection announces its count, takes the focus when the selection ends, opens its words in the top layer, and 删除 has the one destructive look (bar and header)', () => {
+  m.setUiLanguage('zh');
+  const bar = (summary, filter = 'all') => renderToStaticMarkup(inApp(m, React.createElement(m.SelectBar, { filter, summary, onToggleAll() {}, onArchive() {}, onUnarchive() {}, onDelete() {}, onClear() {} }), { data: {} }));
+  const picked = bar({ count: 2, selectable: 4, all: false });
+  assert.match(picked, /<div class="tc-pickbar"[^>]*tabindex="-1"/, 'the bar can take the focus when the buttons that had it go away');
+  assert.match(picked, /role="group"[^>]*aria-label="批量操作"/);
+  assert.match(picked, /<span class="sh-visually-hidden" role="status">已选 2<\/span>/, 'the count is a polite status');
+  assert.match(bar({ count: 0, selectable: 2, all: false }), /<span class="sh-visually-hidden" role="status"><\/span>/, 'nothing selected, nothing announced');
+  assert.match(picked, /<span[^>]*role="tooltip"[^>]*popover="manual"/, 'the words of the box are in the top layer: the list column cannot clip them');
+  assert.match(picked, /aria-describedby=/, 'and the box is described by them');
+  const remove = picked.match(/<button[^>]*>删除<\/button>/)[0];
+  assert.match(remove, /sh-btn--danger/);
+  assert.doesNotMatch(picked.match(/<button[^>]*>归档<\/button>/)[0], /sh-btn--danger/, '归档 is not the destructive one');
+  assert.match(picked.match(/<button[^>]*>取消选择<\/button>/)[0], /sh-btn--quiet/);
+  const data = { archivedJobs: [archivedRecord('o1', '旧题组', 'complete', 1)] };
+  const archived = render({ data, props: { initialFilter: 'archived' } });
+  const head = archived.slice(archived.indexOf('class="tc-head__actions"'), archived.indexOf('aria-label="概览"'));
+  assert.match(head.match(/<button[^>]*>删除<\/button>/)[0], /sh-btn--danger[^"]*tc-head__delete|tc-head__delete[^"]*sh-btn--danger/, '删除 in the header is the danger look too');
+  assert.doesNotMatch(head.match(/<button[^>]*>取消归档<\/button>/)[0], /sh-btn--danger/);
+  // each box of a row is named by its task; the row that is open says so (aria-pressed)
+  const list = render();
+  assert.match(list, /aria-pressed="true"[^>]*data-task-id=/);
+});
