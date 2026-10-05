@@ -36,7 +36,9 @@ const audioJob = (extra = {}) => ({ id: 'attempt', type: 'audio-import', batchId
   ...extra });
 const contractOf = (job) => m.jobContract(job);
 
-test('the timeline: a lane per slot, transcription apart, a dashed wait, every bar a named button', () => {
+test('the timeline: a lane per slot, transcription apart, a dashed wait, every bar a named button', t => {
+  // Keep the fixture within the running timeline's ten-minute window on every date.
+  t.mock.method(Date, 'now', () => Date.parse(at(40)));
   const contract = contractOf(audioJob());
   const out = html(React.createElement(m.Timeline, { calls: contract.calls, running: true, family: 'audio', selected: 'b-p', onSelect: () => {} }));
   assert.match(out, /aria-label="并行时间线"/);
