@@ -4,7 +4,7 @@ import { Button, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl } f
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
 import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
-import { isCancellable } from '../../../lib/job-status.js';
+import { isCancellable, JOB_STATUS } from '../../../lib/job-status.js';
 import { DISPLAY_MODES, jobActive, jobClock } from './model.js';
 
 /* The reader's controls for the bilingual reading: one row in the Aa popover (how translations are drawn), one 译 popover in
@@ -73,7 +73,7 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
 export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss }) {
   const active = jobActive(job), clock = jobClock(job, now), label = job.scopeLabel || '';
   const failed = job.status === 'failed', cancelled = job.status === 'cancelled';
-  const headline = active ? (job.status === 'queued' ? ui('翻译排队中') : job.status === 'cancelling' ? ui('正在停止翻译…') : ui('正在翻译'))
+  const headline = active ? (job.status === 'queued' ? ui('翻译排队中') : job.status === JOB_STATUS.CANCELLING ? ui('正在停止翻译…') : ui('正在翻译'))
     : failed ? ui('翻译没有完成') : cancelled ? ui('翻译已停止') : job.rejected ? ui('翻译完成，有几段没译成') : ui('翻译完成');
   const counts = uiFormat('已处理 {0} / {1} 段', [job.done ?? 0, job.total ?? 0]);
   // What it used against what was expected, on one line; the full rows open on request so the notice stays one line high.

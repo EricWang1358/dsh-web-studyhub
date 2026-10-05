@@ -5,6 +5,7 @@
    helpers only, so they run under node:test. */
 
 import { READER_FACES } from '../font-presets.js';
+import { browserStorage } from '../storage.js';
 
 export const SIZES = [15, 16, 17, 18, 20, 22, 24];
 /** The measure (line length) in em, as the reader's three width choices. */
@@ -82,14 +83,13 @@ export function readingProps(settings) {
   return { 'data-face': face, 'data-tone': tone, style: readingVars(settings) };
 }
 
-const storageOf = () => { try { return globalThis.localStorage || null; } catch { return null; } };
 
-export function loadReaderSettings(storage = storageOf()) {
+export function loadReaderSettings(storage = browserStorage()) {
   try { return normalizeReaderSettings(JSON.parse(storage?.getItem(READER_STORAGE_KEY) || 'null')); }
   catch { return { ...READER_DEFAULTS }; }
 }
 
-export function saveReaderSettings(settings, storage = storageOf()) {
+export function saveReaderSettings(settings, storage = browserStorage()) {
   try { storage?.setItem(READER_STORAGE_KEY, JSON.stringify(normalizeReaderSettings(settings))); }
   catch { /* storage is blocked: the choice still applies for this session */ }
 }

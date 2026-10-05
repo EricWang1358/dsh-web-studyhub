@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { Button, Dialog, InlineMessage } from '../../components/index.js';
 import OutlineAssist from './OutlineAssist.jsx';
+import { useStudy } from '../../study-context.jsx';
 
 /* "AI 重新分段…" on a row of the 资料 page: the same flow as under the reader's outline (OutlineAssist), for the whole
    document the row stands for (all the pages or files of one document, in reading order), in a dialog. The chapters it
@@ -30,7 +31,8 @@ export function OutlineDialogBody({ item, call }) {
 }
 
 /** The dialog: `act` (the page's refreshing action runner) makes every change reach the 资料 page and the picker at once. */
-export default function OutlineDialog({ item, call, act, onClose }) {
+export default function OutlineDialog({ item, onClose }) {
+  const { call, act } = useStudy();
   const refreshing = useMemo(() => async (action, args = {}) => {
     if (!act || !changesLibrary(action, args)) return call(action, args);
     const result = await act(action, args, undefined, { rethrow: true });

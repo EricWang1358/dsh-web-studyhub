@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ui, uiFormat, uiLocale, setUiLanguage } from '../i18n.js';
+import { ui, uiFormat, setUiLanguage } from '../i18n.js';
 import { pageAvailable } from '../capabilities.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
@@ -25,6 +25,7 @@ import { createSetupHandlers } from './setup-handlers.js';
 import { shellTitleOf } from './shell-title.js';
 import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
+import { formatDateTime } from '../format.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
@@ -252,7 +253,7 @@ function ReviewView({ feedback }) {
     onModelSettings: settingsEntry.openModelSettings,
     onMakeNote: () => {
       const origin = learn.captureContext();
-      return core.act('note.create', { title: uiFormat('学习笔记 · {0}', [new Date().toLocaleDateString(uiLocale())]),
+      return core.act('note.create', { title: uiFormat('学习笔记 · {0}', [formatDateTime(Date.now(), 'date')]),
         cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }] }, (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
     },
     onMakeTask: learn.openBoardWithContext,

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ui, uiFormat, getUiLanguage } from '../i18n.js';
+import { ui, uiFormat, getUiLanguage, errorMessage } from '../i18n.js';
 import { hasContext, pageAvailable } from '../capabilities.js';
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from '../tour/steps.js';
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from '../tour/progress.js';
@@ -105,7 +105,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
       session.enterRun(next);
     } catch (failure) {
       showPage('library');
-      setError(failure.message || String(failure));
+      setError(errorMessage(failure));
     }
   }
   /** Each step's page, prepared with sample content where the step shows it. */
@@ -145,7 +145,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
       await refresh();
       return status;
     } catch (failure) {
-      setError(uiFormat('示例数据没能载入：{0}', [failure.message || String(failure)]));
+      setError(uiFormat('示例数据没能载入：{0}', [errorMessage(failure)]));
       return null;
     } finally {
       setSampleBusy(false);
@@ -171,7 +171,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
       setRemovingSample(false);
       notify({ text: ui('示例数据已移除，你自己的资料和记录都还在。'), tone: 'success' });
     } catch (failure) {
-      setError(uiFormat('示例数据没能移除：{0}', [failure.message || String(failure)]));
+      setError(uiFormat('示例数据没能移除：{0}', [errorMessage(failure)]));
     } finally {
       setSampleBusy(false);
     }

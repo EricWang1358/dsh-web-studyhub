@@ -303,7 +303,7 @@ export default function AudioImport({
           <input type="checkbox" checked={paidOnly} onChange={(e) => setPaidOnly(e.target.checked)} disabled={busy} />
           {ui("只用付费密钥（免费额度下，Google 可能用内容改进产品）")}
         </label>
-        <TokenEstimate call={call} enabled={audioMinutes > 0}
+        <TokenEstimate enabled={audioMinutes > 0}
           request={{ feature: "audio", minutes: audioMinutes, language: "en", terms: termCount, subject: subject.trim() }} />
         <div className="audio-submit">
           <Button type="submit" variant="primary" busy={starting} disabled={busy || !!upload || audioFiles.some(file => checks[file.key]?.checking)}>{starting ? ui("正在检查…") : ui("开始导入")}</Button>

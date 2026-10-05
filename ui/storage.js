@@ -3,9 +3,28 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 /* The one safe way to keep a small value in the browser. Storage can be missing (private windows, tests), full or
    blocked, and a stored value can be stale or corrupt: none of that may break a page, so every call swallows it. */
 
-const defaultStorage = () => { try { return globalThis.localStorage ?? null; } catch { return null; } };
-/** The browser's persistent storage, or null when it is missing or blocked. */
+const defaultStorage = (scope = globalThis) => { try { return scope?.localStorage ?? null; } catch { return null; } };
+/** The browser's persistent storage, or null when it is missing or blocked. `scope` is the window to ask (the host page's own, in the DSH seat). */
 export const browserStorage = defaultStorage;
+/** The tab's own storage (gone with the tab), or null when it is missing or blocked. */
+export const browserSession = () => { try { return globalThis.sessionStorage ?? null; } catch { return null; } };
+
+/** The stored text as it was written, or `fallback` when it is missing or the storage is unreadable. */
+export function readText(key, fallback = '', storage = defaultStorage()) {
+  try {
+    const raw = storage?.getItem(key);
+    return raw === null || raw === undefined ? fallback : raw;
+  } catch { return fallback; }
+}
+
+/** Store text; true when it was written. */
+export function writeText(key, value, storage = defaultStorage()) {
+  try {
+    if (!storage) return false;
+    storage.setItem(key, String(value));
+    return true;
+  } catch { return false; }
+}
 
 /** The stored JSON value, or `fallback` when it is missing, unreadable or not JSON. */
 export function readJSON(key, fallback = null, storage = defaultStorage()) {

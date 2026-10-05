@@ -1,8 +1,9 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { getUiLanguage, ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, NumberInput, SettingsSection, useToast } from '../components/index.js';
 import { previewSchedule } from '../../lib/sm2.js';
 import { syncScheduleSettings } from '../schedule-settings.js';
+import { formatList } from '../format.js';
 
 /* ---------- 间隔复习 · SM-2 ---------- */
 
@@ -13,7 +14,7 @@ const SM2_FIELDS = [
   ['minimum_ease_factor', '最低熟练系数', '', 0.1, 0.1],
 ];
 const numbers = (settings = {}) => Object.fromEntries(SM2_FIELDS.map(([key]) => [key, Number(settings[key])]));
-const dayList = points => points.map(point => point.day).join(getUiLanguage() === 'en' ? ', ' : '、');
+const dayList = points => formatList(points.map(point => point.day));
 const TICKS = [[1, '1 天'], [7, '1 周'], [30, '1 个月'], [90, '3 个月'], [180, '半年'], [365, '1 年'], [730, '2 年']];
 
 /** The predicted review days for "熟练" and "勉强答对" answers, drawn on a square-root time axis. */
@@ -84,7 +85,7 @@ export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, 
         setSettings(previous => syncScheduleSettings(previous, current, next));
         toast.success(ui('复习调度已保存'));
       }, { rethrow: true });
-    } catch (cause) { if (isCurrent()) setError(cause?.message || String(cause)); }
+    } catch (cause) { if (isCurrent()) setError(errorMessage(cause)); }
     finally { if (isCurrent()) { pending.current = null; setWorking(false); } }
   };
   return (

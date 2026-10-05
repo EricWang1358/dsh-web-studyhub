@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { errorMessage } from './i18n.js';
 
 export const recapGroupKey = group => JSON.stringify([group.day, group.courseId || group.course]);
 export const recapTimeZone = saved => saved?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
@@ -32,7 +33,7 @@ export function useDailyRecap({ root, runId, course, saved, call, act, busy, pol
         token.schedule(3000);
       } catch (cause) {
         if (!token.live || token.read !== read) return;
-        setError(cause.message || String(cause));
+        setError(errorMessage(cause));
         token.schedule(5000);
       }
     };
@@ -54,7 +55,7 @@ export function useDailyRecap({ root, runId, course, saved, call, act, busy, pol
       if (!live() || !result) return;
       token.status = { ...token.status, groups: token.status.groups.map(item => recapGroupKey(item) === recapGroupKey(group) ? update(item, result) : item) };
       setStatus(token.status);
-    } catch (cause) { if (live()) setError(cause.message || String(cause)); }
+    } catch (cause) { if (live()) setError(errorMessage(cause)); }
     finally {
       if (live()) {
         token.operation = null; setWorking('');

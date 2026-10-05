@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { localDate } from '../lib/board-model.js';
+import { usePolling } from './use-polling.js';
 
 /** A queued source/flow reference must wait until its library has loaded. */
 export function useStudyReferenceHandoff(take, root, onOpen) {
@@ -58,15 +59,12 @@ export function useDailyPlan({ call, root, visible, progressKey, onLaunch, onCha
     setError('');
     if (!visible || !root) return;
     void refresh();
-    const check = () => {
-      if (document.hidden) return;
-      const today = localDate();
-      if (today !== date) setDate(today); else void refresh();
-    };
-    const timer = setInterval(check, 15000);
-    document.addEventListener('visibilitychange', check);
-    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', check); };
   }, [visible, root, date, refresh]);
+  // A new day turns the plan over; otherwise it is read again quietly (not while the page is hidden; at once when it comes back).
+  usePolling(async () => {
+    const today = localDate();
+    if (today !== date) setDate(today); else await refresh();
+  }, { intervalMs: 15000, enabled: visible && !!root });
   useEffect(() => { if (visible && progressKey) void refresh({ invalidate: true }); }, [visible, progressKey, refresh]);
   const perform = async (action, args = {}) => {
     if (!root || pending.current?.scope === scope || localDate() !== date) { setDate(localDate()); return false; }

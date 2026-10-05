@@ -6,7 +6,8 @@ import { ui, uiFormat } from '../i18n.js';
 import { jobCode, describeFailure, stageCodeLabel } from '../generation-status.js';
 import { shortfall } from '../draft-shortfall.js';
 import { passageKey } from '../../lib/selection-evidence.js';
-import { isActiveJob } from '../../lib/job-status.js';
+import { isActiveJob, JOB_STATUS } from '../../lib/job-status.js';
+import { formatClock } from '../format.js';
 
 export const isActive = isActiveJob;
 
@@ -21,7 +22,7 @@ export const WORK_PHASES = Object.freeze(['planning', 'writing', 'reviewing', 's
 export function jobPhase(job) {
   switch (job?.status) {
     case 'queued': return 'queued';
-    case 'cancelling': return 'cancelling';
+    case JOB_STATUS.CANCELLING: return JOB_STATUS.CANCELLING;
     case 'cancelled': return 'cancelled';
     case 'failed': return job.outcome === 'conflict' ? 'conflict' : 'failed';
     case 'complete': return savedOf(job) < requestedOf(job) ? 'partial' : 'done';
@@ -60,8 +61,7 @@ export function elapsedClock(job, now = Date.now()) {
   const start = Date.parse(job?.runStartedAt || job?.startedAt || '');
   if (!Number.isFinite(start)) return '';
   const end = job.finishedAt ? Date.parse(job.finishedAt) : now;
-  const seconds = Math.max(0, Math.floor((end - start) / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return formatClock(end - start);
 }
 
 /** "已加入「题组」n 张，k 张未通过审阅": the one line a finished supplement is known by. */

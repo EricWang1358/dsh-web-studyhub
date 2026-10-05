@@ -10,7 +10,7 @@ import { TokenEstimate } from "./TokenUsage.jsx";
 import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
 import { Badge, Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, Spinner, useToast } from "./components/index.js";
 import ModelSetupGate, { gateTitle } from "./ModelSetupGate.jsx";
-import { formatClock } from "./format.js";
+import { formatClock, joinMeta } from "./format.js";
 import { useExamRun } from "./exam/useExamRun.js";
 import SubmitBlanksDialog from "./SubmitBlanksDialog.jsx";
 import { ExamSetupCard } from "./ExamShell.jsx";
@@ -23,6 +23,7 @@ import {
   paperPhase, phaseRemaining, canType, livePace, tickQuestion, paperTimings, readSession, writeSession,
 } from "./case-session.js";
 import { RubricResult, CaseReport } from "./CaseResult.jsx";
+import { useStudy } from "./study-context.jsx";
 import css from "./case-study.css";
 
 /* Case practice inside the existing loop (WP12): the scenario panel (numbered
@@ -33,7 +34,7 @@ import css from "./case-study.css";
 
 const COLOR_LABEL = { yellow: "黄色高亮", green: "绿色高亮", blue: "蓝色高亮", pink: "粉色高亮" };
 export function lengthHintLabel(marks) {
-  const words = suggestedWords(marks, getUiLanguage() === "en" ? "en" : "zh");
+  const words = suggestedWords(marks, getUiLanguage());
   const kind = { paragraph: ui("一段话"), short: ui("两三段：观点 + 理由"), structured: ui("分点作答，附例子"), extended: ui("分点作答：例子、论证与取舍") }[lengthHint(marks)];
   return uiFormat("{0} · 约 {1}–{2} 字/词", [kind, words.min, words.max]);
 }
@@ -135,7 +136,8 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
  * An open question with rubric criteria: write the answer, then 提交批改 (a
  * background grading task); the per-criterion result replaces self-rating.
  */
-export function RubricAnswer({ run, data, value = "", onChange, onSubmit, busy, task, onSetupModel, call }) {
+export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, onSetupModel }) {
+  const { busy, call } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const card = run.card, rubric = run.feedback?.rubric;
   const model = modelReadiness(data);
@@ -181,7 +183,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, busy, 
               : <ModelSetupGate variant="inline" feature="grade" model={model} onOpenSettings={onSetupModel} />}
           </div>
           {/* What marking this answer is expected to use: the case, the rubric and the answer as typed (WP27). */}
-          <TokenEstimate call={call} enabled={!!call && !!draft.trim() && !rubric}
+          <TokenEstimate enabled={!!call && !!draft.trim() && !rubric}
             request={{ feature: "grade", deckId: run.deckId, cardId: card.id, answerChars: draft.length }} />
           {grading && <p className="assist-status" role="status"><Spinner size="sm" />
             {ui("正在按评分标准逐项批改：完成后结果显示在这里，也会进信箱。可以先去做别的题。")}</p>}
@@ -477,7 +479,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRun
                   <input type="radio" name="case-paper-deck" checked={deck?.id === item.id} onChange={() => setDeckId(item.id)} />
                   <span>
                     <strong>{item.title}</strong>
-                    <small>{uiFormat("{0} 题 · {1} 分", [item.count, item.caseMarks])}{item.caseBest ? uiFormat(" · 最好成绩 {0}/{1}", [item.caseBest.total, item.caseBest.max]) : ""}</small>
+                    <small>{joinMeta([uiFormat("{0} 题 · {1} 分", [item.count, item.caseMarks]), item.caseBest ? uiFormat("最好成绩 {0}/{1}", [item.caseBest.total, item.caseBest.max]) : ""])}</small>
                   </span>
                 </label>
               ))}

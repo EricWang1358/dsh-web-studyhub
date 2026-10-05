@@ -1,7 +1,7 @@
 /* Every test run has a fresh machine-settings home and no inherited provider credentials. */
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { constants, tmpdir } from 'node:os';
+import { availableParallelism, constants, tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scrubSecrets } from './qa/env.mjs';
@@ -26,10 +26,12 @@ const forward = signal => { receivedSignal ||= signal; child?.kill(signal); };
 const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 const handlers = new Map(signals.map(signal => [signal, () => forward(signal)]));
 try {
-  const env = { ...scrubSecrets(process.env), DSH_HOME: home,
+  const env = { STUDY_QA_ACTION_TIMEOUT_MS: '120000', ...scrubSecrets(process.env), DSH_HOME: home,
     ...(report ? { STUDY_TEST_NETWORK_REPORT_FILE: reportFile } : {}) };
   const guard = new URL('./qa/test-network.mjs', import.meta.url).href;
-  child = spawn(process.execPath, ['--import', guard, '--test', ...args, ...(files ? [] : ['tests/*.test.mjs'])],
+  // One test process per core starves the browser, ffmpeg and CLI-spawning tests on a many-core machine (and every other program on it): cap it.
+  const concurrency = args.some(arg => arg.startsWith('--test-concurrency')) ? [] : [`--test-concurrency=${Math.max(2, Math.min(availableParallelism() - 1, 12))}`];
+  child = spawn(process.execPath, ['--import', guard, '--test', ...concurrency, ...args, ...(files ? [] : ['tests/*.test.mjs'])],
     { cwd: fileURLToPath(new URL('../', import.meta.url)), env, stdio: 'inherit', windowsHide: true });
   for (const [signal, handler] of handlers) process.on(signal, handler);
   status = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', (code, signal) => resolve({ code, signal })); });

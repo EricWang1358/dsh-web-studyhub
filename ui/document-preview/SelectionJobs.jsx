@@ -3,7 +3,8 @@ import { ui, uiFormat } from '../i18n.js';
 import { Button, Icon, InlineMessage } from '../components/index.js';
 import { JobUsage } from '../TokenUsage.jsx';
 import { stepLabel } from '../generation-status.js';
-import { isCancellable } from '../../lib/job-status.js';
+import { isCancellable, JOB_STATUS } from '../../lib/job-status.js';
+import { META_DOT } from '../format.js';
 import {
   WORK_PHASES, countsText, deckName, elapsedClock, failureCopy, isActive, jobPhase, phaseLabel, phaseName, resultHeadline, resultReasons,
 } from './selection-job.js';
@@ -38,7 +39,7 @@ function Reasons({ job }) {
   if (!items.length) return null;
   return <div className="selection-job__reasons">
     <p>{ui('没通过审阅的题，原因：')}</p>
-    <ul>{reasons.map((reason) => <li key={reason.code}>{reason.label}<small>{uiFormat(' · {0} 题', [reason.count])}</small></li>)}</ul>
+    <ul>{reasons.map((reason) => <li key={reason.code}>{reason.label}<small>{META_DOT}{uiFormat('{0} 题', [reason.count])}</small></li>)}</ul>
     <details>
       <summary>{uiFormat('没通过审阅的题 · {0}', [items.length])}</summary>
       <ul>{items.map((item, index) => <li key={index}><strong>{item.prompt || ui('候选题目')}</strong>{item.note && <small className="muted">{item.note}</small>}</li>)}</ul>
@@ -52,7 +53,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
   const added = job.publication?.cardIds?.length || 0, finished = phase === 'done' || phase === 'partial';
   const headline = finished ? resultHeadline(job)
     : phase === 'queued' ? uiFormat('补题排队中 ·「{0}」', [name])
-      : phase === 'cancelling' ? uiFormat('正在停止补题 ·「{0}」', [name])
+      : phase === JOB_STATUS.CANCELLING ? uiFormat('正在停止补题 ·「{0}」', [name])
         : phase === 'cancelled' ? uiFormat('补题已停止 ·「{0}」', [name])
           : phase === 'conflict' ? uiFormat('补题待保存 ·「{0}」', [name])
             : phase === 'failed' ? uiFormat('补题没有完成 ·「{0}」', [name]) : uiFormat('正在补题 ·「{0}」', [name]);
@@ -65,7 +66,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
     {job.selection?.quote && <blockquote className="selection-job__passage">{clip(job.selection.quote)}</blockquote>}
     {/* Only the phase is announced; the clock ticks every second and stays out of the live region. */}
     {active && <div className="selection-job__live">
-      {phase !== 'queued' && phase !== 'cancelling' && <PhaseStrip phase={phase} />}
+      {phase !== 'queued' && phase !== JOB_STATUS.CANCELLING && <PhaseStrip phase={phase} />}
       <p className="selection-job__stage" role="status" aria-live="polite">{phaseLabel(phase)}</p>
       {phase !== 'queued' && <p className="selection-job__meta">{countsText(job)}{clock && <> · {uiFormat('已用 {0}', [clock])}</>}</p>}
       <small className="muted">{ui('后台继续生成，关闭阅读器也不会中断；完成后进信箱。')}</small>

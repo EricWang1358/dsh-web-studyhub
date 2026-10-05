@@ -1,4 +1,4 @@
-/* global localStorage */
+/* global localStorage, document, requestAnimationFrame */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -85,7 +85,7 @@ test('a letter whose card is still unanswered in another open run goes there (#1
   assert.equal(opened.revealed, false);
 });
 
-test('in the browser: next after a reveal shows the question, inside an inbox detour and after the poll (#182)', { timeout: 120000 }, async (t) => {
+test('in the browser: next after a reveal shows the question, inside an inbox detour and after the poll (#182)', { timeout: 600000 }, async (t) => {
   const { root, service } = await library(t);
   await service.store.update((s) => {
     notify(s, { kind: 'followup', deckId: 'd1', cardId: 'c5', detail: 'x' });
@@ -104,8 +104,16 @@ test('in the browser: next after a reveal shows the question, inside an inbox de
   const card = page.locator('.flashcard');
   await card.waitFor();
   const flipped = () => card.evaluate((element) => element.classList.contains('flipped'));
-  const settle = () => page.waitForTimeout(400);
-  const next = async () => { await page.getByRole('button', { name: /Next/ }).first().click(); await settle(); };
+  // The next card has arrived once the card's text has changed; the poll has been applied once its answer (review.get) is back and the page has painted twice.
+  const next = async () => {
+    const before = await card.innerText();
+    await page.getByRole('button', { name: /Next/ }).first().click();
+    await page.waitForFunction(text => document.querySelector('.flashcard')?.innerText !== text, before);
+  };
+  const afterPoll = async () => {
+    await page.waitForResponse(response => response.url().endsWith('/api/call') && /"review\.get"/.test(response.request().postData() || ''));
+    await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+  };
   const answer = async () => { await page.locator('.flip-control').click(); await page.locator('.grade-scale').waitFor(); await page.locator('.grade.high').first().click(); await page.locator('.next-due').waitFor(); };
 
   assert.equal(await flipped(), false);
@@ -121,13 +129,13 @@ test('in the browser: next after a reveal shows the question, inside an inbox de
   await page.locator('.review-detour').waitFor();
   assert.match(await card.innerText(), /Question 5\?/);
   assert.equal(await flipped(), false, 'a card reached from the inbox opens on its question');
-  await page.waitForTimeout(4600); // the review poll fires
+  await afterPoll(); // the review poll fires
   assert.equal(await flipped(), false, 'the poll does not flip it');
   await answer();
   await next();
   assert.match(await card.innerText(), /Question 6\?/);
   assert.equal(await flipped(), false, 'the card after a detour card opens on its question');
-  await page.waitForTimeout(4600);
+  await afterPoll();
   assert.equal(await flipped(), false);
   assert.deepEqual(errors, []);
 });

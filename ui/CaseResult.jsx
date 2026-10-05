@@ -5,6 +5,7 @@ import Markdown from "./Markdown.jsx";
 import { Badge, Button, Disclosure, InlineMessage, Panel, ProgressBar, Spinner } from "./components/index.js";
 import { rubricSkills } from "../lib/case-study.js";
 import css from "./case-result.css";
+import { joinMeta } from './format.js';
 
 /* The result of rubric grading (WP12): marks per criterion with the quotes
    that earned them, the missing points and a concrete rewrite; flags for
@@ -95,8 +96,8 @@ export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, on
         <p className="rubric-score"><strong>{marks(paper.total)}</strong><span>{uiFormat("/ {0} 分", [marks(paper.max)])}</span></p>
         <div>
           <strong>{paper.pending ? uiFormat("已批改 {0}/{1} 题，其余正在后台批改", [graded, paper.questions.length]) : ui("全部批改完成")}</strong>
-          <p className="muted">{uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟", [minutes(paper.pacing.readingMs), minutes(paper.pacing.writingMs)])}
-            {paper.handwriting ? uiFormat(" · 录入 {0} 分钟（不计入考试时间）", [minutes(paper.pacing.transcribeMs)]) : ""}</p>
+          <p className="muted">{joinMeta([uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟", [minutes(paper.pacing.readingMs), minutes(paper.pacing.writingMs)]),
+            paper.handwriting ? uiFormat("录入 {0} 分钟（不计入考试时间）", [minutes(paper.pacing.transcribeMs)]) : ""])}</p>
           {paper.pending > 0 && <p className="case-report__pending" role="status"><Spinner size="sm" />{ui("批改结果会自动出现在这里，也会进信箱。")}</p>}
           {gradingErrors.length > 0 && <InlineMessage tone="error" action={onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{gradingErrors.join("；")}</InlineMessage>}
         </div>

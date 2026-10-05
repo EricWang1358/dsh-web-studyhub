@@ -8,11 +8,13 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readAppSource } from './helpers/app-source.mjs';
+import { withStudy } from './helpers/study-services.mjs';
 
 const han = /[\u3400-\u9fff]/;
 const compiled = await build({ stdin: { contents: `
   export * from './ui/document-preview/original-file.js';
   export { OriginalNotice, OriginalDialog, OriginalMenuEntry } from './ui/document-preview/OriginalFile.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
 const module = { exports: {} };
@@ -259,13 +261,16 @@ test('the whole dialog has no Chinese in English, apart from the learner own fil
 /* ---------- the 资料 row menu ---------- */
 
 test('the row menu entry: one button, a one-line status, nothing for an audio transcript or without a way to call', () => {
-  const entry = props => renderToStaticMarkup(h(lib.OriginalMenuEntry, { item: { sourceIds: ['s1'], format: 'pdf', title: 'Book' }, call: noop, ...props }));
+  const entry = (props = {}) => {
+    const { call: given, ...rest } = props, call = 'call' in props ? given : noop; // an explicit `call: undefined` is a host that offers nothing
+    return renderToStaticMarkup(withStudy(lib.StudyServicesContext, h(lib.OriginalMenuEntry, { item: { sourceIds: ['s1'], format: 'pdf', title: 'Book' }, ...rest }), { call }));
+  };
   assert.match(entry({}), /<button[^>]*>补全原文件…<\/button>/);
   assert.match(entry({ initial: ref }), /<button[^>]*>管理原文件…<\/button>/);
   assert.match(text(entry({ initial: ref })), /原文件：引用 D:\\…\\Database System Concepts\.pdf/);
   assert.match(text(entry({ initial: copy })), /原文件：已复制到资料库 · 23\.5 MB/);
   assert.equal(entry({ item: { sourceIds: ['a'], format: 'audio' } }), '');
-  assert.equal(entry({ call: undefined }), '');
+  assert.equal(entry({ call: undefined }), '', 'a host that offers nothing to call');
   assert.match(inLanguage('en', () => entry({})), />Add the original file…</);
   assert.doesNotMatch(inLanguage('en', () => entry({ initial: ref })).replaceAll(BOOK, '').replace('D:\\…\\Database System Concepts.pdf', ''), han);
 });

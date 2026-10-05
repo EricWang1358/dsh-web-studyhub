@@ -16,7 +16,7 @@ const PAGES = {
   'ui/Sources.jsx': ['call', 'busy', 'act'], 'ui/Workflows.jsx': ['call', 'askInChat'], 'ui/WorkflowPortal.jsx': ['call', 'askInChat'],
   'ui/Skeleton.jsx': ['call', 'busy', 'askInChat'], 'ui/WrongBook.jsx': ['call', 'busy'], 'ui/Exam.jsx': ['call'], 'ui/OralExam.jsx': ['call'],
   'ui/AudioImport.jsx': ['call', 'busy', 'act', 'askInChat'], 'ui/Dashboard.jsx': ['call', 'busy'], 'ui/AudioDashboard.jsx': ['call'],
-  'ui/CaseCreate.jsx': ['call', 'busy', 'act'], 'ui/BlogNotes.jsx': ['call', 'busy', 'act'], 'ui/ImportHub.jsx': ['call', 'busy'],
+  'ui/CaseCreate.jsx': ['busy', 'act'], 'ui/BlogNotes.jsx': ['call', 'busy', 'act'], 'ui/ImportHub.jsx': ['call', 'busy'],
 };
 
 test('each page asks useStudy() for its services and no longer takes them as props (#113)', () => {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { loadUi } from './helpers/ui-module.mjs';
 
 // #126: one set of date / clock / duration / size / number formatters, all following the interface language.
-const m = await loadUi(`export * from './ui/format.js'; export { setUiLanguage } from './ui/i18n.js';`);
+const m = await loadUi(`export * from './ui/format.js'; export { setUiLanguage, uiIsEnglish, uiLanguageName } from './ui/i18n.js';`);
 const han = /[㐀-鿿]/;
 const KB = 1024, MB = KB * 1024, GB = MB * 1024;
 
@@ -119,6 +119,54 @@ test('formatDateTime has three shapes, follows the language and is empty for a b
   assert.equal(m.formatDateTime(new Date(2026, 9, 4, 8, 5), 'stamp'), m.formatDateTime(value, 'stamp'), 'a Date works too');
   assert.equal(m.formatDateTime(Date.parse(value), 'day'), m.formatDateTime(value, 'day'), 'so does a timestamp');
   assert.doesNotMatch(m.formatDateTime(value, 'day'), /[A-Za-z]/);
+});
+
+test('lists and clauses use the separator of the interface language, through the catalogue (#123)', () => {
+  m.setUiLanguage('zh');
+  assert.equal(m.formatList(['第 1 步', '第 2 步']), '第 1 步、第 2 步');
+  assert.equal(m.formatClauses(['甲', '乙']), '甲；乙');
+  assert.equal(m.formatList(['只有一个']), '只有一个');
+  assert.equal(m.formatList([]), '');
+  m.setUiLanguage('en');
+  try {
+    assert.equal(m.formatList(['Step 1', 'Step 2', 'Step 3']), 'Step 1, Step 2, Step 3');
+    assert.equal(m.formatClauses(['a', 'b']), 'a; b');
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('two-digit numbers, day keys and day headings come from the one formatter (#126)', () => {
+  assert.equal(m.formatIndex(1), '01');
+  assert.equal(m.formatIndex(12), '12');
+  assert.equal(m.formatIndex(0), '00');
+  assert.equal(m.formatIndex(undefined), '00');
+  assert.equal(m.isoDay(new Date(2026, 9, 4, 23, 59)), '2026-10-04');
+  assert.equal(m.isoDay(new Date(2026, 0, 9)), '2026-01-09');
+  const now = new Date(2026, 9, 4);
+  m.setUiLanguage('en');
+  try {
+    assert.match(m.formatDay(new Date(2026, 9, 1), now), /Thu, Oct 1$/);
+    assert.match(m.formatDay(new Date(2025, 11, 31), now), /2025/, 'another year says so');
+    assert.doesNotMatch(m.formatDay(new Date(2026, 9, 1), now), /2026/);
+    assert.equal(m.formatDay('not a date', now), '');
+    assert.match(m.formatDateTime(new Date(2026, 9, 4), 'date'), /10\/4\/2026/);
+    assert.match(m.formatDateTime(new Date(2026, 9, 4, 8, 5), 'longDay'), /October 4/);
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('joinMeta joins the parts of a meta line with the middle dot and drops the empty ones (#107)', () => {
+  assert.equal(m.joinMeta(['录音 3 分钟', '已用 0:20']), '录音 3 分钟 · 已用 0:20');
+  assert.equal(m.joinMeta(['标题', '', undefined, null, false, '用时 5']), '标题 · 用时 5');
+  assert.equal(m.joinMeta(['只有一部分']), '只有一部分');
+  assert.equal(m.joinMeta([]), '');
+  assert.equal(m.joinMeta(['a', 0, 'b']), 'a · 0 · b', 'a zero is a value');
+  assert.equal(m.META_DOT, ' · ');
+});
+
+test('the language helpers say which language data is wanted in, without choosing a sentence (#123)', () => {
+  m.setUiLanguage('zh');
+  assert.deepEqual([m.uiIsEnglish(), m.uiLanguageName()], [false, '中文']);
+  m.setUiLanguage('en');
+  try { assert.deepEqual([m.uiIsEnglish(), m.uiLanguageName()], [true, 'English']); } finally { m.setUiLanguage('zh'); }
 });
 
 test('English output carries no Chinese', () => {

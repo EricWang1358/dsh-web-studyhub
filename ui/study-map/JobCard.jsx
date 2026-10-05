@@ -6,6 +6,7 @@ import { ShortfallReasons } from '../DraftShortfall.jsx';
 import { isActiveJob, isCancellable } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
 import { describeFailure, jobCode, jobHeadline, jobSavedProgress, jobStageLabel, repeatedJobFailure } from '../generation-status.js';
+import { JOB_TYPES } from '../../lib/job-status.js';
 
 /** The JobRow status a generation job's stage code stands for. */
 function rowStatus(code, active) {
@@ -28,14 +29,14 @@ export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, op
   const stage = failure ? null : jobStageLabel(j, drafts, jobs, { includeSaved: !progress });
   const published = j.origin === 'selection' && j.status === 'complete' && j.publication?.cardIds?.length > 0 ? j.publication : null;
   const actions = [
-    cancelJob && j.type !== 'draft-publish' && isCancellable(j) && { key: 'stop', label: ui('停止'), icon: 'close', disabled: busy,
+    cancelJob && j.type !== JOB_TYPES.DRAFT_PUBLISH && isCancellable(j) && { key: 'stop', label: ui('停止'), icon: 'close', disabled: busy,
       title: j.origin === 'selection' ? ui('停止补题；题组不会有变化') : ui('停止生成；已保存的题留在草稿里'), onClick: () => cancelJob(j.id) },
     draft && !active && { key: 'draft', label: ui('打开草稿'), onClick: () => openDraft(draft) },
     // A passage supplement jumps to where its questions went: practise exactly those, or open the deck.
     published && practiceCards && { key: 'practice', variant: 'primary', disabled: busy, onClick: () => practiceCards(published.deckId, published.cardIds),
       label: published.cardIds.length === 1 ? ui('马上练这 1 张') : uiFormat('马上练这 {0} 张', [published.cardIds.length]) },
     published && openDeck && { key: 'deck', label: ui('打开题组'), disabled: busy, onClick: () => openDeck(published.deckId) },
-    retryGeneration && generation && j.type !== 'supplement' && ['failed', 'cancelled'].includes(j.status) && !draft
+    retryGeneration && generation && j.type !== JOB_TYPES.SUPPLEMENT && ['failed', 'cancelled'].includes(j.status) && !draft
       && { key: 'retry', label: ui('按原资料重新设置'), disabled: busy, onClick: () => retryGeneration(j) },
   ].filter(Boolean);
   return (
@@ -57,9 +58,9 @@ export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, op
           </> : <code className="job-raw">{j.stage}</code>}
         </Disclosure>
       </>}
-      {code === 'partial' && draft && generation && j.type !== 'supplement' && <ShortfallReasons draft={draft} compact />}
+      {code === 'partial' && draft && generation && j.type !== JOB_TYPES.SUPPLEMENT && <ShortfallReasons draft={draft} compact />}
       {dismissFailure && <InlineMessage tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
-      {j.type !== 'draft-publish' && <GenerationTrace job={j} openAgent={openAgent} />}
+      {j.type !== JOB_TYPES.DRAFT_PUBLISH && <GenerationTrace job={j} openAgent={openAgent} />}
     </JobRow>
   );
 }

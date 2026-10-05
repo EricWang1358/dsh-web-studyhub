@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ui, uiFormat, uiLocale, uiMessage } from './i18n.js';
+import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, LoadingState, useNow } from './components/index.js';
-import { formatBytes, formatDuration, formatAgo, formatElapsed } from './format.js';
+import { formatBytes, formatDuration, formatAgo, formatElapsed, joinMeta, formatDay } from './format.js';
 import { usePolling } from './use-polling.js';
 import { isActiveJob, isCancellable } from './job-visibility.js';
 import { JOB_STATUS } from '../lib/job-status.js';
@@ -38,7 +38,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
   const run = async (name, work) => {
     if (working) return;
     setWorking(name); setProblem('');
-    try { await work(); onChanged?.(); } catch (error) { setProblem(uiMessage(String(error?.message || error))); } finally { setWorking(''); }
+    try { await work(); onChanged?.(); } catch (error) { setProblem(errorMessage(error)); } finally { setWorking(''); }
   };
   const retry = () => run('retry', async () => {
     // A stopped local service is started again first, which is the usual reason a local window failed.
@@ -46,7 +46,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
     await send('mineru.retry', { jobId: job.id });
   });
   const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
-  const meta = <>{title}{took !== null && (running || job.finishedAt) ? uiFormat(running ? ' · 已用 {0}' : ' · 用时 {0}', [formatElapsed(took)]) : ''}</>;
+  const meta = <>{joinMeta([title, took !== null && (running || job.finishedAt) ? uiFormat(running ? '已用 {0}' : '用时 {0}', [formatElapsed(took)]) : ''])}</>;
   const pages = uiFormat('已解析 {0}/{1} 页', [job.done, job.total]);
   const actions = [
     ...(isCancellable(job) ? [{ key: 'stop', label: ui('停止（已解析好的段落会保留）'), disabled: !!working, onClick: () => run('cancel', () => send('job.cancel', { jobId: job.id })) }] : []),
@@ -233,8 +233,7 @@ const dayHeading = group => {
   if (group.when === 'today') return ui('今天');
   if (group.when === 'yesterday') return ui('昨天');
   if (group.when === 'unknown') return ui('日期未知');
-  const date = new Date(group.day), sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
+  return formatDay(group.day);
 };
 const STATUS_TEXT = { running: () => ui('进行中'), complete: () => ui('已完成'), failed: () => ui('没有完成'), cancelled: () => ui('已取消'), interrupted: () => ui('被中断') };
 const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', cancelled: 'neutral', interrupted: 'warning' };
@@ -314,7 +313,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
     try {
       const view = await call('mineru.history.list', {});
       if (alive.current) { setRecords(Array.isArray(view?.records) ? view.records : []); setReadError(''); }
-    } catch (error) { if (alive.current) setReadError(uiMessage(String(error?.message || error))); }
+    } catch (error) { if (alive.current) setReadError(errorMessage(error)); }
   }, [call]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => { if (!initialRecords && typeof call === 'function') void load(); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -328,7 +327,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   const work = async (name, task) => {
     if (working) return;
     setWorking(name); setProblem('');
-    try { await task(); } catch (error) { setProblem(uiMessage(String(error?.message || error))); } finally { if (alive.current) setWorking(''); }
+    try { await task(); } catch (error) { setProblem(errorMessage(error)); } finally { if (alive.current) setWorking(''); }
   };
   const toHeading = () => setTimeout(() => heading.current?.focus?.(), 0);
   const remove = row => work(row.id, async () => { await call('mineru.history.remove', { id: row.id }); await load(); toHeading(); });

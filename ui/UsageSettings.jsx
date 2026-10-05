@@ -6,6 +6,7 @@ import { USAGE_AREAS, USAGE_GROUPS, usageArea } from './usage/registry.js';
 import { displayName } from './usage/names.js';
 import { flushUsageNow, notifyUsageChanged } from './usage/controller.js';
 import css from './usage.css';
+import { formatList } from './format.js';
 
 /* 设置 › 高级 › 使用频率记录 and 我的使用报告 (lib/usage-frequency.js, lib/usage-report.js; docs/usage-frequency.md).
 
@@ -85,6 +86,7 @@ function Rhythm({ rhythm, period }) {
 /** The report as it is shown. `report` is usage.frequency.report (names for registered controls come with it). */
 export function UsageReportView({ report, period, onPeriod, language = getUiLanguage() }) {
   const max = Math.max(0, ...report.ranking.map(row => row.share));
+  const en = language === 'en'; // the registry's group names come in both languages (lib/usage-registry.js): data to pick, not a sentence of the page
   const never = {};
   for (const row of report.neverUsed) (never[row.group] ||= []).push(row);
   return (
@@ -112,8 +114,8 @@ export function UsageReportView({ report, period, onPeriod, language = getUiLang
       <details className="usage-never">
         <summary>{uiFormat('从没用过的功能（{0}）', [report.neverUsed.length])}</summary>
         <Hint>{ui('这些功能在记录期间一次都没被用过：可能你不需要，也可能你不知道它在那里。')}</Hint>
-        {Object.entries(never).map(([group, rows]) => <p key={group} className="usage-never__group"><strong>{USAGE_GROUPS[group]?.[language === 'en' ? 'en' : 'zh'] || group}</strong>
-          {`${language === 'en' ? ': ' : '：'}${rows.map(row => row.name).join(language === 'en' ? ', ' : '、')}`}</p>)}
+        {Object.entries(never).map(([group, rows]) => <p key={group} className="usage-never__group"><strong>{USAGE_GROUPS[group]?.[en ? 'en' : 'zh'] || group}</strong>
+          {uiFormat('：{0}', [formatList(rows.map(row => row.name))])}</p>)}
       </details>
       <section className="usage-block usage-hints">
         <h4 className="settings-subtitle">{ui('小提示')}</h4>

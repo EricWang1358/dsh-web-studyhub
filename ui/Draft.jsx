@@ -4,7 +4,7 @@ import React from "react";
 import { Banner, Button, Disclosure, Hint, PageHeader, Panel, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
-import { JOB_STATUS } from "../lib/job-status.js";
+import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
 import { kinds } from "./shared.js";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { readableQualityIssue } from "./quality.js";
@@ -92,10 +92,10 @@ export default function Draft({
     ? ui("保存并更新题组 →")
     : draft.editorial?.repairOfDeckId ? ui("保存并补发到原题组 →") : ui("保存并发布 →");
   const repairJob = data.jobs?.find((job) => job.draftId === draft.id &&
-    job.type === "draft-repair" && isActiveJob(job));
+    job.type === JOB_TYPES.DRAFT_REPAIR && isActiveJob(job));
   const repairRunning = !!repairJob;
   const publishJob = data.jobs?.find((job) => job.draftId === draft.id &&
-    job.type === "draft-publish" && isCancellable(job));
+    job.type === JOB_TYPES.DRAFT_PUBLISH && isCancellable(job));
   const latestDraft = data.drafts.find((item) => item.id === draft.id);
   const missingDraft = draft.draftVersion > 0 && !latestDraft;
   const staleDraft = latestDraft && latestDraft.draftVersion !== draft.draftVersion;

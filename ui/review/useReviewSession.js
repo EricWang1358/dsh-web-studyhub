@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ui, getUiLanguage } from '../i18n.js';
+import { ui, getUiLanguage, errorMessage } from '../i18n.js';
 import { mergeReviewPoll, reviewEntryKey } from '../async.js';
 import { submitAssist } from '../assist-request.js';
 import { readTeachingDraft, saveTeachingDraft } from '../teaching-draft.js';
@@ -142,7 +142,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
       const next = await call('review.get', { runId: target.id });
       setRun((current) => (reviewEntryKey(current) === key ? mergeReviewPoll(current, next) : current));
     } catch (failure) {
-      if (isCurrentEntry(runRef.current, key)) setError(failure.message || String(failure));
+      if (isCurrentEntry(runRef.current, key)) setError(errorMessage(failure));
     } finally {
       enFlights.current.end(key);
       setEnBusyKey((current) => (current === key ? '' : current));
@@ -191,7 +191,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
       }
     } catch (failure) {
       // Shown beside the chips (TeachingStatus), where the learner is looking, not in the page's global error.
-      if (isCurrent()) setTeachingFailure((all) => ({ ...all, [key]: { message: failure.message || String(failure), action, args } }));
+      if (isCurrent()) setTeachingFailure((all) => ({ ...all, [key]: { message: errorMessage(failure), action, args } }));
     } finally {
       if (teachingTokens.current.get(key) === token) endTeaching(key);
     }

@@ -153,13 +153,15 @@ export async function collectStates({ browser, running, lang, theme, width, mode
     let action = "";
     try { action = JSON.parse(route.request().postData() || "{}").action; } catch { /* not json */ }
     if (action !== "snapshot" || !patch.coach) return route.continue();
-    const response = await route.fetch();
-    const body = await response.json();
-    if (body?.ok && body.value && !body.value.unchanged) body.value.coach = { ...(body.value.coach || {}), ready: patch.coach };
-    return route.fulfill({ response, body: JSON.stringify(body) });
+    try {
+      const response = await route.fetch();
+      const body = await response.json();
+      if (body?.ok && body.value && !body.value.unchanged) body.value.coach = { ...(body.value.coach || {}), ready: patch.coach };
+      return await route.fulfill({ response, body: JSON.stringify(body) });
+    } catch { return route.abort().catch(() => {}); } // the page navigated away while the snapshot was in flight: the answer is no longer wanted
   });
   const settle = async (ms = 700) => { await page.waitForLoadState("networkidle").catch(() => {}); await sleep(ms); };
-  const open = async () => { await page.goto(server.url); await page.locator(".sidebar").first().waitFor({ timeout: 30000 }); await settle(900); };
+  const open = async () => { await page.goto(server.url); await page.locator(".sidebar").first().waitFor({ timeout: 120000 }); await settle(900); };
   const states = {};
   const record = async (name) => {
     await sleep(700); // let the sliding highlight and any transition finish

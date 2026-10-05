@@ -6,6 +6,7 @@ import { usePolling } from './use-polling.js';
 import { indexProgress, runInstall, runUninstall, startIndex } from './retrieval-extension-flow.js';
 import css from './large-documents.css';
 import { refreshRetrievalStatus, setRetrievalStatus } from './retrieval-status.js';
+import { useLiveEffect } from './use-async.js';
 
 /* The one-click path to searching a large textbook (WP28b): install the search
    extension, then build the index of a course. No file is edited and no command is
@@ -92,12 +93,10 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   // The plan for the chosen course, whenever it is not being built.
-  useEffect(() => {
-    if (running || typeof call !== 'function') return undefined;
-    let live = true;
-    Promise.resolve(call('retrieval.index.plan', { course })).then(value => { if (live && value) setPlan(value); }, () => {});
-    return () => { live = false; };
-  }, [course, running, run?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLiveEffect(live => {
+    if (running || typeof call !== 'function') return;
+    Promise.resolve(call('retrieval.index.plan', { course })).then(value => { if (live() && value) setPlan(value); }, () => {});
+  }, [course, running, run?.status]);
   // A build already under way (the page was closed and opened again) is picked up; a running one is followed.
   const check = async () => {
     const value = await Promise.resolve(call('retrieval.index.status', {})).catch(() => null);

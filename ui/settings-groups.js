@@ -15,6 +15,7 @@
 import { lazy } from 'react';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { bigDocuments } from '../lib/large-documents.js';
+import { JOB_TYPES } from '../lib/job-status.js';
 
 export const SETTINGS_GROUPS = Object.freeze([
   { id: 'common', title: '常用', lead: '界面语言、外观和 AI 模型：哪里不对劲时才需要来看看。' },
@@ -77,7 +78,7 @@ export function settingsGroupState({ data, status = {}, saved = {}, forceOpen = 
 
   const items = groupSourcesByDocument(data?.sources || []);
   const books = bigDocuments(items);
-  const hasRecordings = (data?.sources || []).some((source) => source.audio) || (data?.jobs || []).some((job) => job.type === 'audio-import');
+  const hasRecordings = (data?.sources || []).some((source) => source.audio) || (data?.jobs || []).some((job) => job.type === JOB_TYPES.AUDIO_IMPORT);
   if (hasRecordings && status.audio?.configured === false) missing.once.push('audio');
   if (books.some((item) => !item.converted && !item.chapters?.length) && status.mineru?.configured === false) missing.once.push('mineru');
   const search = status.retrieval?.status;

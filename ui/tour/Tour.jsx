@@ -7,6 +7,7 @@ import { useInjectCss } from "../shared.js";
 import { placePopover, spotlightBox } from "./geometry.js";
 import { tourKeyAction } from "./steps.js";
 import css from "./tour.css";
+import { usePolling } from '../use-polling.js';
 
 const ANCHOR_WAIT_MS = 4000;
 const cx = (...names) => names.filter(Boolean).join(" ");
@@ -152,7 +153,6 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
   useEffect(() => {
     let frame = 0;
     const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };
-    const timer = setInterval(schedule, 300);
     window.addEventListener("resize", schedule);
     document.addEventListener("scroll", schedule, true);
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(schedule) : null;
@@ -160,12 +160,13 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     if (observer && target) observer.observe(target);
     return () => {
       cancelAnimationFrame(frame);
-      clearInterval(timer);
       window.removeEventListener("resize", schedule);
       document.removeEventListener("scroll", schedule, true);
       observer?.disconnect();
     };
   }, [measure, target]);
+  // What the observers cannot see (a layout that settles late) is caught by a slow re-measure, not while the page is hidden.
+  usePolling(() => { requestAnimationFrame(measure); }, { intervalMs: 300 });
 
   // Focus moves to the step's card once it has a place.
   const focused = useRef("");

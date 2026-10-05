@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ui, uiFormat } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 import { formatNumber } from './format.js';
 import { Button, ErrorState, Hint, Panel, ProgressBar } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 import { useStudy } from './study-context.jsx';
+import { refreshQuery, setQueryData, useHostQuery } from './host-query.js';
 
 /* 用量控制台：首次转写之前不显示（什么都没配置时由音频页的配置卡片代替），
    显示后默认折叠；展开时才轮询。服务商按请求顺序排列：Gemini 免费 → 硅基流动 → Groq → Gemini 付费。 */
@@ -99,20 +100,25 @@ export function AudioDashboardPanel({ data, settings, busy, refresh, save, error
 
 export default function AudioDashboard({  }) {
   const { call } = useStudy();
-  const [data, setData] = useState(null), [settings, setSettings] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const [data, setData] = useState(null), [actionError, setError] = useState(''), [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  // The settings are the host's shared answer (ui/host-query.js), the same copy the audio settings pane saves into; this console only watches it
+  // (enabled: false) and asks again with the usage numbers.
+  const query = useHostQuery('audio.settings.get', {}, { enabled: false });
+  const settings = query.data ?? null;
+  const error = actionError || (query.error ? errorMessage(query.error) : '');
   const saving = useRef(false);
   const polling = useRef(false);
   const revision = useRef(0);
   const load = useCallback(async () => {
-    const [usage, config] = await Promise.all([call('audio.usage', {}), call('audio.settings.get', {})]);
-    return { usage, config };
+    const [usage] = await Promise.all([call('audio.usage', {}), refreshQuery(call, 'audio.settings.get', {})]);
+    return usage;
   }, [call]);
   const update = useCallback(() => {
     if (saving.current || polling.current) return undefined;
     polling.current = true;
     const expected = revision.current;
-    return load().then(({ usage, config }) => { if (!saving.current && expected === revision.current) { setData(usage); setSettings(config); setError(''); } },
+    return load().then((usage) => { if (!saving.current && expected === revision.current) { setData(usage); setError(''); } },
       e => { if (!saving.current && expected === revision.current) setError(e.message); })
       .finally(() => { polling.current = false; });
   }, [load]);
@@ -128,14 +134,14 @@ export default function AudioDashboard({  }) {
   const refresh = async () => {
     revision.current++;
     setBusy(true);
-    try { const { usage, config } = await load(); setData(usage); setSettings(config); setError(''); }
+    try { setData(await load()); setError(''); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   };
   const save = async patch => {
     if (saving.current) return;
     revision.current++;
     saving.current = true; setBusy(true);
-    try { setSettings(await call('audio.settings.set', patch)); setData(await call('audio.usage', {})); setError(''); }
+    try { setQueryData('audio.settings.get', {}, await call('audio.settings.set', patch)); setData(await call('audio.usage', {})); setError(''); }
     catch (e) { setError(e.message); } finally { saving.current = false; setBusy(false); }
   };
   // Before the first transcription there is nothing to show; with nothing configured the setup card stands in for it.

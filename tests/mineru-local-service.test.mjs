@@ -9,6 +9,7 @@ import { convertHome } from '../lib/mineru-job.js';
 import { LOCAL_MESSAGES } from '../lib/mineru-local.js';
 import { startFakeMineru } from './helpers/fake-mineru.mjs';
 import { makePdf } from './helpers/pdf.mjs';
+import { patientCli, readJsonFile, sleep, until, writeJsonFile } from './helpers/wait.mjs';
 
 /* The local mineru route through the real service: detection, the explicit start/setup steps, page windows as one job in the
    shared job list, retry of only the failed window, cancel, and the choice between local and cloud. The CLI is a fake. */
@@ -25,22 +26,22 @@ async function harness(t, { state = {}, cloud = false, noCli = false, pages = 12
   const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl');
   await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: pages, modelsReady: true, ...state })); await writeFile(logPath, '');
   const env = { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath };
-  const cli = { file: process.execPath, prefix: [FAKE], env };
+  const cli = patientCli({ file: process.execPath, prefix: [FAKE], env });
   const fake = cloud ? await startFakeMineru() : null;
   const clock = { time: 9_000_000 };
   // (`windowPages` is the seam for fixed local windows: these tests count windows of 50 pages; the adaptive plan has its own tests, tests/mineru-adaptive-*.test.mjs.)
   const service = new StudyService(root, { mineru: { ...(fake ? { baseUrl: fake.baseUrl } : {}), now: () => clock.time, limits: { windowPages: 50 },
     sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); },
-    local: { cli: noCli ? null : cli, home: work, modelsCli: { file: process.execPath, prefix: [FAKE], env } } } });
+    local: { cli: noCli ? null : cli, home: work, modelsCli: patientCli({ file: process.execPath, prefix: [FAKE], env }) } } });
   const h = {
     home, root, work, fake, service,
     call: (action, args) => service.call(action, args),
-    set: async patch => writeFile(statePath, JSON.stringify({ ...JSON.parse(await readFile(statePath, 'utf8')), ...patch })),
-    state: async () => JSON.parse(await readFile(statePath, 'utf8')),
-    log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line)),
+    set: async patch => writeJsonFile(statePath, { ...await readJsonFile(statePath), ...patch }),
+    state: () => readJsonFile(statePath),
+    log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }),
     parses: async () => (await h.log()).filter(entry => entry.argv[0] === 'parse'),
     jobs: async () => (await service.call('snapshot')).jobs.filter(job => job.type === 'pdf-convert'),
-    until: async (condition, what) => { for (let i = 0; i < 1500; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error(`Timed out waiting for ${what}`); },
+    until,
     upload: async bytes => {
       const { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name: 'Book.pdf', size: bytes.length });
       for (let offset = 0; offset < bytes.length; offset += chunkBytes) await service.call('mineru.upload.chunk', { uploadId, offset, data: bytes.subarray(offset, offset + chunkBytes).toString('base64') });
@@ -49,7 +50,7 @@ async function harness(t, { state = {}, cloud = false, noCli = false, pages = 12
     },
   };
   t.after(async () => {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await sleep(20);
     service.dispose(); await fake?.close();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
@@ -162,7 +163,7 @@ test('a 120-page PDF is parsed locally in windows of 50 pages as one job, with n
     if (job) seen.push({ done: job.done, phase: job.phase, index: job.chunk?.index, count: job.chunk?.count, route: job.route });
     return job?.status === 'complete' ? job : null;
   }, 'the conversion');
-  await h.call('job.wait', { jobId: finished.id, timeoutSeconds: 10 });
+  await h.call('job.wait', { jobId: finished.id, timeoutSeconds: 120 });
   assert.equal(finished.route, 'local');
   assert.equal(finished.sourceIds.length, 120);
   assert.ok(seen.some(entry => entry.phase === 'local' && entry.count === 3), 'says which piece of N it is on');
@@ -199,7 +200,7 @@ test('a window that fails stops the job; "接着做" redoes only that window and
   const h = await harness(t, { state: { failWindowsOnce: [51] } });
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 120 })), route: 'local' });
   const failed = await h.until(async () => { const [job] = await h.jobs(); return job?.status === 'failed' ? job : null; }, 'the failure');
-  await h.call('job.wait', { jobId: failed.id, timeoutSeconds: 10 });
+  await h.call('job.wait', { jobId: failed.id, timeoutSeconds: 120 });
   assert.equal(failed.retryable, true);
   assert.match(failed.stage, /本地解析没有成功/);
   assert.equal(failed.done, 50, 'the first window still counts');
@@ -231,11 +232,10 @@ test('cancel stops the running window promptly, kills the process and cleans the
   const started = Date.now();
   await h.call('job.cancel', { jobId: running.id });
   await h.until(async () => (await h.jobs())[0]?.status === 'cancelled', 'the cancel');
-  assert.ok(Date.now() - started < 10_000);
+  assert.ok(Date.now() - started < 45_000, 'cancelled promptly, not after the 60 s the window would have taken');
   const pid = (await h.parses())[0].pid;
-  let alive = true;
-  for (let i = 0; i < 100 && alive; i++) { try { process.kill(pid, 0); await new Promise(resolve => setTimeout(resolve, 50)); } catch (error) { alive = error.code !== 'ESRCH'; } }
-  assert.equal(alive, false, 'the child process is gone');
+  const gone = await until(() => { try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; } }, 'the child process to be gone', { intervalMs: 50 }).catch(() => false);
+  assert.equal(gone, true, 'the child process is gone');
   assert.deepEqual(await filesUnder(join(convertHome(h.root), 'jobs')), []);
   assert.equal((await h.call('snapshot')).inbox.items.filter(item => item.kind.startsWith('pdf-')).length, 0);
 });

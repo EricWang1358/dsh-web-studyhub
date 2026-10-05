@@ -77,9 +77,7 @@ test('a confident failure needs the failing side to reach the threshold; "does i
 
 test('triageDeck: every card is asked, with bounded concurrency; the gate and the failures never throw', async t => {
   const cards = Array.from({ length: 9 }, (_, index) => flash(`c${index}`, `Question ${index}?`));
-  let active = 0, peak = 0;
-  const h = await harness(t, { delayMs: 15, onRequest: () => { active++; peak = Math.max(peak, active); setTimeout(() => { active--; }, 15); },
-    answer: byCard({ 'Question 3?': { stemLeaksAnswer: 0.97 } }) });
+  const h = await harness(t, { holdUntilInFlight: 2, answer: byCard({ 'Question 3?': { stemLeaksAnswer: 0.97 } }) });
   // Closed gate: nothing is sent.
   let result = await triageDeck({ runtime: h.runtime, cards, sources: [source], threshold: 0.8, concurrency: 3 });
   assert.equal(result.unavailable.reason, 'off');
@@ -88,7 +86,7 @@ test('triageDeck: every card is asked, with bounded concurrency; the gate and th
   await h.open();
   result = await triageDeck({ runtime: h.runtime, cards, sources: [source], threshold: 0.8, concurrency: 3 });
   assert.equal(Object.keys(result.signals).length, 9);
-  assert.ok(peak <= 3 && peak >= 2, `peak ${peak}`);
+  assert.ok(h.fake.peak <= 3 && h.fake.peak >= 2, `peak ${h.fake.peak}`);
   assert.deepEqual(Object.entries(result.signals).filter(([, signal]) => signal.flagged).map(([id]) => id), ['c3']);
   assert.ok(result.usage.inputTokens > 0 && result.usage.calls === 9);
   // A bad key stops the run after one request.

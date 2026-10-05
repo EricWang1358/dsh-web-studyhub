@@ -3,8 +3,8 @@ import { ui, uiFormat, uiMessage } from "../i18n.js";
 import { Button, Hint, Icon, InlineMessage, JobRow, useNow } from "../components/index.js";
 import AgentLink from "../AgentLink.jsx";
 import { dismissJobs, useQuickActions } from "../quick-actions.js";
-import { formatElapsed } from "../format.js";
-import { isActiveJob, isCancellable } from "../../lib/job-status.js";
+import { formatElapsed, joinMeta } from "../format.js";
+import { isActiveJob, isCancellable, JOB_STATUS, JOB_TYPES } from "../../lib/job-status.js";
 
 /* The background audio imports as cards: phase, real progress, the model tasks behind them, what they cost, and what to do next.
    Shown in the add-source form, at the top of the sources page and in the reader. */
@@ -30,7 +30,7 @@ const ORDER = ["transcribe", "proofread", "translate"];
 const WEIGHT = { transcribe: 0.25, proofread: 0.3, translate: 0.45 };
 const TASK_KINDS = { transcribe: "转写", proofread: "校对", translate: "翻译", title: "生成标题" };
 const TASK_STATUS = { starting: "启动中", running: "执行中", finishing: "结果已返回，正在结束子会话", complete: "已完成", failed: "失败", cancelled: "已取消", skipped: "已跳过" };
-const RUNTIME = { subagent: " · DSH 子代理", direct: " · 直接模型调用", gemini: " · Gemini" };
+const RUNTIME = { subagent: "DSH 子代理", direct: "直接模型调用", gemini: "Gemini" };
 const taskLabel = (task) => {
   const kind = ui(TASK_KINDS[task.kind] || task.stage || "");
   return task.parts ? uiFormat("{0} {1}/{2}", [kind, task.part, task.parts]) : kind;
@@ -86,8 +86,8 @@ function AudioTasks({ job, now, openAgent }) {
     {active.length > 0 && <div className="audio-active-tasks">
       <small>{uiFormat('正在执行 {0} 个任务', [active.length])}</small>
       {active.map(task => <small className="audio-now" key={task.id}>
-        {uiFormat('正在做：{0}', [taskLabel(task)])}{ui(RUNTIME[task.runtime] || '')}
-        {` · ${ui(TASK_STATUS[task.status] || task.status)}`}{uiFormat(' · 已等待 {0}', [formatElapsed(now - Date.parse(task.startedAt))])}
+        {joinMeta([uiFormat('正在做：{0}', [taskLabel(task)]), ui(RUNTIME[task.runtime] || ''), ui(TASK_STATUS[task.status] || task.status),
+          uiFormat('已等待 {0}', [formatElapsed(now - Date.parse(task.startedAt))])])}
         <OpenAgent task={task} openAgent={openAgent} />
       </small>)}
     </div>}
@@ -95,8 +95,8 @@ function AudioTasks({ job, now, openAgent }) {
       <summary>{uiFormat('查看历史任务 · {0} 次模型任务', [history.length])}</summary>
       <ol>{[...history].reverse().map(task => <li key={task.id}>
         <strong>{taskLabel(task)}</strong>
-        <small>{ui(TASK_STATUS[task.status] || task.status)}{ui(RUNTIME[task.runtime] || '')}
-          {task.finishedAt ? uiFormat(' · {0}', [formatElapsed(Date.parse(task.finishedAt) - Date.parse(task.startedAt))]) : ''}</small>
+        <small>{joinMeta([ui(TASK_STATUS[task.status] || task.status), ui(RUNTIME[task.runtime] || ''),
+          task.finishedAt ? formatElapsed(Date.parse(task.finishedAt) - Date.parse(task.startedAt)) : ''])}</small>
         {task.note && <Hint as="small" size="xs" tone="warning">{task.note}</Hint>}
         {task.reasoning && <small>{ui('推理：')}{task.reasoning}
           {task.reasoningEffort && task.reasoningEffort !== task.reasoning ? ` → ${task.reasoningEffort}` : ''}</small>}
@@ -130,18 +130,18 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
     ? job.status === "complete" ? uiFormat("复核完成：改进正稿 {0} 处 · 判定原文无误 {1} 处 · 仍拿不准 {2} 处", [job.review.applied, job.review.rejected, job.review.unsure])
       : job.status === "failed" ? ui("复核未完成；已复核的部分已保存")
         : job.status === "cancelled" ? ui("复核已取消；已复核的部分已保存")
-          : job.status === "cancelling" ? ui("正在停止")
+          : job.status === JOB_STATUS.CANCELLING ? ui("正在停止")
             : job.total > 0 ? uiFormat("复核存疑处（{0}/{1}）", [Math.min(job.done + 1, job.total), job.total]) : ui("复核存疑处")
     : job.status === "complete"
     ? job.reused ? ui("已导入过，直接复用") : uiFormat("已存为 {0} 份资料 · 校对修正 {1} 处", [job.sourceIds?.length ?? 0, job.corrected ?? 0])
     : held ? ui("有文件没通过预检，这一批还没开始")
       : job.status === "failed" ? ui("导入未完成")
       : job.status === "cancelled" ? ui("导入已取消")
-        : job.status === "cancelling" ? ui("正在停止")
+        : job.status === JOB_STATUS.CANCELLING ? ui("正在停止")
           : counted ? uiFormat("{0}（{1}/{2}）", [ui(PHASES[job.phase]), Math.min(job.done + 1, job.total), job.total]) : ui(PHASES[job.phase] || "处理中");
   const order = job.review ? [] : job.subtitle ? ORDER.filter(phase => phase !== "transcribe") : ORDER;
-  const meta = <>{title}{job.minutes ? uiFormat(" · 录音时长 {0} 分钟", [job.minutes]) : ""}
-    {took !== null && (running || job.finishedAt) && !held ? uiFormat(running ? " · 已用 {0}" : " · 用时 {0}", [formatElapsed(took)]) : ""}</>;
+  const meta = <>{joinMeta([title, job.minutes ? uiFormat("录音时长 {0} 分钟", [job.minutes]) : "",
+    took !== null && (running || job.finishedAt) && !held ? uiFormat(running ? "已用 {0}" : "用时 {0}", [formatElapsed(took)]) : ""])}</>;
   const progressed = running && job.phase !== "queued";
   const retry = (args) => () => act("audio.retry", { jobId: job.id, ...args });
   const actions = [
@@ -157,9 +157,9 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
   ];
   const failure = job.status === "failed" ? { hint: <>{job.stage}
     {onOpenSettings && aboutSettings(job.stage) && <> <Button variant="link" size="sm" onClick={onOpenSettings}>{ui('打开音频设置')}</Button></>}</> } : null;
-  const stage = job.status === "cancelling" ? ui("正在停止") : running ? ui(PHASES[job.phase] || "处理中") : undefined;
+  const stage = job.status === JOB_STATUS.CANCELLING ? ui("正在停止") : running ? ui(PHASES[job.phase] || "处理中") : undefined;
   return (
-    <JobRow status={job.status === "cancelling" ? "running" : job.status} stage={stage} title={job.filename} meta={meta}
+    <JobRow status={job.status === JOB_STATUS.CANCELLING ? "running" : job.status} stage={stage} title={job.filename} meta={meta}
       leaving={job.leaving} actions={actions} failure={failure} data-job-id={job.id}
       onDismiss={!isActive(job) ? () => quick ? dismissJobs(quick, job.id) : act("job.dismiss", { jobId: job.id }) : undefined}
       progress={progressed ? { value: progress.percent, max: 100, ahead: progress.flight, label: uiFormat("{0} 的总进度", [job.filename]),
@@ -191,8 +191,8 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
       )}
       {requestsOf(usage) > 0 && (
         <small>
-          {uiFormat("Gemini 请求（这份录音累计，含之前的尝试）：免费 {0} 次 · 付费 {1} 次", [usage.free.requests, usage.paid.requests])}
-          {paidUsed && usage.estimatedPaidTranscribeUsd > 0 ? uiFormat(" · 转写付费部分约 ${0}", [usage.estimatedPaidTranscribeUsd]) : ""}
+          {joinMeta([uiFormat("Gemini 请求（这份录音累计，含之前的尝试）：免费 {0} 次 · 付费 {1} 次", [usage.free.requests, usage.paid.requests]),
+            paidUsed && usage.estimatedPaidTranscribeUsd > 0 ? uiFormat("转写付费部分约 ${0}", [usage.estimatedPaidTranscribeUsd]) : ""])}
         </small>
       )}
       {usage?.siliconflow?.requests > 0 && (
@@ -219,7 +219,7 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
 
 /** Progress and results of audio imports; shown in the add-source form and at the top of the sources page. */
 export function AudioJobs({ data, busy, act, openAgent, onOpenSources, onLegacyRetry, onOpenSettings }) {
-  const jobs = (data.jobs || []).filter((job) => job.type === "audio-import");
+  const jobs = (data.jobs || []).filter((job) => job.type === JOB_TYPES.AUDIO_IMPORT);
   return jobs.length ? <div className="jobs audio-jobs sh-job-list">{jobs.map((job) => <AudioJob key={job.id} job={job} busy={busy} act={act} openAgent={openAgent}
     onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onOpenSettings={onOpenSettings} />)}</div> : null;
 }

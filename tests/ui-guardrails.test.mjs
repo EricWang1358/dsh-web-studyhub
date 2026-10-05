@@ -9,9 +9,11 @@ import {
 
 // UI consistency guard rails (tracker #161). Per-file ratchets may only fall; the hard rules
 // have no baseline. Regenerate the baseline with `node scripts/qa/guardrail-baseline.mjs --update`.
-const started = performance.now();
+const started = performance.now(), cpuStarted = process.cpuUsage();
 const scan = scanUi();
 const scanMs = Math.round(performance.now() - started);
+// The work done by the scan, not the time it waited for a core: a full test run shares the machine with dozens of other processes.
+const scanCpu = process.cpuUsage(cpuStarted), scanCpuMs = Math.round((scanCpu.user + scanCpu.system) / 1000);
 const baseline = readBaseline();
 const UPDATE = 'Fix the new value, or lower-only update: node scripts/qa/guardrail-baseline.mjs --update';
 
@@ -52,8 +54,9 @@ test('allow-list entries that no longer match anything are removed', () => {
 });
 
 test('the scan stays fast', (t) => {
-  t.diagnostic(`ui scan took ${scanMs} ms`);
-  assert.ok(scanMs < 5000, `scan took ${scanMs} ms`);
+  t.diagnostic(`ui scan took ${scanMs} ms (${scanCpuMs} ms of CPU)`);
+  assert.ok(scanCpuMs < 5000, `scan used ${scanCpuMs} ms of CPU`);
+  assert.ok(scanMs < 120_000, `scan took ${scanMs} ms: it is not merely slow, it is stuck`); // a loose wall-clock bound, a hang guard only
 });
 
 test('the CSS reader handles comments, nesting, CRLF, strings and data urls', () => {
@@ -94,14 +97,15 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
     writeFileSync(join(root, 'ui', 'Bad.jsx'), [
       'export const A = () => <div><button className={`row ${on ? "primary" : ""}`}>x</button><span className="pill">y</span>',
       '<button className="link-btn">×</button><i>  ▸ </i><b>text</b></div>;',
-      'const go = () => window.confirm("sure?");', '',
+      'const go = () => window.confirm("sure?");',
+      'const handoff = () => <div><Child call={call} busy={busy} /><Button busy={busy}>ok</Button></div>;', '',
     ].join('\n'));
     writeFileSync(join(root, 'ui', 'components', 'Ok.jsx'), 'export const B = () => <button className="primary">z</button>;\n');
     const found = scanUi(root);
     const total = (rule) => Object.values(found.metrics[rule]).reduce((a, b) => a + b, 0);
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {
       rawButton: 2, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 1, fontWeightNumeric: 1, radiusPx: 1, radius999: 1,
-      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0,
+      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2,
     });
     assert.deepEqual(found.duplicateKeyframes.map((k) => k.name), ['spin']);
     assert.equal(found.cjkContent.length, 1);

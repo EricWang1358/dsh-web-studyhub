@@ -1,5 +1,5 @@
 import React, { useId, useMemo, useState } from 'react';
-import { ui, uiFormat, uiLocale } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, EmptyState, ScrollWindow, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
@@ -9,6 +9,7 @@ import { bigDocuments } from '../lib/large-documents.js';
 import IndexBadge from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
 import css from './source-picker.css';
+import { formatNumber } from './format.js';
 
 /* Choosing material for generation (P18, P22). One row per document: a PDF is
    one checkbox for the whole file with an expandable page list. Counts are in
@@ -112,7 +113,7 @@ function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false, 
   const picked = item.sourceIds.filter(id => chosen.has(id)).length;
   const indexInfo = documentIndexState(item, indexCoverage, { big });
   const meta = [sourceFormatLabel(item), item.courses.join(' · ') || ui('未分类'),
-    uiFormat('{0} 字符', [item.chars.toLocaleString(uiLocale())]), ...documentNotes(item)];
+    uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item)];
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
       <div className="source-picker__row">
@@ -155,7 +156,7 @@ function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false, 
             <input type="checkbox" checked={chosen.has(page.sourceId)} disabled={disabled}
               onChange={event => onChange(event.target.checked ? [...selected, page.sourceId] : selected.filter(id => id !== page.sourceId))} />
             <span>{pageLabel(item, page)}</span>
-            <small>{uiFormat('{0} 字符', [page.chars.toLocaleString(uiLocale())])}</small>
+            <small>{uiFormat('{0} 字符', [formatNumber(page.chars)])}</small>
           </label>
         </li>)}
       </ul>}
@@ -166,7 +167,7 @@ function DocumentRow({ item, selected, onChange, disabled, defaultOpen = false, 
             <input type="checkbox" checked={chosen.has(page.sourceId)} disabled={disabled}
               onChange={event => onChange(event.target.checked ? [...selected, page.sourceId] : selected.filter(id => id !== page.sourceId))} />
             <span>{pageLabel(item, page)}</span>
-            <small>{uiFormat('{0} 字符', [page.chars.toLocaleString(uiLocale())])}</small>
+            <small>{uiFormat('{0} 字符', [formatNumber(page.chars)])}</small>
           </label>
         </li>)}
       </ul>}

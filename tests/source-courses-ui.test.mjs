@@ -83,14 +83,14 @@ test('the course dialog starts from the current course and applies it through th
   try {
     const item = { key: 'doc-1', title: 'PE1.m4a + 2', sourceIds: ['a', 'b'], courses: ['Cloud Native Solution Design / 07 微服务设计'], usedBy: [], pages: [] };
     const byId = new Map([['a', { id: 'a', courses: ['Cloud Native Solution Design / 07 微服务设计'] }], ['b', { id: 'b' }]]);
-    const html = renderToStaticMarkup(React.createElement(CourseDialog, { item, items: [item], byId, courses: [{ name: 'Databases' }, { name: 'Systems' }], busy: false, act: noop, onClose: noop }));
+    const html = renderToStaticMarkup(React.createElement(CourseDialog, { item, items: [item], byId, courses: [{ name: 'Databases' }, { name: 'Systems' }], onClose: noop }));
     assert.match(html, /修改「PE1\.m4a \+ 2」的课程/);
     assert.match(html, /Cloud Native Solution Design \/ 07 微服务设计/);
     assert.match(html, /保存课程/);
     assert.deepEqual(courseAssignments([item], ['doc-1'], ['Databases'], byId),
       [{ id: 'a', courses: ['Databases'], expectedCourses: ['Cloud Native Solution Design / 07 微服务设计'] }, { id: 'b', courses: ['Databases'], expectedCourses: [] }]);
     setUiLanguage('en');
-    const en = renderToStaticMarkup(React.createElement(CourseDialog, { item: { ...item, title: 'PE1.m4a + 2', courses: [] }, items: [item], byId, courses: [{ name: 'Databases' }], busy: false, act: noop, onClose: noop }));
+    const en = renderToStaticMarkup(React.createElement(CourseDialog, { item: { ...item, title: 'PE1.m4a + 2', courses: [] }, items: [item], byId, courses: [{ name: 'Databases' }], onClose: noop }));
     assert.match(en, /Save course/);
     assert.doesNotMatch(en, /[㐀-鿿]/);
   } finally { setUiLanguage('zh'); }
@@ -125,6 +125,6 @@ test('a long course path is not cut without a trace: the field shows an ellipsis
   const { readFileSync } = await import('node:fs');
   assert.match(readFileSync(new URL('../ui/course-field.css', import.meta.url), 'utf8'), /course-field__control > input \{[^}]*text-overflow:\s*ellipsis/);
   const item = { key: 'doc-1', title: 'Book', sourceIds: ['a'], courses: ['Cloud Native Solution Design / 07 微服务设计：边界、通信、发现与兼容演进'], usedBy: [], pages: [] };
-  const html = renderToStaticMarkup(React.createElement(CourseDialog, { item, items: [item], byId: new Map([['a', { id: 'a', courses: item.courses }]]), courses: [{ name: 'Databases' }], busy: false, act: noop, onClose: noop }));
+  const html = renderToStaticMarkup(React.createElement(CourseDialog, { item, items: [item], byId: new Map([['a', { id: 'a', courses: item.courses }]]), courses: [{ name: 'Databases' }], onClose: noop }));
   assert.match(html, /title="Cloud Native Solution Design \/ 07 微服务设计：边界、通信、发现与兼容演进"/);
 });

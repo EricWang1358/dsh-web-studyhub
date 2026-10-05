@@ -30,6 +30,7 @@ import formCss from './generate-form.css';
 import CaseCreate from './CaseCreate.jsx';
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { referenceSelection } from './reference-questions.js';
+import { useLiveEffect } from './use-async.js';
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
    importing questions that already exist is the second way in. Generation is
@@ -74,11 +75,9 @@ export default function Generate({
   const advice = generateAdvice({ sources: data.sources, selectedIds: selectedSources, focus: gen.focus, retrieval });
   // The learner's goal tells whether the target role belongs on the form; read once, quietly.
   const [goal, setGoal] = React.useState('');
-  React.useEffect(() => {
-    let live = true;
-    Promise.resolve(call?.('coach.profile', {})).then((profile) => { if (live && typeof profile?.goal === 'string') setGoal(profile.goal); }, () => {});
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useLiveEffect((live) => {
+    Promise.resolve(call?.('coach.profile', {})).then((profile) => { if (live() && typeof profile?.goal === 'string') setGoal(profile.goal); }, () => {});
+  }, []);
   // 帮我想想: asked on click only; a result belongs to the sources and course it was asked for.
   const [assist, setAssist] = React.useState({ phase: 'idle', result: null, applied: false });
   const assistToken = React.useRef(0);
@@ -143,7 +142,7 @@ export default function Generate({
         items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
       <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
       {current === "json" ? (
-        <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} />
+        <JsonImport data={data} openDraft={openDraft} />
       ) : current === "case" ? (
         <CaseCreate data={data} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
@@ -178,10 +177,10 @@ export default function Generate({
               </div>
               {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={() => setPage?.("settings")}
                 call={call} courses={data.focus?.courses} defaultCourse={generationCourse} />}
-              {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel call={call} advice={advice} sourceIds={selectedSources}
+              {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel advice={advice} sourceIds={selectedSources}
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
-              <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal} call={call} askInChat={askInChat}
+              <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal}
                 indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings}
                 onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
                 onQueued={() => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); }} />
@@ -234,7 +233,7 @@ export default function Generate({
                     onChange={(e) => setGen({ ...gen, focus: e.target.value })}
                     placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
                   <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
-                    estimate={<TokenEstimate call={call} enabled={model.ready && selectedSources.length > 0}
+                    estimate={<TokenEstimate enabled={model.ready && selectedSources.length > 0}
                       request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
                     onAsk={askAssist} onSettings={openSettings}
                     onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
@@ -272,7 +271,7 @@ export default function Generate({
               </div>
               {summary && <p className="generate-summary" role="status">{summary}</p>}
               {/* What the run is expected to use, from the real prompts of the pipeline (WP27). */}
-              <TokenEstimate call={call} enabled={selectedSources.length > 0 && !referenceState.reason}
+              <TokenEstimate enabled={selectedSources.length > 0 && !referenceState.reason}
                 request={{ feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
                   course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>

@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { Button, Icon } from "./components/index.js";
+import { useStudy } from "./study-context.jsx";
+import { readJSON, readText, removeKey, writeJSON, writeText } from "./storage.js";
 import { useInjectCss } from "./shared.js";
 import { SETUP_STEP_IDS, courseSetup, hasBigBook } from "../lib/course-setup.js";
 import css from "./setup-checklist.css";
 import { loadRetrievalStatus } from "./retrieval-status.js";
+import { useLiveEffect } from './use-async.js';
 
 /* 课程准备: what is done once at the start of a course, as a checklist at the top of the library home (docs/feature-tiers.md).
 
@@ -17,22 +20,19 @@ import { loadRetrievalStatus } from "./retrieval-status.js";
 const key = (kind, root, course) => `study-setup-${kind}:${root || "local"}:${course ?? ""}`;
 /** The steps the learner put off for a course: ids, per library and course. */
 export function readSetupLater(root, course) {
-  try {
-    const value = JSON.parse(localStorage.getItem(key("later", root, course)));
-    return Array.isArray(value) ? value.filter((id) => SETUP_STEP_IDS.includes(id)) : [];
-  } catch { return []; }
+  const value = readJSON(key("later", root, course));
+  return Array.isArray(value) ? value.filter((id) => SETUP_STEP_IDS.includes(id)) : [];
 }
 export function writeSetupLater(root, course, ids) {
-  try {
-    if (ids.length) localStorage.setItem(key("later", root, course), JSON.stringify(ids)); else localStorage.removeItem(key("later", root, course));
-  } catch { /* the choice still holds this session */ }
+  // the choice still holds this session when the storage refuses it
+  if (ids.length) writeJSON(key("later", root, course), ids); else removeKey(key("later", root, course));
 }
 /** Has the "all done" note been shown for this course? It is shown once. */
 export function setupDoneSeen(root, course) {
-  try { return localStorage.getItem(key("done", root, course)) === "1"; } catch { return false; }
+  return readText(key("done", root, course)) === "1";
 }
 export function markSetupDone(root, course) {
-  try { localStorage.setItem(key("done", root, course), "1"); } catch { /* the note may show once more */ }
+  writeText(key("done", root, course), "1"); // the note may show once more when the storage refuses it
 }
 
 /** The one action of a step: { label, run, disabled }. `on` carries the page's own handlers; a step without a handler is disabled, never a dead button. */
@@ -103,11 +103,12 @@ function Step({ step, index, setup, on, busy, next, onLater }) {
 
 /**
  * @param data      the library snapshot
- * @param call      host call, only used to read what the search extension reports (when the course has a big book)
+ * It reads `call` (only to ask what the search extension reports, when the course has a big book) and `busy` from useStudy().
  * @param on        { import(course), sources(), index(), generate(course), draft(id), course(id), skeleton() }
  * For previews and tests: later, initialOpen, doneSeen, retrieval.
  */
-export default function SetupChecklist({ data, call, busy = false, on = {}, later: laterProp, initialOpen = false, doneSeen: doneSeenProp, retrieval: retrievalProp = null }) {
+export default function SetupChecklist({ data, on = {}, later: laterProp, initialOpen = false, doneSeen: doneSeenProp, retrieval: retrievalProp = null }) {
+  const { call, busy } = useStudy();
   useInjectCss(css, "study-setup-checklist");
   const root = data?.root, course = data?.focus?.course;
   const [later, setLater] = useState(() => laterProp ?? readSetupLater(root, course));
@@ -118,16 +119,14 @@ export default function SetupChecklist({ data, call, busy = false, on = {}, late
   const bigBook = useMemo(() => hasBigBook(data, course), [data?.sources, data?.focus?.courses, course]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Whether the big book has an index is asked of the search extension, once, and only when there is a big book.
-  useEffect(() => {
-    if (!bigBook || typeof call !== "function" || retrievalProp || !course) return undefined;
-    let live = true;
+  useLiveEffect((live) => {
+    if (!bigBook || typeof call !== "function" || retrievalProp || !course) return;
     (async () => {
       const status = (await loadRetrievalStatus(call)) ?? null;
       const plan = status?.extension?.installed && status?.companion?.running ? await Promise.resolve(call("retrieval.index.plan", { course })).catch(() => null) : null;
-      if (live) setRetrieval(status ? { status, plan } : null);
+      if (live()) setRetrieval(status ? { status, plan } : null);
     })();
-    return () => { live = false; };
-  }, [bigBook, course]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bigBook, course]);
 
   const setup = courseSetup(data, { retrieval, dismissed: later });
   useEffect(() => { if (setup.mode === "done" && !seen) markSetupDone(root, course); }, [setup.mode, seen, root, course]);

@@ -1,5 +1,6 @@
 /* The study map's data helpers: scope keys, mastery roll-ups and the fold /
-   selection transitions of the deck tree. No React, so each can be tested alone. */
+   selection transitions of the deck tree. No component state, so each can be tested alone. */
+import { browserStorage, readJSON, writeJSON } from '../storage.js';
 
 export const BAR_ORDER = ['mastered', 'familiar', 'learning', 'weak', 'new'];
 export const EMPTY_PROGRESS = {};
@@ -41,17 +42,13 @@ export function mergeProgress(list) {
 const openKey = (root) => `study-map-open:${root}`;
 
 /** The folds this browser remembered for a library, or null. */
-export function readExpanded(root, storage = globalThis.localStorage) {
-  try {
-    const saved = storage?.getItem(openKey(root));
-    return saved ? new Set(JSON.parse(saved)) : null;
-  } catch {
-    return null;
-  }
+export function readExpanded(root, storage = browserStorage()) {
+  const saved = readJSON(openKey(root), null, storage);
+  return Array.isArray(saved) ? new Set(saved) : null;
 }
 
-export function writeExpanded(root, expanded, storage = globalThis.localStorage) {
-  try { storage?.setItem(openKey(root), JSON.stringify([...expanded])); } catch { /* the folds just are not remembered */ }
+export function writeExpanded(root, expanded, storage = browserStorage()) {
+  writeJSON(openKey(root), [...expanded], storage); // the folds just are not remembered when the storage refuses them
 }
 
 /** Every course open, and the decks too while the library is small. */

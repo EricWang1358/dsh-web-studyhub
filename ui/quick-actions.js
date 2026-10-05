@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { isActiveJob } from "./job-visibility.js";
+import { failureText } from './failure.js';
 
 /* The light path for actions that only change a sliver of what is on screen (a finished card, the unread badge).
 
@@ -63,7 +64,7 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
           if (entries.get(key) !== entry) return { ok: false, error };
           if (!treatAsDone?.(error)) {
             entries.delete(key);
-            fail(key, error?.message || String(error));
+            fail(key, failureText(error));
             emit();
             return { ok: false, error };
           }

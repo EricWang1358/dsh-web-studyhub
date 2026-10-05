@@ -7,6 +7,8 @@ import { useQuickActions } from '../quick-actions.js';
 import { reviewedCardStatus } from '../../lib/review-integrity.js';
 import { missingQuestions } from '../draft-shortfall.js';
 import JobCard from './JobCard.jsx';
+import { useStudy } from '../study-context.jsx';
+import { joinMeta } from '../format.js';
 
 function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueDraft }) {
   const missing = missingQuestions(d);
@@ -19,12 +21,11 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
         <span>
           <strong>{d.title}</strong>
           <small>
-            {[uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : ''].filter(Boolean).join(' · ')}
-            {rejectedCount ? uiFormat(' · {0} 题待处理', [rejectedCount])
-              : ` · ${reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查')}`}
-            {missing > 0 ? uiFormat(' · 还差 {0} 题', [missing]) : ''}
-            {Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
-              ? uiFormat(' · 生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''}
+            {joinMeta([uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
+              rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查'),
+              missing > 0 ? uiFormat('还差 {0} 题', [missing]) : '',
+              Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
+                ? uiFormat('生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''])}
           </small>
         </span>
         <span>{ui('打开 →')}</span>
@@ -38,7 +39,8 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
    home (P26): a job started from 创建题组 is in view when the learner lands
    here, and a failure shows up where they are looking (P15). `jobs` are the
    ones to show, running first. */
-export default function HomeActivity({ sectionRef, jobs, drafts, data, busy, modelReady, call, start, manage, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, continueDraft }) {
+export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, continueDraft }) {
+  const { busy, call } = useStudy();
   const quick = useQuickActions();
   if (!jobs.length && !drafts.length) return null;
   const finishedCount = jobs.filter((job) => !isActiveJob(job) && !job.leaving).length;

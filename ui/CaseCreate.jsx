@@ -22,7 +22,7 @@ import { useStudy } from "./study-context.jsx";
 const blankQuestion = () => ({ prompt: "", marks: 10, answer: "" });
 
 export default function CaseCreate({ data, onStarted, openImport, openReferenceImport, openSettings, onCourseSettings, initial = {} }) {
-  const { busy, act, call } = useStudy();
+  const { busy, act } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const model = modelReadiness(data);
   const toast = useToast();
@@ -143,7 +143,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
       <div className="case-create__foot">
         <p className="muted">{ui("案例会存为一份资料；题目附评分标准和参考答案，进入草稿供你检查后发布。")}</p>
         {/* What writing the paper is expected to use (WP27); a pasted case is priced from its own text. */}
-        <TokenEstimate call={call} enabled={ready} request={mode === "import"
+        <TokenEstimate enabled={ready} request={mode === "import"
           ? { feature: "case", course, language: form.language, sourceIds, scenario: pasted.scenario,
             questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })) }
           : { feature: "case", course, language: form.language, sourceIds, referenceSourceIds, referenceLimits, referenceFormat, questions: Number(form.questions), totalMarks: Number(form.totalMarks),

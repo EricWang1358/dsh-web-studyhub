@@ -9,7 +9,7 @@ import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } f
    store, not in a file): with the service stopped every `config` call exits non-zero with only the Chinese error below, and
    `server status` prints `服务未在运行。` (exit code 1, or 0 with `statusExitsZero`). Behaviour comes from the JSON file named by FAKE_MINERU_STATE (the tests edit it). Every call is logged to
    the file named by FAKE_MINERU_LOG, one JSON line per call, so a test can see exactly what was run. An optional synthetic `finishSignal`
-   file holds parse completion until the test has observed the running window. No real configuration or material is read.
+   file holds parse completion until the test has observed the running window (`queueSignal` holds the "pending" state the same way). No real configuration or material is read.
 
    Timing (all optional, in the state file): `perPageMs` per page, `overheadMs` per call, `firstCallMs` once (the model load of the first parse),
    `delayMs` flat; the parse record the service would show for the run is visible to `list parses --json [--status S]` while it runs
@@ -19,12 +19,27 @@ import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } f
    shape it), `probeDelayMs` delays each read-only status/list answer (busy CLI startup), and `slowFromPage` + `slowMs` make every window starting at or after that page take that much longer (QA). */
 
 const statePath = process.env.FAKE_MINERU_STATE, logPath = process.env.FAKE_MINERU_LOG;
-const state = JSON.parse(readFileSync(statePath, 'utf8'));
-const save = () => writeFileSync(statePath, JSON.stringify(state));
-// Runs that are watched while they work (`trackParses`, `firstCallMs`) write the state from two processes at once: replace it whole, never half-written.
-const saveAtomic = () => { const temporary = `${statePath}.${process.pid}.tmp`; writeFileSync(temporary, JSON.stringify(state)); renameSync(temporary, statePath); };
+const pause = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+// The test edits the state file while this process starts (a read can land in the middle of its replacement): read it again until it parses.
+const readState = () => {
+  for (let attempt = 0; ; attempt++) {
+    try { return JSON.parse(readFileSync(statePath, 'utf8')); }
+    catch (error) { if (attempt > 400) throw error; pause(15); }
+  }
+};
+const state = readState();
+// The state is written from several processes (this one, its parse, the test): replace it whole, never half-written.
+const saveAtomic = () => {
+  const temporary = `${statePath}.${process.pid}.tmp`;
+  writeFileSync(temporary, JSON.stringify(state));
+  for (let attempt = 0; ; attempt++) {
+    try { return renameSync(temporary, statePath); }
+    catch (error) { if (attempt > 200 || !['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) throw error; pause(15); }
+  }
+};
+const save = saveAtomic;
 const argv = process.argv.slice(2);
-if (logPath) appendFileSync(logPath, `${JSON.stringify({ argv, pid: process.pid })}\n`);
+if (logPath) appendFileSync(logPath, `${JSON.stringify({ argv, pid: process.pid, at: Date.now() })}\n`);
 const out = text => process.stdout.write(`${text}\n`);
 const fail = (text, code = 1) => { process.stderr.write(`${text}\n`); process.exit(code); };
 const flag = name => { const at = argv.indexOf(name); return at < 0 ? undefined : argv[at + 1]; };
@@ -88,9 +103,13 @@ else if (command === 'list' && sub === 'parses') {
   const tracked = !!state.trackParses && !state.idleParses;
   if (tracked) {
     state.nextParseId = (state.nextParseId || 100) + 1;
-    state.active = { id: state.nextParseId, sha256: state.sha256 || 'fake-sha', tier: flag('--tier') ?? 'basic', page_range: `${first}-${last}`, status: state.queueMs ? 'pending' : 'parsing' };
+    state.active = { id: state.nextParseId, sha256: state.sha256 || 'fake-sha', tier: flag('--tier') ?? 'basic', page_range: `${first}-${last}`, status: state.queueMs || state.queueSignal ? 'pending' : 'parsing' };
     saveAtomic();
     if (state.queueMs) setTimeout(() => { state.active = { ...state.active, status: 'parsing' }; saveAtomic(); }, state.queueMs);
+    else if (state.queueSignal) { // queued until the test has seen the queue (a synthetic hold, like `finishSignal`)
+      const leaveQueue = () => { if (existsSync(state.queueSignal)) { state.active = { ...state.active, status: 'parsing' }; saveAtomic(); } else setTimeout(leaveQueue, 25); };
+      leaveQueue();
+    }
   }
   const finish = () => {
     if (tracked || state.firstCallMs) { delete state.active; state.loaded = true; saveAtomic(); }

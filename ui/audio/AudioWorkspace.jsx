@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { ui, uiFormat } from "../i18n.js";
+import React, { useState } from "react";
+import { errorMessage, ui, uiFormat } from "../i18n.js";
+import { useLiveEffect } from "../use-async.js";
 import { Button, Hint, InlineMessage } from "../components/index.js";
 import { formatBytes, formatDateTime } from "../format.js";
 
@@ -7,16 +8,15 @@ import { formatBytes, formatDateTime } from "../format.js";
 export default function AudioWorkspace({ call, onPick }) {
   const [state, setState] = useState({ status: "idle", files: [], truncated: false, error: "" });
   const [query, setQuery] = useState(""), [opened, setOpened] = useState(false);
-  useEffect(() => {
+  useLiveEffect((alive) => {
     if (!opened || !call) return;
-    let alive = true;
     const timer = setTimeout(() => {
       setState((previous) => ({ ...previous, status: "loading" }));
       call("audio.files", { query }).then(
-        (result) => alive && setState({ status: "ready", files: result.files || [], truncated: !!result.truncated, error: "" }),
-        (error) => alive && setState({ status: "error", files: [], truncated: false, error: String(error.message || error) }));
+        (result) => alive() && setState({ status: "ready", files: result.files || [], truncated: !!result.truncated, error: "" }),
+        (error) => alive() && setState({ status: "error", files: [], truncated: false, error: errorMessage(error) }));
     }, query ? 250 : 0);
-    return () => { alive = false; clearTimeout(timer); };
+    return () => clearTimeout(timer);
   }, [call, opened, query]);
   return (
     <details className="audio-workspace" onToggle={(event) => setOpened(event.currentTarget.open)}>

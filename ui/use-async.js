@@ -1,11 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
-import { uiMessage } from './i18n.js';
+import { errorMessage } from './i18n.js';
 
 /* The busy / error / unmounted bookkeeping every action button used to write by hand.
    `run(kind, fn)` marks `kind` as working while `fn` runs, keeps one run per kind in flight, turns a failure into a
    readable message (uiMessage) and never reports to a component that has gone away. */
 
-const messageOf = (failure) => uiMessage(String(failure?.message || failure || ''));
+const messageOf = errorMessage;
+export { errorMessage };
+
+/**
+ * useEffect for work that answers later: `effect(isLive)` gets a function that is true until the effect is cleaned up (the
+ * component left or `deps` changed), so a late answer is dropped instead of written into state that is gone. It may return its
+ * own cleanup. Replaces the hand-written `let live = true; … return () => { live = false; }`.
+ */
+export function useLiveEffect(effect, deps) {
+  useEffect(() => {
+    const scope = liveScope();
+    const cleanup = effect(scope.isLive);
+    return () => { scope.end(); if (typeof cleanup === 'function') cleanup(); };
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/** The flag behind useLiveEffect, without React: `isLive()` is true until `end()`. */
+export function liveScope() {
+  let live = true;
+  return { isLive: () => live, end() { live = false; } };
+}
 
 /** The state machine behind useAsyncAction: no React, so it runs (and is tested) on its own. */
 export function createAsyncRunner({ onChange = () => {}, toMessage = messageOf, exclusive = false } = {}) {

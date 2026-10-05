@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale, getUiLanguage } from "./i18n.js";
+import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React, { useEffect, useMemo, useState } from "react";
 import Markdown from "./Markdown.jsx";
@@ -12,6 +12,7 @@ import PageScope, { usePageScope } from './PageScope.jsx';
 import { Badge, Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, LoadingState, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 import { useStudy } from "./study-context.jsx";
+import { formatDateTime } from './format.js';
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
    多选后可以先做零 token 的质量检测，再把整组交给主会话设计骨架、
@@ -33,7 +34,7 @@ const fromKey = (key) => {
 };
 const ago = (at) => {
   const d = new Date(at);
-  return Number.isFinite(d.getTime()) ? d.toLocaleString(uiLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+  return Number.isFinite(d.getTime()) ? formatDateTime(d, 'stamp') : "";
 };
 
 function NodeTree({ skeleton, onPractice }) {

@@ -1,10 +1,11 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
 import PageScope, { usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { Button, ErrorState, Hint, LoadingState, SegmentedControl } from './components/index.js';
 import { FullscreenButton, ZoomControls, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
+import { joinMeta } from './format.js';
 import {
   layoutStructure,
   layoutPath,
@@ -91,7 +92,7 @@ export default function Graph({
       setData(d);
     } catch (e) {
       if (seq.current !== n) return;
-      setError(e?.message || String(e));
+      setError(errorMessage(e));
       setData(null);
     } finally {
       if (seq.current === n) setLoading(false);
@@ -280,9 +281,7 @@ export default function Graph({
           onChange={value => { if (value !== '@selected') { setBrowse(true); setCourse(value); } }}
           showInactive={showInactive} onShowInactive={objectScope ? undefined : setShowInactive} />
         <span className="graph-scope">
-          {scopeLabel}
-          {nodeCount ? uiFormat(" · {0} 个节点", [nodeCount]) : ""}
-          {layout?.columns ? uiFormat(" · {0} 列", [layout.columns]) : ""}
+          {joinMeta([scopeLabel, nodeCount ? uiFormat("{0} 个节点", [nodeCount]) : "", layout?.columns ? uiFormat("{0} 列", [layout.columns]) : ""])}
         </span>
         <div className="graph-legend" aria-label={ui("图例")}>
           {LEVELS.map((l) => (

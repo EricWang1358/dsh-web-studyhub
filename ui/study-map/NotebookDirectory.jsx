@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Badge, Button, DisclosureToggle, Hint, InlineMessage, LoadingState, foldLabel } from '../components/index.js';
 import { EMPTY_NOTEBOOKS } from './map-model.js';
+import { readText, writeText } from '../storage.js';
+import { joinMeta } from '../format.js';
 
 const OPEN_KEY = 'study-nb-dir-open';
-const readOpen = () => { try { return localStorage.getItem(OPEN_KEY) !== '0'; } catch { return true; } };
+const readOpen = () => readText(OPEN_KEY) !== '0';
 
 /* Cross-workspace notebook directory. Entries are links, not copies: each
    published notebook's study data stays in its own workspace, and clicking a
@@ -37,10 +39,10 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
   );
   const current = list.find((n) => n.current), others = list.filter((n) => !n.current), published = list.filter((n) => n.publishedAt).length;
   const toggle = () => setOpen((value) => {
-    try { localStorage.setItem(OPEN_KEY, value ? '0' : '1'); } catch { /* per-device only */ }
+    writeText(OPEN_KEY, value ? '0' : '1'); // per-device only
     return !value;
   });
-  const stats = (n) => (n.exists ? uiFormat('{0} 个题组{1}', [n.deckCount, n.dueToday ? uiFormat(' · {0} 道到期', [n.dueToday]) : '']) : ui('学习库目录已不可访问'));
+  const stats = (n) => (n.exists ? joinMeta([uiFormat('{0} 个题组', [n.deckCount]), n.dueToday ? uiFormat('{0} 道到期', [n.dueToday]) : '']) : ui('学习库目录已不可访问'));
   const topics = (n) => n.decks.filter((d) => !d.archived).slice(0, 4).map((d) => d.title).join(' · ');
   const runSearch = async (event) => {
     event.preventDefault();
@@ -54,7 +56,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
       const found = await onSearch(q);
       if (request === searchRequest.current) setResults(found);
     } catch (failure) {
-      if (request === searchRequest.current) setSearchError(failure.message || String(failure));
+      if (request === searchRequest.current) setSearchError(errorMessage(failure));
     } finally {
       if (request === searchRequest.current) setSearching(false);
     }

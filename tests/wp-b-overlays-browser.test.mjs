@@ -9,18 +9,19 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 const bundle = await build({ entryPoints: ['tests/helpers/overlays-harness.jsx'], bundle: true, write: false, format: 'iife', platform: 'browser',
   loader: { '.css': 'text', '.jsx': 'jsx' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' });
 const script = bundle.outputFiles[0].text;
-const sleep = ms => new Promise(done => setTimeout(done, ms));
 
 let browser, unavailable = false;
 try { browser = await launchChromium(); }
 catch (error) { if (!/Executable doesn't exist|browserType\.launch/.test(String(error.message))) throw error; unavailable = true; }
 
-async function open(t, scenario) {
+/** `clock: true` gives the page a fake clock that stands still until the test moves it: a timer (the toast's timeout) then runs for as long as the test says, not for as long as a busy machine takes. */
+async function open(t, scenario, { clock = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 900, height: 700 }, locale: 'zh-CN' });
   t.after(() => context.close());
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
+  if (clock) { await page.clock.install({ time: 0 }); await page.clock.pauseAt(1000); }
   await page.goto('about:blank');
   await page.setContent('<!doctype html><html><body><div id="root"></div></body></html>');
   await page.addScriptTag({ content: script });
@@ -72,7 +73,7 @@ test('InlineConfirm focuses cancel on mount and hands focus back to the trigger 
   assert.equal(await page.evaluate(() => document.activeElement?.textContent), '取消');
   await page.keyboard.press('Enter');
   await page.locator('#trigger').waitFor();
-  await sleep(80);
+  await page.waitForFunction(() => document.activeElement?.id === 'trigger');
   assert.equal(await active(page), 'trigger');
   assert.equal((await calls(page)).inlineCancel, 1);
 });
@@ -116,22 +117,23 @@ test('Menu opens with the arrow key, moves with arrows, skips disabled items and
 });
 
 test('an undo toast leaves after its timeout but stays while the pointer is on 撤销', { skip: unavailable }, async t => {
-  const { page } = await open(t, 'toast');
+  const { page } = await open(t, 'toast', { clock: true });
   const undo = page.getByRole('button', { name: '撤销' });
   await undo.waitFor();
   await undo.hover();
-  await sleep(700);
+  await page.clock.runFor(700); // more than the toast's 300 ms timeout
   assert.equal(await undo.count(), 1, 'hovering keeps it past the timeout');
   await page.mouse.move(850, 650);
-  await undo.waitFor({ state: 'detached', timeout: 2000 });
+  await page.clock.runFor(700);
+  await undo.waitFor({ state: 'detached' });
   assert.equal((await calls(page)).dismissed, 1);
 });
 
 test('a keyboard-focused 撤销 also holds the toast', { skip: unavailable }, async t => {
-  const { page } = await open(t, 'toast');
+  const { page } = await open(t, 'toast', { clock: true });
   const undo = page.getByRole('button', { name: '撤销' });
   await undo.focus();
-  await sleep(700);
+  await page.clock.runFor(700);
   assert.equal(await undo.count(), 1);
 });
 

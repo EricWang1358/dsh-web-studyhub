@@ -11,7 +11,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 
 // UI wave 2 · WP-F in a real browser: the dialogs own focus and Escape (#73), the flag save is a footer action (#74), the board's
 // undo goes through the one toast region and is held while hovered (#90), the keyboard and the nav menu still work.
-test('the composed shell: shortcut sheet over a dialog, the flag save, the 更多 menu, the board undo toast', { timeout: 150000 }, async t => {
+test('the composed shell: shortcut sheet over a dialog, the flag save, the 更多 menu, the board undo toast', { timeout: 600000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'wp2f-shell-'));
   const service = new StudyService(join(root, 'library'));
   const card = id => ({ id, kind: 'flashcard', topic: 'Topic', objective: 'Recall', prompt: `Question ${id}`, answer: 'Answer', hint: '', explanation: '', misconception: '', citations: [] });
@@ -31,6 +31,7 @@ test('the composed shell: shortcut sheet over a dialog, the flag save, the 更�
   // Practice: the session hook drives the page (space flips, grading keys answer).
   await page.locator('[data-usage="nav.resume"]').click();
   await page.locator('.question-card').waitFor();
+  await page.locator('.flip-control:not([disabled])').waitFor(); // the card ignores keys while the round is still being started (its flip button is disabled then)
   await page.keyboard.press('Space');
   await page.locator('.grading').waitFor();
 

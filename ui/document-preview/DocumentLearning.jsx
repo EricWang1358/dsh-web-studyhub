@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import Markdown from '../Markdown.jsx';
-import { ui, uiFormat, getUiLanguage } from '../i18n.js';
+import { ui, uiFormat, uiLanguageName } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import MathText from '../MathText.jsx';
-import { Badge, Button, InlineMessage, useToast } from '../components/index.js';
+import { Badge, Button, InlineMessage, useNow, useToast } from '../components/index.js';
+import { usePolling } from '../use-polling.js';
 import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
 import SaveAnswerAsCard from './links/SaveAnswerAsCard.jsx';
+import { JOB_STATUS } from '../../lib/job-status.js';
 
 const statusLabels = {
   ambiguous: '原文中有多处相同文字，请缩小选区或加入前后文后重新选择。',
@@ -72,8 +74,8 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
           <label>{ui('题数')}<input type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
         </div>
         <p className="muted">{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</p>
-        {generateReady && deckId && typeof call === 'function' && <TokenEstimate call={call} enabled
-          request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: getUiLanguage() === 'en' ? 'English' : '中文' }} />}
+        {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled
+          request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: uiLanguageName() }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}
         <Button type="submit" variant="primary" busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
       </form>
@@ -89,7 +91,7 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
   const [question, setQuestion] = useState(''), [answer, setAnswer] = useState('');
   const [deckId, setDeckId] = useState(''), [count, setCount] = useState(3), [kind, setKind] = useState('flashcard');
   const [asking, setAsking] = useState(false), [starting, setStarting] = useState(false), [error, setError] = useState('');
-  const [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set()), [now, setNow] = useState(Date.now);
+  const [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set());
   const [fallbackSnapshot, setFallbackSnapshot] = useState(null), [capabilities, setCapabilities] = useState(null), [bankDecks, setBankDecks] = useState(null);
   const sectionRef = useRef(null), [reveal, setReveal] = useState('');
   const jobsRef = useRef(jobs), noticeRef = useRef(null), publishedRef = useRef(onPublished);
@@ -146,25 +148,17 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
     setReveal('');
   }, [reveal, jobs]);
   const anyActive = jobs.some(isActive);
-  useEffect(() => {
-    if (!anyActive) return undefined;
-    let stopped = false, pending = false;
-    const poll = async () => {
-      if (pending || stopped) return;
-      pending = true;
-      try {
-        for (const job of jobsRef.current.filter(isActive)) {
-          const { job: next } = await call('generation.selection.status', { operationId: job.operationId });
-          if (stopped) return;
-          setJobs(list => upsertJob(list, next));
-          if (!isActive(next) && next.status === 'complete') await publishedRef.current?.(next);
-        }
-      } catch { /* the next poll tries again; the job itself is not affected */ }
-      finally { pending = false; }
-    };
-    const poller = setInterval(poll, 1500), clock = setInterval(() => setNow(Date.now()), 1000);
-    return () => { stopped = true; clearInterval(poller); clearInterval(clock); };
-  }, [anyActive, call]);
+  const now = useNow(1000, { enabled: anyActive });
+  // The running jobs are asked about one at a time (not while the page is hidden); a failed round is just tried again by the next one.
+  usePolling(async () => {
+    try {
+      for (const job of jobsRef.current.filter(isActive)) {
+        const { job: next } = await call('generation.selection.status', { operationId: job.operationId });
+        setJobs(list => upsertJob(list, next));
+        if (!isActive(next) && next.status === 'complete') await publishedRef.current?.(next);
+      }
+    } catch { /* the job itself is not affected */ }
+  }, { intervalMs: 1500, enabled: anyActive });
   // Closing the reader leaves a running job running; say so.
   useEffect(() => () => {
     if (jobsRef.current.some(isActive)) noticeRef.current?.({ text: ui('后台继续生成，完成后进信箱。'), tone: 'info' });
@@ -214,7 +208,7 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
     setError('');
     try {
       await call('job.cancel', { jobId: job.id });
-      setJobs(list => upsertJob(list, { ...job, status: 'cancelling', stageCode: 'cancelling' }));
+      setJobs(list => upsertJob(list, { ...job, status: JOB_STATUS.CANCELLING, stageCode: JOB_STATUS.CANCELLING }));
     } catch (e) { setError(e.message); }
   }
   const shown = jobs.filter(job => !dismissed.has(job.operationId));

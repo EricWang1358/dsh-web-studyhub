@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ui, uiFormat, uiLocale, getUiLanguage } from './i18n.js';
+import { ui, uiFormat, getUiLanguage, uiIsEnglish } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, InlineMessage, useToast } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
+import { useStudy } from './study-context.jsx';
 import { applyPathRefinement, planGenerationPath, stepTitleOf, STEP_CHARS } from '../lib/generation-path.js';
 import { MATTER_WORDS, pathBrief, queueSteps, selectedItems } from './generation-path-flow.js';
 import css from './generation-path.css';
+import { formatNumber } from './format.js';
 
 /* 分步出题路径: for a selection too big to generate in one go. The app cuts it into steps from the chapters (instantly, always valid); a model can name the
    steps, say what each practises and suggest an order; the learner edits, and each step becomes its own generation job, queued in order. Or opens a conversation
@@ -15,7 +17,7 @@ const pageRange = (from, to) => from === to ? uiFormat('第 {0} 页', [from]) : 
 
 /** The step's name in the interface language: a model's name as it is, otherwise from its parts (the same rule as the plan's own: usable chapter names, else the pages). */
 export function stepTitle(step) {
-  if (step.named || getUiLanguage() !== 'en') return step.title;
+  if (step.named || !uiIsEnglish()) return step.title;
   const parts = step.parts || [];
   if (!parts.length) return step.title;
   return stepTitleOf(parts, { range: pageRange, front: ui('前言与目录'), join: ', ', ellipsis: ' … ' });
@@ -26,7 +28,7 @@ export function stepPages(step, title) {
   const runs = (step.ranges || []).filter(run => Number.isInteger(run?.from) && Number.isInteger(run?.to));
   if (!runs.length) return '';
   const documents = new Set(runs.map(run => run.document));
-  const text = runs.map(run => (documents.size > 1 && run.document ? `${run.document} ` : '') + pageRange(run.from, run.to)).join(getUiLanguage() === 'en' ? ', ' : '、');
+  const text = runs.map(run => (documents.size > 1 && run.document ? `${run.document} ` : '') + pageRange(run.from, run.to)).join(ui('、'));
   return runs.length === 1 && documents.size === 1 && String(title).includes(pageRange(runs[0].from, runs[0].to)) ? '' : text;
 }
 
@@ -34,7 +36,8 @@ const matterWord = step => ui(MATTER_WORDS[step.matter]?.zh || MATTER_WORDS.fron
 /** What an optional step is, in words: "可选 · 默认跳过（索引）" / "Optional · skipped by default (Index)". */
 const optionalTag = step => uiFormat('可选 · 默认跳过（{0}）', [matterWord(step)]);
 
-export default function GenerationPath({ sources, selectedIds, onUseStep, gen, course = '', goal = '', call, askInChat, indexCoverage = null, disabled = false, onQueued, onSettings }) {
+export default function GenerationPath({ sources, selectedIds, onUseStep, gen, course = '', goal = '', indexCoverage = null, disabled = false, onQueued, onSettings }) {
+  const { call, askInChat } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-generation-path');
   const items = useMemo(() => selectedItems(sources, selectedIds), [sources, selectedIds]);
@@ -68,7 +71,7 @@ export default function GenerationPath({ sources, selectedIds, onUseStep, gen, c
   }
   // The conversation gets every step (in the language of the screen): the ones switched off are listed as steps to skip.
   const chat = () => askInChat?.(pathBrief({ steps: steps.map(step => ({ ...step, title: stepTitle(step) })), course, goal, indexed, language: getUiLanguage() }));
-  const chars = value => value.toLocaleString(uiLocale());
+  const chars = value => formatNumber(value);
 
   return (
     <section className="gen-path" aria-labelledby="gen-path-title">

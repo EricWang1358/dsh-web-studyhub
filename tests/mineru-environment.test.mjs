@@ -10,6 +10,7 @@ import { closeRecord, historyDir, listRecords, openRecord } from '../lib/mineru-
 import { LOCAL, detectLocal, readLocalEnvironment } from '../lib/mineru-local.js';
 import { startFakeMineru } from './helpers/fake-mineru.mjs';
 import { makePdf } from './helpers/pdf.mjs';
+import { patientCli, readJsonFile, sleep, until, writeJsonFile } from './helpers/wait.mjs';
 
 /* The 运行环境 of a conversion: WHAT is doing the work (local: the mineru version, the tier, the model folder in use, whether its service is up, the window
    size; cloud: the model version, the language, the piece limits), captured when the conversion starts, kept in the history record without any path, and the
@@ -25,9 +26,9 @@ async function fakeCli(t, state = {}) {
   const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl');
   await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: 120, modelsReady: true, ...state })); await writeFile(logPath, '');
   const env = { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath };
-  return { work, cli: { file: process.execPath, prefix: [FAKE], env }, statePath, logPath, env,
-    set: async patch => writeFile(statePath, JSON.stringify({ ...JSON.parse(await readFile(statePath, 'utf8')), ...patch })),
-    log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line)) };
+  return { work, cli: patientCli({ file: process.execPath, prefix: [FAKE], env }), statePath, logPath, env,
+    set: async patch => writeJsonFile(statePath, { ...await readJsonFile(statePath), ...patch }),
+    log: async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }) };
 }
 
 /* ---------- reading it (read-only) ---------- */
@@ -96,7 +97,7 @@ async function harness(t, { state = {}, cloud = true, pages = 120, limits = {}, 
   const clock = { time: 9_000_000 };
   const options = { mineru: { ...(server ? { baseUrl: server.baseUrl } : {}), now: () => clock.time, limits,
     sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); },
-    local: { cli: fake.cli, home: fake.work, modelsCli: { file: process.execPath, prefix: [FAKE], env: fake.env } } } };
+    local: { cli: fake.cli, home: fake.work, modelsCli: patientCli({ file: process.execPath, prefix: [FAKE], env: fake.env }) } } };
   const open = () => new StudyService(root, options);
   let service = open();
   const h = { home, root, fake, server, get service() { return service; },
@@ -104,16 +105,16 @@ async function harness(t, { state = {}, cloud = true, pages = 120, limits = {}, 
     call: (action, args) => service.call(action, args),
     jobs: async (args = {}) => (await service.call('snapshot', args)).jobs.filter(job => job.type === 'pdf-convert'),
     history: async (args = {}) => service.call('mineru.history.list', args),
-    until: async (condition, what) => { for (let i = 0; i < 1500; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error(`Timed out waiting for ${what}`); },
+    until,
     upload: async (bytes, name = 'Book.pdf') => {
       const { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name, size: bytes.length });
       for (let offset = 0; offset < bytes.length; offset += chunkBytes) await service.call('mineru.upload.chunk', { uploadId, offset, data: bytes.subarray(offset, offset + chunkBytes).toString('base64') });
       await service.call('mineru.upload.finish', { uploadId });
       return uploadId;
     },
-    finished: async status => { const job = await h.until(async () => { const [entry] = await h.jobs(); return entry && (status ? entry.status === status : ['complete', 'failed', 'cancelled'].includes(entry.status)) ? entry : null; }, 'the end of the conversion'); await service.call('job.wait', { jobId: job.id, timeoutSeconds: 10 }); return job; } };
+    finished: async status => { const job = await h.until(async () => { const [entry] = await h.jobs(); return entry && (status ? entry.status === status : ['complete', 'failed', 'cancelled'].includes(entry.status)) ? entry : null; }, 'the end of the conversion'); await service.call('job.wait', { jobId: job.id, timeoutSeconds: 120 }); return job; } };
   t.after(async () => {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await sleep(20);
     service.dispose(); await server?.close();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await rm(home, { recursive: true, force: true }); await rm(root, { recursive: true, force: true });
@@ -138,7 +139,8 @@ test('a local conversion starts with its environment: what runs it, which model,
 });
 
 test('the service state follows the work: confirmed up when a window finishes, and nothing is asked of the CLI while a window runs', async t => {
-  const h = await harness(t, { cloud: false, limits: { windowPages: 50 } });
+  // (the read-only liveness question has its own tests, tests/mineru-liveness-service.test.mjs; it is due a few seconds into a window, which a busy machine can reach)
+  const h = await harness(t, { cloud: false, limits: { windowPages: 50, livenessMs: 0 } });
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 120 })), route: 'local' });
   const done = await h.finished();
   assert.equal(done.service.state, 'running');

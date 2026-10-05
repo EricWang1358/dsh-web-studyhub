@@ -12,6 +12,7 @@ import { StudyService } from '../lib/service.js';
 import { batchDocuments, readAudioBatch, saveAudioBatch } from '../lib/audio-batch.js';
 import { checkpoints } from '../lib/audio-import.js';
 import { storeDocuments } from '../lib/audio-job.js';
+import { settleJob, until } from './helpers/wait.mjs';
 
 const KEY = 'AIzaAudioBatchTest_00000000000001';
 test('BOM-prefixed audio manifests and checkpoints remain readable without rewriting text', async t => {
@@ -72,10 +73,6 @@ export function wav(fill) {
   header.write('data', 36); header.writeUInt32LE(data.length, 40);
   return Buffer.concat([header, data]);
 }
-const until = async condition => {
-  for (let i = 0; i < 400; i++) { if (await condition()) return; await new Promise(resolve => setTimeout(resolve, 10)); }
-  throw new Error('Timed out waiting for batch progress');
-};
 async function fixture(t, { hold = false, fail = () => false, limit = 2 } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'audio-batch-')), root = join(dir, 'library'), previous = process.env.DSH_HOME;
   process.env.DSH_HOME = join(dir, 'home');
@@ -105,7 +102,7 @@ async function fixture(t, { hold = false, fail = () => false, limit = 2 } = {}) 
   const a = join(dir, 'A.wav'), b = join(dir, 'B.wav');
   await writeFile(a, wav(1)); await writeFile(b, wav(2));
   t.after(async () => { for (const release of held.values()) release(); if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(dir, { recursive: true, force: true }); });
-  const wait = job => service.call('job.wait', { jobId: job.jobId || job.id, timeoutSeconds: 15 });
+  const wait = job => settleJob(service, job.jobId || job.id);
   return { dir, root, service, a, b, calls, prompts, held, wait };
 }
 async function upload(service, name, bytes) {

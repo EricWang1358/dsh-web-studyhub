@@ -47,7 +47,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
       <p>{uiFormat("把「{0}」的概念、原理和例子连成一条线，再看看它适用于什么情境。", [topic])}</p>
       <p className="muted">{ui("结合本次材料，生成可直接阅读的讲解；有公式或推导时逐步展开。")}</p>
       {!running && <Button variant="primary" disabled={blocked} onClick={() => onTeach("lesson")}>{ui("生成完整讲解")}</Button>}
-      {!running && <TokenEstimate call={call} action="workflow.teaching.estimate" enabled={!!call && !!sessionId} request={{ id: sessionId, stepId, mode: "lesson" }} />}
+      {!running && <TokenEstimate action="workflow.teaching.estimate" enabled={!!call && !!sessionId} request={{ id: sessionId, stepId, mode: "lesson" }} />}
     </div>}
     <TeachingCitations citations={record.citations} sources={resources.sources} />
     {running && !remedyRunning && <div className="wf-teaching-progress" role="status"><span className="wf-progress-mark" aria-hidden="true" /><div><strong>{teaching.mode === "improve" ? ui("正在改进这篇讲解") : content ? ui("正在补充讲解") : ui("正在组织概念与例子")}</strong><p>{ui("完成后会显示在这里。你可以继续阅读，也可以稍后回来。")}</p></div></div>}

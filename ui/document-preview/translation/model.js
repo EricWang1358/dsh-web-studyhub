@@ -7,6 +7,8 @@
    (only its bar) or, in 隐藏译文, hidden unless the learner asked for this one. */
 import { paragraphKey } from '../../../lib/passage-translation.js';
 import { isActiveJob } from '../../../lib/job-status.js';
+import { browserStorage } from '../../storage.js';
+import { formatClock } from '../../clock.js';
 
 /** 逐段对照 | 左右分栏 | 仅译文 | 隐藏译文. */
 export const DISPLAY_MODES = Object.freeze(['pairs', 'side', 'only', 'hidden']);
@@ -18,11 +20,10 @@ export const TRANSLATION_SETTINGS_KEY = 'study-reader-translation';
 export const TRANSLATION_DEFAULTS = Object.freeze({ mode: 'pairs' });
 
 export const normalizeTranslationSettings = raw => ({ mode: DISPLAY_MODES.includes(raw?.mode) ? raw.mode : TRANSLATION_DEFAULTS.mode });
-const storageOf = () => { try { return globalThis.localStorage || null; } catch { return null; } };
-export function loadTranslationSettings(storage = storageOf()) {
+export function loadTranslationSettings(storage = browserStorage()) {
   try { return normalizeTranslationSettings(JSON.parse(storage?.getItem(TRANSLATION_SETTINGS_KEY) || 'null')); } catch { return { ...TRANSLATION_DEFAULTS }; }
 }
-export function saveTranslationSettings(settings, storage = storageOf()) {
+export function saveTranslationSettings(settings, storage = browserStorage()) {
   try { storage?.setItem(TRANSLATION_SETTINGS_KEY, JSON.stringify(normalizeTranslationSettings(settings))); } catch { /* blocked storage: the choice still applies for this session */ }
 }
 /** The mode that is drawn: 左右分栏 needs room. */
@@ -133,8 +134,7 @@ export function jobClock(job, now = Date.now()) {
   if (!job || job.status === 'queued') return '';
   const start = Date.parse(job.runStartedAt || job.startedAt || '');
   if (!Number.isFinite(start)) return '';
-  const end = job.finishedAt ? Date.parse(job.finishedAt) : now, seconds = Math.max(0, Math.floor((end - start) / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return formatClock((job.finishedAt ? Date.parse(job.finishedAt) : now) - start);
 }
 
 /** done / total as a fraction 0..1 for the progress bar. */

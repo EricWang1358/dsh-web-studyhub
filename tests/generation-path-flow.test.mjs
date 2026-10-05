@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pathBrief, queueSteps, selectedItems } from '../ui/generation-path-flow.js';
+import { withStudy } from './helpers/study-services.mjs';
 
 /* The flow around a step plan: the brief that opens a conversation (so the learner can shape the chapters with the AI), queuing the steps as generation jobs
    in order, and the documents of the selection the plan is made from. Pure; the call is injected. */
@@ -59,15 +60,15 @@ test('the panel: steps with sizes and a queue button for a big selection, nothin
   const { createRequire } = await import('node:module');
   const React = (await import('react')).default;
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const out = await build({ stdin: { contents: "export { default as GenerationPath } from './ui/GenerationPath.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
+  const out = await build({ stdin: { contents: "export { default as GenerationPath } from './ui/GenerationPath.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
     bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', out.outputFiles[0].text)(createRequire(import.meta.url), mod, mod.exports);
-  const { GenerationPath, setUiLanguage } = mod.exports;
+  const { GenerationPath, StudyServicesContext, setUiLanguage } = mod.exports;
   const page = (n, chars) => ({ id: `b${n}`, title: `Book · p.${n}`, text: undefined, chars, document: { id: 'h', page: n, totalPages: 12, bookTitle: 'Book', origin: 'converted', converter: 'mineru' } });
   const big = Array.from({ length: 12 }, (_, i) => page(i + 1, 40_000)); // 480k chars
   const noop = () => {};
-  const render = (props = {}) => renderToStaticMarkup(React.createElement(GenerationPath, { sources: big, selectedIds: big.map(source => source.id), gen: {}, course: 'OS', call: noop, askInChat: noop, setNotice: noop, onUseStep: noop, ...props }));
+  const render = (props = {}, services = {}) => renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(GenerationPath, { sources: big, selectedIds: big.map(source => source.id), gen: {}, course: 'OS', setNotice: noop, onUseStep: noop, ...props }), { call: noop, askInChat: noop, ...services }));
   const zh = render();
   assert.match(zh, /分步生成路径/);
   assert.match(zh, /第 1 步/);
@@ -76,7 +77,7 @@ test('the panel: steps with sizes and a queue button for a big selection, nothin
   assert.match(zh, /按路径逐步出题 · \d+ 步依次排队/);
   assert.match(zh, /data-usage="generate\.path-queue"/);
   assert.equal(render({ sources: big.slice(0, 2), selectedIds: ['b1', 'b2'] }), '', 'a small selection needs no path');
-  assert.doesNotMatch(render({ askInChat: undefined }), /和 AI 聊聊怎么学/, 'no chat to open: no button');
+  assert.doesNotMatch(render({}, { askInChat: undefined }), /和 AI 聊聊怎么学/, 'no chat to open: no button');
   const indexed = render({ indexCoverage: { indexed: big.map(source => source.id), stale: [], missing: [] } });
   assert.match(indexed, /检索索引已建好/);
   setUiLanguage('en');

@@ -1,3 +1,4 @@
+import { isoDay } from '../clock.js';
 /* Pure helpers behind the dashboard charts (plain inline SVG, no chart
    library). Nothing here touches React or the DOM, so it is unit-tested. */
 
@@ -23,8 +24,7 @@ export function niceTicks(max, target = 5) {
   return ticks;
 }
 
-const pad = (n) => String(n).padStart(2, '0');
-const keyOf = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const keyOf = isoDay;
 const parseKey = (key) => {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(y, m - 1, d);

@@ -36,9 +36,18 @@ export async function findChromium(env = process.env) {
   return null;
 }
 
-/** Launch headless Chromium through the repository's Playwright. */
+/** Launch headless Chromium through the repository's Playwright.
+ *  STUDY_QA_ACTION_TIMEOUT_MS (set by scripts/test.mjs) stretches Playwright's 30 s waits for the launch and for every action and navigation of the pages
+ *  made from this browser: a whole test suite shares the machine, and a wait is a deadline for something to happen, not a measure of speed. */
 export async function launchChromium(options = {}) {
   const { chromium } = await import("playwright");
   const executablePath = await findChromium();
-  return chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}), ...options });
+  const patience = Number(process.env.STUDY_QA_ACTION_TIMEOUT_MS) || 0;
+  const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}), ...(patience ? { timeout: patience } : {}), ...options });
+  if (patience) {
+    const newContext = browser.newContext.bind(browser), newPage = browser.newPage.bind(browser);
+    browser.newContext = async (...args) => { const context = await newContext(...args); context.setDefaultTimeout(patience); return context; };
+    browser.newPage = async (...args) => { const page = await newPage(...args); page.setDefaultTimeout(patience); return page; };
+  }
+  return browser;
 }

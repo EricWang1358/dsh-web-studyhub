@@ -8,6 +8,7 @@ import { saveJevSettings } from '../lib/jev-settings.js';
 import { createJevUsage } from '../lib/jev-usage.js';
 import { createJevRuntime, mapLimit } from '../lib/jev-runtime.js';
 import { FAKE_KEY, startFakeJev } from './helpers/fake-jev.mjs';
+import { until } from './helpers/wait.mjs';
 
 /* The gate every Jev call goes through: nothing is sent without the master switch, the feature switch, a key and the confirmation,
    and an unavailable Jev never breaks the flow that asked: the answer is { ok: false, reason } and the caller carries on as before. */
@@ -79,7 +80,7 @@ test('every failure falls back: the answer says why and nothing is thrown', asyn
   const bad = await harness(t, { answer: () => ({ type: 'noul', noul: 7 }) });
   await bad.open();
   assert.equal((await ask(bad.runtime)).reason, 'bad-response');
-  const slow = await harness(t, { delayMs: 300 });
+  const slow = await harness(t, { delayMs: 30_000 }); // never answers within the 40 ms the runtime allows
   slow.runtime = createJevRuntime({ baseUrl: slow.fake.baseUrl, timeoutMs: 40, maxRetries: 0, usage: createJevUsage() });
   await slow.open();
   assert.equal((await ask(slow.runtime)).reason, 'timeout');
@@ -102,12 +103,14 @@ test('a failure is remembered for the settings page and cleared by the next succ
 });
 
 test('a cancelled job stays cancelled: the abort is not swallowed as a fallback', async t => {
-  const h = await harness(t, { delayMs: 100 });
+  const h = await harness(t, { delayMs: 30_000 }); // the answer never comes in time: only the abort ends the request
   await h.open();
   const controller = new AbortController();
   const pending = ask(h.runtime, 'courseSuggest', { signal: controller.signal });
-  setTimeout(() => controller.abort(new Error('job cancelled')), 20);
-  await assert.rejects(pending, error => error.message === 'job cancelled');
+  const outcome = assert.rejects(pending, error => error.message === 'job cancelled');
+  await until(() => h.fake.requests.length >= 1, 'the request to reach the fake'); // cancelled while it is in flight
+  controller.abort(new Error('job cancelled'));
+  await outcome;
 });
 
 test('tokens are counted per feature on success only, and the key test is counted apart', async t => {

@@ -6,6 +6,7 @@
    To add a setting (accent colour, density...): give it a default and its allowed values below, and its labels; nothing else changes.
    The allowed values are also the whitelist for what an import may set. */
 import { FONT_IDS, FONT_PRESETS, TITLE_MODES, cleanFontName, customFontStack } from './font-presets.js';
+import { browserStorage } from './storage.js';
 
 export const THEME_KEY = 'study-theme';
 export const INTERFACE_KEY = 'study-interface';
@@ -57,17 +58,16 @@ export function normalizeAppearance(value) {
   return out;
 }
 
-const storageOf = () => { try { return globalThis.localStorage || null; } catch { return null; } };
 const read = (storage, key) => { try { return storage?.getItem(key) ?? null; } catch { return null; } };
 const write = (storage, key, text) => { try { storage?.setItem(key, text); } catch { /* storage is blocked: the choice still applies for this session */ } };
 
-export function loadAppearance(storage = storageOf()) {
+export function loadAppearance(storage = browserStorage()) {
   let rest = null;
   try { rest = JSON.parse(read(storage, INTERFACE_KEY) || 'null'); } catch { /* corrupt: defaults */ }
   return normalizeAppearance({ ...(rest && typeof rest === 'object' ? rest : null), theme: read(storage, THEME_KEY) });
 }
 
-export function saveAppearance(value, storage = storageOf()) {
+export function saveAppearance(value, storage = browserStorage()) {
   const { theme, ...rest } = normalizeAppearance(value);
   write(storage, THEME_KEY, theme);
   write(storage, INTERFACE_KEY, JSON.stringify(rest));

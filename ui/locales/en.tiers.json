@@ -71,7 +71,6 @@
   "「{0}」的掌握度 {1}%（{2} 题）": "Mastery of “{0}”: {1}% ({2} questions)",
   "所有课程的掌握度 {0}%": "Mastery across all courses: {0}%",
   "按课程里题组和主题的顺序，这是第一个还没掌握的主题。": "In the order of the course's decks and topics, this is the first topic you have not mastered yet.",
-  " · 课程里下一个没掌握的主题 · 掌握 {0}%": " · next unmastered topic in the course · mastery {0}%",
   "学过 {0} / {1} 题": "Studied {0} / {1} questions",
   "到期": "Due",
   "学过": "Studied",

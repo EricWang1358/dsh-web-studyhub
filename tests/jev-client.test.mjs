@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JEV, JevError, JEV_MESSAGES, JEV_MESSAGES_EN, createJevClient, choice, jevMessage, noul, score } from '../lib/jev.js';
 import { FAKE_KEY, startFakeJev } from './helpers/fake-jev.mjs';
+import { until } from './helpers/wait.mjs';
 
 /* The Jev (TypeSafe AI System One) client against a local fake that follows docs.typesafe.ai. */
 
@@ -120,6 +121,8 @@ test('Retry-After is honoured when it is short, and a long one is reported inste
 test('a request that takes longer than the timeout is a timeout; a closed port is a network failure; both are retried', async t => {
   const slow = await harness(t, { delayMs: 300 });
   await assert.rejects(clientFor(slow, { timeoutMs: 40, maxRetries: 1 }).decide('s', { q: noul('a?') }), error => error.code === 'timeout' && error.retryable === true);
+  // (the fake only counts a request once the connection has reached it, which on a busy machine can be after the client has given up on it)
+  await until(() => slow.requests.length >= 2, 'both attempts to reach the fake');
   assert.equal(slow.requests.length, 2, 'retried once');
   const gone = await startFakeJev();
   const baseUrl = gone.baseUrl;
@@ -128,11 +131,13 @@ test('a request that takes longer than the timeout is a timeout; a closed port i
 });
 
 test('an aborted signal stops at once with its own reason and never retries', async t => {
-  const fake = await harness(t, { delayMs: 200 });
+  const fake = await harness(t, { delayMs: 30_000 }); // the answer never comes in time: only the abort ends the request
   const controller = new AbortController();
   const pending = clientFor(fake).decide('s', { q: noul('a?') }, { signal: controller.signal });
-  setTimeout(() => controller.abort(new Error('cancelled by the learner')), 30);
-  await assert.rejects(pending, error => error.message === 'cancelled by the learner');
+  const outcome = assert.rejects(pending, error => error.message === 'cancelled by the learner');
+  await until(() => fake.requests.length >= 1, 'the request to reach the fake'); // aborted while it is in flight
+  controller.abort(new Error('cancelled by the learner'));
+  await outcome;
   assert.equal(fake.requests.length, 1);
   await assert.rejects(clientFor(fake).decide('s', { q: noul('a?') }, { signal: AbortSignal.abort(new Error('already')) }), error => error.message === 'already');
   assert.equal(fake.requests.length, 1, 'an already aborted signal sends nothing');

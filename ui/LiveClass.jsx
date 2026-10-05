@@ -4,7 +4,7 @@ import LiveAudioMonitor from './LiveAudioMonitor.jsx';
 import LiveNotes from './LiveNotes.jsx';
 import LiveHistory from './LiveHistory.jsx';
 import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
-import { formatClock } from './format.js';
+import { formatClock, joinMeta } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
 import { Button, IconButton, InlineMessage, PageHeader, SetupRequired, useToast } from './components/index.js';
@@ -13,6 +13,7 @@ import { useInjectCss } from './shared.js';
 import css from './live-class.css';
 import CourseField from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
+import { useLiveEffect } from './use-async.js';
 
 // What the host's generator is told to write in, by interface language.
 const GENERATION_LANGUAGE = { en: 'English', zh: '中文' };
@@ -82,11 +83,9 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
   const [readiness, setReadiness] = useState(initialReadiness);
-  useEffect(() => {
+  useLiveEffect((alive) => {
     if (!visible || initialReadiness || !call) return;
-    let alive = true;
-    Promise.resolve(call('audio.preflight', {})).then((result) => { if (alive && result && typeof result === 'object') setReadiness(result); }, () => {});
-    return () => { alive = false; };
+    Promise.resolve(call('audio.preflight', {})).then((result) => { if (alive() && result && typeof result === 'object') setReadiness(result); }, () => {});
   }, [visible, call, initialReadiness]);
   const refresh = useCallback(async () => {
     const result = await call('live.list'); setSessions(result.sessions || []);
@@ -171,7 +170,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
         <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>
-        <span className="muted">{uiFormat('已检查 {0} / {1} 句 · 已润色 {2} 句', [correction.covered, total, polished])}{correction.pending > 0 ? uiFormat(' · 待处理 {0}', [correction.pending]) : ''}</span>
+        <span className="muted">{joinMeta([uiFormat('已检查 {0} / {1} 句 · 已润色 {2} 句', [correction.covered, total, polished]), correction.pending > 0 ? uiFormat('待处理 {0}', [correction.pending]) : ''])}</span>
         <span className="live-legend" aria-label={ui('右侧标记说明')}>
           <span><i className="live-dot polished" aria-hidden="true" />{ui('已润色')}</span>
           <span><i className="live-dot checked" aria-hidden="true" />{ui('已检查未改')}</span></span>

@@ -11,6 +11,13 @@ const DATE_SHAPES = {
   day: { year: 'numeric', month: 'short', day: 'numeric' },
   // 10/4, 08:05 AM  /  10/4 08:05: a moment inside the current year, for logs and histories
   stamp: { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' },
+  // 2026/10/4  /  10/4/2026: the plain numeric date
+  date: { year: 'numeric', month: 'numeric', day: 'numeric' },
+  // Sun, Oct 4  /  10月4日周日: a day heading inside the current year; weekdayYear adds the year
+  weekday: { weekday: 'short', month: 'short', day: 'numeric' },
+  weekdayYear: { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' },
+  // October 4 Sun  /  10月4日周日: today's date as a heading
+  longDay: { month: 'long', day: 'numeric', weekday: 'short' },
 };
 
 const timeOf = (value) => {
@@ -25,16 +32,13 @@ export function formatDateTime(value, shape = 'short') {
   return new Date(time).toLocaleString(uiLocale(), DATE_SHAPES[shape] || DATE_SHAPES.short);
 }
 
-/**
- * The clock of a running or counted-down thing: m:ss, h:mm:ss from one hour. Whole seconds, rounded DOWN, so a clock
- * never shows a second that has not finished (a countdown reads 0:00 only when it is over by a whole second).
- */
-export function formatClock(ms) {
-  const total = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
-  const hours = Math.floor(total / 3600), minutes = Math.floor(total % 3600 / 60), seconds = total % 60;
-  const pad = (value) => String(value).padStart(2, '0');
-  return hours ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
-}
+/** A day heading: weekday, month and day, with the year only when it is not the current one. `now` is injectable for tests. */
+export const formatDay = (value, now = new Date()) => {
+  const time = timeOf(value);
+  return Number.isFinite(time) ? formatDateTime(time, new Date(time).getFullYear() === now.getFullYear() ? 'weekday' : 'weekdayYear') : '';
+};
+
+export { formatClock, formatIndex, isoDay } from './clock.js';
 
 /** A length in the words a person would say: "4 分 20 秒", "45 秒", "1 小时 5 分". Rounded to the second; '' when missing. */
 export function formatDuration(ms) {
@@ -66,6 +70,15 @@ export function formatAgo(value, now = Date.now()) {
   if (minutes < 24 * 60) return minutes < 120 ? ui('1 小时前') : uiFormat('{0} 小时前', [Math.floor(minutes / 60)]);
   return formatDateTime(time, 'stamp');
 }
+
+/** The parts of one meta line ("录音时长 3 分钟 · 已校对"), the empty ones left out, joined by the middle dot every line of that kind uses. Each part is its own translated sentence. */
+export const joinMeta = (parts) => parts.filter(part => part !== undefined && part !== null && part !== false && part !== '').join(META_DOT);
+/** The separator itself, for a part that is appended on its own (a <small> after a label). It is punctuation, not a sentence: not translated. */
+export const META_DOT = ' · ';
+/** Short items in one line: "第 1 步、第 2 步" / "Step 1, Step 2". */
+export const formatList = (items) => items.join(ui('、'));
+/** Clauses of one sentence: "原因甲；原因乙" / "reason a; reason b". */
+export const formatClauses = (items) => items.join(ui('；'));
 
 const formatters = new Map();
 /** A number in the interface language; `options` are Intl.NumberFormat's. '' for anything that is not a finite number. */

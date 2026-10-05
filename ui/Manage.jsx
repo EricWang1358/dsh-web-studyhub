@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React, { useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
@@ -7,6 +7,7 @@ import { useStudy } from "./study-context.jsx";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { Badge, Banner, Button, ConfirmDialog, PageHeader, Panel, useToast } from "./components/index.js";
+import { formatDateTime } from './format.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -171,7 +172,7 @@ export default function Manage({
               </div>
               <Markdown className="md-title manage-card__prompt" text={card.prompt} />
               {card.flag && <p className="muted">{ui("标记：")}{card.flag}</p>}
-              {card.slain && <p className="muted">{ui("原题组：")}{card.slain.deckTitle} · {new Date(card.slain.at).toLocaleDateString(uiLocale())}</p>}
+              {card.slain && <p className="muted">{ui("原题组：")}{card.slain.deckTitle} · {formatDateTime(card.slain.at, 'date')}</p>}
             </div>
             <div className="manage-card__actions">
               <Button disabled={busy} onClick={() => act(

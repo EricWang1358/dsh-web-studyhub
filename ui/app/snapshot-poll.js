@@ -1,3 +1,4 @@
+import { failureText } from '../failure.js';
 /* What one tick of the library poll does (ui-consistency #125). The loop itself, its hidden-tab silence, its immediate
    catch-up and its backoff table are ui/use-polling.js; this is the part that is the library's own:
      - a snapshot that comes back unchanged slows the rhythm (the loop counts the `unchanged` answers);
@@ -23,7 +24,7 @@ export function createSnapshotPoll({ refresh, readData, readToken, setSyncIssue,
         if (token === readToken()) setSyncIssue('');
         unchanged = !woke && same(before, next);
       } catch (error) {
-        if (token === readToken()) setSyncIssue(error?.message || String(error));
+        if (token === readToken()) setSyncIssue(failureText(error));
       }
       woke = false;
       return { unchanged, running: !!isWorking() };

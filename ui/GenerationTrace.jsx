@@ -7,6 +7,7 @@ import { JobUsage } from "./TokenUsage.jsx";
 import { formatExactTokens, totalTokens } from "../lib/token-usage.js";
 import { retrievalSummary } from "./large-document-advice.js";
 import { isActiveJob } from "../lib/job-status.js";
+import { joinMeta } from './format.js';
 
 /** Kept for older callers: generation prose from an older backend, in Chinese. */
 export const generationStage = legacyStageText;
@@ -30,10 +31,10 @@ export default function GenerationTrace({ job, openAgent }) {
     {!steps.length && <p className="muted">{job.status === "queued" ? ui("正在排队，还没有开始。") : ui("还没有步骤记录。")}</p>}
     {steps.length > 0 && <ol>{steps.map((step) => <li key={step.id}>
       <strong>{stepLabel(step, job)}</strong>
-      <small>{status[step.status] || step.status}
-        {step.tokenUsage ? ` · ${formatExactTokens(totalTokens(step.tokenUsage))} tok` : ""}
-        {step.startedAt && (step.finishedAt ? uiFormat(" · {0} 秒", [seconds(step.startedAt, Date.parse(step.finishedAt))])
-          : uiFormat(" · 已等待 {0} 秒", [seconds(step.startedAt, now)]))}
+      <small>{joinMeta([status[step.status] || step.status,
+        step.tokenUsage ? `${formatExactTokens(totalTokens(step.tokenUsage))} tok` : "",
+        step.startedAt && (step.finishedAt ? uiFormat("{0} 秒", [seconds(step.startedAt, Date.parse(step.finishedAt))])
+          : uiFormat("已等待 {0} 秒", [seconds(step.startedAt, now)]))])}
       </small>
       <AgentLink childId={step.childId} openAgent={openAgent} label={ui("查看后台助手")} />
     </li>)}</ol>}

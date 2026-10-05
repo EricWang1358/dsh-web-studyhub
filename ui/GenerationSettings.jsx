@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ui, uiFormat } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import { Button, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
 import { kinds } from './shared.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_KINDS, GENERATION_LANGUAGES,
@@ -73,7 +73,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act }) {
         setEditor(previous => ({ ...previous, baseline: next, values: version.current === revision ? next : previous.values }));
         toast.success(ui(version.current === revision ? '出题偏好已保存' : '出题偏好已保存；后续修改尚未保存。'));
       }, { rethrow: true });
-    } catch (cause) { if (current()) setError(cause?.message || String(cause)); }
+    } catch (cause) { if (current()) setError(errorMessage(cause)); }
     finally { if (current()) { pending.current = null; setWorking(false); } }
   };
   const field = (key, control, note) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]}>{control}</Field>;

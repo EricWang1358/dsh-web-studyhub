@@ -30,6 +30,7 @@ import mineruCopy from './locales/en.mineru.json';
 import reader from './locales/en.reader.json';
 import wave4 from './locales/en.wave4.json';
 import wave5a from './locales/en.wave5a.json';
+import wave5b from './locales/en.wave5b.json';
 import selectionCopy from './locales/en.selection.json';
 import original from './locales/en.original.json';
 import links from './locales/en.links.json';
@@ -53,6 +54,7 @@ import feedbackLoop from './locales/en.feedback-loop.json';
 import pages from './locales/en.pages.json';
 import markerInstall from './locales/en.marker-install.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
+import { failureText } from './failure.js';
 
 export const ENGLISH_SOURCES = {
   'en.json': base,
@@ -83,6 +85,7 @@ export const ENGLISH_SOURCES = {
   'en.reader.json': reader,
   'en.wave4.json': wave4,
   'en.wave5a.json': wave5a,
+  'en.wave5b.json': wave5b,
   'en.selection.json': selectionCopy,
   'en.original.json': original,
   'en.links.json': links,
@@ -133,6 +136,10 @@ const browserLanguage = () => {
 let language = browserLanguage();
 try { const saved = localStorage.getItem(KEY); if (['en', 'zh'].includes(saved)) language = saved; } catch {}
 export const getUiLanguage = () => language;
+/** For logic that has to pick DATA by language (the language a model answers in, which host text to keep). A sentence of the interface is never chosen with it: that is ui(). */
+export const uiIsEnglish = () => language === 'en';
+const LANGUAGE_NAMES = { en: 'English', zh: '中文' };
+export const uiLanguageName = () => LANGUAGE_NAMES[language];
 export const uiLocale = () => language === 'en' ? 'en-US' : 'zh-CN';
 export function setUiLanguage(next) {
   if (!['en','zh'].includes(next)) return;
@@ -155,6 +162,8 @@ export function ui(value) {
 export const uiLabels = labels => new Proxy(labels, { get: (target, key) => ui(target[key]) });
 /** Application diagnostics only; unknown provider details are kept verbatim. */
 export const uiMessage = value => localizeAppMessage(ui(value), language);
+/** What a failure says, for the learner: its message (or the value thrown) through uiMessage, so an English page never shows a Chinese host message. */
+export const errorMessage = failure => uiMessage(failureText(failure));
 export function uiFormat(template, values) {
   return ui(template).replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
 }

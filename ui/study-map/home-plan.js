@@ -1,7 +1,9 @@
-import { ui, uiFormat, uiLocale } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 import { documentCount } from '../generation-status.js';
 import { TERMS } from '../mastery-terms.js';
 import { workspaceFilePrompt } from '../agent-prompts/library.js';
+import { joinMeta, formatDateTime } from '../format.js';
+import { JOB_TYPES } from '../../lib/job-status.js';
 
 /**
  * What the home card offers. The card offers exactly one action: a newcomer's
@@ -21,7 +23,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
      (D1): add a material → generate from it → check and publish the draft.
      JSON import stays one link away for people who already have questions. */
   const materials = documentCount(data.sources || []), newestDraft = data.drafts?.at(-1);
-  const generating = activeJobs.some((job) => job.type !== 'draft-repair');
+  const generating = activeJobs.some((job) => job.type !== JOB_TYPES.DRAFT_REPAIR);
   const jsonLink = [ui('已有题目？导入 JSON 题组'), importLibrary];
   const starter = data.decks.length ? null
     : newestDraft ? { kind: 'empty', step: 2, eyebrow: ui('下一步'), headline: ui('检查草稿，就能开始练习'),
@@ -47,7 +49,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const headline = starter ? starter.headline : today.ahead ? ui('今天的任务都完成了') : breakdown.join(' · ') || ui('暂无可学习的题目');
   const interview = data.focus?.mode === 'interview';
   const freshAll = data.focus?.fresh?.length || 0, freshCount = Math.min(10, freshAll);
-  const todayLabel = new Intl.DateTimeFormat(uiLocale(), { month: 'long', day: 'numeric', weekday: 'short' }).format(new Date());
+  const todayLabel = formatDateTime(new Date(), 'longDay');
   const startFresh = () => start({ mode: 'new', currentCourse: true, count: 10, fresh: true });
   const startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: 'path' }));
   // 课程路线 (class mode): an unfinished batch first, else the next batch in chapter order.
@@ -70,7 +72,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
         : route?.next
           ? { kind: 'course', eyebrow: route.current === null ? ui('课程巩固') : uiFormat('第 {0} / {1} 章', [route.current + 1, route.chapters.length]),
             count: route.next.fresh + route.next.reviews, unit: ui('题 · 这一批'),
-            detail: `${route.next.label}${route.next.reviews ? uiFormat(' · 先巩固 {0} 道', [route.next.reviews]) : ''}`,
+            detail: joinMeta([route.next.label, route.next.reviews ? uiFormat('先巩固 {0} 道', [route.next.reviews]) : '']),
             action: { label: ui('继续课程'), run: startCourse }, also: [...flowLink, ...reviewLink] }
           : !interview && freshCount
             ? { kind: 'fresh', eyebrow: ui('当前课程'), count: freshCount, unit: ui('道新题'),

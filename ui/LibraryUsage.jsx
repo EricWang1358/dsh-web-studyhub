@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ui, uiFormat, getUiLanguage } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
+import { formatBytes as formatUsageBytes } from './format.js';
 import { useInjectCss } from './shared.js';
 import { IconButton, StackedBar } from './components/index.js';
 import css from './library-usage.css';
+
+export { formatUsageBytes }; // the one size style (ui/format.js)
 
 const MB = 1024 ** 2;
 const SHORT = {
@@ -12,15 +15,6 @@ const SHORT = {
 const PART_TONE = { materials: 'accent', audio: 'info', bank: 'success', backups: 'warning', other: 'neutral' };
 const FULL = { materials: '资料原文与提取文字', audio: '音频与转写', bank: '题库与复习记录', backups: '备份', other: '其他' };
 
-/** "1.2 GB", "820 MB", "12 KB": B/KB/MB/GB, one decimal below 100, none above. */
-export function formatUsageBytes(bytes, language = getUiLanguage()) {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = Math.max(0, Number(bytes) || 0), unit = 0;
-  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
-  const digits = unit === 0 || value >= 100 ? 0 : 1;
-  const number = new Intl.NumberFormat(language === 'en' ? 'en' : 'zh-CN', { maximumFractionDigits: digits, useGrouping: false }).format(value);
-  return `${number} ${units[unit]}`;
-}
 
 /** The one-line summary: the total, then each part that holds something. */
 export function usageSummary(usage) {

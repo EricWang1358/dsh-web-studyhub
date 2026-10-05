@@ -1,10 +1,10 @@
 /* The flows behind the search extension's buttons (WP28b). Each takes the page's
    call(action, args) and resolves a plain outcome instead of throwing, so the
    components only render it. */
-import { ui, uiFormat } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import { refreshRetrievalStatus } from './retrieval-status.js';
 
-const message = error => error?.message || String(error);
+const message = error => errorMessage(error);
 
 /** Install the extension: { phase: 'installed', restartRequired, status } | { phase: 'approval', pending } | { phase: 'error', message }. */
 export async function runInstall(call, approvedBuilds) {

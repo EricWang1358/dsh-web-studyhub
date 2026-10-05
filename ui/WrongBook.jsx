@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
@@ -11,6 +11,7 @@ import { Banner, Button, EmptyState, ErrorState, Icon, InlineMessage, LoadingSta
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { RECS_PREVIEW, VARIANT_BATCH_CAP, groupRows, reasonText, retrainOptions, shortDeckNames, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
+import { setQueryData, useHostQuery } from './host-query.js';
 
 const PAGE_SIZE = 100;
 const POLL_MS = 2500;
@@ -183,7 +184,7 @@ export function WrongBookView({
         : { tone: "info", text: ui("这些题已经有变式，或正在生成。") });
     } catch (e) {
       setPending(new Set());
-      setMessage({ tone: "error", text: e?.message || String(e) });
+      setMessage({ tone: "error", text: errorMessage(e) });
     } finally {
       setWorking(false);
     }
@@ -391,8 +392,11 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
     [loading, setLoading] = useState(true),
     [err, setErr] = useState(""),
     [recs, setRecs] = useState(null),
-    [details, setDetails] = useState({}),
-    [coachLive, setCoachLive] = useState(null);
+    [details, setDetails] = useState({});
+  // The coach status is the host's shared answer (ui/host-query.js): the review debrief and this page see the same copy while variants are written.
+  const coachQuery = useHostQuery("coach.status", {}, { call, enabled: false });
+  const coachLive = coachQuery.data ?? null;
+  const setCoachLive = (value) => setQueryData("coach.status", {}, value);
   const seq = useRef(0);
   const current = result?.key === key ? result : null;
   const items = current?.items;
@@ -427,7 +431,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
         .catch(() => request === seq.current && setRecs(null));
       else setRecs(null);
     } catch (e) {
-      if (request === seq.current) setErr(e.message || String(e));
+      if (request === seq.current) setErr(errorMessage(e));
     } finally {
       if (request === seq.current) setLoading(false);
     }
@@ -438,7 +442,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
 
   // While variants are being written, watch the cheap status call until they land.
   const preparing = !!coach?.preparing;
-  usePolling(() => call("coach.status").then(setCoachLive).catch(() => {}), { intervalMs: POLL_MS, enabled: preparing });
+  usePolling(coachQuery.refresh, { intervalMs: POLL_MS, enabled: preparing });
 
   const generate = useCallback(async (cards, { consent } = {}) => {
     const res = await call("coach.variants", { cards, ...(consent ? { consent: true } : {}) });
