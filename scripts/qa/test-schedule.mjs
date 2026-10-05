@@ -29,9 +29,10 @@ export function parseTestArgs(args) {
   return { files, ordered: ordered && !files };
 }
 
-/** One test process per core starves the browser, ffmpeg and CLI-spawning tests on a many-core machine (and every other program on it): cap it. */
-export function chooseConcurrency({ available }) {
-  return Math.max(2, Math.min(available - 1, 12));
+/** One test process per core starves the browser, ffmpeg and CLI-spawning tests on a many-core machine (and every other program on it): cap it, and take fewer while another full run holds the machine. */
+export function chooseConcurrency({ available, reduced = false }) {
+  const full = Math.max(2, Math.min(available - 1, 12));
+  return reduced ? Math.max(2, Math.floor(full / 3)) : full;
 }
 
 /** `keys` with the files nobody has timed first (by name), then the longest recorded file down to the shortest. Does not change `keys`. */

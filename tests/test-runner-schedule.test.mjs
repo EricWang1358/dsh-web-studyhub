@@ -33,10 +33,12 @@ test('only a plain full run is scheduled by us; file arguments and unknown optio
   assert.deepEqual(parseTestArgs(['--test-reporter', 'spec']), { files: false, ordered: true }, 'an option value is not a file');
 });
 
-test('there are never fewer than two workers nor more than twelve', () => {
+test('a busy machine gets fewer workers, never fewer than two and never more than twelve', () => {
   assert.equal(chooseConcurrency({ available: 32 }), 12);
   assert.equal(chooseConcurrency({ available: 8 }), 7);
   assert.equal(chooseConcurrency({ available: 2 }), 2);
+  assert.equal(chooseConcurrency({ available: 32, reduced: true }), 4);
+  assert.equal(chooseConcurrency({ available: 2, reduced: true }), 2);
 });
 
 test('recorded durations survive a missing or damaged file and are merged, not replaced', async t => {
