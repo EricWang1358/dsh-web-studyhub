@@ -40,6 +40,7 @@
   "cli": [
     "tests/audio-batch.test.mjs",
     "tests/audio-retry.test.mjs",
+    "tests/audio-single-characterization.test.mjs",
     "tests/documents.test.mjs",
     "tests/groq-split.test.mjs",
     "tests/jev-eval-replace.test.mjs",
