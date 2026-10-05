@@ -3,12 +3,13 @@ import { ui, uiFormat } from '../i18n.js';
 import { Button, Checkbox, IconButton, Select } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { failureText } from '../failure.js';
-import { isActiveJob } from '../../lib/job-status.js';
-import { controlItems, stepValue, appliedText, defaultsPatch, controlLabel } from './task-control.js';
+import { contractOf, isRunningTask } from './task-model.js';
+import { controlItems, stepValue, appliedText, defaultsPatch, controlLabel, reasonText } from './task-control.js';
 
-/* 即时控制: the knobs of a running job, in one row of fixed height. A change goes to job.control and applies from the job's next call (a call in
-   flight is never interrupted); the reply says what is now in force and the row says so. The row is always there, so a job that cannot be adjusted,
-   or has ended, says that in the same place instead of the row appearing or going away. */
+/* 即时控制: the knobs of a running job, in one row of fixed height, drawn from its contract (actions.set). A change goes to job.control {action: 'set'}
+   and applies from the job's next call (a call in flight is never interrupted); the reply says what is now in force and the row says so. The row is
+   always there, so a job that cannot be adjusted, or has ended, says that in the same place (with the contract's own reason) instead of the row
+   appearing or going away. */
 
 function Stepper({ item, disabled, onChange }) {
   const id = useId();
@@ -42,13 +43,14 @@ function Toggle({ item, disabled, onChange }) {
 
 export default function ControlRow({ job }) {
   const { core } = useApp();
+  const contract = contractOf(job), set = contract.actions.set;
   const [note, setNote] = useState({ text: '', tone: 'idle' }), [working, setWorking] = useState(false), [saved, setSaved] = useState(false);
   const items = controlItems(job), defaults = defaultsPatch(job);
   const send = async (patch) => {
     if (working) return;
     setWorking(true);
     try {
-      const reply = await core.call('job.control', { jobId: job.id, patch });
+      const reply = await core.call('job.control', { jobId: contract.jobId, action: 'set', patch });
       setNote({ text: appliedText(reply?.applied), tone: 'success' });
       setSaved(false);
     } catch (error) { setNote({ text: failureText(error), tone: 'error' }); } finally { setWorking(false); }
@@ -56,17 +58,17 @@ export default function ControlRow({ job }) {
   const save = async () => {
     try { await core.act(defaults.action, defaults.args); setSaved(true); setNote({ text: ui('✓ 已存为默认'), tone: 'success' }); } catch (error) { setNote({ text: failureText(error), tone: 'error' }); }
   };
-  const idle = !isActiveJob(job) ? ui('任务已经结束，没有可以调整的设置。') : ui('这类任务运行中不支持即时调整。');
   return (
     <div className="tc-controls" role="group" aria-label={ui('即时控制')} data-empty={items.length ? undefined : 'true'}>
       <span className="tc-controls__title">{ui('即时控制')}</span>
-      {items.length === 0 && <span className="tc-controls__idle">{idle}</span>}
+      {items.length === 0 && <span className="tc-controls__idle">{set.available ? ui('这个任务现在没有可以调整的设置。') : reasonText(set)}</span>}
       {items.map((item) => {
         const change = (value) => send({ [item.key]: value });
         if (item.type === 'int') return <Stepper key={item.key} item={item} disabled={working} onChange={change} />;
         if (item.type === 'enum') return <Choose key={item.key} item={item} disabled={working} onChange={change} />;
-        return item.key === 'paused' ? null : <Toggle key={item.key} item={item} disabled={working} onChange={change} />;
+        return <Toggle key={item.key} item={item} disabled={working} onChange={change} />;
       })}
+      {isRunningTask(job) && ['capability-unsupported', 'no-safe-checkpoint'].includes(contract.actions.pause.reason?.code) && <span className="tc-controls__note">{reasonText(contract.actions.pause, 'pause')}</span>}
       {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved || core.busy} onClick={save}
         title={uiFormat('把这里的{0}存为以后新任务的默认', [items.slice(0, 2).map((item) => controlLabel(item.key)).join('、')])}>{ui('存为默认')}</Button>}
       <span className="tc-controls__applied" role="status" data-tone={note.tone}>{note.text || (items.length ? ui('改动从下一次调用生效') : '')}</span>

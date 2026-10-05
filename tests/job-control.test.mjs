@@ -61,6 +61,31 @@ test('pausing is a flag the job shows, with a gate that opens on resume or on ca
   assert.equal('paused' in job, false);
 });
 
+test('a pause is reached only when nothing is in flight: until then the job is pausing; the boundary is written down once', async () => {
+  let inflight = 2;
+  const job = {}, reached = [];
+  const control = createJobControl({ job, spec, values: { count: 3, mode: 'a', paused: false }, inflight: () => inflight, onPaused: (target) => reached.push(target.pausedAt) });
+  control.patch({ paused: true });
+  await sleep(40);
+  assert.equal(job.paused, true);
+  assert.equal(job.pausedAt, undefined, 'two calls are still running: asked is not reached');
+  inflight = 0;
+  await until(() => job.pausedAt, 'the boundary is reached once nothing is in flight');
+  await until(() => reached.length === 1, 'the checkpoint hook runs');
+  assert.equal(reached[0], job.pausedAt);
+  assert.ok(job.events.some((event) => event.code === 'paused'));
+  control.patch({ paused: false });
+  assert.equal('pausedAt' in job, false, 'resuming clears it');
+  control.close();
+});
+
+test('with nothing in flight a pause is reached at once', async () => {
+  const job = {}, control = createJobControl({ job, spec, values: { count: 3, mode: 'a', paused: false }, inflight: () => 0 });
+  control.patch({ paused: true });
+  assert.ok(job.pausedAt, 'no wait when there is nothing to wait for');
+  control.close();
+});
+
 test('the audio pool takes a new limit for the next call and never interrupts a running one', async () => {
   const pool = createPool({ limit: 1 });
   let active = 0, peak = 0;
@@ -221,23 +246,6 @@ test('generation reads the live concurrency: raising it lets more calls run toge
   assert.ok(model.log.peak <= 4);
 });
 
-test('generation paused: the calls in flight finish, no new call starts; resuming goes on and every card still arrives', async () => {
-  const job = {}, control = generationControl({ job, request: { performance: { concurrency: 2, batchSize: 5, fillRounds: 0 } } });
-  const model = provider({ latency: 15 });
-  const running = run(model, { control, performance: { concurrency: 2, batchSize: 5, fillRounds: 0 } });
-  await until(() => model.log.calls >= 1, 'the first call');
-  control.patch({ paused: true });
-  await until(() => model.log.active === 0, 'in-flight calls finish');
-  const frozen = model.log.calls;
-  await sleep(120);
-  assert.equal(model.log.calls, frozen, 'nothing new started while paused');
-  assert.equal(job.paused, true);
-  control.patch({ paused: false });
-  const result = await running;
-  assert.equal(result.cards.length, 15);
-  assert.ok(model.log.calls > frozen);
-});
-
 test('generation reads the reasoning of each stage at the moment of the call', async () => {
   // A stand-in for the job's own step closure: it hands the stage levels of the control to every call, as the generation operation does.
   const control = generationControl({ job: {}, request: { performance: { concurrency: 1, batchSize: 5, fillRounds: 0, effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' } } });
@@ -247,6 +255,7 @@ test('generation reads the reasoning of each stage at the moment of the call', a
   assert.deepEqual([control.values.effortPlanning, control.values.effortReview, control.values.effortWriting, control.values.effortRepair], ['high', 'highest', 'low', 'low']);
   assert.throws(() => control.patch({ effortReview: 'turbo' }), /effortReview/);
   assert.throws(() => control.patch({ concurrency: 9 }), /concurrency/);
+  assert.throws(() => control.patch({ paused: true }), /Unknown control: paused/, 'a running question run has no pause: nothing is checkpointed to stop at');
   assert.deepEqual(control.spec.concurrency, { type: 'int', min: 1, max: 8 });
 });
 
@@ -256,7 +265,7 @@ const source = { id: 'page-a', title: 'Book p.1', text: "Architecture includes t
 const answer = (n) => ({ id: `q${n}`, kind: 'flashcard', topic: 'Architecture', objective: `Target ${n}`, prompt: `Question ${n}: what does the passage establish?`,
   answer: `Answer ${n}.`, hint: 'Think about scope.', explanation: 'The passage states it.', misconception: 'Confusing scope.', citations: [{ sourceId: source.id, quote: source.text }] });
 
-test('job.control: a running generation job takes the change, reports it back and the next calls use it', async (t) => {
+test('job.control set: a running generation job takes the change, reports it back and the next calls use it; what it cannot do is refused with a code', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'study-control-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root);
@@ -274,23 +283,33 @@ test('job.control: a running generation job takes the change, reports it back an
   const started = await service.call('generate', { sourceIds: [source.id], count: 1, kind: 'flashcard' });
   await until(() => efforts.length >= 1, 'the first model call');
   const running = (await service.call('snapshot')).jobs.find((job) => job.id === started.jobId);
-  assert.equal(running.control.values.concurrency, 4, 'the snapshot shows what can be adjusted and its current value');
-  assert.equal(running.control.limits.concurrency.max, 8);
-  assert.equal(running.paused, false, 'not paused to begin with');
-  const reply = await service.call('job.control', { jobId: started.jobId, patch: { concurrency: 2, effortReview: 'highest' } });
+  const settings = running.contract.actions.set.settings;
+  assert.equal(settings.find((item) => item.key === 'concurrency').value, 4, 'the contract shows what can be adjusted and its current value');
+  assert.equal(settings.find((item) => item.key === 'concurrency').max, 8);
+  assert.equal(running.contract.actions.pause.reason.code, 'capability-unsupported', 'and says why it cannot be paused');
+  const reply = await service.call('job.control', { jobId: started.jobId, action: 'set', patch: { concurrency: 2, effortReview: 'highest' } });
+  assert.equal(reply.action, 'set');
   assert.deepEqual(reply.applied, { concurrency: 2, effortReview: 'highest' });
   assert.equal(reply.values.concurrency, 2);
   assert.match(reply.note, /下一|next/i);
   const after = (await service.call('snapshot')).jobs.find((job) => job.id === started.jobId);
-  assert.equal(after.control.values.concurrency, 2);
-  assert.ok(after.events.some((event) => event.code === 'control'), 'the change is a line of the log');
+  assert.equal(after.contract.actions.set.settings.find((item) => item.key === 'concurrency').value, 2);
+  assert.ok(after.contract.events.some((event) => event.code === 'control'), 'the change is a line of the log');
+  const legacy = await service.call('job.control', { jobId: started.jobId, patch: { concurrency: 3 } });
+  assert.equal(legacy.action, 'set', 'a patch without an action is a set');
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'pause' }), (error) => error.code === 'capability-unsupported' && /不支持/.test(error.message));
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'retry' }), (error) => error.code === 'capability-unsupported');
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'set', patch: { paused: true } }), /pause/);
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'explode' }), (error) => error.code === 'unknown-action');
   release();
   const done = await settleJob(service, started.jobId);
   assert.equal(done.status, 'complete', done.stage);
   assert.ok(efforts.slice(1).some((stages) => stages?.review === 'highest'), `later calls were told the new review level: ${JSON.stringify(efforts.map((e) => e?.review))}`);
   const finished = (await service.call('snapshot')).jobs.find((job) => job.id === started.jobId);
   assert.equal('control' in finished, false, 'a finished job has nothing left to adjust');
-  await assert.rejects(service.call('job.control', { jobId: started.jobId, patch: { concurrency: 3 } }), /结束|finished|ended/i);
+  assert.equal(finished.contract.actions.set.reason.code, 'job-ended');
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, patch: { concurrency: 3 } }), (error) => error.code === 'job-ended' && /结束/.test(error.message));
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'cancel' }), (error) => error.code === 'job-ended');
   await assert.rejects(service.call('job.control', { jobId: 'missing', patch: { concurrency: 3 } }), /not found|不存在|Study job/i);
 });
 
@@ -306,9 +325,10 @@ test('job.control refuses a bad request before touching the job', async (t) => {
   const started = await service.call('generate', { sourceIds: [source.id], count: 1, kind: 'flashcard' });
   await assert.rejects(service.call('job.control', { jobId: started.jobId, patch: { concurrency: 99 } }), /concurrency/);
   await assert.rejects(service.call('job.control', { jobId: started.jobId, patch: { textConcurrency: 2 } }), /textConcurrency|Unknown control/);
-  await assert.rejects(service.call('job.control', { jobId: started.jobId }), /patch/);
+  await assert.rejects(service.call('job.control', { jobId: started.jobId }), /action/);
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'set' }), /patch/);
   const snapshot = (await service.call('snapshot')).jobs.find((job) => job.id === started.jobId);
-  assert.equal(snapshot.control.values.concurrency, 4, 'nothing moved');
+  assert.equal(snapshot.contract.actions.set.settings.find((item) => item.key === 'concurrency').value, 4, 'nothing moved');
   release();
   await settleJob(service, started.jobId).catch(() => {});
 });

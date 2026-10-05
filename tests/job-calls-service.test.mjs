@@ -33,11 +33,12 @@ test('a generation job lists its model calls in the snapshot, each with a stage 
   assert.equal('events' in done, false);
 
   const snapshot = await service.call('snapshot');
-  const job = snapshot.jobs.find((item) => item.id === started.jobId);
-  assert.ok(job.calls.length >= 3, `plan, answer, write and review calls: ${job.calls.length}`);
-  assert.ok(job.calls.every((call) => call.status === 'ok' && call.endedAt && Number.isInteger(call.slot) && call.slot >= 1), JSON.stringify(job.calls[0]));
-  assert.ok(job.calls.some((call) => call.kind === 'plan') && job.calls.some((call) => call.kind === 'author') && job.calls.some((call) => call.kind === 'review'));
-  assert.ok(job.events.some((event) => event.code === 'status' && event.level === 'done'), 'the end of the job is a line of the log');
+  const job = snapshot.jobs.find((item) => item.id === started.jobId), { calls, events } = job.contract;
+  assert.ok(calls.length >= 3, `plan, answer, write and review calls: ${calls.length}`);
+  assert.ok(calls.every((call) => call.status === 'ok' && call.endedAt && Number.isInteger(call.slot) && call.slot >= 1 && call.jobId === started.jobId && call.callId), JSON.stringify(calls[0]));
+  assert.ok(calls.some((call) => call.kind === 'plan') && calls.some((call) => call.kind === 'author') && calls.some((call) => call.kind === 'review'));
+  assert.ok(events.some((event) => event.code === 'status' && event.level === 'done'), 'the end of the job is a line of the log');
+  assert.equal('calls' in job, false, 'calls and events are in the contract, once');
   assert.equal('waits' in job, false);
   assert.equal('root' in job, false);
 });

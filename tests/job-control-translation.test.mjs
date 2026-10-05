@@ -29,16 +29,21 @@ test('a translation job: the next wave is sized by the concurrency in force, and
   const started = await runtime.call('generation.translation.start', { documentId: imported.documentId, scope, concurrency: 1 });
   await until(() => calls.length === 1, 'the first batch is with the model');
   const job = (await runtime.call('snapshot')).jobs.find((item) => item.id === started.jobId);
-  assert.equal(job.control.values.concurrency, 1);
-  assert.equal(job.control.limits.concurrency.max, 3);
+  const setting = job.contract.actions.set.settings.find((item) => item.key === 'concurrency');
+  assert.equal(setting.value, 1);
+  assert.equal(setting.max, 3);
+  assert.equal(job.contract.actions.pause.mode, 'checkpoint', 'a translation keeps each wave as it finishes: a safe boundary');
   // Both changes are made while the first wave is in flight: the pause holds the second wave back, the concurrency sizes it.
-  await runtime.call('job.control', { jobId: started.jobId, patch: { concurrency: 3, paused: true } });
+  await runtime.call('job.control', { jobId: started.jobId, action: 'set', patch: { concurrency: 3 } });
+  await runtime.call('job.control', { jobId: started.jobId, action: 'pause' });
+  assert.equal((await runtime.call('snapshot')).jobs.find((item) => item.id === started.jobId).contract.status, 'pausing', 'the first wave is still with the model');
   release();
   await until(async () => (await runtime.call('job.wait', { jobId: started.jobId, timeoutSeconds: 1 })).done >= 6, 'the first wave is kept');
   const frozen = calls.length;
   await sleep(120);
   assert.equal(calls.length, frozen, 'no new wave starts while paused');
-  await runtime.call('job.control', { jobId: started.jobId, patch: { paused: false } });
+  await until(async () => (await runtime.call('snapshot')).jobs.find((item) => item.id === started.jobId).contract.status === 'paused', 'the boundary is reached');
+  await runtime.call('job.control', { jobId: started.jobId, action: 'resume' });
   const done = await settleJob(runtime, started.jobId);
   assert.equal(done.status, 'complete', done.stage);
   assert.equal(done.done, done.total);

@@ -4,18 +4,17 @@ import { Button, useNow } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useApp } from '../app/app-context.js';
 import { useQuickActions, dismissJobs } from '../quick-actions.js';
-import { isCancellable, isActiveJob } from '../../lib/job-status.js';
 import { formatDateTime, joinMeta } from '../format.js';
 import denseCss from '../dense-surface.css';
 import css from './task-console.css';
-import { tasksOf, taskFilters, filterTasks, pickTask } from './task-model.js';
+import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask } from './task-model.js';
 import { taskSummary, stateLabel } from './task-summary.js';
 import { taskFacts, taskSegments } from './task-facts.js';
-import { canPause, isPaused } from './task-control.js';
+import { headerActions } from './task-control.js';
 import ControlRow from './ControlRow.jsx';
 
-/* The 任务 console. One surface for every background job: a list on the left, the whole story of the selected job on the right. It reads
-   the jobs of the snapshot as they are (`data.jobs`) and sends the same actions the cards sent (job.cancel, job.dismiss). */
+/* The 任务 console. One surface for every background job: a list on the left, the whole story of the selected job on the right. It reads the jobs of
+   the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers is what the contract says is available. */
 
 const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败' };
 
@@ -74,23 +73,25 @@ function Metrics({ job, summary, now }) {
 function Detail({ task, data, openers }) {
   const { core } = useApp();
   const quick = useQuickActions();
-  const summary = taskSummary(task, { drafts: data.drafts, jobs: data.jobs });
-  const running = isActiveJob(task), now = useNow(1000, { enabled: running });
-  const result = openers.resultOf(task), paused = isPaused(task);
-  const pause = async () => { try { await core.call('job.control', { jobId: task.id, patch: { paused: !paused } }); } catch { /* the row below says what went wrong when the learner tries a knob */ } };
-  const started = task.startedAt ? formatDateTime(task.startedAt, 'stamp') : '';
+  const contract = contractOf(task), summary = taskSummary(task), actions = headerActions(task);
+  const live = isRunningTask(task), now = useNow(1000, { enabled: live });
+  const result = openers.resultOf(task, data);
+  const started = contract.startedAt ? formatDateTime(contract.startedAt, 'stamp') : '';
+  const act = (action) => core.act('job.control', { jobId: contract.jobId, action });
   return (
-    <section className="tc-detail" aria-label={ui('任务详情')} data-task-id={task.id}>
+    <section className="tc-detail" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status}>
       <header className="tc-bar tc-head">
         <div className="tc-head__title">
           <h2>{summary.title}</h2>
           <span className="tc-head__sub">{joinMeta([summary.kindLabel, started && uiFormat('{0} 开始', [started])])}</span>
         </div>
         <div className="tc-head__actions">
-          {canPause(task) && <Button size="sm" aria-pressed={paused} onClick={pause}>{paused ? ui('继续') : ui('暂停')}</Button>}
+          {actions.pause && <Button size="sm" aria-pressed="false" disabled={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
+          {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
+          {actions.retry && <Button size="sm" variant="primary" disabled={core.busy} title={ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
           {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}
-          {isCancellable(task) && <Button size="sm" variant="danger" disabled={core.busy} onClick={() => core.act('job.cancel', { jobId: task.id })}>{ui('停止')}</Button>}
-          {!running && <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => (quick ? dismissJobs(quick, task.id) : core.act('job.dismiss', { jobId: task.id }))}>{ui('知道了')}</Button>}
+          {actions.cancel && <Button size="sm" variant="danger" disabled={core.busy} onClick={() => act('cancel')}>{ui('停止')}</Button>}
+          {!live && <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => (quick ? dismissJobs(quick, task.id) : core.act('job.dismiss', { jobId: task.id }))}>{ui('知道了')}</Button>}
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
@@ -111,14 +112,15 @@ export default function TaskConsole({ data, openers }) {
   const picked = pickTask({ tasks: shown, focus, current, focusSeen: seen.current });
   // A deep link is followed once; after that the learner's own selection stands.
   useEffect(() => {
-    if (focus && focus.nonce !== seen.current && tasks.some((task) => task.id === focus.jobId)) {
+    const target = focus && focus.nonce !== seen.current && tasks.find((task) => taskId(task) === focus.jobId || task.id === focus.jobId);
+    if (target) {
       seen.current = focus.nonce;
       setFilter('all');
-      setCurrent(focus.jobId);
+      setCurrent(taskId(target));
     }
   }, [focus, tasks]);
   const pick = useCallback((id) => setCurrent(id), []);
-  const task = shown.find((item) => item.id === picked) || null;
+  const task = shown.find((item) => taskId(item) === picked) || null;
   const filters = taskFilters(tasks);
   return (
     <div className="tc" data-surface="dense" data-usage-area="tasks">
@@ -133,10 +135,10 @@ export default function TaskConsole({ data, openers }) {
         </div>
         <div className="tc-scroll">
           {shown.length === 0 && <p className="tc-empty">{ui('现在没有任务。生成题目、导入录音或转换 PDF 后，会在这里看到它们。')}</p>}
-          {shown.map((item) => <TaskRow key={item.id} summary={taskSummary(item, { drafts: data.drafts, jobs: data.jobs })} selected={item.id === picked} onPick={pick} />)}
+          {shown.map((item) => <TaskRow key={taskId(item)} summary={taskSummary(item)} selected={taskId(item) === picked} onPick={pick} />)}
         </div>
       </section>
-      {task ? <Detail key={task.id} task={task} data={data} openers={openers} />
+      {task ? <Detail key={taskId(task)} task={task} data={data} openers={openers} />
         : <section className="tc-detail" aria-label={ui('任务详情')}><p className="tc-empty">{ui('选择左边的一个任务查看详情。')}</p></section>}
     </div>
   );

@@ -5,6 +5,7 @@ import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
 import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole } from '../workspace-views.jsx';
+import { contractOf, isLiveStatus } from '../tasks/task-model.js';
 import StudyMap from '../StudyMap.jsx';
 import Welcome, { SampleBanner } from '../Welcome.jsx';
 import Dashboard from '../Dashboard.jsx';
@@ -170,12 +171,15 @@ function AudioView() {
 function TasksView() {
   const { data, drafts, intents, learn } = useApp();
   const openers = {
+    // Where 打开结果 leads is read from the job's contract: the references to what it made (sources, a deck, a draft).
     resultOf: (job) => {
-      const draft = job.draftId && data.drafts.find((item) => item.id === job.draftId);
-      if (job.sourceIds?.length && ['audio-import', 'pdf-convert', 'translation'].includes(job.type) && job.status === 'complete')
-        return { label: ui('打开资料'), run: () => learn.openAudioSources(job.sourceIds) };
-      if (draft && job.status !== 'running' && job.status !== 'queued') return { label: ui('打开草稿'), run: () => drafts.openDraft(draft, { navigation: true }) };
-      if (job.publication?.deckId && data.decks.some((deck) => deck.id === job.publication.deckId)) return { label: ui('打开题组'), run: () => intents.openDeck(job.publication.deckId) };
+      const contract = contractOf(job), refs = contract.result.refs, live = isLiveStatus(contract.status);
+      const sourceIds = refs.filter((ref) => ref.kind === 'source').map((ref) => ref.id);
+      if (sourceIds.length) return { label: ui('打开资料'), run: () => learn.openAudioSources(sourceIds) };
+      const deck = refs.find((ref) => ref.kind === 'deck');
+      if (deck && data.decks.some((item) => item.id === deck.id)) return { label: ui('打开题组'), run: () => intents.openDeck(deck.id) };
+      const draft = refs.find((ref) => ref.kind === 'draft'), found = draft && data.drafts.find((item) => item.id === draft.id);
+      if (found && !live) return { label: ui('打开草稿'), run: () => drafts.openDraft(found, { navigation: true }) };
       return null;
     },
   };

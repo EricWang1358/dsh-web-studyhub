@@ -75,10 +75,14 @@ test('a generation job offers concurrency and the reasoning of each stage, and w
 test('the row is always there: a job that cannot be adjusted, or has ended, says so in the same place', () => {
   const none = render({ ...audio(), control: undefined });
   assert.match(none, /aria-label="即时控制"/);
-  assert.match(none, /这类任务运行中不支持即时调整/);
+  assert.match(none, /任务还没有开始/, 'the contract says why: there is nothing to adjust yet');
   assert.doesNotMatch(none, /data-control=/);
+  const unsupported = render({ id: 'p1', type: 'pdf-convert', filename: 'Book.pdf', status: 'running', phase: 'parse', startedAt: '2026-10-05T10:00:00.000Z' });
+  assert.match(unsupported, /这类任务不支持这个操作/);
+  assert.match(unsupported, /这类任务没有可以安全暂停的地方；可以停止，已完成的部分会保留/, 'and says what to do instead of pausing');
+  assert.doesNotMatch(unsupported, />暂停</, 'no pause button where the contract offers no pause');
   const ended = render(audio({ status: 'complete', control: undefined }));
-  assert.match(ended, /任务已经结束，没有可以调整的设置/);
+  assert.match(ended, /任务已经结束。/);
   assert.doesNotMatch(ended, />暂停</);
 });
 
@@ -93,7 +97,7 @@ test('English wording', () => {
   assert.match(m.appliedText({ textConcurrency: 4 }), /已生效/, 'back in Chinese once the language is reset');
   m.setUiLanguage('en');
   assert.equal(m.appliedText({ textConcurrency: 4 }), '✓ Applied · Proofread/translate at once → 4');
-  assert.equal(m.appliedText({ paused: true }), '✓ Applied · Paused: it stops once the calls in progress finish');
+  assert.equal(m.actionText('pause'), 'Paused: no new call starts, and it stops once the calls in progress finish');
   assert.equal(m.appliedText({ proofreadReasoning: 'high' }), '✓ Applied · Reasoning for remaining proofreading → High');
   m.setUiLanguage('zh');
 });

@@ -143,6 +143,7 @@
     }
     .tc-controls__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .tc-controls__idle { color: var(--text-muted); font-size: var(--fs-sm); }
+    .tc-controls__note { color: var(--text-muted); font-size: var(--fs-xs); }
     .tc-controls__applied { margin-inline-start: auto; min-width: 0; color: var(--text-faint); font-size: var(--fs-xs); }
     .tc-controls__applied[data-tone='success'] { color: var(--ok-ink); }
     .tc-controls__applied[data-tone='error'] { color: var(--bad-ink); }

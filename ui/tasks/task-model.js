@@ -1,31 +1,38 @@
-import { isActiveJob, JOB_STATUS, JOB_TYPES } from '../../lib/job-status.js';
+import { jobContract, isLiveStatus, STATUS } from '../../lib/job-contract.js';
+
+export { isLiveStatus };
 
 /* What the 任务 console shows as a task, and how it is listed. Plain data and predicates (no React, no ui()), so a DOM-free test can read it.
-   A task is a job of the snapshot (`data.jobs`) as it is: the console reads the existing job model and adds nothing of its own to store. */
+   A task is a job of the snapshot (`data.jobs`) seen through its CONTRACT (lib/job-contract.js, docs/job-contract.md): the console never reads a
+   job's own fields. A job from a host that predates the contract is put through the same adapter here, so there is one reading either way. */
 
-/** The kind of a job, for its label and for the job-type section of the detail pane. */
-export function taskKindOf(job) {
-  switch (job?.type) {
-    case JOB_TYPES.AUDIO_IMPORT: return 'audio';
-    case JOB_TYPES.PDF_CONVERT: return 'pdf';
-    case JOB_TYPES.TRANSLATION: return 'translation';
-    case JOB_TYPES.SUPPLEMENT: return 'supplement';
-    case JOB_TYPES.DRAFT_REPAIR: return 'repair';
-    case JOB_TYPES.DRAFT_PUBLISH: return 'publish';
-    case undefined: case null: case '': return 'generation';
-    default: return job.type === 'coach-prep' ? 'coach' : 'extension';
-  }
+const own = new WeakMap();
+/** The contract of a job of the snapshot (the snapshot carries it; an older host's job is adapted once). */
+export function contractOf(job) {
+  if (job?.contract) return job.contract;
+  if (!job || typeof job !== 'object') return jobContract({});
+  if (!own.has(job)) own.set(job, jobContract(job));
+  return own.get(job);
 }
 
-export const isRunningTask = (task) => isActiveJob(task);
-const failedStatus = (status) => status === JOB_STATUS.FAILED || status === JOB_STATUS.INTERRUPTED;
+const KINDS = { 'audio-import': 'audio', 'pdf-convert': 'pdf', translation: 'translation', generation: 'generation', supplement: 'supplement',
+  'draft-repair': 'repair', 'draft-publish': 'publish', extension: 'extension' };
+/** The kind of a job, for its label and for the job-type section of the detail pane. */
+export const taskKindOf = (job) => KINDS[contractOf(job).kind] || 'extension';
+
+/** The identity a selection and a deep link use: what survives a retry. */
+export const taskId = (job) => contractOf(job).jobId;
+
+/** Still a live task: waiting, working, pausing or paused, or stopping. */
+export const isRunningTask = (job) => isLiveStatus(contractOf(job).status);
+const isFailed = (job) => [STATUS.FAILED, STATUS.INTERRUPTED].includes(contractOf(job).status);
 
 /** How many tasks are waiting or running: the badge on the sidebar entry. */
 export function runningTaskCount(data) {
   return (Array.isArray(data?.jobs) ? data.jobs : []).filter(isRunningTask).length;
 }
 
-const time = (task) => Date.parse(task?.startedAt) || 0;
+const time = (task) => Date.parse(contractOf(task).startedAt) || 0;
 
 /** The console's task list, newest first (a stable order for equal times). */
 export function tasksOf(data) {
@@ -35,24 +42,21 @@ export function tasksOf(data) {
 
 /** The list's filters with their counts: 全部 / 进行中 / 失败. */
 export function taskFilters(tasks) {
-  return [{ id: 'all', count: tasks.length }, { id: 'running', count: tasks.filter(isRunningTask).length },
-    { id: 'failed', count: tasks.filter((task) => failedStatus(task.status)).length }];
+  return [{ id: 'all', count: tasks.length }, { id: 'running', count: tasks.filter(isRunningTask).length }, { id: 'failed', count: tasks.filter(isFailed).length }];
 }
 export function filterTasks(tasks, filter) {
   if (filter === 'running') return tasks.filter(isRunningTask);
-  if (filter === 'failed') return tasks.filter((task) => failedStatus(task.status));
+  if (filter === 'failed') return tasks.filter(isFailed);
   return tasks;
 }
 
 /**
- * Which task the detail pane shows. A new deep link (a focus whose nonce the console has not seen) wins; then the learner's own selection
- * while that task still exists; then a linked job; then the first one that is running; then the newest.
+ * Which task the detail pane shows (by its task id). A new deep link (a focus whose nonce the console has not seen) wins; then the learner's own selection
+ * while that task still exists; then a linked job; then the first one that is running; then the newest. A link may name the job or one of its attempts.
  */
 export function pickTask({ tasks, focus, current, focusSeen }) {
-  const has = (id) => !!id && tasks.some((task) => task.id === id);
+  const find = (id) => (id ? tasks.find((task) => taskId(task) === id || task.id === id) : undefined);
   const fresh = focus && focus.nonce !== focusSeen;
-  if (fresh && has(focus.jobId)) return focus.jobId;
-  if (has(current)) return current;
-  if (has(focus?.jobId)) return focus.jobId;
-  return (tasks.find(isRunningTask) || tasks[0])?.id ?? null;
+  const chosen = (fresh && find(focus.jobId)) || find(current) || find(focus?.jobId) || tasks.find(isRunningTask) || tasks[0];
+  return chosen ? taskId(chosen) : null;
 }

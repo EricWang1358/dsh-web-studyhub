@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_CALLS, MAX_EVENTS, MAX_WAITS, unifyCall, jobCalls, recordEvent, recordWait, observeJob, snapshotJob } from '../lib/job-calls.js';
+import { MAX_CALLS, MAX_EVENTS, MAX_WAITS, unifyCall, jobCalls, recordEvent, recordWait, observeJob } from '../lib/job-calls.js';
+import { snapshotJob } from '../lib/job-contract.js';
 import { createPool } from '../lib/audio-pool.js';
 import { generateBatched } from '../lib/batch.js';
 import { qualityPlan, qualityReview } from './helpers/assessment.mjs';
@@ -104,8 +105,9 @@ test('watching a job notes a change of status or stage once, however often it is
 test('the snapshot job carries calls and events; the chat tools never see them', () => {
   const job = { id: 'j', root: '/lib', status: 'running', tasks: [{ id: 't', kind: 'translate', status: 'running', startedAt: at(1) }], events: [{ id: 'e', at: at(1), level: 'info', code: 'note' }], waits: [] };
   const view = snapshotJob(job);
-  assert.equal(view.calls.length, 1);
-  assert.equal(view.events.length, 1);
+  assert.equal(view.contract.calls.length, 1);
+  assert.equal(view.contract.events.length, 1);
+  assert.equal('calls' in view, false, 'calls and events live in the contract, once');
   assert.equal('root' in view, false, 'the library path is never shown');
   assert.equal('waits' in view, false, 'waits are folded into the calls');
 });

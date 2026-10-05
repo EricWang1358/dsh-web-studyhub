@@ -1,11 +1,10 @@
-import { ui, uiFormat, uiMessage } from '../i18n.js';
-import { JOB_STATUS } from '../../lib/job-status.js';
-import { jobCode, jobDeckName, jobHeadline, jobSavedProgress, jobStageLabel } from '../generation-status.js';
-import { audioProgress } from '../audio/AudioJobs.jsx';
-import { taskKindOf, isRunningTask } from './task-model.js';
+import { ui, uiFormat } from '../i18n.js';
+import { stageCodeLabel } from '../generation-status.js';
+import { STATUS } from '../../lib/job-contract.js';
+import { contractOf, taskKindOf, isRunningTask } from './task-model.js';
 
-/* A job as one line of the console's list and as the header of its detail: kind, title, a state, a percent and ONE status line.
-   The same words serve the compact card on the pages, so a job reads the same wherever it is shown. */
+/* A job as one line of the console's list and as the header of its detail: kind, title, a state, a percent and ONE status line, all read from the job's
+   contract. The stage is a CODE there; this file is where it becomes words (and the only place that does), so a job reads the same wherever it is shown. */
 
 const KIND_LABEL = {
   audio: '音频批量转写', pdf: 'PDF 转换', translation: '翻译', supplement: '补题', repair: '修题', publish: '发布检查',
@@ -13,61 +12,62 @@ const KIND_LABEL = {
 };
 export const taskKindLabel = (kind) => ui(KIND_LABEL[kind] || KIND_LABEL.extension);
 
-/** run | queued | done | partial | fail | stopped: what a row's dot, colour and word are drawn from. */
+/** run | queued | paused | stopping | done | partial | fail | stopped: what a row's dot, colour and word are drawn from. */
 export function taskState(job) {
-  switch (job?.status) {
-    case JOB_STATUS.QUEUED: return 'queued';
-    case JOB_STATUS.COMPLETE: return jobCode(job) === 'partial' && taskKindOf(job) === 'generation' ? 'partial' : 'done';
-    case 'partial': return 'partial';
-    case JOB_STATUS.FAILED: case JOB_STATUS.INTERRUPTED: return 'fail';
-    case JOB_STATUS.CANCELLED: return 'stopped';
+  const { status, result } = contractOf(job);
+  switch (status) {
+    case STATUS.QUEUED: return 'queued';
+    case STATUS.PAUSING: case STATUS.PAUSED: return 'paused';
+    case STATUS.CANCELLING: return 'stopping';
+    case STATUS.COMPLETE: return result.completeness === 'partial' ? 'partial' : 'done';
+    case STATUS.FAILED: case STATUS.INTERRUPTED: return 'fail';
+    case STATUS.CANCELLED: return 'stopped';
     default: return 'run';
   }
 }
 
-const clampPercent = (value) => Math.max(0, Math.min(100, Math.round(value)));
-const ratio = (done, total) => (total > 0 ? clampPercent((done / total) * 100) : null);
-
 /** The title the learner knows the job by. */
-export function taskTitle(job, drafts = []) {
-  switch (taskKindOf(job)) {
-    case 'audio': return job.filename || ui('音频');
-    case 'pdf': return job.filename || ui('PDF');
-    case 'translation': return job.targetTitle ? uiFormat('翻译「{0}」', [job.targetTitle]) : ui('翻译');
-    case 'supplement': case 'repair': case 'publish': case 'generation': return jobDeckName(job, drafts);
-    default: return job.label || job.filename || job.stage || ui('后台任务');
-  }
+export function taskTitle(job) {
+  const { title, kind } = contractOf(job);
+  if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : title;
+  return kind === 'generation' || kind === 'supplement' ? ui('新题组') : taskKindLabel(taskKindOf(job));
 }
 
-/** 0–100, or null when nobody can say. A running count is real progress (finished over total), never a guess. */
-export function taskPercent(job, drafts = []) {
-  if (job.status === JOB_STATUS.COMPLETE) return 100;
-  switch (taskKindOf(job)) {
-    case 'audio': return audioProgress(job).percent;
-    case 'pdf': case 'translation': return ratio(job.done, job.total);
-    case 'generation': case 'supplement': {
-      const saved = jobSavedProgress(job, drafts);
-      return saved ? ratio(saved.saved, saved.total) : null;
-    }
-    case 'repair': return ratio(job.savedCount, job.count);
-    default: return ratio(job.done, job.total);
-  }
+/** 0-100, or null when nobody can say. A running count is real progress (finished over total), never a guess. */
+export const taskPercent = (job) => contractOf(job).progress.percent;
+
+const AUDIO_PHASES = { queued: '排队中', read: '读取并切分音频', transcribe: '转写音频', proofread: '校对识别错误的词', translate: '翻译并整理成中英对照',
+  batch: '按顺序整理逐字稿', assemble: '合成逐字稿', done: '完成' };
+const PDF_PHASES = { queued: '排队中', split: '切分', upload: '上传', parse: '解析', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
+const withCount = (label, { done, total } = {}) => (total > 0 && done !== undefined ? uiFormat('{0} · {1}/{2}', [label, Math.min(done + 1, total), total]) : label);
+
+/** A stage of a contract in words: `{ code, args }` to a short phrase. An unknown code falls back to the producer's own prose. */
+export function stageLabel(stage) {
+  if (!stage) return '';
+  const [family, name] = String(stage.code).split('.');
+  if (stage.code === 'finished') return ({ complete: ui('已完成'), failed: ui('失败'), cancelled: ui('已停止'), interrupted: ui('已中断') })[stage.args?.status] || '';
+  if (family === 'audio' && AUDIO_PHASES[name]) return withCount(ui(AUDIO_PHASES[name]), ['transcribe', 'proofread', 'translate'].includes(name) ? stage.args : undefined);
+  if (family === 'pdf' && PDF_PHASES[name]) return ui(PDF_PHASES[name]);
+  if (family === 'translation') return name === 'queued' ? ui('排队中') : stage.args?.total > 0 ? uiFormat('正在翻译 · {0}/{1} 段', [stage.args.done, stage.args.total]) : ui('正在翻译');
+  if (['generation', 'repair', 'publish'].includes(family)) return stageCodeLabel(name === 'blueprinting' ? 'blueprinting' : name) || ui('进行中');
+  if (family === 'task') return name === 'queued' ? ui('排队中') : ui('进行中');
+  return stage.text || '';
 }
 
 /** The one status line under the title. */
-export function taskLine(job, { drafts = [], jobs = [] } = {}) {
-  switch (taskKindOf(job)) {
-    case 'generation': case 'supplement': case 'repair': case 'publish': return jobStageLabel(job, drafts, jobs);
-    default: return uiMessage(String(job.stage || ''));
-  }
+export function taskLine(job) {
+  const contract = contractOf(job), state = taskState(job);
+  if (contract.status === STATUS.PAUSING) return uiFormat('正在暂停 · 等 {0} 个调用结束', [contract.actions.pause.waiting?.count ?? 0]);
+  if (contract.status === STATUS.PAUSED) return ui('已暂停');
+  if (state === 'fail') return contract.error?.message ? contract.stage.text || contract.error.message : stageLabel(contract.stage);
+  return stageLabel(contract.stage);
 }
 
 /** Everything a list row needs. */
-export function taskSummary(job, context = {}) {
-  const kind = taskKindOf(job), state = taskState(job), percent = taskPercent(job, context.drafts);
-  return { id: job.id, kind, kindLabel: taskKindLabel(kind), title: taskTitle(job, context.drafts), state, percent,
-    running: isRunningTask(job), line: taskLine(job, context), headline: ['generation', 'supplement', 'repair', 'publish'].includes(kind) ? jobHeadline(job, context.drafts) : taskTitle(job, context.drafts) };
+export function taskSummary(job) {
+  const contract = contractOf(job), kind = taskKindOf(job);
+  return { id: contract.jobId, kind, kindLabel: taskKindLabel(kind), title: taskTitle(job), state: taskState(job), percent: taskPercent(job), running: isRunningTask(job), line: taskLine(job), status: contract.status };
 }
 
 /** The badge word of a state. */
-export const stateLabel = (state) => ({ run: ui('进行中'), queued: ui('排队中'), done: ui('已完成'), partial: ui('部分完成'), fail: ui('失败'), stopped: ui('已停止') })[state] || '';
+export const stateLabel = (state) => ({ run: ui('进行中'), queued: ui('排队中'), paused: ui('已暂停'), stopping: ui('正在停止'), done: ui('已完成'), partial: ui('部分完成'), fail: ui('失败'), stopped: ui('已停止') })[state] || '';
