@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import { repoRoot, sourceFiles } from './helpers/locale-usage.mjs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as titles from '../lib/document-title.js';
@@ -35,15 +34,8 @@ test('the other name functions are gone, and the storage keeps only the file nam
   assert.equal(titles.fileNameOf(HOST_PATH), '01. Introduction to Solution Architecture v2.1.pdf', 'a stored title is the file name, nothing more is thrown away');
   assert.equal(titles.fileNameOf(NOISY), NOISY);
   // No second implementation of the site-noise pattern anywhere in lib/ or ui/.
-  const root = fileURLToPath(new URL('..', import.meta.url)), found = [];
-  const scan = async (dir) => {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) { if (entry.name !== 'locales') await scan(path); }
-      else if (/\.(js|jsx)$/.test(entry.name) && /1lib\|libgen/i.test(await readFile(path, 'utf8'))) found.push(path.slice(root.length).replaceAll('\\', '/'));
-    }
-  };
-  await scan(join(root, 'lib')); await scan(join(root, 'ui'));
+  const root = repoRoot, found = [];
+  for (const path of await sourceFiles()) if (/1lib\|libgen/i.test(await readFile(path, 'utf8'))) found.push(path.slice(root.length).replaceAll('\\', '/'));
   assert.deepEqual(found, ['lib/document-title.js']);
 });
 

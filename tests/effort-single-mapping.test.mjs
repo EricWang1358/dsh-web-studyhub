@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import { sourceFiles } from './helpers/locale-usage.mjs';
 import { EFFORT_PREFERENCES, chooseEffort } from '../lib/model-effort.js';
 import * as stageEffort from '../lib/stage-effort.js';
 import { GENERATION_SETTINGS_DEFAULTS, validateGenerationPatch } from '../lib/generation-settings.js';
@@ -59,16 +58,7 @@ test('only lib/model-effort.js maps a preference onto model levels', async () =>
   assert.equal(stageEffort.resolveEffort, undefined, 'the second mapping is gone');
   const own = await readFile(new URL('../lib/stage-effort.js', import.meta.url), 'utf8');
   assert.match(own, /from '\.\/model-effort\.js'/, 'the stage module reaches the shared mapping');
-  const files = [];
-  const scan = async (dir) => {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) { if (!['node_modules', 'locales'].includes(entry.name)) await scan(path); }
-      else if (/\.(js|jsx|mjs)$/.test(entry.name)) files.push(path);
-    }
-  };
-  const root = fileURLToPath(new URL('..', import.meta.url));
-  await scan(join(root, 'lib')); await scan(join(root, 'ui'));
+  const files = await sourceFiles();
   // The signs of a mapping: the names of the strongest level (xhigh / ultra), a strength rank table, a distance to a target level.
   const signs = [/xhigh|x\[\\s_-\]\?high/i, /\bRANK\b/, /Math\.abs\([^)]*(rank|target|position)/i, /positionOf|NEAREST_LEVEL/];
   const offenders = [];
