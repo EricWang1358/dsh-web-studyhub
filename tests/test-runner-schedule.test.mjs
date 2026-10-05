@@ -5,10 +5,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chooseConcurrency, listTestFiles, mergeDurations, orderLongestFirst, parseTestArgs, readDurations } from '../scripts/qa/test-schedule.mjs';
+import { chooseConcurrency, listTestFiles, mergeDurations, orderLongestFirst, parseTestArgs, readDurations, readSlowList } from '../scripts/qa/test-schedule.mjs';
 
 /* How a full run is scheduled: the longest files start first (node's own runner sorts files by name, so scripts/qa/run-tests.mjs
-   hands them over in its own order), the durations come from the last run. */
+   hands them over in its own order), the durations come from the last run, and the fast tier leaves out tests/slow-tests.json. */
 
 const runner = fileURLToPath(new URL('../scripts/qa/run-tests.mjs', import.meta.url));
 const suite = fileURLToPath(new URL('./fixtures/runner-suite/', import.meta.url));
@@ -55,6 +55,15 @@ test('recorded durations survive a missing or damaged file and are merged, not r
   assert.deepEqual(await readDurations(file), { 'tests/b.test.mjs': 7 }, 'only numbers count');
 });
 
+test('the slow list is read as one set whatever the reasons are called', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-slow-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'slow-tests.json');
+  assert.deepEqual([...await readSlowList(file)], [], 'no list: nothing is slow');
+  await writeFile(file, JSON.stringify({ browser: ['tests/a.test.mjs'], ffmpeg: ['tests/b.test.mjs', 'tests/a.test.mjs'], cli: [] }), 'utf8');
+  assert.deepEqual([...await readSlowList(file)].sort(), ['tests/a.test.mjs', 'tests/b.test.mjs']);
+});
+
 test('the test files of a folder are its *.test.mjs files, by name', async () => {
   const files = await listTestFiles(suite);
   assert.deepEqual(files.map(file => file.slice(-'a.test.mjs'.length)), ['a.test.mjs', 'b.test.mjs', 'c.test.mjs']);
@@ -87,4 +96,19 @@ test('the first run learns how long each file took and the next run starts the s
   const second = await runFixtures(dir);
   assert.equal(second.code, 0, second.err + second.out);
   assert.deepEqual(second.started, ['b', 'c', 'a'], 'slowest first');
+});
+
+test('the fast tier leaves out what the slow list names', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-order-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(join(dir, 'durations.json'), '{}', 'utf8');
+  const slowList = join(dir, 'slow-tests.json');
+  await writeFile(slowList, JSON.stringify({ cli: ['tests/fixtures/runner-suite/b.test.mjs'] }), 'utf8');
+  const log = join(dir, 'started.log');
+  await writeFile(log, '', 'utf8');
+  const env = { ...process.env, STUDY_TEST_SUITE_DIR: suite, STUDY_TEST_SLOW_FILE: slowList, STUDY_TEST_DURATIONS_FILE: join(dir, 'durations.json'), STUDY_FIXTURE_LOG: log };
+  delete env.NODE_TEST_CONTEXT;
+  const child = spawn(process.execPath, [runner, '--fast', '--test-concurrency=1'], { env, windowsHide: true, stdio: 'ignore' });
+  assert.equal(await new Promise(resolve => child.once('close', resolve)), 0);
+  assert.deepEqual((await readFile(log, 'utf8')).split('\n').filter(Boolean), ['a', 'c']);
 });

@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+/** The tests the fast tier skips: tests/slow-tests.json (browser, ffmpeg and program-starting files; tests/slow-tests-list.test.mjs keeps it honest). */
+export const slowListFile = () => process.env.STUDY_TEST_SLOW_FILE || join(repoRoot, 'tests', 'slow-tests.json');
 /** What the last run measured per file; a cache, never committed. */
 export const durationsFile = () => process.env.STUDY_TEST_DURATIONS_FILE || join(repoRoot, 'node_modules', '.cache', 'studyhub-tests', 'durations.json');
 /** The folder of test files (the runner's own tests point it at a fixture suite). */
@@ -44,6 +46,14 @@ export function orderLongestFirst(keys, durations) {
 /** The absolute paths of the *.test.mjs files of `dir`, by name. */
 export async function listTestFiles(dir = suiteDir()) {
   return (await readdir(dir)).filter(name => name.endsWith('.test.mjs')).sort().map(name => join(dir, name));
+}
+
+/** The files named in the slow list, whatever its reasons are called; no list means nothing is slow. */
+export async function readSlowList(file = slowListFile()) {
+  try {
+    const list = JSON.parse(await readFile(file, 'utf8'));
+    return new Set(Object.values(list).flat().filter(name => typeof name === 'string'));
+  } catch { return new Set(); }
 }
 
 /** Milliseconds per test file from earlier runs; a missing or damaged cache is just empty. */

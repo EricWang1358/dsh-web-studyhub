@@ -129,6 +129,7 @@
     "build": "node scripts/build.mjs",
     "build:demo": "node scripts/build-demo.mjs",
     "test": "node scripts/test.mjs",
+    "test:fast": "node scripts/test.mjs --fast",
     "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ lib scripts tests ui packages eslint.config.js",
     "dev": "node scripts/dev.mjs",
     "qa:journey": "node scripts/qa/journey.mjs",
