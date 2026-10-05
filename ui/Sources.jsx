@@ -8,6 +8,7 @@ import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
 import { Badge, Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader, useToast } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
+import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
@@ -38,12 +39,7 @@ const UNKNOWN = "unknown";
 /* A day is the midnight (local time) that starts it, as text: groups sort by it and it needs no formatting. */
 const dayKey = (d) => String(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
 
-/* Attachment imports can be titled with their absolute path; the list shows
-   the file name and keeps the full path in the tooltip. */
-const displayTitle = (title) =>
-  /^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(String(title))
-    ? String(title).replace(/^.*[\\/]/, "")
-    : title;
+/* Attachment imports used to be titled with their absolute path; the list shows the file name (lib/document-title.js, #207). */
 
 function dayLabel(key) {
   if (key === UNKNOWN) return ui("日期未知");

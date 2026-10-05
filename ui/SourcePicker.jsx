@@ -6,6 +6,7 @@ import PageScope from './PageScope.jsx';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
 import { courseScope } from '../lib/course-tree.js';
 import { bigDocuments } from '../lib/large-documents.js';
+import { materialRelations } from '../lib/source-relations.js';
 import IndexBadge from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
 import css from './source-picker.css';
@@ -112,7 +113,7 @@ const setOfIds = ids => { let set = idSets.get(ids); if (!set) idSets.set(ids, s
  * a coverage answer or a click on another row leaves the other rows alone. `apply(update)` is stable and reads the latest selection itself.
  */
 export function documentRowPropsEqual(a, b) {
-  if (a.item !== b.item || a.disabled !== b.disabled || a.defaultOpen !== b.defaultOpen || a.canIndex !== b.canIndex || a.slot !== b.slot
+  if (a.item !== b.item || a.disabled !== b.disabled || a.defaultOpen !== b.defaultOpen || a.canIndex !== b.canIndex || a.slot !== b.slot || a.relation !== b.relation
     || a.apply !== b.apply || !sameIndexInfo(a.indexInfo, b.indexInfo)) return false;
   if (a.selected === b.selected) return true;
   const was = setOfIds(a.selected), now = setOfIds(b.selected);
@@ -120,7 +121,7 @@ export function documentRowPropsEqual(a, b) {
 }
 
 /* `slot`: the index badge's line is kept even before the coverage is known, so a badge arriving later fills it instead of making the row taller (#205). */
-const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, canIndex, slot = false }) {
+const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, canIndex, slot = false, relation = null }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), chaptersId = useId();
   const chaptered = chosenByChapters(item);
@@ -128,8 +129,11 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   const chosen = new Set(selected);
   const multi = item.pages.length > 1;
   const picked = item.sourceIds.filter(id => chosen.has(id)).length;
+  // Materials made from one original file say so (#207): "派生自 <file>" on a text version, "另有 2 份派生资料" on the file.
+  const related = !relation ? '' : relation.role === 'derived' ? uiFormat('派生自 {0}', [relation.of])
+    : relation.role === 'original' ? (relation.derived ? uiFormat('另有 {0} 份派生资料', [relation.derived]) : '') : uiFormat('同一文件的 {0} 份资料', [relation.count]);
   const meta = [sourceFormatLabel(item), item.courses.join(' · ') || ui('未分类'),
-    uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item)];
+    uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), related];
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
       <div className="source-picker__row">
@@ -230,6 +234,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
     return next;
   }, [items, indexCoverage, bigKeys]);
   const canIndex = indexCoverage?.canIndex;
+  const relations = useMemo(() => materialRelations(items), [items]);
   if (!items.length) return (
     <div className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
       <EmptyState size="sm" icon="file" title={ui('还没有资料')} description={ui('先添加讲义或笔记，再用它们出题。')}
@@ -253,7 +258,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} listClassName="source-picker__list" itemClassName="source-picker__entry"
         empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
-          indexInfo={infos.get(item.key) ?? null} canIndex={canIndex} slot={indexSlot} />} />
+          indexInfo={infos.get(item.key) ?? null} canIndex={canIndex} slot={indexSlot} relation={relations.get(item.key) ?? null} />} />
         : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {onAdd && <Button variant="quiet" size="sm" icon="plus" className="source-picker__add" disabled={disabled} onClick={onAdd}>{ui('添加资料')}</Button>}
     </div>

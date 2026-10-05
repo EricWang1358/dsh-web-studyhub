@@ -2,5 +2,8 @@
   "选择这一轮练什么。": "Choose what this round covers.",
   "找到 {0} 道同类题": "{0} similar questions found",
   "正在查找同类题…": "Finding similar questions…",
-  "暂时没有合适的同类题": "No suitable similar questions yet"
+  "暂时没有合适的同类题": "No suitable similar questions yet",
+  "派生自 {0}": "Derived from {0}",
+  "另有 {0} 份派生资料": "{0} derived materials",
+  "同一文件的 {0} 份资料": "{0} materials from the same file"
 }
