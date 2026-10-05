@@ -8,7 +8,7 @@ import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
-import { Badge, Button, Disclosure, InlineMessage, PageHeader, Panel, SegmentedControl, Spinner, useToast } from "./components/index.js";
+import { Badge, Button, Checkbox, Disclosure, InlineMessage, PageHeader, Panel, RadioCard, SegmentedControl, Spinner, useToast } from "./components/index.js";
 import ModelSetupGate, { gateTitle } from "./ModelSetupGate.jsx";
 import { formatClock, joinMeta } from "./format.js";
 import { useExamRun } from "./exam/useExamRun.js";
@@ -475,13 +475,8 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRun
           {decks.length ? (
             <div className="es-papers" role="radiogroup" aria-label={ui("案例题组")}>
               {decks.map((item) => (
-                <label key={item.id} className={"es-paper" + (deck?.id === item.id ? " is-picked" : "")}>
-                  <input type="radio" name="case-paper-deck" checked={deck?.id === item.id} onChange={() => setDeckId(item.id)} />
-                  <span>
-                    <strong>{item.title}</strong>
-                    <small>{joinMeta([uiFormat("{0} 题 · {1} 分", [item.count, item.caseMarks]), item.caseBest ? uiFormat("最好成绩 {0}/{1}", [item.caseBest.total, item.caseBest.max]) : ""])}</small>
-                  </span>
-                </label>
+                <RadioCard key={item.id} name="case-paper-deck" value={item.id} checked={deck?.id === item.id} onSelect={() => setDeckId(item.id)} title={item.title}
+                  hint={joinMeta([uiFormat("{0} 题 · {1} 分", [item.count, item.caseMarks]), item.caseBest ? uiFormat("最好成绩 {0}/{1}", [item.caseBest.total, item.caseBest.max]) : ""])} />
               ))}
             </div>
           ) : (
@@ -505,10 +500,8 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRun
             </label>
           </div>
           {examFormatName && <small className="es-hint">{uiFormat("来自课程「{0}」的考试设置：{1}（可在课程设置里修改）", [course, examFormatName])}</small>}
-          <label className="es-check">
-            <input type="checkbox" checked={settings.handwriting} onChange={(event) => setSettings({ ...settings, handwriting: event.target.checked })} />
-            <span><strong>{ui("纸笔练习模式")}</strong><small>{ui("计时阶段隐藏输入框，你在纸上写；时间到后再录入要点批改，录入时间不计时。")}</small></span>
-          </label>
+          <Checkbox checked={settings.handwriting} onChange={(handwriting) => setSettings({ ...settings, handwriting })} label={ui("纸笔练习模式")}
+            hint={ui("计时阶段隐藏输入框，你在纸上写；时间到后再录入要点批改，录入时间不计时。")} />
         </div>}
         {!model.ready && <div className="es-gate"><ModelSetupGate variant="block" feature="grade" model={model} onOpenSettings={onSetupModel} /></div>}
       </ExamSetupCard>

@@ -46,7 +46,7 @@
     }
     .thumb-tray small { width: 100%; color: var(--text-faint); font-size: var(--fs-md); }
     .thumb-tray kbd, .shortcut-sheet kbd {
-      font: 600 10px/1 ui-monospace, monospace;
+      font: var(--fw-strong) var(--fs-xs)/1 ui-monospace, monospace;
       padding: var(--space-half) var(--space-1);
       border-radius: var(--radius-xs);
       border: 1px solid var(--line);
@@ -184,14 +184,7 @@
   }
   :where(.study-app, .study-seat) {
     /* ── Settings ────────────────────────────────────────────────────────── */
-    .inline-check { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); }
-    .inline-check input { width: auto; margin: 0; }
-    .origin-tag {
-      border: 1px solid var(--line);
-      border-radius: var(--radius-pill);
-      padding: 1px var(--space-2);
-      color: var(--text-dim);
-      white-space: nowrap;
+    .origin-note {
       max-width: 260px;
       overflow: hidden;
       text-overflow: ellipsis;

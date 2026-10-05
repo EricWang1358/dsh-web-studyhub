@@ -3,7 +3,7 @@ import React, { useRef, useState } from "react";
 import { kinds } from "./shared.js";
 import { importExample, importPrompt } from "./json-prompts.js";
 import CourseField from './CourseField.jsx';
-import { Button, FileDrop, InlineMessage, useToast } from './components/index.js';
+import { Button, Checkbox, FileDrop, InlineMessage, useToast } from './components/index.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { useStudy } from './study-context.jsx';
 
@@ -68,7 +68,7 @@ export default function JsonImport({ data, openDraft }) {
           <label>{ui("短标题")}<input value={proposal.title} onChange={(e) => setProposal({ ...proposal, title: e.target.value })} /></label>
           <CourseField label={ui('所属课程')} courses={data?.focus?.courses || []} value={proposal.course}
             onChange={course => { setProposal({ ...proposal, course, mergeTargetId: null }); setMerge(false); }} />
-          {proposal.mergeTargetId && <label><input type="checkbox" checked={merge} onChange={(e) => setMerge(e.target.checked)} />{ui("发布时并入建议的同知识点题组（保留全部题和记录）")}</label>}
+          {proposal.mergeTargetId && <Checkbox checked={merge} onChange={setMerge} label={ui("发布时并入建议的同知识点题组（保留全部题和记录）")} />}
           {proposal.mergeTargetId && <p className="muted">{data?.decks?.find(deck => deck.id === proposal.mergeTargetId)?.title} · {proposal.course || ui('未分类')}</p>}
         </div>}
         <Button type="submit" variant="primary" busy={reading || proposing} busyLabel={reading ? ui("正在读取文件…") : ui("正在整理建议…")} disabled={busy || !text.trim()}>{proposal ? ui("确认并导入草稿 →") : ui("检查并建议归类 →")}</Button>

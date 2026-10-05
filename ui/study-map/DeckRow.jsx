@@ -30,7 +30,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
   ];
   return (
     <li className="map-deck">
-      <div className={`map-row deck-row${whole ? ' selected' : ''}`}>
+      <div className={`map-row deck-row${whole ? ' map-row--selected' : ''}`}>
         <DisclosureToggle className="map-fold" open={open} label={foldLabel(open, d.title)} onToggle={() => tree.toggleOpen(d.id)} />
         <input type="checkbox" aria-label={uiFormat('选择题组 {0}', [d.title])} checked={whole} disabled={d.archived}
           onChange={(event) => tree.toggleSelect([key], event.target.checked)} />
@@ -60,7 +60,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
           {p.topics.map((t) => {
             const k = topicKey(d.id, t.name), level = dotLevel(t), topicRun = runFor([{ deckId: d.id, topic: t.name }]);
             return (
-              <li key={t.name} className={`map-row topic-row${whole || tree.selected.has(k) ? ' selected' : ''}`}>
+              <li key={t.name} className={`map-row topic-row${whole || tree.selected.has(k) ? ' map-row--selected' : ''}`}>
                 <input type="checkbox" aria-label={uiFormat('选择主题 {0}', [t.name])} checked={whole || tree.selected.has(k)}
                   disabled={whole || d.archived} onChange={(event) => tree.toggleSelect([k], event.target.checked)} />
                 <span className={`map-dot lv-${level}`} title={LEVEL_LABEL[level]} />

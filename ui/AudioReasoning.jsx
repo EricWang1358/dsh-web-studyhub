@@ -23,7 +23,7 @@ export default function AudioReasoning({ settings, busy, onSave, timings = [] })
           <span />{levels.map(level => <span key={level} className="audio-matrix-level">{levelName[level]}</span>)}
           {[...levels].reverse().map(a => <React.Fragment key={a}><span className="audio-matrix-level">{levelName[a]}</span>{levels.map(b => <button type="button" key={`${a}:${b}`} disabled={busy} aria-pressed={preset(a, b)}
             aria-label={uiFormat('校正: {0}, 翻译: {1}', [names[a], names[b]])}
-            className={preset(a, b) ? 'selected' : ''} onClick={() => choose(a, b)}>
+            onClick={() => choose(a, b)}>
             <span className="audio-matrix-dot" aria-hidden="true" />
           </button>)}</React.Fragment>)}
         </div>

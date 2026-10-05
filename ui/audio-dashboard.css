@@ -4,7 +4,7 @@
   :is(.study-app, .study-seat) {
     .audio-dashboard {
       --usage-free: var(--ok); --usage-siliconflow: var(--warn); --usage-groq: var(--info); --usage-paid: var(--accent-soft);
-      margin-top: 28px; padding: 28px; border: 1px solid var(--line-strong); border-radius: var(--radius-card);
+      margin-top: 28px; padding: 28px; border: 1px solid var(--line-strong); border-radius: var(--radius);
       background: var(--bg-sunken); color: var(--text); container-type: inline-size;
     }
     .audio-dashboard :is(h2,h3,p) { margin: 0; }
@@ -63,15 +63,15 @@
     .audio-reasoning .audio-section-title small { display: block; margin-bottom: var(--space-2); letter-spacing: .13em; }
     .audio-reasoning-body { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: var(--space-7); align-items: center; }
     .audio-matrix-axis { color: var(--text-muted); font-size: var(--fs-xs); display: block; margin-bottom: var(--space-2); }
-    .audio-matrix-current { color: var(--text-dim); font-size: var(--fs-xs); line-height: 1.7; margin-bottom: 10px !important; }
+    .audio-matrix-current { color: var(--text-dim); font-size: var(--fs-xs); line-height: 1.7; margin-bottom: 10px; }
     .audio-matrix-axis.horizontal { text-align: right; margin: var(--space-2) 0 0; }
     .audio-reasoning-grid { display: grid; grid-template-columns: 24px repeat(3,1fr); gap: var(--space-1); align-items: center; }
     .audio-matrix-level { font-size: var(--fs-xs); text-align: center; color: var(--text-dim); }
     .audio-reasoning-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 1; padding: var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--bg-surface); }
     .audio-reasoning-grid button small { font-size: var(--fs-xs); color: var(--text-muted); }
     .audio-matrix-dot { width: 6px; height: 6px; background: var(--decor-faint); border-radius: 50%; }
-    .audio-reasoning-grid button.selected { border-color: var(--accent-soft); background: var(--bg-selected); }
-    .audio-reasoning-grid button.selected .audio-matrix-dot { background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-glow); }
+    .audio-reasoning-grid button[aria-pressed="true"] { border-color: var(--accent-soft); background: var(--bg-selected); }
+    .audio-reasoning-grid button[aria-pressed="true"] .audio-matrix-dot { background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-glow); }
     .audio-reasoning-fields label { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,160px); align-items: center; gap: var(--space-4); margin: 0 0 var(--space-5); font-size: var(--fs-md); }
     .audio-reasoning-fields label small { display: block; font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--space-1); }
     .audio-reasoning-fields select { width: 100%; min-width: 0; padding: var(--space-2); font-size: var(--fs-xs); }
@@ -111,13 +111,13 @@
   }
   :is(.study-app, .study-seat) {
     /* Folded under one line until the learner opens it. */
-    .audio-usage-panel { margin-top: var(--space-6); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
+    .audio-usage-panel { margin-top: var(--space-6); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .audio-usage-panel > summary { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; list-style: none; font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .audio-usage-panel > summary::-webkit-details-marker { display: none; }
     .audio-usage-panel > summary::before { content: "›"; color: var(--text-muted); transition: transform var(--dur-fast) var(--ease); }
     .audio-usage-panel[open] > summary::before { transform: rotate(90deg); }
     .audio-usage-panel > summary small { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
-    .audio-usage-panel > .audio-dashboard { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 var(--radius-card) var(--radius-card); }
+    .audio-usage-panel > .audio-dashboard { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); }
   }
 }
 

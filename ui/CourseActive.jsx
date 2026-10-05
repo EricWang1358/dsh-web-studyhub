@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useId, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, InlineMessage } from './components/index.js';
+import { Badge, Button, InlineMessage } from './components/index.js';
 import { courseScope } from '../lib/course-tree.js';
 import css from './course-active.css';
 
@@ -107,9 +107,9 @@ export function ParkedChip({ course, className = '' }) {
     try { await api.activate(course); setState({ working: false, error: '' }); }
     catch (error) { setState({ working: false, error: errorMessage(error) }); }
   };
-  return <span className={`course-parked-chip ${className}`.trim()} title={sentence(course)}>
+  return <Badge size="sm" className={`course-parked ${className}`.trim()} title={sentence(course)}>
     <span>{ui('未激活')}</span>
     {api && <Button variant="link" size="sm" busy={state.working} onClick={activate}>{ui('激活')}</Button>}
-    {state.error && <span role="alert" className="course-parked-chip__error">{state.error}</span>}
-  </span>;
+    {state.error && <span role="alert" className="course-parked__error">{state.error}</span>}
+  </Badge>;
 }

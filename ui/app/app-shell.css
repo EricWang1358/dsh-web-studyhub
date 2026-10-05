@@ -3,7 +3,7 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     /* The shell's own parts built from components (ui-consistency #87 #108): the banner strip under the top bar, and the sidebar and
-       top-bar controls that used to be raw buttons. They keep the look of the rules in style.css and library-chip.css, which they
+       top-bar controls that used to be raw buttons. They keep the look of the rules in style.css and library-location.css, which they
        outrank now that the buttons carry .sh-btn. Tokens only. */
     /* Messages that stay until their cause is gone: one Banner each, never accent-coloured. */
     .sh-banner.app-banner {
@@ -40,20 +40,5 @@
       text-align: left;
     }
     .sh-btn.nav-reset:hover:not(:disabled) { color: var(--text-dim); background: none; }
-    .sh-btn.library-chip {
-      min-width: 0;
-      max-width: min(30ch, 34cqi);
-      min-height: 0;
-      padding: var(--space-1) var(--space-2);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: transparent;
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-      font-weight: var(--fw-regular);
-      line-height: 1.4;
-      white-space: nowrap;
-    }
-    .sh-btn.library-chip:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); background: var(--bg-hover); }
   }
 }

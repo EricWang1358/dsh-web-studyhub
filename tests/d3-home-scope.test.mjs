@@ -77,13 +77,13 @@ test('the home has one h1, one primary button, and the mode tabs sit before the 
 });
 
 test('home css: tabs and title never share a line; the resume number and its caption share one baseline', () => {
-  const tiers = css('home-tiers.css');
+  const tiers = `${css('home-tiers.css')}\n${css('study-map/desk.css')}`; // the tier rules of the desk classes moved into desk.css with their base rules (#151)
   assert.match(tiers, /\.focus-switch\s*\{[^}]*display:\s*flex/, 'the tabs take their own line');
   assert.match(tiers, /\.desk-intro\s*\{[^}]*flex-direction:\s*column/);
   assert.match(tiers, /\.today-count\s*\{[^}]*align-items:\s*baseline/);
   assert.match(tiers, /\.today-count strong\s*\{[^}]*line-height:\s*1\s*;/);
   // narrow: the flattened intro gets an explicit order for every part, so nothing lands above the title by default
-  const narrow = tiers.slice(tiers.lastIndexOf('@container study (max-width: 760px)'));
+  const narrow = tiers;
   for (const part of ['focus-switch', 'course-heading', 'course-parked-line', 'role-prep', 'today-stack', 'course-route', 'desk-mastery', 'desk-next', 'desk-also', 'desk-more', 'resume-list']) {
     assert.match(narrow, new RegExp(`\\.${part}\\b[^{]*\\{[^}]*order:\\s*\\d+`), `${part} has an explicit order`);
   }

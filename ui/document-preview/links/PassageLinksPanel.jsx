@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import Markdown from '../../Markdown.jsx';
 import MathText from '../../MathText.jsx';
-import { Button, InlineMessage } from '../../components/index.js';
+import { Badge, Button, InlineMessage } from '../../components/index.js';
 import { ui, uiFormat } from '../../i18n.js';
 import { answerText, clip, displayPrompt, groupTitle, linkKind } from './link-model.js';
 
@@ -29,7 +29,7 @@ function LinkItem({ link, onOpen }) {
   const kind = linkKind(link), followups = link.followups || [], answer = answerText(link.answer);
   return <article className="reader-link-item" data-kind={kind}>
     <p className="reader-link-item__head">
-      {kind === 'qa' && <span className="origin-tag">{ui('问答')}</span>}
+      {kind === 'qa' && <Badge size="sm" className="origin-note">{ui('问答')}</Badge>}
       <strong>{displayPrompt(link) || link.cardId}</strong>
     </p>
     {link.deckTitle && <p className="reader-link-item__deck">{link.deckTitle}</p>}

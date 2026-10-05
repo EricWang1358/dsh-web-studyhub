@@ -30,7 +30,7 @@ export function DraftTopUp({ draft, jobs = [], busy = false, modelReady = true, 
       onClick={() => onContinue?.(draft)}>
       {work ? draftWorkLabel(work, draft) : uiFormat("继续补齐 {0} 题", [missing])}
     </Button>
-    {!work && modelReady && call && <TokenEstimate enabled request={{ feature: "generate", resumeDraftId: draft.id, draftVersion: draft.draftVersion }} />}
+    {!work && modelReady && call && <TokenEstimate enabled align="end" request={{ feature: "generate", resumeDraftId: draft.id, draftVersion: draft.draftVersion }} />}
   </div>;
 }
 

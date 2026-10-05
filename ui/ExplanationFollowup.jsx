@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
-import { Button, InlineMessage } from "./components/index.js";
+import { Badge, Button, InlineMessage } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 
 export default function ExplanationFollowup({ run, readOnly = false, onDerive, deriving = false }) {
@@ -80,7 +80,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
       {items.map((item) => (
         <details className="followup-item" key={item.id} open={openIds.has(item.id)}
           onToggle={(event) => toggle(item.id, event.currentTarget.open)}>
-          <summary><span className="en-tag">Q&amp;A</span><h4>{item.question}</h4>
+          <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{item.question}</h4>
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
           {/* A long answer can be folded from its end, landing back on its question. */}

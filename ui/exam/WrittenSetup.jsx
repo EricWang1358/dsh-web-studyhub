@@ -52,7 +52,7 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
               <ul className="es-decks">
                 {decks.map((deck) => (
                   <li key={deck.id}>
-                    <label className={'es-deck' + (picked.has(deck.id) ? ' picked' : '')}>
+                    <label className={'es-deck' + (picked.has(deck.id) ? ' is-checked' : '')}>
                       <input type="checkbox" checked={picked.has(deck.id)}
                         onChange={(event) => onPick((previous) => {
                           const next = new Set(previous);

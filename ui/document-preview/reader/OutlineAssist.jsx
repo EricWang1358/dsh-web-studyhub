@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Dialog, InlineMessage } from '../../components/index.js';
+import { Button, Dialog, InlineMessage, Tooltip } from '../../components/index.js';
 import { TokenEstimateView, TokenUsage } from '../../TokenUsage.jsx';
 import { useInjectCss } from '../../shared.js';
 import { ASSIST_IDLE, assistReducer, rejectionKind } from './ai-outline.js';
@@ -28,7 +28,7 @@ function EntryList({ rows, label }) {
   return <ol className="reader-assist__entries" aria-label={label}>
     {rows.map((row, index) => <li key={index} data-depth={row.depth} data-minor={row.minor || undefined}>
       <span>{row.title}</span>
-      {row.kind === 'label' && <small className="reader-assist__tag" title={ui('AI 概括的标题，原文里没有这句话')}>{ui('概括')}</small>}
+      {row.kind === 'label' && <Tooltip layer anchorClassName="reader-assist__tag-anchor" content={ui('AI 概括的标题，原文里没有这句话')}><small className="reader-assist__tag" tabIndex={0}>{ui('概括')}</small></Tooltip>}
     </li>)}
   </ol>;
 }

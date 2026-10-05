@@ -191,11 +191,11 @@ test('the library folds parked courses under one heading and keeps their decks o
 
 test('the home marks a parked current course with 未激活 and an 激活 button; the course switcher groups parked courses', () => {
   const html = library({ focus: { mode: 'class', course: 'Cloud', courseId: 'c-cloud', courses: [{ name: 'Databases', count: 1, active: true }, { name: 'Cloud', count: 1, active: false, explicit: false }], fresh: [] } });
-  assert.match(html, /class="course-parked-chip/);
+  assert.match(html, /class="[^"]*\bcourse-parked\b/);
   assert.match(text(html), /未激活 激活/);
   assert.match(html, /<optgroup label="未激活的课程 \(1\)">/, 'the heading\'s switcher keeps parked courses apart');
   const live = library();
-  assert.doesNotMatch(live, /class="course-parked-chip/);
+  assert.doesNotMatch(live, /class="[^"]*\bcourse-parked\b/);
 });
 
 test('a half-done practice in a parked course is not offered as 接着做, and the other list says so', () => {

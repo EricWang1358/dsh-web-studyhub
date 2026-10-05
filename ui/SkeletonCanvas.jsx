@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
-import { Button, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
+import { Badge, Button, Checkbox, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
 import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { readJSON, removeKey, writeJSON } from "./storage.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
@@ -313,7 +313,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
         <Popover label={ui("布局")} placement="bottom-start" panelClassName="skc-layout-panel"
           trigger={({ props, ref }) => <Button ref={ref} size="sm" {...props}>{ui("布局")}</Button>}>
           <Button size="sm" onClick={readable} title={ui("按原始字号阅读，可拖动画布")}>{ui("原始大小")}</Button>
-          <label className="skc-attributes-toggle"><input type="checkbox" checked={showAttributes} onChange={(ev) => { setShowAttributes(ev.target.checked); setFocusPositions({}); }} />{ui("显示属性")}</label>
+          <Checkbox checked={showAttributes} onChange={(checked) => { setShowAttributes(checked); setFocusPositions({}); }} label={ui("显示属性")} />
           <select aria-label={ui("布局方向")} value={direction} onChange={(ev) => { setDirection(ev.target.value); setFocusMode(false); setFocusPositions({}); }}>
             <option value="auto">{ui("自适应方向")}</option><option value="right">{ui("从左到右")}</option><option value="down">{ui("从上到下")}</option>
           </select>
@@ -328,7 +328,6 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
             {!!trail.current.length && <Button size="sm" icon="arrow-left" onClick={goBack} title={ui("回到上一个聚焦的概念")}>{ui("返回")}</Button>}
             <Button
               size="sm"
-              className={focusMode ? "on" : ""}
               aria-pressed={focusMode}
               onClick={() => setFocusMode((v) => !v)}
               title={focusMode ? ui("显示全部概念，保留选中") : ui("只看选中概念和它的直接邻居")}
@@ -336,7 +335,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
               {focusMode ? ui("显示全图") : ui("只看邻居")}
             </Button>
             {focusLayout && (
-              <span className="skc-focus-chip">{uiFormat("聚焦「{0}」· {1} 个邻居", [node?.term, focusLayout.neighbours])}</span>
+              <Badge size="sm" tone="accent" className="skc-focus-note">{uiFormat("聚焦「{0}」· {1} 个邻居", [node?.term, focusLayout.neighbours])}</Badge>
             )}
           </>
         )}
@@ -397,7 +396,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
                 type="button"
                 className={
                   "skc-class" +
-                  (selected === b.id ? " selected" : "") +
+                  (selected === b.id ? " skc-class--selected" : "") +
                   (neighbours && !neighbours.has(b.id) ? " dim" : "") +
                   (b.node.cards.length ? "" : " no-cards") +
                   (fresh?.nodes.has(b.id) ? " fresh" : "")
@@ -542,7 +541,7 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
         <IconButton icon="arrow-left" size="sm" disabled={!current} onClick={() => { setPlaying(false); setCurrent((c) => Math.max(0, c - 1)); }} label={ui("上一步")} />
         <Button
           size="sm"
-          className={playing ? "on" : ""}
+          className={playing ? "is-active" : ""}
           disabled={!total}
           onClick={() => {
             if (playing) return setPlaying(false);
@@ -564,7 +563,7 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
               <line key={p.id} className={"sqc-lifeline" + (involved?.has(p.id) ? " lit" : "")} x1={p.x} y1={layout.lifelineTop} x2={p.x} y2={layout.height - SEQ.margin} />
             ))}
             {layout.steps.map((st) => {
-              const state = !current ? "" : st.index === current ? " current" : st.index > current ? " future" : " past";
+              const state = !current ? "" : st.index === current ? " sqc-step--current" : st.index > current ? " future" : " past";
               const marker = st.kind === "call" ? "solid" : "open";
               if (st.self) {
                 const d = `M${st.x1} ${st.y} h${SEQ.self} v18 h-${SEQ.self - 2}`;
@@ -597,7 +596,7 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
             </button>
           ))}
           {layout.steps.map((st) => {
-            const state = !current ? "" : st.index === current ? " current" : st.index > current ? " future" : " past";
+            const state = !current ? "" : st.index === current ? " sqc-step--current" : st.index > current ? " future" : " past";
             const left = st.self ? st.x1 + 6 : Math.min(st.x1, st.x2) + 6;
             const width = st.self ? SEQ.colW - 12 : Math.abs(st.x2 - st.x1) - 12;
             return (

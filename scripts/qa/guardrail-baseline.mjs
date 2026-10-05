@@ -25,6 +25,11 @@ export const RULES = {
   rawColor: { issue: '#156', why: 'raw #hex / rgb() / hsl() outside token definitions', fix: 'use a colour token or color-mix() of tokens (only #000 inside mask-image is allowed)' },
   spacingPx: { issue: '#148', why: 'raw px padding/margin/gap', fix: 'use var(--space-*)' },
   longLine: { issue: '#156', why: 'CSS line longer than 400 characters (minified)', fix: 'format the stylesheet (one declaration per line)' },
+  hostTitle: { issue: '#86', why: 'title="..." on a plain text element (span, div, li, small, p ...): it never shows on touch or keyboard focus', fix: '<Tooltip layer content={...}><span tabIndex={0}>...</span></Tooltip>; a title that only repeats a truncated label may stay on its Button' },
+  busyLabelSwap: { issue: '#153', why: '<Button> whose label swaps to a working text without the busy prop (no spinner, no aria-busy, no held width)', fix: '<Button busy={working} busyLabel={ui(\'正在…\')}>' },
+  radiusCard: { issue: '#143', why: 'border-radius: var(--radius-card) in a feature sheet (it is the physical paper card\'s corner)', fix: 'use var(--radius) for a desk panel, or <Panel> / <Panel tone="paper">; only a real paper card keeps --radius-card' },
+  rawChoiceInput: { issue: '#140', why: 'hand-written <input type="checkbox|radio"> outside ui/components', fix: 'use <Checkbox>, <Switch> or <RadioCard> from ui/components' },
+  elementSelector: { issue: '#137', why: 'rule that targets a bare button / input / select / textarea / label element outside base.css and ui/components', fix: 'give the element a class (or use <Button>, <Field>, <Checkbox>) and style that class' },
   serviceHandoff: { issue: '#113', why: 'call / act / askInChat / busy handed to a child component as a prop (busy on Button, Dialog and the like is a display prop and not counted)',
     fix: 'read it with useStudy() (ui/study-context.jsx) in the component that uses it' },
 };
@@ -140,22 +145,36 @@ function isTokenDefinition(file, decl) {
   return TOKEN_FILES.has(file) && decl.prop.startsWith('--');
 }
 
+/* A rule whose selector names a form element by tag (`.row button`, `& label small`); attribute, :not()/:is() contents and sh- primitives do not count. */
+const ELEMENT_TYPE = /(^|[\s>+~(&])(button|input|select|textarea|label)(?![\w-])/;
+export const targetsFormElement = (selector) => selector.split(',').some((part) => {
+  const probe = part.replace(/\[[^\]]*\]/g, '[]').replace(/:(?:not|is|where|has)\([^)]*\)/g, '').trim();
+  return ELEMENT_TYPE.test(probe) && !/\.sh-/.test(probe);
+});
+
 function scanCssFile(file, source, metrics, found) {
   const bump = (name, n = 1) => { if (n) (metrics[name][file] = (metrics[name][file] || 0) + n); };
   const { declarations, blocks } = parseCss(source);
+  const ruleSeen = new Set();
   for (const decl of declarations) {
     const { prop, value } = decl;
+    const rule = decl.ctx.join('|'), selector = decl.ctx[decl.ctx.length - 1] || '';
+    if (!ruleSeen.has(rule) && selector && !selector.startsWith('@') && file !== 'ui/base.css' && !file.startsWith('ui/components/')) {
+      ruleSeen.add(rule);
+      if (targetsFormElement(selector)) bump('elementSelector');
+    }
     if (prop.startsWith('--')) {
       (found.defined ||= new Set()).add(prop);
     }
     if (decl.important && !isAllowedImportant(file, decl)) bump('important');
-    if (prop === 'font-size' && nonZeroPx(value).length) bump('fontSizePx');
-    if (prop === 'font-weight' && /^\d{3}$/.test(value)) bump('fontWeightNumeric');
+    if ((prop === 'font-size' || prop === 'font') && nonZeroPx(value).length) bump('fontSizePx');
+    if ((prop === 'font-weight' && /^\d{3}$/.test(value)) || (prop === 'font' && /^\d{3}(?=\s)/.test(value))) bump('fontWeightNumeric');
     if (prop === 'border-radius') {
       if (/(?<![\w.-])9{3,}px\b/.test(value)) bump('radius999');
       else if (nonZeroPx(value).length) bump('radiusPx');
     }
-    if (prop === 'z-index' && /^\d+$/.test(value) && Number(value) > 2) bump('zIndexNumeric');
+    if (/^border(-(top|bottom)-(left|right))?-radius$/.test(prop) && /var\(--radius-card\)/.test(value) && !file.startsWith('ui/components/')) bump('radiusCard');
+    if (prop === 'z-index' &&/^\d+$/.test(value) && Number(value) > 2) bump('zIndexNumeric');
     if (/^(padding|margin|gap|row-gap|column-gap)(-(top|right|bottom|left|inline|block)(-(start|end))?)?$/.test(prop) && nonZeroPx(value).length) bump('spacingPx');
     if (!isTokenDefinition(file, decl)) {
       let probe = stripUrlAndStrings(value);
@@ -204,6 +223,28 @@ function classNameStrings(source) {
   return out;
 }
 
+/* Each <Button> / <IconButton> element of a source text: its opening tag (balanced braces and quotes) and its body up to the closing tag. */
+function* buttonElements(text) {
+  const re = /<(Button|IconButton)(?=[\s>])/g;
+  let m;
+  while ((m = re.exec(text))) {
+    let i = re.lastIndex, depth = 0, quote = '';
+    for (; i < text.length; i++) {
+      const c = text[i];
+      if (quote) { if (c === '\\') i++; else if (c === quote) quote = ''; continue; }
+      if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
+      if (c === '{') depth++;
+      else if (c === '}') depth--;
+      else if (c === '>' && depth === 0) break;
+    }
+    const open = text.slice(m.index, i + 1);
+    const end = open.endsWith('/>') ? -1 : text.indexOf(`</${m[1]}>`, i);
+    yield { open, body: open.endsWith('/>') || end < 0 ? '' : text.slice(i + 1, end) };
+  }
+}
+const WORKING_WORD = '(?:busy|pending|saving|working|loading|starting|checking|searching|matching|reading|proposing|installing|updating|connecting|running|generating)';
+const LABEL_SWAP = new RegExp(`\\b${WORKING_WORD}\\b[\\w.!=\\s&|'"]*\\?\\s*(?:ui|uiFormat)\\(`);
+
 function scanJsxFile(file, source, metrics, found) {
   const bump = (name, n = 1) => { if (n) (metrics[name][file] = (metrics[name][file] || 0) + n); };
   const text = stripJsComments(source);
@@ -212,6 +253,11 @@ function scanJsxFile(file, source, metrics, found) {
     let legacy = 0;
     for (const body of classNameStrings(text)) legacy += (body.match(LEGACY_BUTTON) || []).length;
     bump('legacyButtonClass', legacy);
+    let swaps = 0;
+    for (const el of buttonElements(text)) if (!/\bbusy=/.test(el.open) && LABEL_SWAP.test(el.body)) swaps++;
+    bump('busyLabelSwap', swaps);
+    bump('hostTitle', (text.match(/<(?:span|div|li|small|p|td|th|strong|i|b|time|mark|em|dd|dt|section|article)(?=[\s>])[^>]*\stitle=/g) || []).length);
+    bump('rawChoiceInput', (text.match(/\btype=(?:"(?:checkbox|radio)"|'(?:checkbox|radio)'|\{\s*['"](?:checkbox|radio)['"]\s*\})/g) || []).length);
   }
   const glyph = new RegExp(`>\\s*(?:[${ICON_GLYPHS}]|\\{\\s*['"\`][${ICON_GLYPHS}]['"\`]\\s*\\})\\s*<`, 'g');
   bump('glyphIcon', (text.match(glyph) || []).length);

@@ -61,3 +61,18 @@
     }
   }
 }
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .settings-page .binding-panel { margin: 0; }
+  }
+}
+
+@layer study.features {
+  @container study (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      .settings-page .binding-row { flex-direction: column; align-items: stretch; }
+      .settings-page .binding-actions { justify-content: flex-start; }
+    }
+  }
+}

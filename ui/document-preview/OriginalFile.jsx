@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, Dialog, FileDrop, Icon, InlineMessage, LoadingState } from '../components/index.js';
+import { Button, Checkbox, Dialog, FileDrop, Hint, Icon, InlineMessage, LoadingState, RadioCard, RadioCardGroup } from '../components/index.js';
 import css from './original-file.css';
 import { ORIGINAL_MAX_BYTES, canAttach, defaultMode, explainFailure, issueOf, modeOptions, originalLine, reportHeadline, reportLines } from './original-file.js';
 import { formatBytes } from '../format.js';
@@ -176,14 +176,13 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
         {picked && <small className="original-file-name" title={picked.path}>{picked.kind === 'path' ? baseName(picked.path) : picked.name}{picked.size ? ` · ${formatBytes(picked.size)}` : ''}</small>}
         {lines.length > 0 && <ul className="original-lines">{lines.map((item, index) => <li key={index} data-tone={item.tone}>{item.text}</li>)}</ul>}
       </Status>
-      <fieldset className="original-modes" disabled={phase === 'attaching'}>
-        <legend>{ui('怎样保存这个文件')}</legend>
-        {options.map(option => <label key={option.value} className="original-mode" data-selected={mode === option.value || undefined}>
-          <input type="radio" name={modeName} value={option.value} checked={mode === option.value} disabled={option.disabled} onChange={() => setMode(option.value)} />
-          <span><strong>{option.label}</strong><small>{option.detail}</small>{option.note && <small className="original-mode__note">{option.note}</small>}</span>
-        </label>)}
-      </fieldset>
-      {!report.accepted && <label className="original-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>{ui('我确认这是同一份资料，仍要附上')}</span></label>}
+      <RadioCardGroup className="original-modes" legend={ui('怎样保存这个文件')} disabled={phase === 'attaching'}>
+        {options.map(option => <RadioCard key={option.value} name={modeName} value={option.value} checked={mode === option.value} disabled={option.disabled}
+          onSelect={setMode} title={option.label} hint={option.detail}>
+          {option.note && <Hint as="span">{option.note}</Hint>}
+        </RadioCard>)}
+      </RadioCardGroup>
+      {!report.accepted && <Checkbox checked={confirmed} onChange={setConfirmed} label={ui('我确认这是同一份资料，仍要附上')} />}
     </>}
     {error && <Status tone="warning" alert>{explainFailure(error)}</Status>}
   </Dialog>;

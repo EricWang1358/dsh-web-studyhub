@@ -42,8 +42,6 @@ function literalsEqualToTokens(source) {
 const HEX_BASELINE = {
   'board/board.css': 2,
   'components/scroll-window.css': 4,
-  'document-preview/document-preview.css': 4,
-  'document-preview/peek/peek.css': 1,
   'skeleton.css': 4,
   'review/question.css': 1,
 };

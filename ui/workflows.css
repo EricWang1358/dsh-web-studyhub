@@ -137,8 +137,8 @@
     .wf-history li > div:first-child { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
     .wf-history time { margin-left: auto; color: var(--text-muted); font-size: var(--fs-md); }
     .wf-outcome { color: var(--text-muted); font-size: var(--fs-md); }
-    .wf-outcome.done { color: var(--ok); }
-    .wf-outcome.needs_work { color: var(--warn); }
+    .wf-outcome[data-outcome="done"] { color: var(--ok); }
+    .wf-outcome[data-outcome="needs_work"] { color: var(--warn); }
     .wf-completed { border-left: 3px solid var(--ok); padding: 6px 0 6px 22px; margin-block: 30px; }
     .wf-completed h2 { font-size: var(--fs-2xl); }
     .wf-completed p { font-size: var(--fs-md); line-height: 1.7; }
@@ -264,9 +264,7 @@
     .wf-quick-row input { flex: 1; min-width: 0; padding: 14px var(--space-4); font-size: var(--fs-lg); }
     .wf-quick-row .wf-quick-go { flex: none; min-height: 48px; padding-inline: 22px; }
     .wf-quick-suggest { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin-top: 14px; }
-    .wf-quick-option { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-1) 10px; width: fit-content; max-width: 100%; margin: 18px 0 0; font-size: var(--fs-md); cursor: pointer; }
-    .wf-quick-option input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); }
-    .wf-quick-option .muted { font-size: var(--fs-md); }
+    .wf-quick-option { width: fit-content; max-width: 100%; margin: 18px 0 0; }
     .wf-spine-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin: 0 0 22px; font-size: var(--fs-md); }
   }
   :where(.study-app, .study-seat) {

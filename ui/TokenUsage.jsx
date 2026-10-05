@@ -55,19 +55,29 @@ export function TokenUsage({ usage, estimate, inline = false, copy = true, class
 
 /* ---------- before a run ---------- */
 
+/* The widest line an estimate usually is: the loading line lays this out invisibly, so it takes the lines the ready one will take. */
+const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low: 88, high: 99 } };
+
 /**
  * The estimate line above a submit button: "预计 58.3K–96.1K tok · 8–10 次模型调用", with an ⓘ button that opens the
- * stages, the same rows as ranges and what the estimate cannot know. `state`: { status, estimate }.
+ * stages, the same rows as ranges and what the estimate cannot know. `state`: { status, estimate }. Loading and ready draw the same box
+ * (a hidden copy of the line holds the room), so nothing moves when the answer arrives; `align="end"` right-aligns it in an action column.
  * A selection over the limit says so in plain sight, not only in the panel.
  */
-export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false }) {
+export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start' }) {
   useInjectCss(css, 'study-token-usage');
   const [open, setOpen] = useState(defaultOpen);
   const panel = useId();
   const estimate = state.status === 'ready' ? state.estimate : null;
   const notes = (estimate?.notes || []).filter((code) => code !== 'over-limit').map((code) => noteText(code, estimate)).filter(Boolean);
-  return <div className="token-estimate" data-token-estimate aria-live="polite">
-    {state.status === 'loading' && <small className="token-estimate__quiet">{ui('正在估算…')}</small>}
+  return <div className={align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'} data-token-estimate data-status={state.status} aria-live="polite">
+    {state.status === 'loading' && <p className="token-estimate__line token-estimate__line--loading">
+      <span className="token-estimate__text">
+        <span className="token-estimate__ghost" aria-hidden="true">{estimateSummary(GHOST_ESTIMATE)}</span>
+        <small className="token-estimate__quiet">{ui('正在估算…')}</small>
+      </span>
+      <IconButton icon="info" size="sm" className="token-estimate__info token-estimate__info--slot" label={ui('查看估算明细')} aria-hidden="true" tabIndex={-1} disabled />
+    </p>}
     {estimate && <>
       <p className="token-estimate__line">
         <span>{estimateSummary(estimate)}</span>
@@ -117,11 +127,11 @@ export function useUsageEstimate(call, request, { enabled = true, delay = 450 } 
 }
 
 /** The estimate line, connected: `request` is what `usage.estimate` takes (with `feature`); `action` overrides the action name. */
-export function TokenEstimate({ request, action, enabled = true }) {
+export function TokenEstimate({ request, action, enabled = true, align }) {
   const { call } = useStudy();
   const state = useUsageEstimate(call, action ? { action, args: request } : request, { enabled });
   if (!enabled) return null;
-  return <TokenEstimateView state={state} />;
+  return <TokenEstimateView state={state} align={align} />;
 }
 
 /* ---------- after a run ---------- */
