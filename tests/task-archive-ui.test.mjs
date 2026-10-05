@@ -39,9 +39,9 @@ const render = ({ data = {}, props = {}, language = 'zh' } = {}) => {
 test('the filters are 全部, 进行中, 失败 and 已归档, each with its count, in both languages; 已归档 counts the archived ones only', () => {
   const data = { archivedJobs: [archivedRecord('o1', '旧题组', 'complete', 1), archivedRecord('o2', '另一个', 'failed', 3)] };
   const zh = render({ data });
-  for (const text of ['全部 3', '进行中 1', '失败 1', '已归档 2']) assert.match(zh, new RegExp(text), text);
+  for (const text of ['全部 3', '进行中 1', '失败/中断 1', '已归档 2']) assert.match(zh, new RegExp(text), text);
   const en = render({ data, language: 'en' });
-  for (const text of ['All 3', 'In progress 1', 'Failed 1', 'Archived 2']) assert.match(en, new RegExp(text), text);
+  for (const text of ['All 3', 'In progress 1', 'Failed / interrupted 1', 'Archived 2']) assert.match(en, new RegExp(text), text);
   assert.match(render(), /已归档 0/, 'the filter is there with nothing archived');
 });
 

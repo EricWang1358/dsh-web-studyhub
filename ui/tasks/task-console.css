@@ -107,11 +107,13 @@
     .tc-dot[data-state='done'] { background: var(--ok); }
     .tc-dot[data-state='partial'] { background: var(--warn); }
     .tc-dot[data-state='fail'] { background: var(--bad); }
+    .tc-dot[data-state='interrupted'] { background: var(--warn); }
     .tc-dot[data-state='queued'] { background: var(--info); }
     .tc-num[data-state='run'] { color: var(--accent-text); }
     .tc-num[data-state='done'] { color: var(--ok-ink); }
     .tc-num[data-state='partial'] { color: var(--warn-ink); }
     .tc-num[data-state='fail'] { color: var(--bad-ink); }
+    .tc-num[data-state='interrupted'] { color: var(--warn-ink); }
     .tc-empty { padding: var(--space-6) var(--space-4); color: var(--text-muted); }
 
     /* A column, not a grid with a fixed row list: the header, metrics, controls and the optional usage line keep their own height and the body takes

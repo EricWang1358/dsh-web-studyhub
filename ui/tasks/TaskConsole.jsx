@@ -29,10 +29,11 @@ import { modelReadiness } from '../generation-status.js';
 /* The 任务 console. One surface for every background job: a list on the left, the whole story of the selected job on the right. It reads the jobs of
    the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers is what the contract says is available. */
 
-const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败', archived: '已归档' };
+const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败/中断', archived: '已归档' };
 
 function percentWord(summary) {
   if (summary.state === 'fail') return ui('失败');
+  if (summary.state === 'interrupted') return ui('已中断');
   if (summary.state === 'queued') return ui('排队');
   return summary.percent === null ? '—' : `${summary.percent}%`;
 }
