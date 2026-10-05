@@ -55,6 +55,7 @@ import examCopy from './locales/en.exam.json';
 import feedbackLoop from './locales/en.feedback-loop.json';
 import pages from './locales/en.pages.json';
 import markerInstall from './locales/en.marker-install.json';
+import layoutStability from './locales/en.layout-stability.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { failureText } from './failure.js';
 
@@ -112,6 +113,7 @@ export const ENGLISH_SOURCES = {
   'en.feedback-loop.json': feedbackLoop,
   'en.pages.json': pages,
   'en.marker-install.json': markerInstall,
+  'en.layout-stability.json': layoutStability,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

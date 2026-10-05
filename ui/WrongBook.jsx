@@ -7,7 +7,7 @@ import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Banner, Button, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl } from './components/index.js';
+import { Banner, Button, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { RECS_PREVIEW, VARIANT_BATCH_CAP, groupRows, reasonText, retrainOptions, shortDeckNames, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
@@ -120,7 +120,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
 
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
-  recs, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, busy,
+  recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, busy,
   onLibrary, onCreate, onSources, initial = {},
 }) {
   useInjectCss(css, "study-views");
@@ -128,6 +128,7 @@ export function WrongBookView({
   const [groupBy, setGroupBy] = useState(initial.groupBy || "topic");
   const [expanded, setExpanded] = useState(() => new Set(initial.expanded || []));
   const [recsAll, setRecsAll] = useState(!!initial.recsAll);
+  const [recsOpen, setRecsOpen] = useState(!!initial.recsOpen || !!initial.recsAll);
   const [recOpen, setRecOpen] = useState(() => new Set());
   const [choice, setChoice] = useState(initial.retrain || null);
   const [ask, setAsk] = useState(initial.askConsent ? { cards: [] } : null);
@@ -156,8 +157,15 @@ export function WrongBookView({
   });
 
   const { options, fallback } = retrainOptions({ mistakes: total, similar: recItems.length, variants: readyHere.length, paged: !!hasMore });
-  const picked = options.find((option) => option.value === choice && !option.disabled) ? choice : fallback;
+  // The default practice mode is decided once, from what the learner could see when the area first appeared (#206): recommendations that are found
+  // later update the counts and add a note, but never switch the mode under the learner or change the number on the start button.
+  const firstDefault = useRef(null);
+  if (!total) firstDefault.current = null;
+  else if (firstDefault.current === null) firstDefault.current = fallback;
+  const wanted = choice ?? firstDefault.current;
+  const picked = options.find((option) => option.value === wanted && !option.disabled) ? wanted : fallback;
   const current = options.find((option) => option.value === picked);
+  const similarNote = recItems.length > 0 && picked !== "similar" ? uiFormat("找到 {0} 道同类题", [recItems.length]) : null;
   const startRetrain = () => {
     const mistakes = rows.map(refOf);
     if (picked === "similar") onPractice([...mistakes, ...recItems.map(refOf)]);
@@ -205,7 +213,8 @@ export function WrongBookView({
   };
   const batch = eligible(rows);
   const recsShown = recsAll ? recItems : recItems.slice(0, RECS_PREVIEW);
-  const showRecs = recItems.length > 0;
+  // One folded line from the first paint, so the answer never inserts a block above the list (#206).
+  const showRecs = total > 0 && (!!recs || recsLoading);
   const practiceRec = (rec) => onPractice([refOf(rec)]);
 
   return (
@@ -232,7 +241,7 @@ export function WrongBookView({
         <div className="wb-retrain">
           <div className="wb-retrain-copy">
             <strong>{ui("重练")}</strong>
-            <small className="muted">{ui("选择这一轮练什么；默认选内容最丰富的。")}</small>
+            <small className="muted">{similarNote || ui("选择这一轮练什么。")}</small>
           </div>
           <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} />
           <Button variant="primary" icon="arrow-right" disabled={busy || loading || !total} onClick={startRetrain}
@@ -258,26 +267,35 @@ export function WrongBookView({
       )}
 
       {showRecs && (
-        <section className="wb-recs" aria-labelledby="wb-recs-title" data-tour="wrongbook-recs">
-          <div className="wb-recs-head">
-            <div>
-              <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
-              <p className="muted">{ui("题库里已有的相似题：同主题、引用同一页，或关键词相近；已排除你刚答对的。")}</p>
-            </div>
-            <Button variant="secondary" icon="arrow-right" disabled={busy} onClick={() => onPractice(recItems.map(refOf))}>
-              {uiFormat("练这 {0} 道", [recItems.length])}
-            </Button>
+        <section className={"wb-recs" + (recsOpen && recItems.length ? " is-open" : "")} aria-labelledby="wb-recs-title" data-tour="wrongbook-recs">
+          <div className="wb-recs-bar">
+            {/* The fold arrow's place is kept while there is nothing to fold, so the title does not move when the answer arrives. */}
+            {recItems.length > 0
+              ? <DisclosureToggle open={recsOpen} onToggle={setRecsOpen} controls="wb-recs-body" label={foldLabel(recsOpen, ui("为你推荐"))} />
+              : <span className="wb-recs-spacer" aria-hidden="true" />}
+            <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
+            {recItems.length === 0 && <span className="muted wb-recs-status" role="status">{recsLoading ? ui("正在查找同类题…") : ui("暂时没有合适的同类题")}</span>}
+            {recItems.length > 0 && (
+              <Button variant="secondary" size="sm" icon="arrow-right" disabled={busy} onClick={() => onPractice(recItems.map(refOf))}>
+                {uiFormat("练这 {0} 道", [recItems.length])}
+              </Button>
+            )}
           </div>
-          <ul className="wb-rec-list">
-            {recsShown.map((rec) => (
-              <RecRow key={rec.deckId + rec.cardId} rec={rec} shortName={shortName} disabled={busy}
-                open={recOpen.has(rec.cardId)} onToggle={() => toggle(recOpen, setRecOpen, rec.cardId)} onPractice={() => practiceRec(rec)} />
-            ))}
-          </ul>
-          {recItems.length > RECS_PREVIEW && (
-            <Button variant="link" size="sm" onClick={() => setRecsAll(!recsAll)}>
-              {recsAll ? ui("收起") : uiFormat("再显示 {0} 道", [recItems.length - RECS_PREVIEW])}
-            </Button>
+          {recsOpen && recItems.length > 0 && (
+            <div id="wb-recs-body" className="wb-recs-body">
+              <p className="muted">{ui("题库里已有的相似题：同主题、引用同一页，或关键词相近；已排除你刚答对的。")}</p>
+              <ul className="wb-rec-list">
+                {recsShown.map((rec) => (
+                  <RecRow key={rec.deckId + rec.cardId} rec={rec} shortName={shortName} disabled={busy}
+                    open={recOpen.has(rec.cardId)} onToggle={() => toggle(recOpen, setRecOpen, rec.cardId)} onPractice={() => practiceRec(rec)} />
+                ))}
+              </ul>
+              {recItems.length > RECS_PREVIEW && (
+                <Button variant="link" size="sm" onClick={() => setRecsAll(!recsAll)}>
+                  {recsAll ? ui("收起") : uiFormat("再显示 {0} 道", [recItems.length - RECS_PREVIEW])}
+                </Button>
+              )}
+            </div>
           )}
         </section>
       )}
@@ -428,7 +446,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       // Similar questions are a bonus: a library without the read just shows none.
       if (res?.total) call("wrongbook.recommend", { ...scope, limit: 10 })
         .then((found) => request === seq.current && setRecs({ key, items: found?.items || [] }))
-        .catch(() => request === seq.current && setRecs(null));
+        .catch(() => request === seq.current && setRecs({ key, items: [] }));
       else setRecs(null);
     } catch (e) {
       if (request === seq.current) setErr(errorMessage(e));
@@ -461,7 +479,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   return (
     <WrongBookView data={data} course={course} onCourse={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} items={items} counts={counts} loading={loading} err={err}
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
-      recs={recs?.key === key ? recs : null} coach={coach} details={details} onLoadDetail={loadDetail}
+      recs={recs?.key === key ? recs : null} recsLoading={!!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings}
       busy={busy} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} />
   );

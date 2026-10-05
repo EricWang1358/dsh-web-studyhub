@@ -3,12 +3,12 @@ import { ui, uiFormat } from '../../i18n.js';
 import { Button, Dialog, InlineMessage } from '../../components/index.js';
 import OutlineAssist from './OutlineAssist.jsx';
 import { useStudy } from '../../study-context.jsx';
+import { displayTitle } from '../../../lib/document-title.js';
 
 /* "AI 重新分段…" on a row of the 资料 page: the same flow as under the reader's outline (OutlineAssist), for the whole
    document the row stands for (all the pages or files of one document, in reading order), in a dialog. The chapters it
    makes are a view over the same text: they show on this page, in the picker and in the reader from then on. */
 
-const displayTitle = title => /^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(String(title)) ? String(title).replace(/^.*[\\/]/, '') : title;
 /** Saving, clearing and applying (or restoring) a segmentation change the library; a preview and the asking do not. */
 export const changesLibrary = (action, args) => /^materials\.outline\.(save|clear)$/.test(action) || (action === 'materials.outline.segment' && args.level !== undefined && args.preview !== true);
 
