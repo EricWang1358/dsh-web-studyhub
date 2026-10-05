@@ -1,0 +1,51 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+/* The compact job card (ui/tasks/CompactJobCard.jsx): a status dot, the title and its percent, a thin bar, ONE status line, a stop slot and a primary
+   button, each of fixed width so the cards of a list line up whatever they say. Tokens only. At narrow widths the buttons drop under the text. */
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .cjc {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr) 72px 168px;
+      align-items: center;
+      column-gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+      color: var(--text);
+    }
+    .cjc__dot { justify-self: center; width: 8px; height: 8px; border-radius: 50%; background: var(--decor-faint); }
+    .cjc__dot[data-state='run'] { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .cjc__dot[data-state='done'] { background: var(--ok); }
+    .cjc__dot[data-state='partial'] { background: var(--warn); }
+    .cjc__dot[data-state='fail'] { background: var(--bad); }
+    .cjc__dot[data-state='queued'] { background: var(--info); }
+    .cjc__main { display: grid; gap: var(--space-1); min-width: 0; }
+    .cjc__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+    .cjc__title { min-width: 0; overflow: hidden; font-size: var(--fs-md); font-weight: var(--fw-strong); text-overflow: ellipsis; white-space: nowrap; }
+    .cjc__pct { flex: none; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--text-muted); }
+    .cjc__pct[data-state='run'] { color: var(--accent-text); }
+    .cjc__pct[data-state='done'] { color: var(--ok-ink); }
+    .cjc__pct[data-state='partial'] { color: var(--warn-ink); }
+    .cjc__pct[data-state='fail'] { color: var(--bad-ink); }
+    .cjc__line { min-width: 0; overflow: hidden; font-size: var(--fs-xs); color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
+    .cjc__slot { display: flex; justify-content: flex-end; min-width: 0; }
+    .cjc__go { width: 100%; justify-content: center; }
+    .cjc__problem { grid-column: 1 / -1; grid-row: 3; margin: var(--space-2) 0 0; }
+    .cjc[inert] { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, var(--dur-fast)) ease-out forwards; }
+    .cjc-list { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) .cjc[inert] { display: none; animation: none; }
+  }
+  @container study (max-width: 700px) {
+    :is(.study-app, .study-seat) .cjc {
+      grid-template-columns: 20px minmax(0, 1fr) auto;
+      row-gap: var(--space-2);
+    }
+    :is(.study-app, .study-seat) .cjc__main { grid-column: 2 / -1; }
+    :is(.study-app, .study-seat) .cjc__go { grid-row: 2; grid-column: 2; }
+    :is(.study-app, .study-seat) .cjc__slot { grid-row: 2; grid-column: 3; }
+  }
+}

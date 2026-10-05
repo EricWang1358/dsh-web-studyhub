@@ -11,7 +11,6 @@
   "字幕文件不需要转写服务，现在就可以导入：": "Subtitle files need no transcription service and can be imported now:",
   "把字幕文件拖到这里": "Drop a subtitle file here",
   "选择字幕文件": "Choose a subtitle file",
-
   "硅基流动 SenseVoice": "SiliconFlow SenseVoice",
   "免费 · 国内直连": "Free · reachable from mainland China",
   "免费额度 · 需海外网络": "Free allowance · needs a network outside mainland China",
@@ -48,9 +47,7 @@
   "粘贴付费项目的 AI Studio 密钥": "Paste the AI Studio key of the paid project",
   "专家选项": "Expert options",
   "硅基流动转写模型": "SiliconFlow transcription model",
-
   "先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。": "The recording is transcribed (with the service set up in audio settings), misrecognized words are proofread and the text is translated, then saved as one source. Select it separately in Create a deck to generate questions.",
-  "转写要等服务商处理完整段录音，长录音需要几分钟，不是卡住了；上面的「已用」时间在走。": "Transcription waits for the provider to process the whole recording. Long recordings take several minutes; it is not stuck, and the elapsed time above keeps counting.",
   "请先配置转写服务，再选择录音：文件还没有上传。": "Set up a transcription service before choosing a recording: nothing has been uploaded.",
   "还没有配置转写服务：请先在音频设置里填一个密钥。": "No transcription service is set up yet: add a key in audio settings first.",
   "选择了「只用付费密钥」，但还没有配置 Gemini 付费密钥：去掉这个勾选，或在音频设置的「高级」里填写。": "“Use the paid key only” is selected, but no paid Gemini key is set up: clear that option, or add the key under Advanced in audio settings.",
@@ -64,18 +61,11 @@
   "将无损分成 {0} 段转写（占用 {1} 次请求）": "Will be split losslessly into {0} parts ({1} requests)",
   "等待「{0}」处理": "Waiting for “{0}”",
   "因「{0}」未通过预检尚未开始": "Not started: waiting for “{0}”, which did not pass the pre-flight check",
-  "未通过预检：{0}": "Did not pass the pre-flight check: {0}",
   "分段并继续": "Split and continue",
   "跳过此文件继续": "Skip this file and continue",
   "换一个文件": "Choose another file",
-  "修复后继续": "Continue after fixing",
-  "修好这个文件或音频设置后，从头再检查一遍；已完成的部分不会重复付费": "After fixing the file or the audio settings, everything is checked again; finished work is not paid for twice",
-  "有文件没通过预检，这一批还没开始": "A file did not pass the pre-flight check; this batch has not started",
-  "硅基流动请求（免费，这份录音累计）：{0} 次": "SiliconFlow requests (free, this recording, all attempts): {0}",
-
   "用量与额度": "Usage and limits",
   "今日 {0} 次请求": "{0} requests today",
-
   "课堂实录": "Live class",
   "课堂实录需要 Gemini 密钥": "Live class needs a Gemini key",
   "边听边转写只支持 Google Gemini 的实时接口（需要海外网络）。硅基流动和 Groq 只用于导入录音文件：课后可以在「音频转写」里导入录音。": "Live transcription works only with Google Gemini's live interface (it needs a network outside mainland China). SiliconFlow and Groq handle recorded files only: after class, import the recording in Audio transcription.",

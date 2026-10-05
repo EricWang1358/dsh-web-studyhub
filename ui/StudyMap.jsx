@@ -85,7 +85,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const mastery = useCourseMastery(data, progress);
   const runFor = (scope) => runs.find((run) => run.mode === "path" && sameScope(run.scope, scope));
   // Audio imports and PDF conversions report progress in the Sources page, not among question generations.
-  const jobs = (data.jobs || []).filter((job) => job.type !== JOB_TYPES.AUDIO_IMPORT && job.type !== JOB_TYPES.PDF_CONVERT && job.type !== JOB_TYPES.TRANSLATION);
+  const jobs = (data.jobs || []).filter((job) => job.type !== JOB_TYPES.AUDIO_IMPORT && job.type !== JOB_TYPES.PDF_CONVERT && job.type !== JOB_TYPES.TRANSLATION && job.type !== JOB_TYPES.COACH_DAILY);
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== JOB_TYPES.DRAFT_PUBLISH);
   // Top of the home: what is still running first, then the newest finished cards.
   const shown = visibleGenerationJobs(jobs);

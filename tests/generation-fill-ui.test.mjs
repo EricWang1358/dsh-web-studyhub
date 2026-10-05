@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 /* #196 (button names its deck and is off while a fill runs), #200/#203 and #201 draw from the draft page and the home, rendered here. */
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx'; export { foldJobsByDraft } from './ui/job-visibility.js'; export { DraftTopUp } from './ui/DraftShortfall.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { default as GenerationTrace } from './ui/GenerationTrace.jsx'; export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx'; export { foldJobsByDraft } from './ui/job-visibility.js'; export { DraftTopUp } from './ui/DraftShortfall.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -78,16 +78,15 @@ test('generation details list the review suggestions apart from the questions th
   assert.doesNotMatch(text(page(draft())), /审阅建议/);
 });
 
-test('a failed run caused by the review lists its questions one by one and does not blame the sources (#217)', () => {
+test('a failed run caused by the review says so on its card in the learner\'s language and does not blame the sources (#217)', () => {
   m.setUiLanguage('zh');
   const stage = 'Part 1: Quality gate failed: q1: answerLeak failed or was not checked; q1: optionQuality failed or was not checked; q2: sourceSupport failed or was not checked';
   const out = renderToStaticMarkup(React.createElement(m.JobCard, { job: { id: 'f', status: 'failed', type: 'generate', stage, parts: 1, steps: [] }, jobs: [], drafts: [], busy: false, dismissJob: noop }));
   m.setUiLanguage('zh');
   assert.match(text(out), /出的题都没通过质量审阅/);
   assert.doesNotMatch(text(out), /资料可能太短/);
-  assert.match(text(out), /q1 · 提示或题干泄露了答案；选项质量不合格.*（必须修）/);
-  assert.match(text(out), /q2 · 资料不足以支撑答案，或引用对不上原文（必须修）/);
-  assert.match(out, /job-failure-rows/);
+  assert.match(out, /role="alert"/);
+  assert.doesNotMatch(out, /job-failure-rows|<details/, 'the question-by-question reasons are in the console log, not on the card');
 });
 
 test('a running fill says which round it is on and how many questions are still missing (#197)', () => {
@@ -113,13 +112,13 @@ test('generation details show queue vs model-call time per stage, and a rate lim
     throttle: { events: 2, concurrency: 2, configured: 4, lowest: 2 },
     steps: [{ id: 'a', stage: 'Part 1/1 · Writing and self-checking questions', status: 'complete', startedAt: at(10), finishedAt: at(22), queuedMs: 4000, tokenUsage: usage(3000) },
       { id: 'b', stage: 'Part 1/1 · Reviewing ambiguity and source support', status: 'complete', startedAt: at(30), finishedAt: at(40), queuedMs: 0, tokenUsage: usage(2000) }] };
-  const out = text(renderToStaticMarkup(React.createElement(m.JobCard, { job, jobs: [], drafts: [], busy: false, dismissJob: noop })));
+  const out = text(renderToStaticMarkup(React.createElement(m.GenerationTrace, { job, defaultOpen: true })));
   assert.match(out, /出题与自查 3,?000 tok 调用 12 秒 · 排队 4 秒/);
   assert.match(out, /独立审阅 2,?000 tok 调用 10 秒/);
   assert.match(out, /排队 4 秒/, 'the step itself shows its wait');
   assert.match(out, /模型服务限流了 2 次，同时调用数已自动降到 2（设置的是 4）/);
   m.setUiLanguage('en');
-  const english = text(renderToStaticMarkup(React.createElement(m.JobCard, { job, jobs: [], drafts: [], busy: false, dismissJob: noop })));
+  const english = text(renderToStaticMarkup(React.createElement(m.GenerationTrace, { job, defaultOpen: true })));
   m.setUiLanguage('zh');
   assert.match(english, /Model call 12 s · Queued 4 s/);
   assert.match(english, /rate-limited 2 time\(s\); simultaneous calls were lowered automatically to 2 \(set: 4\)/);
@@ -132,7 +131,7 @@ const steps = (n, label = 'Part 1/1 · Writing and self-checking questions') => 
 const fillJob = (id, status, extra = {}) => ({ id, status, type: undefined, stage: 'Draft ready with 12/15 questions', parts: 2, draftId: 'd1', continued: true, deckTitle: '架构的语境性', savedCount: 12, requestedTotal: 15, count: 8,
   startedAt: `2026-10-05T10:0${id.length}:00.000Z`, steps: steps(3), ...extra });
 const shortDraft = () => draft({ title: '架构的语境性', editorial: { requested: 15, generated: 12, completedParts: 2, parts: 2, failures: [], generation: { sourceIds: ['s1'], kind: 'quiz' } }, cards: Array.from({ length: 12 }, (_, i) => card(`c${i}`)) });
-const cardsIn = (html) => (html.match(/class="sh-job sh-job--/g) || []).length;
+const cardsIn = (html) => (html.match(/class="cjc[ "]/g) || []).length;
 
 test('while a fill runs the deck has one card: the earlier 草稿待补齐 card folds into it (#200)', () => {
   m.setUiLanguage('zh');
@@ -141,10 +140,7 @@ test('while a fill runs the deck has one card: the earlier 草稿待补齐 card 
   const out = home([running, older], [shortDraft()]);
   assert.equal(cardsIn(out), 1, 'one task card, not the running one above the old warning');
   assert.match(text(out), /正在补齐「架构的语境性」/);
-  assert.doesNotMatch(text(out), /草稿待补齐/, 'the old 草稿待补齐 card is gone: what it said now lives inside the fold');
-  assert.match(text(out), /之前的任务 · 1/);
-  assert.match(out, /18 步/, 'the earlier task keeps its own process log inside the fold');
-  assert.match(out, /5 步/);
+  assert.doesNotMatch(text(out), /草稿待补齐/, 'the old 草稿待补齐 card is gone: the earlier run is listed in the 任务 console');
 });
 
 test('the list row says 补题中 as a Badge, not 已复审，待发布, and not as a button (#200)', () => {
@@ -190,16 +186,11 @@ test('after a fill ends short only one 草稿待补齐 card remains: the newest 
   const out = home([newest, oldest], [shortDraft()]);
   assert.equal(cardsIn(out), 1, 'two partial jobs of one deck, one card');
   assert.equal((text(out).match(/草稿待补齐 · 12\/15 题/g) || []).length, 1, 'one headline with the draft\'s numbers');
-  assert.match(text(out), /补题 · 当时草稿 7\/15 题/, 'the earlier job in the fold says what it saw then');
-  assert.match(out, /27 步/, 'the process log is the newest job\'s');
-  assert.match(text(out), /之前的任务 · 1/);
-  assert.match(out, /18 步/, 'the older job\'s log is only inside the fold');
-  const other = home([newest, oldest], [shortDraft()], {});
-  assert.doesNotMatch(other.replace(/之前的任务[\s\S]*?<\/details>/, ''), /18 步/, 'outside the fold the old process does not appear');
+  assert.equal(text(out).includes('当时草稿 7/15 题'), false, 'the older run is not on the home: it is listed in the 任务 console with its own numbers');
   m.setUiLanguage('en');
   const english = text(home([newest, oldest], [shortDraft()]));
   m.setUiLanguage('zh');
-  assert.match(english, /Earlier tasks · 1/);
+  assert.match(english, /draft needs more questions · 12\/15/);
 });
 
 test('jobs of different decks, publish and repair jobs and jobs without a draft are never folded', () => {

@@ -55,9 +55,9 @@ export default function HomeActivity({ sectionRef, jobs, drafts, data, modelRead
   const finishedCount = cards.filter(({ job }) => !isActiveJob(job) && !job.leaving).length;
   return (
     <section className="home-activity" ref={sectionRef} aria-label={ui('出题进度与待发布草稿')}>
-      {jobs.length > 0 && <div className="jobs generation-jobs">
-        {cards.map(({ job, earlier }) => <JobCard key={job.id} job={job} earlier={earlier} jobs={jobs} drafts={drafts} busy={busy} openDraft={openDraft}
-          openAgent={openAgent} cancelJob={cancelJob} dismissJob={dismissJob && ((jobId) => dismissJob(jobId, earlier.filter((old) => !isActiveJob(old)).map((old) => old.id)))} retryGeneration={retryGeneration}
+      {jobs.length > 0 && <div className="jobs generation-jobs cjc-list">
+        {cards.map(({ job, earlier }) => <JobCard key={job.id} job={job} jobs={jobs} drafts={drafts} busy={busy} openDraft={openDraft}
+          cancelJob={cancelJob} dismissJob={dismissJob && ((jobId) => dismissJob(jobId, earlier.filter((old) => !isActiveJob(old)).map((old) => old.id)))} retryGeneration={retryGeneration}
           openModelSettings={openModelSettings} openDeck={manage}
           practiceCards={(deckId, cardIds) => start({ mode: 'path', scope: cardIds.map((cardId) => ({ deckId, cardId })), fresh: true })} />)}
         {dismissJob && finishedCount > 1 && <div className="jobs-actions">

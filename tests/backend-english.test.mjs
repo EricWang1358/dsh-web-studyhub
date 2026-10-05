@@ -180,8 +180,14 @@ test('snapshots and job.wait localize repair execution steps without changing le
   assert.equal(Object.hasOwn(en.sources[0], 'text'), false);
   assert.equal((await service.call('source.get', { id: source.id })).text, source.text);
   assert.deepEqual((await service.store.read()).sources[0], source);
-  assert.deepEqual(job, original);
+  // Reading a job notes its status in the job's log (that is what the log is for); nothing else about it moves.
+  const { events, ...unchanged } = job;
+  assert.deepEqual(unchanged, original);
+  assert.equal(events.length, 1);
   assert.deepEqual((await service.call('snapshot', { uiLanguage: 'zh' })).jobs[0].steps, original.steps);
+  assert.equal(en.jobs[0].contract.events[0].text, 'Repairing question 1/2 · Attempt 2', 'the log is localized like the stage it was taken from');
+  assert.equal(en.jobs[0].contract.stage.text, 'Repairing question 1/2 · Attempt 2');
+  assert.equal(en.jobs[0].contract.error.message, 'Repairing question 1/2 · Attempt 2', 'a failed job reads its reason in English too');
 });
 
 test('provider failure wrappers, limits and nested workflow metadata are English while provider evidence and saved prose survive', () => {

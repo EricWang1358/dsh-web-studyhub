@@ -22,12 +22,9 @@
   "校对与翻译的推理强度、付费密钥、模型": "Reasoning strength of proofreading and translation, paid key, models",
   "推理强度：要求「{0}」，当前模型没有，已用「{1}」": "Reasoning strength: \"{0}\" was asked for, this model has no such level, \"{1}\" was used",
   "推理强度：要求「{0}」，当前模型没有可调档位，按模型默认": "Reasoning strength: \"{0}\" was asked for, this model has no adjustable levels, so its default was used",
-  "提示：约 {0} 字的稿件窗口": "Prompt: a transcript window of about {0} characters",
   "用量：{0} tok": "Used: {0} tok",
   "最近输出：{0}": "Latest output: {0}",
   "输入约 {0} 字": "input about {0} characters",
-  "都由「{0}」完成": "all done by \"{0}\"",
-  "再显示 {0} 条": "Show {0} more",
   "处理结果由插件直接回收并保存，不回流主会话。": "The plugin collects and saves the results directly; nothing is sent back to the main conversation.",
   "当前宿主缺少可用的子代理能力或运行中的主会话，使用直接模型调用。": "This host has no usable sub-agent capability or running main session, so a direct model call is used.",
   "DSH 的子代理列表里还没有它，可能已经结束并被清理。": "DSH's sub-agent list does not have it yet; it may have finished and been cleaned up."

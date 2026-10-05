@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
    first transcription, and a live class that checks its provider before asking for the microphone. */
 
 const compiled = await build({
-  stdin: { contents: `export { default as AudioImport } from './ui/AudioImport.jsx'; export { AudioJobs, textStepsRan } from './ui/audio/AudioJobs.jsx'; export { preflightNotes } from './ui/audio/preflight.js';
+  stdin: { contents: `export { default as AudioImport } from './ui/AudioImport.jsx'; export { AudioJobs, textStepsRan } from './ui/audio/AudioJobs.jsx'; export { usageLine } from './ui/tasks/task-facts.js'; export { preflightNotes } from './ui/audio/preflight.js';
     export { default as AudioSettings, AudioSetupGate, providerOrder } from './ui/AudioSettings.jsx';
     export { default as AudioDashboard, AudioDashboardPanel, dashboardVisible } from './ui/AudioDashboard.jsx';
     export { default as LiveClass } from './ui/LiveClass.jsx';
@@ -21,7 +21,7 @@ const compiled = await build({
 });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { AudioImport, AudioJobs, preflightNotes, textStepsRan, AudioSettings, AudioSetupGate, providerOrder,
+const { AudioImport, AudioJobs, usageLine, preflightNotes, textStepsRan, AudioSettings, AudioSetupGate, providerOrder,
   AudioDashboardPanel, dashboardVisible, LiveClass, describeCaptureError, captureAudio, setUiLanguage, uiMessage } = module.exports;
 
 const HAN = /[\u3400-\u9fff]/;
@@ -124,35 +124,30 @@ const batch = { type: "audio-import", id: "b1", status: "failed", batchId: "batc
   members: [{ index: 0, filename: "A.wav", status: "waiting", waitingFor: "PE1.mp3" }, { index: 1, filename: "PE1.mp3", status: "blocked", stage: "没有在文件里找到可识别的 MP3 音频帧" },
     { index: 2, filename: "B.wav", status: "waiting", waitingFor: "PE1.mp3" }] };
 
-test("a batch held by one file says why each sibling has not started and offers to skip it or continue after fixing", () => {
-  const acted = [];
-  const card = html(AudioJobs, { data: { jobs: [batch] }, busy: false, act: (...args) => acted.push(args) });
-  assert.match(card, /因「PE1.mp3」未通过预检尚未开始/);
-  assert.match(card, /未通过预检：没有在文件里找到可识别的 MP3 音频帧/);
-  assert.match(card, /跳过此文件继续/);
-  assert.match(card, /修复后继续/);
+test("a batch held by one file says why on its card and offers the way on; the file's own row and its skip button are in the console", () => {
+  const card = html(AudioJobs, { data: { jobs: [batch] }, busy: false, act: noop });
+  assert.match(card, /未通过预检，其余文件尚未开始/);
+  assert.match(card, /看原因并继续/);
   assert.doesNotMatch(card, /已取消/, "no sibling is reported as cancelled");
   inLanguage("en", () => {
-    const english = html(AudioJobs, { data: { jobs: [{ ...batch, stage: "\"PE1.mp3\" did not pass the pre-flight check; the other files have not started. You can skip it and continue",
-      members: batch.members.map((member) => member.status === "blocked" ? { ...member, stage: "No recognizable MP3 frames were found in the file" } : member) }] }, busy: false, act: noop })
+    const english = html(AudioJobs, { data: { jobs: [{ ...batch, stage: "\"PE1.mp3\" did not pass the pre-flight check; the other files have not started. You can skip it and continue" }] }, busy: false, act: noop })
       .replace(/PE1\.mp3|A\.wav|B\.wav|Week 5/g, "");
-    assert.match(english, /Not started: waiting for/);
-    assert.match(english, /Skip this file and continue/);
-    assert.match(english, /Continue after fixing/);
+    assert.match(english, /did not pass the pre-flight check/);
+    assert.match(english, /See why and continue/);
     assert.doesNotMatch(english, HAN);
   });
 });
 
-test("the 'proofread by the DSH model' footer appears only when those steps ran; SiliconFlow has its own usage line", () => {
+test("the 'proofread by the DSH model' part appears only when those steps ran; SiliconFlow has its own usage part", () => {
   const base = { type: "audio-import", id: "j", status: "failed", filename: "x.m4a", phase: "transcribe", textProvider: "host", warnings: [],
     usage: { free: { requests: 0 }, siliconflow: { requests: 2, audioSeconds: 4560 }, groq: { requests: 0 }, paid: { requests: 0 } } };
-  const notRun = html(AudioJobs, { data: { jobs: [base] }, busy: false, act: noop });
-  assert.doesNotMatch(notRun, /校对和翻译由 DSH 的模型完成/);
+  const notRun = usageLine(base);
+  assert.doesNotMatch(notRun, /校对和翻译由 DSH 模型完成/);
   assert.equal(textStepsRan(base), false);
   const ran = { ...base, status: "complete", phase: "done", sourceIds: ["s"], steps: { transcribe: { done: 2, total: 2 }, proofread: { done: 3, total: 3 }, translate: { done: 2, total: 2 } } };
   assert.equal(textStepsRan(ran), true);
-  assert.match(html(AudioJobs, { data: { jobs: [ran] }, busy: false, act: noop }), /校对和翻译由 DSH 的模型完成/);
-  assert.match(notRun, /硅基流动请求（免费，这份录音累计）：2 次/);
+  assert.match(usageLine(ran), /校对和翻译由 DSH 模型完成/);
+  assert.match(notRun, /硅基流动 2（免费）/);
   assert.equal(textStepsRan({ members: [{ steps: { proofread: { done: 1, total: 4 } } }] }), true);
 });
 

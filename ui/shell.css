@@ -15,8 +15,9 @@
       padding: 26px var(--space-3-5) var(--space-4);
       display: flex;
       flex-direction: column;
-      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). */
-      --nav-row: 38px;
+      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). 36px: the 任务 entry made it thirteen pages, and at 768 px wide / 900 px tall
+         the rail has to hold them without scrolling (a rail that scrolls moves every row when the active one is clicked). */
+      --nav-row: 36px;
       --nav-row-upkeep: 34px;
       /* How far the sidebar's own padding is: the active bar sits on its outer edge. */
       --sidebar-pad: 14px;
@@ -215,6 +216,11 @@
     }
     .nav-count.is-due {
       color: var(--danger, var(--accent));
+      font-weight: var(--fw-strong);
+    }
+    /* Tasks are running: the count is live, so it reads a little brighter than a plain count. */
+    .nav-count.is-live {
+      color: var(--accent-text);
       font-weight: var(--fw-strong);
     }
     /* ── Collapsed rail ─────────────────────────────────────────────────────

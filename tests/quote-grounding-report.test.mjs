@@ -131,7 +131,6 @@ const job = { id: "a", status: "complete", stageCode: "partial", draftId: "dr", 
 test("the job card of a partly failed generation says why in the learner's language and offers the one top-up", () => {
   const html = home({ drafts: [shortDraft()], jobs: [job] });
   assert.match(html, /5 个部分的引用在资料里找不到/);
-  assert.match(html, /共 6 个部分/);
   assert.equal((html.match(/继续补齐 21 题/g) || []).length, 1, "the retry of what is missing is offered once");
   const english = inLanguage("en", () => home({ drafts: [{ ...shortDraft(), title: "Architecting" }], jobs: [{ ...job, deckTitle: "Architecting" }] })).replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(english, han, (english.match(/.{0,30}[㐀-鿿].{0,30}/) || [])[0]);

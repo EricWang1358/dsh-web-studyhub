@@ -144,22 +144,21 @@ test('role suggestions keep their own state and speak an error as an alert', () 
   assert.match(out, /Memento · 2 道薄弱题/);
 });
 
-test('generation jobs render as JobRow with a real progress bar and one dismiss (#98)', () => {
+test('generation jobs render as compact cards with a real progress bar and one dismiss (#98)', () => {
   m.setUiLanguage('zh');
   const job = (id, status, extra = {}) => ({ id, status, type: 'generate', stage: '', parts: 1, trace: [], ...extra });
   const running = html(m.JobCard, { job: job('a', 'running', { requestedTotal: 10, savedCount: 4 }), jobs: [], drafts: [], busy: false, cancelJob: noop, dismissJob: noop });
-  assert.match(running, /<article[^>]*class="sh-job sh-job--running[^"]*"[^>]*data-job-id="a"|<article[^>]*data-job-id="a"[^>]*class="sh-job sh-job--running/);
-  assert.match(running, /role="progressbar"[^>]*aria-valuenow="4"[^>]*aria-valuemax="10"|aria-valuemax="10"[^>]*aria-valuenow="4"[^>]*role="progressbar"|role="progressbar"[^>]*aria-valuemax="10"/);
+  assert.match(running, /<article[^>]*class="cjc"[^>]*data-job-id="a"/);
+  assert.match(running, /role="progressbar"[^>]*aria-valuenow="40"[^>]*|aria-valuemax="100"[^>]*aria-valuenow="40"/);
   assert.match(running, /停止/);
-  assert.doesNotMatch(running, /sh-job__dismiss/, 'a running job cannot be dismissed');
+  assert.doesNotMatch(running, /知道了/, 'a running job cannot be dismissed');
   assert.doesNotMatch(running, /style="width:/, 'the fill moves with transform, never width');
   const failed = html(m.JobCard, { job: job('b', 'failed', { stage: 'rate limit exceeded' }), jobs: [], drafts: [], busy: false, dismissJob: noop });
-  assert.match(failed, /sh-job--failed/);
-  assert.match(failed, /sh-job__dismiss/);
+  assert.match(failed, /data-state="fail"/);
+  assert.match(failed, /知道了/);
   assert.match(failed, /role="alert"/);
-  assert.match(failed, /技术详情/);
   const done = html(m.JobCard, { job: job('c', 'complete'), jobs: [], drafts: [], busy: false, dismissJob: noop });
-  assert.match(done, /sh-job--complete/);
+  assert.match(done, /data-state="done"/);
   assert.doesNotMatch(running + failed + done, /class="job /);
 });
 

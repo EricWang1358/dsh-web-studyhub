@@ -9,7 +9,7 @@ export function useNavigation({ core, lib, motion, rootRef }) {
   const [pageTarget, setPageTarget] = useState(null);
   const { setError } = core;
   const { setContextTrail, setExamRunId, setExamKind, setBoardStudyRef, setNoteInitialId, setGraphScope, setSkeletonFocus, setManagedDeck,
-    setFolderDraft, setWorkflowReturn } = lib.set;
+    setFolderDraft, setWorkflowReturn, setTaskFocus } = lib.set;
   const motionRef = useRef(motion), pageRef = useRef(page), referenceRef = useRef(() => null);
   motionRef.current = motion;
   pageRef.current = page;
@@ -43,11 +43,12 @@ export function useNavigation({ core, lib, motion, rootRef }) {
     skeleton: (id) => { setSkeletonFocus(id); setPage('skeleton'); },
     deck: (deck) => { setManagedDeck(deck); setFolderDraft(deck.folder || ''); setPage('manage'); },
     managedDeck: (deck) => { setManagedDeck(deck); setPage('manage'); },
+    task: (jobId) => { setTaskFocus({ jobId, nonce: Date.now() }); setPage('tasks'); },
     workflow: (sessionId) => { setWorkflowReturn({ sessionId, nonce: Date.now() }); setPage('workflows'); },
     exam: (kind, runId) => { setExamKind(kind); setExamRunId(runId); setPage('exam'); },
     library: () => setPage('library'),
     page: (id) => setPage(id),
-  }), [setNoteInitialId, setSkeletonFocus, setManagedDeck, setFolderDraft, setWorkflowReturn, setExamKind, setExamRunId]);
+  }), [setNoteInitialId, setSkeletonFocus, setManagedDeck, setFolderDraft, setWorkflowReturn, setTaskFocus, setExamKind, setExamRunId]);
   const resetPage = useCallback(() => { setPageTarget(null); setPage('library'); }, []);
   return { page, setPage, pageTarget, setPageTarget, navPage: pageTarget || page, navigate, show, resetPage, referenceRef };
 }

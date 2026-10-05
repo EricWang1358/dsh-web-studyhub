@@ -110,7 +110,7 @@ test('generated native modules resolve through classic chunk factories and share
   const notesEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/BlogNotes.jsx');
   assert.ok(notesEntry);
   const settingsPanes = (await readFile('ui/settings-groups.js', 'utf8')).match(/^  category\(\{ id:/gm).length;
-  assert.equal(lazyLoads.length, 8 + settingsPanes, 'the seven views, 看原页 (pdf.js) and one pane per settings category');
+  assert.equal(lazyLoads.length, 9 + settingsPanes, 'the eight views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks), 看原页 (pdf.js) and one pane per settings category');
   await Promise.all(lazyLoads.map(load => load()));
   // StudyMath imports from its effect rather than React.lazy. Exercise that
   // package-local factory path and its shared engine before counting modules.

@@ -16,6 +16,9 @@ const DATE_SHAPES = {
   // Sun, Oct 4  /  10月4日周日: a day heading inside the current year; weekdayYear adds the year
   weekday: { weekday: 'short', month: 'short', day: 'numeric' },
   weekdayYear: { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' },
+  // 10:02 AM  /  10:02: the time of day alone, for a timeline's axis and a log's lines
+  time: { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },
+  timeSeconds: { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' },
   // October 4 Sun  /  10月4日周日: today's date as a heading
   longDay: { month: 'long', day: 'numeric', weekday: 'short' },
 };

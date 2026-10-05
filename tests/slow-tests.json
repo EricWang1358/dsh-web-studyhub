@@ -18,6 +18,7 @@
     "tests/science-settings-browser.test.mjs",
     "tests/spine-layout.test.mjs",
     "tests/study-image-cards.test.mjs",
+    "tests/task-console-browser.test.mjs",
     "tests/wave2-g-fields-browser.test.mjs",
     "tests/wave4-daily-plan-ui.test.mjs",
     "tests/wave4-host-query.test.mjs",

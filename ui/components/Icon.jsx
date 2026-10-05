@@ -63,6 +63,7 @@ const PATHS = {
   'nav-library': <><rect x="4" y="8" width="12" height="12" rx="2" /><path d="M8 4h10a2 2 0 0 1 2 2v10" /></>,
   'nav-sources': <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>,
   'nav-generate': <path d="M12 5v14M5 12h14" />,
+  'nav-tasks': <path d="M4 6h3M4 12h3M4 18h3M10 6h10M10 12h10M10 18h10" />,
   'nav-skeleton': <><circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="8" r="2.2" /><circle cx="11" cy="18" r="2.2" /><path d="M8.1 6.4 15.8 7.6M7 8l3 8M16.8 10l-4.6 6.3" /></>,
   'nav-dashboard': <><path d="M4 20h16" /><path d="M7 16v-4M12 16V6M17 16v-7" /></>,
   'nav-exam': <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 3.5h6M9 13l2 2 4-4.5" /></>,

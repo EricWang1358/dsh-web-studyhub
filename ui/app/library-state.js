@@ -8,7 +8,7 @@ import { resetHostQueries } from '../host-query-store.js';
 
 const FRESH = {
   contextTrail: () => [], focusRequest: () => null, boardStudyRef: () => null, legacyAudioJobId: () => '', detour: () => null,
-  workflowReturn: () => null, skeletonFocus: () => null, noteInitialId: () => '',
+  workflowReturn: () => null, skeletonFocus: () => null, noteInitialId: () => '', taskFocus: () => null,
   draft: () => null, draftLoaded: () => '', draftText: () => '', jsonMode: () => false, recovery: () => null,
   managedDeck: () => null, folderDraft: () => '', removingDeck: () => null,
   graphScope: () => null, graphCanvas: () => false,

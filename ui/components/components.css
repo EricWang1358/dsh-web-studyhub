@@ -37,7 +37,7 @@
       align-items: center;
       justify-content: center;
       gap: var(--space-2);
-      min-height: 40px;
+      min-height: var(--control-h, 40px);
       margin: 0;
       padding: var(--space-2) var(--space-4);
       border: 1px solid var(--line-strong);
@@ -72,7 +72,7 @@
     }
     .sh-btn[aria-busy="true"] { cursor: progress; }
     .sh-btn--sm {
-      min-height: 32px;
+      min-height: var(--control-h-sm, 32px);
       padding: var(--space-1) var(--space-3);
       gap: var(--space-1-5);
       font-size: var(--fs-sm);
@@ -139,10 +139,10 @@
       border-color: var(--bad);
     }
     .sh-btn--icon {
-      width: 40px;
+      width: var(--control-h, 40px);
       padding: 0;
     }
-    .sh-btn--icon.sh-btn--sm { width: 32px; }
+    .sh-btn--icon.sh-btn--sm { width: var(--control-h-sm, 32px); }
     /* ── Segmented control ──────────────────────────────────────────────── */
     /* The active fill lives on the item until the script measures the thumb
        (data-thumb="on"); then the thumb slides and the item fill goes away. */

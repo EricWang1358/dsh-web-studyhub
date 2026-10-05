@@ -204,8 +204,11 @@ export async function collectStates({ browser, running, lang, theme, width, mode
     await open();
     await record("8-run-ended");
     // A busy library: board badge with an overdue card, 为你定制 ready, a paused tour.
-    const board = await api("board.get");
-    await api("board.card.add", { revision: board.revision, title: "Hand in the report", due: "2020-01-01" });
+    // A run that just ended may write its own board card between the read and the add (more often under load): read again and retry.
+    for (let attempt = 0; ; attempt++) {
+      const board = await api("board.get");
+      try { await api("board.card.add", { revision: board.revision, title: "Hand in the report", due: "2020-01-01" }); break; } catch (error) { if (attempt >= 4 || !/revision conflict/.test(String(error?.message))) throw error; }
+    }
     patch.coach = 4;
     const root = (await api("snapshot")).root;
     await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${root}`, JSON.stringify({ stepId: "home", done: false })]);

@@ -20,49 +20,48 @@ const job = (extra = {}) => ({ type: 'audio-import', id: 'j', status: 'running',
   startedAt: new Date(Date.now() - 5000).toISOString(), steps: { transcribe: { done: 1, total: 3 } }, warnings: [], ...extra });
 const render = (jobs, props = {}) => renderToStaticMarkup(h(AudioJobs, { data: { jobs }, busy: false, act() {}, ...props }));
 
-test('audio jobs are JobRows: no live row, no text glyphs, a named progressbar', () => {
+test('audio jobs are compact cards: no live card, no text glyphs, a named progressbar', () => {
   setUiLanguage('zh');
   const out = render([job(), job({ id: 'f', status: 'failed', stage: '转写服务没有响应', retryable: true }), job({ id: 'c', status: 'complete', phase: 'done', sourceIds: ['s1'], finishedAt: new Date().toISOString() })]);
-  assert.equal((out.match(/<article class="sh-job /g) || []).length, 3);
-  for (const row of out.match(/<article[^>]*>/g)) assert.doesNotMatch(row, /role=|aria-live/, 'a row is never a live region');
-  assert.match(out, /sh-job--running/);
-  assert.match(out, /sh-job--failed/);
-  assert.match(out, /sh-job--complete[^>]*data-tone="success"/, 'a finished job is jade, not cinnabar');
+  assert.equal((out.match(/<article class="cjc[ "]/g) || []).length, 3);
+  for (const row of out.match(/<article[^>]*>/g)) assert.doesNotMatch(row, /role=|aria-live/, 'a card is never a live region');
+  assert.match(out, /data-state="run"/);
+  assert.match(out, /data-state="fail"/);
+  assert.match(out, /data-tone="success"/, 'a finished job is jade, not cinnabar');
   assert.doesNotMatch(out, /[◌✓×]/);
   const bar = out.match(/<div class="sh-progress[^>]*>/)[0];
   assert.match(bar, /role="progressbar"/);
   assert.match(bar, /aria-label="[^"]*lecture\.mp3[^"]*"/, 'the bar says which file it is about');
   assert.doesNotMatch(out, /audio-bar/);
-  assert.match(out, /sh-inline--error[\s\S]*转写服务没有响应/, 'the failure is an error message');
-  assert.match(out, /<span class="sh-visually-hidden" role="status"><\/span>/);
-  assert.match(out, /<small class="sh-job__meta" aria-live="off">/, 'the elapsed time is not announced');
+  assert.match(out, /cjc__line" role="alert">转写服务没有响应/, 'the failure is the one status line');
 });
 
-test('audio job actions keep their meaning: stop while running, resume after a failure, 知道了 once finished', () => {
+test('audio card actions keep their meaning: stop while running, the way on after a failure, 知道了 once finished', () => {
   setUiLanguage('zh');
   const out = render([job(), job({ id: 'f', status: 'failed', stage: 'boom', retryable: true })], { busy: true });
-  assert.match(out, /停止（已转写的部分会保留）/);
-  assert.match(out, /接着做（不重复付费）/);
-  const dismissals = out.match(/<button[^>]*class="[^"]*sh-job__dismiss[^"]*"[^>]*>/g) || [];
+  assert.match(out, /aria-label="停止：lecture\.mp3"/);
+  assert.match(out, />看原因并继续</);
+  const dismissals = out.match(/<button[^>]*aria-label="知道了：[^"]*"[^>]*>/g) || [];
   assert.equal(dismissals.length, 1, 'only the finished job can be dismissed');
   assert.doesNotMatch(dismissals[0], /disabled/, 'dismissing is never blocked by another action');
   const leaving = render([job({ id: 'f', status: 'failed', stage: 'boom', leaving: true })]);
-  assert.match(leaving, /class="sh-job sh-job--failed is-leaving"[^>]*aria-hidden="true"/);
+  assert.match(leaving, /class="cjc is-leaving"[^>]*aria-hidden="true"/);
 });
 
-test('a dismiss failure appears inside the row as an error message', () => {
+test('a dismiss failure appears inside the card as an error message', () => {
   const quick = { failures: { j: '磁盘忙' }, run() {}, clearFailure() {} };
   const out = renderToStaticMarkup(h(QuickActionsContext.Provider, { value: quick }, h(AudioJobs, { data: { jobs: [job({ status: 'complete', phase: 'done' })] }, busy: false, act() {} })));
   assert.match(out, /sh-inline--error[\s\S]*磁盘忙/);
   assert.doesNotMatch(out, /job-error/);
 });
 
-test('the English audio rows keep their words', () => {
+test('the English audio cards keep their words', () => {
   setUiLanguage('en');
   try {
     const out = render([job(), job({ id: 'f', status: 'failed', stage: 'boom', retryable: true })]).replace(/lecture\.mp3|boom/g, '');
-    assert.doesNotMatch(out, /[㐀-鿿]/);
-    assert.match(out, /Stop \(finished transcription is kept\)/);
+    assert.doesNotMatch(out, /[\u3400-\u9fff]/);
+    assert.match(out, /Stop/);
+    assert.match(out, /See why and continue/);
   } finally { setUiLanguage('zh'); }
 });
 
@@ -74,7 +73,6 @@ test('a collapsed generation trace does not keep a clock running', async () => {
   const out = renderToStaticMarkup(h(GenerationTrace, { job: { status: 'running', steps: [{ id: 'a', stage: 'x', status: 'running', startedAt: new Date().toISOString() }] } }));
   assert.match(out, /<details class="generation-trace">/);
   const audio = await read('ui/audio/AudioJobs.jsx');
-  assert.match(audio, /useNow\(/);
   assert.doesNotMatch(audio, /setInterval/);
 });
 
