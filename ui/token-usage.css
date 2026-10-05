@@ -69,6 +69,16 @@
       font-variant-numeric: tabular-nums;
     }
     .token-estimate__quiet { color: var(--text-muted); }
+    /* Loading keeps the room of the ready line: the hidden ghost holds its width and wraps like it, the words sit over it, and the slot is the info button. */
+    .token-estimate__text { display: grid; min-width: 0; }
+    .token-estimate__text > * { grid-area: 1 / 1; min-width: 0; }
+    .token-estimate__ghost { visibility: hidden; }
+    .token-estimate__quiet { align-self: center; }
+    .token-estimate__info--slot { visibility: hidden; pointer-events: none; }
+    /* An action column right-aligns the line under its button. */
+    .token-estimate--end .token-estimate__line { justify-content: flex-end; text-align: right; }
+    .token-estimate--end .token-estimate__quiet { justify-self: end; }
+    .token-estimate--end .token-estimate__warn { text-align: right; }
     .token-estimate__info {
       display: inline-grid;
       place-items: center;
