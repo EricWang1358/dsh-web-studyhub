@@ -4,10 +4,13 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { draftView, seedView, small } from './helpers/coverage-view.mjs';
+import { transcriptFixture } from './helpers/coverage-fixture.mjs';
 
-/* #196 (button names its deck and is off while a fill runs), #200/#203 and #201 draw from the draft page and the home, rendered here. */
+/* #196 (the one top-up says what it covers and is off while a fill runs), #200/#203 and #201 draw from the draft page and the home, rendered here.
+   The top-up is 为没覆盖的部分补题 (ui/coverage): it is asked for the sections with no question, so the pages are rendered with a real coverage answer seeded in their memo. */
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { default as GenerationTrace } from './ui/GenerationTrace.jsx'; export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx'; export { foldJobsByDraft } from './ui/job-visibility.js'; export { DraftTopUp } from './ui/DraftShortfall.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { default as GenerationTrace } from './ui/GenerationTrace.jsx'; export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx'; export { foldJobsByDraft } from './ui/job-visibility.js'; export { seedCoverage, forgetCoverage } from './ui/coverage/use-coverage.js'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -25,42 +28,86 @@ const page = (value, data = {}, props = {}, language = 'zh') => {
     return renderToStaticMarkup(React.createElement(m.Draft, { data: { sources: ['s1', 's2', 's3'].map(id => ({ id, title: id.toUpperCase() })), decks: [], drafts: [value], jobs: [], modelReady: true, runs: [], ...data },
       busy: false, act: noop, call: noop, draft: value, draftLoaded: JSON.stringify(value), setDraft: noop, draftText: '', setDraftText: noop, jsonMode: false, setJsonMode: noop,
       openDraft: noop, onOpenPublished: noop, onStartPublished: noop, clearRecovery: noop, setPage: noop, setNotice: noop, setError: noop, setModal: noop,
-      setSelectedSources: noop, setGenSource: noop, blankCard: noop, patchCard: noop, parseDraft: JSON.parse, continueDraft: noop, addFromSources: noop, ...props }));
+      blankCard: noop, patchCard: noop, parseDraft: JSON.parse, topUpDraft: noop, ...props }));
   } finally { m.setUiLanguage('zh'); }
 };
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 /** The opening tag of the button whose label starts with `label`. */
 const buttonTag = (html, label) => new RegExp('<button([^>]*)>(?:<[^>]+>)*' + label).exec(html)?.[0];
 
-test('the add button names the deck it adds to, the sources and the count, and a new deck is a separate choice (#196)', () => {
+const covered = (extra = {}) => draftView({ draftId: 'd1', draftVersion: 3, covered: ['r1.p1', 'r2.p2'], failed: ['r1.p3'], ...extra });
+const withView = (view = covered()) => { m.forgetCoverage(); seedView(m, view); return view; };
+const dropData = html => html.replace(/<ul class="cov-(?:groups|list)"[\s\S]*?<\/ul>/g, '');
+
+test('the one top-up says before it starts how many sections it covers, which of them it writes again, and is the only top-up control (#196)', () => {
+  withView();
   const out = page(draft());
-  assert.match(text(out), /为「第1步 架构思维」补题：用 2 份未覆盖资料，追加约 4 题/);
-  assert.match(text(out), /给「第1步 架构思维」补 4 题 →/);
-  assert.match(text(out), /用这些资料新建题组/);
-  assert.match(out, /data-add-from-sources/);
-  assert.ok(buttonTag(out, '给「第1步'), 'the add button is there');
-  assert.doesNotMatch(buttonTag(out, '给「第1步'), /disabled/, 'idle: the button works');
-  assert.match(out, /<input[^>]*type="number"[^>]*value="4"/);
-  const english = text(page(draft(), {}, {}, 'en'));
+  const said = text(out);
+  assert.match(said, /覆盖 2\/12 个部分（17%） · 1 个计划了没出成 · 9 个没计划到/);
+  assert.match(said, /这一轮补 10 个部分，约 10 题。 其中 1 个计划了没出成，按原来的考点重写，不重新规划。 另外 9 个从原文重新规划考点。/);
+  assert.equal((out.match(/data-coverage-start/g) || []).length, 1, 'one button, not two competing controls');
+  assert.ok(buttonTag(out, '为没覆盖的部分补题'), 'the button is there');
+  assert.doesNotMatch(buttonTag(out, '为没覆盖的部分补题'), /disabled/, 'idle: it works');
+  assert.doesNotMatch(out, /data-add-from-sources|type="number"|继续补齐|给「第1步|用这些资料新建题组|比计划少/, 'the old controls and their words are gone');
+  assert.match(out, /data-token-estimate/, 'the estimate of exactly this request is under the button');
+  const english = text(dropData(page(draft(), {}, {}, 'en')));
   assert.doesNotMatch(english.replaceAll('第1步 架构思维', 'TITLE'), han);
-  assert.match(english, /Adding to “第1步 架构思维”: 4 more questions from 2 uncovered sources/);
-  assert.match(english, /Create a new deck from these sources/);
+  assert.match(english, /Covered 2\/12 parts \(17%\) · 1 planned but not produced · 9 never planned/);
+  assert.match(english, /This round covers 10 parts, about 10 questions\./);
+  assert.match(english, /Add questions for the uncovered parts/);
 });
 
-test('the add button is off, and says 补题中, while a fill or generation runs on that deck (#196)', () => {
+test('a round that does not reach everything says how much is left and how many more rounds it takes (the limit is 30 questions a round)', () => {
+  const big = transcriptFixture();
+  const view = withView(draftView({ material: big, covered: ['r1.p1'], failed: [] }));
+  assert.deepEqual([view.round.sections, view.round.left, view.round.rounds], [30, 50, 3]);
+  const out = page(draft());
+  assert.match(text(out), /覆盖 1\/81 个部分（1%） · 80 个没计划到/);
+  assert.match(text(out), /这一轮补 30 个部分，约 30 题。 30 个从原文规划考点。/);
+  assert.match(text(out), /还有 50 个部分一轮补不完（一轮最多 30 题），这一轮完成后再补一次，约还要 2 轮。/);
+  assert.match(text(dropData(page(draft(), {}, {}, 'en'))), /Another 50 parts do not fit in one round \(at most 30 questions a round\); run it again after this one, about 2 more rounds\./);
+});
+
+test('an old draft with no plans says 没有记录 instead of pretending to know what was planned', () => {
+  const old = withView(draftView({ covered: ['r1.p1'], failed: [], recorded: false }));
+  assert.equal(old.coverage.recorded, false);
+  const out = text(page(draft()));
+  assert.match(out, /覆盖 1\/12 个部分（8%） · 11 个没有记录/);
+  assert.doesNotMatch(out, /没计划到/, 'nothing is said about what was planned when no plan was kept');
+  const english = text(dropData(page(draft(), {}, {}, 'en')));
+  assert.match(english, /11 with no plan on record/);
+});
+
+test('every part covered: the top-up says so and offers nothing to press', () => {
+  withView(draftView({ covered: small.ids }));
+  const out = page(draft());
+  assert.match(text(out), /覆盖 12\/12 个部分（100%）/);
+  assert.match(text(out), /每个部分都有题了。/);
+  assert.doesNotMatch(out, /data-coverage-start/);
+});
+
+test('the top-up is a status, not a button, while a fill or generation runs on that deck (#196)', () => {
+  withView();
   const running = { id: 'j1', status: 'running', draftId: 'd1', continued: true, savedCount: 2, requestedTotal: 4 };
   const out = page(draft(), { jobs: [running] });
   assert.match(text(out), /补题中 · 草稿 2\/4 题/);
-  assert.match(buttonTag(out, '补题中'), /disabled/);
-  assert.doesNotMatch(text(out), /给「第1步 架构思维」补/, 'the add label gives way to the running label');
+  assert.match(out, /data-draft-work/);
+  assert.doesNotMatch(out, /data-coverage-start/, 'nothing to press while it runs');
   // A fill that publishes straight into the deck this draft merges into owns it too.
   const merging = page(draft({ mergeTargetId: 'deck-9' }), { jobs: [{ id: 'j2', status: 'running', mergeTargetId: 'deck-9', type: 'supplement', continued: false }] });
-  assert.match(buttonTag(merging, '补题中'), /disabled/);
+  assert.match(merging, /data-draft-work/);
+  assert.doesNotMatch(merging, /data-coverage-start/);
   const finished = page(draft(), { jobs: [{ ...running, status: 'complete' }] });
-  assert.doesNotMatch(buttonTag(finished, '给「第1步'), /disabled/, 'once the fill is done the deck can be added to again');
+  assert.ok(buttonTag(finished, '为没覆盖的部分补题'), 'once the fill is done the draft can be topped up again');
+  assert.doesNotMatch(buttonTag(finished, '为没覆盖的部分补题'), /disabled/);
+  // unsaved edits keep it from starting from this page, and say why
+  const unsaved = page(draft(), {}, { draftLoaded: '' });
+  assert.match(buttonTag(unsaved, '为没覆盖的部分补题'), /disabled/);
+  assert.match(text(unsaved), /先保存草稿，再补题。/);
 });
 
 test('generation details say how many questions the repair kept and how many were dropped (#202)', () => {
+  m.forgetCoverage();
   const repaired = draft(); Object.assign(repaired.editorial, { repairedInRun: 3, repairTried: 4, omitted: [{ part: 1, prompt: 'q', reasons: ['x'] }, { part: 1, prompt: 'r', reasons: ['y'] }] });
   assert.match(text(page(repaired)), /修复后保留 3 题 · 丢弃 2 题（其中 1 题修复后仍未通过，原因见「没进入草稿的题」）/);
   assert.doesNotMatch(text(page(draft())), /修复后保留/, 'no repair, no line');
@@ -70,6 +117,7 @@ test('generation details say how many questions the repair kept and how many wer
 });
 
 test('generation details list the review suggestions apart from the questions that had to be fixed (#216)', () => {
+  m.forgetCoverage();
   const suggested = draft(); suggested.editorial.suggestions = [{ cardId: 'c1', text: 'q1：建议把选项压缩为一句话。', kind: 'suggestion' }];
   const out = text(page(suggested));
   assert.match(out, /审阅建议（已记录，不影响通过）· 1/);
@@ -90,6 +138,7 @@ test('a failed run caused by the review says so on its card in the learner\'s la
 });
 
 test('a running fill says which round it is on and how many questions are still missing (#197)', () => {
+  m.forgetCoverage();
   m.setUiLanguage('zh');
   const job = { id: 'r', status: 'running', type: 'generate', stage: 'Parallel generation · up to 3 batches', parts: 2, requestedTotal: 15, savedCount: 7, continued: true, draftId: 'd1',
     steps: [{ id: 's', stage: 'Part 1/2 · Writing replacement questions from reserve targets', part: 1, status: 'running' }], fills: { 1: { round: 2, missing: 3 }, 2: { round: 1, missing: 1 } } };
@@ -126,7 +175,7 @@ test('generation details show queue vs model-call time per stage, and a rate lim
 
 /* #200 / #203: one card per deck. */
 const home = (jobs, drafts, extra = {}) => renderToStaticMarkup(React.createElement(m.HomeActivity, { jobs, drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop,
-  manage: noop, start: noop, call: noop, continueDraft: noop, modelReady: true, data: { jobs, drafts, decks: [], sources: [] }, ...extra }));
+  manage: noop, start: noop, call: noop, topUpDraft: noop, modelReady: true, data: { jobs, drafts, decks: [], sources: [] }, ...extra }));
 const steps = (n, label = 'Part 1/1 · Writing and self-checking questions') => Array.from({ length: n }, (_, index) => ({ id: `s${n}-${index}`, stage: label, status: 'complete' }));
 const fillJob = (id, status, extra = {}) => ({ id, status, type: undefined, stage: 'Draft ready with 12/15 questions', parts: 2, draftId: 'd1', continued: true, deckTitle: '架构的语境性', savedCount: 12, requestedTotal: 15, count: 8,
   startedAt: `2026-10-05T10:0${id.length}:00.000Z`, steps: steps(3), ...extra });
@@ -152,10 +201,12 @@ test('the list row says 补题中 as a Badge, not 已复审，待发布, and not
   assert.doesNotMatch(text(row), /已复审，待发布|待发布检查/, 'a deck being filled is not "reviewed, waiting to publish"');
   assert.match(row, /<span[^>]*sh-badge[^>]*data-draft-work[^>]*>(?:<span[^>]*><\/span>)?补题中/, 'the status is a Badge');
   assert.doesNotMatch(row, /<button[^>]*disabled[^>]*>[^<]*补题中/, 'not a disabled button dressed as a status');
+  withView();
   const idle = home([], [shortDraft()]);
   assert.match(text(idle), /待发布检查|已复审，待发布/);
   assert.doesNotMatch(idle, /data-draft-work/);
-  assert.match(idle, /<button[^>]*>[^<]*继续补齐 3 题/, 'the action is still a button when nothing runs');
+  assert.match(idle, /<button[^>]*>[^<]*为没覆盖的部分补题/, 'the action is still a button when nothing runs');
+  assert.doesNotMatch(idle, /继续补齐/);
 });
 
 test('the row says its status once: the meta line is the count, the Badge carries status and progress (#228)', () => {
@@ -164,15 +215,16 @@ test('the row says its status once: the meta line is the count, the Badge carrie
   const metaOf = (html) => /<span class="draft-meta__facts">([\s\S]*?)<\/span>/.exec(html)[1];
   const running = fillJob('r', 'running', { stage: 'Parallel generation · up to 4 batches', savedCount: 6, requestedTotal: 10 });
   const six = draft({ title: '架构的语境性', editorial: { requested: 10, generated: 6, completedParts: 2, parts: 2, failures: [], generation: { sourceIds: ['s1'], kind: 'quiz' } }, cards: Array.from({ length: 6 }, (_, i) => card(`c${i}`)) });
+  withView();
   const filling = home([running], [six]), row = rowOf(filling);
   assert.equal((text(row).match(/补题中/g) || []).length, 1, 'the status is said once in the row');
-  assert.equal(text(metaOf(filling)).trim(), '6 道题', 'the meta line is the count only while the Badge shows the fill');
+  assert.equal(text(metaOf(filling)).trim(), '6 道题 · 覆盖 2/12 个部分（17%）', 'the meta line is the facts (the count and the coverage) while the Badge shows the fill');
   assert.match(row, /sh-badge[^>]*data-draft-work[^>]*>(?:<span[^>]*><\/span>)?补题中 · 草稿 6\/10 题/);
   const idle = home([], [six]);
   assert.equal((text(rowOf(idle)).match(/待发布检查|已复审，待发布/g) || []).length, 1, 'idle: one status too');
   assert.match(rowOf(idle), /sh-badge[^>]*data-draft-status[^>]*>[^<]*(?:待发布检查|已复审，待发布)/, 'the idle status is a Badge as well');
   assert.doesNotMatch(text(metaOf(idle)), /待发布检查|已复审，待发布/, 'not in the meta line');
-  assert.doesNotMatch(text(metaOf(idle)), /还差/, 'the button already names how many are missing');
+  assert.doesNotMatch(text(metaOf(idle)), /还差/, 'a draft is not "short by N": what it lacks is sections, said by the coverage');
   m.setUiLanguage('en');
   const english = rowOf(home([running], [six]));
   m.setUiLanguage('zh');
@@ -206,9 +258,9 @@ test('jobs of different decks, publish and repair jobs and jobs without a draft 
   assert.deepEqual(running.map((item) => item.job.id), ['y'], 'a running job is the newest of its deck');
 });
 
-test('the add button is not offered for a case paper, an edit of a published deck or an unsaved edit', () => {
-  const none = (value) => assert.doesNotMatch(page(value), /data-add-from-sources/);
-  none(draft({ editingDeckId: 'deck-1' }));
-  const kind = draft(); kind.editorial.generation.kind = 'case'; none(kind);
-  const repair = draft(); repair.editorial.repairOfDeckId = 'deck-1'; none(repair);
+test('the top-up is not offered when the backend says the draft cannot be topped up (a case paper, an edit of a published deck, a repair of one)', () => {
+  withView(draftView({ covered: ['r1.p1'], canTopUp: false }));
+  const out = page(draft({ editingDeckId: 'deck-1' }));
+  assert.doesNotMatch(out, /data-coverage-start|data-coverage-topup/, 'no button');
+  assert.match(text(out), /覆盖 1\/12 个部分/, 'the coverage itself is still said');
 });

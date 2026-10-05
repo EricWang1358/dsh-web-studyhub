@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { DisclosureToggle, Icon } from '../../components/index.js';
+import { Checkbox, DisclosureToggle, Icon, Tooltip } from '../../components/index.js';
 import { defaultExpanded, filterOutline, outlineRows } from './outline.js';
 import { MasteryMark } from '../practice/MasteryMark.jsx';
 import MathText from '../../MathText.jsx';
+import { CoverageMark } from '../../coverage/Coverage.jsx';
+import { useInjectCss } from '../../shared.js';
+import coverageCss from '../../coverage/coverage.css';
+import { coverageOutlineHead, rangeCoverageText, neverPlannedText, plannedFailedText } from '../../coverage/copy.js';
+import { joinMeta } from '../../format.js';
 
 /* A filter box appears once the outline is too long to scan by eye. */
 const FILTER_FROM = 12;
@@ -12,15 +17,21 @@ const FILTER_FROM = 12;
  * The outline (目录) as a tree: `items` come from structureOutline (parent, depth, minor). Folded rows have a twisty
  * (a button, so the keyboard reaches it); the current entry is marked, and when it is folded away its nearest open part is.
  * `footer` is the slot under the list (the "让 AI 帮你" flow). `initialOpen`: ids open at first (default: defaultExpanded).
+ * `meters` (mastery: asked and answered) and `coverage` (practice/coverage-outline.js outlineCoverage: asked at all) are different facts and have different marks: a round mastery ring
+ * and a square coverage mark. `coverageTotals` (lib/coverage.js) is what the header says (覆盖 7/80); `initialOnlyUncovered` starts with 只看没覆盖的 on.
  */
-export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, ...rest }) {
-  const list = useRef(null), [query, setQuery] = useState(''), [toggled, setToggled] = useState(() => new Map());
+export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, coverage = null, coverageTotals = null, initialOnlyUncovered = false, ...rest }) {
+  useInjectCss(coverageCss, 'study-coverage');
+  const list = useRef(null), [query, setQuery] = useState(''), [toggled, setToggled] = useState(() => new Map()), [onlyUncovered, setOnlyUncovered] = useState(initialOnlyUncovered);
   const signature = `${items.length}:${items[0]?.id ?? ''}:${items.at(-1)?.id ?? ''}`;
   useEffect(() => { setToggled(new Map()); setQuery(''); }, [signature]);
   const base = useMemo(() => initialOpen ? new Set(initialOpen) : defaultExpanded(items, activeId), [items, activeId, initialOpen]);
   const expanded = useMemo(() => new Set(items.filter(item => toggled.has(item.id) ? toggled.get(item.id) : base.has(item.id)).map(item => item.id)), [items, base, toggled]);
   const filtering = query.trim().length > 0;
-  const rows = useMemo(() => filtering ? filterOutline(items, query) : outlineRows(items, expanded), [filtering, items, query, expanded]);
+  // 只看没覆盖的: the sections with no question and the parts they are in, in the outline's own order and indentation.
+  const narrowed = onlyUncovered && !!coverage;
+  const kept = useMemo(() => narrowed ? items.filter(item => coverage.uncovered.has(item.id)) : items, [narrowed, items, coverage]);
+  const rows = useMemo(() => filtering ? filterOutline(kept, query) : narrowed ? kept : outlineRows(items, expanded), [filtering, kept, narrowed, items, query, expanded]);
   // The current entry, or the nearest part above it that is on screen.
   const current = useMemo(() => {
     const byId = new Map(items.map(item => [item.id, item])), shown = new Set(rows.map(row => row.id));
@@ -40,6 +51,10 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
   const name = item => [labelOf(item), item.title].filter(Boolean).join(' · ');
   return <nav id={id} className={`reader-outline ${className}`.trim()} aria-label={ui('目录')} {...rest}>
     <h3 className="reader-panel__title">{ui('目录')}</h3>
+    {coverage && coverageTotals?.leaves > 0 && <div className="reader-outline__covhead" data-coverage-head>
+      <span className="cov-meter" data-coverage-count>{coverageOutlineHead(coverageTotals)}</span>
+      {coverageTotals.covered < coverageTotals.leaves && <Checkbox className="reader-outline__covtoggle" label={ui('只看没覆盖的')} checked={onlyUncovered} onChange={setOnlyUncovered} data-coverage-filter />}
+    </div>}
     {items.length > FILTER_FROM && <div className="reader-outline__filter" role="search">
       <Icon name="search" size={16} className="reader-find__icon" />
       <input type="search" value={query} autoComplete="off" spellCheck={false} placeholder={ui('在目录中查找')} aria-label={ui('在目录中查找')}
@@ -50,7 +65,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
       {items.length > 0 && filtering && rows.length === 0 && <p className="reader-outline__empty" role="status">{ui('没有找到')}</p>}
       <ol>
         {rows.map(item => {
-          const label = labelOf(item), open = expanded.has(item.id), foldable = !filtering && item.children > 0;
+          const label = labelOf(item), open = expanded.has(item.id), foldable = !filtering && !narrowed && item.children > 0, here = coverage?.entries.get(item.id);
           return <li key={item.id} data-depth={filtering ? 0 : Math.min(item.depth || 0, 4)} data-minor={item.minor || undefined}>
             {foldable
               ? <DisclosureToggle className="reader-outline__twisty" open={open}
@@ -62,6 +77,11 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
               {item.title && <span className="reader-outline__title"><MathText text={item.title} /></span>}
               {filtering && item.trail?.length > 0 && <small className="reader-outline__trail">{item.trail.at(-1)}</small>}
             </button>
+            {/* 覆盖 of this entry: a square mark for a section, the count of the sections below for a part; a different shape from the mastery ring. */}
+            {coverage && <span className="reader-outline__cov">{here?.own ? <CoverageMark state={here.own.state} reason={here.own.reason} recorded={coverageTotals?.recorded !== false} title={name(item)} size={12} />
+              : here?.leaves ? <Tooltip layer placement="left-start" content={joinMeta([rangeCoverageText(here, coverageTotals?.units), here.plannedFailed > 0 && plannedFailedText(here.plannedFailed),
+                here.neverPlanned > 0 && neverPlannedText(here.neverPlanned, coverageTotals?.recorded !== false)])}>
+                <span className="reader-outline__cov-count" data-coverage-parent>{`${here.covered}/${here.leaves}`}</span></Tooltip> : null}</span>}
             {/* 资料掌握度 of this entry (and what is below it); present only when the document has questions at all. */}
             {meters && <span className="reader-outline__meter"><MasteryMark summary={meters.get(item.id) ?? null} title={name(item)} size={13} /></span>}
           </li>;

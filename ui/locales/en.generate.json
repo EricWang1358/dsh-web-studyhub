@@ -228,7 +228,6 @@
   "这份草稿生成时没有留下逐题原因；之后补题的记录会显示在这里。": "This draft did not record why questions were dropped; records from later top-ups will appear here.",
   "没进入草稿的题 · {0}": "Questions left out of the draft · {0}",
   "第 {0} 批的一道题": "A question from batch {0}",
-  "比计划少 {0} 题": "{0} fewer than planned",
   "先保存草稿，再补题。": "Save the draft first, then top it up.",
   "考点规划没有通过检查": "The plan of what to test did not pass its checks",
   "资料里能稳妥出题的内容可能不够。换几份内容更完整的资料，或减少题数再试。": "The sources may not hold enough to write questions from safely. Try fuller sources, or ask for fewer questions.",

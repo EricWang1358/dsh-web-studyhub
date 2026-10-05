@@ -125,8 +125,10 @@
     .tc-detail > * { flex: none; }
     .tc-detail > .tc-body { flex: 1 1 0; }
     .tc-head { flex-wrap: nowrap; padding: 0 var(--space-5); }
-    .tc-head__title { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
-    .tc-head__sub { color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
+    .tc-head__title { display: flex; flex: 1 1 0; align-items: baseline; gap: var(--space-3); min-width: 0; }
+    .tc-head__title h2 { flex: 0 1 auto; }
+    /* The actions keep their room (a long label such as the one top-up in English needs it); the title gives way, the second line of it first. */
+    .tc-head__sub { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--text-muted); font-size: var(--fs-sm); text-overflow: ellipsis; white-space: nowrap; }
     .tc-head__actions { display: flex; flex: none; gap: var(--space-2); }
     .tc-metrics {
       display: grid;
@@ -329,6 +331,7 @@
       .tc-col { height: 440px; }
       .tc-col + .tc-col { border-inline-start: 0; border-top: 1px solid var(--line); }
       .tc-head { height: auto; min-height: 44px; flex-wrap: wrap; padding-block: var(--space-2); }
+      .tc-head__actions { flex: 1 1 100%; flex-wrap: wrap; row-gap: var(--space-1); }
     }
   }
 }

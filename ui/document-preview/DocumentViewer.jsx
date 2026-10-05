@@ -18,6 +18,7 @@ import { isOfficeFormat } from '../../lib/office/limits.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import ReadingPractice from './practice/ReadingPractice.jsx';
 import { MasteryLine } from './practice/MasteryMark.jsx';
+import { CoverageChip } from '../coverage/Coverage.jsx';
 import { useReadingLoop } from './practice/useReadingLoop.js';
 import OutlinePanel from './reader/OutlinePanel.jsx';
 import OutlineAssist from './reader/OutlineAssist.jsx';
@@ -359,7 +360,11 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
       </div>
       <p className="reader-toolbar__where" title={where || undefined}>{where}</p>
-      {meters && <span className="reader-toolbar__mastery"><MasteryLine summary={loop.current} title={ui('本节掌握度')} /></span>}
+      {/* Two facts, two lines, one block (a toolbar has no room for a second row of words): what was learned (掌握, only published questions) and what was asked (覆盖, drafts included). */}
+      {(meters || (!localMode && view !== 'original' && loop.coverage?.cards > 0)) && <span className="reader-toolbar__quality">
+        {meters && <span className="reader-toolbar__mastery"><MasteryLine summary={loop.current} title={ui('本节掌握度')} /></span>}
+        {!localMode && view !== 'original' && loop.coverage?.cards > 0 && <span className="reader-toolbar__coverage"><CoverageChip coverage={loop.coverage} /></span>}
+      </span>}
       <div className="reader-toolbar__group reader-toolbar__group--end">
         {!localMode && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         {view !== 'original' && <>
@@ -388,6 +393,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
       {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters}
+        coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={localMode ? localContent.title || source.title || ui('资料内容') : ui('资料内容')} data-mode={view}>

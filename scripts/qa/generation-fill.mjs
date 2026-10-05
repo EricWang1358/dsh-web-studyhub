@@ -1,7 +1,7 @@
 /* node scripts/qa/generation-fill.mjs [--lang zh|en --theme dark|light --width 1280|420 --out <dir>]
    Browser check of filling a deck (#196 #200 #201 #203), on a seeded temporary library with the fake model:
      1  the draft page of a deck that cites 2 of 6 pages of one book: the coverage list names the book once with its pages (#201), and
-        「用未覆盖的资料补题」 names the deck and the count (#196)
+        the one top-up 「为没覆盖的部分补题」 says how many pages it covers this round (#196)
      2  pressing it adds the questions to THAT draft: no new deck, no second draft, the same title
      3  while a second fill runs, the home shows ONE task card for the deck, the earlier job folded into it, and the list row says 补题中 as a Badge (#200, #203)
    Everything runs against a temporary library; nothing of the owner's library, keys or network is touched. */
@@ -58,18 +58,18 @@ const summary = await runQa({ name: "generation-fill", options, latencyMs: 700,
       await noOverflow("coverage list");
     });
     await step("add-button", async () => {
-      const block = view.locator("[data-add-from-sources]");
+      const block = view.locator("[data-coverage-topup]");
       await block.waitFor({ timeout: 10000 });
       const text = await block.innerText();
-      assert.match(text, new RegExp(TITLE), "the target deck is named");
-      assert.match(text, t(/用 4 页未覆盖资料/, /4 uncovered pages/), "the number of pages is named, as pages");
-      assert.match(text, t(/新建题组/, /new deck/i), "a new deck is a separate choice");
+      assert.match(text, t(/这一轮补 4 页，约 4 题/, /This round covers 4 pages, about 4 questions/), "the number of pages is named, as pages");
+      assert.equal(await view.locator("[data-coverage-start]").count(), 1, "one top-up, not two competing controls");
+      assert.equal(await view.locator("[data-add-from-sources]").count(), 0, "the old second control is gone");
       await block.scrollIntoViewIfNeeded();
       await noOverflow("add button");
     });
     const before = await state();
-    await view.locator("[data-add-from-sources] .sh-btn:not(.sh-btn--link)").first().click();
-    await view.locator("[data-add-from-sources] [data-draft-work], [data-add-from-sources] .sh-btn[disabled]").first().waitFor({ timeout: 15000 });
+    await view.locator("[data-coverage-start]").click();
+    await view.locator("[data-draft-work]").first().waitFor({ timeout: 15000 });
     await check("the first fill ends in the same draft", async () => {
       await idle();
       const after = await state();
@@ -85,11 +85,11 @@ const summary = await runQa({ name: "generation-fill", options, latencyMs: 700,
     await call("generate", { resumeDraftId: current.id, draftVersion: current.draftVersion, extraSourceIds: ["page-1", "page-2"], count: 4 });
     await home();
     await step("running-one-card", async () => {
-      const cards = view.locator(".home-activity .sh-job");
+      const cards = view.locator(".home-activity .cjc");
       await cards.first().waitFor({ timeout: 20000 });
       assert.equal(await cards.count(), 1, "one task card for the deck, whatever ran before");
-      assert.match(await view.locator(".home-activity .home-drafts").innerText(), t(/补题中/, /Filling in/), "the list row says the deck is being filled");
-      assert.doesNotMatch(await view.locator(".home-activity .home-drafts").innerText(), t(/已复审，待发布/, /Reviewed, ready to publish/));
+      assert.match(await view.locator(".home-activity .home-drafts").innerText(), t(/补题中/, /Adding questions/), "the list row says the deck is being filled");
+      assert.doesNotMatch(await view.locator(".home-activity .home-drafts").innerText(), t(/已复审，待发布/, /Reviewed, ready to publish|Ready to publish/));
       assert.ok(await view.locator(".home-activity .home-drafts [data-draft-work].sh-badge").count(), "the status is a Badge");
       assert.equal(await view.locator(".home-activity .home-drafts button:disabled").count(), 0, "no disabled button posing as a status");
       await view.locator(".home-activity").scrollIntoViewIfNeeded();
@@ -98,10 +98,10 @@ const summary = await runQa({ name: "generation-fill", options, latencyMs: 700,
     await idle();
     await home();
     await step("after-fill-one-card", async () => {
-      const cards = view.locator(".home-activity .sh-job");
+      const cards = view.locator(".home-activity .cjc");
       await cards.first().waitFor({ timeout: 20000 });
       assert.equal(await cards.count(), 1, "still one card after the fill ended");
-      assert.match(await view.locator(".home-activity").innerText(), t(/之前的任务 · 1/, /Earlier tasks · 1/), "the first job lives in the fold");
+      assert.equal((await call("snapshot", {})).jobs.length, 2, "both fills are listed in the 任务 console; the home shows one card for the deck");
       await noOverflow("home after the fill");
     });
     await check("no console or page errors", async () => undefined);
