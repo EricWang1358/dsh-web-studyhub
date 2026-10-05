@@ -1,10 +1,10 @@
 # S1-1：v1 兼容边界与 v2 目标投影
 
-**状态：契约草案，未实现兼容 facade。** 基线是已合并 [PR #241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) 的 `f091f09f830c226bfebc9af22344896733893a10`；S1-0 的已验证范围和限制按所有者本轮接受记录保留。本文区分发布版事实、待评审目标和后续实现验收。JSON fixture 只锁定合成记录的形状与投影，不证明真实生产者已兼容。
+**状态：契约草案，未实现兼容 facade。** S1-1 随正式版本并行，以已合并 [PR #242](https://github.com/EricWang1358/dsh-web-studyhub/pull/242) 的 2.6.1 `e61f6debe9436794cafc2bc8c65a0d0164e5ac5e` 为当前读兼容基线。S1-0 接受记录仍是 [PR #241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) / `f091f09f830c226bfebc9af22344896733893a10`，其历史证据、已验证范围和限制不改写。本文区分发布版事实、待评审目标和后续实现验收；F091 源码锚点作为历史对照，身份/等待/通知等未变事实仍有效，下面的 E61 补充记录 2.6.1 新行为。JSON fixture 只锁定合成记录的形状与投影，不证明真实生产者已兼容。
 
 ## 1. 唯一事实来源、权限与写入者
 
-沿用 [字段与资源审计](s1-0-runtime-audit.md#4-字段操作与唯一责任者清单)；当前 `runtime.work.jobs` 是共享业务记录，`tasks.js` 的 entry、controller 和 owner/domain queue 是执行索引。v2 必须演进同一来源，facade 只读取、转换和委托，不能增加独立 jobs 表、状态机、结算或通知层。
+沿用 [字段与资源审计](s1-0-runtime-audit.md#4-字段操作与唯一责任者清单)；当前 `runtime.work.jobs` 是共享业务记录，`tasks.js` 的 entry、controller 和 owner/domain queue 是执行索引。v2 必须演进同一来源，facade 只读取、转换和委托，不能增加独立 jobs 表、状态机、结算或通知层。2.6.1 已有的 `job-archive.json` 是有界、只读的历史投影，复用其唯一库级 writer；它不接纳执行，不是新的活动 Job 或结算来源。
 
 | 字段 / 操作 | 当前事实 | 迁移后唯一写入者 / 约束 |
 |---|---|---|
@@ -15,6 +15,7 @@
 | Call / provider observation / usage | taskTracker、usage sink、audio meter / ledger | 模型网关为迁移路径唯一 Call writer；账本沿用既有 writer、稳定 Call 去重；旧路径按例外保留 |
 | 实际许可、429、传输 retry | `audioGate`、录音/批次 pool、既有 retry/provider 包装 | 复用同一资源与唯一责任层；去留表在 S1-3/4 定稿，不在契约 PR 新增实现 |
 | 完成事件与通知 | worker finally；notifier 对当前对象用 WeakSet | 生命周期只产生一次稳定完成事件；业务通知适配读取事件和旧可见身份，投递失败不改终态 |
+| 归档记录 / aliases / archivedAt | 2.6.1 archive writer 按 library root 串行保存有界只读 v1 contract | 复用现有归档 writer；旧归档不从状态补造 runtime 身份；不能把归档投影当第二个活动 lifecycle |
 | v1 lean record / `contract` / 控制回复 / UI link | published projector / operations / UI | 只读 legacy facade 与已发布 projector；不能成为第二个 writer 或伪造生产者观测 |
 
 旧 extension 的 fence 是 `Symbol.for('studyhub.worker.owner.v1')` 保存的对象/Symbol 身份，加 `entry.domain === domain`。队列键为每个 owner / domain / queue 的私有 Symbol；同名 queue 不能跨 owner 共用。`workOwnedBy(work, undefined)` 在旧内部 helper 中是通配，而不是新公共 API 的授权规则。目标接口必须携带真实受控 scope，禁止把 owner 丢成 undefined 来绕过隔离。证据：[ownership](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/runtime/work-ownership.js#L1-L8)、[tasks owner/domain 与队列](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/runtime/tasks.js#L14-L44)。
@@ -30,15 +31,18 @@ DSH owner 是注册表内**精确、仍存活的 Agent / session**，不能以�
 | `job.status` | 无 ID 列当前库；有 ID 仅精确匹配 `job.id`；返回 lean record，无 `contract` | 保留精确 facade ID 查询、库边界与 `not-found`，不扩大成逻辑 Job 查询 |
 | `job.wait` | 有 ID 仅精确匹配；无 ID 取当前库最后记录，空库 `{status:'none'}`；1–60 秒观察者上限，缺省 60 秒；等待 worker 收尾 bookkeeping，超时返回 lean snapshot，不取消 | 等待 facade 所代表的逻辑执行完成及 bookkeeping；内部暂停结束 physical Attempt 不得使旧 wait 提前完成。超时仍只结束观察 |
 | `job.cancel` | 精确 ID 或当前库 `all:true`；两者互斥。发布检查拒绝；已终结/已请求取消通常不再修改；排队直接 cancelled、运行 cancelling | 保留旧 idempotent 行为及库范围；不是 `checkAction` 的别名。实际执行停止另走唯一生命周期协议 |
-| `job.dismiss` | 精确 `jobId` / `jobIds` / `all:true` 三选一；活动任务拒绝，先从列表删除再清理；有 coach day 独立 ledger 分支 | 保留当前 facade 与历史折叠行的精确删除；不将尚未结束的 logical pause 当可 dismiss |
-| `job.control` | 当前库 exact `job.id` 优先，否则取最后一个匹配 `batchId` / `singleId`；coach day 独立分支；回复 `jobId` 回显请求、`attemptId = job.id` | 保留查找顺序、请求回显、当前 facade ID 和拒绝顺序；动作委托唯一内核，不建立 facade controller |
-| `job.output` | 同 control 的 ID 查找；`callId` 必须在保留的 `jobCalls` 内；回复 `jobId = job.id` | 保留 facade / Call 关联与遗失记录拒绝。跨 physical pause 的 Call 归属和有界保留须实现测试，不保证无限历史读取 |
+| `job.dismiss` | live 精确 `jobId` / `jobIds` / `all:true` 三选一；活动任务拒绝；单个 ID 不在 live 列表时可按归档 alias 删除；有 coach day 独立 ledger 分支 | 保留永久删除语义和库边界；归档不是取消/终态结算；不将尚未结束的 logical pause 当可 dismiss |
+| `job.archive` | `jobId` / 去重 `jobIds`（最多 100）/ `all:true`；按 live id、batchId、singleId 收集 lineage，先写只读记录再移出 live；single running/missing 拒绝，列表返回 skipped/missing；重复返回 alreadyArchived；coach 不归档 | 沿用唯一历史投影，保留 alias、单个/批量拒绝区别；不触发执行或清理正在执行的资源 |
+| `job.unarchive` | 按归档 alias 读取并移除历史记录；有音频/PDF 工作目录时请求 recover，再从真实记录读取；不能重建时存 restoredContract，保持 ended/no retry 的旧视图 | 保留真实目录恢复与只读 fallback；不是自动 dispatch；缺失 runtime admission 证据仍只返回 v1 |
+| `job.delete` | 最多 100 个 ID；移除 finished live lineage 或归档记录，running skipped、unknown missing；释放工作副本，不删除已导入 source/draft/deck | 保留 aliases、批量结果和产物保留，复用既有 cleanup；不是取消协议 |
+| `job.control` | 当前库 exact `job.id` 优先，否则取最后一个匹配 `batchId` / `singleId`；找不到 live 而归档命中时先拒绝 `archived`；coach day 独立分支；回复 `jobId` 回显请求、`attemptId = job.id` | 保留查找顺序、请求回显、当前 facade ID 和拒绝顺序；动作委托唯一内核，不建立 facade controller |
+| `job.output` | 同 control 的 live ID 查找，但不查询 archive；`callId` 必须在保留的 `jobCalls` 内；回复 `jobId = job.id` | 保留 facade / Call 关联与遗失记录拒绝。跨 physical pause 的 Call 归属和有界保留须实现测试，不保证无限历史读取 |
 | `audio.retry` | exact ID、库、kind、retryable entry 检查后执行；成功移除旧 record/旧失败信箱，返回新 ID；失败恢复旧 record | 保留显式触发、新 facade ID、无永久旧 alias；不自动启动恢复，不用未知输入构造请求 |
 | `work.start/get/list/cancel/wait` extension API | owner + domain scope；`wait(timeoutMs)` 到期返回快照、不 cancel；key 去重仅相同 scope 中活动任务；已结束最多保留 100 个 | 保持 Symbol+domain fence 与 observer wait；宿主 handle 通过合法 scope 关联，不能映射成 unowned 任务 |
 | 信箱 / session 通知 | 保存并使用旧 `job.id`；音频完成只是资料，没有自动出题；WeakSet 仅当前进程对象去重 | 投影 facade ID 与旧 prose/产物语义；physical checkpoint pause 不发旧终态通知；持久投递去重在 S1-5 另测 |
-| 控制台 / 卡片 / 子代理链接 | 控制台选 `contract.jobId`，deep link 同时接受当前 `task.id`；dismiss / 音频重试用旧 ID；host AgentLink 读真实 childId/parentId | 保留两种当前可见链接，retry 后旧 ID 不强加永久 alias；缺失 childId 不造会话链接，真实 host 导航权限在 S1-6 验证 |
+| 控制台 / 卡片 / 子代理链接 | 控制台选 `contract.jobId`，deep link 同时接受当前 `task.id` 并可切换归档筛选；普通任务「知道了」改为 archive，coach 仍 dismiss；音频重试用旧 ID；host AgentLink 读真实 childId/parentId | 保留两种当前可见链接，retry 后旧 ID 不强加永久 alias；缺失 childId 不造会话链接，真实 host 导航权限在 S1-6 验证 |
 
-证据：[ID 与操作](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/contexts/jobs/operations.js#L37-L141)、[status/wait](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/contexts/jobs/operations.js#L170-L227)、[exact get 与 not-found](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/util.js#L15-L23)、[audio retry](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/contexts/audio/operations.js#L124-L151)、[contract identity](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-contract.js#L316-L329)、[通知](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/runtime/job-notice.js#L17-L26)、[UI](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/ui/tasks/TaskConsole.jsx#L120-L130)、[卡片](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/ui/tasks/CompactJobCard.jsx#L55-L57)、[输出链接](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/ui/tasks/OutputPanel.jsx#L61)。
+F091 历史对照（归档和 UI 新行为以 E61 为准）：[ID 与操作](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/contexts/jobs/operations.js#L37-L141)、[status/wait](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/contexts/jobs/operations.js#L170-L227)、[exact get 与 not-found](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/util.js#L15-L23)、[audio retry](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/contexts/audio/operations.js#L124-L151)、[contract identity](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-contract.js#L316-L329)、[通知](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/runtime/job-notice.js#L17-L26)、[UI](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/ui/tasks/TaskConsole.jsx#L120-L130)、[卡片](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/ui/tasks/CompactJobCard.jsx#L55-L57)、[输出链接](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/ui/tasks/OutputPanel.jsx#L61)。
 
 ## 3. checkpoint pause 与 legacy facade
 
@@ -79,7 +83,7 @@ queued audio 还没有 control 时，pause/set 为 `no-control-yet`；不会显�
 
 拒绝优先级逐项保留 [唯一 judge](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-contract.js#L161-L201)：
 
-1. 查找先于 action：`job.control` 找不到 record 先报无记录；找到后缺少 action 单独报错；非法 action 是 `unknown-action`。
+1. 查找先于 action：`job.control` 找不到 live record 而归档命中时先报 `archived`；其余无记录才报 not found。找到 live 后缺少 action 单独报错；非法 action 是 `unknown-action`。归档投影中的五个动作全部不可用、reason archived，不通过 live 的 `checkAction` 另算。
 2. cancel：coach day `capability-unsupported` → cancelling `already-cancelling` → 非 active `job-ended` → capability；pause：非 active → cancelling → paused `already-paused` → unsupported → queued-only `no-safe-checkpoint` → control `no-control-yet`。
 3. resume：非 active `job-ended` → unsupported → paused / `not-paused`；retry：unsupported → active `not-ended` → 可重试状态且 `retryable===true` / `not-retryable`。
 4. set：非 active → capability → control；动作获准后才校验 patch。整包 patch 必须先全部验证；`set` 中 paused 报 `unknown-setting`。未知键/非法值不会部分应用。
@@ -94,14 +98,19 @@ queued audio 还没有 control 时，pause/set 为 `no-control-yet`；不会显�
 | token buckets | uncached input / cache read / cache write / output 按来源计；reasoning 是 output 子集，不再相加；缺失不补 0，真实观测 0 才是 0；估算成本标来源且不混入实际请求计数 |
 | execution / IDs | 没有 runner 时 execution.mode=null；无 parentId/childId 不伪造；宿主内部 retry 看不到就不生造 Call |
 | v1 read compatibility | 当前 coach/detail/音频用量投影有历史默认 0 等语义，fixture 按实际发布代码保留；它们不是 v2 新观测为零的证据，不能反推已知 |
-| live output | limit=8192，最多 24 个活动 buffer；`unit:'chars'` / cursor / reasoningChars 都是 JavaScript UTF-16 code units（String.length/slice），不是 Unicode 字符数或字节数。输出在内存，非持久日志 |
-| output refusal / expiry | 先找 Job，再验证 callId，再验证保留 Call；没有 buffer 时以 wasOpened 判 supported，非 live 返回 ended。过旧或超前 cursor 返回保留尾部并 truncated，客户端替换显示；结束后的增量被丢弃，不复活 buffer |
+| live output | limit=8192，最多 24 running buffer + 最近 60 finished tails；结束调用/任务把 tail 标 ended 保留，late delta 仍丢弃。`unit:'chars'` / cursor / reasoningChars 都是 JavaScript UTF-16 code units（String.length/slice），不是 Unicode 字符数或字节数。retention 增加 endedCalls:60，persisted:false |
+| output refusal / expiry | 仍先找 live-list Job，再验证 callId 和保留 Call；归档的 stored contract 不自动提供 `job.output`。结束 tail 返回 ended/retained/source:memory/writtenChars；过旧/超前 cursor 返回尾部并 truncated。buffer 与 opened 标记均有界，restart 不保留 |
+| ended child session | 仅结束 Call、有真实 childId、cursor=0，且 memory tail 缺失或短于 written total 时通过已有 lastReply 端口读最后有文本的 assistant/message；source:session 返回 whole replacement、truncated:true，最多 200*1024 UTF-16 units、超出 clipped；无读取权限/记录报 sessionUnreadable 并保留能读的 tail。running、cursor>0 或无 child 不读 session，不创建新会话 |
 
-证据：[投影与时间](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-contract.js#L324-L353)、[Call 观测](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-calls.js#L34-L56)、[token buckets](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/token-usage.js#L22-L43)、[输出 buffer](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-output.js#L12-L69)。
+F091 历史对照（结束输出已按 E61 更新）：[投影与时间](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-contract.js#L324-L353)、[Call 观测](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-calls.js#L34-L56)、[token buckets](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/token-usage.js#L22-L43)、[输出 buffer](https://github.com/EricWang1358/dsh-web-studyhub/blob/f091f09f830c226bfebc9af22344896733893a10/lib/job-output.js#L12-L69)。
+
+2.6.1 追加读字段保持扩展性：单文件音频 Call 带 filename 的 file；Call 可带 reused:true、最多 200 code units 的 error；generation partList 可含 partPlan 的 sourceIds/sourceCount/range。这些是领域观测，不可从无 runtime 的旧记录反推实际 Admission/Attempt。归档去掉 outputPreview/settings/buffer/path 等，最多 60 calls/events、12 000 JSON code units、200 records/90 days；入档收集已有 aliases，unarchive 不保证原工作副本仍存在。
+
+E61 证据：[归档操作与拒绝](https://github.com/EricWang1358/dsh-web-studyhub/blob/e61f6debe9436794cafc2bc8c65a0d0164e5ac5e/lib/contexts/jobs/operations.js#L102-L240)、[结束输出与 session 读取](https://github.com/EricWang1358/dsh-web-studyhub/blob/e61f6debe9436794cafc2bc8c65a0d0164e5ac5e/lib/contexts/jobs/operations.js#L249-L277)、[running/finished buffers](https://github.com/EricWang1358/dsh-web-studyhub/blob/e61f6debe9436794cafc2bc8c65a0d0164e5ac5e/lib/job-output.js#L14-L99)、[归档 writer](https://github.com/EricWang1358/dsh-web-studyhub/blob/e61f6debe9436794cafc2bc8c65a0d0164e5ac5e/lib/job-archive.js#L15-L63)、[归档及恢复投影](https://github.com/EricWang1358/dsh-web-studyhub/blob/e61f6debe9436794cafc2bc8c65a0d0164e5ac5e/lib/job-contract.js#L335-L350)、[session lease / clipping](https://github.com/EricWang1358/dsh-web-studyhub/blob/e61f6debe9436794cafc2bc8c65a0d0164e5ac5e/lib/session-reply.js#L12-L41)、[Call 追加读字段](https://github.com/EricWang1358/dsh-web-studyhub/blob/e61f6debe9436794cafc2bc8c65a0d0164e5ac5e/lib/job-calls.js#L47-L79)、[UI 归档与恢复](https://github.com/EricWang1358/dsh-web-studyhub/blob/e61f6debe9436794cafc2bc8c65a0d0164e5ac5e/ui/tasks/TaskConsole.jsx#L111-L151)。
 
 ## 6. Fixture 与后续门禁
 
-[golden compatibility data](../../../tests/fixtures/unified-runtime-compatibility.json) 保存小组合同向量：同一合成旧记录的真实 `jobContract` v1 输出和待实现 v2 canonical 形状，尤其是 pause/resume 的 facade 不变与 physical Attempt 更换、中断 old failed/new interrupted、缺失观测。v2 physical ID/checkpoint/丢失证据是明确写入的**目标合成前提**，不是从旧 record 猜出，更不是生产者实测结果。v1 status alias / 非法版本 / 不支持能力由契约 fixture 补充。
+[golden compatibility data](../../../tests/fixtures/unified-runtime-compatibility.json) 保存小组合同向量：同一合成旧记录的真实 `jobContract` v1 输出和待实现 v2 canonical 形状，尤其是 pause/resume 的 facade 不变与 physical Attempt 更换、中断 old failed/new interrupted、缺失观测。v2 physical ID/checkpoint/丢失证据是明确写入的**目标合成前提**，不是从旧 record 猜出，更不是生产者实测结果。v1 status alias / 非法版本 / 不支持能力由契约 fixture 补充。当前 vectors 以 E61 projector 生成，historicalSourceCommit 保留 F091；confirmed-interrupted 另含实际 archiveRecordOf 与 restoredContract 的纯 v1 投影，归档/恢复不生造 v2。
 
 本 PR 的 executable fixtures 可以证明 shape、拒绝规则与 published projector 的稳定向量；不能证明真正公共旧操作、manifest writer、owner/controller、Call 归属、跨 Attempt wait / output 或 browser link 已连接到目标内核。
 

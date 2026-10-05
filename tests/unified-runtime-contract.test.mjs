@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import Schema from 'schemastery';
 import { CONTRACT_VERSION, STATUSES, jobContract } from '../lib/job-contract.js';
+import { archiveRecordOf } from '../lib/job-archive.js';
 import {
   PROPOSED_CONTRACT_VERSION, JobSchema, AttemptSchema, StepSchema, CallSchema, validateRuntimeContract, goldenRuntimeContracts,
 } from './fixtures/unified-runtime-contract.mjs';
@@ -229,6 +230,20 @@ test('compatibility vectors keep actual v1 output separate from synthetic admiss
   const interrupted = fixture.cases.find(entry => entry.id === 'audio-confirmed-interrupted');
   assert.equal(interrupted.expectedV1.status, 'failed'); assert.equal(interrupted.proposedV2.status, 'interrupted');
   assert.equal(interrupted.proposedV2.runtime.attempts[0].endReason, 'executor-lost');
+  assert.equal(fixture.sourceCommit, 'e61f6debe9436794cafc2bc8c65a0d0164e5ac5e');
+  assert.equal(fixture.historicalSourceCommit, 'f091f09f830c226bfebc9af22344896733893a10');
+  const archived = archiveRecordOf(structuredClone(interrupted.legacyRecord), { at: interrupted.archivedAt });
+  assert.deepEqual(archived, interrupted.expectedArchivedRecord, 'actual 2.6.1 bounded archive projection');
+  assert.deepEqual(interrupted.restoredLegacyRecord.restoredContract, archived.job.contract, 'restored input is the actual saved archive contract');
+  for (const action of Object.values(archived.job.contract.actions)) {
+    assert.equal(action.available, false); assert.equal(action.reason.code, 'archived');
+  }
+  const restored = jobContract(structuredClone(interrupted.restoredLegacyRecord));
+  assert.deepEqual(restored, interrupted.expectedRestoredV1, 'actual stored-contract restoration fallback');
+  for (const contract of [archived.job.contract, restored]) {
+    assert.equal(contract.contractVersion, 1); assert.equal(Object.hasOwn(contract, 'runtime'), false, 'stored v1 lacks admission evidence');
+  }
+  assert.equal(restored.actions.retry.reason.code, 'not-retryable', 'fallback restoration does not create an executable retry');
 });
 
 for (const [name, bad] of [['NaN', NaN], ['Infinity', Infinity], ['undefined', undefined], ['function', () => {}], ['Date', new Date('2026-10-05T00:00:00Z')]]) {

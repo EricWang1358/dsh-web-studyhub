@@ -15,7 +15,7 @@
 | 步骤 | 状态 | 负责人 / 分支 / 文件范围 | 前置评审与已合并 PR | 验证 SHA / 证据 | 未确认项 / 下一步 |
 |---|---|---|---|---|---|
 | S1-0 | 已合并 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | 所有者接受已验证范围及待核验限制并授权合并 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) | head 6b1ecedb69308ec44078f10c24975eb2a6a2aef7；merge f091f09f830c226bfebc9af22344896733893a10；[本地及 CI 证据](s1-0-baseline.md) | 最终 StudyHub owner/controller 绑定等限制仍阻断对应实现步骤 |
-| S1-1 | 待评审 | Codex 内核负责人 / codex/unified-runtime-alpha / docs/job-contract.md、本目录接手记录、旧 panel 测试时钟；并行代理分别拥有兼容矩阵/JSON 与契约 fixture/test | [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) 已通过并合并 | 基线 f091f09f830c226bfebc9af22344896733893a10；[契约验证记录](s1-1-contract-review.md) | 当前仅文档与可执行契约验证；单独评审合并后再实现兼容，未勾选 S1-1 完成 |
+| S1-1 | 待评审 | Codex 内核负责人 / codex/unified-runtime-alpha / docs/job-contract.md、本目录接手记录；并行代理分别拥有兼容矩阵/JSON 与契约 fixture/test | [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) 已通过并合并 | 已接受基线 f091f09；同步正式 2.6.1 e61f6debe9436794cafc2bc8c65a0d0164e5ac5e；[契约验证记录](s1-1-contract-review.md) | 当前仅文档与可执行契约验证；单独评审合并后再实现兼容，未勾选 S1-1 完成 |
 | S1-2 | 未开始 | 待领取 | 待 S1-1 通过 | 待填写 | 唯一生命周期责任者 |
 | S1-3 | 未开始 | 待领取 | 待 S1-2 通过 | 待填写 | 新旧路径共享资源 |
 | S1-4 | 未开始 | 待领取 | 待 S1-3 通过 | 待填写 | 唯一执行与计量路径 |
@@ -79,7 +79,7 @@
 | 转写槽 | [host.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/host.js#L35-L48) 提供宿主共享 `audioGate`；[admitAudio](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/contexts/audio/worker.js#L22-L42) 在转写结束后释放槽 | 不是整段音频任务的占用，也不是文本计数器 |
 | 文本池 | [audio-job.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-job.js#L275-L278) 每录音一池；[audio-batch.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-batch.js#L256-L260) 每批次一池 | 原上限按录音/批次生效，不存在可直接引用的宿主统一文本计数；扩大限制作用域须独立开关 |
 | 单文件持久记录与重试 | [prepareSingleAudioRecord](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-batch.js#L110-L130) 已有 `kind:'single'`、输入 hash/size、参数与 job；[worker.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/contexts/audio/worker.js#L161-L190) 中断旧卡为 failed + retryable，重试换外部 job ID | S1-1 映射目标 interrupted / 稳定逻辑 Job 身份与旧状态/ID，保留兼容入口、通知和 UI 行为 |
-| 原子写与重试 | [audio-batch.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-batch.js#L19-L69) 有 Windows rename 重试和每 manifest 文件写入串行化；[audio-pool.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-pool.js#L41-L81) 同时拥有文本并发与限流拒绝重试 | 抽取保留写入顺序；接网关前核对 pool、传输重试、格式修复的分工，避免叠加 |
+| 原子写与重试 | [audio-batch.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-batch.js#L19-L69) 有 Windows rename 重试和每 manifest 文件写入串行化；[audio-pool.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-pool.js#L41-L78) 同时拥有文本并发与限流拒绝重试 | 抽取保留写入顺序；接网关前核对 pool、传输重试、格式修复的分工，避免叠加 |
 
 先检查既有 `tests/audio-concurrency.test.mjs`、`tests/host-ownership.test.mjs`、`tests/audio-pool.test.mjs`、`tests/audio-pool-adaptive.test.mjs`、`tests/audio-batch.test.mjs`；补缺口，不重复重写已有测试。
 

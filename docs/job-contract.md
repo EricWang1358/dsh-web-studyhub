@@ -124,7 +124,7 @@ The text comes from the model path of this plugin: the direct streamed call, and
 
 **Review proposal, not a published producer.** Production `lib/job-contract.js` still exports `CONTRACT_VERSION = 1`; the console and tools still use the v1 paths above. This section extends that same public shape rather than introducing a competing job API. Its executable schemas live only in [the contract fixture](../tests/fixtures/unified-runtime-contract.mjs). Compatibility targets and the published entry-point differences are in [the S1-1 matrix](plans/unified-job-runtime/s1-1-compatibility.md). The contract must be reviewed and merged before its production adapter is implemented.
 
-The accepted prerequisite is [S1-0 / PR #241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241), merge `f091f09f830c226bfebc9af22344896733893a10`. Acceptance preserves its unverified limits. In particular, final StudyHub scope/Agent/controller binding is still an implementation gate.
+The accepted prerequisite is [S1-0 / PR #241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241), merge `f091f09f830c226bfebc9af22344896733893a10`. The alpha branch also incorporates official 2.6.1, commit `e61f6debe9436794cafc2bc8c65a0d0164e5ac5e`; its archive and ended-output behavior above is part of the compatibility baseline. Acceptance preserves the S1-0 unverified limits. In particular, final StudyHub scope/Agent/controller binding is still an implementation gate.
 
 ### Versions and read boundaries
 
@@ -213,6 +213,10 @@ observation = {
 A fallback or format repair has its own Call and stable stepKey; an actual execution can associate it with stepRunId. Observation does not add another retry policy or infer hidden host retries. The existing `usage.calls` remains the published summary (tokenUsage.calls or producer-record count); it is not reinterpreted as actual HTTP requests.
 
 Unknown totals/percent, times, tokens and host lineage remain null or absent according to the read contract. Historical v1 detail defaults are compatibility facts, not observations that authorize a v2 writer to fill unknown values with zero. Missing child/parent IDs cannot create session links. Live output keeps its UTF-16 cursor and bounded, in-memory retention; the host byte ring is not substituted.
+
+### Archived and restored v1 records
+
+Official 2.6.1 keeps archived contracts read-only and delegates archive, unarchive, delete and dismiss to the existing archive service. Its saved and restored v1 records stay v1 when they lack runtime admission evidence; they must not acquire invented Attempts, owners or checkpoint references. Unarchive restores a record and does not dispatch an executor. The adapter must preserve existing aliases and refusal order and use the same archive writer, including its bounds and removal behavior. Any future v2 archive writer must preserve the declared version and required runtime fields together; it cannot store a v2 marker after dropping its required metadata.
 
 ### One writer per operation
 
