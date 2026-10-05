@@ -845,7 +845,7 @@
   }
   :where(.study-app, .study-seat) {
     .skc-world.is-dragging .skc-class {
-      transition: none !important;
+      transition: none;
     }
     .skc-focus-chip {
       padding: var(--space-half) 10px;

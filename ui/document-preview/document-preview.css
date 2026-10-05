@@ -160,9 +160,9 @@
     white-space: nowrap;
   }
   .study-passage-mark button {
-    padding: 0 .2em !important;
-    min-height: 0 !important;
-    border: none !important;
+    padding: 0 .2em;
+    min-height: 0;
+    border: none;
     color: var(--accent);
     font-size: .75em;
   }

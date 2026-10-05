@@ -63,7 +63,7 @@
     .audio-reasoning .audio-section-title small { display: block; margin-bottom: var(--space-2); letter-spacing: .13em; }
     .audio-reasoning-body { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: var(--space-7); align-items: center; }
     .audio-matrix-axis { color: var(--text-muted); font-size: var(--fs-xs); display: block; margin-bottom: var(--space-2); }
-    .audio-matrix-current { color: var(--text-dim); font-size: var(--fs-xs); line-height: 1.7; margin-bottom: 10px !important; }
+    .audio-matrix-current { color: var(--text-dim); font-size: var(--fs-xs); line-height: 1.7; margin-bottom: 10px; }
     .audio-matrix-axis.horizontal { text-align: right; margin: var(--space-2) 0 0; }
     .audio-reasoning-grid { display: grid; grid-template-columns: 24px repeat(3,1fr); gap: var(--space-1); align-items: center; }
     .audio-matrix-level { font-size: var(--fs-xs); text-align: center; color: var(--text-dim); }

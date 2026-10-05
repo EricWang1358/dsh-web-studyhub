@@ -20,7 +20,7 @@
     .source-picker__text { display: grid; gap: var(--space-half); min-width: 0; }
     .source-picker__text strong { color: var(--text); font-weight: var(--fw-strong); overflow-wrap: anywhere; line-height: var(--lh-snug); }
     .source-picker__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-    .source-picker__partial { color: var(--accent-text) !important; }
+    .source-picker__text .source-picker__partial { color: var(--accent-text); }
     .source-picker__expand { flex: 0 0 auto; }
     .source-picker__expand .sh-icon:last-child { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .sh-icon:last-child { transform: rotate(90deg); }

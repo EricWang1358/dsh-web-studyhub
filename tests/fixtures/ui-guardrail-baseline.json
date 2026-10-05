@@ -54,13 +54,7 @@
     },
     "radius999": {},
     "zIndexNumeric": {},
-    "important": {
-      "ui/audio-dashboard.css": 1,
-      "ui/document-preview/document-preview.css": 3,
-      "ui/skeleton.css": 1,
-      "ui/source-picker.css": 1,
-      "ui/study-map/desk.css": 2
-    },
+    "important": {},
     "rawColor": {
       "ui/document-preview/document-preview.css": 4,
       "ui/document-preview/peek/peek.css": 1

@@ -276,8 +276,8 @@
     .today-go span { transition: transform var(--dur) var(--ease-out); }
     .today-go:hover:not(:disabled) span { transform: translateX(4px); }
     .today-card .today-go:disabled {
-      background: color-mix(in srgb, var(--paper-ink) 7%, transparent) !important;
-      color: var(--paper-dim) !important;
+      background: color-mix(in srgb, var(--paper-ink) 7%, transparent);
+      color: var(--paper-dim);
     }
   }
   @container study (max-width: 760px) {

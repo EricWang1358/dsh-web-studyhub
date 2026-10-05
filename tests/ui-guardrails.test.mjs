@@ -30,6 +30,10 @@ for (const rule of Object.keys(RULES)) {
   });
 }
 
+test('no !important outside CodeMirror overrides, reduced-motion and forced-colors blocks (#136)', () => {
+  assert.deepEqual(scan.metrics.important, {}, 'fix the cascade (layer, specificity, a Button variant) instead of forcing the value; the allow-list is isAllowedImportant in scripts/qa/guardrail-baseline.mjs');
+});
+
 test('keyframe names are unique across ui/**/*.css (#102)', () => {
   assert.deepEqual(scan.duplicateKeyframes, [], 'two @keyframes share a name, so whichever stylesheet is injected last silently wins; give each an sh- prefixed unique name');
 });
