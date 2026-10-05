@@ -39,10 +39,8 @@
   "更早的补题结果 · {0}": "Earlier results · {0}",
   "这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。": "A job for this passage and deck is already running. Wait for it, or stop it first.",
   "正在启动…": "Starting…",
-  "停止补题；题组不会有变化": "Stop; the deck will not change",
   "已停止，题组没有变化。": "Stopped; the deck is unchanged.",
   "已通过独立审阅，并保存到题组。": "Passed the independent review and saved to the deck.",
   "只有部分题通过了独立审阅；通过的已保存到题组。": "Only some questions passed the independent review; those are saved to the deck.",
-  "先规划考点，再出题并自查，最后由另一位助手独立审阅；只有通过审阅的题才会保存到题组。": "Plan the targets, write and self-check, then another assistant reviews independently; only questions that pass are saved to the deck.",
   "最长 {0} 分钟（不算排队）；到时会停止，题组不会有变化。": "At most {0} minutes (queue wait excluded); at the limit it stops and the deck is unchanged."
 }

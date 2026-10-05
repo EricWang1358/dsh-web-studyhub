@@ -57,6 +57,7 @@ import pages from './locales/en.pages.json';
 import markerInstall from './locales/en.marker-install.json';
 import layoutStability from './locales/en.layout-stability.json';
 import taskConsole from './locales/en.task-console.json';
+import integration from './locales/en.integration.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { failureText } from './failure.js';
 
@@ -116,6 +117,7 @@ export const ENGLISH_SOURCES = {
   'en.marker-install.json': markerInstall,
   'en.layout-stability.json': layoutStability,
   'en.task-console.json': taskConsole,
+  'en.integration.json': integration,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

@@ -6,7 +6,7 @@ import { contractOf, taskKindOf } from './task-model.js';
    actions are available, or why not. Pure: the row is ControlRow.jsx. Nothing here knows more than the contract says, so a job kind that gains a
    setting shows it with no UI change beyond its label. */
 
-const GENERATION_EFFORTS = { follow: '跟随当前会话', lowest: '最低', low: '低', default: '模型默认', high: '高', highest: '最高' };
+const GENERATION_EFFORTS = { follow: '跟随当前会话', lowest: '最低', low: '低', medium: '中', default: '模型默认', high: '高', highest: '最高' };
 
 const LABELS = {
   textConcurrency: '校对/翻译并发', transcribeConcurrency: '转写并发', proofreadReasoning: '剩余校对推理', translateReasoning: '剩余翻译推理',

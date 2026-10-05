@@ -35,7 +35,8 @@ test('PageHeader compact is the one-line header of a working surface', () => {
 
 test('Panel tones, density and element', () => {
   assert.match(html(m.Panel, { title: 'a' }, 'x'), /^<section class="sh-panel">/, 'plain is the default and adds no modifier class');
-  for (const tone of ['sunken', 'accent', 'dashed', 'paper']) assert.match(html(m.Panel, { tone }, 'x'), new RegExp(`class="sh-panel sh-panel--${tone}"`));
+  for (const tone of ['sunken', 'accent', 'dashed']) assert.match(html(m.Panel, { tone }, 'x'), new RegExp(`class="sh-panel sh-panel--${tone}"`));
+  assert.match(html(m.Panel, { tone: 'paper' }, 'x'), /class="sh-panel sh-paper-card"/, 'the paper tone is the shared paper card of ui/paper.css (#143)');
   assert.match(html(m.Panel, { tone: 'plain' }, 'x'), /class="sh-panel"/);
   assert.match(html(m.Panel, { tone: 'glitter' }, 'x'), /class="sh-panel"/, 'unknown tones fall back to plain');
   assert.match(html(m.Panel, { density: 'compact' }, 'x'), /class="sh-panel sh-panel--compact"/);
@@ -46,9 +47,8 @@ test('Panel tones, density and element', () => {
 
 test('the tones live in a new stylesheet that uses tokens only', () => {
   const css = readFileSync('ui/components/panel-tones.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const tone of ['sunken', 'accent', 'dashed', 'paper', 'compact']) assert.match(css, new RegExp(`\\.sh-panel--${tone}\\b`), tone);
-  assert.match(css, /\.sh-panel--paper[^}]*var\(--radius-card\)/s, 'only the paper tone uses the card radius');
-  assert.doesNotMatch(css.replace(/\.sh-panel--paper[^}]*}/gs, ''), /--radius-card/, 'desktop surfaces use --radius');
+  for (const tone of ['sunken', 'accent', 'dashed', 'compact']) assert.match(css, new RegExp(`\\.sh-panel--${tone}\\b`), tone);
+  assert.doesNotMatch(css, /--radius-card|--paper-radius/, 'desktop surfaces use --radius; the paper card (ui/paper.css) owns the card corner');
   assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|\d+px/i, 'no raw colours or px sizes');
 });
 

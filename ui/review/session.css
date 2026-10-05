@@ -6,13 +6,13 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      padding: 22px 28px 0;
+      padding: var(--space-5-5) var(--space-6-5) 0;
       gap: var(--space-5);
     }
     .review-detour {
       display: block;
       max-width: 100%;
-      margin: 14px auto 0;
+      margin: var(--space-3-5) auto 0;
       padding: var(--space-1) var(--space-3);
       border: 1px solid var(--accent-soft);
       border-radius: var(--radius-pill);
@@ -65,7 +65,7 @@
       display: grid;
       grid-template-columns: 36px minmax(0, 1fr);
       column-gap: var(--space-3);
-      padding-left: 14px;
+      padding-left: var(--space-3-5);
       align-items: start;
     }
     .review-page.has-rail > :not(.review-navigator) { grid-column: 2; }
@@ -109,12 +109,14 @@
        equally thick and crisp instead of a blur whose weight varies by row.
        The current question is longer, not thicker. */
     .review-tick .review-tick-line {
-      width: 9px;
+      width: 22px;
       height: 0;
       border-top: 2px solid var(--tick, var(--line-strong));
       border-radius: 0;
       background: none;
-      transition: width 180ms ease, border-color 250ms ease;
+      /* 22px is the current question; resting is 9px and hover 15px, scaled along x only so the 2px stays crisp. */
+      transform: scaleX(calc(9 / 22));
+      transition: transform 180ms ease, border-color 250ms ease;
     }
     .review-tick .lv-new { --tick: color-mix(in srgb, var(--text) 34%, transparent); }
     .review-tick .lv-weak { --tick: var(--bad); }
@@ -122,13 +124,13 @@
     .review-tick .lv-familiar { --tick: var(--ok-mid); }
     .review-tick .lv-mastered { --tick: var(--ok); }
     .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
-    .review-tick:hover .review-tick-line { width: 15px; }
-    .review-tick[aria-current="step"] .review-tick-line { width: 22px; }
+    .review-tick:hover .review-tick-line { transform: scaleX(calc(15 / 22)); }
+    .review-tick[aria-current="step"] .review-tick-line { transform: none; }
     .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
   }
   @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {
-      .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--space-1); padding-left: 6px; padding-right: var(--space-3); }
+      .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--space-1); padding-left: var(--space-1-5); padding-right: var(--space-3); }
       .review-tick { width: 28px; height: 24px; }
       .review-body > .question-area { width: 100%; min-width: 0; }
     }

@@ -22,7 +22,6 @@
   "文件超过 {0}，请先压缩成 MP3 或按章节拆分。": "The file is over {0}; compress it to MP3 or split it by chapter first.",
   "字幕文件超过 {0}。": "The subtitle file exceeds {0}.",
   "也可以放 B 站等网站下载的带时间戳字幕（{0}）：跳过转写，直接校对和翻译，时间戳会保留。": "You can also import timestamped subtitles downloaded from Bilibili or other sites ({0}). They skip transcription, go straight to proofreading and translation, and keep their timestamps.",
-  "推理：": "Reasoning: ",
   "选择尚未保存，请重新选择后继续：{0}": "Selection not saved. Choose again before continuing: {0}",
   "请把这些音频按我指定的顺序合成一份逐字稿（用 audio.import files:[{path:...}]，路径用绝对路径）：@": "Please import these audio files in the order I choose as one transcript with audio.import files:[{path:...}]. Use absolute paths: @"
 }

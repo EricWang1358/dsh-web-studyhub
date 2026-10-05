@@ -1,8 +1,6 @@
 import { ui, uiFormat } from "../i18n.js";
-import { STRENGTH_LABEL } from "../../lib/model-effort.js";
 
-/* The plain-words notes of an audio import that the page cards and the 任务 console share: how many windows run at once, a transcript reused, and what the
-   reasoning setting did for one model call. No React here: the console's model reads them. */
+/* The plain-words notes of an audio import that the page cards and the 任务 console share: how many windows run at once and a transcript reused. No React here: the console's model reads them. */
 
 /** How many proofread / translate windows run at once, and, when the model pushed back, that it was lowered (and came back). */
 export function parallelNote(parallel) {
@@ -18,18 +16,4 @@ export function reuseNote(steps) {
   if (!(step?.reused > 0)) return '';
   if (step.reused >= step.total) return ui('复用已保存的转写，没有向转写服务发请求');
   return uiFormat('复用已保存的转写 {0}/{1} 段，其余 {2} 段重新转写', [step.reused, step.total, step.total - step.reused]);
-}
-
-/**
- * What the reasoning setting did for one task, in plain words, or '' when it did exactly what was asked (or nothing was asked).
- * `reasoning` is the strength asked for; the model may have had no such level (lib/model-effort.js says which one it used instead).
- */
-export function reasoningNote(task) {
-  const wanted = task.reasoning;
-  if (!wanted || wanted === 'default') return '';
-  const asked = ui(STRENGTH_LABEL[wanted] || wanted);
-  if (task.reasoningReason === 'nearest' && task.reasoningName) return uiFormat('推理强度：要求「{0}」，当前模型没有，已用「{1}」', [asked, task.reasoningName]);
-  if (task.reasoningReason === 'unsupported' || (!task.reasoningReason && task.reasoningEffort === 'default'))
-    return uiFormat('推理强度：要求「{0}」，当前模型没有可调档位，按模型默认', [asked]);
-  return '';
 }

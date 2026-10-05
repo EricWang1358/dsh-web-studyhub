@@ -4,7 +4,7 @@ import { useNow } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { usePolling } from '../use-polling.js';
 import AgentLink from '../AgentLink.jsx';
-import { reasoningNote } from '../audio/audio-notes.js';
+import { reasoningNote } from '../EffortSelect.jsx';
 import { formatExactTokens } from '../../lib/token-usage.js';
 import { formatElapsed, formatNumber, joinMeta } from '../format.js';
 import { callLabel, runnerLabel, outputMode } from './call-model.js';

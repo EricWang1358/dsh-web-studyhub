@@ -33,7 +33,6 @@
   "1–10 题 · 每个主题先出一题，薄弱和没考过的主题优先。": "1–10 questions · one question per topic first, weak and unseen topics first.",
   "学习库里还没有可用于口头模拟的题；先出题再来。": "No questions in your library can be used for an oral interview yet. Create some first.",
   "发给 AI 模型的内容：追问时是当前题目和你的回答；结束评估时是题目、参考答案和你的全部回答。学习库的其他内容不会发送。": "What is sent to the AI model: for a follow-up, the current question and your answer; for the final assessment, the questions, reference answers and all your answers. Nothing else from your library is sent.",
-  "还没有连接 AI 模型：追问会用固定问题，结束后只保存回答、不评估。": "No AI model is connected yet: a follow-up will be a fixed question, and at the end your answers are saved but not assessed.",
   "限时完成一套案例题：先阅读并高亮线索，再按分值分配时间作答。": "Sit a case paper against the clock: read and highlight clues first, then spend your writing time by marks.",
   "选一套案例卷，或点「新出一份案例卷」让 AI 按课程资料出一套。": "Pick a case paper, or press New case paper to have the AI write one from your course materials.",
   "先读：阅读时间里只能看案例和题目，用不同颜色高亮线索。": "Read first: during reading time you can only read the case and the questions, and highlight clues in different colours.",
@@ -46,6 +45,5 @@
   "新出一份案例卷": "New case paper",
   "来自课程「{0}」的考试设置：{1}（可在课程设置里修改）": "From the exam settings of course “{0}”: {1} (editable in the course settings)",
   "批改需要模型": "Model needed",
-  "批改需要 AI 模型": "Marking needs an AI model",
-  "交卷后按评分标准逐条给分、给出改写建议，这一步由 AI 模型完成。现在也可以先考：答案会保存在本机，配置好模型后再批改。": "After you hand in, scoring each criterion and writing rewrite suggestions is done by the AI model. You can still sit the paper now: answers are saved on this device and marked once a model is set up."
+  "批改需要 AI 模型": "Marking needs an AI model"
 }

@@ -252,7 +252,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <h2 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h2>
           <p className="result-subtitle">{uiFormat("{0} · {1} 道题", [shellTitle, run.questions ?? run.total])}</p>
           {onReturnToReading && <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} />}
-          <div className="result-hero">
+          <div className="result-hero sh-paper-card sh-paper-card--roomy">
             <div className="result-headline">
               <strong>{run.correct}</strong>
               <span>{uiFormat("道题已掌握 / {0} 道", [run.questions ?? run.total])}</span>
@@ -279,7 +279,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               onReviewWeak={coachProps.onReviewWeak}
             />
           )}
-          <div className="summary-topics">
+          <div className="summary-topics sh-paper-card">
             <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
             {(run.weakTopics || []).slice(0, 3).map((t) => (
               <Badge className="summary-topic" key={t}>{t}</Badge>
@@ -354,7 +354,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               highlights={caseHighlights} onChange={saveHighlights} />}
             {/* The card: header, stem and answers on paper stock. Toolbar,
                 status and explanation sit below it on the desk. */}
-            <div className="question-card" data-tour="review-question">
+            <div className={"question-card" + (!choice && !isCloze && !rubricCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question">
               <div className="question-meta">
                 <span>
                   {run.index + 1} / {run.total}

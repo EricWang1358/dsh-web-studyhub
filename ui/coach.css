@@ -6,9 +6,9 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .coach-options { display: flex; flex-wrap: wrap; gap: 6px; }
+    .coach-options { display: flex; flex-wrap: wrap; gap: var(--space-1-5); }
     .coach-card {
-      padding: 10px var(--space-3);
+      padding: var(--space-2-5) var(--space-3);
       border-radius: var(--radius-sm);
       background: var(--accent-glow);
       font-size: var(--fs-md);
@@ -16,10 +16,10 @@
       animation: coach-rise 240ms var(--ease) both;
     }
     .coach-card p { margin: 0 0 var(--space-2); color: var(--text); }
-    .coach-card .coach-options { gap: 6px; }
+    .coach-card .coach-options { gap: var(--space-1-5); }
     /* ── Thumbs ───────────────────────────────────────────────────────────── */
     .thumbs { display: inline-flex; align-items: center; gap: var(--space-1); position: relative; }
-    .thumbs > button { min-width: 34px; padding-left: 10px; padding-right: 10px; }
+    .thumbs > button { min-width: 34px; padding-left: var(--space-2-5); padding-right: var(--space-2-5); }
     .thumbs > button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
     .thumb-tray {
       position: absolute;
@@ -28,10 +28,10 @@
       z-index: var(--z-popover);
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: var(--space-1-5);
       width: max-content;
       max-width: min(360px, 80cqi);
-      padding: 10px;
+      padding: var(--space-2-5);
       animation: coach-pop 160ms var(--ease) both;
     }
     /* A failed vote: the message floats above the thumbs like the tray, on the shared panel surface. */
@@ -57,7 +57,7 @@
     .autopilot-bar {
       position: relative;
       height: 3px;
-      margin: 14px var(--space-3) 0;
+      margin: var(--space-3-5) var(--space-3) 0;
       border-radius: var(--radius-xs);
       background: var(--line-soft);
       overflow: hidden;
@@ -70,12 +70,12 @@
       transform-origin: left;
       animation: autopilot-fill var(--autopilot-ms, 1500ms) linear both;
     }
-    .autopilot-note { display: block; margin: 6px var(--space-3) 0; font-size: var(--fs-md); color: var(--text-faint); }
+    .autopilot-note { display: block; margin: var(--space-1-5) var(--space-3) 0; font-size: var(--fs-md); color: var(--text-faint); }
     /* ── Debrief (session summary) ───────────────────────────────────────── */
     .coach-debrief {
       width: min(560px, 100%);
-      margin: 18px auto 6px;
-      padding: 18px var(--space-5);
+      margin: var(--space-4-5) auto var(--space-1-5);
+      padding: var(--space-4-5) var(--space-5);
       border-radius: var(--radius);
       text-align: left;
       border: 1px solid var(--line-soft);
@@ -85,19 +85,19 @@
     }
     /* On the result page it lines up with the score card above it. */
     .result-page .coach-debrief { width: 100%; margin: var(--space-5) 0; }
-    .coach-debrief .eyebrow { margin-bottom: 6px; }
-    .coach-debrief h2 { margin: 0 0 6px; font-size: var(--fs-2xl); line-height: 1.4; color: var(--text); }
+    .coach-debrief .eyebrow { margin-bottom: var(--space-1-5); }
+    .coach-debrief h2 { margin: 0 0 var(--space-1-5); font-size: var(--fs-2xl); line-height: 1.4; color: var(--text); }
     .coach-debrief > p { margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); line-height: 1.7; }
-    .coach-score-split { display: flex; flex-wrap: wrap; gap: 6px var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); }
+    .coach-score-split { display: flex; flex-wrap: wrap; gap: var(--space-1-5) var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); }
     .coach-score-split strong { color: var(--text); }
     .coach-stack { margin: 0 0 var(--space-3); }
-    .coach-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-md); color: var(--text-muted); margin: -4px 0 var(--space-3); }
+    .coach-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-md); color: var(--text-muted); margin: calc(var(--space-1) * -1) 0 var(--space-3); }
     .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-xs); margin-right: var(--space-1); vertical-align: 0; }
-    .coach-insights { margin: 0 0 14px; padding-left: 18px; font-size: var(--fs-md); line-height: 1.8; color: var(--text-dim); }
+    .coach-insights { margin: 0 0 var(--space-3-5); padding-left: var(--space-4-5); font-size: var(--fs-md); line-height: 1.8; color: var(--text-dim); }
     .coach-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
     /* A question, not a second primary: neutral stock and outlined chips. */
     .coach-consent {
-      margin-top: 14px;
+      margin-top: var(--space-3-5);
       background: color-mix(in srgb, var(--text) 5%, transparent);
       border: 1px solid var(--line-soft);
     }
@@ -126,7 +126,7 @@
       background-size: 200% 100%;
       animation: sh-coach-shimmer 1.2s infinite linear;
     }
-    .skeleton.h { height: 22px; width: 70%; margin-bottom: 10px; }
+    .skeleton.h { height: 22px; width: 70%; margin-bottom: var(--space-2-5); }
     .skeleton.l { height: 12px; width: 92%; margin-bottom: var(--space-2); }
     .skeleton.s { height: 12px; width: 55%; }
     /* ── Library offer ───────────────────────────────────────────────────── */
@@ -149,8 +149,8 @@
     /* On the collapsed rail the count folds into a dot on the icon. */
     .sidebar.is-narrow .coach-nav .nav-badge {
       position: absolute;
-      top: 6px;
-      right: 6px;
+      top: var(--space-1-5);
+      right: var(--space-1-5);
       min-width: 0;
       width: 9px;
       height: 9px;
@@ -166,13 +166,13 @@
       bottom: 20px;
       z-index: var(--z-overlay);
       width: min(340px, calc(100cqi - 40px));
-      padding: 14px var(--space-4);
+      padding: var(--space-3-5) var(--space-4);
       font-size: var(--fs-md);
       color: var(--text-dim);
       animation: coach-pop 180ms var(--ease) both;
     }
     .shortcut-sheet h3 { margin: 0 0 var(--space-2); font-size: var(--fs-md); color: var(--text); display: flex; justify-content: space-between; }
-    .shortcut-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: 6px var(--space-3); margin: 0; }
+    .shortcut-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1-5) var(--space-3); margin: 0; }
     .shortcut-sheet dt { white-space: nowrap; }
     .shortcut-sheet dd { margin: 0; }
   }
@@ -197,14 +197,14 @@
       display: flex;
       flex-direction: column;
       gap: var(--space-2);
-      padding: var(--space-3) 14px;
+      padding: var(--space-3) var(--space-3-5);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
     }
     .assist-form label {
       display: grid;
-      gap: 6px;
+      gap: var(--space-1-5);
       margin: 0;
       color: var(--text-dim);
       font-size: var(--fs-md);
@@ -229,7 +229,7 @@
     .assist-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: var(--space-1-5);
     }
     .assist-status {
       display: flex;

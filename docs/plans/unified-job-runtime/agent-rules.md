@@ -1,0 +1,52 @@
+# 代理工作规则（统一任务运行时）
+
+适用于任何参与这项重构的代理（Claude 或其他）。违反任意一条的 PR 不合并。
+
+## 1. 所有权与契约优先
+
+- `lib/jobs/**`、`docs/job-contract.md`、`docs/plans/unified-job-runtime/**` 只有**内核负责人**能合并。
+- 功能迁移只能调用**已发布**的内核接口。需要新接口：先提交只改契约文档与测试的 PR，合并后再迁移调用方。
+- 同一时间只有一个代理修改同一个核心文件。并行只用于互不相关的功能目录。
+
+## 2. DSH 优先
+
+- 写任何公共部件前，先在 sprint 文件的「DSH 能力对照表」里查：DSH 有对应接口就复用（cordis 上下文与作用域、`ctx.llm`、宿主子代理服务、`ctx.sessions`、`uiWorkspace`、`schemastery`、`dsh-timeout` 等）。
+- 只有 DSH 没有的部分才在插件里实现，并且实现为薄适配；PR 描述必须写"复用了什么 / 为什么必须自写"。
+- 不在插件里自建会话、模拟子代理或绕过宿主限制；宿主做不到的写进对照表的"宿主限制"。
+
+## 3. 禁止的写法（迁移完成的路径上）
+
+- 新建任务表（`new Map()` 当 jobs 用）、新建队列/并发闸门、自写 429 退避。
+- 直接 `fetch` 服务商、直接调用 `complete` / `ctx.llm`，绕过模型网关。
+- 直接修改公共任务状态、私自结算任务、写第二份用量记录。
+- 叠加重试包装（同一请求只能有一个传输重试层）。
+- 伪造数据：观测不到的时间、请求数、用量留空或标 `unknown` / `estimated`；不支持的能力不显示假按钮、不写空壳实现。
+- 未登记的旁路：迁移期保留的旧入口必须在例外清单里有负责人和移除阶段。
+
+## 4. 行为保持与开关
+
+- 先接入、保持原行为，再单独打开改进（恢复、解除翻译串行、子代理优先、并发策略）。每个改进有独立开关、验收和回退说明。
+- 迁移前先写特征测试固定现有行为；迁移后同一组测试必须仍然通过（开关开与关各跑一次）。
+
+## 5. 测试
+
+- 测试先行：先写失败的测试并记录红灯输出，再实现。
+- 核心逻辑用可控执行器、模拟 provider、假时钟、故障注入；等待用 `tests/helpers/wait.mjs`（`until`、`settleJob`），不用固定延时。
+- 平时用 `npm run test:fast`；全量 `npm test` / `npm run verify` 会经机器级锁排队，不要设 `STUDY_TEST_NO_LOCK`。新的浏览器/ffmpeg/外部程序测试登记到 `tests/slow-tests.json`。
+- UI 改动：先有设计稿；验证布局跳动（`scripts/qa/journey.mjs` 的 CLS 检测、`scripts/qa/layout-late.mjs`）、界面缩放 100%/150%、宽度 1280/420。
+- 发布前用真实模型抽检受影响路径，记录输入、模型、档位、质量、耗时、请求数、用量。
+
+## 6. 安全与环境
+
+- 运行测试或 DSH 前清空所有 `*_API_KEY`、`*_TOKEN`、`*BASE_URL` 环境变量，用工作区内的私有 TEMP/TMP 和 `DSH_HOME`；不向模型服务商发真实请求（真实抽检除外，且由所有者授权）。
+- 不碰所有者的学习库（`D:\A\1NUS\1Sem\SWE5001\.dsh-study`）、`~/.dsh`、`~/.mineru` 与任何密钥；本地 DSH 测试用 0.2.0-rc.2，`SSH_TTY=audit`。
+- 在独立 git worktree 中工作，在自己的 worktree 里 `npm ci --legacy-peer-deps`；不要 junction 共享 `node_modules`，不要 `git worktree remove --force`，不要动主检出目录里别人的未提交改动。
+- 文件保持原有换行符（CRLF/LF 混用；`git ls-files --eol` 查看）；不要用 `sed -i` 改 CRLF 文件。
+
+## 7. 提交与 PR
+
+- 一个 issue / 一个 sprint 步骤一个提交，提交信息带编号。
+- 分支命名 `codex/<主题>`；合并基线用 `git merge origin/main`，不 rebase、不 force-push。
+- 代理不自行合并 PR（所有者合并），除非所有者在当次明确授权。
+- PR 描述包含：做了什么、DSH 对照表引用、开关与默认值、测试与红灯记录、真实抽检（如适用）、回退说明、未完成事项。
+- 合并前逐条核对 [review-checklist.md](review-checklist.md)。

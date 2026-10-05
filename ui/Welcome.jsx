@@ -27,7 +27,7 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
       </header>
       {loaded ? (
         <div className="welcome__choices">
-          <Panel as="article" tone="accent" className="welcome-card welcome-card--lead">
+          <Panel as="article" tone="paper" className="welcome-card welcome-card--lead">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="sparkle" size={22} /></span>
             <h2 className="welcome-card__title">{ui("跟着导览走一遍")}</h2>
             <p className="welcome-card__text">{ui("两三分钟，依次切到资料、出题、练习、错题和统计等页面，看看每一步怎么用。")}</p>
@@ -35,7 +35,7 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
               <Button variant="primary" iconEnd="arrow-right" disabled={busy} onClick={onStartTour}>{ui("开始导览")}</Button>
             </div>
           </Panel>
-          <Panel as="article" className="welcome-card">
+          <Panel as="article" tone="paper" className="welcome-card">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="upload" size={22} /></span>
             <h2 className="welcome-card__title">{ui("从自己的资料开始")}</h2>
             <p className="welcome-card__text">{ui("PDF、Markdown、网页或文本都可以，原文件会保留。导入后就能用它出题。")}</p>
@@ -46,7 +46,7 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
         </div>
       ) : (
         <div className="welcome__choices welcome__choices--first">
-          <Panel as="article" tone="accent" className="welcome-card welcome-card--lead">
+          <Panel as="article" tone="paper" className="welcome-card welcome-card--lead">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="upload" size={22} /></span>
             <h2 className="welcome-card__title">{ui("从自己的资料开始")}</h2>
             <p className="welcome-card__text">{ui("PDF、Markdown、网页或文本都可以，原文件会保留。导入后就能用它出题。")}</p>

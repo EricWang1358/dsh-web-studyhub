@@ -46,7 +46,7 @@ export function ExamSetupCard({ title, intro, steps = [], children, summary, act
   useInjectCss(css, "study-exam-setup");
   const how = useId();
   return (
-    <section className={`es-sheet ${className}`.trim()} {...rest}>
+    <section className={`es-sheet sh-paper-card sh-paper-card--flush ${className}`.trim()} {...rest}>
       <header className="es-head">
         <h2 className="es-title">{title}</h2>
         {intro && <p className="es-intro">{intro}</p>}

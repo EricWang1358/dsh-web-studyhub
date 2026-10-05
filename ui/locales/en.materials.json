@@ -57,7 +57,6 @@
   "{0} 题 · 按需展开编辑": "{0} questions · expand to edit",
   "选项 {0}": "Option {0}",
   "选项解析 {0}": "Option explanation {0}",
-  "＋ 添加选项（{0}/6）": "＋ Add option ({0}/6)",
   "已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。": "{0} PDF pages selected for {1} questions. With fewer questions than pages, not every page is covered; narrow the page range or generate in batches.",
   "这篇讲解的资料依据 · {0} 处": "Sources behind this lesson · {0}",
   "把「{0}」的概念、原理和例子连成一条线，再看看它适用于什么情境。": "Connect the concepts, principles and examples of “{0}”, then examine when they apply.",

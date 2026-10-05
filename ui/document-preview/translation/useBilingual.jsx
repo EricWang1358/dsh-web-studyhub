@@ -15,6 +15,7 @@ import TranslationBlock from './TranslationBlock.jsx';
 import GlossaryDialog from './GlossaryDialog.jsx';
 import FloatingTranslation from './FloatingTranslation.jsx';
 import { SelectionChip, TranslationDisplayRow, TranslationJobCard, TranslationMenu } from './TranslationMenu.jsx';
+import useRangeAnchor from './useRangeAnchor.js';
 
 /* The bilingual reading of the reader (译), as one hook the viewer calls once. It owns the translations of the document, the
    inline 译 marks, the translation blocks, the selection chip, the page / chapter job and the glossary, and hands the viewer
@@ -87,6 +88,8 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const [chip, setChip] = useState(null), [floating, setFloating] = useState(null), [menuOpen, setMenuOpen] = useState(false), [scopes, setScopes] = useState([]);
   const [glossaryOpen, setGlossaryOpen] = useState(false), [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set());
   const layer = useRef(emptyLayer()), latest = useRef({}), scopeDefs = useRef([]), reading = view === 'read';
+  // The chip and the 原文 card float at the end of a selection: the live Range they follow, and the elements placed against it (useRangeAnchor).
+  const chipRange = useRef(null), chipElement = useRef(null), floatRange = useRef(null), floatElement = useRef(null);
   const identity = useMemo(() => doc ? { documentId: doc.documentId || doc.id, ...(doc.revision ? { revision: doc.revision } : {}) } : null, [doc]);
   const identityKey = identity ? JSON.stringify(identity) : '';
   // 左右分栏 needs room: the reader's own narrow width, or a reading column squeezed by the outline and the learning panel, draws 逐段对照 instead.
@@ -236,8 +239,8 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     const block = reading ? paragraphAround(capture.range.endContainer, layer.current.byElement) : null;
     if (block) layer.current.pinned.set(tempKey, block);
     else {
-      const area = page?.getBoundingClientRect(), rects = capture.range.getClientRects(), last = rects[rects.length - 1];
-      if (area && last) setFloating({ key: tempKey, left: Math.max(0, Math.min(last.left - area.left, area.width - 320)), top: last.bottom - area.top + 6 });
+      floatRange.current = capture.range.cloneRange();
+      if (page) setFloating({ key: tempKey });
     }
     setChip(null);
     // In the 原文 view the card follows the selection's translation from the call out to the kept one.
@@ -283,7 +286,9 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   }, [body, supported, view, version]);
   useEffect(() => { latest.current = { onMark, mode }; });
 
-  // The chip follows a selection of words worth translating, at its end.
+  // The chip follows a selection of words worth translating, at its end: above it, in the shared anchoring, through the interface zoom.
+  const placeChip = useRangeAnchor({ elementRef: chipElement, host: page, rangeRef: chipRange, scrollerRef: scroller, active: !!chip && !floating, trigger: chip?.text, placement: 'top-end', hideAway: true });
+  useRangeAnchor({ elementRef: floatElement, host: page, rangeRef: floatRange, scrollerRef: scroller, active: !!floating, trigger: floating?.key, placement: 'bottom-start', gap: 6, margin: 0, flip: false });
   useEffect(() => {
     if (!supported || !(reading || view === 'text')) { setChip(null); return undefined; }
     let frame = 0;
@@ -292,15 +297,17 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       const container = body.current, area = container?.closest('.reader-page');
       const capture = container ? captureSelection(container) : null;
       if (!capture || !area || !needsTranslation(capture.quote, target) || capture.quote.trim().length < 2) { setChip(current => current ? null : current); return; }
-      const rects = capture.range.getClientRects(), last = rects[rects.length - 1], box = area.getBoundingClientRect();
-      if (!last) { setChip(null); return; }
-      const next = { left: Math.round(Math.min(last.right - box.left + 4, box.width - 36)), top: Math.round(last.bottom - box.top + 4), text: capture.quote.slice(0, 60) };
-      setChip(current => current && current.left === next.left && current.top === next.top && current.text === next.text ? current : next);
+      if (!capture.range.getClientRects().length) { setChip(null); return; }
+      // Only the live range and the words are kept: where the chip goes is measured against the range (useRangeAnchor), never copied into state.
+      chipRange.current = capture.range.cloneRange();
+      const next = { text: capture.quote.slice(0, 60) };
+      setChip(current => current && current.text === next.text ? current : next);
+      placeChip();
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
     document.addEventListener('selectionchange', schedule);
     return () => { document.removeEventListener('selectionchange', schedule); if (frame) cancelAnimationFrame(frame); };
-  }, [body, supported, reading, view, target, rendered]);
+  }, [body, supported, reading, view, target, rendered, placeChip]);
 
   const translateCurrent = useCallback(() => {
     const capture = captureSelection(body.current);
@@ -433,8 +440,8 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   };
   const layerNodes = <>
     {[...hosts].map(([key, host]) => createPortal(blockFor(key), host, key))}
-    {page && chip && !floating && createPortal(<SelectionChip left={chip.left} top={chip.top} target={target} onClick={() => translateSelection(captureSelection(body.current))} />, page)}
-    {page && floating && blockFor(floating.key) && createPortal(<FloatingTranslation left={floating.left} top={floating.top} onClose={() => setFloating(null)}>{blockFor(floating.key)}</FloatingTranslation>, page)}
+    {page && chip && !floating && createPortal(<SelectionChip chipRef={chipElement} target={target} onClick={() => translateSelection(captureSelection(body.current))} />, page)}
+    {page && floating && blockFor(floating.key) && createPortal(<FloatingTranslation anchorRef={floatElement} onClose={() => setFloating(null)}>{blockFor(floating.key)}</FloatingTranslation>, page)}
     {glossaryOpen && <GlossaryDialog glossary={state.glossary} target={target} onSave={saveGlossary} onPrice={priceAgain} onRetranslate={retranslateMany} onClose={() => setGlossaryOpen(false)} />}
   </>;
   const hasTranslations = Object.keys(state.items).length > 0;

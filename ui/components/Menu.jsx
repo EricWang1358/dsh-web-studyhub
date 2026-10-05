@@ -5,7 +5,7 @@ import overlayCss from './overlays.css';
 import { useComponentCss, cx } from './css.js';
 import { IconButton } from './Button.jsx';
 import Icon from './Icon.jsx';
-import { computePlacement, useDismiss } from './use-dismiss.js';
+import { placeInHost, useDismiss } from './use-dismiss.js';
 
 const glyph = (icon, size) => typeof icon === 'string' ? <Icon name={icon} size={size} /> : icon || null;
 const More = <Icon name="more" size={18} />;
@@ -45,19 +45,9 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
 
   useLayoutEffect(() => {
     if (!host || !button.current || !list.current) return;
-    const fixed = host === document.body, element = list.current;
-    const box = fixed ? { left: 0, top: 0, bottom: window.innerHeight, right: window.innerWidth } : host.getBoundingClientRect();
-    // Measure from the content origin (left/top 0 inside the host): rectangles are screen pixels, the host may be zoomed (the interface size)
-    // and scrolled, so the offset is the difference between where the list is and where it should be, divided by the zoom.
-    element.style.left = '0px';
-    element.style.top = '0px';
-    const size = element.getBoundingClientRect();
-    const scale = element.offsetWidth ? size.width / element.offsetWidth : 1;
-    const result = computePlacement({ anchor: button.current.getBoundingClientRect(), size, placement: 'bottom-end',
-      bounds: { left: box.left, top: box.top, right: box.right, bottom: Math.min(box.bottom, window.innerHeight) } });
-    const origin = fixed ? { left: 0, top: 0 } : size;
-    setPlace({ fixed, left: (result.left - origin.left) / scale, top: (result.top - origin.top) / scale,
-      maxHeight: size.height > result.maxHeight ? result.maxHeight / scale : undefined });
+    // Measured from the host's content origin through the interface zoom (placeInHost): the measuring the reader's chip shares.
+    const result = placeInHost({ element: list.current, host, rect: button.current.getBoundingClientRect(), placement: 'bottom-end' });
+    setPlace({ fixed: result.fixed, left: result.left, top: result.top, maxHeight: result.maxHeight });
   }, [host, items.length]);
 
   useDismiss({ open, onClose: () => setOpen(false), refs: [list, button], returnFocusRef: button });

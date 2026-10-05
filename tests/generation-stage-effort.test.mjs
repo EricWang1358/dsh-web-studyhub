@@ -4,38 +4,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
-import { RELATIVE_EFFORTS, EFFORT_DEFAULTS, EFFORT_STAGES, effortStageOf, resolveEffort, stageEffortRoute } from "../lib/stage-effort.js";
+import { EFFORT_DEFAULTS, EFFORT_STAGES, effortStageOf, stageEffortRoute } from "../lib/stage-effort.js";
 import { GENERATION_SETTINGS_DEFAULTS, normalizeGenerationPerformance, validateGenerationPatch, resolveGenerationRequest } from "../lib/generation-settings.js";
 import { withQualityStages } from "./helpers/assessment.mjs";
 import { settleJob } from "./helpers/wait.mjs";
 
-/* #218: the reasoning level is chosen per stage, in relative terms ("low", "high"...) resolved to the nearest level the model really offers
+/* #218: the reasoning level is chosen per stage, in relative terms ("low", "high"...) resolved (by lib/model-effort.js, #226) to the nearest level the model really offers
    (DeepSeek V4.1 Flash has Off/Low/Default/High/Max and no "medium"). Planning and review follow the session's level by default; writing,
    replacement and repair run low. */
 
 const DEEPSEEK = [{ id: "off", name: "Off" }, { id: "low", name: "Low" }, { id: "default", name: "Default" }, { id: "high", name: "High" }, { id: "max", name: "Max" }];
 const ctxWith = (efforts, defaultEffort = "default") => ({ llm: { resolveModelInfo: async () => ({ reasoning: { efforts, defaultEffort } }) } });
-
-test("a relative level resolves to the nearest level the model really offers, with a note when it is not exact", () => {
-  assert.deepEqual(RELATIVE_EFFORTS, ["follow", "lowest", "low", "default", "high", "highest"]);
-  const pick = (relative, efforts = DEEPSEEK) => resolveEffort(efforts, relative, "default");
-  assert.equal(pick("lowest").id, "off");
-  assert.equal(pick("low").id, "low");
-  assert.equal(pick("low").note, "");
-  assert.equal(pick("default").id, "default");
-  assert.equal(pick("high").id, "high");
-  assert.equal(pick("highest").id, "max");
-  assert.equal(pick("follow").id, undefined, "follow sets nothing");
-  assert.equal(resolveEffort([], "low").id, undefined, "a model without levels is left alone");
-  // a model that only offers low/high: "default" and "lowest" map to the nearest real level and say so
-  const twoLevels = [{ id: "low", name: "Low" }, { id: "high", name: "High" }];
-  assert.equal(resolveEffort(twoLevels, "lowest", "high").id, "low");
-  const approx = resolveEffort(twoLevels, "highest", "high");
-  assert.equal(approx.id, "high");
-  assert.match(approx.note, /no "highest" level/);
-  const noMedium = resolveEffort([{ id: "a", name: "A" }, { id: "b", name: "B" }, { id: "c", name: "C" }], "default", "");
-  assert.ok(["a", "b", "c"].includes(noMedium.id) && noMedium.note);
-});
 
 test("the stage of a model call comes from the stage text the pipeline reports", () => {
   assert.deepEqual(EFFORT_STAGES, ["planning", "review", "writing", "repair"]);
@@ -74,7 +53,8 @@ test("the four stage levels are settings that ride on the job's performance, 'lo
   assert.equal(performance.effortReview, "highest");
   assert.equal(performance.effortWriting, "low", "an unknown level falls back to the default");
   assert.deepEqual(validateGenerationPatch({ effortPlanning: "high" }), { effortPlanning: "high" });
-  assert.throws(() => validateGenerationPatch({ effortPlanning: "medium" }), /Invalid generation setting: effortPlanning/);
+  assert.deepEqual(validateGenerationPatch({ effortPlanning: "medium" }), { effortPlanning: "medium" }, "one vocabulary with the audio settings (#226)");
+  assert.throws(() => validateGenerationPatch({ effortPlanning: "banana" }), /Invalid generation setting: effortPlanning/);
   assert.equal(resolveGenerationRequest({ effortRepair: "lowest" }, {}, { language: "zh" }).performance.effortRepair, "lowest");
 });
 

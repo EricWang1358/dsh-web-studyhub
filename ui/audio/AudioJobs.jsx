@@ -1,7 +1,8 @@
 import React from "react";
 import { ui } from "../i18n.js";
 import CompactJobCard from "../tasks/CompactJobCard.jsx";
-export { parallelNote, reuseNote, reasoningNote } from "./audio-notes.js";
+export { parallelNote, reuseNote } from "./audio-notes.js";
+export { reasoningNote } from "../EffortSelect.jsx";
 import { isActiveJob, JOB_TYPES } from "../../lib/job-status.js";
 
 /* The background audio imports on the pages that start them (the add-source form, the sources page, the reader): each one is the compact job card, and

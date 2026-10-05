@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button } from '../components/index.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
+import { displayTitle } from '../../lib/document-title.js';
 import { explainRename, fieldKeyAction, originalNote, renameDocument, startsEditing, validateTitle } from './rename.js';
 import css from './rename.css';
 
@@ -58,12 +59,12 @@ export function ReaderHeading({ data, source, act, call, onRenamed, edit = false
   const item = useMemo(() => groupSourcesByDocument(data?.sources || []).find(group => group.sourceIds.includes(source.id)) || null, [data?.sources, source.id]);
   const [editing, setEditing] = useState(edit), name = useRef(null), wasEditing = useRef(false);
   useEffect(() => { if (wasEditing.current && !editing) name.current?.focus(); wasEditing.current = editing; }, [editing]);
-  if (!item) return <>{source.title}</>;
+  if (!item) return <>{displayTitle(source.title)}</>;
   const part = item.format === 'audio' && item.pages.length > 1 ? item.pages.find(page => page.sourceId === source.id) : null;
-  const text = part ? `${item.title} · ${uiFormat('第 {0} 部分', [part.page])}` : item.title;
+  const shown = displayTitle(item.title), text = part ? `${shown} · ${uiFormat('第 {0} 部分', [part.page])}` : shown;
   const canRename = !!(act || call);
   const done = async task => { const result = await task(); setEditing(false); onRenamed?.(result); };
-  if (editing && canRename) return <RenameField title={item.title} original={item.renamedFrom} label={uiFormat('重命名「{0}」', [item.title])} className="rename-field--header"
+  if (editing && canRename) return <RenameField title={item.title} original={item.renamedFrom} label={uiFormat('重命名「{0}」', [displayTitle(item.title)])} className="rename-field--header"
     onSave={title => done(() => renameDocument({ act, call }, item, { title }))} onRestore={() => done(() => renameDocument({ act, call }, item, { restore: true }))}
     onCancel={() => setEditing(false)} />;
   return <span className="reader-heading">

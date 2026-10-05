@@ -57,8 +57,8 @@
     .reader-toolbar [data-attention='true']::after {
       content: "";
       position: absolute;
-      top: 6px;
-      right: 6px;
+      top: var(--space-1-5);
+      right: var(--space-1-5);
       width: 7px;
       height: 7px;
       border-radius: var(--radius-pill);
@@ -108,7 +108,7 @@
       max-width: 420px;
       min-height: 36px;
       margin: 0;
-      padding: 6px var(--space-3);
+      padding: var(--space-1-5) var(--space-3);
       font-size: var(--fs-sm);
       line-height: var(--lh-tight);
     }
@@ -149,7 +149,7 @@
     /* ── Outline ─────────────────────────────────────────────────────────── */
     .reader-outline__scroll { flex: 1 1 auto; min-height: 0; padding: 0 var(--space-2) var(--space-4); overflow: auto; overscroll-behavior: contain; }
     .reader-outline ol { margin: 0; padding: 0; list-style: none; }
-    .reader-outline li { display: flex; align-items: stretch; padding-left: calc(var(--outline-depth, 0) * 14px); }
+    .reader-outline li { display: flex; align-items: stretch; padding-left: calc(var(--outline-depth, 0) * var(--space-3-5)); }
     .reader-outline li[data-depth='1'] { --outline-depth: 1; }
     .reader-outline li[data-depth='2'] { --outline-depth: 2; }
     .reader-outline li[data-depth='3'] { --outline-depth: 3; }
@@ -176,7 +176,7 @@
       gap: 1px;
       min-width: 0;
       min-height: 34px;
-      padding: 6px var(--space-2);
+      padding: var(--space-1-5) var(--space-2);
       border: 0;
       border-radius: var(--radius-sm);
       background: transparent;
@@ -220,12 +220,12 @@
     .reader-assist__entries li[data-depth='3'] { --entry-depth: 3; }
     .reader-assist__entries li[data-minor] { color: var(--text-faint); }
     .reader-assist__tag-anchor { flex: none; }
-    .reader-assist__tag { flex: none; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); }
+    .reader-assist__tag { flex: none; padding: 0 var(--space-1-5); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); }
     /* Using the outline as chapters: the level, the chapters it gives, what a chapter inside a page means. */
     .reader-segment { display: grid; gap: var(--space-3); }
     .reader-segment__levels { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
     .reader-segment__levels legend { width: 100%; margin: 0 0 var(--space-2); padding: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
-    .reader-segment__levels label { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; padding: 6px var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); cursor: pointer; }
+    .reader-segment__levels label { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-1-5) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); cursor: pointer; }
     .reader-segment__levels label:has(input:checked) { border-color: var(--accent); background: var(--bg-selected); }
     .reader-segment__levels input { flex: none; width: auto; min-height: 0; margin: 0; accent-color: var(--accent); }
     .reader-segment__chapters { max-height: 40vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
@@ -274,9 +274,6 @@
       max-width: calc(var(--reader-measure) + 8em);
       margin: var(--space-6) auto var(--space-8);
       padding: 3.2em 4em 3.6em;
-      border-radius: var(--radius-card);
-      background: var(--paper);
-      box-shadow: var(--shadow-card);
     }
     /* Rendered Markdown / HTML */
     .reader-html > :first-child, .reader-prose > :first-child { margin-top: 0; }
@@ -321,7 +318,10 @@
       white-space: pre;
     }
     .reader-html :not(pre) > code { padding: 0.1em 0.35em; border-radius: var(--radius-xs); background: var(--bg-sunken); font: 0.9em var(--font-stack-mono); }
-    .reader-html hr { margin: 2em 0; border: 0; border-top: 1px solid var(--line); }
+    .reader-html hr, .reader-prose .reader-rule { margin: 2em 0; border: 0; border-top: 1px solid var(--line); }
+    .reader-prose .reader-p--rule { margin: 0; }
+    /* A transcript keeps its divider as the last line of a part: the part boundary below it already draws one line, so the rule does not draw a second. */
+    .reader-section:not(:last-of-type) > .reader-prose > .reader-p--rule:last-child .reader-rule { display: none; }
     .reader-html a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 0.18em; }
     .reader-html a:hover { text-decoration-color: currentColor; }
     /* Text sources: PDF pages, slides, transcripts, plain text */

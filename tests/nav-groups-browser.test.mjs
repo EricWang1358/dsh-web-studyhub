@@ -11,9 +11,9 @@ import { startNavServer } from '../scripts/qa/nav-layout.mjs';
 /* The grouped sidebar in a real browser: every page is still reachable through its anchor, a folded group hides only its
    own rows and is still folded after a reload, the rows above and below keep their height, and a keyboard move stays inside
    the group. Needs a Chromium; without one the test says so instead of passing silently. */
-const PAGES = ['library', 'wrongbook', 'workflows', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'skeleton', 'audio', 'live'];
+const PAGES = ['library', 'wrongbook', 'workflows', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'tasks', 'skeleton', 'audio', 'live'];
 
-test('the grouped sidebar: all twelve pages reachable, folding remembered, keyboard reorder inside a group', { timeout: 300000 }, async (t) => {
+test('the grouped sidebar: all thirteen pages reachable, folding remembered, keyboard reorder inside a group', { timeout: 300000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-groups-dist-'));
@@ -68,11 +68,11 @@ test('the grouped sidebar: all twelve pages reachable, folding remembered, keybo
     await page.locator('[data-nav-id="board"]').focus();
     await page.keyboard.press('Alt+ArrowDown');
     await page.waitForTimeout(200);
-    assert.deepEqual((await state()).daily.ids, ['library', 'sources', 'generate', 'wrongbook', 'workflows', 'notes', 'board']);
+    assert.deepEqual((await state()).daily.ids, ['library', 'sources', 'generate', 'tasks', 'wrongbook', 'workflows', 'notes', 'board']);
     await page.locator('[data-nav-id="board"]').focus();
     await page.keyboard.press('Alt+ArrowUp');
     await page.waitForTimeout(300);
-    assert.deepEqual((await state()).daily.ids, ['library', 'sources', 'generate', 'wrongbook', 'workflows', 'board', 'notes']);
+    assert.deepEqual((await state()).daily.ids, ['library', 'sources', 'generate', 'tasks', 'wrongbook', 'workflows', 'board', 'notes']);
     assert.deepEqual(errors, []);
   } finally {
     await context.close().catch(() => {});

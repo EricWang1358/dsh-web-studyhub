@@ -6,8 +6,11 @@
        theme, so the text, lines, tones and focus ring on a card read the same everywhere. `.sh-paper` is the way in (a Panel with
        tone="paper"; a new paper surface adds the class and nothing else). The elements after it predate the class and are listed
        here once, so no other stylesheet re-defines --text for a card: delete an entry when its markup carries `.sh-paper`.
-       The accent tints derive from --accent (the presets of accent.css change it). */
-    :is(.sh-paper, .today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta, .flash-area .card-progress, .flip-face,
+       The accent tints derive from --accent (the presets of accent.css change it).
+       --paper-radius is the one spelling of the card corner (the corner style setting moves --radius-card); the card surface that uses
+       it, `.sh-paper-card`, is the second block of this file. */
+    --paper-radius: var(--radius-card);
+    :is(.sh-paper, .sh-paper-card, .flash-area .question-meta, .flash-area .card-progress,
       .study-document-viewer[data-tone='paper'] .reader-page, .study-reading[data-tone='paper']) {
       --text: var(--paper-ink);
       --text-dim: #463e34;
@@ -66,5 +69,32 @@
       color: var(--text);
       color-scheme: light;
     }
+  }
+}
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* The paper card (#143): the one card surface. <Panel tone="paper"> renders it, and every other card-like surface (question card,
+       flashcard faces, today card, welcome choices, case cards, result hero, exam sheet, tour popover, summary topics) carries the
+       class instead of styling its own corner, border, shadow or stock. The reading-tone paper (the reader page and the ReadingBlock
+       text containers on 纸张) is the same surface chosen by a setting rather than by markup. Size comes from the padding scale:
+       default 20/24, --roomy 24/32 for the big sheets, --snug 16/20 for small cards, --flush 0 for a sheet whose sections pad
+       themselves. A surface with a fixed head (a head rule, ruling, a card number) sets --paper-pad-top / --paper-pad-bottom for just
+       that edge; the reader page keeps its em padding because the reading size scales it. Ink is re-scoped above, in the tokens layer. */
+    .sh-paper-card,
+    .sh-panel.sh-paper-card,
+    :where(.study-document-viewer[data-tone='paper'] .reader-page, .study-reading[data-tone='paper']) {
+      --paper-pad-y: var(--space-5);
+      --paper-pad-x: var(--space-6);
+      box-sizing: border-box;
+      padding: var(--paper-pad-top, var(--paper-pad-y)) var(--paper-pad-x) var(--paper-pad-bottom, var(--paper-pad-y));
+      border: 1px solid transparent;
+      border-radius: var(--paper-radius);
+      background: var(--paper);
+      box-shadow: var(--shadow-card);
+    }
+    .sh-paper-card.sh-paper-card--roomy { --paper-pad-y: var(--space-6); --paper-pad-x: var(--space-7); }
+    .sh-paper-card.sh-paper-card--snug { --paper-pad-y: var(--space-4); --paper-pad-x: var(--space-5); }
+    .sh-paper-card.sh-paper-card--flush { padding: 0; overflow: hidden; }
   }
 }

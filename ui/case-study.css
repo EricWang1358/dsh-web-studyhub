@@ -13,10 +13,6 @@
       --hl-pink: var(--bad-mark);
       display: grid;
       gap: var(--space-3);
-      padding: var(--space-4) var(--space-5);
-      border-radius: var(--radius-card);
-      background: var(--bg-surface);
-      border: 1px solid var(--line);
       min-width: 0;
     }
     .case-scenario__bar {

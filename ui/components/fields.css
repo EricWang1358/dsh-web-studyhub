@@ -70,6 +70,7 @@
     .settings-section__lead { max-width: 70ch; margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
     /* Legacy note class of the sections still written by hand (UpdateCenter, tour/SampleControls): their notes are Hints in all but name. */
     .settings-section .sh-hint { overflow-wrap: anywhere; }
+    .effort-select__note { margin-top: var(--space-1); }
     /* ── Provider card and steps ───────────────────────────────────────── */
     .sh-provider-grid { min-width: 0; }
     .sh-provider-grid__items { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--space-4); }

@@ -84,6 +84,28 @@ export function computePlacement({ anchor, size, bounds, placement = 'bottom-end
   return { placement: `${side}-${align === 'start' ? 'start' : 'end'}`, left, top, maxHeight: Math.max(0, Math.floor(side === 'bottom' ? below : above)) };
 }
 
+/**
+ * Where an absolutely positioned (or, in the window itself, fixed) `element` that lives inside `host` goes next to `rect`, in the host's own
+ * CSS pixels. Rectangles are screen pixels, the host may be zoomed (the interface size) and scrolled, so the element is measured from the
+ * host's content origin (left/top 0) and the offset is the difference between where it is and where it should be, divided by the zoom. This is
+ * the one measuring the Menu, the reader's 译 chip and its 原文 card share. `host`: the positioned ancestor, or document.body for a fixed element.
+ * `bounds` (screen pixels, default the host's box) is where the element may sit. gap/margin are CSS pixels.
+ * Returns { fixed, left, top, maxHeight, placement, scale }; maxHeight is set only when the element is taller than the room.
+ */
+export function placeInHost({ element, host, rect, placement = 'bottom-end', flip = true, gap, margin, bounds }) {
+  const fixed = host === document.body;
+  const box = bounds || (fixed ? { left: 0, top: 0, bottom: window.innerHeight, right: window.innerWidth } : host.getBoundingClientRect());
+  element.style.left = '0px';
+  element.style.top = '0px';
+  const size = element.getBoundingClientRect();
+  const scale = element.offsetWidth ? size.width / element.offsetWidth : 1;
+  const result = computePlacement({ anchor: rect, size, placement, flip, ...(gap === undefined ? {} : { gap: gap * scale }), ...(margin === undefined ? {} : { margin: margin * scale }),
+    bounds: { left: box.left, top: box.top, right: box.right, bottom: Math.min(box.bottom, window.innerHeight) } });
+  const origin = fixed ? { left: 0, top: 0 } : size;
+  return { fixed, placement: result.placement, scale, left: (result.left - origin.left) / scale, top: (result.top - origin.top) / scale,
+    maxHeight: size.height > result.maxHeight ? result.maxHeight / scale : undefined };
+}
+
 const viewport = () => ({ left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight });
 const within = (box, outer) => ({ left: Math.max(box.left ?? outer.left, outer.left), top: Math.max(box.top ?? outer.top, outer.top),
   right: Math.min(box.right ?? outer.right, outer.right), bottom: Math.min(box.bottom ?? outer.bottom, outer.bottom) });

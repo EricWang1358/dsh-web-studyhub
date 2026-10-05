@@ -129,7 +129,7 @@ Full Bilingual Transcript: lecture.mp3
 [Chinese translation]
 <matching Chinese paragraphs>
 
---------------------------------------------------------------------------------
+---
 
 [Part 2: …]
 ```

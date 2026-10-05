@@ -28,8 +28,8 @@
   .study-seat:has(> .study-app[data-contrast='high'][data-theme='light']) {
     --line: #766c5a; --line-strong: #5a5143; --text-faint: #433b30; --decor-faint: #7a705f;
   }
-  .study-app[data-contrast='high'] :is(.sh-paper, .today-card, .question-area:not(.flash-area) .question-card, .flash-area .question-meta,
-    .flash-area .card-progress, .flip-face, .study-document-viewer[data-tone='paper'] .reader-page, .study-reading[data-tone='paper']) {
+  .study-app[data-contrast='high'] :is(.sh-paper, .sh-paper-card, .flash-area .question-meta,
+    .flash-area .card-progress, .study-document-viewer[data-tone='paper'] .reader-page, .study-reading[data-tone='paper']) {
     --line: #6e6252; --line-strong: #4d4438; --text-faint: #4a4236; --decor-faint: #7a705f;
   }
   .study-app[data-contrast='high'] :is(button, a, input, textarea, select):focus-visible { outline-width: 3px; outline-offset: 2px; }

@@ -36,10 +36,17 @@ test('the options are the model\'s own levels, with the model default', () => {
   assert.match(page, /value="low" selected/, 'the saved strength is the one shown');
 });
 
-test('a saved "medium" on a model without it says which level is used instead', () => {
+test('a saved "medium" on a model without it shows the level in force and names the original preference (#227)', () => {
   const page = render({ settings: { proofreadReasoning: 'medium', translateReasoning: 'low' }, efforts: deepseek });
-  assert.match(page, /当前模型没有「中」，已用「High」/);
+  assert.match(page, /你之前选的「中」，当前模型没有，已用「High」/);
+  const first = page.slice(page.indexOf('<select'), page.indexOf('</select>'));
+  assert.match(first, /<option value="high" selected/, 'the select shows the level that is used, not the one the model lacks');
+  assert.doesNotMatch(first, /value="medium"/, 'no option for a level the model does not offer');
   assert.doesNotMatch(render({ settings: { proofreadReasoning: 'medium', translateReasoning: 'low' }, efforts: [{ id: 'low' }, { id: 'medium' }, { id: 'high' }] }), /当前模型没有/);
+  const back = render({ settings: { proofreadReasoning: 'medium', translateReasoning: 'low' }, efforts: [{ id: 'low' }, { id: 'medium' }, { id: 'high' }] });
+  assert.match(back.slice(back.indexOf('<select'), back.indexOf('</select>')), /<option value="medium" selected/, 'a model that has the level restores the preference');
+  const picked = render({ settings: { proofreadReasoning: 'high', translateReasoning: 'low' }, efforts: deepseek });
+  assert.doesNotMatch(picked, /你之前选的/, 'once the learner picks a level the note is gone');
   assert.match(render({ settings: { proofreadReasoning: 'high', translateReasoning: 'low' }, efforts: [] }), /当前模型没有可调的推理强度，「高」不起作用，按模型默认运行/);
   assert.doesNotMatch(render({ settings: { proofreadReasoning: 'high', translateReasoning: 'low' }, efforts: null }), /当前模型没有/, 'nothing is claimed before the levels are known');
 });
@@ -53,7 +60,7 @@ test('measured timing sits beside each select', () => {
 
 test('in English the levels keep the model\'s names and the notes are translated', () => inLanguage('en', () => {
   const page = render({ settings: { proofreadReasoning: 'medium', translateReasoning: 'low' }, efforts: deepseek });
-  assert.match(page, /This model has no &quot;Mid&quot; level; &quot;High&quot; is used|This model has no "Mid" level; "High" is used/);
+  assert.match(page, /You chose &quot;Mid&quot; before; this model has no such level, so &quot;High&quot; is used|You chose "Mid" before; this model has no such level, so "High" is used/);
   assert.match(page, /Model default/);
   assert.doesNotMatch(page, HAN);
 }));

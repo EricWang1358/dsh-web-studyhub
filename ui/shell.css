@@ -12,11 +12,12 @@
       align-self: flex-start;
       height: 100%;
       min-height: min(700px, 100dvh);
-      padding: 26px 14px var(--space-4);
+      padding: 26px var(--space-3-5) var(--space-4);
       display: flex;
       flex-direction: column;
-      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). */
-      --nav-row: 38px;
+      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). 36px: the 任务 entry made it thirteen pages, and at 768 px wide / 900 px tall
+         the rail has to hold them without scrolling (a rail that scrolls moves every row when the active one is clicked). */
+      --nav-row: 36px;
       --nav-row-upkeep: 34px;
       /* How far the sidebar's own padding is: the active bar sits on its outer edge. */
       --sidebar-pad: 14px;
@@ -137,9 +138,7 @@
       border-radius: var(--radius-sm);
       background: var(--nav-highlight);
       pointer-events: none;
-      transition:
-        transform 0.42s var(--ease-out),
-        height 0.42s var(--ease-out);
+      transition: transform 0.42s var(--ease-out);
       animation: mark-in var(--dur-slow) var(--ease-out);
     }
     .nav-mark::before,
@@ -180,7 +179,7 @@
     .nav.is-dragging::after { display: none; }
     .nav-reset {
       display: block;
-      margin: 10px var(--space-3) 0;
+      margin: var(--space-2-5) var(--space-3) 0;
       padding: var(--space-half) 0;
       border: none;
       background: none;
@@ -229,14 +228,14 @@
        workspace is ≤720px (ResizeObserver in App.jsx). */
     .sidebar.is-narrow {
       width: 62px;
-      padding: var(--space-5) 6px;
+      padding: var(--space-5) var(--space-1-5);
       --sidebar-pad: 6px;
       --nav-row: 42px;
       --nav-row-upkeep: 42px;
     }
     .sidebar.is-narrow .brand {
       flex-direction: column;
-      margin: 0 auto 28px;
+      margin: 0 auto var(--space-6-5);
     }
     .sidebar.is-narrow .collapse-toggle {
       margin: var(--space-1) auto 0;
@@ -383,7 +382,7 @@
     .top-right {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
+      gap: var(--space-2-5);
       flex-shrink: 0;
       margin-left: var(--space-3);
     }
@@ -420,7 +419,7 @@
       justify-content: space-between;
       align-items: center;
       gap: var(--space-6);
-      margin-bottom: 22px;
+      margin-bottom: var(--space-5-5);
     }
     .page-heading p {
       margin-bottom: 0;
@@ -443,8 +442,8 @@
     :where(.study-app, .study-seat) {
       .sidebar {
         width: 190px;
-        padding-left: 10px;
-        padding-right: 10px;
+        padding-left: var(--space-2-5);
+        padding-right: var(--space-2-5);
         --sidebar-pad: 10px;
       }
       .brand {
@@ -477,7 +476,7 @@
         margin: 0 var(--space-2);
       }
       .page {
-        padding: 30px var(--space-5);
+        padding: var(--space-7-less) var(--space-5);
       }
       .page-heading {
         display: block;

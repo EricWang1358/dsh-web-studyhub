@@ -139,8 +139,8 @@ const partialJob = { id: "a", status: "complete", stageCode: "partial", draftId:
 
 test("home: a short draft states how many it lacks and offers one top-up; the reasons are on the draft page, not on the card", () => {
   const html = home({ drafts: [legacyDraft()], jobs: [partialJob] });
-  assert.match(html, /还差 10 题/, "the draft row itself says it is short");
-  assert.equal((html.match(/继续补齐 10 题/g) || []).length, 1, "one top-up action");
+  assert.equal((html.match(/继续补齐 10 题/g) || []).length, 1, "the draft row says it is short once, in its one top-up action (#228: not again in the meta line)");
+  assert.doesNotMatch(/<span class="draft-meta__facts">([\s\S]*?)<\/span>/.exec(html)[1], /还差/);
   assert.doesNotMatch(html, /answerLeak|Assessment plan/, "no raw backend prose on the card");
   assert.doesNotMatch(html, /<details/, "the card folds nothing: the reasons and the process are in the 任务 console and on the draft page");
 });
@@ -163,7 +163,6 @@ test("home: English renders without Chinese", () => {
   const html = inLanguage("en", () => home({ drafts: [{ ...legacyDraft(), title: "CQRS" }], jobs: [{ ...partialJob, deckTitle: "CQRS" }] }));
   const visible = html.replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(visible, han, (visible.match(/.{0,30}[㐀-鿿].{0,30}/) || [])[0]);
-  assert.match(visible, /10 more needed/);
   assert.match(visible, /Continue generation for 10 questions/);
 });
 

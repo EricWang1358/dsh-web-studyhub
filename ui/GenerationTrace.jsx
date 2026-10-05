@@ -8,6 +8,7 @@ import { formatExactTokens, totalTokens } from "../lib/token-usage.js";
 import { retrievalSummary } from "./large-document-advice.js";
 import { isActiveJob } from "../lib/job-status.js";
 import { joinMeta } from './format.js';
+import { reasoningNote } from "./EffortSelect.jsx";
 
 /** Kept for older callers: generation prose from an older backend, in Chinese. */
 export const generationStage = legacyStageText;
@@ -78,6 +79,7 @@ export default function GenerationTrace({ job, openAgent, defaultOpen = false })
             step.childId || ""].filter(Boolean).join(" · ")}
         </small>
         {step.note && <small>{step.note}</small>}
+        {reasoningNote(step) && <small>{reasoningNote(step)}</small>}
       </li>)}</ul>}
       {job.messages?.some((message) => message.receipts?.length) && <ul>{job.messages.flatMap((message) =>
         (message.receipts || []).map((receipt, index) => <li key={`${message.id}:${index}`}>
