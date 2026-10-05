@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { StudyService } from "../lib/service.js";
 import { createFakeModel } from "../scripts/fake-model.mjs";
 import { loadUi } from "./helpers/ui-module.mjs";
+import { until } from "./helpers/wait.mjs";
 
 // #176: a 👎 with rewrite tags no longer starts a silent coach rewrite; the review page opens the one 修题 box instead.
 const quote = "The Caretaker manages snapshot history without inspecting snapshot contents.";
@@ -24,7 +25,7 @@ const quiz = (n) => ({
 
 async function setup(t) {
   const root = await mkdtemp(join(tmpdir(), "study-thumb-fix-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const log = [];
   const light = createFakeModel({ log });
   const service = new StudyService(root, { complete: light, completeLight: light, coach: true });
@@ -70,6 +71,8 @@ test("a client without the flag keeps the background rewrite, started at once", 
   assert.deepEqual(result.scheduled, ["rewrite"]);
   assert.equal(result.fix, undefined);
   assert.equal((await rewriteTasks(service)).length, 1, "the rewrite task exists as soon as the call returns");
+  // The rewrite keeps writing into the library after the call returns; let it end before the folder is removed.
+  await until(async () => (await rewriteTasks(service)).every((task) => task.status !== "running"), "the background rewrite to end");
 });
 
 const { fixSuggestionFor, REWRITE_TAG_IDS, DIFFICULTY_TAG_IDS, splitFeedbackTags } = await loadUi("export * from './ui/card-fix.js';");
