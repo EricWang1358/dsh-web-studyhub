@@ -8,7 +8,7 @@ import { timelineModel } from './call-model.js';
    calls (call-model.js timelineModel). A bar is a button: it selects the call, whose live output the right panel shows. The chart has a fixed height and
    scrolls inside itself, so more slots never push the panels below it. */
 
-const LEGEND = { audio: [['transcribe', '转写'], ['proofread', '校对'], ['translate', '翻译']], generation: [['plan', '规划'], ['author', '出题'], ['review', '审阅'], ['repair', '修复']] };
+const LEGEND = { audio: [['transcribe', '转写'], ['proofread', '校对'], ['translate', '翻译']], generation: [['plan', '规划'], ['author', '出题'], ['review', '审阅'], ['repair', '修复']], coach: [['prep', '备题']] };
 const LANE_WORD = { transcribe: '转写', slot: '槽', other: '其他' };
 
 function laneLabel(lane) {

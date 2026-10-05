@@ -16,7 +16,7 @@ export function contractOf(job) {
 }
 
 const KINDS = { 'audio-import': 'audio', 'pdf-convert': 'pdf', translation: 'translation', generation: 'generation', supplement: 'supplement',
-  'draft-repair': 'repair', 'draft-publish': 'publish', extension: 'extension' };
+  'draft-repair': 'repair', 'draft-publish': 'publish', 'coach-daily': 'coach', extension: 'extension' };
 /** The kind of a job, for its label and for the job-type section of the detail pane. */
 export const taskKindOf = (job) => KINDS[contractOf(job).kind] || 'extension';
 

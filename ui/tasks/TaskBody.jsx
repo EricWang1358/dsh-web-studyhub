@@ -9,6 +9,7 @@ import OutputPanel from './OutputPanel.jsx';
 import LogPanel from './LogPanel.jsx';
 import AudioFiles from './AudioFiles.jsx';
 import GenerationParts from './GenerationParts.jsx';
+import CoachBatches from './CoachBatches.jsx';
 import { PdfDetail } from '../PdfConvertJob.jsx';
 
 /* The two columns under the controls, one template for every kind of job: on the left the parallel timeline above the tabs 「正在进行」 and the kind's own
@@ -19,6 +20,7 @@ const SECTIONS = {
   audio: { value: 'files', label: '文件', count: (contract) => contract.detail.files?.length || 0, View: AudioFiles },
   generation: { value: 'parts', label: '资料部分', count: (contract) => contract.detail.partList?.length || 0, View: GenerationParts },
   supplement: { value: 'parts', label: '资料部分', count: (contract) => contract.detail.partList?.length || 0, View: GenerationParts },
+  coach: { value: 'batches', label: '批次', count: (contract) => contract.detail.batches?.length || 0, View: CoachBatches },
   pdf: { value: 'convert', label: '转换详情', count: () => '', View: ({ task }) => <div className="tc-scroll"><PdfDetail job={task} /></div> },
 };
 
@@ -34,7 +36,7 @@ export default function TaskBody({ task }) {
   return (
     <div className="tc-body">
       <div className="tc-col">
-        <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : 'generation'} selected={target?.callId} onSelect={choose} />
+        <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : 'generation'} selected={target?.callId} onSelect={choose} />
         <Tabs id={left} className="tc-tabs" itemClassName="tc-tab" label={ui('左侧面板')} value={leftTab} onChange={setLeftTab} items={leftItems} />
         <TabPanel id={left} value="running" selected={leftTab} className="tc-panel" tabIndex={undefined}>
           <div className="tc-scroll"><RunningCalls calls={calls} active={live} selected={target?.callId} onSelect={choose} /></div>

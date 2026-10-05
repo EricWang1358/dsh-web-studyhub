@@ -79,6 +79,10 @@
     .tc-row__title { overflow: hidden; font-weight: var(--fw-medium); text-overflow: ellipsis; white-space: nowrap; }
     .tc-row__sub { grid-column: 2 / 4; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
     .tc-num { color: var(--text-muted); font-family: var(--font-stack-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* 批次 of a day of 为你定制: a dot, the time, one line, the state. */
+    .tc-batch { display: grid; grid-template-columns: 8px 44px minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3); height: 36px; padding: 0 var(--space-4); border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
+    .tc-batch__time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .tc-batch__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--decor-faint); }
     .tc-dot[data-state='run'] { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
     .tc-dot[data-state='done'] { background: var(--ok); }
@@ -154,7 +158,7 @@
     .tc-track { position: relative; height: 14px; background: var(--bg-sunken); }
     .tc-callbar { position: absolute; top: 2px; bottom: 2px; min-width: 2px; min-height: 0; height: auto; padding: 0; border: 0; background: var(--sh-bar, var(--accent)); }
     .tc-callbar[data-kind='transcribe'], .tc-callbar[data-kind='plan'], .tc-callbar[data-kind='blueprint'], .tc-legend [data-kind='transcribe'], .tc-legend [data-kind='plan'] { --sh-bar: var(--info); }
-    .tc-callbar[data-kind='proofread'], .tc-callbar[data-kind='author'], .tc-legend [data-kind='proofread'], .tc-legend [data-kind='author'] { --sh-bar: var(--accent); }
+    .tc-callbar[data-kind='proofread'], .tc-callbar[data-kind='author'], .tc-callbar[data-kind='prep'], .tc-legend [data-kind='proofread'], .tc-legend [data-kind='author'], .tc-legend [data-kind='prep'] { --sh-bar: var(--accent); }
     .tc-callbar[data-kind='translate'], .tc-callbar[data-kind='review'], .tc-legend [data-kind='translate'], .tc-legend [data-kind='review'] { --sh-bar: var(--ok); }
     .tc-callbar[data-kind='repair'], .tc-legend [data-kind='repair'] { --sh-bar: var(--warn); }
     .tc-callbar[data-kind='title'], .tc-callbar[data-kind='publish'], .tc-callbar[data-kind='other'] { --sh-bar: var(--decor-faint); }

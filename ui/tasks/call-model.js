@@ -7,7 +7,7 @@ import { appliedText } from './task-control.js';
    contract (docs/job-contract.md); no React, so a test can read them. */
 
 const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', title: '生成标题', plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查',
-  review: '独立审阅', repair: '修复题目', publish: '发布检查', wait: '限流等待', other: '模型调用' };
+  review: '独立审阅', repair: '修复题目', publish: '发布检查', prep: '备题', wait: '限流等待', other: '模型调用' };
 
 /** A call as a short phrase: "校对 6/9", "限流等待"; `file` adds the recording it belongs to. */
 export function callLabel(call, { file = false } = {}) {
@@ -86,6 +86,11 @@ export function timelineModel(calls, { now = Date.now(), running = false } = {})
 const PHASE = { transcribe: '转写', proofread: '校对', translate: '翻译' };
 const STATUS_WORD = (status) => ({ complete: ui('任务完成'), failed: ui('任务失败'), cancelled: ui('任务已停止'), interrupted: ui('任务中断'), running: ui('任务开始'), queued: ui('排队中') })[status] || '';
 
+const BATCH_REASON = { paused: '今天已暂停备题', limit: '今天的备题次数已用完', full: '备好的题已经攒满', none: '没有需要备的题', invalid: '这批没有写出通过校验的题', changed: '学习档案或授权变了，旧结果已丢弃' };
+/** Why a batch of 为你定制 wrote nothing, in words (the producer records a code, so the words are translated here); a model error keeps its own message. */
+export const batchReason = (batch) => (batch.reason === 'error' ? batch.message || ui('这批没有完成') : batch.reason && BATCH_REASON[batch.reason] ? ui(BATCH_REASON[batch.reason]) : batch.status === 'ok' ? '' : ui('这批没有写出题'));
+const batchText = (args, text) => (args.status === 'ok' ? uiFormat('备好 {0} 道定制题', [args.passed ?? 0]) : batchReason({ status: args.status, reason: args.reason, message: text }));
+
 /** One event of the log as a sentence (the codes the backend records, translated here). */
 export function eventText(event) {
   const a = event.args || {};
@@ -100,6 +105,7 @@ export function eventText(event) {
     case 'throttle': return a.reason === 'rate-limit' ? uiFormat('模型限流，同时调用数降到 {0}（设置为 {1}）', [a.concurrency, a.configured]) : uiFormat('限流已缓解，同时调用数回到 {0}', [a.concurrency]);
     case 'control': return appliedText(a.changed);
     case 'paused': return ui('已暂停：没有调用在进行');
+    case 'batch': return batchText(a, event.text);
     default: return event.text || String(event.code || '');
   }
 }

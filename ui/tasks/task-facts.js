@@ -26,9 +26,21 @@ function callsFact(contract) {
 
 const noticesOf = (contract) => (Array.isArray(contract.detail?.notices) ? contract.detail.notices.length : Array.isArray(contract.detail?.warnings) ? contract.detail.warnings.length : 0);
 
+/** 为你定制 by the day: what was written and kept, what was practised and how well, the tokens in / out / from cache, what was skipped. */
+function coachFacts(contract) {
+  const { metrics = {}, tokens = {} } = contract.detail, any = (tokens.input || 0) + (tokens.output || 0) + (tokens.cache || 0) > 0;
+  return [
+    { key: 'primary', label: ui('备好 / 写出'), value: `${metrics.passed ?? 0} / ${metrics.generated ?? 0}` },
+    { key: 'elapsed', label: ui('练习 · 正确率'), value: metrics.practised > 0 ? `${metrics.practised} · ${metrics.accuracy}%` : dash },
+    { key: 'calls', label: ui('令牌 入 / 出 / 缓存'), value: any ? [tokens.input, tokens.output, tokens.cache].map((value) => formatCompactTokens(value || 0)).join(' / ') : dash },
+    { key: 'warnings', label: ui('跳过 · 过期'), value: metrics.skippedExpired > 0 ? formatNumber(metrics.skippedExpired) : dash },
+  ];
+}
+
 /** The facts row: what is counted for this kind, the clock, the model calls (with their tokens when metered) and the notices. */
 export function taskFacts(job, now = Date.now()) {
   const contract = contractOf(job), { progress, usage } = contract, notices = noticesOf(contract);
+  if (contract.kind === 'coach-daily') return coachFacts(contract);
   const count = progress.total > 0 ? `${progress.done} / ${progress.total}` : dash;
   return [
     { key: 'primary', label: ui(UNIT_LABEL[progress.unit] || '进度'), value: count },

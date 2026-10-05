@@ -1,6 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import { stageCodeLabel } from '../generation-status.js';
 import { STATUS } from '../../lib/job-contract.js';
+import { formatDay, joinMeta } from '../format.js';
 import { contractOf, taskKindOf, isRunningTask } from './task-model.js';
 
 /* A job as one line of the console's list and as the header of its detail: kind, title, a state, a percent and ONE status line, all read from the job's
@@ -26,9 +27,12 @@ export function taskState(job) {
   }
 }
 
+const dayName = (date) => { const [year, month, day] = String(date).split('-').map(Number); return year ? formatDay(new Date(year, month - 1, day)) : ui('今天'); };
+
 /** The title the learner knows the job by. */
 export function taskTitle(job) {
   const { title, kind } = contractOf(job);
+  if (kind === 'coach-daily') return uiFormat('为你定制 · {0}', [dayName(title)]);
   if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : title;
   return kind === 'generation' || kind === 'supplement' ? ui('新题组') : taskKindLabel(taskKindOf(job));
 }
@@ -57,6 +61,10 @@ export function stageLabel(stage) {
 /** The one status line under the title. */
 export function taskLine(job) {
   const contract = contractOf(job), state = taskState(job);
+  if (contract.kind === 'coach-daily') {
+    const { batches = [], metrics = {}, paused } = contract.detail, ran = batches.filter((batch) => batch.status !== 'skipped').length;
+    return joinMeta([paused ? ui('今天已暂停') : '', batches.length ? uiFormat('{0} 批 · 备好 {1} 道', [ran, metrics.passed ?? 0]) : ui('今天还没有备题'), metrics.practised > 0 ? uiFormat('练了 {0} 道 · 对 {1}%', [metrics.practised, metrics.accuracy]) : '']);
+  }
   if (contract.status === STATUS.PAUSING) return uiFormat('正在暂停 · 等 {0} 个调用结束', [contract.actions.pause.waiting?.count ?? 0]);
   if (contract.status === STATUS.PAUSED) return ui('已暂停');
   if (state === 'fail') return contract.error?.message ? contract.stage.text || contract.error.message : stageLabel(contract.stage);

@@ -94,7 +94,7 @@ function Detail({ task, data, openers, full, onFull }) {
           {actions.retry && <Button size="sm" variant="primary" disabled={core.busy} title={ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
           {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}
           {actions.cancel && <Button size="sm" variant="danger" disabled={core.busy} onClick={() => act('cancel')}>{ui('停止')}</Button>}
-          {!live && <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => (quick ? dismissJobs(quick, task.id) : core.act('job.dismiss', { jobId: task.id }))}>{ui('知道了')}</Button>}
+          {!live && !contract.detail.today && <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => (quick ? dismissJobs(quick, task.id) : core.act('job.dismiss', { jobId: task.id }))}>{ui('知道了')}</Button>}
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
