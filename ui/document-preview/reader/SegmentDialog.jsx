@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ui, uiFormat, uiLocale } from '../../i18n.js';
+import { ui, uiFormat } from '../../i18n.js';
 import { Button, Dialog, InlineMessage, LoadingState } from '../../components/index.js';
 import { chapterLabel } from '../../SourcePicker.jsx';
 import { useLiveEffect } from '../../use-async.js';
+import { formatNumber } from '../../format.js';
 
 /* Using a kept outline as the document's chapters (materials.outline.segment): which level defines a chapter, what each
    level would give with its page ranges, applied only when the learner says so. It is a view over the same text: no page,
@@ -28,7 +29,7 @@ export function SegmentPreview({ preview, level, onLevel }) {
       {view.chapters.map(chapter => <li key={chapter.index} data-partial={chapter.partial && unit !== 'text' ? 'true' : undefined}>
         <span>{chapterLabel(chapter, unit)}</span>
         {chapter.partial && unit !== 'text' && <small className="reader-assist__tag">{tag}</small>}
-        {unit !== 'text' && <small>{uiFormat('{0} 字符', [chapter.chars.toLocaleString(uiLocale())])}</small>}
+        {unit !== 'text' && <small>{uiFormat('{0} 字符', [formatNumber(chapter.chars)])}</small>}
       </li>)}
     </ol>
     {unit === 'text' && <p className="reader-assist__note">{ui('这份资料是一整段文字：章节用于阅读时跳转和资料页浏览；出题仍以整份资料为单位。')}</p>}

@@ -1,3 +1,4 @@
+import { isoDay } from '../clock.js';
 /* The in-memory side of the usage frequency record: counts per (day, page, control key), sent to the host in batches. Plain functions, no React:
    nothing here can re-render anything. One event costs a Map lookup and an increment.
 
@@ -7,7 +8,7 @@
    - a flush that fails keeps its counts for the next one; a flush the host refuses (the record was turned off or paused) drops them. */
 
 const DAY_START = date => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-const label = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const label = isoDay;
 
 export function createUsageCollector({ send, now = Date.now, setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id),
   flushMs = 30000, throttleMs = 150, maxPending = 400, onRefused } = {}) {

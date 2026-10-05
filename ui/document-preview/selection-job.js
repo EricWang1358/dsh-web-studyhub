@@ -7,6 +7,7 @@ import { jobCode, describeFailure, stageCodeLabel } from '../generation-status.j
 import { shortfall } from '../draft-shortfall.js';
 import { passageKey } from '../../lib/selection-evidence.js';
 import { isActiveJob } from '../../lib/job-status.js';
+import { formatClock } from '../format.js';
 
 export const isActive = isActiveJob;
 
@@ -60,8 +61,7 @@ export function elapsedClock(job, now = Date.now()) {
   const start = Date.parse(job?.runStartedAt || job?.startedAt || '');
   if (!Number.isFinite(start)) return '';
   const end = job.finishedAt ? Date.parse(job.finishedAt) : now;
-  const seconds = Math.max(0, Math.floor((end - start) / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return formatClock(end - start);
 }
 
 /** "已加入「题组」n 张，k 张未通过审阅": the one line a finished supplement is known by. */

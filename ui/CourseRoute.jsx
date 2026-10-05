@@ -3,7 +3,7 @@ import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { TERMS } from "./mastery-terms.js";
 import { Button } from "./components/index.js";
-import { joinMeta } from './format.js';
+import { joinMeta, formatIndex } from './format.js';
 
 /* 课程路线：课程按题组顺序排成一章一章。进度条每一段是一章（按题量占宽），
    学过的部分填色；展开后能看到每一章学到哪里，并从任意一章开始。 */
@@ -35,7 +35,7 @@ export default function CourseRoute({ route, busy, onStartChapter }) {
           {route.chapters.map((c, i) => (
             <li key={c.deckId} className={`is-${c.status}`}>
               <span className="course-route-dot" aria-hidden="true" />
-              <span className="course-route-title">{/^\d/.test(c.title) ? c.title : `${String(i + 1).padStart(2, "0")} · ${c.title}`}</span>
+              <span className="course-route-title">{/^\d/.test(c.title) ? c.title : `${formatIndex(i + 1)} · ${c.title}`}</span>
               <span className="course-route-meta">
                 {joinMeta([ui(STATUS[c.status]), `${c.learned}/${c.total}`, c.weak ? uiFormat("{0} 道薄弱", [c.weak]) : ""])}
               </span>

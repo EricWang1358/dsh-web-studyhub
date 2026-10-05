@@ -11,6 +11,13 @@ const DATE_SHAPES = {
   day: { year: 'numeric', month: 'short', day: 'numeric' },
   // 10/4, 08:05 AM  /  10/4 08:05: a moment inside the current year, for logs and histories
   stamp: { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' },
+  // 2026/10/4  /  10/4/2026: the plain numeric date
+  date: { year: 'numeric', month: 'numeric', day: 'numeric' },
+  // Sun, Oct 4  /  10月4日周日: a day heading inside the current year; weekdayYear adds the year
+  weekday: { weekday: 'short', month: 'short', day: 'numeric' },
+  weekdayYear: { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' },
+  // October 4 Sun  /  10月4日周日: today's date as a heading
+  longDay: { month: 'long', day: 'numeric', weekday: 'short' },
 };
 
 const timeOf = (value) => {
@@ -25,16 +32,13 @@ export function formatDateTime(value, shape = 'short') {
   return new Date(time).toLocaleString(uiLocale(), DATE_SHAPES[shape] || DATE_SHAPES.short);
 }
 
-/**
- * The clock of a running or counted-down thing: m:ss, h:mm:ss from one hour. Whole seconds, rounded DOWN, so a clock
- * never shows a second that has not finished (a countdown reads 0:00 only when it is over by a whole second).
- */
-export function formatClock(ms) {
-  const total = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
-  const hours = Math.floor(total / 3600), minutes = Math.floor(total % 3600 / 60), seconds = total % 60;
-  const pad = (value) => String(value).padStart(2, '0');
-  return hours ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
-}
+/** A day heading: weekday, month and day, with the year only when it is not the current one. `now` is injectable for tests. */
+export const formatDay = (value, now = new Date()) => {
+  const time = timeOf(value);
+  return Number.isFinite(time) ? formatDateTime(time, new Date(time).getFullYear() === now.getFullYear() ? 'weekday' : 'weekdayYear') : '';
+};
+
+export { formatClock, formatIndex, isoDay } from './clock.js';
 
 /** A length in the words a person would say: "4 分 20 秒", "45 秒", "1 小时 5 分". Rounded to the second; '' when missing. */
 export function formatDuration(ms) {

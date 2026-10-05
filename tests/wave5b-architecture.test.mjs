@@ -78,6 +78,25 @@ test('no inline (zh, en) helper and no { zh, en } pair of sentences: the Chinese
   assert.deepEqual(uiSources().filter(({ file, text }) => !own.has(file) && (pair.test(text) || helper.test(text))).map(({ file }) => file), []);
 });
 
+/* ---------- #126: dates, clocks, sizes and numbers are written by ui/format.js ---------- */
+
+test('padStart(2 (a clock or a two-digit number) is written only in ui/format.js and its clock (#126)', () => {
+  const offenders = uiSources().filter(({ file, text }) => !['ui/format.js', 'ui/clock.js'].includes(file) && /\.padStart\(\s*2\b/.test(text)).map(({ file }) => file);
+  assert.deepEqual(offenders, []);
+});
+
+test('no page formats a date, a number or a size itself: toLocale*String and Intl formatters live in ui/format.js (#126)', () => {
+  // Identifiers and names, not text for the learner to read: a file name, a daily-recap key and time-zone name.
+  const identifiers = new Set(['ui/format.js', 'ui/settings/backup-name.js', 'ui/BlogNotes.jsx', 'ui/useDailyRecap.js', 'ui/DailyRecapSettings.jsx']);
+  const offenders = uiSources().filter(({ file, text }) => !identifiers.has(file) && /\.toLocale(?:Date|Time)?String\(|\bIntl\.(?:NumberFormat|DateTimeFormat)\b/.test(text)).map(({ file }) => file);
+  assert.deepEqual(offenders, []);
+});
+
+test('there is one file-size formatter: nothing else walks B / KB / MB / GB (#126)', () => {
+  const offenders = uiSources().filter(({ file, text }) => file !== 'ui/format.js' && /['"]KB['"]/.test(text)).map(({ file }) => file);
+  assert.deepEqual(offenders, []);
+});
+
 /* ---------- #125: every repeating timer is usePolling or useNow ---------- */
 
 test('setInterval( appears only in the clock hook: every other timer is usePolling (paused while the page is hidden) or useNow (#125)', () => {

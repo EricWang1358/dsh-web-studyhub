@@ -1,5 +1,5 @@
-import { ui, uiFormat, uiLocale, errorMessage, uiIsEnglish } from "./i18n.js";
-import { formatNumber } from "./format.js";
+import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
+import { formatNumber, formatDay } from "./format.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
 import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
@@ -34,7 +34,7 @@ import { useRetrievalStatus } from './retrieval-status.js';
    永久删除需再次确认，并以一次事务删除整份文档。 */
 
 const UNKNOWN = "unknown";
-const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
 /* A day is the midnight (local time) that starts it, as text: groups sort by it and it needs no formatting. */
 const dayKey = (d) => String(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
 
@@ -51,9 +51,7 @@ function dayLabel(key) {
     yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
   if (key === dayKey(today)) return ui("今天");
   if (key === dayKey(yesterday)) return ui("昨天");
-  const date = new Date(Number(key)), y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
-  if (uiIsEnglish()) return date.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric', ...(y !== today.getFullYear() ? { year: 'numeric' } : {}) });
-  return uiFormat("{0}{1} 月 {2} 日 · {3}", [y === today.getFullYear() ? "" : `${y} 年 `, m, d, WEEKDAYS[date.getDay()]]);
+  return formatDay(Number(key), today);
 }
 
 /* Documents by import day (local time), newest day first; inside a day the

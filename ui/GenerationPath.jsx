@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ui, uiFormat, uiLocale, getUiLanguage, uiIsEnglish } from './i18n.js';
+import { ui, uiFormat, getUiLanguage, uiIsEnglish } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, InlineMessage, useToast } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
@@ -7,6 +7,7 @@ import { useStudy } from './study-context.jsx';
 import { applyPathRefinement, planGenerationPath, stepTitleOf, STEP_CHARS } from '../lib/generation-path.js';
 import { MATTER_WORDS, pathBrief, queueSteps, selectedItems } from './generation-path-flow.js';
 import css from './generation-path.css';
+import { formatNumber } from './format.js';
 
 /* 分步出题路径: for a selection too big to generate in one go. The app cuts it into steps from the chapters (instantly, always valid); a model can name the
    steps, say what each practises and suggest an order; the learner edits, and each step becomes its own generation job, queued in order. Or opens a conversation
@@ -70,7 +71,7 @@ export default function GenerationPath({ sources, selectedIds, onUseStep, gen, c
   }
   // The conversation gets every step (in the language of the screen): the ones switched off are listed as steps to skip.
   const chat = () => askInChat?.(pathBrief({ steps: steps.map(step => ({ ...step, title: stepTitle(step) })), course, goal, indexed, language: getUiLanguage() }));
-  const chars = value => value.toLocaleString(uiLocale());
+  const chars = value => formatNumber(value);
 
   return (
     <section className="gen-path" aria-labelledby="gen-path-title">

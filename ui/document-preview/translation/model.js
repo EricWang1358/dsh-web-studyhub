@@ -8,6 +8,7 @@
 import { paragraphKey } from '../../../lib/passage-translation.js';
 import { isActiveJob } from '../../../lib/job-status.js';
 import { browserStorage } from '../../storage.js';
+import { formatClock } from '../../clock.js';
 
 /** 逐段对照 | 左右分栏 | 仅译文 | 隐藏译文. */
 export const DISPLAY_MODES = Object.freeze(['pairs', 'side', 'only', 'hidden']);
@@ -133,8 +134,7 @@ export function jobClock(job, now = Date.now()) {
   if (!job || job.status === 'queued') return '';
   const start = Date.parse(job.runStartedAt || job.startedAt || '');
   if (!Number.isFinite(start)) return '';
-  const end = job.finishedAt ? Date.parse(job.finishedAt) : now, seconds = Math.max(0, Math.floor((end - start) / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return formatClock((job.finishedAt ? Date.parse(job.finishedAt) : now) - start);
 }
 
 /** done / total as a fraction 0..1 for the progress bar. */

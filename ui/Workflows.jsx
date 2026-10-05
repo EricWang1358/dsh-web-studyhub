@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale, useUiLanguage } from "./i18n.js";
+import { ui, uiFormat, useUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
 import { Banner, Button, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, useToast } from "./components/index.js";
@@ -10,12 +10,13 @@ import css from "./workflows.css";
 import { useStudy } from "./study-context.jsx";
 import { readDraft as readSavedDraft, writeDraft as writeSavedDraft, clearDraft as clearSavedDraft } from "./writing-drafts.js";
 import { usePersistentState } from "./storage.js";
+import { formatDateTime, formatIndex } from './format.js';
 
 /* The move buttons' arrows: the caret-chevron turned a quarter either way (the icon set has no up and down arrows). */
 const turned = (degrees) => <span className="wf-turn" style={{ display: "inline-flex", transform: `rotate(${degrees}deg)` }}><Icon name="chevron" size={16} /></span>;
 const TURN_UP = turned(-90), TURN_DOWN = turned(90);
 const clone = (value) => JSON.parse(JSON.stringify(value));
-const when = (value) => new Date(value).toLocaleString(uiLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const when = (value) => formatDateTime(value, 'stamp');
 const STATUS = { active: "学习中", paused: "已暂停", completed: "已结束" };
 /* The flow editor's unsaved copy: the shared recovery drafts (ui/writing-drafts.js), `null` forgets it. */
 const readDraft = (key) => readSavedDraft(key)?.value ?? null;
@@ -130,7 +131,7 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
             <span className="wf-drag" title={ui("拖动这个手柄排序")} draggable={!pending} onDragStart={(e) => {
               dragId.current = step.id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", step.id);
             }} onDragEnd={() => { dragId.current = null; }} aria-hidden="true"><Icon name="list" size={16} /></span>
-            <span className="wf-step-number">{String(index + 1).padStart(2, "0")}</span>
+            <span className="wf-step-number">{formatIndex(index + 1)}</span>
             <button type="button" className="wf-step-toggle" aria-expanded={open} onClick={() => setExpanded(open ? "" : step.id)}><strong>{step.title || ui("未命名步骤")}</strong><small>{component?.title}</small></button>
             <div className="wf-step-move"><IconButton icon={TURN_UP} size="sm" disabled={!!pending || index === 0} label={uiFormat("上移第 {0} 步 {1}", [index + 1, step.title])} onClick={() => reorder(index, index - 1)} /><IconButton icon={TURN_DOWN} size="sm" disabled={!!pending || index === draft.steps.length - 1} label={uiFormat("下移第 {0} 步 {1}", [index + 1, step.title])} onClick={() => reorder(index, index + 1)} /></div>
           </div>
@@ -310,7 +311,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     <div className="wf-section-head"><h2>{ui("我的学习流")}{" "}<span className="muted">{listing.templates.length} / {listing.limit}</span></h2><Button icon="plus" size="sm" disabled={!!pending || listing.templates.length >= listing.limit} onClick={() => edit({ title: "", description: "", steps: [newStep(listing.components[0])] }, "new")}>{ui("自己拼一条")}</Button></div>
     {listing.templates.length >= listing.limit && <p className="muted small">{ui("已保存五条。可以修改现有流程，或删除一条后再创建。")}</p>}
     <div className="wf-template-list">{listing.templates.map((template, index) => <article className="wf-template-row" key={template.id}>
-      <span className="wf-row-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><div className="wf-template-copy"><h3>{template.title}</h3><p>{template.description || uiFormat("{0} 个学习步骤", [template.steps.length])}</p><div className="wf-route-preview">{template.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div>
+      <span className="wf-row-number" aria-hidden="true">{formatIndex(index + 1)}</span><div className="wf-template-copy"><h3>{template.title}</h3><p>{template.description || uiFormat("{0} 个学习步骤", [template.steps.length])}</p><div className="wf-route-preview">{template.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div>
       <div className="wf-actions"><Button onClick={() => setScreen({ kind: "start", template })} disabled={!!pending}>{ui("使用")}</Button><Button onClick={() => edit(template)} disabled={!!pending}>{ui("编辑")}</Button><Button aria-label={uiFormat("删除学习流 {0}", [template.title])} onClick={askConfirm(`template:${template.id}`)} disabled={!!pending}>{ui("删除")}</Button></div>
       {confirm === `template:${template.id}` && <InlineConfirm title={uiFormat("删除「{0}」？已开始的学习记录会保留。", [template.title])} confirmLabel={ui("确认删除")}
         busy={!!pending} returnFocusRef={confirmTrigger} onConfirm={() => remove("template", template)} onCancel={() => setConfirm("")} />}

@@ -1,4 +1,5 @@
-import { ui, uiFormat, uiLocale } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
+import { formatDateTime } from '../format.js';
 
 const defaultColumnTitles = { todo: '待办', doing: '进行中', done: '已完成' };
 /** Built-in column names follow the UI language; names the learner chose stay as typed. */
@@ -49,7 +50,7 @@ export function studyRefLabel(ref, library) {
 export function stamp(iso) {
   const date = new Date(iso);
   if (!Number.isFinite(date.getTime())) return '';
-  return new Intl.DateTimeFormat(uiLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return formatDateTime(date);
 }
 
 /** "1 card" / "{n} cards". */

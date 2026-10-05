@@ -31,20 +31,13 @@ import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
 import { ReadingBackButton, ReadingResult, WrongAnswerSource } from "./document-preview/practice/ReadingReturn.jsx";
+import { formatDateTime } from './format.js';
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
    状态由 useReviewSession 持有（ui/review/useReviewSession.js），本组件
    只负责渲染，交互经 session.actions 转发；服务（call、act、host、导航）来自 useStudy()。 */
-const date = (v) =>
-  v
-    ? new Date(v).toLocaleString(uiLocale(), {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : ui("现在");
+const date = (v) => (v ? formatDateTime(v, "stamp") : ui("现在"));
 const CALCULATION_STAGE_LABELS = {
   conditions: "已知条件与未知量", formula: "公式与适用理由", substitution: "代入与单位",
   computation: "中间计算", verification: "结果检查与舍入",

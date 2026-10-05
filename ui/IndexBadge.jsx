@@ -1,13 +1,14 @@
 import React from 'react';
-import { ui, uiFormat, uiLocale } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
 import { Badge, Spinner } from './components/index.js';
+import { formatNumber } from './format.js';
 
 /* One quiet badge on a material row: whether its search index is built (资料 page and the picker of 创建题组). The index is what lets a big book be asked about
    and turned into questions page by page; the row says where it stands, so nobody has to open the settings to find out. */
 
 /** The words for a state ({ state, indexed, stale, total } from documentIndexState) given the coverage the backend reported. */
 export function indexLabel(info, coverage = {}) {
-  const pages = (value) => value.toLocaleString(uiLocale());
+  const pages = (value) => formatNumber(value);
   switch (info?.state) {
     case 'indexed': return uiFormat('索引已建好 · {0} 页', [pages(info.total)]);
     case 'partial': return uiFormat('索引建了一部分 · {0} / {1} 页', [pages(info.indexed), pages(info.total)]);

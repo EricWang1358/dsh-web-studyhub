@@ -134,6 +134,25 @@ test('lists and clauses use the separator of the interface language, through the
   } finally { m.setUiLanguage('zh'); }
 });
 
+test('two-digit numbers, day keys and day headings come from the one formatter (#126)', () => {
+  assert.equal(m.formatIndex(1), '01');
+  assert.equal(m.formatIndex(12), '12');
+  assert.equal(m.formatIndex(0), '00');
+  assert.equal(m.formatIndex(undefined), '00');
+  assert.equal(m.isoDay(new Date(2026, 9, 4, 23, 59)), '2026-10-04');
+  assert.equal(m.isoDay(new Date(2026, 0, 9)), '2026-01-09');
+  const now = new Date(2026, 9, 4);
+  m.setUiLanguage('en');
+  try {
+    assert.match(m.formatDay(new Date(2026, 9, 1), now), /Thu, Oct 1$/);
+    assert.match(m.formatDay(new Date(2025, 11, 31), now), /2025/, 'another year says so');
+    assert.doesNotMatch(m.formatDay(new Date(2026, 9, 1), now), /2026/);
+    assert.equal(m.formatDay('not a date', now), '');
+    assert.match(m.formatDateTime(new Date(2026, 9, 4), 'date'), /10\/4\/2026/);
+    assert.match(m.formatDateTime(new Date(2026, 9, 4, 8, 5), 'longDay'), /October 4/);
+  } finally { m.setUiLanguage('zh'); }
+});
+
 test('joinMeta joins the parts of a meta line with the middle dot and drops the empty ones (#107)', () => {
   assert.equal(m.joinMeta(['录音 3 分钟', '已用 0:20']), '录音 3 分钟 · 已用 0:20');
   assert.equal(m.joinMeta(['标题', '', undefined, null, false, '用时 5']), '标题 · 用时 5');

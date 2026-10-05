@@ -4,6 +4,7 @@ import SourcePicker from './SourcePicker.jsx';
 import { Button, Disclosure, InlineMessage } from './components/index.js';
 import { referenceSelection } from './reference-questions.js';
 import { QUESTION_REFERENCE_LIMITS, QUESTION_REFERENCE_HARD_LIMITS, QUESTION_REFERENCE_FORMAT_DEFAULT } from '../lib/question-references.js';
+import { formatNumber } from './format.js';
 
 const FORMATS = ['flexible', 'balanced', 'strict'];
 const FORMAT_LABELS = ['灵活参考', '均衡贴合', '紧密遵循'];
@@ -32,7 +33,7 @@ export default function ReferenceQuestions({ sources, selected = [], evidenceIds
         value={values.chars} disabled={busy} onChange={event => updateLimit('chars', event.target.value)} /></label>
     </div>
     <p className="muted small">{uiFormat('默认 {0} 个片段 / {1} 字符；可调整，最高 {2} 个片段 / {3} 字符。',
-      [QUESTION_REFERENCE_LIMITS.sources, QUESTION_REFERENCE_LIMITS.chars.toLocaleString('en-US'), QUESTION_REFERENCE_HARD_LIMITS.sources, QUESTION_REFERENCE_HARD_LIMITS.chars.toLocaleString('en-US')])}</p>
+      [QUESTION_REFERENCE_LIMITS.sources, formatNumber(QUESTION_REFERENCE_LIMITS.chars), QUESTION_REFERENCE_HARD_LIMITS.sources, formatNumber(QUESTION_REFERENCE_HARD_LIMITS.chars)])}</p>
     <p className="muted small">{ui('提高上限本身不增加用量；实际选入的文字才会增加输入 Token。更多样题可提供不同表达，也可能带来风格冲突，增加费用与等待时间；不会增加生成题数或保证通过率。沿用现有生成与审阅步骤，不增加模型调用步骤。')}</p>
     <SourcePicker sources={sources.filter(source => !evidence.has(source.id))} selected={selected} onChange={onChange}
       courses={courses} disabled={busy} maxHeight={240} aria-label={ui('参考样题资料')} />
@@ -41,7 +42,7 @@ export default function ReferenceQuestions({ sources, selected = [], evidenceIds
     <small className="muted">{ui('TXT / Markdown 可直接上传；PDF / Word 沿用资料解析。图片请先转成文本。导入后保存在资料库，可再次选择。')}</small>
     <p role="status" className="muted">{uiFormat('已选择 {0} 个样题片段 · {1} 字符', [state.ids.length, state.chars])}</p>
     {state.reason && <InlineMessage tone="error">{state.reason === 'limits'
-      ? uiFormat('请填写正整数上限：片段为 1–{0}，字符为 1–{1}。', [QUESTION_REFERENCE_HARD_LIMITS.sources, QUESTION_REFERENCE_HARD_LIMITS.chars.toLocaleString('en-US')])
+      ? uiFormat('请填写正整数上限：片段为 1–{0}，字符为 1–{1}。', [QUESTION_REFERENCE_HARD_LIMITS.sources, formatNumber(QUESTION_REFERENCE_HARD_LIMITS.chars)])
       : ui(state.reason === 'format' ? '请选择有效的样题格式贴合度。' : state.reason === 'size'
       ? '参考样题超过当前设置的片段或字符上限。请取消部分选择，或在允许范围内提高上限；不会自动截断样题。'
       : state.reason === 'overlap' ? '同一资料不能同时作为教材依据和参考样题。请取消其中一处选择。'

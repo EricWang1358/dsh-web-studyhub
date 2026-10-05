@@ -1,8 +1,8 @@
-import { ui, uiFormat, uiLocale } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 import { documentCount } from '../generation-status.js';
 import { TERMS } from '../mastery-terms.js';
 import { workspaceFilePrompt } from '../agent-prompts/library.js';
-import { joinMeta } from '../format.js';
+import { joinMeta, formatDateTime } from '../format.js';
 
 /**
  * What the home card offers. The card offers exactly one action: a newcomer's
@@ -48,7 +48,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const headline = starter ? starter.headline : today.ahead ? ui('今天的任务都完成了') : breakdown.join(' · ') || ui('暂无可学习的题目');
   const interview = data.focus?.mode === 'interview';
   const freshAll = data.focus?.fresh?.length || 0, freshCount = Math.min(10, freshAll);
-  const todayLabel = new Intl.DateTimeFormat(uiLocale(), { month: 'long', day: 'numeric', weekday: 'short' }).format(new Date());
+  const todayLabel = formatDateTime(new Date(), 'longDay');
   const startFresh = () => start({ mode: 'new', currentCourse: true, count: 10, fresh: true });
   const startPath = () => (todayRun ? resume(todayRun.id) : start({ mode: 'path' }));
   // 课程路线 (class mode): an unfinished batch first, else the next batch in chapter order.

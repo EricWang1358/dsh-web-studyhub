@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ui, uiFormat, uiLocale, uiMessage, errorMessage } from './i18n.js';
+import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, LoadingState, useNow } from './components/index.js';
-import { formatBytes, formatDuration, formatAgo, formatElapsed, joinMeta } from './format.js';
+import { formatBytes, formatDuration, formatAgo, formatElapsed, joinMeta, formatDay } from './format.js';
 import { usePolling } from './use-polling.js';
 import { isActiveJob, isCancellable } from './job-visibility.js';
 import { JOB_STATUS } from '../lib/job-status.js';
@@ -233,8 +233,7 @@ const dayHeading = group => {
   if (group.when === 'today') return ui('今天');
   if (group.when === 'yesterday') return ui('昨天');
   if (group.when === 'unknown') return ui('日期未知');
-  const date = new Date(group.day), sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
+  return formatDay(group.day);
 };
 const STATUS_TEXT = { running: () => ui('进行中'), complete: () => ui('已完成'), failed: () => ui('没有完成'), cancelled: () => ui('已取消'), interrupted: () => ui('被中断') };
 const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', cancelled: 'neutral', interrupted: 'warning' };
