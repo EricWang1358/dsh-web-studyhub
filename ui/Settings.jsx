@@ -13,6 +13,8 @@ import css from './settings.css';
 import { loadMineruSettings } from './use-mineru.js';
 import { loadRetrievalStatus } from './retrieval-status.js';
 import { readText, writeText } from './storage.js';
+import { useHostQuery } from './host-query.js';
+import { useLiveEffect } from './use-async.js';
 
 /* App names the file of an export with this; it lives in its own module so the page does not load the backup section for it. */
 export { backupFileName } from './settings/backup-name.js';
@@ -95,20 +97,15 @@ export default function Settings({
   }, []);
 
   // What the host says is set up: read once, quietly (no model is called). It only decides which group starts open.
-  const [status, setStatus] = useState({});
-  useEffect(() => {
-    if (typeof call !== 'function') return undefined;
-    let live = true;
-    const keep = (name) => (value) => { if (live && value) setStatus((current) => ({ ...current, [name]: value })); };
-    if (hasContext(data, 'audio')) {
-      Promise.resolve(call('audio.settings.get', {})).then((value) => keep('audio')(value && { configured: KEY_FIELDS.some((field) => value[field]?.set) }), () => {});
-      loadMineruSettings(call).then((value) => keep('mineru')(value && !value.unavailable && { configured: !!value.token?.set }), () => {});
-    }
-    if (hasContext(data, 'generation')) {
-      loadRetrievalStatus(call).then((value) => keep('retrieval')(value && { status: value, plan: null }), () => {});
-    }
-    return () => { live = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const [loaded, setStatus] = useState({});
+  // The audio keys are one of the host's shared answers (ui/host-query.js): a key saved in the audio pane changes this page's "set up" mark at once.
+  const audioSettings = useHostQuery('audio.settings.get', {}, { enabled: typeof call === 'function' && hasContext(data, 'audio') }).data;
+  const status = audioSettings ? { ...loaded, audio: { configured: KEY_FIELDS.some((field) => audioSettings[field]?.set) } } : loaded;
+  useLiveEffect((live) => {
+    if (typeof call !== 'function') return;
+    const keep = (name) => (value) => { if (live() && value) setStatus((current) => ({ ...current, [name]: value })); };
+    if (hasContext(data, 'audio')) loadMineruSettings(call).then((value) => keep('mineru')(value && !value.unavailable && { configured: !!value.token?.set }), () => {});
+    if (hasContext(data, 'generation')) loadRetrievalStatus(call).then((value) => keep('retrieval')(value && { status: value, plan: null }), () => {});
   }, []);
 
   // What the host can show, what needs attention, and which category is selected: a deep link (the audio key, the search extension, the model) or the tour

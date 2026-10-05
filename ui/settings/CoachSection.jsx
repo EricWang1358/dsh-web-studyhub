@@ -2,6 +2,7 @@ import React, { useId, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Checkbox, ConfirmDialog, Field, Hint, Icon, Select, SettingsSection, useToast } from '../components/index.js';
 import { formatDateTime } from '../format.js';
+import { invalidate } from '../host-query.js';
 
 const GOALS = [['', '未设定'], ['exam', '应付考试'], ['interview', '面试求职'], ['work', '工作中落地'], ['explore', '兴趣拓展']];
 
@@ -16,7 +17,7 @@ export function coachActions({ act, call, setProfile }) {
     if (next) setProfile(next);
   };
   return {
-    setConsent: (prep) => act('coach.consent', { prep }, reload),
+    setConsent: (prep) => act('coach.consent', { prep }, async () => { invalidate('coach.status'); await reload(); }),
     setGoal: (goal) => act('coach.goal', { goal }, reload),
   };
 }
@@ -64,6 +65,7 @@ export function CoachSection({ profile, busy, act, call, setProfile, confirmForg
       {confirm && <ConfirmDialog title={ui('清空陪学画像？')} confirmLabel={ui('清空画像')} busy={busy} onClose={() => setConfirm(false)}
         description={uiFormat('将删除：学习目标、画像摘要、反馈计数和 {0} 道未使用的定制题。', [profile.ready || 0])}
         onConfirm={() => act('coach.forget', {}, (next) => {
+          invalidate('coach.status'); // the debrief and the 错题 page drop what was prepared
           setProfile(next);
           toast.success(ui('已清空陪学画像和未使用的定制题；练习记录不受影响。'));
         }, { rethrow: true })}>

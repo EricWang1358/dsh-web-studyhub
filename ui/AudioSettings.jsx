@@ -1,12 +1,12 @@
 import { getUiLanguage, ui, uiFormat, uiMessage, useUiLanguage } from './i18n.js';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import AudioReasoning from './AudioReasoning.jsx';
 import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, SegmentedControl, Select, SetupRequired, SettingsSection, TextInput, useToast } from './components/index.js';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
-import { useLiveEffect } from './use-async.js';
+import { setQueryData, useHostQuery } from './host-query.js';
 
 export { audioFocusPending, requestAudioSettingsFocus };
 
@@ -108,12 +108,11 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
   const toast = useToast();
   useInjectCss(css, 'study-audio-settings');
   const language = useUiLanguage();
-  const [view, setView] = useState(initialView);
   const section = useRef(null);
-  // Loaded with call(), not act(): act is single-flight and the settings page already loads 陪学 through it.
-  useLiveEffect((alive) => {
-    call?.('audio.settings.get', {})?.then?.((value) => alive() && setView(value), () => {});
-  }, [call]);
+  // The audio settings are the host's shared answer (ui/host-query.js): the settings page, this pane and the usage console all read the one
+  // copy, and a save below writes the new copy for all of them. Loaded with call(), not act(): act is single-flight and the page already loads 陪学 through it.
+  const { data: view } = useHostQuery('audio.settings.get', {}, { call, enabled: typeof call === 'function', initialData: initialView ?? undefined });
+  const setView = (next) => setQueryData('audio.settings.get', {}, next);
   useEffect(() => {
     if (!view || !audioFocusPending() || !section.current) return;
     takeAudioSettingsFocus();

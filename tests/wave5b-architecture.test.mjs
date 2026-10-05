@@ -78,6 +78,16 @@ test('no inline (zh, en) helper and no { zh, en } pair of sentences: the Chinese
   assert.deepEqual(uiSources().filter(({ file, text }) => !own.has(file) && (pair.test(text) || helper.test(text))).map(({ file }) => file), []);
 });
 
+/* ---------- #117: what the host reports is read through useHostQuery ---------- */
+
+test('audio.settings.get and coach.status are read through the host-query store, and a write refreshes every reader (#117)', () => {
+  const direct = /\bcall\??\.?\(\s*['"](?:audio\.settings\.get|coach\.status|retrieval\.status)['"]/;
+  assert.deepEqual(uiSources().filter(({ text }) => direct.test(text)).map(({ file }) => file), []);
+  for (const file of ['ui/AudioSettings.jsx', 'ui/AudioDashboard.jsx', 'ui/Settings.jsx']) assert.match(code(read(file)), /useHostQuery\(\s*['"]audio\.settings\.get['"]/, `${file} reads the audio settings through useHostQuery`);
+  for (const file of ['ui/CoachDebrief.jsx', 'ui/WrongBook.jsx']) assert.match(code(read(file)), /useHostQuery\(\s*['"]coach\.status['"]/, `${file} reads the coach status through useHostQuery`);
+  for (const file of ['ui/AudioSettings.jsx', 'ui/AudioDashboard.jsx']) assert.match(code(read(file)), /setQueryData\(\s*['"]audio\.settings\.get['"]/, `${file}: a saved audio setting reaches every reader`);
+});
+
 /* ---------- #128: job statuses and types come from lib/job-status.js ---------- */
 
 test("the status 'cancelling' and the job types are written only in lib/job-status.js (#128)", () => {
