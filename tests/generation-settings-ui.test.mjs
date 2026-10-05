@@ -51,7 +51,7 @@ test('the generation settings section renders fourteen usable controls with shar
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 14);
-    for (const [name, min, max] of [['count', 1, 30], ['concurrency', 1, 6], ['batchSize', 1, 5], ['jobTimeoutMinutes', 5, 60], ['fillRounds', 0, 4]]) {
+    for (const [name, min, max] of [['count', 1, 30], ['concurrency', 1, 8], ['batchSize', 1, 5], ['jobTimeoutMinutes', 5, 60], ['fillRounds', 0, 4]]) {
       const input = html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))[0];
       assert.match(input, new RegExp(`min="${min}"`)); assert.match(input, new RegExp(`max="${max}"`));
     }
@@ -74,7 +74,7 @@ test('saving submits exact numeric settings and reset only edits the pending for
   delete globalThis.__toast;
   find(view.render(), node => node.props?.onClick && node.props.children === '恢复默认值（待保存）').props.onClick();
   assert.equal(control(view, 'count').props.value, 10);
-  assert.equal(control(view, 'concurrency').props.value, 3);
+  assert.equal(control(view, 'concurrency').props.value, 4);
   assert.equal(calls.length, 1, 'reset does not save or call the model');
 });
 
@@ -115,9 +115,9 @@ test('departed library saves and failures cannot change the new form or report s
 
 test('invalid fields show bounded feedback, and busy or duplicate submits make no extra write', async () => {
   let calls = 0; const response = deferred(), view = editor({ act: async () => { calls++; await response.promise; } });
-  view.render(); view.effects(); edit(view, 'concurrency', '7');
+  view.render(); view.effects(); edit(view, 'concurrency', '9');
   // The Field around the control adds aria-invalid, aria-describedby and the alert (tests/wave2-g-fields.test.mjs); here it must be handed the bounded message.
-  assert.match(find(view.render(), node => typeof node.props?.error === 'string' && node.props.error.includes('1–6')).props.error, /1–6/);
+  assert.match(find(view.render(), node => typeof node.props?.error === 'string' && node.props.error.includes('1–8')).props.error, /1–8/);
   await submit(view); assert.equal(calls, 0);
   edit(view, 'concurrency', '2'); view.render({ busy: true }); await submit(view); assert.equal(calls, 0);
   assert.equal(control(view, 'count').props.disabled, true);

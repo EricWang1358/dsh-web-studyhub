@@ -123,7 +123,7 @@ test('usage estimates follow the saved batch size and match the actual fake-mode
   assert.ok(results[1].actual > results[0].actual);
 });
 
-test('queued continuation retains original content and performance; legacy drafts use 3/5/20', async t => {
+test('queued continuation retains original content and performance; legacy drafts use 4/5/20', async t => {
   const ctx = await library(t), { service, sourceIds } = ctx;
   await service.call('settings', { generation: original });
   const initial = await wait(service, (await service.call('generate', { sourceIds, count: 2, title: 'Original draft' })).jobId);
@@ -150,7 +150,7 @@ test('queued continuation retains original content and performance; legacy draft
     editorial: { ...draft.editorial, requested: 7, generated: 1, generation: legacyGeneration } } });
   await service.call('settings', { generation: { concurrency: 6, batchSize: 1, jobTimeoutMinutes: 60 } });
   const resumed = await wait(service, (await service.call('generate', { resumeDraftId: legacy.id, draftVersion: legacy.draftVersion })).jobId);
-  const expected = { ...original, count: 6, concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20 };
+  const expected = { ...original, count: 6, concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20 };
   const legacyCompleted = await draftFor(service, resumed);
   checkJob(resumed, expected, 2); checkContent(legacyCompleted, expected);
   assert.ok(ctx.peak.get(resumed.id) <= 3);
@@ -192,16 +192,16 @@ test('corrupt retained draft performance falls back safely while explicit overri
   const saved = await service.call('draft.save', { deck: { ...draft, editorial: { ...draft.editorial, requested: 2,
     generation: { ...draft.editorial.generation, performance: { concurrency: 99, batchSize: -1 } } } } });
   const resumed = await wait(service, (await service.call('generate', { resumeDraftId: saved.id, draftVersion: saved.draftVersion })).jobId);
-  checkJob(resumed, { kind: 'flashcard', count: 1, concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20 }, 1);
+  checkJob(resumed, { kind: 'flashcard', count: 1, concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20 }, 1);
   assert.deepEqual((await draftFor(service, resumed)).editorial.generation.performance,
-    { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS });
+    { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS });
 });
 
 test('invalid one-off performance is rejected before jobs, drafts or model calls are created', async t => {
   const ctx = await library(t), { service, sourceIds } = ctx;
   const before = await service.call('export');
   const jobsBefore = (await service.call('snapshot')).jobs.map(job => job.id);
-  for (const invalid of [null, [], { concurrency: 7 }, { batchSize: 0 }, { jobTimeoutMinutes: 4 }, { phaseTimeoutMinutes: 10 }]) {
+  for (const invalid of [null, [], { concurrency: 9 }, { batchSize: 0 }, { jobTimeoutMinutes: 4 }, { phaseTimeoutMinutes: 10 }]) {
     await assert.rejects(service.call('generate', { sourceIds, count: 2, performance: invalid }), /generation/i);
     await assert.rejects(service.call('usage.estimate', { feature: 'generate', sourceIds, performance: invalid }), /generation/i);
     assert.deepEqual((await service.call('snapshot')).jobs.map(job => job.id), jobsBefore);

@@ -34,6 +34,7 @@ export default function GenerationTrace({ job, openAgent }) {
       <strong>{stepLabel(step, job)}</strong>
       <small>{joinMeta([status[step.status] || step.status,
         step.tokenUsage ? `${formatExactTokens(totalTokens(step.tokenUsage))} tok` : "",
+        step.queuedMs >= 1000 ? uiFormat("排队 {0} 秒", [Math.round(step.queuedMs / 1000)]) : "",
         step.startedAt && (step.finishedAt ? uiFormat("{0} 秒", [seconds(step.startedAt, Date.parse(step.finishedAt))])
           : uiFormat("已等待 {0} 秒", [seconds(step.startedAt, now)]))])}
       </small>
@@ -52,7 +53,9 @@ export default function GenerationTrace({ job, openAgent }) {
         <p className="muted">{ui("各阶段用量")}</p>
         <ul>{stageRows.map((row) => <li key={row.code}>{row.estimate
           ? uiFormat("{0} {1} tok（预计 {2}–{3}）", [row.label, formatExactTokens(row.tokens), formatExactTokens(row.estimate.low), formatExactTokens(row.estimate.high)])
-          : uiFormat("{0} {1} tok", [row.label, formatExactTokens(row.tokens)])}</li>)}</ul>
+          : uiFormat("{0} {1} tok", [row.label, formatExactTokens(row.tokens)])}
+          {(row.seconds >= 1 || row.waited >= 1) && <small>{joinMeta([row.seconds >= 1 ? uiFormat("调用 {0} 秒", [Math.round(row.seconds)]) : "", row.waited >= 1 ? uiFormat("排队 {0} 秒", [Math.round(row.waited)]) : ""])}</small>}</li>)}</ul>
+        {job.throttle?.events > 0 && <p className="muted" data-throttle>{uiFormat("模型服务限流了 {0} 次，同时调用数已自动降到 {1}（设置的是 {2}），之后会随调用顺利逐步恢复。", [job.throttle.events, job.throttle.lowest, job.throttle.configured])}</p>}
         {job.estimate?.calibration?.deviates && <p className="muted">{ui("这个学习库里的实际用量长期比预计高出一半以上；预计已按最近几次的实际用量调高，审阅重试和较高的推理程度是常见原因。")}</p>}
       </div>}
       {job.origin === "selection"

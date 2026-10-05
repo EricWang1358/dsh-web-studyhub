@@ -1,6 +1,9 @@
 {
   "为「{0}」补题：用 {1} 份未覆盖资料，追加约 {2} 题": "Adding to “{0}”: {2} more questions from {1} uncovered sources",
   "追加题数": "Questions to add",
+  "排队 {0} 秒": "Queued {0} s",
+  "调用 {0} 秒": "Model call {0} s",
+  "模型服务限流了 {0} 次，同时调用数已自动降到 {1}（设置的是 {2}），之后会随调用顺利逐步恢复。": "The model service rate-limited {0} time(s); simultaneous calls were lowered automatically to {1} (set: {2}) and climb back as calls succeed.",
   "各阶段用量": "Tokens per stage",
   "{0} {1} tok（预计 {2}–{3}）": "{0} {1} tok (estimated {2}–{3})",
   "{0} {1} tok": "{0} {1} tok",

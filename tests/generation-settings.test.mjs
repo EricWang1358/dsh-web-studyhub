@@ -8,7 +8,7 @@ import { normalizeGenerationSettings, normalizeGenerationPerformance, resolveGen
   validateGenerationPatch, validateGenerationPerformance } from '../lib/generation-settings.js';
 
 const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' };
-const expected = { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS,
+const expected = { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS,
   kind: 'quiz', count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto' };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-generation-settings-'));
@@ -42,7 +42,7 @@ test('generation settings merge per field and preserve scheduling and sibling pr
 test('invalid generation setting patches are refused without a partial write', async t => {
   const service = await library(t);
   const before = await service.call('export');
-  for (const generation of [null, [], 'fast', { concurrency: 0 }, { concurrency: 7 }, { concurrency: '3' },
+  for (const generation of [null, [], 'fast', { concurrency: 0 }, { concurrency: 9 }, { concurrency: '3' },
     { batchSize: 6 }, { batchSize: 2.5 }, { jobTimeoutMinutes: 4 }, { jobTimeoutMinutes: 61 },
     { count: 0 }, { count: 31 }, { kind: 'case' }, { language: 'Klingon' }, { difficulty: 'hard' },
     { focus: 4 }, { focus: 'x'.repeat(2001) }, { phaseTimeoutMinutes: 30 }]) {
@@ -88,15 +88,15 @@ test('continued work inherits original choices and performance instead of change
   const legacy = resolveGenerationRequest({ ...expected, concurrency: 6, language: 'English', difficulty: 'advanced', focus: 'New setting' },
     { count: 2 }, { language: 'en', continuation: { kind: 'flashcard' } });
   assert.deepEqual(legacy, { kind: 'flashcard', count: 2, language: '中文', difficulty: 'mixed', focus: '', notation: 'auto',
-    performance: { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS } });
+    performance: { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS } });
 });
 
 test('explicit performance accepts only the three bounded fields, while persisted reads remain safe', () => {
   assert.deepEqual(normalizeGenerationPerformance({ concurrency: '3', batchSize: 2, jobTimeoutMinutes: 60 }),
-    { concurrency: 3, batchSize: 2, jobTimeoutMinutes: 60, fillRounds: 2, ...EFFORTS });
+    { concurrency: 4, batchSize: 2, jobTimeoutMinutes: 60, fillRounds: 2, ...EFFORTS });
   assert.deepEqual(normalizeGenerationSettings([]), expected);
   assert.deepEqual(validateGenerationPatch({ focus: '  concise examples  ', count: 30 }), { focus: 'concise examples', count: 30 });
-  for (const performance of [null, [], { concurrency: 2.5 }, { concurrency: 7 }, { batchSize: 0 },
+  for (const performance of [null, [], { concurrency: 2.5 }, { concurrency: 9 }, { batchSize: 0 },
     { batchSize: 6 }, { jobTimeoutMinutes: '20' }, { jobTimeoutMinutes: 61 }, { kind: 'quiz' }]) {
     assert.throws(() => validateGenerationPerformance(performance), /generation/i);
     assert.throws(() => resolveGenerationRequest(undefined, { performance }), /generation/i);

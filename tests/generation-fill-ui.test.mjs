@@ -105,6 +105,26 @@ test('a running fill says which round it is on and how many questions are still 
   assert.doesNotMatch(text(page(draft())), /已自动补题/);
 });
 
+test('generation details show queue vs model-call time per stage, and a rate limit that slowed the run (#198)', () => {
+  m.setUiLanguage('zh');
+  const at = (seconds) => new Date(Date.UTC(2026, 9, 5, 12, 0, seconds)).toISOString();
+  const usage = (tokens) => ({ uncachedInputTokens: tokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 1 });
+  const job = { id: 't', status: 'complete', type: 'generate', stage: 'Draft ready', parts: 1, savedCount: 5, requestedTotal: 5, concurrency: 4,
+    throttle: { events: 2, concurrency: 2, configured: 4, lowest: 2 },
+    steps: [{ id: 'a', stage: 'Part 1/1 · Writing and self-checking questions', status: 'complete', startedAt: at(10), finishedAt: at(22), queuedMs: 4000, tokenUsage: usage(3000) },
+      { id: 'b', stage: 'Part 1/1 · Reviewing ambiguity and source support', status: 'complete', startedAt: at(30), finishedAt: at(40), queuedMs: 0, tokenUsage: usage(2000) }] };
+  const out = text(renderToStaticMarkup(React.createElement(m.JobCard, { job, jobs: [], drafts: [], busy: false, dismissJob: noop })));
+  assert.match(out, /出题与自查 3,?000 tok 调用 12 秒 · 排队 4 秒/);
+  assert.match(out, /独立审阅 2,?000 tok 调用 10 秒/);
+  assert.match(out, /排队 4 秒/, 'the step itself shows its wait');
+  assert.match(out, /模型服务限流了 2 次，同时调用数已自动降到 2（设置的是 4）/);
+  m.setUiLanguage('en');
+  const english = text(renderToStaticMarkup(React.createElement(m.JobCard, { job, jobs: [], drafts: [], busy: false, dismissJob: noop })));
+  m.setUiLanguage('zh');
+  assert.match(english, /Model call 12 s · Queued 4 s/);
+  assert.match(english, /rate-limited 2 time\(s\); simultaneous calls were lowered automatically to 2 \(set: 4\)/);
+});
+
 test('the add button is not offered for a case paper, an edit of a published deck or an unsaved edit', () => {
   const none = (value) => assert.doesNotMatch(page(value), /data-add-from-sources/);
   none(draft({ editingDeckId: 'deck-1' }));
