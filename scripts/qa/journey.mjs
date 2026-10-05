@@ -40,6 +40,7 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 /* A step may exceed the default budget up to its own, with the reason; the journey prints it as known and still fails above it, so the list only
    ever shrinks. Nothing here is a design decision: each line is a shift that should be removed. */
 export const KNOWN_LAYOUT = {
+  "import-files": { maxCls: 0.1, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08, by timing)" },
   "job-progress": { maxCls: 0.12, why: "a finished generation inserts the 待发布 list above the course desk and moves it down (0.044 at 1280, 0.108 at 420)" },
 };
 
