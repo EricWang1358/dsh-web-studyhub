@@ -54,7 +54,11 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, title,
   const contract = contractOf(job), summary = { ...taskSummary(job) }, live = isRunningTask(job), unknown = summary.percent === null && live;
   const openConsole = onOpenConsole || (() => app.nav?.show?.task?.(contract.jobId));
   const cancel = onStop || (() => app.core?.act?.('job.control', { jobId: contract.jobId, action: 'cancel' }));
-  const dismiss = onDismiss || (() => (quick ? dismissJobs(quick, job.id) : app.core?.act?.('job.dismiss', { jobId: job.id })));
+  // 知道了 puts the task in 已归档 (nothing is deleted); the notice says where it went.
+  const dismiss = onDismiss || (() => {
+    const done = quick ? dismissJobs(quick, job.id) : app.core?.act?.('job.archive', { jobId: job.id });
+    void Promise.resolve(done).then((result) => { if (result?.ok !== false) app.core?.notify?.(ui('已放进「已归档」，可以在「任务」里取消归档或删除。')); });
+  });
   const result = !live && contract.status === 'complete' ? resultOpener(job, app) : null;
   const go = primary || result || (!live && ['failed', 'interrupted', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? { label: ui('看原因并继续'), run: openConsole }
     : { label: ui('查看详情'), run: openConsole });

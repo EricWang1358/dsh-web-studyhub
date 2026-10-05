@@ -24,7 +24,7 @@ const SECTIONS = {
   pdf: { value: 'convert', label: '转换详情', count: () => '', View: ({ task }) => <div className="tc-scroll"><PdfDetail job={task} /></div> },
 };
 
-export default function TaskBody({ task }) {
+export default function TaskBody({ task, archived = false }) {
   const contract = contractOf(task), calls = contract.calls, live = isRunningTask(task), kind = taskKindOf(task);
   const section = SECTIONS[kind], left = useId(), right = useId();
   const [selected, setSelected] = useState(null), [leftTab, setLeftTab] = useState('running'), [rightTab, setRightTab] = useState('output');
@@ -46,7 +46,7 @@ export default function TaskBody({ task }) {
       <div className="tc-col">
         <Tabs id={right} className="tc-tabs" itemClassName="tc-tab" label={ui('右侧面板')} value={rightTab} onChange={setRightTab}
           items={[{ value: 'output', label: ui('实时输出') }, { value: 'log', label: ui('日志') }]} />
-        <TabPanel id={right} value="output" selected={rightTab} className="tc-panel" tabIndex={undefined}><OutputPanel jobId={contract.jobId} call={target} active={live} /></TabPanel>
+        <TabPanel id={right} value="output" selected={rightTab} className="tc-panel" tabIndex={undefined}><OutputPanel jobId={contract.jobId} call={target} active={live} archived={archived} /></TabPanel>
         <TabPanel id={right} value="log" selected={rightTab} className="tc-panel" tabIndex={undefined}><LogPanel contract={contract} /></TabPanel>
       </div>
     </div>

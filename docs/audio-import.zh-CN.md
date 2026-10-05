@@ -152,7 +152,7 @@ Full Bilingual Transcript: <英文标题>
 每段转写、每个校对窗口、每个翻译部分和标题，做完就立即保存。
 
 - **接着做。** 失败、停止或 DSH 重启后，任务卡会重新出现，上面有「接着做（不重复付费）」。它按当前设置、用已保存的部分完成原来提交的内容。不用重新选文件，卡片上写着已保存了多少（「已保存：转写 3/3 · 校对 2/5」）。
-- **上传的文件**会保留到导入成功或你点「知道了」。从工作区或路径选的文件直接读原文件，不复制，所以它必须还在、内容没变；否则请当作新录音重新导入，免得把旧进度接到别的录音上。
+- **上传的文件**会保留到导入成功或你删除这个任务（「知道了」只是归档，文件仍然保留；删除任务才会清理这份工作副本）。从工作区或路径选的文件直接读原文件，不复制，所以它必须还在、内容没变；否则请当作新录音重新导入，免得把旧进度接到别的录音上。
 - **校对出错。** 某个窗口失败时保留原转写，其余继续。连续两个窗口出现同样的错误时任务会停下，免得每个窗口都白白消耗额度。
 - **通知。** 点「接着做」后，旧的「录音处理未完成」通知会撤掉；再失败会有新的通知。
 - **旧版失败任务。** 旧版本没有保存任务记录，这类任务显示「重新选择原录音继续」。请选同一份录音（文件名相同），并核对课程和术语表：旧的提交参数没有保存，所以不提供一键续做。内容和设置相同的已存部分仍会复用。新任务开始后，旧通知才移除。
@@ -381,7 +381,7 @@ npx @deepseek-ai/dsh web
 - `audio.settings.get` 只返回各密钥是否已配置和末四位。不在对话里索取或接收密钥；保存和验证密钥（`audio.settings.set`、`audio.test`）只在面板里进行。
 - 另外还有 `audio.subtitles.import`、`audio.corrections.review`、`results`、`result.get`、`jobs`、`job.wait`（最多等 60 秒）、`job.cancel`，以及 `live.list`、`live.get`、`live.save`。
 
-面板用 `audio.upload.start`、`audio.upload.chunk`（每块 3 MB）、`audio.upload.finish`、`audio.upload.cancel` 上传文件，用 `audio.preflight` 预检，用 `audio.usage` 读取用量控制台，用 `job.dismiss` 清除已结束的任务卡。「从工作区里找」只搜索当前会话的工作区，最多 6 层，最新的排前面；跳过隐藏文件夹、`node_modules`、`dist`、`build`、Python 环境和 StudyHub 自己的数据文件夹。回到面板的只有文件名、大小和日期。
+面板用 `audio.upload.start`、`audio.upload.chunk`（每块 3 MB）、`audio.upload.finish`、`audio.upload.cancel` 上传文件，用 `audio.preflight` 预检，用 `audio.usage` 读取用量控制台，用 `job.archive` 收起已结束的任务卡（「知道了」把任务放进「任务」页的「已归档」，只读保留；`job.delete` 才会永久删除）。「从工作区里找」只搜索当前会话的工作区，最多 6 层，最新的排前面；跳过隐藏文件夹、`node_modules`、`dist`、`build`、Python 环境和 StudyHub 自己的数据文件夹。回到面板的只有文件名、大小和日期。
 
 ### 文件存放位置
 

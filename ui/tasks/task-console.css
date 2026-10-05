@@ -53,8 +53,23 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* The filters have a row of their own (four of them do not fit beside the title in a 300px list), and the selection a row of its own under it: both always there, with a fixed
+       height, so picking a task or switching a filter moves nothing. */
+    .tc-filterbar { display: flex; align-items: center; flex: none; height: 36px; padding: 0 var(--space-3); overflow: hidden; border-bottom: 1px solid var(--line); }
     .tc-filters { display: flex; flex: none; }
-    .tc-filter { margin-inline-start: calc(var(--space-half) / -2); --control-h-sm: 24px; padding-inline: var(--space-3); font-size: var(--fs-xs); }
+    .tc-filter { --control-h-sm: 24px; padding-inline: var(--space-3); font-size: var(--fs-xs); }
+    .tc-pickbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex: none; height: 36px; padding: 0 var(--space-3) 0 var(--space-4); overflow: hidden; border-bottom: 1px solid var(--line); }
+    .tc-pickbar[data-active='true'] { background: var(--bg-selected); }
+    .tc-pickbar__tip { min-width: 0; }
+    .tc-pickbar__box { display: block; min-width: 0; }
+    .tc-pickbar__all { align-items: center; font-size: var(--fs-xs); white-space: nowrap; }
+    .tc-pickbar__actions { display: flex; align-items: center; gap: var(--space-1); flex: none; }
+    .tc-pickbar__btn { --control-h-sm: 24px; padding-inline: var(--space-3); font-size: var(--fs-xs); }
+    /* A row and the box that selects it: the column is there for every row (a running task has no box), so the rows line up. */
+    .tc-item { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--line-soft); }
+    .tc-item[data-checked='true'] { background: var(--bg-hover); }
+    .tc-item > .tc-row { border-bottom: 0; padding-inline-start: 0; }
+    .tc-item__check { display: flex; align-items: center; justify-content: center; gap: 0; min-width: 0; }
     .tc-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
     .tc-row {
       display: grid;
@@ -95,12 +110,16 @@
     .tc-num[data-state='fail'] { color: var(--bad-ink); }
     .tc-empty { padding: var(--space-6) var(--space-4); color: var(--text-muted); }
 
+    /* A column, not a grid with a fixed row list: the header, metrics, controls and the optional usage line keep their own height and the body takes
+       the rest, whether or not the usage line is there (a fixed list of four rows pushed the body into an extra row when it was). */
     .tc-detail {
-      display: grid;
-      grid-template-rows: auto auto auto minmax(0, 1fr);
+      display: flex;
+      flex-direction: column;
       min-height: 0;
       min-width: 0;
     }
+    .tc-detail > * { flex: none; }
+    .tc-detail > .tc-body { flex: 1 1 0; }
     .tc-head { flex-wrap: nowrap; padding: 0 var(--space-5); }
     .tc-head__title { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
     .tc-head__sub { color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
@@ -134,7 +153,7 @@
     .tc-segment[data-stage='translate'], .tc-segment[data-stage='review'] { --sh-seg: var(--ok); }
     .tc-segment[data-stage='save'], .tc-segment[data-stage='repair'] { --sh-seg: var(--text-dim); }
     /* Under the controls: two columns as tall as the window leaves them. Every list scrolls inside its own panel; nothing here grows the page. */
-    .tc-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); min-height: 0; min-width: 0; }
+    .tc-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: minmax(0, 1fr); min-height: 0; min-width: 0; }
     .tc-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
     .tc-col + .tc-col { border-inline-start: 1px solid var(--line); background: var(--bg-sunken); }
     .tc-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
@@ -153,7 +172,7 @@
     .tc-legend i { display: block; width: 8px; height: 6px; background: var(--sh-bar, var(--accent)); }
     .tc-legend [data-kind='wait'] i { background: transparent; border: 1px dashed var(--text-muted); box-sizing: border-box; }
     .tc-lanes { display: flex; flex-direction: column; gap: var(--space-half); height: 112px; padding: var(--space-3) var(--space-5) var(--space-2); overflow: auto; }
-    .tc-lane { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--space-3); align-items: center; flex: none; height: 16px; }
+    .tc-lane { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3); align-items: center; flex: none; height: 16px; }
     .tc-lane__label { overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
     .tc-track { position: relative; height: 14px; background: var(--bg-sunken); }
     .tc-callbar { position: absolute; top: 2px; bottom: 2px; min-width: 2px; min-height: 0; height: auto; padding: 0; border: 0; background: var(--sh-bar, var(--accent)); }
@@ -164,7 +183,8 @@
     .tc-callbar[data-kind='title'], .tc-callbar[data-kind='publish'], .tc-callbar[data-kind='other'] { --sh-bar: var(--decor-faint); }
     .tc-callbar[data-wait] { background: transparent; border: 1px dashed var(--text-muted); box-sizing: border-box; cursor: default; }
     .tc-callbar[aria-pressed='true'] { outline: 1px solid var(--text); outline-offset: 1px; }
-    .tc-axis { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--space-3); padding: 0 var(--space-5) var(--space-2); color: var(--text-faint); font-family: var(--font-stack-mono); font-size: var(--fs-xs); }
+    .tc-lanes__more { flex: none; margin: 0; color: var(--text-faint); font-size: var(--fs-xs); }
+    .tc-axis { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3); padding: 0 var(--space-5) var(--space-2); color: var(--text-faint); font-family: var(--font-stack-mono); font-size: var(--fs-xs); }
     .tc-axis > div { display: flex; justify-content: space-between; }
 
     /* Lists: the calls in flight, the files, the parts. */
@@ -205,6 +225,17 @@
     .tc-strip__title { font-weight: var(--fw-strong); }
     .tc-strip__line { color: var(--text-muted); font-size: var(--fs-sm); }
     .tc-strip__hint { color: var(--text-faint); font-size: var(--fs-sm); }
+    /* 资料部分: the strip keeps one height whatever the part says (title, range and counts on the first line, the sources note and why it kept fewer on the second;
+       both lines are cut with an ellipsis, the full text is the title), and a part's row carries a small button to its material next to the row button. */
+    .tc-strip--parts { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: center; height: 76px; }
+    .tc-strip--parts > .tc-strip__hint { grid-column: 1 / -1; }
+    .tc-strip__clip { display: block; min-width: 0; overflow: hidden; }
+    .tc-strip__cut { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tc-strip__why { grid-column: 1 / -1; min-height: 1.4em; color: var(--text-muted); font-size: var(--fs-xs); }
+    .tc-partrow { display: flex; align-items: stretch; border-bottom: 1px solid var(--line-soft); }
+    .tc-partrow > .tc-filerow { flex: 1 1 0; min-width: 0; border-bottom: 0; }
+    .tc-partrow__open { align-self: center; flex: none; margin-inline-end: var(--space-3); }
+    .tc-filerow__range { margin-inline-start: var(--space-3); color: var(--text-muted); font-size: var(--fs-xs); }
     .tc-strip__problem { color: var(--bad-ink); font-size: var(--fs-xs); }
 
     /* 实时输出 */
@@ -214,9 +245,14 @@
     .tc-output__title > span { overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
     .tc-output__body { flex: 1 1 0; min-height: 0; padding: var(--space-4) var(--space-5); overflow: auto; font-family: var(--font-stack-mono); font-size: var(--fs-sm); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
     .tc-output__wait { color: var(--text-faint); font-family: var(--font-ui); }
+    /* JSON the model wrote, coloured by structure (json-pretty.js); long string values wrap, they are never cut */
+    .tc-json__key { color: var(--accent-text); }
+    .tc-json__string { color: var(--ok-ink); }
+    .tc-json__literal { color: var(--warn-ink); }
     .tc-output__caret { display: inline-block; width: 7px; height: 1em; margin-inline-start: var(--space-half); background: var(--accent); vertical-align: text-bottom; }
     .tc-output__quiet { flex: 1 1 0; }
-    .tc-output__foot { flex: none; min-height: 24px; padding: var(--space-1) var(--space-5); border-top: 1px solid var(--line-soft); color: var(--text-faint); font-size: var(--fs-xs); }
+    .tc-output__footnote { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tc-output__foot { flex: none; min-height: 24px; overflow: hidden; padding: var(--space-1) var(--space-5); border-top: 1px solid var(--line-soft); color: var(--text-faint); font-size: var(--fs-xs); }
 
     /* 日志 */
     .tc-log { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
@@ -282,7 +318,8 @@
       .tc-list > .tc-scroll { flex: none; max-height: 220px; }
       .tc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .tc-metric--progress { grid-column: 1 / -1; border-bottom: 1px solid var(--line-soft); }
-      .tc-body { grid-template-columns: minmax(0, 1fr); }
+      .tc-detail > .tc-body { flex: none; }
+      .tc-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
       .tc-col { height: 440px; }
       .tc-col + .tc-col { border-inline-start: 0; border-top: 1px solid var(--line); }
       .tc-head { height: auto; min-height: 44px; flex-wrap: wrap; padding-block: var(--space-2); }

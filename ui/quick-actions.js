@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { isActiveJob } from "./job-visibility.js";
 import { failureText } from './failure.js';
+import { archivedContract } from '../lib/job-contract.js';
 
 /* The light path for actions that only change a sliver of what is on screen (a finished card, the unread badge).
 
@@ -104,18 +105,73 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
 
 const notFound = (error) => /not found/i.test(error?.message || "");
 
-/** 知道了 on one finished job, or 全部知道了 when `jobId` is omitted. The cards fade out at once. */
-export function dismissJobs(quick, jobId, alsoIds = []) {
-  const jobs = quick.current?.()?.jobs || [];
-  const ids = new Set(jobId ? [jobId, ...alsoIds] : jobs.filter((job) => !isActiveJob(job)).map((job) => job.id));
-  if (!ids.size) return Promise.resolve({ ok: true });
-  return quick.run("job.dismiss", jobId ? alsoIds.length ? { jobIds: [jobId, ...alsoIds] } : { jobId } : { all: true }, {
-    key: jobId || "jobs:all",
-    patch: (data) => ({ ...data, jobs: (data.jobs || []).map((job) => ids.has(job.id) && !isActiveJob(job) ? { ...job, leaving: true } : job) }),
-    confirmed: (data) => !(data.jobs || []).some((job) => ids.has(job.id)),
+/* A job is named by its own id or, for an audio batch, by what survives a retry (its contract's jobId): the console selects by the second, the cards by the first. */
+const namesOf = (job) => [job?.id, job?.contract?.jobId].filter(Boolean);
+const named = (ids) => (job) => namesOf(job).some((name) => ids.has(name));
+// A day of 为你定制 is a record its own file ages out: the host does not archive it, so it is never marked as archived here either.
+const isDay = (job) => job?.type === "coach-daily" || job?.contract?.kind === "coach-daily";
+const BATCH = 100;
+const parts = (ids) => { const out = []; for (let start = 0; start < ids.length; start += BATCH) out.push(ids.slice(start, start + BATCH)); return out; };
+const count = (value) => (Array.isArray(value) ? value.length : 0);
+
+/** One call of job.archive: the finished jobs it names are marked leaving AND already listed under the archived ones (the host's own record replaces ours with the next snapshot). */
+function archiveRun(quick, args, ids, key) {
+  const at = new Date().toISOString(), is = named(ids);
+  return quick.run("job.archive", args, {
+    key,
+    patch: (data) => {
+      const hit = (data.jobs || []).filter((job) => is(job) && !isActiveJob(job) && !isDay(job));
+      if (!hit.length) return data;
+      const records = hit.filter((job) => job.contract).map((job) => ({ id: job.id, ...(job.type ? { type: job.type } : {}), status: job.status, ...(job.startedAt ? { startedAt: job.startedAt } : {}),
+        archived: { at }, contract: archivedContract(job.contract, at) }));
+      const have = new Set(records.flatMap(namesOf));
+      return { ...data, jobs: data.jobs.map((job) => (hit.includes(job) ? { ...job, leaving: true } : job)),
+        ...(records.length ? { archivedJobs: [...records, ...(data.archivedJobs || []).filter((job) => !namesOf(job).some((name) => have.has(name)))] } : {}) };
+    },
+    confirmed: (data) => !(data.jobs || []).some(is),
     treatAsDone: notFound,
   });
 }
+
+/** 知道了 on one finished job, or 全部知道了 when `jobId` is omitted: the job is ARCHIVED (kept, read-only, under 已归档), never deleted. The cards fade out at once. */
+export function dismissJobs(quick, jobId, alsoIds = []) {
+  const jobs = quick.current?.()?.jobs || [];
+  const ids = new Set(jobId ? [jobId, ...alsoIds] : jobs.filter((job) => !isActiveJob(job) && !isDay(job)).flatMap(namesOf));
+  if (!ids.size) return Promise.resolve({ ok: true });
+  return archiveRun(quick, jobId ? alsoIds.length ? { jobIds: [jobId, ...alsoIds] } : { jobId } : { all: true }, ids, jobId || "jobs:all");
+}
+
+const none = () => ({ ok: true, archived: 0, unarchived: 0, deleted: 0, skipped: 0 });
+/** Send `ids` in calls of at most 100, one after the other; stops at the first failure. `each(part)` is one call's promise, `add(reply)` what it says. */
+async function inParts(ids, each, add) {
+  const total = none();
+  for (const part of parts(ids)) {
+    const done = await each(part);
+    if (!done.ok) return { ...total, ok: false, message: failureText(done.error) };
+    add(total, done.result || {});
+  }
+  return total;
+}
+
+/** 归档 for the console's selection (task ids: a job's own id or what survives a retry). Resolves { ok, archived, skipped } (message when it failed). */
+export const archiveJobs = (quick, ids) => inParts(ids, (part) => archiveRun(quick, { jobIds: part }, new Set(part), `jobs:archive:${part[0]}:${part.length}`),
+  (total, reply) => { total.archived += count(reply.archived) + count(reply.alreadyArchived); total.skipped += count(reply.skipped); });
+
+/** 取消归档: the records leave the archived list at once; the tasks are back in the list with the next snapshot. */
+export const unarchiveJobs = (quick, ids) => inParts(ids, (part) => {
+  const is = named(new Set(part));
+  return quick.run("job.unarchive", { jobIds: part }, { key: `jobs:unarchive:${part[0]}:${part.length}`,
+    patch: (data) => (data.archivedJobs?.some(is) ? { ...data, archivedJobs: data.archivedJobs.filter((job) => !is(job)) } : data),
+    confirmed: (data) => !(data.archivedJobs || []).some(is), treatAsDone: notFound });
+}, (total, reply) => { total.unarchived += count(reply.unarchived); });
+
+/** 删除 (for good): finished tasks and archived records leave the view at once; a task that is running never does. Resolves { ok, deleted, skipped }. */
+export const deleteJobs = (quick, ids) => inParts(ids, (part) => {
+  const is = named(new Set(part));
+  return quick.run("job.delete", { jobIds: part }, { key: `jobs:delete:${part[0]}:${part.length}`,
+    patch: (data) => ({ ...data, jobs: (data.jobs || []).filter((job) => !(is(job) && !isActiveJob(job))), archivedJobs: (data.archivedJobs || []).filter((job) => !is(job)) }),
+    confirmed: (data) => ![...(data.jobs || []), ...(data.archivedJobs || [])].some((job) => is(job) && !isActiveJob(job)), treatAsDone: notFound });
+}, (total, reply) => { total.deleted += count(reply.deleted); total.skipped += count(reply.skipped); });
 
 /** 全部已读: the badge clears at once. With `ids`: those letters were seen on screen, so they read at once and the others stay unread. */
 export function markInboxRead(quick, { ids } = {}) {

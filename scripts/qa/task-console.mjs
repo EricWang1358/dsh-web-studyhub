@@ -1,4 +1,7 @@
-/* node scripts/qa/task-console.mjs [--lang zh|en] [--theme dark|light] [--width 1280|420] [--out output/task-console] [--dist dist]
+/* node scripts/qa/task-console.mjs [--lang zh|en] [--theme dark|light] [--width 1280|420] [--out output/task-console] [--dist dist] [--ended [--bar N]] [--output]
+   [--flow=select|archived|dialog]  (2.6.1) two tasks have ended and one runs: select (everything selected, the bar of the selection), archived (archived, 已归档 open, read-only),
+   dialog (the confirmation of 删除 open).
+   --ended lets the held jobs finish, then opens the N-th bar of the timeline (an ended call): 实时输出 shows what it wrote (2.6.1), model JSON indented.
    The 任务 console in the browser preview, on a seeded temporary library with the fake model: a three-recording audio batch (one of them named .mp3 but a
    WAV) and a question run, both held in flight, with the text of the model's replies streamed in small pieces so 实时输出 has something to show, and
    Gemini's transcription answered by a fake in this process. Writes <out>/console-<lang>-<theme>-<width>.png and prints one JSON line of measurements.
@@ -60,6 +63,7 @@ export async function startConsole({ distDir, lang = "zh", hold = true, streamSt
   const inner = createFakeModel({ latencyMs: 20 });
   const gate = { held: hold, waiters: [] };
   const release = () => { gate.held = false; for (const open of gate.waiters.splice(0)) open(); };
+  const holdAgain = () => { gate.held = true; };
   const holdHere = (signal) => (gate.held ? new Promise((resolveHold, reject) => {
     gate.waiters.push(resolveHold);
     signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
@@ -93,7 +97,21 @@ export async function startConsole({ distDir, lang = "zh", hold = true, streamSt
     globalThis.fetch = realFetch;
     await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
   };
-  return { base, server, api, lang, release, close, gate };
+  return { base, root, server, api, lang, release, hold: holdAgain, close, gate };
+}
+
+/**
+ * Finish what startJobs started (the audio batch and the question run end), then hold the model again and start one more question run that stays in flight: the list
+ * then has finished tasks (selectable) and a running one (not), the state 归档 and 批量删除 are drawn from. Returns the id of the running one.
+ */
+export async function finishJobsThenHoldOne(running) {
+  running.release();
+  await until(async () => !(await running.api("snapshot")).jobs.some((job) => ["queued", "running", "cancelling"].includes(job.status)), "the first jobs to finish");
+  running.hold();
+  const snapshot = await running.api("snapshot");
+  const again = await running.api("generate", { sourceIds: snapshot.sources.slice(3, 5).map((source) => source.id), count: 6, kind: "quiz", title: running.lang === "en" ? "Another run" : "另一次出题" });
+  await until(async () => (await running.api("snapshot")).jobs.some((job) => job.id === again.jobId && ["queued", "running"].includes(job.status)), "the second run to be in flight");
+  return again.jobId;
 }
 
 /** Start the jobs the console shows: an audio batch of three recordings (the second named .mp3 though it is a WAV) and a question run. */
@@ -148,6 +166,7 @@ async function main() {
   const running = await startConsole({ lang, ...(args.dist ? { distDir: resolve(repoRoot, args.dist) } : {}) });
   try {
     await startJobs(running);
+    if (args.flow) await finishJobsThenHoldOne(running);
     const nav = args.page === "audio" ? "audio" : args.page === "library" ? "library" : "tasks";
     const { page, errors, context } = await openConsole(browser, running, { lang, theme, width, height, nav });
     if (nav !== "tasks") {
@@ -158,9 +177,32 @@ async function main() {
       await context.close();
       return;
     }
+    if (args.flow) {
+      await until(async () => (await page.locator(".tc-item__check input").count()) >= 2, "the finished tasks to be selectable");
+      await page.locator(".tc-pickbar__all input").dispatchEvent("click");
+      await page.locator(".tc-pickbar__actions").waitFor({ state: "attached" });
+      if (args.flow === "archived") {
+        await page.locator(".tc-pickbar__actions button").first().dispatchEvent("click");
+        await until(async () => (await page.locator(".tc-filter").nth(3).innerText()).trim().endsWith("2"), "the tasks under 已归档");
+        await page.locator(".tc-filter").nth(3).dispatchEvent("click");
+        await page.locator(".tc-detail[data-archived='true']").waitFor({ state: "attached" });
+      }
+      if (args.flow === "dialog") {
+        await page.locator(".tc-pickbar__actions button").nth(1).dispatchEvent("click");
+        await page.locator("dialog.sh-dialog[open]").waitFor({ state: "attached" });
+      }
+    }
     if (args.pick) await page.locator(".tc-row").nth(Number(args.pick)).dispatchEvent("click");
     // A task with nothing in flight (a day of 为你定制) shows no call: `--calls=0` does not wait for one.
-    if (args.calls !== "0") await until(async () => (await page.locator(".tc-callrow").count()) > 0, "a call in flight");
+    if (args.calls !== "0" && !args.ended && !args.flow) await until(async () => (await page.locator(".tc-callrow").count()) > 0, "a call in flight");
+    if (args.ended) {
+      running.release();
+      await until(async () => !(await running.api("snapshot")).jobs.some((job) => ["queued", "running", "cancelling"].includes(job.status)), "the jobs to finish");
+      await page.locator(".tc-callbar").nth(Number(args.bar) || 0).dispatchEvent("click");
+      await until(async () => (await page.locator(".tc-output__foot").first().innerText()).trim().length > 0, "the ended call's output");
+    }
+    // stacked (narrow): the panel is below the fold; bring it into the picture
+    if (args.output) await page.locator(".tc-output").first().scrollIntoViewIfNeeded();
     if (args.tab) await page.getByRole("tab", { name: new RegExp(args.tab) }).first().dispatchEvent("click");
     if (args.rtab) await page.getByRole("tab", { name: new RegExp(args.rtab) }).last().dispatchEvent("click");
     await frames(page, 6);
