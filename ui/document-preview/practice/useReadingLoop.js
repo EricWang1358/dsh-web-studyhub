@@ -4,6 +4,7 @@ import { assignCards, chapterEntryIds, entrySummaries, rangeOptions, recordVisit
 import { captureAnchor, restoreTop } from './reading-position.js';
 import { domPlacer, nodeTop, outlineNode } from './place-dom.js';
 import { rangeLabel } from './mastery-copy.js';
+import { outlineCoverage } from './coverage-outline.js';
 import { useLiveEffect } from '../../use-async.js';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
@@ -32,6 +33,8 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const [state, setState] = useState({ status: 'loading', cards: [], summary: summarizeLinked([]), inactiveCourses: [], drafts: [] });
   const [reloads, setReloads] = useState(0), [open, setOpenState] = useState(false), [choice, setChoice] = useState(null);
   const [visited, setVisited] = useState([]), [note, setNote] = useState('');
+  // 覆盖 (lib/coverage.js): which sections of this document have a question, drafts included; asked again when the library changes, like the questions themselves.
+  const [coverage, setCoverage] = useState({ status: 'loading', view: null });
 
   // 1. The questions linked to this document, with their review state.
   useLiveEffect(live => {
@@ -46,6 +49,12 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
           drafts: (result?.draftEntries || []).map(entry => ({ deckId: entry.draftId, cardId: entry.cardId, links: entry.links || [] })) });
       } catch (error) { if (live()) setState(current => ({ ...current, status: 'error', message: error.message })); }
     })();
+  }, [call, documentId, source.id, version, reloads]);
+  useLiveEffect(live => {
+    if (!call || !documentId) return;
+    Promise.resolve().then(() => call('coverage.get', { documentId, sourceId: source.id })).then(
+      view => { if (live()) setCoverage(view?.status === 'ok' ? { status: 'ready', view } : { status: 'missing', view: null }); },
+      () => { if (live()) setCoverage(current => ({ status: 'error', view: current.view })); });
   }, [call, documentId, source.id, version, reloads]);
   const reload = useCallback(() => { setState(current => ({ ...current, status: 'loading' })); setReloads(count => count + 1); }, []);
 
@@ -109,8 +118,11 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
     return () => clearTimeout(timer);
   }, [resume, loading, view, outline, rendered, document?.revision, scroller]);
 
+  // What each outline entry has: the marks beside the entries and the counts on the parts above them (practice/coverage-outline.js).
+  const outlineCov = useMemo(() => coverage.view?.coverage && outline.length ? outlineCoverage(outline, coverage.view.coverage, { sourceId: source.id, sections }) : null, [coverage.view, outline, source.id, sections]);
   const documentSummary = state.summary;
   const current = (activeId !== null && meters.get(activeId)) || (outline.length ? summarizeLinked([]) : documentSummary);
   return { status: state.status, message: state.message, options, selected, kind: selected?.kind, setKind: setChoice, open, setOpen, reload, inactiveCourses: state.inactiveCourses,
-    meters, current, documentSummary, start, generateIds, resumeNote: note, total: state.cards.length };
+    meters, current, documentSummary, start, generateIds, resumeNote: note, total: state.cards.length,
+    coverage: coverage.view?.coverage || null, outlineCoverage: outlineCov };
 }

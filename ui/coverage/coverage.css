@@ -1,0 +1,109 @@
+/* 覆盖 (ui/coverage/*): the summary of a draft, its bars, the mark beside an outline entry, the chip beside the mastery mark and the one top-up.
+   Injected by the components (useInjectCss 'study-coverage'); tokens only (ui/DESIGN.md).
+   Coverage is "asked" and mastery is "learned", so the two never look alike: mastery is a ROUND mark in the mastery hues (ochre, jade), coverage is a SQUARE mark in
+   the info hue (covered: solid with a tick · planned and failed: hatched, ochre line · never planned: a dashed empty square). Shape carries the state before colour does. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* ── The mark ───────────────────────────────────────────────────────── */
+    .cov-mark { display: inline-grid; flex: none; place-items: center; color: var(--text-faint); line-height: 0; vertical-align: -2px; }
+    .cov-mark svg { display: block; }
+    .cov-mark[data-state='covered'] { color: var(--info); }
+    .cov-mark[data-state='planned-failed'] { color: var(--warn); }
+    .cov-mark__tip { display: grid; gap: var(--space-half); max-width: 22em; }
+    .cov-mark__tip strong { font-weight: var(--fw-strong); }
+    .cov-mark__tip span { color: inherit; opacity: 0.85; }
+    /* ── The chip: 覆盖 9% ──────────────────────────────────────────────── */
+    .cov-meter { display: inline-flex; align-items: center; gap: var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cov-meter__bar { display: inline-flex; flex: none; width: 3.25em; height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); box-shadow: inset 0 0 0 1px var(--line); }
+    .cov-meter__bar i { display: block; height: 100%; background: var(--info); }
+    .cov-meter__bar i + i { background: var(--warn); }
+    .cov-meter[data-state='none'] { color: var(--text-faint); }
+    /* A material row: the mastery line and the coverage chip share one line (it wraps rather than growing the row sideways). */
+    .source-doc__quality { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-4); min-width: 0; }
+    /* ── The summary on the draft page ─────────────────────────────────── */
+    .cov-summary { display: grid; gap: var(--space-3); min-width: 0; margin-block: var(--space-4); padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raised); }
+    .cov-summary > * { min-width: 0; margin: 0; }
+    .cov-summary__kicker { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
+    .cov-summary__line { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-groups { display: grid; gap: var(--space-1-5); margin: 0; padding: 0; list-style: none; }
+    .cov-groups li { display: grid; grid-template-columns: minmax(6em, 14em) minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); font-size: var(--fs-sm); }
+    .cov-groups__name { min-width: 0; color: var(--text-dim); overflow-wrap: anywhere; line-height: var(--lh-snug); }
+    .cov-groups__count { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cov-list-wrap { font-size: var(--fs-sm); }
+    .cov-list-wrap > summary { cursor: pointer; width: fit-content; }
+    .cov-list { display: grid; gap: var(--space-half); max-height: 20rem; margin: var(--space-2) 0 0; padding: 0; overflow: auto; overscroll-behavior: contain; list-style: none; }
+    .cov-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); }
+    .cov-list li:hover { background: var(--bg-hover); }
+    .cov-list__name { min-width: 0; overflow-wrap: anywhere; }
+    .cov-list__name small { display: block; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-list__open { white-space: nowrap; }
+    /* ── The run (the rounds of the plan): where it is, why it stopped, and 自动补到完整 ───────────── */
+    .cov-run { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+    .cov-run > * { min-width: 0; margin: 0; }
+    .cov-run__line { font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-run__stop, .cov-run__hint { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-run[data-run-state='interrupted'] .cov-run__line, .cov-run[data-run-state='stopped'] .cov-run__line { color: var(--warn-ink, var(--text)); }
+    .cov-run__auto { display: grid; gap: var(--space-half); }
+    .cov-run__auto small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-run + .cov-topup { padding-top: 0; border-top: 0; }
+    /* ── The one top-up ─────────────────────────────────────────────────── */
+    .cov-topup { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+    .cov-topup > * { min-width: 0; margin: 0; }
+    .cov-topup__plan { color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-topup__more { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-topup__act { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2) var(--space-4); }
+    /* The button names the action in full: on a narrow screen it wraps instead of pushing the block past the edge. */
+    .cov-topup__button { max-width: 100%; height: auto; padding-block: var(--space-2); text-align: center; white-space: normal; overflow-wrap: anywhere; }
+    .cov-topup__estimate { flex: 1 1 14em; max-width: 34em; min-width: 0; }
+    .cov-topup__done { color: var(--text-dim); font-size: var(--fs-sm); }
+    .cov-topup--compact { padding-top: 0; border-top: 0; justify-items: end; width: min(18rem, 100%); margin-inline-start: auto; text-align: end; }
+    .cov-topup--compact .cov-topup__act { justify-content: flex-end; }
+    .cov-topup--compact .cov-topup__estimate { flex-basis: 100%; max-width: none; }
+    .cov-topup--panel { padding-top: 0; border-top: 0; }
+    /* The console header's popover: wide enough for the sentences and the button (a popover is as wide as its content, which here is a column of short lines). */
+    .cov-popover__panel { gap: var(--space-3); width: min(22rem, calc(100vw - var(--space-6))); }
+    /* ── In the reader's outline ───────────────────────────────────────── */
+    .reader-outline__cov { display: grid; flex: none; place-items: center; min-width: 20px; }
+    .reader-outline__cov-count { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .reader-outline__covhead { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-3); padding: 0 var(--space-3) var(--space-2); }
+    .reader-outline__covhead .cov-meter { color: var(--text-dim); }
+    .reader-outline__covtoggle { display: inline-flex; align-items: center; gap: var(--space-1-5); margin: 0; color: var(--text-dim); font-size: var(--fs-xs); cursor: pointer; }
+    .reader-toolbar__quality { display: grid; flex: none; align-content: center; justify-items: start; gap: var(--space-half); line-height: var(--lh-snug); }
+    .reader-toolbar__coverage { display: inline-flex; align-items: center; max-width: 14em; }
+    /* ── 覆盖强度 on the 创建题组 form ─────────────────────────────────── */
+    .cov-strength { display: grid; gap: var(--space-2); width: 100%; min-width: 0; justify-items: start; }
+    .cov-strength > * { min-width: 0; max-width: 100%; }
+    .cov-strength__line { display: grid; gap: var(--space-1); width: 100%; }
+    .cov-strength__levels-line { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-strength__custom { width: 100%; }
+    .cov-strength__count { margin-top: var(--space-2); }
+    .cov-strength__input { width: 8em; }
+    .cov-strength__auto { display: grid; gap: var(--space-half); width: 100%; margin-top: var(--space-2); }
+    .cov-strength__auto > p { margin: 0; }
+    .cov-strength__budget { width: 100%; }
+    .cov-strength__input--budget { width: 9em; font-variant-numeric: tabular-nums; }
+    .cov-strength__unit { color: var(--text-muted); font-size: var(--fs-sm); }
+    /* ── Why a section has the questions it has (the plan of the draft) ───── */
+    .cov-summary__plan { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-list__why { display: block; color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* ── In a part of a question run (the 任务 console) ────────────────── */
+    .tc-cover { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .tc-cover .cov-meter__bar { width: 2.75em; }
+  }
+  @container reader (max-width: 899.98px) {
+    :where(.study-app, .study-seat) { .reader-toolbar__coverage { display: none; } }
+  }
+  @media (max-width: 520px) {
+    :where(.study-app, .study-seat) {
+      .cov-summary { padding: var(--space-3) var(--space-4); }
+      .cov-groups li { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--space-half); }
+      .cov-groups li .sh-stacked { grid-column: 1 / -1; grid-row: 2; }
+      .cov-list li { grid-template-columns: auto minmax(0, 1fr); }
+      .cov-list li .cov-list__open { grid-column: 2; justify-self: start; }
+      .cov-topup__button { flex: 1 1 100%; }
+    }
+  }
+}

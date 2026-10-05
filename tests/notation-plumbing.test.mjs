@@ -105,9 +105,10 @@ test('the choice persists on the form like the other settings and is sent as not
   assert.equal(next.notation, 'auto', 'a fresh form without saved defaults starts from auto');
   const kept = status.freshGeneration({ ...gen, notation: 'latex' }, { ...GENERATION_SETTINGS_DEFAULTS, notation: 'latex' }, 'zh');
   assert.equal(kept.notation, 'latex');
-  const request = form.generationRequest({ ...gen, notation: 'text', count: '12' }, { course: 'DB', sourceIds: ['a'] });
+  const request = form.generationRequest({ ...gen, notation: 'text', customCount: '12' }, { course: 'DB', sourceIds: ['a'] });
   assert.equal(request.notation, 'text');
-  assert.equal(request.count, 12);
+  assert.equal(request.count, 12, 'the custom number of questions is sent');
+  assert.equal('count' in form.generationRequest({ ...gen, notation: 'text' }, { course: 'DB', sourceIds: ['a'] }), false, 'without one the coverage level plans the run');
   assert.deepEqual(request.sourceIds, ['a']);
   assert.equal(form.generationRequest({ ...gen }, { course: 'DB', sourceIds: ['a'] }).notation, 'auto', 'a form without a choice sends auto');
   assert.equal(form.generationRequest({ ...gen, notation: 'markdown' }, { course: 'DB', sourceIds: ['a'] }).notation, 'auto');

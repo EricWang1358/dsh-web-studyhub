@@ -111,8 +111,9 @@ test("the banner's per-part lines and the 查看记录 list print the same sente
   assert.match(inLanguage("zh", () => m.generationRecordLines(["Part 2: Boom happened"])[0]), /^第 2 批没有完成：生成没有完成（Boom happened）$/);
 });
 
-test("the part report says what happened for every code, to the learner and to the agent, and the parts strip knows them too", () => {
-  const strip = readFileSync("ui/tasks/GenerationParts.jsx", "utf8");
+test("the part report says what happened for every code, to the learner and to the agent, and the shared reason words (the 资料部分 strip, the coverage lists) know them too", () => {
+  const strip = readFileSync("ui/coverage/copy.js", "utf8");
+  assert.match(readFileSync("ui/tasks/GenerationParts.jsx", "utf8"), /reasonWord/, "the strip reads the shared words");
   for (const code of FAILURE_CODES.filter((code) => code !== "unknown")) {
     const report = { total: 3, passed: 1, partial: 0, failed: 2, reasons: { [code]: 2 } };
     const zh = inLanguage("zh", () => m.describePartReport(report)), en = inLanguage("en", () => m.describePartReport(report));
@@ -121,7 +122,7 @@ test("the part report says what happened for every code, to the learner and to t
     assert.doesNotMatch(en.reasons[0], han, `${code} in English`);
     assert.doesNotMatch(describeForAgent(report, "en"), /another reason/, `${code} for the agent`);
     assert.doesNotMatch(describeForAgent(report, "zh"), /其他原因/, `${code} for the agent in Chinese`);
-    assert.match(strip, new RegExp(`['"]?${code.replace("-", "[-]")}['"]?:\\s*'`), `the 资料部分 strip names ${code}`);
+    assert.match(strip, new RegExp(`['"]?${code.replace("-", "[-]")}['"]?:\\s*'`), `the shared reason words name ${code}`);
   }
 });
 

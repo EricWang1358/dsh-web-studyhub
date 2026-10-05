@@ -3,6 +3,7 @@ import { STRENGTH_LABEL } from '../../lib/model-effort.js';
 import { formatDuration, joinMeta } from '../format.js';
 import { appliedText } from './task-control.js';
 import { callErrorText } from '../generation-status.js';
+import { runEventText } from '../coverage/copy.js';
 
 /* What the console's panels are drawn from: the timeline's lanes and bars, the list of calls in flight, the log's lines. Plain functions over a job's
    contract (docs/job-contract.md); no React, so a test can read them. */
@@ -172,6 +173,8 @@ export function eventText(event) {
     case 'control': return appliedText(a.changed);
     case 'paused': return ui('已暂停：没有调用在进行');
     case 'batch': return batchText(a, event.text);
+    // The rounds of a coverage run: one line per round boundary and one for the reason a run stops (ui/coverage/copy.js is the one wording).
+    case 'round-start': case 'round-end': case 'round-rerun': case 'run-paused': case 'run-resumed': case 'run-waiting': case 'run-interrupted': case 'run-stop': return runEventText(event.code, a);
     default: return event.text || String(event.code || '');
   }
 }

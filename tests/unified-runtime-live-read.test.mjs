@@ -170,3 +170,19 @@ for (const [boundary, read] of Object.entries(readers)) {
     assertRejected(read, stored, 'inconsistent-capability', 'an unavailable capability cannot advertise an available action');
   });
 }
+
+// Synthetic pre-admission data exercises declaration reads only; it starts no producer or executor.
+for (const [boundary, read] of Object.entries(readers)) test(`${boundary}: stored v2 generation declarations do not inherit legacy single-round narrowing`, () => {
+  const stored = copy(goldenRuntimeContracts.queued);
+  stored.kind = 'generation';
+  stored.stage = { code: 'generation.queued' };
+  stored.capabilities = { ...stored.capabilities, pauseMode: 'unsupported', retry: false, recoveryMode: 'none' };
+  for (const action of ['pause', 'resume', 'retry']) stored.actions[action] = { available: false, reason: { code: 'capability-unsupported' }, ...(action === 'pause' ? { mode: 'unsupported' } : {}) };
+  const input = freeze(restoredRecord(stored)), before = copy(input), view = read(input);
+  for (const action of ['pause', 'resume', 'retry']) {
+    assert.equal(view.actions[action].reason.code, 'capability-unsupported');
+    assert.equal(checkAction(input, action).code, view.actions[action].reason.code);
+  }
+  assert.deepEqual(view.capabilities, stored.capabilities);
+  assert.deepEqual(input, before);
+});

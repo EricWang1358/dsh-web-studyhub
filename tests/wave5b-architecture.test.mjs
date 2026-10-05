@@ -24,7 +24,7 @@ const FROM_CONTEXT = [
   ['ui/JsonImport.jsx', 'JsonImport', ['busy', 'act', 'call']], ['ui/RetrievalPanel.jsx', 'RetrievalPanel', ['call']],
   ['ui/GenerationPath.jsx', 'GenerationPath', ['call', 'askInChat']],
   ['ui/CaseWorkspace.jsx', 'RubricAnswer', ['busy', 'call']], ['ui/ExplanationFollowup.jsx', 'ExplanationFollowup', ['call']],
-  ['ui/SetupChecklist.jsx', 'SetupChecklist', ['call', 'busy']], ['ui/study-map/HomeActivity.jsx', 'HomeActivity', ['busy', 'call']],
+  ['ui/SetupChecklist.jsx', 'SetupChecklist', ['call', 'busy']], ['ui/study-map/HomeActivity.jsx', 'HomeActivity', ['busy']],
 ];
 
 test('the components that ask the host read call / act / busy / askInChat from useStudy(), not from props (#113)', () => {

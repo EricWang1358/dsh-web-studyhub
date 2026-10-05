@@ -1,5 +1,5 @@
 /* WP23 · the 创建题组 form: "02 / 学习方式" as label-left rows (SegmentedControl
-   kind/difficulty/language, a count stepper with presets), a collapsed 更多选项,
+   kind/difficulty/language/覆盖强度, a custom number of questions with presets), a collapsed 更多选项,
    a small focus box with an AI assist (帮我想想) and a live summary above the
    one primary button. Pure helpers are tested directly; the layout by SSR. */
 import test from "node:test";
@@ -24,11 +24,12 @@ const text = (html) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
 /* ---------- pure helpers ---------- */
 
-test("count helpers clamp to 1-30 and step by one", () => {
-  assert.deepEqual([form.COUNT_MIN, form.COUNT_MAX], [1, 30]);
-  assert.deepEqual(form.COUNT_PRESETS, [5, 10, 20, 30]);
+test("count helpers clamp to 1-500 (the custom number of questions) and step by one", () => {
+  assert.deepEqual([form.COUNT_MIN, form.COUNT_MAX], [1, 500]);
+  assert.deepEqual(form.COUNT_PRESETS, [10, 30, 60, 100]);
   assert.equal(form.clampCount(0), 1);
-  assert.equal(form.clampCount(99), 30);
+  assert.equal(form.clampCount(99), 99, "no longer cut to 30");
+  assert.equal(form.clampCount(9999), 500);
   assert.equal(form.clampCount("12"), 12);
   assert.equal(form.clampCount(7.6), 8);
   assert.equal(form.clampCount("abc"), 10, "unreadable input falls back to the default");
@@ -36,19 +37,55 @@ test("count helpers clamp to 1-30 and step by one", () => {
   assert.equal(form.stepCount(10, 1), 11);
   assert.equal(form.stepCount("10", -1), 9);
   assert.equal(form.stepCount(1, -1), 1, "the minus stops at the minimum");
-  assert.equal(form.stepCount(30, 1), 30, "the plus stops at the maximum");
+  assert.equal(form.stepCount(500, 1), 500, "the plus stops at the maximum");
   assert.equal(form.stepCount("", 1), 11, "an emptied field steps from the default");
 });
 
-test("suggestCount is roughly one question per two to three PDF pages, clamped to 5-20", () => {
+test("suggestCount speaks in coverage: the density of the level over the selection, never cut to a small number", () => {
   assert.equal(form.suggestCount({ pages: 0, chars: 0 }), null, "nothing selected, nothing to suggest");
-  assert.equal(form.suggestCount({ pages: 2, chars: 0 }), 5, "never below 5");
-  assert.equal(form.suggestCount({ pages: 30, chars: 0 }), 12);
-  assert.equal(form.suggestCount({ pages: 100, chars: 0 }), 20, "never above 20");
-  assert.equal(form.suggestCount({ pages: 0, chars: 3600 }), 5, "short notes");
-  assert.equal(form.suggestCount({ pages: 0, chars: 90000 }), 20, "long notes");
+  assert.equal(form.suggestCount({ pages: 10, chars: 0 }), 11, "standard: 6 per 10 000 characters, a PDF page about 1 800");
+  assert.equal(form.suggestCount({ pages: 100, chars: 0 }), 108, "no cap at 20");
+  assert.equal(form.suggestCount({ pages: 0, chars: 90000 }), 54, "long notes");
+  assert.equal(form.suggestCount({ pages: 0, chars: 90000 }, "lean"), 27);
+  assert.equal(form.suggestCount({ pages: 0, chars: 90000 }, "full"), 90);
+  assert.equal(form.suggestCount({ pages: 0, chars: 3000 }), 2, "short notes are a couple of questions, not five");
+  assert.equal(form.suggestCount({ pages: 0, chars: 9_000_000 }), 500, "up to what a request may ask for");
   const mixed = form.suggestCount({ pages: 15, chars: 18000 });
   assert.ok(mixed > form.suggestCount({ pages: 15, chars: 0 }), "plain text adds to the PDF pages");
+});
+
+test("the form sends a coverage level and a count only when the learner typed one", () => {
+  const base = { kind: "quiz", count: 10, customCount: "", coverageLevel: "full", difficulty: "mixed", language: "中文", focus: "f", role: "", notation: "auto" };
+  const plain = form.generationRequest(base, { course: "C", sourceIds: ["a"] });
+  assert.equal(plain.coverageLevel, "full");
+  assert.equal("count" in plain, false, "the level plans it: no count is sent, not even the saved default");
+  assert.equal("customCount" in plain, false);
+  assert.deepEqual([plain.course, plain.sourceIds, plain.kind, plain.focus], ["C", ["a"], "quiz", "f"]);
+  assert.equal(form.generationRequest({ ...base, customCount: "120" }, { course: "C", sourceIds: ["a"] }).count, 120);
+  for (const bad of ["0", "501", "12.5", "abc", " ", "-3"]) assert.equal("count" in form.generationRequest({ ...base, customCount: bad }, { course: "C", sourceIds: ["a"] }), false, bad);
+  assert.equal(form.generationRequest({ ...base, coverageLevel: "bogus" }, { course: "C", sourceIds: ["a"] }).coverageLevel, "standard", "an unknown level is the default");
+  assert.deepEqual([form.customCountOf({ customCount: "30" }), form.customCountOf({ customCount: "500" }), form.customCountOf({}), form.customCountOf({ customCount: 40 })], [30, 500, null, 40]);
+});
+
+test("the three levels, their words and the line that says what a choice means for the chosen materials", () => {
+  assert.deepEqual(form.COVERAGE_LEVELS.map((item) => [item.value, item.label]), [["lean", "精简"], ["standard", "标准"], ["full", "完整"]]);
+  assert.equal(form.DEFAULT_LEVEL, "standard");
+  assert.match(form.levelNote("standard"), /标准：每个不少于 600 字的部分都出题.*每万字约 6 题/);
+  assert.match(form.levelNote("lean"), /精简：.*六成.*每万字约 3 题/);
+  assert.match(form.levelNote("full"), /完整：.*每万字约 10 题/);
+  const coverage = { level: "standard", goal: 343, sections: 81, leaves: 81, units: "part", rounds: 12, firstRound: 30, levels: { lean: { goal: 172, sections: 48 }, standard: { goal: 343, sections: 81 }, full: { goal: 500, sections: 81 } } };
+  assert.equal(form.coverageLead(coverage), "标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，");
+  assert.equal(form.coverageLead({ ...coverage, rounds: 1, goal: 20, level: "lean", sections: 20 }), "精简：约 20 道题，覆盖 20/81 个部分，一轮出完，");
+  assert.equal(form.coverageLead({ ...coverage, custom: true, goal: 100, rounds: 4, sections: 81 }), "自定义：100 道题，覆盖 81/81 个部分，分 4 轮，");
+  assert.equal(form.coverageLead({ ...coverage, units: "page", leaves: 40, sections: 40, rounds: 2 }), "标准：约 343 道题，覆盖 40/40 页，分 2 轮，");
+  assert.equal(form.levelsLine(coverage), "精简约 172 题 · 标准约 343 题 · 完整约 500 题");
+  assert.equal(form.coverageLead(null), "");
+  try {
+    setUiLanguage("en");
+    assert.equal(form.coverageLead(coverage), "Standard: about 343 questions, covering 81/81 parts, in 12 rounds. ");
+    assert.equal(form.levelsLine(coverage), "Lean about 172 · Standard about 343 · Full about 500");
+    assert.doesNotMatch(form.levelNote("lean") + form.levelNote("standard") + form.levelNote("full"), han);
+  } finally { setUiLanguage("zh"); }
 });
 
 test("selectionStats counts documents, PDF pages and plain-text size", () => {
@@ -75,8 +112,10 @@ test("estimateMinutes reads finished generation jobs and says nothing without da
   assert.ok(slow.high >= slow.low && slow.low >= 1);
 });
 
-test("summaryLine reads as one plain sentence in both languages", () => {
+test("summaryLine reads as one plain sentence in both languages; without a plan it leaves the number out", () => {
   const base = { materials: 3, pages: 12, count: 10, difficulty: "mixed", language: "中文", minutes: { low: 1, high: 2 } };
+  assert.equal(form.summaryLine({ ...base, count: null, minutes: null }), "将从 3 份资料（约 12 页）出题 · 混合难度 · 中文");
+  assert.equal(form.summaryLine({ ...base, count: 343, pages: 0, minutes: null }), "将从 3 份资料出 343 题 · 混合难度 · 中文");
   assert.equal(form.summaryLine(base), "将从 3 份资料（约 12 页）出 10 题 · 混合难度 · 中文 · 约 1–2 分钟");
   assert.equal(form.summaryLine({ ...base, pages: 0, minutes: null, difficulty: "advanced", language: "English" }), "将从 3 份资料出 10 题 · 深入辨析 · English");
   assert.equal(form.summaryLine({ ...base, minutes: { low: 2, high: 2 } }).endsWith("约 2 分钟"), true);
@@ -103,12 +142,13 @@ test("focus chips append once and the form applies a suggestion without touching
   assert.equal(form.appendFocus("Replication；Raft vs Paxos", "Raft vs Paxos"), "Replication；Raft vs Paxos", "no duplicates");
   assert.equal(form.focusIncludes("a；b", "b"), true);
   assert.equal(form.focusIncludes("a；b", "c"), false);
-  const gen = { kind: "mixed", count: 10, difficulty: "mixed", language: "English", focus: "x", role: "r", title: "T" };
-  const next = form.applySuggestion(gen, { count: 8, difficulty: "application", kind: "quiz", focus: ["A"] });
-  assert.deepEqual(next, { ...gen, count: 8, difficulty: "application", kind: "quiz" });
+  const gen = { kind: "mixed", count: 10, coverageLevel: "standard", difficulty: "mixed", language: "English", focus: "x", role: "r", title: "T" };
+  const next = form.applySuggestion(gen, { coverage: "full", count: 8, difficulty: "application", kind: "quiz", focus: ["A"] });
+  assert.deepEqual(next, { ...gen, coverageLevel: "full", difficulty: "application", kind: "quiz" }, "the suggestion speaks in coverage: no number of questions is applied");
   assert.deepEqual(form.applySuggestion(gen, { focus: ["A"] }), gen, "nothing to apply");
   assert.equal(form.hasSettings({ focus: ["A"] }), false);
-  assert.equal(form.hasSettings({ count: 8 }), true);
+  assert.equal(form.hasSettings({ count: 8 }), false);
+  assert.equal(form.hasSettings({ coverage: "lean" }), true);
 });
 
 test("the target role shows by default only for interview preparation", () => {
@@ -133,7 +173,7 @@ const sources = [
   { id: "a", title: "索引笔记", text: "数据库索引加快查找。".repeat(40), courses: ["数据库"] },
   { id: "b", title: "事务笔记.md", text: "事务保证一致性。".repeat(40), courses: ["数据库"], document: { id: "md", format: "markdown" } },
 ];
-const gen = { kind: "mixed", count: 10, difficulty: "mixed", language: "中文", focus: "", role: "" };
+const gen = { kind: "mixed", count: 10, coverageLevel: "standard", customCount: "", difficulty: "mixed", language: "中文", focus: "", role: "" };
 function render(patch = {}, props = {}) {
   const data = { root: "lib", decks: [], drafts: [], jobs: [], sources, modelReady: true,
     focus: { course: "数据库", courses: [{ name: "数据库" }] }, ...patch };
@@ -143,22 +183,26 @@ function render(patch = {}, props = {}) {
 }
 const formOf = (html) => html.slice(html.indexOf('class="generate-form'));
 
-test("02 / 学习方式 uses segmented controls, a stepper and presets instead of plain inputs", () => {
+test("02 / 学习方式 uses segmented controls (the 覆盖强度 among them) and a custom number of questions instead of plain inputs", () => {
   const html = render();
   const section = formOf(html);
   assert.ok(section.length > 100, "the new form wrapper exists");
   assert.doesNotMatch(section, /kind-grid|three-col|<select/, "no equal columns, no dropdowns");
   const groups = [...section.matchAll(/<div role="group" aria-label="([^"]+)" class="sh-seg[^"]*"/g)].map((match) => match[1]);
-  for (const label of ["题型", "难度", "语言"]) assert.ok(groups.includes(label), `${label} is a segmented control (${groups})`);
+  for (const label of ["题型", "覆盖强度", "难度", "语言"]) assert.ok(groups.includes(label), `${label} is a segmented control (${groups})`);
   assert.match(section, /<div role="group" aria-label="语言" class="sh-seg sh-seg--sm/, "language is the small size");
-  for (const word of ["测验 \\+ 闪卡", "单选测验", "开放问答", "混合", "基础理解", "应用迁移", "深入辨析", "中英双语"])
+  for (const word of ["测验 \\+ 闪卡", "单选测验", "开放问答", "混合", "基础理解", "应用迁移", "深入辨析", "中英双语", "精简", "标准", "完整"])
     assert.match(section, new RegExp(`sh-seg__item[^>]*>(?:<svg.*?</svg>)?${word}</button>`), word);
-  assert.match(section, /aria-label="减少题数"/);
-  assert.match(section, /aria-label="增加题数"/);
-  assert.match(section, /<input[^>]*type="number"[^>]*min="1"[^>]*max="30"|<input[^>]*max="30"[^>]*type="number"/);
+  assert.match(section, /aria-pressed="true"[^>]*>标准</, "the default strength is 标准");
+  assert.doesNotMatch(section, /aria-label="减少题数"|aria-label="增加题数"|generate-stepper/, "the bare question-count stepper is gone");
+  assert.match(section, /自定义题数/);
+  assert.match(section, /<input[^>]*type="number"[^>]*min="1"[^>]*max="500"|<input[^>]*max="500"[^>]*type="number"/);
   const presets = [...section.matchAll(/<span[^>]*class="sh-chip [^"]*generate-preset[^"]*"[^>]*><button[^>]*class="sh-chip__main"[^>]*>(\d+)<\/button>/g)].map((match) => match[1]);
-  assert.deepEqual(presets, ["5", "10", "20", "30"]);
-  assert.match(section, /is-selected generate-preset[^>]*><button[^>]*aria-pressed="true"[^>]*>10</, "the current count is pressed");
+  assert.deepEqual(presets, ["10", "30", "60", "100"]);
+  assert.match(section, /标准：每个不少于 600 字的部分都出题/, "the level says what it means");
+  const full = formOf(render({}, { gen: { ...gen, coverageLevel: "full" } }));
+  assert.match(full, /aria-pressed="true"[^>]*>完整</);
+  assert.match(full, /完整：每个部分都出题/);
   assert.match(section, /aria-pressed="true"[^>]*>混合</, "the current difficulty is on");
 });
 
@@ -199,16 +243,19 @@ test("without a usable model the assist offers local suggestions and never claim
   assert.doesNotMatch(section, /只发送资料标题与目录/);
 });
 
-test("a count hint appears when the materials suggest a different number, and never overwrites the field", () => {
+test("the custom number starts empty, shows the density of the level as its placeholder and keeps what the learner typed", () => {
   const section = formOf(render());
-  assert.match(section, /generate-hint[^>]*><button[^>]*>[^<]*建议 5 题/);
-  assert.match(section, /<input[^>]*value="10"/, "the learner's value stays");
-  const same = formOf(render({}, { gen: { ...gen, count: 5 } }));
-  assert.doesNotMatch(same, /建议 5 题/, "no hint when it already matches");
+  assert.doesNotMatch(section, /建议 \d+ 题|generate-hint/, "the old suggestion chip is gone");
+  assert.match(section, /<input[^>]*id="generate-count"[^>]*placeholder="例如 1"|<input[^>]*placeholder="例如 1"[^>]*id="generate-count"/, "400 characters of notes: one question at the standard density, not five");
+  assert.doesNotMatch(section, /<input[^>]*id="generate-count"[^>]*value="10"/, "the saved default count is not put in the field");
+  const typed = formOf(render({}, { gen: { ...gen, customCount: "75" } }));
+  assert.match(typed, /<input[^>]*id="generate-count"[^>]*value="75"|<input[^>]*value="75"[^>]*id="generate-count"/);
+  assert.match(typed, /<details class="sh-disclosure[^"]*cov-strength__custom"[^>]*\sopen/, "a typed number keeps the disclosure open");
+  assert.match(typed, /改回按覆盖强度/);
   const pdf = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((page) => ({ id: `p${page}`, title: `slides.pdf · p.${page}`, text: "x".repeat(900),
     courses: ["数据库"], document: { id: "h".repeat(64), format: "pdf", page, filename: "slides.pdf" } }));
   const big = formOf(render({ sources: pdf }, { selectedSources: pdf.map((page) => page.id) }));
-  assert.match(big, /建议 5 题|建议 6 题|建议 \d+ 题/);
+  assert.match(big, /placeholder="例如 11"/, "ten pages of 1 800 characters: 11 at the standard density");
 });
 
 test("a course with a case exam points to 案例分析题", () => {
@@ -223,19 +270,20 @@ test("a live summary sits above the one primary button", () => {
   const html = render();
   const summary = html.match(/<p[^>]*class="generate-summary"[^>]*role="status"[^>]*>(.*?)<\/p>|<p[^>]*role="status"[^>]*class="generate-summary"[^>]*>(.*?)<\/p>/);
   assert.ok(summary, "summary paragraph");
-  assert.match(text(summary[0]), /将从 1 份资料出 10 题 · 混合难度 · 中文/);
+  assert.match(text(summary[0]), /将从 1 份资料出题 · 混合难度 · 中文/, "the number of questions is the plan's: it appears once the plan has arrived");
   assert.ok(html.indexOf("generate-summary") < html.indexOf('data-tour="generate-submit"'), "summary comes first");
   assert.equal((html.match(/sh-btn--primary/g) || []).length, 1, "the submit button stays the only primary action");
   const estimated = render({ jobs: [{ status: "complete", count: 10, startedAt: "2026-10-01T10:00:00.000Z", finishedAt: "2026-10-01T10:01:30.000Z" }] });
-  assert.match(text(estimated), /约 1–2 分钟/);
-  assert.doesNotMatch(text(html), /约 \d+/, "no estimate without timing data");
+  assert.doesNotMatch(text(estimated), /约 \d+ 分钟|约 1–2 分钟/, "the time follows the plan (it is per question): before the plan has arrived there is no number to scale it by");
+  assert.doesNotMatch(text(html), /约 \d+ 分钟/, "no estimate without timing data");
   assert.doesNotMatch(render({}, { selectedSources: [] }), /将从/, "nothing to summarise before a source is picked");
 });
 
 test("the PDF page warning, tour anchors and the gate keep working", () => {
   const pdf = [1, 2, 3, 4].map((page) => ({ id: `p${page}`, title: `s.pdf · p.${page}`, text: "x".repeat(500), courses: ["数据库"], document: { id: "h".repeat(64), format: "pdf", page } }));
-  const html = render({ sources: pdf }, { selectedSources: pdf.map((page) => page.id), gen: { ...gen, count: 2 } });
+  const html = render({ sources: pdf }, { selectedSources: pdf.map((page) => page.id), gen: { ...gen, customCount: "2" } });
   assert.match(html, /sh-inline--warning[^>]*role="status"[^>]*>(?:(?!<\/div>).)*已选 4 页 PDF，计划生成 2 题。题数少于页数/s);
+  assert.doesNotMatch(render({ sources: pdf }, { selectedSources: pdf.map((page) => page.id) }), /题数少于页数/, "by coverage strength every page is a section the plan covers: no warning");
   assert.match(html, /data-tour="generate-submit"/);
   const gated = render({ modelReady: false });
   assert.match(gated, /sh-setup/);
@@ -259,13 +307,13 @@ test("the English form has no Chinese UI text", () => {
 const assist = (props = {}) => renderToStaticMarkup(React.createElement(GenerateAssist, { ready: true, phase: "idle", result: null, focus: "", onAsk: noop, onPick: noop, onApply: noop, ...props }));
 
 test("model suggestions show as chips with an apply button and the reason", () => {
-  const html = assist({ phase: "done", focus: "Replication", result: { source: "model", focus: ["Replication", "Raft vs Paxos"], count: 8, difficulty: "application", kind: "quiz", why: "Weak on Raft elections." } });
+  const html = assist({ phase: "done", focus: "Replication", result: { source: "model", focus: ["Replication", "Raft vs Paxos"], coverage: "full", difficulty: "application", kind: "quiz", why: "Weak on Raft elections." } });
   const chips = [...html.matchAll(/<span[^>]*class="sh-chip[^"]*generate-suggestion"[^>]*>.*?<\/button><\/span>/g)];
   assert.equal(chips.length, 2);
   assert.match(chips[0][0], /aria-pressed="true"/, "a chip already in the box is marked");
   assert.match(chips[1][0], /aria-pressed="false"/);
   assert.match(html, /按建议设置/);
-  assert.match(html, /8 题/);
+  assert.match(html, /覆盖强度：完整/);
   assert.match(html, /应用迁移/);
   assert.match(html, /Weak on Raft elections\./);
   assert.doesNotMatch(html, /来自你的错题与资料目录/);

@@ -12,19 +12,21 @@ import useIndexCoverage from './use-index-coverage.js';
 import GenerationPath from './GenerationPath.jsx';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
-import { Button, Chip, Disclosure, EmptyState, Icon, IconButton, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs } from './components/index.js';
+import { Button, Disclosure, EmptyState, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
-import { TokenEstimate } from './TokenUsage.jsx';
+import { TokenEstimate, useUsageEstimate } from './TokenUsage.jsx';
+import CoverageStrength from './coverage/CoverageStrength.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import RetrievalPanel from './RetrievalPanel.jsx';
 import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
-  COUNT_MAX, COUNT_MIN, COUNT_PRESETS, DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, clampCount, courseHasCaseExam,
-  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, notationNote, roleOpenByDefault, selectionStats, stepCount, suggestCount, summaryLine,
+  DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam,
+  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, notationNote, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
+import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
 import formCss from './generate-form.css';
 import CaseCreate from './CaseCreate.jsx';
@@ -131,9 +133,14 @@ export default function Generate({
       else setPage("library");
     });
   }
-  const suggestedCount = suggestCount(stats);
   const caseExam = courseHasCaseExam((data.courses || []).find((course) => course?.name === generationCourse));
-  const summary = summaryLine({ ...stats, count: gen.count, difficulty: gen.difficulty, language: gen.language, minutes: estimateMinutes(data.jobs, gen.count) });
+  // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
+  const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
+  const estimateRequest = { feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, coverageLevel: level,
+    ...(custom ? { count: custom } : {}), kind: gen.kind, difficulty: gen.difficulty, language: gen.language, course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) };
+  const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason });
+  const plannedGoal = planned.status === 'ready' ? planned.estimate?.coverage?.goal : null;
+  const summary = summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
   return (
     <section className="page generate-page">
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
@@ -182,7 +189,7 @@ export default function Generate({
               {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
               <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal}
                 indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings}
-                onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
+                onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, customCount: String(step.count), ...(step.focus ? { focus: step.focus } : {}) }); }}
                 onQueued={() => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); }} />
             </fieldset>
             <fieldset className="generate-form" data-tour="generate-options">
@@ -198,26 +205,11 @@ export default function Generate({
                     onChange={(kind) => setGen({ ...gen, kind })} />
                   <p className="generate-note">{kindNote(gen.kind)}</p>
                 </FormRow>
-                <FormRow label={ui("题数")} htmlFor="generate-count">
-                  <div className="generate-count">
-                    <div className="generate-stepper" role="group" aria-label={ui("题数")}>
-                      <IconButton icon="minus" size="sm" label={ui("减少题数")} disabled={clampCount(gen.count) <= COUNT_MIN} onClick={() => setGen({ ...gen, count: stepCount(gen.count, -1) })} />
-                      <input id="generate-count" type="number" min={COUNT_MIN} max={COUNT_MAX} inputMode="numeric" required value={gen.count}
-                        onChange={(e) => setGen({ ...gen, count: e.target.value })}
-                        onBlur={(e) => setGen({ ...gen, count: clampCount(e.target.value) })} />
-                      <IconButton icon="plus" size="sm" label={ui("增加题数")} disabled={clampCount(gen.count) >= COUNT_MAX} onClick={() => setGen({ ...gen, count: stepCount(gen.count, 1) })} />
-                    </div>
-                    <div className="generate-presets" role="group" aria-label={ui("常用题数")}>
-                      {COUNT_PRESETS.map((preset) => (
-                        <Chip key={preset} className="generate-preset" selected={Number(gen.count) === preset}
-                          onClick={() => setGen({ ...gen, count: preset })}>{preset}</Chip>
-                      ))}
-                      {suggestedCount && suggestedCount !== Number(gen.count) && (
-                        <Chip className="generate-hint" title={ui("按资料大小估算，点一下采用")}
-                          onClick={() => setGen({ ...gen, count: suggestedCount })}>{uiFormat("建议 {0} 题", [suggestedCount])}</Chip>
-                      )}
-                    </div>
-                  </div>
+                <FormRow label={ui("覆盖强度")}>
+                  <CoverageStrength level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
+                    onLevel={(coverageLevel) => setGen({ ...gen, coverageLevel })} onCustom={(customCount) => setGen({ ...gen, customCount })}
+                    auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })}
+                    budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
                 </FormRow>
                 <FormRow label={ui("难度")}>
                   <SegmentedControl label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
@@ -245,7 +237,7 @@ export default function Generate({
                 format={gen.referenceFormat} onFormatChange={referenceFormat => setGen({ ...gen, referenceFormat })}
                 onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
                 courses={data.focus?.courses} busy={busy} />
-              {selectedPdfPages > Number(gen.count) && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围或分批出题。", [selectedPdfPages, gen.count])}</InlineMessage>}
+              {custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
               <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、公式写法、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
                 <div className="generate-rows">
                   <FormRow label={ui("公式写法")}>
@@ -270,10 +262,6 @@ export default function Generate({
                 </p>
               </div>
               {summary && <p className="generate-summary" role="status">{summary}</p>}
-              {/* What the run is expected to use, from the real prompts of the pipeline (WP27). */}
-              <TokenEstimate enabled={selectedSources.length > 0 && !referenceState.reason}
-                request={{ feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, count: clampCount(gen.count), kind: gen.kind, difficulty: gen.difficulty, language: gen.language,
-                  course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) }} />
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
                 {advice.blocked && <InlineMessage tone="warning">{advice.needsTopic ? ui("所选资料太大。先在「这次想练什么？」写下主题，再生成。")

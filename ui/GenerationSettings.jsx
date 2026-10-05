@@ -8,7 +8,7 @@ import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 
 const labels = { kind: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
-  concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '运行时限（分钟）', fillRounds: '自动补题轮数',
+  concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
   effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
@@ -91,7 +91,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
       {choiceField('kind', GENERATION_KINDS, value => value === 'mixed' ? ui('测验 + 闪卡') : kinds[value])}
-      {numberField('count', ui('一次请求的总题数，与每批题数分别设置。'))}
+      {numberField('count', ui('没有指定覆盖强度时（例如让助手在对话里出题）一次请求的总题数；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
       {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}
@@ -100,7 +100,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
       <h3 className="settings-subtitle">{ui('生成安排')}</h3>
       {numberField('concurrency', ui('同时处理更多批次通常更快；服务容易限流时可以调低。'))}
       {numberField('batchSize', ui('小批更早保存已核验题目，但会增加调用次数。'))}
-      {numberField('jobTimeoutMinutes', ui('从任务开始运行计时，不含排队；达到时限会保留已核验题目。'))}
+      {numberField('jobTimeoutMinutes', ui('从这一轮开始运行计时，不含排队。出题计划的每一轮各自计时，整个计划没有总时限；一轮用时较长（慢模型）可以调到 180 分钟。达到时限会保留已核验题目。'))}
       {numberField('fillRounds', ui('题数不够时自动再补几轮，每轮只补缺的题，并避开已被拒绝的考点；填 0 表示不自动补。'))}
       <h3 className="settings-subtitle">{ui('各阶段的推理程度')}</h3>
       <Hint>{ui('规划和审阅决定题目对不对，值得多想；按答案设计写题、写替换题和改措辞可以少想，更快也更省。按模型实际提供的档位取最接近的一档，没有对应档位时会在生成详情里注明。')}</Hint>

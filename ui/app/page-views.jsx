@@ -46,7 +46,7 @@ function LibraryView() {
         reveal={intents.revealHome} onRevealed={() => intents.setRevealHome(0)}
         actions={{
           start: intents.startReview, resume: intents.openRun, manage: intents.openDeck, removeDeck: (id) => set.setRemovingDeck({ id, root: data.root }),
-          openDraft: (draft) => drafts.openDraft(draft, { navigation: true }), continueDraft: drafts.continueDraft,
+          openDraft: (draft) => drafts.openDraft(draft, { navigation: true }), topUpDraft: drafts.topUpDraft,
           retryGeneration: (job) => {
             const available = new Set(data.sources.map((source) => source.id));
             intents.goGenerate({ sourceIds: (job.sourceIds || []).filter((id) => available.has(id)),
@@ -188,14 +188,14 @@ function GenerateView() {
 }
 
 function DraftView() {
-  const { data, nav, lib, set, session, drafts, intents } = useApp();
+  const { data, nav, lib, set, session, drafts, intents, learn } = useApp();
   if (!lib.draft) return null;
   return (
     <Draft data={data} draft={lib.draft} draftLoaded={lib.draftLoaded} setDraft={set.setDraft}
       draftText={lib.draftText} setDraftText={set.setDraftText} jsonMode={lib.jsonMode} setJsonMode={set.setJsonMode} openDraft={drafts.openDraft}
-      continueDraft={drafts.continueDraft} addFromSources={drafts.addFromSources} onOpenPublished={intents.openDeck} onStartPublished={session.enterRun} clearRecovery={drafts.clearRecovery}
-      setPage={nav.navigate} setModal={set.setModal} setSelectedSources={set.setSelectedSources}
-      setGenSource={intents.setGenSource} blankCard={drafts.blankCard} patchCard={drafts.patchCard} parseDraft={parseDraft} />
+      topUpDraft={drafts.topUpDraft} openSourceAt={learn.openSourceAt} onOpenPublished={intents.openDeck} onStartPublished={session.enterRun} clearRecovery={drafts.clearRecovery}
+      setPage={nav.navigate} setModal={set.setModal}
+      blankCard={drafts.blankCard} patchCard={drafts.patchCard} parseDraft={parseDraft} />
   );
 }
 

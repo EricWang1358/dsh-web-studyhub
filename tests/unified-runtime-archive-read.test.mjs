@@ -265,4 +265,3 @@ for (const kind of ['audio-import', 'pdf-convert']) {
     assert.deepEqual(await folderBytes(root, [record]), before.folders, 'restoring history leaves the working copy intact');
   });
 }
-

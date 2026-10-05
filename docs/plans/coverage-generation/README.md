@@ -70,6 +70,19 @@
 | 4 | 分批（wave）执行：每批存检查点，批与批之间可暂停，续跑，重启恢复，时限按批计算；证据上限随之放宽 | 3 |
 | 5 | 缓存友好的运行方式（同一小节同一会话、前缀一致、只发被引用窗口）；任务记录持久化；标题「Recovered questions」改为真实标题 | 4 |
 
+## 实现状态
+
+- 阶段 1（1a、1b）：已实现，见 `docs/generation-reliability.md`。
+- 阶段 2：已实现，见 [`docs/coverage.md`](../../coverage.md)：`lib/coverage.js` 的 `coverageOf`、`coverage.get`、四处视图（任务页「资料部分」、草稿页、资料页行和阅读器工具栏、阅读器目录）和唯一的「为没覆盖的部分补题」。
+- 阶段 3a：已实现，见 [`docs/coverage.md`](../../coverage.md)「Coverage strength and enforced planning」：`lib/coverage-strength.js`（三档、配额、轮次）、`lib/section-weights.js`（每个部分的重要性）、`lib/assigned-plan.js`（服务端强制按分配规划，补问一次，仍不够记为 `plan-short`）、创建题组的「覆盖强度」和出发前的一行说明、草稿页的出题计划与每个部分的重要性和理由。第一次运行做第一轮，后面的轮次由 3b 执行；为没覆盖的部分补题按计划的配额继续。
+
+- 阶段 3b：已实现，见 [`docs/coverage.md`](../../coverage.md)「Running the plan」：`lib/coverage-run.js`（轮次状态、每轮之后做什么、停止原因、数字和预计）和执行器（`lib/contexts/generation/operations.js`）。
+  - 计划的各轮在同一份草稿上一轮接一轮做完，每轮是现有的补题（强制分配、不超过 30 题）；草稿是检查点（`editorial.coverageSpec.rounds[i].status` 和 `editorial.coverageRun`）。
+  - 「自动补到完整」：精简默认关，标准和完整默认开；可选的花费上限；暂停于轮与轮之间；续跑；重启后「接着做」（同一个任务编号，进行中的那一轮从头重做）。
+  - 运行时限按每一轮计（5–180 分钟），整个计划没有总时限。任务页顶部一行、资料部分里的轮次、日志里每一轮一行和停止原因；草稿页与首页行说同样的话。
+  - 双语转写只按原文那一种语言数字数（`evidenceChars`）：标准档在样例上从约 343 题变为约 251 题。
+  - 留给阶段 5 和统一任务运行时的：规划和出题提示词仍把译文一并发送；中断记录只在内存里，每次启动从草稿重建。
+
 ## 不在范围内
 
 技能化、配套 PPT/PDF 原文件和横幅、合并录音顺序的判断。它们在 2026-10-05 的审计里有记录，暂不设计。

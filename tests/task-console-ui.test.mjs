@@ -36,7 +36,7 @@ test('the list has one row per job, newest first, with its state word and the fi
   assert.deepEqual(order, ['gen-1', 'pdf-1', 'audio-1'], 'newest first by start time');
   assert.match(html, /全部 3/);
   assert.match(html, /进行中 1/);
-  assert.match(html, /失败 1/);
+  assert.match(html, /失败\/中断 1/);
   assert.match(html, /<h1>任务<\/h1>/);
 });
 
@@ -75,4 +75,15 @@ test('nothing to show is said once, in the list, and the detail asks for a selec
   const html = render({ jobs: [] });
   assert.match(html, /现在没有任务/);
   assert.match(html, /选择左边的一个任务查看详情/);
+});
+
+test('a task interrupted by a restart is 已中断, not 失败: its own word, its own tone, and it says how to go on (2.6.2)', () => {
+  const interrupted = { id: 'gen-2', type: 'generate', kind: 'quiz', status: 'interrupted', deckTitle: '被中断的出题', requestedTotal: 30, savedCount: 12, startedAt: iso(60), stage: '中断于第 3 轮' };
+  const zh = render({ jobs: [interrupted] }, 'zh');
+  assert.match(zh, /data-state="interrupted"/);
+  assert.match(zh, /已中断/);
+  assert.doesNotMatch(zh.slice(zh.indexOf('tc-row')), /tc-num" data-state="fail"/, 'not a failure');
+  const en = render({ jobs: [interrupted] }, 'en');
+  assert.match(en, /Interrupted/);
+  assert.match(en, /Failed \/ interrupted/, 'the filter says both');
 });

@@ -176,7 +176,7 @@ See [audio import](docs/audio-import.md) and [live class](docs/live-class.md).
 
 DSH plugins do not update themselves, and restarting DSH alone keeps the old version.
 
-- **2.1.2 and later:** StudyHub asks GitHub for a new release at most every 12 hours. When there is one, a **Version x.y.z available** chip appears in its sidebar, where x.y.z is the new version. Click it, then **Upgrade to x.y.z** and **Upgrade now**. StudyHub downloads the package, checks it against the release's `SHA256SUMS-x.y.z.txt` and hands it to DSH's plugin manager. If background tasks are running, **Stop tasks and upgrade** stops them and keeps their finished parts. The check sends no study data; switch it off in **Settings › About & updates**.
+- **2.1.2 and later:** StudyHub asks GitHub for a new release at most every 6 hours. When there is one, a **Version x.y.z available** chip appears in its sidebar, where x.y.z is the new version. Click it, then **Upgrade to x.y.z** and **Upgrade now**. StudyHub downloads the package, checks it against the release's `SHA256SUMS-x.y.z.txt` and hands it to DSH's plugin manager. If background tasks are running, **Stop tasks and upgrade** stops them and keeps their finished parts. The check sends no study data; switch it off in **Settings › About & updates**.
 - **Older versions, or a DSH that cannot install from inside the app:** finish or cancel background tasks, open **Plugins**, uninstall StudyHub, then use **Add plugin** with the new release's package address.
 
 Then restart DSH. Quit the desktop app fully (including the tray icon) and reopen it, or restart the web service with its original profile and reload the page. A browser refresh alone does not load new plugin code. Your library and settings are kept.

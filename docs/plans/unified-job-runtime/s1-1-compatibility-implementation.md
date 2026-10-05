@@ -1,6 +1,6 @@
 # S1-1：版本读取与兼容实现
 
-契约前置 [PR #245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245) 已审查、双平台 CI 通过，并按所有者 2026-10-06 的指令合并；merge SHA 为 `169a69ee8c64476576ce5bbc4ef9331d2db8ee1e`。本实现基于该已提交正式基线，在独立 `codex/unified-runtime-alpha` 分支继续。兼容实现仍待 PR 评审合并，S1-1 未勾选完成。
+契约前置 [PR #245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245) 已审查、双平台 CI 通过，并按所有者 2026-10-06 的指令合并；merge SHA 为 `169a69ee8c64476576ce5bbc4ef9331d2db8ee1e`。实现先基于该正式基线，提交前再同步已合并正式 main `a569cbfdb79028580c15072509f1c6205a68691a`（覆盖率运行、更新间隔与 GitHub 安装准备）。在独立 `codex/unified-runtime-alpha` 分支继续。兼容实现仍待 PR 评审合并，S1-1 未勾选完成。
 
 ## 实际接线
 
@@ -17,7 +17,7 @@ DSH-01/03/04/07/08/09 的真实 StudyHub 绑定、停止、执行、计量和恢
 
 ## 验证记录
 
-基线为 `169a69e` 加本 PR 所有文件；最终提交 SHA 和双平台 CI 以实现 PR 的证据为准。测试均用自有已安装依赖、私有 TEMP/TMP/DSH_HOME，清除密钥/Token/Base URL，`SSH_TTY=audit`；保留仓库网络隔离和机器锁，无真实模型或所有者数据访问。没有新增浏览器、ffmpeg 或宿主程序测试。
+初始实现基线为 `169a69e`；最终同步基线为 `a569cbf` 加本 PR 所有文件；最终提交 SHA 和双平台 CI 以实现 PR 的证据为准。测试均用自有已安装依赖、私有 TEMP/TMP/DSH_HOME，清除密钥/Token/Base URL，`SSH_TTY=audit`；保留仓库网络隔离和机器锁，无真实模型或所有者数据访问。没有新增浏览器、ffmpeg 或宿主程序测试。
 
 | 阶段 | 实际结果 | 工作树证据 |
 |---|---|---|
@@ -40,7 +40,7 @@ DSH-01/03/04/07/08/09 的真实 StudyHub 绑定、停止、执行、计量和恢
 
 定向命令：`node scripts/test.mjs tests/unified-runtime-recovery-read.test.mjs tests/unified-runtime-live-read.test.mjs tests/unified-runtime-archive-read.test.mjs tests/unified-runtime-contract.test.mjs tests/job-contract.test.mjs tests/job-status.test.mjs tests/job-archive.test.mjs tests/job-archive-ops.test.mjs tests/job-archive-service.test.mjs tests/job-control-audio.test.mjs tests/audio-single-characterization.test.mjs`。前两组新测试并行编写，真实服务恢复回归由根代理补充；根代理拥有全部生产文件和权威验证。旧回归测试及兼容 JSON 未改。
 
-最终冻结源码 `npm run verify` 已通过：lint / 5,318 passed / 0 failed / 0 cancelled / 2 Windows skip / build，218,461 ms；证据为 `output/runtime-s11-compat/verify-compatibility-release.log`。两个既有 signal-handler 测试在 Windows 跳过。双平台 CI 以实现 PR 为准。正式 `ce-code-review` 回执 `20261006-s11-compat-169a69ee` 已完成八个检查视角，修复前十文件 diff SHA-256 为 `0c1d0a769dea978faf4796e4ca00035c39abf4be5f08780795d584faf5e5ee6c`；唯一 P1 为旧全库扫描覆盖 v2 历史。根代理按真实入口红灯修复；后续独立核验又指出 writer 失败保护及永久删除排序，并逐项补齐。旧回执不改写为修复后结论；修复后 `followup-validation.json` 为 complete，原 P1、writer 失败保护与删除排序均验证关闭，未解决源码发现为零。六个生产文件排序 path/SHA-256 manifest 的 hash 为 `7a4ce98592ad6eb3e27157f973e0715a333f3b94cd6e2abdbce10110cc27e668`，该值不是 Git diff hash；最终生产与测试文件逐项复验仍匹配独立核验，文档更新另做最终差异和链接核验。原生审查共享模型系列，不宣称跨供应商独立审查。本地输出不跟踪进仓库，PR 的验证记录提供可复核交付入口。简化检查复用/效率无修改；质量检查统一版本常量、去掉临时 PR 历史注释，未删安全检查。
+同步后续正式更新前的冻结源码 `npm run verify` 已通过：lint / 5,318 passed / 0 failed / 0 cancelled / 2 Windows skip / build，218,461 ms；证据为 `output/runtime-s11-compat/verify-compatibility-release.log`。两个既有 signal-handler 测试在 Windows 跳过。双平台 CI 以实现 PR 为准。正式 `ce-code-review` 回执 `20261006-s11-compat-169a69ee` 已完成八个检查视角，修复前十文件 diff SHA-256 为 `0c1d0a769dea978faf4796e4ca00035c39abf4be5f08780795d584faf5e5ee6c`；唯一 P1 为旧全库扫描覆盖 v2 历史。根代理按真实入口红灯修复；后续独立核验又指出 writer 失败保护及永久删除排序，并逐项补齐。旧回执不改写为修复后结论；修复后 `followup-validation.json` 为 complete，原 P1、writer 失败保护与删除排序均验证关闭，未解决源码发现为零。六个生产文件排序 path/SHA-256 manifest 的 hash 为 `7a4ce98592ad6eb3e27157f973e0715a333f3b94cd6e2abdbce10110cc27e668`，该值不是 Git diff hash；该记录固定同步正式更新前的修复范围；正式更新引起的两个适配冲突已保留双方行为，整合核验另行记录。原生审查共享模型系列，不宣称跨供应商独立审查。本地输出不跟踪进仓库，PR 的验证记录提供可复核交付入口。简化检查复用/效率无修改；质量检查统一版本常量、去掉临时 PR 历史注释，未删安全检查。
 
 ## 实现范围与下一步
 
@@ -53,3 +53,9 @@ DSH-01/03/04/07/08/09 的真实 StudyHub 绑定、停止、执行、计量和恢
 审查记录指出：archive envelope 的 `record.id`、`job.id`、任意 aliases 与内部有效 v2 契约之间尚未做完整一致性核对。既有 writer 构造正常身份关联；已批准契约未定义任意历史 alias 到 runtime 的完整关系。本轮保持旧 envelope 读取规则，不猜新身份。该损坏边界限制留给 S1-5 的存储与恢复门禁；不能据本轮测试声称任意损坏 archive envelope 已通过验证。
 
 解除归档后的 v2 历史仍是内存记录；本轮覆盖重新归档后的重启读取，未证明解除归档后跨进程保留 runtime 历史。该公共元记录持久化和恢复边界归 S1-5。本轮普通 producer 仍为 v1，不能据合成 v2 测试提前启用新执行路径。
+
+## 正式分支整合
+
+同步 `a569cbf` 时，正式版新增 generation 的 `capsOf`：普通单轮任务明确拒绝暂停，覆盖率运行按实际轮次能力开放控制。合并保留该 v1 行为、runFacts/详情与覆盖率 retry 入口。明确保存的 v2 声明不继承旧单轮/覆盖率私有窄化标记，继续由已批准能力和同一 actionState 判定。
+
+新增两条纯读取 pre-admission 合成声明测试，红灯 53 passed / 2 failed（`main-integration-red.log`，v2 声明被错标为 single-round）；窄适配后包含原兼容、正式控制与覆盖率运行的十五文件 198 passed / 0 failed / 0 skipped，22,027 ms（`main-integration-green.log`）。没有修改旧兼容 JSON、既有测试断言或增加执行接口。同步后的冻结实现 `npm run verify` 已通过 lint / 5,493 passed / 0 failed / 0 cancelled / 2 既有 Windows skip / build，242,492 ms，证据为 `verify-main-integration.log`。独立 `main-integration-validation.json` 为 complete，无新 actionable finding；三个相关文件的排序 path/hash manifest 为 `a0830b7afe6cb0163ec00b0c68f8f26a26246eadd225a2926d47640799eeeca0`（不是 Git diff hash），最终文件逐项匹配。旧验证记录保留原 SHA/范围。

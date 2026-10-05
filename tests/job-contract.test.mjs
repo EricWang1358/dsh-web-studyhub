@@ -104,9 +104,9 @@ test('actions: what each kind can do in each state, and why not', () => {
   assert.equal(actionsOf(audio({ status: 'failed', control: undefined, retryable: false })).retry, 'not-retryable');
   assert.equal(actionsOf(audio({ status: 'complete', control: undefined })).retry, 'not-retryable', 'a finished import has nothing to retry');
   assert.equal(actionsOf(audio({ status: 'cancelling' })).cancel, 'already-cancelling');
-  // A question run keeps nothing a pause could stop at: it can be stopped and adjusted, not paused.
-  assert.deepEqual(actionsOf(generation()), { cancel: true, pause: 'capability-unsupported', resume: 'capability-unsupported', retry: 'capability-unsupported', set: true });
-  assert.deepEqual(actionsOf(generation({ status: 'queued' })), { cancel: true, pause: 'capability-unsupported', resume: 'capability-unsupported', retry: 'capability-unsupported', set: true });
+  // A question run of ONE round keeps nothing a pause could stop at: it can be stopped and adjusted, not paused, and says why (a coverage run of several rounds can: tests/coverage-run-exec.test.mjs).
+  assert.deepEqual(actionsOf(generation()), { cancel: true, pause: 'single-round', resume: 'single-round', retry: 'capability-unsupported', set: true });
+  assert.deepEqual(actionsOf(generation({ status: 'queued' })), { cancel: true, pause: 'single-round', resume: 'single-round', retry: 'capability-unsupported', set: true });
   // A PDF conversion can be stopped and retried, nothing else.
   assert.deepEqual(actionsOf(pdf()), { cancel: true, pause: 'capability-unsupported', resume: 'capability-unsupported', retry: 'not-ended', set: 'capability-unsupported' });
   assert.equal(actionsOf(pdf({ status: 'failed' })).retry, true);
@@ -146,10 +146,13 @@ test('set offers the live settings with their limits and current values, never t
 test('checkAction is the one judge of legality: it answers ok, or a code and a clear message', () => {
   assert.deepEqual(checkAction(audio(), 'pause'), { ok: true });
   assert.deepEqual(checkAction(audio(), 'cancel'), { ok: true });
-  const refused = checkAction(generation(), 'pause');
+  const refused = checkAction(pdf(), 'pause');
   assert.equal(refused.ok, false);
   assert.equal(refused.code, 'capability-unsupported');
   assert.match(refused.message, /不支持/);
+  const single = checkAction(generation(), 'pause');
+  assert.equal(single.code, 'single-round');
+  assert.match(single.message, /只出一轮/);
   assert.equal(checkAction(pdf(), 'set').code, 'capability-unsupported');
   assert.equal(checkAction(audio({ status: 'complete', control: undefined }), 'set').code, 'job-ended');
   assert.equal(checkAction(audio(), 'explode').code, 'unknown-action');

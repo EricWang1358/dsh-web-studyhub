@@ -76,6 +76,8 @@
   "{0}全部完成": "{0} all done",
   "槽 {0} 被限流，{1} 秒后重试": "Slot {0} was rate-limited; retrying in {1} s",
   "原因：{0}": "Reason: {0}",
+  "失败/中断": "Failed / interrupted",
+  "任务被中断了，已完成的部分都保留着；点「接着做」继续。": "The task was interrupted; what is done is kept. Use Continue to carry on.",
   "{0} · 复用": "{0} · reused",
   "已保存的转写": "Saved transcript",
   "音频内容和转写设置与之前相同": "Same audio and transcription settings as before",

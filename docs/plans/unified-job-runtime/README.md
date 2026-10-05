@@ -29,7 +29,7 @@
 
 本轮证据入口：[S1-0 基线与验证记录](s1-0-baseline.md)，含 DSH 能力、任务服务审计、单文件行为与特征测试链接。所有者已接受该步的已验证范围与未确认限制，并授权合并 [PR #241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241)；合并 SHA 为 `f091f09f830c226bfebc9af22344896733893a10`。后续能力仍按对应步骤核验，此记录不是 alpha 实现完成声明。
 
-S1-1 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245) 已于 2026-10-06 按所有者“评审合并后再提交兼容实现”的指令合并，merge 为 `169a69ee8c64476576ce5bbc4ef9331d2db8ee1e`。alpha 已同步该正式基线；[版本读取与兼容实现](s1-1-compatibility-implementation.md)待评审。普通旧任务继续发布 v1，生产 reader 校验明确的 v1/v2；最小内核与音频试点仍未实现。历史[契约验证](s1-1-contract-review.md)与[兼容矩阵](s1-1-compatibility.md)保留原验证 SHA。
+S1-1 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245) 已于 2026-10-06 按所有者“评审合并后再提交兼容实现”的指令合并，merge 为 `169a69ee8c64476576ce5bbc4ef9331d2db8ee1e`。alpha 已同步该契约基线，并在提交前整合正式 main `a569cbf`；[版本读取与兼容实现](s1-1-compatibility-implementation.md)待评审。普通旧任务继续发布 v1，生产 reader 校验明确的 v1/v2；最小内核与音频试点仍未实现。历史[契约验证](s1-1-contract-review.md)与[兼容矩阵](s1-1-compatibility.md)保留原验证 SHA。
 
 ## 当前进度
 

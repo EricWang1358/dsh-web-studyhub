@@ -128,7 +128,7 @@ test('network errors and GitHub rate limits are cached briefly, never thrown, an
   }
 });
 
-test('one request per 12-hour window across concurrent callers; force asks again', async t => {
+test('one request per check window across concurrent callers; force asks again', async t => {
   await home(t);
   let release;
   const net = github(async () => { await new Promise(done => setTimeout(done, 20)); return json(githubRelease(release)); });

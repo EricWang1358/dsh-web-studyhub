@@ -37,7 +37,7 @@ import { JOB_TYPES } from '../lib/job-status.js';
    switches (search, archived, other and parked courses).
    The services (call, act, busy, askInChat, host) come from useStudy(); what is left to pass is the
    library snapshot and the verbs only the app can do:
-     actions        { start, resume, manage, removeDeck, openDraft, continueDraft, retryGeneration, addSource, createManual,
+     actions        { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual,
                       importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph,
                       onCourseSettings } (see ui/app/page-views.jsx)
      setupHandlers  the 课程准备 checklist's handlers (createSetupHandlers)
@@ -50,7 +50,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
   const canChat = host.capabilities?.chat ?? !!host.askInChat;
-  const { start, resume, manage, removeDeck, openDraft, continueDraft, retryGeneration, addSource, createManual, importLibrary,
+  const { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
     generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph, onCourseSettings } = actions;
   const endRun = (runId) => act("review.end", { runId });
   const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
@@ -102,7 +102,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       {children}
       <HomeActivity sectionRef={activityRef} jobs={visibleJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
         start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
-        retryGeneration={retryGeneration} openModelSettings={openModelSettings} continueDraft={continueDraft} />
+        retryGeneration={retryGeneration} openModelSettings={openModelSettings} topUpDraft={topUpDraft} />
       {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after. */}
       <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />
       <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">

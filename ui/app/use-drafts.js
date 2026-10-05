@@ -1,7 +1,8 @@
 import { useCallback, useEffect } from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import { ui } from '../i18n.js';
 import { hasUnsavedDraft } from '../draft-editor.js';
 import { browserSession, readJSON, removeKey, writeJSON } from '../storage.js';
+import { topUpArgs, topUpNotice } from '../coverage/top-up.js';
 
 /* The draft the learner is editing, and the copy of it this window keeps in sessionStorage so a reload offers it back
    (the 有本窗口暂存的编辑 banner). The draft itself is part of the library state; this is its editing verbs. */
@@ -36,12 +37,8 @@ export function useDrafts({ core, lib, nav, data }) {
     setJsonMode(false);
     if (navigation) nav.navigate('draft'); else nav.setPage('draft');
   }, [nav, setDraft, setDraftLoaded, setDraftText, setJsonMode]);
-  /* The one 补题 action, for the home card and the draft page alike: it generates only the missing questions into the same draft. */
-  const continueDraft = useCallback((target) => act('generate', { resumeDraftId: target.id, draftVersion: target.draftVersion }, (job) =>
-    notify(uiFormat('已开始补齐「{0}」剩余 {1} 题；通过检查后会保存到同一份草稿。', [target.title, job.missing]))), [act, notify]);
-  /* 用未覆盖的资料补题: the same continuation, asked for `count` more questions from `sourceIds`, added to the same draft. */
-  const addFromSources = useCallback((target, sourceIds, count) => act('generate', { resumeDraftId: target.id, draftVersion: target.draftVersion, extraSourceIds: sourceIds, count }, () =>
-    notify(uiFormat('已开始为「{0}」补题：用未覆盖的资料追加约 {1} 题；通过检查后会保存到同一份草稿。', [target.title, count]))), [act, notify]);
+  /* The one 补题 action (为没覆盖的部分补题), for the home card, the draft page and the 任务 console alike: it covers the sections that have no question, into the same draft. */
+  const topUpDraft = useCallback((target, sectionIds) => act('generate', topUpArgs(target, sectionIds), (job) => notify(topUpNotice(target, job))), [act, notify]);
   const blankCard = useCallback(() => ({
     id: crypto.randomUUID(), kind: 'flashcard', topic: '', objective: '', prompt: '', answer: '', hint: '', explanation: '', misconception: '',
     citations: [{ sourceId: core.refs.dataRef.current?.sources[0]?.id || '', quote: '' }],
@@ -64,5 +61,5 @@ export function useDrafts({ core, lib, nav, data }) {
   }, [core.refs, nav, setDraft, setDraftLoaded, setDraftText, setJsonMode]);
   /** A new, empty flashcard deck to write by hand. */
   const createManual = useCallback(() => openDraft({ id: crypto.randomUUID(), title: ui('新建闪卡题组'), cards: [blankCard()] }, { navigation: true }), [openDraft, blankCard]);
-  return { openDraft, continueDraft, addFromSources, blankCard, patchCard, clearRecovery, restoreRecovery, createManual };
+  return { openDraft, topUpDraft, blankCard, patchCard, clearRecovery, restoreRecovery, createManual };
 }

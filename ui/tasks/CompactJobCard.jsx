@@ -71,7 +71,7 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, title,
       <div className="cjc__main">
         <div className="cjc__top">
           <strong className="cjc__title">{summary.title}</strong>
-          <span className="cjc__pct" data-state={tone}>{tone === 'fail' ? ui('失败') : tone === 'stopped' ? ui('已停止') : tone === 'done' ? ui('完成') : summary.percent === null ? '' : `${summary.percent}%`}</span>
+          <span className="cjc__pct" data-state={tone}>{tone === 'fail' ? ui('失败') : tone === 'interrupted' ? ui('已中断') : tone === 'stopped' ? ui('已停止') : tone === 'done' ? ui('完成') : summary.percent === null ? '' : `${summary.percent}%`}</span>
         </div>
         <ProgressBar className="cjc__bar" size="sm" value={summary.percent ?? 0} max={100} indeterminate={unknown} tone={tone === 'fail' ? 'error' : tone === 'done' ? 'success' : 'accent'} label={uiFormat('{0} 的进度', [summary.title])} />
         <span className="cjc__line" role={tone === 'fail' ? 'alert' : undefined}>{line || cardLine(job)}</span>

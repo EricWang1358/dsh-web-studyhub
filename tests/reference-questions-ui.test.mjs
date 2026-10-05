@@ -171,8 +171,8 @@ test('submit events send reference examples separately, while uploads open the r
   assert.deepEqual(submitted[0].args.referenceSourceIds, ['examples']);
   assert.deepEqual(submitted[0].args.referenceLimits, limits);
   assert.equal(submitted[0].args.referenceFormat, 'strict');
-  assert.deepEqual(findElement(tree, node => node.props.request?.feature === 'generate').props.request.referenceLimits, limits);
-  assert.equal(findElement(tree, node => node.props.request?.feature === 'generate').props.request.referenceFormat, 'strict');
+  assert.equal(submitted[0].args.coverageLevel, 'standard', 'the form plans by its coverage level');
+  assert.equal('count' in submitted[0].args, false, 'and sends no number of questions unless one was typed');
   findElement(tree, node => node.type === eventComponents.ReferenceQuestions).props.onImport();
   assert.equal(modals[0].type, 'add');
   assert.equal(modals[0].referenceQuestions, true);

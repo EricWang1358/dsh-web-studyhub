@@ -15,7 +15,7 @@
 | 步骤 | 状态 | 负责人 / 分支 / 文件范围 | 前置评审与已合并 PR | 验证 SHA / 证据 | 未确认项 / 下一步 |
 |---|---|---|---|---|---|
 | S1-0 | 已合并 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | 所有者接受已验证范围及待核验限制并授权合并 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) | head 6b1ecedb69308ec44078f10c24975eb2a6a2aef7；merge f091f09f830c226bfebc9af22344896733893a10；[本地及 CI 证据](s1-0-baseline.md) | 最终 StudyHub owner/controller 绑定等限制仍阻断对应实现步骤 |
-| S1-1 | 待评审 | Codex 内核负责人 / codex/unified-runtime-alpha / 唯一生产 schema、公共读取与恢复前校验；并行代理分别拥有 live-read/archive-read 测试 | 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245) 已按所有者指令审查后合并 | 前置 merge 169a69ee8c64476576ce5bbc4ef9331d2db8ee1e；[实现与验证](s1-1-compatibility-implementation.md) | 普通旧记录仍 v1；版本读取/恢复边界待合并验收，未勾选 S1-1 完成；真实执行与 owner 绑定仍归 S1-2 |
+| S1-1 | 待评审 | Codex 内核负责人 / codex/unified-runtime-alpha / 唯一生产 schema、公共读取与恢复前校验；并行代理分别拥有 live-read/archive-read 测试 | 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245) 已按所有者指令审查后合并 | 前置 merge 169a69ee8c64476576ce5bbc4ef9331d2db8ee1e；提交前同步 main a569cbfdb79028580c15072509f1c6205a68691a；[实现与验证](s1-1-compatibility-implementation.md) | 普通旧记录仍 v1；版本读取/恢复边界待合并验收，未勾选 S1-1 完成；真实执行与 owner 绑定仍归 S1-2 |
 | S1-2 | 未开始 | 待领取 | 待 S1-1 通过 | 待填写 | 唯一生命周期责任者 |
 | S1-3 | 未开始 | 待领取 | 待 S1-2 通过 | 待填写 | 新旧路径共享资源 |
 | S1-4 | 未开始 | 待领取 | 待 S1-3 通过 | 待填写 | 唯一执行与计量路径 |
