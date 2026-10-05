@@ -261,6 +261,23 @@ export async function titlesScenario({ browser, running, lang = "zh", theme = "d
   return { scenario: "titles", entries, errors };
 }
 
+/* ---------- scenario: the app's first paint in a narrow window (the journey found it at 420 px) ---------- */
+
+/** Open the app and report every layout shift of the load itself: the sidebar must not be drawn open and then fold into the icon rail. */
+export async function shellScenario({ browser, running, lang = "zh", theme = "dark", width = 420, shots = null }) {
+  const { page, errors, context } = await openPage(browser, running, { lang, theme, width });
+  await page.goto(running.server.url);
+  await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
+  await page.locator('[data-tour="nav-library"]').first().waitFor({ state: "visible", timeout: 30000 });
+  await frames(page, 6);
+  const log = await drainLayoutStability(page);
+  const verdict = judgeLayoutStability(log);
+  const main = await positions(page, "main", 1);
+  if (shots) await page.screenshot({ path: join(shots, "first-paint.png") });
+  await context.close();
+  return { scenario: "shell", width, cls: verdict.cls, shifts: verdict.shifts, main: main[0], errors };
+}
+
 /* ---------- CLI ---------- */
 
 function parse(argv) {
@@ -274,7 +291,7 @@ function parse(argv) {
     dist: values.dist ? resolve(values.dist) : resolve(repoRoot, "dist"), label: values.label ?? "run", out: values.out ? resolve(values.out) : resolve(repoRoot, "output/layout-stability") };
 }
 
-const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)], titles: [titlesScenario, (root) => seedTitlesLibrary(root)] };
+const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)], titles: [titlesScenario, (root) => seedTitlesLibrary(root)], shell: [shellScenario, () => null] };
 
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invoked) {
