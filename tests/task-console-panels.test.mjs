@@ -125,7 +125,8 @@ test('the output: no call, a call that cannot write on the way, and one that can
   assert.match(ended, /data-mode="ended"/);
   assert.match(ended, /正在读取这一步的输出/, 'static markup of an ended call: the one fetch has not answered yet');
   const live = contract.calls.find((call) => call.status === 'running');
-  const streaming = html(React.createElement(m.OutputPanel, { jobId: 'batch', call: live, active: true }));
+  // The clock is fixed: five seconds into the call. (With the real clock the answer depends on when the test runs: the fixture's dates are today's.)
+  const streaming = html(React.createElement(m.OutputView, { jobId: 'batch', record: live, active: true, view: { text: '', total: 0, reasoning: 0, supported: true, ended: false }, now: Date.parse(live.startedAt) + 5000 }));
   assert.match(streaming, /data-mode="stream"/);
   assert.match(streaming, /role="log"/);
   assert.match(streaming, /等待模型开始输出/);
