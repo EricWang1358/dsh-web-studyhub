@@ -41,7 +41,7 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
    ever shrinks. Nothing here is a design decision: each line is a shift that should be removed. */
 export const KNOWN_LAYOUT = {
   "import-files": { maxCls: 0.16, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08 by timing; up to 0.15 since each row keeps its index badge's line from the first paint, #229, and the same insertion moves taller rows)" },
-  "job-progress": { maxCls: 0.12, why: "a finished generation inserts the 待发布 list above the course desk and moves it down (0.044 at 1280, 0.108 at 420)" },
+  "job-progress": { maxCls: 0.3, why: "a finished generation inserts the 待发布 list above the course desk and moves it down (0.044 at 1280; at 420 0.19 to 0.24, the same ~180-200 px as before, but the compact job card keeps one height from running to done where the card it replaced got shorter when it finished, so nothing offsets the insertion any more: reserve the 待发布 area while a run is going)" },
 };
 
 /* ---------- steps ---------- */
@@ -106,7 +106,7 @@ export const JOURNEY_STEPS = [
     j.state.jobId = (await j.snapshot()).jobs.at(-1).id;
   } },
   { name: "job-progress", needs: ["job"], run: async (j) => {
-    const job = j.page.locator(".generation-jobs .generation-job").first();
+    const job = j.page.locator(".generation-jobs .cjc").first();
     await job.waitFor({ timeout: 15000 });
     await j.settle(200);
     await job.scrollIntoViewIfNeeded();
@@ -115,10 +115,17 @@ export const JOURNEY_STEPS = [
     if (done.status !== "complete") throw new Error(`generation ended as ${done.status}: ${done.stage}`);
     j.state.draftId = done.draft?.id;
     // WP4: the finished job card at the top of the home offers 打开草稿.
-    await j.page.locator(".generation-jobs .generation-job").getByRole("button", { name: j.t("打开草稿"), exact: true }).first().waitFor({ timeout: 15000 });
-    await j.page.locator(".generation-jobs .generation-job").first().scrollIntoViewIfNeeded();
+    await j.page.locator(".generation-jobs .cjc").getByRole("button", { name: new RegExp(`^${escapeRe(j.t("打开草稿"))}`) }).first().waitFor({ timeout: 15000 });
+    await j.page.locator(".generation-jobs .cjc").first().scrollIntoViewIfNeeded();
     await j.settle();
     await j.shot("done");
+  } },
+  // WP-TC: the 任务 console lists the run that just finished, with its parts, calls, output and log.
+  { name: "task-console", needs: ["job"], run: async (j) => {
+    await j.nav("tasks");
+    await j.page.locator(".tc-detail").first().waitFor({ timeout: 15000 });
+    await j.settle();
+    await j.shot();
   } },
   { name: "draft", needs: ["draft"], run: async (j) => {
     const open = j.page.locator(".draft-row .draft-open").first();
@@ -206,7 +213,7 @@ export const JOURNEY_STEPS = [
     await j.page.getByRole("button", { name: j.t("开始导入"), exact: true }).click();
     await j.until(async () => (await done()) > before, "the recording is transcribed and saved", 120000);
     await j.settle(1500);
-    await j.page.locator(".audio-jobs .sh-job").first().scrollIntoViewIfNeeded();
+    await j.page.locator(".audio-jobs .cjc").first().scrollIntoViewIfNeeded();
     await j.shot("done");
   } },
   { name: "audio-long", needs: ["siliconflow"], run: async (j) => {
@@ -357,7 +364,7 @@ export const CASE_STEPS = [
     await j.anchor("generate-submit").first().click();
     await j.until(async () => (await j.snapshot()).jobs.length > before, "a case generation job starts");
     j.state.caseJobId = (await j.snapshot()).jobs.at(-1).id;
-    await j.page.locator(".generation-jobs .generation-job").first().waitFor({ timeout: 15000 });
+    await j.page.locator(".generation-jobs .cjc").first().waitFor({ timeout: 15000 });
     await j.settle(300);
     await j.shot("running");
     const done = await j.api("job.wait", { jobId: j.state.caseJobId, timeoutSeconds: 60 });

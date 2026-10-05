@@ -159,7 +159,8 @@ async function main() {
       return;
     }
     if (args.pick) await page.locator(".tc-row").nth(Number(args.pick)).dispatchEvent("click");
-    await until(async () => (await page.locator(".tc-callrow").count()) > 0, "a call in flight");
+    // A task with nothing in flight (a day of 为你定制) shows no call: `--calls=0` does not wait for one.
+    if (args.calls !== "0") await until(async () => (await page.locator(".tc-callrow").count()) > 0, "a call in flight");
     if (args.tab) await page.getByRole("tab", { name: new RegExp(args.tab) }).first().dispatchEvent("click");
     if (args.rtab) await page.getByRole("tab", { name: new RegExp(args.rtab) }).last().dispatchEvent("click");
     await frames(page, 6);

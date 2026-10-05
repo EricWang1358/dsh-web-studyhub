@@ -50,7 +50,7 @@ test('the facts of the day: kept over written, practised and accuracy, the token
   const facts = Object.fromEntries(m.taskFacts(today).map((fact) => [fact.label, fact.value]));
   assert.equal(facts['备好 / 写出'], '6 / 8');
   assert.equal(facts['练习 · 正确率'], '—', 'nothing practised yet: a dash, never 0%');
-  assert.match(facts['令牌 入 / 出 / 缓存'], /^24K? \/ 3\.6K \/ 18K$|\//);
+  assert.match(facts['令牌 入/出/缓存'], /^24K? \/ 3\.6K \/ 18K$|\//);
   assert.equal(facts['跳过 · 过期'], '2');
 });
 

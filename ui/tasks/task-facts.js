@@ -32,7 +32,7 @@ function coachFacts(contract) {
   return [
     { key: 'primary', label: ui('备好 / 写出'), value: `${metrics.passed ?? 0} / ${metrics.generated ?? 0}` },
     { key: 'elapsed', label: ui('练习 · 正确率'), value: metrics.practised > 0 ? `${metrics.practised} · ${metrics.accuracy}%` : dash },
-    { key: 'calls', label: ui('令牌 入 / 出 / 缓存'), value: any ? [tokens.input, tokens.output, tokens.cache].map((value) => formatCompactTokens(value || 0)).join(' / ') : dash },
+    { key: 'calls', label: ui('令牌 入/出/缓存'), value: any ? [tokens.input, tokens.output, tokens.cache].map((value) => formatCompactTokens(value || 0)).join('/') : dash },
     { key: 'warnings', label: ui('跳过 · 过期'), value: metrics.skippedExpired > 0 ? formatNumber(metrics.skippedExpired) : dash },
   ];
 }
