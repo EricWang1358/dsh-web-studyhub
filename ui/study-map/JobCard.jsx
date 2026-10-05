@@ -5,7 +5,7 @@ import GenerationTrace from '../GenerationTrace.jsx';
 import { ShortfallReasons } from '../DraftShortfall.jsx';
 import { isActiveJob, isCancellable } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
-import { describeFailure, jobCode, jobHeadline, jobSavedProgress, jobStageLabel, repeatedJobFailure } from '../generation-status.js';
+import { describeFailure, failureBreakdown, failureRowLabel, jobCode, jobHeadline, jobSavedProgress, jobStageLabel, repeatedJobFailure } from '../generation-status.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 
 /** The JobRow status a generation job's stage code stands for. */
@@ -26,6 +26,8 @@ export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, op
   const failure = code === 'failed' && generation ? describeFailure(j.stage, { hasDraft: !!draft }) : null;
   const progress = active && jobSavedProgress(j, drafts);
   const repeatedFailure = failure && repeatedJobFailure(j.stage);
+  // A review that rejected the questions is read one question at a time, each with its original lines behind an expander.
+  const rows = failure?.kind === 'quality' ? failureBreakdown(j.stage) : [];
   const stage = failure ? null : jobStageLabel(j, drafts, jobs, { includeSaved: !progress });
   const published = j.origin === 'selection' && j.status === 'complete' && j.publication?.cardIds?.length > 0 ? j.publication : null;
   const actions = [
@@ -51,7 +53,10 @@ export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, op
         {/* The fix sits right under the reason, where the learner is reading. */}
         {failure.action === 'settings' && openModelSettings && <Button size="sm" variant="secondary" icon="model" onClick={openModelSettings}>{ui('去配置模型')}</Button>}
         <Disclosure className="tech-details" summary={ui('技术详情')}>
-          {repeatedFailure ? <>
+          {rows.length > 0 ? <ul className="job-failure-rows">{rows.map((row) => <li key={`${row.part ?? ''}:${row.question}`}>
+            <strong>{failureRowLabel(row)}</strong>
+            <Disclosure summary={ui('原文')}>{row.raw.map((line, index) => <code className="job-raw" key={index}>{line}</code>)}</Disclosure>
+          </li>)}</ul> : repeatedFailure ? <>
             <p className="muted">{uiFormat('{0} 批发生同一问题', [repeatedFailure.count])}</p>
             <code className="job-raw">{repeatedFailure.cause}</code>
             <Disclosure summary={ui('原始错误记录')}><code className="job-raw">{repeatedFailure.raw}</code></Disclosure>

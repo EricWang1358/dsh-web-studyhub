@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 /* #196 (button names its deck and is off while a fill runs), #200/#203 and #201 draw from the draft page and the home, rendered here. */
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -76,6 +76,18 @@ test('generation details list the review suggestions apart from the questions th
   assert.match(out, /建议把选项压缩为一句话/);
   assert.match(text(page(suggested, {}, {}, 'en')), /Review suggestions \(recorded, they do not reject a question\) · 1/);
   assert.doesNotMatch(text(page(draft())), /审阅建议/);
+});
+
+test('a failed run caused by the review lists its questions one by one and does not blame the sources (#217)', () => {
+  m.setUiLanguage('zh');
+  const stage = 'Part 1: Quality gate failed: q1: answerLeak failed or was not checked; q1: optionQuality failed or was not checked; q2: sourceSupport failed or was not checked';
+  const out = renderToStaticMarkup(React.createElement(m.JobCard, { job: { id: 'f', status: 'failed', type: 'generate', stage, parts: 1, steps: [] }, jobs: [], drafts: [], busy: false, dismissJob: noop }));
+  m.setUiLanguage('zh');
+  assert.match(text(out), /出的题都没通过质量审阅/);
+  assert.doesNotMatch(text(out), /资料可能太短/);
+  assert.match(text(out), /q1 · 提示或题干泄露了答案；选项质量不合格.*（必须修）/);
+  assert.match(text(out), /q2 · 资料不足以支撑答案，或引用对不上原文（必须修）/);
+  assert.match(out, /job-failure-rows/);
 });
 
 test('the add button is not offered for a case paper, an edit of a published deck or an unsaved edit', () => {

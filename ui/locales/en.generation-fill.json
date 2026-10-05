@@ -1,6 +1,13 @@
 {
   "为「{0}」补题：用 {1} 份未覆盖资料，追加约 {2} 题": "Adding to “{0}”: {2} more questions from {1} uncovered sources",
   "追加题数": "Questions to add",
+  "资料里能稳妥出题的内容不够": "The sources do not hold enough to write reliable questions from",
+  "出的题都没通过质量审阅": "None of the questions passed the quality review",
+  "主要原因：{0}。{1}": "Main reasons: {0}. {1}",
+  "具体原因见技术详情。{0}": "See the technical details for the exact reasons. {0}",
+  "打开草稿用「继续补齐」再补一轮；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。": "Open the draft and use “Continue generation” for another round, or adjust the question type, difficulty and focus under Settings › Question defaults.",
+  "点「按原资料重新设置」再试一次；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。": "Use “Set up again from original sources” to try once more, or adjust the question type, difficulty and focus under Settings › Question defaults.",
+  "{0} · {1}（必须修）": "{0} · {1} (must fix)",
   "审阅建议（已记录，不影响通过）· {0}": "Review suggestions (recorded, they do not reject a question) · {0}",
   "修复后保留 {0} 题 · 丢弃 {1} 题（其中 {2} 题修复后仍未通过，原因见「没进入草稿的题」）": "{0} kept after repair · {1} dropped ({2} of them still failed after repair; reasons are under “Questions left out of the draft”)",
   "给「{0}」补 {1} 题 →": "Add {1} questions to “{0}” →",
