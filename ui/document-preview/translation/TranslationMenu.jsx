@@ -1,11 +1,11 @@
 import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Icon, InlineMessage, Popover, SegmentedControl } from '../../components/index.js';
+import { Button, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl } from '../../components/index.js';
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
 import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
 import { isCancellable } from '../../../lib/job-status.js';
-import { DISPLAY_MODES, jobActive, jobClock, jobFraction } from './model.js';
+import { DISPLAY_MODES, jobActive, jobClock } from './model.js';
 
 /* The reader's controls for the bilingual reading: one row in the Aa popover (how translations are drawn), one 译 popover in
    the toolbar (translate this page / chapter, show or fold them all, the glossary, the target language) and the progress line
@@ -71,7 +71,7 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
 
 /** The progress of a translation job, in the notices of the reader: counts, clock, a stop, what it used. */
 export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss }) {
-  const active = jobActive(job), clock = jobClock(job, now), fraction = jobFraction(job), label = job.scopeLabel || '';
+  const active = jobActive(job), clock = jobClock(job, now), label = job.scopeLabel || '';
   const failed = job.status === 'failed', cancelled = job.status === 'cancelled';
   const headline = active ? (job.status === 'queued' ? ui('翻译排队中') : job.status === 'cancelling' ? ui('正在停止翻译…') : ui('正在翻译'))
     : failed ? ui('翻译没有完成') : cancelled ? ui('翻译已停止') : job.rejected ? ui('翻译完成，有几段没译成') : ui('翻译完成');
@@ -89,7 +89,7 @@ export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss })
         {!active && <Button size="sm" variant="quiet" onClick={onDismiss}>{ui('知道了')}</Button>}
       </span>
     </div>
-    <div className="tr-job__bar" role="progressbar" aria-valuemin={0} aria-valuemax={job.total || 0} aria-valuenow={job.done || 0} aria-label={counts}><span style={{ transform: `scaleX(${fraction})` }} /></div>
+    <ProgressBar size="sm" tone="info" className="tr-job__meter" label={counts} value={job.done || 0} max={job.total || 1} />
     {active && <small className="tr-job__note">{ui('后台继续翻译，可以接着读、接着提问；停止后已译的段落会保留。')}</small>}
     {!active && job.rejected > 0 && <InlineMessage tone="warning" className="tr-job__note">{uiFormat('有 {0} 段没通过检查，没有保存；可以在那几段上点 译 再试。', [job.rejected])}</InlineMessage>}
     {failed && job.stage && <details className="tr-job__raw"><summary>{ui('技术详情')}</summary><code>{job.stage}</code></details>}

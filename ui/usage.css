@@ -30,7 +30,7 @@
     .usage-share__name { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
     .usage-rank__num,
     .usage-share__num { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .usage-meter { grid-column: 1 / -1; display: block; height: 5px; border-radius: var(--radius-xs); background: var(--accent-text); opacity: 0.8; }
+    .usage-share__meter { grid-column: 1 / -1; }
     /* The daily rhythm: one bar per day, the numbers are in the text under it and in each day's hidden label. */
     .usage-rhythm { display: flex; align-items: stretch; gap: var(--space-half); height: 64px; margin: 0; padding: 0; list-style: none; min-width: 0; border-bottom: 1px solid var(--line); }
     .usage-rhythm__day { position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; }
@@ -41,7 +41,6 @@
     .usage-never__group { color: var(--text-dim); }
     .usage-hints__list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; max-width: 72ch; }
     .usage-hints__list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); align-items: start; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .usage-chip { display: inline-block; padding: 1px var(--space-2); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-body); white-space: nowrap; }
     .usage-actions { margin-top: var(--space-2); }
     .usage-file { overflow-wrap: anywhere; }
   }

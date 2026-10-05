@@ -32,12 +32,17 @@
       width: max-content;
       max-width: min(360px, 80cqi);
       padding: 10px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--line);
-      background: var(--bg-glass-strong);
-      backdrop-filter: blur(var(--glass-blur));
-      box-shadow: var(--shadow-md);
       animation: coach-pop 160ms var(--ease) both;
+    }
+    /* A failed vote: the message floats above the thumbs like the tray, on the shared panel surface. */
+    .thumbs__error {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      z-index: var(--z-popover);
+      width: max-content;
+      max-width: min(360px, 80cqi);
+      padding: var(--space-2) var(--space-3);
     }
     .thumb-tray small { width: 100%; color: var(--text-faint); font-size: var(--fs-md); }
     .thumb-tray kbd, .shortcut-sheet kbd {
@@ -85,11 +90,7 @@
     .coach-debrief > p { margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); line-height: 1.7; }
     .coach-score-split { display: flex; flex-wrap: wrap; gap: 6px var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); }
     .coach-score-split strong { color: var(--text); }
-    .coach-levels { display: flex; gap: 6px; margin: 0 0 var(--space-3); height: 8px; border-radius: var(--radius-sm); overflow: hidden; background: var(--line-soft); }
-    .coach-levels span { display: block; height: 100%; transition: flex-grow 400ms var(--ease); }
-    .coach-levels .recall { background: var(--decor-faint); }
-    .coach-levels .concept { background: var(--info); }
-    .coach-levels .apply { background: var(--ok); }
+    .coach-stack { margin: 0 0 var(--space-3); }
     .coach-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-md); color: var(--text-muted); margin: -4px 0 var(--space-3); }
     .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-xs); margin-right: var(--space-1); vertical-align: 0; }
     .coach-insights { margin: 0 0 14px; padding-left: 18px; font-size: var(--fs-md); line-height: 1.8; color: var(--text-dim); }
@@ -100,7 +101,7 @@
       background: color-mix(in srgb, var(--text) 5%, transparent);
       border: 1px solid var(--line-soft);
     }
-    .coach-consent .coach-consent-error { margin: var(--space-2) 0 0; color: var(--bad); }
+    .coach-consent .coach-consent__problem { margin: var(--space-2) 0 0; }
     .coach-consent-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
     /* One filled primary per screen: when the 雷霆建议 hands over its own next
        step (定制题 or 补薄弱), the generic next-step buttons on the page step back. */

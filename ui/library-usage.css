@@ -17,25 +17,10 @@
       min-width: 0;
     }
     .usage-bar {
-      display: flex;
       flex: 1 1 120px;
       min-width: 96px;
       max-width: 240px;
-      height: 8px;
-      gap: 1px;
-      overflow: hidden;
-      border-radius: var(--radius-pill);
-      background: var(--bg-sunken);
     }
-    .usage-seg {
-      flex-basis: 0;
-      min-width: 3px;
-    }
-    .usage-seg--materials { background: var(--accent-soft); }
-    .usage-seg--audio { background: var(--info); }
-    .usage-seg--bank { background: var(--ok); }
-    .usage-seg--backups { background: var(--warn); }
-    .usage-seg--other { background: var(--decor-faint); }
     .usage-hint {
       display: block;
       color: var(--text-muted);

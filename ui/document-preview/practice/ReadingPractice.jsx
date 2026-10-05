@@ -1,6 +1,6 @@
 import React, { useId } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Popover } from '../../components/index.js';
+import { Button, LoadingState, Popover } from '../../components/index.js';
 import { useInjectCss } from '../../shared.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { countsLine, meaningLine, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
@@ -33,7 +33,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
       aria-keyshortcuts="P" data-usage="reader.practice" title={ui('做这几页的题 · 快捷键 P')}>
       <span className="reader-practice__label">{ui('做这几页的题')}</span>
     </Button>}>
-      {status === 'loading' && <p className="reader-practice__status" role="status">{ui('正在读取这几页的题…')}</p>}
+      {status === 'loading' && <LoadingState className="reader-practice__status" label={ui('正在读取这几页的题…')} />}
       {(status === 'error' || status === 'unavailable') && <>
         <p className="reader-practice__status" role="alert">{status === 'unavailable' ? ui('这个版本暂时读不到这几页的题。') : ui('没能读取这几页的题。')}</p>
         <Button size="sm" onClick={loop.reload}>{ui('重试')}</Button>

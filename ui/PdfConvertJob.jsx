@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiLocale, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, useNow } from './components/index.js';
+import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, LoadingState, useNow } from './components/index.js';
 import { formatBytes, formatDuration, formatAgo, formatElapsed } from './format.js';
 import { usePolling } from './use-polling.js';
 import { isActiveJob, isCancellable } from './job-visibility.js';
@@ -349,7 +349,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   const groups = groupHistoryByDay(list.slice().sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0)).slice(0, shown), clock);
   const more = list.length - shown;
   const body = <>
-    {records === null && !readError && <Hint className="pdf-history__note">{ui('正在读取解析历史…')}</Hint>}
+    {records === null && !readError && <LoadingState className="pdf-history__note" label={ui('正在读取解析历史…')} />}
     {readError && <InlineMessage tone="error">{uiFormat('没能读取解析历史：{0}', [readError])}</InlineMessage>}
     {records !== null && !list.length && <div className="pdf-history__empty">
       <strong>{ui('还没有解析记录')}</strong>

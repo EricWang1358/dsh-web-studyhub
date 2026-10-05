@@ -1,4 +1,4 @@
-import { ui } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import { Button, Hint } from "./components/index.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
@@ -17,7 +17,7 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource })
   const selfCited = selfCitedCardCount([card], sources) > 0;
   return (
     <details className="citation-disclosure" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{ui("引用与来源核对 ")}<span>· {citations.length}{ui(" 条")}</span></summary>
+      <summary>{ui("引用与来源核对")}{" "}<span>{uiFormat("· {0} 条", [citations.length])}</span></summary>
       {open && <>
         <div className="citations">
           {citations.map((citation, index) => {

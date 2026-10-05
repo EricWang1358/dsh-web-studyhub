@@ -2,7 +2,7 @@ import React from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
-import { Button, Disclosure, InlineMessage, Panel, Spinner } from "./components/index.js";
+import { Badge, Button, Disclosure, InlineMessage, Panel, ProgressBar, Spinner } from "./components/index.js";
 import { rubricSkills } from "../lib/case-study.js";
 import css from "./case-result.css";
 
@@ -18,7 +18,7 @@ export const bandLabel = (band) => ({ excellent: ui("优秀"), good: ui("良好"
 const noteLabel = (note) => note === "unanswered" ? ui("这道题没有作答，按 0 分计。") : note === "not-scored" ? ui("评分助手没有给这一项打分，按 0 分计。") : "";
 
 function Bar({ ratio, label }) {
-  return <span className="rubric-bar" role="img" aria-label={label}><span style={{ width: percent(ratio) }} /></span>;
+  return <ProgressBar className="rubric-meter" label={label} value={Math.max(0, Math.min(1, ratio || 0))} max={1} />;
 }
 
 /** One graded answer, criterion by criterion. */
@@ -109,7 +109,7 @@ export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, on
             return <li key={question.cardId} className={`is-${question.status}`}>
               <span className="case-report__n">{uiFormat("第 {0} 题", [question.n])}</span>
               <span className="case-report__prompt">{question.prompt}</span>
-              <span className="case-chip">{statusLabel(question.status)}</span>
+              <Badge size="sm">{statusLabel(question.status)}</Badge>
               <span className="case-report__marks">{question.total === null ? "—" : marks(question.total)}<small>{uiFormat("/{0}", [marks(question.marks)])}</small></span>
               {pace && <small className={"case-report__pace" + (pace.status === "over" ? " is-over" : "")}>
                 {uiFormat("用时 {0}/{1} 分钟", [minutes(pace.spentMs), minutes(pace.budgetMs)])}</small>}

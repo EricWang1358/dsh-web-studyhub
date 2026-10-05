@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui } from './i18n.js';
-import { Button } from './components/index.js';
+import { Button, ErrorState } from './components/index.js';
 
 /** Try to open an assistant: '' when DSH opened it, otherwise the reason to show. */
 export async function attemptOpen(openAgent, id) {
@@ -34,6 +34,6 @@ export default function AgentLink({ childId, openAgent, label, ariaLabel, classN
   return <>
     <Button variant={variant} size="sm" className={className} aria-label={ariaLabel} busy={state.opening} busyLabel={ui('正在打开…')} onClick={open}>
       {label}</Button>
-    {state.error && <small className="agent-link__error" role="alert">{state.error}</small>}
+    {state.error && <ErrorState compact className="agent-link__problem" error={state.error} />}
   </>;
 }

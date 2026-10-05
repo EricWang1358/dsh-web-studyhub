@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiLabels } from '../i18n.js';
-import { Button, Panel, SegmentedControl } from '../components/index.js';
+import { Button, Panel, ProgressBar, SegmentedControl } from '../components/index.js';
 import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks } from './chart-math.js';
 
 /* The dashboard's three charts, all plain inline SVG / CSS (no chart library):
@@ -37,7 +37,7 @@ function Tip({ tip, width }) {
   if (!tip) return null;
   const left = Math.min(Math.max(tip.x, 78), Math.max(78, width - 78));
   return (
-    <div className={`dash-tip${tip.y < 64 ? ' below' : ''}`} aria-hidden="true" style={{ left, top: tip.y }}>
+    <div className={`sh-popover sh-tooltip dash-tip${tip.y < 64 ? ' below' : ''}`} aria-hidden="true" style={{ left, top: tip.y }}>
       <strong>{tip.title}</strong>
       {tip.lines.map((line, i) => <span key={i}>{line}</span>)}
     </div>
@@ -258,7 +258,7 @@ export function ForecastPanel({ forecast, onStart, parked }) {
 
 const LEVEL_NAME = uiLabels({ recall: '记忆', concept: '概念辨析', apply: '应用分析' });
 const KIND_NAME = uiLabels({ quiz: '单选', multi: '多选', cloze: '填空', flashcard: '闪卡', open: '开放', case: '案例' });
-const tone = (rate) => (rate >= 70 ? 'good' : rate >= 50 ? 'mid' : 'low');
+const tone = (rate) => (rate >= 70 ? 'success' : rate >= 50 ? 'warning' : 'error');
 
 export function MasteryPanel({ mastery, defaultView = 'level' }) {
   const [view, setView] = useState(defaultView);
@@ -276,9 +276,9 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
           {rows.map((r) => (
             <li key={r.id} className={`dash-mrow${r.enough ? '' : ' thin'}`}>
               <span className="dash-mname">{names[r.id]}</span>
-              <span className="dash-mastery-track" aria-hidden="true">
-                {r.enough && <i className="dash-mastery-fill" data-tone={tone(r.rate)} style={{ width: `${r.rate}%` }} />}
-              </span>
+              {r.enough
+                ? <ProgressBar className="dash-mbar" tone={tone(r.rate)} label={uiFormat('{0}：{1}%', [names[r.id], r.rate])} value={r.rate} />
+                : <span className="dash-mbar dash-mbar--empty" aria-hidden="true" />}
               <span className="dash-mvalue">
                 {r.enough ? <b>{r.rate}%</b> : <em>{ui('数据不足')}</em>}
                 <small>{uiFormat('{0} 次作答', [r.n])}</small>

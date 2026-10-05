@@ -1,4 +1,4 @@
-import { ui } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React, { useState } from "react";
 import CourseField from './CourseField.jsx';
 import { Button, SegmentedControl } from './components/index.js';
@@ -73,7 +73,7 @@ export default function Ingest({ data, busy, start, onOpenSettings }) {
         <legend>{ui("03 / 错题怎么记")}</legend>
         <SegmentedControl label={ui("03 / 错题怎么记")} value={mistakes} onChange={setMistakes}
           options={INGEST_MISTAKES.map(({ id, label, hint }) => ({ value: id, label: ui(label), title: ui(hint) }))} />
-        <small className="sh-seg-note">{ui(INGEST_MISTAKES.find((item) => item.id === mistakes).hint)}{ui("。错题会记为「薄弱」，学习路径优先出。")}</small>
+        <small className="sh-seg-note">{uiFormat("{0}。错题会记为「薄弱」，学习路径优先出。", [ui(INGEST_MISTAKES.find((item) => item.id === mistakes).hint)])}</small>
       </fieldset>
       <ModelSetupGate variant="inline" feature="ingest" model={modelReadiness(data)} onOpenSettings={onOpenSettings} />
       <Button type="submit" variant="primary" block busy={busy} disabled={!data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题 → 去对话里粘贴")}</Button>

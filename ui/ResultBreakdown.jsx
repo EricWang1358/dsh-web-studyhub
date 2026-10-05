@@ -1,7 +1,10 @@
 import { ui, uiFormat } from "./i18n.js";
 import React from "react";
+import { StackedBar } from "./components/index.js";
 import css from "./review-results.css";
 import { useInjectCss } from "./shared.js";
+
+const SEGMENT_TONE = { correct: "success", practice: "warning", remaining: "neutral" };
 
 // The service supplies these counts. This component only turns them into a visual.
 export default function ResultBreakdown({ total, answered, correct, correctLabel = ui("掌握") }) {
@@ -15,12 +18,8 @@ export default function ResultBreakdown({ total, answered, correct, correctLabel
   ];
   return (
     <div className="result-breakdown" aria-label={uiFormat("{0} 题：{1} {2}，需要巩固 {3}，未答 {4}", [total, correctLabel, correct, practice, remaining])}>
-      <div className="result-breakdown-track" role="img" aria-label={uiFormat("{0} {1} 题，需要巩固 {2} 题，未答 {3} 题", [correctLabel, correct, practice, remaining])}>
-        {segments.filter((segment) => segment.count > 0).map((segment) => (
-          <span key={segment.key} className={`result-segment result-segment-${segment.key}`}
-            style={{ flexGrow: segment.count }} />
-        ))}
-      </div>
+      <StackedBar size="lg" name={uiFormat("{0} {1} 题，需要巩固 {2} 题，未答 {3} 题", [correctLabel, correct, practice, remaining])}
+        segments={segments.map((segment) => ({ value: segment.count, tone: SEGMENT_TONE[segment.key] }))} />
       <div className="result-breakdown-legend">
         {segments.map((segment) => (
           <div key={segment.key} className="result-legend-item">

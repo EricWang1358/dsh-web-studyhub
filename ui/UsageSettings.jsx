@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from './i18n.js';
-import { Button, ConfirmDialog, Hint, InlineMessage, SegmentedControl, SettingsSection, Switch, useToast } from './components/index.js';
+import { Badge, Button, ConfirmDialog, Hint, InlineMessage, LoadingState, ProgressBar, SegmentedControl, SettingsSection, Switch, useToast } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { USAGE_AREAS, USAGE_GROUPS, usageArea } from './usage/registry.js';
 import { displayName } from './usage/names.js';
@@ -47,9 +47,9 @@ export function usageRowName(row, language = getUiLanguage()) {
 const pct = share => `${(Math.round(share * 1000) / 10).toFixed(1)}%`;
 const PERIODS = [[7, '最近 7 天'], [30, '最近 30 天'], ['all', '全部时间']];
 
-function Bar({ share, max }) {
+function Bar({ share, max, label }) {
   const width = max > 0 ? Math.max(2, Math.round((share / max) * 100)) : 0;
-  return <span className="usage-meter" aria-hidden="true" style={{ width: `${width}%` }} />;
+  return <ProgressBar size="sm" tone="info" className="usage-share__meter" label={label} value={width} />;
 }
 
 function ShareList({ title, note, rows, nameOf }) {
@@ -60,7 +60,7 @@ function ShareList({ title, note, rows, nameOf }) {
       <Hint>{note}</Hint>
       {rows.length === 0 ? <Hint>{ui('这段时间没有记录。')}</Hint>
         : <ul className="usage-shares">{rows.map(row => <li key={row.area || row.tier} className="usage-share__row">
-          <span className="usage-share__name">{nameOf(row)}</span><span className="usage-share__num">{row.count} · {pct(row.share)}</span><Bar share={row.share} max={max} />
+          <span className="usage-share__name">{nameOf(row)}</span><span className="usage-share__num">{row.count} · {pct(row.share)}</span><Bar share={row.share} max={max} label={nameOf(row)} />
         </li>)}</ul>}
     </section>
   );
@@ -101,7 +101,7 @@ export function UsageReportView({ report, period, onPeriod, language = getUiLang
           : <ol className="usage-rank">{report.ranking.map(row => <li key={row.key} className="usage-rank__row">
             <span className="usage-rank__name">{usageRowName(row, language)}</span>
             <span className="usage-rank__num">{row.count} · {pct(row.share)}</span>
-            <Bar share={row.share} max={max} />
+            <Bar share={row.share} max={max} label={usageRowName(row, language)} />
           </li>)}</ol>}
       </section>
       <div className="usage-pair">
@@ -118,7 +118,7 @@ export function UsageReportView({ report, period, onPeriod, language = getUiLang
       <section className="usage-block usage-hints">
         <h4 className="settings-subtitle">{ui('小提示')}</h4>
         <Hint>{ui('这些只是提示，每一条都可以不管。')}</Hint>
-        <ul className="usage-hints__list">{report.observations.map(item => <li key={`${item.id}-${item.key || ''}`}><span className="usage-chip">{ui('可选')}</span><span>{item.text}</span></li>)}</ul>
+        <ul className="usage-hints__list">{report.observations.map(item => <li key={`${item.id}-${item.key || ''}`}><Badge size="sm">{ui('可选')}</Badge><span>{item.text}</span></li>)}</ul>
       </section>
     </div>
   );
@@ -159,7 +159,7 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
         <details className="usage-report" onToggle={event => onReportToggle?.(event.currentTarget.open)}>
           <summary className="usage-report__summary">{ui('我的使用报告')}</summary>
           {report ? <UsageReportView report={report} period={period} onPeriod={onPeriod} language={language} />
-            : <Hint>{ui('正在整理报告…')}</Hint>}
+            : <LoadingState label={ui('正在整理报告…')} />}
           <div className="settings-actions usage-actions">
             <Button variant="secondary" size="sm" icon="download" disabled={busy || !!working} onClick={() => onExport?.('markdown')}>{ui('导出 Markdown')}</Button>
             <Button variant="secondary" size="sm" icon="download" disabled={busy || !!working} onClick={() => onExport?.('json')}>{ui('导出 JSON')}</Button>

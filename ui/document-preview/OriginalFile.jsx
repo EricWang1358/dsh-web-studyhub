@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, Dialog, FileDrop, Icon, InlineMessage } from '../components/index.js';
+import { Button, Dialog, FileDrop, Icon, InlineMessage, LoadingState } from '../components/index.js';
 import css from './original-file.css';
 import { ORIGINAL_MAX_BYTES, canAttach, defaultMode, explainFailure, issueOf, modeOptions, originalLine, reportHeadline, reportLines } from './original-file.js';
 import { formatBytes } from '../format.js';
@@ -42,7 +42,7 @@ export function OriginalNotice({ document, onAction }) {
 
 function Status({ tone, children, alert = false }) {
   return <div className="original-status" data-tone={tone} role={alert ? 'alert' : 'status'}>
-    <Icon name={tone === 'ok' ? 'success' : tone === 'warn' ? 'warning' : 'info'} size={18} /><div>{children}</div>
+    <Icon name={tone === 'success' || tone === 'warning' ? tone : 'info'} size={18} /><div>{children}</div>
   </div>;
 }
 
@@ -142,12 +142,12 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
       {!picked && pickerOn && <Button variant="primary" disabled>{ui('附上原文件')}</Button>}</>;
 
   return <Dialog size="md" className="original-dialog" title={title} busy={phase === 'attaching'} guardDrops onClose={onClose} footer={footer}>
-    {!info && <p role="status" className="muted">{ui('正在读取原文件状态…')}</p>}
+    {!info && <LoadingState label={ui('正在读取原文件状态…')} />}
     {info && info.status === 'none' && !done && <p>{ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用；补上原文件后，还能对照原版排版和图表。已保存的文字、引用和题目不会变。')}</p>}
-    {done && <Status tone="ok"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [formatBytes(info?.bytes)])}</span>}</Status>}
-    {!done && !report && issue?.message && <Status tone="warn" alert>{issue.message}</Status>}
+    {done && <Status tone="success"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [formatBytes(info?.bytes)])}</span>}</Status>}
+    {!done && !report && issue?.message && <Status tone="warning" alert>{issue.message}</Status>}
     {!done && info && !issue && !choosing && <>
-      <Status tone="ok"><span title={info.path}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [formatBytes(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Status>
+      <Status tone="success"><span title={info.path}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [formatBytes(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Status>
       {info.mode === 'reference' && <div className="original-actions">
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{ui('重新指定…')}</Button>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => { setChoosing(true); void checkPath(info.path, 'copy'); }}>{ui('改为复制到资料库')}</Button>
@@ -171,7 +171,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
     </section>}
     {phase === 'verifying' && <Status tone="info">{uiFormat('正在核对文字…{0}', [picked?.size ? `（${formatBytes(picked.size)}）` : ''])} <span className="muted">{ui('大文件需要一点时间。')}</span></Status>}
     {report && phase !== 'verifying' && !done && <>
-      <Status tone={headline.tone} alert={headline.tone === 'warn'}>
+      <Status tone={headline.tone} alert={headline.tone === 'warning'}>
         <strong>{headline.text}</strong>
         {picked && <small className="original-file-name" title={picked.path}>{picked.kind === 'path' ? baseName(picked.path) : picked.name}{picked.size ? ` · ${formatBytes(picked.size)}` : ''}</small>}
         {lines.length > 0 && <ul className="original-lines">{lines.map((item, index) => <li key={index} data-tone={item.tone}>{item.text}</li>)}</ul>}
@@ -185,7 +185,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
       </fieldset>
       {!report.accepted && <label className="original-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>{ui('我确认这是同一份资料，仍要附上')}</span></label>}
     </>}
-    {error && <Status tone="warn" alert>{explainFailure(error)}</Status>}
+    {error && <Status tone="warning" alert>{explainFailure(error)}</Status>}
   </Dialog>;
 }
 

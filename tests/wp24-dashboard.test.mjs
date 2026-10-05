@@ -99,7 +99,7 @@ test('mastery: levels with enough answers get a bar and a percentage, thin ones 
   assert.match(text(out), /10 次作答/);
   assert.match(text(out), /40%/);
   assert.equal((out.match(/数据不足/g) || []).length, 1, 'concept has only 2 answers');
-  assert.equal((out.match(/class="dash-mastery-fill/g) || []).length, 2);
+  assert.equal((out.match(/class="sh-progress[^"]*dash-mbar/g) || []).length, 2);
   assert.match(out, /aria-pressed="true"[^>]*>按认知层次/);
 });
 

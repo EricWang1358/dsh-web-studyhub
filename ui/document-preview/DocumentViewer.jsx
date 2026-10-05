@@ -4,7 +4,7 @@ import MathText from '../MathText.jsx';
 import { AudioCorrections } from '../audio/AudioCorrections.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, IconButton, InlineMessage, SegmentedControl } from '../components/index.js';
+import { Button, IconButton, InlineMessage, LoadingState, SegmentedControl } from '../components/index.js';
 import DocumentLearning from './DocumentLearning.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { issueOf } from './original-file.js';
@@ -320,7 +320,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const modes = [{ value: 'read', label: ui('阅读') }, { value: 'text', label: ui('原文') },
     ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), title: fileUrl ? undefined : ui('还没有原始 PDF，点击查看如何补全') }] : [])];
   const notices = [
-    loading && <p key="loading" role="status">{ui('正在打开资料…')}</p>,
+    loading && <LoadingState key="loading" label={ui('正在打开资料…')} />,
     !localMode && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     view === 'original' && <p key="pdf">{ui('原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。')}</p>,
     !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,

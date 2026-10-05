@@ -19,6 +19,7 @@ import { SciencePreferencesContext } from './SciencePreferences.jsx';
 import { CourseActiveProvider } from './CourseActive.jsx';
 import { QuickActionsContext } from './quick-actions.js';
 import { ToastContext } from './components/Feedback.jsx';
+import { LoadingState } from './components/Loading.jsx';
 import { StudyServicesContext } from './study-context.jsx';
 import { ModelSettingsContext } from './ModelErrorNote.jsx';
 import { useInjectCss } from './shared.js';
@@ -103,7 +104,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const app = { language, host, data, canChat: host.capabilities?.chat ?? !!host.askInChat, connection, core, shell, nav, lib, set, session, learn, intents, drafts,
     notebooks, inbox, sources, tour, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState };
 
-  if (connection.loading) return <div className="study-app"><div className="loading">{connection.connecting || ui('正在打开学习工作区…')}</div></div>;
+  if (connection.loading) return <div className="study-app"><LoadingState className="app-loading" label={connection.connecting || ui('正在打开学习工作区…')} /></div>;
   const { run } = session, page = nav.page;
   const feedback = <ActionFeedback error={core.error} notice={notice} busy={core.busy} onCloseError={() => core.setError('')} onCloseNotice={() => setNotice('')} />;
   return (

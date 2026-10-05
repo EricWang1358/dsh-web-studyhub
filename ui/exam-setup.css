@@ -92,9 +92,7 @@
     .es-recent__text small { color: var(--text-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
     .es-recent__row .sh-btn { flex: none; }
     .es-recent__empty { margin: 0; color: var(--text-muted); font-size: var(--fs-md); }
-    .es-tag { flex: none; min-width: 52px; padding: var(--space-half) 10px; border-radius: var(--radius-pill); border: 1px solid var(--line-strong); color: var(--text-dim); font-size: var(--fs-sm); font-weight: var(--fw-strong); text-align: center; }
-    .es-tag--case { border-color: var(--info-line); color: var(--info); }
-    .es-tag--oral { border-color: color-mix(in srgb, var(--accent-text) 55%, transparent); color: var(--accent-text); }
+    .es-kind { min-width: 52px; justify-content: center; }
   }
   @container study (max-width: 760px) {
     :where(.study-app, .study-seat) {

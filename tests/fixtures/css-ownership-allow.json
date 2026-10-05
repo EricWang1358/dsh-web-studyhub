@@ -37,10 +37,6 @@
       "ui/canvas/canvas.css",
       "ui/graph.css"
     ],
-    "case-chip": [
-      "ui/case-result.css",
-      "ui/case-study.css"
-    ],
     "cloze": [
       "ui/graph.css",
       "ui/review/question.css"
@@ -109,8 +105,7 @@
     ],
     "dim": [
       "ui/review/question.css",
-      "ui/skeleton.css",
-      "ui/views.css"
+      "ui/skeleton.css"
     ],
     "draft-row": [
       "ui/generate-home.css",
@@ -193,7 +188,6 @@
     "is-over": [
       "ui/board/board.css",
       "ui/case-result.css",
-      "ui/case-study.css",
       "ui/components/components.css"
     ],
     "is-panning": [
@@ -720,11 +714,6 @@
     "two-col": [
       "ui/legacy.css",
       "ui/settings.css"
-    ],
-    "warning": [
-      "ui/generate-form.css",
-      "ui/legacy.css",
-      "ui/views.css"
     ],
     "wf-scope": [
       "ui/workflow-scope.css",

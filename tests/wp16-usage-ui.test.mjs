@@ -70,11 +70,11 @@ test('the result line carries the summary, a proportional bar and a recalculate 
   const out = render({ status: 'ready', usage: usage() });
   assert.match(out, /class="usage-line"/, 'same container as the loading line, so nothing jumps');
   assert.match(text(out), /占用 1\.2 GB · 资料 820 MB · 音频 300 MB · 题库 12 MB · 备份 90 MB/);
-  const bar = /<span class="usage-bar"[^>]*role="img"[^>]*aria-label="([^"]+)"/.exec(out);
+  const bar = /class="sh-stacked usage-bar"[^>]*><div class="sh-stacked__bar" role="img" aria-label="([^"]+)"/.exec(out);
   assert.ok(bar, 'the bar is an image with a text alternative');
   assert.match(bar[1], /资料原文与提取文字 67%/);
-  assert.equal((out.match(/class="usage-seg /g) || []).length, 4, 'one segment per non-empty part');
-  assert.match(out, /class="usage-seg usage-seg--materials"[^>]*style="flex-grow:\d+/);
+  assert.equal((out.match(/class="sh-stacked__segment"/g) || []).length, 4, 'one segment per non-empty part');
+  assert.match(out, /class="sh-stacked__segment" data-tone="accent"[^>]*style="flex-grow:\d+/);
   assert.match(out, /<button[^>]*aria-label="重新计算"[^>]*title="重新计算"/);
 });
 
@@ -106,7 +106,7 @@ test('English locale has no Chinese in the line', () => {
     assert.doesNotMatch(out, han);
     const full = render({ status: 'ready', usage: usage() });
     assert.doesNotMatch(full.replace(/<[^>]*>/g, ' '), han);
-    assert.doesNotMatch(/aria-label="([^"]*)"/.exec(full.match(/<span class="usage-bar"[^>]*>/)[0])[1], han);
+    assert.doesNotMatch(/aria-label="([^"]*)"/.exec(full.match(/<div class="sh-stacked__bar"[^>]*>/)[0])[1], han);
     assert.match(full, /aria-label="Recalculate"/);
     const loading = text(render({ status: 'loading' }));
     assert.match(loading, /Calculating disk use…/);

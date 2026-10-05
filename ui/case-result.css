@@ -88,20 +88,7 @@
       font-size: var(--fs-sm);
       white-space: nowrap;
     }
-    .rubric-bar {
-      display: block;
-      height: 6px;
-      border-radius: var(--radius-pill);
-      background: var(--bg-sunken);
-      overflow: hidden;
-    }
-    .rubric-bar > span {
-      display: block;
-      height: 100%;
-      border-radius: inherit;
-      background: var(--accent-soft);
-    }
-    .rubric-row.is-weak .rubric-bar > span { background: var(--warn); }
+    .rubric-row.is-weak .rubric-meter { --sh-tone: var(--warn); }
     .rubric-note {
       margin: 0;
       color: var(--text-muted);
@@ -256,18 +243,6 @@
     }
     .case-report__detail { margin-top: var(--space-4); }
     .case-report__detail h3 { font-size: var(--fs-md); margin: 0 0 var(--space-2); }
-    .case-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-1);
-      padding: var(--space-half) var(--space-2);
-      border-radius: var(--radius-pill);
-      border: 1px solid var(--line);
-      background: var(--bg-raised);
-      color: var(--text-dim);
-      font-size: var(--fs-xs);
-      white-space: nowrap;
-    }
     /* skills over time */
     .rubric-skills__list {
       list-style: none;
@@ -321,7 +296,7 @@
       .case-report__questions li { grid-template-columns: minmax(0, 1fr) auto; }
       .case-report__prompt { grid-column: 1 / -1; white-space: normal; }
       .rubric-skills__list li { grid-template-columns: minmax(0, 1fr) 3rem; }
-      .rubric-skills__list .rubric-bar { grid-column: 1 / -1; grid-row: 2; }
+      .rubric-skills__list .rubric-meter { grid-column: 1 / -1; grid-row: 2; }
       .rubric-skills__trend { grid-column: 1 / -1; }
     }
   }

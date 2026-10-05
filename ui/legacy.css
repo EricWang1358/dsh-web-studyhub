@@ -2,8 +2,8 @@
 
 /* ── LEGACY LAYOUT RULES ───────────────────────────────────────────────────────
    Do not add to this sheet. The old button classes (.primary, .link-btn, .ghost-btn, .pill, .danger-text, .wf-danger) are gone:
-   every button is <Button>/<IconButton> (#135, #136; the guard-rail ratchet keeps legacyButtonClass at 0). What remains (.alert,
-   .notice, .two-col, ...) is old page furniture that no primitive covers yet. */
+   every button is <Button>/<IconButton> (#135, #136; the guard-rail ratchet keeps legacyButtonClass at 0). What remains (.two-col,
+   .onboarding, ...) is old page furniture that no primitive covers yet. */
 @layer study.features {
   :where(.study-app, .study-seat) {
     .two-col {
@@ -17,36 +17,6 @@
       width: 100%;
       padding: 14px;
     }
-    .warning {
-      color: var(--warn);
-      font-size: var(--fs-md);
-    }
-    .alert {
-      margin: var(--space-4) var(--space-6) 0;
-      padding: var(--space-3) var(--space-4);
-      border-radius: var(--radius-sm);
-      display: flex;
-      justify-content: space-between;
-      gap: var(--space-4);
-      font-size: var(--fs-md);
-      line-height: 1.65;
-      white-space: pre-wrap;
-    }
-    .alert button {
-      border: 0;
-      padding: 0 var(--space-1);
-    }
-    .alert span {
-      flex: 1;
-    }
-    .error {
-      background: var(--bad-tint);
-      color: var(--bad);
-    }
-    .notice {
-      background: color-mix(in srgb, var(--text) 4%, var(--bg-surface));
-      color: var(--text-dim);
-    }
     .onboarding {
       max-width: 680px;
       padding: 70px 30px;
@@ -59,19 +29,13 @@
       color: var(--text-dim);
       margin: var(--space-5) 0 35px;
     }
-    .loading {
-      padding: 80px;
-      color: var(--text-dim);
-    }
+    .app-loading { padding: 80px; }
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .two-col {
         grid-template-columns: 1fr;
         gap: 0;
-      }
-      .alert {
-        margin: var(--space-3) var(--space-4) 0;
       }
       .onboarding {
         padding: var(--space-8) var(--space-5);

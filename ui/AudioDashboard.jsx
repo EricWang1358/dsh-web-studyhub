@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ui, uiFormat, uiMessage } from './i18n.js';
+import { ui, uiFormat } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 import { formatNumber } from './format.js';
-import { Button, Hint, Panel } from './components/index.js';
+import { Button, ErrorState, Hint, Panel, ProgressBar } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 import { useStudy } from './study-context.jsx';
@@ -31,7 +31,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
   return <Panel tone="sunken" className="audio-dashboard" aria-labelledby="audio-dashboard-title">
     <header className="audio-dashboard-heading"><div><small>{ui('音频 / 用量')}</small><h2 id="audio-dashboard-title">{ui('用量控制台')}</h2></div>
       <Button variant="quiet" size="sm" icon="refresh" disabled={busy} onClick={refresh}>{ui('刷新')}</Button></header>
-    {error && <p className="audio-dashboard-error" role="alert">{uiMessage(error)}</p>}
+    {error && <ErrorState error={error} className="audio-dashboard__problem" />}
     <div className="audio-dashboard-summary">
       <div className="audio-usage-dial" style={{ '--share': `${share}%` }}><div><strong>{freeQuota ? fmt(freeQuota.remaining) : '—'}</strong>
         <span>{freeQuota ? `${freeQuota.tier === 'free' ? 'Gemini' : providerName(freeQuota.tier)} · ${freeQuota.source === 'provider' ? ui('服务端余量') : ui('估算余量')}` : ui('免费额度待确认')}</span>
@@ -52,12 +52,9 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
         {provider.models.map(model => {
           const known = provider.configured && model.limit !== null;
           const used = model.source === 'provider' ? model.limit - model.remaining : model.used;
-          const ratio = known ? Math.max(0, Math.min(100, used / Math.max(1, model.limit) * 100)) : 0;
           return <div className="audio-model-quota" key={model.model}><div><span title={model.model}>{model.model}</span><small>{!provider.configured ? '—'
             : known ? uiFormat('余 {0} / {1}', [fmt(model.remaining), fmt(model.limit)]) : ui('额度待确认')}</small></div>
-            {known && <div className="audio-quota-track" role="progressbar"
-              aria-label={uiFormat('{0} 已用每日额度', [model.model])} aria-valuemin={known ? 0 : undefined} aria-valuemax={known ? model.limit : undefined} aria-valuenow={known ? Math.min(model.limit, Math.max(0, used)) : undefined}>
-              <i style={{ width: `${ratio}%` }} /></div>}
+            {known && <ProgressBar size="sm" className="audio-quota-bar" label={uiFormat('{0} 已用每日额度', [model.model])} value={Math.min(model.limit, Math.max(0, used))} max={model.limit} />}
             {known && <small>{model.source === 'provider' ? ui('供应商响应 · 每日请求额度')
               : model.source === 'local-estimate' ? ui('本地估算 · 仅本插件')
               : provider.tier === 'paid' ? ui('付费通道 · 余额请查看供应商控制台')

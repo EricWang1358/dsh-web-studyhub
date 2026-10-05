@@ -11,7 +11,6 @@
   "道题已掌握 / {0} 道": "questions mastered / {0}",
   "另有 {0} 次队尾重练": "Plus {0} retries at the end of the queue",
   "课程进度 · 已学 {0} 题": "Course progress · {0} questions explored",
-  " · 下一批：{0}": " · Next batch: {0}",
   "{0} · 源自「{1}」": "{0} · from “{1}”",
   "本轮重练 · 掌握程度": "Session retry · Mastery",
   "后台助教没能完成：{0}": "Background assistant could not finish: {0}",

@@ -18,8 +18,7 @@ const compiled = await build({ stdin: { contents: `
   export { deferredView } from './ui/deferred-view.jsx';
   export { default as IndexBadge } from './ui/IndexBadge.jsx';
   export { JevDecidedBadge, JevCardBadge } from './ui/JevBadge.jsx';
-  export { JevDecidedBadge as JevRowBadge } from './ui/JevOrganize.jsx';
-  export { RubricSkills, CaseReport } from './ui/CaseResult.jsx';
+    export { RubricSkills, CaseReport } from './ui/CaseResult.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
@@ -134,8 +133,8 @@ test('IndexBadge is a Badge whose tone and icon follow the index state', () => {
 test('the Jev marks are Badges and the duplicated decided badge has one implementation', async () => {
   m.setUiLanguage('zh');
   assert.match(html(m.JevDecidedBadge), /sh-badge[^>]*data-jev-decided="card"|data-jev-decided="card"[^>]*sh-badge/);
-  assert.match(html(m.JevRowBadge), /data-jev-decided="row"/);
-  assert.match(html(m.JevRowBadge), /由 Jev 判定/);
+  assert.match(html(m.JevDecidedBadge, { scope: 'row' }), /data-jev-decided="row"/);
+  assert.match(html(m.JevDecidedBadge, { scope: 'row' }), /由 Jev 判定/);
   assert.match(html(m.JevCardBadge, { signal: { flagged: true } }), /data-tone="warning"/);
   assert.match(html(m.JevCardBadge, { signal: {} }), /data-tone="success"/);
   assert.match(html(m.JevCardBadge, { signal: { rewritten: true } }), /data-tone="info"/);

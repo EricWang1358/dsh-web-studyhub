@@ -5,7 +5,7 @@ import css from "./oral-exam.css";
 import { useInjectCss } from "./shared.js";
 import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
-import { Button, ErrorState, Hint, Icon, PageHeader, Panel } from './components/index.js';
+import { Badge, Button, ErrorState, Hint, Icon, LoadingState, PageHeader, Panel, StackedBar } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { ExamSetupCard, CountField } from './ExamShell.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -113,7 +113,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
   const last = run && run.index >= run.total - 1;
   return <section className="page exam oral-exam">
     {!loading && (run || report) ? heading : header || heading}
-    {loading && <p className="muted">{ui("正在恢复口头模拟…")}</p>}
+    {loading && <LoadingState label={ui("正在恢复口头模拟…")} />}
     {!loading && !run && !report && <>
       <OralSetup data={data} count={count} onCount={setCount} onStart={start} busy={busy} canStart={availableDecks.length > 0}
         scopeNote={scopeNote} onSetupModel={onSetupModel} />
@@ -122,7 +122,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     {run?.entry && !report && <>
       <div className="oral-progress"><span>{uiFormat("第 {0} / {1} 题", [run.index + 1, run.total])}</span><span>{uiFormat("本轮已回答 {0} 题", [run.answered])}</span></div>
       <Panel className="oral-question">
-        <span className="exam-chip">{run.entry.topic}</span>
+        <Badge tone="info">{run.entry.topic}</Badge>
         <div className="oral-prompt"><Markdown text={run.entry.prompt} links={false} /></div>
         {run.entry.options?.length > 0 && <details><summary>{ui("查看题目选项")}</summary><ul>
           {run.entry.options.map((option) => <li key={option.id}><Markdown text={option.text} links={false} /></li>)}
@@ -150,12 +150,8 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
       <div className="result-kicker">{ui("口头模拟报告")}</div>
       <h2>{report.feedbackStatus === "assessed" ? uiFormat("{0} 题回答扎实", [report.strong]) : ui("回答已保存，尚未评估")}</h2>
       <p className="muted">{uiFormat("{0}/{1} 题已回答 · {2} 题已评估", [report.answered, report.total, report.assessed])}</p>
-      {report.feedbackStatus === "assessed" ? <div className="oral-band-bar" role="img"
-        aria-label={uiFormat("回答扎实 {0} 题，有待补充 {1} 题，需要巩固 {2} 题", [report.strong, report.developing, report.weak])}>
-        {!!report.strong && <span className="strong" style={{ flexGrow: report.strong }} />}
-        {!!report.developing && <span className="developing" style={{ flexGrow: report.developing }} />}
-        {!!report.weak && <span className="weak" style={{ flexGrow: report.weak }} />}
-      </div> : <p>{ui("当前没有可用的模型反馈；未据此更改复习进度。你仍可展开查看回答与参考答案。")}</p>}
+      {report.feedbackStatus === "assessed" ? <StackedBar size="lg" name={uiFormat("回答扎实 {0} 题，有待补充 {1} 题，需要巩固 {2} 题", [report.strong, report.developing, report.weak])}
+        segments={[{ value: report.strong, tone: "success" }, { value: report.developing, tone: "warning" }, { value: report.weak, tone: "error" }]} /> : <p>{ui("当前没有可用的模型反馈；未据此更改复习进度。你仍可展开查看回答与参考答案。")}</p>}
       {report.feedbackStatus === "assessed" && <div className="oral-band-legend">
         <span>{uiFormat("回答扎实 {0}", [report.strong])}</span><span>{uiFormat("有待补充 {0}", [report.developing])}</span><span>{uiFormat("需要巩固 {0}", [report.weak])}</span></div>}
       <div className="result-weak"><h3>{ui("优先补的知识点")}</h3>

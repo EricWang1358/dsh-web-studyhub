@@ -1,7 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import Markdown from '../Markdown.jsx';
-import { Button, Icon, Menu } from '../components/index.js';
+import { Button, Icon, Menu, Tooltip } from '../components/index.js';
 import { checklistProgress, dueState, labelHue } from '../../lib/board-model.js';
 import { boardColumnLabel, dueText, dueTitle, studyRefLabel } from './meta.js';
 
@@ -76,8 +76,9 @@ export default function BoardCard({ card, column, columns, index, count, today, 
       {card.note && <Note note={card.note} />}
       {(!!card.labels?.length || state || progress.total > 0) && <div className="board-card__chips">
         {(card.labels || []).map((label) => <span key={label} className={`board-chip board-hue-${labelHue(label)}`}>{label}</span>)}
-        {state && <span className={`board-due is-${state.kind}`} title={dueTitle(card.due, state.kind === 'done' ? null : state)}>
-          <Icon name="calendar" size={13} />{state.kind === 'done' ? card.due : dueText(state)}</span>}
+        {state && <Tooltip content={dueTitle(card.due, state.kind === 'done' ? null : state)}>
+          <span className={`board-due is-${state.kind}`} tabIndex={0}><Icon name="calendar" size={13} />{state.kind === 'done' ? card.due : dueText(state)}</span>
+        </Tooltip>}
         {progress.total > 0 && <span className={`board-progress${progress.done === progress.total ? ' is-complete' : ''}`}
           title={uiFormat('清单 {0}/{1}', [progress.done, progress.total])}><Icon name="checklist" size={13} />{progress.done}/{progress.total}</span>}
       </div>}

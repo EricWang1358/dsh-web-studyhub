@@ -48,6 +48,9 @@
     /* A chapter is one line: the title takes the room (and ellipsises), the size sits at its end, 从这一章出题 keeps its own width. */
     .source-doc__chapters > li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
     .source-doc__chapters > li > .sh-btn { flex: none; width: auto; white-space: nowrap; }
+    /* The list rows (<Button variant="quiet" block align="start">): one line, the label ellipsises, the size sits at the end. */
+    .source-doc__row { align-items: baseline; gap: var(--space-3); min-height: 0; padding: calc(var(--space-1) + var(--space-half)) var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-regular); }
+    .source-doc__row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .source-doc__page-list small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
     /* A chapter row: the chapter opens on the left, its own 出题 button sits at the right (not a full-width second line). */
     .source-doc__chapters li { display: flex; align-items: center; gap: var(--space-2); }
@@ -81,6 +84,12 @@
       .source-doc__line { flex-wrap: wrap; }
       .source-doc__actions { width: 100%; justify-content: flex-end; }
       .source-doc__pages { margin-left: 0; }
+      /* Narrow: a chapter row keeps 从这一章出题 at its right and breaks inside itself — the title gets a whole line (still one
+         line, ellipsised), the size and mastery go on the line below. */
+      .source-doc__chapters .source-doc__row { flex-wrap: wrap; row-gap: var(--space-half); }
+      .source-doc__chapters .source-doc__row > span:first-child { flex: 1 0 100%; }
+      .source-doc__chapters .source-doc__row small { margin-left: 0; }
+      .source-doc__chapters li > button:first-child small { text-align: left; white-space: nowrap; }
     }
   }
 }

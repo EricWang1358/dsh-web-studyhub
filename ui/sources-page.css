@@ -92,13 +92,6 @@
       font-size: var(--fs-md);
       white-space: nowrap;
     }
-    .source-group-tag {
-      padding: 1px var(--space-2);
-      border: 1px solid var(--line-soft);
-      border-radius: var(--radius-pill);
-      color: var(--text-muted);
-      font-size: var(--fs-md);
-    }
     .pdf-import {
       padding: var(--space-5);
       border: 1px solid var(--line);

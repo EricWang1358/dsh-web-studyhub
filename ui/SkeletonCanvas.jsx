@@ -339,7 +339,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
               {focusMode ? ui("显示全图") : ui("只看邻居")}
             </Button>
             {focusLayout && (
-              <span className="skc-focus-chip">{ui("聚焦「")}{node?.term}」· {focusLayout.neighbours}{ui(" 个邻居")}</span>
+              <span className="skc-focus-chip">{uiFormat("聚焦「{0}」· {1} 个邻居", [node?.term, focusLayout.neighbours])}</span>
             )}
           </>
         )}
@@ -350,8 +350,8 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
       <div className="skc-search">
         <input aria-label={ui("查找概念")} placeholder={ui("查找概念…")} value={query} onChange={(ev) => setQuery(ev.target.value)} />
         {components.length > 1 && <select aria-label={ui("概念分组")} value={component?.id || ""} onChange={(ev) => { setComponentId(ev.target.value); setFocusMode(false); onSelect(null); }}>
-          <option value="">{ui("全部 ")}{components.length}{ui(" 组")}</option>
-          {components.map((group) => <option key={group.id} value={group.id}>{group.title} · {group.nodes.length}{ui(" 个概念")}</option>)}
+          <option value="">{uiFormat("全部 {0} 组", [components.length])}</option>
+          {components.map((group) => <option key={group.id} value={group.id}>{uiFormat("{0} · {1} 个概念", [group.title, group.nodes.length])}</option>)}
         </select>}
       </div>
       {query.trim() && <div className="skc-results" aria-label={ui("概念搜索结果")}>
@@ -424,7 +424,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
                 ) : (
                   <span className="skc-class-attrs empty" />
                 ))}
-                {b.node.cards.length > 0 && <span className="skc-class-count">{b.node.cards.length}{ui(" 题")}</span>}
+                {b.node.cards.length > 0 && <span className="skc-class-count">{uiFormat("{0} 题", [b.node.cards.length])}</span>}
               </button>
             ))}
           </div>
@@ -476,7 +476,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
             )}
             {onAsk && <ExtendBox node={node} onAsk={onAsk} />}
             {onPractice && node.cards.length > 0 && (
-              <Button variant="primary" className="skc-practice" onClick={() => onPractice(node.cards)}>{ui("练关联的 ")}{node.cards.length}{ui(" 题")}</Button>
+              <Button variant="primary" className="skc-practice" onClick={() => onPractice(node.cards)}>{uiFormat("练关联的 {0} 题", [node.cards.length])}</Button>
             )}
           </ReadingBlock>
         )}
@@ -629,7 +629,7 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
       <p className="sqc-caption" aria-live="polite">
         {step ? (
           <>
-            <b>{ui("第 ")}{current}{ui(" 步")}</b> {label(step.from)} {step.kind === "return" ? "⇠" : "→"} {label(step.to)}：{step.message}
+            <b>{uiFormat("第 {0} 步", [current])}</b> {label(step.from)} {step.kind === "return" ? "⇠" : "→"} {label(step.to)}：{step.message}
             {step.note ? `（${step.note}）` : ""}
           </>
         ) : (
@@ -673,7 +673,7 @@ export default function SkeletonCanvas({ skeleton, onPractice, onAsk }) {
       <section className="skc-section">
         <div className="skc-section-head">
           <h4>{ui("类图 · 概念结构")}</h4>
-          <small className="muted">{skeleton.nodes.length}{ui(" 个概念 · ")}{skeleton.relations.length + skeleton.nodes.filter((n) => n.parent).length}{ui(" 条关系")}</small>
+          <small className="muted">{uiFormat("{0} 个概念 · {1} 条关系", [skeleton.nodes.length, skeleton.relations.length + skeleton.nodes.filter((n) => n.parent).length])}</small>
         </div>
         <div ref={classRef}>
           <ClassCanvas key={skeleton.id} skeleton={skeleton} onPractice={onPractice} selected={selected} onSelect={setSelected} onAsk={onAsk} fresh={fresh} />

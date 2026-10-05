@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { plainPrompt } from '../shared.js';
-import { Button, ErrorState, PageHeader } from '../components/index.js';
+import { Badge, Button, ErrorState, PageHeader, ProgressBar } from '../components/index.js';
 import { formatDuration } from '../format.js';
 import ResultBreakdown from '../ResultBreakdown.jsx';
 import { ReadingBlock, ReadingSettingsButton } from '../reading-settings/ReadingSettings.jsx';
@@ -10,13 +10,11 @@ import { kindName, scoreChange } from './exam-written.js';
 /* The written exam's report: the score and where it went, the weak topics, what to do next, and the details
    (by topic, deck and kind, the wrong and the skipped questions). Props come from Exam.jsx; nothing is fetched here. */
 
-const percentOf = (row) => `${row.total ? Math.round((row.correct / row.total) * 100) : 0}%`;
-
 function BarRow({ label, row, soft }) {
   return (
     <div className="exam-bar-row">
       <span className="exam-bar-label">{label}</span>
-      <span className="exam-bar-track"><span className={'exam-bar-fill' + (soft ? ' soft' : '')} style={{ width: percentOf(row) }} /></span>
+      <ProgressBar label={label} value={row.correct} max={row.total || 1} tone={soft ? 'neutral' : 'accent'} />
       <span className="exam-bar-value">{row.correct}/{row.total}</span>
     </div>
   );
@@ -30,9 +28,9 @@ function QuestionList({ title, items, empty }) {
       {items.length ? (
         <ul>{items.map((item) => (
           <li key={item.deckId + ':' + item.cardId} className="exam-wrong-row">
-            <span className="exam-chip">{item.topic || ui('未分类')}</span>
+            <Badge tone="info">{item.topic || ui('未分类')}</Badge>
             <span className="exam-wrong-prompt" title={plainPrompt(item.prompt)}>{plainPrompt(item.prompt)}</span>
-            <span className="exam-chip dim">{kindName(item.kind)}</span>
+            <Badge>{kindName(item.kind)}</Badge>
           </li>
         ))}</ul>
       ) : <p className="muted">{empty}</p>}

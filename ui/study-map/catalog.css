@@ -431,15 +431,6 @@
       cursor: default;
       background: var(--bg-sunken);
     }
-    .nb-chip {
-      flex: none;
-      font-size: var(--fs-md);
-      color: var(--accent-soft);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-pill);
-      padding: var(--space-half) var(--space-2);
-      white-space: nowrap;
-    }
     .nb-main {
       flex: 1;
       min-width: 0;

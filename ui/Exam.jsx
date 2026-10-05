@@ -11,7 +11,7 @@ import { readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
 import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 import caseCss from './case-study.css';
-import { Button, ErrorState, PageHeader, Panel } from './components/index.js';
+import { Badge, Button, ErrorState, LoadingState, PageHeader, Panel } from './components/index.js';
 import { ExamHeader, RecentExams } from './ExamShell.jsx';
 import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from './exam-format.js';
 import { formatClock } from './format.js';
@@ -248,8 +248,8 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
             </>} />
           <Panel className="exam-card" key={run.card.id}>
             <div className="exam-card-meta">
-              <span className="exam-chip">{run.card.topic || ui("未分类")}</span>
-              <span className="exam-chip dim">{cardKindName(run.card)}</span>
+              <Badge tone="info">{run.card.topic || ui("未分类")}</Badge>
+              <Badge>{cardKindName(run.card)}</Badge>
               <span className="muted small">
                 {run.card.multiple ? ui("选出所有符合条件的选项") : ui("选出一项")}
               </span>
@@ -292,7 +292,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       )}
 
       {phase === "running" && !run?.card && (
-        <p className="muted">{ui("正在载入试卷…")}</p>
+        <LoadingState label={ui("正在载入试卷…")} />
       )}
 
       {phase === "report" && report && <WrittenReport report={report} busy={busy} pathNote={pathNote} error={err}

@@ -21,9 +21,7 @@
     .daily-recap-course[data-state="ready"] .daily-recap-state { color: var(--accent); }
     .daily-recap-meta { margin: var(--space-2) 0 14px; color: var(--text-muted); font-size: var(--fs-sm); }
     .daily-recap-hint, .daily-recap-threshold p { margin: 10px 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.7; }
-    .daily-recap-threshold progress { display: block; width: min(100%, 280px); height: 5px; border: 0; border-radius: var(--radius-xs); overflow: hidden; accent-color: var(--accent); }
-    .daily-recap-threshold progress::-webkit-progress-bar { background: var(--line); border-radius: var(--radius-xs); }
-    .daily-recap-threshold progress::-webkit-progress-value { background: var(--accent); border-radius: var(--radius-xs); }
+    .daily-recap-bar { width: min(100%, 280px); background: var(--line); box-shadow: none; }
     .daily-recap-preview { margin: var(--space-4) 0; padding: 0 0 0 14px; border-left: 2px solid var(--accent); }
     .daily-recap-preview small { color: var(--text-muted); font-size: var(--fs-xs); }
     .daily-recap-preview p { margin: 6px 0 0; max-width: 65ch; font-size: var(--fs-md); line-height: 1.8; overflow-wrap: anywhere; }
@@ -41,7 +39,6 @@
     .daily-recap-progress { display: flex; align-items: flex-start; gap: 10px; margin: var(--space-4) 0; }
     .daily-recap-progress p { margin: 0 0 var(--space-1); font-size: var(--fs-md); }
     .daily-recap-progress small { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.6; }
-    .daily-recap-spinner { flex-shrink: 0; margin-top: var(--space-1); width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: daily-recap-spin 1s linear infinite; }
     .daily-recap-replace { margin-top: 14px; font-size: var(--fs-sm); }
     .daily-recap-replace > p { line-height: 1.7; color: var(--text-muted); }
     .daily-recap-replace .daily-recap-tone { margin: var(--space-3) 0; }
@@ -55,7 +52,6 @@
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
-      .daily-recap-spinner { animation: none; }
     }
   }
   @container study (max-width: 600px) {
@@ -70,4 +66,3 @@
   }
 }
 
-@keyframes daily-recap-spin { to { transform: rotate(360deg); } }

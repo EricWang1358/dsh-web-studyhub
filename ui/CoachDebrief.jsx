@@ -1,10 +1,11 @@
 import { ui, uiFormat } from "./i18n.js";
+import { uiRich } from "./i18n-rich.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import css from "./coach.css";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
 import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
-import { Button } from "./components/index.js";
+import { Button, ErrorState, StackedBar } from "./components/index.js";
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
@@ -106,16 +107,12 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       <h2>{debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
       {(m.gradedAnswered > 0 || m.selfAnswered > 0) && <div className="coach-score-split">
-        {m.gradedAnswered > 0 && <span>{ui("客观题答对 ")}<strong>{m.gradedCorrect}/{m.gradedAnswered}</strong></span>}
-        {m.selfAnswered > 0 && <span>{ui("自评达标 ")}<strong>{m.selfMet}/{m.selfAnswered}</strong></span>}
+        {m.gradedAnswered > 0 && <span>{uiRich("客观题答对 {0}", <strong>{m.gradedCorrect}/{m.gradedAnswered}</strong>)}</span>}
+        {m.selfAnswered > 0 && <span>{uiRich("自评达标 {0}", <strong>{m.selfMet}/{m.selfAnswered}</strong>)}</span>}
       </div>}
       {m.answered > 0 && (
         <>
-          <div className="coach-levels" aria-hidden="true">
-            {LEVELS.map(([id]) => (
-              <span key={id} className={id} style={{ flexGrow: m.levels?.[id]?.n || 0 }} />
-            ))}
-          </div>
+          <StackedBar className="coach-stack" aria-hidden="true" segments={LEVELS.map(([id]) => ({ value: m.levels?.[id]?.n || 0, tone: id === "recall" ? "neutral" : id === "concept" ? "info" : "success" }))} />
           <div className="coach-legend">
             {LEVELS.map(([id, name]) => (
               <span key={id}>
@@ -161,7 +158,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
             <Button size="sm" disabled={consent.busy} onClick={() => answerConsent(true)}>{ui("好，帮我备题")}</Button>
             <Button variant="quiet" size="sm" disabled={consent.busy} onClick={() => answerConsent(false)}>{ui("先不用")}</Button>
           </div>
-          {consent.error && <p className="coach-consent-error" role="alert">{consent.error}</p>}
+          {consent.error && <ErrorState compact className="coach-consent__problem" error={consent.error} />}
         </div>
       )}
       {consent.answer === true && !ready && (

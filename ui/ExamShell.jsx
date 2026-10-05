@@ -2,7 +2,7 @@ import React, { useId, useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import PageScope from "./PageScope.jsx";
-import { Button, PageHeader, Panel, SegmentedControl } from "./components/index.js";
+import { Badge, Button, PageHeader, Panel, SegmentedControl } from "./components/index.js";
 import { formatDateTime } from "./format.js";
 import { filterRecent } from "./exam-format.js";
 import { QUESTION_COUNT } from "../lib/limits.js";
@@ -101,7 +101,7 @@ function Row({ item, onOpen, busy }) {
   const detail = [formatDateTime(item.submittedAt, "day"), item.course || (item.role ? item.role : ""), item.decks?.join("、")].filter(Boolean).join(" · ");
   return (
     <li className="es-recent__row">
-      <span className={`es-tag es-tag--${item.kind}`}>{tags[item.kind]}</span>
+      <Badge className="es-kind" tone={item.kind === "case" ? "info" : "neutral"}>{tags[item.kind]}</Badge>
       <span className="es-recent__text"><strong>{score}</strong>{detail && <small>{detail}</small>}</span>
       <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen(item)}>{ui("查看报告")}</Button>
     </li>

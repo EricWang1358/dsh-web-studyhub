@@ -129,6 +129,7 @@
       border-radius: var(--radius-pill);
       background: var(--bg-sunken);
     }
+    .sh-stacked--lg .sh-stacked__bar { height: 22px; }
     .sh-stacked__segment { flex: 1 1 0; min-width: 4px; background: var(--sh-tone); }
     .sh-stacked__legend {
       display: flex;

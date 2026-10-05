@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ui, uiFormat } from "../i18n.js";
-import { Button, IconButton, Icon } from "../components/index.js";
+import { Button, IconButton, Icon, ProgressBar } from "../components/index.js";
 import { useTopDialog } from "../components/dialog-stack.js";
 import { useInjectCss } from "../shared.js";
 import { placePopover, spotlightBox } from "./geometry.js";
@@ -23,7 +23,6 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
   const note = step.modelNote && model && !model.ready ? ui(step.modelNote)
     : step.readyNote && model?.ready && model.label ? uiFormat(step.readyNote, [model.label]) : "";
   const offerSample = step.id === "welcome" && !sampleLoaded && !!onLoadSample;
-  const percent = `${Math.round(((index + 1) / Math.max(1, total)) * 100)}%`;
   return (
     <div ref={popoverRef} className={cx("tour-pop", docked && "tour-pop--docked", side && `tour-pop--${side}`)} style={style}
       role="dialog" aria-modal="false" aria-labelledby={titleId} aria-describedby={bodyId} tabIndex={-1} onKeyDown={onKeyDown}>
@@ -32,9 +31,7 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
         <span className="tour-pop__count">{index + 1} / {total}</span>
         <IconButton icon="close" size="sm" className="tour-pop__close" label={ui("暂停导览")} onClick={onClose} />
       </div>
-      <div className="tour-pop__bar" role="progressbar" aria-label={ui("导览进度")} aria-valuemin={1} aria-valuemax={total} aria-valuenow={index + 1}>
-        <span style={{ width: percent }} />
-      </div>
+      <ProgressBar size="sm" className="tour-pop__meter" label={ui("导览进度")} value={index + 1} max={Math.max(1, total)} />
       <h2 id={titleId} className="tour-pop__title">{ui(step.title)}</h2>
       <p id={bodyId} className="tour-pop__body">{ui(step.body)}</p>
       {note && <p className={cx("tour-pop__note", model?.ready ? "is-ready" : "is-missing")}>

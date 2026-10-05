@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, InlineMessage } from './components/index.js';
-import { JevDecidedBadge as DecidedBadge } from './JevBadge.jsx';
+import { Badge, Button, InlineMessage, ProgressBar } from './components/index.js';
 import { lineText, percentText, probabilityRows } from './jev-flow.js';
 import css from './jev.css';
 
@@ -21,9 +20,6 @@ export function useJevCourseSuggest(call, initial) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return on;
 }
-
-/** "由 Jev 判定": on a course suggestion row that Jev answered instead of the model (the draft's badge, scope row). */
-export const JevDecidedBadge = () => <DecidedBadge scope="row" />;
 
 /** One quiet line after a run in which Jev answered instead of the model: how many each took and, once, why the model took some. Nothing when the site is off. */
 export function JevRunNote({ jev }) {
@@ -65,7 +61,7 @@ export function JevProbabilities({ jev }) {
       <ul className="jev-probs__list">
         {rows.map(row => <li key={row.id} className={`jev-prob${row.picked ? ' is-picked' : ''}${row.none ? ' is-none' : ''}`}>
           <span className="jev-prob__name">{row.label}</span>
-          <span className="jev-prob__bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.round(row.value * 100))}%` }} /></span>
+          <ProgressBar size="sm" className="jev-prob__meter" tone={row.picked ? 'accent' : 'info'} label={row.label} value={Math.max(2, Math.round(row.value * 100))} />
           <span className="jev-prob__value">{percentText(row.value)}</span>
         </li>)}
       </ul>

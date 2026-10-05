@@ -6,7 +6,7 @@ import { uiRich } from "./i18n-rich.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
-import { Banner, Button, Disclosure, InlineMessage, PageHeader, ProgressBar, useToast } from "./components/index.js";
+import { Banner, Button, Disclosure, ErrorState, InlineMessage, LoadingState, PageHeader, ProgressBar, useToast } from "./components/index.js";
 import { WORKFLOW_HANDOFF as HANDOFF, workflowStepPrompt } from "./agent-prompts/workflow.js";
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
 import { Readings, ScopeBar } from "./WorkflowScope.jsx";
@@ -69,7 +69,7 @@ function SkeletonMaker({ session, resources, disabled, onGenerate }) {
   return <div className="wf-skeleton-maker">
     <h3>{ui("本次还没有知识骨架")}</h3>
     <p className="muted">{ui("骨架把本次范围里的概念串成一条主线：先学什么、谁属于谁、哪些容易混。")}</p>
-    {running ? <p className="wf-spine-status" role="status"><span className="wf-pulse" aria-hidden="true" />{uiFormat("AI 正在整理本次范围的骨架（{0} 题），好了会直接显示在这里；也可以先往下学。", [job.cards])}</p>
+    {running ? <LoadingState className="wf-spine-status" label={uiFormat("AI 正在整理本次范围的骨架（{0} 题），好了会直接显示在这里；也可以先往下学。", [job.cards])} />
       : resources.modelReady ? <>{failed && (job.message ? <ModelErrorNote error={job.message} /> : <InlineMessage tone="error">{ui("上次没有生成成功。")}</InlineMessage>)}
         <Button variant="primary" disabled={disabled || !resources.cardCount} onClick={onGenerate}>{failed ? ui("重新生成本次范围的骨架") : ui("一键生成本次范围的骨架")}</Button>
         {!resources.cardCount && <p className="muted small">{ui("本次范围没有题目，无法整理骨架。")}</p>}</>
@@ -120,7 +120,7 @@ export function SpinePeek({ session, resources, stepKind, late, disabled, onGene
     {resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}</SkeletonSpine>;
   if (session.status === "completed" || !resources.cardCount) return null;
   if (job?.status === "running" && resources.skeletonActive)
-    return <p className="wf-spine-status" role="status"><span className="wf-pulse" aria-hidden="true" />{uiFormat("AI 正在后台整理本次的知识骨架（{0} 题），好了会出现在这里，学习不用等它。", [job.cards])}</p>;
+    return <LoadingState className="wf-spine-status" label={uiFormat("AI 正在后台整理本次的知识骨架（{0} 题），好了会出现在这里，学习不用等它。", [job.cards])} />;
   // At the last step a new skeleton would only serve a later session.
   if (!resources.modelReady || late) return null;
   const interrupted = job?.status === "running" || job?.status === "failed";
@@ -361,7 +361,7 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
     }
   });
 
-  if (!session) return <section className="page workflow-page"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack}>{ui("← 学习流工作台")}</Button></div><PageHeader title={ui("学习 Portal")} />{error ? <><p className="wf-error" role="alert">{error}</p><Button onClick={refresh}>{ui("重新读取")}</Button></> : <p className="muted" role="status">{ui("正在恢复学习进度…")}</p>}</section>;
+  if (!session) return <section className="page workflow-page"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack}>{ui("← 学习流工作台")}</Button></div><PageHeader title={ui("学习 Portal")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <LoadingState label={ui("正在恢复学习进度…")} />}</section>;
   const step = session.template.steps.find((item) => item.id === session.currentStepId);
   const index = session.template.steps.indexOf(step), record = session.records[step.id] || {};
   const dirty = output !== savedOutput(session), busy = !!pending, active = session.status === "active", completed = session.status === "completed";

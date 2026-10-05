@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useMemo, useState } from "react";
 import { renderNoteMarkdown } from "./note-markdown.js";
-import { Button, InlineMessage } from "./components/index.js";
+import { Button, InlineMessage, LoadingState } from "./components/index.js";
 import ModelErrorNote from "./ModelErrorNote.jsx";
 import { TokenEstimate, TokenUsage } from "./TokenUsage.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
@@ -39,7 +39,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
     {remedy && <aside className="wf-remedy" aria-label={ui("针对复述补讲")}>
       <p className="wf-eyebrow">{ui("针对你复述里漏掉的地方")}</p>
       {gaps.length > 0 && <ul className="wf-remedy-gaps">{gaps.map((gap) => <li key={gap}>{/[？?]$/.test(gap) ? uiFormat("想一想：{0}", [gap]) : gap}</li>)}</ul>}
-      {remedyRunning ? <p className="wf-remedy-status" role="status"><span className="wf-pulse" aria-hidden="true" />{ui("AI 正在针对这些点补讲，下面的讲解可以先看着。")}</p>
+      {remedyRunning ? <LoadingState className="wf-remedy-status" label={ui("AI 正在针对这些点补讲，下面的讲解可以先看着。")} />
         : <><TeachingArticle content={remedy.content} /><TeachingCitations citations={remedy.citations} sources={resources.sources} /></>}
     </aside>}
     <header className="wf-teaching-heading"><div><span className="wf-eyebrow">{ui("围绕主题，连起来学")}</span><h3>{content ? ui("本步讲解") : ui("从一篇完整讲解开始")}</h3></div>{content && <span className="wf-reading-label">{ui("阅读 · 理解 · 应用")}</span>}<ReadingSettingsButton className="wf-reading" /></header>

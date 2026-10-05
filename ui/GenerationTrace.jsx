@@ -59,11 +59,11 @@ export default function GenerationTrace({ job, openAgent }) {
       {steps.length > 0 && <ul>{steps.map((step) => <li key={step.id}>
         <code>{step.stage}</code>
         <small>
-          {step.runtime === "subagent" ? ui("DSH 子代理") : step.runtime === "direct" ? ui("直接模型调用") : step.runtime || ""}
-          {step.reasoningEffort ? uiFormat(" · 推理程度 {0}", [step.reasoningEffort]) : ""}
-          {step.communication ? ui(" · 支持双向通信") : ""}
-          {step.toolMode === "native" ? ui(" · 无代码执行") : ""}
-          {step.childId ? ` · ${step.childId}` : ""}
+          {[step.runtime === "subagent" ? ui("DSH 子代理") : step.runtime === "direct" ? ui("直接模型调用") : step.runtime || "",
+            step.reasoningEffort ? uiFormat("推理程度 {0}", [step.reasoningEffort]) : "",
+            step.communication ? ui("支持双向通信") : "",
+            step.toolMode === "native" ? ui("无代码执行") : "",
+            step.childId || ""].filter(Boolean).join(" · ")}
         </small>
         {step.note && <small>{step.note}</small>}
       </li>)}</ul>}

@@ -21,7 +21,7 @@ import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
 import DailyRecap from './DailyRecap.jsx';
-import { Badge, Button, Chip, Icon, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
+import { Badge, Banner, Button, Chip, Icon, InlineMessage, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
 import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "./agent-prompts/card.js";
@@ -289,17 +289,15 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <div className="summary-topics">
             <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
             {(run.weakTopics || []).slice(0, 3).map((t) => (
-              <span className="tag" key={t}>
-                {t}
-              </span>
+              <Badge className="summary-topic" key={t}>{t}</Badge>
             ))}
             {!run.weakTopics?.length && (
               <p className="muted">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
             )}
           </div>
           {run.course && (
-            <p className="summary-course">{uiRich("课程进度 · 已学 {0} 题", <strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong>)}{run.course.chapter ? uiFormat(" · 第 {0} / {1} 章「{2}」{3}/{4}", [run.course.chapter.index + 1, run.course.chapters, run.course.chapter.title, run.course.chapter.learned, run.course.chapter.total]) : ui(" · 全部章节都学过了")}
-              {run.course.next?.label ? <span>{uiFormat(" · 下一批：{0}", [run.course.next.label])}</span> : null}
+            <p className="summary-course">{uiRich("课程进度 · 已学 {0} 题", <strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong>)}{" · "}{run.course.chapter ? uiFormat("第 {0} / {1} 章「{2}」{3}/{4}", [run.course.chapter.index + 1, run.course.chapters, run.course.chapter.title, run.course.chapter.learned, run.course.chapter.total]) : ui("全部章节都学过了")}
+              {run.course.next?.label ? <span>{" · "}{uiFormat("下一批：{0}", [run.course.next.label])}</span> : null}
             </p>
           )}
           <div className="summary-actions">
@@ -358,13 +356,12 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             }
             style={readingMeasure ? { "--reading-measure": readingMeasure, "--review-column": "calc(var(--reading-measure) - 4px)", "--card-scale": cardScale } : undefined}
           >
-            {run.contentUpdated && <p className="warning" role="status">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</p>}
+            {run.contentUpdated && <InlineMessage tone="warning" className="review-updated">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</InlineMessage>}
             {caseSource && <ScenarioPanel className="case-review-scenario" title={caseSource.title} text={caseSource.text}
               highlights={caseHighlights} onChange={saveHighlights} />}
             {/* The card: header, stem and answers on paper stock. Toolbar,
                 status and explanation sit below it on the desk. */}
-            <div className="question-card" data-tour="review-question"
-              style={{ "--progress": `${Math.round(((run.index + 1) / Math.max(1, run.total)) * 100)}%` }}>
+            <div className="question-card" data-tour="review-question">
               <div className="question-meta">
                 <span>
                   {run.index + 1} / {run.total}
@@ -399,24 +396,16 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                   </Button>
                 </div>
               </div>
-              <div
-                className="card-progress"
-                role="progressbar"
-                aria-label={ui("复习进度")}
-                aria-valuemin={0}
-                aria-valuemax={run.total}
-                aria-valuenow={run.index + 1}
-              />
+              <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={run.index + 1} max={Math.max(1, run.total)} />
               {(choice || isCloze || run.card.publicationUngrable) && prereqStrip}
               {run.card.publicationUngrable ? (
-                <div className="quality-note warning" role="status">
+                <Banner tone="warning" role="status" className="review-ungrable"
+                  action={{ label: ui("跳过此题，不计成绩 →"), variant: "primary", disabled: busy, onClick: () => reviewAct("review.skip") }}
+                  secondary={{ label: ui("交给后台修题"), disabled: busy, onClick: () => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')])) }}>
                   <div className="question"><Markdown text={run.card.prompt || ui("题干尚未填写")} /></div>
                   <p>{ui("这道题缺少可判分内容。你可以交给助教修改，或跳过；跳过不会记录成绩或改变复习进度。")}</p>
                   {!!publicationIssues.length && <p>{publicationIssues.join("；")}</p>}
-                  <Button disabled={busy} onClick={() =>
-                    assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
-                  <Button variant="primary" disabled={busy} onClick={() => reviewAct("review.skip")}>{ui("跳过此题，不计成绩 →")}</Button>
-                </div>
+                </Banner>
               ) : choice ? (
                 <>
                   <div className="question" role="heading" aria-level={2} key={"stem:" + reviewEntryKey(run)}>

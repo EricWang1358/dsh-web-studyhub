@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { useInjectCss } from '../../shared.js';
-import { Button, CloseButton, IconButton, Spinner } from '../../components/index.js';
+import { Button, CloseButton, IconButton, LoadingState } from '../../components/index.js';
 import { ZOOMS } from './peek-logic.js';
 import css from './peek.css';
 
@@ -35,7 +35,7 @@ export default function PagePeekView({ phase, page, total, zoom = 1, figure = fa
       </div>
     </header>
     <div className="page-peek__body">
-      {phase === 'loading' && <p className="page-peek__state" role="status"><Spinner />{ui('正在读取原文件…')}</p>}
+      {phase === 'loading' && <LoadingState className="page-peek__state" label={ui('正在读取原文件…')} />}
       {phase === 'none' && <div className="page-peek__state page-peek__state--note">
         <p>{issue?.kind && issue.kind !== 'none' && issue.message ? issue.message : ui('这份资料只保存了提取出的文字，没有原文件，所以看不到原页。')}</p>
         <Button size="sm" variant="secondary" icon="file" onClick={() => onAttach?.(issue?.kind && issue.kind !== 'none' ? 'relink' : 'attach')}>

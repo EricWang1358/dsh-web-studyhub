@@ -2,6 +2,8 @@ import React, { useId } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button } from './components/Button.jsx';
+import { ProgressBar } from './components/Progress.jsx';
+import { LoadingState, Spinner } from './components/Loading.jsx';
 import { recapGroupKey, useDailyRecap } from './useDailyRecap.js';
 import css from './DailyRecap.css';
 
@@ -42,7 +44,7 @@ export function DailyRecapPanel(props) {
       <details><summary>{ui('查看原因')}</summary><p>{error}</p></details>
       {/模型|model|provider/i.test(error) && onModelSettings && <Button size="sm" onClick={onModelSettings}>{ui('检查 AI 模型设置')}</Button>}
     </div>}
-    {!status && !error && <p role="status" className="daily-recap-loading">{ui('正在读取今天的学习记录…')}</p>}
+    {!status && !error && <LoadingState className="daily-recap-loading" label={ui('正在读取今天的学习记录…')} />}
     {status && !status.groups?.length && <p className="muted">{ui('今天的练习会留在这里。完成一章后，就能查看当天的进度。')}</p>}
     {status?.groups?.map(group => {
       const phase = presentation(group), running = phase === 'running', protectedEdit = phase === 'protected';
@@ -53,9 +55,9 @@ export function DailyRecapPanel(props) {
           <span className="daily-recap-state">{ui(stateLabels[phase])}</span></div>
         <p className="daily-recap-meta">{group.day !== status.day && <>{group.day} · </>}{uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [group.answeredCount, group.wrongCount])}</p>
         {!group.eligible && !group.hasContent && <div className="daily-recap-threshold">
-          <progress value={group.answeredCount} max={group.answeredCount + group.remaining} aria-label={ui('今日合集生成进度')} />
+          <ProgressBar size="sm" className="daily-recap-bar" label={ui('今日合集生成进度')} value={group.answeredCount} max={group.answeredCount + group.remaining} />
           <p>{uiFormat('再做 {0} 道不同题目，就能生成今天的合集。', [group.remaining])}</p></div>}
-        {running && <div role="status" className="daily-recap-progress"><span className="daily-recap-spinner" aria-hidden="true" />
+        {running && <div role="status" className="daily-recap-progress"><Spinner size="sm" />
           <div><p>{ui(progress?.phase === 'organizing' ? '正在统一语言与结构…' : '正在整理今天的讲解…')}</p>
             <small>{progress?.phase === 'explaining' && progress.total > 1 ? uiFormat('已整理 {0}/{1} 组讲解 · 你可以继续学习', [progress.completed, progress.total]) : ui('整理好后会出现在这里，你可以继续学习。')}</small></div></div>}
         {protectedEdit && <p className="daily-recap-hint">{ui('已保留你的手动修改，后续练习不会覆盖这份内容。')}</p>}
