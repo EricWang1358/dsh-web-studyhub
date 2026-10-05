@@ -6,9 +6,10 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 
+const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' };
 const original = { kind: 'flashcard', count: 7, language: 'English', difficulty: 'foundation', focus: 'Explain independent deployment',
-  concurrency: 1, batchSize: 2, jobTimeoutMinutes: 5, fillRounds: 2, notation: 'auto' };
-const performance = ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds = 2 }) => ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds });
+  concurrency: 1, batchSize: 2, jobTimeoutMinutes: 5, fillRounds: 2, ...EFFORTS, notation: 'auto' };
+const performance = ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds = 2 }) => ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds, ...EFFORTS });
 const text = 'Microservices split a system into independently deployable services that own their data. ' +
   'Event-driven architecture lets services react to events published by others, which decouples producers from consumers. ' +
   'Relational databases give ACID transactions for payments and settlements. ';
@@ -193,7 +194,7 @@ test('corrupt retained draft performance falls back safely while explicit overri
   const resumed = await wait(service, (await service.call('generate', { resumeDraftId: saved.id, draftVersion: saved.draftVersion })).jobId);
   checkJob(resumed, { kind: 'flashcard', count: 1, concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20 }, 1);
   assert.deepEqual((await draftFor(service, resumed)).editorial.generation.performance,
-    { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2 });
+    { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS });
 });
 
 test('invalid one-off performance is rejected before jobs, drafts or model calls are created', async t => {

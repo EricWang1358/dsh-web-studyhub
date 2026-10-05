@@ -9,6 +9,7 @@ import { countDocuments } from '../lib/source-groups.js';
 import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/generation-settings.js';
 import { DIMENSIONS, issueCode, reasonLabel } from './quality-reasons.js';
 import { formatClauses } from './format.js';
+import { USAGE_STAGES, stageUsage } from '../lib/stage-usage.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
 export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, count: GENERATION_SETTINGS_DEFAULTS.count,
@@ -67,6 +68,14 @@ export function stageCodeLabel(code) {
     partial: ui('草稿已保存，但少了一些题'),
     failed: ui('没有完成'),
   })[code] || '';
+}
+
+const STAGE_ROW_LABEL = { plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查', review: '独立审阅', repair: '修复题目' };
+/** The generation details' per-stage table: what each stage used (tokens, calls, seconds) next to what the estimate said, in stage order. */
+export function stageUsageRows(job = {}) {
+  const used = stageUsage(job), estimated = job.estimate?.stageTotals || {};
+  return USAGE_STAGES.filter((code) => used[code]).map((code) => ({ code, label: ui(STAGE_ROW_LABEL[code]), ...used[code],
+    estimate: estimated[code] ? { low: estimated[code].low, high: estimated[code].high } : null }));
 }
 
 /** One finished or running model step, as a noun for the execution list. */

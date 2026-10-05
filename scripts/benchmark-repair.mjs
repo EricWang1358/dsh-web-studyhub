@@ -2,6 +2,10 @@
    First-pass yield and token use of ONE part of ten questions on a fake model whose review flags a fixed mix of defects (#202):
      3 hints that give the answer, 2 weak distractors, 1 unclear explanation, 1 unsupported answer, 1 low-value question, 2 clean.
    The same script runs against another checkout's lib (--root) to compare: `git archive <ref> lib references | tar -x -C <dir>`.
+   --effort high|stage (#218) adds the reasoning cost of a model that offers Off/Low/Default/High/Max (DeepSeek-like): every stage at the
+   session's "high", or each stage at the level lib/stage-effort.js gives it by default. Reasoning tokens are MODELLED as output tokens x a
+   multiplier per level (off 0, low 0.25, default 1, high 2, max 4): it shows the cost side only; the fake model's yield cannot depend on the
+   level, so a real-model yield check is still needed before defaults change for good.
    Tokens are DSH's estimate of every prompt and reply (lib/token-estimate.js). No network, no files outside memory. */
 import { join, resolve } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -23,10 +27,20 @@ const card = (n, index) => ({ id: `q${index + 1}`, targetId: `target-${n}`, kind
     { id: "c", text: `Principles never constrain design ${n}.`, correct: false, explanation: "Contradicts the definition." }] });
 const FLAWS = { 1: ["answerLeak"], 2: ["answerLeak"], 3: ["answerLeak"], 4: ["optionQuality"], 5: ["optionQuality"], 6: ["explanationQuality"], 7: ["sourceSupport"], 8: ["learningValue"] };
 const flawed = new Set();
-const meter = { calls: 0, input: 0, output: 0, byStage: {} };
+const meter = { calls: 0, input: 0, output: 0, reasoning: 0, byStage: {} };
+const effortMode = args.effort;
+const MULTIPLIER = { off: 0, low: 0.25, default: 1, high: 2, max: 4 };
+const MODEL_LEVELS = ["off", "low", "default", "high", "max"].map((id) => ({ id, name: id }));
+const effortModule = effortMode ? await load("lib/stage-effort.js") : null;
+const EFFORT_STAGE = { plan: "planning", blueprint: "planning", review: "review", author: "writing", repair: "repair" };
 const note = (stage, system, prompt, reply) => {
   const input = dshSystemTokens(system) + dshUserTokens(prompt), output = dshUserTokens(reply);
   meter.calls++; meter.input += input; meter.output += output;
+  if (effortModule) {
+    const relative = effortMode === "stage" ? effortModule.EFFORT_DEFAULTS[EFFORT_STAGE[stage]] : "follow";
+    const level = relative === "follow" ? "high" : effortModule.resolveEffort(MODEL_LEVELS, relative, "default").id;
+    meter.reasoning += Math.round(output * MULTIPLIER[level]);
+  }
   const row = (meter.byStage[stage] ||= { calls: 0, tokens: 0 }); row.calls++; row.tokens += input + output;
   return reply;
 };
@@ -76,5 +90,5 @@ const result = await generateBatched(complete, { count, kind: "quiz", sources: [
 const firstBatch = result.cards.filter((item) => number(item.targetId ?? "target-0") <= count).length;
 const out = { root, requested: count, kept: result.cards.length, fromFirstBatch: firstBatch, firstPassYield: Number((firstBatch / count).toFixed(2)), finalYield: Number((result.cards.length / count).toFixed(2)),
   repairedInRun: result.editorial.repairedInRun || 0, repairTried: result.editorial.repairTried || 0, reserveUsed: result.editorial.reserveUsed || 0,
-  modelCalls: meter.calls, tokens: meter.input + meter.output, byStage: meter.byStage };
+  modelCalls: meter.calls, tokens: meter.input + meter.output, ...(effortModule ? { effort: effortMode, modelledReasoningTokens: meter.reasoning, tokensWithReasoning: meter.input + meter.output + meter.reasoning } : {}), byStage: meter.byStage };
 console.log(JSON.stringify(out, null, 2));

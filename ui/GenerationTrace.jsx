@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useState } from "react";
 import { Disclosure, useNow } from "./components/index.js";
 import AgentLink from "./AgentLink.jsx";
-import { legacyStageText, stepLabel } from "./generation-status.js";
+import { legacyStageText, stageUsageRows, stepLabel } from "./generation-status.js";
 import { JobUsage } from "./TokenUsage.jsx";
 import { formatExactTokens, totalTokens } from "../lib/token-usage.js";
 import { retrievalSummary } from "./large-document-advice.js";
@@ -25,6 +25,7 @@ export default function GenerationTrace({ job, openAgent }) {
   const [open, setOpen] = useState(false);
   const now = useNow(1000, { enabled: active && open });
   const status = STEP_STATUS();
+  const stageRows = stageUsageRows(job);
   return <details className="generation-trace" onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary>{uiFormat("查看执行过程 · {0} 步", [steps.length])}</summary>
     {job.retrieval && <p className="muted" data-retrieval={retrievalSummary(job.retrieval).error ? "error" : "used"}>{retrievalSummary(job.retrieval).text}</p>}
@@ -47,6 +48,13 @@ export default function GenerationTrace({ job, openAgent }) {
     </details>}
     <Disclosure className="tech-details" summary={ui("生成方式、用量与技术详情")}>
       <JobUsage job={job} />
+      {stageRows.length > 0 && <div className="stage-usage" data-stage-usage>
+        <p className="muted">{ui("各阶段用量")}</p>
+        <ul>{stageRows.map((row) => <li key={row.code}>{row.estimate
+          ? uiFormat("{0} {1} tok（预计 {2}–{3}）", [row.label, formatExactTokens(row.tokens), formatExactTokens(row.estimate.low), formatExactTokens(row.estimate.high)])
+          : uiFormat("{0} {1} tok", [row.label, formatExactTokens(row.tokens)])}</li>)}</ul>
+        {job.estimate?.calibration?.deviates && <p className="muted">{ui("这个学习库里的实际用量长期比预计高出一半以上；预计已按最近几次的实际用量调高，审阅重试和较高的推理程度是常见原因。")}</p>}
+      </div>}
       {job.origin === "selection"
         ? <p className="muted">{ui("先提取知识点和逐字原文，再确定答案与必要情景，然后出题、自查并独立审阅；只有通过审阅的题才会保存到题组。")}</p>
         : <p className="muted">{uiFormat("先提取知识点和逐字原文，再确定答案、必要情景和选项依据；每批最多 {0} 题，出题与自查后独立审阅，通过的题保留在草稿。", [job.batchSize || 5])}</p>}
