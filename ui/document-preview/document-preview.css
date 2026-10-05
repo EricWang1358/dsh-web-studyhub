@@ -83,7 +83,7 @@
     display: block;
   }
   .study-document-body th, .study-document-body td {
-    border: 1px solid var(--line, #8885);
+    border: 1px solid var(--line);
     padding: .5rem;
   }
   .study-document-body pre {
@@ -96,7 +96,7 @@
   .study-document-body iframe {
     width: 100%;
     height: 62vh;
-    border: 1px solid var(--line, #8885);
+    border: 1px solid var(--line);
     border-radius: 8px;
   }
   .study-document-side {
@@ -178,7 +178,7 @@
     border-collapse: collapse;
   }
   .study-html-document td, .study-html-document th {
-    border: 1px solid #8885;
+    border: 1px solid var(--line);
     padding: .5rem;
   }
   .study-document-links-heading {
@@ -203,5 +203,5 @@
     padding: 0;
     border: 0;
   }
-  ::highlight(study-source-quote) {background:#e5b93c66;color:inherit}
+  ::highlight(study-source-quote) {background: var(--warn-mark); color: inherit}
 }

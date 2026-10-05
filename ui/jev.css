@@ -7,7 +7,7 @@
     .jev-settings > legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .jev-chip { margin-left: var(--space-2); vertical-align: middle; }
     .jev-privacy { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-5); border: 1px solid var(--warn-line);
-      border-radius: var(--radius-card); background: var(--warn-bg); min-width: 0; }
+      border-radius: var(--radius); background: var(--warn-bg); min-width: 0; }
     .jev-privacy[data-confirmed="true"] { border-color: var(--ok-line); background: var(--bg-surface); }
     .jev-privacy__title { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .jev-privacy__list { display: grid; gap: var(--space-2); margin: 0; padding-left: var(--space-5); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); max-width: 78ch; }
@@ -16,7 +16,7 @@
     .jev-card { max-width: 640px; }
     /* The walk-through. */
     .jev-guide { display: grid; gap: var(--space-2); max-width: 640px; min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
-      border-radius: var(--radius-card); background: color-mix(in srgb, var(--accent) 5%, var(--bg-surface)); }
+      border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 5%, var(--bg-surface)); }
     .jev-guide--done { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-4); background: transparent; border-color: var(--line); color: var(--text-muted); font-size: var(--fs-sm); }
     .jev-guide--done > span { min-width: 0; overflow-wrap: anywhere; }
     .jev-guide__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
@@ -30,7 +30,7 @@
     .jev-guide__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     /* The per-site switches. */
     .jev-replace { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-4) var(--space-5); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
-      border-radius: var(--radius-card); background: var(--bg-surface); max-width: 640px; }
+      border-radius: var(--radius); background: var(--bg-surface); max-width: 640px; }
     .jev-replace > legend { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .jev-replace > legend .jev-chip { margin-left: 0; }
     .jev-replace__replaces { color: var(--text-dim, var(--text-muted)); }
@@ -50,7 +50,7 @@
     .jev-keyenv { display: grid; gap: var(--space-2); min-width: 0; }
     .jev-keyenv > summary { cursor: pointer; color: var(--text-dim); font-size: var(--fs-sm); }
     .jev-keyenv__form { display: grid; gap: var(--space-2); }
-    .jev-switches { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
+    .jev-switches { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .jev-switches > legend { padding: 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .jev-switches:disabled { opacity: .6; }
     .jev-switches__master { padding-bottom: var(--space-3); border-bottom: 1px solid var(--line-soft); }

@@ -13,10 +13,8 @@
     .live-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); }
     .live-setup label { display: grid; gap: var(--space-2); margin: 10px 0; min-width: 0; }
     .live-setup details { margin: var(--space-3) 0; }
-    .live-setup input, .live-setup select, .live-setup textarea { width: 100%; min-width: 0; }
+    .live-setup input:not([type="checkbox"]), .live-setup select, .live-setup textarea { width: 100%; min-width: 0; }
     .live-setup-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3) var(--space-4); margin-top: 14px; }
-    .live-setup .live-check { display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-2); margin: 0; }
-    .live-check input { width: auto; margin: 0; }
     .live-setup > small { display: block; margin-top: var(--space-3); }
     .live-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
     .live-actions button { flex: 0 0 auto; max-width: 100%; }

@@ -65,19 +65,10 @@
     .es-deck__name small { color: var(--text-muted); font-size: var(--fs-sm); }
     /* case paper settings */
     .es-papers { display: grid; gap: var(--space-2); }
-    .es-paper { display: flex; flex-direction: row; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; background: var(--bg-surface); }
-    .es-paper:hover { background: var(--bg-hover); }
-    .es-paper.is-picked { border-color: var(--accent-soft); background: var(--bg-selected); }
-    .es-paper input, .es-deck input, .es-check input { accent-color: var(--accent); flex: none; width: 17px; height: 17px; padding: 0; margin: 0; }
-    .es-paper span { display: grid; gap: var(--space-half); min-width: 0; }
-    .es-paper small { color: var(--text-muted); font-size: var(--fs-sm); }
+    .es-deck input { accent-color: var(--accent); flex: none; width: 17px; height: 17px; padding: 0; margin: 0; }
     .es-times { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
     .es-times label { display: grid; gap: var(--space-1); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .es-times input { width: 100%; box-sizing: border-box; padding: var(--space-2) 10px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
-    .es-check { display: flex; flex-direction: row; gap: var(--space-2); align-items: flex-start; margin: 0; cursor: pointer; }
-    .es-check input { margin-top: var(--space-1); }
-    .es-check span { display: grid; gap: var(--space-half); }
-    .es-check small { color: var(--text-muted); font-size: var(--fs-sm); }
     .es-empty { display: grid; gap: var(--space-2); justify-items: start; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
     .es-empty strong { font-size: var(--fs-md); }
     .es-empty p { margin: 0; color: var(--text-muted); font-size: var(--fs-md); max-width: 56ch; }

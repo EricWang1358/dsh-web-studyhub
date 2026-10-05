@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
-import { Button, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
+import { Button, Checkbox, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
 import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { readJSON, removeKey, writeJSON } from "./storage.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
@@ -313,7 +313,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
         <Popover label={ui("布局")} placement="bottom-start" panelClassName="skc-layout-panel"
           trigger={({ props, ref }) => <Button ref={ref} size="sm" {...props}>{ui("布局")}</Button>}>
           <Button size="sm" onClick={readable} title={ui("按原始字号阅读，可拖动画布")}>{ui("原始大小")}</Button>
-          <label className="skc-attributes-toggle"><input type="checkbox" checked={showAttributes} onChange={(ev) => { setShowAttributes(ev.target.checked); setFocusPositions({}); }} />{ui("显示属性")}</label>
+          <Checkbox checked={showAttributes} onChange={(checked) => { setShowAttributes(checked); setFocusPositions({}); }} label={ui("显示属性")} />
           <select aria-label={ui("布局方向")} value={direction} onChange={(ev) => { setDirection(ev.target.value); setFocusMode(false); setFocusPositions({}); }}>
             <option value="auto">{ui("自适应方向")}</option><option value="right">{ui("从左到右")}</option><option value="down">{ui("从上到下")}</option>
           </select>

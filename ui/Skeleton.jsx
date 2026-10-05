@@ -382,8 +382,8 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
             </div>
           )}
           <div className="sk-actions">
-            <Button disabled={!picked.size || !!pending} onClick={runLint}>
-              {pending === "lint" ? ui("检测中…") : ui("质量检测")}
+            <Button disabled={!picked.size || !!pending} busy={pending === "lint"} busyLabel={ui("检测中…")} onClick={runLint}>
+              {ui("质量检测")}
             </Button>
             <Button variant="primary"
               disabled={!picked.size || pickedCards > 200}

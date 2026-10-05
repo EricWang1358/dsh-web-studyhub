@@ -193,7 +193,7 @@ export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onS
     <section className="page dash">
       <PageHeader title={ui("学习统计")}
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} />}
-        actions={<Button variant="quiet" icon="refresh" onClick={load} disabled={loading}>{loading ? ui("统计中…") : ui("刷新")}</Button>} />
+        actions={<Button variant="quiet" icon="refresh" onClick={load} busy={loading} busyLabel={ui("统计中…")}>{ui("刷新")}</Button>} />
 
       {err && <ErrorState error={err} onRetry={load} />}
       {loading && !stats && <LoadingState label={ui("正在统计学习记录…")} />}

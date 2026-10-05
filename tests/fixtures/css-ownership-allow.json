@@ -141,10 +141,6 @@
       "ui/shell.css",
       "ui/sources-page.css"
     ],
-    "inline-check": [
-      "ui/coach.css",
-      "ui/update.css"
-    ],
     "is-active": [
       "ui/case-study.css",
       "ui/components/components.css",
@@ -205,7 +201,6 @@
     "is-selected": [
       "ui/components/feedback.css",
       "ui/components/fields.css",
-      "ui/mineru.css",
       "ui/source-picker.css"
     ],
     "jobs-actions": [

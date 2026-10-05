@@ -1,7 +1,7 @@
 import { ui, uiFormat, useUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
-import { Banner, Button, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, useToast } from "./components/index.js";
+import { Banner, Button, Checkbox, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, useToast } from "./components/index.js";
 import { workflowDesignPrompt, workflowSkeletonPrompt } from "./agent-prompts/workflow.js";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
@@ -151,8 +151,8 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
       })}
     </ol>
     <div className="wf-components"><h3>{ui("添加一个组件")}</h3><div className="wf-component-options">{components.map((c) => <Button key={c.kind} icon="plus" size="sm" disabled={!!pending || draft.steps.length >= 16} title={c.description} onClick={() => { const step = newStep(c); change({ ...draft, steps: [...draft.steps, step] }); setExpanded(step.id); }}>{c.title}</Button>)}</div></div>
-    <div className="wf-savebar"><Button variant="primary" disabled={!!pending || !draft.title.trim() || !draft.steps.length || !!conflict} onClick={() => save()}>{pending === "save" ? ui("保存中…") : ui("保存学习流")}</Button><span className="small muted" role="status">{ui("每次学习都会保留开始时的流程副本。")}</span></div>
-    <details className="wf-chat"><summary>{ui("让主对话帮我调整")}</summary><label>{ui("想怎样学")}<textarea rows={3} value={wish} onChange={(e) => setWish(e.target.value)} maxLength={2000} placeholder={ui("例如：先看例子，再讲原理；不用选择题，改成口述复盘。")} /></label><Button disabled={!!pending || !!conflict || !draft.title.trim()} onClick={() => save(true)}>{pending === "chat" ? ui("交接中…") : ui("保存并交给主对话")}</Button></details>
+    <div className="wf-savebar"><Button variant="primary" disabled={!!pending || !draft.title.trim() || !draft.steps.length || !!conflict} busy={pending === "save"} busyLabel={ui("保存中…")} onClick={() => save()}>{ui("保存学习流")}</Button><span className="small muted" role="status">{ui("每次学习都会保留开始时的流程副本。")}</span></div>
+    <details className="wf-chat"><summary>{ui("让主对话帮我调整")}</summary><label>{ui("想怎样学")}<textarea rows={3} value={wish} onChange={(e) => setWish(e.target.value)} maxLength={2000} placeholder={ui("例如：先看例子，再讲原理；不用选择题，改成口述复盘。")} /></label><Button disabled={!!pending || !!conflict || !draft.title.trim()} busy={pending === "chat"} busyLabel={ui("交接中…")} onClick={() => save(true)}>{ui("保存并交给主对话")}</Button></details>
   </section>;
 }
 
@@ -216,7 +216,7 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
         <div className="wf-actions"><Button onClick={generateSkeleton} disabled={!scope.length}>{skeletonPending ? ui("准备请求…") : ui("生成知识骨架")}</Button><Button onClick={() => void onRefresh()}>{ui("刷新骨架")}</Button></div>
         <p className="muted small" role="status">{scope.length ? ui("根据上方已选题目，交给主对话生成；保存后可在这里关联。") : ui("先选择上方题目范围，即可生成对应骨架；也可以直接关联已有骨架。")}</p>
       </div>
-    </fieldset><div className="wf-route-preview" aria-label={ui("本次学习步骤")}>{template.steps.map((s, index) => <span key={s.id}>{index + 1}. {s.title}</span>)}</div><Button type="submit" variant="primary" disabled={pending || skeletonPending || !topic.trim()}>{pending ? ui("进入中…") : ui("进入学习 Portal")}</Button></form>
+    </fieldset><div className="wf-route-preview" aria-label={ui("本次学习步骤")}>{template.steps.map((s, index) => <span key={s.id}>{index + 1}. {s.title}</span>)}</div><Button type="submit" variant="primary" disabled={skeletonPending || !topic.trim()} busy={!!pending} busyLabel={ui("进入中…")}>{ui("进入学习 Portal")}</Button></form>
   </section>;
 }
 
@@ -295,12 +295,13 @@ export default function Workflows({ data, openSession, openRun, initialListing =
       <div className="wf-quick-row">
         <input value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={500} disabled={!!pending}
           aria-label={ui("想学什么")} placeholder={ui("例如：弄懂 Platform Engineering 里的平台团队职责")} />
-        <Button type="submit" variant="primary" className="wf-quick-go" disabled={!!pending || !goal.trim()}>{pending === "quick" ? ui("AI 正在准备…") : ui("开始学 →")}</Button>
+        <Button type="submit" variant="primary" className="wf-quick-go" disabled={!!pending || !goal.trim()} busy={pending === "quick"} busyLabel={ui("AI 正在准备…")}>{ui("开始学 →")}</Button>
       </div>
       {suggestions.length > 0 && <div className="wf-quick-suggest">{suggestions.map((text) =>
         <Button variant="link" size="sm" key={text} disabled={!!pending} onClick={() => setGoal(text)}>{text}</Button>)}</div>}
       {pending === "quick" && <LoadingState className="wf-quick-status" label={modelReady ? ui("AI 正在从你的学习库里挑选相关主题、排好顺序…") : ui("正在按名称匹配学习库里的主题…")} />}
-      {modelReady && <label className="wf-quick-option"><input type="checkbox" checked={autoSkeleton} disabled={!!pending} onChange={(e) => setAutoSkeleton(e.target.checked)} />{ui("没有现成的知识骨架时，在后台按本次范围生成一份")}<span className="muted">{ui("不用等它，学习照常开始")}</span></label>}
+      {modelReady && <Checkbox className="wf-quick-option" checked={autoSkeleton} disabled={!!pending} onChange={setAutoSkeleton}
+        label={ui("没有现成的知识骨架时，在后台按本次范围生成一份")} hint={ui("不用等它，学习照常开始")} />}
     </form>
     {error && <ErrorState error={error} />}
     <div className="wf-section-head"><h2>{ui("学习记录")}</h2></div>

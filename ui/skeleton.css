@@ -1054,9 +1054,7 @@
     & button.skc-class { transition: opacity var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
   }
   :where(.study-app, .study-seat) {
-    .skc-attributes-toggle { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); font-size: var(--fs-xs); }
     .skc-layout-panel select { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); }
-    .skc-attributes-toggle input { width: auto; }
     .skc-compact .skc-class-name { border-bottom: 0; border-radius: var(--radius-sm); }
     .skc-focus-chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
   }

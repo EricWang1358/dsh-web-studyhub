@@ -7,7 +7,7 @@ import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
 import { formatClock, joinMeta } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
-import { Button, IconButton, InlineMessage, PageHeader, SetupRequired, useToast } from './components/index.js';
+import { Button, Checkbox, IconButton, InlineMessage, PageHeader, SetupRequired, useToast } from './components/index.js';
 import { requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
@@ -150,8 +150,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
         <label>{ui('这堂课讲什么')}<input value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>
         <label>{ui('术语（逗号或换行分隔）')}<textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={2} /></label></details>
       <div className="live-setup-foot">
-        <label className="live-check"><input type="checkbox" checked={paidOnly} onChange={(event) => setPaidOnly(event.target.checked)} /><span>{ui('只用付费密钥')}</span></label>
-        <Button variant="primary" disabled={disabled} type="submit">{busy ? ui('正在连接…') : ui('开始实录')}</Button></div>
+        <Checkbox checked={paidOnly} onChange={setPaidOnly} label={ui('只用付费密钥')} />
+        <Button variant="primary" disabled={disabled} busy={busy} busyLabel={ui('正在连接…')} type="submit">{ui('开始实录')}</Button></div>
       <small className="muted">{ui('转写使用 Gemini；简体中文翻译使用音频设置中选定的模型。免费额度用完会切到付费密钥。')}</small>
     </form>}
     {!session && busy && <LiveAudioMonitor health={client.health} visible={visible} recording={capturing} />}
