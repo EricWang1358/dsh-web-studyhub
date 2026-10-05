@@ -84,6 +84,12 @@
       .source-doc__line { flex-wrap: wrap; }
       .source-doc__actions { width: 100%; justify-content: flex-end; }
       .source-doc__pages { margin-left: 0; }
+      /* Narrow: a chapter row keeps 从这一章出题 at its right and breaks inside itself — the title gets a whole line (still one
+         line, ellipsised), the size and mastery go on the line below. */
+      .source-doc__chapters .source-doc__row { flex-wrap: wrap; row-gap: var(--space-half); }
+      .source-doc__chapters .source-doc__row > span:first-child { flex: 1 0 100%; }
+      .source-doc__chapters .source-doc__row small { margin-left: 0; }
+      .source-doc__chapters li > button:first-child small { text-align: left; white-space: nowrap; }
     }
   }
 }
