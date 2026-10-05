@@ -46,7 +46,7 @@
     }
     .thumb-tray small { width: 100%; color: var(--text-faint); font-size: var(--fs-md); }
     .thumb-tray kbd, .shortcut-sheet kbd {
-      font: 600 10px/1 ui-monospace, monospace;
+      font: var(--fw-strong) var(--fs-xs)/1 ui-monospace, monospace;
       padding: var(--space-half) var(--space-1);
       border-radius: var(--radius-xs);
       border: 1px solid var(--line);

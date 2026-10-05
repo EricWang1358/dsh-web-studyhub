@@ -43,15 +43,9 @@
     },
     "legacyButtonClass": {},
     "glyphIcon": {},
-    "fontSizePx": {
-      "ui/host/studyhub.css": 1
-    },
-    "fontWeightNumeric": {
-      "ui/host/studyhub.css": 2
-    },
-    "radiusPx": {
-      "ui/document-preview/document-preview.css": 3
-    },
+    "fontSizePx": {},
+    "fontWeightNumeric": {},
+    "radiusPx": {},
     "radius999": {},
     "zIndexNumeric": {},
     "important": {},

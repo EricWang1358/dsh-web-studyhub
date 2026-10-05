@@ -166,8 +166,8 @@ function scanCssFile(file, source, metrics, found) {
       (found.defined ||= new Set()).add(prop);
     }
     if (decl.important && !isAllowedImportant(file, decl)) bump('important');
-    if (prop === 'font-size' && nonZeroPx(value).length) bump('fontSizePx');
-    if (prop === 'font-weight' && /^\d{3}$/.test(value)) bump('fontWeightNumeric');
+    if ((prop === 'font-size' || prop === 'font') && nonZeroPx(value).length) bump('fontSizePx');
+    if ((prop === 'font-weight' && /^\d{3}$/.test(value)) || (prop === 'font' && /^\d{3}(?=\s)/.test(value))) bump('fontWeightNumeric');
     if (prop === 'border-radius') {
       if (/(?<![\w.-])9{3,}px\b/.test(value)) bump('radius999');
       else if (nonZeroPx(value).length) bump('radiusPx');

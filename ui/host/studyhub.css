@@ -51,8 +51,8 @@
   .studyhub-page-empty h1 {
     margin: 8px 0 0;
     font-family: var(--font-display);
-    font-size: 24px;
-    font-weight: 600;
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-strong);
   }
   .studyhub-page-empty p {
     margin: 0;
@@ -68,7 +68,7 @@
     background: var(--accent);
     color: var(--accent-ink);
     font: inherit;
-    font-weight: 600;
+    font-weight: var(--fw-strong);
     cursor: pointer;
   }
   .studyhub-page-empty button:hover {

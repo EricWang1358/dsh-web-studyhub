@@ -10,7 +10,7 @@
       line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; tab-size: 4; }
     .study-document-viewer .source-text--reading.source-md { white-space: normal; }
     .study-document-viewer .source-text--pdf { max-width: 100%; margin: 0; padding: var(--space-3) var(--space-4); overflow-x: auto;
-      border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text); font: 14px/1.65 ui-monospace, "Cascadia Mono", Consolas, monospace;
+      border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text); font: var(--fs-sm)/1.65 ui-monospace, "Cascadia Mono", Consolas, monospace;
       white-space: pre; tab-size: 4; }
     .study-document-page + .study-document-page { margin-top: var(--space-5); }
     .study-document-page h3 { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
@@ -97,7 +97,7 @@
     width: 100%;
     height: 62vh;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
   }
   .study-document-side {
     position: sticky;
@@ -107,7 +107,7 @@
   .study-document-learning {
     border: 1px solid var(--line);
     padding: 1rem;
-    border-radius: 10px;
+    border-radius: var(--radius);
   }
   .study-document-learning blockquote {
     max-height: 8rem;
@@ -137,7 +137,7 @@
     background: var(--bg-surface);
     border: 1px solid var(--line);
     padding: .5rem;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
   .study-selection-options {
     display: grid;
