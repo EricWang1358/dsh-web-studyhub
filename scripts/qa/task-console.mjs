@@ -1,6 +1,7 @@
 /* node scripts/qa/task-console.mjs [--lang zh|en] [--theme dark|light] [--width 1280|420] [--out output/task-console] [--dist dist] [--ended [--bar N]] [--output]
    [--flow=select|archived|dialog]  (2.6.1) two tasks have ended and one runs: select (everything selected, the bar of the selection), archived (archived, 已归档 open, read-only),
    dialog (the confirmation of 删除 open).
+   [--accent=jade|ochre|graphite|plum] [--palette=oled|paper]  an accent preset / a theme of Settings; [--hover=all|archive|delete|clear|row [--focus]] points at (or focuses) that control so its tooltip is open.
    --ended lets the held jobs finish, then opens the N-th bar of the timeline (an ended call): 实时输出 shows what it wrote (2.6.1), model JSON indented.
    The 任务 console in the browser preview, on a seeded temporary library with the fake model: a three-recording audio batch (one of them named .mp3 but a
    WAV) and a question run, both held in flight, with the text of the model's replies streamed in small pieces so 实时输出 has something to show, and
@@ -126,8 +127,11 @@ export async function startJobs(running, { count = 10 } = {}) {
 }
 
 /** Open a page of the app by its sidebar entry (the 任务 console by default). */
-export async function openConsole(browser, running, { lang = "zh", theme = "dark", width = 1280, height = 900, nav = "tasks" } = {}) {
+export async function openConsole(browser, running, { lang = "zh", theme = "dark", width = 1280, height = 900, nav = "tasks", accent, palette } = {}) {
   const opened = await openPage(browser, running, { lang, theme, width, height });
+  // An accent preset (ui/accent.css) and, with `palette` (oled|paper), the theme of Settings: stored the way Settings stores them.
+  if (palette) await opened.context.addInitScript((value) => { try { localStorage.setItem("study-theme", value); } catch { /* blocked */ } }, palette);
+  if (accent && accent !== "cinnabar") await opened.context.addInitScript((value) => { try { localStorage.setItem("study-interface", JSON.stringify({ accent: value })); } catch { /* blocked */ } }, accent);
   await opened.page.goto(running.server.url);
   await opened.page.locator("aside, nav").first().waitFor({ timeout: 30000 });
   const entry = opened.page.locator(`[data-tour="nav-${nav}"]`).first();
@@ -149,6 +153,55 @@ export const measure = (page) => page.evaluate(() => {
     scrollers: { list: scroller(".tc-list .tc-scroll"), panels: scroller(".tc-panel .tc-scroll, .tc-output__body, .tc-log__body, .tc-lanes"), mainScrolls: main ? main.scrollHeight > main.clientHeight + 1 : null } };
 });
 
+/** The list's selection UI as a reader needs it: the bar, the boxes against the status dots, the rows' places and the colours of the text on what it sits on (for a contrast ratio), the open tooltip against the window. Runs in the page. */
+export const measureSelection = (page) => page.evaluate(() => {
+  const read = (text) => {
+    const srgb = /color\(srgb ([^)]+)\)/.exec(text);
+    if (srgb) { const [colour, alpha] = srgb[1].split("/"); const [r, g, b] = colour.trim().split(/\s+/).map((value) => Number(value) * 255); return [r, g, b, alpha === undefined ? 1 : Number(alpha)]; }
+    const m = /rgba?\(([^)]+)\)/.exec(text);
+    if (!m) return [0, 0, 0, 0];
+    const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+    return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
+  };
+  const over = (top, under) => { const alpha = top[3] + under[3] * (1 - top[3]); return alpha ? [0, 1, 2].map((i) => (top[i] * top[3] + under[i] * under[3] * (1 - top[3])) / alpha).concat(alpha) : [0, 0, 0, 0]; };
+  /** What is behind an element: every ancestor's background laid over the one above it, from the window down. */
+  const backdrop = (element) => { const chain = []; for (let node = element; node; node = node.parentElement) chain.unshift(read(getComputedStyle(node).backgroundColor)); return chain.reduce((under, layer) => over(layer, under), [255, 255, 255, 1]); };
+  const sample = (what, element) => element && { what, fg: read(getComputedStyle(element).color), bg: backdrop(element), text: element.textContent.trim().slice(0, 24) };
+  const box = (element) => { if (!element) return null; const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2 }; };
+  const bar = document.querySelector(".tc-pickbar"), scroll = document.querySelector(".tc-scroll");
+  const items = [...document.querySelectorAll(".tc-item")];
+  const ticked = items.filter((item) => item.dataset.checked === "true"), picked = items.filter((item) => item.querySelector(".tc-row[aria-pressed='true']"));
+  const rowSamples = (list, tag) => list.flatMap((item) => [sample(`${tag} title`, item.querySelector(".tc-row__title")), sample(`${tag} sub`, item.querySelector(".tc-row__sub")), sample(`${tag} num`, item.querySelector(".tc-num"))]);
+  const tip = document.querySelector(".sh-tooltip:popover-open");
+  // A tooltip lets the pointer through: switch that off for the hit test only, so the test sees what is really on top at its middle and at its corners.
+  const tipBox = box(tip);
+  if (tip) tip.style.pointerEvents = "auto";
+  const hits = tipBox ? [[tipBox.cx, tipBox.cy], [tipBox.left + 2, tipBox.top + 2], [tipBox.right - 2, tipBox.bottom - 2]].map(([x, y]) => document.elementFromPoint(x, y)) : [];
+  if (tip) tip.style.pointerEvents = "";
+  const heads = [...document.querySelectorAll(".tc-head__actions > *")];
+  return {
+    viewport: { width: innerWidth, height: innerHeight }, scrollWidth: document.documentElement.scrollWidth,
+    bar: box(bar), barScroll: bar && { scrollWidth: bar.scrollWidth, clientWidth: bar.clientWidth }, barInput: box(bar?.querySelector(".tc-pickbar__all input")), barIndeterminate: bar?.querySelector(".tc-pickbar__all input")?.indeterminate ?? null,
+    barChecked: bar?.querySelector(".tc-pickbar__all input")?.checked ?? null, barLabel: bar?.querySelector(".sh-check__label")?.textContent ?? "", labelCut: (() => { const label = bar?.querySelector(".sh-check__label"); return label ? label.scrollWidth > label.clientWidth + 1 : null; })(),
+    actions: [...(bar?.querySelectorAll(".tc-pickbar__actions button") ?? [])].map((button) => ({ text: button.textContent.trim(), ...box(button) })),
+    listScroll: scroll && { scrollHeight: scroll.scrollHeight, clientHeight: scroll.clientHeight, top: scroll.getBoundingClientRect().top }, itemTops: items.map((item) => Math.round(item.getBoundingClientRect().top)),
+    ticked: ticked.map((item) => ({ input: box(item.querySelector("input")), dot: box(item.querySelector(".tc-dot")), title: box(item.querySelector(".tc-row__title")) })),
+    unticked: items.filter((item) => item.dataset.checked !== "true" && item.querySelector("input")).map((item) => ({ input: box(item.querySelector("input")), dot: box(item.querySelector(".tc-dot")) })),
+    contrast: [...rowSamples(ticked, "ticked row"), ...rowSamples(picked, "picked row"), sample("bar label", bar?.querySelector(".sh-check__label")), ...[...(bar?.querySelectorAll(".tc-pickbar__actions button") ?? [])].map((button) => sample("bar button", button))].filter(Boolean),
+    tooltip: tip ? { ...tipBox, text: tip.textContent.trim(), covered: !hits.every((hit) => hit && tip.contains(hit)), inTopLayer: tip.matches(":popover-open") } : null,
+    head: { actions: heads.map((element) => ({ text: element.textContent.trim(), ...box(element) })), title: box(document.querySelector(".tc-head__title h2")), titleCut: (() => { const h2 = document.querySelector(".tc-head__title h2"); return h2 ? h2.scrollWidth > h2.clientWidth + 1 : null; })(), detail: box(document.querySelector(".tc-detail")), box: box(document.querySelector(".tc-head")) },
+    focus: document.activeElement ? { tag: document.activeElement.tagName.toLowerCase(), inBar: !!bar?.contains(document.activeElement), isBar: document.activeElement === bar } : null,
+  };
+});
+
+/** The WCAG contrast ratio of two [r, g, b, a] colours (the text over the backdrop it sits on). */
+export function contrastRatio(fg, bg) {
+  const light = ([r, g, b]) => { const f = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+  const solid = fg[3] < 1 ? [0, 1, 2].map((i) => fg[i] * fg[3] + bg[i] * (1 - fg[3])) : fg;
+  const [a, b] = [light(solid), light(bg)].sort((x, y) => y - x);
+  return (a + 0.05) / (b + 0.05);
+}
+
 /** The compact cards of a page: each card's box and the boxes of its parts, so a test can see that they line up (same columns, same height) and that the page does not scroll sideways. */
 export const measureCards = (page) => page.evaluate(() => {
   const r = (element) => { if (!element) return null; const b = element.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), width: Math.round(b.width), height: Math.round(b.height) }; };
@@ -168,7 +221,7 @@ async function main() {
     await startJobs(running);
     if (args.flow) await finishJobsThenHoldOne(running);
     const nav = args.page === "audio" ? "audio" : args.page === "library" ? "library" : "tasks";
-    const { page, errors, context } = await openConsole(browser, running, { lang, theme, width, height, nav });
+    const { page, errors, context } = await openConsole(browser, running, { lang, theme, width, height, nav, accent: args.accent, palette: args.palette });
     if (nav !== "tasks") {
       await frames(page, 6); await page.waitForTimeout(1500); await drainLayoutStability(page);
       const shot = join(out, `cards-${nav}-${lang}-${theme}-${width}.png`);
@@ -193,6 +246,13 @@ async function main() {
       }
     }
     if (args.pick) await page.locator(".tc-row").nth(Number(args.pick)).dispatchEvent("click");
+    // --hover=all|box|archive|delete|clear|row: really point at (or Tab to, with --focus) that control so its tooltip is open for the picture.
+    if (args.hover) {
+      const target = { box: ".tc-pickbar__all", all: ".tc-pickbar__all", archive: ".tc-pickbar__actions button >> nth=0", delete: ".tc-pickbar__actions button >> nth=1", clear: ".tc-pickbar__actions button >> nth=2", row: ".tc-row >> nth=0" }[args.hover];
+      if (!target) throw new Error(`--hover=${args.hover}: unknown target`);
+      if (args.focus) await page.locator(target).first().focus(); else await page.locator(target).first().hover();
+      await page.waitForTimeout(900);
+    }
     // A task with nothing in flight (a day of 为你定制) shows no call: `--calls=0` does not wait for one.
     if (args.calls !== "0" && !args.ended && !args.flow) await until(async () => (await page.locator(".tc-callrow").count()) > 0, "a call in flight");
     if (args.ended) {

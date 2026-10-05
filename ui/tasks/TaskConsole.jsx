@@ -140,7 +140,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
             : <Tooltip content={ui('放进「已归档」，不会删除任何东西；之后可以取消归档或删除。')} layer placement="bottom-end">
               <Button size="sm" variant="quiet" disabled={core.busy} onClick={archive}>{ui('知道了')}</Button>
             </Tooltip>)}
-          {!live && !day && <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => onDelete([key])}>{ui('删除')}</Button>}
+          {!live && !day && <Button size="sm" variant="danger" className="tc-head__delete" disabled={core.busy} onClick={() => onDelete([key])}>{ui('删除')}</Button>}
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
@@ -160,7 +160,7 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   // A task that is being archived is already out of the list (it is listed under 已归档 at once; the host's snapshot confirms it a moment later).
   const tasks = useMemo(() => tasksOf(data).filter((task) => !task.leaving), [data]);
   const archived = useMemo(() => archivedTasksOf(data), [data]);
-  const [filter, setFilter] = useState(initialFilter), [current, setCurrent] = useState(null), seen = useRef(null);
+  const [filter, setFilter] = useState(initialFilter), [current, setCurrent] = useState(null), seen = useRef(null), listRef = useRef(null);
   const [selection, setSelection] = useState(() => new Set()), [working, setWorking] = useState(false), [deleting, setDeleting] = useState(null);
   // 全屏 folds the list away so the detail has the whole width; it is remembered for this viewer (and never needed for anything to work).
   const [full, setFull] = useState(() => readJSON('study-task-console-full', false) === true);
@@ -205,10 +205,23 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
     setSelection((before) => new Set([...before].filter((id) => !ids.includes(id))));
   };
   const askDelete = useCallback((ids) => setDeleting({ ids }), []);
+  // Esc ends the selection while the focus is in the list (a box, a row, the bar) or nowhere. It listens on the window, before the tooltip of the box (open while it has the focus) takes the
+  // key at the document: one press ends the selection and closes the tooltip, instead of the first press only closing the tooltip. An open dialog has the focus, so its Esc is its own.
+  const selecting = selection.size > 0;
+  useEffect(() => {
+    if (!selecting) return undefined;
+    const end = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const at = event.target;
+      if (at === document.body || at === document.documentElement || listRef.current?.contains(at)) setSelection(new Set());
+    };
+    window.addEventListener('keydown', end, true);
+    return () => window.removeEventListener('keydown', end, true);
+  }, [selecting]);
   const kind = (id) => { const item = everything.get(id); return item ? contractOf(item).kind : null; };
   return (
     <div className="tc" data-surface="dense" data-usage-area="tasks" data-full={full ? 'true' : 'false'}>
-      <section className="tc-list" aria-label={ui('任务列表')}>
+      <section className="tc-list" aria-label={ui('任务列表')} ref={listRef}>
         <div className="tc-bar">
           <h1>{ui('任务')}</h1>
         </div>
