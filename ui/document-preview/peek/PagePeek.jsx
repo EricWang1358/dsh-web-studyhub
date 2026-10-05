@@ -11,13 +11,15 @@ const closeBitmap = bitmap => { try { bitmap.close?.(); } catch { /* already clo
  * The panel for the reader. page: the text page it was opened at; figure: opened from a figure placeholder. status: peekStatus(document);
  * totalPages / offset / windowed: what the text says about its pages (pdfPageFor); loadBytes(): the original's bytes as a Uint8Array (the
  * viewer already has them; null when they are gone); openRenderer(bytes): renderer.js's createPeekRenderer (injectable for tests);
- * onAttach(kind): the 补全原文件 dialog; onClose().
+ * onAttach(kind): the 补全原文件 dialog; onShowOriginal(pdfPage): switch the viewer to its 原始 PDF tab at that page (offered when a page's images did not decode); onClose().
  */
-export default function PagePeek({ page, figure = false, totalPages = 0, offset = 0, windowed = false, status, loadBytes, openRenderer, onAttach, onClose }) {
+export default function PagePeek({ page, figure = false, totalPages = 0, offset = 0, windowed = false, status, loadBytes, openRenderer, onAttach, onShowOriginal, onClose }) {
   const [phase, setPhase] = useState(status?.kind === 'ok' ? 'loading' : 'none'), [current, setCurrent] = useState(page), [zoom, setZoom] = useState(1);
-  const [message, setMessage] = useState(''), [mismatch, setMismatch] = useState(null), [busy, setBusy] = useState(false), [tries, setTries] = useState(0), [fitKey, setFitKey] = useState(0);
+  const [message, setMessage] = useState(''), [mismatch, setMismatch] = useState(null), [busy, setBusy] = useState(false), [tries, setTries] = useState(0), [fitKey, setFitKey] = useState(0), [undecoded, setUndecoded] = useState(0);
   const panel = useRef(null), canvas = useRef(null), scroller = useRef(null), renderer = useRef(null), drag = useRef(null);
   const gate = useRef(null), cache = useRef(null), opener = useRef(null), rect = useRef(null), stats = useRef({ renders: 0, hits: 0 });
+  // How many images of each page pdf.js could not decode (renderer.js reports it), and the PDF page now shown: a scan whose decoder is missing must not look like a blank page.
+  const undecodedPages = useRef(new Map()), shownPage = useRef(0);
   // What the panel did, as data attributes (the browser QA reads them): pages drawn, pages served from the cache, bitmaps and bytes kept.
   const note = () => {
     const area = panel.current; if (!area) return;
@@ -64,6 +66,8 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
     const mapped = pdfPageFor({ page: current, totalPages, pdfPages: renderer.current.numPages, offset, window: windowed });
     if (!mapped.ok) { setMessage(uiFormat('原文件里没有第 {0} 页', [current])); setPhase('error'); return undefined; }
     const turn = gate.current.begin(), pdfPage = mapped.pdfPage, target = canvas.current, area = scroller.current;
+    shownPage.current = pdfPage;
+    setUndecoded(undecodedPages.current.get(pdfPage) || 0);
     setBusy(true);
     (async () => {
       try {
@@ -80,7 +84,7 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
         show(hit || cache.current.get(lowKey));
         note();
         for (const step of peekPlan({ fitScale: fit, zoom, dpr, cached: { low: cache.current.has(lowKey), sharp: cache.current.has(sharpKey) } })) {
-          const bitmap = await renderer.current.render(pdfPage, { scale: step.scale, signal: turn.signal });
+          const bitmap = await renderer.current.render(pdfPage, { scale: step.scale, signal: turn.signal, onReport: report => { if (!turn.current()) return; undecodedPages.current.set(pdfPage, report.undecoded); setUndecoded(report.undecoded); } });
           if (!turn.current()) { closeBitmap(bitmap); return; }
           stats.current.renders += 1;
           cache.current.set(step.quality === 'low' ? lowKey : sharpKey, bitmap);
@@ -161,7 +165,7 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
     event.preventDefault(); event.stopPropagation();
     rect.current = resizeBox(corner, move[0], move[1], rect.current, win()); apply();
   };
-  return <PagePeekView phase={phase} page={current} total={total} zoom={zoom} figure={figure} busy={busy} message={message} mismatch={mismatch} issue={status}
+  return <PagePeekView phase={phase} page={current} total={total} zoom={zoom} figure={figure} busy={busy} message={message} mismatch={mismatch} issue={status} undecoded={undecoded}
     panelRef={panel} canvasRef={canvas} scrollRef={scroller} onClose={onClose} onPrev={() => go(-1)} onNext={() => go(1)} onZoom={zoomBy} onFit={fit}
-    onAttach={onAttach} onRetry={() => { setPhase('ready'); setTries(count => count + 1); }} onDragStart={onDragStart} onResizeStart={onResizeStart} onGripKey={onGripKey} onKeyDown={onKeyDown} />;
+    onAttach={onAttach} onShowOriginal={onShowOriginal ? () => onShowOriginal(shownPage.current) : undefined} onRetry={() => { setPhase('ready'); setTries(count => count + 1); }} onDragStart={onDragStart} onResizeStart={onResizeStart} onGripKey={onGripKey} onKeyDown={onKeyDown} />;
 }

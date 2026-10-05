@@ -21,7 +21,7 @@ test("a light action patches the view at once, without waiting for the call", as
   const { quick, raw, calls } = setup(() => pending.promise);
   const done = dismissJobs(quick, "a");
   assert.deepEqual(flagged(quick.view(raw)), ["a"], "the card is marked as leaving before the server answers");
-  assert.deepEqual(calls, [["job.dismiss", { jobId: "a" }]]);
+  assert.deepEqual(calls, [["job.archive", { jobId: "a" }]]);
   assert.equal(quick.view(raw).jobs[0].leaving, true);
   assert.equal(raw.jobs[0].leaving, undefined, "the server snapshot itself is never mutated");
   pending.resolve({ dismissed: ["a"] });
@@ -102,7 +102,7 @@ test("dismiss-all flags only finished jobs, once, under one key", async () => {
   const { quick, raw, calls } = setup(async () => ({ dismissed: ["a", "b"] }));
   const done = dismissJobs(quick);
   assert.deepEqual(flagged(quick.view(raw)).sort(), ["a", "b"], "the running job is never hidden");
-  assert.deepEqual(calls, [["job.dismiss", { all: true }]]);
+  assert.deepEqual(calls, [["job.archive", { all: true }]]);
   await done;
 });
 

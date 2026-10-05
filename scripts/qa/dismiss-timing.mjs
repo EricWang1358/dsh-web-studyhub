@@ -108,7 +108,7 @@ try {
   page.on("requestfinished", async (request) => {
     if (!request.url().endsWith("/api/call")) return;
     let action = "?"; try { action = JSON.parse(request.postData() || "{}").action; } catch { /* not JSON */ }
-    if (["job.dismiss", "snapshot", "inbox.read"].includes(action)) results.api.push({ action, ms: Math.round(request.timing().responseEnd), kb: Math.round(((await (await request.response())?.body())?.length || 0) / 1024) });
+    if (["job.archive", "snapshot", "inbox.read"].includes(action)) results.api.push({ action, ms: Math.round(request.timing().responseEnd), kb: Math.round(((await (await request.response())?.body())?.length || 0) / 1024) });
   });
   page.on("response", (r) => { if (r.status() >= 400) results.errors.push(`${r.status()} ${r.request().method()} ${r.url()} ${(r.request().postData() || "").slice(0, 120)}`); });
   const wait = (job) => previewCall(server, "job.wait", { jobId: job, timeoutSeconds: 30 });
@@ -134,7 +134,7 @@ try {
   if (flag("fail")) {
     // A failing server: the cards must come back with a short error beside them.
     await context.route("**/api/call", async (route) => {
-      if ((route.request().postData() || "").includes('"job.dismiss"')) await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Disk is busy, try again" }) });
+      if ((route.request().postData() || "").includes('"job.archive"')) await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Disk is busy, try again" }) });
       else await route.continue();
     });
     await page.click('[data-tour="nav-audio"]');

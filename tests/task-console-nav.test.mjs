@@ -61,7 +61,7 @@ test('tasks list newest first, and the filters count the same list they filter',
   const tasks = tasksOf(data);
   assert.deepEqual(tasks.map((task) => task.id), ['new', 'bad', 'old']);
   const filters = taskFilters(tasks);
-  assert.deepEqual(filters.map((filter) => [filter.id, filter.count]), [['all', 3], ['running', 1], ['failed', 1]]);
+  assert.deepEqual(filters.map((filter) => [filter.id, filter.count]), [['all', 3], ['running', 1], ['failed', 1], ['archived', 0]]);
   assert.deepEqual(filterTasks(tasks, 'running').map((task) => task.id), ['new']);
   assert.deepEqual(filterTasks(tasks, 'failed').map((task) => task.id), ['bad']);
   assert.deepEqual(filterTasks(tasks, 'all').length, 3);

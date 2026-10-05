@@ -92,7 +92,7 @@ function QuotedText({ text, quote, anchor, format }) {
  * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
  */
 export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, resume, backLabel, onBack, localContent }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -282,6 +282,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume });
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
+  const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
   const meters = !localMode && loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
@@ -351,7 +352,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       <p className="reader-toolbar__where" title={where || undefined}>{where}</p>
       {meters && <span className="reader-toolbar__mastery"><MasteryLine summary={loop.current} title={ui('本节掌握度')} /></span>}
       <div className="reader-toolbar__group reader-toolbar__group--end">
-        {!localMode && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} />}
+        {!localMode && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         {view !== 'original' && <>
           <IconButton icon="search" label={ui('在文中查找')} aria-pressed={finding} onClick={() => finding ? closeFind() : openFind()} />
           {bilingual.toolbar}
@@ -419,7 +420,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     </div>
     {bilingual.layer}
     {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
-      status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }} /></Suspense>}
+      status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }}
+      onShowOriginal={page => { setPeek(null); if (page) setPdfPage(page); setMode('original'); }} /></Suspense>}
     {!localMode && attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
       call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;

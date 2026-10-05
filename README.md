@@ -6,7 +6,7 @@ StudyHub turns your course materials into practice questions that show where eac
 
 StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/harness/), an AI agent app. DSH runs as a desktop app or as a web page served from your own computer, and StudyHub opens inside it.
 
-[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Install guide](docs/install.md) · [Release 2.6.0](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.6.0) · [Changelog](CHANGELOG.md)
+[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Install guide](docs/install.md) · [Release 2.6.1](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.6.1) · [Changelog](CHANGELOG.md)
 
 The demo runs in your browser with sample questions and prepared AI replies. It needs no install and no key, and your progress there stays in that browser.
 
@@ -41,10 +41,10 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 2. **Install StudyHub.** In DSH, open **Plugins**, click **Add plugin**, paste this address and click **Enable**:
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.6.0/ericwang1358-dsh-daily-flashcard-2.6.0.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.6.1/ericwang1358-dsh-daily-flashcard-2.6.1.tgz
    ```
 
-   Check that the package is `@ericwang1358/dsh-daily-flashcard`, version **2.6.0**. StudyHub then opens by itself. Later, open it from **StudyHub** in DSH's left sidebar (the session tab and the right sidebar also work); you do not need to send a chat message first.
+   Check that the package is `@ericwang1358/dsh-daily-flashcard`, version **2.6.1**. StudyHub then opens by itself. Later, open it from **StudyHub** in DSH's left sidebar (the session tab and the right sidebar also work); you do not need to send a chat message first.
 3. **Take the tour (optional, about 3 minutes).** On the welcome page, click **Load the sample and start the tour**. The 21-step tour moves through sources, generation, practice, mistakes, exams and statistics and points at the real controls. The sample makes no model calls and can be removed with one click.
 4. **Add a model.** Paste a key in DSH **Settings › Models** and choose a model in your session. Until then, StudyHub shows **Open model settings** wherever a step needs a model, instead of letting the step fail later.
 5. **Start with your own material.** Click **Add source** and drop several PDFs, slides or notes at once. Then use **Generate from sources**, review the draft, publish it and practise.
@@ -52,9 +52,9 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 Notes on installing:
 
 - **Already use DSH?** Install only the plugin. Keep your current desktop app or web server, profile, model settings and workspace.
-- **GitHub address does not work?** Download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.6.0) in your browser and give **Add plugin** its absolute path. The file must be on the computer or server that runs DSH.
+- **GitHub address does not work?** Download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.6.1) in your browser and give **Add plugin** its absolute path. The file must be on the computer or server that runs DSH.
 - **Which file on the release page?** Only the complete package, `ericwang1358-dsh-daily-flashcard-<version>.tgz`, and you normally do not need to download it: step 2 pastes its address. The other files are the six separate components, the search extension (StudyHub installs it when you click **Install the search extension**), the checksum list and two setup guides.
-- More options, including the command line: [installation and model setup guide](docs/install.md). Setup guides you can open in a browser: [English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.6.0/StudyHub-2.6.0-Setup.html) · [Chinese](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.6.0/StudyHub-2.6.0-Setup.zh-CN.html). DSH itself comes only from the official sources in step 1.
+- More options, including the command line: [installation and model setup guide](docs/install.md). Setup guides you can open in a browser: [English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.6.1/StudyHub-2.6.1-Setup.html) · [Chinese](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.6.1/StudyHub-2.6.1-Setup.zh-CN.html). DSH itself comes only from the official sources in step 1.
 
 ## Use StudyHub
 

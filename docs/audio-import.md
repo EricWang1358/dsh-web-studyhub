@@ -151,7 +151,7 @@ Each passage is reviewed only once. Speaker labels and word-level timestamps are
 Transcription segments, proofreading windows, translation parts and the title are each saved as soon as they finish.
 
 - **Continue.** After a failure, a stop or a DSH restart, the card returns with **Continue (nothing is paid for twice)**. It finishes the original submission from the saved work, with the current settings. You do not choose the file again, and the card shows what is saved ("Saved: Transcription 3/3 · Proofreading 2/5").
-- **Uploaded files** are kept until the import succeeds or you click **Got it**. A file taken from the workspace or a path is read in place, not copied. It must still exist unchanged; otherwise import it again as a new recording, so old progress is never attached to a different one.
+- **Uploaded files** are kept until the import succeeds or you delete the task (**Got it** only archives the task, so the copy stays; deleting it cleans the working copy). A file taken from the workspace or a path is read in place, not copied. It must still exist unchanged; otherwise import it again as a new recording, so old progress is never attached to a different one.
 - **Proofreading errors.** A window that fails keeps its original text and the run goes on. If two windows in a row fail with the same error, the job stops so that quota is not wasted on every window.
 - **Notices.** **Continue** removes the old **Recording processing incomplete** notice; a new failure brings a new one.
 - **Old failed imports.** Imports from versions that did not save the job show **Select the original recording to continue**. Choose the same file (same name) and check the course and glossary: the old options were not saved, so there is no one-click resume. Matching saved work is still reused. The old notice goes away once the new import starts.
@@ -380,7 +380,7 @@ The agent reaches audio through the `study_audio` tool:
 - `audio.settings.get` reports whether each key is set and its last four characters. Keys are never asked for or accepted in chat; saving and testing keys (`audio.settings.set`, `audio.test`) happen in the panel.
 - `audio.subtitles.import`, `audio.corrections.review`, `results`, `result.get`, `jobs`, `job.wait` (up to 60 seconds), `job.cancel`, and `live.list`, `live.get`, `live.save` are also available.
 
-The panel uploads files with `audio.upload.start`, `audio.upload.chunk` (3 MB chunks), `audio.upload.finish` and `audio.upload.cancel`, checks them with `audio.preflight`, reads the console with `audio.usage` and clears finished cards with `job.dismiss`. **Find in the workspace** searches only the current session's workspace, at most 6 levels deep, newest first. It skips hidden folders, `node_modules`, `dist`, `build`, Python environments and StudyHub's own data folders. Only each file's name, size and date reach the panel.
+The panel uploads files with `audio.upload.start`, `audio.upload.chunk` (3 MB chunks), `audio.upload.finish` and `audio.upload.cancel`, checks them with `audio.preflight`, reads the console with `audio.usage` and puts finished cards away with `job.archive` (**Got it** keeps a read-only record under Jobs, Archived; `job.delete` removes records for good). **Find in the workspace** searches only the current session's workspace, at most 6 levels deep, newest first. It skips hidden folders, `node_modules`, `dist`, `build`, Python environments and StudyHub's own data folders. Only each file's name, size and date reach the panel.
 
 ### Where things are stored
 

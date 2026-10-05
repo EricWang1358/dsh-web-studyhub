@@ -7,18 +7,27 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, concatTransformationMatrix, drawObject, popGraphicsState, pushGraphicsState, rgb } from "pdf-lib";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
+import { brokenImageBytes, ccittG4Bytes } from "../../tests/helpers/scan-pdfs.mjs";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
 
 /** A PDF whose pages say what they are (big "PAGE n") and, on `figures`, carry a drawn figure and the line [Figure]. */
-async function makePdf(pages, { figures = [], title = "Book" } = {}) {
+/** `scans`: { pageNumber: "ccitt" | "broken" } puts a scanned image on the page: a real CCITT G4 picture (decoded by the jbig2 wasm chunk) or bytes no decoder can read. */
+async function makePdf(pages, { figures = [], title = "Book", scans = {} } = {}) {
   const doc = await PDFDocument.create(), font = await doc.embedFont(StandardFonts.Helvetica);
   for (let n = 1; n <= pages; n += 1) {
     const page = doc.addPage([612, 792]);
     page.drawText(`${title} PAGE ${n}`, { x: 50, y: 720, size: 28, font });
     page.drawText(`Page ${n} explains one idea of the course in a few plain sentences that can be read.`, { x: 50, y: 680, size: 12, font });
     page.drawText(`The second line of page ${n} adds a little more text so that the page counts as real text.`, { x: 50, y: 660, size: 12, font });
+    if (scans[n]) {
+      const broken = scans[n] === "broken";
+      const image = doc.context.register(doc.context.stream(broken ? brokenImageBytes() : ccittG4Bytes(), broken
+        ? { Type: "XObject", Subtype: "Image", Width: 64, Height: 64, ColorSpace: "DeviceGray", BitsPerComponent: 8, Filter: "JPXDecode" }
+        : { Type: "XObject", Subtype: "Image", Width: 64, Height: 64, ColorSpace: "DeviceGray", BitsPerComponent: 1, Filter: "CCITTFaxDecode", DecodeParms: { K: -1, Columns: 64, Rows: 64 } }));
+      page.pushOperators(pushGraphicsState(), concatTransformationMatrix(400, 0, 0, 400, 100, 200), drawObject(page.node.newXObject("Scan", image)), popGraphicsState());
+    }
     if (figures.includes(n)) {
       page.drawText("[Figure]", { x: 50, y: 620, size: 12, font });
       page.drawRectangle({ x: 80, y: 300, width: 440, height: 300, color: rgb(0.2, 0.45, 0.8) });
@@ -36,6 +45,9 @@ async function seed(root) {
   const bytes = pdf => pdf.toString("base64");
   const book = await runtime.call("materials.document.import", { filename: "os-book.pdf", dataBase64: bytes(await makePdf(12, { figures: [3, 7], title: "OS" })), courses: ["QA"] });
   SEEDED.book = book.documentId;
+  // A scanned book: page 2 carries a real CCITT scan (needs the jbig2 wasm chunk), page 3 an image no decoder can read (the popover must say so).
+  const scan = await runtime.call("materials.document.import", { filename: "scan-book.pdf", dataBase64: bytes(await makePdf(4, { title: "SCAN", scans: { 2: "ccitt", 3: "broken" } })), courses: ["QA"] });
+  SEEDED.scan = scan.documentId;
   // 120 pages for the memory measurement.
   const big = await runtime.call("materials.document.import", { filename: "big-book.pdf", dataBase64: bytes(await makePdf(120, { figures: [10, 60], title: "BIG" })), courses: ["QA"] });
   SEEDED.big = big.documentId;
@@ -226,6 +238,36 @@ export async function runPeekQa(options) {
       await panel.waitFor({ state: "detached" });
       const after = await heap();
       return { heapBeforeMB: mb(before), heapPeakMB: mb(peak), heapAfterCloseMB: mb(after), bitmapsKept: cached, bitmapBytesMB: mb(bytes) };
+    });
+    await closeReader();
+
+    // A scanned book: the image is drawn by a decoder that arrives as a chunk when the page asks for it; one nobody can decode is said, not left blank.
+    await step("peek-scanned-page-is-drawn", async () => {
+      await openRow("scan-book");
+      await viewer.locator('.reader-section[data-study-page="2"] .reader-peek').first().click();
+      await drawn();
+      const ink = await canvas.evaluate((element) => { const data = element.getContext("2d").getImageData(0, 0, element.width, element.height).data; let dark = 0; for (let i = 0; i < data.length; i += 4) if (data[i] < 100 && data[i + 3] > 0) dark += 1; return dark / (data.length / 4); });
+      if (ink < 0.15) throw new Error(`the scanned page is blank (${Math.round(ink * 1000) / 10}% dark)`);
+      if (await panel.locator("[data-peek-notice]").count()) throw new Error("a scan that drew says it did not");
+      return { darkShare: Math.round(ink * 1000) / 1000 };
+    });
+    await step("peek-undecodable-image-says-so", async () => {
+      await tool("下一页", "Next page").click();
+      await panel.locator('[data-peek-notice="undecoded-images"]').waitFor();
+      const words = await panel.locator("[data-peek-notice]").innerText();
+      if (!/(这一页的图像无法在预览中显示|cannot be shown in the preview)/.test(words)) throw new Error(`the notice says: ${words}`);
+      await panel.locator("[data-peek-notice]").getByRole("button", { name: t("查看原始 PDF", "View original PDF") }).waitFor();
+      const overflow = await page.evaluate(overflowProbe);
+      if (overflow.scrollWidth > overflow.clientWidth + 1) throw new Error(`horizontal overflow ${JSON.stringify(overflow)}`);
+      return { words };
+    });
+    await step("peek-notice-opens-original-pdf", async () => {
+      await panel.locator("[data-peek-notice]").getByRole("button", { name: t("查看原始 PDF", "View original PDF") }).click();
+      await panel.waitFor({ state: "detached" });
+      await viewer.locator(".reader-original iframe").waitFor();
+      const src = await viewer.locator(".reader-original iframe").getAttribute("src");
+      if (!/#page=3$/.test(src || "")) throw new Error(`the original opened at ${src}`);
+      return { src };
     });
     await closeReader();
 

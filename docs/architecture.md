@@ -156,7 +156,7 @@ Materials, bank, study, authoring, generation and audio are the optional context
 | Coach | `coach.v1` | – | Coaching and prepared-practice workflows |
 | Workflows | `workflows.v1` | – | Learning flow editing, teaching, practice and guidance, including outline generation (`workflow.skeleton.generate`) |
 | Skeleton | `skeleton.v1` | – | Knowledge outline topics, checks, authoring context, saving, patching and topic groups |
-| Jobs | `jobs.v1` | – | Public background job status, waiting, messages, dismissal and cancellation |
+| Jobs | `jobs.v1` | – | Public background job status, waiting, messages, archiving (`job.archive`, `job.unarchive`), deletion (`job.delete`, `job.dismiss`) and cancellation |
 | Library | `library.v1` | – | Workspace snapshots, export and restore (administrative backups), cross-domain presentation (statistics, map, graph, mistakes), source organisation and removal, course rename and merge |
 
 To list the current operations of every context, call `describe()` on a runtime.
@@ -298,6 +298,7 @@ How the choice is used:
 
 - The choice is stored in `$DSH_HOME/study/retrieval.json`, with no secrets. It is managed with the generation context's `retrieval.status`, `retrieval.set`, `retrieval.test` and `retrieval.preview`. The `retrieval.index.*` operations plan, build, report on and cancel an index.
 - Contexts reach the host through `ports.retrieval` (`{ tools(), call(), service() }`), never through `ctx` itself.
+- The jobs context reads a finished DSH sub-agent's final reply through `ports.sessions.lastReply(childId)` (`lib/session-reply.js`, over `ctx.get('sessionQuery')`, passed to the runtime as the request service `sessionQuery`); it never throws and answers `null` when the session cannot be read.
 - `generate` narrows a selection to the retrieved pages (`narrowSelection`) when it is above 150,000 characters or the request asks for retrieval, and a provider and a topic (`focus`) are set. It records `job.retrieval`.
 - The guided flow uses retrieval to rank topics (`lib/workflow-retrieval.js`).
 
@@ -334,6 +335,11 @@ See [large documents](large-documents.md) for the formats, limits and recommende
 - The current store version is 4, which gives courses stable ids: `course-` plus a hash of the normalised name, derived on read. Every commit keeps `courseIds`/`courseId` in sync with the legacy course names, which stay authoritative for older readers (`lib/courses.js`).
 - Old sources and decks may lack optional document or question metadata and remain usable. `materials.enrich` fills missing deterministic values and reports facts it cannot establish.
 - Old PDF imports that discarded originals remain available as extracted text. To gain an original preview, attach the original file explicitly.
+
+### Job archive
+
+- `job-archive.json` sits next to the library file (`lib/job-archive.js`, one writer per library, atomic replace). It holds the read-only records of finished jobs the learner archived (and of finished jobs the in-memory list trimmed): the job's contract as the 任务 console draws it, bounded, with no output, keys or library path. It keeps the newest 200 records of the last 90 days; the oldest fall off and an audio batch's working copy goes with them.
+- Archiving deletes no file. Audio recovery (`lib/contexts/audio/worker.js`) skips archived batches, singles, conversions and legacy cards, so a restart never brings them back into the list; `job.unarchive` reads the folder again. The snapshot's `archivedJobs` carries the records; `docs/job-contract.md` has the operations.
 
 ### Original files
 
@@ -435,6 +441,7 @@ execute: (_args, context) => context.work.start({
 
 - **Entry.** The native entry (`ui/host.jsx`) loads the workspace seat (`ui/host/workspace.jsx`) and the document contributions (`ui/document-preview/native.jsx`).
 - **Lazy views.** Optional views use seven lazy-loading boundaries in `ui/workspace-views.jsx`: `BlogNotes`, `Skeleton`, `Workflows`, `Graph`, `AudioDashboard`, `DocumentViewer` and `LiveClass`. The document viewer loads its page peek (`PagePeek`) lazily as well.
+- **Page peek assets.** DSH serves a plugin's `client.*.js` chunks and no other file, so the page peek cannot point pdf.js at wasm, CMap or font URLs. `ui/document-preview/peek/assets/*.js` (made by `node scripts/pdf-assets.mjs --write` from `pdfjs-dist`; a test fails when they drift) are base64 modules that the build splits into chunks of their own, and `pdf-assets.js` hands them to pdf.js through its `BinaryDataFactory` when it asks: `jbig2.wasm` (JBIG2 and CCITT scans), `openjpeg.wasm` (JPX scans), the Symbol/ZapfDingbats fonts and the CMaps of four scripts. Nothing loads for a page without scans, and the reader and the start-up bundle do not contain them. A page whose images still fail to decode says so and offers the 原始 PDF tab instead of looking blank.
 - **Live class.** `LiveClass` stays mounted when you navigate between views, so a recording keeps running.
 - **Chunks.** `scripts/build.mjs` emits sibling `lib/client.<name>.js` classic factories through DSH's official `require.async` chunk protocol. All chunks use the host's React instance. Generated chunks are packaged and ignored by git; the authored boundaries live under `ui/`.
 - **Standalone preview.** `npm run build` also builds `dist/app.js` and `dist/app.css` from `ui/dev.jsx`, as one script that includes the same lazy boundaries. `npm run dev` serves it.

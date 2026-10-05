@@ -20,7 +20,7 @@ function wav() {
   return Buffer.concat([header, data]);
 }
 
-test('the transcription cannot stream and says so; the host-model proofreading streams, incrementally, and keeps nothing once it ends', async (t) => {
+test('the transcription cannot stream and says so; the host-model proofreading streams, incrementally, and its text can still be read once it ends (2.6.1)', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'audio-output-')), root = join(dir, 'library'), previous = process.env.DSH_HOME;
   process.env.DSH_HOME = join(dir, 'home');
   let releaseTranscribe, releaseProof;
@@ -70,5 +70,14 @@ test('the transcription cannot stream and says so; the host-model proofreading s
   await settleJob(service, started.jobId);
   const after = await service.call('job.output', { jobId: started.jobId, callId: proofread.callId, cursor: first.nextCursor });
   assert.equal(after.ended, true);
-  assert.equal(after.text, '', 'the text of a finished window is not kept');
+  assert.equal(after.text, ']}', 'a reader that stopped at the first text gets the rest, once the call has ended');
+  const reread = await service.call('job.output', { jobId: started.jobId, callId: proofread.callId, cursor: 0 });
+  assert.equal(reread.ended, true);
+  assert.equal(reread.retained, true);
+  assert.equal(reread.text, '{"corrections": []}', 'the finished window can be read again from the start');
+  const gemini = await service.call('job.output', { jobId: started.jobId, callId: transcribe.callId, cursor: 0 });
+  assert.equal(gemini.supported, false, 'the transcription still has nothing to show');
+  assert.equal(gemini.ended, true);
+  assert.equal(gemini.retained, false);
+  assert.equal(gemini.text, '');
 });

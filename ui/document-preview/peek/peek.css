@@ -51,6 +51,9 @@
     .page-peek__state--note { flex-direction: column; align-items: flex-start; }
     .page-peek__state p { margin: 0; overflow-wrap: anywhere; }
     .page-peek__busy { position: absolute; top: var(--space-2); left: var(--space-3); margin: 0; padding: 1px var(--space-2); border-radius: var(--radius-pill); background: var(--bg-raised); color: var(--text-muted); font-size: var(--fs-xs); box-shadow: 0 0 0 1px var(--line); }
+    /* A scanned page whose images did not decode: said in words with a way out, never a silently blank page. */
+    .page-peek__alert { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); background: var(--bg-raised); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .page-peek__alert p { flex: 1 1 14em; margin: 0; overflow-wrap: anywhere; }
     .page-peek__note { flex: none; margin: 0; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--line); color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
   }
   @media (max-width: 640px) {

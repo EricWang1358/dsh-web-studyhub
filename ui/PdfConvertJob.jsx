@@ -33,7 +33,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) 
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   return <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'cloud'}
     onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
-    onDismiss={() => void run('dismiss', () => send('job.dismiss', { jobId: job.id }))} />;
+    onDismiss={() => void run('dismiss', () => send('job.archive', { jobId: job.id }))} />;
 }
 
 /**

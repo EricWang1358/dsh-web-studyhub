@@ -8,6 +8,7 @@ import { audioUsageFetch, flushAudioUsage, keyId } from '../lib/audio-dashboard.
 import { audioDashboard } from '../lib/audio-dashboard.js';
 import { readAudioSettings } from '../lib/audio-settings.js';
 import { settleJob } from './helpers/wait.mjs';
+import { jobCalls } from '../lib/job-calls.js';
 
 /* WP-AU #209: every request that really goes to a transcription or text provider is in the usage ledger, whatever started
    it (batch, single, retry, resume), and a request the wrapper cannot classify is recorded as "other" instead of vanishing. */
@@ -163,6 +164,11 @@ test('a resumed recording labels the transcript it reused, and sends no transcri
   assert.equal(resumed.status, 'complete', resumed.stage);
   assert.deepEqual([resumed.steps.transcribe.done, resumed.steps.transcribe.total, resumed.steps.transcribe.reused], [1, 1, 1], 'the saved transcript was reused');
   assert.equal(f.calls.filter(url => url.includes('transcribe:')).length, transcriptions, 'nothing was sent to the transcription provider');
+  // The task console draws it: a reused transcript is a transcription call of its own, marked 复用, not a gap where the blue bar should be (2.6.1).
+  const reusedCalls = jobCalls(resumed).filter(call => call.kind === 'transcribe' && call.reused);
+  assert.equal(reusedCalls.length, 1, 'one reused transcription call for the one saved window');
+  assert.deepEqual([reusedCalls[0].status, reusedCalls[0].runner, reusedCalls[0].part, reusedCalls[0].parts], ['ok', 'saved', 1, 1]);
+  assert.equal(jobCalls(first).filter(call => call.kind === 'transcribe' && call.reused).length, 0, 'the run that paid for the audio did not reuse anything');
 });
 
 test('the console reads the ledger incrementally: finished days are not read again, appended lines are picked up', async t => {
