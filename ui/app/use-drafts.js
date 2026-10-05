@@ -39,6 +39,9 @@ export function useDrafts({ core, lib, nav, data }) {
   /* The one 补题 action, for the home card and the draft page alike: it generates only the missing questions into the same draft. */
   const continueDraft = useCallback((target) => act('generate', { resumeDraftId: target.id, draftVersion: target.draftVersion }, (job) =>
     notify(uiFormat('已开始补齐「{0}」剩余 {1} 题；通过检查后会保存到同一份草稿。', [target.title, job.missing]))), [act, notify]);
+  /* 用未覆盖的资料补题: the same continuation, asked for `count` more questions from `sourceIds`, added to the same draft. */
+  const addFromSources = useCallback((target, sourceIds, count) => act('generate', { resumeDraftId: target.id, draftVersion: target.draftVersion, extraSourceIds: sourceIds, count }, () =>
+    notify(uiFormat('已开始为「{0}」补题：用未覆盖的资料追加约 {1} 题；通过检查后会保存到同一份草稿。', [target.title, count]))), [act, notify]);
   const blankCard = useCallback(() => ({
     id: crypto.randomUUID(), kind: 'flashcard', topic: '', objective: '', prompt: '', answer: '', hint: '', explanation: '', misconception: '',
     citations: [{ sourceId: core.refs.dataRef.current?.sources[0]?.id || '', quote: '' }],
@@ -61,5 +64,5 @@ export function useDrafts({ core, lib, nav, data }) {
   }, [core.refs, nav, setDraft, setDraftLoaded, setDraftText, setJsonMode]);
   /** A new, empty flashcard deck to write by hand. */
   const createManual = useCallback(() => openDraft({ id: crypto.randomUUID(), title: ui('新建闪卡题组'), cards: [blankCard()] }, { navigation: true }), [openDraft, blankCard]);
-  return { openDraft, continueDraft, blankCard, patchCard, clearRecovery, restoreRecovery, createManual };
+  return { openDraft, continueDraft, addFromSources, blankCard, patchCard, clearRecovery, restoreRecovery, createManual };
 }

@@ -185,7 +185,7 @@ function DraftView() {
   return (
     <Draft data={data} draft={lib.draft} draftLoaded={lib.draftLoaded} setDraft={set.setDraft}
       draftText={lib.draftText} setDraftText={set.setDraftText} jsonMode={lib.jsonMode} setJsonMode={set.setJsonMode} openDraft={drafts.openDraft}
-      continueDraft={drafts.continueDraft} onOpenPublished={intents.openDeck} onStartPublished={session.enterRun} clearRecovery={drafts.clearRecovery}
+      continueDraft={drafts.continueDraft} addFromSources={drafts.addFromSources} onOpenPublished={intents.openDeck} onStartPublished={session.enterRun} clearRecovery={drafts.clearRecovery}
       setPage={nav.navigate} setModal={set.setModal} setSelectedSources={set.setSelectedSources}
       setGenSource={intents.setGenSource} blankCard={drafts.blankCard} patchCard={drafts.patchCard} parseDraft={parseDraft} />
   );

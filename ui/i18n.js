@@ -6,6 +6,7 @@ import base from './locales/en.json';
 import components from './locales/en.components.json';
 import importCopy from './locales/en.import.json';
 import generate from './locales/en.generate.json';
+import generationFill from './locales/en.generation-fill.json';
 import audio from './locales/en.audio.json';
 import practice from './locales/en.practice.json';
 import agent from './locales/en.agent.json';
@@ -61,6 +62,7 @@ export const ENGLISH_SOURCES = {
   'en.components.json': components,
   'en.import.json': importCopy,
   'en.generate.json': generate,
+  'en.generation-fill.json': generationFill,
   'en.audio.json': audio,
   'en.practice.json': practice,
   'en.agent.json': agent,

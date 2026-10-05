@@ -52,7 +52,6 @@
   "{0} 题没有可定位的资料。请先在题目中添加引用来源；{1}": "{0} questions have no locatable source. Add citations to them first; {1}",
   "逐份资料出题记录 · 已引用 {0} / {1} 份": "Per-source record · {0} of {1} sources cited",
   "{0}：规划 {1} 个考点，通过 {2} 题": "{0}: {1} knowledge points planned, {2} questions passed",
-  "用未覆盖的 {0} 份资料补题 →": "Add questions from the {0} uncovered sources →",
   "{0} 份资料本次没有合格题 · 查看清单": "{0} sources have no accepted questions this time · view the list",
   "{0} 项题目问题": "{0} question issues",
   "{0} 题 · 按需展开编辑": "{0} questions · expand to edit",
