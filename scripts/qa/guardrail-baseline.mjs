@@ -25,6 +25,7 @@ export const RULES = {
   rawColor: { issue: '#156', why: 'raw #hex / rgb() / hsl() outside token definitions', fix: 'use a colour token or color-mix() of tokens (only #000 inside mask-image is allowed)' },
   spacingPx: { issue: '#148', why: 'raw px padding/margin/gap', fix: 'use var(--space-*)' },
   longLine: { issue: '#156', why: 'CSS line longer than 400 characters (minified)', fix: 'format the stylesheet (one declaration per line)' },
+  elementSelector: { issue: '#137', why: 'rule that targets a bare button / input / select / textarea / label element outside base.css and ui/components', fix: 'give the element a class (or use <Button>, <Field>, <Checkbox>) and style that class' },
   serviceHandoff: { issue: '#113', why: 'call / act / askInChat / busy handed to a child component as a prop (busy on Button, Dialog and the like is a display prop and not counted)',
     fix: 'read it with useStudy() (ui/study-context.jsx) in the component that uses it' },
 };
@@ -140,11 +141,24 @@ function isTokenDefinition(file, decl) {
   return TOKEN_FILES.has(file) && decl.prop.startsWith('--');
 }
 
+/* A rule whose selector names a form element by tag (`.row button`, `& label small`); attribute, :not()/:is() contents and sh- primitives do not count. */
+const ELEMENT_TYPE = /(^|[\s>+~(&])(button|input|select|textarea|label)(?![\w-])/;
+export const targetsFormElement = (selector) => selector.split(',').some((part) => {
+  const probe = part.replace(/\[[^\]]*\]/g, '[]').replace(/:(?:not|is|where|has)\([^)]*\)/g, '').trim();
+  return ELEMENT_TYPE.test(probe) && !/\.sh-/.test(probe);
+});
+
 function scanCssFile(file, source, metrics, found) {
   const bump = (name, n = 1) => { if (n) (metrics[name][file] = (metrics[name][file] || 0) + n); };
   const { declarations, blocks } = parseCss(source);
+  const ruleSeen = new Set();
   for (const decl of declarations) {
     const { prop, value } = decl;
+    const rule = decl.ctx.join('|'), selector = decl.ctx[decl.ctx.length - 1] || '';
+    if (!ruleSeen.has(rule) && selector && !selector.startsWith('@') && file !== 'ui/base.css' && !file.startsWith('ui/components/')) {
+      ruleSeen.add(rule);
+      if (targetsFormElement(selector)) bump('elementSelector');
+    }
     if (prop.startsWith('--')) {
       (found.defined ||= new Set()).add(prop);
     }

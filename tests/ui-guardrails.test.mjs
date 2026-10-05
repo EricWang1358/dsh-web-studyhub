@@ -95,6 +95,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
       '.b { border-radius: 999px; background: rgb(1 2 3); padding: 0; transition: none !important; }',
       '.c::after { content: "展开"; color: var(--nope); }',
       '.d { mask-image: linear-gradient(#000, transparent); font-size: var(--fs-md); z-index: 2; }',
+      '.e button, .e > label small { position: relative; }', '.f .sh-btn, .g [type="checkbox"], .h:not(button) { position: relative; }',
       '@keyframes spin { to { opacity: 1 } }', '',
     ].join('\r\n'));
     writeFileSync(join(root, 'ui', 'other.css'), '@keyframes spin { to { opacity: 0 } }\n@media (prefers-reduced-motion: reduce) { .x { animation: none !important } }\n');
@@ -109,7 +110,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
     const total = (rule) => Object.values(found.metrics[rule]).reduce((a, b) => a + b, 0);
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {
       rawButton: 2, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 1, fontWeightNumeric: 1, radiusPx: 1, radius999: 1,
-      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2,
+      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1,
     });
     assert.deepEqual(found.duplicateKeyframes.map((k) => k.name), ['spin']);
     assert.equal(found.cjkContent.length, 1);
