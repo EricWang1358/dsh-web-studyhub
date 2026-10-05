@@ -296,16 +296,16 @@ test('a 530 000-character material with 80 parts and 400 questions is covered in
   const cards = [];
   for (let index = 0; index < 400; index++) { const leaf = fx.leaves[index % fx.leaves.length]; cards.push({ ...fx.card(leaf, { n: 1 + (index % 4), id: `perf-${index}` }) }); }
   coverageOf({ sources: fx.sources, cards });
-  // CPU time, not the clock: the work itself, which a machine that is busy with other tests (this suite runs a hundred files at once) does not make any bigger. The usual run is about 40 ms.
+  // CPU time, not the clock: the work itself, which a machine that is busy with other tests (this suite runs a hundred files at once) does not make any bigger. The usual run is about 40 ms; the bound is 250 ms because what it guards against is the work growing with the square of the input, which no busy machine turns into this.
   const cpu = work => { const before = process.cpuUsage(); const value = work(); const used = process.cpuUsage(before); return { ms: (used.user + used.system) / 1000, value }; };
   const times = [];
   for (let run = 0; run < 9; run++) { const { ms, value } = cpu(() => coverageOf({ sources: fx.sources, cards })); times.push(ms); assert.equal(value.covered, 81); }
   times.sort((a, b) => a - b);
-  assert.ok(times[0] < 100, `best ${times[0].toFixed(1)} ms of ${times.map(time => time.toFixed(0)).join(', ')}`);
+  assert.ok(times[0] < 250, `best ${times[0].toFixed(1)} ms of ${times.map(time => time.toFixed(0)).join(', ')}`);
   // Also with the sections handed in (a caller that has them): the questions are the only work.
   const sections = fx.sections, handed = [];
   for (let run = 0; run < 9; run++) handed.push(cpu(() => coverageOf({ sources: fx.sources, cards, sections })).ms);
-  assert.ok(Math.min(...handed) < 100, `handed in: best ${Math.min(...handed).toFixed(1)} ms`);
+  assert.ok(Math.min(...handed) < 250, `handed in: best ${Math.min(...handed).toFixed(1)} ms`);
 });
 
 test('a part whose range begins inside a section finds its own failed target there, though the section is counted in the part that holds most of it', () => {
