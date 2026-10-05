@@ -32,6 +32,7 @@
   },
   "files": [
     "lib",
+    "scripts/prepare.mjs",
     "references",
     "docs/assets/studyhub-qq-group.jpg",
     "docs/architecture.md",
@@ -127,6 +128,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepare": "node scripts/prepare.mjs",
     "build:demo": "node scripts/build-demo.mjs",
     "test": "node scripts/test.mjs",
     "test:fast": "node scripts/test.mjs --fast",
