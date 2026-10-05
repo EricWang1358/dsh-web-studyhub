@@ -1,6 +1,10 @@
 {
   "为「{0}」补题：用 {1} 份未覆盖资料，追加约 {2} 题": "Adding to “{0}”: {2} more questions from {1} uncovered sources",
   "追加题数": "Questions to add",
+  "{0} · 第 {1} 轮补题 · 还差 {2} 题": "{0} · fill round {1} · {2} still missing",
+  "已自动补题 {0} 轮，仍差 {1} 题；原因如下。": "Filled automatically for {0} round(s) and {1} are still missing; the reasons follow.",
+  "自动补题轮数": "Automatic fill rounds",
+  "题数不够时自动再补几轮，每轮只补缺的题，并避开已被拒绝的考点；填 0 表示不自动补。": "When questions are missing, fill the gap again automatically for this many rounds. Each round asks only for what is missing and avoids objectives that were rejected. 0 turns it off.",
   "资料里能稳妥出题的内容不够": "The sources do not hold enough to write reliable questions from",
   "出的题都没通过质量审阅": "None of the questions passed the quality review",
   "主要原因：{0}。{1}": "Main reasons: {0}. {1}",

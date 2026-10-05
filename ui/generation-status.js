@@ -210,6 +210,9 @@ export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved =
   const stepCode = step && stepStageCode(step);
   let label = stageCodeLabel(code === 'authoring' && stepCode ? stepCode : code);
   if (stepCode && step.part && job.parts > 1) label = uiFormat('第 {0}/{1} 批 · {2}', [step.part, job.parts, label]);
+  // Parts that are filling a gap (the automatic extra rounds) say which round and how many questions are still missing.
+  const filling = Object.values(job.fills || {});
+  if (filling.length) label = uiFormat('{0} · 第 {1} 轮补题 · 还差 {2} 题', [label, Math.max(...filling.map((item) => item.round)), filling.reduce((sum, item) => sum + item.missing, 0)]);
   if (includeSaved && job.savedCount > 0 && job.requestedTotal > 0) label = uiFormat('{0} · 已保存 {1}/{2} 题', [label, job.savedCount, job.requestedTotal]);
   return label;
 }

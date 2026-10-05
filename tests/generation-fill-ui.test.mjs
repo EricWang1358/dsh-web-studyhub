@@ -90,6 +90,21 @@ test('a failed run caused by the review lists its questions one by one and does 
   assert.match(out, /job-failure-rows/);
 });
 
+test('a running fill says which round it is on and how many questions are still missing (#197)', () => {
+  m.setUiLanguage('zh');
+  const job = { id: 'r', status: 'running', type: 'generate', stage: 'Parallel generation · up to 3 batches', parts: 2, requestedTotal: 15, savedCount: 7, continued: true, draftId: 'd1',
+    steps: [{ id: 's', stage: 'Part 1/2 · Writing replacement questions from reserve targets', part: 1, status: 'running' }], fills: { 1: { round: 2, missing: 3 }, 2: { round: 1, missing: 1 } } };
+  const out = text(renderToStaticMarkup(React.createElement(m.JobCard, { job, jobs: [job], drafts: [], busy: false, cancelJob: noop, dismissJob: noop })));
+  assert.match(out, /第 2 轮补题 · 还差 4 题/);
+  m.setUiLanguage('en');
+  const english = text(renderToStaticMarkup(React.createElement(m.JobCard, { job, jobs: [job], drafts: [], busy: false, cancelJob: noop, dismissJob: noop })));
+  m.setUiLanguage('zh');
+  assert.match(english, /fill round 2 · 4 still missing/);
+  const short = draft(); Object.assign(short.editorial, { requested: 6, fillRoundsUsed: 2 });
+  assert.match(text(page(short)), /已自动补题 2 轮，仍差 4 题；原因如下。/);
+  assert.doesNotMatch(text(page(draft())), /已自动补题/);
+});
+
 test('the add button is not offered for a case paper, an edit of a published deck or an unsaved edit', () => {
   const none = (value) => assert.doesNotMatch(page(value), /data-add-from-sources/);
   none(draft({ editingDeckId: 'deck-1' }));

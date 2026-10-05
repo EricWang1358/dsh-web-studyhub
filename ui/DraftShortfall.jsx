@@ -76,6 +76,7 @@ export function ShortfallReasons({ draft, compact = false }) {
   if (!found.missing) return null;
   const shown = compact ? found.reasons.slice(0, 4) : found.reasons;
   return <div className="shortfall" data-shortfall>
+    {draft.editorial?.fillRoundsUsed > 0 && <p className="shortfall__line" data-fill-rounds>{uiFormat("已自动补题 {0} 轮，仍差 {1} 题；原因如下。", [draft.editorial.fillRoundsUsed, found.missing])}</p>}
     {found.report && <>
       <p className="shortfall__line" data-part-report>{found.report.lead}</p>
       {found.report.reasons.length > 0 && <ul className="shortfall__reasons">{found.report.reasons.map((text) => <li key={text}>{text}</li>)}</ul>}

@@ -7,7 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { normalizeGenerationSettings, normalizeGenerationPerformance, resolveGenerationRequest,
   validateGenerationPatch, validateGenerationPerformance } from '../lib/generation-settings.js';
 
-const expected = { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20,
+const expected = { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2,
   kind: 'quiz', count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto' };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-generation-settings-'));
@@ -62,9 +62,9 @@ test('new requests use defaults and explicit one-off choices without mutating th
   const saved = { ...expected, concurrency: 6, batchSize: 2, count: 20, language: 'English', difficulty: 'advanced', focus: 'Explain trade-offs' };
   const before = structuredClone(saved);
   assert.deepEqual(resolveGenerationRequest(saved), { kind: 'quiz', count: 20, language: 'English', difficulty: 'advanced', focus: 'Explain trade-offs', notation: 'auto',
-    performance: { concurrency: 6, batchSize: 2, jobTimeoutMinutes: 20 } });
+    performance: { concurrency: 6, batchSize: 2, jobTimeoutMinutes: 20, fillRounds: 2 } });
   assert.deepEqual(resolveGenerationRequest(saved, { kind: 'case', count: 2, language: 'Français', difficulty: 'Expert', focus: '', performance: { concurrency: 1 } }),
-    { kind: 'case', count: 2, language: 'Français', difficulty: 'Expert', focus: '', notation: 'auto', performance: { concurrency: 1, batchSize: 2, jobTimeoutMinutes: 20 } });
+    { kind: 'case', count: 2, language: 'Français', difficulty: 'Expert', focus: '', notation: 'auto', performance: { concurrency: 1, batchSize: 2, jobTimeoutMinutes: 20, fillRounds: 2 } });
   assert.deepEqual(saved, before);
 });
 
@@ -82,17 +82,17 @@ test('continued work inherits original choices and performance instead of change
   const actual = resolveGenerationRequest({ ...expected, count: 30, concurrency: 6, batchSize: 1, language: '中文' },
     { count: 4, performance: { concurrency: 2 } }, { language: 'zh', continuation });
   assert.deepEqual(actual, { kind: 'mixed', count: 4, language: 'English', difficulty: 'application', focus: 'Original scope', notation: 'auto',
-    performance: { concurrency: 2, batchSize: 3, jobTimeoutMinutes: 40 } });
+    performance: { concurrency: 2, batchSize: 3, jobTimeoutMinutes: 40, fillRounds: 2 } });
   assert.deepEqual(continuation, before);
   const legacy = resolveGenerationRequest({ ...expected, concurrency: 6, language: 'English', difficulty: 'advanced', focus: 'New setting' },
     { count: 2 }, { language: 'en', continuation: { kind: 'flashcard' } });
   assert.deepEqual(legacy, { kind: 'flashcard', count: 2, language: '中文', difficulty: 'mixed', focus: '', notation: 'auto',
-    performance: { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20 } });
+    performance: { concurrency: 3, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2 } });
 });
 
 test('explicit performance accepts only the three bounded fields, while persisted reads remain safe', () => {
   assert.deepEqual(normalizeGenerationPerformance({ concurrency: '3', batchSize: 2, jobTimeoutMinutes: 60 }),
-    { concurrency: 3, batchSize: 2, jobTimeoutMinutes: 60 });
+    { concurrency: 3, batchSize: 2, jobTimeoutMinutes: 60, fillRounds: 2 });
   assert.deepEqual(normalizeGenerationSettings([]), expected);
   assert.deepEqual(validateGenerationPatch({ focus: '  concise examples  ', count: 30 }), { focus: 'concise examples', count: 30 });
   for (const performance of [null, [], { concurrency: 2.5 }, { concurrency: 7 }, { batchSize: 0 },

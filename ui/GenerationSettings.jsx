@@ -6,11 +6,11 @@ import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_KI
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 
 const labels = { kind: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
-  concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '运行时限（分钟）' };
+  concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '运行时限（分钟）', fillRounds: '自动补题轮数' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
 const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
-const numeric = ['count', 'concurrency', 'batchSize', 'jobTimeoutMinutes'];
+const numeric = ['count', 'concurrency', 'batchSize', 'jobTimeoutMinutes', 'fillRounds'];
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const numbers = values => ({ ...values, ...Object.fromEntries(numeric.map(key =>
   [key, typeof values[key] === 'string' && !values[key].trim() ? NaN : Number(values[key])])) });
@@ -97,6 +97,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act }) {
       {numberField('concurrency', ui('同时处理更多批次通常更快；服务容易限流时可以调低。'))}
       {numberField('batchSize', ui('小批更早保存已核验题目，但会增加调用次数。'))}
       {numberField('jobTimeoutMinutes', ui('从任务开始运行计时，不含排队；达到时限会保留已核验题目。'))}
+      {numberField('fillRounds', ui('题数不够时自动再补几轮，每轮只补缺的题，并避开已被拒绝的考点；填 0 表示不自动补。'))}
       {error && <Hint tone="error" role="alert">{error}</Hint>}
       <div className="settings-actions">
         <Button variant="primary" type="submit" busy={working} disabled={busy || !dirty || invalid}>{ui('保存出题偏好')}</Button>
