@@ -169,11 +169,15 @@
       font-weight: var(--fw-strong);
       cursor: pointer;
     }
+    /* Placed against the selection by useRangeAnchor (shared anchoring); until then, and while the selection is out of sight, it takes no part. */
+    .tr-chipbtn:not([data-placed]), .tr-chipbtn[data-away] { left: 0; top: 0; visibility: hidden; }
     .tr-chipbtn:hover:not(:disabled) { background: var(--info-tint); }
     .tr-chipbtn:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .tr-float:not([data-placed]) { left: 0; top: 0; visibility: hidden; }
     .tr-float { position: absolute; z-index: calc(var(--z-sticky) + 1); width: min(320px, calc(100% - 8px)); }
     .tr-float .tr-block { padding-right: 1.6em; border: 1px solid var(--line-strong); border-left: 3px solid var(--info); border-radius: var(--radius-sm); background: var(--bg-raised); box-shadow: var(--shadow-md); }
     /* The Popover that carries the card: zero-size anchor at the selection, a plain panel around the block's own frame. */
+    .tr-float .tr-float__host { display: block; height: 0; }
     .tr-float .tr-float__anchor { display: block; width: 0; height: 0; }
     .tr-float .tr-float__panel { width: min(320px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4))); padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; }
     .tr-float .tr-float__close { position: absolute; top: var(--space-1); right: var(--space-1); z-index: var(--z-raised); }
