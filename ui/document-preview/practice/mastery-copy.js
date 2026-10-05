@@ -41,6 +41,17 @@ export function markLabel(title, summary) {
   return [title ? `${title}：${detail}` : detail, inactive, drafts].filter(Boolean).join(' · ');
 }
 
+/** "含旧版本 4 题": the 整份资料 range counts the questions of every version of the document; this many were written from an older one. */
+export const olderText = count => count === 1 ? ui('含旧版本 1 题') : uiFormat('含旧版本 {0} 题', [count]);
+
+/** "含同一录音的其他资料 2 题": questions of other materials made from the same recording. */
+export const sameRecordingText = count => count === 1 ? ui('含同一录音的其他资料 1 题') : uiFormat('含同一录音的其他资料 {0} 题', [count]);
+/** "含分录音资料 3 题": a merged recording counts the questions of the separate recordings' own materials. */
+export const partsText = count => count === 1 ? ui('含分录音资料 1 题') : uiFormat('含分录音资料 {0} 题', [count]);
+/** The one note line of the 整份资料 range: what it counts beyond the version being read, only the counts above zero, joined with " · "; '' when none. */
+export const inclusionNote = option => [option?.olderCards > 0 && olderText(option.olderCards), option?.sameRecordingCards > 0 && sameRecordingText(option.sameRecordingCards),
+  option?.partCards > 0 && partsText(option.partCards)].filter(Boolean).join(' · ');
+
 /** "5 道题 · 2 道到期 · 1 道薄弱 · 1 道新题" before starting. */
 export const countsLine = summary => dueNewWeakLine(summary, {
   questions: questionsWord,

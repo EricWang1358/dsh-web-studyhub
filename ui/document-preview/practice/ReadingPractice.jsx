@@ -3,7 +3,7 @@ import { ui, uiFormat } from '../../i18n.js';
 import { Button, LoadingState, Popover } from '../../components/index.js';
 import { useInjectCss } from '../../shared.js';
 import { MasteryMark } from './MasteryMark.jsx';
-import { countsLine, draftExtraText, draftNoneText, meaningLine, noneText, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
+import { countsLine, draftExtraText, draftNoneText, inclusionNote, meaningLine, noneText, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
 import css from './practice.css';
 
 /** The note about parked courses: the learner is reading this document, so those questions are offered, and said to be parked. */
@@ -47,11 +47,11 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           <legend>{ui('做题范围')}</legend>
           {options.map(option => <label key={option.kind} className="reader-practice__range" data-checked={option.kind === selected.kind || undefined}>
             <input type="radio" name={groupName} value={option.kind} checked={option.kind === selected.kind} onChange={() => setKind(option.kind)} />
-            <span>{rangeLabel(option, unit)}</span>
+            <span>{rangeLabel(option, unit)}{inclusionNote(option) && <small className="reader-practice__older">{inclusionNote(option)}</small>}</span>
             <small>{option.summary.total ? questionsWord(option.summary.total) : noneText(option)}</small>
           </label>)}
         </fieldset>}
-        {options.length === 1 && <p className="reader-practice__scope">{rangeLabel(selected, unit)}</p>}
+        {options.length === 1 && <p className="reader-practice__scope">{rangeLabel(selected, unit)}{inclusionNote(selected) && <small className="reader-practice__older">{inclusionNote(selected)}</small>}</p>}
         {total > 0 ? <>
           <p className="reader-practice__counts" data-testid="practice-counts">{countsLine(summary)}</p>
           <p className="reader-practice__mastery"><MasteryMark summary={summary} size={16} />
