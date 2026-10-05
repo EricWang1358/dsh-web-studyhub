@@ -14,7 +14,7 @@
 
 | 步骤 | 状态 | 负责人 / 分支 / 文件范围 | 前置评审与已合并 PR | 验证 SHA / 证据 | 未确认项 / 下一步 |
 |---|---|---|---|---|---|
-| S1-0 | 未开始 | 待领取 | 待核验 P0 | 待填写 | 核验 P0 后建立基线 |
+| S1-0 | 待评审 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | P0：#239、v2.6.0；本步待评审 | aa0259254bcd587128e583070599a804485c7d06；[基线记录](s1-0-baseline.md) | 最小宿主探针已补；最终绑定、未测范围与内核负责人通过链接待审 |
 | S1-1 | 未开始 | 待领取 | 待 S1-0 通过 | 待填写 | 契约评审后实现兼容 |
 | S1-2 | 未开始 | 待领取 | 待 S1-1 通过 | 待填写 | 唯一生命周期责任者 |
 | S1-3 | 未开始 | 待领取 | 待 S1-2 通过 | 待填写 | 新旧路径共享资源 |
@@ -34,15 +34,15 @@
 
   | 行 ID | 内核部件 | 包 / 服务 / 方法 / 实际版本 | 证据路径与最小验证 | 作用域 / 责任者 | 核验结论 | 缺口 / 薄适配边界 |
   |---|---|---|---|---|---|---|
-  | DSH-01 | 注册、生命周期、卸载释放 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
-  | DSH-02 | 输入与契约校验 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
-  | DSH-03 | 取消、超时 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
-  | DSH-04 | 模型调用与档位 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
-  | DSH-05 | 子代理启动、命名、取消、打开 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
-  | DSH-06 | 并发、请求频率、429 冷却 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
-  | DSH-07 | 用量上报与观测边界 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
-  | DSH-08 | 持久化、原子写、恢复 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
-  | DSH-09 | 事件、完成通知与投递 | 待核验 | 待核验 | 待核验 | 待核验 | 待核验 |
+  | [DSH-01](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 注册、生命周期、卸载释放 | cordis 4.0.4 / dsh-scope、jobs rc.2 | P01/P02/R01/R02；jobs 隔离与显式官方 preset owner 探针通过；最终绑定待审 | fiber/effect 与 session owner | 部分复用（最小 D/H 探针；明确组合与范围） | 不建第二张生命周期表；宿主 handle 与业务 Job 的关系待评审 |
+  | [DSH-02](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 输入与契约校验 | schemastery 3.18.0 / DSH fork 3.18.4 | P03/P04；required/default/version 最小探针通过；契约 fixture 待 S1-1 | 输入/配置边界 | 待核验 | 复用选定校验方案，不另建通用库 |
+  | [DSH-03](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 取消、超时 | dsh-timeout/subagent/jobs rc.2 | P05/R01/R03；jobs wait/kill 隔离探针通过 | abort 传播与真实执行收尾 | 待核验（部分 D 通过） | 观察者 wait 不取消；停止回执不能代替许可释放 |
+  | [DSH-04](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 模型调用与档位 | ctx.llm / dsh-llm rc.2 | P06/P07/P08；宿主 fake stream/usage/effort 拒绝通过 | provider 注册与 stream waterfall | 待核验 | 复用 modelCompletion；网关只关联身份与批准策略 |
+  | [DSH-05](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 子代理启动、命名、取消、打开 | dsh-subagent / uiWorkspace rc.2 | R03/R04/R05/P09；真实 one-shot parent/child 通过；UI 待测 | parent agent 与 client 导航 | 待核验 | 不伪造 parent、不在 server 假设 uiWorkspace 可用 |
+  | [DSH-06](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 并发、请求频率、429 冷却 | jobs/subagents 上限、providerRetryPolicy rc.2 | R02/R03/R06/P10；共享请求配额待核验 | job 数量与请求许可分开 | 待核验 | 保留 audioGate 和原录音/批次池；不叠加队列/重试 |
+  | [DSH-07](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 用量上报与观测边界 | usage chunk / BlockAssembler / session log rc.2 | P08/P11/R07；fake usage 已测；缺失 usage/内部 retry 待核验 | provider 观测与唯一 caller sink | 待核验 | 未知不填零；Call/账本去重另有契约 |
+  | [DSH-08](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 持久化、原子写、恢复 | dsh-atomic-write / sessions/storage rc.2 | R08/R07/R09/R10；4 个带锁写 D 探针通过 | 单文件 writer 与 agent lifecycle | 待核验（部分 D 通过） | 原子替换不等于联合提交或 fsync；manifest 所有权待评审 |
+  | [DSH-09](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 事件、完成通知与投递 | cordis / jobs.events / session rc.2 | P01/P02/R01/R03/R07/P12；settled 一次 D 探针通过 | fiber 订阅 / session 投递 | 待核验（部分 D 通过） | 投递错误不能改终态；持久去重仍待测试 |
 
   核验结论使用直接复用 / 部分复用 / 已核验不支持 / 待核验。类型或导出证明接口存在，最小验证证明在当前宿主作用域可用；二者分别记录。无法启动宿主、缺少权限或未拿到源码时，写明缺少的证据，保持待核验。试点实现依赖的待核验项会阻断对应步骤；后续阶段才用到的能力可注明阶段和宿主限制，不以空壳实现补齐。
 
@@ -145,22 +145,22 @@
 - [ ] 架构护栏按模块依赖/API 边界检查，允许网关/provider 适配器的受控实现与登记的旧路径；不能仅凭 `fetch` / `Map` 字符串误伤非模型请求或普通缓存。例外表含入口、责任者、原因、移除阶段与证据。
 - [ ] 完成指定回退 tag/SHA 的演练：关闭新接纳 → 排空在途 attempt 或保存兼容检查点 → 旧版启动；分别记录产物可读、未完成新任务能否继续。新版本记录旧版无法继续时，保留记录并明确限制，不宣称完整回退。
 - [ ] 发布前执行仓库规定的 `npm run verify` 与产物检查；真实模型抽检需所有者授权、预算和输入/模型/档位/质量/耗时/请求数/用量记录。未授权或未验证的发布门禁保持待完成，fake model 不能代替质量抽检。
-- [ ] 发布 2.6.x：changelog 写明已验证范围、独立开关及默认值、在途任务处置、指定回退版本与未支持能力。发布不自动扩大试点覆盖面。
+- [ ] 发布 2.6.x alpha 预发行（独立 alpha 分支，与 main 正式版本并行；所有者 2026-10-05 指定）：changelog 写明已验证范围、独立开关及默认值、在途任务处置、指定回退版本与未支持能力。发布不自动扩大试点覆盖面。
 - **交付**：护栏结果、例外清单、完整验证与抽检证据、回退演练、发布版本/commit、更新后的接手记录。
 
 ## 基线记录
 
-由 S1-0 实施者填写；以下空项不表示已经通过。本次文档细化不填入运行结论。
+实际证据见 [S1-0 基线与验证记录](s1-0-baseline.md)；以下保留门禁状态，不以源码审计代替宿主实测。
 
 | 记录项 | 实际值 / 证据 |
 |---|---|
-| 核验日期与负责人 | 待填写 |
-| 2.6.0 发布版本 / tag / commit / 链接 | 待填写 |
-| P0 控制台验证 / 契约路径与版本 | 待填写 |
-| 迁移基线 main commit SHA | 待填写 |
-| Node / DSH / 相关包实际版本 / 锁文件 | 待填写 |
-| 单文件试点入口、范围、fixture | 待填写 |
-| tasks.js 审计与资源/字段所有权证据 | 待填写 |
-| 特征测试命令 / SHA / 结果链接 | 待填写 |
-| 待核验能力与受阻步骤 | 待填写 |
+| 核验日期与负责人 | 2026-10-05 / Codex 集成负责人 |
+| 2.6.0 发布版本 / tag / commit / 链接 | v2.6.0 / aa0259254bcd587128e583070599a804485c7d06 / [release](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.6.0) |
+| P0 控制台验证 / 契约路径与版本 | #239 CI 与控制台记录；docs/job-contract.md v1；[基线记录](s1-0-baseline.md#发布与-p0) |
+| 迁移基线 main commit SHA | aa0259254bcd587128e583070599a804485c7d06 |
+| Node / DSH / 相关包实际版本 / 锁文件 | Node 22.22.3 / 目标 DSH rc.2；[版本与哈希](s1-0-dsh-capabilities.md#实际版本) |
+| 单文件试点入口、范围、fixture | audio.import(path 或 uploadId) / 单录音；[行为与测试](s1-0-audio-behavior.md) |
+| tasks.js 审计与资源/字段所有权证据 | [审计与所有权](s1-0-runtime-audit.md)，迁移责任待契约评审 |
+| 特征测试命令 / SHA / 结果链接 | [基线记录](s1-0-baseline.md#已执行验证)：92 项基线 + 2 项新增；完整 verify 4935 pass / 0 fail / 2 skip |
+| 待核验能力与受阻步骤 | [能力表](s1-0-dsh-capabilities.md#待核验与阻断)；S1-1 仍受前置门禁约束 |
 | S1-0 评审者 / 通过评审链接 | 待填写 |
