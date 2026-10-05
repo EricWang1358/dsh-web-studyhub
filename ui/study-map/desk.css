@@ -83,6 +83,7 @@
       text-align: left;
     }
     .draft-open > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+    .draft-row small.draft-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
     .draft-row small {
       display: block;
       margin-top: var(--space-1);

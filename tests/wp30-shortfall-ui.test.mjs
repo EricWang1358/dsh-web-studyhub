@@ -140,7 +140,7 @@ const partialJob = { id: "a", status: "complete", stageCode: "partial", draftId:
 test("home: a short draft states how many it lacks and offers one top-up, with the reasons on the job card", () => {
   const html = home({ drafts: [legacyDraft()], jobs: [partialJob] });
   assert.equal((html.match(/继续补齐 10 题/g) || []).length, 1, "the draft row says it is short once, in its one top-up action (#228: not again in the meta line)");
-  assert.doesNotMatch(/<div class="draft-row">[\s\S]*?<small>([\s\S]*?)<\/small>/.exec(html)[1], /还差/);
+  assert.doesNotMatch(/<span class="draft-meta__facts">([\s\S]*?)<\/span>/.exec(html)[1], /还差/);
   assert.match(html, /提示或题干泄露了答案/);
   assert.match(html, /第 2 批没有完成/);
   assert.doesNotMatch(html, /answerLeak|Assessment plan/, "no raw backend prose on the card");

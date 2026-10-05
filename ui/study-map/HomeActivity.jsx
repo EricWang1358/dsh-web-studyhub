@@ -16,7 +16,8 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
   const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
   const reviewed = reviewedCardStatus(d);
   // Whatever works on the deck right now (a fill, the run still writing it, a repair, a publication check) is its status: not "已复审，待发布".
-  // The status is said once, in a Badge (#228): the work's own (with its progress) while something runs, else this one; the meta line is facts.
+  // The status is said once, in a Badge (#228): the work's own (with its progress, under the title) while something runs, else this one on the facts' line (it
+  // adds no line: the 待发布 list arrives after a generation, and a taller list moves the page below it further); the meta text is facts.
   const work = draftWork(d, data.jobs);
   const status = rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查');
   // How many are missing is already the button's or the Badge's words.
@@ -26,16 +27,16 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
       <button type="button" className="draft-open" onClick={() => openDraft(d)}>
         <span>
           <strong>{d.title}</strong>
-          <small>
-            {joinMeta([uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
+          <small className="draft-meta">
+            <span className="draft-meta__facts">{joinMeta([uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
               missing > 0 && !missingSaid ? uiFormat('还差 {0} 题', [missing]) : '',
               Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
-                ? uiFormat('生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''])}
+                ? uiFormat('生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''])}</span>
+            {!work && <Badge size="sm" tone={rejectedCount ? 'warning' : 'neutral'} data-draft-status>{status}</Badge>}
           </small>
         </span>
         <span>{ui('打开 →')}</span>
       </button>
-      {!work && <div className="draft-topup"><Badge tone={rejectedCount ? 'warning' : 'neutral'} data-draft-status>{status}</Badge></div>}
       <DraftTopUp draft={d} jobs={data.jobs} busy={busy} modelReady={modelReady} call={call} onContinue={continueDraft} />
     </div>
   );

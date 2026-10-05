@@ -165,7 +165,7 @@ test('the list row says 补题中 as a Badge, not 已复审，待发布, and not
 test('the row says its status once: the meta line is the count, the Badge carries status and progress (#228)', () => {
   m.setUiLanguage('zh');
   const rowOf = (html) => /<div class="draft-row">[\s\S]*?<\/small>[\s\S]*$/.exec(html)[0];
-  const metaOf = (html) => /<div class="draft-row">[\s\S]*?<small>([\s\S]*?)<\/small>/.exec(html)[1];
+  const metaOf = (html) => /<span class="draft-meta__facts">([\s\S]*?)<\/span>/.exec(html)[1];
   const running = fillJob('r', 'running', { stage: 'Parallel generation · up to 4 batches', savedCount: 6, requestedTotal: 10 });
   const six = draft({ title: '架构的语境性', editorial: { requested: 10, generated: 6, completedParts: 2, parts: 2, failures: [], generation: { sourceIds: ['s1'], kind: 'quiz' } }, cards: Array.from({ length: 6 }, (_, i) => card(`c${i}`)) });
   const filling = home([running], [six]), row = rowOf(filling);
