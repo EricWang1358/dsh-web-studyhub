@@ -616,6 +616,7 @@ export async function runJourney(options) {
       record.cls = layout.cls;
       record.longestTaskMs = layout.longestTask;
       record.longTasks = layout.longTasks;
+      if (layout.rowResizes) { record.rowResizes = layout.rowResizes; record.resizes = layout.resizes.slice(0, 20); }
       if (layout.shiftCount) record.shifts = layout.shifts.map((item) => ({ value: Number(item.value.toFixed(4)), at: item.startTime, sources: item.sources }));
       if (!layout.ok) {
         record.layout = layout.message;

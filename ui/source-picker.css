@@ -11,6 +11,8 @@
     .source-picker__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
     .source-picker__list { list-style: none; margin: 0; padding: 0; display: grid; }
     .source-picker__item { min-width: 0; background: transparent; box-shadow: inset 3px 0 0 transparent; }
+    /* A window of up to 120 rows shows about six: the rest are not laid out until they scroll near (the last size is remembered, 90px before the first). */
+    .source-picker__entry { content-visibility: auto; contain-intrinsic-size: auto 90px; }
     .source-picker__entry + .source-picker__entry .source-picker__item { border-top: 1px solid var(--line-soft); }
     .source-picker__item.is-selected { background: color-mix(in srgb, var(--accent) 7%, var(--bg-surface)); box-shadow: inset 3px 0 0 var(--accent); }
     .source-picker__row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); }
@@ -20,6 +22,8 @@
     .source-picker__text { display: grid; gap: var(--space-half); min-width: 0; }
     .source-picker__text strong { color: var(--text); font-weight: var(--fw-strong); overflow-wrap: anywhere; line-height: var(--lh-snug); }
     .source-picker__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* The badge line keeps its height whether or not the coverage has arrived (#205): same height as one line of the small text above it. */
+    .source-picker__text small.source-picker__index { display: flex; align-items: center; min-width: 0; height: calc(var(--fs-sm) * var(--lh-snug)); }
     .source-picker__partial { color: var(--accent-text) !important; }
     .source-picker__expand { flex: 0 0 auto; }
     .source-picker__expand .sh-icon:last-child { transition: transform 0.18s var(--ease); }

@@ -31,6 +31,9 @@ test('the verdict fails a step over the threshold and names the elements that mo
   assert.match(slow.message, /long task 400 ms > 300 ms/);
   assert.equal(judgeLayoutStability({ shifts: [], longTasks: [{ duration: 400, startTime: 5 }] }).ok, true, 'long tasks are reported, not judged, unless a limit is given');
   assert.equal(judgeLayoutStability({ shifts: [shift(0.5, '.row', { hadRecentInput: true })], longTasks: [] }).ok, true, 'a shift after the learner\'s own input is not counted');
+  const rows = judgeLayoutStability({ shifts: [], longTasks: [], resizes: [{ element: 'li.sh-scroll__item "Intro"', from: 67.6, to: 88.8 }] });
+  assert.equal(rows.ok, false);
+  assert.match(rows.message, /list row height changed after it was shown: 1 row — li\.sh-scroll__item "Intro" 67\.6→88\.8px/);
 });
 
 test('the journey takes --cls-max and --longtask-max', () => {
@@ -48,13 +51,17 @@ const PAGE = (late) => `<!doctype html><meta charset="utf-8"><body style="margin
 
 const frames = (page, count = 3) => page.evaluate((n) => new Promise((done) => { let left = n; const tick = () => (--left <= 0 ? done() : requestAnimationFrame(tick)); requestAnimationFrame(tick); }), count);
 
+const ROWS_PAGE = (reserved) => `<!doctype html><meta charset="utf-8"><body style="margin:0;font:16px sans-serif"><main style="padding:20px"><h1>Pick material</h1>
+  <div style="overflow:auto;max-height:300px"><ul id="list" style="margin:0;padding:0;list-style:none">${Array.from({ length: 12 }, (_, i) => `<li data-scroll-key="r${i}" style="min-height:20px">Row ${i}<small class="slot" style="display:block;${reserved ? 'height:20px' : ''}"></small></li>`).join('')}</ul></div>
+  <button id="go" style="margin-top:12px">Add</button></main></body>`;
+
 async function withPage(t, late, body) {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   try {
     const context = await browser.newContext({ viewport: { width: 800, height: 600 } });
     await context.addInitScript(installLayoutObserver);
-    await context.route('http://guard.test/**', (route) => route.fulfill({ contentType: 'text/html', body: PAGE(late) }));
+    await context.route('http://guard.test/**', (route) => route.fulfill({ contentType: 'text/html', body: late === 'rows' || late === 'rows-reserved' ? ROWS_PAGE(late === 'rows-reserved') : PAGE(late) }));
     const page = await context.newPage();
     await page.goto('http://guard.test/');
     await page.waitForSelector('#list');
@@ -103,5 +110,31 @@ test('content that fills a reserved slot, or that the learner asked for, moves n
     await frames(page, 4);
     const clicked = await drainLayoutStability(page);
     assert.equal(clicked.shifts.length, 0, 'a shift within 500 ms of input is dropped at the source');
+  });
+});
+
+test('a list row that grows when late data arrives is caught even when the layout-shift score stays 0', { timeout: 120000 }, async (t) => {
+  await withPage(t, 'rows', async (page) => {
+    await page.evaluate(() => { for (const slot of document.querySelectorAll('.slot')) slot.textContent = 'Index built · 1 page'; });
+    await frames(page, 4);
+    const verdict = judgeLayoutStability(await drainLayoutStability(page));
+    assert.equal(verdict.ok, false, 'twelve rows each 20px taller must fail the step');
+    assert.equal(verdict.rowResizes, 12);
+    assert.match(verdict.message, /list row height changed after it was shown: 12 rows/);
+    assert.match(verdict.message, /Row 0/);
+  });
+});
+
+test('a row whose slot was reserved, or that grew because of the learner\'s click, is not a resize', { timeout: 120000 }, async (t) => {
+  await withPage(t, 'rows-reserved', async (page) => {
+    await page.evaluate(() => { for (const slot of document.querySelectorAll('.slot')) slot.textContent = 'Index built · 1 page'; });
+    await frames(page, 4);
+    assert.equal(judgeLayoutStability(await drainLayoutStability(page)).ok, true, 'filling a reserved slot changes no height');
+  });
+  await withPage(t, 'rows', async (page) => {
+    await page.evaluate(() => { document.getElementById('go').addEventListener('click', () => { for (const slot of document.querySelectorAll('.slot')) slot.textContent = 'Opened'; }); });
+    await page.click('#go');
+    await frames(page, 4);
+    assert.equal(judgeLayoutStability(await drainLayoutStability(page)).ok, true, 'a click\'s own consequence is the learner\'s doing');
   });
 });

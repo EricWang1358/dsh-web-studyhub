@@ -5,15 +5,19 @@ import { usePolling } from "./use-polling.js";
    while a build is running so the rows follow it. `null` until known or when the host cannot say (no search component): the rows then say nothing. */
 const POLL_MS = 3000;
 
+/* Third value, `status`: "loading" until the first answer, "ready" once there is one, "unavailable" when the first read failed or `call` is missing.
+   A list that shows a badge per row keeps the badge's line while it is "loading" or "ready" (#205), so the answer changes no row height. */
 export default function useIndexCoverage(call, { enabled = true } = {}) {
   const [coverage, setCoverage] = useState(null);
+  const [failed, setFailed] = useState(typeof call !== "function");
   const refresh = useCallback(async () => {
-    if (typeof call !== "function") return null;
-    try { const value = await call("retrieval.index.coverage", {}); if (value && Array.isArray(value.indexed)) { setCoverage(value); return value; } } catch { /* the host has no search component */ }
+    if (typeof call !== "function") { setFailed(true); return null; }
+    try { const value = await call("retrieval.index.coverage", {}); if (value && Array.isArray(value.indexed)) { setCoverage(value); setFailed(false); return value; } } catch { /* the host has no search component */ }
+    setFailed(true);
     return null;
   }, [call]);
   useEffect(() => { if (enabled) refresh(); }, [enabled, refresh]);
   const building = !!coverage?.building;
   usePolling(refresh, { intervalMs: POLL_MS, enabled: enabled && building });
-  return [coverage, refresh];
+  return [coverage, refresh, coverage ? "ready" : failed ? "unavailable" : "loading"];
 }
