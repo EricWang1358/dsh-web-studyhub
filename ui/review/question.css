@@ -4,8 +4,8 @@
   :where(.study-app, .study-seat) {
     .quality-note {
       display: flex;
-      gap: 14px;
-      padding: 18px;
+      gap: var(--space-3-5);
+      padding: var(--space-4-5);
       border-radius: var(--radius);
       background: var(--bg-surface);
       margin: var(--space-5) 0;
@@ -16,7 +16,7 @@
     .review-ungrable .question { margin-bottom: var(--space-2); }
     /* A flashcard's header and progress rule are absolute at the top of the card: the note starts below them. */
     .flash-area .question-card:has(.review-ungrable) { padding-top: calc(var(--space-9) + var(--space-3)); }
-    .generation-trace { margin-top: 10px; overflow-wrap: anywhere; }
+    .generation-trace { margin-top: var(--space-2-5); overflow-wrap: anywhere; }
     .generation-trace ol { padding-left: var(--space-5); }
     .agent-link__problem { margin-top: var(--space-half); }
     .generation-trace li { margin: var(--space-3) 0; }
@@ -63,7 +63,7 @@
       margin: 34px auto var(--space-9);
     }
     .question-area:not(.flash-area) .question-card {
-      padding: 18px var(--space-7) 28px;
+      padding: var(--space-4-5) var(--space-7) var(--space-6-5);
       border-radius: var(--radius-card);
       background: var(--paper);
       box-shadow: var(--shadow-card);
@@ -101,7 +101,7 @@
       top: 0;
       left: 0;
       right: 0;
-      padding: 14px 36px 0;
+      padding: var(--space-3-5) 36px 0;
       color: var(--text-muted);
     }
     .flash-area .card-progress {
@@ -135,7 +135,7 @@
       font-weight: var(--fw-strong);
       letter-spacing: -0.005em;
       line-height: 1.7;
-      margin: 0 0 28px;
+      margin: 0 0 var(--space-6-5);
       white-space: pre-wrap;
     }
     .publication-mark {
@@ -162,14 +162,14 @@
     }
     .option {
       display: flex;
-      gap: 14px;
+      gap: var(--space-3-5);
       align-items: flex-start;
       text-align: left;
       border: 0;
       border-top: 1px solid var(--line-soft);
       background: transparent;
       border-radius: 0;
-      padding: var(--space-4) 10px;
+      padding: var(--space-4) var(--space-2-5);
       font-size: calc(var(--fs-lg) * var(--card-scale, 1));
       line-height: 1.6;
       width: 100%;
@@ -243,7 +243,7 @@
     .choice-feedback-wrap {
       display: grid;
       grid-template-rows: 1fr;
-      margin: -12px 0 14px;
+      margin: calc(var(--space-3) * -1) 0 var(--space-3-5);
       animation: option-reveal 0.36s var(--ease-out) both;
     }
     .choice-feedback-wrap > .choice-feedback {
@@ -285,8 +285,8 @@
     .choice-feedback {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px var(--space-5);
-      margin: -12px 0 14px;
+      gap: var(--space-1-5) var(--space-5);
+      margin: calc(var(--space-3) * -1) 0 var(--space-3-5);
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
@@ -303,7 +303,7 @@
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      margin: 14px 0 0;
+      margin: var(--space-3-5) 0 0;
       padding: 0 var(--space-2);
       gap: var(--space-2) var(--space-4);
     }
@@ -347,7 +347,7 @@
     /* A drawn chevron: the "⌄" glyph sits below the baseline and read as a subscript. */
     /* EN 附文：始终紧跟其中文原文之后，弱一级、左侧一道色杠。 */
     .en-block {
-      margin-top: 10px;
+      margin-top: var(--space-2-5);
       padding: var(--space-2) var(--space-3);
       border-left: 3px solid var(--accent-glow);
       border-radius: 0 var(--radius) var(--radius) 0;
@@ -370,10 +370,10 @@
     .hint {
       background: var(--warn-bg);
       border-left: 2px solid var(--warn);
-      padding: 14px 18px;
+      padding: var(--space-3-5) var(--space-4-5);
       border-radius: 0 var(--radius) var(--radius) 0;
       display: flex;
-      gap: 14px;
+      gap: var(--space-3-5);
       margin-bottom: var(--space-4);
     }
     .hint p {
@@ -394,14 +394,14 @@
     /* Inside the card the explanation is a ruled section, not a nested box. */
     .explanation {
       border-top: 1px solid var(--line);
-      padding: 22px 0 6px;
-      margin-top: 22px;
+      padding: var(--space-5-5) 0 var(--space-1-5);
+      margin-top: var(--space-5-5);
     }
     .explanation h3 {
       font-size: var(--fs-lg);
     }
     .explanation h4 {
-      margin: 22px 0 6px;
+      margin: var(--space-5-5) 0 var(--space-1-5);
       font-size: var(--fs-md);
       font-weight: var(--fw-medium);
       color: var(--text-muted);
@@ -412,11 +412,11 @@
       white-space: pre-wrap;
     }
     .teaching-panel {
-      margin-top: 22px;
+      margin-top: var(--space-5-5);
     }
     .teaching-panel > button {
       width: 100%;
-      padding: 14px;
+      padding: var(--space-3-5);
       font-size: var(--fs-md);
       color: var(--text-dim);
       background: transparent;
@@ -428,7 +428,7 @@
     }
     .teaching-panel .explanation {
       margin-top: 0;
-      padding: 18px var(--space-5);
+      padding: var(--space-4-5) var(--space-5);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--bg-surface);
@@ -437,7 +437,7 @@
       display: block;
       width: 100%;
       height: 4px;
-      margin: var(--space-3) 0 18px;
+      margin: var(--space-3) 0 var(--space-4-5);
       border: 0;
       border-radius: var(--radius-xs);
       overflow: hidden;
@@ -447,9 +447,9 @@
     }
     .teaching-context {
       display: grid;
-      gap: 10px;
+      gap: var(--space-2-5);
       margin: var(--space-4) 0;
-      padding: 14px 0;
+      padding: var(--space-3-5) 0;
       border-top: 1px solid var(--line-soft);
       border-bottom: 1px solid var(--line-soft);
       font-size: var(--fs-md);
@@ -458,13 +458,13 @@
     .teaching-context > div {
       display: grid;
       grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr);
-      gap: 14px;
+      gap: var(--space-3-5);
     }
     .teaching-context dt { color: var(--text-muted); }
     .teaching-context dd { margin: 0; min-width: 0; }
     .teaching-context .md p { font-size: inherit; }
-    .teaching-panel form { display: grid; gap: 14px; margin-top: 18px; }
-    .teaching-panel form > label { display: grid; gap: 10px; }
+    .teaching-panel form { display: grid; gap: var(--space-3-5); margin-top: var(--space-4-5); }
+    .teaching-panel form > label { display: grid; gap: var(--space-2-5); }
     .teaching-panel form > button { justify-self: end; }
   }
   @container study (max-width: 480px) {
@@ -476,8 +476,8 @@
   }
   :where(.study-app, .study-seat) {
     .teaching-feedback {
-      margin: 0 0 14px;
-      padding: var(--space-3) 14px;
+      margin: 0 0 var(--space-3-5);
+      padding: var(--space-3) var(--space-3-5);
       background: color-mix(in srgb, var(--accent) 8%, transparent);
       border-left: 2px solid var(--accent-soft);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
@@ -488,7 +488,7 @@
     }
     .submit-answer {
       display: block;
-      margin: 18px 0 0 auto;
+      margin: var(--space-4-5) 0 0 auto;
     }
     .flash-area {
       margin-top: var(--space-9);
@@ -569,7 +569,7 @@
       grid-area: 1 / 1;
       min-width: 0;
       min-height: 400px;
-      padding: 76px 36px 28px;
+      padding: 76px 36px var(--space-6-5);
       border: 0;
       border-radius: var(--radius-card);
       background: var(--paper);
@@ -589,9 +589,9 @@
   @container study (max-width: 720px) {
     :where(.study-app, .study-seat) {
       /* Narrow panes: the same card, tighter margins. */
-      .question-area:not(.flash-area) .question-card { padding: 14px 18px 22px; }
-      .flash-area .question-meta { padding: var(--space-3) 22px 0; }
-      .flash-area .card-progress { left: 22px; right: 22px; }
+      .question-area:not(.flash-area) .question-card { padding: var(--space-3-5) var(--space-4-5) var(--space-5-5); }
+      .flash-area .question-meta { padding: var(--space-3) var(--space-5-5) 0; }
+      .flash-area .card-progress { left: var(--space-5-5); right: var(--space-5-5); }
     }
   }
   :where(.study-app, .study-seat) {
@@ -611,7 +611,7 @@
       line-height: 1.75;
     }
     .prereq-strip {
-      margin: 0 var(--space-3) 18px;
+      margin: 0 var(--space-3) var(--space-4-5);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
@@ -624,17 +624,17 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      padding: var(--space-2) 10px var(--space-2) 14px;
+      gap: var(--space-2-5);
+      padding: var(--space-2) var(--space-2-5) var(--space-2) var(--space-3-5);
       cursor: pointer;
       color: var(--text-dim);
     }
     .prereq-strip ul {
       list-style: none;
       margin: 0;
-      padding: var(--space-half) 14px 10px;
+      padding: var(--space-half) var(--space-3-5) var(--space-2-5);
       display: grid;
-      gap: 6px;
+      gap: var(--space-1-5);
     }
     .prereq-strip li {
       display: flex;
@@ -651,7 +651,7 @@
       align-items: baseline;
       gap: var(--space-2);
       width: 100%;
-      padding: 6px var(--space-2);
+      padding: var(--space-1-5) var(--space-2);
       border: 0;
       border-radius: var(--radius-sm);
       text-align: left;
@@ -683,12 +683,12 @@
       font-size: var(--fs-md);
       line-height: 1.6;
       color: var(--text-muted);
-      padding-bottom: 14px;
+      padding-bottom: var(--space-3-5);
       border-bottom: 1px solid var(--line);
       max-height: 4.8em;
       overflow: hidden;
       mask-image: linear-gradient(#000 70%, transparent);
-      margin-bottom: 18px;
+      margin-bottom: var(--space-4-5);
     }
     .flip-question p,
     .flip-question ul,
@@ -750,7 +750,7 @@
       justify-content: space-between;
       align-items: baseline;
       gap: var(--space-2);
-      margin-bottom: 10px;
+      margin-bottom: var(--space-2-5);
       color: var(--text-dim);
       font-size: var(--fs-md);
     }
@@ -770,7 +770,7 @@
       justify-content: flex-start;
       min-width: 0;
       min-height: 74px;
-      padding: 10px var(--space-1) var(--space-2);
+      padding: var(--space-2-5) var(--space-1) var(--space-2);
       border: 0;
       border-radius: var(--radius);
       background: transparent;
@@ -833,14 +833,14 @@
       background: var(--bg-surface);
       border-radius: var(--radius-card);
       padding: var(--space-6);
-      margin: 30px 0;
+      margin: var(--space-7-less) 0;
       text-align: left;
     }
     .summary-topics h3 {
       font-size: var(--fs-md);
     }
     .summary-topics .summary-topic {
-      margin: 0 6px 6px 0;
+      margin: 0 var(--space-1-5) var(--space-1-5) 0;
     }
     /* Feedback occupies its own space, beside the action on a question
        (ActionFeedback renders inline toasts here; see components.css). */
@@ -896,14 +896,14 @@
       }
       .option {
         font-size: var(--fs-md);
-        padding: 14px var(--space-3);
+        padding: var(--space-3-5) var(--space-3);
         gap: var(--space-2);
       }
       .option p {
         font-size: var(--fs-md);
       }
       .flash-area {
-        margin-top: 22px;
+        margin-top: var(--space-5-5);
       }
       .flashcard,
       .flip-face {
@@ -911,7 +911,7 @@
       }
       .flip-face {
         min-height: 280px;
-        padding: 72px 22px 22px;
+        padding: 72px var(--space-5-5) var(--space-5-5);
       }
       .flash-prompt {
         font-size: calc(var(--fs-2xl) * var(--card-scale, 1));

@@ -10,7 +10,7 @@
     .graph {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: var(--space-2-5);
       min-width: 0;
     }
     /* 全屏查看 promotes the section to the browser's fullscreen element (or, where
@@ -24,7 +24,7 @@
       height: 100%;
       max-height: none;
       min-height: 0;
-      padding: 10px 14px var(--space-2);
+      padding: var(--space-2-5) var(--space-3-5) var(--space-2);
       overflow: hidden;
       background: var(--bg-canvas);
       color: var(--text);
@@ -38,7 +38,7 @@
     .graph-legend {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: var(--space-2-5);
       flex-wrap: wrap;
       margin-left: auto;
       font-size: var(--fs-xs);
@@ -63,7 +63,7 @@
     .graph-swatch.gn-new { background: var(--decor-faint); }
     .graph-line-demo { flex: none; }
     .graph-toolbar-sub {
-      gap: 10px;
+      gap: var(--space-2-5);
       font-size: var(--fs-xs);
       color: var(--text-muted);
     }
@@ -237,7 +237,7 @@
     .cloze {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--space-1-5);
     }
     .cloze-hint {
       font-size: var(--fs-xs);

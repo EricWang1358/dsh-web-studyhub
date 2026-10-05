@@ -12,9 +12,9 @@
     }
   }
   :where(.study-app, .study-seat) {
-    .welcome__intro { max-width: 640px; margin-bottom: 28px; }
+    .welcome__intro { max-width: 640px; margin-bottom: var(--space-6-5); }
     .welcome__eyebrow {
-      margin: 0 0 10px;
+      margin: 0 0 var(--space-2-5);
       color: var(--accent-text);
       font-size: var(--fs-sm);
       font-weight: var(--fw-strong);
@@ -58,7 +58,7 @@
       flex-direction: column;
       gap: var(--space-2);
       min-width: 0;
-      padding: 22px 22px var(--space-5);
+      padding: var(--space-5-5) var(--space-5-5) var(--space-5);
       border: 1px solid var(--line);
       border-radius: var(--radius-card);
       background: var(--bg-surface);
@@ -119,14 +119,14 @@
     /* The sample banner rides at the top of the home page. */
     .sample-banner {
       max-width: 1200px;
-      margin: 18px auto 0;
+      margin: var(--space-4-5) auto 0;
       width: calc(100% - 72px);
     }
     .sample-banner .sh-banner__icon { color: var(--accent-text); }
   }
   @container study (max-width: 760px) {
     :is(.study-app, .study-seat) {
-      .welcome { padding-top: 28px; }
+      .welcome { padding-top: var(--space-6-5); }
     }
     :where(.study-app, .study-seat) {
       .welcome__choices { grid-template-columns: minmax(0, 1fr); }

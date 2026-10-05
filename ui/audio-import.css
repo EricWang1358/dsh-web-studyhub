@@ -5,45 +5,45 @@
     .audio-import label { display: block; margin-top: var(--space-3); }
     .audio-import textarea { width: 100%; }
     .audio-drop-icon { font-size: var(--fs-3xl); line-height: 1; color: var(--accent-soft); }
-    .audio-ways { display: grid; gap: var(--space-3); margin-top: 14px; text-align: left; }
+    .audio-ways { display: grid; gap: var(--space-3); margin-top: var(--space-3-5); text-align: left; }
     .audio-ways summary { cursor: pointer; }
     .audio-workspace input[type="search"], .audio-path-row input { width: 100%; min-width: 0; margin-top: var(--space-2); }
     .audio-path-row { display: flex; align-items: center; gap: var(--space-2); }
     .audio-path-row button { margin-top: var(--space-2); flex: none; }
-    .audio-files { list-style: none; margin: 10px 0 0; padding: 0; max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+    .audio-files { list-style: none; margin: var(--space-2-5) 0 0; padding: 0; max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
     .audio-files li + li { border-top: 1px solid var(--line); }
-    .audio-files button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-half) 14px; width: 100%; padding: 10px var(--space-3); border: 0; border-radius: 0; background: transparent; text-align: left; }
+    .audio-files button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-half) var(--space-3-5); width: 100%; padding: var(--space-2-5) var(--space-3); border: 0; border-radius: 0; background: transparent; text-align: left; }
     .audio-files button:hover, .audio-files button:focus-visible { background: color-mix(in srgb, var(--accent) 9%, transparent); }
     .audio-files strong { overflow-wrap: anywhere; font-weight: var(--fw-strong); }
     .audio-files small { color: var(--text-dim); overflow-wrap: anywhere; }
     .audio-files small:last-child { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; white-space: nowrap; }
-    .audio-upload { margin-top: 14px; padding: 14px var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); text-align: left; }
+    .audio-upload { margin-top: var(--space-3-5); padding: var(--space-3-5) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); text-align: left; }
     .audio-upload-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
     .audio-upload-head strong { overflow-wrap: anywhere; }
     /* The segment being worked on: it moves, because nothing says how far along one request is. */
     .audio-now button, .audio-trace button { margin-left: var(--space-2); }
-    .audio-active-tasks { margin: var(--space-2) 0; padding-left: 10px; border-left: 2px solid var(--accent-soft); }
+    .audio-active-tasks { margin: var(--space-2) 0; padding-left: var(--space-2-5); border-left: 2px solid var(--accent-soft); }
     .audio-trace ol { max-height: 260px; margin: 0; padding: 0 var(--space-2) 0 0; list-style: none; overflow: auto; }
     .audio-trace li { margin: var(--space-2) 0; }
-    .audio-chosen { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: var(--space-3) 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); text-align: left; }
+    .audio-chosen { display: flex; align-items: center; gap: var(--space-3-5); margin-top: var(--space-3-5); padding: var(--space-3) var(--space-3-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); text-align: left; }
     .audio-chosen > div { flex: 1; min-width: 0; }
     .audio-chosen strong { overflow-wrap: anywhere; }
     .audio-chosen small { display: block; margin-top: var(--space-half); }
-    .audio-selection { margin: 10px 0; padding: 0; list-style: none; }
+    .audio-selection { margin: var(--space-2-5) 0; padding: 0; list-style: none; }
     .audio-selection .audio-chosen { margin-top: var(--space-2); }
     .audio-chosen > .audio-order-actions { flex: 0 0 auto; display: flex; gap: var(--space-1); }
-    .audio-order-actions button { padding: 6px var(--space-2); }
-    .audio-add { display: flex; align-items: center; gap: var(--space-3); padding: 10px 0; }
+    .audio-order-actions button { padding: var(--space-1-5) var(--space-2); }
+    .audio-add { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2-5) 0; }
     .audio-add.over { outline: 2px dashed var(--line); outline-offset: 4px; }
-    .audio-members { margin: 10px 0; padding-left: var(--space-6); }
-    .audio-members li { margin: 6px 0; overflow-wrap: anywhere; }
+    .audio-members { margin: var(--space-2-5) 0; padding-left: var(--space-6); }
+    .audio-members li { margin: var(--space-1-5) 0; overflow-wrap: anywhere; }
     .audio-members strong, .audio-members small { display: block; }
   }
   @media (max-width: 520px) {
     :where(.study-app, .study-seat) {
       .audio-chosen { flex-wrap: wrap; gap: var(--space-2); }
       .audio-chosen > .audio-order-actions { flex-basis: 100%; justify-content: flex-end; }
-      .audio-add { align-items: flex-start; flex-direction: column; gap: 6px; }
+      .audio-add { align-items: flex-start; flex-direction: column; gap: var(--space-1-5); }
     }
   }
   @container (max-width: 520px) {
@@ -54,7 +54,7 @@
   }
   :where(.study-app, .study-seat) {
     .audio-order-actions button[aria-disabled="true"] { opacity: .45; cursor: default; }
-    .audio-corrections { margin: 0 0 14px; overflow-wrap: anywhere; }
+    .audio-corrections { margin: 0 0 var(--space-3-5); overflow-wrap: anywhere; }
     .audio-corrections li { margin: var(--space-2) 0; }
   }
 }

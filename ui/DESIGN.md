@@ -49,7 +49,9 @@ Defined in `ui/tokens.css` (on `.study-app` / `.study-seat`, derived with `color
 | `--scrim` / `--scrim-strong` | Page dimming behind dialogs, sheets and `::backdrop` (dark on every theme). |
 | `--fw-light` 300, `--fw-regular` 400, `--fw-medium` 550, `--fw-strong` 650 | Font weights; no other numbers. |
 | `--radius-xs` 4px | Chips, keys and inline code; larger shapes keep `--radius-sm`, `--radius`, `--radius-card`, `--radius-pill`. |
-| `--space-half` 2px | Hairline gaps and badge padding below `--space-1`; everything larger uses `--space-1…9`. |
+| `--space-half` 2px | Hairline gaps and badge padding below `--space-1`. |
+| `--space-1…9` 4 8 12 16 20 24 32 40 56px | The spacing grid; see Spacing below. |
+| `--space-1-5` 6, `--space-2-5` 10, `--space-3-5` 14, `--space-4-5` 18, `--space-5-5` 22, `--space-6-5` 28, `--space-7-less` 30px | Named half-steps between two grid steps; see Spacing below. |
 | `--fs-4xl` 34 … `--fs-10xl` 156px | The display scale for focal numerals (streak, today count, result headline, rates, scores) and page titles. Never snap a display numeral down to a body size; `tests/display-sizes.test.mjs` guards it. |
 | `--dur-fast` .15s, `--dur` .2s, `--dur-slow` .3s | Transition and animation durations, with `--ease` / `--ease-out`. |
 | `--ok-halo` / `-mid` / `-mark` / `-tint` / `-solid` (and the same for `warn`, `bad`, `info`) | Strengths of a tone beyond ink / bg / line: a ring or glow, a stroke or tick, a highlighter, a graph fill, a swatch. |
@@ -57,6 +59,20 @@ Defined in `ui/tokens.css` (on `.study-app` / `.study-seat`, derived with `color
 | `--shadow-contact`, `--shadow-contact-toast`, `--shadow-up`, `--shadow-drag`, `--sheen`, `--sheen-strong` | The few shadows and highlights that are not an elevation step. |
 
 Where a rule re-themes `--text` or a tone (card stock), re-declare the derived tones there too.
+
+## Spacing
+
+A 4px grid, `--space-1` … `--space-9` (4 8 12 16 20 24 32 40 56px), plus named half-steps for the values the grid skips. Write every `padding`, `margin`, `gap` and offset as a token; a raw px number is only for a hairline, a size that belongs to a specific control, or a one-off page measure.
+
+| Need | Write |
+| --- | --- |
+| 2px hairline, badge padding | `--space-half` |
+| a whole grid step | `--space-1` … `--space-9` (first choice; new work starts here) |
+| 6, 10, 14, 18, 22, 28px | `--space-1-5`, `--space-2-5`, `--space-3-5`, `--space-4-5`, `--space-5-5`, `--space-6-5`: halfway between the steps on either side, defined as `calc()` of them |
+| 30px (32 less a hairline) | `--space-7-less` |
+| the opposite of a step (a negative margin that cancels padding) | `calc(var(--space-N) * -1)` |
+
+The half-steps exist so existing 6/10/14/18/22/28/30px layouts keep their exact size (`tests/space-half-steps.test.mjs` forbids them as raw px). Prefer a whole step in new rules; reach for a half-step only to match an existing neighbour or a control size that really needs it. Density (`data-density`) rescales `--space-1…9`, and the half-steps follow because they are derived from them. Left as raw px on purpose: `1px` hairlines and `-1px` border overlaps, sizes tied to a 34px / 44px control (indents beside an icon or checkbox), and the bespoke page-top and section measures of the review and results pages. `tests/ui-guardrails.test.mjs` ratchets the remaining raw spacing down per file.
 
 ## Theme
 

@@ -21,7 +21,7 @@
     .section-heading h2 span {
       font-size: var(--fs-md);
       color: var(--text-muted);
-      margin-left: 10px;
+      margin-left: var(--space-2-5);
     }
     .section-heading button {
       font-size: var(--fs-md);
@@ -86,15 +86,15 @@
     /* ── Catalog ───────────────────────────────────────────────────────────
        An index, not a wall of cards: courses are headings, decks are ruled
        lines, and only a row's own play button may turn cinnabar. */
-    .map-heading { margin-top: 0; margin-bottom: 14px; }
+    .map-heading { margin-top: 0; margin-bottom: var(--space-3-5); }
     .map-heading h2 { font-size: var(--fs-2xl); }
     .catalog-menu-toggle { min-width: 0; }
     .map-toolbar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 10px 18px;
-      margin-bottom: 22px;
+      gap: var(--space-2-5) var(--space-4-5);
+      margin-bottom: var(--space-5-5);
     }
     .map-tools {
       display: flex;
@@ -114,17 +114,17 @@
     .map-legend {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px 14px;
+      gap: var(--space-1-5) var(--space-3-5);
       margin: 0 0 0 auto;
       padding: 0;
       font-size: var(--fs-md);
       color: var(--text-faint);
     }
-    .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .map-legend span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
     .map-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .map-tree, .map-topics, .map-children { list-style: none; margin: 0; padding: 0; }
     /* minmax(0, 1fr): a long course path (a parent course lists its chapters here) must truncate in its row, not widen the page. */
-    .map-tree { display: grid; gap: 30px; grid-template-columns: minmax(0, 1fr); }
+    .map-tree { display: grid; gap: var(--space-7-less); grid-template-columns: minmax(0, 1fr); }
     .map-deck, .map-folder {
       border: 0;
       border-radius: 0;
@@ -136,13 +136,13 @@
       display: flex;
       align-items: center;
       gap: var(--space-3);
-      padding: 10px 10px;
+      padding: var(--space-2-5) var(--space-2-5);
       min-height: 48px;
       border-radius: var(--radius-sm);
       transition: background var(--dur-fast) var(--ease);
     }
     .folder-row {
-      padding: 0 10px var(--space-3);
+      padding: 0 var(--space-2-5) var(--space-3);
       border-bottom: 1px solid var(--line);
       border-radius: 0;
     }
@@ -153,7 +153,7 @@
       letter-spacing: -0.01em;
     }
     .folder-row > .mastery { margin-right: calc(var(--space-9) + 34px + var(--space-6)); }
-    .deck-row { padding: 14px 10px; min-height: 60px; }
+    .deck-row { padding: var(--space-3-5) var(--space-2-5); min-height: 60px; }
     .map-deck { border-bottom: 1px solid var(--line-soft); }
     .map-deck > .map-row:hover,
     .topic-row:hover { background: var(--bg-hover); }
@@ -221,7 +221,7 @@
     .mastery {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
+      gap: var(--space-2-5);
       flex-shrink: 0;
       width: 150px;
       margin-left: auto;
@@ -262,7 +262,7 @@
     .mastery-value.zero { color: var(--text-faint); }
     .map-play, .map-ask {
       flex-shrink: 0;
-      padding: 6px 10px;
+      padding: var(--space-1-5) var(--space-2-5);
       font-size: var(--fs-md);
       border-radius: var(--radius-pill);
       display: inline-flex;
@@ -319,19 +319,19 @@
       border-color: transparent;
       color: var(--text);
     }
-    .map-topics { padding: var(--space-half) 0 10px 34px; }
-    .topic-row { min-height: 42px; padding: var(--space-2) 10px var(--space-2) var(--space-2); }
+    .map-topics { padding: var(--space-half) 0 var(--space-2-5) 34px; }
+    .topic-row { min-height: 42px; padding: var(--space-2) var(--space-2-5) var(--space-2) var(--space-2); }
     .map-menu-wrap { position: relative; flex-shrink: 0; }
     .map-empty { padding: var(--space-5) var(--space-1); }
     .selection-bar {
       position: sticky;
-      bottom: 14px;
+      bottom: var(--space-3-5);
       z-index: calc(var(--z-sticky) + 5);
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin: 18px 0;
-      padding: 10px var(--space-3) 10px 18px;
+      gap: var(--space-2-5);
+      margin: var(--space-4-5) 0;
+      padding: var(--space-2-5) var(--space-3) var(--space-2-5) var(--space-4-5);
       border: 1px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-raised);
@@ -342,13 +342,13 @@
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .map-tools { flex: 1 1 100%; }
-      .map-legend { gap: var(--space-1) 10px; font-size: var(--fs-md); margin-left: 0; }
+      .map-legend { gap: var(--space-1) var(--space-2-5); font-size: var(--fs-md); margin-left: 0; }
       .map-topics { padding: 0 0 var(--space-2) var(--space-3); }
       /* Row keeps name + play + menu on line one; mastery spans line two. */
       .map-row {
         flex-wrap: wrap;
         gap: var(--space-1) var(--space-2);
-        padding: 10px;
+        padding: var(--space-2-5);
         align-items: center;
       }
       .map-row > .map-name {
@@ -371,7 +371,7 @@
       .map-row > input[type="checkbox"] { order: 0; }
       .map-row > .map-dot { order: 1; }
       .map-ask { display: none; }
-      .map-play { padding: var(--space-1) 10px; }
+      .map-play { padding: var(--space-1) var(--space-2-5); }
       .map-play { width: 56px; min-width: 56px; }
       .section-heading {
         align-items: flex-start;
@@ -390,7 +390,7 @@
     .nb-dir .map-heading h2 {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-1-5);
     }
     .nb-list {
       list-style: none;
@@ -403,7 +403,7 @@
     .nb-row {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: var(--space-3-5);
       width: 100%;
       text-align: left;
       border: 1px solid var(--line-soft);
@@ -461,7 +461,7 @@
       color: var(--accent-soft);
     }
     .nb-due {
-      margin-bottom: 14px;
+      margin-bottom: var(--space-3-5);
     }
     .nb-due .eyebrow {
       margin-bottom: var(--space-2);
@@ -472,13 +472,13 @@
     .nb-search {
       display: flex;
       gap: var(--space-2);
-      margin: 10px 0 14px;
+      margin: var(--space-2-5) 0 var(--space-3-5);
     }
     .nb-search input {
       flex: 1;
     }
     .nb-results {
-      margin-bottom: 14px;
+      margin-bottom: var(--space-3-5);
     }
     .nb-results .nb-row {
       background: var(--bg-sunken);

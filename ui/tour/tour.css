@@ -46,7 +46,7 @@
       max-height: calc(100% - 24px);
       overflow: auto;
       pointer-events: auto;
-      padding: var(--space-4) 18px 14px;
+      padding: var(--space-4) var(--space-4-5) var(--space-3-5);
       border: 1px solid var(--line);
       border-radius: var(--radius-card);
       background: var(--bg-raised);
@@ -71,10 +71,10 @@
       transform: rotate(45deg);
       display: none;
     }
-    .tour-pop--bottom::before { display: block; top: -7px; left: var(--tour-caret, 50%); margin-left: -6px; border-right: 0; border-bottom: 0; }
-    .tour-pop--top::before { display: block; bottom: -7px; left: var(--tour-caret, 50%); margin-left: -6px; border-left: 0; border-top: 0; }
-    .tour-pop--right::before { display: block; left: -7px; top: var(--tour-caret, 50%); margin-top: -6px; border-top: 0; border-right: 0; }
-    .tour-pop--left::before { display: block; right: -7px; top: var(--tour-caret, 50%); margin-top: -6px; border-bottom: 0; border-left: 0; }
+    .tour-pop--bottom::before { display: block; top: -7px; left: var(--tour-caret, 50%); margin-left: calc(var(--space-1-5) * -1); border-right: 0; border-bottom: 0; }
+    .tour-pop--top::before { display: block; bottom: -7px; left: var(--tour-caret, 50%); margin-left: calc(var(--space-1-5) * -1); border-left: 0; border-top: 0; }
+    .tour-pop--right::before { display: block; left: -7px; top: var(--tour-caret, 50%); margin-top: calc(var(--space-1-5) * -1); border-top: 0; border-right: 0; }
+    .tour-pop--left::before { display: block; right: -7px; top: var(--tour-caret, 50%); margin-top: calc(var(--space-1-5) * -1); border-bottom: 0; border-left: 0; }
     .tour-pop:is(.tour-pop--bottom, .tour-pop--top, .tour-pop--right, .tour-pop--left) { overflow: visible; }
     /* Narrow panels (the DSH sidebar): a sheet along the bottom edge. */
     .tour-pop--docked {
@@ -90,12 +90,12 @@
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      margin-bottom: 10px;
+      margin-bottom: var(--space-2-5);
     }
     .tour-pop__eyebrow {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-1-5);
       color: var(--accent-text);
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
@@ -107,9 +107,9 @@
       font-size: var(--fs-xs);
       font-variant-numeric: tabular-nums;
     }
-    .tour-pop__meter { height: 3px; margin-bottom: 14px; background: var(--line); box-shadow: none; }
+    .tour-pop__meter { height: 3px; margin-bottom: var(--space-3-5); background: var(--line); box-shadow: none; }
     .tour-pop__title {
-      margin: 0 0 6px;
+      margin: 0 0 var(--space-1-5);
       color: var(--text);
       font-family: var(--font-display);
       font-size: var(--fs-lg);
@@ -128,7 +128,7 @@
       align-items: flex-start;
       gap: var(--space-2);
       margin: var(--space-3) 0 0;
-      padding: var(--space-2) 10px;
+      padding: var(--space-2) var(--space-2-5);
       border-radius: var(--radius-sm);
       background: var(--info-bg);
       color: var(--text);
