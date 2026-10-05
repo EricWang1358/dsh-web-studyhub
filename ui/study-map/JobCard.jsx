@@ -5,7 +5,7 @@ import GenerationTrace from '../GenerationTrace.jsx';
 import { ShortfallReasons } from '../DraftShortfall.jsx';
 import { isActiveJob, isCancellable } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
-import { describeFailure, jobCode, jobHeadline, jobSavedProgress, jobStageLabel, repeatedJobFailure } from '../generation-status.js';
+import { describeFailure, failureBreakdown, failureRowLabel, jobCode, jobHeadline, jobSavedProgress, jobStageLabel, repeatedJobFailure } from '../generation-status.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 
 /** The JobRow status a generation job's stage code stands for. */
@@ -18,7 +18,7 @@ function rowStatus(code, active) {
    stop control while it runs, and the draft once there is one (P26–P29).
    A failure says what is wrong and how to fix it; the raw message stays in
    技术详情 (P15). It is the shared JobRow. */
-export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards }) {
+export default function JobCard({ job: j, earlier = [], jobs = [], drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards }) {
   const code = jobCode(j), active = isActiveJob(j);
   const dismissFailure = useQuickActions()?.failures[j.id];
   const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
@@ -26,6 +26,8 @@ export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, op
   const failure = code === 'failed' && generation ? describeFailure(j.stage, { hasDraft: !!draft }) : null;
   const progress = active && jobSavedProgress(j, drafts);
   const repeatedFailure = failure && repeatedJobFailure(j.stage);
+  // A review that rejected the questions is read one question at a time, each with its original lines behind an expander.
+  const rows = failure?.kind === 'quality' ? failureBreakdown(j.stage) : [];
   const stage = failure ? null : jobStageLabel(j, drafts, jobs, { includeSaved: !progress });
   const published = j.origin === 'selection' && j.status === 'complete' && j.publication?.cardIds?.length > 0 ? j.publication : null;
   const actions = [
@@ -51,7 +53,10 @@ export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, op
         {/* The fix sits right under the reason, where the learner is reading. */}
         {failure.action === 'settings' && openModelSettings && <Button size="sm" variant="secondary" icon="model" onClick={openModelSettings}>{ui('去配置模型')}</Button>}
         <Disclosure className="tech-details" summary={ui('技术详情')}>
-          {repeatedFailure ? <>
+          {rows.length > 0 ? <ul className="job-failure-rows">{rows.map((row) => <li key={`${row.part ?? ''}:${row.question}`}>
+            <strong>{failureRowLabel(row)}</strong>
+            <Disclosure summary={ui('原文')}>{row.raw.map((line, index) => <code className="job-raw" key={index}>{line}</code>)}</Disclosure>
+          </li>)}</ul> : repeatedFailure ? <>
             <p className="muted">{uiFormat('{0} 批发生同一问题', [repeatedFailure.count])}</p>
             <code className="job-raw">{repeatedFailure.cause}</code>
             <Disclosure summary={ui('原始错误记录')}><code className="job-raw">{repeatedFailure.raw}</code></Disclosure>
@@ -61,6 +66,14 @@ export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, op
       {code === 'partial' && draft && generation && j.type !== JOB_TYPES.SUPPLEMENT && <ShortfallReasons draft={draft} compact />}
       {dismissFailure && <InlineMessage tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
       {j.type !== JOB_TYPES.DRAFT_PUBLISH && <GenerationTrace job={j} openAgent={openAgent} />}
+      {earlier.length > 0 && <Disclosure className="earlier-jobs" summary={uiFormat('之前的任务 · {0}', [earlier.length])}>
+        <ul>{earlier.map((old) => <li key={old.id}>
+          {/* An earlier job says what it saw then (its own numbers), not what the draft holds now: the card above owns the current ones. */}
+          <strong>{Number.isInteger(old.savedCount) && old.requestedTotal > 0
+            ? uiFormat('{0} · 当时草稿 {1}/{2} 题', [old.continued ? ui('补题') : ui('生成'), old.savedCount, old.requestedTotal]) : jobHeadline(old, drafts)}</strong>
+          <GenerationTrace job={old} openAgent={openAgent} />
+        </li>)}</ul>
+      </Disclosure>}
     </JobRow>
   );
 }

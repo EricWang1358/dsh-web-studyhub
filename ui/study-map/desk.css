@@ -58,11 +58,11 @@
       min-width: 0;
     }
     .draft-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
+      /* The open action spans the row, so its arrow is one column on every row; a fill's status or button sits under the title, left aligned. */
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
       align-items: center;
-      gap: var(--space-3);
+      gap: var(--space-1) var(--space-3);
       width: 100%;
       border: 0;
       border-bottom: 1px solid var(--line);

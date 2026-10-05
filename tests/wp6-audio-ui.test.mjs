@@ -12,7 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const compiled = await build({
   stdin: { contents: `export { default as AudioImport } from './ui/AudioImport.jsx'; export { AudioJobs, textStepsRan } from './ui/audio/AudioJobs.jsx'; export { preflightNotes } from './ui/audio/preflight.js';
-    export { default as AudioSettings, AudioSetupGate, providerOrder, PRESETS, presetOf } from './ui/AudioSettings.jsx';
+    export { default as AudioSettings, AudioSetupGate, providerOrder } from './ui/AudioSettings.jsx';
     export { default as AudioDashboard, AudioDashboardPanel, dashboardVisible } from './ui/AudioDashboard.jsx';
     export { default as LiveClass } from './ui/LiveClass.jsx';
     export { describeCaptureError, captureAudio } from './ui/live-audio.js';
@@ -21,7 +21,7 @@ const compiled = await build({
 });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { AudioImport, AudioJobs, preflightNotes, textStepsRan, AudioSettings, AudioSetupGate, providerOrder, PRESETS, presetOf,
+const { AudioImport, AudioJobs, preflightNotes, textStepsRan, AudioSettings, AudioSetupGate, providerOrder,
   AudioDashboardPanel, dashboardVisible, LiveClass, describeCaptureError, captureAudio, setUiLanguage, uiMessage } = module.exports;
 
 const HAN = /[\u3400-\u9fff]/;
@@ -174,7 +174,7 @@ test("audio settings: one card per provider, SiliconFlow first in Chinese, real 
   assert.ok(page.includes("D:\\Users\\me\\.dsh-test\\study\\audio.json"), "the path the keys are really stored at");
   assert.doesNotMatch(page, /~\/\.dsh\/study\/audio\.json/);
   assert.ok(at("高级") > at("Google Gemini"), "advanced comes after the provider cards");
-  for (const text of ["更快", "均衡", "更准", "付费密钥", "转写模型", "单条录音的校对与翻译并发数"]) assert.ok(at(text) > at("高级"), `${text} is under 高级`);
+  for (const text of ["校对与翻译的推理强度", "付费密钥", "转写模型", "校对与翻译的并行数"]) assert.ok(at(text) > at("高级"), `${text} is under 高级`);
   assert.equal((page.match(/name="audio-key"/g) || []).length, 4, "one key field per provider, the paid key under advanced");
   assert.deepEqual(providerOrder("zh"), ["siliconflow", "groq", "free"]);
   assert.deepEqual(providerOrder("en"), ["groq", "free", "siliconflow"]);
@@ -184,16 +184,15 @@ test("audio settings in English are complete, with Groq first", () => inLanguage
   const page = html(AudioSettings, { busy: false, act: noop, call: noop, setNotice: noop, initialView: view });
   const at = (text) => page.indexOf(text);
   assert.ok(at("Groq Whisper") < at("Google Gemini") && at("Google Gemini") < at("SiliconFlow SenseVoice"));
-  for (const text of ["Faster", "Balanced", "More accurate", "Save and verify", "Advanced"]) assert.ok(page.includes(text), text);
+  for (const text of ["Reasoning strength of proofreading and translation", "Save and verify", "Advanced"]) assert.ok(page.includes(text), text);
   assert.doesNotMatch(page.replace(/D:\\Users\\me\\\.dsh-test\\study\\audio\.json/, ""), HAN);
 }));
 
-test("plain presets set both reasoning levels; anything else reads as custom", () => {
-  assert.deepEqual(Object.keys(PRESETS), ["fast", "balanced", "accurate"]);
-  assert.deepEqual(PRESETS.balanced, { proofreadReasoning: "default", translateReasoning: "low" }, "balanced is today's default");
-  assert.equal(presetOf({ proofreadReasoning: "low", translateReasoning: "low" }), "fast");
-  assert.equal(presetOf({}), "balanced");
-  assert.equal(presetOf({ proofreadReasoning: "high", translateReasoning: "default" }), "custom");
+test("each reasoning setting has one control (no presets, no matrix beside the selects)", () => {
+  const page = html(AudioSettings, { busy: false, act: noop, call: noop, setNotice: noop, initialView: view });
+  assert.equal((page.match(/<select/g) || []).length >= 2, true);
+  assert.equal((page.match(/id="audio-reasoning-title"/g) || []).length, 1, "one reasoning section");
+  assert.doesNotMatch(page, /audio-reasoning-grid|更快|更准/);
 });
 
 test("no audio text is set below 12 px", async () => {

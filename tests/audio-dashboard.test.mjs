@@ -44,7 +44,7 @@ test('daily use follows Pacific midnight, separates models, ignores old keys and
     request('free', Date.parse('2026-09-30T06:59:00Z')), request('free', Date.parse('2026-09-30T07:01:00Z')),
     request('free', now, { model: settings.textModel, status: 429 }), request('paid', now, { audioSeconds: 120 }),
     request('free', now, { keyId: keyId('replaced-key') }), request('free', now + 1),
-  ], { ...settings, dailyLimits: { [settings.transcribeModel]: 5 } }, now);
+  ], { ...settings, dailyLimits: { [settings.transcribeModel]: 5 } }, now, { timeZone: 'America/Los_Angeles' });
   const free = usage.providers[0];
   assert.equal(free.today.requests, 2); assert.equal(free.today.limited, 1); assert.equal(free.total.requests, 3);
   assert.equal(free.models.find(model => model.model === settings.transcribeModel).remaining, 4);
@@ -128,9 +128,10 @@ test('model reasoning and quota settings validate, persist, and invalidate only 
 });
 test('native reasoning respects supported medium/high and falls back when unavailable', async () => {
   const ctx = { llm: { resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: 'low' }, { id: 'medium' }, { id: 'high' }] } }) } };
-  for (const level of ['low', 'medium', 'high']) assert.equal(await correctionEffort(ctx, {}, level), level);
-  assert.equal(await correctionEffort(ctx, {}, 'default'), undefined);
-  assert.equal(await correctionEffort({ llm: {} }, {}, 'high'), undefined);
+  const route = { provider: 'test-provider', model: 'test-model' };
+  for (const level of ['low', 'medium', 'high']) assert.equal(await correctionEffort(ctx, route, level), level);
+  assert.equal(await correctionEffort(ctx, route, 'default'), undefined);
+  assert.equal(await correctionEffort({ llm: {} }, route, 'high'), undefined);
 });
 test('Groq receives high reasoning when supported and reports fallback when rejected', async () => {
   const forms = [];

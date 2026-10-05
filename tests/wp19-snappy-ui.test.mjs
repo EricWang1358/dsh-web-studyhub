@@ -102,7 +102,7 @@ test("the English strings exist for the new error labels", async () => {
 
 test("App wires every 知道了 and 全部知道了 through the light path, not through act", async () => {
   const app = await readAppSource();
-  assert.match(await readFile("ui/StudyMap.jsx", "utf8"), /dismissJob = \(jobId\) => dismissJobs\(quick/, "StudyMap dismissJob uses dismissJobs()");
+  assert.match(await readFile("ui/StudyMap.jsx", "utf8"), /dismissJob = \(jobId, alsoIds\) => dismissJobs\(quick, jobId, alsoIds\)/, "StudyMap dismissJob uses dismissJobs()");
   assert.doesNotMatch(app, /act\("job\.dismiss"/);
   const audioUi = await readFile("ui/audio/AudioJobs.jsx", "utf8");
   assert.match(audioUi, /quick \? dismissJobs\(quick, job\.id\)/, "audio cards use the light path; act is only the fallback outside App");

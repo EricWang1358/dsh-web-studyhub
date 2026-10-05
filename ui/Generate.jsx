@@ -60,7 +60,7 @@ export default function Generate({
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
-  const [indexCoverage] = useIndexCoverage(call);
+  const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const known = courseNamesOf(data);
   const visibleSources = data.sources.filter(source => sourceMatchesCourse(source, sourceScope, known));
   const referenceSourceIds = gen.referenceSourceIds || [];
@@ -169,7 +169,7 @@ export default function Generate({
             <fieldset data-tour="generate-sources">
               <legend>{ui("01 / 选择资料")}</legend>
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
-              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage}
+              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexSlot={indexStatus !== "unavailable"}
                 courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} />
               <div className="generate-sources-actions">
                 {/* The one way to add material from here: the shared import dialog (WP3). */}

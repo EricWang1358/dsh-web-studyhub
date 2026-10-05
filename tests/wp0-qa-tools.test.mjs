@@ -56,7 +56,7 @@ test("journey options: language, theme, width, steps and output folder", () => {
   assert.equal(defaults.out, resolve(repo, "output/qa/journey/zh-dark-1440"));
   assert.equal(defaults.port, 0);
   const custom = parseJourneyArgs(["--lang", "en", "--theme=light", "--width", "420", "--steps", "empty-home,settings", "--out", "output/qa/x", "--port", "4192"]);
-  assert.deepEqual({ ...custom, out: undefined }, { lang: "en", theme: "light", width: 420, height: 900, steps: ["empty-home", "settings"], out: undefined, keep: false, port: 4192 });
+  assert.deepEqual({ ...custom, out: undefined }, { lang: "en", theme: "light", width: 420, height: 900, steps: ["empty-home", "settings"], clsMax: 0.05, longTaskMax: 0, out: undefined, keep: false, port: 4192 });
   assert.equal(custom.out, resolve("output/qa/x"));
   assert.throws(() => parseJourneyArgs(["--steps", "empty-home,nope"]), /Unknown step "nope".*empty-home/s);
   assert.throws(() => parseJourneyArgs(["--lang", "fr"]), /--lang/);

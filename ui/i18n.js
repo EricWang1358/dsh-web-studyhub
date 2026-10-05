@@ -6,7 +6,9 @@ import base from './locales/en.json';
 import components from './locales/en.components.json';
 import importCopy from './locales/en.import.json';
 import generate from './locales/en.generate.json';
+import generationFill from './locales/en.generation-fill.json';
 import audio from './locales/en.audio.json';
+import audioPipeline from './locales/en.audio-pipeline.json';
 import practice from './locales/en.practice.json';
 import agent from './locales/en.agent.json';
 import host from './locales/en.host.json';
@@ -53,6 +55,7 @@ import examCopy from './locales/en.exam.json';
 import feedbackLoop from './locales/en.feedback-loop.json';
 import pages from './locales/en.pages.json';
 import markerInstall from './locales/en.marker-install.json';
+import layoutStability from './locales/en.layout-stability.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { failureText } from './failure.js';
 
@@ -61,7 +64,9 @@ export const ENGLISH_SOURCES = {
   'en.components.json': components,
   'en.import.json': importCopy,
   'en.generate.json': generate,
+  'en.generation-fill.json': generationFill,
   'en.audio.json': audio,
+  'en.audio-pipeline.json': audioPipeline,
   'en.practice.json': practice,
   'en.agent.json': agent,
   'en.host.json': host,
@@ -108,6 +113,7 @@ export const ENGLISH_SOURCES = {
   'en.feedback-loop.json': feedbackLoop,
   'en.pages.json': pages,
   'en.marker-install.json': markerInstall,
+  'en.layout-stability.json': layoutStability,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

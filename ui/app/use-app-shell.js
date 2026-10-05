@@ -34,6 +34,9 @@ export function useAppShell() {
     rootRef.current = node;
     narrowObserver.current?.disconnect();
     narrowObserver.current = null;
+    // Measured as the node attaches, before the first paint: the observer's first answer comes after it, and the open sidebar was drawn for one frame
+    // and then folded into the rail, moving the whole page 128 px (found by the journey at 420 px).
+    if (node && typeof node.getBoundingClientRect === 'function') setNarrowWindow(node.getBoundingClientRect().width <= NARROW_WIDTH);
     if (node && typeof ResizeObserver !== 'undefined') {
       const observer = new ResizeObserver(([entry]) => setNarrowWindow(entry.contentRect.width <= NARROW_WIDTH));
       observer.observe(node);

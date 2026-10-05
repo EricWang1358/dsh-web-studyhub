@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
-import { formatNumber } from './format.js';
+import { formatNumber, ownTimeZone } from './format.js';
 import { Button, ErrorState, Hint, Panel, ProgressBar } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 import { useStudy } from './study-context.jsx';
+import { useModelEfforts } from './use-model-efforts.js';
 import { refreshQuery, setQueryData, useHostQuery } from './host-query.js';
 
 /* 用量控制台：首次转写之前不显示（什么都没配置时由音频页的配置卡片代替），
@@ -20,7 +21,7 @@ export function dashboardVisible(settings, usage) {
   return anyKey(settings) && usage?.since !== null && usage?.since !== undefined;
 }
 
-export function AudioDashboardView({ data, settings, busy, refresh, save, error }) {
+export function AudioDashboardView({ data, settings, busy, refresh, save, error, efforts = null, modelName = '' }) {
   const providers = [...data.providers].sort((a, b) => AUDIO_TIERS.indexOf(a.tier) - AUDIO_TIERS.indexOf(b.tier));
   const sum = field => providers.reduce((n, provider) => n + provider.today[field], 0);
   const total = sum('requests');
@@ -31,7 +32,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
   const max = Math.max(1, ...data.trend.map(dayTotal));
   return <Panel tone="sunken" className="audio-dashboard" aria-labelledby="audio-dashboard-title">
     <header className="audio-dashboard-heading"><div><small>{ui('音频 / 用量')}</small><h2 id="audio-dashboard-title">{ui('用量控制台')}</h2></div>
-      <Button variant="quiet" size="sm" icon="refresh" disabled={busy} onClick={refresh}>{ui('刷新')}</Button></header>
+      <Button variant="quiet" size="sm" icon="refresh" busy={busy} onClick={refresh}>{ui('刷新')}</Button></header>
     {error && <ErrorState error={error} className="audio-dashboard__problem" />}
     <div className="audio-dashboard-summary">
       <div className="audio-usage-dial" style={{ '--share': `${share}%` }}><div><strong>{freeQuota ? fmt(freeQuota.remaining) : '—'}</strong>
@@ -63,10 +64,14 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
             {model.source === 'unknown' && model.lastQuota && <small>{ui('上次额度响应已过期')}</small>}
           </div>;
         })}
+        {provider.quotaDay && provider.configured && <Hint size="xs" className="audio-provider-footnote audio-quota-reset">
+          {uiFormat('额度按太平洋时间每天 0 点重置（本地时间 {0}）· 当前额度日 {1}', [provider.quotaDay.resetTime, provider.quotaDay.day])}</Hint>}
         {provider.tier === 'paid' ? <Hint size="xs" className="audio-provider-footnote">{ui('付费余额请查看供应商控制台')}</Hint>
           : provider.models.some(model => model.source === 'unknown') && <Hint size="xs" className="audio-provider-footnote">{ui('未知额度不会显示为零；可查看供应商控制台。')}</Hint>}
       </article>)}
     </div>
+    {data.other?.total?.requests > 0 && <Hint size="xs" className="audio-other-requests">
+      {uiFormat('其他（未归类的服务或密钥）：今日 {0} 次请求，累计 {1} 次；没有丢失，只是无法归到上面的服务商', [fmt(data.other.today.requests), fmt(data.other.total.requests)])}</Hint>}
     <section className="audio-usage-trend" aria-label={ui('近七日请求趋势')}>
       <div className="audio-section-title"><h3>{ui('近 7 日')}</h3><span>{AUDIO_PROVIDERS.map(provider => <React.Fragment key={provider.tier}><i className={provider.tier} /> {providerName(provider.tier)} </React.Fragment>)}</span></div>
       <div className="audio-trend-bars">{data.trend.map(day => <div key={day.date} className="audio-trend-day" tabIndex={0}
@@ -75,7 +80,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
           {[...AUDIO_TIERS].reverse().map(tier => <i className={tier} key={tier} style={{ height: `${(day[tier] || 0) / max * 100}%` }} />)}
         </div><small>{day.date.slice(5).replace('-', '/')}</small></div>)}</div>
     </section>
-    <AudioReasoning settings={settings} busy={busy} onSave={save} timings={data.timings} />
+    <AudioReasoning settings={settings} busy={busy} onSave={save} timings={data.timings} efforts={efforts} modelName={modelName} />
     <details className="audio-quota-settings"><summary>{ui('设置 Gemini 免费每日上限')}</summary>
       <p>{ui('从 AI Studio 填入当前模型的 RPD。Gemini 同项目共享额度，这里的已用量只统计本插件；0 表示未知。')}</p>
       <form onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); const dailyLimits = { ...settings.dailyLimits };
@@ -84,22 +89,23 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
         <Button type="submit" disabled={busy}>{ui('保存上限')}</Button>
       </form>
     </details>
-    <footer className="audio-dashboard-footer"><span>{ui('今日按太平洋时间 · 从启用此统计起记录模型请求，包含失败及重试。课堂实时音频与 DSH Token 不计入。')}</span>
+    <footer className="audio-dashboard-footer"><span>{ui('「今日」和近 7 日按你所在时区的日期；Gemini 免费额度按太平洋时间的额度日计算。从启用此统计起记录模型请求，包含失败及重试。课堂实时音频与 DSH Token 不计入。')}</span>
       {AUDIO_PROVIDERS.filter(provider => provider.tier !== 'paid').map(provider => <a key={provider.tier} href={provider.usageUrl} target="_blank" rel="noreferrer">{providerName(provider.tier)} ↗</a>)}</footer>
   </Panel>;
 }
 
 /** The console folded away under one line with today's count; it opens on demand. */
-export function AudioDashboardPanel({ data, settings, busy, refresh, save, error, onToggle }) {
+export function AudioDashboardPanel({ data, settings, busy, refresh, save, error, onToggle, efforts = null, modelName = '' }) {
   const today = data.providers.reduce((n, provider) => n + (provider.today?.requests || 0), 0);
   return <Panel as="details" className="audio-usage-panel" onToggle={onToggle ? event => onToggle(event.currentTarget.open) : undefined}>
     <summary><span>{ui('用量与额度')}</span><small>{uiFormat('今日 {0} 次请求', [today])}</small></summary>
-    <AudioDashboardView data={data} settings={settings} busy={busy} refresh={refresh} save={save} error={error} />
+    <AudioDashboardView data={data} settings={settings} busy={busy} refresh={refresh} save={save} error={error} efforts={efforts} modelName={modelName} />
   </Panel>;
 }
 
 export default function AudioDashboard({  }) {
   const { call } = useStudy();
+  const model = useModelEfforts(call, { enabled: true });
   const [data, setData] = useState(null), [actionError, setError] = useState(''), [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   // The settings are the host's shared answer (ui/host-query.js), the same copy the audio settings pane saves into; this console only watches it
@@ -111,7 +117,7 @@ export default function AudioDashboard({  }) {
   const polling = useRef(false);
   const revision = useRef(0);
   const load = useCallback(async () => {
-    const [usage] = await Promise.all([call('audio.usage', {}), refreshQuery(call, 'audio.settings.get', {})]);
+    const [usage] = await Promise.all([call('audio.usage', { timeZone: ownTimeZone() }), refreshQuery(call, 'audio.settings.get', {})]);
     return usage;
   }, [call]);
   const update = useCallback(() => {
@@ -141,10 +147,10 @@ export default function AudioDashboard({  }) {
     if (saving.current) return;
     revision.current++;
     saving.current = true; setBusy(true);
-    try { setQueryData('audio.settings.get', {}, await call('audio.settings.set', patch)); setData(await call('audio.usage', {})); setError(''); }
+    try { setQueryData('audio.settings.get', {}, await call('audio.settings.set', patch)); setData(await call('audio.usage', { timeZone: ownTimeZone() })); setError(''); }
     catch (e) { setError(e.message); } finally { saving.current = false; setBusy(false); }
   };
   // Before the first transcription there is nothing to show; with nothing configured the setup card stands in for it.
   if (!data || !settings || !dashboardVisible(settings, data)) return null;
-  return <AudioDashboardPanel data={data} settings={settings} error={error} busy={busy} refresh={refresh} save={save} onToggle={setOpen} />;
+  return <AudioDashboardPanel data={data} settings={settings} error={error} busy={busy} refresh={refresh} save={save} onToggle={setOpen} efforts={model.options} modelName={model.model} />;
 }

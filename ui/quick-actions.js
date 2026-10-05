@@ -105,11 +105,11 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
 const notFound = (error) => /not found/i.test(error?.message || "");
 
 /** 知道了 on one finished job, or 全部知道了 when `jobId` is omitted. The cards fade out at once. */
-export function dismissJobs(quick, jobId) {
+export function dismissJobs(quick, jobId, alsoIds = []) {
   const jobs = quick.current?.()?.jobs || [];
-  const ids = new Set(jobId ? [jobId] : jobs.filter((job) => !isActiveJob(job)).map((job) => job.id));
+  const ids = new Set(jobId ? [jobId, ...alsoIds] : jobs.filter((job) => !isActiveJob(job)).map((job) => job.id));
   if (!ids.size) return Promise.resolve({ ok: true });
-  return quick.run("job.dismiss", jobId ? { jobId } : { all: true }, {
+  return quick.run("job.dismiss", jobId ? alsoIds.length ? { jobIds: [jobId, ...alsoIds] } : { jobId } : { all: true }, {
     key: jobId || "jobs:all",
     patch: (data) => ({ ...data, jobs: (data.jobs || []).map((job) => ids.has(job.id) && !isActiveJob(job) ? { ...job, leaving: true } : job) }),
     confirmed: (data) => !(data.jobs || []).some((job) => ids.has(job.id)),

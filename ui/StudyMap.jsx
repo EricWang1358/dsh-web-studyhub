@@ -55,7 +55,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const endRun = (runId) => act("review.end", { runId });
   const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
   const cancelJob = (jobId) => act("job.cancel", jobId ? { jobId } : { all: true });
-  const dismissJob = (jobId) => dismissJobs(quick, jobId);
+  const dismissJob = (jobId, alsoIds) => dismissJobs(quick, jobId, alsoIds);
   const onFocus = (next) => act("focus.set", next);
   const suggestRole = (args) => call("focus.suggest", args);
   const suggestMerges = (args) => call("deck.merge.suggest", args);

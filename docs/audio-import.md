@@ -95,8 +95,9 @@ Task cards appear on the **Audio transcription** page and at the top of **Source
 - an overall progress bar. Transcription counts for 25%, proofreading for 30% and translation for 45%; within a step, it counts finished segments. The weights are estimates;
 - "Left in this step: about N min", once a segment has finished and its real pace is known;
 - a moving section on the bar during one long request, with a note that it is not stuck: nobody can tell how far a single request has got;
-- **N tasks running**, each with its runtime and waiting time, and **View task history** with each finished request's status, duration and reasoning level;
-- **View subagent**, when a proofreading or translation request ran as a DSH subagent;
+- **N in parallel**: how many proofreading or translation windows run at once; when the model pushed back it reads "4 in parallel (lowered from 6 because of rate limits)";
+- **N tasks running**, each with its runtime, waiting time and input size, and **View task history**, which lists the latest 5 and the rest behind **Show N more** (the page has no nested scroller); one line per task ("Proofreading 6/31 · Complete · 14 s"); what every row would repeat (the runtime, "results are collected by the plugin") is said once above the list; the reasoning strength is mentioned only when what was asked and what was used differ; **Details** shows input size, usage and the start of the answer;
+- **View subagent**, when a proofreading or translation request ran as a DSH subagent, **drawn only when this DSH can open that subagent**, never a link that only fails when clicked; in DSH the subagent is named "Study <id> · Audio proofreading · <file> · 1/31";
 - warnings, for example when a provider was switched or an option was dropped.
 
 Click **Stop (finished transcription is kept)** at any time.
@@ -272,9 +273,11 @@ When the DSH model does this work, each request runs as a one-shot DSH subagent 
 
 ## Queue and concurrency
 
-- **One recording at a time.** Recordings are processed one at a time per DSH host, in arrival order, across all libraries. Single imports, the files of a multi-file import and **Proofread and save** in **Live class** share this queue. A waiting card shows **Queued**. Subtitle imports and correction reviews do not wait in it.
-- **Windows within a recording.** Proofreading and translation each run 3 windows at a time, or 2 if you choose so under **Expert options**. A group of windows shares the same earlier fixes or part titles, and results are merged in their original order before the next group starts. All proofreading finishes before translation begins. Each finished window is saved at once. A cancel or a fatal error stops the whole group, and a retry reuses finished windows.
-- **Effect of concurrency.** It does not add requests, but it makes per-minute limits more likely. A change applies to the next run or **Continue**; it never interrupts a running recording or lets a second one start.
+- **Transcription queues, proofreading and translation are pipelined.** Per DSH host, transcription is queued in arrival order (by default one recording at a time, across all libraries). As soon as a recording is transcribed its slot goes to the next recording while its own proofreading and translation continue, so file 2 is transcribed while file 1 is proofread and translated. Single imports, the files of a multi-file import and **Proofread and save** in **Live class** share this queue. A waiting card shows **Queued**. Subtitle imports and correction reviews do not wait in it.
+- **Proofreading and translation run on a sliding pool.** 3 windows at a time by default, 1 to 6 under **Expert options**; a whole batch shares that number. The moment a window finishes the next one starts, so one slow window no longer leaves the other slots idle. Results are still merged in source order. A window starts with the fixes and part titles of the windows already finished at that moment (windows that start together do not see each other's fixes; later windows see more than a wave could give them). All proofreading finishes before translation begins. Each finished window is saved at once. A cancel or a fatal error stops every window in flight, and a retry reuses finished windows.
+- **Automatic back-off.** If the model answers "too many requests / too many at once" (429, a sub-agent limit), the rest of the run lowers its parallelism, the refused window is retried after a short wait (it is not failed), and the pool climbs back toward your setting once things are stable. The card shows, for example, "4 in parallel (lowered from 6 because of rate limits)".
+- **Transcription parallelism** can be set to 1 to 3 under **Expert options**, default 1; free quotas and per-minute limits are small, so raising it is rarely useful.
+- **Effect of concurrency.** It does not add requests, but it makes per-minute limits more likely. A change applies to the next run or **Continue**; it never interrupts a running recording.
 - **Queued jobs** can be stopped. They hold no place, and the card still offers **Continue**.
 - **Identical files** (even with different names) are never transcribed at the same time: the later one waits, then reuses the saved source instead of paying again.
 
@@ -287,10 +290,10 @@ For the keys configured now, it shows:
 - today's model requests, minutes of audio transcribed, input and output tokens, and rate-limited and other failed requests;
 - each provider (Gemini Free, SiliconFlow, Groq, Gemini Paid) with its models and their daily request quota;
 - a 7-day trend;
-- the **Proofreading & translation** panel (see [Proofreading and translation depth](#proofreading-and-translation-depth));
+- **Reasoning strength of proofreading and translation** (see [Proofreading and translation depth](#proofreading-and-translation-depth));
 - **Set Gemini free daily limits**.
 
-**What it counts.** Every HTTP request this plugin sends to Gemini `generateContent`, to Groq transcription and chat, and to SiliconFlow transcription, including failures and retries, since this record was introduced. Key checks, file uploads, reused saved work, **Live class** audio streams and DSH model tokens are not counted. "Today" uses Pacific time, to match Gemini's daily reset.
+**What it counts.** Every HTTP request this plugin sends to Gemini `generateContent`, to Groq transcription and chat, and to SiliconFlow transcription, including failures and retries, since this record was introduced. Key checks, file uploads, reused saved work, **Live class** audio streams and DSH model tokens are not counted. A request to a model endpoint the console does not know, or made with a key that is not any configured key, is still recorded and shown as **Other**, never dropped. When a recording is resumed from a saved transcript the card says "Reused the saved transcript", so a count of 0 requests is explained. "Today" and the 7-day chart use **your own calendar days** (your time zone); the Gemini free quota keeps Google's day, which resets at midnight Pacific time, and the console says so next to the quota together with the reset time in your local time.
 
 **Remaining quota:**
 
@@ -307,23 +310,20 @@ When saved work is reused, "This run" can be 0 while the total still includes th
 
 ## Proofreading and translation depth
 
-**Settings › Audio transcription › Advanced › Proofreading and translation** offers three presets. A change applies from the next run.
+**Settings › Audio transcription › Advanced › Reasoning strength of proofreading and translation** has two lists (proofreading, translation); the Usage console shows the same control. A change applies from the next run.
 
-| Preset | Proofreading | Translation |
-| --- | --- | --- |
-| **Faster** | Low | Low |
-| **Balanced** (default) | Model default | Low |
-| **More accurate** | High | Medium |
-
-For other combinations, use the **Proofreading & translation** panel, found under **Expert options** and in the Usage console. It has a 3×3 grid of Low, Mid and High, plus two lists that also offer **Model default**. Each list shows the average time of the last 7 days' samples at the chosen level. The grid describes reasoning depth, not measured accuracy; the model and segment size also affect the time.
+- **The options are the current model's own levels**, shown under the model's own names (for example Off, Low, High, Max) plus **Model default**. Each list shows the average time of the last 7 days' samples at the chosen level (timing, not accuracy).
+- **What is saved is a relative strength** (lowest, low, medium, high, highest, or the model default), not one model's level name. After a change of model the same preference maps to the **nearest** level of the new model (a tie goes to the stronger one), and the list says so, for example "This model has no "Mid" level; "High" is used". If the model offers no adjustable level at all it says "this has no effect and the model default is used". It never falls back to the default silently.
+- In the task history a line appears only when what was asked and what was used differ ("Reasoning strength: "Mid" was asked for, this model has no such level, "High" was used").
+- **Live class** "Reasoning strength of context correction" is the same control with the same mapping.
 
 How the level reaches the model:
 
-- the DSH model uses the levels its model catalogue supports;
-- Gemini 3 models get `thinkingLevel`, Gemini 2.5 models get `thinkingBudget`;
-- Groq GPT OSS models get `reasoning_effort`.
+- the DSH model uses the levels its model catalogue supports (the nearest mapping above);
+- Gemini 3 models get `thinkingLevel`, Gemini 2.5 models get `thinkingBudget` (only low, medium and high exist: lowest becomes low, highest becomes high);
+- Groq GPT OSS models get `reasoning_effort` (same).
 
-A model that rejects the setting runs at its default, and the task history shows the requested and the actual level. A new level redoes proofreading and translation on the next import of a recording; transcription is reused and finished sources are not changed.
+A new level redoes proofreading and translation on the next import of a recording; transcription is reused and finished sources are not changed.
 
 ## Settings reference
 
@@ -332,19 +332,19 @@ Everything below is in **Settings › Audio transcription**.
 | Setting | Where | Default | Notes |
 | --- | --- | --- | --- |
 | Provider keys | Provider cards | None | One is enough |
-| **Proofreading and translation** | **Advanced** | **Balanced** | **Faster**, **Balanced** or **More accurate** |
+| **Reasoning strength of proofreading and translation** | **Advanced** | Proofreading: model default; translation: Low | The current model's own levels, see [Proofreading and translation depth](#proofreading-and-translation-depth) |
 | **Gemini paid key (optional)** | **Advanced** | None | Separate, billed Google project |
 | **Model for proofreading and translation** | **Advanced › Expert options** | **Automatic** | See [Which model proofreads and translates](#which-model-proofreads-and-translates) |
 | **Transcription model** | **Expert options** | `gemini-3.5-transcribe` | Gemini |
 | **Gemini text model** | **Expert options** | `gemini-3.8-flash` | Hidden when **The model the conversation uses** is chosen |
 | **SiliconFlow transcription model** | **Expert options** | `FunAudioLLM/SenseVoiceSmall` | |
 | **Groq transcription model** / **Groq text model** | **Expert options** | `whisper-large-v3` / `openai/gpt-oss-120b` | The text model is hidden when **The model the conversation uses** is chosen |
-| **Concurrent proofreading and translation windows per recording** | **Expert options** | 3 | 2 or 3 |
+| **Proofreading and translation in parallel** | **Expert options** | 3 | 1 to 6 |
+| **Transcriptions in parallel** | **Expert options** | 1 | 1 to 3 |
 | **Longest per request** | **Expert options** | 59 minutes | 59, 45, 30, 20 or 10 minutes |
 | **Transcript style** | **Expert options** | **Cleaned up** | Or **Verbatim** |
-| **Proofreading & translation** panel | **Expert options** | Model default / Low | Same as the presets, with every combination |
 
-**Expert options** also holds the **Live class** models and **Context correction reasoning**; see [Live class](live-class.md).
+**Expert options** also holds the **Live class** models and **Reasoning strength of live class context correction**; see [Live class](live-class.md).
 
 ## If Google cannot be reached
 
@@ -364,7 +364,7 @@ Replace the address with your own proxy. "Gemini API is unavailable in the curre
 - **Mock services.** Automated tests use local mock Gemini, SiliconFlow and Groq services. They cover splitting, provider order, rate-limit waits, uploads and deletion, parameter fallback, the proofreading safety rules, the transcript format, resuming and keeping keys out of records. They show that the code handles these responses as intended. They do not show real transcription quality, current quotas or provider behaviour.
 - **Real ffmpeg.** Cutting with ffmpeg was tested on one-minute recordings with pauses in M4A, Ogg Vorbis, Opus, WebM, FLAC, AAC and AIFF: every piece decodes, the pieces add up to the original length, the cuts fall in pauses and temporary files are removed. These tests skip themselves when ffmpeg is missing. Lossless M4A splitting was tested on a real AAC recording.
 - **Real APIs.** Request fields follow the Gemini and Groq documentation as read on 2026-09-29: Gemini `generateContent` (not the newer Interactions API), Groq `/openai/v1/audio/transcriptions` and `/openai/v1/chat/completions`. They were not called with real keys. Whether Groq's text model supports JSON mode and `reasoning_effort` is unverified. If Google's API changes, only `lib/gemini.js` needs updating.
-- **DSH subagents.** Proofreading and translation through DSH subagents were tested with a simulated host only. Starting a real subagent and opening it with **View subagent** have not been checked in a real DSH.
+- **DSH subagents.** Checked in a local DSH 0.2.0-rc.2 (isolated DSH_HOME, fake model): proofreading runs as a DSH subagent, **View subagent** opens that subagent's session, titled "Study <id> · Audio proofreading · <file> · n/N". For a task started from the panel the subagent hangs under the coordinator session DSH creates for the panel, so it is **not in DSH's left-hand session list**; reach it from the task card (or from the subagent switcher once one is open).
 - **The @ selector.** Whether DSH opens its file selector after **Pick a file with @ in the conversation** has not been checked; if it does not, type @ again.
 - **Progress weights.** The 25% / 30% / 45% split is a rule of thumb. Real step times vary with the recording and the model, so the overall percentage is an estimate; "Left in this step" uses measured pace.
 - **Terminology.** Transcription can still contain misrecognised words that proofreading missed or was unsure about. Check the doubtful list in each transcript.

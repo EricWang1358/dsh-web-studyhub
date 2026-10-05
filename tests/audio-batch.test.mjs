@@ -73,7 +73,7 @@ export function wav(fill) {
   header.write('data', 36); header.writeUInt32LE(data.length, 40);
   return Buffer.concat([header, data]);
 }
-async function fixture(t, { hold = false, fail = () => false, limit = 2 } = {}) {
+async function fixture(t, { hold = false, fail = () => false, limit = 1 } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'audio-batch-')), root = join(dir, 'library'), previous = process.env.DSH_HOME;
   process.env.DSH_HOME = join(dir, 'home');
   const calls = [], prompts = [], held = new Map();
@@ -98,7 +98,7 @@ async function fixture(t, { hold = false, fail = () => false, limit = 2 } = {}) 
     return reply(JSON.stringify({ titleZh: '数据库', titleEn: 'Databases', paragraphs: payload.paragraphs.map(p => ({ n: p.n, zh: `${name} 的翻译。` })) }));
   };
   const service = new StudyService(root, { fetch });
-  await service.call('audio.settings.set', { paidKey: KEY, textProvider: 'gemini', audioConcurrency: limit });
+  await service.call('audio.settings.set', { paidKey: KEY, textProvider: 'gemini', transcribeConcurrency: limit });
   const a = join(dir, 'A.wav'), b = join(dir, 'B.wav');
   await writeFile(a, wav(1)); await writeFile(b, wav(2));
   t.after(async () => { for (const release of held.values()) release(); if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(dir, { recursive: true, force: true }); });
@@ -119,8 +119,9 @@ test('batch recordings run in submitted order, with frozen courses and no partia
   assert.deepEqual(calls, ['transcribe:B']);
   assert.ok(!held.has('A'));
   held.get('B')();
+  // The transcription slot passes to A at once; B's own proofreading and translation continue and finish on their own.
   await until(() => held.has('A'));
-  assert.equal((await service.call('snapshot')).jobs.find(j => j.id === started.jobId).members[0].status, 'complete');
+  await until(async () => (await service.call('snapshot')).jobs.find(j => j.id === started.jobId).members[0].status === 'complete', 'member B to finish its text steps');
   assert.equal((await service.call('snapshot')).sources.length, 0);
   held.get('A')();
   const job = await wait(started);
@@ -142,6 +143,7 @@ test('batch members and single imports share one slot; cancelled work can resume
   assert.equal(calls.length, 1);
   held.get('A')();
   await until(() => held.has('B'));
+  await until(async () => (await service.call('snapshot')).jobs.find(j => j.id === batch.jobId).members[0].status === 'complete', 'member A to finish its text steps');
   assert.equal(calls.filter(call => call === 'transcribe:B').length, 1, 'one slot for the B member, none for the queued single');
   await service.call('job.cancel', { all: true });
   const stopped = await wait(batch);

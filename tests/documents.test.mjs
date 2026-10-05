@@ -268,7 +268,7 @@ test("three batch workers overlap after shared planning and checkpoint before a 
     contexts.push(context);
     if (system.startsWith("Plan ")) plans++;
     return fixture(system, prompt);
-  }, { count: 20, kind: "flashcard", sources: [source] }, () => {}, async (deck) => {
+  }, { count: 20, kind: "flashcard", sources: [source], performance: { concurrency: 3 } }, () => {}, async (deck) => {
     checkpoints.push(deck.cards.length); signalSaved();
   });
   try {

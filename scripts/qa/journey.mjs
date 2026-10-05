@@ -8,7 +8,11 @@
    model on a fresh temporary library, in Chromium, with every key/token/
    base-url variable removed from the environment. Writes <out>/summary.json
    (steps, console errors, page errors, failed API calls) and exits non-zero
-   when a step fails or the page throws.
+   when a step fails or the page throws. Each step also records its layout
+   shift (cls) and longest main-thread task (longestTaskMs); a step over
+   --cls-max (default 0.05) fails and names the elements that moved
+   (scripts/qa/layout-stability.mjs, #208; --longtask-max <ms> opts in to
+   failing a long task).
 
    Add a step: append one { name, needs?, run } entry to JOURNEY_STEPS.
    `needs` lists state the step requires (material, draft, deck, answers);
@@ -25,10 +29,20 @@ import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { sampleMaterial, sampleMarkdown, samplePdfHtml } from "./fixtures.mjs";
 import { FAKE_SILICONFLOW_KEY, fakeSiliconflow, longM4a, toneWav } from "./audio-fixtures.mjs";
+import { DEFAULT_CLS_MAX, drainLayoutStability, emptyLayoutLog, installLayoutObserver, judgeLayoutStability, mergeLayoutLog } from "./layout-stability.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/* ---------- layout offenders that are known and not fixed yet (#208) ---------- */
+
+/* A step may exceed the default budget up to its own, with the reason; the journey prints it as known and still fails above it, so the list only
+   ever shrinks. Nothing here is a design decision: each line is a shift that should be removed. */
+export const KNOWN_LAYOUT = {
+  "import-files": { maxCls: 0.1, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08, by timing)" },
+  "job-progress": { maxCls: 0.12, why: "a finished generation inserts the 待发布 list above the course desk and moves it down (0.044 at 1280, 0.108 at 420)" },
+};
 
 /* ---------- steps ---------- */
 
@@ -521,7 +535,11 @@ export function parseJourneyArgs(argv = []) {
     throw new Error(`Unknown step "${name}". Steps: ${names.join(", ")}; onboarding: tour (${tour.join(", ")}); case practice: case (${cases.join(", ")})`);
   const port = Number(values.port ?? 0);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("--port must be a port number (0 picks a free one)");
-  return { lang, theme, width, height: Number(values.height ?? 900), steps,
+  // Layout stability (#208): a step whose late content moved shown content by more than this CLS fails; long tasks are reported, judged only with a limit.
+  const clsMax = Number(values["cls-max"] ?? DEFAULT_CLS_MAX), longTaskMax = Number(values["longtask-max"] ?? 0);
+  if (!Number.isFinite(clsMax) || clsMax < 0) throw new Error("--cls-max must be a number such as 0.05 (the layout-shift budget of one step)");
+  if (!Number.isFinite(longTaskMax) || longTaskMax < 0) throw new Error("--longtask-max must be a number of milliseconds (0 only reports)");
+  return { lang, theme, width, height: Number(values.height ?? 900), steps, clsMax, longTaskMax,
     out: values.out ? resolve(values.out) : resolve(repoRoot, `output/qa/journey/${lang}-${theme}-${width}`), keep: !!values.keep, port };
 }
 
@@ -569,6 +587,7 @@ export async function runJourney(options) {
     await context.addInitScript(([lang, theme]) => {
       try { localStorage.setItem("study-ui-language", lang); localStorage.setItem("study-theme", theme); } catch { /* storage blocked */ }
     }, [options.lang, options.theme]);
+    await context.addInitScript(installLayoutObserver); // layout-shift + longtask from the first paint of every document (#208)
     const page = await context.newPage();
     let current = "boot";
     page.on("console", (message) => { if (message.type() === "error") summary.consoleErrors.push({ step: current, text: message.text() }); });
@@ -584,6 +603,8 @@ export async function runJourney(options) {
     j.cleanups = cleanups;
     await page.goto(server.url);
     await j.ready();
+    await j.collectLayout(); // the first paint of the app is not a step
+    j.layoutLog = emptyLayoutLog();
     for (const step of [...JOURNEY_STEPS, ...TOUR_STEPS, ...CASE_STEPS].filter((item) => options.steps.includes(item.name))) {
       current = step.name;
       const started = Date.now(), record = { name: step.name, status: "ok", shots: [] };
@@ -597,9 +618,27 @@ export async function runJourney(options) {
         await j.shot("failed").catch(() => {});
       }
       record.ms = Date.now() - started;
+      // Layout stability (#208): per-step CLS and the longest main-thread task; a step over budget fails and names what moved.
+      await j.collectLayout();
+      const known = KNOWN_LAYOUT[step.name];
+      const layout = judgeLayoutStability(j.layoutLog, { maxCls: Math.max(options.clsMax, known?.maxCls ?? 0), maxLongTask: options.longTaskMax });
+      if (known && layout.cls > options.clsMax) record.knownLayout = known.why;
+      j.layoutLog = emptyLayoutLog();
+      record.cls = layout.cls;
+      record.longestTaskMs = layout.longestTask;
+      record.longTasks = layout.longTasks;
+      if (layout.rowResizes) { record.rowResizes = layout.rowResizes; record.resizes = layout.resizes.slice(0, 20); }
+      if (layout.shiftCount) record.shifts = layout.shifts.map((item) => ({ value: Number(item.value.toFixed(4)), at: item.startTime, sources: item.sources }));
+      if (!layout.ok) {
+        record.layout = layout.message;
+        if (record.status === "ok") { record.status = "failed"; record.error = layout.message; }
+      }
       summary.steps.push(record);
-      console.log(`${record.status === "ok" ? "ok  " : "FAIL"} ${step.name}${record.error ? ` — ${record.error}` : ""}`);
+      console.log(`${record.status === "ok" ? "ok  " : "FAIL"} ${step.name} [CLS ${layout.cls.toFixed(3)}, longest task ${layout.longestTask} ms${record.knownLayout ? ", known offender" : ""}]${record.error ? ` — ${record.error}` : ""}`);
     }
+    summary.layout = { clsMax: options.clsMax, longTaskMax: options.longTaskMax,
+      worstCls: Math.max(0, ...summary.steps.map((step) => step.cls || 0)), longestTaskMs: Math.max(0, ...summary.steps.map((step) => step.longestTaskMs || 0)),
+      overBudget: summary.steps.filter((step) => step.layout).map((step) => step.name) };
     if (options.keep) {
       console.log(`Preview kept running at ${server.url} (library ${server.libraryRoot}); press Ctrl+C to stop.`);
       await new Promise((done) => process.once("SIGINT", done));
@@ -630,7 +669,9 @@ function journeyContext({ page, server, options, english, fixtures, step }) {
       await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
       await j.settle(800);
     },
-    async reload() { await page.reload(); await j.ready(); },
+    async reload() { await j.collectLayout(); await page.reload(); await j.ready(); },
+    /** Move what the page's observers saw into this step's log (before a reload throws the page's own copy away). */
+    async collectLayout() { if (j.layoutLog) mergeLayoutLog(j.layoutLog, await drainLayoutStability(page)); else await drainLayoutStability(page); },
     /** Let requests, renders and page transitions finish before a screenshot. */
     async settle(ms = 600) {
       await page.waitForLoadState("networkidle").catch(() => {});
@@ -650,11 +691,16 @@ function journeyContext({ page, server, options, english, fixtures, step }) {
       if (await locator.count() && await locator.first().isVisible()) { await locator.first().click(); await j.settle(300); return true; }
       return false;
     },
+    /** Go to a page. The click is dispatched, not a real input event: Chromium drops layout shifts within 500 ms of real input
+     *  (hadRecentInput), and data that arrives right after opening a page is exactly what the layout check must see (#208).
+     *  Clicks on controls inside a page stay real input, so a result the learner asked for is not counted against the page. */
     async nav(id) {
       const anchor = j.anchor(`nav-${id}`);
-      if (await anchor.count()) await anchor.first().click();
-      else if (id === "settings") await page.getByRole("button", { name: t(NAV.settings), exact: true }).first().click();
-      else await page.locator("nav").getByRole("button", { name: new RegExp(`^\\s*${escapeRe(t(NAV[id]))}`) }).first().click();
+      const target = await anchor.count() ? anchor.first()
+        : id === "settings" ? page.getByRole("button", { name: t(NAV.settings), exact: true }).first()
+          : page.locator("nav").getByRole("button", { name: new RegExp(`^\\s*${escapeRe(t(NAV[id]))}`) }).first();
+      await target.waitFor({ state: "visible" });
+      await target.dispatchEvent("click");
       await j.settle();
     },
     async openAddSource() {

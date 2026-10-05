@@ -7,6 +7,9 @@ import { isActiveJob, supplementJobLabel } from './job-visibility.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { countDocuments } from '../lib/source-groups.js';
 import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/generation-settings.js';
+import { DIMENSIONS, issueCode, reasonLabel } from './quality-reasons.js';
+import { formatClauses } from './format.js';
+import { USAGE_STAGES, stageUsage } from '../lib/stage-usage.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
 export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, count: GENERATION_SETTINGS_DEFAULTS.count,
@@ -65,6 +68,14 @@ export function stageCodeLabel(code) {
     partial: ui('草稿已保存，但少了一些题'),
     failed: ui('没有完成'),
   })[code] || '';
+}
+
+const STAGE_ROW_LABEL = { plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查', review: '独立审阅', repair: '修复题目' };
+/** The generation details' per-stage table: what each stage used (tokens, calls, seconds) next to what the estimate said, in stage order. */
+export function stageUsageRows(job = {}) {
+  const used = stageUsage(job), estimated = job.estimate?.stageTotals || {};
+  return USAGE_STAGES.filter((code) => used[code]).map((code) => ({ code, label: ui(STAGE_ROW_LABEL[code]), ...used[code],
+    estimate: estimated[code] ? { low: estimated[code].low, high: estimated[code].high } : null }));
 }
 
 /** One finished or running model step, as a noun for the execution list. */
@@ -208,6 +219,9 @@ export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved =
   const stepCode = step && stepStageCode(step);
   let label = stageCodeLabel(code === 'authoring' && stepCode ? stepCode : code);
   if (stepCode && step.part && job.parts > 1) label = uiFormat('第 {0}/{1} 批 · {2}', [step.part, job.parts, label]);
+  // Parts that are filling a gap (the automatic extra rounds) say which round and how many questions are still missing.
+  const filling = Object.values(job.fills || {});
+  if (filling.length) label = uiFormat('{0} · 第 {1} 轮补题 · 还差 {2} 题', [label, Math.max(...filling.map((item) => item.round)), filling.reduce((sum, item) => sum + item.missing, 0)]);
   if (includeSaved && job.savedCount > 0 && job.requestedTotal > 0) label = uiFormat('{0} · 已保存 {1}/{2} 题', [label, job.savedCount, job.requestedTotal]);
   return label;
 }
@@ -226,7 +240,8 @@ const FAILURES = [
   ['grounding', /is not in source|quote must match|unknown source|not one of the provided sources|引用的原文/i],
   ['plan', /Assessment plan is not usable/i],
   ['blueprint', /Answer blueprint/i],
-  ['quality', /Quality gate failed|Editorial review still found issues|No questions were generated|Author returned no questions|insufficient evidence|没有题目通过/i],
+  ['evidence', /insufficient evidence|fewer supported knowledge points|no supported knowledge points/i],
+  ['quality', /Quality gate failed|Editorial review still found issues|No questions were generated|Author returned no questions|没有题目通过/i],
 ];
 
 /**
@@ -245,6 +260,48 @@ export const FAILURE_COPY = Object.freeze({
   unavailable: { action: 'retry', title: '模型服务暂时不可用', hint: '稍后再试。' },
 });
 const copyOf = (kind) => { const entry = FAILURE_COPY[kind]; return { kind, action: entry.action, title: ui(entry.title), hint: ui(entry.hint) }; };
+
+const PART_SPLIT = /(?:^|;\s*)Part (\d+):\s*/;
+const QUESTION_SPLIT = /;\s+(?=(?:q\d+|Card \d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f-]{23})\s*[:：])/;
+const QUESTION_TOKEN = /^(?:(q\d+)|Card (\d+)|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f-]{23}))\s*[:：]/;
+
+/** The reason codes one failure line stands for (a review line can name several dimensions; prose names none and reads as the review's own words). */
+function lineCodes(line) {
+  const codes = new Set(), first = issueCode(line);
+  if (first && first !== 'structure') codes.add(first);
+  for (const [name, code] of Object.entries(DIMENSIONS)) if (new RegExp(`\\b${name}\\b`).test(line)) codes.add(code);
+  if (first === 'structure' && !codes.size) codes.add('structure');
+  return [...codes];
+}
+
+/**
+ * What a failed run's message says, one row per question: `{ part, question, codes, severity, raw }`. The message joins English lines of the
+ * independent review and the structural checks ("q2: answerLeak failed…", "Card 4: hint reveals the answer", prose with a card id), grouped by
+ * part and question. Every line in a failure is a blocker (suggestions never reject a card). A failure that is not about questions has no rows.
+ */
+export function failureBreakdown(text = '') {
+  const raw = String(text || ''), pieces = raw.split(PART_SPLIT), rows = new Map();
+  const bodies = pieces.length === 1 ? [[undefined, raw]] : Array.from({ length: (pieces.length - 1) / 2 }, (_, index) => [Number(pieces[index * 2 + 1]), pieces[index * 2 + 2]]);
+  for (const [part, body] of bodies) {
+    let lines = String(body).replace(/^(?:Quality gate failed|Editorial review still found issues):\s*/, '');
+    if (lines.startsWith('[')) { try { lines = JSON.parse(lines).join('; '); } catch { /* read it as text */ } }
+    for (const line of lines.split(QUESTION_SPLIT)) {
+      const found = QUESTION_TOKEN.exec(line.trim());
+      if (!found) continue;
+      const question = found[1] || (found[2] ? `q${found[2]}` : found[3]), key = `${part ?? ''}:${question}`;
+      const row = rows.get(key) || { part, question, codes: [], severity: 'blocker', raw: [] };
+      row.raw.push(line.trim());
+      for (const code of lineCodes(line)) if (!row.codes.includes(code)) row.codes.push(code);
+      rows.set(key, row);
+    }
+  }
+  return [...rows.values()].map((row) => ({ ...row, codes: row.codes.length ? row.codes : ['review'] }));
+}
+
+/** One row of the technical detail as a line: "q2 · reasons (must fix)". */
+export function failureRowLabel(row) {
+  return uiFormat('{0} · {1}（必须修）', [row.question, formatClauses(row.codes.map(reasonLabel))]);
+}
 
 /**
  * A generation failure in plain words: { kind, title, hint, action } where
@@ -267,8 +324,19 @@ export function describeFailure(text = '', { hasDraft = false } = {}) {
     case 'blueprint': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('答案与情景设计没有通过检查'),
       hint: hasDraft ? ui('已通过的题保存在草稿里。其余考点还没有形成可靠的答案与情景，可以打开草稿后调整范围继续。')
         : ui('考点已找到，但答案、情景或选项依据还不完整。可选择更聚焦的资料，或减少题数后重试。') };
-    case 'quality': return { kind, action: 'retry', title: ui('没有题目通过检查'),
+    // Too little in the sources is a signal of its own (the planning stage found no supported target); only then are other sources the advice.
+    case 'evidence': return { kind, action: 'retry', title: ui('资料里能稳妥出题的内容不够'),
       hint: ui('资料可能太短，或缺少可以考的内容。换几份内容更完整的资料，或减少题数再试。') };
+    case 'quality': {
+      // The review rejected the questions: say what it found and what to do, never blame the sources.
+      const counts = new Map();
+      for (const row of failureBreakdown(raw)) for (const code of row.codes) if (code !== 'review') counts.set(code, (counts.get(code) || 0) + 1);
+      const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([code]) => reasonLabel(code));
+      const next = hasDraft ? ui('打开草稿用「继续补齐」再补一轮；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。')
+        : ui('点「按原资料重新设置」再试一次；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。');
+      return { kind, action: hasDraft ? 'open-draft' : 'retry', title: top.length ? ui('出的题都没通过质量审阅') : ui('没有题目通过检查'),
+        hint: top.length ? uiFormat('主要原因：{0}。{1}', [formatClauses(top), next]) : uiFormat('具体原因见技术详情。{0}', [next]) };
+    }
     default: return { kind, action: 'retry', title: ui('生成没有完成'), hint: ui('可以按原资料重新设置后再试。') };
   }
 }
