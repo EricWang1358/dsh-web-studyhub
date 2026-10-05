@@ -162,6 +162,27 @@ test('the list row says 补题中 as a Badge, not 已复审，待发布, and not
   assert.match(idle, /<button[^>]*>[^<]*继续补齐 3 题/, 'the action is still a button when nothing runs');
 });
 
+test('the row says its status once: the meta line is the count, the Badge carries status and progress (#228)', () => {
+  m.setUiLanguage('zh');
+  const rowOf = (html) => /<div class="draft-row">[\s\S]*?<\/small>[\s\S]*$/.exec(html)[0];
+  const metaOf = (html) => /<div class="draft-row">[\s\S]*?<small>([\s\S]*?)<\/small>/.exec(html)[1];
+  const running = fillJob('r', 'running', { stage: 'Parallel generation · up to 4 batches', savedCount: 6, requestedTotal: 10 });
+  const six = draft({ title: '架构的语境性', editorial: { requested: 10, generated: 6, completedParts: 2, parts: 2, failures: [], generation: { sourceIds: ['s1'], kind: 'quiz' } }, cards: Array.from({ length: 6 }, (_, i) => card(`c${i}`)) });
+  const filling = home([running], [six]), row = rowOf(filling);
+  assert.equal((text(row).match(/补题中/g) || []).length, 1, 'the status is said once in the row');
+  assert.equal(text(metaOf(filling)).trim(), '6 道题', 'the meta line is the count only while the Badge shows the fill');
+  assert.match(row, /sh-badge[^>]*data-draft-work[^>]*>(?:<span[^>]*><\/span>)?补题中 · 草稿 6\/10 题/);
+  const idle = home([], [six]);
+  assert.equal((text(rowOf(idle)).match(/待发布检查|已复审，待发布/g) || []).length, 1, 'idle: one status too');
+  assert.match(rowOf(idle), /sh-badge[^>]*data-draft-status[^>]*>[^<]*(?:待发布检查|已复审，待发布)/, 'the idle status is a Badge as well');
+  assert.doesNotMatch(text(metaOf(idle)), /待发布检查|已复审，待发布/, 'not in the meta line');
+  assert.doesNotMatch(text(metaOf(idle)), /还差/, 'the button already names how many are missing');
+  m.setUiLanguage('en');
+  const english = rowOf(home([running], [six]));
+  m.setUiLanguage('zh');
+  assert.equal((text(english).match(/Adding questions/g) || []).length, 1, 'once in English too');
+});
+
 test('after a fill ends short only one 草稿待补齐 card remains: the newest job, with its own numbers and process (#203)', () => {
   m.setUiLanguage('zh');
   const oldest = fillJob('a1', 'complete', { startedAt: '2026-10-05T09:00:00.000Z', savedCount: 7, steps: steps(18), stage: 'Draft ready with 7/15 questions' });

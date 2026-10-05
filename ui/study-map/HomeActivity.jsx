@@ -1,11 +1,11 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, InlineMessage } from '../components/index.js';
+import { Badge, Button, InlineMessage } from '../components/index.js';
 import { DraftTopUp } from '../DraftShortfall.jsx';
 import { foldJobsByDraft, isActiveJob } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
 import { reviewedCardStatus } from '../../lib/review-integrity.js';
-import { draftWork, draftWorkStatus, missingQuestions } from '../draft-shortfall.js';
+import { canContinueDraft, draftWork, missingQuestions } from '../draft-shortfall.js';
 import JobCard from './JobCard.jsx';
 import { useStudy } from '../study-context.jsx';
 import { joinMeta } from '../format.js';
@@ -16,8 +16,11 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
   const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
   const reviewed = reviewedCardStatus(d);
   // Whatever works on the deck right now (a fill, the run still writing it, a repair, a publication check) is its status: not "已复审，待发布".
+  // The status is said once, in a Badge (#228): the work's own (with its progress) while something runs, else this one; the meta line is facts.
   const work = draftWork(d, data.jobs);
-  const status = work ? draftWorkStatus(work) : rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查');
+  const status = rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查');
+  // How many are missing is already the button's or the Badge's words.
+  const missingSaid = !!work || canContinueDraft(d);
   return (
     <div className="draft-row">
       <button type="button" className="draft-open" onClick={() => openDraft(d)}>
@@ -25,14 +28,14 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
           <strong>{d.title}</strong>
           <small>
             {joinMeta([uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
-              status,
-              missing > 0 ? uiFormat('还差 {0} 题', [missing]) : '',
+              missing > 0 && !missingSaid ? uiFormat('还差 {0} 题', [missing]) : '',
               Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
                 ? uiFormat('生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''])}
           </small>
         </span>
         <span>{ui('打开 →')}</span>
       </button>
+      {!work && <div className="draft-topup"><Badge tone={rejectedCount ? 'warning' : 'neutral'} data-draft-status>{status}</Badge></div>}
       <DraftTopUp draft={d} jobs={data.jobs} busy={busy} modelReady={modelReady} call={call} onContinue={continueDraft} />
     </div>
   );
