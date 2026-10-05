@@ -1,7 +1,6 @@
 {
   "第 {0} 张": "Slide {0}",
   "阅读": "Read",
-  "没有保留原始 PDF": "The original PDF was not kept",
   "原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。": "The original PDF shows the layout and figures. To select text and ask or add questions, switch to “Read”.",
   "目录": "Contents",
   "在文中查找": "Find in text",
@@ -19,7 +18,6 @@
   "标准": "Standard",
   "宽": "Wide",
   "字体": "Typeface",
-  "无衬线": "Sans",
   "衬线": "Serif",
   "背景": "Background",
   "跟随界面": "Match app",

@@ -79,7 +79,6 @@
   "OpenCode Zen · Jev 免费": "OpenCode Zen · Jev Free",
   "我已阅读以上说明，同意把这些内容发送到 Jev（OpenCode Zen 云端）": "I have read the notes above and agree to send this content to Jev (OpenCode Zen’s cloud)",
   "发送到 {0}，模型 {1}。": "Sent to {0}, model {1}.",
-  "Jev 可以通过不同的服务商使用：TypeSafe 自己的接口，或 OpenCode Zen。换服务商要重新确认下面的隐私说明；同一个服务商的密钥不会发给另一个。": "Jev can be reached through different providers: TypeSafe’s own API, or OpenCode Zen. Changing provider asks you to confirm the privacy note below again; a key of one provider is never sent to another.",
   "OpenCode 密钥（可选，也可以只用环境变量）": "OpenCode key (optional; the environment variable alone is enough)",
   "更换环境变量名": "Change the environment variable name",
   "存放密钥的环境变量名": "Environment variable that holds the key",

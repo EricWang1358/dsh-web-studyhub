@@ -14,7 +14,6 @@
   "最低": "Lowest",
   "最高": "Highest",
   "当前模型没有可调的推理强度，「{0}」不起作用，按模型默认运行": "This model has no adjustable reasoning level, so \"{0}\" has no effect and the model default is used",
-  "当前模型没有「{0}」，已用「{1}」": "This model has no \"{0}\" level; \"{1}\" is used",
   "校对与翻译的推理强度": "Reasoning strength of proofreading and translation",
   "档位来自当前模型 {0}。高推理通常花更长时间；换模型后，同样的倾向会对应到新模型最接近的档位，并在这里说明。": "The levels come from the current model, {0}. More reasoning usually takes longer; after a change of model the same preference maps to the nearest level of the new model, and this page says so.",
   "档位来自当前模型。高推理通常花更长时间；换模型后，同样的倾向会对应到新模型最接近的档位，并在这里说明。": "The levels come from the current model. More reasoning usually takes longer; after a change of model the same preference maps to the nearest level of the new model, and this page says so.",
