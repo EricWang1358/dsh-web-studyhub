@@ -93,7 +93,7 @@
 
     .tc-detail {
       display: grid;
-      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-rows: auto auto auto minmax(0, 1fr);
       min-height: 0;
       min-width: 0;
     }
@@ -130,6 +130,28 @@
     .tc-segment[data-stage='translate'], .tc-segment[data-stage='review'] { --sh-seg: var(--ok); }
     .tc-segment[data-stage='save'], .tc-segment[data-stage='repair'] { --sh-seg: var(--text-dim); }
     .tc-body { display: grid; min-height: 0; min-width: 0; }
+    /* 即时控制: one row, a fixed minimum height, so a job without controls (or a finished one) leaves the same room. */
+    .tc-controls {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-5);
+      min-height: 44px;
+      padding: var(--space-2) var(--space-5);
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-surface);
+    }
+    .tc-controls__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
+    .tc-controls__idle { color: var(--text-muted); font-size: var(--fs-sm); }
+    .tc-controls__applied { margin-inline-start: auto; min-width: 0; color: var(--text-faint); font-size: var(--fs-xs); }
+    .tc-controls__applied[data-tone='success'] { color: var(--ok-ink); }
+    .tc-controls__applied[data-tone='error'] { color: var(--bad-ink); }
+    .tc-control { display: inline-flex; align-items: center; gap: var(--space-3); }
+    .tc-control__label { color: var(--text-muted); font-size: var(--fs-sm); }
+    .tc-stepper { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); }
+    .tc-stepper__btn { min-width: 24px; --control-h-sm: 24px; padding-inline: 0; border-width: 0; background: var(--bg-raised); }
+    .tc-stepper__value { min-width: 28px; font-family: var(--font-stack-mono); font-weight: var(--fw-medium); text-align: center; font-variant-numeric: tabular-nums; }
+    .tc-select { min-height: 28px; padding-block: 0; font-size: var(--fs-sm); }
   }
 
   /* Narrow: the console is a page again. The list sits above the detail, every panel gets a height of its own, and the page scrolls. */

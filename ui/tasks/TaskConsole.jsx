@@ -11,6 +11,8 @@ import css from './task-console.css';
 import { tasksOf, taskFilters, filterTasks, pickTask } from './task-model.js';
 import { taskSummary, stateLabel } from './task-summary.js';
 import { taskFacts, taskSegments } from './task-facts.js';
+import { canPause, isPaused } from './task-control.js';
+import ControlRow from './ControlRow.jsx';
 
 /* The 任务 console. One surface for every background job: a list on the left, the whole story of the selected job on the right. It reads
    the jobs of the snapshot as they are (`data.jobs`) and sends the same actions the cards sent (job.cancel, job.dismiss). */
@@ -74,7 +76,8 @@ function Detail({ task, data, openers }) {
   const quick = useQuickActions();
   const summary = taskSummary(task, { drafts: data.drafts, jobs: data.jobs });
   const running = isActiveJob(task), now = useNow(1000, { enabled: running });
-  const result = openers.resultOf(task);
+  const result = openers.resultOf(task), paused = isPaused(task);
+  const pause = async () => { try { await core.call('job.control', { jobId: task.id, patch: { paused: !paused } }); } catch { /* the row below says what went wrong when the learner tries a knob */ } };
   const started = task.startedAt ? formatDateTime(task.startedAt, 'stamp') : '';
   return (
     <section className="tc-detail" aria-label={ui('任务详情')} data-task-id={task.id}>
@@ -84,12 +87,14 @@ function Detail({ task, data, openers }) {
           <span className="tc-head__sub">{joinMeta([summary.kindLabel, started && uiFormat('{0} 开始', [started])])}</span>
         </div>
         <div className="tc-head__actions">
+          {canPause(task) && <Button size="sm" aria-pressed={paused} onClick={pause}>{paused ? ui('继续') : ui('暂停')}</Button>}
           {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}
           {isCancellable(task) && <Button size="sm" variant="danger" disabled={core.busy} onClick={() => core.act('job.cancel', { jobId: task.id })}>{ui('停止')}</Button>}
           {!running && <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => (quick ? dismissJobs(quick, task.id) : core.act('job.dismiss', { jobId: task.id }))}>{ui('知道了')}</Button>}
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
+      <ControlRow job={task} />
       <div className="tc-body" />
     </section>
   );
