@@ -38,7 +38,7 @@ async function recording(t, formats) {
   const source = join(dir, "source.wav");
   await run(["-y", "-v", "error", "-f", "lavfi", "-i", "aevalsrc='if(lt(mod(t,10),9.4),0.3*(random(0)*2-1),0)':s=16000:d=60", "-c:a", "pcm_s16le", source]);
   const made = {};
-  for (const [name, args] of Object.entries(formats)) { made[name] = join(dir, `speech.${name}`); await run(["-y", "-v", "error", "-i", source, ...args, made[name]]); }
+  await Promise.all(Object.entries(formats).map(([name, args]) => { made[name] = join(dir, `speech.${name}`); return run(["-y", "-v", "error", "-i", source, ...args, made[name]]); }));
   return { dir, made };
 }
 const FORMATS = {
@@ -51,31 +51,33 @@ const FORMATS = {
   aiff: ["-c:a", "pcm_s16be"],
 };
 
-withFfmpeg("M4A, OGG, Opus, WebM, FLAC, AAC and AIFF are cut at pauses into pieces that decode and add up to the recording", async (t) => {
+// One subtest per format, all running at once: the seven cuts are independent and ffmpeg runs one after another were most of the suite's wall time.
+withFfmpeg("M4A, OGG, Opus, WebM, FLAC, AAC and AIFF are cut at pauses into pieces that decode and add up to the recording", { concurrency: true }, async (t) => {
   const before = await groqDirs();
   const { dir, made } = await recording(t, FORMATS);
-  for (const name of Object.keys(FORMATS)) {
+  await Promise.all(Object.keys(FORMATS).map((name) => t.test(name, async () => {
     const bytes = await readFile(made[name]);
     const plan = await groqPlan({ bytes, kind: `.${name}`, limit: LIMIT, ffmpeg: command });
     assert.equal(plan.error, undefined, `${name}: ${plan.error}`);
-    assert.equal(plan.count, 6, `${name}: sixty seconds in pieces of at most ten`);
-    let total = 0;
-    const cuts = [];
-    for (let index = 0; index < plan.count; index++) {
-      const piece = await plan.load(index);
-      assert.ok(piece.bytes.length <= LIMIT && piece.ext === "flac", `${name} piece ${index}: ${piece.bytes.length} bytes`);
-      assert.equal(piece.bytes.subarray(0, 4).toString("latin1"), "fLaC", `${name}: a real FLAC file`);
-      const file = join(dir, `${name}-${index}.flac`);
-      await writeFile(file, piece.bytes);
-      const heard = await decodedSeconds(file);
-      assert.ok(Math.abs(heard - piece.seconds) < 0.25, `${name} piece ${index} decodes to ${heard} s, planned ${piece.seconds}`);
-      total += heard;
-      cuts.push(total);
-    }
-    assert.ok(Math.abs(total - 60) < 0.6, `${name}: the pieces add up to ${total} s`);
-    for (let k = 1; k <= 5; k++) assert.ok(cuts[k - 1] > k * 10 - 0.75 && cuts[k - 1] < k * 10 + 0.1, `${name}: cut ${k} at ${cuts[k - 1]} s should fall in the pause before ${k * 10} s`);
-    await plan.cleanup();
-  }
+    try {
+      assert.equal(plan.count, 6, `${name}: sixty seconds in pieces of at most ten`);
+      let total = 0;
+      const cuts = [];
+      for (let index = 0; index < plan.count; index++) {
+        const piece = await plan.load(index);
+        assert.ok(piece.bytes.length <= LIMIT && piece.ext === "flac", `${name} piece ${index}: ${piece.bytes.length} bytes`);
+        assert.equal(piece.bytes.subarray(0, 4).toString("latin1"), "fLaC", `${name}: a real FLAC file`);
+        const file = join(dir, `${name}-${index}.flac`);
+        await writeFile(file, piece.bytes);
+        const heard = await decodedSeconds(file);
+        assert.ok(Math.abs(heard - piece.seconds) < 0.25, `${name} piece ${index} decodes to ${heard} s, planned ${piece.seconds}`);
+        total += heard;
+        cuts.push(total);
+      }
+      assert.ok(Math.abs(total - 60) < 0.6, `${name}: the pieces add up to ${total} s`);
+      for (let k = 1; k <= 5; k++) assert.ok(cuts[k - 1] > k * 10 - 0.75 && cuts[k - 1] < k * 10 + 0.1, `${name}: cut ${k} at ${cuts[k - 1]} s should fall in the pause before ${k * 10} s`);
+    } finally { await plan.cleanup(); }
+  })));
   assert.deepEqual(await groqDirs(), before, "ffmpeg's temporary files are removed");
 });
 

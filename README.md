@@ -227,6 +227,7 @@ StudyHub is an ES-module DSH plugin built on Cordis, with a React interface bund
 ```sh
 npm install --legacy-peer-deps
 npm run verify         # lint, tests and build
+npm run test:fast      # the tests without browser, ffmpeg and program-starting files, for quick iteration
 npm run dev            # preview at http://127.0.0.1:4178 (after a build)
 npm run build:demo     # static demo in output/static-demo-site/dist
 npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output/release-<version>
@@ -234,6 +235,8 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 
 - `npm run dev` needs `npm run build` (or `npm run verify`) first, because it serves `dist/`. It uses a throwaway library in `output/preview-library` and keeps global study files in `output/preview-home`, never in `~/.dsh`. Add `-- --library=<dir>` to open another library, and set `STUDY_FAKE_MODEL=1` for a deterministic fake model.
 - `npm run release:pack` does not build; run `npm run verify` first.
+- `npm test` (and so `npm run verify` and CI) always runs every test file, starting the longest first from the durations of the last run (cached in `node_modules/.cache/studyhub-tests/`). Full runs on one machine take turns through a lock file in `~/.cache/studyhub-tests/`: a second run prints one line and waits (at most 20 minutes, then it goes ahead with fewer workers); set `STUDY_TEST_NO_LOCK=1` to skip the queue. `npm test -- tests/<file>.test.mjs` runs just those files without queueing.
+- `npm run test:fast` skips the files named in `tests/slow-tests.json`: those that launch a browser, run ffmpeg or start another program. `tests/slow-tests-list.test.mjs` fails when a new test file does one of these and is not listed, so the fast tier stays fast; run `npm run verify` before a pull request.
 - The host supplies the DSH SDKs `@deepseek-ai/dsh-tools` and `@deepseek-ai/dsh-llm` (optional peers, `>=0.2.0-rc.2 <0.3`). Tests that need a missing SDK report an explicit skip.
 - CI runs `npm ci --legacy-peer-deps` and `npm run verify` on Node 22, on Ubuntu and Windows, for every pull request.
 - The [static demo](docs/static-demo.md) (in Chinese) runs the real interface with public examples and prepared replies instead of a live model.

@@ -227,6 +227,7 @@ StudyHub 是基于 Cordis 的 ES 模块 DSH 插件，界面用 React 编写、�
 ```sh
 npm install --legacy-peer-deps
 npm run verify         # lint、测试和构建
+npm run test:fast      # 不含浏览器、ffmpeg 和会启动外部程序的测试，适合快速迭代
 npm run dev            # 本地预览 http://127.0.0.1:4178（需先构建）
 npm run build:demo     # 静态体验版，输出到 output/static-demo-site/dist
 npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出到 output/release-<版本号>
@@ -234,6 +235,8 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 
 - `npm run dev` 读取 `dist/`，所以要先运行 `npm run build`（或 `npm run verify`）。它默认使用临时学习库 `output/preview-library`，全局学习文件放在 `output/preview-home`，不会读写 `~/.dsh`。加 `-- --library=<目录>` 可以打开其他学习库；设置环境变量 `STUDY_FAKE_MODEL=1` 可以使用输出固定的假模型。
 - `npm run release:pack` 不会构建，请先运行 `npm run verify`。
+- `npm test`（以及 `npm run verify` 和 CI）始终运行全部测试文件，并按上一次运行的耗时（缓存在 `node_modules/.cache/studyhub-tests/`）让最慢的文件先开始。同一台机器上的完整运行通过 `~/.cache/studyhub-tests/` 里的锁文件轮流进行：后来的运行会打印一行提示并等待（最多 20 分钟，之后以更少的并行数继续）；设置 `STUDY_TEST_NO_LOCK=1` 可以跳过排队。`npm test -- tests/<文件>.test.mjs` 只运行指定文件，不排队。
+- `npm run test:fast` 跳过 `tests/slow-tests.json` 里列出的文件，即会启动浏览器、运行 ffmpeg 或启动其他程序的测试。新增的测试文件如果做了这些事却没有列入，`tests/slow-tests-list.test.mjs` 会失败，快速档因此不会悄悄变慢；提交 PR 前请运行 `npm run verify`。
 - DSH SDK `@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-llm`（可选 peer 依赖，`>=0.2.0-rc.2 <0.3`）由 DSH 提供；缺少时，依赖它们的测试会明确跳过。
 - CI 在 Node 22 上（Ubuntu 和 Windows）对每个 PR 运行 `npm ci --legacy-peer-deps` 和 `npm run verify`。
 - [静态体验版](docs/static-demo.md)加载真实界面，使用公开示例和预置回复，不调用真实模型。
