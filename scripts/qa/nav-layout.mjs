@@ -164,8 +164,16 @@ export async function collectStates({ browser, running, lang, theme, width, mode
   const open = async () => { await page.goto(server.url); await page.locator(".sidebar").first().waitFor({ timeout: 120000 }); await settle(900); };
   const states = {};
   const record = async (name) => {
-    await sleep(700); // let the sliding highlight and any transition finish
-    states[name] = await measureSidebar(page);
+    // Let the sliding highlight and any transition finish: measure until two readings 150 ms apart agree (at most two seconds).
+    let reading = await measureSidebar(page);
+    for (let tries = 0; tries < 14; tries++) {
+      await sleep(150);
+      const next = await measureSidebar(page);
+      const same = JSON.stringify(next) === JSON.stringify(reading);
+      reading = next;
+      if (same) break;
+    }
+    states[name] = reading;
     if (shots) await page.screenshot({ path: join(out, `${width}-${lang}-${theme}-${mode}-${name}.png`) });
   };
   const nav = async (id) => { await page.locator(`[data-tour="nav-${id}"]`).first().click(); await settle(900); };

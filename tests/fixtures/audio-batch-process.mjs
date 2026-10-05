@@ -36,10 +36,14 @@ if (mode === 'interrupt') {
   const started = await service.call('audio.import', { files: [{ path: a }, { uploadId }], courses: ['Frozen A'] });
   // The manifest is replaced while this reads it (a half-written read is read again) and a busy machine can take long: wait for the condition, not for a count of polls.
   const deadline = Date.now() + 60_000;
+  // A test that intercepts manifest replacement reports the persisted completion itself (globalThis.__firstMemberPersisted): reading the
+  // manifest while it is replaced can make Windows refuse the replacement beyond its retries.
+  const reported = typeof globalThis.__firstMemberPersisted === 'boolean';
   while (Date.now() < deadline) {
-    const batch = await readFile(join(root, 'audio-batches', started.batchId, 'manifest.json'), 'utf8').then(JSON.parse, () => null);
-    if (batch?.members[0].status === 'complete') { process.stdout.write(JSON.stringify(started)); process.exit(0); }
-    await new Promise(resolve => setTimeout(resolve, 10));
+    const finished = reported ? globalThis.__firstMemberPersisted
+      : (await readFile(join(root, 'audio-batches', started.batchId, 'manifest.json'), 'utf8').then(JSON.parse, () => null))?.members[0].status === 'complete';
+    if (finished) { process.stdout.write(JSON.stringify(started)); process.exit(0); }
+    await new Promise(resolve => setTimeout(resolve, reported ? 10 : 25));
   }
   throw new Error('First member never completed');
 } else {

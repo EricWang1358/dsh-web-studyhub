@@ -240,15 +240,13 @@ test('transient Windows manifest replacement failures preserve the finished memb
   const dir = await mkdtemp(join(tmpdir(), 'audio-batch-replacement-')), root = join(dir, 'library');
   t.after(() => rm(dir, { recursive: true, force: true }));
   const preload = `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
-    const rename = fs.promises.rename; let denied = 0;
+    const rename = fs.promises.rename; let denied = 0; globalThis.__firstMemberPersisted = false;
     fs.promises.rename = async (from, to) => {
-      if (String(to).endsWith('manifest.json') && denied < 2) {
-        const value = JSON.parse(await fs.promises.readFile(from, 'utf8'));
-        if (value.members?.[0]?.status === 'complete') {
-          denied++; throw Object.assign(new Error('Transient Windows sharing violation'), { code: 'EPERM' });
-        }
-      }
-      return rename(from, to);
+      if (!String(to).endsWith('manifest.json')) return rename(from, to);
+      const complete = JSON.parse(await fs.promises.readFile(from, 'utf8')).members?.[0]?.status === 'complete';
+      if (complete && denied < 2) { denied++; throw Object.assign(new Error('Transient Windows sharing violation'), { code: 'EPERM' }); }
+      await rename(from, to);
+      if (complete) globalThis.__firstMemberPersisted = true;
     }; syncBuiltinESMExports();`;
   const child = mode => new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [
