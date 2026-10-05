@@ -158,6 +158,16 @@ Modes (one row in Aa, kept per browser): 逐段对照 (under its paragraph; the 
 Costs are visible before they are paid: the 译 popover prices 本页 / 本节 / 本章 with the shared token estimate and says how many paragraphs are left; the job (background, bounded batches, at most three in flight, stop keeps what is done, never twice) shows done/total, the clock and what it used against what was expected in the reader's notices, and files an inbox letter.
 Contracts: marks, blocks and the chip carry `data-study-marker` (selection capture, find, link underlines and the outline skip them); no stored character, `data-study-*` attribute, citation or card link is touched; a translation is kept per document revision and never applied to another (listed as older, reused where the words did not change); the 原文 view gets the chip and a floating card because its text is one `<pre>`.
 
+# Late content
+
+Data that arrives after a page is shown (coverage, recommendations, estimates, a second list) is the main source of "it jumps" and "it lags". Two rules, both checked by the journey:
+- **Late content never moves what is already shown.** Reserve the space at the size it will have (a slot or skeleton of the same height, a badge slot at the end of a row's existing meta line), or replace in place, or place the new thing after the content that is already there. Never insert a block or a line above or between visible rows. A row's height does not depend on whether its extras have arrived.
+- **Late content never changes a default the learner has already seen.** A default is decided once, from what was known when the area first showed. A later answer may update counts and add a quiet note (「找到 10 道同类题」) but does not switch the selected option, or the number and meaning of the button under the pointer. If the best default needs the late data, wait for it and render the area once, with a loading state.
+
+Late data also must not make the page heavy: memoize list rows so that a result for one row re-renders that row, not the list.
+
+The check: `scripts/qa/layout-stability.mjs` collects `layout-shift` (shifts within 500 ms of the learner's own input are excluded by Chromium's `hadRecentInput`) and `longtask` per step. `npm run qa:journey` prints and records per step `cls` and `longestTaskMs` in `summary.json`, and fails a step whose CLS is over 0.05 (`--cls-max`), naming the elements that moved; `--longtask-max <ms>` also fails a long task. `tests/layout-stability-guard.test.mjs` proves the tool catches a deliberate late insertion and stays quiet for a reserved slot.
+
 # Confirmations
 
 One question, one component. Pick by what the action does, not by where the button is.
