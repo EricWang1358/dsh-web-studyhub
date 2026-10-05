@@ -1,6 +1,7 @@
 {
   "为「{0}」补题：用 {1} 份未覆盖资料，追加约 {2} 题": "Adding to “{0}”: {2} more questions from {1} uncovered sources",
   "追加题数": "Questions to add",
+  "修复后保留 {0} 题 · 丢弃 {1} 题（其中 {2} 题修复后仍未通过，原因见「没进入草稿的题」）": "{0} kept after repair · {1} dropped ({2} of them still failed after repair; reasons are under “Questions left out of the draft”)",
   "给「{0}」补 {1} 题 →": "Add {1} questions to “{0}” →",
   "用这些资料新建题组": "Create a new deck from these sources",
   "已开始为「{0}」补题：用 {1} 份未覆盖资料追加约 {2} 题；通过检查后会保存到同一份草稿。": "Started adding to “{0}”: about {2} questions from {1} uncovered sources. Questions that pass the checks are saved into the same draft."

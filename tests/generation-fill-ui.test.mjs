@@ -60,6 +60,15 @@ test('the add button is off, and says 补题中, while a fill or generation runs
   assert.doesNotMatch(buttonTag(finished, '给「第1步'), /disabled/, 'once the fill is done the deck can be added to again');
 });
 
+test('generation details say how many questions the repair kept and how many were dropped (#202)', () => {
+  const repaired = draft(); Object.assign(repaired.editorial, { repairedInRun: 3, repairTried: 4, omitted: [{ part: 1, prompt: 'q', reasons: ['x'] }, { part: 1, prompt: 'r', reasons: ['y'] }] });
+  assert.match(text(page(repaired)), /修复后保留 3 题 · 丢弃 2 题（其中 1 题修复后仍未通过，原因见「没进入草稿的题」）/);
+  assert.doesNotMatch(text(page(draft())), /修复后保留/, 'no repair, no line');
+  const english = text(page(repaired, {}, {}, 'en'));
+  assert.match(english, /3 kept after repair · 2 dropped \(1 of them still failed after repair/);
+  assert.doesNotMatch(english.replaceAll('第1步 架构思维', 'TITLE'), han);
+});
+
 test('the add button is not offered for a case paper, an edit of a published deck or an unsaved edit', () => {
   const none = (value) => assert.doesNotMatch(page(value), /data-add-from-sources/);
   none(draft({ editingDeckId: 'deck-1' }));

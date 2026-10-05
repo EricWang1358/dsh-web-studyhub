@@ -250,6 +250,8 @@ export default function Draft({
             <p>{draft.editorial.summary}</p>
           </Disclosure>}
           {experimentalShown(data) && <JevDecidedNote decided={draft.editorial.jevDecided} />}
+          {draft.editorial.repairTried > 0 && <Hint data-repair-yield>{uiFormat("修复后保留 {0} 题 · 丢弃 {1} 题（其中 {2} 题修复后仍未通过，原因见「没进入草稿的题」）",
+            [draft.editorial.repairedInRun || 0, (draft.editorial.omitted || []).length, draft.editorial.repairTried - (draft.editorial.repairedInRun || 0)])}</Hint>}
           <Hint>
             {[reviewStatus
               ? uiFormat("{0} / {1} 题与上次模型审阅时一致。", [reviewStatus.unchanged, reviewStatus.total])
