@@ -1,0 +1,1043 @@
+{
+  "fixtureVersion": 1,
+  "sourceCommit": "f091f09f830c226bfebc9af22344896733893a10",
+  "scope": "Data-only target contract vectors. No real producer, host owner binding, executor loss, persistence or UI compatibility is proved.",
+  "cases": [
+    {
+      "id": "unknown-extension-v1-only",
+      "legacyRecord": {
+        "id": "extension-unknown",
+        "type": "external-kind",
+        "status": "producer-private-value",
+        "label": "Synthetic unknown observation"
+      },
+      "premises": {
+        "source": "synthetic legacy record",
+        "runtimeEvidence": "absent; retain v1 only"
+      },
+      "expectedV1": {
+        "contractVersion": 1,
+        "jobId": "extension-unknown",
+        "kind": "extension",
+        "title": "Synthetic unknown observation",
+        "status": "running",
+        "stage": {
+          "code": "task.running"
+        },
+        "progress": {
+          "done": 0,
+          "total": null,
+          "unit": null,
+          "percent": null,
+          "segments": []
+        },
+        "actions": {
+          "cancel": {
+            "available": true
+          },
+          "pause": {
+            "available": false,
+            "reason": {
+              "code": "capability-unsupported"
+            },
+            "mode": "unsupported"
+          },
+          "resume": {
+            "available": false,
+            "reason": {
+              "code": "capability-unsupported"
+            }
+          },
+          "retry": {
+            "available": false,
+            "reason": {
+              "code": "capability-unsupported"
+            }
+          },
+          "set": {
+            "available": false,
+            "reason": {
+              "code": "capability-unsupported"
+            }
+          }
+        },
+        "result": {
+          "refs": [],
+          "completeness": null
+        },
+        "error": null,
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": 0
+        },
+        "execution": {
+          "mode": null
+        },
+        "detail": {
+          "label": "Synthetic unknown observation",
+          "warnings": []
+        },
+        "startedAt": null,
+        "calls": [],
+        "events": []
+      }
+    },
+    {
+      "id": "audio-checkpoint-paused",
+      "legacyRecord": {
+        "id": "legacy-attempt-1",
+        "singleId": "single-golden-1",
+        "type": "audio-import",
+        "filename": "golden.wav",
+        "status": "running",
+        "phase": "proofread",
+        "stage": "校对音频",
+        "done": 1,
+        "total": 2,
+        "warnings": [],
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "steps": {
+          "transcribe": {
+            "done": 1,
+            "total": 1
+          },
+          "proofread": {
+            "done": 1,
+            "total": 2
+          }
+        },
+        "tasks": [],
+        "paused": true,
+        "pausedAt": "2026-10-05T00:00:01.000Z",
+        "control": {
+          "values": {
+            "textConcurrency": 2,
+            "paused": true
+          },
+          "limits": {
+            "textConcurrency": {
+              "type": "int",
+              "min": 1,
+              "max": 6
+            },
+            "paused": {
+              "type": "bool"
+            }
+          }
+        }
+      },
+      "premises": {
+        "source": "synthetic contract scenario",
+        "admission": "synthetic registered Agent + dsh-jobs handle",
+        "checkpoint": "synthetic persisted checkpoint; physical Attempt completed at pause boundary",
+        "legacyFacade": "preserves legacy-attempt-1"
+      },
+      "expectedV1": {
+        "contractVersion": 1,
+        "jobId": "single-golden-1",
+        "attemptId": "legacy-attempt-1",
+        "kind": "audio-import",
+        "title": "golden.wav",
+        "status": "paused",
+        "stage": {
+          "code": "audio.proofread",
+          "args": {
+            "done": 1,
+            "total": 2
+          },
+          "text": "校对音频"
+        },
+        "progress": {
+          "done": 0,
+          "total": 1,
+          "unit": "files",
+          "percent": 40,
+          "segments": [
+            {
+              "stage": "transcribe",
+              "done": 1,
+              "total": 1
+            },
+            {
+              "stage": "proofread",
+              "done": 1,
+              "total": 2
+            },
+            {
+              "stage": "save",
+              "done": 0,
+              "total": 1
+            }
+          ]
+        },
+        "actions": {
+          "cancel": {
+            "available": true
+          },
+          "pause": {
+            "available": false,
+            "reason": {
+              "code": "already-paused"
+            },
+            "mode": "checkpoint"
+          },
+          "resume": {
+            "available": true
+          },
+          "retry": {
+            "available": false,
+            "reason": {
+              "code": "not-ended"
+            }
+          },
+          "set": {
+            "available": true,
+            "settings": [
+              {
+                "key": "textConcurrency",
+                "type": "int",
+                "min": 1,
+                "max": 6,
+                "value": 2
+              }
+            ]
+          }
+        },
+        "result": {
+          "refs": [],
+          "completeness": null
+        },
+        "error": null,
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": 0
+        },
+        "execution": {
+          "mode": null
+        },
+        "detail": {
+          "files": [
+            {
+              "index": 0,
+              "filename": "golden.wav",
+              "status": "running",
+              "phase": "proofread",
+              "percent": 40,
+              "steps": {
+                "transcribe": {
+                  "done": 1,
+                  "total": 1
+                },
+                "proofread": {
+                  "done": 1,
+                  "total": 2
+                }
+              }
+            }
+          ],
+          "notices": [],
+          "usage": null,
+          "textProvider": null,
+          "minutes": null,
+          "parallel": null,
+          "recordings": 1
+        },
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "calls": [],
+        "events": []
+      },
+      "proposedV2": {
+        "contractVersion": 2,
+        "jobId": "single-golden-1",
+        "attemptId": "physical-attempt-1",
+        "kind": "audio-import",
+        "title": "golden.wav",
+        "status": "paused",
+        "stage": {
+          "code": "audio.proofread",
+          "args": {
+            "done": 1,
+            "total": 2
+          },
+          "text": "校对音频"
+        },
+        "progress": {
+          "done": 0,
+          "total": 1,
+          "unit": "files",
+          "percent": 40,
+          "segments": [
+            {
+              "stage": "transcribe",
+              "done": 1,
+              "total": 1
+            },
+            {
+              "stage": "proofread",
+              "done": 1,
+              "total": 2
+            },
+            {
+              "stage": "save",
+              "done": 0,
+              "total": 1
+            }
+          ]
+        },
+        "actions": {
+          "cancel": {
+            "available": true
+          },
+          "pause": {
+            "available": false,
+            "reason": {
+              "code": "already-paused"
+            },
+            "mode": "checkpoint"
+          },
+          "resume": {
+            "available": true
+          },
+          "retry": {
+            "available": false,
+            "reason": {
+              "code": "not-ended"
+            }
+          },
+          "set": {
+            "available": true,
+            "settings": [
+              {
+                "key": "textConcurrency",
+                "type": "int",
+                "min": 1,
+                "max": 6,
+                "value": 2
+              }
+            ]
+          }
+        },
+        "result": {
+          "refs": [],
+          "completeness": null
+        },
+        "error": null,
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": 0
+        },
+        "execution": {
+          "mode": null
+        },
+        "detail": {
+          "files": [
+            {
+              "index": 0,
+              "filename": "golden.wav",
+              "status": "running",
+              "phase": "proofread",
+              "percent": 40,
+              "steps": {
+                "transcribe": {
+                  "done": 1,
+                  "total": 1
+                },
+                "proofread": {
+                  "done": 1,
+                  "total": 2
+                }
+              }
+            }
+          ],
+          "notices": [],
+          "usage": null,
+          "textProvider": null,
+          "minutes": null,
+          "parallel": null,
+          "recordings": 1
+        },
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "calls": [],
+        "events": [],
+        "capabilities": {
+          "cancel": true,
+          "pauseMode": "checkpoint",
+          "recoveryMode": "resume-checkpoint",
+          "retry": true,
+          "set": true,
+          "executionModes": [
+            "direct"
+          ]
+        },
+        "runtime": {
+          "schemaVersion": 1,
+          "definitionVersion": 1,
+          "scopeId": "synthetic-runtime-scope",
+          "legacyId": "legacy-attempt-1",
+          "activeAttemptId": null,
+          "attempts": [
+            {
+              "jobId": "single-golden-1",
+              "attemptId": "physical-attempt-1",
+              "definitionVersion": 1,
+              "status": "complete",
+              "executor": {
+                "service": "dsh-jobs",
+                "handleId": "synthetic-host-physical-attempt-1",
+                "ownerAgentId": "synthetic-registered-agent"
+              },
+              "policySnapshot": {
+                "audioSinglePilot": true,
+                "autoRecovery": false
+              },
+              "startedAt": "2026-10-05T00:00:00.000Z",
+              "finishedAt": "2026-10-05T00:00:01.000Z",
+              "endReason": "checkpoint-pause",
+              "checkpointRef": "synthetic-checkpoint-1"
+            }
+          ],
+          "steps": []
+        }
+      }
+    },
+    {
+      "id": "audio-checkpoint-resumed",
+      "legacyRecord": {
+        "id": "legacy-attempt-1",
+        "singleId": "single-golden-1",
+        "type": "audio-import",
+        "filename": "golden.wav",
+        "status": "running",
+        "phase": "proofread",
+        "stage": "校对音频",
+        "done": 1,
+        "total": 2,
+        "warnings": [],
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "steps": {
+          "transcribe": {
+            "done": 1,
+            "total": 1
+          },
+          "proofread": {
+            "done": 1,
+            "total": 2
+          }
+        },
+        "tasks": [],
+        "control": {
+          "values": {
+            "textConcurrency": 2,
+            "paused": false
+          },
+          "limits": {
+            "textConcurrency": {
+              "type": "int",
+              "min": 1,
+              "max": 6
+            },
+            "paused": {
+              "type": "bool"
+            }
+          }
+        }
+      },
+      "premises": {
+        "source": "synthetic contract scenario",
+        "admission": "new synthetic physical Attempt from the paused checkpoint",
+        "legacyFacade": "same legacy-attempt-1; resume is not explicit retry"
+      },
+      "expectedV1": {
+        "contractVersion": 1,
+        "jobId": "single-golden-1",
+        "attemptId": "legacy-attempt-1",
+        "kind": "audio-import",
+        "title": "golden.wav",
+        "status": "running",
+        "stage": {
+          "code": "audio.proofread",
+          "args": {
+            "done": 1,
+            "total": 2
+          },
+          "text": "校对音频"
+        },
+        "progress": {
+          "done": 0,
+          "total": 1,
+          "unit": "files",
+          "percent": 40,
+          "segments": [
+            {
+              "stage": "transcribe",
+              "done": 1,
+              "total": 1
+            },
+            {
+              "stage": "proofread",
+              "done": 1,
+              "total": 2
+            },
+            {
+              "stage": "save",
+              "done": 0,
+              "total": 1
+            }
+          ]
+        },
+        "actions": {
+          "cancel": {
+            "available": true
+          },
+          "pause": {
+            "available": true,
+            "mode": "checkpoint"
+          },
+          "resume": {
+            "available": false,
+            "reason": {
+              "code": "not-paused"
+            }
+          },
+          "retry": {
+            "available": false,
+            "reason": {
+              "code": "not-ended"
+            }
+          },
+          "set": {
+            "available": true,
+            "settings": [
+              {
+                "key": "textConcurrency",
+                "type": "int",
+                "min": 1,
+                "max": 6,
+                "value": 2
+              }
+            ]
+          }
+        },
+        "result": {
+          "refs": [],
+          "completeness": null
+        },
+        "error": null,
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": 0
+        },
+        "execution": {
+          "mode": null
+        },
+        "detail": {
+          "files": [
+            {
+              "index": 0,
+              "filename": "golden.wav",
+              "status": "running",
+              "phase": "proofread",
+              "percent": 40,
+              "steps": {
+                "transcribe": {
+                  "done": 1,
+                  "total": 1
+                },
+                "proofread": {
+                  "done": 1,
+                  "total": 2
+                }
+              }
+            }
+          ],
+          "notices": [],
+          "usage": null,
+          "textProvider": null,
+          "minutes": null,
+          "parallel": null,
+          "recordings": 1
+        },
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "calls": [],
+        "events": []
+      },
+      "proposedV2": {
+        "contractVersion": 2,
+        "jobId": "single-golden-1",
+        "attemptId": "physical-attempt-2",
+        "kind": "audio-import",
+        "title": "golden.wav",
+        "status": "running",
+        "stage": {
+          "code": "audio.proofread",
+          "args": {
+            "done": 1,
+            "total": 2
+          },
+          "text": "校对音频"
+        },
+        "progress": {
+          "done": 0,
+          "total": 1,
+          "unit": "files",
+          "percent": 40,
+          "segments": [
+            {
+              "stage": "transcribe",
+              "done": 1,
+              "total": 1
+            },
+            {
+              "stage": "proofread",
+              "done": 1,
+              "total": 2
+            },
+            {
+              "stage": "save",
+              "done": 0,
+              "total": 1
+            }
+          ]
+        },
+        "actions": {
+          "cancel": {
+            "available": true
+          },
+          "pause": {
+            "available": true,
+            "mode": "checkpoint"
+          },
+          "resume": {
+            "available": false,
+            "reason": {
+              "code": "not-paused"
+            }
+          },
+          "retry": {
+            "available": false,
+            "reason": {
+              "code": "not-ended"
+            }
+          },
+          "set": {
+            "available": true,
+            "settings": [
+              {
+                "key": "textConcurrency",
+                "type": "int",
+                "min": 1,
+                "max": 6,
+                "value": 2
+              }
+            ]
+          }
+        },
+        "result": {
+          "refs": [],
+          "completeness": null
+        },
+        "error": null,
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": 0
+        },
+        "execution": {
+          "mode": null
+        },
+        "detail": {
+          "files": [
+            {
+              "index": 0,
+              "filename": "golden.wav",
+              "status": "running",
+              "phase": "proofread",
+              "percent": 40,
+              "steps": {
+                "transcribe": {
+                  "done": 1,
+                  "total": 1
+                },
+                "proofread": {
+                  "done": 1,
+                  "total": 2
+                }
+              }
+            }
+          ],
+          "notices": [],
+          "usage": null,
+          "textProvider": null,
+          "minutes": null,
+          "parallel": null,
+          "recordings": 1
+        },
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "calls": [],
+        "events": [],
+        "capabilities": {
+          "cancel": true,
+          "pauseMode": "checkpoint",
+          "recoveryMode": "resume-checkpoint",
+          "retry": true,
+          "set": true,
+          "executionModes": [
+            "direct"
+          ]
+        },
+        "runtime": {
+          "schemaVersion": 1,
+          "definitionVersion": 1,
+          "scopeId": "synthetic-runtime-scope",
+          "legacyId": "legacy-attempt-1",
+          "activeAttemptId": "physical-attempt-2",
+          "attempts": [
+            {
+              "jobId": "single-golden-1",
+              "attemptId": "physical-attempt-1",
+              "definitionVersion": 1,
+              "status": "complete",
+              "executor": {
+                "service": "dsh-jobs",
+                "handleId": "synthetic-host-physical-attempt-1",
+                "ownerAgentId": "synthetic-registered-agent"
+              },
+              "policySnapshot": {
+                "audioSinglePilot": true,
+                "autoRecovery": false
+              },
+              "startedAt": "2026-10-05T00:00:00.000Z",
+              "finishedAt": "2026-10-05T00:00:01.000Z",
+              "endReason": "checkpoint-pause",
+              "checkpointRef": "synthetic-checkpoint-1"
+            },
+            {
+              "jobId": "single-golden-1",
+              "attemptId": "physical-attempt-2",
+              "definitionVersion": 1,
+              "status": "running",
+              "executor": {
+                "service": "dsh-jobs",
+                "handleId": "synthetic-host-physical-attempt-2",
+                "ownerAgentId": "synthetic-registered-agent"
+              },
+              "policySnapshot": {
+                "audioSinglePilot": true,
+                "autoRecovery": false
+              },
+              "startedAt": "2026-10-05T00:00:02.000Z",
+              "checkpointRef": "synthetic-checkpoint-1"
+            }
+          ],
+          "steps": []
+        }
+      }
+    },
+    {
+      "id": "audio-confirmed-interrupted",
+      "legacyRecord": {
+        "id": "legacy-attempt-1",
+        "singleId": "single-golden-1",
+        "type": "audio-import",
+        "filename": "golden.wav",
+        "status": "failed",
+        "phase": "proofread",
+        "stage": "上次导入已中断；已完成的部分已保存，点「接着做」继续",
+        "done": 1,
+        "total": 2,
+        "warnings": [],
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "steps": {
+          "transcribe": {
+            "done": 1,
+            "total": 1
+          },
+          "proofread": {
+            "done": 1,
+            "total": 2
+          }
+        },
+        "tasks": [],
+        "retryable": true,
+        "finishedAt": "2026-10-05T00:00:02.000Z"
+      },
+      "premises": {
+        "source": "synthetic contract scenario",
+        "executorLoss": "explicitly confirmed in target premise; not inferred from failed",
+        "legacyFacade": "published restored failed + retryable projection; no automatic dispatch"
+      },
+      "expectedV1": {
+        "contractVersion": 1,
+        "jobId": "single-golden-1",
+        "attemptId": "legacy-attempt-1",
+        "kind": "audio-import",
+        "title": "golden.wav",
+        "status": "failed",
+        "stage": {
+          "code": "finished",
+          "args": {
+            "status": "failed"
+          },
+          "text": "上次导入已中断；已完成的部分已保存，点「接着做」继续"
+        },
+        "progress": {
+          "done": 0,
+          "total": 1,
+          "unit": "files",
+          "percent": 40,
+          "segments": [
+            {
+              "stage": "transcribe",
+              "done": 1,
+              "total": 1
+            },
+            {
+              "stage": "proofread",
+              "done": 1,
+              "total": 2
+            },
+            {
+              "stage": "save",
+              "done": 0,
+              "total": 1
+            }
+          ]
+        },
+        "actions": {
+          "cancel": {
+            "available": false,
+            "reason": {
+              "code": "job-ended"
+            }
+          },
+          "pause": {
+            "available": false,
+            "reason": {
+              "code": "job-ended"
+            },
+            "mode": "checkpoint"
+          },
+          "resume": {
+            "available": false,
+            "reason": {
+              "code": "job-ended"
+            }
+          },
+          "retry": {
+            "available": true
+          },
+          "set": {
+            "available": false,
+            "reason": {
+              "code": "job-ended"
+            }
+          }
+        },
+        "result": {
+          "refs": [],
+          "completeness": null
+        },
+        "error": {
+          "message": "上次导入已中断；已完成的部分已保存，点「接着做」继续"
+        },
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": 0
+        },
+        "execution": {
+          "mode": null
+        },
+        "detail": {
+          "files": [
+            {
+              "index": 0,
+              "filename": "golden.wav",
+              "status": "failed",
+              "phase": "proofread",
+              "percent": 40,
+              "steps": {
+                "transcribe": {
+                  "done": 1,
+                  "total": 1
+                },
+                "proofread": {
+                  "done": 1,
+                  "total": 2
+                }
+              },
+              "stage": "上次导入已中断；已完成的部分已保存，点「接着做」继续"
+            }
+          ],
+          "notices": [],
+          "usage": null,
+          "textProvider": null,
+          "minutes": null,
+          "parallel": null,
+          "recordings": 1
+        },
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "finishedAt": "2026-10-05T00:00:02.000Z",
+        "calls": [],
+        "events": []
+      },
+      "proposedV2": {
+        "contractVersion": 2,
+        "jobId": "single-golden-1",
+        "attemptId": "physical-attempt-lost",
+        "kind": "audio-import",
+        "title": "golden.wav",
+        "status": "interrupted",
+        "stage": {
+          "code": "finished",
+          "args": {
+            "status": "interrupted"
+          },
+          "text": "上次导入已中断；已完成的部分已保存，点「接着做」继续"
+        },
+        "progress": {
+          "done": 0,
+          "total": 1,
+          "unit": "files",
+          "percent": 40,
+          "segments": [
+            {
+              "stage": "transcribe",
+              "done": 1,
+              "total": 1
+            },
+            {
+              "stage": "proofread",
+              "done": 1,
+              "total": 2
+            },
+            {
+              "stage": "save",
+              "done": 0,
+              "total": 1
+            }
+          ]
+        },
+        "actions": {
+          "cancel": {
+            "available": false,
+            "reason": {
+              "code": "job-ended"
+            }
+          },
+          "pause": {
+            "available": false,
+            "reason": {
+              "code": "job-ended"
+            },
+            "mode": "checkpoint"
+          },
+          "resume": {
+            "available": false,
+            "reason": {
+              "code": "job-ended"
+            }
+          },
+          "retry": {
+            "available": true
+          },
+          "set": {
+            "available": false,
+            "reason": {
+              "code": "job-ended"
+            }
+          }
+        },
+        "result": {
+          "refs": [],
+          "completeness": null
+        },
+        "error": {
+          "message": "上次导入已中断；已完成的部分已保存，点「接着做」继续"
+        },
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": 0
+        },
+        "execution": {
+          "mode": null
+        },
+        "detail": {
+          "files": [
+            {
+              "index": 0,
+              "filename": "golden.wav",
+              "status": "failed",
+              "phase": "proofread",
+              "percent": 40,
+              "steps": {
+                "transcribe": {
+                  "done": 1,
+                  "total": 1
+                },
+                "proofread": {
+                  "done": 1,
+                  "total": 2
+                }
+              },
+              "stage": "上次导入已中断；已完成的部分已保存，点「接着做」继续"
+            }
+          ],
+          "notices": [],
+          "usage": null,
+          "textProvider": null,
+          "minutes": null,
+          "parallel": null,
+          "recordings": 1
+        },
+        "startedAt": "2026-10-05T00:00:00.000Z",
+        "finishedAt": "2026-10-05T00:00:02.000Z",
+        "calls": [],
+        "events": [],
+        "capabilities": {
+          "cancel": true,
+          "pauseMode": "checkpoint",
+          "recoveryMode": "resume-checkpoint",
+          "retry": true,
+          "set": true,
+          "executionModes": [
+            "direct"
+          ]
+        },
+        "runtime": {
+          "schemaVersion": 1,
+          "definitionVersion": 1,
+          "scopeId": "synthetic-runtime-scope",
+          "legacyId": "legacy-attempt-1",
+          "activeAttemptId": null,
+          "attempts": [
+            {
+              "jobId": "single-golden-1",
+              "attemptId": "physical-attempt-lost",
+              "definitionVersion": 1,
+              "status": "interrupted",
+              "executor": {
+                "service": "dsh-jobs",
+                "handleId": "synthetic-host-physical-attempt-lost",
+                "ownerAgentId": "synthetic-registered-agent"
+              },
+              "policySnapshot": {
+                "audioSinglePilot": true,
+                "autoRecovery": false
+              },
+              "startedAt": "2026-10-05T00:00:00.000Z",
+              "finishedAt": "2026-10-05T00:00:02.000Z",
+              "endReason": "executor-lost"
+            }
+          ],
+          "steps": []
+        }
+      }
+    }
+  ]
+}

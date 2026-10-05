@@ -11,7 +11,7 @@ contract = {
   contractVersion: 1,
   jobId,           what survives a retry (an audio batch's id), else the job's own id
   attemptId?,      the current attempt's id; only for kinds that have retries (audio import)
-  kind,            audio-import | pdf-convert | translation | generation | supplement | draft-repair | draft-publish | extension
+  kind,            audio-import | pdf-convert | translation | generation | supplement | draft-repair | draft-publish | coach-daily | extension
   title,           the name the learner knows it by, or null
   status,          queued | running | pausing | paused | cancelling | cancelled | complete | failed | interrupted
   endReason?,      user-cancel | superseded     (why a cancelled job ended)
@@ -74,7 +74,7 @@ call = { callId, jobId, attemptId?, stepKey, kind, stage, slot | null,
          part, parts, reasoning, tokens, file?, reason? }
 ```
 
-`kind` is `transcribe | proofread | translate | title | plan | blueprint | author | review | repair | publish | wait | other`; `status` is `running | ok | failed | cancelled | skipped | waiting` (a rate-limit back-off is a call of `kind: "wait"`, `reason: "rate-limit"`). `runner` is `subagent` (DSH sub-agent; `childId` opens it where the host can), `direct`, `gemini` ... A retry or a fallback is a call of its own with the same `stepKey`. A time is present only when it was observed: `queuedAt` is derived from the wait for a free slot where the job measured it, `firstOutputAt` is set when the first text arrived; a missing one stays missing. At most 300 calls are kept per job (the newest), 100 waits, 200 events.
+`kind` is `transcribe | proofread | translate | title | plan | blueprint | author | review | repair | publish | prep | wait | other`; `status` is `running | ok | failed | cancelled | skipped | waiting` (a rate-limit back-off is a call of `kind: "wait"`, `reason: "rate-limit"`). `runner` is `subagent` (DSH sub-agent; `childId` opens it where the host can), `direct`, `gemini` ... A retry or a fallback is a call of its own with the same `stepKey`. A time is present only when it was observed: `queuedAt` is derived from the wait for a free slot where the job measured it, `firstOutputAt` is set when the first text arrived; a missing one stays missing. At most 300 calls are kept per job (the newest), 100 waits, 200 events.
 
 ## Live output
 
@@ -93,3 +93,114 @@ The text comes from the model path of this plugin: the direct streamed call, and
 | draft-repair, draft-publish | status, stage, progress (repair), cancel (repair only), result refs | calls and controls (their own loops do not record them yet) |
 | extension tasks | status, stage, progress, cancel | everything else |
 | coach-daily (为你定制) | ONE row per local day (`jobId: "coach:YYYY-MM-DD"`, kept in `<library>/coach-daily.json`, the last 14 days; the snapshot shows seven): its batches as calls of kind `prep` (when, cards asked, written, kept, skipped, tokens in / out / cache, a `reason` code when a batch wrote nothing), the day's figures (`detail.metrics`: generated, passed, practised, correct, accuracy, skippedExpired; practice is read from the attempts on the 为你定制 deck, never copied), pause today (`pause`, mode `checkpoint`: no new batch starts, the one in flight finishes), resume, and `set` (`maxBatchesPerDay` 1-48, `maxReady` 1-12, `reasoning` lowest..highest; applies from the next batch). Only today's row can be adjusted; a past day is a record and `job.dismiss` removes it | cancel (a day is a record, not a run: `capability-unsupported`), retry, live output (a batch writes no stream) |
+
+## Proposed v2: S1-1 contract review
+
+**Review proposal, not a published producer.** Production `lib/job-contract.js` still exports `CONTRACT_VERSION = 1`; the console and tools still use the v1 paths above. This section extends that same public shape rather than introducing a competing job API. Its executable schemas live only in [the contract fixture](../tests/fixtures/unified-runtime-contract.mjs). Compatibility targets and the published entry-point differences are in [the S1-1 matrix](plans/unified-job-runtime/s1-1-compatibility.md). The contract must be reviewed and merged before its production adapter is implemented.
+
+The accepted prerequisite is [S1-0 / PR #241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241), merge `f091f09f830c226bfebc9af22344896733893a10`. Acceptance preserves its unverified limits. In particular, final StudyHub scope/Agent/controller binding is still an implementation gate.
+
+### Versions and read boundaries
+
+| Record | Required result |
+| --- | --- |
+| Published v1 record | Keep its v1 projection and existing queries/actions. A missing runtime identity, owner, executor, checkpoint or loss observation cannot be reconstructed from legacy status or token totals. |
+| v2 record with observed runtime metadata | Validate the same public read fields plus the metadata below. Preserve extra public read fields so a consumer does not discard kind-specific additions. |
+| Missing or unknown `contractVersion` | Reject with `unsupported-contract-version`; do not guess a version or start an executor. |
+| v2 with unknown `runtime.schemaVersion` | Reject with `unsupported-runtime-schema-version`; preserve the stored source for investigation. |
+| Invalid shape / identity references | Reject with `invalid-contract-shape` / `invalid-contract-reference`. |
+| Contradictory call observation / capabilities | Reject with `invalid-call-observation` / `inconsistent-capability`. |
+
+These codes describe the proposed validator. They do not change the errors emitted by published v1 operations. A version reader and any storage upgrade still need separate implementation tests. Public read objects remain extensible; capabilities, runtime metadata, physical Attempt/Step metadata and call observation are closed so misspelled control fields are rejected.
+
+### Job and capabilities
+
+All v1 read fields remain: identity, kind/title, status/end reason, stage/progress, actions/result/error, usage/execution/detail, times, calls and events. v2 sets `contractVersion: 2` and adds:
+
+```js
+capabilities = {
+  cancel, retry, set,                         // booleans declared by the definition
+  pauseMode: 'unsupported' | 'queued-only' | 'checkpoint',
+  recoveryMode: 'none' | 'retry-from-start' | 'resume-checkpoint',
+  executionModes: ['direct' | 'subagent']      // permitted managed model modes
+}
+runtime = {
+  schemaVersion: 1, definitionVersion, scopeId,
+  legacyId?,                                 // an actually created legacy facade record ID
+  activeAttemptId: string | null,
+  attempts: [attempt], steps: [step]
+}
+```
+
+`jobId` is the logical business identity. Root `attemptId`, when present, is the **latest physical Attempt**; `runtime.activeAttemptId` selects the currently active one. An unadmitted Job can have neither a physical Attempt nor a root attemptId. At most one Attempt is active. The version and scope are admission facts recorded by the sole lifecycle writer, not values inferred from a legacy name or Symbol. The latest Attempt matches runtime.definitionVersion; historical Attempts retain their original versions. A definition and policy snapshot stay fixed while their Attempt is in flight. The snapshot contains approved execution/limit/settings values, never credentials or an entire host/session configuration.
+
+`actions` continues to state what is legal now, with the existing five action names and refusal codes. Capability booleans describe what the definition can do, not whether a button is available in this state. Unsupported pause/resume, an available action with a false capability, or a pause mode that disagrees with `actions.pause.mode` is rejected. `queued-only` cannot offer pause after execution has started. Recovery describes restart behavior independently of user pause and explicit retry; `none` does not mean the kind can never be explicitly retried.
+
+The nine Job states remain `queued/running/pausing/paused/cancelling/cancelled/complete/failed/interrupted`. Partial completion is still in `result.completeness`, not a lifecycle state. Old status aliases are read through the published projector; v2 writes use only canonical states. The [state and action tables](plans/unified-job-runtime/s1-1-compatibility.md#4-状态与动作) specify the proposed transitions and the v1 refusal order separately.
+
+### Physical Attempts and Steps
+
+```js
+attempt = {
+  jobId, attemptId, definitionVersion,
+  status: 'queued' | 'running' | 'pausing' | 'cancelling'
+        | 'complete' | 'failed' | 'cancelled' | 'interrupted',
+  executor: null | { service: 'dsh-jobs', handleId, ownerAgentId },
+  policySnapshot,                            // captured plain data, not mutable configuration
+  startedAt?, finishedAt?,
+  endReason?: 'checkpoint-pause' | 'user-cancel' | 'superseded' | 'executor-lost',
+  checkpointRef?
+}
+step = { jobId, attemptId, stepKey, stepRunId,
+         status: 'queued' | 'running' | 'complete' | 'failed' | 'cancelled' | 'interrupted' | 'skipped',
+         checkpointRef? }
+```
+
+An executor reference contains only an observed host handle and its legitimate registered live Agent. An unknown or pending binding has `executor: null`; that does not authorize execution without a legitimate owner. Neither model mode (`direct/subagent`) nor a fabricated owner ID is an executor binding. `scopeId` is a persisted association; authorization still uses the real plugin scope and host owner, retaining the legacy Symbol/domain fence. DSH's `running/stopping/completed/killed/failed` handle states are not the nine business states.
+
+A checkpoint pause stops new dispatch, waits for admitted work to reach a safe boundary, successfully saves the checkpoint and releases actual resources. That physical Attempt ends as `complete` with `endReason: 'checkpoint-pause'` and the saved reference. The Job is `paused`, its latest attemptId remains, and activeAttemptId becomes null. Resume creates a new physical Attempt. `paused` is not a physical Attempt state. A held, unadmitted queued-only Job need not have an Attempt.
+
+A terminal Job has no active Attempt and agrees with its latest physical terminal status when an Attempt exists. Cancelling an already checkpoint-paused Job is the exception: the Job becomes cancelled while its ended checkpoint Attempt stays complete; that history is never rewritten. Cancellation before admission may have no Attempt. A running Job requires an active physical Attempt; if a queued Job has an active Attempt, that Attempt is still queued. An ended checkpoint-pause Attempt cannot by itself complete the logical Job.
+
+The legacy facade keeps its visible ID and published control/wait semantics across this physical pause/resume by delegating to the sole lifecycle owner; explicit retry creates a new legacy ID as the old path already does. A physical checkpoint pause must not complete the old observer wait or send an old terminal notification. It must not keep an independent execution promise/controller or settlement layer. This facade is a target for the next implementation PR, not supplied by the schema fixture.
+
+`stepKey` names a logical unit of work; `stepRunId` identifies one execution of that unit within a particular Attempt. IDs must be unique in their relevant collection and all Job/Attempt/Step references must agree. A reference alone does not prove that a checkpoint is valid, persisted or safe to resume; S1-5 must verify those conditions.
+
+### Call observations
+
+A v2 Call keeps the v1 Call fields and adds optional `stepRunId` plus:
+
+```js
+observation = {
+  boundary: 'external-request' | 'host-attempt' | 'legacy' | 'local-wait',
+  requestCount: integer | null
+}
+```
+
+| Boundary | Meaning / requestCount |
+| --- | --- |
+| `external-request` | One actually observed wire request; count 1. Each observed transport retry is another Call observation. |
+| `host-attempt` | One host-visible model attempt; internal requests were not observed, count null. |
+| `legacy` | A published producer record with no wire observation, count null. |
+| `local-wait` | Local queue/rate-limit waiting, count 0. |
+
+A fallback or format repair has its own Call and stable stepKey; an actual execution can associate it with stepRunId. Observation does not add another retry policy or infer hidden host retries. The existing `usage.calls` remains the published summary (tokenUsage.calls or producer-record count); it is not reinterpreted as actual HTTP requests.
+
+Unknown totals/percent, times, tokens and host lineage remain null or absent according to the read contract. Historical v1 detail defaults are compatibility facts, not observations that authorize a v2 writer to fill unknown values with zero. Missing child/parent IDs cannot create session links. Live output keeps its UTF-16 cursor and bounded, in-memory retention; the host byte ring is not substituted.
+
+### One writer per operation
+
+| Field or operation | Sole responsibility for the migrated path |
+| --- | --- |
+| Definition version/capabilities | Registry declaration, validated before admission. |
+| Logical identity, physical Attempts, active selection, lifecycle and stable completion event | Core lifecycle writer over the existing shared business records. |
+| Host executor handle, stop and execution settlement | Verified DSH service/owner binding. The adapter relates it to the business Job; it does not add a second queue or independent settlement. |
+| Domain progress/detail, checkpoints, result refs and artifacts | Existing domain writer, admitted by current Attempt and business-version checks. A stale Attempt cannot submit artifacts. |
+| Runtime metadata in a domain manifest | One authorized lifecycle/store writer; the old worker relinquishes these fields for the pilot. Domain fields retain their domain writer and serialized file writes. |
+| Calls and observed model usage | Model gateway for the migrated path; existing ledger writer retained with a stable deduplication identity. |
+| Actual permits / 429 / transport retry | The approved existing/shared resource and retry owner; S1-3/4 must verify the common counters and policy. |
+| Completion delivery | Business notification adapter reads the one completion event and legacy facade ID; delivery failure cannot change the terminal state. |
+
+This follows [DSH-01/02/03/04/07/08/09](plans/unified-job-runtime/s1-0-dsh-capabilities.md#固定行-id-能力对照). The fixture uses the existing direct `schemastery@3.18.0` dependency. Its small relationship checks express business identity and capability invariants missing from primitive field schemas; they are not a new validation framework, lifecycle engine, task table, scheduler or provider wrapper.
+
+The [golden compatibility vectors](../tests/fixtures/unified-runtime-compatibility.json) contain actual v1 projector outputs from synthetic old records. Their proposed v2 records explicitly list additional synthetic admission/checkpoint/host-loss premises. Passing them proves schema and projection expectations; it does not prove production control, ownership, persistence, recovery, UI links or facade behavior. The later implementation must exercise real public operations against this contract and the default-off audio pilot.

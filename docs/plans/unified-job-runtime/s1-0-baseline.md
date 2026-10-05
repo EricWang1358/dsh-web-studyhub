@@ -67,4 +67,10 @@
 
 隔离包探针没有合法 session owner，不能证明实际插件 scope、owner 隔离或 UI 导航；生产中不能用 unowned job 绕过边界。实际 rc.2 宿主验证已完成本地打包、安装、创建私有 web profile、启动与打开 StudyHub 学习库（页面与控制台错误均为零）。随后 first-message 驱动误选隐藏的会话搜索 input，超时退出；模型调用与子代理核验因此未完成，不能把启动成功记为完整宿主能力通过。原始 summary 与截图在 `output/runtime-s10/host-e2e/`，随后运行上述能力探针；原流程的隐藏搜索框选择失败保留，不把该流程记为全部通过。能力表尚待核验的试点依赖项继续阻断对应步骤，不以源码存在或 fake provider 成功代替。
 
-S1-0 状态：待评审；独立审查与修复证据随 PR 交付；内核负责人通过链接待填写。未勾选实施完成，尚未进入 S1-1。后续先审定宿主 jobs 与插件共享 jobs 的唯一责任层，再发布契约，随后实现 alpha 试点；开关默认关闭。正式版本继续沿 main 维护。
+## 评审接受与合并
+
+S1-0 状态：已验收合并。所有者在本轮明确接受已验证范围及待核验限制，并授权仅合并 [PR #241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241)、继续独立 alpha 的 S1-1；后续契约仍单独评审。#241 于 2026-10-05 09:27:34 UTC 合并，head 为 `6b1ecedb69308ec44078f10c24975eb2a6a2aef7`，merge 为 `f091f09f830c226bfebc9af22344896733893a10`。
+
+该 head 的独立原生审查完成且无剩余发现；[远端 CI](https://github.com/EricWang1358/dsh-web-studyhub/actions/runs/37288514589) 的 Windows 与 Ubuntu 检查均成功。审查范围为本步文档、测试与探针，不是 alpha 生产实现。
+
+S1-1 以该 merge 为基线先提交契约及可执行 fixture。StudyHub 生产 fiber/owner/controller 的最终绑定、真实停止与恢复故障窗口、计量和 UI 导航等未确认项仍保留为对应实现步骤的门禁；所有者接受审计不等于这些能力已通过。alpha 试点尚未实现，开关默认关闭；正式版本继续沿 main 维护。
