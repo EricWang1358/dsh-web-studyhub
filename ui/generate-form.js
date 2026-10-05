@@ -5,8 +5,10 @@ import { ui, uiFormat } from './i18n.js';
 import { sourceFormat } from '../lib/source-groups.js';
 import { documentCount } from './generation-status.js';
 import { normalizeNotation } from '../lib/notation.js';
-import { LEVELS, DEFAULT_LEVEL, STRENGTH, levelOf } from '../lib/coverage-strength.js';
+import { LEVELS, DEFAULT_LEVEL, STRENGTH, levelOf, autoCompleteOf } from '../lib/coverage-strength.js';
+import { parseTokenBudget } from '../lib/coverage-run.js';
 import { GOAL_QUESTIONS_MAX } from '../lib/limits.js';
+import { nonEvidenceRanges } from '../lib/sections.js';
 import { countOf, levelLabel } from './coverage/copy.js';
 import { META_DOT } from './format.js';
 
@@ -48,8 +50,9 @@ export function selectionStats(sources = [], selectedIds = []) {
   const chosen = new Set(selectedIds);
   const selected = sources.filter((source) => chosen.has(source.id));
   const pdf = selected.filter((source) => sourceFormat(source) === 'pdf');
+  // The size that counts is the evidence: a bilingual transcript is counted in its original language only (lib/sections.js nonEvidenceRanges), like the plan the backend makes.
   const chars = selected.filter((source) => sourceFormat(source) !== 'pdf')
-    .reduce((sum, source) => sum + (typeof source.text === 'string' ? source.text.length : Number(source.chars) || 0), 0);
+    .reduce((sum, source) => sum + (typeof source.text === 'string' ? source.text.length - nonEvidenceRanges(source.text).reduce((lost, [from, to]) => lost + to - from, 0) : Number(source.chars) || 0), 0);
   return { materials: documentCount(selected), pages: pdf.length, chars };
 }
 
@@ -111,9 +114,17 @@ export function customCountOf(gen) {
 
 /** The generation request the form sends: the form as typed, the 覆盖强度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
 export function generationRequest(gen, { course, sourceIds }) {
-  const { count: _saved, customCount: _typed, ...rest } = gen, custom = customCountOf(gen);
-  return { ...rest, course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), ...(custom ? { count: custom } : {}) };
+  const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
+  return { ...rest, course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
 }
+
+/** Whether the run goes on by itself (「自动补到完整」): what the learner chose, else what the level's row of the table says (lib/coverage-strength.js: 精简 waits for the learner, 标准 and 完整 go on). */
+export const autoOf = (gen) => (typeof gen?.autoComplete === 'boolean' ? gen.autoComplete : autoCompleteOf(gen?.coverageLevel));
+
+/** What is said under the spending limit: what it does, or that the number was not understood. */
+export const budgetNote = (text) => (String(text ?? '').trim() && !parseTokenBudget(text)
+  ? ui('没看懂这个数：请写成 800K、2.5M 或 1200000（至少 1000）。')
+  : ui('一轮结束后，累计用量到了这个数就停下，已出的题都保留。不填就不设上限。'));
 
 /** What a coverage estimate (`usage.estimate`'s `coverage`) says, as the first words of the line under the choice: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，」 (the estimate's tokens and calls follow). */
 export function coverageLead(coverage) {

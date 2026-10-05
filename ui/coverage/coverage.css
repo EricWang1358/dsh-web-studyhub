@@ -40,6 +40,15 @@
     .cov-list__name { min-width: 0; overflow-wrap: anywhere; }
     .cov-list__name small { display: block; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .cov-list__open { white-space: nowrap; }
+    /* ── The run (the rounds of the plan): where it is, why it stopped, and 自动补到完整 ───────────── */
+    .cov-run { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+    .cov-run > * { min-width: 0; margin: 0; }
+    .cov-run__line { font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-run__stop, .cov-run__hint { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-run[data-run-state='interrupted'] .cov-run__line, .cov-run[data-run-state='stopped'] .cov-run__line { color: var(--warn-ink, var(--text)); }
+    .cov-run__auto { display: grid; gap: var(--space-half); }
+    .cov-run__auto small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-run + .cov-topup { padding-top: 0; border-top: 0; }
     /* ── The one top-up ─────────────────────────────────────────────────── */
     .cov-topup { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
     .cov-topup > * { min-width: 0; margin: 0; }
@@ -72,6 +81,11 @@
     .cov-strength__custom { width: 100%; }
     .cov-strength__count { margin-top: var(--space-2); }
     .cov-strength__input { width: 8em; }
+    .cov-strength__auto { display: grid; gap: var(--space-half); width: 100%; margin-top: var(--space-2); }
+    .cov-strength__auto > p { margin: 0; }
+    .cov-strength__budget { width: 100%; }
+    .cov-strength__input--budget { width: 9em; font-variant-numeric: tabular-nums; }
+    .cov-strength__unit { color: var(--text-muted); font-size: var(--fs-sm); }
     /* ── Why a section has the questions it has (the plan of the draft) ───── */
     .cov-summary__plan { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-list__why { display: block; color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }

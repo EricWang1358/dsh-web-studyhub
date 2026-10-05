@@ -30,14 +30,14 @@ export function parseQaArgs(argv, name, extra = {}) {
  * latencyMs: how long each fake model answer takes (a job that stays running for a screenshot needs more). model: "fake" (default), "none", or a model function (system, prompt, options) => reply.
  * context: { page, browser, browserContext, server, options, summary, t(zh, en), step(name, fn), shot(name), sleep, library }
  */
-export async function runQa({ name, options, seed, run, model = "fake", localStorageSeed = {}, latencyMs = 300 }) {
+export async function runQa({ name, options, seed, run, model = "fake", localStorageSeed = {}, latencyMs = 300, coverage = null }) {
   const removed = scrubProcessEnv();
   await rm(options.out, { recursive: true, force: true });
   await mkdir(options.out, { recursive: true });
   const library = join(options.out, "work", "library");
   await mkdir(library, { recursive: true });
   await seed(library);
-  const server = await createPreviewServer({ libraryRoot: library, home: join(options.out, "work", "home"), port: 0,
+  const server = await createPreviewServer({ libraryRoot: library, home: join(options.out, "work", "home"), port: 0, ...(coverage ? { coverage } : {}),
     model: model === "none" ? null : typeof model === "function" ? model : createFakeModel({ latencyMs, usage: true }) });
   const browser = await launchChromium({ args: [`--lang=${options.lang === "en" ? "en-US" : "zh-CN"}`, "--enable-precise-memory-info", "--js-flags=--expose-gc"] });
   const summary = { name, startedAt: new Date().toISOString(), options, url: server.url, scrubbedEnv: removed, steps: [], consoleErrors: [], pageErrors: [], apiErrors: [] };

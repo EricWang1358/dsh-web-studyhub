@@ -13,6 +13,7 @@ import { isActiveJob } from './job-visibility.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { missingQuestions } from '../lib/draft-continuation.js';
 import { issueCode, reasonLabel } from './quality-reasons.js';
+import { jobRunLine } from './coverage/run-job.js';
 
 export { missingQuestions, canContinueDraft, canAddFromSources } from '../lib/draft-continuation.js';
 export { issueCode, reasonLabel };
@@ -30,7 +31,7 @@ export function draftWork(draft, jobs = []) {
 }
 
 /** The label of the draft's action button while something works on it, so it says what is really happening. */
-export function draftWorkLabel(work, draft) {
+export function draftWorkLabel(work, draft, percent) {
   const { kind, job } = work;
   const saved = job.savedCount ?? draft?.cards?.length, total = job.requestedTotal ?? draft?.editorial?.requested;
   const progress = Number.isInteger(saved) && Number.isInteger(total) && total > 0;
@@ -38,6 +39,9 @@ export function draftWorkLabel(work, draft) {
   if (kind === 'repair') return job.status === 'queued' ? ui('修题排队中') : ui('后台修题中…');
   if (job.status === JOB_STATUS.CANCELLING) return ui('正在停止…');
   if (job.status === 'queued') return kind === 'topup' ? ui('补题排队中') : ui('排队中…');
+  // A run of several rounds says which round it is in and what it has used (ui/coverage/copy.js runLine), not a count of questions that only grows.
+  const rounds = jobRunLine(job, percent);
+  if (rounds) return rounds;
   if (kind === 'topup') return progress ? uiFormat('补题中 · 草稿 {0}/{1} 题', [saved, total]) : ui('补题中…');
   return progress ? uiFormat('生成中 · 草稿 {0}/{1} 题', [saved, total]) : ui('生成中…');
 }

@@ -10,6 +10,7 @@ import { coverageInRange } from '../../lib/coverage.js';
 import { useCoverage } from '../coverage/use-coverage.js';
 import { reasonWord, uncoveredInRange } from '../coverage/copy.js';
 import { PartCoverage } from '../coverage/PartCoverage.jsx';
+import RunRounds from './RunRounds.jsx';
 
 /* 资料部分: the parts a question run was split into, each with the state of its three stages (writing, review, repair) and what it kept once the run has
    reported. A selected part shows, in a strip of fixed height at the bottom, the calls it made. (The questions themselves live in the draft; the job does
@@ -41,10 +42,14 @@ export default function GenerationParts({ contract, task }) {
   const covered = useCoverage(contract.detail.draftId ? { draftId: contract.detail.draftId } : null, { version: `${app.data?.revision}:${task?.savedCount ?? ''}` });
   const coverage = covered.view?.coverage || null, here = (item) => (coverage && item?.ranges?.length ? coverageInRange(coverage, item.ranges) : null);
   const inPart = part ? here(part) : null;
+  // The rounds of a coverage run come first; the parts below are those of the round that is being made (or was made last).
+  const run = contract.detail.run, draft = run ? (app.data?.drafts || []).find((item) => item.id === contract.detail.draftId) : null;
   const why = part ? joinMeta([inPart?.leaves ? uncoveredInRange({ ...inPart, sections: [...inPart.sections, ...inPart.borrowed] }, { recorded: coverage.recorded }) : '', opener && (!opener.available ? opener.reason : opener.count > 1 ? uiFormat('共 {0} 份资料，先打开第一份', [opener.count]) : ''), shortfallLine(part)]) : '';
   return (
     <div className="tc-files">
       <div className="tc-scroll">
+        {run && <RunRounds run={run} draft={draft} coverage={coverage} />}
+        {run && parts.length > 0 && <p className="tc-rounds__head tc-rounds__head--parts">{uiFormat('第 {0} 轮的部分', [run.running ?? run.round])}</p>}
         {parts.map((item) => {
           const row = item.sourceIds?.length ? partOpener(item, app) : null;
           return (

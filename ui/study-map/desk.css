@@ -89,6 +89,8 @@
       margin-top: var(--space-1);
     }
     .draft-open > span:last-child {
+      flex: none;
+      white-space: nowrap;
       font-size: var(--fs-md);
       color: var(--accent-soft);
     }

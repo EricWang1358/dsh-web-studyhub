@@ -3,6 +3,7 @@ import { stageCodeLabel } from '../generation-status.js';
 import { STATUS } from '../../lib/job-contract.js';
 import { formatDay, joinMeta } from '../format.js';
 import { contractOf, taskKindOf, isRunningTask } from './task-model.js';
+import { roundOfText, waitingText } from '../coverage/copy.js';
 
 /* A job as one line of the console's list and as the header of its detail: kind, title, a state, a percent and ONE status line, all read from the job's
    contract. The stage is a CODE there; this file is where it becomes words (and the only place that does), so a job reads the same wherever it is shown. */
@@ -21,7 +22,9 @@ export function taskState(job) {
     case STATUS.PAUSING: case STATUS.PAUSED: return 'paused';
     case STATUS.CANCELLING: return 'stopping';
     case STATUS.COMPLETE: return result.completeness === 'partial' ? 'partial' : 'done';
-    case STATUS.FAILED: case STATUS.INTERRUPTED: return 'fail';
+    case STATUS.FAILED: return 'fail';
+    // A restart (or a closed host) interrupted it: nothing is wrong with the work, it is waiting to be continued. Not 'failed'.
+    case STATUS.INTERRUPTED: return 'interrupted';
     case STATUS.CANCELLED: return 'stopped';
     default: return 'run';
   }
@@ -65,9 +68,14 @@ export function taskLine(job) {
     const { batches = [], metrics = {}, paused } = contract.detail, ran = batches.filter((batch) => batch.status !== 'skipped').length;
     return joinMeta([paused ? ui('今天已暂停') : '', batches.length ? uiFormat('{0} 批 · 备好 {1} 道', [ran, metrics.passed ?? 0]) : ui('今天还没有备题'), metrics.practised > 0 ? uiFormat('练了 {0} 道 · 对 {1}%', [metrics.practised, metrics.accuracy]) : '']);
   }
-  if (contract.status === STATUS.PAUSING) return uiFormat('正在暂停 · 等 {0} 个调用结束', [contract.actions.pause.waiting?.count ?? 0]);
-  if (contract.status === STATUS.PAUSED) return ui('已暂停');
-  if (state === 'fail') return contract.error?.message ? contract.stage.text || contract.error.message : stageLabel(contract.stage);
+  // A coverage run says which round it is in (lib/coverage-run.js runFacts; the console's header says the rest).
+  const run = contract.detail?.run;
+  if (contract.status === STATUS.PAUSING) return run ? uiFormat('正在暂停 · 第 {0} 轮做完后停下', [run.round]) : uiFormat('正在暂停 · 等 {0} 个调用结束', [contract.actions.pause.waiting?.count ?? 0]);
+  if (contract.status === STATUS.PAUSED) return run ? uiFormat('暂停于第 {0} 轮之后', [run.pausedAfter ?? run.done]) : ui('已暂停');
+  if (contract.status === STATUS.INTERRUPTED && run) return uiFormat('中断于第 {0} 轮 · 点「接着做」继续', [run.round]);
+  if (state === 'fail' || state === 'interrupted') return contract.error?.message ? contract.stage.text || contract.error.message : stageLabel(contract.stage);
+  if (run && contract.status === STATUS.COMPLETE && run.waiting) return waitingText(run);
+  if (run && isRunningTask(job) && run.rounds > 1) return joinMeta([roundOfText(run.round, run.rounds), stageLabel(contract.stage)]);
   return stageLabel(contract.stage);
 }
 
@@ -78,4 +86,4 @@ export function taskSummary(job) {
 }
 
 /** The badge word of a state. */
-export const stateLabel = (state) => ({ run: ui('进行中'), queued: ui('排队中'), paused: ui('已暂停'), stopping: ui('正在停止'), done: ui('已完成'), partial: ui('部分完成'), fail: ui('失败'), stopped: ui('已停止') })[state] || '';
+export const stateLabel = (state) => ({ run: ui('进行中'), queued: ui('排队中'), paused: ui('已暂停'), stopping: ui('正在停止'), done: ui('已完成'), partial: ui('部分完成'), fail: ui('失败'), interrupted: ui('已中断'), stopped: ui('已停止') })[state] || '';
