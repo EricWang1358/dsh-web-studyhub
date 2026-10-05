@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { StudyService } from "../../lib/service.js";
+import { Store } from "../../lib/store.js";
+import { seedLibrary } from "./perf-seed.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { drainLayoutStability, installLayoutObserver, judgeLayoutStability } from "./layout-stability.mjs";
@@ -68,6 +70,19 @@ export async function seedPickerLibrary(root, { documents = 132, lang = "zh" } =
     }
   });
   return { ids, documents };
+}
+
+/** A library whose mistakes page has `wrong` mistakes and a bank of other questions to recommend: 6 decks of 24 cards, the first `wrong` cards answered badly. */
+export async function seedWrongBookLibrary(root, { wrong = 72 } = {}) {
+  await seedLibrary(root, { sources: 12, decks: 6, cardsPerDeck: 24, runs: 6, attempts: 0, courses: 2, largeSources: 0 });
+  const store = new Store(root);
+  await store.update((library) => {
+    const cards = library.decks.flatMap((deck) => deck.cards.map((card) => ({ deck, card })));
+    library.attempts = cards.slice(0, wrong).map(({ deck, card }, index) => ({ id: `wrong-${index}`, runId: library.runs[0].id, quiz_id: card.id, deckId: deck.id, topic: card.topic,
+      timestamp: new Date(Date.UTC(2026, 8, 3) + index * 60_000).toISOString(), grade: 1, elapsed_ms: 3000,
+      before: { repetitions: 0, interval_days: 0, ease_factor: 2.5, due_at: null }, after: { repetitions: 0, interval_days: 0, ease_factor: 2.5, due_at: null } }));
+  });
+  return { wrong };
 }
 
 /** The preview on a fresh library under the OS temp dir. `seed(root)` writes the library before the server starts. */
@@ -168,6 +183,48 @@ export async function pickerScenario({ browser, running, lang = "zh", theme = "d
   return { scenario: "picker", documents, before, after, badges, cls: verdict.cls, shifts: verdict.shifts, rowResizes: verdict.rowResizes, resizes: verdict.resizes.slice(0, 3), longestTaskMs: longestTask(log), longTasks: log.longTasks, pollLongestTaskMs: longestTask(pollLog), pollLongTasks: pollLog.longTasks.length, pollRowResizes: pollLog.resizes.length, errors };
 }
 
+/* ---------- scenario: 错题与待巩固 with late recommendations (#206) ---------- */
+
+/** What the retrain bar and the list show right now: positions and the words that must not change under the learner. */
+const readWrongBook = (page) => page.evaluate(() => {
+  const box = (element) => { if (!element) return null; const r = element.getBoundingClientRect(); return { x: Math.round(r.left * 10) / 10, y: Math.round(r.top * 10) / 10, width: Math.round(r.width * 10) / 10, height: Math.round(r.height * 10) / 10 }; };
+  const retrain = document.querySelector(".wb-retrain");
+  const pressed = retrain?.querySelector('[aria-pressed="true"]');
+  const options = [...(retrain?.querySelectorAll(".sh-seg button, .sh-seg__item") ?? [])].map((element) => element.textContent.trim());
+  const start = retrain?.querySelector(".sh-btn--primary");
+  return {
+    retrain: box(retrain), start: box(start), startText: start?.textContent.trim() ?? "", selected: pressed?.textContent.trim() ?? "", options: [...new Set(options)],
+    note: retrain?.querySelector(".wb-retrain-copy small")?.textContent.trim() ?? "", recs: box(document.querySelector(".wb-recs")),
+    group: box(document.querySelector(".wb-group")), firstRow: box(document.querySelector(".wb-row")),
+  };
+});
+
+export async function wrongBookScenario({ browser, running, lang = "zh", theme = "dark", width = 1280, shots = null }) {
+  const { page, errors, context } = await openPage(browser, running, { lang, theme, width });
+  const hold = await holdActions(page, ["wrongbook.recommend"]);
+  await page.goto(running.server.url);
+  await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
+  const nav = page.locator('[data-tour="nav-wrongbook"]').first();
+  await nav.waitFor({ state: "visible" });
+  await nav.dispatchEvent("click");
+  await page.locator(".wb-retrain").waitFor({ timeout: 30000 });
+  await page.locator(".wb-group .wb-row").first().waitFor({ timeout: 30000 });
+  await until(() => hold.seen("wrongbook.recommend"), "the page to ask for recommendations");
+  await frames(page, 4);
+  const before = await readWrongBook(page);
+  await drainLayoutStability(page);
+  if (shots) await page.screenshot({ path: join(shots, "before-arrival.png") });
+  hold.release("wrongbook.recommend");
+  await until(() => page.evaluate(() => !!document.querySelector(".wb-recs .sh-btn")), "the recommendations to arrive");
+  await frames(page, 4);
+  const after = await readWrongBook(page);
+  const log = await drainLayoutStability(page);
+  if (shots) await page.screenshot({ path: join(shots, "after-arrival.png") });
+  const verdict = judgeLayoutStability(log);
+  await context.close();
+  return { scenario: "wrongbook", before, after, cls: verdict.cls, shifts: verdict.shifts, rowResizes: verdict.rowResizes, longestTaskMs: longestTask(log), errors };
+}
+
 /* ---------- CLI ---------- */
 
 function parse(argv) {
@@ -181,15 +238,15 @@ function parse(argv) {
     dist: values.dist ? resolve(values.dist) : resolve(repoRoot, "dist"), label: values.label ?? "run", out: values.out ? resolve(values.out) : resolve(repoRoot, "output/layout-stability") };
 }
 
-const SCENARIOS = { picker: pickerScenario };
+const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)] };
 
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invoked) {
   const options = parse(process.argv.slice(2));
-  const run = SCENARIOS[options.scenario];
+  const [run, seed] = SCENARIOS[options.scenario] ?? [];
   if (!run) throw new Error(`Unknown scenario ${options.scenario}: ${Object.keys(SCENARIOS).join(", ")}`);
   const browser = await launchChromium();
-  const running = await startLateServer({ distDir: options.dist, lang: options.lang, seed: (root) => seedPickerLibrary(root, { lang: options.lang }) });
+  const running = await startLateServer({ distDir: options.dist, lang: options.lang, seed: (root) => seed(root, options.lang) });
   try {
     const shots = join(options.out, options.scenario, `${options.label}-${options.width}-${options.lang}-${options.theme}`);
     await mkdir(shots, { recursive: true });

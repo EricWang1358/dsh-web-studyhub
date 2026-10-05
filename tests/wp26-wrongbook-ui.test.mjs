@@ -59,7 +59,10 @@ test('the segmented control switches to deck grouping', () => {
 });
 
 test('为你推荐 lists similar bank questions with why, a cap and a practise-these action', () => {
-  const html = text(render());
+  // One folded line until opened (#206); the list is behind its toggle.
+  assert.doesNotMatch(text(render()), /推荐题 0/);
+  assert.match(text(render()), /练这 8 道/);
+  const html = text(render({ initial: { recsOpen: true } }));
   assert.match(html, /为你推荐/);
   assert.match(html, /不消耗模型/);
   assert.match(html, /练这 8 道/);
@@ -69,7 +72,7 @@ test('为你推荐 lists similar bank questions with why, a cap and a practise-t
   assert.doesNotMatch(html, /推荐题 3/, 'only the first three show until expanded');
   assert.match(html, /再显示 5 道/);
   assert.match(text(render({ initial: { recsAll: true } })), /推荐题 7/);
-  assert.doesNotMatch(render({ recs: { items: [] } }), /为你推荐/);
+  assert.match(text(render({ recs: { items: [] } })), /暂时没有合适的同类题/, 'an empty answer keeps the bar (#206)');
   assert.doesNotMatch(render({ recs: null }), /为你推荐/);
 });
 
@@ -174,7 +177,7 @@ test('English: every UI string is translated while question content stays as wri
   coach: { ...coach, preparingCards: ['c4'], readyCards: [{ id: 'p', originDeckId: 'd4', originCardId: 'c1', prompt: 'Variant one', reason: 'wrong' }], failedCards: [], ready: 1 } };
   try {
     setUiLanguage('en');
-    const html = renderToStaticMarkup(React.createElement(WrongBookView, english));
+    const html = renderToStaticMarkup(React.createElement(WrongBookView, { ...english, initial: { recsOpen: true } }));
     assert.doesNotMatch(html.replace(/aria-label="[^"]*"/g, '$&'), han, 'no Chinese UI left');
     assert.match(text(html), /By topic/);
     assert.match(text(html), /Recommended for you/);

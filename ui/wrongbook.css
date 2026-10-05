@@ -19,6 +19,11 @@
     }
     .wb-retrain-copy { display: grid; gap: var(--space-half); margin-right: auto; min-width: 8em; }
     .wb-retrain-copy small { font-size: var(--fs-sm); }
+    /* The note replaces the helper line in place, in a column wide enough for either text, so it changes neither the bar's height nor its neighbours (#206).
+       Each option keeps room for its count with a second figure ("48+10"), so a count arriving later does not move the others. */
+    .wb-retrain-copy { min-width: 14em; }
+    .wb-retrain-copy small { white-space: nowrap; }
+    .wb-retrain .sh-seg__item { min-width: 13em; justify-content: center; }
     .wb-retrain .sh-seg { flex-wrap: wrap; max-width: 100%; }
     /* recommendations */
     .wb-recs {
@@ -33,18 +38,26 @@
       border-radius: var(--radius);
       background: var(--bg-surface);
     }
-    .wb-recs-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
-    .wb-recs-head > div { min-width: 0; flex: 1 1 18em; }
-    .wb-recs-head h2 {
+    /* One line from the first paint (#206): loading, empty and found all fit it, so the answer never moves the list below. */
+    .wb-recs { padding: var(--space-3) var(--space-4); gap: var(--space-2); }
+    .wb-recs-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: var(--space-3); min-height: 32px; /* a small button */ }
+    .wb-recs-bar h2 {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
       gap: var(--space-2);
-      margin: 0 0 var(--space-half);
+      min-width: 0;
+      margin: 0;
       font-family: var(--font-display);
       font-size: var(--fs-lg);
     }
-    .wb-recs-head p { margin: 0; font-size: var(--fs-md); }
+    .wb-recs-bar > .sh-btn { flex: none; }
+    .wb-recs-bar h2 { margin-right: auto; }
+    .wb-recs-spacer { flex: none; width: 32px; height: 32px; }
+    .wb-recs-status { min-width: 0; margin-left: auto; font-size: var(--fs-sm); text-align: right; }
+    .wb-recs-body { display: grid; gap: var(--space-3); min-width: 0; }
+    .wb-recs-body > p { margin: 0; font-size: var(--fs-md); }
+    .wb-recs-body > .sh-btn--link { justify-self: start; }
     .wb-free {
       padding: 1px var(--space-2);
       border: 1px solid var(--ok-line);
@@ -56,7 +69,6 @@
       font-weight: var(--fw-medium);
     }
     .wb-rec-list, .wb-rows { list-style: none; margin: 0; padding: 0; }
-    .wb-recs > .sh-btn--link { justify-self: start; }
     /* controls */
     .wb-controls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); }
     .wb-batch { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
