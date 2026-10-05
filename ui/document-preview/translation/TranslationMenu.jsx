@@ -98,9 +98,9 @@ export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss })
 }
 
 /** The chip that follows a selection: translate exactly these words. */
-export function SelectionChip({ left, top, busy, target, onClick, onCancel }) {
+export function SelectionChip({ chipRef, busy, target, onClick, onCancel }) {
   const label = busy ? ui('取消翻译') : ui('翻译选中的文字（Alt+T）');
-  return <button type="button" className="tr-chipbtn" style={{ left, top }} data-busy={busy ? 'true' : undefined} aria-label={label} title={label}
+  return <button type="button" ref={chipRef} className="tr-chipbtn" data-busy={busy ? 'true' : undefined} aria-label={label} title={label}
     onMouseDown={event => event.preventDefault()} onClick={busy ? onCancel : onClick}>
     {busy ? <span className="sh-spinner" aria-hidden="true" /> : <span aria-hidden="true">{target === 'en' ? 'EN' : ui('译')}</span>}
   </button>;

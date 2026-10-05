@@ -50,8 +50,9 @@ test('a pending translation shows the shared Spinner and no private tr-spin keyf
 
 test('the floating translation card is a Popover with a CloseButton, not a bare ×  (#81 #83)', () => {
   m.setUiLanguage('zh');
-  const out = html(m.FloatingTranslation, { left: 40, top: 120, onClose: noop }, h('p', null, '译文'));
-  assert.match(out, /class="tr-float"[^>]*style="[^"]*left:40px/);
+  const out = html(m.FloatingTranslation, { onClose: noop }, h('p', null, '译文'));
+  assert.match(out, /class="tr-float"/);
+  assert.doesNotMatch(out, /class="tr-float"[^>]*style=/, 'the card is placed against the selection by the shared anchoring, not by coordinates in state (#231)');
   assert.match(out, /role="dialog"/);
   assert.match(out, /aria-label="关闭"/);
   assert.match(out, /sh-btn--icon/);

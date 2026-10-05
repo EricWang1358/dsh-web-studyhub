@@ -26,7 +26,7 @@ export { default as Popover } from './Popover.jsx';
 export { default as Menu } from './Menu.jsx';
 export { default as Tooltip } from './Tooltip.jsx';
 export { CloseButton } from './CloseButton.jsx';
-export { useDismiss, useAnchoredPosition, computePlacement } from './use-dismiss.js';
+export { useDismiss, useAnchoredPosition, computePlacement, placeInHost } from './use-dismiss.js';
 export { default as SecretKeyForm } from './SecretKeyForm.jsx';
 export { ToastContext, useToast, createToastApi } from './Feedback.jsx';
 export { Field, TextInput, TextArea, Select, NumberInput } from './Field.jsx';

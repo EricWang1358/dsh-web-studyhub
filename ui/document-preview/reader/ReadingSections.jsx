@@ -28,6 +28,11 @@ function Heading({ text }) {
   return <h4 className="reader-p reader-p--heading">{mark && <span className="reader-bracket" aria-hidden="true">{mark}</span>}{withFormulas(text.slice(mark.length))}</h4>;
 }
 
+/** A thematic break: a quiet rule. Its characters stay in the text, hidden like a heading's "# ", so selection, find and citations still count the stored text. */
+function Rule({ text }) {
+  return <div className="reader-p reader-p--rule"><span className="reader-bracket" aria-hidden="true">{text}</span><hr className="reader-rule" /></div>;
+}
+
 /**
  * Text sources set for reading. Each section keeps the markers the selection tools use:
  * data-study-page / data-study-source on a page, data-study-text around the paragraphs.
@@ -49,6 +54,8 @@ export default function ReadingSections({ sections, labelOf, onPeek }) {
         {section.paragraphs.map((paragraph, index) => paged && onPeek && isFigurePlaceholder(paragraph.text)
           ? <p key={index} className="reader-p reader-p--figure">{paragraph.text}<span className="reader-peek-mark" data-study-marker="true"><button type="button" className="reader-peek" data-peek-page={section.page} data-peek-figure="true" title={ui('看原页')}
             onClick={event => onPeek(section.page, { figure: true, trigger: event.currentTarget })}>{ui('看原页')}</button></span></p>
+          : paragraph.kind === 'rule'
+          ? <Rule key={index} text={paragraph.text} />
           : paragraph.kind === 'heading'
           ? <Heading key={index} text={paragraph.text} />
           : <p key={index} className={`reader-p reader-p--${paragraph.kind}`}>{paragraph.kind === 'layout'
