@@ -128,7 +128,7 @@ DSH plugins do not update themselves, and restarting DSH alone keeps the install
 
 ### Upgrade in one click (2.1.2 and later)
 
-Automatic update checks normally use a 12-hour cache and retry sooner after a failure. **Check for updates** queries immediately, even within that window or with automatic checks off. Checks send no study data and do not install anything. When a release is newer than the installed version, a **Version x.y.z available** chip appears in StudyHub's sidebar, where x.y.z is the new version.
+Automatic update checks normally use a 6-hour cache and retry sooner after a failure. **Check for updates** queries immediately, even within that window or with automatic checks off. Checks send no study data and do not install anything. When a release is newer than the installed version, a **Version x.y.z available** chip appears in StudyHub's sidebar, where x.y.z is the new version.
 
 **Settings › About & updates** separates the current running version, the installed version and the latest known release. For example, 2.5.8 can still be running while 2.5.10 is installed and waiting for a restart. If 2.6.1 becomes available, you can install it directly and then restart once; the pending restart does not hide that upgrade. The same or an older release is not installed again. A failed check keeps the last known release and shows a separate connection notice.
 
@@ -141,7 +141,7 @@ Automatic update checks normally use a 12-hour cache and retry sooner after a fa
 
 Reloading the browser alone does not load new plugin code.
 
-**Remind me later** hides the chip for that version. You can still upgrade from **Settings › About & updates**, where **Check for updates** checks at once and **Check for updates automatically** turns the 12-hour check off. If GitHub cannot be reached, StudyHub tries again later.
+**Remind me later** hides the chip for that version. You can still upgrade from **Settings › About & updates**, where **Check for updates** checks at once and **Check for updates automatically** turns the 6-hour check off. If GitHub cannot be reached, StudyHub tries again later.
 
 ### Upgrade manually
 

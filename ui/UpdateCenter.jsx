@@ -255,7 +255,7 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
         <Button size="sm" busy={checking} onClick={checkUpdates}>{ui('检查更新')}</Button>
         <Checkbox checked={update?.autoCheck !== false} disabled={saving || !update} onChange={toggle} label={ui('自动检查更新')} />
       </div>
-      <p className="settings-section__lead">{ui('自动检查通常间隔 12 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
+      <p className="settings-section__lead">{ui('自动检查通常间隔 6 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
     </fieldset>
   );
 }
