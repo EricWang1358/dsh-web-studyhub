@@ -69,6 +69,10 @@
     .tc-item { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--line-soft); }
     .tc-item[data-checked='true'] { background: var(--bg-hover); }
     .tc-item > .tc-row { border-bottom: 0; padding-inline-start: 0; }
+    /* The hover and the picked row are painted on the whole item, the empty box column included, so the highlight and its accent edge start at the list's edge instead of 32px in (a running task has no box). */
+    .tc-item:hover { background: var(--bg-hover); }
+    .tc-item:has(> .tc-row[aria-pressed='true']) { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
+    .tc-item > .tc-row:is(:hover, [aria-pressed='true']) { background: transparent; box-shadow: none; }
     .tc-item__check { display: flex; align-items: center; justify-content: center; gap: 0; min-width: 0; }
     .tc-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
     .tc-row {
