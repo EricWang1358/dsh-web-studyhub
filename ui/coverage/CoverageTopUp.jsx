@@ -30,7 +30,7 @@ const workOn = (draft, jobs) => draftWork(draft, jobs) || (() => {
 })();
 const classOf = (variant) => `cov-topup${variant === 'compact' ? ' cov-topup--compact' : variant === 'panel' ? ' cov-topup--panel' : ''}`;
 /** While something works on the draft this is a status (the work's own words, with its progress), not a button that cannot be pressed. */
-const WorkStatus = ({ draft, work, variant }) => <div className={`draft-topup ${classOf(variant)}`} data-draft-topup data-coverage-topup><Badge tone="info" dot data-draft-work>{draftWorkLabel(work, draft)}</Badge></div>;
+const WorkStatus = ({ draft, work, variant, percent }) => <div className={`draft-topup ${classOf(variant)}`} data-draft-topup data-coverage-topup><Badge tone="info" dot data-draft-work>{draftWorkLabel(work, draft, percent)}</Badge></div>;
 
 /** The body: the round, the button and the estimate. `compact` is the home card's narrow column; `panel` the console header's popover. */
 function TopUpBody({ draft, view, modelReady, held, onTopUp, variant }) {
@@ -42,7 +42,8 @@ function TopUpBody({ draft, view, modelReady, held, onTopUp, variant }) {
   return <div className={cls} data-coverage-topup>
     {/* The home card's column is narrow: it says what the round covers; how each section is done and what the round does not reach are on the draft page and in the console. */}
     <p className="cov-topup__plan" data-coverage-round>{variant === 'compact' ? lines.head : lines.plan}</p>
-    {lines.more && variant !== 'compact' && <p className="cov-topup__more" data-coverage-more>{lines.more}</p>}
+    {/* A draft with a plan says how many rounds are left in the line of its run (ui/coverage/RunPanel.jsx); the sections the plan does not hold are not "more rounds". */}
+    {lines.more && variant !== 'compact' && !view.run && <p className="cov-topup__more" data-coverage-more>{lines.more}</p>}
     <div className="cov-topup__act">
       <Button className="cov-topup__button" disabled={blocked} data-coverage-start title={!modelReady ? gateTitle('block') : held ? ui('先保存草稿，再补题。') : undefined}
         onClick={() => onTopUp?.(draft, sectionIds, round)}>{ui('为没覆盖的部分补题')}</Button>
@@ -60,7 +61,7 @@ export function CoverageTopUp({ draft, view, jobs = [], modelReady = true, held 
   if (!draft) return null;
   // What works on the draft is always said, whether or not the coverage has arrived: the draft is not free to be topped up while it is being written, published or repaired.
   const work = workOn(draft, jobs);
-  if (work) return <WorkStatus draft={draft} work={work} variant={variant} />;
+  if (work) return <WorkStatus draft={draft} work={work} variant={variant} percent={view?.status === 'ok' ? view.coverage?.percentLeaves : undefined} />;
   if (view?.status !== 'ok' || !view.canTopUp || !view.coverage?.leaves) return null;
   return <TopUpBody draft={draft} view={view} modelReady={modelReady} held={held} onTopUp={onTopUp} variant={variant} />;
 }

@@ -68,7 +68,7 @@ export default function ControlRow({ job }) {
         if (item.type === 'enum') return <Choose key={item.key} item={item} disabled={working} onChange={change} />;
         return <Toggle key={item.key} item={item} disabled={working} onChange={change} />;
       })}
-      {isRunningTask(job) && ['capability-unsupported', 'no-safe-checkpoint'].includes(contract.actions.pause.reason?.code) && <span className="tc-controls__note">{reasonText(contract.actions.pause, 'pause')}</span>}
+      {isRunningTask(job) && ['capability-unsupported', 'no-safe-checkpoint', 'single-round', 'manual-run'].includes(contract.actions.pause.reason?.code) && <span className="tc-controls__note">{reasonText(contract.actions.pause, 'pause')}</span>}
       {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved || core.busy} onClick={save}
         title={uiFormat('把这里的{0}存为以后新任务的默认', [items.slice(0, 2).map((item) => controlLabel(item.key)).join('、')])}>{ui('存为默认')}</Button>}
       <span className="tc-controls__applied" role="status" data-tone={note.tone}>{note.text || (items.length ? ui('改动从下一次调用生效') : '')}</span>

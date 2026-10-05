@@ -69,7 +69,7 @@ function previewModel(model, fakeLatencyMs) {
  * state: the library is the --library folder itself, and choosing another one
  * in Settings lasts for this preview without writing a binding file.
  */
-function previewHost(workspaceRoot, model, efforts = [], retrieval = null) {
+function previewHost(workspaceRoot, model, efforts = [], retrieval = null, coverage = null) {
   const disposers = [];
   const extension = retrieval === "extension" ? createFakeExtension({}) : null;
   const ctx = {
@@ -79,6 +79,7 @@ function previewHost(workspaceRoot, model, efforts = [], retrieval = null) {
     sessions: new Map([[SESSION_ID, { header: { cwd: workspaceRoot } }]]),
     // The session follows the preview model, as a DSH session follows its selected model.
     get: (name) => name === "agentDefaultModel" && model ? { currentSelection: () => model.route }
+      : name === "studyCoverage" && coverage ? coverage
       : extension && name === "pluginManager" ? extension.pluginManager : extension && name === "profileContext" ? { name: "web" } : undefined,
     effect: (setup) => { const dispose = setup(); if (typeof dispose === "function") disposers.push(dispose); },
   };
@@ -141,7 +142,7 @@ async function readBody(req) {
  * settings) while the preview runs, so it never reads or writes ~/.dsh.
  * `port: 0` picks a free port.
  */
-export async function createPreviewServer({ libraryRoot, port = 4178, model = null, home, fakeLatencyMs = 900, efforts = [], retrieval = null,
+export async function createPreviewServer({ libraryRoot, port = 4178, model = null, home, fakeLatencyMs = 900, efforts = [], retrieval = null, coverage = null,
   distDir = resolve(repoRoot, "dist") } = {}) {
   const workspaceRoot = resolve(libraryRoot || resolve(repoRoot, "output/preview-library"));
   const homeDir = resolve(home || resolve(repoRoot, "output/preview-home"));
@@ -153,7 +154,7 @@ export async function createPreviewServer({ libraryRoot, port = 4178, model = nu
   if (await access(join(workspaceRoot, ".dsh-study-binding.json")).then(() => true, () => false))
     console.warn(`[study-preview] ${join(workspaceRoot, ".dsh-study-binding.json")} (saved by DSH) chooses the library; pass another --library to preview this folder itself.`);
   const token = randomBytes(24).toString("hex");
-  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts, retrieval);
+  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts, retrieval, coverage);
   let actualPort = port;
   const json = (res, status, value) => res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" })
     .end(JSON.stringify(value));

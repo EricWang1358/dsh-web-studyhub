@@ -57,7 +57,7 @@ The job record shows each stage. Where DSH supports native subagents, the stages
 ### Time limits
 
 - Each generation-stage call: 10 minutes, whether it runs as a direct call, a one-shot subagent or a communicating subagent. Ordinary teaching calls keep their own limits.
-- A whole generation job: 20 minutes of running time by default, adjustable to 5–60 minutes in **Settings › Question defaults**. Time waiting in the queue does not count. Questions that already passed are kept.
+- A whole generation job: 20 minutes of running time by default, adjustable to 5–180 minutes in **Settings › Question defaults** (for a coverage plan this is the limit of each round). Time waiting in the queue does not count. Questions that already passed are kept.
 - A timeout is not a quality rejection, and it does not guarantee the requested count.
 
 In supplementation, when the time budget runs out, saved questions whose review records are still valid can be published without another model call. The job reports the shortfall. Cancellation, version conflicts, an archived target deck and later edits still block publishing the affected questions.

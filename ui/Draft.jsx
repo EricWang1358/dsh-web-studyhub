@@ -18,6 +18,7 @@ import { OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
 import { draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
 import { CoverageSummary } from "./coverage/Coverage.jsx";
 import { CoverageTopUp } from "./coverage/CoverageTopUp.jsx";
+import RunPanel from "./coverage/RunPanel.jsx";
 import { useCoverage } from "./coverage/use-coverage.js";
 import { modelReadiness } from "./generation-status.js";
 import { coverageGroups, coverageUnit } from "./coverage-groups.js";
@@ -222,6 +223,7 @@ export default function Draft({
         </Button>
       </div>
       {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}>
+        <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} />
         <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready}
           onTopUp={(target, sectionIds) => topUpDraft(target, sectionIds)} />
         {(unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}

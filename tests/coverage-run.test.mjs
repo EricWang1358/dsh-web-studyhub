@@ -32,7 +32,7 @@ const leafKeys = () => sectionsOf(world.sources).filter(section => section.leaf)
 
 test('a standard coverage run: the plan in the answer, the first round in the job, the spec in the draft', async (t) => {
   const { service, ids, rated } = await library(t, { weightOf: item => (/3\b/.test(item.title) && item.position.includes('recording 2') ? 5 : 3) });
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz', autoComplete: false });
   assert.equal(started.plan.level, 'standard');
   assert.equal(started.plan.sections, 81);
   assert.ok(started.plan.goal > 100 && started.plan.rounds >= 4, JSON.stringify(started.plan));
@@ -75,11 +75,11 @@ test('without a light model the weights are the lengths, and the spec says so', 
 
 test('request validation: a custom total up to 500 becomes rounds; an old caller with only a count up to 30 is planned as before', async (t) => {
   const { service, ids } = await library(t);
-  const custom = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', count: 120 });
+  const custom = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', count: 120, autoComplete: false });
   assert.equal(custom.plan.goal, 120);
   assert.equal(custom.plan.rounds, 4);
   await settleJob(service, custom.jobId);
-  const alone = await service.call('generate', { sourceIds: ids, count: 45 });
+  const alone = await service.call('generate', { sourceIds: ids, count: 45, autoComplete: false });
   assert.equal(alone.plan.level, 'standard', 'a count above one round alone is a custom total at the default strength');
   assert.equal(alone.plan.goal, 45);
   await settleJob(service, alone.jobId);
@@ -111,22 +111,23 @@ test('the selection bound: a request with a plan reads a selection over 600 000 
 
 test('the top-up of a draft that kept its plan continues it: the quotas of the plan, the heaviest first, enforced assignments, the plan stays', async (t) => {
   const { service, ids } = await library(t, { weightOf: item => (item.position.startsWith('40/') || item.position.startsWith('41/') ? 5 : 3) });
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard' });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', autoComplete: false });
   assert.equal((await settleJob(service, started.jobId)).status, 'complete');
   const draft = (await service.call('export')).drafts[0], spec = draft.editorial.coverageSpec;
   const view = await service.call('coverage.get', { draftId: draft.id });
   assert.ok(view.coverage.scheduled > 50, `${view.coverage.scheduled} sections wait for a later round of the plan`);
   const quotaOf = new Map(spec.quotas.map(item => [item.sectionId, item.quota]));
   for (const pick of view.round.picks) assert.equal(pick.questions, quotaOf.get(pick.key), 'an uncovered section costs the quota the plan gave it');
-  const heaviest = new Set(spec.rounds[1].sectionIds);
-  assert.ok(view.round.picks.filter(pick => heaviest.has(pick.key)).length >= view.round.picks.length - 2, 'the second round of the plan is what the top-up runs');
+  assert.deepEqual(view.round.picks.map(pick => pick.key).sort(), [...spec.rounds[1].sectionIds].sort(), 'the second round of the plan is exactly what the top-up runs');
   const next = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: view.round.picks.map(pick => pick.key) } });
   assert.equal(next.coverage.questions, view.round.questions);
   const job = await settleJob(service, next.jobId);
   assert.equal(job.status, 'complete', job.stage);
   const after = (await service.call('export')).drafts[0];
   assert.equal(after.cards.length, draft.cards.length + view.round.questions, 'the round was written');
-  assert.deepEqual(after.editorial.coverageSpec, spec, 'the plan stays with the draft');
+  const { rounds: roundsBefore, ...planBefore } = spec, { rounds: roundsAfter, ...planAfter } = after.editorial.coverageSpec;
+  assert.deepEqual(planAfter, planBefore, 'the plan stays with the draft: level, goal, weights and quotas');
+  assert.deepEqual(roundsAfter.map(round => [round.round, round.questions, round.sectionIds, round.status ?? 'pending']), roundsBefore.map((round, at) => [round.round, round.questions, round.sectionIds, at === 1 ? 'done' : round.status ?? 'pending']), 'only the round that ran changed: it is done');
   assert.equal(after.editorial.requested, draft.editorial.requested, 'what the draft was asked for did not grow');
   const again = await service.call('coverage.get', { draftId: draft.id });
   assert.equal(again.coverage.covered, view.coverage.covered + view.round.sections);

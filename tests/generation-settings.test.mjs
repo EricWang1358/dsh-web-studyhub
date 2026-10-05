@@ -43,7 +43,7 @@ test('invalid generation setting patches are refused without a partial write', a
   const service = await library(t);
   const before = await service.call('export');
   for (const generation of [null, [], 'fast', { concurrency: 0 }, { concurrency: 9 }, { concurrency: '3' },
-    { batchSize: 6 }, { batchSize: 2.5 }, { jobTimeoutMinutes: 4 }, { jobTimeoutMinutes: 61 },
+    { batchSize: 6 }, { batchSize: 2.5 }, { jobTimeoutMinutes: 4 }, { jobTimeoutMinutes: 181 },
     { count: 0 }, { count: 501 }, { kind: 'case' }, { language: 'Klingon' }, { difficulty: 'hard' },
     { focus: 4 }, { focus: 'x'.repeat(2001) }, { phaseTimeoutMinutes: 30 }]) {
     await assert.rejects(service.call('settings', { first_interval_days: 4, generation }), /generation/i);
@@ -92,12 +92,12 @@ test('continued work inherits original choices and performance instead of change
 });
 
 test('explicit performance accepts only the three bounded fields, while persisted reads remain safe', () => {
-  assert.deepEqual(normalizeGenerationPerformance({ concurrency: '3', batchSize: 2, jobTimeoutMinutes: 60 }),
-    { concurrency: 4, batchSize: 2, jobTimeoutMinutes: 60, fillRounds: 2, ...EFFORTS });
+  assert.deepEqual(normalizeGenerationPerformance({ concurrency: '3', batchSize: 2, jobTimeoutMinutes: 180 }),
+    { concurrency: 4, batchSize: 2, jobTimeoutMinutes: 180, fillRounds: 2, ...EFFORTS });
   assert.deepEqual(normalizeGenerationSettings([]), expected);
   assert.deepEqual(validateGenerationPatch({ focus: '  concise examples  ', count: 30 }), { focus: 'concise examples', count: 30 });
   for (const performance of [null, [], { concurrency: 2.5 }, { concurrency: 9 }, { batchSize: 0 },
-    { batchSize: 6 }, { jobTimeoutMinutes: '20' }, { jobTimeoutMinutes: 61 }, { kind: 'quiz' }]) {
+    { batchSize: 6 }, { jobTimeoutMinutes: '20' }, { jobTimeoutMinutes: 181 }, { kind: 'quiz' }]) {
     assert.throws(() => validateGenerationPerformance(performance), /generation/i);
     assert.throws(() => resolveGenerationRequest(undefined, { performance }), /generation/i);
   }

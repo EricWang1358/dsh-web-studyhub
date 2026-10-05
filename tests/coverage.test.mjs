@@ -49,9 +49,9 @@ test('some covered: exactly the checklist is covered, by quote and by selection 
   assert.equal(found.percentLeaves, 9, '7 of 81 is 8.6%');
   const charsOf = id => fx.leaves.find(section => section.id === id).chars;
   assert.equal(found.coveredChars, checklist.reduce((sum, id) => sum + charsOf(id), 0));
-  assert.equal(found.percentChars, Math.round(found.coveredChars / found.chars * 100));
+  assert.equal(found.percentChars, Math.round(found.coveredEvidenceChars / found.evidenceChars * 100), 'by characters of evidence');
   assert.equal(found.cards, 7);
-  assert.equal(found.perTenK, Math.round(7 / found.chars * 100000) / 10);
+  assert.equal(found.perTenK, Math.round(7 / found.evidenceChars * 100000) / 10);
   assert.ok(found.sections.every(section => section.cards === (checklist.includes(section.id) ? 1 : 0)));
   assert.deepEqual(found.groups.map(group => group.covered), [2, 1, 1, 1, 2], 'the per-recording rows add up');
   assert.deepEqual(coverageSummary(found), { covered: 7, plannedFailed: 0, neverPlanned: 74, leaves: 81, percentLeaves: 9, percentChars: found.percentChars, perTenK: found.perTenK,
