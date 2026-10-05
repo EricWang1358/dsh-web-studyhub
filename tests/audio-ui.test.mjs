@@ -6,12 +6,12 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const compiled = await build({
-  stdin: { contents: `export { default as AudioImport } from './ui/AudioImport.jsx'; export { AudioCorrections } from './ui/audio/AudioCorrections.jsx'; export { AudioJobs, audioProgress } from './ui/audio/AudioJobs.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+  stdin: { contents: `export { default as AudioImport } from './ui/AudioImport.jsx'; export { AudioCorrections } from './ui/audio/AudioCorrections.jsx'; export { AudioJobs, audioProgress } from './ui/audio/AudioJobs.jsx'; export { usageLine } from './ui/tasks/task-facts.js'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".json": "json", ".css": "text" },
 });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { AudioImport, AudioCorrections, AudioJobs, audioProgress, setUiLanguage } = module.exports;
+const { AudioImport, AudioCorrections, AudioJobs, audioProgress, usageLine, setUiLanguage } = module.exports;
 
 const usage = (free, paid, usd = 0) => ({ free: { requests: free, audioSeconds: 0 }, paid: { requests: paid, audioSeconds: paid * 60 }, estimatedPaidTranscribeUsd: usd });
 const job = (extra) => ({ type: "audio-import", id: extra.status, filename: "lecture.mp3", phase: "transcribe", done: 0, total: 3, minutes: 12.5, warnings: [], ...extra });
@@ -44,10 +44,12 @@ test('batch progress includes every member and offers the exact completed transc
     members: [{ filename: 'B.wav', status: 'complete' }, { filename: 'A.wav', status: 'failed', phase: 'translate' }] });
   assert.equal(audioProgress(batch).percent, 77);
   const html = renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [{ ...batch, status: 'complete', sourceIds: ['source-batch'] }] }, act() {}, onOpenSources() {} }));
-  assert.match(html, /B.wav/); assert.match(html, /A.wav/); assert.match(html, /打开逐字稿/);
+  assert.match(html, /Week 3/);
+  assert.match(html, /打开逐字稿/);
+  assert.equal((html.match(/class="cjc[ "]/g) || []).length, 1, 'one card for the whole batch; its files are rows in the console');
 });
 
-test('batch audio separates three active children from thirteen historical tasks and labels their states', () => {
+test('batch audio is one compact card whatever the number of tasks behind it', () => {
   const now = Date.now(), at = n => new Date(now - n * 1000).toISOString();
   const tasks = Array.from({ length: 16 }, (_, index) => ({ id: `task-${index}`, childId: `child-${index}`,
     kind: 'proofread', part: index + 1, parts: 30, runtime: 'subagent', startedAt: at(30),
@@ -61,25 +63,14 @@ test('batch audio separates three active children from thirteen historical tasks
   try {
     setUiLanguage('zh');
     const html = renderBatch();
-    assert.match(html, /正在执行 3 个任务/);
-    assert.match(html, /校对 已完成 10\/30/);
-    assert.match(html, /查看历史任务 · 13 次模型任务/);
-    assert.match(html, /都由「DSH 子代理」完成/, 'the runtime every row shares is said once');
-    assert.match(html, /校对 13\/30 · 失败 · 25 秒 · Rate limit/);
-    assert.equal(html.match(/class="audio-now"/g).length, 3);
-    assert.equal(html.match(/class="generation-trace audio-trace"/g).length, 1);
-    // The three running children and the latest five finished ones have a link; the older eight wait behind "再显示 8 条".
-    for (let part = 9; part <= 16; part++) {
-      assert.equal(html.match(new RegExp(`aria-label="查看子代理：校对 ${part}/30"`, 'g'))?.length, 1, `one link for child ${part}`);
-    }
-    for (let part = 1; part <= 8; part++) assert.equal(html.includes(`查看子代理：校对 ${part}/30`), false, `child ${part} is behind the button`);
-    assert.match(html, /再显示 8 条/);
+    assert.equal((html.match(/class="cjc[ "]/g) || []).length, 1);
+    assert.match(html, /正在校对 \d+\/30/, 'what runs now, from the calls in flight');
+    assert.match(html, /查看详情/);
+    assert.doesNotMatch(html, /查看历史任务|查看子代理|正在执行 3 个任务|<details/, 'the tasks and their sub-agents are in the console');
     setUiLanguage('en');
     const english = renderBatch().replaceAll('API应用与产品策略培训.mp3', 'lecture.mp3');
-    assert.doesNotMatch(english, /[㐀-鿿]/);
-    assert.match(english, /3 tasks running/);
-    assert.match(english, /View task history · 13 model tasks/);
-    assert.match(english, /Show 8 more/);
+    assert.doesNotMatch(english, /[\u3400-\u9fff]/);
+    assert.match(english, /View details/);
   } finally { setUiLanguage('zh'); }
 });
 
@@ -87,7 +78,7 @@ test('a legacy failed recording remains visible with a same-file selection actio
   const legacy = job({ id: 'old', status: 'failed', stage: '旧版任务没有保存原文件位置', legacy: true, relinkable: true, retryable: false });
   const html = renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [legacy] }, busy: false, act() {}, onLegacyRetry() {} }));
   assert.match(html, /重新选择原录音继续/);
-  assert.doesNotMatch(html, /接着做（不重复付费）/);
+  assert.doesNotMatch(html, /看原因并继续/);
   assert.match(render({ data: { ...data, jobs: [legacy] }, recoveryJobId: legacy.id }), /正在接续旧版失败任务/);
 });
 
@@ -102,8 +93,8 @@ test("English audio import copy is fully translated and keeps user content as wr
     ] }, busy: false, act() {} })).replace(/lecture\.mp3/g, '');
     assert.doesNotMatch(reviewed, /[㐀-鿿]/);
     assert.match(reviewed, /Review complete: 1 correction\(s\) applied/);
-    for (const text of ["Audio / recording", "Transcribing audio (1/3)", "Saved as 1 source(s) · 4 correction(s)", "Gemini requests (this recording, all attempts): free 6 · paid 2",
-      "Import cancelled", "Stop (finished transcription is kept)", "Drop an audio file here, or click to choose", "Up to 512 MB",
+    for (const text of ["Audio / recording", "Saved as 1 source(s) · 4 correction(s)", "2 doubtful word(s) were left unchanged; see them in the source", "Stopped", "View details",
+      "Drop an audio file here, or click to choose", "Up to 512 MB",
       "Find in the workspace", "Paste a file path (advanced)"])
       assert.ok(html.includes(text), text);
     const picked = render({ initialFile: chosen }).replace(/lecture\.mp3|数据库|server says no/g, "");
@@ -117,7 +108,7 @@ test("English audio import copy is fully translated and keeps user content as wr
     assert.ok(render({ initialFile: chosen }).includes("数据库") && render().includes("lecture.mp3"), "course and file names stay in their own language");
     assert.doesNotMatch(renderToStaticMarkup(React.createElement(AudioCorrections, { audio })), /[㐀-鿿]/);
     setUiLanguage("zh");
-    assert.match(render(), /转写音频（1\/3）/);
+    assert.match(render(), /转写 \d|转写音频|查看详情/);
     assert.match(render(), /把音频文件拖到这里，或点击选择/);
     assert.match(render({ initialFile: chosen }), /45 MB · 已上传/);
     assert.match(render(), /已存为 1 份资料 · 校对修正 4 处/);
@@ -127,7 +118,7 @@ test("English audio import copy is fully translated and keeps user content as wr
 test("only audio jobs are listed, and nothing renders when there are none", () => {
   assert.equal(renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [{ type: "draft-repair", id: "x", status: "running" }] }, busy: false, act() {} })), "");
   const html = renderToStaticMarkup(React.createElement(AudioJobs, { data, busy: false, act() {} }));
-  assert.equal(html.match(/class="sh-job /g).length, 4);
+  assert.equal(html.match(/class="cjc[ "]/g).length, 4);
 });
 
 test('audio imports show the source-page course, including source-only courses and explicit unassigned', () => {
@@ -144,23 +135,23 @@ test("the corrections list shows applied edits and, separately, the doubtful one
   assert.equal(renderToStaticMarkup(React.createElement(AudioCorrections, { audio: { corrections: { applied: [], skipped: [] } } })), "");
 });
 
-test("a failed import shows what is already saved and offers to continue without paying again", () => {
+test("a failed import says why on its card and offers the way on; what is saved is in the console", () => {
   const failed = { type: "audio-import", id: "f1", status: "failed", filename: "lecture.mp3", phase: "translate", done: 0, total: 8, minutes: 47.8,
     stage: "翻译第 1/8 部分失败：boom", retryable: true, warnings: [],
     steps: { transcribe: { done: 1, total: 1 }, proofread: { done: 5, total: 5 }, translate: { done: 0, total: 8 } } };
   const html = (job) => renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [job] }, busy: false, act() {} }));
   try {
     setUiLanguage("zh");
-    assert.match(html(failed), /已保存：转写 1\/1 · 校对 5\/5 · 翻译 0\/8/);
-    assert.match(html(failed), /接着做（不重复付费）/);
+    assert.match(html(failed), /翻译第 1\/8 部分失败：boom/);
+    assert.match(html(failed), /看原因并继续/);
+    assert.match(usageLine({ ...failed, usage: usage(1, 0) }), /Gemini 请求：免费 1 · 付费 0/);
     setUiLanguage("en");
     const english = html(failed).replace(/lecture\.mp3|翻译第 1\/8 部分失败：boom/g, "");
-    assert.doesNotMatch(english, /[㐀-鿿]/);
-    assert.ok(english.includes("Saved: Transcription 1/1 · Proofreading 5/5 · Translation 0/8"));
-    assert.ok(english.includes("Continue (nothing is paid for twice)"));
-    assert.ok(!html({ ...failed, retryable: false }).includes("Continue (nothing"), "no button when there is nothing to resume");
-    assert.ok(!html({ ...failed, status: "complete", sourceIds: ["a"], corrected: 0 }).includes("Continue (nothing"), "and none on a finished import");
-    assert.ok(html({ ...failed, status: "cancelled" }).includes("Continue (nothing"), "a cancelled import can be continued too");
+    assert.doesNotMatch(english, /[\u3400-\u9fff]/);
+    assert.ok(english.includes("See why and continue"));
+    assert.ok(!html({ ...failed, retryable: false }).includes("See why and continue"), "no button when there is nothing to resume");
+    assert.ok(!html({ ...failed, status: "complete", sourceIds: ["a"], corrected: 0 }).includes("See why and continue"), "and none on a finished import");
+    assert.ok(html({ ...failed, status: "cancelled" }).includes("See why and continue"), "a cancelled import can be continued too");
   } finally { setUiLanguage("zh"); }
 });
 
@@ -181,7 +172,7 @@ test("progress is counted from the real steps; the moving segment shows only whi
   assert.ok(audioProgress(at({ transcribe: { done: 1, total: 1 }, proofread: { done: 5, total: 5 }, translate: { done: 7, total: 8 } }, "translate")).flight <= 5.7);
 });
 
-test("a running import shows the bar, the steps and the task in flight, and can open the sub-agent behind it", () => {
+test("a running import shows the percent, the bar and what runs now; the sub-agent behind it is in the console", () => {
   const minutesAgo = (n) => new Date(Date.now() - n * 60000).toISOString();
   const running = job({ status: "running", phase: "proofread", done: 1, total: 5, startedAt: minutesAgo(3),
     steps: { transcribe: { done: 1, total: 1 }, proofread: { done: 1, total: 5 } }, pace: { proofread: { at: Date.now() - 10000, each: 40000 } },
@@ -194,44 +185,34 @@ test("a running import shows the bar, the steps and the task in flight, and can 
     setUiLanguage("zh");
     const page = html();
     assert.match(page, /role="progressbar"[^>]*aria-valuenow="31"/);
-    assert.match(page, /<strong>31%<\/strong>/);
-    assert.match(page, /<li class="is-done"><svg[\s\S]*?<\/svg>转写 已完成 1\/1/, "a finished step is marked by an icon, not a text glyph");
-    assert.match(page, /校对 已完成 1\/5/);
-    assert.match(page, /正在做：校对 2\/5 · DSH 子代理 · 执行中 · 已等待 \d+ 秒/);
-    assert.match(page, /本步骤预计还需约 \d+ 分钟/);
-    assert.match(page, /录音时长 12\.5 分钟 · 已用 3 分 \d+ 秒/, "the length of the recording is labelled as such, next to the time spent");
-    assert.match(page, /查看历史任务 · 1 次模型任务/);
-    assert.equal(page.match(/>查看子代理</g).length, 1, "the active child is not duplicated in the historical list");
-    assert.ok(!html({}, { openAgent: undefined }).includes("查看子代理"), "no button when the host cannot open an agent");
+    assert.match(page, />31%</);
+    assert.match(page, /正在校对 2\/5/, "what runs now, from the call in flight");
+    assert.doesNotMatch(page, /查看子代理|查看历史任务|本步骤预计还需/);
     assert.ok(html({ tasks: [] }).includes("role=\"progressbar\""), "the bar does not depend on the task list");
-    assert.ok(!html({ tasks: [] }).includes("查看历史任务"));
-    assert.ok(html({ phase: "transcribe", steps: { transcribe: { done: 0, total: 1 } }, pace: {}, tasks: [] }).includes("不是卡住了"), "a long single request explains the wait");
-    assert.ok(!html({ status: "failed", stage: "boom" }).includes("progressbar"), "a stopped import has no moving bar; what is saved is listed instead");
-    assert.ok(!html({ phase: "queued", status: "queued" }).includes("progressbar"));
+    assert.match(html({ status: "queued", phase: "queued", tasks: [] }), /查看详情/);
     setUiLanguage("en");
     const english = html().replace(/lecture\.mp3/g, "");
-    assert.doesNotMatch(english, /[㐀-鿿]/);
-    for (const text of ["Working on: Proofreading 2/5 · DSH subagent · Running · waited", "Left in this step: about", "Transcription 1/1 done", "View subagent", "View task history · 1 model tasks", "recording length 12.5 min"])
-      assert.ok(english.includes(text), text);
+    assert.doesNotMatch(english, /[\u3400-\u9fff]/);
+    for (const text of ["Now: Proofreading 2/5", "View details", "Stop"]) assert.ok(english.includes(text), text);
   } finally { setUiLanguage("zh"); }
 });
 
-test("the card counts Groq requests on their own line and does not pretend they were Gemini's", () => {
+test("the console counts Groq requests on their own, and does not pretend they were Gemini's", () => {
   const groqOnly = { type: "audio-import", id: "g1", status: "complete", filename: "lecture.mp3", phase: "done", sourceIds: ["a"], corrected: 0, warnings: [],
     usage: { free: { requests: 0 }, groq: { requests: 4 }, paid: { requests: 0 } }, usageRun: { free: { requests: 0 }, groq: { requests: 4 }, paid: { requests: 0 } } };
-  const html = (job) => renderToStaticMarkup(React.createElement(AudioJobs, { data: { jobs: [job] }, busy: false, act() {} }));
   try {
     setUiLanguage("zh");
-    assert.match(html(groqOnly), /Groq 请求（免费额度，这份录音累计）：4 次/);
-    assert.ok(!html(groqOnly).includes("Gemini 请求（"), "no Gemini line when Gemini was not asked");
-    assert.ok(!html(groqOnly).includes("这次没有新发 Gemini 请求"), "a run that used only Groq is not reported as having done nothing");
+    assert.match(usageLine(groqOnly), /Groq 4（免费额度）/);
+    assert.ok(!usageLine(groqOnly).includes("Gemini 请求"), "no Gemini part when Gemini was not asked");
+    assert.ok(!usageLine(groqOnly).includes("这次没有新发转写请求"), "a run that used only Groq is not reported as having done nothing");
     const mixed = { ...groqOnly, usage: { free: { requests: 1 }, groq: { requests: 3 }, paid: { requests: 0 } }, usageRun: { free: { requests: 1 }, groq: { requests: 3 }, paid: { requests: 0 } } };
-    assert.match(html(mixed), /Gemini 请求（这份录音累计，含之前的尝试）：免费 1 次 · 付费 0 次/);
-    assert.match(html(mixed), /Groq 请求（免费额度，这份录音累计）：3 次/);
-    assert.ok(!html({ ...groqOnly, usage: { free: { requests: 2 }, paid: { requests: 0 } } }).includes("Groq 请求"), "an older job without a Groq tally shows no Groq line");
+    assert.match(usageLine(mixed), /Gemini 请求：免费 1 · 付费 0/);
+    assert.match(usageLine(mixed), /Groq 3（免费额度）/);
+    assert.ok(!usageLine({ ...groqOnly, usage: { free: { requests: 2 }, paid: { requests: 0 } } }).includes("Groq"), "an older job without a Groq tally shows no Groq part");
     setUiLanguage("en");
-    const english = html(mixed).replace(/lecture\.mp3/g, "");
-    assert.doesNotMatch(english, /[㐀-鿿]/);
-    assert.ok(english.includes("Groq requests (free allowance, this recording, all attempts): 3"));
+    const english = usageLine(mixed);
+    assert.doesNotMatch(english, /[\u3400-\u9fff]/);
+    assert.ok(english.includes("Groq 3 (free tier)"));
   } finally { setUiLanguage("zh"); }
 });
+

@@ -5,7 +5,7 @@ import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
 import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole } from '../workspace-views.jsx';
-import { contractOf, isLiveStatus } from '../tasks/task-model.js';
+import { resultOpener } from '../tasks/task-actions.js';
 import StudyMap from '../StudyMap.jsx';
 import Welcome, { SampleBanner } from '../Welcome.jsx';
 import Dashboard from '../Dashboard.jsx';
@@ -169,20 +169,8 @@ function AudioView() {
 
 /** 任务: every background job in one place. What each job's 打开结果 leads to is decided here, where the app's navigation lives. */
 function TasksView() {
-  const { data, drafts, intents, learn } = useApp();
-  const openers = {
-    // Where 打开结果 leads is read from the job's contract: the references to what it made (sources, a deck, a draft).
-    resultOf: (job) => {
-      const contract = contractOf(job), refs = contract.result.refs, live = isLiveStatus(contract.status);
-      const sourceIds = refs.filter((ref) => ref.kind === 'source').map((ref) => ref.id);
-      if (sourceIds.length) return { label: ui('打开资料'), run: () => learn.openAudioSources(sourceIds) };
-      const deck = refs.find((ref) => ref.kind === 'deck');
-      if (deck && data.decks.some((item) => item.id === deck.id)) return { label: ui('打开题组'), run: () => intents.openDeck(deck.id) };
-      const draft = refs.find((ref) => ref.kind === 'draft'), found = draft && data.drafts.find((item) => item.id === draft.id);
-      if (found && !live) return { label: ui('打开草稿'), run: () => drafts.openDraft(found, { navigation: true }) };
-      return null;
-    },
-  };
+  const app = useApp(), { data } = app;
+  const openers = { resultOf: (job) => resultOpener(job, app) };
   return <TaskConsole data={data} openers={openers} />;
 }
 

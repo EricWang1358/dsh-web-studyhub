@@ -3,6 +3,8 @@ import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
 import { formatDuration, joinMeta } from '../format.js';
 import { callLabel } from './call-model.js';
+import { useApp } from '../app/app-context.js';
+import GenerationTrace from '../GenerationTrace.jsx';
 
 /* 资料部分: the parts a question run was split into, each with the state of its three stages (writing, review, repair) and what it kept once the run has
    reported. A selected part shows, in a strip of fixed height at the bottom, the calls it made. (The questions themselves live in the draft; the job does
@@ -12,7 +14,8 @@ const STAGES = [['author', '出题'], ['review', '审阅'], ['repair', '修复']
 const STATUS_WORD = { passed: '全部通过', partial: '只保留了部分', failed: '没有出题', running: '进行中', working: '进行中', waiting: '等待中' };
 const dot = (status) => (status === 'passed' ? 'done' : status === 'partial' ? 'partial' : status === 'failed' ? 'fail' : status === 'waiting' ? 'queued' : 'run');
 
-export default function GenerationParts({ contract }) {
+export default function GenerationParts({ contract, task }) {
+  const { host } = useApp();
   const parts = contract.detail.partList || [], [picked, setPicked] = useState(parts.length === 1 ? 1 : null);
   const part = picked !== null ? parts.find((item) => item.part === picked) : null;
   const calls = part ? contract.calls.filter((call) => call.part === part.part) : [];
@@ -30,6 +33,8 @@ export default function GenerationParts({ contract }) {
           </Button>
         ))}
         {parts.length === 0 && <p className="tc-empty">{ui('还没有开始出题。')}</p>}
+        {/* The run's process (every step with its tokens and waits) and its technical details, open: the card on the home no longer carries them. */}
+        {task && <GenerationTrace job={task} openAgent={host?.openAgent} defaultOpen />}
       </div>
       <div className="tc-strip" aria-live="polite">
         {part ? <>

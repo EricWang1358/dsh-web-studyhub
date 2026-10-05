@@ -98,11 +98,12 @@ test("running jobs and pending drafts sit above the desk, naming the deck in pla
     steps: [{ id: "s1", stage: "Part 1/2 · Writing and self-checking questions", part: 1, status: "running", runtime: "subagent", childId: "child-1",
       startedAt: "2026-10-01T00:00:00Z" }] };
   const html = render({ sources: pdfPages, jobs: [job], drafts: [{ id: "dr", title: "旧草稿", cards: [{ id: "c" }], editorial: {} }] });
-  const jobAt = html.indexOf('class="sh-job '), draftAt = html.indexOf('class="draft-row"'), deskAt = html.indexOf('class="desk');
+  const jobAt = html.indexOf('class="cjc"'), draftAt = html.indexOf('class="draft-row"'), deskAt = html.indexOf('class="desk');
   assert.ok(jobAt > 0 && jobAt < deskAt, "the job card comes before the desk");
   assert.ok(draftAt > 0 && draftAt < deskAt, "pending drafts come before the desk");
   assert.match(html, /正在生成「索引小测」/);
   assert.match(html, /正在出题/);
+  assert.match(html, /查看详情/, "the card opens the job in the 任务 console");
   const plain = visibleText(withoutTechDetails(html));
   assert.doesNotMatch(plain, /Writing|Parallel|Part \d|batches/, "no English stage text in the Chinese UI");
   assert.doesNotMatch(plain, /子代理|直接模型调用|本地核验/, "engineering jargon stays in the technical details");
@@ -119,7 +120,7 @@ test("a finished job opens its draft, and a stopped one says what was kept", () 
   const drafts = [{ id: "dr", title: "索引小测", cards: [{ id: "a" }, { id: "b" }, { id: "c" }], editorial: {} }];
   const done = render({ sources: pdfPages, drafts, jobs: [{ id: "j", status: "complete", stageCode: "done", draftId: "dr", deckTitle: "索引小测",
     savedCount: 3, requestedTotal: 3, steps: [] }] });
-  assert.match(done, /<button[^>]*>打开草稿<\/button>/);
+  assert.match(done, /<button[^>]*>打开草稿<span[^>]*>→<\/span><\/button>/);
   const stoppedWithDraft = render({ sources: pdfPages, drafts, jobs: [{ id: "j", status: "cancelled", stageCode: "cancelled", draftId: "dr",
     deckTitle: "索引小测", savedCount: 3, stage: "Generation cancelled; approved questions were retained", steps: [] }] });
   assert.match(stoppedWithDraft, /已生成的 3 题保存在草稿里/);
@@ -129,13 +130,12 @@ test("a finished job opens its draft, and a stopped one says what was kept", () 
   for (const html of [stoppedWithDraft, stopped]) assert.doesNotMatch(visibleText(withoutTechDetails(html)), /approved|retained/);
 });
 
-test("a failure without a key says so in plain words with a fix, raw details behind a disclosure", () => {
+test("a failure without a key says so in plain words with a fix; the raw message is in the console", () => {
   const raw = 'Study subagent error: llm-deepseek: no API key for provider route "deepseek/deepseek-chat"';
   const html = render({ sources: pdfPages, jobs: [{ id: "j", status: "failed", stageCode: "failed", deckTitle: "索引小测", stage: raw, steps: [] }] });
   assert.match(html, /还没有可用的模型密钥/);
-  assert.match(html, /<button[^>]*>(?:<svg.*?<\/svg>)?去配置模型<\/button>/);
-  assert.match(html, /<details class="sh-disclosure tech-details"[\s\S]*?技术详情[\s\S]*?no API key[\s\S]*?<\/details>/);
-  assert.doesNotMatch(withoutTechDetails(html), /no API key|llm-deepseek/);
+  assert.match(html, /<button[^>]*>去配置模型<span[^>]*>→<\/span><\/button>/);
+  assert.doesNotMatch(html, /no API key|llm-deepseek/, "the raw message is in the console's log, not on the card");
 });
 
 test("the English home reads in English, job cards included", () => {

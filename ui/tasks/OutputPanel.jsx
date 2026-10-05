@@ -4,6 +4,8 @@ import { useNow } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { usePolling } from '../use-polling.js';
 import AgentLink from '../AgentLink.jsx';
+import { reasoningNote } from '../audio/audio-notes.js';
+import { formatExactTokens } from '../../lib/token-usage.js';
 import { formatElapsed, formatNumber, joinMeta } from '../format.js';
 import { callLabel, runnerLabel, outputMode } from './call-model.js';
 
@@ -35,6 +37,12 @@ function useOutput({ jobId, call, enabled }) {
   return view;
 }
 
+/** What is known about a call without opening its session, as one line: what the reasoning setting did, how big its prompt was, what it used, the start of its answer. */
+export function callFacts(call) {
+  return joinMeta([reasoningNote(call), call.inputChars > 0 ? uiFormat('输入约 {0} 字', [formatNumber(call.inputChars)]) : '',
+    call.tokens > 0 ? uiFormat('用量：{0} tok', [formatExactTokens(call.tokens)]) : '', call.outputPreview ? uiFormat('最近输出：{0}', [call.outputPreview]) : '']);
+}
+
 export default function OutputPanel({ jobId, call, active }) {
   const { host } = useApp();
   const mode = outputMode(call), now = useNow(1000, { enabled: mode === 'stream' });
@@ -52,6 +60,7 @@ export default function OutputPanel({ jobId, call, active }) {
         <div className="tc-output__title"><strong>{callLabel(call, { file: true })}</strong><span>{meta}</span></div>
         <AgentLink childId={call.childId} parentId={call.parentId} openAgent={host?.openAgent} label={`${ui('在 DSH 中打开完整会话')} ↗`} ariaLabel={uiFormat('在 DSH 中打开完整会话：{0}', [callLabel(call)])} />
       </div>
+      <p className="tc-output__facts">{callFacts(call)}</p>
       {quiet || mode === 'ended' ? (
         <p className="tc-empty tc-output__quiet">{mode === 'ended' ? ui('这一步已经结束；输出不保留，完整内容在 DSH 会话里。')
           : call.runner === 'gemini' ? ui('这一步由转写服务直接处理，不提供中间输出；完成后会在日志里记一条，并显示用时。') : ui('这一步不提供中间输出。')}</p>

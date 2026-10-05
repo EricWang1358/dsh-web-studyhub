@@ -9,7 +9,7 @@ import denseCss from '../dense-surface.css';
 import css from './task-console.css';
 import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask } from './task-model.js';
 import { taskSummary, stateLabel } from './task-summary.js';
-import { taskFacts, taskSegments } from './task-facts.js';
+import { taskFacts, taskSegments, usageLine } from './task-facts.js';
 import { headerActions } from './task-control.js';
 import ControlRow from './ControlRow.jsx';
 import TaskBody from './TaskBody.jsx';
@@ -77,7 +77,7 @@ function Detail({ task, data, openers, full, onFull }) {
   const quick = useQuickActions();
   const contract = contractOf(task), summary = taskSummary(task), actions = headerActions(task);
   const live = isRunningTask(task), now = useNow(1000, { enabled: live });
-  const result = openers.resultOf(task, data);
+  const result = openers.resultOf(task, data), usage = usageLine(task);
   const started = contract.startedAt ? formatDateTime(contract.startedAt, 'stamp') : '';
   const act = (action) => core.act('job.control', { jobId: contract.jobId, action });
   return (
@@ -99,6 +99,7 @@ function Detail({ task, data, openers, full, onFull }) {
       </header>
       <Metrics job={task} summary={summary} now={now} />
       <ControlRow job={task} />
+      {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}
       <TaskBody task={task} />
     </section>
   );

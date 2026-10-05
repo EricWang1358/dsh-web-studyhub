@@ -2,43 +2,25 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, LoadingState, useNow } from './components/index.js';
-import { formatBytes, formatDuration, formatAgo, formatElapsed, joinMeta, formatDay } from './format.js';
+import { formatBytes, formatDuration, formatAgo, formatDay } from './format.js';
 import { usePolling } from './use-polling.js';
-import { isActiveJob, isCancellable } from './job-visibility.js';
-import { JOB_STATUS } from '../lib/job-status.js';
+import { isActiveJob } from './job-visibility.js';
 import { megabytes } from '../lib/office/limits.js';
 import { HISTORY_PAGE, groupHistoryByDay, historyRefreshKey, pageRange, isConvertJob } from './mineru-flow.js';
+import CompactJobCard from './tasks/CompactJobCard.jsx';
 import css from './mineru.css';
 
-/* The progress card of a PDF conversion (cloud or local): a JobRow, so it looks and behaves like every other background job: real
-   progress, one stop button, a retry that does not redo finished pieces, a way to dismiss it. Progress is pages converted over
-   pages in the book, never a guess: the cloud counts the pages MinerU reports as extracted, the local route counts finished page
-   windows. The row is not a live region (the clock ticks every second); only a new phase or an end is announced. */
+/* The compact card of a PDF conversion (cloud or local), the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
+   guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces; restart the stopped local service first;
+   change the token; open the pages). What used to fill the card (the 运行环境, the window in hand and the service's own state, the pace, the windows) is
+   `PdfDetail`, the kind's section of the 任务 console. */
 
-const PHASE_TEXT = {
-  queued: () => ui('排队中'), split: () => ui('切分'), upload: () => ui('上传'), parse: () => ui('解析'), local: () => ui('本地解析'),
-  download: () => ui('下载'), merge: () => ui('合并'), save: () => ui('保存'), interrupted: () => ui('已中断'), done: () => ui('完成'),
-};
-
-function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, expandChunks }) {
-  const running = isActiveJob(job), now = useNow(1000, { enabled: running });
-  const [working, setWorking] = useState(''), [problem, setProblem] = useState('');
-  const took = job.startedAt && job.status !== 'queued' ? (running ? now : Date.parse(job.finishedAt || job.startedAt)) - Date.parse(job.startedAt) : null;
-  const percent = job.total > 0 ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0;
-  const count = job.chunk?.count || 1, index = job.chunk?.index || 0;
-  // The adaptive plan decides its windows one at a time: "第 3 段", never "第 3/N 段".
-  const adaptive = job.route === 'local' && !!job.local?.adaptive;
-  const piece = adaptive ? (index > 0 ? uiFormat('第 {0} 段', [index]) : '') : count > 1 && index > 0 ? uiFormat('第 {0}/{1} 段', [index, count]) : '';
-  const route = job.converter === 'marker' ? 'Marker · ' + ui('本地') : job.route === 'local' ? ui('本地') : ui('云端');
-  const title = job.status === 'complete' ? uiFormat('已存为 {0} 页资料 · {1}解析', [job.sourceIds?.length ?? 0, route])
-    : job.status === 'failed' ? ui('转换未完成')
-      : job.status === 'cancelled' ? ui('转换已取消')
-        : job.status === JOB_STATUS.CANCELLING ? ui('正在停止')
-          : [PHASE_TEXT[job.phase]?.() || ui('处理中'), piece].filter(Boolean).join(' · ');
+function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) {
+  const [working, setWorking] = useState('');
   const run = async (name, work) => {
     if (working) return;
-    setWorking(name); setProblem('');
-    try { await work(); onChanged?.(); } catch (error) { setProblem(errorMessage(error)); } finally { setWorking(''); }
+    setWorking(name);
+    try { await work(); onChanged?.(); } catch { /* the console shows what went wrong; the card stays as it was */ } finally { setWorking(''); }
   };
   const retry = () => run('retry', async () => {
     // A stopped local service is started again first, which is the usual reason a local window failed.
@@ -46,23 +28,24 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
     await send('mineru.retry', { jobId: job.id });
   });
   const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
-  const meta = <>{joinMeta([title, took !== null && (running || job.finishedAt) ? uiFormat(running ? '已用 {0}' : '用时 {0}', [formatElapsed(took)]) : ''])}</>;
-  const pages = uiFormat('已解析 {0}/{1} 页', [job.done, job.total]);
-  const actions = [
-    ...(isCancellable(job) ? [{ key: 'stop', label: ui('停止（已解析好的段落会保留）'), disabled: !!working, onClick: () => run('cancel', () => send('job.cancel', { jobId: job.id })) }] : []),
-    ...(job.status === 'failed' && job.retryable && !tokenProblem ? [{ key: 'retry', variant: 'primary', busy: working === 'retry', disabled: !!working, onClick: retry,
-      title: ui('已完成的段落会直接复用，不会重复上传或重复解析'),
-      label: job.errorCode === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做（不重复已完成的段落）') }] : []),
-    ...(tokenProblem && onOpenSettings ? [{ key: 'token', variant: 'primary', label: ui('去设置里换一个令牌'), onClick: onOpenSettings }] : []),
-    ...(tokenProblem && job.retryable ? [{ key: 'after-token', busy: working === 'retry', disabled: !!working, onClick: retry, label: ui('换好令牌后接着做') }] : []),
-    ...(job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? [{ key: 'open', variant: 'link', label: ui('打开资料'), onClick: () => onOpenSources(job.sourceIds) }] : []),
-  ];
+  const primary = tokenProblem && onOpenSettings ? { label: ui('去设置里换一个令牌'), run: onOpenSettings }
+    : job.status === 'failed' && job.retryable && !tokenProblem ? { label: job.errorCode === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做'), run: retry, disabled: !!working }
+      : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
+  return <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'cloud'}
+    onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
+    onDismiss={() => void run('dismiss', () => send('job.dismiss', { jobId: job.id }))} />;
+}
+
+/**
+ * What the 任务 console shows of a PDF conversion beyond the timeline: the 运行环境 (what does the work), the window in hand with the service's own state,
+ * the pace and what is left, and the windows done and to come. The card on the page says none of this; it is the same text the card used to carry.
+ */
+export function PdfDetail({ job, expandChunks }) {
+  useInjectCss(css, 'study-mineru');
+  const running = isActiveJob(job), now = useNow(1000, { enabled: running });
+  const count = job.chunk?.count || 1, index = job.chunk?.index || 0, adaptive = job.route === 'local' && !!job.local?.adaptive;
   return (
-    <JobRow id={`pdf-job-${job.id}`} tabIndex={-1} data-route={job.route || 'cloud'} leaving={job.leaving}
-      status={job.status === JOB_STATUS.CANCELLING ? 'running' : job.status} stage={running ? PHASE_TEXT[job.phase]?.() || ui('处理中') : undefined}
-      title={job.filename} meta={meta} actions={actions} onDismiss={running ? undefined : () => void run('dismiss', () => send('job.dismiss', { jobId: job.id }))}
-      failure={job.status === 'failed' ? { hint: uiMessage(job.stage) } : undefined}
-      progress={running && job.phase !== 'queued' ? { value: percent, max: 100, label: pages, summary: <><strong>{percent}%</strong><small>{pages}</small></> } : undefined}>
+    <div className="pdf-detail">
       <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
       {running && job.phase !== 'queued' && <>
         {job.route === 'local' && (count > 1 || adaptive) && <Hint as="small">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</Hint>}
@@ -73,10 +56,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, ex
       {job.note && running && <Hint as="small">{uiMessage(job.note)}</Hint>}
       {running && job.local?.halved > 0 && <Hint as="small">{uiFormat('有窗口没有成功，已自动拆成更小的段重试（{0} 次）', [job.local.halved])}</Hint>}
       {(adaptive ? job.chunks?.length > 0 : count > 1 && job.chunks?.length > 1) && job.status !== 'complete' && <ChunkList chunks={job.chunks} index={index} count={count} running={running} expanded={expandChunks} adaptive={adaptive} next={adaptive && running ? job.local?.next : 0} />}
-      {(job.warnings || []).map(warning => <InlineMessage tone="warning" key={warning}>{uiMessage(warning)}</InlineMessage>)}
-      {job.status === 'cancelled' && job.stage && <Hint as="small">{uiMessage(job.stage)}</Hint>}
-      {problem && <InlineMessage tone="error">{uiFormat('没能完成：{0}', [problem])}</InlineMessage>}
-    </JobRow>
+    </div>
   );
 }
 
@@ -88,7 +68,7 @@ export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOp
   useInjectCss(css, 'study-mineru');
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
   const send = (action, args) => (act ? act(action, args) : call(action, args));
-  return list.length ? <div className="sh-job-list pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} expandChunks={expandChunks} />)}</div> : null;
+  return list.length ? <div className="cjc-list pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} expandChunks={expandChunks} />)}</div> : null;
 }
 
 /* ---------- the window in hand: what the service says about it ---------- */

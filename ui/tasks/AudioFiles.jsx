@@ -27,7 +27,7 @@ function Cells({ file }) {
 export default function AudioFiles({ contract }) {
   const { core } = useApp();
   const files = contract.detail.files || [], blocked = contract.detail.blocked;
-  const [picked, setPicked] = useState(files.length === 1 ? 0 : null), [problem, setProblem] = useState('');
+  const [picked, setPicked] = useState(files.length === 1 ? 0 : Number.isInteger(blocked?.index) ? blocked.index : null), [problem, setProblem] = useState('');
   const file = picked !== null ? files[picked] : null;
   const skip = async () => {
     setProblem('');

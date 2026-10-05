@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export { default as MineruSettings, LocalMineruPanel, MineruTokenForm, PrivacyConfirm, localSummary, privacyNote } from './ui/MineruSettings.jsx';
   export { default as MineruRoute } from './ui/MineruRoute.jsx';
-  export { PdfConvertJobs } from './ui/PdfConvertJob.jsx';
+  export { PdfConvertJobs, PdfDetail } from './ui/PdfConvertJob.jsx';
   export { default as LargeDocumentCard, ConverterMain } from './ui/LargeDocumentCard.jsx';
   export { importDoneMessage, importOutcome } from './ui/ImportHub.jsx';
   export { chooseRoute, uploadPdf, localEstimate, minutesOf, sizeLabel, pageRange } from './ui/mineru-flow.js';
@@ -20,7 +20,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { MineruSettings, LocalMineruPanel, MineruTokenForm, PrivacyConfirm, MineruRoute, PdfConvertJobs, LargeDocumentCard, importDoneMessage, importOutcome,
+const { MineruSettings, LocalMineruPanel, MineruTokenForm, PrivacyConfirm, MineruRoute, PdfConvertJobs, PdfDetail, LargeDocumentCard, importDoneMessage, importOutcome,
   chooseRoute, uploadPdf, localEstimate, minutesOf, sizeLabel, pageRange, TOOLS, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
@@ -199,15 +199,18 @@ test('without a file the entry offers a PDF picker and peer converters without m
 const job = (extra = {}) => ({ id: 'j1', type: 'pdf-convert', route: 'cloud', filename: 'Book.pdf', status: 'running', phase: 'parse', done: 260, total: 450, chunk: { index: 2, count: 3 },
   chunks: [{ index: 1, startPage: 1, endPage: 200, pages: 200, state: 'done' }, { index: 2, startPage: 201, endPage: 400, pages: 200, state: 'parsing' }, { index: 3, startPage: 401, endPage: 450, pages: 50, state: 'planned' }],
   stage: '第 2/3 段 · 正在解析', warnings: [], note: '', startedAt: new Date(Date.now() - 90_000).toISOString(), ...extra });
-const jobs = list => h(PdfConvertJobs, { jobs: list, call, onOpenSources() {}, onOpenSettings() {} });
+// The card on a page and, beside it, the detail the 任务 console shows (the environment, the window in hand, the windows): what a job says in all.
+const jobs = (list, expandChunks) => h(React.Fragment, null, h(PdfConvertJobs, { jobs: list, call, onOpenSources() {}, onOpenSettings() {} }),
+  ...list.filter(item => item.type === 'pdf-convert').map(item => h(PdfDetail, { key: item.id, job: item, expandChunks })));
 
 test('a running conversion: real progress (pages over pages), which piece of N, the phase, and a stop button; no fake percentage', () => {
   const html = render(jobs([job()]));
-  assert.match(html, /解析 · 第 2\/3 段/);
+  assert.match(html, /解析文档 · 第 2\/3 段/);
   assert.match(html, /role="progressbar"[^>]*aria-valuenow="58"/);
-  assert.match(html, /已解析 260\/450 页/);
-  assert.match(html, /第 1 段 · 第 1–200 页/);
-  assert.match(html, /停止（已解析好的段落会保留）/);
+  assert.match(html, /260\/450 页完成/);
+  assert.match(html, /第 1 段 · 第 1–200 页/, 'the windows are in the console detail');
+  assert.match(html, />停止</);
+  assert.equal((html.match(/class="cjc"/g) || []).length, 1, 'one compact card');
   const local = render(jobs([job({ route: 'local', phase: 'local', done: 100, chunk: { index: 3, count: 9 } })]));
   assert.match(local, /本地解析 · 第 3\/9 段/);
   assert.match(local, /不是卡住了/);
@@ -221,20 +224,19 @@ test('an honest slowdown note is shown, never as a failure', () => {
 
 test('a failed conversion offers to continue without redoing finished pieces; a stopped local service restarts first; a bad token goes to settings', () => {
   const failed = render(jobs([job({ status: 'failed', retryable: true, phase: 'parse', stage: '连不上 MinerU：请检查网络后重试（已完成的部分会保留）。', errorCode: 'network' })]));
-  assert.match(failed, /转换未完成/);
-  assert.match(failed, /接着做（不重复已完成的段落）/);
+  assert.match(failed, /连不上 MinerU/);
+  assert.match(failed, />接着做</);
   assert.match(failed, /知道了/);
   const stopped = render(jobs([job({ status: 'failed', retryable: true, route: 'local', errorCode: 'server-stopped', stage: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。' })]));
   assert.match(stopped, /重新启动本地服务并接着做/);
   const token = render(jobs([job({ status: 'failed', retryable: true, errorCode: 'invalid-token', stage: 'MinerU 令牌无效：请到「设置 › MinerU 云端解析」重新粘贴一个有效的令牌。' })]));
   assert.match(token, /去设置里换一个令牌/);
-  assert.match(token, /换好令牌后接着做/);
-  assert.doesNotMatch(token, /接着做（不重复已完成的段落）/);
+  assert.doesNotMatch(token, />接着做</, 'one button: the token first');
 });
 
 test('a finished conversion says how many pages were saved and opens them; other job types are not drawn', () => {
   const html = render(jobs([job({ status: 'complete', phase: 'done', done: 450, sourceIds: Array.from({ length: 450 }, (_, i) => `s${i}`), finishedAt: new Date().toISOString() }), { id: 'a', type: 'audio-import', filename: 'x.mp3', status: 'running' }]));
-  assert.match(html, /已存为 450 页资料 · 云端解析/);
+  assert.match(html, /已存为 450 份资料/);
   assert.match(html, /打开资料/);
   assert.doesNotMatch(html, /x\.mp3/);
   assert.equal(render(jobs([])), '');

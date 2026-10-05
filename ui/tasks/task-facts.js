@@ -1,6 +1,8 @@
 import { ui, uiFormat } from '../i18n.js';
 import { formatElapsed, formatNumber } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
+import { joinMeta } from '../format.js';
+import { parallelNote, reuseNote } from '../audio/audio-notes.js';
 import { contractOf, isRunningTask } from './task-model.js';
 
 /* The four facts beside a task's progress and the stage segments of its bar, read from the job's contract. */
@@ -34,6 +36,26 @@ export function taskFacts(job, now = Date.now()) {
     { key: 'calls', label: ui('模型任务'), value: usage.tokens > 0 ? `${callsFact(contract)} · ${formatCompactTokens(usage.tokens)}` : callsFact(contract) },
     { key: 'warnings', label: ui('提醒'), value: notices ? uiFormat('{0} 条', [formatNumber(notices)]) : dash },
   ];
+}
+
+/**
+ * What an audio import has asked of its providers, as ONE line (the console keeps the line's height for every audio job): the Gemini requests, free and paid, with what the
+ * paid part of the transcription would cost, the free providers' counts, that this attempt asked for less than the whole (a reused transcript), and who did the text steps.
+ */
+export function usageLine(job) {
+  const contract = contractOf(job), usage = contract.detail?.usage;
+  if (contract.kind !== 'audio-import') return '';
+  const files = contract.detail.files || [], total = files.reduce((sum, file) => sum + (file.steps?.transcribe?.total || 0), 0);
+  const reused = reuseNote(total > 0 ? { transcribe: { total, done: total, reused: files.reduce((sum, file) => sum + (file.steps?.transcribe?.reused || 0), 0) } } : undefined);
+  const windows = contract.status === 'running' && files.some((file) => file.status === 'running' && ['proofread', 'translate'].includes(file.phase)) ? parallelNote(contract.detail.parallel?.text) : '';
+  if (!usage) return joinMeta([ui('还没有向转写服务发请求'), reused, windows]);
+  const gemini = usage.gemini.free + usage.gemini.paid;
+  const text = contract.detail.textProvider === 'host' && contract.progress.segments?.some((segment) => ['proofread', 'translate'].includes(segment.stage) && segment.done > 0)
+    ? ui('校对和翻译由 DSH 模型完成') : '';
+  return joinMeta([gemini > 0 ? uiFormat('Gemini 请求：免费 {0} · 付费 {1}', [usage.gemini.free, usage.gemini.paid]) : '',
+    gemini > 0 && usage.paidUsd > 0 ? uiFormat('转写付费约 ${0}', [usage.paidUsd]) : '',
+    usage.thisRun ? uiFormat('本次：免费 {0} · 付费 {1}', [usage.thisRun.free, usage.thisRun.paid]) : gemini === 0 && usage.siliconflow + usage.groq === 0 ? ui('这次没有新发转写请求') : '',
+    usage.siliconflow > 0 ? uiFormat('硅基流动 {0}（免费）', [usage.siliconflow]) : '', usage.groq > 0 ? uiFormat('Groq {0}（免费额度）', [usage.groq]) : '', text, reused, windows]);
 }
 
 /** The stage segments of the progress bar: [{ stage, label, done, total }], in the order the work happens. */

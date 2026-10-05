@@ -156,15 +156,14 @@ test('a running job row is neutral or info at the border, never cinnabar', () =>
   assert.doesNotMatch(ruleOf('.sh-job--running'), /accent/);
 });
 
-test('the transcript link of a finished audio job sits in the actions row beside 知道了', async () => {
+test('the transcript button of a finished audio job is the card\'s one primary button, beside 知道了', async () => {
   const audio = await loadUi(`export { AudioJobs } from './ui/audio/AudioJobs.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
   audio.setUiLanguage('zh');
   const job = { type: 'audio-import', id: 'c', status: 'complete', filename: 'lecture.mp3', phase: 'done', sourceIds: ['s1'], finishedAt: new Date().toISOString(), startedAt: new Date(Date.now() - 5000).toISOString(), steps: {}, warnings: [] };
   const out = renderToStaticMarkup(h(audio.AudioJobs, { data: { jobs: [job] }, busy: false, act() {}, onOpenSources() {} }));
-  const actions = out.match(/<div class="sh-job__actions">(.*?)<\/div>/s)?.[1] || '';
-  assert.match(actions, /打开逐字稿/);
-  assert.match(actions, /知道了/);
-  assert.ok(actions.indexOf('打开逐字稿') < actions.indexOf('知道了'));
+  assert.match(out, /class="[^"]*cjc__go[^"]*"[^>]*>[^<]*打开逐字稿|打开逐字稿：lecture\.mp3/);
+  assert.match(out, /知道了/);
+  assert.equal((out.match(/打开逐字稿/g) || []).length >= 1, true);
 });
 
 /* ---------- 5. Question counts (#121) ---------- */

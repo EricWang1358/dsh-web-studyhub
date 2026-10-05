@@ -9,6 +9,7 @@ import OutputPanel from './OutputPanel.jsx';
 import LogPanel from './LogPanel.jsx';
 import AudioFiles from './AudioFiles.jsx';
 import GenerationParts from './GenerationParts.jsx';
+import { PdfDetail } from '../PdfConvertJob.jsx';
 
 /* The two columns under the controls, one template for every kind of job: on the left the parallel timeline above the tabs 「正在进行」 and the kind's own
    section (文件 for audio, 资料部分 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall as the window leaves them and
@@ -18,6 +19,7 @@ const SECTIONS = {
   audio: { value: 'files', label: '文件', count: (contract) => contract.detail.files?.length || 0, View: AudioFiles },
   generation: { value: 'parts', label: '资料部分', count: (contract) => contract.detail.partList?.length || 0, View: GenerationParts },
   supplement: { value: 'parts', label: '资料部分', count: (contract) => contract.detail.partList?.length || 0, View: GenerationParts },
+  pdf: { value: 'convert', label: '转换详情', count: () => '', View: ({ task }) => <div className="tc-scroll"><PdfDetail job={task} /></div> },
 };
 
 export default function TaskBody({ task }) {
@@ -27,7 +29,7 @@ export default function TaskBody({ task }) {
   const running = useMemo(() => runningCalls(calls), [calls]);
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || null;
   const choose = (callId) => { setSelected(callId); setRightTab('output'); };
-  const leftItems = [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }, ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}` }] : [])];
+  const leftItems = [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }, ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
   const View = section?.View;
   return (
     <div className="tc-body">
@@ -37,7 +39,7 @@ export default function TaskBody({ task }) {
         <TabPanel id={left} value="running" selected={leftTab} className="tc-panel" tabIndex={undefined}>
           <div className="tc-scroll"><RunningCalls calls={calls} active={live} selected={target?.callId} onSelect={choose} /></div>
         </TabPanel>
-        {section && <TabPanel id={left} value={section.value} selected={leftTab} className="tc-panel" tabIndex={undefined}><View contract={contract} /></TabPanel>}
+        {section && <TabPanel id={left} value={section.value} selected={leftTab} className="tc-panel" tabIndex={undefined}><View contract={contract} task={task} /></TabPanel>}
       </div>
       <div className="tc-col">
         <Tabs id={right} className="tc-tabs" itemClassName="tc-tab" label={ui('右侧面板')} value={rightTab} onChange={setRightTab}

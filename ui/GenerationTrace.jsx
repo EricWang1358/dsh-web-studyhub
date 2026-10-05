@@ -18,15 +18,15 @@ const seconds = (from, to) => Math.max(0, Math.round((to - Date.parse(from)) / 1
 /* What a generation job did, step by step, in plain words. How it ran
    (background helpers, direct model calls, time limits, delivery receipts)
    stays behind 技术详情 for whoever wants to look (P29). */
-export default function GenerationTrace({ job, openAgent }) {
+export default function GenerationTrace({ job, openAgent, defaultOpen = false }) {
   const steps = job.steps || [];
   const active = isActiveJob(job);
   // The waited-seconds readout only exists while the trace is open: a collapsed trace never re-renders on a clock.
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const now = useNow(1000, { enabled: active && open });
   const status = STEP_STATUS();
   const stageRows = stageUsageRows(job);
-  return <details className="generation-trace" onToggle={(event) => setOpen(event.currentTarget.open)}>
+  return <details className="generation-trace" open={defaultOpen || undefined} onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary>{uiFormat("查看执行过程 · {0} 步", [steps.length])}</summary>
     {job.retrieval && <p className="muted" data-retrieval={retrievalSummary(job.retrieval).error ? "error" : "used"}>{retrievalSummary(job.retrieval).text}</p>}
     {!steps.length && <p className="muted">{job.status === "queued" ? ui("正在排队，还没有开始。") : ui("还没有步骤记录。")}</p>}

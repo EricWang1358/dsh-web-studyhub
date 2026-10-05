@@ -40,7 +40,7 @@ const map = (jobs, { busy = false, quick, dismissJob = noop } = {}) => {
 
 test("知道了 stays clickable while another action is busy: it is not part of the single-flight act", () => {
   const html = map([generation("a", "failed"), generation("b", "complete")], { busy: true });
-  const buttons = html.match(/<button[^>]*class="[^"]*sh-job__dismiss[^"]*"[^>]*>/g) || [];
+  const buttons = html.match(/<button[^>]*aria-label="知道了：[^"]*"[^>]*>/g) || [];
   assert.equal(buttons.length, 2);
   for (const button of buttons) assert.doesNotMatch(button, /disabled/);
   assert.match(html, /class="[^"]*jobs-dismiss-all"(?![^>]*disabled)/);
@@ -48,8 +48,8 @@ test("知道了 stays clickable while another action is busy: it is not part of 
 
 test("a card that is leaving is animated out and no longer counted for 全部知道了", () => {
   const html = map([generation("a", "failed", { leaving: true }), generation("b", "complete")]);
-  assert.match(html, /<article[^>]*class="sh-job sh-job--failed is-leaving[^"]*"[^>]*data-job-id="a"/);
-  assert.doesNotMatch(html, /sh-job--complete is-leaving/);
+  assert.match(html, /<article[^>]*class="cjc is-leaving[^"]*"[^>]*data-job-id="a"/);
+  assert.doesNotMatch(html, /is-leaving[^>]*data-job-id="b"/);
   assert.doesNotMatch(html, /全部知道了/, "only one visible finished card is left, so the bulk action goes away");
   const leavingButton = html.match(/data-job-id="a"[\s\S]*?<\/article>/)[0];
   assert.match(leavingButton, /aria-hidden="true"/, "a card on its way out is hidden from assistive tech");
@@ -81,11 +81,11 @@ test("audio cards: 知道了 is never disabled, leaving cards animate out, error
     return renderToStaticMarkup(quick ? React.createElement(QuickActionsContext.Provider, { value: quick }, tree) : tree);
   };
   const html = render();
-  const buttons = html.match(/<button[^>]*class="[^"]*sh-job__dismiss[^"]*"[^>]*>/g) || [];
+  const buttons = html.match(/<button[^>]*aria-label="知道了：[^"]*"[^>]*>/g) || [];
   assert.equal(buttons.length, 2);
   for (const button of buttons) assert.doesNotMatch(button, /disabled/);
-  assert.match(html, /class="sh-job sh-job--complete"/);
-  assert.match(html, /class="sh-job sh-job--failed is-leaving"/);
+  assert.match(html, /class="cjc"[^>]*data-job-id="one"/);
+  assert.match(html, /class="cjc is-leaving"[^>]*data-job-id="two"/);
   const withError = render(quickValue({ one: "写入失败" }));
   assert.match(withError.match(/one\.mp3[\s\S]*?(?=two\.mp3)/)[0], /写入失败/);
 });
@@ -104,8 +104,8 @@ test("App wires every 知道了 and 全部知道了 through the light path, not 
   const app = await readAppSource();
   assert.match(await readFile("ui/StudyMap.jsx", "utf8"), /dismissJob = \(jobId, alsoIds\) => dismissJobs\(quick, jobId, alsoIds\)/, "StudyMap dismissJob uses dismissJobs()");
   assert.doesNotMatch(app, /act\("job\.dismiss"/);
-  const audioUi = await readFile("ui/audio/AudioJobs.jsx", "utf8");
-  assert.match(audioUi, /quick \? dismissJobs\(quick, job\.id\)/, "audio cards use the light path; act is only the fallback outside App");
+  const cardUi = await readFile("ui/tasks/CompactJobCard.jsx", "utf8");
+  assert.match(cardUi, /quick \? dismissJobs\(quick, job\.id\)/, "the compact cards (audio, generation, PDF) use the light path; act is only the fallback outside App");
   assert.match(app, /QuickActionsContext\.Provider/);
   assert.match(app, /markInboxRead\(quick/, "全部已读 is light as well");
 });

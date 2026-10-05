@@ -238,6 +238,22 @@
       border-bottom: 1px solid var(--line);
       background: var(--bg-surface);
     }
+    /* What an audio import asked of its providers: ONE line of a fixed height, whatever it says; the notices are the log's. */
+    .tc-usage {
+      flex: none;
+      height: var(--control-h-sm, 28px);
+      margin: 0;
+      padding: 0 var(--space-5);
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      line-height: var(--control-h-sm, 28px);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tc-output__facts { flex: none; height: var(--control-h-sm, 28px); margin: 0; padding: 0 var(--space-4); overflow: hidden; border-bottom: 1px solid var(--line-soft);
+      color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--control-h-sm, 28px); text-overflow: ellipsis; white-space: nowrap; }
     .tc-controls__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .tc-controls__idle { color: var(--text-muted); font-size: var(--fs-sm); }
     .tc-controls__note { color: var(--text-muted); font-size: var(--fs-xs); }

@@ -11,13 +11,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
-  export { PdfConvertJobs, PdfConvertHistory } from './ui/PdfConvertJob.jsx';
+  export { PdfConvertJobs, PdfConvertHistory, PdfDetail } from './ui/PdfConvertJob.jsx';
   export { default as MineruRoute } from './ui/MineruRoute.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { PdfConvertJobs, PdfConvertHistory, MineruRoute, setUiLanguage } = module.exports;
+const { PdfConvertJobs, PdfConvertHistory, PdfDetail, MineruRoute, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -34,7 +34,9 @@ const view = (extra = {}) => ({ adaptive: true, window: { index: 3, startPage: 3
 const job = (extra = {}) => ({ id: `j-${Math.random()}`, type: 'pdf-convert', route: 'local', tier: 'basic', filename: 'Scanned Textbook.pdf', status: 'running', phase: 'local', done: 30, total: 562,
   chunk: { index: 3, count: 0 }, chunks: windows, stage: '正在本地解析', warnings: [], note: '', startedAt: ago(200), env: localEnv, local: view(),
   service: { state: 'running', basis: 'window', at: ago(40) }, liveness: { state: 'parsing', at: ago(8), lastSignalAt: ago(8), silentForMs: 0 }, ...extra });
-const jobs = list => h(PdfConvertJobs, { call, jobs: list });
+// The card on a page and, beside it, the detail the 任务 console shows: what a job says in all.
+const jobs = (list, expandChunks) => h(React.Fragment, null, h(PdfConvertJobs, { call, jobs: list }),
+  ...list.filter(item => item.type === 'pdf-convert').map(item => h(PdfDetail, { key: item.id, job: item, expandChunks })));
 
 /* ---------- the window and its state ---------- */
 

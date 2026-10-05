@@ -78,7 +78,7 @@ test("calibration keeps only recent runs, clamps wild ratios and starts afresh f
 
 test("generation details show the tokens of each stage next to the estimate", async () => {
   const require = createRequire(import.meta.url);
-  const compiled = await build({ stdin: { contents: `export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { stageUsageRows } from './ui/generation-status.js'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+  const compiled = await build({ stdin: { contents: `export { default as GenerationTrace } from './ui/GenerationTrace.jsx'; export { stageUsageRows } from './ui/generation-status.js'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
     bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent" });
   const module = { exports: {} };
   new Function("require", "module", "exports", compiled.outputFiles[0].text)(require, module, module.exports);
@@ -91,11 +91,11 @@ test("generation details show the tokens of each stage next to the estimate", as
   assert.equal(rows.find((row) => row.code === "review").tokens, 9000);
   assert.deepEqual(rows.find((row) => row.code === "review").estimate, { low: 3000, high: 4000 });
   m.setUiLanguage("zh");
-  const out = renderToStaticMarkup(React.createElement(m.JobCard, { job: finished, jobs: [], drafts: [], busy: false, dismissJob: () => {} })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const out = renderToStaticMarkup(React.createElement(m.GenerationTrace, { job: finished, defaultOpen: true })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   assert.match(out, /各阶段用量/);
   assert.match(out, /独立审阅 9,?000 tok（预计 3,?000–4,?000）/);
   m.setUiLanguage("en");
-  const english = renderToStaticMarkup(React.createElement(m.JobCard, { job: finished, jobs: [], drafts: [], busy: false, dismissJob: () => {} })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const english = renderToStaticMarkup(React.createElement(m.GenerationTrace, { job: finished, defaultOpen: true })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   m.setUiLanguage("zh");
   assert.match(english, /Tokens per stage/);
   assert.match(english, /Independent review 9,?000 tok \(estimated 3,?000–4,?000\)/);

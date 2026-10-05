@@ -14,7 +14,7 @@ test('an audio task and a generation step become the same call shape', () => {
   const task = { id: 't1', kind: 'proofread', part: 6, parts: 9, stage: '校对 6/9', status: 'complete', runtime: 'subagent', childId: 'child-1', parentId: 'parent-1',
     slot: 2, startedAt: at(1), finishedAt: at(40), reasoning: 'high', inputChars: 5400, tokenUsage: { uncachedInputTokens: 900, outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 1 } };
   const call = unifyCall(task);
-  assert.deepEqual(Object.keys(call).sort(), ['childId', 'endedAt', 'id', 'kind', 'parentId', 'part', 'parts', 'reasoning', 'runner', 'slot', 'stage', 'startedAt', 'status', 'tokens'].sort());
+  assert.deepEqual(Object.keys(call).sort(), ['childId', 'endedAt', 'id', 'inputChars', 'kind', 'parentId', 'part', 'parts', 'reasoning', 'runner', 'slot', 'stage', 'startedAt', 'status', 'tokens'].sort());
   assert.equal(call.kind, 'proofread');
   assert.equal(call.status, 'ok');
   assert.equal(call.runner, 'subagent');

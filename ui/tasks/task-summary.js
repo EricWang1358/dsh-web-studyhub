@@ -38,7 +38,7 @@ export const taskPercent = (job) => contractOf(job).progress.percent;
 
 const AUDIO_PHASES = { queued: '排队中', read: '读取并切分音频', transcribe: '转写音频', proofread: '校对识别错误的词', translate: '翻译并整理成中英对照',
   batch: '按顺序整理逐字稿', assemble: '合成逐字稿', done: '完成' };
-const PDF_PHASES = { queued: '排队中', split: '切分', upload: '上传', parse: '解析', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
+const PDF_PHASES = { queued: '排队中', split: '切分', upload: '上传', parse: '解析文档', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
 const withCount = (label, { done, total } = {}) => (total > 0 && done !== undefined ? uiFormat('{0} · {1}/{2}', [label, Math.min(done + 1, total), total]) : label);
 
 /** A stage of a contract in words: `{ code, args }` to a short phrase. An unknown code falls back to the producer's own prose. */

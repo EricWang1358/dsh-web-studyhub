@@ -137,13 +137,12 @@ function home(data, props = {}) {
 }
 const partialJob = { id: "a", status: "complete", stageCode: "partial", draftId: "dr", savedCount: 10, requestedTotal: 20, parts: 6, stage: "Draft ready with 10/20 questions; 2 part(s) failed" };
 
-test("home: a short draft states how many it lacks and offers one top-up, with the reasons on the job card", () => {
+test("home: a short draft states how many it lacks and offers one top-up; the reasons are on the draft page, not on the card", () => {
   const html = home({ drafts: [legacyDraft()], jobs: [partialJob] });
   assert.match(html, /还差 10 题/, "the draft row itself says it is short");
   assert.equal((html.match(/继续补齐 10 题/g) || []).length, 1, "one top-up action");
-  assert.match(html, /提示或题干泄露了答案/);
-  assert.match(html, /第 2 批没有完成/);
   assert.doesNotMatch(html, /answerLeak|Assessment plan/, "no raw backend prose on the card");
+  assert.doesNotMatch(html, /<details/, "the card folds nothing: the reasons and the process are in the 任务 console and on the draft page");
 });
 
 test("home: while a top-up runs the button says so, the old card stops advising it and nothing says 补题中 for publishing", () => {
@@ -168,20 +167,17 @@ test("home: English renders without Chinese", () => {
   assert.match(visible, /Continue generation for 10 questions/);
 });
 
-test("home: an active top-up exposes saved progress and stop while execution and usage start folded", () => {
+test("home: an active top-up exposes saved progress and stop; its execution and usage are in the console", () => {
   const job = { id: "t", status: "running", stageCode: "planning", continued: true, draftId: "dr", count: 10, savedCount: 10,
     requestedTotal: 20, generationTimeoutSeconds: 300, totalTimeoutSeconds: 1200,
     estimate: { totalTokens: { low: 139000, high: 235000 }, calls: { low: 18, high: 22 } },
     steps: [{ id: "s", stage: "Planning evidence and learning targets", stageCode: "planning", status: "running" }] };
   const html = home({ drafts: [legacyDraft()], jobs: [job] });
-  assert.match(html, /class="sh-job__progress"/);
-  assert.match(html, /aria-valuemax="20"[^>]*aria-valuenow="10"/);
-  assert.match(html, /本次计划补 10 题/);
-  assert.match(html, /当前阶段/);
-  assert.match(html, /<button[^>]*>[^]*?停止<\/button>/, "the stop control is a JobRow action");
-  assert.doesNotMatch(/<details[^>]*class="generation-trace"[^>]*>/.exec(html)?.[0] || "", /\bopen\b/);
-  assert.match(html, /生成方式、用量与技术详情/);
-  assert.doesNotMatch(html, /已保存 10 题到草稿；其余批次仍在生成/, "saved count belongs to the progress summary once");
+  assert.match(html, /role="progressbar"[^>]*aria-valuenow="50"/);
+  assert.match(html, /草稿已保存 10\/20 题/);
+  assert.match(html, /<button[^>]*>[^]*?停止<\/button>/, "the stop control is the card's");
+  assert.doesNotMatch(html, /generation-trace|生成方式、用量与技术详情/, "the execution and usage details are in the console");
+  assert.match(html, /查看详情/);
   const en = inLanguage("en", () => home({ drafts: [{ ...legacyDraft(), title: "CQRS" }], jobs: [{ ...job, deckTitle: "CQRS" }] }));
   assert.doesNotMatch(en.replace(/<[^>]+>/g, " "), han);
 });

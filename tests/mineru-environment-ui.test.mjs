@@ -9,12 +9,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
-  export { PdfConvertJobs, PdfConvertHistory } from './ui/PdfConvertJob.jsx';
+  export { PdfConvertJobs, PdfConvertHistory, PdfDetail } from './ui/PdfConvertJob.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { PdfConvertJobs, PdfConvertHistory, setUiLanguage } = module.exports;
+const { PdfConvertJobs, PdfConvertHistory, PdfDetail, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -28,7 +28,9 @@ const windows = count => Array.from({ length: count }, (_, i) => ({ index: i + 1
 const job = (extra = {}) => ({ id: `j-${Math.random()}`, type: 'pdf-convert', route: 'local', tier: 'standard', filename: 'Operating Systems.pdf', status: 'running', phase: 'local', done: 100, total: 562,
   chunk: { index: 3, count: 12 }, chunks: windows(12), stage: '第 3/12 段 · 正在本地解析', warnings: [], note: '', startedAt: new Date(now - 90_000).toISOString(), env: localEnv,
   service: { state: 'running', basis: 'window', at: new Date(now - 20_000).toISOString() }, ...extra });
-const jobs = list => h(PdfConvertJobs, { call, jobs: list });
+// The card on a page and, beside it, the detail the 任务 console shows: what a job says in all.
+const jobs = (list, expandChunks) => h(React.Fragment, null, h(PdfConvertJobs, { call, jobs: list }),
+  ...list.filter(item => item.type === 'pdf-convert').map(item => h(PdfDetail, { key: item.id, job: item, expandChunks })));
 
 /* ---------- the live card ---------- */
 
@@ -95,7 +97,7 @@ test('a cloud run says what does the work: MinerU, the model version, the langua
   assert.match(html, /识别语言：ch/);
   assert.match(html, /使用你保存的令牌（令牌不会显示）/);
   assert.match(html, /每段不超过 200 页 \/ 180 MB · 本书 96 MB/);
-  assert.doesNotMatch(html, /本地服务|模型位置|data-state/);
+  assert.doesNotMatch(html, /本地服务|模型位置|pdf-env__service/);
 });
 
 test('a job from before the environment was kept has no block, and nothing is made up', () => {
@@ -120,7 +122,7 @@ test('more than eight windows collapse to "第 i / N 段" with a toggle, and ope
   assert.match(closed, /已完成 2 段/);
   assert.match(closed, /<button[^>]*aria-expanded="false"[^>]*>展开各段</);
   assert.doesNotMatch(closed, /<ol[^>]*pdf-chunks/);
-  const opened = render(h(PdfConvertJobs, { call, jobs: [job()], expandChunks: true }));
+  const opened = render(jobs([job()], true));
   assert.match(opened, /<button[^>]*aria-expanded="true"[^>]*>收起各段</);
   assert.equal((opened.match(/第 \d+ 段 · 第 [\d–]+ 页/g) || []).length, 12);
 });
@@ -171,7 +173,7 @@ test('English: no Chinese in any state of the environment block or the window li
     jobs([job()]), jobs([job({ env: { ...localEnv, device: 'cuda' } })]), jobs([job({ env: { ...localEnv, tier: 'basic' } })]), jobs([job({ env: { ...localEnv, tier: 'advanced', modelsRealPath: undefined } })]),
     jobs([job({ service: stopped })]), jobs([job({ service: { state: 'unknown', basis: 'none', at: new Date(now).toISOString() } })]),
     jobs([job({ status: 'failed', retryable: true, errorCode: 'server-stopped', service: stopped, stage: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。' })]),
-    jobs([job({ route: 'cloud', tier: undefined, env: cloudEnv, service: undefined, chunks: windows(3) })]), jobs([job({ chunks: windows(6) })]), h(PdfConvertJobs, { call, jobs: [job()], expandChunks: true }),
+    jobs([job({ route: 'cloud', tier: undefined, env: cloudEnv, service: undefined, chunks: windows(3) })]), jobs([job({ chunks: windows(6) })]), jobs([job()], true),
     history([record(), record({ route: 'cloud', tier: undefined, env: { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * MB, bookBytes: 96 * MB } }),
       record({ status: 'failed', failure: { stage: 'local', code: 'server-stopped', reason: 'x' }, canRetry: true })]),
   ];
