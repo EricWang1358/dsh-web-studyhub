@@ -15,6 +15,13 @@ const LAYOUT = /\t|\S {3,}\S|\|.*\||[│┃┆┊┌└├╭╰╔╚]/;
 /* A transcript part: a line that is one 【…】 label, as the transcript importer writes them. */
 const SEGMENT_MARK = /^【([^】\n]{1,80})】[ \t]*$/;
 
+/* A thematic break as Markdown writes it: three or more of one of - * _ (spaces between allowed) alone on a line. The divider an audio
+   transcript keeps between its parts is one. */
+const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+
+/** Whether a line is a thematic break (a standalone one: it is the whole paragraph, not an underline under a line of text). */
+export const isThematicBreak = line => THEMATIC_BREAK.test(String(line ?? ''));
+
 /* A Markdown heading line ("# 标题"), as pasted notes and saved Markdown text keep them. */
 const MARKDOWN_HEADING = /^(#{1,6}[ \t]+)\S/;
 
@@ -41,7 +48,7 @@ function splitHeadingLines(chunk) {
   return at > 0 && headingMark(chunk) ? [chunk.slice(0, at), ...splitHeadingLines(chunk.slice(at + 1))] : [chunk];
 }
 
-/** Paragraphs split at blank lines: [{ kind: 'heading' | 'prose' | 'lines' | 'layout', text, lines }]. */
+/** Paragraphs split at blank lines: [{ kind: 'heading' | 'rule' | 'prose' | 'lines' | 'layout', text, lines }]. */
 export function splitParagraphs(text) {
   // A Markdown heading is its own paragraph even when the text follows on the next line.
   const chunks = String(text || '').replace(/\r\n?/g, '\n').split(/\n[ \t]*\n+/)
@@ -49,6 +56,8 @@ export function splitParagraphs(text) {
     .flatMap(splitHeadingLines);
   return chunks.map((chunk, index) => {
     const lines = chunk.split('\n');
+    // A line of dashes between blank lines is a break, never a heading (it is short enough to look like one) and never text.
+    if (lines.length === 1 && isThematicBreak(lines[0])) return { kind: 'rule', text: chunk, lines };
     const heading = lines.length === 1 && (!!headingMark(lines[0]) || (looksLikeHeading(lines[0]) && (index < chunks.length - 1 || index === 0)));
     return { kind: heading ? 'heading' : classifyParagraph(lines), text: chunk, lines };
   });
