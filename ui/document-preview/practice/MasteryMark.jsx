@@ -25,7 +25,7 @@ export function MasteryMark({ summary, title = '', size = 14, className = '' }) 
   </span>;
 }
 
-/** The mark with its words: "掌握 62% · 12 题", or "还没出题". */
+/** The mark with its words: "掌握 62% · 12 题", "还没发布 · 草稿里有 3 题" or "还没出题". Drafts beside published questions are in the mark's name and tooltip (markLabel), so a row never grows. */
 export function MasteryLine({ summary, title = '', className = '' }) {
   useInjectCss(css, 'study-reading-loop');
   const state = summary?.total ? summary.state : 'none';

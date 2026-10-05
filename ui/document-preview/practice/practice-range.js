@@ -106,13 +106,20 @@ const same = (a, b) => a.size === b.size && [...a].every(id => b.has(id));
  *  recent    the entries visited in this session (`visited`, ids), when there are at least two and they are not just "here"/"chapter"
  *  document  the whole document, only when no entry could hold the questions (no outline), or when more questions exist than any option holds
  * `all` are every question of the document (for the whole-document option).
+ * With `draftAssigned` / `draftAll` (the questions still in drafts, placed like the published ones: `{ deckId: <draft id>, cardId, links }`),
+ * every option also carries `draftCards` (the draft questions of its range, once each) and `draftIds` (the drafts they are in).
  */
-export function rangeOptions({ outline, activeId, visited = [], assigned, chapter = null, all = [] }) {
+export function rangeOptions({ outline, activeId, visited = [], assigned, chapter = null, all = [], draftAssigned, draftAll = [] }) {
   const options = [];
   const make = (kind, ids) => ({ kind, ids, count: ids.size, ...rangeCards(ids, assigned) });
+  const withDrafts = option => {
+    if (!draftAssigned) return option;
+    const list = option.ids ? rangeCards(option.ids, draftAssigned).cards : draftAll;
+    return { ...option, draftCards: list.length, draftIds: [...new Set(list.map(card => card.deckId))] };
+  };
   if (!outline.length) {
     const list = all.length ? all : [...assigned.values()].flatMap(map => [...map.values()]);
-    return [{ kind: 'document', ids: null, count: 0, cards: list, summary: summarizeLinked(list) }];
+    return [withDrafts({ kind: 'document', ids: null, count: 0, cards: list, summary: summarizeLinked(list) })];
   }
   const current = outline.some(item => item.id === activeId) ? activeId : outline[0].id;
   const here = make('here', subtreeIds(outline, current));
@@ -124,8 +131,16 @@ export function rangeOptions({ outline, activeId, visited = [], assigned, chapte
   const known = visited.filter(id => outline.some(item => item.id === id));
   if (known.length >= 2 && !same(seen, here.ids) && !(chapterIds && same(seen, chapterIds))) options.push({ ...make('recent', seen), count: known.length });
   const largest = Math.max(...options.map(option => option.summary.total));
-  if (all.length > largest) options.push({ kind: 'document', ids: null, count: 0, cards: all, summary: summarizeLinked(all) });
-  return options;
+  const drafted = options.map(withDrafts), largestDrafts = Math.max(0, ...drafted.map(option => option.draftCards || 0));
+  if (all.length > largest || draftAll.length > largestDrafts) drafted.push(withDrafts({ kind: 'document', ids: null, count: 0, cards: all, summary: summarizeLinked(all) }));
+  return drafted;
+}
+
+/** The first of an option's drafts that still exists (one may have been published or deleted since), or null: the draft the reader opens. */
+export function draftToOpen(draftIds, drafts) {
+  const known = new Map((drafts || []).map(draft => [draft.id, draft]));
+  for (const id of draftIds || []) if (known.has(id)) return known.get(id);
+  return null;
 }
 
 /** The sources an option covers, in reading order (for 为这几页出题): the pages of the entries, else the whole document. */

@@ -5,11 +5,12 @@ import { RelatedTasks } from '../../DailyPlan.jsx';
 import { DocumentViewer } from '../../workspace-views.jsx';
 import { ReaderHeading } from '../../document-preview/RenameTitle.jsx';
 import { documentSourceIds } from '../../../lib/source-groups.js';
+import { draftToOpen } from '../../document-preview/practice/practice-range.js';
 import { useApp } from '../app-context.js';
 
 /** The reader: a material full-size, with the questions and tasks that belong to it. Opens at a quote or where the learner stopped reading. */
 export default function SourceReaderDialog({ modal, onClose }) {
-  const { data, host, core, nav, learn, intents, dailyPlan, selectionNotices } = useApp();
+  const { data, host, core, nav, learn, intents, drafts, dailyPlan, selectionNotices } = useApp();
   const { call, act, busy, refresh } = core;
   const toast = useToast();
   const source = modal.source;
@@ -41,6 +42,12 @@ export default function SourceReaderDialog({ modal, onClose }) {
             onPractice={({ deckId, cardIds }) => learn.openLearningTarget({ kind: 'cards', deckId, cardIds })}
             onPracticePages={intents.practiceFromReading}
             onGeneratePages={(ids) => intents.goGenerate({ sourceIds: ids, remember: true, closeModal: true })} resume={modal.resume}
+            onOpenDraftPages={(draftIds) => {
+              // The questions of these pages are still in a draft: the same 草稿 page the home card and 检查并发布草稿 open.
+              const draft = draftToOpen(draftIds, data.drafts);
+              if (!draft) { toast.error(ui('这份草稿已经不在了，可能已发布或删除。')); return; }
+              onClose(); drafts.openDraft(draft, { navigation: true });
+            }}
             backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? onClose : undefined}
             onStarted={(started) => { selectionNotices.track(started.jobId); return refresh(); }}
             onCaseFromPassage={(passage) => intents.goGenerate({ source: 'case', remember: true, closeModal: true,

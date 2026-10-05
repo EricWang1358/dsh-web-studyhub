@@ -29,7 +29,7 @@ function chapterPagesOf(item, page) {
  */
 export function useReadingLoop({ call, document, source, version, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume }) {
   const documentId = document?.documentId || document?.id;
-  const [state, setState] = useState({ status: 'loading', cards: [], summary: summarizeLinked([]), inactiveCourses: [] });
+  const [state, setState] = useState({ status: 'loading', cards: [], summary: summarizeLinked([]), inactiveCourses: [], drafts: [] });
   const [reloads, setReloads] = useState(0), [open, setOpenState] = useState(false), [choice, setChoice] = useState(null);
   const [visited, setVisited] = useState([]), [note, setNote] = useState('');
 
@@ -41,23 +41,28 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
         const result = await call('materials.pages.cards', { documentId, sourceId: source.id });
         if (!live()) return;
         if (result?.status === 'unavailable') setState(current => ({ ...current, status: 'unavailable' }));
-        else setState({ status: 'ready', cards: result?.cards || [], summary: result?.summary || summarizeLinked([]), inactiveCourses: result?.inactiveCourses || [] });
+        else setState({ status: 'ready', cards: result?.cards || [], summary: result?.summary || summarizeLinked([]), inactiveCourses: result?.inactiveCourses || [],
+          // The questions still in drafts (not published, so not practisable), placed like the published ones: `deckId` holds the draft id.
+          drafts: (result?.draftEntries || []).map(entry => ({ deckId: entry.draftId, cardId: entry.cardId, links: entry.links || [] })) });
       } catch (error) { if (live()) setState(current => ({ ...current, status: 'error', message: error.message })); }
     })();
   }, [call, documentId, source.id, version, reloads]);
   const reload = useCallback(() => { setState(current => ({ ...current, status: 'loading' })); setReloads(count => count + 1); }, []);
 
   // 2. Where each question is in what is drawn. Pages of a PDF or slides are their own sections; anything else is read from the text.
-  const [placed, setPlaced] = useState({ assigned: new Map(), unplaced: [] });
+  const [placed, setPlaced] = useState({ assigned: new Map(), unplaced: [], draftAssigned: new Map() });
   const pageSections = useMemo(() => paged && outline.length > 0 && sections.length > 0 && outline.every(item => sections.some(section => section.id === item.id)), [paged, outline, sections]);
   useIsoLayoutEffect(() => {
     if (state.status !== 'ready') return;
     if (pageSections) {
       const bySource = new Map(sections.filter(section => section.sourceId).map(section => [section.sourceId, section.id]));
-      setPlaced(assignCards(state.cards, link => bySource.get(link.sourceId) ?? null));
-    } else if (!loading && outline.length) setPlaced(assignCards(state.cards, domPlacer({ root: body.current, items: outline, cards: state.cards })));
-    else setPlaced({ assigned: new Map(), unplaced: state.cards });
-  }, [state.status, state.cards, pageSections, sections, outline, loading, rendered, body]);
+      const place = link => bySource.get(link.sourceId) ?? null;
+      setPlaced({ ...assignCards(state.cards, place), draftAssigned: assignCards(state.drafts, place).assigned });
+    } else if (!loading && outline.length) {
+      const place = domPlacer({ root: body.current, items: outline, cards: [...state.cards, ...state.drafts] });
+      setPlaced({ ...assignCards(state.cards, place), draftAssigned: assignCards(state.drafts, place).assigned });
+    } else setPlaced({ assigned: new Map(), unplaced: state.cards, draftAssigned: new Map() });
+  }, [state.status, state.cards, state.drafts, pageSections, sections, outline, loading, rendered, body]);
 
   // 3. What has been read in this session: the entries the reading position passed through.
   useEffect(() => { setVisited([]); }, [documentId, source.id]);
@@ -67,7 +72,8 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const here = useMemo(() => outline.find(item => item.id === activeId) || null, [outline, activeId]);
   const chapter = useMemo(() => chapterEntryIds(outline, activeId, { chapterLevel, chapterPages: pageSections ? chapterPagesOf(documentItem, here?.page) : null }), [outline, activeId, chapterLevel, pageSections, documentItem, here]);
   const options = useMemo(() => state.status === 'ready'
-    ? rangeOptions({ outline, activeId, visited, assigned: placed.assigned, chapter, all: state.cards }) : [], [state.status, outline, activeId, visited, placed.assigned, chapter, state.cards]);
+    ? rangeOptions({ outline, activeId, visited, assigned: placed.assigned, chapter, all: state.cards, draftAssigned: placed.draftAssigned, draftAll: state.drafts }) : [],
+  [state.status, outline, activeId, visited, placed.assigned, placed.draftAssigned, chapter, state.cards, state.drafts]);
   const hasChapters = !!chapterLevel || !!documentItem?.chapters?.length;
   const fallback = (hasChapters && options.find(option => option.kind === 'chapter')) || options.find(option => option.kind === 'here') || options[0] || null;
   const selected = (choice && options.find(option => option.kind === choice)) || fallback;
